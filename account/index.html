@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LastMind – Account</title>
+<style>
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+    :root {
+        --bg: #1A1A1C;
+        --panel: #201F21;
+        --text: #E6D7B0;
+        --accent: #E6D7B0;
+    }
+
+    button, input {
+        font-family: inherit;
+        color: var(--text);
+        background: transparent;
+    }
+
+    html, body { height: 100%; }
+
+    body {
+        background-color: var(--bg);
+        color: var(--text);
+        font-family: 'Georgia', serif;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+    }
+
+    .card {
+        width: 100%;
+        max-width: 380px;
+        background: var(--panel);
+        border: 1px solid rgba(230, 215, 176, 0.15);
+        border-radius: 8px;
+        padding: 36px 32px;
+    }
+
+    .logo {
+        font-size: 1.2rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        color: var(--accent);
+        text-transform: uppercase;
+        text-align: center;
+        margin-bottom: 28px;
+    }
+
+    .tabs {
+        display: flex;
+        border: 1px solid rgba(230, 215, 176, 0.2);
+        border-radius: 4px;
+        overflow: hidden;
+        margin-bottom: 24px;
+    }
+
+    .tab-btn {
+        flex: 1;
+        padding: 10px;
+        border: none;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.82rem;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+        opacity: 0.6;
+    }
+
+    .tab-btn.active {
+        background: var(--accent);
+        color: var(--bg);
+        opacity: 1;
+    }
+
+    .field { margin-bottom: 14px; }
+
+    .field label {
+        display: block;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.7rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        opacity: 0.6;
+        margin-bottom: 6px;
+    }
+
+    .field input {
+        width: 100%;
+        border: 1px solid rgba(230, 215, 176, 0.2);
+        border-radius: 4px;
+        padding: 10px 12px;
+        font-size: 0.9rem;
+    }
+
+    .field input:focus {
+        outline: none;
+        border-color: rgba(230, 215, 176, 0.5);
+    }
+
+    .primary-btn {
+        width: 100%;
+        margin-top: 6px;
+        background: var(--accent);
+        color: var(--bg);
+        border: none;
+        border-radius: 4px;
+        padding: 11px;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.85rem;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+    }
+
+    .primary-btn:hover { opacity: 0.9; }
+
+    .primary-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+
+    .link-btn {
+        display: block;
+        width: 100%;
+        text-align: center;
+        margin-top: 14px;
+        background: none;
+        border: none;
+        color: var(--text);
+        opacity: 0.6;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.78rem;
+        text-decoration: underline;
+        cursor: pointer;
+    }
+
+    .link-btn:hover { opacity: 1; }
+
+    .status {
+        margin-top: 16px;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.78rem;
+        line-height: 1.6;
+        opacity: 0.8;
+        min-height: 1em;
+        text-align: center;
+    }
+
+    .status.error { color: #e6b0a8; opacity: 1; }
+
+    .panel-view { display: none; }
+    .panel-view.active { display: block; }
+
+    .session-info {
+        text-align: center;
+    }
+
+    .session-email {
+        font-size: 0.95rem;
+        margin-bottom: 4px;
+        word-break: break-all;
+    }
+
+    .session-sub {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.72rem;
+        opacity: 0.5;
+        margin-bottom: 22px;
+    }
+</style>
+</head>
+<body>
+
+<div class="card">
+    <div class="logo">LastMind</div>
+
+    <!-- ─── LOGGED IN VIEW ─── -->
+    <div class="panel-view" id="sessionView">
+        <div class="session-info">
+            <div class="session-email" id="sessionEmail"></div>
+            <div class="session-sub">Signed in</div>
+            <button class="primary-btn" id="logoutBtn">Log Out</button>
+        </div>
+    </div>
+
+    <!-- ─── PASSWORD RECOVERY VIEW ─── -->
+    <div class="panel-view" id="recoveryView">
+        <div class="field">
+            <label for="newPasswordInput">New Password</label>
+            <input type="password" id="newPasswordInput" placeholder="At least 6 characters" autocomplete="new-password">
+        </div>
+        <button class="primary-btn" id="setNewPasswordBtn">Set New Password</button>
+        <div class="status" id="recoveryStatus"></div>
+    </div>
+
+    <!-- ─── AUTH VIEW (login / signup / forgot) ─── -->
+    <div class="panel-view active" id="authView">
+        <div class="tabs" id="tabs">
+            <button class="tab-btn active" id="loginTab">Log In</button>
+            <button class="tab-btn" id="signupTab">Sign Up</button>
+        </div>
+
+        <div class="field">
+            <label for="emailInput">Email</label>
+            <input type="email" id="emailInput" placeholder="you@example.com" autocomplete="email">
+        </div>
+        <div class="field" id="passwordField">
+            <label for="passwordInput">Password</label>
+            <input type="password" id="passwordInput" placeholder="At least 6 characters" autocomplete="current-password">
+        </div>
+
+        <button class="primary-btn" id="submitBtn">Log In</button>
+        <button class="link-btn" id="forgotBtn">Forgot your password?</button>
+
+        <div class="status" id="authStatus"></div>
+    </div>
+</div>
+
+<!-- Supabase JS client, loaded from Supabase's own CDN — no custom backend involved. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+    // ── Supabase project config ──
+    // Note: the client wants the bare project URL, not the /rest/v1/ path —
+    // it appends /auth/v1/, /rest/v1/, etc. itself as needed.
+    const SUPABASE_URL = 'https://evgdecewwmkupiadgfop.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2Z2RlY2V3d21rdXBpYWRnZm9wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyODY2MjgsImV4cCI6MjEwMDg2MjYyOH0.W9_7TcBqW1Bjfag5XNTStAwNNNi7VJohr6IotjmI-4s';
+
+    // The anon key is DESIGNED to be public/embedded in frontend code like this —
+    // that's what it's for. Actual data protection comes from your Row Level
+    // Security (RLS) policies on each table, not from hiding this key.
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    /* ───────────────────────── Core auth functions ───────────────────────── */
+
+    async function signUp(email, password) {
+        return supabaseClient.auth.signUp({ email, password });
+    }
+
+    async function signIn(email, password) {
+        return supabaseClient.auth.signInWithPassword({ email, password });
+    }
+
+    async function getSession() {
+        return supabaseClient.auth.getSession();
+    }
+
+    async function signOut() {
+        return supabaseClient.auth.signOut();
+    }
+
+    async function resetPassword(email) {
+        // redirectTo points back at this same page — when the user clicks the
+        // emailed link, Supabase appends a recovery token to the URL, this page
+        // detects it (see onAuthStateChange below) and shows the "set new
+        // password" view automatically.
+        return supabaseClient.auth.resetPasswordForEmail(email, {
+            redirectTo: window.location.origin + window.location.pathname
+        });
+    }
+
+    /* ───────────────────────── UI wiring ───────────────────────── */
+
+    const authView = document.getElementById('authView');
+    const sessionView = document.getElementById('sessionView');
+    const recoveryView = document.getElementById('recoveryView');
+
+    const loginTab = document.getElementById('loginTab');
+    const signupTab = document.getElementById('signupTab');
+    const emailInput = document.getElementById('emailInput');
+    const passwordInput = document.getElementById('passwordInput');
+    const passwordField = document.getElementById('passwordField');
+    const submitBtn = document.getElementById('submitBtn');
+    const forgotBtn = document.getElementById('forgotBtn');
+    const authStatus = document.getElementById('authStatus');
+
+    const sessionEmailEl = document.getElementById('sessionEmail');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    const newPasswordInput = document.getElementById('newPasswordInput');
+    const setNewPasswordBtn = document.getElementById('setNewPasswordBtn');
+    const recoveryStatus = document.getElementById('recoveryStatus');
+
+    let mode = 'login'; // 'login' | 'signup' | 'forgot'
+
+    function showView(view) {
+        [authView, sessionView, recoveryView].forEach((v) => v.classList.remove('active'));
+        view.classList.add('active');
+    }
+
+    function setStatus(el, text, isError) {
+        el.textContent = text || '';
+        el.classList.toggle('error', !!isError);
+    }
+
+    function setMode(newMode) {
+        mode = newMode;
+        setStatus(authStatus, '');
+
+        loginTab.classList.toggle('active', mode === 'login');
+        signupTab.classList.toggle('active', mode === 'signup');
+
+        if (mode === 'forgot') {
+            passwordField.style.display = 'none';
+            submitBtn.textContent = 'Send Reset Email';
+            forgotBtn.textContent = 'Back to log in';
+        } else {
+            passwordField.style.display = 'block';
+            submitBtn.textContent = mode === 'login' ? 'Log In' : 'Sign Up';
+            forgotBtn.textContent = 'Forgot your password?';
+        }
+    }
+
+    loginTab.addEventListener('click', () => setMode('login'));
+    signupTab.addEventListener('click', () => setMode('signup'));
+    forgotBtn.addEventListener('click', () => setMode(mode === 'forgot' ? 'login' : 'forgot'));
+
+    submitBtn.addEventListener('click', async () => {
+        const email = emailInput.value.trim();
+        const password = passwordInput.value;
+
+        if (!email) {
+            setStatus(authStatus, 'Enter your email.', true);
+            return;
+        }
+
+        submitBtn.disabled = true;
+        setStatus(authStatus, '');
+
+        try {
+            if (mode === 'forgot') {
+                const { error } = await resetPassword(email);
+                if (error) {
+                    setStatus(authStatus, error.message, true);
+                } else {
+                    setStatus(authStatus, 'Check your email for a password reset link.');
+                }
+                return;
+            }
+
+            if (!password || password.length < 6) {
+                setStatus(authStatus, 'Password must be at least 6 characters.', true);
+                return;
+            }
+
+            if (mode === 'signup') {
+                const { data, error } = await signUp(email, password);
+                if (error) {
+                    setStatus(authStatus, error.message, true);
+                    return;
+                }
+                if (data.session) {
+                    // Email confirmation is off in your Supabase project settings —
+                    // the user is already signed in.
+                    renderSession(data.session);
+                } else {
+                    setStatus(authStatus, 'Check your email to confirm your account before logging in.');
+                }
+            } else {
+                const { data, error } = await signIn(email, password);
+                if (error) {
+                    setStatus(authStatus, error.message, true);
+                    return;
+                }
+                renderSession(data.session);
+            }
+        } catch (err) {
+            setStatus(authStatus, 'Something went wrong. Please try again.', true);
+            console.error('LastMind auth error:', err);
+        } finally {
+            submitBtn.disabled = false;
+        }
+    });
+
+    logoutBtn.addEventListener('click', async () => {
+        logoutBtn.disabled = true;
+        const { error } = await signOut();
+        logoutBtn.disabled = false;
+        if (error) {
+            console.error('LastMind: sign out failed.', error);
+            return;
+        }
+        emailInput.value = '';
+        passwordInput.value = '';
+        setMode('login');
+        showView(authView);
+    });
+
+    setNewPasswordBtn.addEventListener('click', async () => {
+        const newPassword = newPasswordInput.value;
+        if (!newPassword || newPassword.length < 6) {
+            setStatus(recoveryStatus, 'Password must be at least 6 characters.', true);
+            return;
+        }
+
+        setNewPasswordBtn.disabled = true;
+        const { data, error } = await supabaseClient.auth.updateUser({ password: newPassword });
+        setNewPasswordBtn.disabled = false;
+
+        if (error) {
+            setStatus(recoveryStatus, error.message, true);
+            return;
+        }
+
+        setStatus(recoveryStatus, 'Password updated. You are now signed in.');
+        setTimeout(() => renderSession(data.user ? { user: data.user } : null), 1200);
+    });
+
+    function renderSession(session) {
+        if (!session) {
+            showView(authView);
+            return;
+        }
+        sessionEmailEl.textContent = session.user ? session.user.email : '';
+        showView(sessionView);
+    }
+
+    /* ───────────────────────── Boot ───────────────────────── */
+
+    // Supabase's client persists sessions in localStorage automatically (this
+    // is its "built-in session handling" — no extra code needed to keep
+    // someone logged in across page reloads).
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+        if (event === 'PASSWORD_RECOVERY') {
+            showView(recoveryView);
+            return;
+        }
+        if (event === 'SIGNED_OUT') {
+            showView(authView);
+            return;
+        }
+        if (session) {
+            renderSession(session);
+        }
+    });
+
+    (async function boot() {
+        const { data } = await getSession();
+        if (data.session) {
+            renderSession(data.session);
+        }
+    })();
+</script>
+
+</body>
+</html>
