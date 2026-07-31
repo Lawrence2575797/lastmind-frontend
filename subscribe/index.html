@@ -456,7 +456,7 @@
             border: 1px solid rgba(230, 215, 176, 0.25);
             border-radius: 8px;
             padding: 44px 40px 36px;
-            max-width: 640px;
+            max-width: 400px;
             width: 100%;
             text-align: center;
         }
@@ -517,28 +517,32 @@
             display: none;
         }
 
-        .modal-columns {
+        .signed-in-strip {
             display: flex;
-            gap: 36px;
-            align-items: stretch;
+            align-items: center;
+            justify-content: space-between;
+            font-family: 'Arial', sans-serif;
+            font-size: 0.75rem;
+            color: var(--text);
+            opacity: 0.7;
+            margin-bottom: 18px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid rgba(230, 215, 176, 0.15);
         }
 
-        .modal-col {
-            flex: 1;
-            min-width: 0;
+        .signed-in-strip .account-link-btn {
+            margin-top: 0;
+            width: auto;
         }
 
-        .modal-col-divider {
-            width: 1px;
-            background: rgba(230, 215, 176, 0.15);
-            flex-shrink: 0;
-        }
-
-        .modal-col h4 {
-            font-size: 1rem;
+        .modal-step h4 {
+            font-size: 0.85rem;
+            letter-spacing: 0.04em;
             color: var(--accent);
             font-weight: 700;
+            text-transform: uppercase;
             margin-bottom: 18px;
+            text-align: center;
         }
 
         .account-form {
@@ -728,16 +732,6 @@
 
             .modal {
                 padding: 36px 26px 30px;
-            }
-
-            .modal-columns {
-                flex-direction: column;
-                gap: 28px;
-            }
-
-            .modal-col-divider {
-                width: 100%;
-                height: 1px;
             }
         }
     </style>
@@ -932,50 +926,47 @@
                 <label for="ageConfirmCheckbox">I confirm that I am at least 13 years old.</label>
             </div>
 
-            <div class="modal-columns">
-                <div class="modal-col">
-                    <h4>Subscribe to LastMind</h4>
-                    <p class="modal-price">£15 / month</p>
-                    <div class="paypal-lock-wrap">
-                        <div id="paypal-button-container"></div>
-                        <div class="paypal-lock-overlay" id="paypalLockOverlay">Confirm your age above to continue</div>
-                    </div>
-                    <p class="modal-note">Payment is handled securely by PayPal. LastMind does not see or store your card or account details.</p>
-                </div>
+            <!-- STEP 1: create/log into an account -->
+            <div class="modal-step" id="accountStep">
+                <h4>Step 1 of 2 — Create your account</h4>
 
-                <div class="modal-col-divider"></div>
-
-                <div class="modal-col">
-                    <h4>Already have an account?</h4>
-
-                    <div class="account-session-view" id="acctSessionView">
-                        <p class="account-status" id="acctSessionEmail" style="opacity:0.85;"></p>
-                        <button class="account-submit-btn" id="acctLogoutBtn">Log Out</button>
+                <div class="account-form-view" id="acctFormView">
+                    <div class="account-tabs" id="acctTabs">
+                        <button class="account-tab-btn active" id="acctLoginTab">Log In</button>
+                        <button class="account-tab-btn" id="acctSignupTab">Sign Up</button>
                     </div>
 
-                    <div class="account-form-view" id="acctFormView">
-                        <div class="account-tabs" id="acctTabs">
-                            <button class="account-tab-btn active" id="acctLoginTab">Log In</button>
-                            <button class="account-tab-btn" id="acctSignupTab">Sign Up</button>
+                    <div class="account-form">
+                        <div class="account-field">
+                            <label for="acctEmailInput">Email</label>
+                            <input type="email" id="acctEmailInput" placeholder="you@example.com" autocomplete="email">
+                        </div>
+                        <div class="account-field" id="acctPasswordField">
+                            <label for="acctPasswordInput">Password</label>
+                            <input type="password" id="acctPasswordInput" placeholder="At least 6 characters" autocomplete="current-password">
                         </div>
 
-                        <div class="account-form">
-                            <div class="account-field">
-                                <label for="acctEmailInput">Email</label>
-                                <input type="email" id="acctEmailInput" placeholder="you@example.com" autocomplete="email">
-                            </div>
-                            <div class="account-field" id="acctPasswordField">
-                                <label for="acctPasswordInput">Password</label>
-                                <input type="password" id="acctPasswordInput" placeholder="At least 6 characters" autocomplete="current-password">
-                            </div>
+                        <button class="account-submit-btn" id="acctSubmitBtn">Log In</button>
+                        <button class="account-link-btn" id="acctForgotBtn">Forgot your password?</button>
 
-                            <button class="account-submit-btn" id="acctSubmitBtn">Log In</button>
-                            <button class="account-link-btn" id="acctForgotBtn">Forgot your password?</button>
-
-                            <div class="account-status" id="acctStatus"></div>
-                        </div>
+                        <div class="account-status" id="acctStatus"></div>
                     </div>
                 </div>
+            </div>
+
+            <!-- STEP 2: pay — only reachable once Step 1 is done -->
+            <div class="modal-step" id="paymentStep" style="display:none;">
+                <div class="signed-in-strip">
+                    <span id="acctSessionEmail"></span>
+                    <button class="account-link-btn" id="acctLogoutBtn">Log Out</button>
+                </div>
+                <h4>Step 2 of 2 — Subscribe</h4>
+                <p class="modal-price">£15 / month</p>
+                <div class="paypal-lock-wrap">
+                    <div id="paypal-button-container"></div>
+                    <div class="paypal-lock-overlay" id="paypalLockOverlay">Confirm your age above to continue</div>
+                </div>
+                <p class="modal-note">Payment is handled securely by PayPal. LastMind does not see or store your card or account details.</p>
             </div>
         </div>
     </div>
@@ -1152,7 +1143,8 @@
             });
         }
 
-        const acctSessionView = document.getElementById('acctSessionView');
+        const accountStep = document.getElementById('accountStep');
+        const paymentStep = document.getElementById('paymentStep');
         const acctFormView = document.getElementById('acctFormView');
         const acctSessionEmail = document.getElementById('acctSessionEmail');
         const acctLogoutBtn = document.getElementById('acctLogoutBtn');
@@ -1201,15 +1193,19 @@
             }
         }
 
+        // Step 1 (account) -> Step 2 (payment) — this is the sequencing fix:
+        // creating/logging into an account just moves you to the payment
+        // step, it does NOT by itself grant access to /learn. Only a real
+        // PayPal-derived JWT does that (see /learn's gate).
         function renderAccountSession(session) {
             if (!session) {
-                acctSessionView.classList.remove('active');
-                acctFormView.classList.remove('hidden');
+                accountStep.style.display = 'block';
+                paymentStep.style.display = 'none';
                 return;
             }
-            acctSessionEmail.textContent = session.user ? session.user.email : '';
-            acctSessionView.classList.add('active');
-            acctFormView.classList.add('hidden');
+            acctSessionEmail.textContent = session.user ? `Signed in as ${session.user.email}` : 'Signed in';
+            accountStep.style.display = 'none';
+            paymentStep.style.display = 'block';
         }
 
         acctLoginTab.addEventListener('click', () => setAcctMode('login'));

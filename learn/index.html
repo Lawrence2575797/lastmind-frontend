@@ -678,13 +678,9 @@
 </div>
 
 <!-- Fill this in with your backend's real base URL -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
     const BACKEND_URL = 'https://lastmind-webhook-backend.onrender.com'; // PayPal webhook / JWT backend — live on Render
     const COMPILE_BACKEND_URL = 'https://lastmind-compile-backend.onrender.com'; // Claude compile backend — live
-    const SUPABASE_URL = 'https://evgdecewwmkupiadgfop.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2Z2RlY2V3d21rdXBpYWRnZm9wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyODY2MjgsImV4cCI6MjEwMDg2MjYyOH0.W9_7TcBqW1Bjfag5XNTStAwNNNi7VJohr6IotjmI-4s';
-    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1zbd3WFoEjF/YM59jZGl
 1DpydTgsbPZYN8g3iI858q5RuucfuWRXkWhmRw/JO9acJlwjwcqjFl4SnJA+iTsF
@@ -1412,22 +1408,13 @@ UwIDAQAB
             return;
         }
 
-        // No valid PayPal-derived JWT — fall back to checking whether the
-        // person is logged in via Supabase instead. supabase-js persists
-        // sessions in this browser's localStorage automatically, so if they
-        // logged in on /subscribe (same origin), that session is already
-        // here — no extra request needed beyond this local check.
-        const { data: supabaseSessionData } = await supabaseClient.auth.getSession();
-        if (supabaseSessionData.session) {
-            document.getElementById('gate-message').style.display = 'none';
-            document.getElementById('app').style.display = 'block';
-            await refreshFolderList();
-            return;
-        }
-
+        // Having a Supabase account/session is no longer treated as proof of
+        // payment — creating an account is just step 1 of signup now, with
+        // PayPal payment as the required step 2. Only a real PayPal-derived
+        // JWT grants access here.
         window.location.href = '/subscribe';
     })();
 </script>
 
 </body>
-</html> 
+</html>
