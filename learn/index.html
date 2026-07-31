@@ -152,6 +152,9 @@
     .sidebar-footer {
         padding: 12px 10px;
         border-top: 1px solid rgba(230, 215, 176, 0.1);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
     }
 
     .manage-subscription-btn {
@@ -505,6 +508,22 @@
         min-height: 1em;
     }
 
+    .account-status {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.75rem;
+        letter-spacing: 0.03em;
+        color: var(--text);
+        opacity: 0.65;
+        margin-top: 10px;
+        min-height: 1em;
+        text-align: center;
+    }
+
+    .account-status.error {
+        color: #e6b0a8;
+        opacity: 1;
+    }
+
     /* ─── MODAL ─── */
     .modal-overlay {
         display: none;
@@ -650,6 +669,7 @@
             </div>
 
             <div class="sidebar-footer">
+                <button class="manage-subscription-btn" id="accountSettingsBtn">Account Settings</button>
                 <button class="manage-subscription-btn" id="manageSubscriptionBtn">Manage Subscription</button>
             </div>
         </aside>
@@ -701,6 +721,24 @@
             <button class="btn" id="cancelFolderBtn">Cancel</button>
             <button class="btn primary" id="submitFolderBtn">Create</button>
         </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="accountSettingsOverlay">
+    <div class="modal">
+        <h3>Account Settings</h3>
+
+        <div class="field">
+            <label for="newAccountPasswordInput">New Password</label>
+            <input type="password" id="newAccountPasswordInput" placeholder="At least 6 characters" autocomplete="new-password">
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn" id="cancelAccountSettingsBtn">Cancel</button>
+            <button class="btn primary" id="saveAccountSettingsBtn">Save Password</button>
+        </div>
+
+        <div class="account-status" id="accountSettingsStatus"></div>
     </div>
 </div>
 
@@ -1426,6 +1464,50 @@ UwIDAQAB
             return null;
         }
     }
+
+    document.getElementById('accountSettingsBtn').addEventListener('click', () => {
+        document.getElementById('newAccountPasswordInput').value = '';
+        document.getElementById('accountSettingsStatus').textContent = '';
+        document.getElementById('accountSettingsStatus').classList.remove('error');
+        document.getElementById('accountSettingsOverlay').classList.add('open');
+    });
+
+    document.getElementById('cancelAccountSettingsBtn').addEventListener('click', () => {
+        document.getElementById('accountSettingsOverlay').classList.remove('open');
+    });
+
+    document.getElementById('accountSettingsOverlay').addEventListener('click', (e) => {
+        if (e.target.id === 'accountSettingsOverlay') {
+            document.getElementById('accountSettingsOverlay').classList.remove('open');
+        }
+    });
+
+    document.getElementById('saveAccountSettingsBtn').addEventListener('click', async () => {
+        const newPassword = document.getElementById('newAccountPasswordInput').value;
+        const statusEl = document.getElementById('accountSettingsStatus');
+        const saveBtn = document.getElementById('saveAccountSettingsBtn');
+
+        if (!newPassword || newPassword.length < 6) {
+            statusEl.textContent = 'Password must be at least 6 characters.';
+            statusEl.classList.add('error');
+            return;
+        }
+
+        saveBtn.disabled = true;
+        statusEl.classList.remove('error');
+        statusEl.textContent = 'Saving…';
+
+        const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
+
+        saveBtn.disabled = false;
+        if (error) {
+            statusEl.textContent = error.message;
+            statusEl.classList.add('error');
+        } else {
+            statusEl.textContent = 'Password updated.';
+            document.getElementById('newAccountPasswordInput').value = '';
+        }
+    });
 
     document.getElementById('manageSubscriptionBtn').addEventListener('click', async () => {
         const btn = document.getElementById('manageSubscriptionBtn');
