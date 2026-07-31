@@ -1296,15 +1296,35 @@
         // creating/logging into an account just moves you to the payment
         // step, it does NOT by itself grant access to /learn. Only a real
         // Stripe-derived JWT does that (see /learn's gate).
-        function renderAccountSession(session) {
+        async function renderAccountSession(session) {
             if (!session) {
                 currentUserId = null;
                 accountStep.style.display = 'block';
                 paymentStep.style.display = 'none';
                 return;
             }
+
             currentUserId = session.user ? session.user.id : null;
             acctSessionEmail.textContent = session.user ? `Signed in as ${session.user.email}` : 'Signed in';
+
+            // Before showing a payment step at all, check whether this
+            // logged-in account already has an active subscription linked
+            // to it — if so, skip straight to /learn instead of asking them
+            // to pay again. This is the same check /learn's own gate uses.
+            try {
+                const resp = await fetch(`${BACKEND_URL}/api/token-for-user`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${session.access_token}` }
+                });
+                if (resp.ok) {
+                    window.location.href = '/learn';
+                    return;
+                }
+            } catch (err) {
+                console.error('LastMind: could not check for an existing subscription.', err);
+                // fall through to showing the payment step as normal
+            }
+
             accountStep.style.display = 'none';
             paymentStep.style.display = 'block';
             setBillingPlan(currentPlan); // refresh the checkout link now that we know the user id
