@@ -1243,10 +1243,24 @@
         const yearlyToggleBtn = document.getElementById('yearlyToggleBtn');
         const stripeCheckoutBtn = document.getElementById('stripeCheckoutBtn');
 
+        let currentPlan = 'monthly';
+        let currentUserId = null; // set once we know who's logged in (see renderAccountSession)
+
+        // Appends the logged-in Supabase user's ID as client_reference_id —
+        // Stripe passes this straight through to the checkout.session.completed
+        // webhook, which is how the backend links this payment to their
+        // account for login-anywhere access later.
+        function buildCheckoutUrl(baseUrl) {
+            if (!currentUserId) return baseUrl;
+            const separator = baseUrl.includes('?') ? '&' : '?';
+            return `${baseUrl}${separator}client_reference_id=${encodeURIComponent(currentUserId)}`;
+        }
+
         function setBillingPlan(plan) {
+            currentPlan = plan;
             monthlyToggleBtn.classList.toggle('active', plan === 'monthly');
             yearlyToggleBtn.classList.toggle('active', plan === 'yearly');
-            stripeCheckoutBtn.href = STRIPE_LINKS[plan];
+            stripeCheckoutBtn.href = buildCheckoutUrl(STRIPE_LINKS[plan]);
         }
 
         monthlyToggleBtn.addEventListener('click', () => setBillingPlan('monthly'));
@@ -1284,13 +1298,16 @@
         // Stripe-derived JWT does that (see /learn's gate).
         function renderAccountSession(session) {
             if (!session) {
+                currentUserId = null;
                 accountStep.style.display = 'block';
                 paymentStep.style.display = 'none';
                 return;
             }
+            currentUserId = session.user ? session.user.id : null;
             acctSessionEmail.textContent = session.user ? `Signed in as ${session.user.email}` : 'Signed in';
             accountStep.style.display = 'none';
             paymentStep.style.display = 'block';
+            setBillingPlan(currentPlan); // refresh the checkout link now that we know the user id
         }
 
         acctLoginTab.addEventListener('click', () => setAcctMode('login'));
