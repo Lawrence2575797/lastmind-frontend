@@ -491,11 +491,78 @@
             cursor: pointer;
         }
 
-        .paypal-lock-wrap {
+        .stripe-lock-wrap {
             position: relative;
         }
 
-        .paypal-lock-overlay {
+        .billing-toggle {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .billing-toggle-btn {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 12px 10px;
+            border: 1px solid rgba(230, 215, 176, 0.25);
+            border-radius: 6px;
+            background: none;
+            color: var(--text);
+            font-family: 'Arial', sans-serif;
+            font-size: 0.82rem;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .billing-toggle-btn.active {
+            border-color: var(--accent);
+            background: rgba(230, 215, 176, 0.08);
+        }
+
+        .billing-toggle-price {
+            font-weight: 700;
+            color: var(--accent);
+            font-size: 0.95rem;
+        }
+
+        .save-badge {
+            position: absolute;
+            top: -9px;
+            right: 8px;
+            background: var(--accent);
+            color: var(--bg);
+            font-size: 0.62rem;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 10px;
+            letter-spacing: 0.02em;
+        }
+
+        .stripe-checkout-btn {
+            display: block;
+            width: 100%;
+            text-align: center;
+            background: var(--accent);
+            color: var(--bg);
+            font-family: 'Arial', sans-serif;
+            font-size: 0.85rem;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            text-decoration: none;
+            padding: 13px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .stripe-checkout-btn:hover {
+            opacity: 0.9;
+        }
+
+        .stripe-lock-overlay {
             position: absolute;
             inset: 0;
             background: rgba(26, 26, 28, 0.55);
@@ -513,7 +580,7 @@
             cursor: not-allowed;
         }
 
-        .paypal-lock-overlay.unlocked {
+        .stripe-lock-overlay.unlocked {
             display: none;
         }
 
@@ -698,10 +765,6 @@
             opacity: 0.45;
             margin-top: 20px;
             line-height: 1.6;
-        }
-
-        #paypal-button-container {
-            min-height: 45px;
         }
 
         /* ─── RESPONSIVE ─── */
@@ -961,21 +1024,30 @@
                     <button class="account-link-btn" id="acctLogoutBtn">Log Out</button>
                 </div>
                 <h4>Step 2 of 2 — Subscribe</h4>
-                <p class="modal-price">£15 / month</p>
-                <div class="paypal-lock-wrap">
-                    <div id="paypal-button-container"></div>
-                    <div class="paypal-lock-overlay" id="paypalLockOverlay">Confirm your age above to continue</div>
+
+                <div class="billing-toggle" id="billingToggle">
+                    <button class="billing-toggle-btn active" id="monthlyToggleBtn" type="button">
+                        Monthly<span class="billing-toggle-price">£13.99/mo</span>
+                    </button>
+                    <button class="billing-toggle-btn" id="yearlyToggleBtn" type="button">
+                        Yearly<span class="billing-toggle-price">£119/yr</span><span class="save-badge">Save 29%</span>
+                    </button>
                 </div>
-                <p class="modal-note">Payment is handled securely by PayPal. LastMind does not see or store your card or account details.</p>
+
+                <div class="stripe-lock-wrap">
+                    <!-- Replace both with your real Stripe Payment Link URLs (buy.stripe.com/...) -->
+                    <a class="stripe-checkout-btn" id="stripeCheckoutBtn" href="https://buy.stripe.com/3cI7sO7PY20j04Df6h57W00">Continue to Payment</a>
+                    <div class="stripe-lock-overlay" id="stripeLockOverlay">Confirm your age above to continue</div>
+                </div>
+                <p class="modal-note">Payment is handled securely by Stripe. LastMind does not see or store your card details.</p>
             </div>
         </div>
     </div>
 
-    <script src="https://www.paypal.com/sdk/js?client-id=BAAUNshPCggNW_jXdLC52B_yCQRtb3M2ipbQFI4DGHopbMYmYZGj4YCGKkuceHKOrITqL7JcOYN8DcM-3g&vault=true&intent=subscription" data-sdk-integration-source="button-factory"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <script>
-        const BACKEND_URL = 'https://lastmind-webhook-backend.onrender.com'; // PayPal webhook / JWT backend — live on Render
+        const BACKEND_URL = 'https://lastmind-webhook-backend.onrender.com'; // Stripe webhook / JWT backend — needs redeploying with the new Stripe server.js
 
         const DB_NAME = 'LastMindDB';
         const DB_VERSION = 2;
@@ -1018,14 +1090,20 @@
             });
         }
 
-        // Exchanges a subscription ID for a signed JWT from the backend, and
-        // stores both the subscription ID (for future refreshes) and the JWT
-        // itself (what /learn actually checks) in IndexedDB.
-        async function fetchAndStoreToken(subscriptionID) {
-            await putAuthRecord('subscriptionId', subscriptionID);
-            const resp = await fetch(`${BACKEND_URL}/api/token?subscriptionId=${encodeURIComponent(subscriptionID)}`);
+        // Exchanges a Stripe Checkout Session ID (the very first time, right
+        // after checkout) or a stored subscription ID (on later refreshes)
+        // for a signed JWT from the backend, and stores the durable
+        // subscription ID plus the JWT itself in IndexedDB.
+        async function fetchAndStoreToken({ sessionId, subscriptionId } = {}) {
+            const params = sessionId
+                ? `sessionId=${encodeURIComponent(sessionId)}`
+                : `subscriptionId=${encodeURIComponent(subscriptionId)}`;
+
+            const resp = await fetch(`${BACKEND_URL}/api/token?${params}`);
             if (!resp.ok) throw new Error(`Token endpoint returned ${resp.status}`);
-            const { token } = await resp.json();
+            const { token, subscriptionId: realSubscriptionId } = await resp.json();
+
+            await putAuthRecord('subscriptionId', realSubscriptionId);
             await putAuthRecord('jwt', token);
         }
 
@@ -1070,46 +1148,32 @@
             if (e.target.id === 'modalOverlay') closeModal();
         });
 
-        if (window.paypal) {
-            paypal.Buttons({
-                style: {
-                    shape: 'rect',
-                    color: 'gold',
-                    layout: 'vertical',
-                    label: 'subscribe'
-                },
-                createSubscription: function (data, actions) {
-                    return actions.subscription.create({
-                        plan_id: 'P-9AG413031P437294YNJTXXZI'
-                    });
-                },
-                onApprove: async function (data) {
-                    try {
-                        await fetchAndStoreToken(data.subscriptionID);
-                        closeModal();
-                        window.location.href = '/learn';
-                    } catch (err) {
-                        console.error('LastMind: failed to obtain a token after payment.', err);
-                        alert('Payment succeeded but we could not unlock the site on this device. Please refresh and try again.');
-                    }
-                },
-                onError: function (err) {
-                    console.error('PayPal error:', err);
-                    alert('Something went wrong with the payment. Please try again.');
-                }
-            }).render('#paypal-button-container');
-        } else {
-            console.error('LastMind: PayPal SDK failed to load — check your client-id and network connection.');
-        }
+        // Stripe redirects back here after checkout with ?session_id=... in
+        // the URL (configured on the Payment Link itself, in the Stripe
+        // Dashboard). If it's present, exchange it for a JWT immediately —
+        // this is the equivalent of PayPal's onApprove callback, just
+        // arriving as a page reload instead of a JS callback.
+        (async function handleStripeReturn() {
+            const sessionId = new URLSearchParams(window.location.search).get('session_id');
+            if (!sessionId) return;
+
+            try {
+                await fetchAndStoreToken({ sessionId });
+                window.location.href = '/learn';
+            } catch (err) {
+                console.error('LastMind: failed to obtain a token after payment.', err);
+                alert('Payment succeeded but we could not unlock the site on this device. Please refresh and try again.');
+            }
+        })();
 
         refreshSignupUI();
     </script>
 
     <!--
-        Account login/signup — separate from the PayPal + JWT flow above.
+        Account login/signup — separate from the Stripe + JWT flow above.
         NOTE: as of now these two systems are independent. Logging in here
         with Supabase does NOT currently grant access to /learn — that's
-        still gated purely by the PayPal subscription JWT. If you want a
+        still gated purely by the Stripe subscription JWT. If you want a
         successful Supabase login to also unlock /learn, that needs explicit
         wiring (e.g. checking Supabase session status in the /learn gate, or
         having your backend cross-reference the two). Flagging this so it's
@@ -1159,15 +1223,36 @@
         const acctStatus = document.getElementById('acctStatus');
 
         const ageConfirmCheckbox = document.getElementById('ageConfirmCheckbox');
-        const paypalLockOverlay = document.getElementById('paypalLockOverlay');
+        const stripeLockOverlay = document.getElementById('stripeLockOverlay');
 
         function isAgeConfirmed() {
             return ageConfirmCheckbox.checked;
         }
 
         ageConfirmCheckbox.addEventListener('change', () => {
-            paypalLockOverlay.classList.toggle('unlocked', isAgeConfirmed());
+            stripeLockOverlay.classList.toggle('unlocked', isAgeConfirmed());
         });
+
+        // Replace both URLs with your real Stripe Payment Links once created.
+        const STRIPE_LINKS = {
+            monthly: 'https://buy.stripe.com/3cI7sO7PY20j04Df6h57W00',
+            yearly: 'https://buy.stripe.com/00w9AW4DMcEX4kTe2d57W01'
+        };
+
+        const monthlyToggleBtn = document.getElementById('monthlyToggleBtn');
+        const yearlyToggleBtn = document.getElementById('yearlyToggleBtn');
+        const stripeCheckoutBtn = document.getElementById('stripeCheckoutBtn');
+
+        function setBillingPlan(plan) {
+            monthlyToggleBtn.classList.toggle('active', plan === 'monthly');
+            yearlyToggleBtn.classList.toggle('active', plan === 'yearly');
+            stripeCheckoutBtn.href = STRIPE_LINKS[plan];
+        }
+
+        monthlyToggleBtn.addEventListener('click', () => setBillingPlan('monthly'));
+        yearlyToggleBtn.addEventListener('click', () => setBillingPlan('yearly'));
+
+        setBillingPlan('monthly'); // default selection when the modal opens
 
         let acctMode = 'login'; // 'login' | 'signup' | 'forgot'
 
@@ -1196,7 +1281,7 @@
         // Step 1 (account) -> Step 2 (payment) — this is the sequencing fix:
         // creating/logging into an account just moves you to the payment
         // step, it does NOT by itself grant access to /learn. Only a real
-        // PayPal-derived JWT does that (see /learn's gate).
+        // Stripe-derived JWT does that (see /learn's gate).
         function renderAccountSession(session) {
             if (!session) {
                 accountStep.style.display = 'block';
