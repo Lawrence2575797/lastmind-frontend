@@ -272,7 +272,8 @@
     .item-dropdown-menu {
         display: none;
         position: absolute;
-        top: 100%;
+        bottom: 100%;
+        margin-bottom: 4px;
         right: 0;
         background: var(--panel);
         border: 1px solid rgba(230, 215, 176, 0.2);
@@ -462,6 +463,111 @@
         line-height: 1.8;
         margin-top: 60px;
         text-align: center;
+    }
+
+    /* ─── PAGE MODE TOGGLE ─── */
+    .page-mode-toggle {
+        display: flex;
+        align-items: stretch;
+        margin-bottom: 24px;
+        border: 1px solid rgba(230, 215, 176, 0.15);
+        border-radius: 6px;
+        overflow: hidden;
+    }
+
+    .mode-toggle-btn {
+        flex: 1;
+        background: var(--panel);
+        border: none;
+        color: var(--text);
+        opacity: 0.55;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.85rem;
+        letter-spacing: 0.02em;
+        padding: 14px 16px;
+        cursor: pointer;
+        text-align: center;
+    }
+
+    .mode-toggle-btn:hover:not(:disabled) {
+        opacity: 0.85;
+    }
+
+    .mode-toggle-btn.active {
+        opacity: 1;
+        color: var(--bg);
+        background: var(--accent);
+    }
+
+    .mode-toggle-btn:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+    }
+
+    .mode-toggle-divider {
+        width: 1px;
+        background: rgba(230, 215, 176, 0.15);
+    }
+
+    /* ─── DIAGNOSE PANEL ─── */
+    .diagnose-fields {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        align-items: flex-end;
+        background: var(--panel);
+        border: 1px solid rgba(230, 215, 176, 0.15);
+        border-radius: 6px;
+        padding: 24px;
+    }
+
+    .diagnose-field {
+        flex: 1;
+        min-width: 140px;
+    }
+
+    .diagnose-field label {
+        display: block;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.7rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        opacity: 0.6;
+        margin-bottom: 6px;
+    }
+
+    .diagnose-field input {
+        width: 100%;
+        background: var(--bg);
+        border: 1px solid rgba(230, 215, 176, 0.2);
+        border-radius: 4px;
+        padding: 10px 12px;
+        color: var(--text);
+        font-family: 'Arial', sans-serif;
+        font-size: 0.9rem;
+    }
+
+    .diagnose-field input:focus {
+        outline: none;
+        border-color: rgba(230, 215, 176, 0.5);
+    }
+
+    .generate-questions-btn {
+        flex-shrink: 0;
+        background: var(--accent);
+        color: var(--bg);
+        border: none;
+        border-radius: 4px;
+        padding: 11px 22px;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.85rem;
+        letter-spacing: 0.03em;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    .generate-questions-btn:hover {
+        opacity: 0.9;
     }
 
     /* ─── PAGE EDITOR ─── */
@@ -1633,17 +1739,43 @@ UwIDAQAB
 
         const contentInner = document.getElementById('contentInner');
         contentInner.innerHTML = `
-            <div class="editor-wrap">
-                <input type="text" class="page-title-input" id="pageTitleInput" placeholder="Page title" value="">
-                <div class="textarea-wrap">
-                    <textarea class="note-textarea" id="noteBox" placeholder="Start typing your notes…"></textarea>
-                    <button type="button" class="mic-btn" id="micBtn" title="Start dictation">🎤</button>
-                </div>
-                <div class="dictation-status" id="dictationStatus"></div>
-                <button class="play-btn" id="playBtn" title="Read notes aloud">▶ Play</button>
-                ${isPaidUser ? '<button class="compile-btn" id="compileBtn">Compile</button>' : ''}
+            <div class="page-mode-toggle">
+                <button class="mode-toggle-btn" id="diagnoseModeBtn" ${isPaidUser ? '' : 'disabled title="Upgrade to unlock diagnostics"'}>Diagnose your misunderstandings</button>
+                <div class="mode-toggle-divider"></div>
+                <button class="mode-toggle-btn active" id="notesModeBtn">Add your notes</button>
             </div>
-            ${isPaidUser ? '<div class="compile-status" id="compileStatus"></div><div class="compiled-output" id="compiledOutput" style="display:none;"></div>' : ''}
+
+            <div id="notesModeContent">
+                <div class="editor-wrap">
+                    <input type="text" class="page-title-input" id="pageTitleInput" placeholder="Page title" value="">
+                    <div class="textarea-wrap">
+                        <textarea class="note-textarea" id="noteBox" placeholder="Start typing your notes…"></textarea>
+                        <button type="button" class="mic-btn" id="micBtn" title="Start dictation">🎤</button>
+                    </div>
+                    <div class="dictation-status" id="dictationStatus"></div>
+                    <button class="play-btn" id="playBtn" title="Read notes aloud">▶ Play</button>
+                    ${isPaidUser ? '<button class="compile-btn" id="compileBtn">Compile</button>' : ''}
+                </div>
+                ${isPaidUser ? '<div class="compile-status" id="compileStatus"></div><div class="compiled-output" id="compiledOutput" style="display:none;"></div>' : ''}
+            </div>
+
+            <div id="diagnoseModeContent" style="display:none;">
+                <div class="diagnose-fields">
+                    <div class="diagnose-field">
+                        <label for="diagnoseSubjectInput">Subject</label>
+                        <input type="text" id="diagnoseSubjectInput" placeholder="e.g. Economics">
+                    </div>
+                    <div class="diagnose-field">
+                        <label for="diagnoseTopicInput">Topic</label>
+                        <input type="text" id="diagnoseTopicInput" placeholder="e.g. Market failure">
+                    </div>
+                    <div class="diagnose-field">
+                        <label for="diagnoseLessonInput">Lesson</label>
+                        <input type="text" id="diagnoseLessonInput" placeholder="e.g. Externalities">
+                    </div>
+                    <button class="generate-questions-btn" id="generateQuestionsBtn">Generate Questions</button>
+                </div>
+            </div>
         `;
 
         const titleInput = document.getElementById('pageTitleInput');
@@ -1735,6 +1867,35 @@ UwIDAQAB
                 playBtn.classList.remove('playing');
                 playBtn.textContent = '▶ Play';
             };
+        });
+
+        // Diagnose / Add Notes mode toggle. Diagnose is paid-only — the
+        // button itself is disabled for free users (set via the `disabled`
+        // attribute in the markup above), so there's no toggle logic to
+        // gate here beyond what the browser already enforces.
+        const notesModeBtn = document.getElementById('notesModeBtn');
+        const diagnoseModeBtn = document.getElementById('diagnoseModeBtn');
+        const notesModeContent = document.getElementById('notesModeContent');
+        const diagnoseModeContent = document.getElementById('diagnoseModeContent');
+
+        notesModeBtn.addEventListener('click', () => {
+            notesModeBtn.classList.add('active');
+            diagnoseModeBtn.classList.remove('active');
+            notesModeContent.style.display = 'block';
+            diagnoseModeContent.style.display = 'none';
+        });
+
+        diagnoseModeBtn.addEventListener('click', () => {
+            if (diagnoseModeBtn.disabled) return;
+            diagnoseModeBtn.classList.add('active');
+            notesModeBtn.classList.remove('active');
+            diagnoseModeContent.style.display = 'block';
+            notesModeContent.style.display = 'none';
+        });
+
+        // Intentionally does nothing yet — wired up later.
+        document.getElementById('generateQuestionsBtn').addEventListener('click', () => {
+            // no-op for now
         });
 
         setupDictation(textarea);
