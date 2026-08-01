@@ -198,22 +198,14 @@
         min-width: 0;
     }
 
-    .folder-add-btn {
-        flex-shrink: 0;
-        width: 22px;
-        height: 22px;
-        border-radius: 4px;
-        border: 1px solid rgba(230, 215, 176, 0.25);
-        background: none;
-        font-size: 0.85rem;
-        line-height: 1;
-        cursor: pointer;
-        opacity: 0.6;
+    .new-page-item {
+        color: var(--accent) !important;
+        opacity: 0.75 !important;
+        font-weight: 600;
     }
 
-    .folder-add-btn:hover {
-        opacity: 1;
-        background: rgba(230, 215, 176, 0.1);
+    .new-page-item:hover {
+        opacity: 1 !important;
     }
 
     .folder-item-header:hover {
@@ -226,12 +218,93 @@
         color: var(--accent);
     }
 
+    .folder-meta-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 2px;
+    }
+
     .folder-meta {
         font-family: 'Arial', sans-serif;
         font-size: 0.68rem;
         letter-spacing: 0.04em;
         opacity: 0.55;
-        margin-top: 2px;
+    }
+
+    .new-subfolder-link {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.68rem;
+        letter-spacing: 0.02em;
+        color: var(--accent);
+        opacity: 0.65;
+        cursor: pointer;
+        text-decoration: underline;
+    }
+
+    .new-subfolder-link:hover {
+        opacity: 1;
+    }
+
+    .item-menu-wrap {
+        position: relative;
+        flex-shrink: 0;
+    }
+
+    .item-menu-btn {
+        width: 22px;
+        height: 22px;
+        border-radius: 4px;
+        border: none;
+        background: none;
+        color: var(--text);
+        opacity: 0.5;
+        font-size: 0.9rem;
+        line-height: 1;
+        cursor: pointer;
+    }
+
+    .item-menu-btn:hover {
+        opacity: 1;
+        background: rgba(230, 215, 176, 0.1);
+    }
+
+    .item-dropdown-menu {
+        display: none;
+        position: absolute;
+        top: 100%;
+        right: 0;
+        background: var(--panel);
+        border: 1px solid rgba(230, 215, 176, 0.2);
+        border-radius: 4px;
+        min-width: 130px;
+        z-index: 30;
+        overflow: hidden;
+    }
+
+    .item-dropdown-menu.open {
+        display: block;
+    }
+
+    .item-dropdown-menu button {
+        display: block;
+        width: 100%;
+        text-align: left;
+        padding: 9px 12px;
+        background: none;
+        border: none;
+        color: var(--text);
+        font-family: 'Arial', sans-serif;
+        font-size: 0.76rem;
+        cursor: pointer;
+    }
+
+    .item-dropdown-menu button:hover {
+        background: rgba(230, 215, 176, 0.08);
+    }
+
+    .item-dropdown-menu button.danger {
+        color: #e6b0a8;
     }
 
     .page-list {
@@ -242,6 +315,48 @@
 
     .folder-item.expanded .page-list {
         display: block;
+    }
+
+    .subfolder-item { margin-bottom: 2px; }
+
+    .subfolder-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        padding: 7px 8px;
+        cursor: pointer;
+        font-size: 0.78rem;
+        opacity: 0.8;
+        border-radius: 4px;
+    }
+
+    .subfolder-header:hover {
+        background: rgba(230, 215, 176, 0.06);
+    }
+
+    .subfolder-item.expanded > .subfolder-header {
+        opacity: 1;
+        color: var(--accent);
+    }
+
+    .subfolder-page-list {
+        display: none;
+        padding-left: 14px;
+    }
+
+    .subfolder-item.expanded .subfolder-page-list {
+        display: block;
+    }
+
+    [draggable="true"] {
+        cursor: grab;
+    }
+
+    .drag-over {
+        outline: 2px dashed var(--accent);
+        outline-offset: -2px;
+        background: rgba(230, 215, 176, 0.1) !important;
     }
 
     .page-item {
@@ -873,6 +988,16 @@ UwIDAQAB
         });
     }
 
+    async function deleteFolderRecord(folderId) {
+        const db = await openDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(FOLDER_STORE, 'readwrite');
+            const r = tx.objectStore(FOLDER_STORE).delete(folderId);
+            r.onsuccess = () => resolve();
+            r.onerror = (e) => reject(e.target.error);
+        });
+    }
+
     /* ───────────────────────── JWT verification ───────────────────────── */
 
     function base64UrlToBytes(b64url) {
@@ -977,15 +1102,243 @@ UwIDAQAB
     let isPaidUser = false; // set by gate() — controls whether Compile shows in the editor
 
     let selectedFolderId = null;
+    let selectedSubfolderId = null;
     let selectedPageId = null;
     let pendingMatchFolder = null; // set when the match-suggestion is showing
+
+    let draggedItem = null; // { type: 'folder'|'subfolder'|'page', folderId, subfolderId, pageId }
+    let openMenuEl = null;  // currently-open three-dot dropdown, so only one is open at a time
 
     function folderLabel(f) {
         return `${f.subject} — ${f.qualification} (${f.examBoard})`;
     }
 
+    function closeAllItemMenus() {
+        document.querySelectorAll('.item-dropdown-menu.open').forEach((m) => m.classList.remove('open'));
+        openMenuEl = null;
+    }
+
+    // Finds where a page currently lives (direct in a folder, or inside one
+    // of that folder's subfolders) — used by move/delete operations so they
+    // don't need to know in advance where the page is.
+    function findPageLocation(pageId) {
+        for (const f of folders) {
+            const directIdx = (f.pages || []).findIndex((p) => p.id === pageId);
+            if (directIdx !== -1) return { folder: f, subfolder: null, pageIndex: directIdx, pagesArray: f.pages };
+            for (const sf of (f.subfolders || [])) {
+                const subIdx = (sf.pages || []).findIndex((p) => p.id === pageId);
+                if (subIdx !== -1) return { folder: f, subfolder: sf, pageIndex: subIdx, pagesArray: sf.pages };
+            }
+        }
+        return null;
+    }
+
+    async function movePage(pageId, targetFolderId, targetSubfolderId) {
+        const loc = findPageLocation(pageId);
+        if (!loc) return;
+
+        const targetFolder = folders.find((f) => f.id === targetFolderId);
+        if (!targetFolder) return;
+
+        // No-op if dropped back where it already is.
+        const alreadyThere = loc.folder.id === targetFolderId &&
+            ((!loc.subfolder && !targetSubfolderId) || (loc.subfolder && loc.subfolder.id === targetSubfolderId));
+        if (alreadyThere) return;
+
+        const [page] = loc.pagesArray.splice(loc.pageIndex, 1);
+
+        let targetArray;
+        if (targetSubfolderId) {
+            const targetSubfolder = (targetFolder.subfolders || []).find((sf) => sf.id === targetSubfolderId);
+            if (!targetSubfolder) return;
+            targetSubfolder.pages = targetSubfolder.pages || [];
+            targetArray = targetSubfolder.pages;
+        } else {
+            targetFolder.pages = targetFolder.pages || [];
+            targetArray = targetFolder.pages;
+        }
+        targetArray.push(page);
+
+        await putFolder(loc.folder);
+        if (targetFolder.id !== loc.folder.id) await putFolder(targetFolder);
+        await refreshFolderList();
+    }
+
+    async function moveSubfolder(subfolderId, sourceFolderId, targetFolderId) {
+        if (sourceFolderId === targetFolderId) return;
+        const sourceFolder = folders.find((f) => f.id === sourceFolderId);
+        const targetFolder = folders.find((f) => f.id === targetFolderId);
+        if (!sourceFolder || !targetFolder) return;
+
+        const idx = (sourceFolder.subfolders || []).findIndex((sf) => sf.id === subfolderId);
+        if (idx === -1) return;
+
+        const [subfolder] = sourceFolder.subfolders.splice(idx, 1);
+        targetFolder.subfolders = targetFolder.subfolders || [];
+        targetFolder.subfolders.push(subfolder);
+
+        await putFolder(sourceFolder);
+        await putFolder(targetFolder);
+        await refreshFolderList();
+    }
+
+    async function reorderFolders(draggedFolderId, targetFolderId) {
+        if (draggedFolderId === targetFolderId) return;
+        const draggedIdx = folders.findIndex((f) => f.id === draggedFolderId);
+        const targetIdx = folders.findIndex((f) => f.id === targetFolderId);
+        if (draggedIdx === -1 || targetIdx === -1) return;
+
+        const [draggedFolder] = folders.splice(draggedIdx, 1);
+        const newTargetIdx = folders.findIndex((f) => f.id === targetFolderId);
+        folders.splice(newTargetIdx, 0, draggedFolder);
+
+        // Persist the new order on every folder so it survives a reload —
+        // IndexedDB doesn't preserve array order on its own.
+        for (let i = 0; i < folders.length; i++) {
+            folders[i].order = i;
+            await putFolder(folders[i]);
+        }
+        await refreshFolderList();
+    }
+
+    async function createSubfolder(folderId) {
+        const name = prompt('Subfolder name:');
+        if (!name || !name.trim()) return;
+        const folder = folders.find((f) => f.id === folderId);
+        if (!folder) return;
+
+        folder.subfolders = folder.subfolders || [];
+        folder.subfolders.push({
+            id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())),
+            name: name.trim(),
+            pages: []
+        });
+        await putFolder(folder);
+        await refreshFolderList();
+    }
+
+    async function deleteFolder(folderId) {
+        if (!confirm('Delete this folder and everything inside it? This cannot be undone.')) return;
+        await deleteFolderRecord(folderId);
+        if (selectedFolderId === folderId) {
+            selectedFolderId = null;
+            selectedSubfolderId = null;
+            selectedPageId = null;
+            renderWelcome();
+        }
+        await refreshFolderList();
+    }
+
+    async function deleteSubfolderById(folderId, subfolderId) {
+        if (!confirm('Delete this subfolder and its pages? This cannot be undone.')) return;
+        const folder = folders.find((f) => f.id === folderId);
+        if (!folder) return;
+        folder.subfolders = (folder.subfolders || []).filter((sf) => sf.id !== subfolderId);
+        await putFolder(folder);
+        if (selectedSubfolderId === subfolderId) {
+            selectedSubfolderId = null;
+            selectedPageId = null;
+            renderWelcome();
+        }
+        await refreshFolderList();
+    }
+
+    async function deletePageById(pageId) {
+        if (!confirm('Delete this page? This cannot be undone.')) return;
+        const loc = findPageLocation(pageId);
+        if (!loc) return;
+        loc.pagesArray.splice(loc.pageIndex, 1);
+        await putFolder(loc.folder);
+        if (selectedPageId === pageId) {
+            selectedPageId = null;
+            renderWelcome();
+        }
+        await refreshFolderList();
+    }
+
+    // Reusable page-row builder — used both for a folder's direct pages and
+    // for a subfolder's pages, so the drag/menu behaviour stays consistent.
+    function buildPageItem(page, folderId, subfolderId) {
+        const pageEl = document.createElement('div');
+        pageEl.className = 'page-item' + (page.id === selectedPageId ? ' active' : '');
+        pageEl.draggable = true;
+
+        const label = document.createElement('span');
+        label.textContent = page.title || 'Untitled page';
+        label.style.flex = '1';
+        label.style.overflow = 'hidden';
+        label.style.textOverflow = 'ellipsis';
+
+        const menuWrap = buildItemMenu([
+            { label: 'Delete Page', danger: true, onClick: () => deletePageById(page.id) }
+        ]);
+
+        pageEl.style.display = 'flex';
+        pageEl.style.alignItems = 'center';
+        pageEl.style.gap = '4px';
+        pageEl.appendChild(label);
+        pageEl.appendChild(menuWrap);
+
+        pageEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openPage(folderId, page.id, subfolderId || null);
+        });
+
+        pageEl.addEventListener('dragstart', (e) => {
+            e.stopPropagation();
+            draggedItem = { type: 'page', folderId, subfolderId: subfolderId || null, pageId: page.id };
+            e.dataTransfer.effectAllowed = 'move';
+        });
+
+        return pageEl;
+    }
+
+    // Small reusable three-dot dropdown — options is an array of
+    // { label, danger, onClick }.
+    function buildItemMenu(options) {
+        const wrap = document.createElement('div');
+        wrap.className = 'item-menu-wrap';
+
+        const btn = document.createElement('button');
+        btn.className = 'item-menu-btn';
+        btn.type = 'button';
+        btn.textContent = '⋯';
+        btn.title = 'Options';
+
+        const menu = document.createElement('div');
+        menu.className = 'item-dropdown-menu';
+
+        options.forEach((opt) => {
+            const optBtn = document.createElement('button');
+            optBtn.textContent = opt.label;
+            if (opt.danger) optBtn.classList.add('danger');
+            optBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                closeAllItemMenus();
+                opt.onClick();
+            });
+            menu.appendChild(optBtn);
+        });
+
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const wasOpen = menu.classList.contains('open');
+            closeAllItemMenus();
+            if (!wasOpen) {
+                menu.classList.add('open');
+                openMenuEl = menu;
+            }
+        });
+
+        wrap.appendChild(btn);
+        wrap.appendChild(menu);
+        return wrap;
+    }
+
     async function refreshFolderList() {
         folders = await getAllFolders();
+        folders.sort((a, b) => (a.order ?? a.createdAt ?? 0) - (b.order ?? b.createdAt ?? 0));
+
         const listEl = document.getElementById('folderList');
         listEl.innerHTML = '';
 
@@ -997,34 +1350,156 @@ UwIDAQAB
         folders.forEach((f) => {
             const item = document.createElement('div');
             item.className = 'folder-item' + (f.id === selectedFolderId ? ' active expanded' : '');
+            item.draggable = true;
 
             const header = document.createElement('div');
             header.className = 'folder-item-header';
-            header.innerHTML = `
-                <div class="folder-item-label">
-                    ${folderLabel(f)}
-                    <div class="folder-meta">${(f.pages || []).length} page(s)</div>
+
+            const labelWrap = document.createElement('div');
+            labelWrap.className = 'folder-item-label';
+            labelWrap.style.flex = '1';
+            labelWrap.style.minWidth = '0';
+            labelWrap.innerHTML = `
+                ${folderLabel(f)}
+                <div class="folder-meta-row">
+                    <span class="folder-meta">${(f.pages || []).length} page(s)</span>
+                    <span class="new-subfolder-link">+ Subfolder</span>
                 </div>
-                <button class="folder-add-btn" title="New page in this folder">+</button>
             `;
-            header.addEventListener('click', () => selectFolder(f.id));
-            header.querySelector('.folder-add-btn').addEventListener('click', (e) => {
+            labelWrap.querySelector('.new-subfolder-link').addEventListener('click', (e) => {
                 e.stopPropagation();
-                createPageInFolder(f.id);
+                createSubfolder(f.id);
+            });
+
+            const menuWrap = buildItemMenu([
+                { label: 'Delete Folder', danger: true, onClick: () => deleteFolder(f.id) }
+            ]);
+
+            header.appendChild(labelWrap);
+            header.appendChild(menuWrap);
+            header.addEventListener('click', () => selectFolder(f.id));
+
+            // Folder drag (reordering among top-level folders)
+            item.addEventListener('dragstart', (e) => {
+                if (e.target !== item && e.target.closest('.page-item, .subfolder-item')) return;
+                draggedItem = { type: 'folder', folderId: f.id };
+                e.dataTransfer.effectAllowed = 'move';
+                e.stopPropagation();
+            });
+
+            // Drop target: folder header accepts a dragged folder (reorder),
+            // a dragged subfolder (reparent), or a dragged page (move to
+            // this folder's direct pages).
+            header.addEventListener('dragover', (e) => {
+                if (!draggedItem) return;
+                e.preventDefault();
+                header.classList.add('drag-over');
+            });
+            header.addEventListener('dragleave', () => header.classList.remove('drag-over'));
+            header.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                header.classList.remove('drag-over');
+                if (!draggedItem) return;
+
+                if (draggedItem.type === 'folder') {
+                    await reorderFolders(draggedItem.folderId, f.id);
+                } else if (draggedItem.type === 'subfolder') {
+                    await moveSubfolder(draggedItem.subfolderId, draggedItem.folderId, f.id);
+                } else if (draggedItem.type === 'page') {
+                    await movePage(draggedItem.pageId, f.id, null);
+                }
+                draggedItem = null;
             });
 
             const pageList = document.createElement('div');
             pageList.className = 'page-list';
-            (f.pages || []).forEach((p) => {
-                const pageEl = document.createElement('div');
-                pageEl.className = 'page-item' + (p.id === selectedPageId ? ' active' : '');
-                pageEl.textContent = p.title || 'Untitled page';
-                pageEl.addEventListener('click', (e) => {
+
+            // Subfolders first
+            (f.subfolders || []).forEach((sf) => {
+                const sfItem = document.createElement('div');
+                sfItem.className = 'subfolder-item' + (sf.id === selectedSubfolderId ? ' expanded' : '');
+                sfItem.draggable = true;
+
+                const sfHeader = document.createElement('div');
+                sfHeader.className = 'subfolder-header';
+
+                const sfLabel = document.createElement('span');
+                sfLabel.textContent = `📁 ${sf.name} (${(sf.pages || []).length})`;
+                sfLabel.style.flex = '1';
+                sfLabel.style.overflow = 'hidden';
+                sfLabel.style.textOverflow = 'ellipsis';
+
+                const sfMenu = buildItemMenu([
+                    { label: 'Delete Subfolder', danger: true, onClick: () => deleteSubfolderById(f.id, sf.id) }
+                ]);
+
+                sfHeader.appendChild(sfLabel);
+                sfHeader.appendChild(sfMenu);
+                sfHeader.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    openPage(f.id, p.id);
+                    selectedFolderId = f.id;
+                    selectedSubfolderId = (selectedSubfolderId === sf.id) ? null : sf.id;
+                    refreshFolderList();
                 });
-                pageList.appendChild(pageEl);
+
+                sfItem.addEventListener('dragstart', (e) => {
+                    e.stopPropagation();
+                    draggedItem = { type: 'subfolder', folderId: f.id, subfolderId: sf.id };
+                    e.dataTransfer.effectAllowed = 'move';
+                });
+
+                // A subfolder can also receive a dragged page directly.
+                sfHeader.addEventListener('dragover', (e) => {
+                    if (!draggedItem || draggedItem.type !== 'page') return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    sfHeader.classList.add('drag-over');
+                });
+                sfHeader.addEventListener('dragleave', () => sfHeader.classList.remove('drag-over'));
+                sfHeader.addEventListener('drop', async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    sfHeader.classList.remove('drag-over');
+                    if (draggedItem && draggedItem.type === 'page') {
+                        await movePage(draggedItem.pageId, f.id, sf.id);
+                    }
+                    draggedItem = null;
+                });
+
+                const sfPageList = document.createElement('div');
+                sfPageList.className = 'subfolder-page-list';
+                (sf.pages || []).forEach((p) => {
+                    sfPageList.appendChild(buildPageItem(p, f.id, sf.id));
+                });
+
+                const sfNewPageBtn = document.createElement('div');
+                sfNewPageBtn.className = 'page-item new-page-item';
+                sfNewPageBtn.textContent = '+ New Page';
+                sfNewPageBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    createPageInFolder(f.id, sf.id);
+                });
+                sfPageList.appendChild(sfNewPageBtn);
+
+                sfItem.appendChild(sfHeader);
+                sfItem.appendChild(sfPageList);
+                pageList.appendChild(sfItem);
             });
+
+            // Then this folder's own direct pages
+            (f.pages || []).forEach((p) => {
+                pageList.appendChild(buildPageItem(p, f.id, null));
+            });
+
+            const newPageBtn = document.createElement('div');
+            newPageBtn.className = 'page-item new-page-item';
+            newPageBtn.textContent = '+ New Page';
+            newPageBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                createPageInFolder(f.id, null);
+            });
+            pageList.appendChild(newPageBtn);
 
             item.appendChild(header);
             item.appendChild(pageList);
@@ -1034,6 +1509,7 @@ UwIDAQAB
 
     function selectFolder(folderId) {
         selectedFolderId = folderId;
+        selectedSubfolderId = null;
         selectedPageId = null;
         const f = folders.find((x) => x.id === folderId);
         document.getElementById('topbarTitle').textContent = f ? folderLabel(f) : 'Select or create a folder to get started';
@@ -1140,14 +1616,18 @@ UwIDAQAB
         return utterance;
     }
 
-    function openPage(folderId, pageId) {
+    function openPage(folderId, pageId, subfolderId) {
         stopActiveDictation();
         stopSpeaking();
 
         selectedFolderId = folderId;
+        selectedSubfolderId = subfolderId || null;
         selectedPageId = pageId;
-        const folder = folders.find((f) => f.id === folderId);
-        const page = folder.pages.find((p) => p.id === pageId);
+
+        const loc = findPageLocation(pageId);
+        if (!loc) return;
+        const folder = loc.folder;
+        const page = loc.pagesArray.find((p) => p.id === pageId);
 
         document.getElementById('topbarTitle').textContent = `${folderLabel(folder)} · ${page.title}`;
 
@@ -1389,6 +1869,17 @@ UwIDAQAB
         if (dropdown && !dropdown.contains(e.target)) {
             document.getElementById('newMenu').classList.remove('open');
         }
+        if (openMenuEl && !openMenuEl.parentElement.contains(e.target)) {
+            closeAllItemMenus();
+        }
+    });
+
+    // Safety net: if a drag ends without landing on a valid drop target
+    // (dropped outside the sidebar, Escape pressed, etc.), make sure stale
+    // drag state doesn't linger and affect the next, unrelated drag.
+    document.addEventListener('dragend', () => {
+        draggedItem = null;
+        document.querySelectorAll('.drag-over').forEach((el) => el.classList.remove('drag-over'));
     });
 
     document.getElementById('newFolderOption').addEventListener('click', () => {
@@ -1396,22 +1887,33 @@ UwIDAQAB
         openFolderModal();
     });
 
-    async function createPageInFolder(folderId) {
+    async function createPageInFolder(folderId, subfolderId) {
         const folder = folders.find((f) => f.id === folderId);
         if (!folder) return;
 
+        let targetArray;
+        if (subfolderId) {
+            const subfolder = (folder.subfolders || []).find((sf) => sf.id === subfolderId);
+            if (!subfolder) return;
+            subfolder.pages = subfolder.pages || [];
+            targetArray = subfolder.pages;
+        } else {
+            folder.pages = folder.pages || [];
+            targetArray = folder.pages;
+        }
+
         const newPage = {
             id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())),
-            title: `Untitled page ${(folder.pages || []).length + 1}`,
+            title: `Untitled page ${targetArray.length + 1}`,
             content: '',
             createdAt: Date.now()
         };
-        folder.pages = folder.pages || [];
-        folder.pages.push(newPage);
+        targetArray.push(newPage);
         await putFolder(folder);
         selectedFolderId = folder.id;
+        selectedSubfolderId = subfolderId || null;
         await refreshFolderList();
-        openPage(folder.id, newPage.id);
+        openPage(folder.id, newPage.id, subfolderId || null);
     }
 
     function openFolderModal() {
