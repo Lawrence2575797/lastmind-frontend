@@ -1254,31 +1254,19 @@
                 return;
             }
 
+            // Logged in — /learn now supports both free and paid access, so
+            // there's a single destination regardless of subscription
+            // status. Upgrading is optional, offered inside /learn itself
+            // (its own Upgrade button), not gating entry here.
             loginBtn.style.display = 'none';
             signupBtn.style.display = 'none';
             myAccountBtn.style.display = 'inline-block';
             navActionBtn.style.display = 'inline-block';
 
-            try {
-                const resp = await fetch(`${BACKEND_URL}/api/token-for-user`, {
-                    method: 'POST',
-                    headers: { Authorization: `Bearer ${session.access_token}` }
-                });
-
-                if (resp.ok) {
-                    navActionBtn.textContent = 'Enter LastMind';
-                    navActionBtn.onclick = () => { window.location.href = '/learn'; };
-                    heroCta.textContent = 'Enter LastMind';
-                    heroCta.onclick = () => { window.location.href = '/learn'; };
-                } else {
-                    navActionBtn.textContent = 'Upgrade';
-                    navActionBtn.onclick = () => openModal('payment');
-                    heroCta.textContent = 'Upgrade';
-                    heroCta.onclick = () => openModal('payment');
-                }
-            } catch (err) {
-                console.error('LastMind: could not check subscription status.', err);
-            }
+            navActionBtn.textContent = 'Enter LastMind';
+            navActionBtn.onclick = () => { window.location.href = '/learn'; };
+            heroCta.textContent = 'Enter LastMind';
+            heroCta.onclick = () => { window.location.href = '/learn'; };
         }
 
         document.getElementById('modalClose').addEventListener('click', closeModal);
@@ -1428,42 +1416,31 @@
             }
         }
 
-        // Step 1 (account) -> Step 2 (payment) — this is the sequencing fix:
-        // creating/logging into an account just moves you to the payment
-        // step, it does NOT by itself grant access to /learn. Only a real
-        // Stripe-derived JWT does that (see /learn's gate).
-        async function renderAccountSession(session) {
+        // Toggles which modal step is showing based on login state — no
+        // longer decides "pay or not" here. Since /learn now supports free
+        // access, a logged-in user's actual destination is /learn directly
+        // (handled by the submit-button success paths below), not this
+        // modal at all. This function's remaining job is just keeping the
+        // modal's own state consistent if it happens to be open (e.g. the
+        // signed-in-strip during an explicit Upgrade flow).
+        function renderAccountSession(session) {
             if (!session) {
                 currentUserId = null;
                 accountStep.style.display = 'block';
                 paymentStep.style.display = 'none';
                 return;
             }
-
             currentUserId = session.user ? session.user.id : null;
             acctSessionEmail.textContent = session.user ? `Signed in as ${session.user.email}` : 'Signed in';
+        }
 
-            // Before showing a payment step at all, check whether this
-            // logged-in account already has an active subscription linked
-            // to it — if so, skip straight to /learn instead of asking them
-            // to pay again. This is the same check /learn's own gate uses.
-            try {
-                const resp = await fetch(`${BACKEND_URL}/api/token-for-user`, {
-                    method: 'POST',
-                    headers: { Authorization: `Bearer ${session.access_token}` }
-                });
-                if (resp.ok) {
-                    window.location.href = '/learn';
-                    return;
-                }
-            } catch (err) {
-                console.error('LastMind: could not check for an existing subscription.', err);
-                // fall through to showing the payment step as normal
-            }
-
+        // Used specifically for the optional "Upgrade" flow — shows Step 2
+        // directly, skipping Step 1 since the person is already logged in.
+        function showPaymentStep(session) {
+            renderAccountSession(session);
             accountStep.style.display = 'none';
             paymentStep.style.display = 'block';
-            setBillingPlan(currentPlan); // refresh the checkout link now that we know the user id
+            setBillingPlan(currentPlan);
         }
 
         acctLoginTab.addEventListener('click', () => setAcctMode('login'));
@@ -1503,14 +1480,14 @@
                     const { data, error } = await signUp(email, password);
                     if (error) { setAcctStatus(error.message, true); return; }
                     if (data.session) {
-                        renderAccountSession(data.session);
+                        window.location.href = '/learn';
                     } else {
                         setAcctStatus('Check your email to confirm your account before logging in.');
                     }
                 } else {
                     const { data, error } = await signIn(email, password);
                     if (error) { setAcctStatus(error.message, true); return; }
-                    renderAccountSession(data.session);
+                    window.location.href = '/learn';
                 }
             } catch (err) {
                 setAcctStatus('Something went wrong. Please try again.', true);
@@ -1619,6 +1596,15 @@
             const { data } = await getAccountSession();
             if (data.session) renderAccountSession(data.session);
             await refreshNavState();
+
+            // Arrived via /learn's Upgrade button (?action=upgrade) — if
+            // they're logged in, open straight to the payment step instead
+            // of making them navigate the modal manually.
+            const wantsUpgrade = new URLSearchParams(window.location.search).get('action') === 'upgrade';
+            if (wantsUpgrade && data.session) {
+                document.getElementById('modalOverlay').style.display = 'flex';
+                showPaymentStep(data.session);
+            }
         })();
     </script>
 

@@ -974,6 +974,8 @@ UwIDAQAB
     /* ───────────────────────── App state ───────────────────────── */
 
     let folders = [];
+    let isPaidUser = false; // set by gate() — controls whether Compile shows in the editor
+
     let selectedFolderId = null;
     let selectedPageId = null;
     let pendingMatchFolder = null; // set when the match-suggestion is showing
@@ -1159,10 +1161,9 @@ UwIDAQAB
                 </div>
                 <div class="dictation-status" id="dictationStatus"></div>
                 <button class="play-btn" id="playBtn" title="Read notes aloud">▶ Play</button>
-                <button class="compile-btn" id="compileBtn">Compile</button>
+                ${isPaidUser ? '<button class="compile-btn" id="compileBtn">Compile</button>' : ''}
             </div>
-            <div class="compile-status" id="compileStatus"></div>
-            <div class="compiled-output" id="compiledOutput" style="display:none;"></div>
+            ${isPaidUser ? '<div class="compile-status" id="compileStatus"></div><div class="compiled-output" id="compiledOutput" style="display:none;"></div>' : ''}
         `;
 
         const titleInput = document.getElementById('pageTitleInput');
@@ -1192,47 +1193,49 @@ UwIDAQAB
         });
 
         // Compile logic itself is still coming tomorrow — no-op for now.
-        const compileBtn = document.getElementById('compileBtn');
-        const compileStatus = document.getElementById('compileStatus');
-        const compiledOutput = document.getElementById('compiledOutput');
+        if (isPaidUser) {
+            const compileBtn = document.getElementById('compileBtn');
+            const compileStatus = document.getElementById('compileStatus');
+            const compiledOutput = document.getElementById('compiledOutput');
 
-        compileBtn.addEventListener('click', async () => {
-            const notes = textarea.value.trim();
-            if (!notes) {
-                compileStatus.textContent = 'Write some notes first.';
-                compileStatus.classList.add('error');
-                return;
-            }
-
-            compileBtn.disabled = true;
-            compileStatus.classList.remove('error');
-            compileStatus.textContent = 'Compiling…';
-            compiledOutput.style.display = 'none';
-
-            try {
-                const resp = await fetch(`${COMPILE_BACKEND_URL}/compile`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ notes })
-                });
-
-                if (!resp.ok) {
-                    const body = await resp.json().catch(() => ({}));
-                    throw new Error(body.error || `Server returned ${resp.status}`);
+            compileBtn.addEventListener('click', async () => {
+                const notes = textarea.value.trim();
+                if (!notes) {
+                    compileStatus.textContent = 'Write some notes first.';
+                    compileStatus.classList.add('error');
+                    return;
                 }
 
-                const { result } = await resp.json();
-                compiledOutput.textContent = result;
-                compiledOutput.style.display = 'block';
-                compileStatus.textContent = '';
-            } catch (err) {
-                console.error('LastMind: compile request failed.', err);
-                compileStatus.textContent = 'Could not compile your notes. Please try again.';
-                compileStatus.classList.add('error');
-            } finally {
-                compileBtn.disabled = false;
-            }
-        });
+                compileBtn.disabled = true;
+                compileStatus.classList.remove('error');
+                compileStatus.textContent = 'Compiling…';
+                compiledOutput.style.display = 'none';
+
+                try {
+                    const resp = await fetch(`${COMPILE_BACKEND_URL}/compile`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ notes })
+                    });
+
+                    if (!resp.ok) {
+                        const body = await resp.json().catch(() => ({}));
+                        throw new Error(body.error || `Server returned ${resp.status}`);
+                    }
+
+                    const { result } = await resp.json();
+                    compiledOutput.textContent = result;
+                    compiledOutput.style.display = 'block';
+                    compileStatus.textContent = '';
+                } catch (err) {
+                    console.error('LastMind: compile request failed.', err);
+                    compileStatus.textContent = 'Could not compile your notes. Please try again.';
+                    compileStatus.classList.add('error');
+                } finally {
+                    compileBtn.disabled = false;
+                }
+            });
+        }
 
         // Text-to-speech only ever starts from this explicit Play click —
         // never automatically. Clicking again while speaking stops it.
@@ -1568,7 +1571,7 @@ UwIDAQAB
     });
 
     document.getElementById('upgradeBtn').addEventListener('click', () => {
-        window.location.href = '/subscribe';
+        window.location.href = '/subscribe?action=upgrade';
     });
 
     (async function gate() {
@@ -1578,6 +1581,7 @@ UwIDAQAB
         // want the bypass reachable anymore.
         if (new URLSearchParams(window.location.search).has('preview')) {
             console.warn('LastMind: running in PREVIEW MODE — the subscription gate is bypassed. Remove the ?preview=1 block in learn.html before going live.');
+            isPaidUser = true; // preview mode shows the full paid experience
             document.getElementById('gate-message').style.display = 'none';
             document.getElementById('app').style.display = 'block';
             await refreshFolderList();
@@ -1595,6 +1599,7 @@ UwIDAQAB
         }
 
         if (payload) {
+            isPaidUser = true;
             document.getElementById('gate-message').style.display = 'none';
             document.getElementById('app').style.display = 'block';
             await refreshFolderList();
@@ -1606,8 +1611,11 @@ UwIDAQAB
         // the security hole we removed) — the backend independently verifies
         // this session's access token against Supabase itself before it will
         // ever look up or return anything.
+        let supabaseSession = null;
         try {
-            const { data: { session: supabaseSession } } = await supabaseClient.auth.getSession();
+            const { data } = await supabaseClient.auth.getSession();
+            supabaseSession = data.session;
+
             if (supabaseSession) {
                 const resp = await fetch(`${BACKEND_URL}/api/token-for-user`, {
                     method: 'POST',
@@ -1627,12 +1635,27 @@ UwIDAQAB
         }
 
         if (payload) {
+            isPaidUser = true;
             document.getElementById('gate-message').style.display = 'none';
             document.getElementById('app').style.display = 'block';
             await refreshFolderList();
             return;
         }
 
+        // No active paid subscription found either way — but if they're at
+        // least logged in, let them in as free tier (framework + folders +
+        // dictation/TTS, no Compile) rather than bouncing them out entirely.
+        // Paying is optional here, not a requirement to use the app at all.
+        if (supabaseSession) {
+            isPaidUser = false;
+            document.getElementById('gate-message').style.display = 'none';
+            document.getElementById('app').style.display = 'block';
+            await refreshFolderList();
+            return;
+        }
+
+        // Not logged in at all — nothing to offer, send them to create an
+        // account (still free at this point; paying is optional there too).
         window.location.href = '/subscribe';
     })();
 </script>
