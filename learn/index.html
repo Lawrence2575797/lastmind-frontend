@@ -1570,9 +1570,33 @@ UwIDAQAB
         }
     });
 
-    document.getElementById('upgradeBtn').addEventListener('click', () => {
-        window.location.href = '/subscribe?action=upgrade';
-    });
+    // Sets the app-unlock UI in one place, and — importantly — configures
+    // the topbar button correctly for whichever state the person is in:
+    // free users see "Upgrade" (-> checkout), already-paid users see "Buy
+    // More Tokens" instead, since "upgrade" doesn't make sense once you're
+    // already on Premium. Token purchases aren't built yet — this is a
+    // clearly-labelled placeholder for now, same pattern as Compile
+    // originally was, not a silent dead end.
+    async function enterApp(paid) {
+        isPaidUser = paid;
+
+        const upgradeBtn = document.getElementById('upgradeBtn');
+        if (paid) {
+            upgradeBtn.textContent = 'Buy More Tokens';
+            upgradeBtn.onclick = () => {
+                alert('Token top-ups are coming soon!');
+            };
+        } else {
+            upgradeBtn.textContent = 'Upgrade';
+            upgradeBtn.onclick = () => {
+                window.location.href = '/subscribe?action=upgrade';
+            };
+        }
+
+        document.getElementById('gate-message').style.display = 'none';
+        document.getElementById('app').style.display = 'block';
+        await refreshFolderList();
+    }
 
     (async function gate() {
         // ── TEMPORARY: lets you view /learn before hosting/backend exist. ──
@@ -1581,10 +1605,7 @@ UwIDAQAB
         // want the bypass reachable anymore.
         if (new URLSearchParams(window.location.search).has('preview')) {
             console.warn('LastMind: running in PREVIEW MODE — the subscription gate is bypassed. Remove the ?preview=1 block in learn.html before going live.');
-            isPaidUser = true; // preview mode shows the full paid experience
-            document.getElementById('gate-message').style.display = 'none';
-            document.getElementById('app').style.display = 'block';
-            await refreshFolderList();
+            await enterApp(true); // preview mode shows the full paid experience
             return;
         }
 
@@ -1599,10 +1620,7 @@ UwIDAQAB
         }
 
         if (payload) {
-            isPaidUser = true;
-            document.getElementById('gate-message').style.display = 'none';
-            document.getElementById('app').style.display = 'block';
-            await refreshFolderList();
+            await enterApp(true);
             return;
         }
 
@@ -1635,10 +1653,7 @@ UwIDAQAB
         }
 
         if (payload) {
-            isPaidUser = true;
-            document.getElementById('gate-message').style.display = 'none';
-            document.getElementById('app').style.display = 'block';
-            await refreshFolderList();
+            await enterApp(true);
             return;
         }
 
@@ -1647,10 +1662,7 @@ UwIDAQAB
         // dictation/TTS, no Compile) rather than bouncing them out entirely.
         // Paying is optional here, not a requirement to use the app at all.
         if (supabaseSession) {
-            isPaidUser = false;
-            document.getElementById('gate-message').style.display = 'none';
-            document.getElementById('app').style.display = 'block';
-            await refreshFolderList();
+            await enterApp(false);
             return;
         }
 
