@@ -1016,6 +1016,17 @@ UwIDAQAB
 
     /* ───────────────────────── IndexedDB ───────────────────────── */
 
+    // IndexedDB already survives closing the tab, closing the browser, and
+    // restarting the computer — that's just how it works, by default, with
+    // no extra code needed. This request just hardens against the one edge
+    // case where a browser *could* auto-evict site storage under severe,
+    // rare storage pressure — asking for "persistent" mode tells it not to.
+    if (navigator.storage && navigator.storage.persist) {
+        navigator.storage.persist().catch(() => {
+            // Non-fatal either way — normal saves still work regardless.
+        });
+    }
+
     const DB_NAME = 'LastMindDB';
     const DB_VERSION = 2;
     const AUTH_STORE = 'auth';
@@ -1270,6 +1281,35 @@ UwIDAQAB
         await refreshFolderList();
     }
 
+    // Drops a page directly onto another page — used for actual reordering
+    // within a list (or a precise insert position when moving between
+    // lists), rather than movePage's "just append to the end" behaviour.
+    // Finding the target AFTER removing the dragged page (rather than
+    // computing a numeric index up front) sidesteps all off-by-one issues
+    // when both pages happen to be in the same array.
+    async function movePageRelativeTo(draggedPageId, targetPageId) {
+        if (draggedPageId === targetPageId) return;
+
+        const dragLoc = findPageLocation(draggedPageId);
+        if (!dragLoc) return;
+
+        const [page] = dragLoc.pagesArray.splice(dragLoc.pageIndex, 1);
+
+        const targetLoc = findPageLocation(targetPageId);
+        if (!targetLoc) {
+            // Target vanished mid-drag somehow — put the page back rather
+            // than silently losing it.
+            dragLoc.pagesArray.splice(dragLoc.pageIndex, 0, page);
+            return;
+        }
+
+        targetLoc.pagesArray.splice(targetLoc.pageIndex, 0, page);
+
+        await putFolder(dragLoc.folder);
+        if (targetLoc.folder.id !== dragLoc.folder.id) await putFolder(targetLoc.folder);
+        await refreshFolderList();
+    }
+
     async function moveSubfolder(subfolderId, sourceFolderId, targetFolderId) {
         if (sourceFolderId === targetFolderId) return;
         const sourceFolder = folders.find((f) => f.id === sourceFolderId);
@@ -1394,6 +1434,28 @@ UwIDAQAB
             e.stopPropagation();
             draggedItem = { type: 'page', folderId, subfolderId: subfolderId || null, pageId: page.id };
             e.dataTransfer.effectAllowed = 'move';
+        });
+
+        // Dropping another page directly onto this one reorders it to sit
+        // right before this page — works for a pure within-list reorder,
+        // and also gives a precise insert position when moving a page in
+        // from a different folder/subfolder, rather than always landing
+        // at the end of the target list.
+        pageEl.addEventListener('dragover', (e) => {
+            if (!draggedItem || draggedItem.type !== 'page' || draggedItem.pageId === page.id) return;
+            e.preventDefault();
+            e.stopPropagation();
+            pageEl.classList.add('drag-over');
+        });
+        pageEl.addEventListener('dragleave', () => pageEl.classList.remove('drag-over'));
+        pageEl.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            pageEl.classList.remove('drag-over');
+            if (draggedItem && draggedItem.type === 'page' && draggedItem.pageId !== page.id) {
+                await movePageRelativeTo(draggedItem.pageId, page.id);
+            }
+            draggedItem = null;
         });
 
         return pageEl;
