@@ -54,6 +54,53 @@
             text-transform: uppercase;
         }
 
+        .nav-left {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .nav-outline-btn {
+            font-family: 'Arial', sans-serif;
+            font-size: 0.82rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text);
+            background: none;
+            border: 1.5px solid rgba(230, 215, 176, 0.35);
+            padding: 10px 26px;
+            border-radius: 2px;
+            cursor: pointer;
+            transition: border-color 0.3s, color 0.3s;
+        }
+
+        .nav-outline-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .nav-account-btn {
+            font-family: 'Arial', sans-serif;
+            font-size: 0.78rem;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--accent);
+            background: none;
+            border: none;
+            cursor: pointer;
+            opacity: 0.85;
+        }
+
+        .nav-account-btn:hover {
+            opacity: 1;
+        }
+
         .nav-signup-btn {
             font-family: 'Arial', sans-serif;
             font-size: 0.82rem;
@@ -725,6 +772,12 @@
         .account-session-view.active { display: block; }
         .account-form-view.hidden { display: none; }
 
+        .my-account-divider {
+            height: 1px;
+            background: rgba(230, 215, 176, 0.15);
+            margin: 22px 0;
+        }
+
         .modal-close {
             position: absolute;
             top: 14px;
@@ -770,7 +823,22 @@
         /* ─── RESPONSIVE ─── */
         @media (max-width: 768px) {
             nav {
-                padding: 18px 28px;
+                padding: 16px 20px;
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+
+            .nav-left, .nav-right {
+                gap: 10px;
+            }
+
+            .nav-outline-btn, .nav-signup-btn {
+                padding: 8px 14px;
+                font-size: 0.72rem;
+            }
+
+            .nav-account-btn {
+                font-size: 0.7rem;
             }
 
             section {
@@ -803,8 +871,15 @@
 
     <!-- ─── NAV ─── -->
     <nav>
-        <div class="nav-logo">LastMind</div>
-        <button class="nav-signup-btn" id="signupBtn">Sign Up</button>
+        <div class="nav-left">
+            <div class="nav-logo">LastMind</div>
+            <button class="nav-account-btn" id="myAccountBtn" style="display:none;">My Account</button>
+        </div>
+        <div class="nav-right">
+            <button class="nav-outline-btn" id="loginBtn">Log In</button>
+            <button class="nav-signup-btn" id="signupBtn">Sign Up</button>
+            <button class="nav-signup-btn" id="navActionBtn" style="display:none;">Upgrade</button>
+        </div>
     </nav>
 
     <!-- ─── HERO ─── -->
@@ -1044,6 +1119,27 @@
         </div>
     </div>
 
+    <!-- ─── MY ACCOUNT MODAL ─── -->
+    <div class="modal-overlay" id="myAccountOverlay">
+        <div class="modal">
+            <button class="modal-close" id="myAccountCloseBtn">&times;</button>
+            <h3>My Account</h3>
+            <p class="modal-note" id="myAccountEmail" style="margin-top:0; margin-bottom:24px;"></p>
+
+            <div class="field">
+                <label for="newPasswordAccountInput">New Password</label>
+                <input type="password" id="newPasswordAccountInput" placeholder="At least 6 characters" autocomplete="new-password">
+            </div>
+            <button class="account-submit-btn" id="savePasswordAccountBtn">Save Password</button>
+            <div class="account-status" id="myAccountPasswordStatus"></div>
+
+            <div class="my-account-divider"></div>
+
+            <button class="account-submit-btn" id="manageSubBtnLanding">Manage Subscription</button>
+            <button class="account-link-btn" id="logoutAccountBtn">Log Out</button>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <script>
@@ -1113,33 +1209,75 @@
         }
 
 
-        function openModal() {
+        // defaultView: 'signup' | 'login' | 'payment' — which state the modal
+        // opens on. 'payment' is used by the Upgrade button, since a
+        // logged-in-but-unsubscribed user should skip straight to Step 2.
+        function openModal(defaultView) {
             document.getElementById('modalOverlay').style.display = 'flex';
+            if (defaultView === 'login') {
+                setAcctMode('login');
+            } else if (defaultView === 'signup') {
+                setAcctMode('signup');
+            } else if (defaultView === 'payment') {
+                accountStep.style.display = 'none';
+                paymentStep.style.display = 'block';
+                setBillingPlan(currentPlan);
+            }
         }
 
         function closeModal() {
             document.getElementById('modalOverlay').style.display = 'none';
         }
 
-        async function refreshSignupUI() {
+        // Drives the nav/hero button state. Three states: logged out (Log In
+        // + Sign Up), logged in without an active subscription (My Account +
+        // Upgrade), logged in with one (My Account + Enter LastMind).
+        async function refreshNavState() {
+            const loginBtn = document.getElementById('loginBtn');
             const signupBtn = document.getElementById('signupBtn');
+            const navActionBtn = document.getElementById('navActionBtn');
+            const myAccountBtn = document.getElementById('myAccountBtn');
             const heroCta = document.getElementById('heroCta');
+
+            const { data: { session } } = await supabaseClient.auth.getSession();
+
+            if (!session) {
+                loginBtn.style.display = 'inline-block';
+                signupBtn.style.display = 'inline-block';
+                navActionBtn.style.display = 'none';
+                myAccountBtn.style.display = 'none';
+
+                loginBtn.onclick = () => openModal('login');
+                signupBtn.onclick = () => openModal('signup');
+                heroCta.textContent = 'Get Started';
+                heroCta.onclick = () => openModal('signup');
+                return;
+            }
+
+            loginBtn.style.display = 'none';
+            signupBtn.style.display = 'none';
+            myAccountBtn.style.display = 'inline-block';
+            navActionBtn.style.display = 'inline-block';
+
             try {
-                const sub = await getSubscription();
-                if (sub) {
-                    signupBtn.textContent = 'Enter LastMind';
+                const resp = await fetch(`${BACKEND_URL}/api/token-for-user`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${session.access_token}` }
+                });
+
+                if (resp.ok) {
+                    navActionBtn.textContent = 'Enter LastMind';
+                    navActionBtn.onclick = () => { window.location.href = '/learn'; };
                     heroCta.textContent = 'Enter LastMind';
-                    const goToApp = () => { window.location.href = '/learn'; };
-                    signupBtn.onclick = goToApp;
-                    heroCta.onclick = goToApp;
+                    heroCta.onclick = () => { window.location.href = '/learn'; };
                 } else {
-                    signupBtn.textContent = 'Sign Up';
-                    heroCta.textContent = 'Get Started';
-                    signupBtn.onclick = openModal;
-                    heroCta.onclick = openModal;
+                    navActionBtn.textContent = 'Upgrade';
+                    navActionBtn.onclick = () => openModal('payment');
+                    heroCta.textContent = 'Upgrade';
+                    heroCta.onclick = () => openModal('payment');
                 }
             } catch (err) {
-                console.error('LastMind: could not read subscription status from IndexedDB.', err);
+                console.error('LastMind: could not check subscription status.', err);
             }
         }
 
@@ -1165,8 +1303,6 @@
                 alert('Payment succeeded but we could not unlock the site on this device. Please refresh and try again.');
             }
         })();
-
-        refreshSignupUI();
     </script>
 
     <!--
@@ -1392,19 +1528,97 @@
             acctPasswordInput.value = '';
             setAcctMode('login');
             renderAccountSession(null);
+            refreshNavState();
+        });
+
+        // ─── My Account modal ───
+        const myAccountOverlay = document.getElementById('myAccountOverlay');
+
+        document.getElementById('myAccountBtn').addEventListener('click', async () => {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            document.getElementById('myAccountEmail').textContent = session?.user ? session.user.email : '';
+            document.getElementById('myAccountPasswordStatus').textContent = '';
+            document.getElementById('newPasswordAccountInput').value = '';
+            myAccountOverlay.style.display = 'flex';
+        });
+
+        document.getElementById('myAccountCloseBtn').addEventListener('click', () => {
+            myAccountOverlay.style.display = 'none';
+        });
+
+        myAccountOverlay.addEventListener('click', (e) => {
+            if (e.target.id === 'myAccountOverlay') myAccountOverlay.style.display = 'none';
+        });
+
+        document.getElementById('savePasswordAccountBtn').addEventListener('click', async () => {
+            const newPassword = document.getElementById('newPasswordAccountInput').value;
+            const statusEl = document.getElementById('myAccountPasswordStatus');
+
+            if (!newPassword || newPassword.length < 6) {
+                statusEl.textContent = 'Password must be at least 6 characters.';
+                statusEl.classList.add('error');
+                return;
+            }
+
+            const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
+            if (error) {
+                statusEl.textContent = error.message;
+                statusEl.classList.add('error');
+            } else {
+                statusEl.classList.remove('error');
+                statusEl.textContent = 'Password updated.';
+                document.getElementById('newPasswordAccountInput').value = '';
+            }
+        });
+
+        document.getElementById('manageSubBtnLanding').addEventListener('click', async () => {
+            const btn = document.getElementById('manageSubBtnLanding');
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return;
+
+            btn.disabled = true;
+            btn.textContent = 'Loading…';
+
+            try {
+                const resp = await fetch(`${BACKEND_URL}/api/portal-for-user`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${session.access_token}` }
+                });
+                if (!resp.ok) throw new Error(`Portal endpoint returned ${resp.status}`);
+                const { url } = await resp.json();
+                window.location.href = url;
+            } catch (err) {
+                console.error('LastMind: could not open the subscription management portal.', err);
+                alert('Could not open subscription management right now. Please try again.');
+                btn.disabled = false;
+                btn.textContent = 'Manage Subscription';
+            }
+        });
+
+        document.getElementById('logoutAccountBtn').addEventListener('click', async () => {
+            await signOutAccount();
+            myAccountOverlay.style.display = 'none';
+            setAcctMode('login');
+            renderAccountSession(null);
+            refreshNavState();
         });
 
         supabaseClient.auth.onAuthStateChange((event, session) => {
             if (event === 'SIGNED_OUT') {
                 renderAccountSession(null);
+                refreshNavState();
                 return;
             }
-            if (session) renderAccountSession(session);
+            if (session) {
+                renderAccountSession(session);
+                refreshNavState();
+            }
         });
 
         (async function bootAccount() {
             const { data } = await getAccountSession();
             if (data.session) renderAccountSession(data.session);
+            await refreshNavState();
         })();
     </script>
 

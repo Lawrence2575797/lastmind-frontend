@@ -149,32 +149,6 @@
         padding: 10px 10px 20px;
     }
 
-    .sidebar-footer {
-        padding: 12px 10px;
-        border-top: 1px solid rgba(230, 215, 176, 0.1);
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-    }
-
-    .manage-subscription-btn {
-        width: 100%;
-        background: none;
-        border: 1px solid rgba(230, 215, 176, 0.2);
-        border-radius: 4px;
-        padding: 9px;
-        color: var(--text);
-        opacity: 0.65;
-        font-family: 'Arial', sans-serif;
-        font-size: 0.75rem;
-        cursor: pointer;
-    }
-
-    .manage-subscription-btn:hover {
-        opacity: 1;
-        background: rgba(230, 215, 176, 0.06);
-    }
-
     .folder-item {
         border-radius: 4px;
         margin-bottom: 4px;
@@ -307,25 +281,6 @@
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        flex: 1;
-    }
-
-    .upgrade-btn {
-        flex-shrink: 0;
-        font-family: 'Arial', sans-serif;
-        font-size: 0.78rem;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-        color: var(--bg);
-        background: var(--accent);
-        border: none;
-        padding: 9px 20px;
-        border-radius: 4px;
-        cursor: pointer;
-    }
-
-    .upgrade-btn:hover {
-        opacity: 0.9;
     }
 
     .content {
@@ -527,28 +482,6 @@
         min-height: 1em;
     }
 
-    .account-status {
-        font-family: 'Arial', sans-serif;
-        font-size: 0.75rem;
-        letter-spacing: 0.03em;
-        color: var(--text);
-        opacity: 0.65;
-        margin-top: 10px;
-        min-height: 1em;
-        text-align: center;
-    }
-
-    .account-status.error {
-        color: #e6b0a8;
-        opacity: 1;
-    }
-
-    .my-account-divider {
-        height: 1px;
-        background: rgba(230, 215, 176, 0.15);
-        margin: 20px 0;
-    }
-
     /* ─── MODAL ─── */
     .modal-overlay {
         display: none;
@@ -692,10 +625,6 @@
             <div class="folder-list" id="folderList">
                 <div class="empty-hint">No folders yet — click "+ New" to create one.</div>
             </div>
-
-            <div class="sidebar-footer">
-                <button class="manage-subscription-btn" id="myAccountBtn">My Account</button>
-            </div>
         </aside>
 
         <!-- ─── MAIN ─── -->
@@ -703,7 +632,6 @@
             <div class="topbar">
                 <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">☰</button>
                 <span class="topbar-title" id="topbarTitle">Select or create a folder to get started</span>
-                <button class="upgrade-btn" id="upgradeBtn">Upgrade</button>
             </div>
 
             <div class="content">
@@ -749,37 +677,11 @@
     </div>
 </div>
 
-<div class="modal-overlay" id="myAccountOverlay">
-    <div class="modal">
-        <h3>My Account</h3>
-        <p class="account-status" id="myAccountEmail" style="opacity:0.85; margin-bottom:20px;"></p>
-
-        <div class="field">
-            <label for="newAccountPasswordInput">New Password</label>
-            <input type="password" id="newAccountPasswordInput" placeholder="At least 6 characters" autocomplete="new-password">
-        </div>
-        <button class="btn primary" id="saveAccountSettingsBtn" style="width:100%;">Save Password</button>
-        <div class="account-status" id="accountSettingsStatus"></div>
-
-        <div class="my-account-divider"></div>
-
-        <button class="btn primary" id="manageSubscriptionBtn" style="width:100%;">Manage Subscription</button>
-
-        <div class="modal-actions">
-            <button class="btn" id="cancelAccountSettingsBtn">Close</button>
-        </div>
-    </div>
-</div>
-
 <!-- Fill this in with your backend's real base URL -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-    const BACKEND_URL = 'https://lastmind-stripe-backend.onrender.com'; // Stripe webhook / JWT / portal backend — confirm this matches your real Render URL
+    const BACKEND_URL = 'https://lastmind-webhook-backend.onrender.com'; // PayPal webhook / JWT backend — live on Render
     const COMPILE_BACKEND_URL = 'https://lastmind-compile-backend.onrender.com'; // Claude compile backend — live
-
-    // Used ONLY to obtain the current session's access token, which the
-    // backend verifies cryptographically before trusting anything — the
-    // frontend never decides access on its own based on "a session exists."
     const SUPABASE_URL = 'https://evgdecewwmkupiadgfop.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2Z2RlY2V3d21rdXBpYWRnZm9wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyODY2MjgsImV4cCI6MjEwMDg2MjYyOH0.W9_7TcBqW1Bjfag5XNTStAwNNNi7VJohr6IotjmI-4s';
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -817,41 +719,25 @@ UwIDAQAB
         });
     }
 
-    async function putAuthRecord(id, value) {
-        const db = await openDB();
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(AUTH_STORE, 'readwrite');
-            tx.objectStore(AUTH_STORE).put({ id, value, savedAt: Date.now() });
-            tx.oncomplete = () => resolve();
-            tx.onerror = (e) => reject(e.target.error);
-        });
-    }
-
-    async function getAuthRecord(id) {
+    async function getStoredToken() {
         const db = await openDB();
         return new Promise((resolve, reject) => {
             const tx = db.transaction(AUTH_STORE, 'readonly');
-            const r = tx.objectStore(AUTH_STORE).get(id);
-            r.onsuccess = () => resolve(r.result ? r.result.value : null);
+            const r = tx.objectStore(AUTH_STORE).get('jwt');
+            r.onsuccess = () => resolve(r.result ? r.result.token : null);
             r.onerror = (e) => reject(e.target.error);
         });
     }
 
-    // Both defined in terms of the generic pair above now, so the shape
-    // written here always matches what index.html writes after checkout —
-    // previously these used a different field name (.token instead of
-    // .value), which meant a token saved by index.html right after payment
-    // was never actually seen by this check, silently forcing an extra
-    // backend round-trip on every single visit instead of using the cached
-    // token directly.
-    async function getStoredToken() {
-        return getAuthRecord('jwt');
-    }
-
     async function saveToken(token) {
-        return putAuthRecord('jwt', token);
+        const db = await openDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(AUTH_STORE, 'readwrite');
+            tx.objectStore(AUTH_STORE).put({ id: 'jwt', token, savedAt: Date.now() });
+            tx.oncomplete = () => resolve();
+            tx.onerror = (e) => reject(e.target.error);
+        });
     }
-
 
     async function getAllFolders() {
         const db = await openDB();
@@ -1472,15 +1358,17 @@ UwIDAQAB
 
     /* ───────────────────────── Gate + boot ───────────────────────── */
 
-    async function getStoredSubscriptionId() {
-        return getAuthRecord('subscriptionId');
-    }
-
     async function refreshTokenFromBackend() {
         // Called when there's no usable token yet — re-fetches using whatever
         // subscription ID was stored at signup time, if any.
         try {
-            const subId = await getStoredSubscriptionId();
+            const db = await openDB();
+            const subId = await new Promise((resolve, reject) => {
+                const tx = db.transaction(AUTH_STORE, 'readonly');
+                const r = tx.objectStore(AUTH_STORE).get('subscriptionId');
+                r.onsuccess = () => resolve(r.result ? r.result.value : null);
+                r.onerror = (e) => reject(e.target.error);
+            });
             if (!subId) return null;
 
             const resp = await fetch(`${BACKEND_URL}/api/token?subscriptionId=${encodeURIComponent(subId)}`);
@@ -1493,83 +1381,6 @@ UwIDAQAB
             return null;
         }
     }
-
-    document.getElementById('myAccountBtn').addEventListener('click', async () => {
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        document.getElementById('myAccountEmail').textContent = session?.user ? session.user.email : '';
-        document.getElementById('newAccountPasswordInput').value = '';
-        document.getElementById('accountSettingsStatus').textContent = '';
-        document.getElementById('accountSettingsStatus').classList.remove('error');
-        document.getElementById('myAccountOverlay').classList.add('open');
-    });
-
-    document.getElementById('cancelAccountSettingsBtn').addEventListener('click', () => {
-        document.getElementById('myAccountOverlay').classList.remove('open');
-    });
-
-    document.getElementById('myAccountOverlay').addEventListener('click', (e) => {
-        if (e.target.id === 'myAccountOverlay') {
-            document.getElementById('myAccountOverlay').classList.remove('open');
-        }
-    });
-
-    document.getElementById('saveAccountSettingsBtn').addEventListener('click', async () => {
-        const newPassword = document.getElementById('newAccountPasswordInput').value;
-        const statusEl = document.getElementById('accountSettingsStatus');
-        const saveBtn = document.getElementById('saveAccountSettingsBtn');
-
-        if (!newPassword || newPassword.length < 6) {
-            statusEl.textContent = 'Password must be at least 6 characters.';
-            statusEl.classList.add('error');
-            return;
-        }
-
-        saveBtn.disabled = true;
-        statusEl.classList.remove('error');
-        statusEl.textContent = 'Saving…';
-
-        const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
-
-        saveBtn.disabled = false;
-        if (error) {
-            statusEl.textContent = error.message;
-            statusEl.classList.add('error');
-        } else {
-            statusEl.textContent = 'Password updated.';
-            document.getElementById('newAccountPasswordInput').value = '';
-        }
-    });
-
-    // Uses the login-based portal endpoint (verified session, not a
-    // locally-stored subscription ID) — works reliably regardless of
-    // whether this device was the one that originally checked out.
-    document.getElementById('manageSubscriptionBtn').addEventListener('click', async () => {
-        const btn = document.getElementById('manageSubscriptionBtn');
-        btn.disabled = true;
-        btn.textContent = 'Loading…';
-
-        try {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) throw new Error('not logged in');
-
-            const resp = await fetch(`${BACKEND_URL}/api/portal-for-user`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${session.access_token}` }
-            });
-            if (!resp.ok) throw new Error(`Portal endpoint returned ${resp.status}`);
-            const { url } = await resp.json();
-            window.location.href = url;
-        } catch (err) {
-            console.error('LastMind: could not open the subscription management portal.', err);
-            alert('Could not open subscription management right now. Please try again.');
-            btn.disabled = false;
-            btn.textContent = 'Manage Subscription';
-        }
-    });
-
-    document.getElementById('upgradeBtn').addEventListener('click', () => {
-        window.location.href = '/subscribe';
-    });
 
     (async function gate() {
         // ── TEMPORARY: lets you view /learn before hosting/backend exist. ──
@@ -1601,32 +1412,13 @@ UwIDAQAB
             return;
         }
 
-        // No usable device-local JWT — try the login-anywhere path instead.
-        // This is NOT "a Supabase session exists, so let them in" (that was
-        // the security hole we removed) — the backend independently verifies
-        // this session's access token against Supabase itself before it will
-        // ever look up or return anything.
-        try {
-            const { data: { session: supabaseSession } } = await supabaseClient.auth.getSession();
-            if (supabaseSession) {
-                const resp = await fetch(`${BACKEND_URL}/api/token-for-user`, {
-                    method: 'POST',
-                    headers: { Authorization: `Bearer ${supabaseSession.access_token}` }
-                });
-                if (resp.ok) {
-                    const { token: linkedToken, subscriptionId: linkedSubId } = await resp.json();
-                    payload = await verifyJWT(linkedToken, publicKey);
-                    if (payload) {
-                        await saveToken(linkedToken);
-                        if (linkedSubId) await putAuthRecord('subscriptionId', linkedSubId);
-                    }
-                }
-            }
-        } catch (err) {
-            console.error('LastMind: login-anywhere check failed.', err);
-        }
-
-        if (payload) {
+        // No valid PayPal-derived JWT — fall back to checking whether the
+        // person is logged in via Supabase instead. supabase-js persists
+        // sessions in this browser's localStorage automatically, so if they
+        // logged in on /subscribe (same origin), that session is already
+        // here — no extra request needed beyond this local check.
+        const { data: supabaseSessionData } = await supabaseClient.auth.getSession();
+        if (supabaseSessionData.session) {
             document.getElementById('gate-message').style.display = 'none';
             document.getElementById('app').style.display = 'block';
             await refreshFolderList();
@@ -1638,4 +1430,4 @@ UwIDAQAB
 </script>
 
 </body>
-</html>
+</html> 
