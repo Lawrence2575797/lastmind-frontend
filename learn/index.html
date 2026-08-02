@@ -271,16 +271,14 @@
 
     .item-dropdown-menu {
         display: none;
-        position: absolute;
-        bottom: 100%;
-        margin-bottom: 4px;
-        right: 0;
+        position: fixed;
         background: var(--panel);
         border: 1px solid rgba(230, 215, 176, 0.2);
         border-radius: 4px;
         min-width: 130px;
-        z-index: 30;
+        z-index: 1000;
         overflow: hidden;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
     }
 
     .item-dropdown-menu.open {
@@ -1334,7 +1332,8 @@ UwIDAQAB
     let pendingMatchFolder = null; // set when the match-suggestion is showing
 
     let draggedItem = null; // { type: 'folder'|'subfolder'|'page', folderId, subfolderId, pageId }
-    let openMenuEl = null;  // currently-open three-dot dropdown, so only one is open at a time
+    let openMenuEl = null;        // currently-open three-dot dropdown, so only one is open at a time
+    let openMenuTriggerBtn = null; // the ⋯ button that opened it — needed for outside-click detection once the menu is detached from its normal spot in the DOM
 
     // MathQuill interface (v2 API) — initialised once, reused for every
     // inline math field created across the whole app.
@@ -1351,8 +1350,12 @@ UwIDAQAB
     }
 
     function closeAllItemMenus() {
-        document.querySelectorAll('.item-dropdown-menu.open').forEach((m) => m.classList.remove('open'));
+        document.querySelectorAll('.item-dropdown-menu.open').forEach((m) => {
+            m.classList.remove('open');
+            m.remove(); // fully detach — it only ever exists in the DOM while open
+        });
         openMenuEl = null;
+        openMenuTriggerBtn = null;
     }
 
     // Finds where a page currently lives (direct in a folder, or inside one
@@ -1595,6 +1598,12 @@ UwIDAQAB
 
         const menu = document.createElement('div');
         menu.className = 'item-dropdown-menu';
+        // Deliberately NOT appended into wrap — it only ever lives in the
+        // DOM (as a direct child of <body>) while actually open. Any
+        // position:absolute dropdown nested inside a scrolling sidebar can
+        // get clipped depending on where the item happens to sit in the
+        // list — this sidesteps that permanently by positioning against
+        // the viewport instead of any ancestor.
 
         options.forEach((opt) => {
             const optBtn = document.createElement('button');
@@ -1612,10 +1621,25 @@ UwIDAQAB
             e.stopPropagation();
             const wasOpen = menu.classList.contains('open');
             closeAllItemMenus();
-            if (!wasOpen) {
-                menu.classList.add('open');
-                openMenuEl = menu;
-            }
+            if (wasOpen) return; // this click just closed it — don't reopen
+
+            document.body.appendChild(menu);
+            menu.classList.add('open');
+
+            const btnRect = btn.getBoundingClientRect();
+            const menuRect = menu.getBoundingClientRect(); // real size, now that it's visible
+
+            let top = btnRect.top - menuRect.height - 4; // prefer opening upward
+            if (top < 8) top = btnRect.bottom + 4;        // not enough room above — open downward instead
+
+            let left = btnRect.right - menuRect.width;
+            if (left < 8) left = btnRect.left;
+
+            menu.style.top = `${top}px`;
+            menu.style.left = `${left}px`;
+
+            openMenuEl = menu;
+            openMenuTriggerBtn = btn;
         });
 
         wrap.appendChild(btn);
@@ -2466,7 +2490,7 @@ UwIDAQAB
         if (dropdown && !dropdown.contains(e.target)) {
             document.getElementById('newMenu').classList.remove('open');
         }
-        if (openMenuEl && !openMenuEl.parentElement.contains(e.target)) {
+        if (openMenuEl && !openMenuEl.contains(e.target) && !(openMenuTriggerBtn && openMenuTriggerBtn.contains(e.target))) {
             closeAllItemMenus();
         }
     });
