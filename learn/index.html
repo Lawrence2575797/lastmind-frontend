@@ -2646,6 +2646,27 @@ UwIDAQAB
         document.getElementById('folderModalOverlay').classList.remove('open');
     }
 
+    // Enter moves through Subject -> Qualification -> Exam Board, then
+    // submits on the last field — no need to click into each box by hand.
+    document.getElementById('subjectInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('qualificationInput').focus();
+        }
+    });
+    document.getElementById('qualificationInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('boardInput').focus();
+        }
+    });
+    document.getElementById('boardInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('submitFolderBtn').click();
+        }
+    });
+
     document.getElementById('cancelFolderBtn').addEventListener('click', closeFolderModal);
     document.getElementById('folderModalOverlay').addEventListener('click', (e) => {
         if (e.target.id === 'folderModalOverlay') closeFolderModal();
