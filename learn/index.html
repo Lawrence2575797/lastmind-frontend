@@ -593,29 +593,6 @@
         border-bottom-color: var(--accent);
     }
 
-    .note-textarea {
-        width: 100%;
-        min-height: 60vh;
-        background: var(--accent);
-        border: 1px solid rgba(26, 26, 28, 0.15);
-        border-radius: 6px;
-        color: var(--bg);
-        font-family: 'Georgia', serif;
-        font-size: 1rem;
-        line-height: 1.8;
-        padding: 22px 24px 64px;
-        resize: vertical;
-    }
-
-    .note-textarea::placeholder {
-        color: rgba(26, 26, 28, 0.5);
-    }
-
-    .note-textarea:focus {
-        outline: none;
-        border-color: rgba(26, 26, 28, 0.3);
-    }
-
     .compile-btn {
         position: absolute;
         bottom: 16px;
@@ -694,74 +671,126 @@
         white-space: pre-wrap;
     }
 
-    /* ─── MATH KEYBOARD ─── */
-    .keyboard-mode-toggle {
+    /* ─── RICH EDITOR ─── */
+    .rich-toolbar {
         display: flex;
         gap: 8px;
         margin-bottom: 10px;
     }
 
-    .keyboard-toggle-btn {
+    .toolbar-btn {
         background: none;
         border: 1px solid rgba(230, 215, 176, 0.25);
         border-radius: 4px;
         color: var(--text);
-        opacity: 0.6;
+        opacity: 0.75;
         font-family: 'Arial', sans-serif;
-        font-size: 0.72rem;
+        font-size: 0.75rem;
         letter-spacing: 0.02em;
-        padding: 6px 12px;
+        padding: 7px 14px;
         cursor: pointer;
     }
 
-    .keyboard-toggle-btn:hover {
-        opacity: 0.9;
-    }
-
-    .keyboard-toggle-btn.active {
+    .toolbar-btn:hover {
         opacity: 1;
-        color: var(--accent);
         border-color: var(--accent);
-        background: rgba(230, 215, 176, 0.08);
+        color: var(--accent);
     }
 
-    .math-palette {
-        background: var(--panel);
-        border: 1px solid rgba(230, 215, 176, 0.15);
+    .note-editable {
+        width: 100%;
+        min-height: 60vh;
+        background: var(--accent);
+        border: 1px solid rgba(26, 26, 28, 0.15);
         border-radius: 6px;
-        padding: 10px;
-        margin-bottom: 10px;
-    }
-
-    .math-palette-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        margin-bottom: 6px;
-    }
-
-    .math-palette-row:last-child {
-        margin-bottom: 0;
-    }
-
-    .math-key {
-        width: 34px;
-        height: 34px;
-        background: var(--bg);
-        border: 1px solid rgba(230, 215, 176, 0.2);
-        border-radius: 4px;
-        color: var(--text);
+        color: var(--bg);
         font-family: 'Georgia', serif;
         font-size: 1rem;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        line-height: 1.8;
+        padding: 22px 24px 64px;
+        overflow-y: auto;
     }
 
-    .math-key:hover {
-        border-color: var(--accent);
-        color: var(--accent);
+    .note-editable:focus {
+        outline: none;
+        border-color: rgba(26, 26, 28, 0.3);
+    }
+
+    .note-editable:empty::before {
+        content: attr(data-placeholder);
+        color: rgba(26, 26, 28, 0.5);
+    }
+
+    /* Inline MathQuill fields, sitting mid-sentence in the notes */
+    .math-field-inline {
+        display: inline-block;
+        vertical-align: middle;
+        margin: 0 3px;
+        padding: 2px 5px;
+        background: rgba(26, 26, 28, 0.06);
+        border: 1px solid rgba(26, 26, 28, 0.15);
+        border-radius: 4px;
+        min-width: 20px;
+        min-height: 1.2em;
+    }
+
+    .math-field-inline .mq-editable-field {
+        font-size: 1.05rem;
+    }
+
+    /* Read-only KaTeX-rendered matrices, displayed as their own block */
+    .matrix-block {
+        display: block;
+        margin: 12px 0;
+        padding: 10px;
+        background: rgba(26, 26, 28, 0.05);
+        border-radius: 4px;
+        text-align: center;
+    }
+
+    /* ─── MATRIX MODAL ─── */
+    .matrix-size-fields {
+        display: flex;
+        align-items: flex-end;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .matrix-size-fields .field {
+        flex: 1;
+    }
+
+    .matrix-size-fields input[type="number"] {
+        width: 100%;
+        background: var(--panel);
+        border: 1px solid rgba(230, 215, 176, 0.2);
+        border-radius: 4px;
+        padding: 9px 10px;
+        color: var(--text);
+        font-family: 'Arial', sans-serif;
+    }
+
+    .matrix-grid {
+        display: grid;
+        gap: 8px;
+        margin-bottom: 20px;
+    }
+
+    .matrix-grid input {
+        width: 100%;
+        background: var(--panel);
+        border: 1px solid rgba(230, 215, 176, 0.2);
+        border-radius: 4px;
+        padding: 10px;
+        color: var(--text);
+        font-family: 'Georgia', serif;
+        font-size: 0.95rem;
+        text-align: center;
+    }
+
+    .matrix-grid input:focus {
+        outline: none;
+        border-color: rgba(230, 215, 176, 0.5);
     }
 
     /* ─── DICTATION ─── */
@@ -960,6 +989,17 @@
         border: none;
     }
 </style>
+
+<!-- jQuery is a MathQuill dependency (its stable release requires it) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/mathquill/0.10.1/mathquill.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathquill/0.10.1/mathquill.min.js"></script>
+<!-- KaTeX renders matrices correctly (MathQuill's own matrix support is
+     genuinely broken — confirmed via its GitHub issue tracker — so
+     matrices are built with a custom grid tool and rendered via KaTeX
+     instead of routed through MathQuill at all) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.js"></script>
 </head>
 <body>
 
@@ -1295,6 +1335,16 @@ UwIDAQAB
 
     let draggedItem = null; // { type: 'folder'|'subfolder'|'page', folderId, subfolderId, pageId }
     let openMenuEl = null;  // currently-open three-dot dropdown, so only one is open at a time
+
+    // MathQuill interface (v2 API) — initialised once, reused for every
+    // inline math field created across the whole app.
+    const MQ = window.MathQuill ? MathQuill.getInterface(2) : null;
+
+    // Maps a math-field-inline DOM element -> its live MathQuill instance,
+    // for the currently-open page only. Reset at the start of every
+    // openPage() call, since the old DOM (and its instances) are discarded
+    // whenever a different page is opened.
+    let mathFieldInstances = new Map();
 
     function folderLabel(f) {
         return `${f.subject} — ${f.qualification} (${f.examBoard})`;
@@ -1881,64 +1931,13 @@ UwIDAQAB
                 <div class="editor-wrap">
                     <input type="text" class="page-title-input" id="pageTitleInput" placeholder="Page title" value="">
 
-                    <div class="keyboard-mode-toggle">
-                        <button class="keyboard-toggle-btn active" id="normalKeyboardBtn" type="button">Normal Keyboard</button>
-                        <button class="keyboard-toggle-btn" id="mathKeyboardBtn" type="button">Math Keyboard</button>
-                    </div>
-
-                    <div class="math-palette" id="mathPalette" style="display:none;">
-                        <div class="math-palette-row">
-                            <button type="button" class="math-key">×</button>
-                            <button type="button" class="math-key">÷</button>
-                            <button type="button" class="math-key">±</button>
-                            <button type="button" class="math-key">≠</button>
-                            <button type="button" class="math-key">≈</button>
-                            <button type="button" class="math-key">≡</button>
-                            <button type="button" class="math-key">≤</button>
-                            <button type="button" class="math-key">≥</button>
-                            <button type="button" class="math-key">∴</button>
-                            <button type="button" class="math-key">∵</button>
-                        </div>
-                        <div class="math-palette-row">
-                            <button type="button" class="math-key">π</button>
-                            <button type="button" class="math-key">θ</button>
-                            <button type="button" class="math-key">α</button>
-                            <button type="button" class="math-key">β</button>
-                            <button type="button" class="math-key">γ</button>
-                            <button type="button" class="math-key">Δ</button>
-                            <button type="button" class="math-key">δ</button>
-                            <button type="button" class="math-key">Σ</button>
-                            <button type="button" class="math-key">Ω</button>
-                            <button type="button" class="math-key">λ</button>
-                        </div>
-                        <div class="math-palette-row">
-                            <button type="button" class="math-key">√</button>
-                            <button type="button" class="math-key">∫</button>
-                            <button type="button" class="math-key">∑</button>
-                            <button type="button" class="math-key">∂</button>
-                            <button type="button" class="math-key">∞</button>
-                            <button type="button" class="math-key">∈</button>
-                            <button type="button" class="math-key">∉</button>
-                            <button type="button" class="math-key">⊂</button>
-                            <button type="button" class="math-key">∪</button>
-                            <button type="button" class="math-key">∩</button>
-                        </div>
-                        <div class="math-palette-row">
-                            <button type="button" class="math-key">⁰</button>
-                            <button type="button" class="math-key">¹</button>
-                            <button type="button" class="math-key">²</button>
-                            <button type="button" class="math-key">³</button>
-                            <button type="button" class="math-key">⁴</button>
-                            <button type="button" class="math-key">⁵</button>
-                            <button type="button" class="math-key">°</button>
-                            <button type="button" class="math-key">′</button>
-                            <button type="button" class="math-key">⇒</button>
-                            <button type="button" class="math-key">⇔</button>
-                        </div>
+                    <div class="rich-toolbar">
+                        <button type="button" class="toolbar-btn" id="insertMathBtn">∑ Insert Math</button>
+                        <button type="button" class="toolbar-btn" id="insertMatrixBtn">⊞ Insert Matrix</button>
                     </div>
 
                     <div class="textarea-wrap">
-                        <textarea class="note-textarea" id="noteBox" placeholder="Start typing your notes…"></textarea>
+                        <div class="note-editable" id="noteBox" contenteditable="true" data-placeholder="Start typing your notes…"></div>
                         <button type="button" class="mic-btn" id="micBtn" title="Start dictation">🎤</button>
                     </div>
                     <div class="dictation-status" id="dictationStatus"></div>
@@ -1946,6 +1945,28 @@ UwIDAQAB
                     ${isPaidUser ? '<button class="compile-btn" id="compileBtn">Compile</button>' : ''}
                 </div>
                 ${isPaidUser ? '<div class="compile-status" id="compileStatus"></div><div class="compiled-output" id="compiledOutput" style="display:none;"></div>' : ''}
+            </div>
+
+            <div class="modal-overlay" id="matrixModalOverlay">
+                <div class="modal">
+                    <h3>Insert Matrix</h3>
+                    <div class="matrix-size-fields">
+                        <div class="field">
+                            <label for="matrixRowsInput">Rows</label>
+                            <input type="number" id="matrixRowsInput" min="1" max="6" value="2">
+                        </div>
+                        <div class="field">
+                            <label for="matrixColsInput">Columns</label>
+                            <input type="number" id="matrixColsInput" min="1" max="6" value="2">
+                        </div>
+                        <button class="btn" id="matrixResizeBtn" type="button">Update Grid</button>
+                    </div>
+                    <div class="matrix-grid" id="matrixGrid"></div>
+                    <div class="modal-actions">
+                        <button class="btn" id="matrixCancelBtn">Cancel</button>
+                        <button class="btn primary" id="matrixInsertBtn">Insert</button>
+                    </div>
+                </div>
             </div>
 
             <div id="diagnoseModeContent" style="display:none;">
@@ -1983,64 +2004,221 @@ UwIDAQAB
             }, 400);
         });
 
-        const textarea = document.getElementById('noteBox');
-        textarea.value = page.content || '';
-        textarea.addEventListener('input', () => {
+        const noteBox = document.getElementById('noteBox');
+        mathFieldInstances = new Map(); // fresh map for this page
+
+        // Builds a clean, storage-safe copy of the note's HTML: inline math
+        // fields are reduced to <span class="math-field-inline"
+        // data-latex="..."></span> — MathQuill's own live rendering DOM is
+        // NOT saved (it isn't meant to be treated as static markup), only
+        // the LaTeX source, which is enough to fully rebuild the field next
+        // time the page opens.
+        function serializeNoteContent() {
+            const container = document.createElement('div');
+
+            function walk(source, target) {
+                source.childNodes.forEach((child) => {
+                    if (child.nodeType === Node.TEXT_NODE) {
+                        target.appendChild(document.createTextNode(child.textContent));
+                        return;
+                    }
+                    if (child.nodeType !== Node.ELEMENT_NODE) return;
+
+                    if (child.classList.contains('math-field-inline')) {
+                        const clean = document.createElement('span');
+                        clean.className = 'math-field-inline';
+                        const instance = mathFieldInstances.get(child);
+                        clean.setAttribute('data-latex', instance ? instance.latex() : (child.dataset.latex || ''));
+                        target.appendChild(clean);
+                        return;
+                    }
+                    if (child.classList.contains('matrix-block')) {
+                        const clean = document.createElement('span');
+                        clean.className = 'matrix-block';
+                        clean.setAttribute('data-latex', child.dataset.latex || '');
+                        target.appendChild(clean);
+                        return;
+                    }
+
+                    const clone = document.createElement(child.tagName);
+                    walk(child, clone);
+                    target.appendChild(clone);
+                });
+            }
+
+            walk(noteBox, container);
+            return container.innerHTML;
+        }
+
+        // The plain-text version sent to Compile and read aloud by Play —
+        // math fields/matrices contribute their LaTeX source as text (which
+        // Claude reads fine; TTS will read it literally rather than
+        // "speaking" the math, a known, honest limitation for now).
+        function extractPlainText(node) {
+            let result = '';
+            node.childNodes.forEach((child) => {
+                if (child.nodeType === Node.TEXT_NODE) {
+                    result += child.textContent;
+                    return;
+                }
+                if (child.nodeType !== Node.ELEMENT_NODE) return;
+
+                if (child.classList.contains('math-field-inline')) {
+                    const instance = mathFieldInstances.get(child);
+                    result += ` ${instance ? instance.latex() : (child.dataset.latex || '')} `;
+                } else if (child.classList.contains('matrix-block')) {
+                    result += ` ${child.dataset.latex || ''} `;
+                } else if (child.tagName === 'BR') {
+                    result += '\n';
+                } else if (child.tagName === 'DIV' || child.tagName === 'P') {
+                    result += extractPlainText(child) + '\n';
+                } else {
+                    result += extractPlainText(child);
+                }
+            });
+            return result;
+        }
+
+        function saveNoteContent() {
             clearTimeout(saveDebounce);
             saveDebounce = setTimeout(async () => {
-                page.content = textarea.value;
+                page.content = serializeNoteContent();
                 await putFolder(folder);
             }, 400);
-        });
+        }
 
-        // Math keyboard: a symbol palette that inserts at the current
-        // cursor position — the textarea itself stays a plain text field
-        // either way, this just gives a quick way to type symbols that
-        // aren't on a normal keyboard.
-        const normalKeyboardBtn = document.getElementById('normalKeyboardBtn');
-        const mathKeyboardBtn = document.getElementById('mathKeyboardBtn');
-        const mathPalette = document.getElementById('mathPalette');
+        function renderMatrixBlock(el) {
+            const latex = el.getAttribute('data-latex') || '';
+            try {
+                katex.render(latex, el, { throwOnError: false, displayMode: true });
+            } catch (err) {
+                el.textContent = latex; // fallback: show raw LaTeX if rendering fails
+            }
+        }
 
-        normalKeyboardBtn.addEventListener('click', () => {
-            normalKeyboardBtn.classList.add('active');
-            mathKeyboardBtn.classList.remove('active');
-            mathPalette.style.display = 'none';
-        });
-
-        mathKeyboardBtn.addEventListener('click', () => {
-            mathKeyboardBtn.classList.add('active');
-            normalKeyboardBtn.classList.remove('active');
-            mathPalette.style.display = 'block';
-        });
-
-        mathPalette.querySelectorAll('.math-key').forEach((keyBtn) => {
-            keyBtn.addEventListener('click', () => {
-                const symbol = keyBtn.textContent;
-                const start = textarea.selectionStart;
-                const end = textarea.selectionEnd;
-                const before = textarea.value.slice(0, start);
-                const after = textarea.value.slice(end);
-                textarea.value = before + symbol + after;
-
-                // Put the cursor right after the inserted symbol, and keep
-                // focus on the textarea so someone can keep typing without
-                // having to click back into it after every symbol.
-                const newCursorPos = start + symbol.length;
-                textarea.focus();
-                textarea.setSelectionRange(newCursorPos, newCursorPos);
-
-                textarea.dispatchEvent(new Event('input')); // triggers the normal debounced save
+        function attachMathField(el, initialLatex) {
+            const mq = MQ.MathField(el, {
+                handlers: { edit: saveNoteContent }
             });
+            if (initialLatex) mq.latex(initialLatex);
+            mathFieldInstances.set(el, mq);
+            return mq;
+        }
+
+        // Load saved content, then bring any math-field-inline / matrix-block
+        // spans in it back to life (they're saved as inert markup with just
+        // a data-latex attribute — see serializeNoteContent above).
+        noteBox.innerHTML = page.content || '';
+        noteBox.querySelectorAll('.math-field-inline').forEach((el) => {
+            const savedLatex = el.getAttribute('data-latex') || '';
+            el.innerHTML = '';
+            attachMathField(el, savedLatex);
+        });
+        noteBox.querySelectorAll('.matrix-block').forEach(renderMatrixBlock);
+
+        noteBox.addEventListener('input', saveNoteContent);
+
+        // "Insert Math" — drops a live MathQuill field at the current
+        // cursor position within the notes.
+        document.getElementById('insertMathBtn').addEventListener('click', () => {
+            let range;
+            const sel = window.getSelection();
+            if (sel.rangeCount && noteBox.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+                range = sel.getRangeAt(0);
+            } else {
+                noteBox.focus();
+                range = document.createRange();
+                range.selectNodeContents(noteBox);
+                range.collapse(false);
+            }
+
+            const span = document.createElement('span');
+            span.className = 'math-field-inline';
+            range.deleteContents();
+            range.insertNode(span);
+
+            const mq = attachMathField(span, '');
+            mq.focus();
         });
 
-        // Compile logic itself is still coming tomorrow — no-op for now.
+        // "Insert Matrix" — a custom grid tool, not MathQuill (whose own
+        // matrix support is genuinely broken per its GitHub issue tracker).
+        // Rendered read-only via KaTeX, which handles matrix LaTeX correctly.
+        const matrixModalOverlay = document.getElementById('matrixModalOverlay');
+        const matrixGrid = document.getElementById('matrixGrid');
+        const matrixRowsInput = document.getElementById('matrixRowsInput');
+        const matrixColsInput = document.getElementById('matrixColsInput');
+        let matrixInsertRange = null; // where to insert once "Insert" is clicked
+
+        function buildMatrixGrid() {
+            const rows = Math.max(1, Math.min(6, parseInt(matrixRowsInput.value, 10) || 1));
+            const cols = Math.max(1, Math.min(6, parseInt(matrixColsInput.value, 10) || 1));
+            matrixGrid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+            matrixGrid.innerHTML = '';
+            for (let i = 0; i < rows * cols; i++) {
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.placeholder = '0';
+                matrixGrid.appendChild(input);
+            }
+        }
+
+        document.getElementById('insertMatrixBtn').addEventListener('click', () => {
+            const sel = window.getSelection();
+            if (sel.rangeCount && noteBox.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+                matrixInsertRange = sel.getRangeAt(0).cloneRange();
+            } else {
+                noteBox.focus();
+                const r = document.createRange();
+                r.selectNodeContents(noteBox);
+                r.collapse(false);
+                matrixInsertRange = r;
+            }
+            matrixRowsInput.value = 2;
+            matrixColsInput.value = 2;
+            buildMatrixGrid();
+            matrixModalOverlay.classList.add('open');
+        });
+
+        document.getElementById('matrixResizeBtn').addEventListener('click', buildMatrixGrid);
+        document.getElementById('matrixCancelBtn').addEventListener('click', () => {
+            matrixModalOverlay.classList.remove('open');
+        });
+        matrixModalOverlay.addEventListener('click', (e) => {
+            if (e.target.id === 'matrixModalOverlay') matrixModalOverlay.classList.remove('open');
+        });
+
+        document.getElementById('matrixInsertBtn').addEventListener('click', () => {
+            const cols = Math.max(1, Math.min(6, parseInt(matrixColsInput.value, 10) || 1));
+            const cellInputs = Array.from(matrixGrid.querySelectorAll('input'));
+            const rows = [];
+            for (let i = 0; i < cellInputs.length; i += cols) {
+                rows.push(cellInputs.slice(i, i + cols).map((inp) => inp.value.trim() || '0').join(' & '));
+            }
+            const latex = `\\begin{pmatrix} ${rows.join(' \\\\ ')} \\end{pmatrix}`;
+
+            const span = document.createElement('span');
+            span.className = 'matrix-block';
+            span.setAttribute('data-latex', latex);
+
+            if (matrixInsertRange) {
+                matrixInsertRange.deleteContents();
+                matrixInsertRange.insertNode(span);
+            } else {
+                noteBox.appendChild(span);
+            }
+            renderMatrixBlock(span);
+            matrixModalOverlay.classList.remove('open');
+            saveNoteContent();
+        });
+
         if (isPaidUser) {
             const compileBtn = document.getElementById('compileBtn');
             const compileStatus = document.getElementById('compileStatus');
             const compiledOutput = document.getElementById('compiledOutput');
 
             compileBtn.addEventListener('click', async () => {
-                const notes = textarea.value.trim();
+                const notes = extractPlainText(noteBox).trim();
                 if (!notes) {
                     compileStatus.textContent = 'Write some notes first.';
                     compileStatus.classList.add('error');
@@ -2088,7 +2266,7 @@ UwIDAQAB
                 playBtn.textContent = '▶ Play';
                 return;
             }
-            const utterance = await speakText(textarea.value);
+            const utterance = await speakText(extractPlainText(noteBox));
             if (!utterance) return;
             playBtn.classList.add('playing');
             playBtn.textContent = '■ Stop';
@@ -2127,7 +2305,7 @@ UwIDAQAB
             // no-op for now
         });
 
-        setupDictation(textarea);
+        setupDictation(noteBox);
 
         refreshFolderList();
     }
@@ -2169,14 +2347,43 @@ UwIDAQAB
             const trimmed = transcript.trim();
             if (!trimmed) return;
 
-            const needsLeadingSpace =
-                textarea.value.length > 0 &&
-                !/\s$/.test(textarea.value);
+            textarea.focus();
 
-            textarea.value += (needsLeadingSpace ? ' ' : '') + trimmed + ' ';
+            const sel = window.getSelection();
+            let range;
+            if (sel.rangeCount && textarea.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+                range = sel.getRangeAt(0);
+            } else {
+                range = document.createRange();
+                range.selectNodeContents(textarea);
+                range.collapse(false);
+            }
 
-            // Reuse the existing autosave listener rather than duplicating it.
-            textarea.dispatchEvent(new Event('input'));
+            // Match the textarea's old "add a leading space unless the text
+            // already ends in whitespace" behaviour, checked against the
+            // text node immediately before the cursor.
+            let needsLeadingSpace = true;
+            const prevNode = range.startContainer.nodeType === Node.TEXT_NODE
+                ? range.startContainer
+                : range.startContainer.childNodes[range.startOffset - 1];
+            if (prevNode && prevNode.nodeType === Node.TEXT_NODE) {
+                needsLeadingSpace = prevNode.textContent.length > 0 && !/\s$/.test(prevNode.textContent);
+            } else if (!prevNode) {
+                needsLeadingSpace = false; // nothing before the cursor at all
+            }
+
+            const textNode = document.createTextNode((needsLeadingSpace ? ' ' : '') + trimmed + ' ');
+            range.deleteContents();
+            range.insertNode(textNode);
+
+            // Move the cursor to just after the inserted text.
+            const newRange = document.createRange();
+            newRange.setStartAfter(textNode);
+            newRange.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+
+            textarea.dispatchEvent(new Event('input')); // reuses the existing autosave listener
             textarea.scrollTop = textarea.scrollHeight;
         }
 
