@@ -791,6 +791,72 @@
         border-color: rgba(230, 215, 176, 0.5);
     }
 
+    /* ─── SCRATCH NOTES ─── */
+    .scratch-notes-widget {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        width: 240px;
+        background: var(--panel);
+        border: 1px solid rgba(230, 215, 176, 0.25);
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        z-index: 50;
+        overflow: hidden;
+    }
+
+    .scratch-notes-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 14px;
+        cursor: pointer;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.8rem;
+        color: var(--accent);
+        user-select: none;
+    }
+
+    .scratch-notes-toggle {
+        background: none;
+        border: none;
+        color: var(--accent);
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: transform 0.2s;
+    }
+
+    .scratch-notes-widget.collapsed .scratch-notes-toggle {
+        transform: rotate(-90deg);
+    }
+
+    .scratch-notes-widget.collapsed .scratch-notes-textarea {
+        display: none;
+    }
+
+    .scratch-notes-textarea {
+        display: block;
+        width: 100%;
+        height: 140px;
+        background: var(--bg);
+        border: none;
+        border-top: 1px solid rgba(230, 215, 176, 0.15);
+        color: var(--text);
+        font-family: 'Georgia', serif;
+        font-size: 0.85rem;
+        line-height: 1.6;
+        padding: 12px 14px;
+        resize: vertical;
+    }
+
+    .scratch-notes-textarea:focus {
+        outline: none;
+    }
+
+    .scratch-notes-textarea::placeholder {
+        color: rgba(230, 215, 176, 0.35);
+    }
+
     /* ─── DICTATION ─── */
     .textarea-wrap {
         position: relative;
@@ -1969,6 +2035,14 @@ UwIDAQAB
                     ${isPaidUser ? '<button class="compile-btn" id="compileBtn">Compile</button>' : ''}
                 </div>
                 ${isPaidUser ? '<div class="compile-status" id="compileStatus"></div><div class="compiled-output" id="compiledOutput" style="display:none;"></div>' : ''}
+
+                <div class="scratch-notes-widget" id="scratchNotesWidget">
+                    <div class="scratch-notes-header" id="scratchNotesHeader">
+                        <span>💡 Quick Notes</span>
+                        <button type="button" class="scratch-notes-toggle" id="scratchNotesToggle">▾</button>
+                    </div>
+                    <textarea class="scratch-notes-textarea" id="scratchNotesBox" placeholder="Jot down a point for later, without losing your place…"></textarea>
+                </div>
             </div>
 
             <div class="modal-overlay" id="matrixModalOverlay">
@@ -2030,6 +2104,28 @@ UwIDAQAB
 
         const noteBox = document.getElementById('noteBox');
         mathFieldInstances = new Map(); // fresh map for this page
+
+        // Scratch notes: a small "jot this down for later" pad, kept
+        // completely separate from the real notes on purpose — it's
+        // never read by Compile or Play, both of which only ever look at
+        // noteBox. Its own field on the page, its own debounce, its own
+        // save call.
+        const scratchNotesBox = document.getElementById('scratchNotesBox');
+        const scratchNotesWidget = document.getElementById('scratchNotesWidget');
+        scratchNotesBox.value = page.scratchNotes || '';
+
+        let scratchSaveDebounce = null;
+        scratchNotesBox.addEventListener('input', () => {
+            clearTimeout(scratchSaveDebounce);
+            scratchSaveDebounce = setTimeout(async () => {
+                page.scratchNotes = scratchNotesBox.value;
+                await putFolder(folder);
+            }, 400);
+        });
+
+        document.getElementById('scratchNotesHeader').addEventListener('click', () => {
+            scratchNotesWidget.classList.toggle('collapsed');
+        });
 
         // Builds a clean, storage-safe copy of the note's HTML: inline math
         // fields are reduced to <span class="math-field-inline"
