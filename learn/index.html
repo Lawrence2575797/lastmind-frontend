@@ -694,6 +694,76 @@
         white-space: pre-wrap;
     }
 
+    /* ─── MATH KEYBOARD ─── */
+    .keyboard-mode-toggle {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+
+    .keyboard-toggle-btn {
+        background: none;
+        border: 1px solid rgba(230, 215, 176, 0.25);
+        border-radius: 4px;
+        color: var(--text);
+        opacity: 0.6;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.72rem;
+        letter-spacing: 0.02em;
+        padding: 6px 12px;
+        cursor: pointer;
+    }
+
+    .keyboard-toggle-btn:hover {
+        opacity: 0.9;
+    }
+
+    .keyboard-toggle-btn.active {
+        opacity: 1;
+        color: var(--accent);
+        border-color: var(--accent);
+        background: rgba(230, 215, 176, 0.08);
+    }
+
+    .math-palette {
+        background: var(--panel);
+        border: 1px solid rgba(230, 215, 176, 0.15);
+        border-radius: 6px;
+        padding: 10px;
+        margin-bottom: 10px;
+    }
+
+    .math-palette-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 6px;
+    }
+
+    .math-palette-row:last-child {
+        margin-bottom: 0;
+    }
+
+    .math-key {
+        width: 34px;
+        height: 34px;
+        background: var(--bg);
+        border: 1px solid rgba(230, 215, 176, 0.2);
+        border-radius: 4px;
+        color: var(--text);
+        font-family: 'Georgia', serif;
+        font-size: 1rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .math-key:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+    }
+
     /* ─── DICTATION ─── */
     .textarea-wrap {
         position: relative;
@@ -1810,6 +1880,63 @@ UwIDAQAB
             <div id="notesModeContent">
                 <div class="editor-wrap">
                     <input type="text" class="page-title-input" id="pageTitleInput" placeholder="Page title" value="">
+
+                    <div class="keyboard-mode-toggle">
+                        <button class="keyboard-toggle-btn active" id="normalKeyboardBtn" type="button">Normal Keyboard</button>
+                        <button class="keyboard-toggle-btn" id="mathKeyboardBtn" type="button">Math Keyboard</button>
+                    </div>
+
+                    <div class="math-palette" id="mathPalette" style="display:none;">
+                        <div class="math-palette-row">
+                            <button type="button" class="math-key">×</button>
+                            <button type="button" class="math-key">÷</button>
+                            <button type="button" class="math-key">±</button>
+                            <button type="button" class="math-key">≠</button>
+                            <button type="button" class="math-key">≈</button>
+                            <button type="button" class="math-key">≡</button>
+                            <button type="button" class="math-key">≤</button>
+                            <button type="button" class="math-key">≥</button>
+                            <button type="button" class="math-key">∴</button>
+                            <button type="button" class="math-key">∵</button>
+                        </div>
+                        <div class="math-palette-row">
+                            <button type="button" class="math-key">π</button>
+                            <button type="button" class="math-key">θ</button>
+                            <button type="button" class="math-key">α</button>
+                            <button type="button" class="math-key">β</button>
+                            <button type="button" class="math-key">γ</button>
+                            <button type="button" class="math-key">Δ</button>
+                            <button type="button" class="math-key">δ</button>
+                            <button type="button" class="math-key">Σ</button>
+                            <button type="button" class="math-key">Ω</button>
+                            <button type="button" class="math-key">λ</button>
+                        </div>
+                        <div class="math-palette-row">
+                            <button type="button" class="math-key">√</button>
+                            <button type="button" class="math-key">∫</button>
+                            <button type="button" class="math-key">∑</button>
+                            <button type="button" class="math-key">∂</button>
+                            <button type="button" class="math-key">∞</button>
+                            <button type="button" class="math-key">∈</button>
+                            <button type="button" class="math-key">∉</button>
+                            <button type="button" class="math-key">⊂</button>
+                            <button type="button" class="math-key">∪</button>
+                            <button type="button" class="math-key">∩</button>
+                        </div>
+                        <div class="math-palette-row">
+                            <button type="button" class="math-key">⁰</button>
+                            <button type="button" class="math-key">¹</button>
+                            <button type="button" class="math-key">²</button>
+                            <button type="button" class="math-key">³</button>
+                            <button type="button" class="math-key">⁴</button>
+                            <button type="button" class="math-key">⁵</button>
+                            <button type="button" class="math-key">°</button>
+                            <button type="button" class="math-key">′</button>
+                            <button type="button" class="math-key">⇒</button>
+                            <button type="button" class="math-key">⇔</button>
+                        </div>
+                    </div>
+
                     <div class="textarea-wrap">
                         <textarea class="note-textarea" id="noteBox" placeholder="Start typing your notes…"></textarea>
                         <button type="button" class="mic-btn" id="micBtn" title="Start dictation">🎤</button>
@@ -1864,6 +1991,46 @@ UwIDAQAB
                 page.content = textarea.value;
                 await putFolder(folder);
             }, 400);
+        });
+
+        // Math keyboard: a symbol palette that inserts at the current
+        // cursor position — the textarea itself stays a plain text field
+        // either way, this just gives a quick way to type symbols that
+        // aren't on a normal keyboard.
+        const normalKeyboardBtn = document.getElementById('normalKeyboardBtn');
+        const mathKeyboardBtn = document.getElementById('mathKeyboardBtn');
+        const mathPalette = document.getElementById('mathPalette');
+
+        normalKeyboardBtn.addEventListener('click', () => {
+            normalKeyboardBtn.classList.add('active');
+            mathKeyboardBtn.classList.remove('active');
+            mathPalette.style.display = 'none';
+        });
+
+        mathKeyboardBtn.addEventListener('click', () => {
+            mathKeyboardBtn.classList.add('active');
+            normalKeyboardBtn.classList.remove('active');
+            mathPalette.style.display = 'block';
+        });
+
+        mathPalette.querySelectorAll('.math-key').forEach((keyBtn) => {
+            keyBtn.addEventListener('click', () => {
+                const symbol = keyBtn.textContent;
+                const start = textarea.selectionStart;
+                const end = textarea.selectionEnd;
+                const before = textarea.value.slice(0, start);
+                const after = textarea.value.slice(end);
+                textarea.value = before + symbol + after;
+
+                // Put the cursor right after the inserted symbol, and keep
+                // focus on the textarea so someone can keep typing without
+                // having to click back into it after every symbol.
+                const newCursorPos = start + symbol.length;
+                textarea.focus();
+                textarea.setSelectionRange(newCursorPos, newCursorPos);
+
+                textarea.dispatchEvent(new Event('input')); // triggers the normal debounced save
+            });
         });
 
         // Compile logic itself is still coming tomorrow — no-op for now.
