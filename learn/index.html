@@ -157,6 +157,67 @@
         gap: 8px;
     }
 
+    .review-schedule {
+        border-top: 1px solid rgba(230, 215, 176, 0.1);
+        padding: 12px 14px;
+        max-height: 220px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .review-schedule-header {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.68rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        opacity: 0.55;
+        margin-bottom: 8px;
+        flex-shrink: 0;
+    }
+
+    .review-schedule-list {
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .review-schedule-empty {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.72rem;
+        opacity: 0.4;
+    }
+
+    .review-schedule-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 8px;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.74rem;
+        padding: 5px 0;
+    }
+
+    .review-schedule-item-label {
+        opacity: 0.85;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        flex: 1;
+    }
+
+    .review-schedule-item-time {
+        flex-shrink: 0;
+        opacity: 0.55;
+        font-size: 0.68rem;
+    }
+
+    .review-schedule-item.due-now .review-schedule-item-time {
+        color: var(--accent);
+        opacity: 1;
+        font-weight: 600;
+    }
+
     .manage-subscription-btn {
         width: 100%;
         background: none;
@@ -463,48 +524,23 @@
         text-align: center;
     }
 
-    /* ─── PAGE MODE TOGGLE ─── */
-    .page-mode-toggle {
+    /* ─── UNIFIED LESSON PANEL ─── */
+    .unified-lesson-fields {
         display: flex;
-        align-items: stretch;
+        justify-content: center;
         margin-bottom: 24px;
-        border: 1px solid rgba(230, 215, 176, 0.15);
-        border-radius: 6px;
-        overflow: hidden;
     }
 
-    .mode-toggle-btn {
-        flex: 1;
-        background: var(--panel);
-        border: none;
-        color: var(--text);
-        opacity: 0.55;
-        font-family: 'Arial', sans-serif;
-        font-size: 0.85rem;
-        letter-spacing: 0.02em;
-        padding: 14px 16px;
-        cursor: pointer;
-        text-align: center;
+    .unified-lesson-fields .diagnose-fields {
+        max-width: 640px;
+        width: 100%;
     }
 
-    .mode-toggle-btn:hover:not(:disabled) {
-        opacity: 0.85;
-    }
-
-    .mode-toggle-btn.active {
-        opacity: 1;
-        color: var(--bg);
-        background: var(--accent);
-    }
-
-    .mode-toggle-btn:disabled {
-        opacity: 0.3;
-        cursor: not-allowed;
-    }
-
-    .mode-toggle-divider {
-        width: 1px;
-        background: rgba(230, 215, 176, 0.15);
+    .bottom-action-row {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 16px;
     }
 
     /* ─── DIAGNOSE PANEL ─── */
@@ -566,23 +602,6 @@
 
     .generate-questions-btn:hover {
         opacity: 0.9;
-    }
-
-    .diagnose-notes-wrap {
-        margin-bottom: 20px;
-    }
-
-    .diagnose-notes-label {
-        display: block;
-        font-family: 'Arial', sans-serif;
-        font-size: 0.7rem;
-        letter-spacing: 0.03em;
-        opacity: 0.6;
-        margin-bottom: 8px;
-    }
-
-    .diagnose-notes-editable {
-        min-height: 20vh;
     }
 
     /* ─── DIAGNOSTIC QUESTION FLOW ─── */
@@ -1212,6 +1231,13 @@
 
             <div class="folder-list" id="folderList">
                 <div class="empty-hint">No folders yet — click "+ New" to create one.</div>
+            </div>
+
+            <div class="review-schedule" id="reviewSchedule">
+                <div class="review-schedule-header">Review Schedule</div>
+                <div class="review-schedule-list" id="reviewScheduleList">
+                    <div class="review-schedule-empty">No reviews scheduled yet.</div>
+                </div>
             </div>
 
             <div class="sidebar-footer">
@@ -2137,38 +2163,53 @@ UwIDAQAB
 
         const contentInner = document.getElementById('contentInner');
         contentInner.innerHTML = `
-            <div class="page-mode-toggle">
-                <button class="mode-toggle-btn" id="diagnoseModeBtn" ${isPaidUser ? '' : 'disabled title="Upgrade to unlock diagnostics"'}>Diagnose your misunderstandings</button>
-                <div class="mode-toggle-divider"></div>
-                <button class="mode-toggle-btn active" id="notesModeBtn">Add your notes</button>
+            <div class="unified-lesson-fields">
+                <div class="diagnose-fields">
+                    <div class="diagnose-field">
+                        <label for="diagnoseSubjectInput">Subject</label>
+                        <input type="text" id="diagnoseSubjectInput" placeholder="e.g. Economics">
+                    </div>
+                    <div class="diagnose-field">
+                        <label for="diagnoseTopicInput">Topic</label>
+                        <input type="text" id="diagnoseTopicInput" placeholder="e.g. Market failure">
+                    </div>
+                    <div class="diagnose-field">
+                        <label for="diagnoseLessonInput">Lesson</label>
+                        <input type="text" id="diagnoseLessonInput" placeholder="e.g. Externalities">
+                    </div>
+                </div>
             </div>
 
-            <div id="notesModeContent">
-                <div class="editor-wrap">
-                    <input type="text" class="page-title-input" id="pageTitleInput" placeholder="Page title" value="">
+            <div class="editor-wrap">
+                <input type="text" class="page-title-input" id="pageTitleInput" placeholder="Page title" value="">
 
-                    <div class="rich-toolbar">
-                        <button type="button" class="toolbar-btn" id="insertMathBtn">∑ Insert Math</button>
-                        <button type="button" class="toolbar-btn" id="insertMatrixBtn">⊞ Insert Matrix</button>
-                    </div>
+                <div class="rich-toolbar">
+                    <button type="button" class="toolbar-btn" id="insertMathBtn">∑ Insert Math</button>
+                    <button type="button" class="toolbar-btn" id="insertMatrixBtn">⊞ Insert Matrix</button>
+                </div>
 
-                    <div class="textarea-wrap">
-                        <div class="note-editable" id="noteBox" contenteditable="true" data-placeholder="Start typing your notes…"></div>
-                        <button type="button" class="mic-btn" id="micBtn" title="Start dictation">🎤</button>
-                    </div>
-                    <div class="dictation-status" id="dictationStatus"></div>
-                    <button class="play-btn" id="playBtn" title="Read notes aloud">▶ Play</button>
+                <div class="textarea-wrap">
+                    <div class="note-editable" id="noteBox" contenteditable="true" data-placeholder="Start typing your notes…"></div>
+                    <button type="button" class="mic-btn" id="micBtn" title="Start dictation">🎤</button>
+                </div>
+                <div class="dictation-status" id="dictationStatus"></div>
+                <button class="play-btn" id="playBtn" title="Read notes aloud">▶ Play</button>
+
+                <div class="bottom-action-row">
+                    <button class="generate-questions-btn" id="generateQuestionsBtn" ${isPaidUser ? '' : 'disabled title="Upgrade to unlock diagnostics"'}>Generate Questions</button>
                     ${isPaidUser ? '<button class="compile-btn" id="compileBtn">Compile</button>' : ''}
                 </div>
-                ${isPaidUser ? '<div class="compile-status" id="compileStatus"></div><div class="compiled-output" id="compiledOutput" style="display:none;"></div>' : ''}
+            </div>
+            ${isPaidUser ? '<div class="compile-status" id="compileStatus"></div><div class="compiled-output" id="compiledOutput" style="display:none;"></div>' : ''}
 
-                <div class="scratch-notes-widget" id="scratchNotesWidget">
-                    <div class="scratch-notes-header" id="scratchNotesHeader">
-                        <span>💡 Quick Notes</span>
-                        <button type="button" class="scratch-notes-toggle" id="scratchNotesToggle">▾</button>
-                    </div>
-                    <textarea class="scratch-notes-textarea" id="scratchNotesBox" placeholder="Jot down a point for later, without losing your place…"></textarea>
+            <div id="diagnoseQuestionFlow"></div>
+
+            <div class="scratch-notes-widget" id="scratchNotesWidget">
+                <div class="scratch-notes-header" id="scratchNotesHeader">
+                    <span>💡 Quick Notes</span>
+                    <button type="button" class="scratch-notes-toggle" id="scratchNotesToggle">▾</button>
                 </div>
+                <textarea class="scratch-notes-textarea" id="scratchNotesBox" placeholder="Jot down a point for later, without losing your place…"></textarea>
             </div>
 
             <div class="modal-overlay" id="matrixModalOverlay">
@@ -2191,32 +2232,6 @@ UwIDAQAB
                         <button class="btn primary" id="matrixInsertBtn">Insert</button>
                     </div>
                 </div>
-            </div>
-
-            <div id="diagnoseModeContent" style="display:none;">
-                <div class="diagnose-fields">
-                    <div class="diagnose-field">
-                        <label for="diagnoseSubjectInput">Subject</label>
-                        <input type="text" id="diagnoseSubjectInput" placeholder="e.g. Economics">
-                    </div>
-                    <div class="diagnose-field">
-                        <label for="diagnoseTopicInput">Topic</label>
-                        <input type="text" id="diagnoseTopicInput" placeholder="e.g. Market failure">
-                    </div>
-                    <div class="diagnose-field">
-                        <label for="diagnoseLessonInput">Lesson</label>
-                        <input type="text" id="diagnoseLessonInput" placeholder="e.g. Externalities">
-                    </div>
-                </div>
-
-                <div class="diagnose-notes-wrap">
-                    <label class="diagnose-notes-label">Lesson notes (optional, but helps generate more precise questions)</label>
-                    <div class="note-editable diagnose-notes-editable" id="diagnoseNotesBox" contenteditable="true" data-placeholder="Paste or type your notes for this lesson…"></div>
-                </div>
-
-                <button class="generate-questions-btn" id="generateQuestionsBtn">Generate Questions</button>
-
-                <div id="diagnoseQuestionFlow"></div>
             </div>
         `;
 
@@ -2538,39 +2553,6 @@ UwIDAQAB
             };
         });
 
-        // Diagnose / Add Notes mode toggle. Diagnose is paid-only — the
-        // button itself is disabled for free users (set via the `disabled`
-        // attribute in the markup above), so there's no toggle logic to
-        // gate here beyond what the browser already enforces.
-        const notesModeBtn = document.getElementById('notesModeBtn');
-        const diagnoseModeBtn = document.getElementById('diagnoseModeBtn');
-        const notesModeContent = document.getElementById('notesModeContent');
-        const diagnoseModeContent = document.getElementById('diagnoseModeContent');
-
-        notesModeBtn.addEventListener('click', () => {
-            notesModeBtn.classList.add('active');
-            diagnoseModeBtn.classList.remove('active');
-            notesModeContent.style.display = 'block';
-            diagnoseModeContent.style.display = 'none';
-        });
-
-        diagnoseModeBtn.addEventListener('click', () => {
-            if (diagnoseModeBtn.disabled) return;
-            diagnoseModeBtn.classList.add('active');
-            notesModeBtn.classList.remove('active');
-            diagnoseModeContent.style.display = 'block';
-            notesModeContent.style.display = 'none';
-        });
-
-        // ── Diagnose panel: notes box (plain contenteditable for now — no
-        // math toolbar yet, kept simple for this first pass; can gain the
-        // same Insert Math/Matrix tools as the main editor later if needed).
-        const diagnoseNotesBox = document.getElementById('diagnoseNotesBox');
-
-        function extractDiagnoseNotesText() {
-            return diagnoseNotesBox.textContent || '';
-        }
-
         const questionFlowEl = document.getElementById('diagnoseQuestionFlow');
 
         // Renders one question card — either free-text (default) or
@@ -2643,161 +2625,109 @@ UwIDAQAB
             return card;
         }
 
-        function showPassAndClear(card) {
-            card.innerHTML = '<div class="pass-tick">✓ Correct</div>';
-            setTimeout(() => {
-                card.classList.add('fading-out');
-                setTimeout(() => { card.remove(); }, 400);
-            }, 700);
-        }
+        // Runs a full chain-lesson session for one concept — the opening
+        // prediction question, then the forward scaffold walk, with any
+        // misconception corrected inline before the next chunk, ending in
+        // a real summary. This is the scaffold-then-chunk spaced-lesson
+        // system, not the older reactive per-question engine.
+        async function runChainLesson(accessToken, subject, topic, concept) {
+            questionFlowEl.innerHTML = '<div class="correction-card">Generating lesson…</div>';
 
-        const DIAGNOSIS_LABELS = {
-            slip: 'Careless slip',
-            encoding: 'Concept not yet understood',
-            wm_overload: 'Too much to hold at once',
-            decay: 'Just needs a bit of practice',
-            interference: 'Mixed up with a similar idea',
-            schedule_miscalibrated: 'Review timing adjusted',
-            transfer: 'Applying it in a new context',
-            integration: 'Combining the ideas',
-            global_chain_failure: 'The full chain is a lot to hold at once',
-            unresolved: 'Could not fully pin this down',
-        };
+            let resp;
+            try {
+                resp = await fetch(`${COMPILE_BACKEND_URL}/chain-lesson/start`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({ subject, topic, concept })
+                });
+            } catch (err) {
+                questionFlowEl.innerHTML = '<div class="correction-card">Could not reach the server. Please try again.</div>';
+                return;
+            }
 
-        function showDiagnosisResult(diagnosis, correction) {
-            const card = document.createElement('div');
-            card.className = 'correction-card';
-            const label = DIAGNOSIS_LABELS[diagnosis] || diagnosis;
-            card.innerHTML = `<div class="correction-label">${label}</div>${correction || ''}`;
-            questionFlowEl.appendChild(card);
-        }
+            if (!resp.ok) {
+                const body = await resp.json().catch(() => ({}));
+                questionFlowEl.innerHTML = `<div class="correction-card">${body.error || 'Could not start the lesson.'}</div>`;
+                return;
+            }
 
-        // Runs ONE question through the full stateful diagnostic loop —
-        // an iterative loop (not nested recursion) specifically so the
-        // card being animated at the end is always the one actually still
-        // on screen, never a stale reference from an earlier stage.
-        async function runOneQuestionToCompletion(accessToken, subject, topic, conceptLabel, originalQuestion) {
-            let state = null;
-            let currentQuestionText = originalQuestion;
-            let currentOptions = null;
+            let result = await resp.json();
 
-            while (true) {
-                let cardRef;
+            while (!result.done) {
                 const submission = await new Promise((resolve) => {
-                    cardRef = renderQuestionCard(currentQuestionText, currentOptions, (sub) => resolve(sub));
+                    questionFlowEl.innerHTML = '';
+                    if (result.inlineCorrection) {
+                        const corr = document.createElement('div');
+                        corr.className = 'correction-card';
+                        corr.innerHTML = `<div class="correction-label">Correction</div>${result.inlineCorrection}`;
+                        questionFlowEl.appendChild(corr);
+                    }
+                    renderQuestionCard(result.nextQuestion, null, (sub) => resolve(sub));
                 });
 
-                let resp;
+                let nextResp;
                 try {
-                    resp = await fetch(`${COMPILE_BACKEND_URL}/diagnostics/submit-answer`, {
+                    nextResp = await fetch(`${COMPILE_BACKEND_URL}/chain-lesson/submit`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                             Authorization: `Bearer ${accessToken}`
                         },
-                        body: JSON.stringify({
-                            subject, topic, conceptLabel, originalQuestion, state,
-                            answer: submission.answer, dontKnow: submission.dontKnow
-                        })
+                        body: JSON.stringify({ state: result.state, answer: submission.answer })
                     });
                 } catch (err) {
-                    showDiagnosisResult('unresolved', 'Could not reach the server. Please try again.');
-                    return 'error';
+                    questionFlowEl.innerHTML = '<div class="correction-card">Could not reach the server. Please try again.</div>';
+                    return;
                 }
 
-                if (!resp.ok) {
-                    const body = await resp.json().catch(() => ({}));
-                    showDiagnosisResult('unresolved', body.error || 'Something went wrong.');
-                    return 'error';
+                if (!nextResp.ok) {
+                    const body = await nextResp.json().catch(() => ({}));
+                    questionFlowEl.innerHTML = `<div class="correction-card">${body.error || 'Something went wrong.'}</div>`;
+                    return;
                 }
 
-                const result = await resp.json();
-
-                if (result.done) {
-                    if (result.diagnosis === 'pass') {
-                        showPassAndClear(cardRef);
-                    } else {
-                        showDiagnosisResult(result.diagnosis, result.correction);
-                    }
-                    return result.diagnosis;
-                }
-
-                // Not done yet — loop again with whatever comes next.
-                currentQuestionText = result.nextQuestion;
-                currentOptions = result.nextOptions || null;
-                state = result.state;
-            }
-        }
-
-        // Works through a whole generated set of questions, one at a time,
-        // in sequence — matching how the diagnostic tree processes one
-        // item at a time rather than showing everything at once. Keeps a
-        // running record so the end of the session shows a real summary,
-        // not just a bare "complete" message with no memory of what
-        // actually happened across the set.
-        async function runQuestionSet(accessToken, subject, topic, questions) {
-            const results = [];
-            for (const q of questions) {
-                questionFlowEl.innerHTML = '';
-                const diagnosis = await runOneQuestionToCompletion(accessToken, subject, topic, q.conceptLabel, q.question);
-                results.push({ conceptLabel: q.conceptLabel, diagnosis });
-                await new Promise((resolve) => setTimeout(resolve, 1200)); // a moment to see the result before the next question replaces it
+                result = await nextResp.json();
             }
 
+            // Session complete — show the full walk as a real summary.
             questionFlowEl.innerHTML = '';
             const summary = document.createElement('div');
             summary.className = 'correction-card';
-            const rows = results.map((r) => {
-                const label = r.diagnosis === 'pass' ? '✓ Correct' : (DIAGNOSIS_LABELS[r.diagnosis] || r.diagnosis || 'Error');
-                return `<div style="margin-bottom:6px;">${r.conceptLabel}: ${label}</div>`;
+            const rows = (result.summary || []).map((r) => {
+                const status = r.correct ? '✓ Correct' : 'Corrected';
+                let row = `<div style="margin-bottom:6px;">${r.chunkLabel}: ${status}</div>`;
+                if (r.correction) row += `<div style="margin:0 0 10px 12px; opacity:0.85; font-size:0.9em;">${r.correction}</div>`;
+                return row;
             }).join('');
-            summary.innerHTML = `<div class="correction-label">Session summary</div>${rows}`;
+            summary.innerHTML = `<div class="correction-label">Lesson complete</div>${rows}`;
             questionFlowEl.appendChild(summary);
+
+            await refreshReviewSchedule();
         }
 
         document.getElementById('generateQuestionsBtn').addEventListener('click', async () => {
             const subject = document.getElementById('diagnoseSubjectInput').value.trim();
             const topic = document.getElementById('diagnoseTopicInput').value.trim();
             const lesson = document.getElementById('diagnoseLessonInput').value.trim();
-            const notesText = extractDiagnoseNotesText();
 
-            if (!lesson && !topic) {
-                questionFlowEl.innerHTML = '<div class="correction-card">Enter at least a topic or lesson first.</div>';
+            if (!lesson) {
+                questionFlowEl.innerHTML = '<div class="correction-card">Enter a lesson/concept first.</div>';
                 return;
             }
 
             const generateBtn = document.getElementById('generateQuestionsBtn');
             generateBtn.disabled = true;
-            questionFlowEl.innerHTML = '<div class="correction-card">Generating questions…</div>';
 
             try {
                 const { data: { session: diagSession } } = await supabaseClient.auth.getSession();
                 if (!diagSession) throw new Error('Not logged in.');
-
-                const resp = await fetch(`${COMPILE_BACKEND_URL}/diagnostics/generate-set`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        Authorization: `Bearer ${diagSession.access_token}`
-                    },
-                    body: JSON.stringify({ subject, topic, lesson, notes: notesText })
-                });
-
-                if (!resp.ok) {
-                    const body = await resp.json().catch(() => ({}));
-                    throw new Error(body.error || `Server returned ${resp.status}`);
-                }
-
-                const { questions } = await resp.json();
-                if (!questions || !questions.length) {
-                    questionFlowEl.innerHTML = '<div class="correction-card">No questions were generated — try adding more detail.</div>';
-                    return;
-                }
-
-                await runQuestionSet(diagSession.access_token, subject, topic, questions);
+                await runChainLesson(diagSession.access_token, subject, topic, lesson);
             } catch (err) {
-                console.error('LastMind: question generation failed.', err);
-                questionFlowEl.innerHTML = '<div class="correction-card">Could not generate questions. Please try again.</div>';
+                console.error('LastMind: chain lesson failed.', err);
+                questionFlowEl.innerHTML = '<div class="correction-card">Could not start the lesson. Please try again.</div>';
             } finally {
                 generateBtn.disabled = false;
             }
@@ -3195,6 +3125,100 @@ UwIDAQAB
     // already on Premium. Token purchases aren't built yet — this is a
     // clearly-labelled placeholder for now, same pattern as Compile
     // originally was, not a silent dead end.
+    function formatTimeUntilDue(dueIso) {
+        const due = new Date(dueIso).getTime();
+        const now = Date.now();
+        const diffMs = due - now;
+
+        if (diffMs <= 0) return { label: 'Due now', dueNow: true };
+
+        const hours = diffMs / (1000 * 60 * 60);
+        if (hours < 1) return { label: `in ${Math.max(1, Math.round(hours * 60))} min`, dueNow: false };
+        if (hours < 24) return { label: `in ${Math.round(hours)}h`, dueNow: false };
+
+        const days = hours / 24;
+        if (days < 7) return { label: `in ${Math.round(days)}d`, dueNow: false };
+
+        const dateStr = new Date(dueIso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+        return { label: dateStr, dueNow: false };
+    }
+
+    function conceptKeyToLabel(conceptKey) {
+        // concept_id values are a mix of raw labels (from atomic-path
+        // testing) and normalized "subject:topic:concept" keys (from
+        // chain-level tracking) — this is a known, honest imperfection in
+        // the current data model, not something worth a bigger fix right
+        // now. Just make normalized keys minimally more readable.
+        return conceptKey.replace(/:/g, ' — ').replace(/_/g, ' ');
+    }
+
+    async function refreshReviewSchedule() {
+        const listEl = document.getElementById('reviewScheduleList');
+        if (!isPaidUser) {
+            listEl.innerHTML = '<div class="review-schedule-empty">Upgrade to unlock diagnostics and spaced review.</div>';
+            return;
+        }
+
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return;
+
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/schedule`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+
+            const { schedule } = await resp.json();
+            if (!schedule || !schedule.length) {
+                listEl.innerHTML = '<div class="review-schedule-empty">No reviews scheduled yet — use Generate Questions on a lesson to start.</div>';
+                return;
+            }
+
+            listEl.innerHTML = '';
+            schedule.forEach((item) => {
+                const { label, dueNow } = formatTimeUntilDue(item.due);
+                const row = document.createElement('div');
+                row.className = 'review-schedule-item' + (dueNow ? ' due-now' : '');
+                row.style.cursor = 'pointer';
+                row.title = 'Click to start this review';
+                row.innerHTML = `
+                    <span class="review-schedule-item-label">${conceptKeyToLabel(item.concept_id)}</span>
+                    <span class="review-schedule-item-time">${label}</span>
+                `;
+                row.addEventListener('click', () => startReviewFromSchedule(item.concept_id));
+                listEl.appendChild(row);
+            });
+        } catch (err) {
+            console.error('LastMind: failed to load review schedule.', err);
+            listEl.innerHTML = '<div class="review-schedule-empty">Could not load review schedule.</div>';
+        }
+    }
+
+    // Only chain-tracked concepts use the "subject:topic:concept" key
+    // format (a known, honest gap in the current data model — atomic-path
+    // concepts are just tracked as their raw label, with no subject/topic
+    // to recover here). Clicking one of those simply does nothing yet,
+    // rather than failing confusingly.
+    function startReviewFromSchedule(conceptId) {
+        const parts = conceptId.split(':');
+        if (parts.length !== 3) return;
+
+        const subjectInput = document.getElementById('diagnoseSubjectInput');
+        const topicInput = document.getElementById('diagnoseTopicInput');
+        const lessonInput = document.getElementById('diagnoseLessonInput');
+        const generateBtn = document.getElementById('generateQuestionsBtn');
+
+        if (!subjectInput || !topicInput || !lessonInput || !generateBtn) {
+            alert('Open or create a page first, then click this review again.');
+            return;
+        }
+
+        subjectInput.value = parts[0].replace(/_/g, ' ');
+        topicInput.value = parts[1].replace(/_/g, ' ');
+        lessonInput.value = parts[2].replace(/_/g, ' ');
+        generateBtn.click();
+    }
+
     async function enterApp(paid) {
         isPaidUser = paid;
 
@@ -3214,6 +3238,7 @@ UwIDAQAB
         document.getElementById('gate-message').style.display = 'none';
         document.getElementById('app').style.display = 'block';
         await refreshFolderList();
+        await refreshReviewSchedule();
     }
 
     (async function gate() {
