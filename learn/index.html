@@ -2676,7 +2676,7 @@ UwIDAQAB
         // an iterative loop (not nested recursion) specifically so the
         // card being animated at the end is always the one actually still
         // on screen, never a stale reference from an earlier stage.
-        async function runOneQuestionToCompletion(accessToken, subject, conceptLabel, originalQuestion) {
+        async function runOneQuestionToCompletion(accessToken, subject, topic, conceptLabel, originalQuestion) {
             let state = null;
             let currentQuestionText = originalQuestion;
             let currentOptions = null;
@@ -2696,7 +2696,7 @@ UwIDAQAB
                             Authorization: `Bearer ${accessToken}`
                         },
                         body: JSON.stringify({
-                            subject, conceptLabel, originalQuestion, state,
+                            subject, topic, conceptLabel, originalQuestion, state,
                             answer: submission.answer, dontKnow: submission.dontKnow
                         })
                     });
@@ -2731,14 +2731,28 @@ UwIDAQAB
 
         // Works through a whole generated set of questions, one at a time,
         // in sequence — matching how the diagnostic tree processes one
-        // item at a time rather than showing everything at once.
-        async function runQuestionSet(accessToken, subject, questions) {
+        // item at a time rather than showing everything at once. Keeps a
+        // running record so the end of the session shows a real summary,
+        // not just a bare "complete" message with no memory of what
+        // actually happened across the set.
+        async function runQuestionSet(accessToken, subject, topic, questions) {
+            const results = [];
             for (const q of questions) {
                 questionFlowEl.innerHTML = '';
-                await runOneQuestionToCompletion(accessToken, subject, q.conceptLabel, q.question);
+                const diagnosis = await runOneQuestionToCompletion(accessToken, subject, topic, q.conceptLabel, q.question);
+                results.push({ conceptLabel: q.conceptLabel, diagnosis });
                 await new Promise((resolve) => setTimeout(resolve, 1200)); // a moment to see the result before the next question replaces it
             }
-            questionFlowEl.innerHTML = '<div class="correction-card">All questions complete.</div>';
+
+            questionFlowEl.innerHTML = '';
+            const summary = document.createElement('div');
+            summary.className = 'correction-card';
+            const rows = results.map((r) => {
+                const label = r.diagnosis === 'pass' ? '✓ Correct' : (DIAGNOSIS_LABELS[r.diagnosis] || r.diagnosis || 'Error');
+                return `<div style="margin-bottom:6px;">${r.conceptLabel}: ${label}</div>`;
+            }).join('');
+            summary.innerHTML = `<div class="correction-label">Session summary</div>${rows}`;
+            questionFlowEl.appendChild(summary);
         }
 
         document.getElementById('generateQuestionsBtn').addEventListener('click', async () => {
@@ -2780,7 +2794,7 @@ UwIDAQAB
                     return;
                 }
 
-                await runQuestionSet(diagSession.access_token, subject, questions);
+                await runQuestionSet(diagSession.access_token, subject, topic, questions);
             } catch (err) {
                 console.error('LastMind: question generation failed.', err);
                 questionFlowEl.innerHTML = '<div class="correction-card">Could not generate questions. Please try again.</div>';
