@@ -2351,9 +2351,17 @@ UwIDAQAB
                 compiledOutput.style.display = 'none';
 
                 try {
+                    const { data: { session: compileSession } } = await supabaseClient.auth.getSession();
+                    if (!compileSession) {
+                        throw new Error('Not logged in.');
+                    }
+
                     const resp = await fetch(`${COMPILE_BACKEND_URL}/compile`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${compileSession.access_token}`
+                        },
                         body: JSON.stringify({ notes })
                     });
 
