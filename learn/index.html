@@ -568,6 +568,132 @@
         opacity: 0.9;
     }
 
+    .diagnose-notes-wrap {
+        margin-bottom: 20px;
+    }
+
+    .diagnose-notes-label {
+        display: block;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.7rem;
+        letter-spacing: 0.03em;
+        opacity: 0.6;
+        margin-bottom: 8px;
+    }
+
+    .diagnose-notes-editable {
+        min-height: 20vh;
+    }
+
+    /* ─── DIAGNOSTIC QUESTION FLOW ─── */
+    .question-card {
+        background: var(--panel);
+        border: 1px solid rgba(230, 215, 176, 0.15);
+        border-radius: 8px;
+        padding: 24px;
+        margin-top: 20px;
+        transition: opacity 0.4s ease, transform 0.4s ease;
+    }
+
+    .question-card.fading-out {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+
+    .question-card-text {
+        font-family: 'Georgia', serif;
+        font-size: 1.05rem;
+        line-height: 1.7;
+        margin-bottom: 16px;
+    }
+
+    .question-answer-input {
+        width: 100%;
+        min-height: 100px;
+        background: var(--accent);
+        border: 1px solid rgba(26, 26, 28, 0.15);
+        border-radius: 6px;
+        color: var(--bg);
+        font-family: 'Georgia', serif;
+        font-size: 0.95rem;
+        line-height: 1.6;
+        padding: 14px 16px;
+        resize: vertical;
+        margin-bottom: 12px;
+    }
+
+    .question-answer-input:focus {
+        outline: none;
+    }
+
+    .question-card-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .dont-know-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.8rem;
+        opacity: 0.7;
+        cursor: pointer;
+    }
+
+    .question-submit-btn {
+        background: var(--accent);
+        color: var(--bg);
+        border: none;
+        border-radius: 4px;
+        padding: 9px 20px;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.82rem;
+        cursor: pointer;
+    }
+
+    .question-submit-btn:hover {
+        opacity: 0.9;
+    }
+
+    .question-submit-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+
+    .pass-tick {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--accent);
+        font-family: 'Arial', sans-serif;
+        font-size: 0.9rem;
+        padding: 20px 0;
+    }
+
+    .correction-card {
+        background: var(--panel);
+        border: 1px solid rgba(230, 215, 176, 0.2);
+        border-radius: 8px;
+        padding: 22px 24px;
+        margin-top: 20px;
+        font-family: 'Georgia', serif;
+        font-size: 0.95rem;
+        line-height: 1.7;
+    }
+
+    .correction-label {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.68rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--accent);
+        opacity: 0.8;
+        margin-bottom: 10px;
+    }
+
     /* ─── PAGE EDITOR ─── */
     .editor-wrap {
         position: relative;
@@ -2081,8 +2207,16 @@ UwIDAQAB
                         <label for="diagnoseLessonInput">Lesson</label>
                         <input type="text" id="diagnoseLessonInput" placeholder="e.g. Externalities">
                     </div>
-                    <button class="generate-questions-btn" id="generateQuestionsBtn">Generate Questions</button>
                 </div>
+
+                <div class="diagnose-notes-wrap">
+                    <label class="diagnose-notes-label">Lesson notes (optional, but helps generate more precise questions)</label>
+                    <div class="note-editable diagnose-notes-editable" id="diagnoseNotesBox" contenteditable="true" data-placeholder="Paste or type your notes for this lesson…"></div>
+                </div>
+
+                <button class="generate-questions-btn" id="generateQuestionsBtn">Generate Questions</button>
+
+                <div id="diagnoseQuestionFlow"></div>
             </div>
         `;
 
@@ -2428,9 +2562,168 @@ UwIDAQAB
             notesModeContent.style.display = 'none';
         });
 
-        // Intentionally does nothing yet — wired up later.
-        document.getElementById('generateQuestionsBtn').addEventListener('click', () => {
-            // no-op for now
+        // ── Diagnose panel: notes box (plain contenteditable for now — no
+        // math toolbar yet, kept simple for this first pass; can gain the
+        // same Insert Math/Matrix tools as the main editor later if needed).
+        const diagnoseNotesBox = document.getElementById('diagnoseNotesBox');
+
+        function extractDiagnoseNotesText() {
+            return diagnoseNotesBox.textContent || '';
+        }
+
+        const questionFlowEl = document.getElementById('diagnoseQuestionFlow');
+
+        // Renders one question card. `onSubmit` is called with
+        // { answer, dontKnow } when the student submits.
+        function renderQuestionCard(questionText, onSubmit) {
+            questionFlowEl.innerHTML = '';
+
+            const card = document.createElement('div');
+            card.className = 'question-card';
+
+            const qText = document.createElement('div');
+            qText.className = 'question-card-text';
+            qText.textContent = questionText;
+
+            const answerInput = document.createElement('textarea');
+            answerInput.className = 'question-answer-input';
+            answerInput.placeholder = 'Type your answer…';
+
+            const footer = document.createElement('div');
+            footer.className = 'question-card-footer';
+
+            const dontKnowLabel = document.createElement('label');
+            dontKnowLabel.className = 'dont-know-label';
+            const dontKnowCheckbox = document.createElement('input');
+            dontKnowCheckbox.type = 'checkbox';
+            dontKnowLabel.appendChild(dontKnowCheckbox);
+            dontKnowLabel.appendChild(document.createTextNode("I don't know"));
+
+            const submitBtn = document.createElement('button');
+            submitBtn.className = 'question-submit-btn';
+            submitBtn.textContent = 'Submit';
+
+            // Checking "I don't know" skips straight to further diagnosis —
+            // no point checking correctness or re-asking for a slip when
+            // the student has already told us they don't know it.
+            dontKnowCheckbox.addEventListener('change', () => {
+                answerInput.disabled = dontKnowCheckbox.checked;
+                if (dontKnowCheckbox.checked) answerInput.value = '';
+            });
+
+            submitBtn.addEventListener('click', () => {
+                onSubmit({ answer: answerInput.value, dontKnow: dontKnowCheckbox.checked });
+            });
+
+            footer.appendChild(dontKnowLabel);
+            footer.appendChild(submitBtn);
+
+            card.appendChild(qText);
+            card.appendChild(answerInput);
+            card.appendChild(footer);
+            questionFlowEl.appendChild(card);
+
+            return card;
+        }
+
+        // Minimalist pass state — a tick, then the card fades out, per the
+        // exact UX requested rather than an abrupt state change.
+        function showPassAndClear(card) {
+            card.innerHTML = '<div class="pass-tick">✓ Correct</div>';
+            setTimeout(() => {
+                card.classList.add('fading-out');
+                setTimeout(() => { card.remove(); }, 400);
+            }, 700);
+        }
+
+        // Placeholder for everything the consolidated diagnostic engine
+        // will eventually handle (slip-recheck, encoding-vs-retrieval, the
+        // full branching tree) — deliberately honest rather than faking a
+        // result: this build is the frontend flow, the engine is next.
+        function showComingSoonDiagnosis(card) {
+            const note = document.createElement('div');
+            note.className = 'correction-card';
+            note.innerHTML = '<div class="correction-label">Diagnosis</div>Full diagnostic follow-up (checking for a slip, testing encoding vs. retrieval, and a real correction) is being built next — for now, this just records the attempt.';
+            card.appendChild(note);
+        }
+
+        document.getElementById('generateQuestionsBtn').addEventListener('click', async () => {
+            const subject = document.getElementById('diagnoseSubjectInput').value.trim();
+            const topic = document.getElementById('diagnoseTopicInput').value.trim();
+            const lesson = document.getElementById('diagnoseLessonInput').value.trim();
+            const notesText = extractDiagnoseNotesText();
+
+            if (!lesson && !topic) {
+                questionFlowEl.innerHTML = '<div class="correction-card">Enter at least a topic or lesson first.</div>';
+                return;
+            }
+
+            const generateBtn = document.getElementById('generateQuestionsBtn');
+            generateBtn.disabled = true;
+            questionFlowEl.innerHTML = '<div class="correction-card">Generating…</div>';
+
+            try {
+                const { data: { session: diagSession } } = await supabaseClient.auth.getSession();
+                if (!diagSession) throw new Error('Not logged in.');
+
+                // NOTE: generating multiple questions (AI-judged, based on
+                // concept density) and actually using notesText as grounding
+                // context are both part of the consolidated engine, not
+                // built yet — this call is the real, already-working
+                // single-question endpoint, using lesson/topic as a
+                // reasonable stand-in concept label for now.
+                const resp = await fetch(`${COMPILE_BACKEND_URL}/diagnostics/question`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${diagSession.access_token}`
+                    },
+                    body: JSON.stringify({ subject, conceptLabel: lesson || topic })
+                });
+
+                if (!resp.ok) {
+                    const body = await resp.json().catch(() => ({}));
+                    throw new Error(body.error || `Server returned ${resp.status}`);
+                }
+
+                const { question } = await resp.json();
+
+                const card = renderQuestionCard(question, async ({ answer, dontKnow }) => {
+                    if (dontKnow) {
+                        showComingSoonDiagnosis(card);
+                        return;
+                    }
+
+                    const submitBtnEl = card.querySelector('.question-submit-btn');
+                    submitBtnEl.disabled = true;
+
+                    try {
+                        const checkResp = await fetch(`${COMPILE_BACKEND_URL}/diagnostics/check-answer`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                Authorization: `Bearer ${diagSession.access_token}`
+                            },
+                            body: JSON.stringify({ conceptLabel: lesson || topic, question, studentAnswer: answer })
+                        });
+                        const { correct } = await checkResp.json();
+
+                        if (correct) {
+                            showPassAndClear(card);
+                        } else {
+                            showComingSoonDiagnosis(card);
+                        }
+                    } catch (err) {
+                        console.error('LastMind: answer check failed.', err);
+                        submitBtnEl.disabled = false;
+                    }
+                });
+            } catch (err) {
+                console.error('LastMind: question generation failed.', err);
+                questionFlowEl.innerHTML = '<div class="correction-card">Could not generate a question. Please try again.</div>';
+            } finally {
+                generateBtn.disabled = false;
+            }
         });
 
         setupDictation(noteBox);
