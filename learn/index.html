@@ -2573,9 +2573,11 @@ UwIDAQAB
 
         const questionFlowEl = document.getElementById('diagnoseQuestionFlow');
 
-        // Renders one question card. `onSubmit` is called with
-        // { answer, dontKnow } when the student submits.
-        function renderQuestionCard(questionText, onSubmit) {
+        // Renders one question card — either free-text (default) or
+        // multiple-choice (when `options` is provided, used by the
+        // recognition/encoding-check stage). `onSubmit` is called with
+        // { answer, dontKnow } once the student responds.
+        function renderQuestionCard(questionText, options, onSubmit) {
             questionFlowEl.innerHTML = '';
 
             const card = document.createElement('div');
@@ -2584,6 +2586,26 @@ UwIDAQAB
             const qText = document.createElement('div');
             qText.className = 'question-card-text';
             qText.textContent = questionText;
+            card.appendChild(qText);
+
+            if (options && options.length) {
+                options.forEach((optionText) => {
+                    const optBtn = document.createElement('button');
+                    optBtn.className = 'question-submit-btn';
+                    optBtn.style.display = 'block';
+                    optBtn.style.width = '100%';
+                    optBtn.style.textAlign = 'left';
+                    optBtn.style.marginBottom = '8px';
+                    optBtn.style.background = 'none';
+                    optBtn.style.color = 'var(--text)';
+                    optBtn.style.border = '1px solid rgba(230, 215, 176, 0.2)';
+                    optBtn.textContent = optionText;
+                    optBtn.addEventListener('click', () => onSubmit({ answer: optionText, dontKnow: false }));
+                    card.appendChild(optBtn);
+                });
+                questionFlowEl.appendChild(card);
+                return card;
+            }
 
             const answerInput = document.createElement('textarea');
             answerInput.className = 'question-answer-input';
@@ -2603,9 +2625,6 @@ UwIDAQAB
             submitBtn.className = 'question-submit-btn';
             submitBtn.textContent = 'Submit';
 
-            // Checking "I don't know" skips straight to further diagnosis —
-            // no point checking correctness or re-asking for a slip when
-            // the student has already told us they don't know it.
             dontKnowCheckbox.addEventListener('change', () => {
                 answerInput.disabled = dontKnowCheckbox.checked;
                 if (dontKnowCheckbox.checked) answerInput.value = '';
@@ -2617,8 +2636,6 @@ UwIDAQAB
 
             footer.appendChild(dontKnowLabel);
             footer.appendChild(submitBtn);
-
-            card.appendChild(qText);
             card.appendChild(answerInput);
             card.appendChild(footer);
             questionFlowEl.appendChild(card);
@@ -2626,8 +2643,6 @@ UwIDAQAB
             return card;
         }
 
-        // Minimalist pass state — a tick, then the card fades out, per the
-        // exact UX requested rather than an abrupt state change.
         function showPassAndClear(card) {
             card.innerHTML = '<div class="pass-tick">✓ Correct</div>';
             setTimeout(() => {
@@ -2636,15 +2651,94 @@ UwIDAQAB
             }, 700);
         }
 
-        // Placeholder for everything the consolidated diagnostic engine
-        // will eventually handle (slip-recheck, encoding-vs-retrieval, the
-        // full branching tree) — deliberately honest rather than faking a
-        // result: this build is the frontend flow, the engine is next.
-        function showComingSoonDiagnosis(card) {
-            const note = document.createElement('div');
-            note.className = 'correction-card';
-            note.innerHTML = '<div class="correction-label">Diagnosis</div>Full diagnostic follow-up (checking for a slip, testing encoding vs. retrieval, and a real correction) is being built next — for now, this just records the attempt.';
-            card.appendChild(note);
+        const DIAGNOSIS_LABELS = {
+            slip: 'Careless slip',
+            encoding: 'Concept not yet understood',
+            wm_overload: 'Too much to hold at once',
+            decay: 'Just needs a bit of practice',
+            interference: 'Mixed up with a similar idea',
+            schedule_miscalibrated: 'Review timing adjusted',
+            transfer: 'Applying it in a new context',
+            integration: 'Combining the ideas',
+            global_chain_failure: 'The full chain is a lot to hold at once',
+            unresolved: 'Could not fully pin this down',
+        };
+
+        function showDiagnosisResult(diagnosis, correction) {
+            const card = document.createElement('div');
+            card.className = 'correction-card';
+            const label = DIAGNOSIS_LABELS[diagnosis] || diagnosis;
+            card.innerHTML = `<div class="correction-label">${label}</div>${correction || ''}`;
+            questionFlowEl.appendChild(card);
+        }
+
+        // Runs ONE question through the full stateful diagnostic loop —
+        // an iterative loop (not nested recursion) specifically so the
+        // card being animated at the end is always the one actually still
+        // on screen, never a stale reference from an earlier stage.
+        async function runOneQuestionToCompletion(accessToken, subject, conceptLabel, originalQuestion) {
+            let state = null;
+            let currentQuestionText = originalQuestion;
+            let currentOptions = null;
+
+            while (true) {
+                let cardRef;
+                const submission = await new Promise((resolve) => {
+                    cardRef = renderQuestionCard(currentQuestionText, currentOptions, (sub) => resolve(sub));
+                });
+
+                let resp;
+                try {
+                    resp = await fetch(`${COMPILE_BACKEND_URL}/diagnostics/submit-answer`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${accessToken}`
+                        },
+                        body: JSON.stringify({
+                            subject, conceptLabel, originalQuestion, state,
+                            answer: submission.answer, dontKnow: submission.dontKnow
+                        })
+                    });
+                } catch (err) {
+                    showDiagnosisResult('unresolved', 'Could not reach the server. Please try again.');
+                    return 'error';
+                }
+
+                if (!resp.ok) {
+                    const body = await resp.json().catch(() => ({}));
+                    showDiagnosisResult('unresolved', body.error || 'Something went wrong.');
+                    return 'error';
+                }
+
+                const result = await resp.json();
+
+                if (result.done) {
+                    if (result.diagnosis === 'pass') {
+                        showPassAndClear(cardRef);
+                    } else {
+                        showDiagnosisResult(result.diagnosis, result.correction);
+                    }
+                    return result.diagnosis;
+                }
+
+                // Not done yet — loop again with whatever comes next.
+                currentQuestionText = result.nextQuestion;
+                currentOptions = result.nextOptions || null;
+                state = result.state;
+            }
+        }
+
+        // Works through a whole generated set of questions, one at a time,
+        // in sequence — matching how the diagnostic tree processes one
+        // item at a time rather than showing everything at once.
+        async function runQuestionSet(accessToken, subject, questions) {
+            for (const q of questions) {
+                questionFlowEl.innerHTML = '';
+                await runOneQuestionToCompletion(accessToken, subject, q.conceptLabel, q.question);
+                await new Promise((resolve) => setTimeout(resolve, 1200)); // a moment to see the result before the next question replaces it
+            }
+            questionFlowEl.innerHTML = '<div class="correction-card">All questions complete.</div>';
         }
 
         document.getElementById('generateQuestionsBtn').addEventListener('click', async () => {
@@ -2660,25 +2754,19 @@ UwIDAQAB
 
             const generateBtn = document.getElementById('generateQuestionsBtn');
             generateBtn.disabled = true;
-            questionFlowEl.innerHTML = '<div class="correction-card">Generating…</div>';
+            questionFlowEl.innerHTML = '<div class="correction-card">Generating questions…</div>';
 
             try {
                 const { data: { session: diagSession } } = await supabaseClient.auth.getSession();
                 if (!diagSession) throw new Error('Not logged in.');
 
-                // NOTE: generating multiple questions (AI-judged, based on
-                // concept density) and actually using notesText as grounding
-                // context are both part of the consolidated engine, not
-                // built yet — this call is the real, already-working
-                // single-question endpoint, using lesson/topic as a
-                // reasonable stand-in concept label for now.
-                const resp = await fetch(`${COMPILE_BACKEND_URL}/diagnostics/question`, {
+                const resp = await fetch(`${COMPILE_BACKEND_URL}/diagnostics/generate-set`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         Authorization: `Bearer ${diagSession.access_token}`
                     },
-                    body: JSON.stringify({ subject, conceptLabel: lesson || topic })
+                    body: JSON.stringify({ subject, topic, lesson, notes: notesText })
                 });
 
                 if (!resp.ok) {
@@ -2686,41 +2774,16 @@ UwIDAQAB
                     throw new Error(body.error || `Server returned ${resp.status}`);
                 }
 
-                const { question } = await resp.json();
+                const { questions } = await resp.json();
+                if (!questions || !questions.length) {
+                    questionFlowEl.innerHTML = '<div class="correction-card">No questions were generated — try adding more detail.</div>';
+                    return;
+                }
 
-                const card = renderQuestionCard(question, async ({ answer, dontKnow }) => {
-                    if (dontKnow) {
-                        showComingSoonDiagnosis(card);
-                        return;
-                    }
-
-                    const submitBtnEl = card.querySelector('.question-submit-btn');
-                    submitBtnEl.disabled = true;
-
-                    try {
-                        const checkResp = await fetch(`${COMPILE_BACKEND_URL}/diagnostics/check-answer`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                Authorization: `Bearer ${diagSession.access_token}`
-                            },
-                            body: JSON.stringify({ conceptLabel: lesson || topic, question, studentAnswer: answer })
-                        });
-                        const { correct } = await checkResp.json();
-
-                        if (correct) {
-                            showPassAndClear(card);
-                        } else {
-                            showComingSoonDiagnosis(card);
-                        }
-                    } catch (err) {
-                        console.error('LastMind: answer check failed.', err);
-                        submitBtnEl.disabled = false;
-                    }
-                });
+                await runQuestionSet(diagSession.access_token, subject, questions);
             } catch (err) {
                 console.error('LastMind: question generation failed.', err);
-                questionFlowEl.innerHTML = '<div class="correction-card">Could not generate a question. Please try again.</div>';
+                questionFlowEl.innerHTML = '<div class="correction-card">Could not generate questions. Please try again.</div>';
             } finally {
                 generateBtn.disabled = false;
             }
