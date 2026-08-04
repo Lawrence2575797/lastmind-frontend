@@ -737,9 +737,6 @@
     }
 
     .compile-btn {
-        position: absolute;
-        bottom: 16px;
-        right: 16px;
         font-family: 'Arial', sans-serif;
         font-size: 0.8rem;
         letter-spacing: 0.06em;
@@ -2196,7 +2193,7 @@ UwIDAQAB
                 <button class="play-btn" id="playBtn" title="Read notes aloud">▶ Play</button>
 
                 <div class="bottom-action-row">
-                    <button class="generate-questions-btn" id="generateQuestionsBtn" ${isPaidUser ? '' : 'disabled title="Upgrade to unlock diagnostics"'}>Generate Questions</button>
+                    <button class="generate-questions-btn" id="generateQuestionsBtn" ${isPaidUser ? '' : 'disabled title="Upgrade to unlock diagnostics"'}>Start Lesson</button>
                     ${isPaidUser ? '<button class="compile-btn" id="compileBtn">Compile</button>' : ''}
                 </div>
             </div>
@@ -2560,8 +2557,6 @@ UwIDAQAB
         // recognition/encoding-check stage). `onSubmit` is called with
         // { answer, dontKnow } once the student responds.
         function renderQuestionCard(questionText, options, onSubmit) {
-            questionFlowEl.innerHTML = '';
-
             const card = document.createElement('div');
             card.className = 'question-card';
 
@@ -2586,6 +2581,7 @@ UwIDAQAB
                     card.appendChild(optBtn);
                 });
                 questionFlowEl.appendChild(card);
+                card.scrollIntoView({ behavior: 'smooth', block: 'end' });
                 return card;
             }
 
@@ -2621,15 +2617,38 @@ UwIDAQAB
             card.appendChild(answerInput);
             card.appendChild(footer);
             questionFlowEl.appendChild(card);
+            card.scrollIntoView({ behavior: 'smooth', block: 'end' });
 
             return card;
         }
 
+        // Freezes an already-answered card in place — the question stays
+        // visible with the answer given, a correct/incorrect indicator,
+        // and any correction — rather than disappearing, so the whole
+        // lesson builds up as a real vertical record as it progresses.
+        function lockAnsweredCard(card, answerGiven, correct, correction) {
+            const resultLine = document.createElement('div');
+            resultLine.style.marginTop = '10px';
+            resultLine.style.paddingTop = '10px';
+            resultLine.style.borderTop = '1px solid rgba(230, 215, 176, 0.12)';
+            resultLine.style.fontSize = '0.85em';
+            resultLine.innerHTML = `
+                <div style="opacity:0.7; margin-bottom:4px;">Your answer: ${answerGiven || '(no answer given)'}</div>
+                <div style="color:${correct ? 'var(--accent)' : '#e6b0a8'};">${correct ? '✓ Correct' : '✗ Corrected'}</div>
+                ${correction ? `<div style="margin-top:6px; opacity:0.9;">${correction}</div>` : ''}
+            `;
+
+            // Remove the editable controls, keep the question text, add the result.
+            card.querySelectorAll('textarea, .question-card-footer, .question-submit-btn').forEach((el) => el.remove());
+            card.appendChild(resultLine);
+        }
+
         // Runs a full chain-lesson session for one concept — the opening
-        // prediction question, then the forward scaffold walk, with any
-        // misconception corrected inline before the next chunk, ending in
-        // a real summary. This is the scaffold-then-chunk spaced-lesson
-        // system, not the older reactive per-question engine.
+        // prediction question, then the forward scaffold walk, with each
+        // answered question locking in place (answer + correct/incorrect +
+        // any correction) before the next one appears below it, building
+        // the whole lesson as a real vertical record you work downward
+        // through, ending in a summary at the bottom.
         async function runChainLesson(accessToken, subject, topic, concept) {
             questionFlowEl.innerHTML = '<div class="correction-card">Generating lesson…</div>';
 
@@ -2654,58 +2673,59 @@ UwIDAQAB
                 return;
             }
 
-            let result = await resp.json();
+            const startResult = await resp.json();
+            questionFlowEl.innerHTML = ''; // clear the "Generating…" placeholder — the real vertical list starts now
 
-            while (!result.done) {
-                const submission = await new Promise((resolve) => {
-                    questionFlowEl.innerHTML = '';
-                    if (result.inlineCorrection) {
-                        const corr = document.createElement('div');
-                        corr.className = 'correction-card';
-                        corr.innerHTML = `<div class="correction-label">Correction</div>${result.inlineCorrection}`;
-                        questionFlowEl.appendChild(corr);
+            async function askNext(questionText, state) {
+                const card = renderQuestionCard(questionText, null, async (submission) => {
+                    let nextResp;
+                    try {
+                        nextResp = await fetch(`${COMPILE_BACKEND_URL}/chain-lesson/submit`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                Authorization: `Bearer ${accessToken}`
+                            },
+                            body: JSON.stringify({ state, answer: submission.answer })
+                        });
+                    } catch (err) {
+                        lockAnsweredCard(card, submission.answer, false, 'Could not reach the server. Please try again.');
+                        return;
                     }
-                    renderQuestionCard(result.nextQuestion, null, (sub) => resolve(sub));
+
+                    if (!nextResp.ok) {
+                        const body = await nextResp.json().catch(() => ({}));
+                        lockAnsweredCard(card, submission.answer, false, body.error || 'Something went wrong.');
+                        return;
+                    }
+
+                    const nextResult = await nextResp.json();
+
+                    if (nextResult.done) {
+                        const finalEntries = nextResult.summary || [];
+                        const finalEntry = finalEntries[finalEntries.length - 1];
+                        lockAnsweredCard(card, submission.answer, finalEntry ? finalEntry.correct : true, finalEntry ? finalEntry.correction : undefined);
+
+                        const summaryCard = document.createElement('div');
+                        summaryCard.className = 'correction-card';
+                        const rows = finalEntries.map((r) => {
+                            const status = r.correct ? '✓ Correct' : 'Corrected';
+                            return `<div style="margin-bottom:6px;">${r.chunkLabel}: ${status}</div>`;
+                        }).join('');
+                        summaryCard.innerHTML = `<div class="correction-label">Lesson complete</div>${rows}`;
+                        questionFlowEl.appendChild(summaryCard);
+                        summaryCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+                        await refreshReviewSchedule();
+                        return;
+                    }
+
+                    lockAnsweredCard(card, submission.answer, !nextResult.inlineCorrection, nextResult.inlineCorrection);
+                    await askNext(nextResult.nextQuestion, nextResult.state);
                 });
-
-                let nextResp;
-                try {
-                    nextResp = await fetch(`${COMPILE_BACKEND_URL}/chain-lesson/submit`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            Authorization: `Bearer ${accessToken}`
-                        },
-                        body: JSON.stringify({ state: result.state, answer: submission.answer })
-                    });
-                } catch (err) {
-                    questionFlowEl.innerHTML = '<div class="correction-card">Could not reach the server. Please try again.</div>';
-                    return;
-                }
-
-                if (!nextResp.ok) {
-                    const body = await nextResp.json().catch(() => ({}));
-                    questionFlowEl.innerHTML = `<div class="correction-card">${body.error || 'Something went wrong.'}</div>`;
-                    return;
-                }
-
-                result = await nextResp.json();
             }
 
-            // Session complete — show the full walk as a real summary.
-            questionFlowEl.innerHTML = '';
-            const summary = document.createElement('div');
-            summary.className = 'correction-card';
-            const rows = (result.summary || []).map((r) => {
-                const status = r.correct ? '✓ Correct' : 'Corrected';
-                let row = `<div style="margin-bottom:6px;">${r.chunkLabel}: ${status}</div>`;
-                if (r.correction) row += `<div style="margin:0 0 10px 12px; opacity:0.85; font-size:0.9em;">${r.correction}</div>`;
-                return row;
-            }).join('');
-            summary.innerHTML = `<div class="correction-label">Lesson complete</div>${rows}`;
-            questionFlowEl.appendChild(summary);
-
-            await refreshReviewSchedule();
+            await askNext(startResult.nextQuestion, startResult.state);
         }
 
         document.getElementById('generateQuestionsBtn').addEventListener('click', async () => {
@@ -3170,7 +3190,7 @@ UwIDAQAB
 
             const { schedule } = await resp.json();
             if (!schedule || !schedule.length) {
-                listEl.innerHTML = '<div class="review-schedule-empty">No reviews scheduled yet — use Generate Questions on a lesson to start.</div>';
+                listEl.innerHTML = '<div class="review-schedule-empty">No reviews scheduled yet — use Start Lesson on a lesson to begin.</div>';
                 return;
             }
 
