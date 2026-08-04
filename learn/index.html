@@ -157,65 +157,79 @@
         gap: 8px;
     }
 
-    .review-schedule {
-        border-top: 1px solid rgba(230, 215, 176, 0.1);
-        padding: 12px 14px;
-        max-height: 220px;
-        display: flex;
-        flex-direction: column;
+    /* ─── REVIEW CALENDAR ─── */
+    .calendar-modal {
+        max-width: 520px;
     }
 
-    .review-schedule-header {
+    .calendar-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 18px;
+    }
+
+    .calendar-header h3 {
+        margin-bottom: 0;
+        font-size: 1rem;
+    }
+
+    .calendar-weekdays {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 4px;
+        margin-bottom: 6px;
         font-family: 'Arial', sans-serif;
         font-size: 0.68rem;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.04em;
         text-transform: uppercase;
-        opacity: 0.55;
-        margin-bottom: 8px;
-        flex-shrink: 0;
+        opacity: 0.5;
+        text-align: center;
     }
 
-    .review-schedule-list {
-        overflow-y: auto;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
+    .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 4px;
     }
 
-    .review-schedule-empty {
+    .calendar-day {
+        min-height: 64px;
+        border: 1px solid rgba(230, 215, 176, 0.12);
+        border-radius: 4px;
+        padding: 4px;
         font-family: 'Arial', sans-serif;
-        font-size: 0.72rem;
-        opacity: 0.4;
+        font-size: 0.7rem;
     }
 
-    .review-schedule-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: baseline;
-        gap: 8px;
-        font-family: 'Arial', sans-serif;
-        font-size: 0.74rem;
-        padding: 5px 0;
+    .calendar-day.empty {
+        border-color: transparent;
     }
 
-    .review-schedule-item-label {
-        opacity: 0.85;
+    .calendar-day.today {
+        border-color: var(--accent);
+    }
+
+    .calendar-day-number {
+        opacity: 0.5;
+        margin-bottom: 3px;
+    }
+
+    .calendar-day-review {
+        background: rgba(230, 215, 176, 0.1);
+        border-radius: 3px;
+        padding: 2px 4px;
+        margin-bottom: 2px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        flex: 1;
+        cursor: pointer;
+        opacity: 0.85;
     }
 
-    .review-schedule-item-time {
-        flex-shrink: 0;
-        opacity: 0.55;
-        font-size: 0.68rem;
-    }
-
-    .review-schedule-item.due-now .review-schedule-item-time {
-        color: var(--accent);
+    .calendar-day-review:hover {
         opacity: 1;
-        font-weight: 600;
+        background: rgba(230, 215, 176, 0.2);
     }
 
     .manage-subscription-btn {
@@ -1255,13 +1269,6 @@
                 <div class="empty-hint">No folders yet — click "+ New" to create one.</div>
             </div>
 
-            <div class="review-schedule" id="reviewSchedule">
-                <div class="review-schedule-header">Review Schedule</div>
-                <div class="review-schedule-list" id="reviewScheduleList">
-                    <div class="review-schedule-empty">No reviews scheduled yet.</div>
-                </div>
-            </div>
-
             <div class="sidebar-footer">
                 <button class="manage-subscription-btn" id="myAccountBtn">My Account</button>
             </div>
@@ -1272,6 +1279,7 @@
             <div class="topbar">
                 <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">☰</button>
                 <span class="topbar-title" id="topbarTitle">Select or create a folder to get started</span>
+                <button class="upgrade-btn" id="reviewCalendarBtn" style="background:none; border:1px solid rgba(230,215,176,0.3); color:var(--accent);" title="Review calendar">📅 Reviews</button>
                 <button class="upgrade-btn" id="upgradeBtn">Upgrade</button>
             </div>
 
@@ -1314,6 +1322,23 @@
         <div class="modal-actions">
             <button class="btn" id="cancelFolderBtn">Cancel</button>
             <button class="btn primary" id="submitFolderBtn">Create</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="calendarOverlay">
+    <div class="modal calendar-modal">
+        <div class="calendar-header">
+            <button class="btn" id="calendarPrevBtn">‹</button>
+            <h3 id="calendarMonthLabel">August 2026</h3>
+            <button class="btn" id="calendarNextBtn">›</button>
+        </div>
+        <div class="calendar-weekdays">
+            <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+        </div>
+        <div class="calendar-grid" id="calendarGrid"></div>
+        <div class="modal-actions">
+            <button class="btn" id="calendarCloseBtn">Close</button>
         </div>
     </div>
 </div>
@@ -2200,31 +2225,39 @@ UwIDAQAB
                         <input type="text" id="diagnoseLessonInput" placeholder="e.g. Externalities">
                     </div>
                 </div>
-            </div>
-
-            <div class="editor-wrap">
-                <input type="text" class="page-title-input" id="pageTitleInput" placeholder="Page title" value="">
-
-                <div class="rich-toolbar">
-                    <button type="button" class="toolbar-btn" id="insertMathBtn">∑ Insert Math</button>
-                    <button type="button" class="toolbar-btn" id="insertMatrixBtn">⊞ Insert Matrix</button>
-                </div>
-
-                <div class="textarea-wrap">
-                    <div class="note-editable" id="noteBox" contenteditable="true" data-placeholder="Start typing your notes…"></div>
-                    <button type="button" class="mic-btn" id="micBtn" title="Start dictation">🎤</button>
-                </div>
-                <div class="dictation-status" id="dictationStatus"></div>
-                <button class="play-btn" id="playBtn" title="Read notes aloud">▶ Play</button>
-
-                <div class="bottom-action-row">
-                    <button class="generate-questions-btn" id="generateQuestionsBtn" ${isPaidUser ? '' : 'disabled title="Upgrade to unlock diagnostics"'}>Start Lesson</button>
-                    ${isPaidUser ? '<button class="compile-btn" id="compileBtn">Compile</button>' : ''}
+                <div class="bottom-action-row" id="beginLessonRow" ${isPaidUser ? '' : 'style="display:none;"'}>
+                    <button class="generate-questions-btn" id="beginLessonBtn">Begin</button>
                 </div>
             </div>
-            ${isPaidUser ? '<div class="compile-status" id="compileStatus"></div><div class="compiled-output" id="compiledOutput" style="display:none;"></div>' : ''}
 
-            <div id="diagnoseQuestionFlow"></div>
+            <div id="placementFlowEl"></div>
+
+            <div id="mainLessonArea" style="display:none;">
+                <div class="editor-wrap">
+                    <input type="text" class="page-title-input" id="pageTitleInput" placeholder="Page title" value="">
+
+                    <div class="rich-toolbar">
+                        <button type="button" class="toolbar-btn" id="insertMathBtn">∑ Insert Math</button>
+                        <button type="button" class="toolbar-btn" id="insertMatrixBtn">⊞ Insert Matrix</button>
+                    </div>
+
+                    <div class="textarea-wrap">
+                        <div class="note-editable" id="noteBox" contenteditable="true" data-placeholder="Start typing your notes…"></div>
+                        <button type="button" class="mic-btn" id="micBtn" title="Start dictation">🎤</button>
+                    </div>
+                    <div class="dictation-status" id="dictationStatus"></div>
+                    <button class="play-btn" id="playBtn" title="Read notes aloud">▶ Play</button>
+
+                    <div class="bottom-action-row">
+                        <button class="generate-questions-btn" id="generateNotesBtn" ${isPaidUser ? '' : 'disabled title="Upgrade to unlock diagnostics"'}>Generate Notes</button>
+                        ${isPaidUser ? '<button class="compile-btn" id="compileBtn">Compile</button>' : ''}
+                        <button class="generate-questions-btn" id="generateQuestionsBtn" ${isPaidUser ? '' : 'disabled title="Upgrade to unlock diagnostics"'}>Start Lesson</button>
+                    </div>
+                </div>
+                ${isPaidUser ? '<div class="compile-status" id="compileStatus"></div><div class="compiled-output" id="compiledOutput" style="display:none;"></div>' : ''}
+
+                <div id="diagnoseQuestionFlow"></div>
+            </div>
 
             <div class="scratch-notes-widget" id="scratchNotesWidget">
                 <div class="scratch-notes-header" id="scratchNotesHeader">
@@ -2589,7 +2622,8 @@ UwIDAQAB
         // multiple-choice (when `options` is provided, used by the
         // recognition/encoding-check stage). `onSubmit` is called with
         // { answer, dontKnow } once the student responds.
-        function renderQuestionCard(questionText, options, onSubmit) {
+        function renderQuestionCard(questionText, options, onSubmit, container) {
+            const targetEl = container || questionFlowEl;
             const card = document.createElement('div');
             card.className = 'question-card';
 
@@ -2613,7 +2647,7 @@ UwIDAQAB
                     optBtn.addEventListener('click', () => onSubmit({ answer: optionText, dontKnow: false }));
                     card.appendChild(optBtn);
                 });
-                questionFlowEl.appendChild(card);
+                targetEl.appendChild(card);
                 card.scrollIntoView({ behavior: 'smooth', block: 'end' });
                 return card;
             }
@@ -2649,7 +2683,7 @@ UwIDAQAB
             footer.appendChild(submitBtn);
             card.appendChild(answerInput);
             card.appendChild(footer);
-            questionFlowEl.appendChild(card);
+            targetEl.appendChild(card);
             card.scrollIntoView({ behavior: 'smooth', block: 'end' });
 
             return card;
@@ -2749,7 +2783,6 @@ UwIDAQAB
                         questionFlowEl.appendChild(summaryCard);
                         summaryCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
 
-                        await refreshReviewSchedule();
                         return;
                     }
 
@@ -2760,6 +2793,172 @@ UwIDAQAB
 
             await askNext(startResult.nextQuestion, startResult.state);
         }
+
+        const placementFlowEl = document.getElementById('placementFlowEl');
+
+        // Explicit no-op stub, as requested — wired up later.
+        document.getElementById('generateNotesBtn').addEventListener('click', () => {
+            // no-op for now
+        });
+
+        // Generic runner for a single orchestrator-driven question, reused
+        // by the placement check specifically — everything after the
+        // question itself (slip-check, encoding-check, atomic/mechanistic
+        // branching, real misconception-aware corrections) is the SAME
+        // already-built diagnostic engine used everywhere else in the app,
+        // called through the same /diagnostics/submit-answer endpoint.
+        async function runOrchestratorQuestion(accessToken, subject, topic, conceptLabel, originalQuestion) {
+            let state = null;
+            let currentQuestionText = originalQuestion;
+            let currentOptions = null;
+            let finalDiagnosis = 'pass';
+
+            while (true) {
+                let cardRef;
+                const submission = await new Promise((resolve) => {
+                    cardRef = renderQuestionCard(currentQuestionText, currentOptions, (sub) => resolve(sub), placementFlowEl);
+                });
+
+                let resp;
+                try {
+                    resp = await fetch(`${COMPILE_BACKEND_URL}/diagnostics/submit-answer`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${accessToken}`
+                        },
+                        body: JSON.stringify({
+                            subject, topic, conceptLabel, originalQuestion, state,
+                            answer: submission.answer, dontKnow: submission.dontKnow
+                        })
+                    });
+                } catch (err) {
+                    lockAnsweredCard(cardRef, submission.answer, false, 'Could not reach the server. Please try again.');
+                    return 'unresolved';
+                }
+
+                if (!resp.ok) {
+                    const body = await resp.json().catch(() => ({}));
+                    lockAnsweredCard(cardRef, submission.answer, false, body.error || 'Something went wrong.');
+                    return 'unresolved';
+                }
+
+                const result = await resp.json();
+
+                if (result.done) {
+                    finalDiagnosis = result.diagnosis;
+                    if (result.diagnosis === 'pass') {
+                        showPassAndClearInline(cardRef);
+                    } else {
+                        lockAnsweredCard(cardRef, submission.answer, false, result.correction);
+                    }
+                    return finalDiagnosis;
+                }
+
+                currentQuestionText = result.nextQuestion;
+                currentOptions = result.nextOptions || null;
+                state = result.state;
+            }
+        }
+
+        // Minimalist pass indicator, matching the same tick+fade pattern
+        // used elsewhere, scoped for cards rendered into placementFlowEl.
+        function showPassAndClearInline(card) {
+            card.innerHTML = '<div class="pass-tick">✓ Correct</div>';
+        }
+
+        function showAlreadyTaughtGate(subject, topic, lesson) {
+            const gate = document.createElement('div');
+            gate.className = 'question-card';
+
+            const text = document.createElement('div');
+            text.className = 'question-card-text';
+            text.textContent = 'Have you already been taught this lesson to the required standard?';
+            gate.appendChild(text);
+
+            const footer = document.createElement('div');
+            footer.style.display = 'flex';
+            footer.style.gap = '10px';
+
+            const yesBtn = document.createElement('button');
+            yesBtn.className = 'question-submit-btn';
+            yesBtn.textContent = 'Yes';
+
+            const noBtn = document.createElement('button');
+            noBtn.className = 'question-submit-btn';
+            noBtn.style.background = 'none';
+            noBtn.style.border = '1px solid rgba(230, 215, 176, 0.3)';
+            noBtn.style.color = 'var(--text)';
+            noBtn.textContent = 'No';
+
+            yesBtn.addEventListener('click', async () => {
+                gate.remove();
+                document.getElementById('mainLessonArea').style.display = 'block';
+                document.getElementById('generateQuestionsBtn').click();
+            });
+
+            noBtn.addEventListener('click', () => {
+                gate.remove();
+                document.getElementById('mainLessonArea').style.display = 'block';
+            });
+
+            footer.appendChild(yesBtn);
+            footer.appendChild(noBtn);
+            gate.appendChild(footer);
+            placementFlowEl.appendChild(gate);
+            gate.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+
+        document.getElementById('beginLessonBtn').addEventListener('click', async () => {
+            const subject = document.getElementById('diagnoseSubjectInput').value.trim();
+            const topic = document.getElementById('diagnoseTopicInput').value.trim();
+            const lesson = document.getElementById('diagnoseLessonInput').value.trim();
+
+            if (!lesson) {
+                placementFlowEl.innerHTML = '<div class="correction-card">Enter a lesson/concept first.</div>';
+                return;
+            }
+
+            const beginBtn = document.getElementById('beginLessonBtn');
+            beginBtn.disabled = true;
+            placementFlowEl.innerHTML = '<div class="correction-card">Preparing…</div>';
+
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (!session) throw new Error('Not logged in.');
+
+                const resp = await fetch(`${COMPILE_BACKEND_URL}/placement/start`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${session.access_token}`
+                    },
+                    body: JSON.stringify({ subject, topic, concept: lesson })
+                });
+
+                if (!resp.ok) {
+                    const body = await resp.json().catch(() => ({}));
+                    throw new Error(body.error || `Server returned ${resp.status}`);
+                }
+
+                const placement = await resp.json();
+                placementFlowEl.innerHTML = '';
+
+                if (placement.hasPrerequisite) {
+                    await runOrchestratorQuestion(
+                        session.access_token, subject, topic,
+                        placement.prerequisiteConceptLabel, placement.question
+                    );
+                }
+
+                showAlreadyTaughtGate(subject, topic, lesson);
+            } catch (err) {
+                console.error('LastMind: placement check failed.', err);
+                placementFlowEl.innerHTML = '<div class="correction-card">Could not prepare this lesson. Please try again.</div>';
+            } finally {
+                beginBtn.disabled = false;
+            }
+        });
 
         document.getElementById('generateQuestionsBtn').addEventListener('click', async () => {
             const subject = document.getElementById('diagnoseSubjectInput').value.trim();
@@ -3178,24 +3377,6 @@ UwIDAQAB
     // already on Premium. Token purchases aren't built yet — this is a
     // clearly-labelled placeholder for now, same pattern as Compile
     // originally was, not a silent dead end.
-    function formatTimeUntilDue(dueIso) {
-        const due = new Date(dueIso).getTime();
-        const now = Date.now();
-        const diffMs = due - now;
-
-        if (diffMs <= 0) return { label: 'Due now', dueNow: true };
-
-        const hours = diffMs / (1000 * 60 * 60);
-        if (hours < 1) return { label: `in ${Math.max(1, Math.round(hours * 60))} min`, dueNow: false };
-        if (hours < 24) return { label: `in ${Math.round(hours)}h`, dueNow: false };
-
-        const days = hours / 24;
-        if (days < 7) return { label: `in ${Math.round(days)}d`, dueNow: false };
-
-        const dateStr = new Date(dueIso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-        return { label: dateStr, dueNow: false };
-    }
-
     function conceptKeyToLabel(conceptKey) {
         // concept_id values are a mix of raw labels (from atomic-path
         // testing) and normalized "subject:topic:concept" keys (from
@@ -3203,48 +3384,6 @@ UwIDAQAB
         // the current data model, not something worth a bigger fix right
         // now. Just make normalized keys minimally more readable.
         return conceptKey.replace(/:/g, ' — ').replace(/_/g, ' ');
-    }
-
-    async function refreshReviewSchedule() {
-        const listEl = document.getElementById('reviewScheduleList');
-        if (!isPaidUser) {
-            listEl.innerHTML = '<div class="review-schedule-empty">Upgrade to unlock diagnostics and spaced review.</div>';
-            return;
-        }
-
-        try {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) return;
-
-            const resp = await fetch(`${COMPILE_BACKEND_URL}/schedule`, {
-                headers: { Authorization: `Bearer ${session.access_token}` }
-            });
-            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
-
-            const { schedule } = await resp.json();
-            if (!schedule || !schedule.length) {
-                listEl.innerHTML = '<div class="review-schedule-empty">No reviews scheduled yet — use Start Lesson on a lesson to begin.</div>';
-                return;
-            }
-
-            listEl.innerHTML = '';
-            schedule.forEach((item) => {
-                const { label, dueNow } = formatTimeUntilDue(item.due);
-                const row = document.createElement('div');
-                row.className = 'review-schedule-item' + (dueNow ? ' due-now' : '');
-                row.style.cursor = 'pointer';
-                row.title = 'Click to start this review';
-                row.innerHTML = `
-                    <span class="review-schedule-item-label">${conceptKeyToLabel(item.concept_id)}</span>
-                    <span class="review-schedule-item-time">${label}</span>
-                `;
-                row.addEventListener('click', () => startReviewFromSchedule(item.concept_id));
-                listEl.appendChild(row);
-            });
-        } catch (err) {
-            console.error('LastMind: failed to load review schedule.', err);
-            listEl.innerHTML = '<div class="review-schedule-empty">Could not load review schedule.</div>';
-        }
     }
 
     // Only chain-tracked concepts use the "subject:topic:concept" key
@@ -3266,11 +3405,121 @@ UwIDAQAB
             return;
         }
 
+        document.getElementById('calendarOverlay').classList.remove('open');
         subjectInput.value = parts[0].replace(/_/g, ' ');
         topicInput.value = parts[1].replace(/_/g, ' ');
         lessonInput.value = parts[2].replace(/_/g, ' ');
         generateBtn.click();
     }
+
+    let cachedScheduleData = [];
+    let calendarViewDate = new Date();
+
+    async function fetchScheduleData() {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return [];
+
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/schedule`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+
+            const { schedule } = await resp.json();
+            return schedule || [];
+        } catch (err) {
+            console.error('LastMind: failed to load review schedule.', err);
+            return [];
+        }
+    }
+
+    // Renders a real month grid for whichever month calendarViewDate is
+    // currently on — each day showing the reviews actually due that
+    // calendar day, clickable to jump straight into starting them.
+    function renderCalendar() {
+        const year = calendarViewDate.getFullYear();
+        const month = calendarViewDate.getMonth();
+
+        document.getElementById('calendarMonthLabel').textContent =
+            calendarViewDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+
+        // Group due items by calendar day (YYYY-MM-DD, local time).
+        const byDay = {};
+        cachedScheduleData.forEach((item) => {
+            const d = new Date(item.due);
+            const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+            (byDay[key] = byDay[key] || []).push(item);
+        });
+
+        const firstOfMonth = new Date(year, month, 1);
+        // Monday-first grid: JS getDay() is 0=Sunday, convert to 0=Monday.
+        const leadingBlanks = (firstOfMonth.getDay() + 6) % 7;
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+        const today = new Date();
+        const isSameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+        const gridEl = document.getElementById('calendarGrid');
+        gridEl.innerHTML = '';
+
+        for (let i = 0; i < leadingBlanks; i++) {
+            const blank = document.createElement('div');
+            blank.className = 'calendar-day empty';
+            gridEl.appendChild(blank);
+        }
+
+        for (let day = 1; day <= daysInMonth; day++) {
+            const cellDate = new Date(year, month, day);
+            const cell = document.createElement('div');
+            cell.className = 'calendar-day' + (isSameDay(cellDate, today) ? ' today' : '');
+
+            const num = document.createElement('div');
+            num.className = 'calendar-day-number';
+            num.textContent = day;
+            cell.appendChild(num);
+
+            const dayItems = byDay[`${year}-${month}-${day}`] || [];
+            dayItems.forEach((item) => {
+                const chip = document.createElement('div');
+                chip.className = 'calendar-day-review';
+                chip.textContent = conceptKeyToLabel(item.concept_id);
+                chip.title = conceptKeyToLabel(item.concept_id);
+                chip.addEventListener('click', () => startReviewFromSchedule(item.concept_id));
+                cell.appendChild(chip);
+            });
+
+            gridEl.appendChild(cell);
+        }
+    }
+
+    document.getElementById('reviewCalendarBtn').addEventListener('click', async () => {
+        if (!isPaidUser) {
+            alert('Upgrade to unlock diagnostics and spaced review.');
+            return;
+        }
+        calendarViewDate = new Date();
+        cachedScheduleData = await fetchScheduleData();
+        renderCalendar();
+        document.getElementById('calendarOverlay').classList.add('open');
+    });
+
+    document.getElementById('calendarPrevBtn').addEventListener('click', () => {
+        calendarViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() - 1, 1);
+        renderCalendar();
+    });
+
+    document.getElementById('calendarNextBtn').addEventListener('click', () => {
+        calendarViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() + 1, 1);
+        renderCalendar();
+    });
+
+    document.getElementById('calendarCloseBtn').addEventListener('click', () => {
+        document.getElementById('calendarOverlay').classList.remove('open');
+    });
+
+    document.getElementById('calendarOverlay').addEventListener('click', (e) => {
+        if (e.target.id === 'calendarOverlay') document.getElementById('calendarOverlay').classList.remove('open');
+    });
 
     async function enterApp(paid) {
         isPaidUser = paid;
@@ -3291,7 +3540,6 @@ UwIDAQAB
         document.getElementById('gate-message').style.display = 'none';
         document.getElementById('app').style.display = 'block';
         await refreshFolderList();
-        await refreshReviewSchedule();
     }
 
     (async function gate() {
