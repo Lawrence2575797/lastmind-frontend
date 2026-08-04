@@ -1192,6 +1192,33 @@
         color: var(--bg);
         border: none;
     }
+    /* ─── MOBILE ─── */
+    @media (max-width: 768px) {
+        /* The scratch notes widget is position:fixed — on a narrow screen
+           it was sitting on top of the bottom-action-row entirely, both
+           hiding Start Lesson/Compile and blocking taps from reaching
+           them. Shrinking it and guaranteeing extra scroll room below the
+           real content are two separate, both-necessary fixes. */
+        .scratch-notes-widget {
+            width: calc(100vw - 32px);
+            max-width: 280px;
+            bottom: 12px;
+            right: 12px;
+        }
+
+        .scratch-notes-textarea {
+            height: 90px;
+        }
+
+        /* Real, generous scrollable room at the bottom of the content
+           area — sized comfortably larger than the widget even fully
+           expanded, so scrolling to the very bottom always clears it and
+           the actual buttons become fully visible and tappable. */
+        .content {
+            padding-bottom: 220px;
+        }
+    }
+
 </style>
 
 <!-- jQuery is a MathQuill dependency (its stable release requires it) -->
@@ -2257,6 +2284,14 @@ UwIDAQAB
         const scratchNotesBox = document.getElementById('scratchNotesBox');
         const scratchNotesWidget = document.getElementById('scratchNotesWidget');
         scratchNotesBox.value = page.scratchNotes || '';
+
+        // Starts collapsed on mobile specifically — out of the way until
+        // tapped open, rather than taking up real screen space by default
+        // on a narrow viewport. Desktop keeps its existing open-by-default
+        // behavior unchanged.
+        if (window.innerWidth <= 768) {
+            scratchNotesWidget.classList.add('collapsed');
+        }
 
         let scratchSaveDebounce = null;
         scratchNotesBox.addEventListener('input', () => {
