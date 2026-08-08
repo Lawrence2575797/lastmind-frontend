@@ -87,66 +87,108 @@
         white-space: nowrap;
     }
 
-    .new-dropdown {
-        position: relative;
+    .sidebar-tabs {
+        display: flex;
+        border-bottom: 1px solid rgba(230, 215, 176, 0.1);
+        flex-shrink: 0;
     }
 
-    .new-btn {
-        font-family: 'Arial', sans-serif;
-        font-size: 0.78rem;
-        letter-spacing: 0.05em;
-        color: var(--bg);
-        background: var(--accent);
-        border: none;
-        padding: 8px 14px;
-        border-radius: 3px;
-        cursor: pointer;
-        white-space: nowrap;
-    }
-
-    .new-menu {
-        display: none;
-        position: absolute;
-        top: 110%;
-        right: 0;
-        background: var(--panel);
-        border: 1px solid rgba(230, 215, 176, 0.2);
-        border-radius: 4px;
-        min-width: 170px;
-        z-index: 20;
-        overflow: hidden;
-    }
-
-    .new-menu.open { display: block; }
-
-    .new-menu button {
-        display: block;
-        width: 100%;
-        text-align: left;
-        padding: 11px 16px;
+    .sidebar-tab-btn {
+        flex: 1;
         background: none;
         border: none;
         color: var(--text);
+        opacity: 0.5;
         font-family: 'Arial', sans-serif;
-        font-size: 0.82rem;
+        font-size: 0.76rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        padding: 13px 8px;
         cursor: pointer;
-        opacity: 0.85;
+        border-bottom: 2px solid transparent;
     }
 
-    .new-menu button:hover:not(:disabled) {
-        background: rgba(230, 215, 176, 0.08);
+    .sidebar-tab-btn:hover {
+        opacity: 0.8;
+    }
+
+    .sidebar-tab-btn.active {
         opacity: 1;
-    }
-
-    .new-menu button:disabled {
-        opacity: 0.3;
-        cursor: not-allowed;
+        color: var(--accent);
+        border-bottom-color: var(--accent);
     }
 
     .folder-list {
         flex: 1;
         overflow-y: auto;
         padding: 10px 10px 20px;
+    }
+
+    .drill-header {
+        padding: 4px 4px 12px;
+    }
+
+    .drill-title-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .drill-back-btn {
+        flex-shrink: 0;
+        background: none;
+        border: none;
+        color: var(--accent);
+        font-size: 1rem;
+        line-height: 1;
+        padding: 2px 2px 2px 0;
+        cursor: pointer;
+        opacity: 0.75;
+    }
+
+    .drill-back-btn:hover {
+        opacity: 1;
+    }
+
+    .drill-title {
+        flex: 1;
+        min-width: 0;
+        font-size: 0.85rem;
+        font-weight: 700;
+        opacity: 0.9;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .drill-action-btn {
+        flex-shrink: 0;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.68rem;
+        letter-spacing: 0.02em;
+        color: var(--bg);
+        background: var(--accent);
+        border: none;
+        padding: 7px 10px;
+        border-radius: 3px;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    .drill-action-btn:hover {
+        opacity: 0.9;
+    }
+
+    .drill-section-label {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: 18px 4px 6px;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.66rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        opacity: 0.45;
     }
 
     .sidebar-footer {
@@ -157,31 +199,58 @@
         gap: 8px;
     }
 
+    .cortex-btn {
+        width: 100%;
+        background: rgba(230, 215, 176, 0.05);
+        border: 1px dashed rgba(230, 215, 176, 0.3);
+        border-radius: 4px;
+        padding: 9px;
+        color: var(--accent);
+        opacity: 0.7;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.72rem;
+        letter-spacing: 0.02em;
+        cursor: default;
+    }
+
     /* ─── REVIEW CALENDAR ─── */
-    .calendar-modal {
-        max-width: 520px;
+    .sidebar-calendar {
+        display: none;
+        flex: 1;
+        overflow-y: auto;
+        padding: 14px 12px 20px;
     }
 
     .calendar-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        margin-bottom: 18px;
+        margin-bottom: 14px;
+        gap: 6px;
     }
 
     .calendar-header h3 {
         margin-bottom: 0;
-        font-size: 1rem;
+        font-size: 0.78rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .calendar-header .btn {
+        padding: 5px 9px;
+        font-size: 0.75rem;
+        flex-shrink: 0;
     }
 
     .calendar-weekdays {
         display: grid;
         grid-template-columns: repeat(7, 1fr);
-        gap: 4px;
+        gap: 3px;
         margin-bottom: 6px;
         font-family: 'Arial', sans-serif;
-        font-size: 0.68rem;
-        letter-spacing: 0.04em;
+        font-size: 0.58rem;
+        letter-spacing: 0.02em;
         text-transform: uppercase;
         opacity: 0.5;
         text-align: center;
@@ -190,16 +259,16 @@
     .calendar-grid {
         display: grid;
         grid-template-columns: repeat(7, 1fr);
-        gap: 4px;
+        gap: 3px;
     }
 
     .calendar-day {
-        min-height: 64px;
+        min-height: 38px;
         border: 1px solid rgba(230, 215, 176, 0.12);
         border-radius: 4px;
-        padding: 4px;
+        padding: 3px;
         font-family: 'Arial', sans-serif;
-        font-size: 0.7rem;
+        font-size: 0.58rem;
     }
 
     .calendar-day.empty {
@@ -273,24 +342,8 @@
         min-width: 0;
     }
 
-    .new-page-item {
-        color: var(--accent) !important;
-        opacity: 0.75 !important;
-        font-weight: 600;
-    }
-
-    .new-page-item:hover {
-        opacity: 1 !important;
-    }
-
     .folder-item-header:hover {
         background: rgba(230, 215, 176, 0.06);
-    }
-
-    .folder-item.active > .folder-item-header {
-        background: rgba(230, 215, 176, 0.12);
-        opacity: 1;
-        color: var(--accent);
     }
 
     .folder-meta-row {
@@ -381,16 +434,6 @@
         color: #e6b0a8;
     }
 
-    .page-list {
-        display: none;
-        padding-left: 14px;
-        margin-top: 2px;
-    }
-
-    .folder-item.expanded .page-list {
-        display: block;
-    }
-
     .subfolder-item { margin-bottom: 2px; }
 
     .subfolder-header {
@@ -398,29 +441,17 @@
         align-items: center;
         justify-content: space-between;
         gap: 6px;
-        padding: 7px 8px;
+        padding: 9px 8px;
         cursor: pointer;
-        font-size: 0.78rem;
+        font-size: 0.8rem;
         opacity: 0.8;
         border-radius: 4px;
     }
 
     .subfolder-header:hover {
         background: rgba(230, 215, 176, 0.06);
-    }
-
-    .subfolder-item.expanded > .subfolder-header {
         opacity: 1;
         color: var(--accent);
-    }
-
-    .subfolder-page-list {
-        display: none;
-        padding-left: 14px;
-    }
-
-    .subfolder-item.expanded .subfolder-page-list {
-        display: block;
     }
 
     [draggable="true"] {
@@ -530,12 +561,34 @@
         max-width: 780px;
     }
 
-    .welcome {
-        opacity: 0.5;
-        font-size: 0.95rem;
-        line-height: 1.8;
-        margin-top: 60px;
+    .dashboard-view {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
         text-align: center;
+        gap: 22px;
+        margin-top: 18vh;
+    }
+
+    .dashboard-logo {
+        font-size: clamp(2.4rem, 6vw, 3.8rem);
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: var(--text);
+    }
+
+    .dashboard-logo span {
+        color: var(--accent);
+    }
+
+    .dashboard-quote {
+        font-size: 1.05rem;
+        font-style: italic;
+        color: var(--text);
+        opacity: 0.55;
+        max-width: 420px;
+        line-height: 1.7;
     }
 
     /* ─── UNIFIED LESSON PANEL ─── */
@@ -1257,20 +1310,32 @@
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <span class="sidebar-logo">LastMind</span>
-                <div class="new-dropdown">
-                    <button class="new-btn" id="newDropdownBtn">+ New</button>
-                    <div class="new-menu" id="newMenu">
-                        <button id="newFolderOption">New Folder</button>
-                    </div>
-                </div>
+            </div>
+
+            <div class="sidebar-tabs">
+                <button class="sidebar-tab-btn active" id="foldersTabBtn" type="button">Folders</button>
+                <button class="sidebar-tab-btn" id="calendarTabBtn" type="button">Calendar</button>
             </div>
 
             <div class="folder-list" id="folderList">
-                <div class="empty-hint">No folders yet — click "+ New" to create one.</div>
+                <div class="empty-hint">No folders yet — click "+ Create new folder" to add one.</div>
+            </div>
+
+            <div class="sidebar-calendar" id="sidebarCalendar">
+                <div class="calendar-header">
+                    <button class="btn" id="calendarPrevBtn" type="button">‹</button>
+                    <h3 id="calendarMonthLabel">August 2026</h3>
+                    <button class="btn" id="calendarNextBtn" type="button">›</button>
+                </div>
+                <div class="calendar-weekdays">
+                    <span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span>
+                </div>
+                <div class="calendar-grid" id="calendarGrid"></div>
             </div>
 
             <div class="sidebar-footer">
                 <button class="manage-subscription-btn" id="myAccountBtn">My Account</button>
+                <button class="cortex-btn" id="cortexBtn" type="button">LastMind Cortex — cognitive AI</button>
             </div>
         </aside>
 
@@ -1278,14 +1343,16 @@
         <main class="main">
             <div class="topbar">
                 <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">☰</button>
-                <span class="topbar-title" id="topbarTitle">Select or create a folder to get started</span>
-                <button class="upgrade-btn" id="reviewCalendarBtn" style="background:none; border:1px solid rgba(230,215,176,0.3); color:var(--accent);" title="Review calendar">📅 Reviews</button>
+                <span class="topbar-title" id="topbarTitle">Dashboard</span>
                 <button class="upgrade-btn" id="upgradeBtn">Upgrade</button>
             </div>
 
             <div class="content">
                 <div class="content-inner" id="contentInner">
-                    <p class="welcome">Nothing open yet. Create a folder on the left, then a page inside it.</p>
+                    <div class="dashboard-view">
+                        <h1 class="dashboard-logo">Last<span>Mind</span></h1>
+                        <p class="dashboard-quote">It doesn't matter how you do it, it matters that you do it.</p>
+                    </div>
                 </div>
             </div>
         </main>
@@ -1326,19 +1393,19 @@
     </div>
 </div>
 
-<div class="modal-overlay" id="calendarOverlay">
-    <div class="modal calendar-modal">
-        <div class="calendar-header">
-            <button class="btn" id="calendarPrevBtn">‹</button>
-            <h3 id="calendarMonthLabel">August 2026</h3>
-            <button class="btn" id="calendarNextBtn">›</button>
+<!-- ─── NEW SUBFOLDER MODAL ─── -->
+<div class="modal-overlay" id="subfolderModalOverlay">
+    <div class="modal">
+        <h3>New Subfolder</h3>
+
+        <div class="field">
+            <label for="subfolderNameInput">Name</label>
+            <input type="text" id="subfolderNameInput" placeholder="e.g. Atomic Structure">
         </div>
-        <div class="calendar-weekdays">
-            <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
-        </div>
-        <div class="calendar-grid" id="calendarGrid"></div>
+
         <div class="modal-actions">
-            <button class="btn" id="calendarCloseBtn">Close</button>
+            <button class="btn" id="cancelSubfolderBtn">Cancel</button>
+            <button class="btn primary" id="submitSubfolderBtn">Create</button>
         </div>
     </div>
 </div>
@@ -1698,24 +1765,6 @@ UwIDAQAB
         await refreshFolderList();
     }
 
-    async function moveSubfolder(subfolderId, sourceFolderId, targetFolderId) {
-        if (sourceFolderId === targetFolderId) return;
-        const sourceFolder = folders.find((f) => f.id === sourceFolderId);
-        const targetFolder = folders.find((f) => f.id === targetFolderId);
-        if (!sourceFolder || !targetFolder) return;
-
-        const idx = (sourceFolder.subfolders || []).findIndex((sf) => sf.id === subfolderId);
-        if (idx === -1) return;
-
-        const [subfolder] = sourceFolder.subfolders.splice(idx, 1);
-        targetFolder.subfolders = targetFolder.subfolders || [];
-        targetFolder.subfolders.push(subfolder);
-
-        await putFolder(sourceFolder);
-        await putFolder(targetFolder);
-        await refreshFolderList();
-    }
-
     async function reorderFolders(draggedFolderId, targetFolderId) {
         if (draggedFolderId === targetFolderId) return;
         const draggedIdx = folders.findIndex((f) => f.id === draggedFolderId);
@@ -1735,20 +1784,33 @@ UwIDAQAB
         await refreshFolderList();
     }
 
-    async function createSubfolder(folderId) {
-        const name = prompt('Subfolder name:');
-        if (!name || !name.trim()) return;
+    let pendingSubfolderFolderId = null;
+
+    function openSubfolderModal(folderId) {
+        pendingSubfolderFolderId = folderId;
+        document.getElementById('subfolderNameInput').value = '';
+        document.getElementById('subfolderModalOverlay').classList.add('open');
+    }
+
+    function closeSubfolderModal() {
+        document.getElementById('subfolderModalOverlay').classList.remove('open');
+        pendingSubfolderFolderId = null;
+    }
+
+    async function createSubfolder(folderId, name) {
         const folder = folders.find((f) => f.id === folderId);
         if (!folder) return;
 
-        folder.subfolders = folder.subfolders || [];
-        folder.subfolders.push({
+        const subfolder = {
             id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())),
-            name: name.trim(),
+            name,
             pages: []
-        });
+        };
+        folder.subfolders = folder.subfolders || [];
+        folder.subfolders.push(subfolder);
         await putFolder(folder);
         await refreshFolderList();
+        selectSubfolder(folder.id, subfolder.id);
     }
 
     async function deleteFolder(folderId) {
@@ -1912,176 +1974,258 @@ UwIDAQAB
         return wrap;
     }
 
+    // Builds the header row shared by all three drill levels: an optional
+    // back button + title on the left, and the level's "create new …"
+    // action on the right.
+    function buildDrillHeader({ title, actionLabel, onAction, onBack }) {
+        const wrap = document.createElement('div');
+        wrap.className = 'drill-header';
+
+        const titleRow = document.createElement('div');
+        titleRow.className = 'drill-title-row';
+
+        if (onBack) {
+            const backBtn = document.createElement('button');
+            backBtn.className = 'drill-back-btn';
+            backBtn.type = 'button';
+            backBtn.textContent = '‹';
+            backBtn.title = 'Back';
+            backBtn.addEventListener('click', onBack);
+            titleRow.appendChild(backBtn);
+        }
+
+        const titleEl = document.createElement('span');
+        titleEl.className = 'drill-title';
+        titleEl.textContent = title;
+        titleRow.appendChild(titleEl);
+
+        const actionBtn = document.createElement('button');
+        actionBtn.className = 'drill-action-btn';
+        actionBtn.type = 'button';
+        actionBtn.textContent = actionLabel;
+        actionBtn.addEventListener('click', onAction);
+        titleRow.appendChild(actionBtn);
+
+        wrap.appendChild(titleRow);
+        return wrap;
+    }
+
+    function buildFolderRow(f) {
+        const item = document.createElement('div');
+        item.className = 'folder-item';
+        item.draggable = true;
+
+        const header = document.createElement('div');
+        header.className = 'folder-item-header';
+
+        const labelWrap = document.createElement('div');
+        labelWrap.className = 'folder-item-label';
+        labelWrap.innerHTML = `
+            ${folderLabel(f)}
+            <div class="folder-meta-row">
+                <span class="folder-meta">${(f.subfolders || []).length} subfolder(s) · ${(f.pages || []).length} page(s)</span>
+            </div>
+        `;
+
+        const menuWrap = buildItemMenu([
+            { label: 'Delete Folder', danger: true, onClick: () => deleteFolder(f.id) }
+        ]);
+
+        header.appendChild(labelWrap);
+        header.appendChild(menuWrap);
+        header.addEventListener('click', () => selectFolder(f.id));
+
+        // Reordering among top-level folders.
+        item.addEventListener('dragstart', (e) => {
+            draggedItem = { type: 'folder', folderId: f.id };
+            e.dataTransfer.effectAllowed = 'move';
+        });
+        header.addEventListener('dragover', (e) => {
+            if (!draggedItem || draggedItem.type !== 'folder') return;
+            e.preventDefault();
+            header.classList.add('drag-over');
+        });
+        header.addEventListener('dragleave', () => header.classList.remove('drag-over'));
+        header.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            header.classList.remove('drag-over');
+            if (draggedItem && draggedItem.type === 'folder' && draggedItem.folderId !== f.id) {
+                await reorderFolders(draggedItem.folderId, f.id);
+            }
+            draggedItem = null;
+        });
+
+        item.appendChild(header);
+        return item;
+    }
+
+    function buildSubfolderRow(folder, sf) {
+        const sfItem = document.createElement('div');
+        sfItem.className = 'subfolder-item';
+
+        const sfHeader = document.createElement('div');
+        sfHeader.className = 'subfolder-header';
+
+        const sfLabel = document.createElement('span');
+        sfLabel.textContent = `📁 ${sf.name} (${(sf.pages || []).length})`;
+        sfLabel.style.flex = '1';
+        sfLabel.style.overflow = 'hidden';
+        sfLabel.style.textOverflow = 'ellipsis';
+
+        const sfMenu = buildItemMenu([
+            { label: 'Delete Subfolder', danger: true, onClick: () => deleteSubfolderById(folder.id, sf.id) }
+        ]);
+
+        sfHeader.appendChild(sfLabel);
+        sfHeader.appendChild(sfMenu);
+        sfHeader.addEventListener('click', () => selectSubfolder(folder.id, sf.id));
+
+        // A subfolder can receive a page dragged from this same folder's
+        // direct-pages list, shown just below it in this same view.
+        sfHeader.addEventListener('dragover', (e) => {
+            if (!draggedItem || draggedItem.type !== 'page') return;
+            e.preventDefault();
+            sfHeader.classList.add('drag-over');
+        });
+        sfHeader.addEventListener('dragleave', () => sfHeader.classList.remove('drag-over'));
+        sfHeader.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            sfHeader.classList.remove('drag-over');
+            if (draggedItem && draggedItem.type === 'page') {
+                await movePage(draggedItem.pageId, folder.id, sf.id);
+            }
+            draggedItem = null;
+        });
+
+        sfItem.appendChild(sfHeader);
+        return sfItem;
+    }
+
+    // Top level: every folder, with "+ Create new folder" on the right.
+    function renderFoldersRootLevel() {
+        const listEl = document.getElementById('folderList');
+        listEl.innerHTML = '';
+
+        listEl.appendChild(buildDrillHeader({
+            title: 'Folders',
+            actionLabel: '+ Create new folder',
+            onAction: openFolderModal
+        }));
+
+        if (!folders.length) {
+            const hint = document.createElement('div');
+            hint.className = 'empty-hint';
+            hint.textContent = 'No folders yet — click "+ Create new folder" to add one.';
+            listEl.appendChild(hint);
+            return;
+        }
+
+        folders.forEach((f) => listEl.appendChild(buildFolderRow(f)));
+    }
+
+    // Inside a folder: its subfolders (with "+ Create new subfolder"), plus
+    // this folder's own direct pages further down, since folders can still
+    // hold pages that aren't inside any subfolder.
+    function renderFolderLevel(folder) {
+        const listEl = document.getElementById('folderList');
+        listEl.innerHTML = '';
+
+        listEl.appendChild(buildDrillHeader({
+            title: folderLabel(folder),
+            actionLabel: '+ Create new subfolder',
+            onAction: () => openSubfolderModal(folder.id),
+            onBack: () => selectFolder(null)
+        }));
+
+        const subfolders = folder.subfolders || [];
+        if (!subfolders.length) {
+            const hint = document.createElement('div');
+            hint.className = 'empty-hint';
+            hint.textContent = 'No subfolders yet.';
+            listEl.appendChild(hint);
+        } else {
+            subfolders.forEach((sf) => listEl.appendChild(buildSubfolderRow(folder, sf)));
+        }
+
+        const pagesLabel = document.createElement('div');
+        pagesLabel.className = 'drill-section-label';
+        const pagesLabelText = document.createElement('span');
+        pagesLabelText.textContent = 'Pages in this folder';
+        const addPageLink = document.createElement('span');
+        addPageLink.className = 'new-subfolder-link';
+        addPageLink.textContent = '+ Page';
+        addPageLink.addEventListener('click', () => createPageInFolder(folder.id, null));
+        pagesLabel.appendChild(pagesLabelText);
+        pagesLabel.appendChild(addPageLink);
+        listEl.appendChild(pagesLabel);
+
+        const directPages = folder.pages || [];
+        if (!directPages.length) {
+            const hint = document.createElement('div');
+            hint.className = 'empty-hint';
+            hint.textContent = 'No pages yet.';
+            listEl.appendChild(hint);
+        } else {
+            directPages.forEach((p) => listEl.appendChild(buildPageItem(p, folder.id, null)));
+        }
+    }
+
+    // Inside a subfolder: just its pages, with "+ Create new page".
+    function renderSubfolderLevel(folder, subfolder) {
+        const listEl = document.getElementById('folderList');
+        listEl.innerHTML = '';
+
+        listEl.appendChild(buildDrillHeader({
+            title: subfolder.name,
+            actionLabel: '+ Create new page',
+            onAction: () => createPageInFolder(folder.id, subfolder.id),
+            onBack: () => selectFolder(folder.id)
+        }));
+
+        const pages = subfolder.pages || [];
+        if (!pages.length) {
+            const hint = document.createElement('div');
+            hint.className = 'empty-hint';
+            hint.textContent = 'No pages yet.';
+            listEl.appendChild(hint);
+        } else {
+            pages.forEach((p) => listEl.appendChild(buildPageItem(p, folder.id, subfolder.id)));
+        }
+    }
+
+    // Renders whichever of the three drill levels selectedFolderId /
+    // selectedSubfolderId currently point at — folders list, a folder's
+    // contents, or a subfolder's pages.
     async function refreshFolderList() {
         folders = await getAllFolders();
         folders.sort((a, b) => (a.order ?? a.createdAt ?? 0) - (b.order ?? b.createdAt ?? 0));
 
-        const listEl = document.getElementById('folderList');
-        listEl.innerHTML = '';
-
-        if (!folders.length) {
-            listEl.innerHTML = '<div class="empty-hint">No folders yet — click "+ New" to create one.</div>';
+        if (!selectedFolderId) {
+            renderFoldersRootLevel();
             return;
         }
 
-        folders.forEach((f) => {
-            const item = document.createElement('div');
-            item.className = 'folder-item' + (f.id === selectedFolderId ? ' active expanded' : '');
-            item.draggable = true;
+        const folder = folders.find((f) => f.id === selectedFolderId);
+        if (!folder) {
+            selectedFolderId = null;
+            selectedSubfolderId = null;
+            renderFoldersRootLevel();
+            return;
+        }
 
-            const header = document.createElement('div');
-            header.className = 'folder-item-header';
+        if (!selectedSubfolderId) {
+            renderFolderLevel(folder);
+            return;
+        }
 
-            const labelWrap = document.createElement('div');
-            labelWrap.className = 'folder-item-label';
-            labelWrap.style.flex = '1';
-            labelWrap.style.minWidth = '0';
-            labelWrap.innerHTML = `
-                ${folderLabel(f)}
-                <div class="folder-meta-row">
-                    <span class="folder-meta">${(f.pages || []).length} page(s)</span>
-                    <span class="new-subfolder-link">+ Subfolder</span>
-                </div>
-            `;
-            labelWrap.querySelector('.new-subfolder-link').addEventListener('click', (e) => {
-                e.stopPropagation();
-                createSubfolder(f.id);
-            });
+        const subfolder = (folder.subfolders || []).find((sf) => sf.id === selectedSubfolderId);
+        if (!subfolder) {
+            selectedSubfolderId = null;
+            renderFolderLevel(folder);
+            return;
+        }
 
-            const menuWrap = buildItemMenu([
-                { label: 'Delete Folder', danger: true, onClick: () => deleteFolder(f.id) }
-            ]);
-
-            header.appendChild(labelWrap);
-            header.appendChild(menuWrap);
-            header.addEventListener('click', () => selectFolder(f.id));
-
-            // Folder drag (reordering among top-level folders)
-            item.addEventListener('dragstart', (e) => {
-                if (e.target !== item && e.target.closest('.page-item, .subfolder-item')) return;
-                draggedItem = { type: 'folder', folderId: f.id };
-                e.dataTransfer.effectAllowed = 'move';
-                e.stopPropagation();
-            });
-
-            // Drop target: folder header accepts a dragged folder (reorder),
-            // a dragged subfolder (reparent), or a dragged page (move to
-            // this folder's direct pages).
-            header.addEventListener('dragover', (e) => {
-                if (!draggedItem) return;
-                e.preventDefault();
-                header.classList.add('drag-over');
-            });
-            header.addEventListener('dragleave', () => header.classList.remove('drag-over'));
-            header.addEventListener('drop', async (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                header.classList.remove('drag-over');
-                if (!draggedItem) return;
-
-                if (draggedItem.type === 'folder') {
-                    await reorderFolders(draggedItem.folderId, f.id);
-                } else if (draggedItem.type === 'subfolder') {
-                    await moveSubfolder(draggedItem.subfolderId, draggedItem.folderId, f.id);
-                } else if (draggedItem.type === 'page') {
-                    await movePage(draggedItem.pageId, f.id, null);
-                }
-                draggedItem = null;
-            });
-
-            const pageList = document.createElement('div');
-            pageList.className = 'page-list';
-
-            // Subfolders first
-            (f.subfolders || []).forEach((sf) => {
-                const sfItem = document.createElement('div');
-                sfItem.className = 'subfolder-item' + (sf.id === selectedSubfolderId ? ' expanded' : '');
-                sfItem.draggable = true;
-
-                const sfHeader = document.createElement('div');
-                sfHeader.className = 'subfolder-header';
-
-                const sfLabel = document.createElement('span');
-                sfLabel.textContent = `📁 ${sf.name} (${(sf.pages || []).length})`;
-                sfLabel.style.flex = '1';
-                sfLabel.style.overflow = 'hidden';
-                sfLabel.style.textOverflow = 'ellipsis';
-
-                const sfMenu = buildItemMenu([
-                    { label: 'Delete Subfolder', danger: true, onClick: () => deleteSubfolderById(f.id, sf.id) }
-                ]);
-
-                sfHeader.appendChild(sfLabel);
-                sfHeader.appendChild(sfMenu);
-                sfHeader.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    selectedFolderId = f.id;
-                    selectedSubfolderId = (selectedSubfolderId === sf.id) ? null : sf.id;
-                    refreshFolderList();
-                });
-
-                sfItem.addEventListener('dragstart', (e) => {
-                    e.stopPropagation();
-                    draggedItem = { type: 'subfolder', folderId: f.id, subfolderId: sf.id };
-                    e.dataTransfer.effectAllowed = 'move';
-                });
-
-                // A subfolder can also receive a dragged page directly.
-                sfHeader.addEventListener('dragover', (e) => {
-                    if (!draggedItem || draggedItem.type !== 'page') return;
-                    e.preventDefault();
-                    e.stopPropagation();
-                    sfHeader.classList.add('drag-over');
-                });
-                sfHeader.addEventListener('dragleave', () => sfHeader.classList.remove('drag-over'));
-                sfHeader.addEventListener('drop', async (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    sfHeader.classList.remove('drag-over');
-                    if (draggedItem && draggedItem.type === 'page') {
-                        await movePage(draggedItem.pageId, f.id, sf.id);
-                    }
-                    draggedItem = null;
-                });
-
-                const sfPageList = document.createElement('div');
-                sfPageList.className = 'subfolder-page-list';
-                (sf.pages || []).forEach((p) => {
-                    sfPageList.appendChild(buildPageItem(p, f.id, sf.id));
-                });
-
-                const sfNewPageBtn = document.createElement('div');
-                sfNewPageBtn.className = 'page-item new-page-item';
-                sfNewPageBtn.textContent = '+ New Page';
-                sfNewPageBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    createPageInFolder(f.id, sf.id);
-                });
-                sfPageList.appendChild(sfNewPageBtn);
-
-                sfItem.appendChild(sfHeader);
-                sfItem.appendChild(sfPageList);
-                pageList.appendChild(sfItem);
-            });
-
-            // Then this folder's own direct pages
-            (f.pages || []).forEach((p) => {
-                pageList.appendChild(buildPageItem(p, f.id, null));
-            });
-
-            const newPageBtn = document.createElement('div');
-            newPageBtn.className = 'page-item new-page-item';
-            newPageBtn.textContent = '+ New Page';
-            newPageBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                createPageInFolder(f.id, null);
-            });
-            pageList.appendChild(newPageBtn);
-
-            item.appendChild(header);
-            item.appendChild(pageList);
-            listEl.appendChild(item);
-        });
+        renderSubfolderLevel(folder, subfolder);
     }
 
     function selectFolder(folderId) {
@@ -2089,7 +2233,18 @@ UwIDAQAB
         selectedSubfolderId = null;
         selectedPageId = null;
         const f = folders.find((x) => x.id === folderId);
-        document.getElementById('topbarTitle').textContent = f ? folderLabel(f) : 'Select or create a folder to get started';
+        document.getElementById('topbarTitle').textContent = f ? folderLabel(f) : 'Dashboard';
+        renderWelcome();
+        refreshFolderList();
+    }
+
+    function selectSubfolder(folderId, subfolderId) {
+        selectedFolderId = folderId;
+        selectedSubfolderId = subfolderId;
+        selectedPageId = null;
+        const f = folders.find((x) => x.id === folderId);
+        const sf = f && (f.subfolders || []).find((x) => x.id === subfolderId);
+        document.getElementById('topbarTitle').textContent = (f && sf) ? `${folderLabel(f)} · ${sf.name}` : 'Dashboard';
         renderWelcome();
         refreshFolderList();
     }
@@ -2097,8 +2252,12 @@ UwIDAQAB
     function renderWelcome() {
         stopActiveDictation();
         stopSpeaking();
-        document.getElementById('contentInner').innerHTML =
-            '<p class="welcome">Click the + next to this folder to add a page.</p>';
+        document.getElementById('contentInner').innerHTML = `
+            <div class="dashboard-view">
+                <h1 class="dashboard-logo">Last<span>Mind</span></h1>
+                <p class="dashboard-quote">It doesn't matter how you do it, it matters that you do it.</p>
+            </div>
+        `;
     }
 
     let saveDebounce = null;
@@ -3137,15 +3296,21 @@ UwIDAQAB
         document.getElementById('sidebar').classList.toggle('collapsed');
     });
 
-    document.getElementById('newDropdownBtn').addEventListener('click', () => {
-        document.getElementById('newMenu').classList.toggle('open');
-    });
+    let sidebarTab = 'folders'; // 'folders' | 'calendar'
+
+    function setSidebarTab(tab) {
+        sidebarTab = tab;
+        document.getElementById('foldersTabBtn').classList.toggle('active', tab === 'folders');
+        document.getElementById('calendarTabBtn').classList.toggle('active', tab === 'calendar');
+        document.getElementById('folderList').style.display = tab === 'folders' ? 'block' : 'none';
+        document.getElementById('sidebarCalendar').style.display = tab === 'calendar' ? 'block' : 'none';
+        if (tab === 'calendar') openSidebarCalendar();
+    }
+
+    document.getElementById('foldersTabBtn').addEventListener('click', () => setSidebarTab('folders'));
+    document.getElementById('calendarTabBtn').addEventListener('click', () => setSidebarTab('calendar'));
 
     document.addEventListener('click', (e) => {
-        const dropdown = document.getElementById('newDropdown') || document.querySelector('.new-dropdown');
-        if (dropdown && !dropdown.contains(e.target)) {
-            document.getElementById('newMenu').classList.remove('open');
-        }
         if (openMenuEl && !openMenuEl.contains(e.target) && !(openMenuTriggerBtn && openMenuTriggerBtn.contains(e.target))) {
             closeAllItemMenus();
         }
@@ -3157,11 +3322,6 @@ UwIDAQAB
     document.addEventListener('dragend', () => {
         draggedItem = null;
         document.querySelectorAll('.drag-over').forEach((el) => el.classList.remove('drag-over'));
-    });
-
-    document.getElementById('newFolderOption').addEventListener('click', () => {
-        document.getElementById('newMenu').classList.remove('open');
-        openFolderModal();
     });
 
     async function createPageInFolder(folderId, subfolderId) {
@@ -3272,6 +3432,24 @@ UwIDAQAB
         await refreshFolderList();
         selectFolder(id);
     }
+
+    document.getElementById('cancelSubfolderBtn').addEventListener('click', closeSubfolderModal);
+    document.getElementById('subfolderModalOverlay').addEventListener('click', (e) => {
+        if (e.target.id === 'subfolderModalOverlay') closeSubfolderModal();
+    });
+    document.getElementById('subfolderNameInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('submitSubfolderBtn').click();
+        }
+    });
+    document.getElementById('submitSubfolderBtn').addEventListener('click', async () => {
+        const name = document.getElementById('subfolderNameInput').value.trim();
+        const folderId = pendingSubfolderFolderId;
+        if (!name || !folderId) return;
+        closeSubfolderModal();
+        await createSubfolder(folderId, name);
+    });
 
     /* ───────────────────────── Gate + boot ───────────────────────── */
 
@@ -3405,7 +3583,7 @@ UwIDAQAB
             return;
         }
 
-        document.getElementById('calendarOverlay').classList.remove('open');
+        setSidebarTab('folders');
         subjectInput.value = parts[0].replace(/_/g, ' ');
         topicInput.value = parts[1].replace(/_/g, ' ');
         lessonInput.value = parts[2].replace(/_/g, ' ');
@@ -3492,33 +3670,29 @@ UwIDAQAB
         }
     }
 
-    document.getElementById('reviewCalendarBtn').addEventListener('click', async () => {
+    async function openSidebarCalendar() {
+        calendarViewDate = new Date();
         if (!isPaidUser) {
-            alert('Upgrade to unlock diagnostics and spaced review.');
+            document.getElementById('calendarMonthLabel').textContent =
+                calendarViewDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+            document.getElementById('calendarGrid').innerHTML =
+                '<div class="empty-hint" style="grid-column: 1 / -1;">Upgrade to unlock spaced review scheduling.</div>';
             return;
         }
-        calendarViewDate = new Date();
         cachedScheduleData = await fetchScheduleData();
         renderCalendar();
-        document.getElementById('calendarOverlay').classList.add('open');
-    });
+    }
 
     document.getElementById('calendarPrevBtn').addEventListener('click', () => {
+        if (!isPaidUser) return;
         calendarViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() - 1, 1);
         renderCalendar();
     });
 
     document.getElementById('calendarNextBtn').addEventListener('click', () => {
+        if (!isPaidUser) return;
         calendarViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() + 1, 1);
         renderCalendar();
-    });
-
-    document.getElementById('calendarCloseBtn').addEventListener('click', () => {
-        document.getElementById('calendarOverlay').classList.remove('open');
-    });
-
-    document.getElementById('calendarOverlay').addEventListener('click', (e) => {
-        if (e.target.id === 'calendarOverlay') document.getElementById('calendarOverlay').classList.remove('open');
     });
 
     async function enterApp(paid) {
