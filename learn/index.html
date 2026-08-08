@@ -594,11 +594,17 @@
     /* ─── UNIFIED LESSON PANEL ─── */
     .unified-lesson-fields {
         display: flex;
-        justify-content: center;
+        flex-direction: column;
+        align-items: center;
         margin-bottom: 24px;
     }
 
-    .unified-lesson-fields .diagnose-fields {
+    .unified-lesson-fields .prereq-check-panel {
+        max-width: 640px;
+        width: 100%;
+    }
+
+    .unified-lesson-fields #beginLessonRow {
         max-width: 640px;
         width: 100%;
     }
@@ -610,47 +616,37 @@
         margin-top: 16px;
     }
 
-    /* ─── DIAGNOSE PANEL ─── */
-    .diagnose-fields {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 14px;
-        align-items: flex-end;
+    /* ─── PREREQUISITE CHECK PANEL ─── */
+    .prereq-check-panel {
         background: var(--panel);
         border: 1px solid rgba(230, 215, 176, 0.15);
         border-radius: 6px;
         padding: 24px;
     }
 
-    .diagnose-field {
-        flex: 1;
-        min-width: 140px;
+    .prereq-check-message {
+        font-size: 0.95rem;
+        line-height: 1.7;
+        opacity: 0.85;
+        margin-bottom: 18px;
     }
 
-    .diagnose-field label {
-        display: block;
-        font-family: 'Arial', sans-serif;
-        font-size: 0.7rem;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-        opacity: 0.6;
-        margin-bottom: 6px;
+    .prereq-confirm-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        cursor: pointer;
+        font-size: 0.88rem;
+        line-height: 1.6;
     }
 
-    .diagnose-field input {
-        width: 100%;
-        background: var(--bg);
-        border: 1px solid rgba(230, 215, 176, 0.2);
-        border-radius: 4px;
-        padding: 10px 12px;
-        color: var(--text);
-        font-family: 'Arial', sans-serif;
-        font-size: 0.9rem;
-    }
-
-    .diagnose-field input:focus {
-        outline: none;
-        border-color: rgba(230, 215, 176, 0.5);
+    .prereq-confirm-row input[type="checkbox"] {
+        margin-top: 3px;
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+        accent-color: var(--accent);
+        cursor: pointer;
     }
 
     .generate-questions-btn {
@@ -665,6 +661,11 @@
         letter-spacing: 0.03em;
         cursor: pointer;
         white-space: nowrap;
+    }
+
+    .generate-questions-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
     }
 
     .generate-questions-btn:hover {
@@ -1410,6 +1411,48 @@
     </div>
 </div>
 
+<!-- ─── RENAME MODAL (subfolder or page) ─── -->
+<div class="modal-overlay" id="renameModalOverlay">
+    <div class="modal">
+        <h3 id="renameModalTitle">Rename</h3>
+
+        <div class="field">
+            <label for="renameModalInput" id="renameModalLabel">Name</label>
+            <input type="text" id="renameModalInput" placeholder="">
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn" id="cancelRenameBtn">Cancel</button>
+            <button class="btn primary" id="saveRenameBtn">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- ─── RENAME FOLDER MODAL ─── -->
+<div class="modal-overlay" id="renameFolderModalOverlay">
+    <div class="modal">
+        <h3>Rename Folder</h3>
+
+        <div class="field">
+            <label for="renameFolderSubjectInput">Subject</label>
+            <input type="text" id="renameFolderSubjectInput" placeholder="e.g. Economics">
+        </div>
+        <div class="field">
+            <label for="renameFolderQualificationInput">Qualification</label>
+            <input type="text" id="renameFolderQualificationInput" placeholder="e.g. A-Level">
+        </div>
+        <div class="field">
+            <label for="renameFolderBoardInput">Exam Board</label>
+            <input type="text" id="renameFolderBoardInput" placeholder="e.g. AQA">
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn" id="cancelRenameFolderBtn">Cancel</button>
+            <button class="btn primary" id="saveRenameFolderBtn">Save</button>
+        </div>
+    </div>
+</div>
+
 <div class="modal-overlay" id="myAccountOverlay">
     <div class="modal">
         <h3>My Account</h3>
@@ -1663,6 +1706,13 @@ UwIDAQAB
     let selectedPageId = null;
     let pendingMatchFolder = null; // set when the match-suggestion is showing
 
+    // Set by startReviewFromSchedule() right before it programmatically
+    // clicks #generateQuestionsBtn, so that click's handler (defined fresh
+    // inside openPage(), scoped to whatever page happens to be open) uses
+    // the review's own subject/topic/concept instead of the open page's —
+    // read-and-cleared by that handler on the very next click.
+    let reviewOverride = null;
+
     let draggedItem = null; // { type: 'folder'|'subfolder'|'page', folderId, subfolderId, pageId }
     let openMenuEl = null;        // currently-open three-dot dropdown, so only one is open at a time
     let openMenuTriggerBtn = null; // the ⋯ button that opened it — needed for outside-click detection once the menu is detached from its normal spot in the DOM
@@ -1679,6 +1729,14 @@ UwIDAQAB
 
     function folderLabel(f) {
         return `${f.subject} — ${f.qualification} (${f.examBoard})`;
+    }
+
+    // For safely dropping user-entered text (page titles, folder/subfolder
+    // names) into an innerHTML template literal.
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
     }
 
     function closeAllItemMenus() {
@@ -1852,6 +1910,84 @@ UwIDAQAB
         await refreshFolderList();
     }
 
+    // Generic single-field rename modal, shared by subfolders and pages —
+    // `renameTarget` records which kind of thing is being renamed so the
+    // Save button knows which mutation to run.
+    let renameTarget = null; // { type: 'subfolder', folderId, subfolderId } | { type: 'page', pageId }
+
+    function openRenameModal(type, ids, currentValue, titleText, labelText) {
+        renameTarget = { type, ...ids };
+        document.getElementById('renameModalTitle').textContent = titleText;
+        document.getElementById('renameModalLabel').textContent = labelText;
+        const input = document.getElementById('renameModalInput');
+        input.value = currentValue;
+        document.getElementById('renameModalOverlay').classList.add('open');
+        setTimeout(() => { input.focus(); input.select(); }, 0);
+    }
+
+    function closeRenameModal() {
+        document.getElementById('renameModalOverlay').classList.remove('open');
+        renameTarget = null;
+    }
+
+    async function renameSubfolder(folderId, subfolderId, newName) {
+        const folder = folders.find((f) => f.id === folderId);
+        const subfolder = folder && (folder.subfolders || []).find((sf) => sf.id === subfolderId);
+        if (!folder || !subfolder) return;
+        subfolder.name = newName;
+        await putFolder(folder);
+        await refreshFolderList();
+        if (selectedFolderId === folderId && selectedSubfolderId === subfolderId) {
+            document.getElementById('topbarTitle').textContent = `${folderLabel(folder)} · ${newName}`;
+        }
+    }
+
+    async function renamePageById(pageId, newTitle) {
+        const loc = findPageLocation(pageId);
+        if (!loc) return;
+        const page = loc.pagesArray.find((p) => p.id === pageId);
+        if (!page) return;
+        page.title = newTitle;
+        await putFolder(loc.folder);
+        await refreshFolderList();
+        if (selectedPageId === pageId) {
+            const titleInput = document.getElementById('pageTitleInput');
+            if (titleInput) titleInput.value = newTitle;
+            document.getElementById('topbarTitle').textContent = `${folderLabel(loc.folder)} · ${newTitle || 'Untitled page'}`;
+        }
+    }
+
+    let pendingRenameFolderId = null;
+
+    function openRenameFolderModal(folderId) {
+        const folder = folders.find((f) => f.id === folderId);
+        if (!folder) return;
+        pendingRenameFolderId = folderId;
+        document.getElementById('renameFolderSubjectInput').value = folder.subject || '';
+        document.getElementById('renameFolderQualificationInput').value = folder.qualification || '';
+        document.getElementById('renameFolderBoardInput').value = folder.examBoard || '';
+        document.getElementById('renameFolderModalOverlay').classList.add('open');
+    }
+
+    function closeRenameFolderModal() {
+        document.getElementById('renameFolderModalOverlay').classList.remove('open');
+        pendingRenameFolderId = null;
+    }
+
+    async function renameFolder(folderId, subject, qualification, examBoard) {
+        const folder = folders.find((f) => f.id === folderId);
+        if (!folder) return;
+        folder.subject = subject;
+        folder.qualification = qualification;
+        folder.examBoard = examBoard;
+        await putFolder(folder);
+        await refreshFolderList();
+        if (selectedFolderId === folderId) {
+            const sf = selectedSubfolderId && (folder.subfolders || []).find((x) => x.id === selectedSubfolderId);
+            document.getElementById('topbarTitle').textContent = sf ? `${folderLabel(folder)} · ${sf.name}` : folderLabel(folder);
+        }
+    }
+
     // Reusable page-row builder — used both for a folder's direct pages and
     // for a subfolder's pages, so the drag/menu behaviour stays consistent.
     function buildPageItem(page, folderId, subfolderId) {
@@ -1866,6 +2002,7 @@ UwIDAQAB
         label.style.textOverflow = 'ellipsis';
 
         const menuWrap = buildItemMenu([
+            { label: 'Rename Page', onClick: () => openRenameModal('page', { pageId: page.id }, page.title || '', 'Rename Page', 'Title') },
             { label: 'Delete Page', danger: true, onClick: () => deletePageById(page.id) }
         ]);
 
@@ -2028,6 +2165,7 @@ UwIDAQAB
         `;
 
         const menuWrap = buildItemMenu([
+            { label: 'Rename Folder', onClick: () => openRenameFolderModal(f.id) },
             { label: 'Delete Folder', danger: true, onClick: () => deleteFolder(f.id) }
         ]);
 
@@ -2073,6 +2211,7 @@ UwIDAQAB
         sfLabel.style.textOverflow = 'ellipsis';
 
         const sfMenu = buildItemMenu([
+            { label: 'Rename Subfolder', onClick: () => openRenameModal('subfolder', { folderId: folder.id, subfolderId: sf.id }, sf.name || '', 'Rename Subfolder', 'Name') },
             { label: 'Delete Subfolder', danger: true, onClick: () => deleteSubfolderById(folder.id, sf.id) }
         ]);
 
@@ -2370,22 +2509,15 @@ UwIDAQAB
         const contentInner = document.getElementById('contentInner');
         contentInner.innerHTML = `
             <div class="unified-lesson-fields">
-                <div class="diagnose-fields">
-                    <div class="diagnose-field">
-                        <label for="diagnoseSubjectInput">Subject</label>
-                        <input type="text" id="diagnoseSubjectInput" placeholder="e.g. Economics">
-                    </div>
-                    <div class="diagnose-field">
-                        <label for="diagnoseTopicInput">Topic</label>
-                        <input type="text" id="diagnoseTopicInput" placeholder="e.g. Market failure">
-                    </div>
-                    <div class="diagnose-field">
-                        <label for="diagnoseLessonInput">Lesson</label>
-                        <input type="text" id="diagnoseLessonInput" placeholder="e.g. Externalities">
-                    </div>
+                <div class="prereq-check-panel">
+                    <p class="prereq-check-message">Before starting the lesson, we must check whether the dependent knowledge exists to the required level.</p>
+                    <label class="prereq-confirm-row" for="prereqConfirmCheckbox">
+                        <input type="checkbox" id="prereqConfirmCheckbox">
+                        <span>I confirm "<strong>${escapeHtml(page.title || 'Untitled page')}</strong>" is the lesson I want to study.</span>
+                    </label>
                 </div>
                 <div class="bottom-action-row" id="beginLessonRow" ${isPaidUser ? '' : 'style="display:none;"'}>
-                    <button class="generate-questions-btn" id="beginLessonBtn">Begin</button>
+                    <button class="generate-questions-btn" id="beginLessonBtn" disabled>Generate Questions</button>
                 </div>
             </div>
 
@@ -3026,59 +3158,29 @@ UwIDAQAB
             card.innerHTML = '<div class="pass-tick">✓ Correct</div>';
         }
 
-        function showAlreadyTaughtGate(subject, topic, lesson) {
-            const gate = document.createElement('div');
-            gate.className = 'question-card';
-
-            const text = document.createElement('div');
-            text.className = 'question-card-text';
-            text.textContent = 'Have you already been taught this lesson to the required standard?';
-            gate.appendChild(text);
-
-            const footer = document.createElement('div');
-            footer.style.display = 'flex';
-            footer.style.gap = '10px';
-
-            const yesBtn = document.createElement('button');
-            yesBtn.className = 'question-submit-btn';
-            yesBtn.textContent = 'Yes';
-
-            const noBtn = document.createElement('button');
-            noBtn.className = 'question-submit-btn';
-            noBtn.style.background = 'none';
-            noBtn.style.border = '1px solid rgba(230, 215, 176, 0.3)';
-            noBtn.style.color = 'var(--text)';
-            noBtn.textContent = 'No';
-
-            yesBtn.addEventListener('click', async () => {
-                gate.remove();
-                document.getElementById('mainLessonArea').style.display = 'block';
-                document.getElementById('generateQuestionsBtn').click();
-            });
-
-            noBtn.addEventListener('click', () => {
-                gate.remove();
-                document.getElementById('mainLessonArea').style.display = 'block';
-            });
-
-            footer.appendChild(yesBtn);
-            footer.appendChild(noBtn);
-            gate.appendChild(footer);
-            placementFlowEl.appendChild(gate);
-            gate.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        // Shows a plain "lesson unlocked" confirmation and reveals the real
+        // lesson area — used both when every prerequisite question passed,
+        // and when the concept has no real prerequisite chain to test at all.
+        function showLessonUnlocked() {
+            const card = document.createElement('div');
+            card.className = 'correction-card';
+            card.innerHTML = '<div class="correction-label">Lesson unlocked ✓</div>';
+            placementFlowEl.appendChild(card);
+            document.getElementById('mainLessonArea').style.display = 'block';
+            card.scrollIntoView({ behavior: 'smooth', block: 'end' });
         }
 
+        const prereqCheckbox = document.getElementById('prereqConfirmCheckbox');
+        const beginBtn = document.getElementById('beginLessonBtn');
+        prereqCheckbox.addEventListener('change', () => {
+            beginBtn.disabled = !prereqCheckbox.checked;
+        });
+
         document.getElementById('beginLessonBtn').addEventListener('click', async () => {
-            const subject = document.getElementById('diagnoseSubjectInput').value.trim();
-            const topic = document.getElementById('diagnoseTopicInput').value.trim();
-            const lesson = document.getElementById('diagnoseLessonInput').value.trim();
+            const subject = folder.subject || '';
+            const topic = (loc.subfolder && loc.subfolder.name) || '';
+            const lesson = page.title || 'Untitled page';
 
-            if (!lesson) {
-                placementFlowEl.innerHTML = '<div class="correction-card">Enter a lesson/concept first.</div>';
-                return;
-            }
-
-            const beginBtn = document.getElementById('beginLessonBtn');
             beginBtn.disabled = true;
             placementFlowEl.innerHTML = '<div class="correction-card">Preparing…</div>';
 
@@ -3103,31 +3205,47 @@ UwIDAQAB
                 const placement = await resp.json();
                 placementFlowEl.innerHTML = '';
 
-                if (placement.hasPrerequisite) {
-                    await runOrchestratorQuestion(
-                        session.access_token, subject, topic,
-                        placement.prerequisiteConceptLabel, placement.question
-                    );
+                if (!placement.hasPrerequisites || !placement.questions.length) {
+                    showLessonUnlocked();
+                    return;
                 }
 
-                showAlreadyTaughtGate(subject, topic, lesson);
+                // Every question is generated from a single call above — but
+                // each one is still graded and, on a wrong answer, drilled
+                // down to its actual root cause one at a time, through the
+                // same already-built diagnostic engine used everywhere else
+                // in the app (/diagnostics/submit-answer).
+                let allPassed = true;
+                for (const q of placement.questions) {
+                    const diagnosis = await runOrchestratorQuestion(
+                        session.access_token, subject, topic, q.conceptLabel, q.question
+                    );
+                    if (diagnosis !== 'pass') allPassed = false;
+                }
+
+                if (allPassed) {
+                    showLessonUnlocked();
+                } else {
+                    const note = document.createElement('div');
+                    note.className = 'correction-card';
+                    note.innerHTML = '<div class="correction-label">Not quite there yet</div>Let\'s work on these before starting the lesson.';
+                    placementFlowEl.appendChild(note);
+                    note.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                }
             } catch (err) {
-                console.error('LastMind: placement check failed.', err);
+                console.error('LastMind: prerequisite check failed.', err);
                 placementFlowEl.innerHTML = '<div class="correction-card">Could not prepare this lesson. Please try again.</div>';
             } finally {
-                beginBtn.disabled = false;
+                beginBtn.disabled = !prereqCheckbox.checked;
             }
         });
 
         document.getElementById('generateQuestionsBtn').addEventListener('click', async () => {
-            const subject = document.getElementById('diagnoseSubjectInput').value.trim();
-            const topic = document.getElementById('diagnoseTopicInput').value.trim();
-            const lesson = document.getElementById('diagnoseLessonInput').value.trim();
-
-            if (!lesson) {
-                questionFlowEl.innerHTML = '<div class="correction-card">Enter a lesson/concept first.</div>';
-                return;
-            }
+            const override = reviewOverride;
+            reviewOverride = null;
+            const subject = override ? override.subject : (folder.subject || '');
+            const topic = override ? override.topic : ((loc.subfolder && loc.subfolder.name) || '');
+            const lesson = override ? override.lesson : (page.title || 'Untitled page');
 
             const generateBtn = document.getElementById('generateQuestionsBtn');
             generateBtn.disabled = true;
@@ -3451,6 +3569,42 @@ UwIDAQAB
         await createSubfolder(folderId, name);
     });
 
+    document.getElementById('cancelRenameBtn').addEventListener('click', closeRenameModal);
+    document.getElementById('renameModalOverlay').addEventListener('click', (e) => {
+        if (e.target.id === 'renameModalOverlay') closeRenameModal();
+    });
+    document.getElementById('renameModalInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('saveRenameBtn').click();
+        }
+    });
+    document.getElementById('saveRenameBtn').addEventListener('click', async () => {
+        const value = document.getElementById('renameModalInput').value.trim();
+        const target = renameTarget;
+        if (!value || !target) return;
+        closeRenameModal();
+        if (target.type === 'subfolder') {
+            await renameSubfolder(target.folderId, target.subfolderId, value);
+        } else if (target.type === 'page') {
+            await renamePageById(target.pageId, value);
+        }
+    });
+
+    document.getElementById('cancelRenameFolderBtn').addEventListener('click', closeRenameFolderModal);
+    document.getElementById('renameFolderModalOverlay').addEventListener('click', (e) => {
+        if (e.target.id === 'renameFolderModalOverlay') closeRenameFolderModal();
+    });
+    document.getElementById('saveRenameFolderBtn').addEventListener('click', async () => {
+        const subject = document.getElementById('renameFolderSubjectInput').value.trim();
+        const qualification = document.getElementById('renameFolderQualificationInput').value.trim();
+        const examBoard = document.getElementById('renameFolderBoardInput').value.trim();
+        const folderId = pendingRenameFolderId;
+        if (!subject || !qualification || !examBoard || !folderId) return;
+        closeRenameFolderModal();
+        await renameFolder(folderId, subject, qualification, examBoard);
+    });
+
     /* ───────────────────────── Gate + boot ───────────────────────── */
 
     async function getStoredSubscriptionId() {
@@ -3573,20 +3727,18 @@ UwIDAQAB
         const parts = conceptId.split(':');
         if (parts.length !== 3) return;
 
-        const subjectInput = document.getElementById('diagnoseSubjectInput');
-        const topicInput = document.getElementById('diagnoseTopicInput');
-        const lessonInput = document.getElementById('diagnoseLessonInput');
         const generateBtn = document.getElementById('generateQuestionsBtn');
-
-        if (!subjectInput || !topicInput || !lessonInput || !generateBtn) {
+        if (!generateBtn) {
             alert('Open or create a page first, then click this review again.');
             return;
         }
 
         setSidebarTab('folders');
-        subjectInput.value = parts[0].replace(/_/g, ' ');
-        topicInput.value = parts[1].replace(/_/g, ' ');
-        lessonInput.value = parts[2].replace(/_/g, ' ');
+        reviewOverride = {
+            subject: parts[0].replace(/_/g, ' '),
+            topic: parts[1].replace(/_/g, ' '),
+            lesson: parts[2].replace(/_/g, ' ')
+        };
         generateBtn.click();
     }
 
