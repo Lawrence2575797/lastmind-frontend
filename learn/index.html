@@ -649,6 +649,19 @@
         cursor: pointer;
     }
 
+    /* One block per prerequisite question — all rendered together, each
+       independently answerable, each with its own nested drill-down. */
+    .prereq-question-block {
+        margin-bottom: 4px;
+    }
+
+    .prereq-followups {
+        margin-top: 8px;
+        margin-left: 20px;
+        padding-left: 20px;
+        border-left: 2px solid rgba(230, 215, 176, 0.15);
+    }
+
     .generate-questions-btn {
         flex-shrink: 0;
         background: var(--accent);
@@ -748,16 +761,6 @@
     .question-submit-btn:disabled {
         opacity: 0.4;
         cursor: not-allowed;
-    }
-
-    .pass-tick {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        color: var(--accent);
-        font-family: 'Arial', sans-serif;
-        font-size: 0.9rem;
-        padding: 20px 0;
     }
 
     .correction-card {
@@ -2984,15 +2987,16 @@ UwIDAQAB
         // visible with the answer given, a correct/incorrect indicator,
         // and any correction — rather than disappearing, so the whole
         // lesson builds up as a real vertical record as it progresses.
-        function lockAnsweredCard(card, answerGiven, correct, correction) {
+        function lockAnsweredCard(card, answerGiven, correct, correction, statusLabel) {
             const resultLine = document.createElement('div');
             resultLine.style.marginTop = '10px';
             resultLine.style.paddingTop = '10px';
             resultLine.style.borderTop = '1px solid rgba(230, 215, 176, 0.12)';
             resultLine.style.fontSize = '0.85em';
+            const label = statusLabel || (correct ? '✓ Correct' : '✗ Corrected');
             resultLine.innerHTML = `
                 <div style="opacity:0.7; margin-bottom:4px;">Your answer: ${answerGiven || '(no answer given)'}</div>
-                <div style="color:${correct ? 'var(--accent)' : '#e6b0a8'};">${correct ? '✓ Correct' : '✗ Corrected'}</div>
+                <div style="color:${correct ? 'var(--accent)' : '#e6b0a8'};">${label}</div>
                 ${correction ? `<div style="margin-top:6px; opacity:0.9;">${correction}</div>` : ''}
             `;
 
@@ -3098,16 +3102,26 @@ UwIDAQAB
         // branching, real misconception-aware corrections) is the SAME
         // already-built diagnostic engine used everywhere else in the app,
         // called through the same /diagnostics/submit-answer endpoint.
-        async function runOrchestratorQuestion(accessToken, subject, topic, conceptLabel, originalQuestion) {
+        //
+        // The FIRST question renders directly into `container`. If it's
+        // wrong, that card is locked in place with a "diagnosing the root
+        // cause" note, and every follow-up question renders into a nested,
+        // indented sub-container appended right below it — so the
+        // drill-down reads as a sub-thread hanging off the specific
+        // question that was wrong, not a flat list mixed in with other
+        // prerequisite questions.
+        async function runOrchestratorQuestion(accessToken, subject, topic, conceptLabel, originalQuestion, container) {
             let state = null;
             let currentQuestionText = originalQuestion;
             let currentOptions = null;
             let finalDiagnosis = 'pass';
+            let followupsContainer = null;
 
             while (true) {
+                const targetContainer = followupsContainer || container;
                 let cardRef;
                 const submission = await new Promise((resolve) => {
-                    cardRef = renderQuestionCard(currentQuestionText, currentOptions, (sub) => resolve(sub), placementFlowEl);
+                    cardRef = renderQuestionCard(currentQuestionText, currentOptions, (sub) => resolve(sub), targetContainer);
                 });
 
                 let resp;
@@ -3139,23 +3153,32 @@ UwIDAQAB
                 if (result.done) {
                     finalDiagnosis = result.diagnosis;
                     if (result.diagnosis === 'pass') {
-                        showPassAndClearInline(cardRef);
+                        lockAnsweredCard(cardRef, submission.answer, true, null);
                     } else {
                         lockAnsweredCard(cardRef, submission.answer, false, result.correction);
                     }
                     return finalDiagnosis;
                 }
 
+                // Not done — this answer didn't clear it, so we're about to
+                // dig into the root cause. Lock this card with that note,
+                // then nest every subsequent question beneath it.
+                lockAnsweredCard(
+                    cardRef, submission.answer, false,
+                    "This answer is incorrect — we're going to diagnose the root cause with the following question(s).",
+                    '✗ Incorrect'
+                );
+
+                if (!followupsContainer) {
+                    followupsContainer = document.createElement('div');
+                    followupsContainer.className = 'prereq-followups';
+                    container.appendChild(followupsContainer);
+                }
+
                 currentQuestionText = result.nextQuestion;
                 currentOptions = result.nextOptions || null;
                 state = result.state;
             }
-        }
-
-        // Minimalist pass indicator, matching the same tick+fade pattern
-        // used elsewhere, scoped for cards rendered into placementFlowEl.
-        function showPassAndClearInline(card) {
-            card.innerHTML = '<div class="pass-tick">✓ Correct</div>';
         }
 
         // Shows a plain "lesson unlocked" confirmation and reveals the real
@@ -3210,18 +3233,23 @@ UwIDAQAB
                     return;
                 }
 
-                // Every question is generated from a single call above — but
-                // each one is still graded and, on a wrong answer, drilled
-                // down to its actual root cause one at a time, through the
+                // Every question is generated from a single call above, and
+                // all of them (max 3) are shown together, one below the
+                // other, right away — the student can answer them in any
+                // order. Each is still graded independently and, on a wrong
+                // answer, drilled down to its actual root cause as a nested
+                // sub-thread beneath that specific question, through the
                 // same already-built diagnostic engine used everywhere else
                 // in the app (/diagnostics/submit-answer).
-                let allPassed = true;
-                for (const q of placement.questions) {
-                    const diagnosis = await runOrchestratorQuestion(
-                        session.access_token, subject, topic, q.conceptLabel, q.question
+                const diagnoses = await Promise.all(placement.questions.slice(0, 3).map((q) => {
+                    const block = document.createElement('div');
+                    block.className = 'prereq-question-block';
+                    placementFlowEl.appendChild(block);
+                    return runOrchestratorQuestion(
+                        session.access_token, subject, topic, q.conceptLabel, q.question, block
                     );
-                    if (diagnosis !== 'pass') allPassed = false;
-                }
+                }));
+                const allPassed = diagnoses.every((d) => d === 'pass');
 
                 if (allPassed) {
                     showLessonUnlocked();
