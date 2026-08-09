@@ -199,20 +199,6 @@
         gap: 8px;
     }
 
-    .cortex-btn {
-        width: 100%;
-        background: rgba(230, 215, 176, 0.05);
-        border: 1px dashed rgba(230, 215, 176, 0.3);
-        border-radius: 4px;
-        padding: 9px;
-        color: var(--accent);
-        opacity: 0.7;
-        font-family: 'Arial', sans-serif;
-        font-size: 0.72rem;
-        letter-spacing: 0.02em;
-        cursor: default;
-    }
-
     /* ─── REVIEW CALENDAR ─── */
     .sidebar-calendar {
         display: none;
@@ -530,22 +516,19 @@
         flex: 1;
     }
 
-    .upgrade-btn {
+    .cortex-btn-topbar {
         flex-shrink: 0;
         font-family: 'Arial', sans-serif;
-        font-size: 0.78rem;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-        color: var(--bg);
-        background: var(--accent);
-        border: none;
-        padding: 9px 20px;
+        font-size: 0.75rem;
+        letter-spacing: 0.02em;
+        background: rgba(230, 215, 176, 0.05);
+        border: 1px dashed rgba(230, 215, 176, 0.3);
+        color: var(--accent);
+        opacity: 0.75;
+        padding: 9px 18px;
         border-radius: 4px;
-        cursor: pointer;
-    }
-
-    .upgrade-btn:hover {
-        opacity: 0.9;
+        cursor: default;
+        white-space: nowrap;
     }
 
     .content {
@@ -1336,7 +1319,6 @@
 
             <div class="sidebar-footer">
                 <button class="manage-subscription-btn" id="myAccountBtn">My Account</button>
-                <button class="cortex-btn" id="cortexBtn" type="button">LastMind Cortex — cognitive AI</button>
             </div>
         </aside>
 
@@ -1345,7 +1327,7 @@
             <div class="topbar">
                 <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">☰</button>
                 <span class="topbar-title" id="topbarTitle">Dashboard</span>
-                <button class="upgrade-btn" id="upgradeBtn">Upgrade</button>
+                <button class="cortex-btn-topbar" id="cortexBtn" type="button">LastMind Cortex — cognitive AI</button>
             </div>
 
             <div class="content">
@@ -1712,6 +1694,32 @@ UwIDAQAB
     // the review's own subject/topic/concept instead of the open page's —
     // read-and-cleared by that handler on the very next click.
     let reviewOverride = null;
+
+    // Rotates through on every login (gate resolution) — see pickNextQuote()
+    // and enterApp(), which sets currentQuote before the dashboard first
+    // renders. The stored index in AUTH_STORE persists which one was shown
+    // last, so it keeps cycling forward across sessions rather than
+    // restarting from the top.
+    const MOTIVATIONAL_QUOTES = [
+        "It doesn't matter how you do it, it matters that you do it.",
+        "Starting is the real battle; everything after is momentum.",
+        "Long horizons make short-term setbacks irrelevant.",
+        "Standards shape outcomes; raise them and outcomes follow.",
+        "The hard thing is usually the right thing.",
+        "Action without direction is noise; direction without action is fantasy.",
+        "Champions are made when nothing exciting is happening.",
+        "1% better every day.",
+        "The limit is usually the story you are telling yourself."
+    ];
+    let currentQuote = MOTIVATIONAL_QUOTES[0];
+
+    async function pickNextQuote() {
+        const stored = await getAuthRecord('quoteIndex');
+        const prevIndex = typeof stored === 'number' ? stored : -1;
+        const nextIndex = (prevIndex + 1) % MOTIVATIONAL_QUOTES.length;
+        await putAuthRecord('quoteIndex', nextIndex);
+        return MOTIVATIONAL_QUOTES[nextIndex];
+    }
 
     let draggedItem = null; // { type: 'folder'|'subfolder'|'page', folderId, subfolderId, pageId }
     let openMenuEl = null;        // currently-open three-dot dropdown, so only one is open at a time
@@ -2386,7 +2394,7 @@ UwIDAQAB
         document.getElementById('contentInner').innerHTML = `
             <div class="dashboard-view">
                 <h1 class="dashboard-logo">Last<span>Mind</span></h1>
-                <p class="dashboard-quote">It doesn't matter how you do it, it matters that you do it.</p>
+                <p class="dashboard-quote">${currentQuote}</p>
             </div>
         `;
     }
@@ -3741,19 +3749,8 @@ UwIDAQAB
 
     async function enterApp(paid) {
         isPaidUser = paid;
-
-        const upgradeBtn = document.getElementById('upgradeBtn');
-        if (paid) {
-            upgradeBtn.textContent = 'Buy More Tokens';
-            upgradeBtn.onclick = () => {
-                alert('Token top-ups are coming soon!');
-            };
-        } else {
-            upgradeBtn.textContent = 'Upgrade';
-            upgradeBtn.onclick = () => {
-                window.location.href = '/subscribe?action=upgrade';
-            };
-        }
+        currentQuote = await pickNextQuote();
+        renderWelcome();
 
         document.getElementById('gate-message').style.display = 'none';
         document.getElementById('app').style.display = 'block';
