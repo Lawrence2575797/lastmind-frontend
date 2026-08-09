@@ -733,6 +733,74 @@
         outline: none;
     }
 
+    /* ─── ENCODING LESSON: live draft flags + retry feedback ─── */
+    .draft-flags {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 12px;
+    }
+
+    .draft-flags:empty {
+        display: none;
+        margin-bottom: 0;
+    }
+
+    .draft-flag {
+        background: rgba(230, 178, 60, 0.12);
+        border: 1px solid rgba(230, 178, 60, 0.4);
+        border-radius: 5px;
+        padding: 8px 10px;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.78rem;
+    }
+
+    .draft-flag-snippet {
+        color: #e6b23c;
+        opacity: 0.9;
+    }
+
+    .draft-flag-toggle {
+        background: none;
+        border: 1px solid rgba(230, 178, 60, 0.5);
+        color: #e6b23c;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        font-size: 0.7rem;
+        line-height: 1;
+        cursor: pointer;
+        margin-left: 8px;
+    }
+
+    .draft-flag-hint {
+        display: none;
+        margin-top: 6px;
+        opacity: 0.85;
+        line-height: 1.5;
+    }
+
+    .draft-flag-hint.open {
+        display: block;
+    }
+
+    .encoding-feedback {
+        display: none;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.82rem;
+        color: #e6b0a8;
+        background: rgba(230, 176, 168, 0.08);
+        border: 1px solid rgba(230, 176, 168, 0.3);
+        border-radius: 5px;
+        padding: 10px 12px;
+        margin-bottom: 12px;
+        line-height: 1.6;
+    }
+
+    .encoding-feedback.open {
+        display: block;
+    }
+
     .question-card-footer {
         display: flex;
         align-items: center;
@@ -1743,6 +1811,14 @@ UwIDAQAB
 
     function folderLabel(f) {
         return `${f.subject} — ${f.qualification} (${f.examBoard})`;
+    }
+
+    // For safely dropping AI-generated or user-entered text into an
+    // innerHTML template literal.
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
     }
 
     function closeAllItemMenus() {
@@ -3122,16 +3198,6 @@ UwIDAQAB
                         questionFlowEl.appendChild(summaryCard);
                         summaryCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
 
-                        // Completing a lesson here — whether this was the
-                        // first (encoding) one or a later retrieval one —
-                        // means the page has now had its encoding lesson,
-                        // so future opens show the notes panel + retrieval
-                        // lessons instead of the full-width encoding view.
-                        if (!page.encodingDone) {
-                            page.encodingDone = true;
-                            await putFolder(folder);
-                        }
-
                         return;
                     }
 
@@ -3141,6 +3207,249 @@ UwIDAQAB
             }
 
             await askNext(startResult.nextQuestion, startResult.state);
+        }
+
+        /* ───────── First-time ENCODING lesson (only while !encodingDone) ─────────
+           A genuinely different shape from the retrieval chain-lesson above:
+           a novelty hook fact, then a Socratic walk FORWARD through the
+           concept's dependency chain (leaf prerequisites first, building
+           toward the new target concept), asking the student to derive each
+           derivable step themselves. Everything presentable was generated in
+           ONE call by /encoding-lesson/start — grading each answer is the
+           only thing that needs another call, via /encoding-lesson/submit. */
+
+        async function postEncodingSubmit(accessToken, state, answer) {
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/encoding-lesson/submit`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                body: JSON.stringify({ state, answer })
+            });
+            if (!resp.ok) {
+                const body = await resp.json().catch(() => ({}));
+                throw new Error(body.error || 'Something went wrong.');
+            }
+            return resp.json();
+        }
+
+        function renderEncodingFlags(flagsList, flags) {
+            flagsList.innerHTML = '';
+            flags.forEach((flag) => {
+                const row = document.createElement('div');
+                row.className = 'draft-flag';
+
+                const snippetEl = document.createElement('span');
+                snippetEl.className = 'draft-flag-snippet';
+                snippetEl.textContent = `"${flag.snippet}"`;
+
+                const toggleBtn = document.createElement('button');
+                toggleBtn.type = 'button';
+                toggleBtn.className = 'draft-flag-toggle';
+                toggleBtn.textContent = '?';
+
+                const hintEl = document.createElement('div');
+                hintEl.className = 'draft-flag-hint';
+                hintEl.textContent = flag.hint;
+
+                toggleBtn.addEventListener('click', () => {
+                    hintEl.classList.toggle('open');
+                });
+
+                row.appendChild(snippetEl);
+                row.appendChild(toggleBtn);
+                row.appendChild(hintEl);
+                flagsList.appendChild(row);
+            });
+        }
+
+        // Debounced, capped live check while the student is still drafting
+        // — only fires after a pause in typing AND enough new text to be
+        // worth another (cheap-model) call, never on every keystroke.
+        function setupEncodingDraftFlagging(answerInput, flagsList, step) {
+            let lastCheckedLength = 0;
+            let debounceTimer = null;
+
+            answerInput.addEventListener('input', () => {
+                clearTimeout(debounceTimer);
+                const text = answerInput.value;
+                if (text.trim().length < 15) return;
+                if (text.length - lastCheckedLength < 25) return;
+
+                debounceTimer = setTimeout(async () => {
+                    lastCheckedLength = answerInput.value.length;
+                    try {
+                        const { data: { session } } = await supabaseClient.auth.getSession();
+                        if (!session) return;
+                        const resp = await fetch(`${COMPILE_BACKEND_URL}/encoding-lesson/check-draft`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                            body: JSON.stringify({ nodeLabel: step.label, promptText: step.text, draft: answerInput.value })
+                        });
+                        if (!resp.ok) return;
+                        const { flags } = await resp.json();
+                        renderEncodingFlags(flagsList, flags || []);
+                    } catch (err) {
+                        // Silent — this is a nice-to-have while drafting, not
+                        // core functionality worth interrupting the student for.
+                    }
+                }, 2500);
+            });
+        }
+
+        function lockEncodingExplainCard(card) {
+            card.querySelectorAll('button').forEach((el) => el.remove());
+        }
+
+        function renderEncodingExplainStep(accessToken, step, state) {
+            const card = document.createElement('div');
+            card.className = 'question-card';
+
+            const text = document.createElement('div');
+            text.className = 'question-card-text';
+            text.textContent = step.text;
+            card.appendChild(text);
+
+            const continueBtn = document.createElement('button');
+            continueBtn.className = 'question-submit-btn';
+            continueBtn.type = 'button';
+            continueBtn.textContent = 'Continue';
+            continueBtn.addEventListener('click', async () => {
+                continueBtn.disabled = true;
+                try {
+                    const result = await postEncodingSubmit(accessToken, state, '');
+                    lockEncodingExplainCard(card);
+                    renderNextEncodingStep(accessToken, result);
+                } catch (err) {
+                    console.error('LastMind: encoding lesson continue failed.', err);
+                    continueBtn.disabled = false;
+                }
+            });
+            card.appendChild(continueBtn);
+
+            questionFlowEl.appendChild(card);
+            card.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+
+        function renderEncodingQuestionStep(accessToken, step, state) {
+            const card = document.createElement('div');
+            card.className = 'question-card';
+
+            const text = document.createElement('div');
+            text.className = 'question-card-text';
+            text.textContent = step.text;
+            card.appendChild(text);
+
+            const answerInput = document.createElement('textarea');
+            answerInput.className = 'question-answer-input';
+            answerInput.placeholder = 'Type your answer…';
+            card.appendChild(answerInput);
+
+            const flagsList = document.createElement('div');
+            flagsList.className = 'draft-flags';
+            card.appendChild(flagsList);
+
+            const feedbackEl = document.createElement('div');
+            feedbackEl.className = 'encoding-feedback';
+            card.appendChild(feedbackEl);
+
+            const footer = document.createElement('div');
+            footer.className = 'question-card-footer';
+            const submitBtn = document.createElement('button');
+            submitBtn.className = 'question-submit-btn';
+            submitBtn.type = 'button';
+            submitBtn.textContent = 'Submit';
+            footer.appendChild(submitBtn);
+            card.appendChild(footer);
+
+            setupEncodingDraftFlagging(answerInput, flagsList, step);
+
+            submitBtn.addEventListener('click', async () => {
+                const answer = answerInput.value.trim();
+                submitBtn.disabled = true;
+                feedbackEl.classList.remove('open');
+
+                try {
+                    const result = await postEncodingSubmit(accessToken, state, answer);
+
+                    if (!result.advanced) {
+                        // Not quite there yet — same step stays open, student
+                        // can revise and resubmit rather than starting over.
+                        feedbackEl.textContent = result.feedback || "That's not quite right yet — try again.";
+                        feedbackEl.classList.add('open');
+                        submitBtn.disabled = false;
+                        return;
+                    }
+
+                    card.querySelectorAll('textarea, .question-card-footer, .draft-flags, .encoding-feedback').forEach((el) => el.remove());
+                    lockAnsweredCard(card, answer, true, null);
+                    renderNextEncodingStep(accessToken, result);
+                } catch (err) {
+                    console.error('LastMind: encoding lesson submit failed.', err);
+                    feedbackEl.textContent = 'Could not reach the server. Please try again.';
+                    feedbackEl.classList.add('open');
+                    submitBtn.disabled = false;
+                }
+            });
+
+            questionFlowEl.appendChild(card);
+            card.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+
+        function renderEncodingStep(accessToken, step, state) {
+            if (step.type === 'explain') {
+                renderEncodingExplainStep(accessToken, step, state);
+            } else {
+                renderEncodingQuestionStep(accessToken, step, state);
+            }
+        }
+
+        function renderNextEncodingStep(accessToken, result) {
+            if (result.done) {
+                const summary = document.createElement('div');
+                summary.className = 'correction-card';
+                summary.innerHTML = '<div class="correction-label">Lesson complete</div>You\'ve built the whole chain yourself — nice work.';
+                questionFlowEl.appendChild(summary);
+                summary.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+                if (!page.encodingDone) {
+                    page.encodingDone = true;
+                    putFolder(folder);
+                }
+                return;
+            }
+            renderEncodingStep(accessToken, result.step, result.state);
+        }
+
+        async function runEncodingLesson(accessToken, subject, topic, concept) {
+            questionFlowEl.innerHTML = '<div class="correction-card">Preparing your first lesson…</div>';
+
+            let resp;
+            try {
+                resp = await fetch(`${COMPILE_BACKEND_URL}/encoding-lesson/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                    body: JSON.stringify({ subject, topic, concept })
+                });
+            } catch (err) {
+                questionFlowEl.innerHTML = '<div class="correction-card">Could not reach the server. Please try again.</div>';
+                return;
+            }
+
+            if (!resp.ok) {
+                const body = await resp.json().catch(() => ({}));
+                questionFlowEl.innerHTML = `<div class="correction-card">${body.error || 'Could not start the lesson.'}</div>`;
+                return;
+            }
+
+            const startResult = await resp.json();
+            questionFlowEl.innerHTML = '';
+
+            const hookCard = document.createElement('div');
+            hookCard.className = 'correction-card';
+            hookCard.innerHTML = `<div class="correction-label">💡 Did you know?</div>${escapeHtml(startResult.hookFact || '')}`;
+            questionFlowEl.appendChild(hookCard);
+            hookCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+            renderEncodingStep(accessToken, startResult.step, startResult.state);
         }
 
         document.getElementById('generateQuestionsBtn').addEventListener('click', async () => {
@@ -3156,9 +3465,13 @@ UwIDAQAB
             try {
                 const { data: { session: diagSession } } = await supabaseClient.auth.getSession();
                 if (!diagSession) throw new Error('Not logged in.');
-                await runChainLesson(diagSession.access_token, subject, topic, lesson);
+                if (encodingDone) {
+                    await runChainLesson(diagSession.access_token, subject, topic, lesson);
+                } else {
+                    await runEncodingLesson(diagSession.access_token, subject, topic, lesson);
+                }
             } catch (err) {
-                console.error('LastMind: chain lesson failed.', err);
+                console.error('LastMind: lesson failed.', err);
                 questionFlowEl.innerHTML = '<div class="correction-card">Could not start the lesson. Please try again.</div>';
             } finally {
                 generateBtn.disabled = false;
