@@ -3278,47 +3278,31 @@ UwIDAQAB
             });
         }
 
-        function lockEncodingExplainCard(card) {
-            card.querySelectorAll('button').forEach((el) => el.remove());
-        }
-
-        function renderEncodingExplainStep(accessToken, step, state) {
+        // "explain" steps show the direct explanation text above the
+        // question, then ask a checkQuestion testing whether it actually
+        // landed — brand-new content can't be verified by FSRS yet, so this
+        // is the only check before later "derive" steps build on it. "scene"
+        // and "derive" steps have no separate explanation block — the
+        // question text itself is the whole prompt. Both shapes always
+        // advance regardless of the verdict (first-exposure lesson, not a
+        // gate); a weaker answer just leaves a note and contributes to a
+        // lower FSRS grade for this concept overall, which is what brings it
+        // back around sooner in spaced review, not re-litigating this step now.
+        function renderEncodingAnswerCard(accessToken, step, state, explanationText) {
             const card = document.createElement('div');
             card.className = 'question-card';
 
+            if (explanationText) {
+                const explanation = document.createElement('div');
+                explanation.className = 'question-card-text';
+                explanation.textContent = explanationText;
+                card.appendChild(explanation);
+            }
+
+            const promptText = explanationText ? (step.checkQuestion || step.text) : step.text;
             const text = document.createElement('div');
             text.className = 'question-card-text';
-            text.textContent = step.text;
-            card.appendChild(text);
-
-            const continueBtn = document.createElement('button');
-            continueBtn.className = 'question-submit-btn';
-            continueBtn.type = 'button';
-            continueBtn.textContent = 'Continue';
-            continueBtn.addEventListener('click', async () => {
-                continueBtn.disabled = true;
-                try {
-                    const result = await postEncodingSubmit(accessToken, state, '');
-                    lockEncodingExplainCard(card);
-                    renderNextEncodingStep(accessToken, result);
-                } catch (err) {
-                    console.error('LastMind: encoding lesson continue failed.', err);
-                    continueBtn.disabled = false;
-                }
-            });
-            card.appendChild(continueBtn);
-
-            questionFlowEl.appendChild(card);
-            card.scrollIntoView({ behavior: 'smooth', block: 'end' });
-        }
-
-        function renderEncodingQuestionStep(accessToken, step, state) {
-            const card = document.createElement('div');
-            card.className = 'question-card';
-
-            const text = document.createElement('div');
-            text.className = 'question-card-text';
-            text.textContent = step.text;
+            text.textContent = promptText;
             card.appendChild(text);
 
             const answerInput = document.createElement('textarea');
@@ -3339,14 +3323,8 @@ UwIDAQAB
             footer.appendChild(submitBtn);
             card.appendChild(footer);
 
-            setupEncodingDraftFlagging(answerInput, flagsList, step);
+            setupEncodingDraftFlagging(answerInput, flagsList, { label: step.label, text: promptText });
 
-            // Always advances regardless of the verdict — this is a
-            // first-exposure lesson, not a gate. A weaker answer still
-            // moves the lesson forward; it just leaves a note here and
-            // contributes to a lower FSRS grade for this concept overall
-            // (server-side), which is what brings it back around sooner in
-            // spaced review — not re-litigating this one step right now.
             submitBtn.addEventListener('click', async () => {
                 const answer = answerInput.value.trim();
                 submitBtn.disabled = true;
@@ -3373,9 +3351,9 @@ UwIDAQAB
 
         function renderEncodingStep(accessToken, step, state) {
             if (step.type === 'explain') {
-                renderEncodingExplainStep(accessToken, step, state);
+                renderEncodingAnswerCard(accessToken, step, state, step.text);
             } else {
-                renderEncodingQuestionStep(accessToken, step, state);
+                renderEncodingAnswerCard(accessToken, step, state, null);
             }
         }
 
