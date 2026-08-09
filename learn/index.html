@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LastMind – Learn</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="theme-color" content="#1A1A1C">
+<script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+    }
+</script>
 <style>
     *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 
@@ -519,16 +527,44 @@
     .cortex-btn-topbar {
         flex-shrink: 0;
         font-family: 'Arial', sans-serif;
-        font-size: 0.75rem;
+        font-size: 0.85rem;
+        font-weight: 600;
         letter-spacing: 0.02em;
-        background: rgba(230, 215, 176, 0.05);
-        border: 1px dashed rgba(230, 215, 176, 0.3);
+        background: rgba(230, 215, 176, 0.08);
+        border: 1px solid rgba(230, 215, 176, 0.35);
         color: var(--accent);
-        opacity: 0.75;
-        padding: 9px 18px;
-        border-radius: 4px;
-        cursor: default;
+        padding: 12px 22px;
+        border-radius: 6px;
+        cursor: pointer;
         white-space: nowrap;
+        transition: background 0.2s, border-color 0.2s;
+    }
+
+    .cortex-btn-topbar:hover {
+        background: rgba(230, 215, 176, 0.14);
+        border-color: rgba(230, 215, 176, 0.55);
+    }
+
+    .cortex-mic-btn {
+        flex-shrink: 0;
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        border: 1px solid rgba(230, 215, 176, 0.35);
+        background: rgba(230, 215, 176, 0.08);
+        color: var(--accent);
+        font-size: 1.1rem;
+        line-height: 1;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s, border-color 0.2s;
+    }
+
+    .cortex-mic-btn:hover {
+        background: rgba(230, 215, 176, 0.14);
+        border-color: rgba(230, 215, 176, 0.55);
     }
 
     .content {
@@ -1327,6 +1363,7 @@
             <div class="topbar">
                 <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">☰</button>
                 <span class="topbar-title" id="topbarTitle">Dashboard</span>
+                <button class="cortex-mic-btn" id="cortexMicBtn" type="button" title="Talk to Cortex">🎤</button>
                 <button class="cortex-btn-topbar" id="cortexBtn" type="button">LastMind Cortex — cognitive AI</button>
             </div>
 
@@ -3312,6 +3349,13 @@ UwIDAQAB
 
     document.getElementById('sidebarToggle').addEventListener('click', () => {
         document.getElementById('sidebar').classList.toggle('collapsed');
+    });
+
+    document.getElementById('cortexBtn').addEventListener('click', () => {
+        window.location.href = '/cortex';
+    });
+    document.getElementById('cortexMicBtn').addEventListener('click', () => {
+        window.location.href = '/cortex?voice=1';
     });
 
     let sidebarTab = 'folders'; // 'folders' | 'calendar'

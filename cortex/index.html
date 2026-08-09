@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LastMind – Cortex</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="theme-color" content="#1A1A1C">
+<script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+    }
+</script>
+<style>
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+    :root {
+        --bg: #1A1A1C;
+        --panel: #201F21;
+        --text: #E6D7B0;
+        --accent: #E6D7B0;
+    }
+
+    html, body { height: 100%; }
+
+    body {
+        background-color: var(--bg);
+        color: var(--text);
+        font-family: 'Georgia', serif;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
+    }
+
+    #gate-message {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        font-family: 'Arial', sans-serif;
+        color: var(--text);
+        opacity: 0.6;
+        font-size: 0.9rem;
+        letter-spacing: 0.04em;
+    }
+
+    #app {
+        display: none;
+        flex-direction: column;
+        height: 100vh;
+    }
+
+    .cortex-header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 16px 26px;
+        border-bottom: 1px solid rgba(230, 215, 176, 0.1);
+        flex-shrink: 0;
+    }
+
+    .cortex-back-link {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.82rem;
+        color: var(--accent);
+        opacity: 0.75;
+        text-decoration: none;
+        border: 1px solid rgba(230, 215, 176, 0.3);
+        border-radius: 4px;
+        padding: 8px 14px;
+        flex-shrink: 0;
+    }
+
+    .cortex-back-link:hover { opacity: 1; }
+
+    .cortex-header-title {
+        font-size: 1.15rem;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        flex: 1;
+    }
+
+    .cortex-header-sub {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.72rem;
+        opacity: 0.45;
+        letter-spacing: 0.02em;
+    }
+
+    .chat-scroll {
+        flex: 1;
+        overflow-y: auto;
+        padding: 28px 26px;
+    }
+
+    .chat-inner {
+        max-width: 680px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .chat-empty-hint {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.85rem;
+        opacity: 0.45;
+        text-align: center;
+        margin-top: 18vh;
+        line-height: 1.8;
+    }
+
+    .chat-msg {
+        max-width: 82%;
+        padding: 13px 16px;
+        border-radius: 10px;
+        font-size: 0.92rem;
+        line-height: 1.65;
+        white-space: pre-wrap;
+    }
+
+    .chat-msg-user {
+        align-self: flex-end;
+        background: var(--accent);
+        color: var(--bg);
+        border-bottom-right-radius: 3px;
+    }
+
+    .chat-msg-assistant {
+        align-self: flex-start;
+        background: var(--panel);
+        border: 1px solid rgba(230, 215, 176, 0.15);
+        border-bottom-left-radius: 3px;
+    }
+
+    .chat-confirm-card, .chat-answer-card {
+        align-self: stretch;
+        background: var(--panel);
+        border: 1px solid rgba(230, 215, 176, 0.25);
+        border-radius: 10px;
+        padding: 16px;
+    }
+
+    .chat-confirm-text {
+        font-size: 0.9rem;
+        line-height: 1.6;
+        margin-bottom: 12px;
+    }
+
+    .chat-confirm-status {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.82rem;
+        opacity: 0.8;
+        margin-top: 4px;
+    }
+
+    .chat-confirm-actions {
+        display: flex;
+        gap: 10px;
+    }
+
+    .chat-confirm-btn {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.82rem;
+        background: var(--accent);
+        color: var(--bg);
+        border: none;
+        border-radius: 4px;
+        padding: 9px 18px;
+        cursor: pointer;
+    }
+
+    .chat-confirm-btn-no {
+        background: none;
+        border: 1px solid rgba(230, 215, 176, 0.3);
+        color: var(--text);
+    }
+
+    .chat-answer-input {
+        width: 100%;
+        min-height: 80px;
+        background: var(--bg);
+        border: 1px solid rgba(230, 215, 176, 0.2);
+        border-radius: 6px;
+        padding: 10px 12px;
+        color: var(--text);
+        font-family: 'Georgia', serif;
+        font-size: 0.9rem;
+        resize: vertical;
+        margin-bottom: 10px;
+    }
+
+    .chat-answer-input:focus { outline: none; border-color: rgba(230, 215, 176, 0.5); }
+
+    .chat-input-row {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 16px 26px 22px;
+        border-top: 1px solid rgba(230, 215, 176, 0.1);
+        max-width: 680px;
+        margin: 0 auto;
+        width: 100%;
+    }
+
+    #chatInput {
+        flex: 1;
+        background: var(--panel);
+        border: 1px solid rgba(230, 215, 176, 0.2);
+        border-radius: 22px;
+        padding: 12px 18px;
+        color: var(--text);
+        font-family: 'Georgia', serif;
+        font-size: 0.92rem;
+    }
+
+    #chatInput:focus { outline: none; border-color: rgba(230, 215, 176, 0.5); }
+
+    #chatMicBtn, #chatSendBtn {
+        flex-shrink: 0;
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        border: 1px solid rgba(230, 215, 176, 0.3);
+        background: var(--panel);
+        color: var(--accent);
+        font-size: 1.05rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    #chatMicBtn:hover, #chatSendBtn:hover { background: rgba(230, 215, 176, 0.1); }
+
+    #chatMicBtn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    #chatMicBtn.listening {
+        background: var(--accent);
+        color: var(--bg);
+        animation: cortex-mic-pulse 1.4s infinite;
+    }
+
+    @keyframes cortex-mic-pulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(230, 215, 176, 0.4); }
+        50% { box-shadow: 0 0 0 8px rgba(230, 215, 176, 0); }
+    }
+
+    #chatSendBtn { background: var(--accent); color: var(--bg); border: none; }
+</style>
+</head>
+<body>
+
+<div id="gate-message">Checking your subscription…</div>
+
+<div id="app">
+    <div class="cortex-header">
+        <a class="cortex-back-link" href="/learn">‹ Learn</a>
+        <div>
+            <div class="cortex-header-title">LastMind Cortex</div>
+            <div class="cortex-header-sub">Organize folders · generate notes · run your due reviews</div>
+        </div>
+    </div>
+
+    <div class="chat-scroll">
+        <div class="chat-inner" id="chatMessages">
+            <p class="chat-empty-hint">Ask Cortex to move a page into a different folder, generate notes for a lesson you name, or ask what reviews you have due.</p>
+        </div>
+    </div>
+
+    <div class="chat-input-row">
+        <button id="chatMicBtn" type="button" title="Speak">🎤</button>
+        <input type="text" id="chatInput" placeholder="Ask Cortex…" autocomplete="off">
+        <button id="chatSendBtn" type="button" title="Send">➤</button>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+    const BACKEND_URL = 'https://lastmind-stripe-backend.onrender.com';
+    const COMPILE_BACKEND_URL = 'https://lastmind-compile-backend.onrender.com';
+
+    const SUPABASE_URL = 'https://evgdecewwmkupiadgfop.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2Z2RlY2V3d21rdXBpYWRnZm9wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyODY2MjgsImV4cCI6MjEwMDg2MjYyOH0.W9_7TcBqW1Bjfag5XNTStAwNNNi7VJohr6IotjmI-4s';
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1zbd3WFoEjF/YM59jZGl
+1DpydTgsbPZYN8g3iI858q5RuucfuWRXkWhmRw/JO9acJlwjwcqjFl4SnJA+iTsF
+szpFFMvJH42fXKKJmRAXxGIHxxgxFIl0VNmUP880TfCDHuKwpgNR4ZxjfSRJJZoU
+sS6CQjo7X1mz4ywmBGoHUcnHvZJZbeREBgTHmDZDMwvKCJurL1f0wwyOcM4i0ul8
+B9uae99xd55ZS3dzleVgiLY3QO7ye/dSAKMP+lZw9IM15UdX8BZGtv+ImfuU9b2H
+0EOzHDx5l7VDRPXUoXdNGSGkUcZFdXAd502RMWmHIxv9EExNfwySIcZpZlRNlIe1
+UwIDAQAB
+-----END PUBLIC KEY-----`;
+
+    /* ───────────────────────── IndexedDB (same DB as /learn) ───────────────────────── */
+
+    if (navigator.storage && navigator.storage.persist) {
+        navigator.storage.persist().catch(() => {});
+    }
+
+    const DB_NAME = 'LastMindDB';
+    const DB_VERSION = 2;
+    const AUTH_STORE = 'auth';
+    const FOLDER_STORE = 'folders';
+
+    function openDB() {
+        return new Promise((resolve, reject) => {
+            const req = indexedDB.open(DB_NAME, DB_VERSION);
+            req.onupgradeneeded = (e) => {
+                const db = e.target.result;
+                if (!db.objectStoreNames.contains(AUTH_STORE)) {
+                    db.createObjectStore(AUTH_STORE, { keyPath: 'id' });
+                }
+                if (!db.objectStoreNames.contains(FOLDER_STORE)) {
+                    db.createObjectStore(FOLDER_STORE, { keyPath: 'id', autoIncrement: true });
+                }
+            };
+            req.onsuccess = (e) => resolve(e.target.result);
+            req.onerror = (e) => reject(e.target.error);
+        });
+    }
+
+    async function putAuthRecord(id, value) {
+        const db = await openDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(AUTH_STORE, 'readwrite');
+            tx.objectStore(AUTH_STORE).put({ id, value, savedAt: Date.now() });
+            tx.oncomplete = () => resolve();
+            tx.onerror = (e) => reject(e.target.error);
+        });
+    }
+
+    async function getAuthRecord(id) {
+        const db = await openDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(AUTH_STORE, 'readonly');
+            const r = tx.objectStore(AUTH_STORE).get(id);
+            r.onsuccess = () => resolve(r.result ? r.result.value : null);
+            r.onerror = (e) => reject(e.target.error);
+        });
+    }
+
+    async function getStoredToken() { return getAuthRecord('jwt'); }
+    async function saveToken(token) { return putAuthRecord('jwt', token); }
+    async function getStoredSubscriptionId() { return getAuthRecord('subscriptionId'); }
+
+    async function getAllFolders() {
+        const db = await openDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(FOLDER_STORE, 'readonly');
+            const r = tx.objectStore(FOLDER_STORE).getAll();
+            r.onsuccess = () => resolve(r.result || []);
+            r.onerror = (e) => reject(e.target.error);
+        });
+    }
+
+    async function putFolder(folder) {
+        const db = await openDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(FOLDER_STORE, 'readwrite');
+            const r = tx.objectStore(FOLDER_STORE).put(folder);
+            r.onsuccess = () => resolve(r.result);
+            r.onerror = (e) => reject(e.target.error);
+        });
+    }
+
+    function folderLabel(f) {
+        return `${f.subject} — ${f.qualification} (${f.examBoard})`;
+    }
+
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    /* ───────────────────────── JWT verification (same as /learn) ───────────────────────── */
+
+    function base64UrlToBytes(b64url) {
+        const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+        const pad = b64.length % 4 === 0 ? '' : '='.repeat(4 - (b64.length % 4));
+        const binary = atob(b64 + pad);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        return bytes;
+    }
+
+    async function importPublicKey(pem) {
+        const b64 = pem.replace(/-----BEGIN PUBLIC KEY-----/, '')
+                        .replace(/-----END PUBLIC KEY-----/, '')
+                        .replace(/\s+/g, '');
+        const bytes = base64UrlToBytes(b64.replace(/-/g, '+').replace(/_/g, '/'));
+        return crypto.subtle.importKey(
+            'spki',
+            bytes.buffer,
+            { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+            false,
+            ['verify']
+        );
+    }
+
+    async function verifyJWT(token, publicKey) {
+        try {
+            const parts = token.split('.');
+            if (parts.length !== 3) return null;
+            const [headerB64, payloadB64, sigB64] = parts;
+
+            const data = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
+            const signature = base64UrlToBytes(sigB64);
+
+            const valid = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', publicKey, signature, data);
+            if (!valid) return null;
+
+            const payload = JSON.parse(new TextDecoder().decode(base64UrlToBytes(payloadB64)));
+            if (payload.exp && Math.floor(Date.now() / 1000) >= payload.exp) return null;
+            if (payload.status !== 'active') return null;
+
+            return payload;
+        } catch (err) {
+            console.error('LastMind Cortex: JWT verification failed.', err);
+            return null;
+        }
+    }
+
+    async function refreshTokenFromBackend() {
+        try {
+            const subId = await getStoredSubscriptionId();
+            if (!subId) return null;
+            const resp = await fetch(`${BACKEND_URL}/api/token?subscriptionId=${encodeURIComponent(subId)}`);
+            if (!resp.ok) return null;
+            const { token } = await resp.json();
+            await saveToken(token);
+            return token;
+        } catch (err) {
+            console.error('LastMind Cortex: could not refresh token from backend.', err);
+            return null;
+        }
+    }
+
+    /* ───────────────────────── Voice (same primitives as /learn) ───────────────────────── */
+
+    let activeRecognition = null;
+
+    function stopActiveDictation() {
+        if (activeRecognition) {
+            try { activeRecognition.stop(); } catch (err) { /* already stopped */ }
+            activeRecognition = null;
+        }
+    }
+
+    function stopSpeaking() {
+        if (window.speechSynthesis) window.speechSynthesis.cancel();
+    }
+
+    function loadVoices() {
+        return new Promise((resolve) => {
+            const existing = window.speechSynthesis.getVoices();
+            if (existing.length) { resolve(existing); return; }
+            window.speechSynthesis.onvoiceschanged = () => resolve(window.speechSynthesis.getVoices());
+        });
+    }
+
+    function pickBestVoice(voices) {
+        if (!voices || !voices.length) return null;
+        const langPrefix = (navigator.language || 'en-US').slice(0, 2).toLowerCase();
+        const googleVoices = voices.filter((v) => v.name.includes('Google'));
+        if (googleVoices.length) {
+            const langMatch = googleVoices.find((v) => v.lang.toLowerCase().startsWith(langPrefix));
+            return langMatch || googleVoices[0];
+        }
+        const enVoice = voices.find((v) => v.lang.toLowerCase().startsWith('en'));
+        return enVoice || voices[0];
+    }
+
+    async function speakText(text) {
+        if (!window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return null;
+        stopSpeaking();
+        const trimmed = (text || '').trim();
+        if (!trimmed) return null;
+        const utterance = new SpeechSynthesisUtterance(trimmed);
+        utterance.lang = navigator.language || 'en-US';
+        const voices = await loadVoices();
+        const bestVoice = pickBestVoice(voices);
+        if (bestVoice) {
+            utterance.voice = bestVoice;
+            utterance.lang = bestVoice.lang;
+        }
+        window.speechSynthesis.speak(utterance);
+        return utterance;
+    }
+
+    function conceptKeyToLabel(conceptKey) {
+        return conceptKey.replace(/:/g, ' — ').replace(/_/g, ' ');
+    }
+
+    /* ───────────────────────── Chat ───────────────────────── */
+
+    let chatHistory = []; // [{role, content}] — held in memory for this page load only
+    const chatMessagesEl = document.getElementById('chatMessages');
+    let emptyHintEl = document.querySelector('.chat-empty-hint');
+
+    function clearEmptyHint() {
+        if (emptyHintEl) { emptyHintEl.remove(); emptyHintEl = null; }
+    }
+
+    function appendUserMessage(text) {
+        clearEmptyHint();
+        const el = document.createElement('div');
+        el.className = 'chat-msg chat-msg-user';
+        el.textContent = text;
+        chatMessagesEl.appendChild(el);
+        el.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        return el;
+    }
+
+    function appendAssistantMessage(text) {
+        clearEmptyHint();
+        const el = document.createElement('div');
+        el.className = 'chat-msg chat-msg-assistant';
+        el.textContent = text;
+        chatMessagesEl.appendChild(el);
+        el.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        return el;
+    }
+
+    async function buildFolderSummary() {
+        const all = await getAllFolders();
+        return all.map((f) => ({
+            name: f.subject,
+            qualification: f.qualification,
+            examBoard: f.examBoard,
+            subfolders: (f.subfolders || []).map((sf) => ({
+                name: sf.name,
+                pages: (sf.pages || []).map((p) => p.title)
+            })),
+            pages: (f.pages || []).map((p) => p.title)
+        }));
+    }
+
+    async function fetchDueReviews(accessToken) {
+        try {
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/schedule`, {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            if (!resp.ok) return [];
+            const { schedule } = await resp.json();
+            return (schedule || []).map((item) => ({
+                conceptId: item.concept_id,
+                label: conceptKeyToLabel(item.concept_id)
+            }));
+        } catch (err) {
+            return [];
+        }
+    }
+
+    function findFolderByName(folders, name) {
+        const n = (name || '').trim().toLowerCase();
+        return folders.find((f) => (f.subject || '').trim().toLowerCase() === n) || null;
+    }
+
+    function findSubfolderByName(folder, name) {
+        const n = (name || '').trim().toLowerCase();
+        return (folder.subfolders || []).find((sf) => (sf.name || '').trim().toLowerCase() === n) || null;
+    }
+
+    function findPageByTitleAnywhere(folders, title) {
+        const n = (title || '').trim().toLowerCase();
+        for (const f of folders) {
+            const direct = (f.pages || []).find((p) => (p.title || '').trim().toLowerCase() === n);
+            if (direct) return { folder: f, subfolder: null, page: direct };
+            for (const sf of (f.subfolders || [])) {
+                const p = (sf.pages || []).find((p) => (p.title || '').trim().toLowerCase() === n);
+                if (p) return { folder: f, subfolder: sf, page: p };
+            }
+        }
+        return null;
+    }
+
+    async function applyMovePage(action) {
+        const folders = await getAllFolders();
+        const loc = findPageByTitleAnywhere(folders, action.pageTitle);
+        if (!loc) return `I couldn't find a page called "${action.pageTitle}".`;
+
+        const targetFolder = findFolderByName(folders, action.targetFolderName);
+        if (!targetFolder) return `I couldn't find a folder called "${action.targetFolderName}".`;
+
+        let targetSubfolder = null;
+        if (action.targetSubfolderName) {
+            targetSubfolder = findSubfolderByName(targetFolder, action.targetSubfolderName);
+            if (!targetSubfolder) {
+                targetSubfolder = { id: crypto.randomUUID(), name: action.targetSubfolderName, pages: [] };
+                targetFolder.subfolders = targetFolder.subfolders || [];
+                targetFolder.subfolders.push(targetSubfolder);
+            }
+        }
+
+        const sourceArray = loc.subfolder ? loc.subfolder.pages : loc.folder.pages;
+        const idx = sourceArray.findIndex((p) => p.id === loc.page.id);
+        if (idx === -1) return `Something went wrong finding "${action.pageTitle}".`;
+        const [page] = sourceArray.splice(idx, 1);
+
+        const targetArray = targetSubfolder
+            ? (targetSubfolder.pages = targetSubfolder.pages || [])
+            : (targetFolder.pages = targetFolder.pages || []);
+        targetArray.push(page);
+
+        await putFolder(loc.folder);
+        if (targetFolder.id !== loc.folder.id) await putFolder(targetFolder);
+        return `Moved "${action.pageTitle}" into ${folderLabel(targetFolder)}${targetSubfolder ? ' > ' + targetSubfolder.name : ''}.`;
+    }
+
+    async function applyCreateFolder(action) {
+        await putFolder({
+            subject: action.subject,
+            qualification: action.qualification,
+            examBoard: action.examBoard,
+            pages: [],
+            createdAt: Date.now()
+        });
+        return `Created the folder "${action.subject} — ${action.qualification} (${action.examBoard})".`;
+    }
+
+    async function applyCreateSubfolder(action) {
+        const folders = await getAllFolders();
+        const folder = findFolderByName(folders, action.folderName);
+        if (!folder) return `I couldn't find a folder called "${action.folderName}".`;
+        if (findSubfolderByName(folder, action.subfolderName)) {
+            return `"${action.subfolderName}" already exists inside ${folder.subject}.`;
+        }
+        folder.subfolders = folder.subfolders || [];
+        folder.subfolders.push({ id: crypto.randomUUID(), name: action.subfolderName, pages: [] });
+        await putFolder(folder);
+        return `Created the subfolder "${action.subfolderName}" inside ${folder.subject}.`;
+    }
+
+    async function applyGenerateNotes(action) {
+        const folders = await getAllFolders();
+        const folder = findFolderByName(folders, action.subject);
+        if (!folder) return `I couldn't find a folder for "${action.subject}" yet — create that folder first and I can add the notes.`;
+
+        let subfolder = null;
+        if (action.topic) {
+            subfolder = findSubfolderByName(folder, action.topic);
+            if (!subfolder) {
+                subfolder = { id: crypto.randomUUID(), name: action.topic, pages: [] };
+                folder.subfolders = folder.subfolders || [];
+                folder.subfolders.push(subfolder);
+            }
+        }
+
+        const targetArray = subfolder ? (subfolder.pages = subfolder.pages || []) : (folder.pages = folder.pages || []);
+        let page = targetArray.find((p) => (p.title || '').trim().toLowerCase() === (action.lesson || '').trim().toLowerCase());
+        if (!page) {
+            page = { id: crypto.randomUUID(), title: action.lesson, content: '', createdAt: Date.now() };
+            targetArray.push(page);
+        }
+        page.content = (action.noteContent || '')
+            .split('\n')
+            .filter((line) => line.trim())
+            .map((line) => `<div>${escapeHtml(line)}</div>`)
+            .join('');
+
+        await putFolder(folder);
+        return `Added notes for "${action.lesson}" to ${folderLabel(folder)}${subfolder ? ' > ' + subfolder.name : ''}.`;
+    }
+
+    function describeAndBuildApplier(action) {
+        if (action.type === 'move_page') {
+            return {
+                text: `Move "${action.pageTitle}" into ${action.targetFolderName}${action.targetSubfolderName ? ' > ' + action.targetSubfolderName : ''}?`,
+                apply: () => applyMovePage(action)
+            };
+        }
+        if (action.type === 'create_folder') {
+            return {
+                text: `Create a new folder "${action.subject} — ${action.qualification} (${action.examBoard})"?`,
+                apply: () => applyCreateFolder(action)
+            };
+        }
+        if (action.type === 'create_subfolder') {
+            return {
+                text: `Create a new subfolder "${action.subfolderName}" inside "${action.folderName}"?`,
+                apply: () => applyCreateSubfolder(action)
+            };
+        }
+        if (action.type === 'generate_notes') {
+            return {
+                text: `Add generated notes for "${action.lesson}" (${action.subject}${action.topic ? ' > ' + action.topic : ''})?`,
+                apply: () => applyGenerateNotes(action)
+            };
+        }
+        return { text: null, apply: null };
+    }
+
+    function showConfirmCard(text, apply) {
+        const card = document.createElement('div');
+        card.className = 'chat-confirm-card';
+
+        const desc = document.createElement('div');
+        desc.className = 'chat-confirm-text';
+        desc.textContent = text;
+
+        const actions = document.createElement('div');
+        actions.className = 'chat-confirm-actions';
+
+        const yesBtn = document.createElement('button');
+        yesBtn.className = 'chat-confirm-btn';
+        yesBtn.type = 'button';
+        yesBtn.textContent = 'Yes, do it';
+
+        const noBtn = document.createElement('button');
+        noBtn.className = 'chat-confirm-btn chat-confirm-btn-no';
+        noBtn.type = 'button';
+        noBtn.textContent = 'No';
+
+        yesBtn.addEventListener('click', async () => {
+            actions.remove();
+            const statusEl = document.createElement('div');
+            statusEl.className = 'chat-confirm-status';
+            statusEl.textContent = 'Working…';
+            card.appendChild(statusEl);
+            try {
+                statusEl.textContent = (await apply()) || 'Done.';
+            } catch (err) {
+                console.error('LastMind Cortex: action failed.', err);
+                statusEl.textContent = 'Something went wrong — please try again.';
+            }
+        });
+
+        noBtn.addEventListener('click', () => card.remove());
+
+        actions.appendChild(yesBtn);
+        actions.appendChild(noBtn);
+        card.appendChild(desc);
+        card.appendChild(actions);
+        chatMessagesEl.appendChild(card);
+        card.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+
+    // Runs a due review turn-by-turn right here in chat, reusing the exact
+    // same chain-lesson endpoints /learn's "Start Lesson" button drives —
+    // no backend changes needed for this action, just a chat-shaped runner.
+    async function askReviewQuestion(accessToken, questionText, state) {
+        appendAssistantMessage(questionText);
+        speakText(questionText);
+
+        const card = document.createElement('div');
+        card.className = 'chat-answer-card';
+        const input = document.createElement('textarea');
+        input.className = 'chat-answer-input';
+        input.placeholder = 'Type or speak your answer…';
+        const submitBtn = document.createElement('button');
+        submitBtn.className = 'chat-confirm-btn';
+        submitBtn.type = 'button';
+        submitBtn.textContent = 'Submit';
+
+        submitBtn.addEventListener('click', async () => {
+            const answer = input.value.trim();
+            card.remove();
+            appendUserMessage(answer || '(no answer given)');
+
+            let nextResp;
+            try {
+                nextResp = await fetch(`${COMPILE_BACKEND_URL}/chain-lesson/submit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                    body: JSON.stringify({ state, answer })
+                });
+            } catch (err) {
+                appendAssistantMessage('Could not reach the server. Please try again.');
+                return;
+            }
+
+            if (!nextResp.ok) {
+                const body = await nextResp.json().catch(() => ({}));
+                appendAssistantMessage(body.error || 'Something went wrong.');
+                return;
+            }
+
+            const nextResult = await nextResp.json();
+
+            if (nextResult.done) {
+                const finalEntries = nextResult.summary || [];
+                const finalEntry = finalEntries[finalEntries.length - 1];
+                if (finalEntry && finalEntry.correction) {
+                    appendAssistantMessage(finalEntry.correction);
+                    speakText(finalEntry.correction);
+                }
+                const doneMsg = 'Review complete — nice work.';
+                appendAssistantMessage(doneMsg);
+                speakText(doneMsg);
+                return;
+            }
+
+            if (nextResult.inlineCorrection) {
+                appendAssistantMessage(nextResult.inlineCorrection);
+                speakText(nextResult.inlineCorrection);
+            }
+            await askReviewQuestion(accessToken, nextResult.nextQuestion, nextResult.state);
+        });
+
+        card.appendChild(input);
+        card.appendChild(submitBtn);
+        chatMessagesEl.appendChild(card);
+        card.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+
+    async function runReviewInChat(conceptId) {
+        const parts = conceptId.split(':');
+        if (parts.length !== 3) {
+            appendAssistantMessage("I couldn't identify that review — let's try again.");
+            return;
+        }
+        const subject = parts[0].replace(/_/g, ' ');
+        const topic = parts[1].replace(/_/g, ' ');
+        const concept = parts[2].replace(/_/g, ' ');
+
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+            appendAssistantMessage('Please log in again to start this review.');
+            return;
+        }
+
+        const startingEl = appendAssistantMessage('Starting your review…');
+        let resp;
+        try {
+            resp = await fetch(`${COMPILE_BACKEND_URL}/chain-lesson/start`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify({ subject, topic, concept })
+            });
+        } catch (err) {
+            startingEl.textContent = 'Could not reach the server. Please try again.';
+            return;
+        }
+
+        if (!resp.ok) {
+            const body = await resp.json().catch(() => ({}));
+            startingEl.textContent = body.error || 'Could not start this review.';
+            return;
+        }
+
+        const startResult = await resp.json();
+        startingEl.remove();
+        await askReviewQuestion(session.access_token, startResult.nextQuestion, startResult.state);
+    }
+
+    async function handleCortexAction(action) {
+        if (action.type === 'list_due_reviews') return;
+        if (action.type === 'start_review') {
+            await runReviewInChat(action.conceptId);
+            return;
+        }
+        const { text, apply } = describeAndBuildApplier(action);
+        if (!text) return;
+        showConfirmCard(text, apply);
+    }
+
+    async function sendChatMessage() {
+        const input = document.getElementById('chatInput');
+        const text = input.value.trim();
+        if (!text) return;
+        input.value = '';
+        appendUserMessage(text);
+        chatHistory.push({ role: 'user', content: text });
+
+        const sendBtn = document.getElementById('chatSendBtn');
+        sendBtn.disabled = true;
+        const thinkingEl = appendAssistantMessage('…');
+
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) throw new Error('Not logged in.');
+
+            const [folders, dueReviews] = await Promise.all([
+                buildFolderSummary(),
+                fetchDueReviews(session.access_token)
+            ]);
+
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/cortex/message`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify({
+                    message: text,
+                    history: chatHistory.slice(-10),
+                    folders,
+                    dueReviews
+                })
+            });
+
+            if (!resp.ok) {
+                const body = await resp.json().catch(() => ({}));
+                throw new Error(body.error || `Server returned ${resp.status}`);
+            }
+
+            const result = await resp.json();
+            thinkingEl.textContent = result.reply;
+            chatHistory.push({ role: 'assistant', content: result.reply });
+            speakText(result.reply);
+
+            if (result.action) await handleCortexAction(result.action);
+        } catch (err) {
+            console.error('LastMind Cortex: message failed.', err);
+            thinkingEl.textContent = 'Sorry, something went wrong. Please try again.';
+        } finally {
+            sendBtn.disabled = false;
+        }
+    }
+
+    document.getElementById('chatSendBtn').addEventListener('click', sendChatMessage);
+    document.getElementById('chatInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            sendChatMessage();
+        }
+    });
+
+    // One persistent mic button drives voice for whichever text field is
+    // currently focused (the main chat box, or a review's answer box) —
+    // rather than a separate mic per field.
+    function setupChatMic() {
+        const micBtn = document.getElementById('chatMicBtn');
+        const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognitionCtor) {
+            micBtn.disabled = true;
+            micBtn.title = 'Dictation is not supported in this browser';
+            return { start: () => {} };
+        }
+
+        let isListening = false;
+
+        function setListeningUI(listening) {
+            isListening = listening;
+            micBtn.classList.toggle('listening', listening);
+            micBtn.textContent = listening ? '■' : '🎤';
+        }
+
+        function start() {
+            stopSpeaking();
+            const active = document.activeElement;
+            const target = (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA'))
+                ? active
+                : document.getElementById('chatInput');
+
+            const recognition = new SpeechRecognitionCtor();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = navigator.language || 'en-GB';
+
+            recognition.onresult = (e) => {
+                const transcript = Array.from(e.results).map((r) => r[0].transcript).join(' ').trim();
+                if (!transcript) return;
+                target.value = transcript;
+                if (target.id === 'chatInput') {
+                    sendChatMessage();
+                } else {
+                    const submitBtn = target.nextElementSibling;
+                    if (submitBtn && submitBtn.tagName === 'BUTTON') submitBtn.click();
+                }
+            };
+            recognition.onerror = () => setListeningUI(false);
+            recognition.onend = () => { setListeningUI(false); activeRecognition = null; };
+
+            activeRecognition = recognition;
+            setListeningUI(true);
+            recognition.start();
+        }
+
+        micBtn.addEventListener('click', () => {
+            if (isListening) {
+                stopActiveDictation();
+                setListeningUI(false);
+            } else {
+                start();
+            }
+        });
+
+        return { start };
+    }
+
+    const chatMic = setupChatMic();
+
+    /* ───────────────────────── Gate + boot ───────────────────────── */
+
+    async function enterApp() {
+        document.getElementById('gate-message').style.display = 'none';
+        document.getElementById('app').style.display = 'flex';
+        document.getElementById('chatInput').focus();
+
+        if (new URLSearchParams(window.location.search).get('voice') === '1') {
+            chatMic.start();
+        }
+    }
+
+    (async function gate() {
+        if (new URLSearchParams(window.location.search).has('preview')) {
+            console.warn('LastMind Cortex: running in PREVIEW MODE — the subscription gate is bypassed.');
+            await enterApp();
+            return;
+        }
+
+        const publicKey = await importPublicKey(PUBLIC_KEY_PEM);
+
+        let token = await getStoredToken().catch(() => null);
+        let payload = token ? await verifyJWT(token, publicKey) : null;
+
+        if (!payload) {
+            token = await refreshTokenFromBackend();
+            payload = token ? await verifyJWT(token, publicKey) : null;
+        }
+
+        if (payload) { await enterApp(); return; }
+
+        let supabaseSession = null;
+        try {
+            const { data } = await supabaseClient.auth.getSession();
+            supabaseSession = data.session;
+
+            if (supabaseSession) {
+                const resp = await fetch(`${BACKEND_URL}/api/token-for-user`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${supabaseSession.access_token}` }
+                });
+                if (resp.ok) {
+                    const { token: linkedToken, subscriptionId: linkedSubId } = await resp.json();
+                    payload = await verifyJWT(linkedToken, publicKey);
+                    if (payload) {
+                        await saveToken(linkedToken);
+                        if (linkedSubId) await putAuthRecord('subscriptionId', linkedSubId);
+                    }
+                }
+            }
+        } catch (err) {
+            console.error('LastMind Cortex: login-anywhere check failed.', err);
+        }
+
+        if (payload) { await enterApp(); return; }
+
+        if (supabaseSession) { await enterApp(); return; }
+
+        window.location.href = '/subscribe';
+    })();
+</script>
+</body>
+</html>
