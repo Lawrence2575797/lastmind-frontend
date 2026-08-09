@@ -784,23 +784,6 @@
         display: block;
     }
 
-    .encoding-feedback {
-        display: none;
-        font-family: 'Arial', sans-serif;
-        font-size: 0.82rem;
-        color: #e6b0a8;
-        background: rgba(230, 176, 168, 0.08);
-        border: 1px solid rgba(230, 176, 168, 0.3);
-        border-radius: 5px;
-        padding: 10px 12px;
-        margin-bottom: 12px;
-        line-height: 1.6;
-    }
-
-    .encoding-feedback.open {
-        display: block;
-    }
-
     .question-card-footer {
         display: flex;
         align-items: center;
@@ -3272,7 +3255,7 @@ UwIDAQAB
                 clearTimeout(debounceTimer);
                 const text = answerInput.value;
                 if (text.trim().length < 15) return;
-                if (text.length - lastCheckedLength < 25) return;
+                if (text.length - lastCheckedLength < 15) return;
 
                 debounceTimer = setTimeout(async () => {
                     lastCheckedLength = answerInput.value.length;
@@ -3291,7 +3274,7 @@ UwIDAQAB
                         // Silent — this is a nice-to-have while drafting, not
                         // core functionality worth interrupting the student for.
                     }
-                }, 2500);
+                }, 1200);
             });
         }
 
@@ -3347,10 +3330,6 @@ UwIDAQAB
             flagsList.className = 'draft-flags';
             card.appendChild(flagsList);
 
-            const feedbackEl = document.createElement('div');
-            feedbackEl.className = 'encoding-feedback';
-            card.appendChild(feedbackEl);
-
             const footer = document.createElement('div');
             footer.className = 'question-card-footer';
             const submitBtn = document.createElement('button');
@@ -3362,31 +3341,29 @@ UwIDAQAB
 
             setupEncodingDraftFlagging(answerInput, flagsList, step);
 
+            // Always advances regardless of the verdict — this is a
+            // first-exposure lesson, not a gate. A weaker answer still
+            // moves the lesson forward; it just leaves a note here and
+            // contributes to a lower FSRS grade for this concept overall
+            // (server-side), which is what brings it back around sooner in
+            // spaced review — not re-litigating this one step right now.
             submitBtn.addEventListener('click', async () => {
                 const answer = answerInput.value.trim();
                 submitBtn.disabled = true;
-                feedbackEl.classList.remove('open');
 
                 try {
                     const result = await postEncodingSubmit(accessToken, state, answer);
-
-                    if (!result.advanced) {
-                        // Not quite there yet — same step stays open, student
-                        // can revise and resubmit rather than starting over.
-                        feedbackEl.textContent = result.feedback || "That's not quite right yet — try again.";
-                        feedbackEl.classList.add('open');
-                        submitBtn.disabled = false;
-                        return;
-                    }
-
-                    card.querySelectorAll('textarea, .question-card-footer, .draft-flags, .encoding-feedback').forEach((el) => el.remove());
-                    lockAnsweredCard(card, answer, true, null);
+                    card.querySelectorAll('textarea, .question-card-footer, .draft-flags').forEach((el) => el.remove());
+                    lockAnsweredCard(card, answer, result.correct !== false, result.feedback);
                     renderNextEncodingStep(accessToken, result);
                 } catch (err) {
                     console.error('LastMind: encoding lesson submit failed.', err);
-                    feedbackEl.textContent = 'Could not reach the server. Please try again.';
-                    feedbackEl.classList.add('open');
                     submitBtn.disabled = false;
+                    const errorNote = document.createElement('div');
+                    errorNote.className = 'correction-card';
+                    errorNote.textContent = 'Could not reach the server. Please try again.';
+                    card.insertAdjacentElement('afterend', errorNote);
+                    errorNote.scrollIntoView({ behavior: 'smooth', block: 'end' });
                 }
             });
 
