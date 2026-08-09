@@ -617,37 +617,6 @@
         margin-top: 16px;
     }
 
-    /* ─── "TAUGHT BEFORE?" GATE ─── */
-    /* Shown once, the first time a page is opened — the answer is then
-       saved on the page itself, so it never asks again. */
-    .taught-gate {
-        max-width: 520px;
-        margin: 15vh auto 0;
-        background: var(--panel);
-        border: 1px solid rgba(230, 215, 176, 0.15);
-        border-radius: 6px;
-        padding: 28px;
-        text-align: center;
-    }
-
-    .taught-gate-message {
-        font-size: 1rem;
-        line-height: 1.7;
-        margin-bottom: 20px;
-    }
-
-    .taught-gate-actions {
-        display: flex;
-        justify-content: center;
-        gap: 12px;
-    }
-
-    .taught-gate-no {
-        background: none !important;
-        border: 1px solid rgba(230, 215, 176, 0.3) !important;
-        color: var(--text) !important;
-    }
-
     /* ─── NOTES / LESSON SPLIT ─── */
     .page-split-layout {
         display: flex;
@@ -2323,25 +2292,19 @@ UwIDAQAB
             subfolders.forEach((sf) => listEl.appendChild(buildSubfolderRow(folder, sf)));
         }
 
-        const pagesLabel = document.createElement('div');
-        pagesLabel.className = 'drill-section-label';
-        const pagesLabelText = document.createElement('span');
-        pagesLabelText.textContent = 'Pages in this folder';
-        const addPageLink = document.createElement('span');
-        addPageLink.className = 'new-subfolder-link';
-        addPageLink.textContent = '+ Page';
-        addPageLink.addEventListener('click', () => createPageInFolder(folder.id, null));
-        pagesLabel.appendChild(pagesLabelText);
-        pagesLabel.appendChild(addPageLink);
-        listEl.appendChild(pagesLabel);
-
+        // Pages can only be created inside a subfolder now — this section
+        // only shows up for older data that already has pages sitting
+        // directly in a folder from before that rule existed, so they're
+        // not stranded/inaccessible. No "+ Page" add action here anymore.
         const directPages = folder.pages || [];
-        if (!directPages.length) {
-            const hint = document.createElement('div');
-            hint.className = 'empty-hint';
-            hint.textContent = 'No pages yet.';
-            listEl.appendChild(hint);
-        } else {
+        if (directPages.length) {
+            const pagesLabel = document.createElement('div');
+            pagesLabel.className = 'drill-section-label';
+            const pagesLabelText = document.createElement('span');
+            pagesLabelText.textContent = 'Pages in this folder';
+            pagesLabel.appendChild(pagesLabelText);
+            listEl.appendChild(pagesLabel);
+
             directPages.forEach((p) => listEl.appendChild(buildPageItem(p, folder.id, null)));
         }
     }
@@ -2545,42 +2508,33 @@ UwIDAQAB
 
         const contentInner = document.getElementById('contentInner');
 
-        // Asked once per page, the very first time it's opened — the
-        // answer is saved on the page itself, so it's never asked again.
-        if (page.taughtBefore === undefined) {
-            contentInner.innerHTML = `
-                <div class="taught-gate">
-                    <p class="taught-gate-message">I have been taught this topic before.</p>
-                    <div class="taught-gate-actions">
-                        <button class="question-submit-btn" id="taughtYesBtn" type="button">Yes</button>
-                        <button class="question-submit-btn taught-gate-no" id="taughtNoBtn" type="button">No</button>
-                    </div>
-                </div>
-            `;
-            document.getElementById('taughtYesBtn').addEventListener('click', async () => {
-                page.taughtBefore = true;
-                await putFolder(folder);
-                await refreshFolderList();
-                openPage(folderId, pageId, subfolderId);
-            });
-            document.getElementById('taughtNoBtn').addEventListener('click', async () => {
-                page.taughtBefore = false;
-                await putFolder(folder);
-                await refreshFolderList();
-                openPage(folderId, pageId, subfolderId);
-            });
-            refreshFolderList();
-            return;
-        }
+        // No more "have you been taught this before?" gate — every page
+        // always starts with its first ENCODING lesson (full width, no
+        // notes panel yet — there's nothing to take notes on before the
+        // material has actually been taught once). Only once that first
+        // lesson is completed (runChainLesson sets page.encodingDone, see
+        // below) does the page switch to RETRIEVAL lessons alongside the
+        // notes panel. `page.taughtBefore` is read as a fallback purely so
+        // pages that already went through the old Yes/No gate don't get
+        // sent back through encoding — "Yes" under the old gate counts as
+        // encoding already done.
+        const encodingDone = page.encodingDone === true || page.taughtBefore === true;
+        const showNotes = encodingDone;
 
-        // Already taught before -> notes (left) + retrieval lesson (right).
-        // Never taught before -> just the lesson, full width — nothing to
-        // add notes to yet on a genuine first exposure.
-        const showNotes = page.taughtBefore === true;
-
-        const lessonPanelHtml = `
+        const lessonPanelHtml = encodingDone
+            ? `
             <div class="lesson-panel">
-                <h3 class="lesson-panel-heading">Take Your First Retrieval Lesson</h3>
+                <h3 class="lesson-panel-heading">Take Your Retrieval Lesson</h3>
+                <p class="lesson-intro-message">This lesson is designed to allow you to construct the lesson with the right amount of scaffolding for you. Here is the first step:</p>
+                <div class="bottom-action-row">
+                    <button class="generate-questions-btn" id="generateQuestionsBtn" ${isPaidUser ? '' : 'disabled title="Upgrade to unlock diagnostics"'}>Start Lesson</button>
+                </div>
+                <div id="diagnoseQuestionFlow"></div>
+            </div>
+        `
+            : `
+            <div class="lesson-panel">
+                <h3 class="lesson-panel-heading">Your First Encoding Lesson</h3>
                 <p class="lesson-intro-message">This lesson is designed to allow you to construct the lesson with the right amount of scaffolding for you. Here is the first step:</p>
                 <div class="bottom-action-row">
                     <button class="generate-questions-btn" id="generateQuestionsBtn" ${isPaidUser ? '' : 'disabled title="Upgrade to unlock diagnostics"'}>Start Lesson</button>
@@ -3167,6 +3121,16 @@ UwIDAQAB
                         summaryCard.innerHTML = `<div class="correction-label">Lesson complete</div>${rows}`;
                         questionFlowEl.appendChild(summaryCard);
                         summaryCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+                        // Completing a lesson here — whether this was the
+                        // first (encoding) one or a later retrieval one —
+                        // means the page has now had its encoding lesson,
+                        // so future opens show the notes panel + retrieval
+                        // lessons instead of the full-width encoding view.
+                        if (!page.encodingDone) {
+                            page.encodingDone = true;
+                            await putFolder(folder);
+                        }
 
                         return;
                     }
