@@ -591,24 +591,6 @@
         line-height: 1.7;
     }
 
-    /* ─── UNIFIED LESSON PANEL ─── */
-    .unified-lesson-fields {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        margin-bottom: 24px;
-    }
-
-    .unified-lesson-fields .prereq-check-panel {
-        max-width: 640px;
-        width: 100%;
-    }
-
-    .unified-lesson-fields #beginLessonRow {
-        max-width: 640px;
-        width: 100%;
-    }
-
     .bottom-action-row {
         display: flex;
         justify-content: flex-end;
@@ -616,50 +598,87 @@
         margin-top: 16px;
     }
 
-    /* ─── PREREQUISITE CHECK PANEL ─── */
-    .prereq-check-panel {
+    /* ─── "TAUGHT BEFORE?" GATE ─── */
+    /* Shown once, the first time a page is opened — the answer is then
+       saved on the page itself, so it never asks again. */
+    .taught-gate {
+        max-width: 520px;
+        margin: 15vh auto 0;
         background: var(--panel);
         border: 1px solid rgba(230, 215, 176, 0.15);
         border-radius: 6px;
-        padding: 24px;
+        padding: 28px;
+        text-align: center;
     }
 
-    .prereq-check-message {
-        font-size: 0.95rem;
+    .taught-gate-message {
+        font-size: 1rem;
         line-height: 1.7;
-        opacity: 0.85;
-        margin-bottom: 18px;
+        margin-bottom: 20px;
     }
 
-    .prereq-confirm-row {
+    .taught-gate-actions {
         display: flex;
-        align-items: flex-start;
-        gap: 10px;
-        cursor: pointer;
-        font-size: 0.88rem;
-        line-height: 1.6;
+        justify-content: center;
+        gap: 12px;
     }
 
-    .prereq-confirm-row input[type="checkbox"] {
-        margin-top: 3px;
-        width: 16px;
-        height: 16px;
-        flex-shrink: 0;
+    .taught-gate-no {
+        background: none !important;
+        border: 1px solid rgba(230, 215, 176, 0.3) !important;
+        color: var(--text) !important;
+    }
+
+    /* ─── NOTES / LESSON SPLIT ─── */
+    .page-split-layout {
+        display: flex;
+        gap: 28px;
+        align-items: flex-start;
+    }
+
+    .notes-panel, .lesson-panel {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .notes-panel-heading, .lesson-panel-heading {
+        font-size: 1.05rem;
+        font-weight: 700;
+        margin-bottom: 12px;
+    }
+
+    .lesson-intro-message {
+        font-size: 0.92rem;
+        line-height: 1.7;
+        opacity: 0.8;
+        margin-bottom: 6px;
+    }
+
+    .notes-mode-toggle {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 18px;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.85rem;
+    }
+
+    .notes-mode-option {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+    }
+
+    .notes-mode-option input[type="radio"] {
         accent-color: var(--accent);
         cursor: pointer;
     }
 
-    /* One block per prerequisite question — all rendered together, each
-       independently answerable, each with its own nested drill-down. */
-    .prereq-question-block {
-        margin-bottom: 4px;
-    }
-
-    .prereq-followups {
-        margin-top: 8px;
-        margin-left: 20px;
-        padding-left: 20px;
-        border-left: 2px solid rgba(230, 215, 176, 0.15);
+    .cortex-placeholder {
+        opacity: 0.5;
+        font-size: 0.9rem;
+        padding: 20px 0;
     }
 
     .generate-questions-btn {
@@ -785,10 +804,6 @@
     }
 
     /* ─── PAGE EDITOR ─── */
-    .editor-wrap {
-        position: relative;
-    }
-
     .page-title-input {
         width: 100%;
         background: transparent;
@@ -1004,15 +1019,11 @@
 
     /* ─── SCRATCH NOTES ─── */
     .scratch-notes-widget {
-        position: fixed;
-        bottom: 24px;
-        right: 24px;
-        width: 240px;
+        margin-top: 16px;
+        width: 100%;
         background: var(--panel);
         border: 1px solid rgba(230, 215, 176, 0.25);
         border-radius: 8px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-        z-index: 50;
         overflow: hidden;
     }
 
@@ -1265,28 +1276,14 @@
     }
     /* ─── MOBILE ─── */
     @media (max-width: 768px) {
-        /* The scratch notes widget is position:fixed — on a narrow screen
-           it was sitting on top of the bottom-action-row entirely, both
-           hiding Start Lesson/Compile and blocking taps from reaching
-           them. Shrinking it and guaranteeing extra scroll room below the
-           real content are two separate, both-necessary fixes. */
-        .scratch-notes-widget {
-            width: calc(100vw - 32px);
-            max-width: 280px;
-            bottom: 12px;
-            right: 12px;
-        }
-
         .scratch-notes-textarea {
             height: 90px;
         }
 
-        /* Real, generous scrollable room at the bottom of the content
-           area — sized comfortably larger than the widget even fully
-           expanded, so scrolling to the very bottom always clears it and
-           the actual buttons become fully visible and tappable. */
-        .content {
-            padding-bottom: 220px;
+        /* Side-by-side notes/lesson columns don't fit a narrow screen —
+           stack them instead. */
+        .page-split-layout {
+            flex-direction: column;
         }
     }
 
@@ -1732,14 +1729,6 @@ UwIDAQAB
 
     function folderLabel(f) {
         return `${f.subject} — ${f.qualification} (${f.examBoard})`;
-    }
-
-    // For safely dropping user-entered text (page titles, folder/subfolder
-    // names) into an innerHTML template literal.
-    function escapeHtml(str) {
-        const div = document.createElement('div');
-        div.textContent = str;
-        return div.innerHTML;
     }
 
     function closeAllItemMenus() {
@@ -2510,26 +2499,61 @@ UwIDAQAB
         document.getElementById('topbarTitle').textContent = `${folderLabel(folder)} · ${page.title}`;
 
         const contentInner = document.getElementById('contentInner');
-        contentInner.innerHTML = `
-            <div class="unified-lesson-fields">
-                <div class="prereq-check-panel">
-                    <p class="prereq-check-message">Before starting the lesson, we must check whether the dependent knowledge exists to the required level.</p>
-                    <label class="prereq-confirm-row" for="prereqConfirmCheckbox">
-                        <input type="checkbox" id="prereqConfirmCheckbox">
-                        <span>I confirm "<strong>${escapeHtml(page.title || 'Untitled page')}</strong>" is the lesson I want to study.</span>
-                    </label>
+
+        // Asked once per page, the very first time it's opened — the
+        // answer is saved on the page itself, so it's never asked again.
+        if (page.taughtBefore === undefined) {
+            contentInner.innerHTML = `
+                <div class="taught-gate">
+                    <p class="taught-gate-message">I have been taught this topic before.</p>
+                    <div class="taught-gate-actions">
+                        <button class="question-submit-btn" id="taughtYesBtn" type="button">Yes</button>
+                        <button class="question-submit-btn taught-gate-no" id="taughtNoBtn" type="button">No</button>
+                    </div>
                 </div>
-                <div class="bottom-action-row" id="beginLessonRow" ${isPaidUser ? '' : 'style="display:none;"'}>
-                    <button class="generate-questions-btn" id="beginLessonBtn" disabled>Generate Questions</button>
+            `;
+            document.getElementById('taughtYesBtn').addEventListener('click', async () => {
+                page.taughtBefore = true;
+                await putFolder(folder);
+                await refreshFolderList();
+                openPage(folderId, pageId, subfolderId);
+            });
+            document.getElementById('taughtNoBtn').addEventListener('click', async () => {
+                page.taughtBefore = false;
+                await putFolder(folder);
+                await refreshFolderList();
+                openPage(folderId, pageId, subfolderId);
+            });
+            refreshFolderList();
+            return;
+        }
+
+        // Already taught before -> notes (left) + retrieval lesson (right).
+        // Never taught before -> just the lesson, full width — nothing to
+        // add notes to yet on a genuine first exposure.
+        const showNotes = page.taughtBefore === true;
+
+        const lessonPanelHtml = `
+            <div class="lesson-panel">
+                <h3 class="lesson-panel-heading">Take Your First Retrieval Lesson</h3>
+                <p class="lesson-intro-message">This lesson is designed to allow you to construct the lesson with the right amount of scaffolding for you. Here is the first step:</p>
+                <div class="bottom-action-row">
+                    <button class="generate-questions-btn" id="generateQuestionsBtn" ${isPaidUser ? '' : 'disabled title="Upgrade to unlock diagnostics"'}>Start Lesson</button>
                 </div>
+                <div id="diagnoseQuestionFlow"></div>
             </div>
+        `;
 
-            <div id="placementFlowEl"></div>
+        const notesPanelHtml = `
+            <div class="notes-panel">
+                <input type="text" class="page-title-input" id="pageTitleInput" placeholder="Page title" value="">
+                <h3 class="notes-panel-heading">Add / Create Your Notes</h3>
+                <div class="notes-mode-toggle">
+                    <label class="notes-mode-option"><input type="radio" name="notesMode" id="notesModeOwn" checked> Add your own notes</label>
+                    <label class="notes-mode-option"><input type="radio" name="notesMode" id="notesModeCortex"> Create new notes using Cortex</label>
+                </div>
 
-            <div id="mainLessonArea" style="display:none;">
-                <div class="editor-wrap">
-                    <input type="text" class="page-title-input" id="pageTitleInput" placeholder="Page title" value="">
-
+                <div id="notesOwnMode">
                     <div class="rich-toolbar">
                         <button type="button" class="toolbar-btn" id="insertMathBtn">∑ Insert Math</button>
                         <button type="button" class="toolbar-btn" id="insertMatrixBtn">⊞ Insert Matrix</button>
@@ -2542,23 +2566,26 @@ UwIDAQAB
                     <div class="dictation-status" id="dictationStatus"></div>
                     <button class="play-btn" id="playBtn" title="Read notes aloud">▶ Play</button>
 
-                    <div class="bottom-action-row">
-                        <button class="generate-questions-btn" id="generateNotesBtn" ${isPaidUser ? '' : 'disabled title="Upgrade to unlock diagnostics"'}>Generate Notes</button>
-                        ${isPaidUser ? '<button class="compile-btn" id="compileBtn">Compile</button>' : ''}
-                        <button class="generate-questions-btn" id="generateQuestionsBtn" ${isPaidUser ? '' : 'disabled title="Upgrade to unlock diagnostics"'}>Start Lesson</button>
+                    ${isPaidUser ? `
+                        <div class="bottom-action-row">
+                            <button class="compile-btn" id="compileBtn">Compile</button>
+                        </div>
+                        <div class="compile-status" id="compileStatus"></div>
+                        <div class="compiled-output" id="compiledOutput" style="display:none;"></div>
+                    ` : ''}
+
+                    <div class="scratch-notes-widget" id="scratchNotesWidget">
+                        <div class="scratch-notes-header" id="scratchNotesHeader">
+                            <span>💡 Quick Notes</span>
+                            <button type="button" class="scratch-notes-toggle" id="scratchNotesToggle">▾</button>
+                        </div>
+                        <textarea class="scratch-notes-textarea" id="scratchNotesBox" placeholder="Jot down a point for later, without losing your place…"></textarea>
                     </div>
                 </div>
-                ${isPaidUser ? '<div class="compile-status" id="compileStatus"></div><div class="compiled-output" id="compiledOutput" style="display:none;"></div>' : ''}
 
-                <div id="diagnoseQuestionFlow"></div>
-            </div>
-
-            <div class="scratch-notes-widget" id="scratchNotesWidget">
-                <div class="scratch-notes-header" id="scratchNotesHeader">
-                    <span>💡 Quick Notes</span>
-                    <button type="button" class="scratch-notes-toggle" id="scratchNotesToggle">▾</button>
+                <div id="notesCortexMode" style="display:none;">
+                    <p class="cortex-placeholder">Cortex note generation is coming soon.</p>
                 </div>
-                <textarea class="scratch-notes-textarea" id="scratchNotesBox" placeholder="Jot down a point for later, without losing your place…"></textarea>
             </div>
 
             <div class="modal-overlay" id="matrixModalOverlay">
@@ -2584,331 +2611,349 @@ UwIDAQAB
             </div>
         `;
 
-        const titleInput = document.getElementById('pageTitleInput');
-        titleInput.value = page.title || '';
-        titleInput.focus();
-        titleInput.select();
-        let titleSaveDebounce = null;
-        titleInput.addEventListener('input', () => {
-            clearTimeout(titleSaveDebounce);
-            const newTitle = titleInput.value;
-            document.getElementById('topbarTitle').textContent = `${folderLabel(folder)} · ${newTitle || 'Untitled page'}`;
-            titleSaveDebounce = setTimeout(async () => {
-                page.title = newTitle || 'Untitled page';
-                await putFolder(folder);
-                await refreshFolderList();
-            }, 400);
-        });
+        contentInner.innerHTML = showNotes
+            ? `<div class="page-split-layout">${notesPanelHtml}${lessonPanelHtml}</div>`
+            : lessonPanelHtml;
 
-        const noteBox = document.getElementById('noteBox');
         mathFieldInstances = new Map(); // fresh map for this page
 
-        // Scratch notes: a small "jot this down for later" pad, kept
-        // completely separate from the real notes on purpose — it's
-        // never read by Compile or Play, both of which only ever look at
-        // noteBox. Its own field on the page, its own debounce, its own
-        // save call.
-        const scratchNotesBox = document.getElementById('scratchNotesBox');
-        const scratchNotesWidget = document.getElementById('scratchNotesWidget');
-        scratchNotesBox.value = page.scratchNotes || '';
+        if (showNotes) {
+            const titleInput = document.getElementById('pageTitleInput');
+            titleInput.value = page.title || '';
+            titleInput.focus();
+            titleInput.select();
+            let titleSaveDebounce = null;
+            titleInput.addEventListener('input', () => {
+                clearTimeout(titleSaveDebounce);
+                const newTitle = titleInput.value;
+                document.getElementById('topbarTitle').textContent = `${folderLabel(folder)} · ${newTitle || 'Untitled page'}`;
+                titleSaveDebounce = setTimeout(async () => {
+                    page.title = newTitle || 'Untitled page';
+                    await putFolder(folder);
+                    await refreshFolderList();
+                }, 400);
+            });
 
-        // Starts collapsed on mobile specifically — out of the way until
-        // tapped open, rather than taking up real screen space by default
-        // on a narrow viewport. Desktop keeps its existing open-by-default
-        // behavior unchanged.
-        if (window.innerWidth <= 768) {
-            scratchNotesWidget.classList.add('collapsed');
-        }
+            document.getElementById('notesModeOwn').addEventListener('change', () => {
+                document.getElementById('notesOwnMode').style.display = 'block';
+                document.getElementById('notesCortexMode').style.display = 'none';
+            });
+            document.getElementById('notesModeCortex').addEventListener('change', () => {
+                document.getElementById('notesOwnMode').style.display = 'none';
+                document.getElementById('notesCortexMode').style.display = 'block';
+            });
 
-        let scratchSaveDebounce = null;
-        scratchNotesBox.addEventListener('input', () => {
-            clearTimeout(scratchSaveDebounce);
-            scratchSaveDebounce = setTimeout(async () => {
-                page.scratchNotes = scratchNotesBox.value;
-                await putFolder(folder);
-            }, 400);
-        });
+            const noteBox = document.getElementById('noteBox');
 
-        document.getElementById('scratchNotesHeader').addEventListener('click', () => {
-            scratchNotesWidget.classList.toggle('collapsed');
-        });
+            // Scratch notes: a small "jot this down for later" pad, kept
+            // completely separate from the real notes on purpose — it's
+            // never read by Compile or Play, both of which only ever look at
+            // noteBox. Its own field on the page, its own debounce, its own
+            // save call.
+            const scratchNotesBox = document.getElementById('scratchNotesBox');
+            const scratchNotesWidget = document.getElementById('scratchNotesWidget');
+            scratchNotesBox.value = page.scratchNotes || '';
 
-        // Builds a clean, storage-safe copy of the note's HTML: inline math
-        // fields are reduced to <span class="math-field-inline"
-        // data-latex="..."></span> — MathQuill's own live rendering DOM is
-        // NOT saved (it isn't meant to be treated as static markup), only
-        // the LaTeX source, which is enough to fully rebuild the field next
-        // time the page opens.
-        function serializeNoteContent() {
-            const container = document.createElement('div');
+            // Starts collapsed on mobile specifically — out of the way until
+            // tapped open, rather than taking up real screen space by default
+            // on a narrow viewport. Desktop keeps its existing open-by-default
+            // behavior unchanged.
+            if (window.innerWidth <= 768) {
+                scratchNotesWidget.classList.add('collapsed');
+            }
 
-            function walk(source, target) {
-                source.childNodes.forEach((child) => {
+            let scratchSaveDebounce = null;
+            scratchNotesBox.addEventListener('input', () => {
+                clearTimeout(scratchSaveDebounce);
+                scratchSaveDebounce = setTimeout(async () => {
+                    page.scratchNotes = scratchNotesBox.value;
+                    await putFolder(folder);
+                }, 400);
+            });
+
+            document.getElementById('scratchNotesHeader').addEventListener('click', () => {
+                scratchNotesWidget.classList.toggle('collapsed');
+            });
+
+            // Builds a clean, storage-safe copy of the note's HTML: inline math
+            // fields are reduced to <span class="math-field-inline"
+            // data-latex="..."></span> — MathQuill's own live rendering DOM is
+            // NOT saved (it isn't meant to be treated as static markup), only
+            // the LaTeX source, which is enough to fully rebuild the field next
+            // time the page opens.
+            function serializeNoteContent() {
+                const container = document.createElement('div');
+
+                function walk(source, target) {
+                    source.childNodes.forEach((child) => {
+                        if (child.nodeType === Node.TEXT_NODE) {
+                            target.appendChild(document.createTextNode(child.textContent));
+                            return;
+                        }
+                        if (child.nodeType !== Node.ELEMENT_NODE) return;
+
+                        if (child.classList.contains('math-field-inline')) {
+                            const clean = document.createElement('span');
+                            clean.className = 'math-field-inline';
+                            const instance = mathFieldInstances.get(child);
+                            clean.setAttribute('data-latex', instance ? instance.latex() : (child.dataset.latex || ''));
+                            target.appendChild(clean);
+                            return;
+                        }
+                        if (child.classList.contains('matrix-block')) {
+                            const clean = document.createElement('span');
+                            clean.className = 'matrix-block';
+                            clean.setAttribute('data-latex', child.dataset.latex || '');
+                            target.appendChild(clean);
+                            return;
+                        }
+
+                        const clone = document.createElement(child.tagName);
+                        walk(child, clone);
+                        target.appendChild(clone);
+                    });
+                }
+
+                walk(noteBox, container);
+                return container.innerHTML;
+            }
+
+            // The plain-text version sent to Compile and read aloud by Play —
+            // math fields/matrices contribute their LaTeX source as text (which
+            // Claude reads fine; TTS will read it literally rather than
+            // "speaking" the math, a known, honest limitation for now).
+            function extractPlainText(node) {
+                let result = '';
+                node.childNodes.forEach((child) => {
                     if (child.nodeType === Node.TEXT_NODE) {
-                        target.appendChild(document.createTextNode(child.textContent));
+                        result += child.textContent;
                         return;
                     }
                     if (child.nodeType !== Node.ELEMENT_NODE) return;
 
                     if (child.classList.contains('math-field-inline')) {
-                        const clean = document.createElement('span');
-                        clean.className = 'math-field-inline';
                         const instance = mathFieldInstances.get(child);
-                        clean.setAttribute('data-latex', instance ? instance.latex() : (child.dataset.latex || ''));
-                        target.appendChild(clean);
-                        return;
+                        result += ` ${instance ? instance.latex() : (child.dataset.latex || '')} `;
+                    } else if (child.classList.contains('matrix-block')) {
+                        result += ` ${child.dataset.latex || ''} `;
+                    } else if (child.tagName === 'BR') {
+                        result += '\n';
+                    } else if (child.tagName === 'DIV' || child.tagName === 'P') {
+                        result += extractPlainText(child) + '\n';
+                    } else {
+                        result += extractPlainText(child);
                     }
-                    if (child.classList.contains('matrix-block')) {
-                        const clean = document.createElement('span');
-                        clean.className = 'matrix-block';
-                        clean.setAttribute('data-latex', child.dataset.latex || '');
-                        target.appendChild(clean);
+                });
+                return result;
+            }
+
+            function saveNoteContent() {
+                clearTimeout(saveDebounce);
+                saveDebounce = setTimeout(async () => {
+                    page.content = serializeNoteContent();
+                    await putFolder(folder);
+                }, 400);
+            }
+
+            function renderMatrixBlock(el) {
+                const latex = el.getAttribute('data-latex') || '';
+                try {
+                    katex.render(latex, el, { throwOnError: false, displayMode: true });
+                } catch (err) {
+                    el.textContent = latex; // fallback: show raw LaTeX if rendering fails
+                }
+            }
+
+            function attachMathField(el, initialLatex) {
+                const mq = MQ.MathField(el, {
+                    handlers: { edit: saveNoteContent }
+                });
+                if (initialLatex) mq.latex(initialLatex);
+                mathFieldInstances.set(el, mq);
+                return mq;
+            }
+
+            // Load saved content, then bring any math-field-inline / matrix-block
+            // spans in it back to life (they're saved as inert markup with just
+            // a data-latex attribute — see serializeNoteContent above).
+            noteBox.innerHTML = page.content || '';
+            noteBox.querySelectorAll('.math-field-inline').forEach((el) => {
+                const savedLatex = el.getAttribute('data-latex') || '';
+                el.innerHTML = '';
+                attachMathField(el, savedLatex);
+            });
+            noteBox.querySelectorAll('.matrix-block').forEach(renderMatrixBlock);
+
+            noteBox.addEventListener('input', saveNoteContent);
+
+            // "Insert Math" — drops a live MathQuill field at the current
+            // cursor position within the notes.
+            document.getElementById('insertMathBtn').addEventListener('click', () => {
+                let range;
+                const sel = window.getSelection();
+                if (sel.rangeCount && noteBox.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+                    range = sel.getRangeAt(0);
+                } else {
+                    noteBox.focus();
+                    range = document.createRange();
+                    range.selectNodeContents(noteBox);
+                    range.collapse(false);
+                }
+
+                const span = document.createElement('span');
+                span.className = 'math-field-inline';
+                range.deleteContents();
+                range.insertNode(span);
+
+                const mq = attachMathField(span, '');
+                mq.focus();
+            });
+
+            // "Insert Matrix" — a custom grid tool, not MathQuill (whose own
+            // matrix support is genuinely broken per its GitHub issue tracker).
+            // Rendered read-only via KaTeX, which handles matrix LaTeX correctly.
+            const matrixModalOverlay = document.getElementById('matrixModalOverlay');
+            const matrixGrid = document.getElementById('matrixGrid');
+            const matrixRowsInput = document.getElementById('matrixRowsInput');
+            const matrixColsInput = document.getElementById('matrixColsInput');
+            let matrixInsertRange = null; // where to insert once "Insert" is clicked
+
+            function buildMatrixGrid() {
+                const rows = Math.max(1, Math.min(6, parseInt(matrixRowsInput.value, 10) || 1));
+                const cols = Math.max(1, Math.min(6, parseInt(matrixColsInput.value, 10) || 1));
+                matrixGrid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+                matrixGrid.innerHTML = '';
+                for (let i = 0; i < rows * cols; i++) {
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.placeholder = '0';
+                    matrixGrid.appendChild(input);
+                }
+            }
+
+            document.getElementById('insertMatrixBtn').addEventListener('click', () => {
+                const sel = window.getSelection();
+                if (sel.rangeCount && noteBox.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+                    matrixInsertRange = sel.getRangeAt(0).cloneRange();
+                } else {
+                    noteBox.focus();
+                    const r = document.createRange();
+                    r.selectNodeContents(noteBox);
+                    r.collapse(false);
+                    matrixInsertRange = r;
+                }
+                matrixRowsInput.value = 2;
+                matrixColsInput.value = 2;
+                buildMatrixGrid();
+                matrixModalOverlay.classList.add('open');
+            });
+
+            document.getElementById('matrixResizeBtn').addEventListener('click', buildMatrixGrid);
+            document.getElementById('matrixCancelBtn').addEventListener('click', () => {
+                matrixModalOverlay.classList.remove('open');
+            });
+            matrixModalOverlay.addEventListener('click', (e) => {
+                if (e.target.id === 'matrixModalOverlay') matrixModalOverlay.classList.remove('open');
+            });
+
+            document.getElementById('matrixInsertBtn').addEventListener('click', () => {
+                const cols = Math.max(1, Math.min(6, parseInt(matrixColsInput.value, 10) || 1));
+                const cellInputs = Array.from(matrixGrid.querySelectorAll('input'));
+                const rows = [];
+                for (let i = 0; i < cellInputs.length; i += cols) {
+                    rows.push(cellInputs.slice(i, i + cols).map((inp) => inp.value.trim() || '0').join(' & '));
+                }
+                const latex = `\\begin{pmatrix} ${rows.join(' \\\\ ')} \\end{pmatrix}`;
+
+                const span = document.createElement('span');
+                span.className = 'matrix-block';
+                span.setAttribute('data-latex', latex);
+
+                if (matrixInsertRange) {
+                    matrixInsertRange.deleteContents();
+                    matrixInsertRange.insertNode(span);
+                } else {
+                    noteBox.appendChild(span);
+                }
+                renderMatrixBlock(span);
+                matrixModalOverlay.classList.remove('open');
+                saveNoteContent();
+            });
+
+            if (isPaidUser) {
+                const compileBtn = document.getElementById('compileBtn');
+                const compileStatus = document.getElementById('compileStatus');
+                const compiledOutput = document.getElementById('compiledOutput');
+
+                compileBtn.addEventListener('click', async () => {
+                    const notes = extractPlainText(noteBox).trim();
+                    if (!notes) {
+                        compileStatus.textContent = 'Write some notes first.';
+                        compileStatus.classList.add('error');
                         return;
                     }
 
-                    const clone = document.createElement(child.tagName);
-                    walk(child, clone);
-                    target.appendChild(clone);
+                    compileBtn.disabled = true;
+                    compileStatus.classList.remove('error');
+                    compileStatus.textContent = 'Compiling…';
+                    compiledOutput.style.display = 'none';
+
+                    try {
+                        const { data: { session: compileSession } } = await supabaseClient.auth.getSession();
+                        if (!compileSession) {
+                            throw new Error('Not logged in.');
+                        }
+
+                        const resp = await fetch(`${COMPILE_BACKEND_URL}/compile`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                Authorization: `Bearer ${compileSession.access_token}`
+                            },
+                            body: JSON.stringify({ notes })
+                        });
+
+                        if (!resp.ok) {
+                            const body = await resp.json().catch(() => ({}));
+                            throw new Error(body.error || `Server returned ${resp.status}`);
+                        }
+
+                        const { result } = await resp.json();
+                        compiledOutput.textContent = result;
+                        compiledOutput.style.display = 'block';
+                        compileStatus.textContent = '';
+                    } catch (err) {
+                        console.error('LastMind: compile request failed.', err);
+                        compileStatus.textContent = 'Could not compile your notes. Please try again.';
+                        compileStatus.classList.add('error');
+                    } finally {
+                        compileBtn.disabled = false;
+                    }
                 });
             }
 
-            walk(noteBox, container);
-            return container.innerHTML;
-        }
-
-        // The plain-text version sent to Compile and read aloud by Play —
-        // math fields/matrices contribute their LaTeX source as text (which
-        // Claude reads fine; TTS will read it literally rather than
-        // "speaking" the math, a known, honest limitation for now).
-        function extractPlainText(node) {
-            let result = '';
-            node.childNodes.forEach((child) => {
-                if (child.nodeType === Node.TEXT_NODE) {
-                    result += child.textContent;
+            // Text-to-speech only ever starts from this explicit Play click —
+            // never automatically. Clicking again while speaking stops it.
+            const playBtn = document.getElementById('playBtn');
+            playBtn.addEventListener('click', async () => {
+                if (window.speechSynthesis && window.speechSynthesis.speaking) {
+                    stopSpeaking();
+                    playBtn.classList.remove('playing');
+                    playBtn.textContent = '▶ Play';
                     return;
                 }
-                if (child.nodeType !== Node.ELEMENT_NODE) return;
-
-                if (child.classList.contains('math-field-inline')) {
-                    const instance = mathFieldInstances.get(child);
-                    result += ` ${instance ? instance.latex() : (child.dataset.latex || '')} `;
-                } else if (child.classList.contains('matrix-block')) {
-                    result += ` ${child.dataset.latex || ''} `;
-                } else if (child.tagName === 'BR') {
-                    result += '\n';
-                } else if (child.tagName === 'DIV' || child.tagName === 'P') {
-                    result += extractPlainText(child) + '\n';
-                } else {
-                    result += extractPlainText(child);
-                }
+                const utterance = await speakText(extractPlainText(noteBox));
+                if (!utterance) return;
+                playBtn.classList.add('playing');
+                playBtn.textContent = '■ Stop';
+                utterance.onend = () => {
+                    playBtn.classList.remove('playing');
+                    playBtn.textContent = '▶ Play';
+                };
             });
-            return result;
+
+            setupDictation(noteBox);
         }
-
-        function saveNoteContent() {
-            clearTimeout(saveDebounce);
-            saveDebounce = setTimeout(async () => {
-                page.content = serializeNoteContent();
-                await putFolder(folder);
-            }, 400);
-        }
-
-        function renderMatrixBlock(el) {
-            const latex = el.getAttribute('data-latex') || '';
-            try {
-                katex.render(latex, el, { throwOnError: false, displayMode: true });
-            } catch (err) {
-                el.textContent = latex; // fallback: show raw LaTeX if rendering fails
-            }
-        }
-
-        function attachMathField(el, initialLatex) {
-            const mq = MQ.MathField(el, {
-                handlers: { edit: saveNoteContent }
-            });
-            if (initialLatex) mq.latex(initialLatex);
-            mathFieldInstances.set(el, mq);
-            return mq;
-        }
-
-        // Load saved content, then bring any math-field-inline / matrix-block
-        // spans in it back to life (they're saved as inert markup with just
-        // a data-latex attribute — see serializeNoteContent above).
-        noteBox.innerHTML = page.content || '';
-        noteBox.querySelectorAll('.math-field-inline').forEach((el) => {
-            const savedLatex = el.getAttribute('data-latex') || '';
-            el.innerHTML = '';
-            attachMathField(el, savedLatex);
-        });
-        noteBox.querySelectorAll('.matrix-block').forEach(renderMatrixBlock);
-
-        noteBox.addEventListener('input', saveNoteContent);
-
-        // "Insert Math" — drops a live MathQuill field at the current
-        // cursor position within the notes.
-        document.getElementById('insertMathBtn').addEventListener('click', () => {
-            let range;
-            const sel = window.getSelection();
-            if (sel.rangeCount && noteBox.contains(sel.getRangeAt(0).commonAncestorContainer)) {
-                range = sel.getRangeAt(0);
-            } else {
-                noteBox.focus();
-                range = document.createRange();
-                range.selectNodeContents(noteBox);
-                range.collapse(false);
-            }
-
-            const span = document.createElement('span');
-            span.className = 'math-field-inline';
-            range.deleteContents();
-            range.insertNode(span);
-
-            const mq = attachMathField(span, '');
-            mq.focus();
-        });
-
-        // "Insert Matrix" — a custom grid tool, not MathQuill (whose own
-        // matrix support is genuinely broken per its GitHub issue tracker).
-        // Rendered read-only via KaTeX, which handles matrix LaTeX correctly.
-        const matrixModalOverlay = document.getElementById('matrixModalOverlay');
-        const matrixGrid = document.getElementById('matrixGrid');
-        const matrixRowsInput = document.getElementById('matrixRowsInput');
-        const matrixColsInput = document.getElementById('matrixColsInput');
-        let matrixInsertRange = null; // where to insert once "Insert" is clicked
-
-        function buildMatrixGrid() {
-            const rows = Math.max(1, Math.min(6, parseInt(matrixRowsInput.value, 10) || 1));
-            const cols = Math.max(1, Math.min(6, parseInt(matrixColsInput.value, 10) || 1));
-            matrixGrid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
-            matrixGrid.innerHTML = '';
-            for (let i = 0; i < rows * cols; i++) {
-                const input = document.createElement('input');
-                input.type = 'text';
-                input.placeholder = '0';
-                matrixGrid.appendChild(input);
-            }
-        }
-
-        document.getElementById('insertMatrixBtn').addEventListener('click', () => {
-            const sel = window.getSelection();
-            if (sel.rangeCount && noteBox.contains(sel.getRangeAt(0).commonAncestorContainer)) {
-                matrixInsertRange = sel.getRangeAt(0).cloneRange();
-            } else {
-                noteBox.focus();
-                const r = document.createRange();
-                r.selectNodeContents(noteBox);
-                r.collapse(false);
-                matrixInsertRange = r;
-            }
-            matrixRowsInput.value = 2;
-            matrixColsInput.value = 2;
-            buildMatrixGrid();
-            matrixModalOverlay.classList.add('open');
-        });
-
-        document.getElementById('matrixResizeBtn').addEventListener('click', buildMatrixGrid);
-        document.getElementById('matrixCancelBtn').addEventListener('click', () => {
-            matrixModalOverlay.classList.remove('open');
-        });
-        matrixModalOverlay.addEventListener('click', (e) => {
-            if (e.target.id === 'matrixModalOverlay') matrixModalOverlay.classList.remove('open');
-        });
-
-        document.getElementById('matrixInsertBtn').addEventListener('click', () => {
-            const cols = Math.max(1, Math.min(6, parseInt(matrixColsInput.value, 10) || 1));
-            const cellInputs = Array.from(matrixGrid.querySelectorAll('input'));
-            const rows = [];
-            for (let i = 0; i < cellInputs.length; i += cols) {
-                rows.push(cellInputs.slice(i, i + cols).map((inp) => inp.value.trim() || '0').join(' & '));
-            }
-            const latex = `\\begin{pmatrix} ${rows.join(' \\\\ ')} \\end{pmatrix}`;
-
-            const span = document.createElement('span');
-            span.className = 'matrix-block';
-            span.setAttribute('data-latex', latex);
-
-            if (matrixInsertRange) {
-                matrixInsertRange.deleteContents();
-                matrixInsertRange.insertNode(span);
-            } else {
-                noteBox.appendChild(span);
-            }
-            renderMatrixBlock(span);
-            matrixModalOverlay.classList.remove('open');
-            saveNoteContent();
-        });
-
-        if (isPaidUser) {
-            const compileBtn = document.getElementById('compileBtn');
-            const compileStatus = document.getElementById('compileStatus');
-            const compiledOutput = document.getElementById('compiledOutput');
-
-            compileBtn.addEventListener('click', async () => {
-                const notes = extractPlainText(noteBox).trim();
-                if (!notes) {
-                    compileStatus.textContent = 'Write some notes first.';
-                    compileStatus.classList.add('error');
-                    return;
-                }
-
-                compileBtn.disabled = true;
-                compileStatus.classList.remove('error');
-                compileStatus.textContent = 'Compiling…';
-                compiledOutput.style.display = 'none';
-
-                try {
-                    const { data: { session: compileSession } } = await supabaseClient.auth.getSession();
-                    if (!compileSession) {
-                        throw new Error('Not logged in.');
-                    }
-
-                    const resp = await fetch(`${COMPILE_BACKEND_URL}/compile`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            Authorization: `Bearer ${compileSession.access_token}`
-                        },
-                        body: JSON.stringify({ notes })
-                    });
-
-                    if (!resp.ok) {
-                        const body = await resp.json().catch(() => ({}));
-                        throw new Error(body.error || `Server returned ${resp.status}`);
-                    }
-
-                    const { result } = await resp.json();
-                    compiledOutput.textContent = result;
-                    compiledOutput.style.display = 'block';
-                    compileStatus.textContent = '';
-                } catch (err) {
-                    console.error('LastMind: compile request failed.', err);
-                    compileStatus.textContent = 'Could not compile your notes. Please try again.';
-                    compileStatus.classList.add('error');
-                } finally {
-                    compileBtn.disabled = false;
-                }
-            });
-        }
-
-        // Text-to-speech only ever starts from this explicit Play click —
-        // never automatically. Clicking again while speaking stops it.
-        const playBtn = document.getElementById('playBtn');
-        playBtn.addEventListener('click', async () => {
-            if (window.speechSynthesis && window.speechSynthesis.speaking) {
-                stopSpeaking();
-                playBtn.classList.remove('playing');
-                playBtn.textContent = '▶ Play';
-                return;
-            }
-            const utterance = await speakText(extractPlainText(noteBox));
-            if (!utterance) return;
-            playBtn.classList.add('playing');
-            playBtn.textContent = '■ Stop';
-            utterance.onend = () => {
-                playBtn.classList.remove('playing');
-                playBtn.textContent = '▶ Play';
-            };
-        });
 
         const questionFlowEl = document.getElementById('diagnoseQuestionFlow');
 
@@ -3089,185 +3134,6 @@ UwIDAQAB
             await askNext(startResult.nextQuestion, startResult.state);
         }
 
-        const placementFlowEl = document.getElementById('placementFlowEl');
-
-        // Explicit no-op stub, as requested — wired up later.
-        document.getElementById('generateNotesBtn').addEventListener('click', () => {
-            // no-op for now
-        });
-
-        // Generic runner for a single orchestrator-driven question, reused
-        // by the placement check specifically — everything after the
-        // question itself (slip-check, encoding-check, atomic/mechanistic
-        // branching, real misconception-aware corrections) is the SAME
-        // already-built diagnostic engine used everywhere else in the app,
-        // called through the same /diagnostics/submit-answer endpoint.
-        //
-        // The FIRST question renders directly into `container`. If it's
-        // wrong, that card is locked in place with a "diagnosing the root
-        // cause" note, and every follow-up question renders into a nested,
-        // indented sub-container appended right below it — so the
-        // drill-down reads as a sub-thread hanging off the specific
-        // question that was wrong, not a flat list mixed in with other
-        // prerequisite questions.
-        async function runOrchestratorQuestion(accessToken, subject, topic, conceptLabel, originalQuestion, container) {
-            let state = null;
-            let currentQuestionText = originalQuestion;
-            let currentOptions = null;
-            let finalDiagnosis = 'pass';
-            let followupsContainer = null;
-
-            while (true) {
-                const targetContainer = followupsContainer || container;
-                let cardRef;
-                const submission = await new Promise((resolve) => {
-                    cardRef = renderQuestionCard(currentQuestionText, currentOptions, (sub) => resolve(sub), targetContainer);
-                });
-
-                let resp;
-                try {
-                    resp = await fetch(`${COMPILE_BACKEND_URL}/diagnostics/submit-answer`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            Authorization: `Bearer ${accessToken}`
-                        },
-                        body: JSON.stringify({
-                            subject, topic, conceptLabel, originalQuestion, state,
-                            answer: submission.answer, dontKnow: submission.dontKnow
-                        })
-                    });
-                } catch (err) {
-                    lockAnsweredCard(cardRef, submission.answer, false, 'Could not reach the server. Please try again.');
-                    return 'unresolved';
-                }
-
-                if (!resp.ok) {
-                    const body = await resp.json().catch(() => ({}));
-                    lockAnsweredCard(cardRef, submission.answer, false, body.error || 'Something went wrong.');
-                    return 'unresolved';
-                }
-
-                const result = await resp.json();
-
-                if (result.done) {
-                    finalDiagnosis = result.diagnosis;
-                    if (result.diagnosis === 'pass') {
-                        lockAnsweredCard(cardRef, submission.answer, true, null);
-                    } else {
-                        lockAnsweredCard(cardRef, submission.answer, false, result.correction);
-                    }
-                    return finalDiagnosis;
-                }
-
-                // Not done — this answer didn't clear it, so we're about to
-                // dig into the root cause. Lock this card with that note,
-                // then nest every subsequent question beneath it.
-                lockAnsweredCard(
-                    cardRef, submission.answer, false,
-                    "This answer is incorrect — we're going to diagnose the root cause with the following question(s).",
-                    '✗ Incorrect'
-                );
-
-                if (!followupsContainer) {
-                    followupsContainer = document.createElement('div');
-                    followupsContainer.className = 'prereq-followups';
-                    container.appendChild(followupsContainer);
-                }
-
-                currentQuestionText = result.nextQuestion;
-                currentOptions = result.nextOptions || null;
-                state = result.state;
-            }
-        }
-
-        // Shows a plain "lesson unlocked" confirmation and reveals the real
-        // lesson area — used both when every prerequisite question passed,
-        // and when the concept has no real prerequisite chain to test at all.
-        function showLessonUnlocked() {
-            const card = document.createElement('div');
-            card.className = 'correction-card';
-            card.innerHTML = '<div class="correction-label">Lesson unlocked ✓</div>';
-            placementFlowEl.appendChild(card);
-            document.getElementById('mainLessonArea').style.display = 'block';
-            card.scrollIntoView({ behavior: 'smooth', block: 'end' });
-        }
-
-        const prereqCheckbox = document.getElementById('prereqConfirmCheckbox');
-        const beginBtn = document.getElementById('beginLessonBtn');
-        prereqCheckbox.addEventListener('change', () => {
-            beginBtn.disabled = !prereqCheckbox.checked;
-        });
-
-        document.getElementById('beginLessonBtn').addEventListener('click', async () => {
-            const subject = folder.subject || '';
-            const topic = (loc.subfolder && loc.subfolder.name) || '';
-            const lesson = page.title || 'Untitled page';
-
-            beginBtn.disabled = true;
-            placementFlowEl.innerHTML = '<div class="correction-card">Preparing…</div>';
-
-            try {
-                const { data: { session } } = await supabaseClient.auth.getSession();
-                if (!session) throw new Error('Not logged in.');
-
-                const resp = await fetch(`${COMPILE_BACKEND_URL}/placement/start`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        Authorization: `Bearer ${session.access_token}`
-                    },
-                    body: JSON.stringify({ subject, topic, concept: lesson })
-                });
-
-                if (!resp.ok) {
-                    const body = await resp.json().catch(() => ({}));
-                    throw new Error(body.error || `Server returned ${resp.status}`);
-                }
-
-                const placement = await resp.json();
-                placementFlowEl.innerHTML = '';
-
-                if (!placement.hasPrerequisites || !placement.questions.length) {
-                    showLessonUnlocked();
-                    return;
-                }
-
-                // Every question is generated from a single call above, and
-                // all of them (max 3) are shown together, one below the
-                // other, right away — the student can answer them in any
-                // order. Each is still graded independently and, on a wrong
-                // answer, drilled down to its actual root cause as a nested
-                // sub-thread beneath that specific question, through the
-                // same already-built diagnostic engine used everywhere else
-                // in the app (/diagnostics/submit-answer).
-                const diagnoses = await Promise.all(placement.questions.slice(0, 3).map((q) => {
-                    const block = document.createElement('div');
-                    block.className = 'prereq-question-block';
-                    placementFlowEl.appendChild(block);
-                    return runOrchestratorQuestion(
-                        session.access_token, subject, topic, q.conceptLabel, q.question, block
-                    );
-                }));
-                const allPassed = diagnoses.every((d) => d === 'pass');
-
-                if (allPassed) {
-                    showLessonUnlocked();
-                } else {
-                    const note = document.createElement('div');
-                    note.className = 'correction-card';
-                    note.innerHTML = '<div class="correction-label">Not quite there yet</div>Let\'s work on these before starting the lesson.';
-                    placementFlowEl.appendChild(note);
-                    note.scrollIntoView({ behavior: 'smooth', block: 'end' });
-                }
-            } catch (err) {
-                console.error('LastMind: prerequisite check failed.', err);
-                placementFlowEl.innerHTML = '<div class="correction-card">Could not prepare this lesson. Please try again.</div>';
-            } finally {
-                beginBtn.disabled = !prereqCheckbox.checked;
-            }
-        });
-
         document.getElementById('generateQuestionsBtn').addEventListener('click', async () => {
             const override = reviewOverride;
             reviewOverride = null;
@@ -3289,8 +3155,6 @@ UwIDAQAB
                 generateBtn.disabled = false;
             }
         });
-
-        setupDictation(noteBox);
 
         refreshFolderList();
     }
