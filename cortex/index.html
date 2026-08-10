@@ -542,9 +542,11 @@ SQIDAQAB
             examBoard: f.examBoard,
             subfolders: (f.subfolders || []).map((sf) => ({
                 name: sf.name,
-                pages: (sf.pages || []).map(pageSummary)
+                pages: (sf.pages || []).map(pageSummary),
+                ...(sf.plannedConcepts && sf.plannedConcepts.length ? { plannedConcepts: sf.plannedConcepts } : {})
             })),
-            pages: (f.pages || []).map(pageSummary)
+            pages: (f.pages || []).map(pageSummary),
+            ...(f.plannedConcepts && f.plannedConcepts.length ? { plannedConcepts: f.plannedConcepts } : {})
         }));
     }
 
@@ -705,6 +707,29 @@ SQIDAQAB
         return `Created "${newPage.title}" in ${folderLabel(folder)}${subfolder ? ' > ' + subfolder.name : ''}, covering: ${action.concepts.join(' → ')}.`;
     }
 
+    // Saves the FULL concept order as plannedConcepts on the folder or
+    // subfolder — read by learn/index.html's progress bar (see
+    // subfolderPlanProgress) to show completion against the whole topic,
+    // not just whatever pages happen to exist. Never creates any pages
+    // itself — purely a remembered scope.
+    async function applySetSubfolderPlan(action) {
+        const folders = await getAllFolders();
+        const folder = findFolderByName(folders, action.folderName);
+        if (!folder) return `I couldn't find a folder called "${action.folderName}".`;
+
+        if (action.subfolderName) {
+            const subfolder = findSubfolderByName(folder, action.subfolderName);
+            if (!subfolder) return `I couldn't find a subfolder called "${action.subfolderName}" inside ${folder.subject}.`;
+            subfolder.plannedConcepts = action.concepts;
+            await putFolder(folder);
+            return `Saved a ${action.concepts.length}-concept plan for ${folderLabel(folder)} > ${subfolder.name}. You'll see progress against the whole topic there now.`;
+        }
+
+        folder.plannedConcepts = action.concepts;
+        await putFolder(folder);
+        return `Saved a ${action.concepts.length}-concept plan for ${folderLabel(folder)}. You'll see progress against the whole topic there now.`;
+    }
+
     function describeAndBuildApplier(action) {
         if (action.type === 'move_page') {
             return {
@@ -734,6 +759,12 @@ SQIDAQAB
             return {
                 text: `Create "${action.pageTitle || action.concepts.join(', ')}" in ${action.folderName}${action.subfolderName ? ' > ' + action.subfolderName : ''}, covering ${action.concepts.length} lessons: ${action.concepts.join(' → ')}?`,
                 apply: () => applyCreateMultiLessonPage(action)
+            };
+        }
+        if (action.type === 'set_subfolder_plan' && Array.isArray(action.concepts) && action.concepts.length >= 2) {
+            return {
+                text: `Save this as your tracked plan for ${action.folderName}${action.subfolderName ? ' > ' + action.subfolderName : ''} (${action.concepts.length} concepts)? You'll see a progress bar there.`,
+                apply: () => applySetSubfolderPlan(action)
             };
         }
         return { text: null, apply: null };
