@@ -3620,11 +3620,18 @@ SQIDAQAB
 
         const questionFlowEl = document.getElementById('diagnoseQuestionFlow');
 
-        // Renders one question card — either free-text (default) or
+        // Renders one question card — either free-text (default),
         // multiple-choice (when `options` is provided, used by the
-        // recognition/encoding-check stage). `onSubmit` is called with
-        // { answer, dontKnow } once the student responds.
-        function renderQuestionCard(questionText, options, onSubmit, container) {
+        // recognition/encoding-check stage), or the maths "show your
+        // working" input (when `requiresCalculation` is set, mirroring
+        // renderEncodingAnswerCard's own isMath branch — see
+        // createMathWorkingInput). `onSubmit` is called with
+        // { answer, dontKnow } once the student responds; for a maths card,
+        // `answer` is the same joined-LaTeX-lines string
+        // createMathWorkingInput().getValue() returns elsewhere, so callers
+        // that need to display it back should route it through
+        // mathWorkingToHtml first, same as renderEncodingAnswerCard does.
+        function renderQuestionCard(questionText, options, onSubmit, container, requiresCalculation) {
             const targetEl = container || questionFlowEl;
             const card = document.createElement('div');
             card.className = 'question-card';
@@ -3654,9 +3661,16 @@ SQIDAQAB
                 return card;
             }
 
-            const answerInput = document.createElement('textarea');
-            answerInput.className = 'question-answer-input';
-            answerInput.placeholder = 'Type your answer…';
+            const isMath = !!requiresCalculation;
+            let answerInput = null;
+            let mathInput = null;
+            if (isMath) {
+                mathInput = createMathWorkingInput();
+            } else {
+                answerInput = document.createElement('textarea');
+                answerInput.className = 'question-answer-input';
+                answerInput.placeholder = 'Type your answer…';
+            }
 
             const footer = document.createElement('div');
             footer.className = 'question-card-footer';
@@ -3673,17 +3687,22 @@ SQIDAQAB
             submitBtn.textContent = 'Submit';
 
             dontKnowCheckbox.addEventListener('change', () => {
-                answerInput.disabled = dontKnowCheckbox.checked;
-                if (dontKnowCheckbox.checked) answerInput.value = '';
+                if (isMath) {
+                    mathInput.setDisabled(dontKnowCheckbox.checked);
+                } else {
+                    answerInput.disabled = dontKnowCheckbox.checked;
+                    if (dontKnowCheckbox.checked) answerInput.value = '';
+                }
             });
 
             submitBtn.addEventListener('click', () => {
-                onSubmit({ answer: answerInput.value, dontKnow: dontKnowCheckbox.checked });
+                const answer = isMath ? mathInput.getValue() : answerInput.value;
+                onSubmit({ answer, dontKnow: dontKnowCheckbox.checked });
             });
 
             footer.appendChild(dontKnowLabel);
             footer.appendChild(submitBtn);
-            card.appendChild(answerInput);
+            if (isMath) card.appendChild(mathInput.container); else card.appendChild(answerInput);
             card.appendChild(footer);
             targetEl.appendChild(card);
             card.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -4143,10 +4162,10 @@ SQIDAQAB
                     finishDrilldown(result.answerCorrect);
                     return;
                 }
-                askNextDiagnostic(result.nextQuestion, result.nextOptions, result.state);
+                askNextDiagnostic(result.nextQuestion, result.nextOptions, result.state, result.nextRequiresCalculation);
             }
 
-            function askNextDiagnostic(questionText, options, diagState) {
+            function askNextDiagnostic(questionText, options, diagState, requiresCalculation) {
                 let errorNote = null;
                 const qCard = renderQuestionCard(questionText, options, async (submission) => {
                     if (!submission.dontKnow && !submission.answer.trim()) return;
@@ -4192,9 +4211,12 @@ SQIDAQAB
                     const statusLabel = result.done
                         ? (correct ? '✓ Correct' : '✗ Not quite — diagnosis complete')
                         : (correct ? '✓ Correct — checking one more thing' : '✗ Not quite — let’s dig a bit deeper');
-                    lockAnsweredCard(qCard, submission.answer, correct, null, statusLabel);
+                    const answerRecord = submission.dontKnow
+                        ? "(I don't know)"
+                        : (requiresCalculation ? { html: mathWorkingToHtml(submission.answer) } : submission.answer);
+                    lockAnsweredCard(qCard, answerRecord, correct, null, statusLabel);
                     handleDiagnosticResult(result);
-                }, drilldownBlock);
+                }, drilldownBlock, requiresCalculation);
             }
 
             // A failure to even START the drilldown previously ended it
