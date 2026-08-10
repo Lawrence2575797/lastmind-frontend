@@ -722,6 +722,24 @@ SQIDAQAB
         return null;
     }
 
+    // Auto-creates a same-named subfolder rather than erroring when the
+    // name Cortex chose doesn't resolve to an existing one, even with
+    // fuzzyFindByName's leniency — a subfolder is cheap to rename or merge
+    // by hand afterward, but a dead-end "I couldn't find..." mid-conversation
+    // isn't recoverable without starting the request over. Only ever used
+    // for subfolders (never folders): a folder needs a qualification/exam
+    // board neither the caller nor Cortex's action payload carries here, so
+    // there's nothing sensible to auto-create it with.
+    function getOrCreateSubfolder(folder, name) {
+        let subfolder = findSubfolderByName(folder, name);
+        if (!subfolder) {
+            subfolder = { id: crypto.randomUUID(), name, pages: [] };
+            folder.subfolders = folder.subfolders || [];
+            folder.subfolders.push(subfolder);
+        }
+        return subfolder;
+    }
+
     async function applyMovePage(action) {
         const folders = await getAllFolders();
         const loc = findPageByTitleAnywhere(folders, action.pageTitle);
@@ -730,15 +748,7 @@ SQIDAQAB
         const targetFolder = findFolderByName(folders, action.targetFolderName);
         if (!targetFolder) return `I couldn't find a folder called "${action.targetFolderName}".`;
 
-        let targetSubfolder = null;
-        if (action.targetSubfolderName) {
-            targetSubfolder = findSubfolderByName(targetFolder, action.targetSubfolderName);
-            if (!targetSubfolder) {
-                targetSubfolder = { id: crypto.randomUUID(), name: action.targetSubfolderName, pages: [] };
-                targetFolder.subfolders = targetFolder.subfolders || [];
-                targetFolder.subfolders.push(targetSubfolder);
-            }
-        }
+        const targetSubfolder = action.targetSubfolderName ? getOrCreateSubfolder(targetFolder, action.targetSubfolderName) : null;
 
         const sourceArray = loc.subfolder ? loc.subfolder.pages : loc.folder.pages;
         const idx = sourceArray.findIndex((p) => p.id === loc.page.id);
@@ -784,15 +794,7 @@ SQIDAQAB
         const folder = findFolderByName(folders, action.subject);
         if (!folder) return `I couldn't find a folder for "${action.subject}" yet — create that folder first and I can add the notes.`;
 
-        let subfolder = null;
-        if (action.topic) {
-            subfolder = findSubfolderByName(folder, action.topic);
-            if (!subfolder) {
-                subfolder = { id: crypto.randomUUID(), name: action.topic, pages: [] };
-                folder.subfolders = folder.subfolders || [];
-                folder.subfolders.push(subfolder);
-            }
-        }
+        const subfolder = action.topic ? getOrCreateSubfolder(folder, action.topic) : null;
 
         const targetArray = subfolder ? (subfolder.pages = subfolder.pages || []) : (folder.pages = folder.pages || []);
         let page = targetArray.find((p) => (p.title || '').trim().toLowerCase() === (action.lesson || '').trim().toLowerCase());
@@ -820,11 +822,7 @@ SQIDAQAB
         const folder = findFolderByName(folders, action.folderName);
         if (!folder) return `I couldn't find a folder called "${action.folderName}".`;
 
-        let subfolder = null;
-        if (action.subfolderName) {
-            subfolder = findSubfolderByName(folder, action.subfolderName);
-            if (!subfolder) return `I couldn't find a subfolder called "${action.subfolderName}" inside ${folder.subject}.`;
-        }
+        const subfolder = action.subfolderName ? getOrCreateSubfolder(folder, action.subfolderName) : null;
 
         const targetArray = subfolder ? (subfolder.pages = subfolder.pages || []) : (folder.pages = folder.pages || []);
         const newPage = {
@@ -851,8 +849,7 @@ SQIDAQAB
         if (!folder) return `I couldn't find a folder called "${action.folderName}".`;
 
         if (action.subfolderName) {
-            const subfolder = findSubfolderByName(folder, action.subfolderName);
-            if (!subfolder) return `I couldn't find a subfolder called "${action.subfolderName}" inside ${folder.subject}.`;
+            const subfolder = getOrCreateSubfolder(folder, action.subfolderName);
             subfolder.plannedConcepts = action.concepts;
             await putFolder(folder);
             return `Saved a ${action.concepts.length}-concept plan for ${folderLabel(folder)} > ${subfolder.name}. You'll see progress against the whole topic there now.`;
@@ -874,11 +871,7 @@ SQIDAQAB
         const folder = findFolderByName(folders, action.folderName);
         if (!folder) return `I couldn't find a folder called "${action.folderName}".`;
 
-        let subfolder = null;
-        if (action.subfolderName) {
-            subfolder = findSubfolderByName(folder, action.subfolderName);
-            if (!subfolder) return `I couldn't find a subfolder called "${action.subfolderName}" inside ${folder.subject}.`;
-        }
+        const subfolder = action.subfolderName ? getOrCreateSubfolder(folder, action.subfolderName) : null;
 
         const targetArray = subfolder ? (subfolder.pages = subfolder.pages || []) : (folder.pages = folder.pages || []);
         const existingTitles = new Set();
