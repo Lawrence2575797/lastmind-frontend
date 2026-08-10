@@ -675,6 +675,36 @@ SQIDAQAB
         return `Added notes for "${action.lesson}" to ${folderLabel(folder)}${subfolder ? ' > ' + subfolder.name : ''}.`;
     }
 
+    // Creates ONE page tracking several concepts in sequence, instead of
+    // one page per concept — see learn/index.html's pageIsMultiLesson and
+    // the "lessons" field it reads. Each entry starts un-taught; the page
+    // walks them in order the same way a single-concept page walks its own
+    // steps, just at the concept level instead of the step level.
+    async function applyCreateMultiLessonPage(action) {
+        const folders = await getAllFolders();
+        const folder = findFolderByName(folders, action.folderName);
+        if (!folder) return `I couldn't find a folder called "${action.folderName}".`;
+
+        let subfolder = null;
+        if (action.subfolderName) {
+            subfolder = findSubfolderByName(folder, action.subfolderName);
+            if (!subfolder) return `I couldn't find a subfolder called "${action.subfolderName}" inside ${folder.subject}.`;
+        }
+
+        const targetArray = subfolder ? (subfolder.pages = subfolder.pages || []) : (folder.pages = folder.pages || []);
+        const newPage = {
+            id: crypto.randomUUID(),
+            title: action.pageTitle || action.concepts.join(', '),
+            content: '',
+            lessons: action.concepts.map((concept) => ({ concept, encodingDone: false })),
+            currentLessonIndex: 0,
+            createdAt: Date.now()
+        };
+        targetArray.push(newPage);
+        await putFolder(folder);
+        return `Created "${newPage.title}" in ${folderLabel(folder)}${subfolder ? ' > ' + subfolder.name : ''}, covering: ${action.concepts.join(' → ')}.`;
+    }
+
     function describeAndBuildApplier(action) {
         if (action.type === 'move_page') {
             return {
@@ -698,6 +728,12 @@ SQIDAQAB
             return {
                 text: `Add generated notes for "${action.lesson}" (${action.subject}${action.topic ? ' > ' + action.topic : ''})?`,
                 apply: () => applyGenerateNotes(action)
+            };
+        }
+        if (action.type === 'create_multi_lesson_page' && Array.isArray(action.concepts) && action.concepts.length >= 2) {
+            return {
+                text: `Create "${action.pageTitle || action.concepts.join(', ')}" in ${action.folderName}${action.subfolderName ? ' > ' + action.subfolderName : ''}, covering ${action.concepts.length} lessons: ${action.concepts.join(' → ')}?`,
+                apply: () => applyCreateMultiLessonPage(action)
             };
         }
         return { text: null, apply: null };

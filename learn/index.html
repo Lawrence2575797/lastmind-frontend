@@ -642,6 +642,74 @@
         margin-bottom: 6px;
     }
 
+    .multi-lesson-list {
+        list-style: none;
+        margin: 14px 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .multi-lesson-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 8px 12px;
+        border-radius: 6px;
+        border: 1px solid rgba(230, 215, 176, 0.15);
+        font-size: 0.9rem;
+        opacity: 0.6;
+    }
+
+    .multi-lesson-item.done {
+        opacity: 0.85;
+    }
+
+    .multi-lesson-item.current {
+        opacity: 1;
+        border-color: rgba(230, 215, 176, 0.4);
+    }
+
+    .multi-lesson-marker {
+        display: inline-block;
+        width: 1.1em;
+        text-align: center;
+    }
+
+    .review-concept-btn {
+        background: none;
+        border: 1px solid rgba(230, 215, 176, 0.3);
+        border-radius: 4px;
+        color: var(--text);
+        font-size: 0.78rem;
+        padding: 4px 10px;
+        cursor: pointer;
+    }
+
+    .review-concept-btn:disabled {
+        opacity: 0.5;
+        cursor: default;
+    }
+
+    .multi-lesson-trigger-btn {
+        display: inline-block;
+        background: none;
+        border: none;
+        color: var(--text);
+        opacity: 0.65;
+        font-size: 0.82rem;
+        text-decoration: underline;
+        cursor: pointer;
+        padding: 0;
+        margin: 4px 0 12px;
+    }
+
+    .multi-lesson-trigger-btn:hover {
+        opacity: 1;
+    }
+
     .notes-mode-toggle {
         display: flex;
         flex-direction: column;
@@ -1273,6 +1341,23 @@
         border-color: rgba(230, 215, 176, 0.5);
     }
 
+    .multi-lesson-input {
+        width: 100%;
+        background: var(--panel);
+        border: 1px solid rgba(230, 215, 176, 0.2);
+        border-radius: 4px;
+        padding: 10px 12px;
+        color: var(--text);
+        font-family: 'Arial', sans-serif;
+        font-size: 0.9rem;
+        resize: vertical;
+    }
+
+    .multi-lesson-input:focus {
+        outline: none;
+        border-color: rgba(230, 215, 176, 0.5);
+    }
+
     /* ─── Level dropdown (searchable) — New/Rename Folder modals ─── */
     .level-field {
         position: relative;
@@ -1567,6 +1652,23 @@
         <div class="modal-actions">
             <button class="btn" id="cancelSubfolderBtn">Cancel</button>
             <button class="btn primary" id="submitSubfolderBtn">Create</button>
+        </div>
+    </div>
+</div>
+
+<!-- ─── COVER MULTIPLE LESSONS ON THIS PAGE ─── -->
+<div class="modal-overlay" id="multiLessonModalOverlay">
+    <div class="modal">
+        <h3>Cover Multiple Lessons On This Page</h3>
+
+        <div class="field">
+            <label for="multiLessonInput">Lesson names, one per line, in the order you'll teach them (this page's own title counts as the first)</label>
+            <textarea id="multiLessonInput" class="multi-lesson-input" placeholder="MRS&#10;Budget line&#10;Optimal choice" rows="5"></textarea>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn" id="cancelMultiLessonBtn">Cancel</button>
+            <button class="btn primary" id="submitMultiLessonBtn">Save</button>
         </div>
     </div>
 </div>
@@ -1995,6 +2097,76 @@ SQIDAQAB
         }).join('');
     }
 
+    // A "multi-lesson" page tracks several concepts in sequence (each with
+    // its own encodingDone flag, and — once taught — its own independent
+    // FSRS review schedule, exactly like any standalone page's concept)
+    // instead of the single page.title/page.encodingDone pair a normal
+    // page uses. Created via Cortex (create_multi_lesson_page) or the
+    // "cover more lessons on this page" flow below. Absent/empty `lessons`
+    // means an ordinary single-concept page — every existing page keeps
+    // working exactly as before.
+    function pageIsMultiLesson(p) {
+        return Array.isArray(p.lessons) && p.lessons.length > 0;
+    }
+
+    // How a page (single- or multi-lesson) reports itself as a sibling
+    // concept to ANOTHER page's lesson generation — see
+    // siblingConceptsForCurrentPage. A multi-lesson page contributes ALL
+    // its sub-concepts individually, each with its own done status.
+    function pageAsSiblingConcepts(p) {
+        if (pageIsMultiLesson(p)) {
+            return p.lessons.map((l) => ({ label: l.concept, done: l.encodingDone === true }));
+        }
+        return [{ label: p.title, done: p.encodingDone === true || p.taughtBefore === true }];
+    }
+
+    // The sub-lesson a multi-lesson page should teach next — the first one
+    // not yet marked done, walked in the order they were added (same
+    // sequential philosophy as a single lesson's own steps). Null once
+    // every sub-lesson is done.
+    function activeSubLesson(p) {
+        if (!pageIsMultiLesson(p)) return null;
+        return p.lessons.find((l) => !l.encodingDone) || null;
+    }
+
+    function multiLessonEncodingPanelHtml(page) {
+        const doneCount = page.lessons.filter((l) => l.encodingDone).length;
+        let seenCurrent = false;
+        const items = page.lessons.map((l) => {
+            const isCurrent = !l.encodingDone && !seenCurrent;
+            if (isCurrent) seenCurrent = true;
+            const marker = l.encodingDone ? '✓' : (isCurrent ? '→' : '');
+            const cls = l.encodingDone ? 'done' : (isCurrent ? 'current' : '');
+            return `<li class="multi-lesson-item ${cls}"><span class="multi-lesson-marker">${marker}</span> ${escapeHtml(l.concept)}</li>`;
+        }).join('');
+        return `
+        <div class="lesson-panel">
+            <h3 class="lesson-panel-heading">Your First Encoding Lessons</h3>
+            <p class="lesson-intro-message">This page covers ${page.lessons.length} lessons, taught in order (${doneCount} of ${page.lessons.length} done so far).</p>
+            <ul class="multi-lesson-list">${items}</ul>
+            <div class="bottom-action-row">
+                <button class="generate-questions-btn" id="generateQuestionsBtn" ${isPaidUser ? '' : 'disabled title="Upgrade to unlock diagnostics"'}>Start Lesson</button>
+            </div>
+            <div id="diagnoseQuestionFlow"></div>
+        </div>`;
+    }
+
+    function multiLessonReviewPanelHtml(page) {
+        const items = page.lessons.map((l) => `
+            <li class="multi-lesson-item done">
+                <span><span class="multi-lesson-marker">✓</span> ${escapeHtml(l.concept)}</span>
+                <button class="review-concept-btn" data-concept="${escapeHtml(l.concept)}" ${isPaidUser ? '' : 'disabled title="Upgrade to unlock diagnostics"'}>Review</button>
+            </li>
+        `).join('');
+        return `
+        <div class="lesson-panel">
+            <h3 class="lesson-panel-heading">Take a Retrieval Lesson</h3>
+            <p class="lesson-intro-message">This page covers ${page.lessons.length} lessons — review whichever one's due, whenever you're ready.</p>
+            <ul class="multi-lesson-list">${items}</ul>
+            <div id="diagnoseQuestionFlow"></div>
+        </div>`;
+    }
+
     function closeAllItemMenus() {
         document.querySelectorAll('.item-dropdown-menu.open').forEach((m) => {
             m.classList.remove('open');
@@ -2109,6 +2281,19 @@ SQIDAQAB
     function closeSubfolderModal() {
         document.getElementById('subfolderModalOverlay').classList.remove('open');
         pendingSubfolderFolderId = null;
+    }
+
+    let pendingMultiLessonPageId = null;
+
+    function openMultiLessonModal(pageId) {
+        pendingMultiLessonPageId = pageId;
+        document.getElementById('multiLessonInput').value = '';
+        document.getElementById('multiLessonModalOverlay').classList.add('open');
+    }
+
+    function closeMultiLessonModal() {
+        document.getElementById('multiLessonModalOverlay').classList.remove('open');
+        pendingMultiLessonPageId = null;
     }
 
     async function createSubfolder(folderId, name) {
@@ -2801,11 +2986,19 @@ SQIDAQAB
         // pages that already went through the old Yes/No gate don't get
         // sent back through encoding — "Yes" under the old gate counts as
         // encoding already done.
-        const encodingDone = page.encodingDone === true || page.taughtBefore === true;
+        // A multi-lesson page (see pageIsMultiLesson) is "done" once every
+        // one of its sub-lessons is — same trigger point as a normal
+        // page's single encodingDone flag, just aggregated across the set.
+        const isMulti = pageIsMultiLesson(page);
+        const encodingDone = isMulti
+            ? page.lessons.every((l) => l.encodingDone)
+            : (page.encodingDone === true || page.taughtBefore === true);
         const showNotes = encodingDone;
 
-        const lessonPanelHtml = encodingDone
-            ? `
+        const lessonPanelHtml = isMulti
+            ? (encodingDone ? multiLessonReviewPanelHtml(page) : multiLessonEncodingPanelHtml(page))
+            : (encodingDone
+                ? `
             <div class="lesson-panel">
                 <h3 class="lesson-panel-heading">Take Your Retrieval Lesson</h3>
                 <p class="lesson-intro-message">This lesson is designed to allow you to construct the lesson with the right amount of scaffolding for you. Here is the first step:</p>
@@ -2815,16 +3008,17 @@ SQIDAQAB
                 <div id="diagnoseQuestionFlow"></div>
             </div>
         `
-            : `
+                : `
             <div class="lesson-panel">
                 <h3 class="lesson-panel-heading">Your First Encoding Lesson</h3>
                 <p class="lesson-intro-message">This lesson is designed to allow you to construct the lesson with the right amount of scaffolding for you. Here is the first step:</p>
+                <button type="button" class="multi-lesson-trigger-btn" id="multiLessonTriggerBtn">+ Cover multiple lessons on this page</button>
                 <div class="bottom-action-row">
                     <button class="generate-questions-btn" id="generateQuestionsBtn" ${isPaidUser ? '' : 'disabled title="Upgrade to unlock diagnostics"'}>Start Lesson</button>
                 </div>
                 <div id="diagnoseQuestionFlow"></div>
             </div>
-        `;
+        `);
 
         const notesPanelHtml = `
             <div class="notes-panel">
@@ -3764,6 +3958,20 @@ SQIDAQAB
         // hook fact the lesson opened with.
         let lessonHookFact = '';
 
+        // Which concept runEncodingLesson most recently started — for a
+        // multi-lesson page, this is how renderNextEncodingStep knows
+        // WHICH of page.lessons[] just finished (its own state.conceptKey
+        // is normalized/hashed, not the original label, so it can't be
+        // matched back to page.lessons directly).
+        let activeEncodingConcept = '';
+
+        // Accumulates {concept, hookFact, steps} for every sub-lesson
+        // completed on a multi-lesson page this session, so the eventual
+        // notes-generation offer (once ALL sub-lessons are done) can
+        // compile one coherent set of notes spanning the whole page,
+        // rather than one disconnected note block per sub-lesson.
+        let completedLessonTranscripts = [];
+
         function renderEncodingStep(accessToken, step, state) {
             if (step.type === 'explain') {
                 renderEncodingAnswerCard(accessToken, step, state, step.text);
@@ -3780,11 +3988,56 @@ SQIDAQAB
                 questionFlowEl.appendChild(summary);
                 summary.scrollIntoView({ behavior: 'smooth', block: 'end' });
 
+                if (isMulti) {
+                    completedLessonTranscripts.push({
+                        concept: activeEncodingConcept,
+                        hookFact: lessonHookFact,
+                        steps: result.state.steps.map((s) => ({ label: s.label, type: s.type, text: s.text, checkQuestion: s.checkQuestion }))
+                    });
+
+                    const finished = page.lessons.find((l) => l.concept === activeEncodingConcept);
+                    if (finished) finished.encodingDone = true;
+                    const nextIdx = page.lessons.findIndex((l) => !l.encodingDone);
+                    page.currentLessonIndex = nextIdx === -1 ? page.lessons.length : nextIdx;
+                    putFolder(folder);
+
+                    const next = activeSubLesson(page);
+                    if (next) {
+                        // Every OTHER step in this app deliberately never
+                        // pauses for confirmation between beats — carry
+                        // that straight through between sub-lessons too,
+                        // rather than making the student click to continue.
+                        const transition = document.createElement('div');
+                        transition.className = 'correction-card';
+                        transition.innerHTML = `<div class="correction-label">Next up</div>${escapeHtml(next.concept)}`;
+                        questionFlowEl.appendChild(transition);
+                        transition.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+                        (async () => {
+                            const { data: { session: diagSession } } = await supabaseClient.auth.getSession();
+                            if (!diagSession) {
+                                questionFlowEl.innerHTML += '<div class="correction-card">Please log in again to continue.</div>';
+                                return;
+                            }
+                            await runEncodingLesson(diagSession.access_token, folder.subject || '', (loc.subfolder && loc.subfolder.name) || '', next.concept, folder.qualification, folder.examBoard);
+                        })();
+                        return;
+                    }
+
+                    // Every sub-lesson on this page is now done.
+                    offerGenerateNotes(accessToken, completedLessonTranscripts);
+                    return;
+                }
+
                 if (!page.encodingDone) {
                     page.encodingDone = true;
                     putFolder(folder);
                 }
-                offerGenerateNotes(accessToken, result.state);
+                offerGenerateNotes(accessToken, [{
+                    concept: page.title || 'Untitled page',
+                    hookFact: lessonHookFact,
+                    steps: result.state.steps.map((s) => ({ label: s.label, type: s.type, text: s.text, checkQuestion: s.checkQuestion }))
+                }]);
                 return;
             }
             renderEncodingStep(accessToken, result.step, result.state);
@@ -3796,8 +4049,12 @@ SQIDAQAB
         // existing to overwrite or merge with. On success, re-opens the
         // page so the split notes/lesson layout renders immediately with
         // the generated notes already in place, instead of leaving the
-        // student to navigate away and back to see them.
-        function offerGenerateNotes(accessToken, state) {
+        // student to navigate away and back to see them. `lessons` is one
+        // entry per concept this page covers — a single-concept page
+        // passes an array of one; a multi-lesson page passes everything
+        // completed across the whole page, so the notes read as one
+        // coherent set instead of disconnected per-concept blocks.
+        function offerGenerateNotes(accessToken, lessons) {
             const wrap = document.createElement('div');
             wrap.className = 'correction-card generate-notes-offer';
 
@@ -3806,7 +4063,7 @@ SQIDAQAB
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             label.appendChild(checkbox);
-            label.appendChild(document.createTextNode(' Generate notes based on this lesson'));
+            label.appendChild(document.createTextNode(lessons.length > 1 ? ' Generate notes based on these lessons' : ' Generate notes based on this lesson'));
             wrap.appendChild(label);
 
             const status = document.createElement('div');
@@ -3826,10 +4083,9 @@ SQIDAQAB
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
                         body: JSON.stringify({
-                            subject: state.subject,
-                            concept: page.title || 'Untitled page',
-                            hookFact: lessonHookFact,
-                            steps: state.steps.map((s) => ({ label: s.label, type: s.type, text: s.text, checkQuestion: s.checkQuestion }))
+                            subject: folder.subject || '',
+                            pageTitle: page.title || 'Untitled page',
+                            lessons
                         })
                     });
                     if (!resp.ok) {
@@ -3858,14 +4114,22 @@ SQIDAQAB
         // siblingConcepts param). This is exactly the "optimal choice"
         // case: without this, a not-yet-done "Budget line" page sitting
         // right next to it was invisible to the generator.
-        function siblingConceptsForCurrentPage() {
+        // excludeConcept keeps a multi-lesson page's own CURRENT sub-lesson
+        // from being listed as a sibling of itself; its OTHER, not-yet-done
+        // sub-lessons are otherwise exactly as relevant as another page's
+        // unfinished pages — the whole reason to group concepts on one
+        // page is that they depend on each other.
+        function siblingConceptsForCurrentPage(excludeConcept) {
             const siblingPages = (loc.subfolder ? loc.subfolder.pages : folder.pages) || [];
-            return siblingPages
-                .filter((p) => p.id !== page.id)
-                .map((p) => ({ label: p.title, done: p.encodingDone === true || p.taughtBefore === true }));
+            const fromOtherPages = siblingPages.filter((p) => p.id !== page.id).flatMap(pageAsSiblingConcepts);
+            const fromThisPage = isMulti
+                ? page.lessons.filter((l) => l.concept !== excludeConcept).map((l) => ({ label: l.concept, done: l.encodingDone === true }))
+                : [];
+            return [...fromOtherPages, ...fromThisPage];
         }
 
         async function runEncodingLesson(accessToken, subject, topic, concept, qualification, examBoard) {
+            activeEncodingConcept = concept;
             questionFlowEl.innerHTML = '<div class="correction-card">Preparing your first lesson…</div>';
 
             let resp;
@@ -3877,7 +4141,7 @@ SQIDAQAB
                         subject, topic, concept,
                         qualification: qualification || '',
                         examBoard: examBoard || '',
-                        siblingConcepts: siblingConceptsForCurrentPage()
+                        siblingConcepts: siblingConceptsForCurrentPage(concept)
                     })
                 });
             } catch (err) {
@@ -3904,30 +4168,66 @@ SQIDAQAB
             renderEncodingStep(accessToken, startResult.step, startResult.state);
         }
 
-        document.getElementById('generateQuestionsBtn').addEventListener('click', async () => {
-            const override = reviewOverride;
-            reviewOverride = null;
-            const subject = override ? override.subject : (folder.subject || '');
-            const topic = override ? override.topic : ((loc.subfolder && loc.subfolder.name) || '');
-            const lesson = override ? override.lesson : (page.title || 'Untitled page');
+        // Only rendered for a fresh, not-yet-started, not-already-multi
+        // page (see the single-concept "Your First Encoding Lesson" panel)
+        // — opens the modal that turns it into a multi-lesson page.
+        const multiLessonTriggerBtn = document.getElementById('multiLessonTriggerBtn');
+        if (multiLessonTriggerBtn) {
+            multiLessonTriggerBtn.addEventListener('click', () => openMultiLessonModal(page.id));
+        }
 
-            const generateBtn = document.getElementById('generateQuestionsBtn');
-            generateBtn.disabled = true;
+        // A multi-lesson page that's fully done renders per-concept Review
+        // buttons instead (see multiLessonReviewPanelHtml) — no
+        // generateQuestionsBtn exists in the DOM in that case.
+        const generateBtn = document.getElementById('generateQuestionsBtn');
+        if (generateBtn) {
+            generateBtn.addEventListener('click', async () => {
+                const override = reviewOverride;
+                reviewOverride = null;
+                const subject = override ? override.subject : (folder.subject || '');
+                const topic = override ? override.topic : ((loc.subfolder && loc.subfolder.name) || '');
+                const active = isMulti ? activeSubLesson(page) : null;
+                const lesson = override ? override.lesson : (active ? active.concept : (page.title || 'Untitled page'));
 
-            try {
-                const { data: { session: diagSession } } = await supabaseClient.auth.getSession();
-                if (!diagSession) throw new Error('Not logged in.');
-                if (encodingDone) {
-                    await runChainLesson(diagSession.access_token, subject, topic, lesson);
-                } else {
-                    await runEncodingLesson(diagSession.access_token, subject, topic, lesson, folder.qualification, folder.examBoard);
+                generateBtn.disabled = true;
+
+                try {
+                    const { data: { session: diagSession } } = await supabaseClient.auth.getSession();
+                    if (!diagSession) throw new Error('Not logged in.');
+                    if (encodingDone) {
+                        await runChainLesson(diagSession.access_token, subject, topic, lesson);
+                    } else {
+                        await runEncodingLesson(diagSession.access_token, subject, topic, lesson, folder.qualification, folder.examBoard);
+                    }
+                } catch (err) {
+                    console.error('LastMind: lesson failed.', err);
+                    questionFlowEl.innerHTML = '<div class="correction-card">Could not start the lesson. Please try again.</div>';
+                } finally {
+                    generateBtn.disabled = false;
                 }
-            } catch (err) {
-                console.error('LastMind: lesson failed.', err);
-                questionFlowEl.innerHTML = '<div class="correction-card">Could not start the lesson. Please try again.</div>';
-            } finally {
-                generateBtn.disabled = false;
-            }
+            });
+        }
+
+        // Per-concept review triggers on a fully-taught multi-lesson page
+        // (see multiLessonReviewPanelHtml) — each sub-concept has its own
+        // independent FSRS schedule exactly like a standalone page would,
+        // so each gets reviewed on its own via the same runChainLesson
+        // this button drives for a normal page.
+        document.querySelectorAll('.review-concept-btn').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+                const concept = btn.getAttribute('data-concept');
+                btn.disabled = true;
+                try {
+                    const { data: { session: diagSession } } = await supabaseClient.auth.getSession();
+                    if (!diagSession) throw new Error('Not logged in.');
+                    await runChainLesson(diagSession.access_token, folder.subject || '', (loc.subfolder && loc.subfolder.name) || '', concept);
+                } catch (err) {
+                    console.error('LastMind: review failed.', err);
+                    questionFlowEl.innerHTML = '<div class="correction-card">Could not start the lesson. Please try again.</div>';
+                } finally {
+                    btn.disabled = false;
+                }
+            });
         });
 
         // Sidebar-only re-render (selection highlighting) — deliberately
@@ -4365,6 +4665,40 @@ SQIDAQAB
         if (!name || !folderId) return;
         closeSubfolderModal();
         await createSubfolder(folderId, name);
+    });
+
+    document.getElementById('cancelMultiLessonBtn').addEventListener('click', closeMultiLessonModal);
+    document.getElementById('multiLessonModalOverlay').addEventListener('click', (e) => {
+        if (e.target.id === 'multiLessonModalOverlay') closeMultiLessonModal();
+    });
+    document.getElementById('submitMultiLessonBtn').addEventListener('click', async () => {
+        const pageId = pendingMultiLessonPageId;
+        if (!pageId) return;
+        const extraConcepts = document.getElementById('multiLessonInput').value
+            .split('\n')
+            .map((s) => s.trim())
+            .filter(Boolean);
+        closeMultiLessonModal();
+        if (!extraConcepts.length) return;
+
+        const loc = findPageLocation(pageId);
+        if (!loc) return;
+        const page = loc.pagesArray.find((p) => p.id === pageId);
+        if (!page) return;
+
+        // This page's own title becomes the first lesson in the sequence
+        // — everything the page already represented stays lesson #1, the
+        // extra names just get queued up after it.
+        page.lessons = [
+            { concept: page.title || 'Untitled page', encodingDone: false },
+            ...extraConcepts.map((concept) => ({ concept, encodingDone: false }))
+        ];
+        page.currentLessonIndex = 0;
+
+        await putFolder(loc.folder);
+        if (selectedPageId === pageId) {
+            openPage(loc.folder.id, pageId, loc.subfolder ? loc.subfolder.id : null);
+        }
     });
 
     document.getElementById('cancelRenameBtn').addEventListener('click', closeRenameModal);
