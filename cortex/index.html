@@ -730,6 +730,58 @@ SQIDAQAB
         return `Saved a ${action.concepts.length}-concept plan for ${folderLabel(folder)}. You'll see progress against the whole topic there now.`;
     }
 
+    // Same loose-match heuristic used server-side (matchesUnfinishedSibling
+    // in encodingLessonService.ts) and in learn/index.html's plan progress
+    // bar — an order's concept names and actual page titles are
+    // independently typed free text, so exact equality would miss most
+    // real matches.
+    function normalizeForMatch(s) {
+        return (s || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    }
+
+    // One ordinary, separate page per concept — unlike
+    // applyCreateMultiLessonPage, which bundles everything onto one page.
+    // Concepts that already match an existing page (by title, single- or
+    // multi-lesson) are skipped rather than duplicated — Cortex is told to
+    // always pass the FULL order and let this function do the filtering,
+    // since it has the actual page list to check against reliably.
+    async function applyCreatePagesFromOrder(action) {
+        const folders = await getAllFolders();
+        const folder = findFolderByName(folders, action.folderName);
+        if (!folder) return `I couldn't find a folder called "${action.folderName}".`;
+
+        let subfolder = null;
+        if (action.subfolderName) {
+            subfolder = findSubfolderByName(folder, action.subfolderName);
+            if (!subfolder) return `I couldn't find a subfolder called "${action.subfolderName}" inside ${folder.subject}.`;
+        }
+
+        const targetArray = subfolder ? (subfolder.pages = subfolder.pages || []) : (folder.pages = folder.pages || []);
+        const existingTitles = new Set();
+        targetArray.forEach((p) => {
+            existingTitles.add(normalizeForMatch(p.title));
+            (p.lessons || []).forEach((l) => existingTitles.add(normalizeForMatch(l.concept)));
+        });
+
+        const toCreate = action.concepts.filter((concept) => !existingTitles.has(normalizeForMatch(concept)));
+        toCreate.forEach((concept) => {
+            targetArray.push({
+                id: crypto.randomUUID(),
+                title: concept,
+                content: '',
+                createdAt: Date.now()
+            });
+        });
+
+        if (!toCreate.length) {
+            return `Every concept in that order already has a page in ${folderLabel(folder)}${subfolder ? ' > ' + subfolder.name : ''} — nothing new to create.`;
+        }
+
+        await putFolder(folder);
+        const skipped = action.concepts.length - toCreate.length;
+        return `Created ${toCreate.length} new page(s) in ${folderLabel(folder)}${subfolder ? ' > ' + subfolder.name : ''}: ${toCreate.join(', ')}.${skipped ? ` (${skipped} already existed, skipped.)` : ''}`;
+    }
+
     function describeAndBuildApplier(action) {
         if (action.type === 'move_page') {
             return {
@@ -765,6 +817,12 @@ SQIDAQAB
             return {
                 text: `Save this as your tracked plan for ${action.folderName}${action.subfolderName ? ' > ' + action.subfolderName : ''} (${action.concepts.length} concepts)? You'll see a progress bar there.`,
                 apply: () => applySetSubfolderPlan(action)
+            };
+        }
+        if (action.type === 'create_pages_from_order' && Array.isArray(action.concepts) && action.concepts.length >= 1) {
+            return {
+                text: `Create pages for this order in ${action.folderName}${action.subfolderName ? ' > ' + action.subfolderName : ''} (skipping any that already exist)? ${action.concepts.join(' → ')}`,
+                apply: () => applyCreatePagesFromOrder(action)
             };
         }
         return { text: null, apply: null };
