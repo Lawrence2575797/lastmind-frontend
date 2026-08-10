@@ -527,9 +527,40 @@ SQIDAQAB
 
     /* ───────────────────────── Chat ───────────────────────── */
 
-    let chatHistory = []; // [{role, content}] — held in memory for this page load only
+    let chatHistory = []; // [{role, content}] — persisted to IndexedDB (see saveChatHistory/restoreChatHistory) so leaving and returning to this page keeps the conversation
     const chatMessagesEl = document.getElementById('chatMessages');
     let emptyHintEl = document.querySelector('.chat-empty-hint');
+
+    // Reuses the AUTH_STORE as a generic small key-value store — same
+    // pattern already used elsewhere (e.g. the stored subscription ID),
+    // rather than adding a whole new object store just for this.
+    async function saveChatHistory() {
+        try {
+            await putAuthRecord('cortexChatHistory', chatHistory);
+        } catch (err) {
+            console.error('LastMind Cortex: could not save chat history.', err);
+        }
+    }
+
+    // Only the backend call context stays capped at the last 10 turns
+    // (see sendChatMessage) — the FULL history is what gets displayed and
+    // stored, so returning to this page shows everything, not just a
+    // recent tail.
+    async function restoreChatHistory() {
+        let stored;
+        try {
+            stored = await getAuthRecord('cortexChatHistory');
+        } catch (err) {
+            stored = null;
+        }
+        if (!Array.isArray(stored) || !stored.length) return;
+        chatHistory = stored;
+        clearEmptyHint();
+        stored.forEach((turn) => {
+            if (turn.role === 'user') appendUserMessage(turn.content);
+            else appendAssistantMessage(turn.content);
+        });
+    }
 
     function clearEmptyHint() {
         if (emptyHintEl) { emptyHintEl.remove(); emptyHintEl = null; }
@@ -1057,6 +1088,7 @@ SQIDAQAB
         input.style.height = 'auto';
         appendUserMessage(text);
         chatHistory.push({ role: 'user', content: text });
+        saveChatHistory();
 
         const sendBtn = document.getElementById('chatSendBtn');
         sendBtn.disabled = true;
@@ -1090,6 +1122,7 @@ SQIDAQAB
             const result = await resp.json();
             setAssistantMessageText(thinkingEl, result.reply);
             chatHistory.push({ role: 'assistant', content: result.reply });
+            saveChatHistory();
             // Text-only by default — only speaks automatically when the
             // student's own message explicitly asked for that (Cortex
             // decides this itself, from what was actually said; see
@@ -1196,6 +1229,8 @@ SQIDAQAB
         document.getElementById('gate-message').style.display = 'none';
         document.getElementById('app').style.display = 'flex';
         document.getElementById('chatInput').focus();
+
+        await restoreChatHistory();
 
         if (new URLSearchParams(window.location.search).get('voice') === '1') {
             chatMic.start();

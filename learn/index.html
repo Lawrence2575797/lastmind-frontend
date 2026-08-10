@@ -1699,6 +1699,23 @@
     </div>
 </div>
 
+<!-- ─── SET PAGE ORDER (subfolder plan) ─── -->
+<div class="modal-overlay" id="planModalOverlay">
+    <div class="modal">
+        <h3>Set Page Order</h3>
+
+        <div class="field">
+            <label for="planInput">Concept names, one per line, in the order you'll teach them — this becomes the progress bar's full scope for this subfolder</label>
+            <textarea id="planInput" class="multi-lesson-input" placeholder="Indifference curves&#10;MRS&#10;Budget line&#10;Optimal choice" rows="6"></textarea>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn" id="cancelPlanBtn">Cancel</button>
+            <button class="btn primary" id="submitPlanBtn">Save</button>
+        </div>
+    </div>
+</div>
+
 <!-- ─── RENAME MODAL (subfolder or page) ─── -->
 <div class="modal-overlay" id="renameModalOverlay">
     <div class="modal">
@@ -2373,6 +2390,29 @@ SQIDAQAB
         pendingMultiLessonPageId = null;
     }
 
+    let pendingPlanFolderId = null;
+    let pendingPlanSubfolderId = null;
+
+    // Manual alternative to asking Cortex for set_subfolder_plan — writes
+    // the exact same subfolder.plannedConcepts field the progress bar
+    // reads (see subfolderPlanProgress), so either path lights it up.
+    // Pre-fills with whatever's already saved so this doubles as an edit,
+    // not just a first-time set.
+    function openPlanModal(folderId, subfolderId) {
+        pendingPlanFolderId = folderId;
+        pendingPlanSubfolderId = subfolderId;
+        const folder = folders.find((f) => f.id === folderId);
+        const subfolder = folder && (folder.subfolders || []).find((sf) => sf.id === subfolderId);
+        document.getElementById('planInput').value = (subfolder && subfolder.plannedConcepts || []).join('\n');
+        document.getElementById('planModalOverlay').classList.add('open');
+    }
+
+    function closePlanModal() {
+        document.getElementById('planModalOverlay').classList.remove('open');
+        pendingPlanFolderId = null;
+        pendingPlanSubfolderId = null;
+    }
+
     async function createSubfolder(folderId, name) {
         const folder = folders.find((f) => f.id === folderId);
         if (!folder) return;
@@ -2746,6 +2786,7 @@ SQIDAQAB
 
         const sfMenu = buildItemMenu([
             { label: 'Rename Subfolder', onClick: () => openRenameModal('subfolder', { folderId: folder.id, subfolderId: sf.id }, sf.name || '', 'Rename Subfolder', 'Name') },
+            { label: 'Set Page Order', onClick: () => openPlanModal(folder.id, sf.id) },
             { label: 'Delete Subfolder', danger: true, onClick: () => deleteSubfolderById(folder.id, sf.id) }
         ]);
 
@@ -4793,6 +4834,42 @@ SQIDAQAB
         if (selectedPageId === pageId) {
             openPage(loc.folder.id, pageId, loc.subfolder ? loc.subfolder.id : null);
         }
+    });
+
+    document.getElementById('cancelPlanBtn').addEventListener('click', closePlanModal);
+    document.getElementById('planModalOverlay').addEventListener('click', (e) => {
+        if (e.target.id === 'planModalOverlay') closePlanModal();
+    });
+    document.getElementById('submitPlanBtn').addEventListener('click', async () => {
+        const folderId = pendingPlanFolderId;
+        const subfolderId = pendingPlanSubfolderId;
+        const concepts = document.getElementById('planInput').value
+            .split('\n')
+            .map((s) => s.trim())
+            .filter(Boolean);
+        closePlanModal();
+        if (!folderId || !subfolderId) return;
+
+        const folder = folders.find((f) => f.id === folderId);
+        if (!folder) return;
+        const subfolder = (folder.subfolders || []).find((sf) => sf.id === subfolderId);
+        if (!subfolder) return;
+
+        // An empty submission clears the plan (and its progress bar)
+        // rather than leaving a stale/empty one behind.
+        if (concepts.length) {
+            subfolder.plannedConcepts = concepts;
+        } else {
+            delete subfolder.plannedConcepts;
+        }
+
+        await putFolder(folder);
+        // Render-only, not refreshFolderList — a page could be open in
+        // the main content area right now, and reassigning `folders`
+        // while its closures are still live is exactly what broke
+        // encoding-lesson completion persisting once already (see
+        // renderSidebarSelection's own comment).
+        renderSidebarSelection();
     });
 
     document.getElementById('cancelRenameBtn').addEventListener('click', closeRenameModal);
