@@ -3850,6 +3850,21 @@ SQIDAQAB
             });
         }
 
+        // Other pages in the SAME subfolder (or folder, if this page isn't
+        // in a subfolder) as the one currently open, with their completion
+        // status — lets the backend teach a close prerequisite inline
+        // instead of assuming it's already known just because this page's
+        // own title doesn't name it (see startEncodingLesson's
+        // siblingConcepts param). This is exactly the "optimal choice"
+        // case: without this, a not-yet-done "Budget line" page sitting
+        // right next to it was invisible to the generator.
+        function siblingConceptsForCurrentPage() {
+            const siblingPages = (loc.subfolder ? loc.subfolder.pages : folder.pages) || [];
+            return siblingPages
+                .filter((p) => p.id !== page.id)
+                .map((p) => ({ label: p.title, done: p.encodingDone === true || p.taughtBefore === true }));
+        }
+
         async function runEncodingLesson(accessToken, subject, topic, concept, qualification, examBoard) {
             questionFlowEl.innerHTML = '<div class="correction-card">Preparing your first lesson…</div>';
 
@@ -3858,7 +3873,12 @@ SQIDAQAB
                 resp = await fetch(`${COMPILE_BACKEND_URL}/encoding-lesson/start`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-                    body: JSON.stringify({ subject, topic, concept, qualification: qualification || '', examBoard: examBoard || '' })
+                    body: JSON.stringify({
+                        subject, topic, concept,
+                        qualification: qualification || '',
+                        examBoard: examBoard || '',
+                        siblingConcepts: siblingConceptsForCurrentPage()
+                    })
                 });
             } catch (err) {
                 questionFlowEl.innerHTML = '<div class="correction-card">Could not reach the server. Please try again.</div>';

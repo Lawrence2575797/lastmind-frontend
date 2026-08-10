@@ -527,6 +527,13 @@ SQIDAQAB
         return el;
     }
 
+    // "done" lets Cortex reason about lesson order (what's already been
+    // covered vs. what's next) without the student needing to say so —
+    // see CORTEX_INTENT_PROMPT's ordering capability.
+    function pageSummary(p) {
+        return { title: p.title, done: p.encodingDone === true || p.taughtBefore === true };
+    }
+
     async function buildFolderSummary() {
         const all = await getAllFolders();
         return all.map((f) => ({
@@ -535,9 +542,9 @@ SQIDAQAB
             examBoard: f.examBoard,
             subfolders: (f.subfolders || []).map((sf) => ({
                 name: sf.name,
-                pages: (sf.pages || []).map((p) => p.title)
+                pages: (sf.pages || []).map(pageSummary)
             })),
-            pages: (f.pages || []).map((p) => p.title)
+            pages: (f.pages || []).map(pageSummary)
         }));
     }
 
