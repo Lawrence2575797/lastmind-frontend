@@ -828,6 +828,30 @@
         line-height: 1.7;
     }
 
+    .generate-notes-offer {
+        font-family: 'Arial', sans-serif;
+    }
+
+    .generate-notes-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        font-size: 0.9rem;
+    }
+
+    .generate-notes-label input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+    }
+
+    .generate-notes-status {
+        margin-top: 8px;
+        font-size: 0.8rem;
+        opacity: 0.75;
+    }
+
     .correction-label {
         font-family: 'Arial', sans-serif;
         font-size: 0.68rem;
@@ -1954,6 +1978,23 @@ SQIDAQAB
         return div.innerHTML;
     }
 
+    // Converts the plain-text notes returned by /encoding-lesson/generate-notes
+    // (paragraphs separated by blank lines, "- " prefixed lines as bullets —
+    // see NOTES_FROM_LESSON_PROMPT) into the same simple HTML shape noteBox
+    // already round-trips through page.content. Text is escaped per line, so
+    // nothing in the model's output is ever interpreted as markup.
+    function notesTextToHtml(text) {
+        const blocks = (text || '').split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
+        return blocks.map((block) => {
+            const lines = block.split('\n').map((l) => l.trim()).filter(Boolean);
+            const isList = lines.length > 0 && lines.every((l) => l.startsWith('- '));
+            if (isList) {
+                return `<ul>${lines.map((l) => `<li>${escapeHtml(l.slice(2).trim())}</li>`).join('')}</ul>`;
+            }
+            return `<p>${lines.map(escapeHtml).join('<br>')}</p>`;
+        }).join('');
+    }
+
     function closeAllItemMenus() {
         document.querySelectorAll('.item-dropdown-menu.open').forEach((m) => {
             m.classList.remove('open');
@@ -2560,10 +2601,21 @@ SQIDAQAB
     // Renders whichever of the three drill levels selectedFolderId /
     // selectedSubfolderId currently point at — folders list, a folder's
     // contents, or a subfolder's pages.
-    async function refreshFolderList() {
-        folders = await getAllFolders();
-        folders.sort((a, b) => (a.order ?? a.createdAt ?? 0) - (b.order ?? b.createdAt ?? 0));
-
+    // Re-renders the sidebar from whatever is CURRENTLY in the in-memory
+    // `folders` array, without touching IndexedDB. Split out from
+    // refreshFolderList specifically so a page that's already open can
+    // re-sync its sidebar highlighting (e.g. after openPage) without
+    // reassigning `folders` to a freshly-fetched copy — doing that while a
+    // page is open orphans that page's `page`/`folder` closures (the
+    // encoding-lesson completion handler, rename, notes editing, etc. all
+    // close over the objects from the array as it was when the page
+    // opened), so a later mutation through those closures either never
+    // shows up on next open, or gets silently clobbered by any other write
+    // still using the stale in-memory copy. This was the actual cause of
+    // "encoding lesson asks to be retaken after navigating away or
+    // renaming the page" — the completion write landed in IndexedDB fine,
+    // but the in-memory array (and anything reading through it) never saw it.
+    function renderSidebarSelection() {
         if (!selectedFolderId) {
             renderFoldersRootLevel();
             return;
@@ -2590,6 +2642,12 @@ SQIDAQAB
         }
 
         renderSubfolderLevel(folder, subfolder);
+    }
+
+    async function refreshFolderList() {
+        folders = await getAllFolders();
+        folders.sort((a, b) => (a.order ?? a.createdAt ?? 0) - (b.order ?? b.createdAt ?? 0));
+        renderSidebarSelection();
     }
 
     function selectFolder(folderId) {
@@ -2854,7 +2912,12 @@ SQIDAQAB
                 titleSaveDebounce = setTimeout(async () => {
                     page.title = newTitle || 'Untitled page';
                     await putFolder(folder);
-                    await refreshFolderList();
+                    // Sidebar-only re-render, not refreshFolderList — see
+                    // renderSidebarSelection's comment. This page is still
+                    // open and `page`/`folder` are already the live,
+                    // correctly-mutated objects; reassigning `folders`
+                    // here would orphan them for the rest of this session.
+                    renderSidebarSelection();
                 }, 400);
             });
 
@@ -3628,6 +3691,12 @@ SQIDAQAB
             handleDiagnosticResult(startResult);
         }
 
+        // Set once /encoding-lesson/start returns, for this page-open
+        // session only — read back by offerGenerateNotes at lesson
+        // completion, since the notes-compilation prompt wants the same
+        // hook fact the lesson opened with.
+        let lessonHookFact = '';
+
         function renderEncodingStep(accessToken, step, state) {
             if (step.type === 'explain') {
                 renderEncodingAnswerCard(accessToken, step, state, step.text);
@@ -3648,9 +3717,70 @@ SQIDAQAB
                     page.encodingDone = true;
                     putFolder(folder);
                 }
+                offerGenerateNotes(accessToken, result.state);
                 return;
             }
             renderEncodingStep(accessToken, result.step, result.state);
+        }
+
+        // A single opt-in checkbox offered right at lesson completion —
+        // this page has no notes panel at all until this exact moment (it
+        // only ever appears once encodingDone is true), so there's nothing
+        // existing to overwrite or merge with. On success, re-opens the
+        // page so the split notes/lesson layout renders immediately with
+        // the generated notes already in place, instead of leaving the
+        // student to navigate away and back to see them.
+        function offerGenerateNotes(accessToken, state) {
+            const wrap = document.createElement('div');
+            wrap.className = 'correction-card generate-notes-offer';
+
+            const label = document.createElement('label');
+            label.className = 'generate-notes-label';
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            label.appendChild(checkbox);
+            label.appendChild(document.createTextNode(' Generate notes based on this lesson'));
+            wrap.appendChild(label);
+
+            const status = document.createElement('div');
+            status.className = 'generate-notes-status';
+            wrap.appendChild(status);
+
+            questionFlowEl.appendChild(wrap);
+            wrap.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+            checkbox.addEventListener('change', async () => {
+                if (!checkbox.checked) return;
+                checkbox.disabled = true;
+                status.textContent = 'Generating notes…';
+
+                try {
+                    const resp = await fetch(`${COMPILE_BACKEND_URL}/encoding-lesson/generate-notes`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                        body: JSON.stringify({
+                            subject: state.subject,
+                            concept: page.title || 'Untitled page',
+                            hookFact: lessonHookFact,
+                            steps: state.steps.map((s) => ({ label: s.label, type: s.type, text: s.text, checkQuestion: s.checkQuestion }))
+                        })
+                    });
+                    if (!resp.ok) {
+                        const body = await resp.json().catch(() => ({}));
+                        throw new Error(body.error || 'Could not generate notes.');
+                    }
+                    const { notes } = await resp.json();
+                    page.content = notesTextToHtml(notes || '');
+                    await putFolder(folder);
+                    status.textContent = 'Notes generated ✓';
+                    openPage(folder.id, page.id, loc.subfolder ? loc.subfolder.id : null);
+                } catch (err) {
+                    console.error('LastMind: notes generation from lesson failed.', err);
+                    checkbox.checked = false;
+                    checkbox.disabled = false;
+                    status.textContent = err.message || 'Could not generate notes. Please try again.';
+                }
+            });
         }
 
         async function runEncodingLesson(accessToken, subject, topic, concept, qualification, examBoard) {
@@ -3676,6 +3806,7 @@ SQIDAQAB
 
             const startResult = await resp.json();
             questionFlowEl.innerHTML = '';
+            lessonHookFact = startResult.hookFact || '';
 
             const hookCard = document.createElement('div');
             hookCard.className = 'correction-card';
@@ -3712,7 +3843,11 @@ SQIDAQAB
             }
         });
 
-        refreshFolderList();
+        // Sidebar-only re-render (selection highlighting) — deliberately
+        // NOT refreshFolderList here, see renderSidebarSelection's comment:
+        // reassigning `folders` while this page's closures are still live
+        // is exactly what broke encoding-lesson completion persisting.
+        renderSidebarSelection();
     }
 
     /**
