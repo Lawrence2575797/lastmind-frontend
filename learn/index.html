@@ -4053,7 +4053,8 @@ SQIDAQAB
             transfer: 'Knew the pieces, just needed the nudge',
             integration: 'Trouble putting the pieces together',
             global_chain_failure: 'The whole chain was a lot to hold at once',
-            unresolved: 'Still working this one out'
+            unresolved: 'Still working this one out',
+            slip: 'Just a small slip in your working'
         };
 
         function friendlyDiagnosisLabel(diagnosis) {
@@ -4202,13 +4203,33 @@ SQIDAQAB
             // diagnosis, and silently moving on could finish the whole
             // lesson without ever actually resolving the wrong answer that
             // triggered this. Retries the start call instead.
+            // A calculation step routes into the maths-specific entry
+            // point instead — it starts by locating exactly where the
+            // student's own shown working went wrong, rather than jumping
+            // straight into the theory-question diagnostic tree (see
+            // startMathDiagnosis). contentKey/stepIndex let the backend
+            // re-fetch the verified solution itself; the just-answered
+            // step's index is currentIndex - 1, since submitEncodingAnswer
+            // already advanced it by the time this result exists.
+            const isMathStep = !!step.requiresCalculation;
+
             async function attemptStart() {
                 let startResp;
                 try {
-                    startResp = await fetch(`${COMPILE_BACKEND_URL}/diagnostics/start-from-answer`, {
+                    const endpoint = isMathStep ? '/diagnostics/start-math-from-answer' : '/diagnostics/start-from-answer';
+                    const body = isMathStep
+                        ? {
+                            conceptKey, conceptLabel, subject, topic: '', question,
+                            contentKey: encodingResult.state.contentKey,
+                            stepIndex: encodingResult.state.currentIndex - 1,
+                            studentWorking: wrongAnswer,
+                            forceAtomic: isPrerequisiteStep
+                        }
+                        : { conceptKey, conceptLabel, subject, topic: '', question, forceAtomic: isPrerequisiteStep };
+                    startResp = await fetch(`${COMPILE_BACKEND_URL}${endpoint}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-                        body: JSON.stringify({ conceptKey, conceptLabel, subject, topic: '', question, forceAtomic: isPrerequisiteStep })
+                        body: JSON.stringify(body)
                     });
                 } catch (err) {
                     showStartError('Could not reach the server.');
