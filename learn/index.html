@@ -757,6 +757,29 @@
         margin-top: 2px;
     }
 
+    /* ─── ENCODING LESSON: diagnostic drill-down on a wrong answer ─── */
+    .drilldown-block {
+        margin-top: 16px;
+        margin-left: 20px;
+        padding-left: 16px;
+        border-left: 2px solid rgba(230, 215, 176, 0.3);
+    }
+
+    .drilldown-label {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.68rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--accent);
+        opacity: 0.8;
+        margin-bottom: 10px;
+    }
+
+    .drilldown-block .question-card,
+    .drilldown-block .correction-card {
+        margin-top: 12px;
+    }
+
     .question-card-footer {
         display: flex;
         align-items: center;
@@ -3273,7 +3296,17 @@ SQIDAQAB
                     const result = await postEncodingSubmit(accessToken, state, answer);
                     card.querySelectorAll('textarea, .question-card-footer').forEach((el) => el.remove());
                     lockAnsweredCard(card, answer, result.correct !== false, result.feedback);
-                    renderNextEncodingStep(accessToken, result);
+
+                    // implication steps have no real chain node to root-cause
+                    // diagnose against (synthetic nodeId) — those, and any
+                    // correct answer, just advance as before. A wrong
+                    // check/scene/derive/explain answer pauses instead and
+                    // drills down through the diagnostic tree before resuming.
+                    if (result.correct === false && step.type !== 'implication') {
+                        await runDiagnosticDrillDown(accessToken, card, step, answer, result);
+                    } else {
+                        renderNextEncodingStep(accessToken, result);
+                    }
                 } catch (err) {
                     console.error('LastMind: encoding lesson submit failed.', err);
                     submitBtn.disabled = false;
@@ -3287,6 +3320,121 @@ SQIDAQAB
 
             questionFlowEl.appendChild(card);
             card.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+
+        const DIAGNOSIS_LABELS = {
+            encoding: 'You hadn’t quite learned this yet',
+            wm_overload: 'Too much to hold at once',
+            decay: 'Just a bit rusty',
+            interference: 'Mixed up with something similar',
+            schedule_miscalibrated: 'Reviewed a bit too early',
+            transfer: 'Knew the pieces, just needed the nudge',
+            integration: 'Trouble putting the pieces together',
+            global_chain_failure: 'The whole chain was a lot to hold at once',
+            unresolved: 'Still working this one out'
+        };
+
+        function friendlyDiagnosisLabel(diagnosis) {
+            return DIAGNOSIS_LABELS[diagnosis] || 'Let’s go over this one';
+        }
+
+        // Pauses the encoding lesson on a wrong check/scene/derive/explain
+        // answer and drills down through the (previously dormant) diagnostic
+        // tree, nested inside the answered card, before resuming the lesson.
+        // "check" steps (a prerequisite node, not the lesson's own target
+        // concept) are forced onto the atomic path — the mechanistic path's
+        // dispatch would otherwise try to load/generate a dependency chain
+        // for that prerequisite's own key, which isn't cached and would
+        // trigger a full chain-generation call for what's meant to be a
+        // lightweight check.
+        async function runDiagnosticDrillDown(accessToken, card, step, wrongAnswer, encodingResult) {
+            const drilldownBlock = document.createElement('div');
+            drilldownBlock.className = 'drilldown-block';
+
+            const label = document.createElement('div');
+            label.className = 'drilldown-label';
+            label.textContent = 'Let’s figure out why';
+            drilldownBlock.appendChild(label);
+
+            card.appendChild(drilldownBlock);
+            drilldownBlock.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+            const isCheckStep = step.type === 'check';
+            const conceptKey = isCheckStep ? step.nodeId : encodingResult.state.conceptKey;
+            const conceptLabel = step.label;
+            const subject = encodingResult.state.subject;
+            const question = step.type === 'explain' ? (step.checkQuestion || step.text) : step.text;
+
+            function finishDrilldown() {
+                if (!isCheckStep) {
+                    // Same conceptKey the lesson-completion grade would use —
+                    // the diagnostic tree's own terminal branch already
+                    // graded it, so tell submitEncodingAnswer to skip its
+                    // own grade for this concept at the end.
+                    encodingResult.state.targetGradedViaDrillDown = true;
+                }
+                renderNextEncodingStep(accessToken, encodingResult);
+            }
+
+            function handleDiagnosticResult(result) {
+                if (result.done) {
+                    const correctionCard = document.createElement('div');
+                    correctionCard.className = 'correction-card';
+                    correctionCard.innerHTML = `<div class="correction-label">${escapeHtml(friendlyDiagnosisLabel(result.diagnosis))}</div>${escapeHtml(result.correction || '')}`;
+                    drilldownBlock.appendChild(correctionCard);
+                    correctionCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                    finishDrilldown();
+                    return;
+                }
+                askNextDiagnostic(result.nextQuestion, result.nextOptions, result.state);
+            }
+
+            function askNextDiagnostic(questionText, options, diagState) {
+                const qCard = renderQuestionCard(questionText, options, async (submission) => {
+                    let resp;
+                    try {
+                        resp = await fetch(`${COMPILE_BACKEND_URL}/diagnostics/submit-answer`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                            body: JSON.stringify({ state: diagState, answer: submission.answer, dontKnow: submission.dontKnow })
+                        });
+                    } catch (err) {
+                        lockAnsweredCard(qCard, submission.answer, true, 'Could not reach the server. Please try again.', 'Answered');
+                        finishDrilldown();
+                        return;
+                    }
+                    if (!resp.ok) {
+                        const body = await resp.json().catch(() => ({}));
+                        lockAnsweredCard(qCard, submission.answer, true, body.error || 'Something went wrong.', 'Answered');
+                        finishDrilldown();
+                        return;
+                    }
+                    const result = await resp.json();
+                    lockAnsweredCard(qCard, submission.answer, true, null, 'Answered');
+                    handleDiagnosticResult(result);
+                }, drilldownBlock);
+            }
+
+            let startResp;
+            try {
+                startResp = await fetch(`${COMPILE_BACKEND_URL}/diagnostics/start-from-answer`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                    body: JSON.stringify({ conceptKey, conceptLabel, subject, topic: '', question, forceAtomic: isCheckStep })
+                });
+            } catch (err) {
+                drilldownBlock.innerHTML = '<div class="correction-card">Could not reach the server. Please try again.</div>';
+                finishDrilldown();
+                return;
+            }
+            if (!startResp.ok) {
+                const body = await startResp.json().catch(() => ({}));
+                drilldownBlock.innerHTML = `<div class="correction-card">${escapeHtml(body.error || 'Could not start diagnosis.')}</div>`;
+                finishDrilldown();
+                return;
+            }
+            const startResult = await startResp.json();
+            handleDiagnosticResult(startResult);
         }
 
         function renderEncodingStep(accessToken, step, state) {
