@@ -1249,6 +1249,93 @@
         border-color: rgba(230, 215, 176, 0.5);
     }
 
+    /* ─── Level dropdown (searchable) — New/Rename Folder modals ─── */
+    .level-field {
+        position: relative;
+    }
+
+    .level-select-btn {
+        width: 100%;
+        background: var(--panel);
+        border: 1px solid rgba(230, 215, 176, 0.2);
+        border-radius: 4px;
+        padding: 10px 12px;
+        color: var(--text);
+        font-family: 'Arial', sans-serif;
+        font-size: 0.9rem;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .level-select-btn:focus,
+    .level-select-btn:hover {
+        outline: none;
+        border-color: rgba(230, 215, 176, 0.5);
+    }
+
+    .level-select-btn .placeholder {
+        opacity: 0.5;
+    }
+
+    .level-dropdown {
+        display: none;
+        position: absolute;
+        top: calc(100% + 4px);
+        left: 0;
+        right: 0;
+        background: var(--bg);
+        border: 1px solid rgba(230, 215, 176, 0.3);
+        border-radius: 4px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        z-index: 20;
+        padding: 8px;
+    }
+
+    .level-dropdown.open {
+        display: block;
+    }
+
+    .level-search-input {
+        width: 100%;
+        background: var(--panel);
+        border: 1px solid rgba(230, 215, 176, 0.2);
+        border-radius: 4px;
+        padding: 8px 10px;
+        color: var(--text);
+        font-family: 'Arial', sans-serif;
+        font-size: 0.85rem;
+        margin-bottom: 6px;
+    }
+
+    .level-search-input:focus {
+        outline: none;
+        border-color: rgba(230, 215, 176, 0.5);
+    }
+
+    .level-options {
+        max-height: 220px;
+        overflow-y: auto;
+    }
+
+    .level-option {
+        padding: 8px 10px;
+        border-radius: 4px;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.88rem;
+        cursor: pointer;
+    }
+
+    .level-option:hover {
+        background: rgba(230, 215, 176, 0.12);
+    }
+
+    .level-option-empty {
+        padding: 8px 10px;
+        opacity: 0.5;
+        font-size: 0.85rem;
+        font-family: 'Arial', sans-serif;
+    }
+
     .match-suggestion {
         display: none;
         background: rgba(230, 215, 176, 0.08);
@@ -1413,13 +1500,27 @@
             <label for="subjectInput">Subject</label>
             <input type="text" id="subjectInput" placeholder="e.g. Economics">
         </div>
-        <div class="field">
-            <label for="qualificationInput">Qualification</label>
-            <input type="text" id="qualificationInput" placeholder="e.g. A-Level">
+        <div class="field level-field">
+            <label for="folderLevelButton">Level</label>
+            <button type="button" class="level-select-btn" id="folderLevelButton">
+                <span class="placeholder" id="folderLevelButtonText">Select level…</span>
+            </button>
+            <div class="level-dropdown" id="folderLevelDropdown">
+                <input type="text" class="level-search-input" id="folderLevelSearchInput" placeholder="Search…">
+                <div class="level-options" id="folderLevelOptions"></div>
+            </div>
         </div>
-        <div class="field">
+        <div class="field" id="folderBoardField" style="display:none;">
             <label for="boardInput">Exam Board</label>
             <input type="text" id="boardInput" placeholder="e.g. AQA">
+        </div>
+        <div class="field" id="folderInstitutionField" style="display:none;">
+            <label for="institutionInput">Institution</label>
+            <input type="text" id="institutionInput" placeholder="e.g. University of Manchester">
+        </div>
+        <div class="field" id="folderModuleCodeField" style="display:none;">
+            <label for="moduleCodeInput">Module Code</label>
+            <input type="text" id="moduleCodeInput" placeholder="e.g. ECON10021">
         </div>
 
         <div class="modal-actions">
@@ -1472,13 +1573,27 @@
             <label for="renameFolderSubjectInput">Subject</label>
             <input type="text" id="renameFolderSubjectInput" placeholder="e.g. Economics">
         </div>
-        <div class="field">
-            <label for="renameFolderQualificationInput">Qualification</label>
-            <input type="text" id="renameFolderQualificationInput" placeholder="e.g. A-Level">
+        <div class="field level-field">
+            <label for="renameFolderLevelButton">Level</label>
+            <button type="button" class="level-select-btn" id="renameFolderLevelButton">
+                <span class="placeholder" id="renameFolderLevelButtonText">Select level…</span>
+            </button>
+            <div class="level-dropdown" id="renameFolderLevelDropdown">
+                <input type="text" class="level-search-input" id="renameFolderLevelSearchInput" placeholder="Search…">
+                <div class="level-options" id="renameFolderLevelOptions"></div>
+            </div>
         </div>
-        <div class="field">
+        <div class="field" id="renameFolderBoardField" style="display:none;">
             <label for="renameFolderBoardInput">Exam Board</label>
             <input type="text" id="renameFolderBoardInput" placeholder="e.g. AQA">
+        </div>
+        <div class="field" id="renameFolderInstitutionField" style="display:none;">
+            <label for="renameFolderInstitutionInput">Institution</label>
+            <input type="text" id="renameFolderInstitutionInput" placeholder="e.g. University of Manchester">
+        </div>
+        <div class="field" id="renameFolderModuleCodeField" style="display:none;">
+            <label for="renameFolderModuleCodeInput">Module Code</label>
+            <input type="text" id="renameFolderModuleCodeInput" placeholder="e.g. ECON10021">
         </div>
 
         <div class="modal-actions">
@@ -1714,15 +1829,50 @@ SQIDAQAB
 
     const MATCH_THRESHOLD = 0.72;
 
-    function findSimilarFolder(subject, qualification, board, folders) {
+    // Undergraduate/postgraduate levels ask for institution + module code
+    // instead of an exam board — GCSE/A-Level/AS Level are everything else
+    // (and the app's overwhelmingly common case, so they sit at the top of
+    // the level dropdown).
+    const LEVEL_OPTIONS = [
+        'GCSE',
+        'A-Level',
+        'AS Level',
+        'Undergraduate Year 1',
+        'Undergraduate Year 2',
+        'Undergraduate Year 3',
+        'Undergraduate Year 4',
+        'Masters',
+        'PhD'
+    ];
+    const UNIVERSITY_LEVELS = new Set([
+        'Undergraduate Year 1',
+        'Undergraduate Year 2',
+        'Undergraduate Year 3',
+        'Undergraduate Year 4',
+        'Masters',
+        'PhD'
+    ]);
+    function isUniversityLevel(level) {
+        return UNIVERSITY_LEVELS.has(level);
+    }
+
+    // extraFields identify the folder beyond subject+level — [examBoard]
+    // for school levels, [institution, moduleCode] for university ones.
+    // Compared positionally against whichever shape the existing folder
+    // being checked actually has, so a school folder is never mistaken
+    // for a similarly-named university one just because both fields
+    // happen to be blank.
+    function findSimilarFolder(subject, qualification, extraFields, folders) {
         let best = null;
         let bestScore = 0;
         for (const f of folders) {
-            const score = (
-                similarity(subject, f.subject) +
-                similarity(qualification, f.qualification) +
-                similarity(board, f.examBoard)
-            ) / 3;
+            const fExtra = isUniversityLevel(f.qualification) ? [f.institution || '', f.moduleCode || ''] : [f.examBoard || ''];
+            const parts = [similarity(subject, f.subject), similarity(qualification, f.qualification)];
+            const len = Math.max(extraFields.length, fExtra.length);
+            for (let i = 0; i < len; i++) {
+                parts.push(similarity(extraFields[i] || '', fExtra[i] || ''));
+            }
+            const score = parts.reduce((a, b) => a + b, 0) / parts.length;
             if (score > bestScore) {
                 bestScore = score;
                 best = f;
@@ -1789,6 +1939,10 @@ SQIDAQAB
     let mathFieldInstances = new Map();
 
     function folderLabel(f) {
+        if (isUniversityLevel(f.qualification)) {
+            const detail = [f.institution, f.moduleCode].filter(Boolean).join(', ');
+            return `${f.subject} — ${f.qualification}${detail ? ` (${detail})` : ''}`;
+        }
         return `${f.subject} — ${f.qualification} (${f.examBoard})`;
     }
 
@@ -2032,8 +2186,11 @@ SQIDAQAB
         if (!folder) return;
         pendingRenameFolderId = folderId;
         document.getElementById('renameFolderSubjectInput').value = folder.subject || '';
-        document.getElementById('renameFolderQualificationInput').value = folder.qualification || '';
+        renameFolderLevelWidget.setValue(folder.qualification || '');
+        updateLevelMetafields('renameFolder', folder.qualification || '');
         document.getElementById('renameFolderBoardInput').value = folder.examBoard || '';
+        document.getElementById('renameFolderInstitutionInput').value = folder.institution || '';
+        document.getElementById('renameFolderModuleCodeInput').value = folder.moduleCode || '';
         document.getElementById('renameFolderModalOverlay').classList.add('open');
     }
 
@@ -2042,12 +2199,14 @@ SQIDAQAB
         pendingRenameFolderId = null;
     }
 
-    async function renameFolder(folderId, subject, qualification, examBoard) {
+    async function renameFolder(folderId, subject, qualification, examBoard, institution, moduleCode) {
         const folder = folders.find((f) => f.id === folderId);
         if (!folder) return;
         folder.subject = subject;
         folder.qualification = qualification;
         folder.examBoard = examBoard;
+        folder.institution = institution;
+        folder.moduleCode = moduleCode;
         await putFolder(folder);
         await refreshFolderList();
         if (selectedFolderId === folderId) {
@@ -3735,10 +3894,114 @@ SQIDAQAB
         openPage(folder.id, newPage.id, subfolderId || null);
     }
 
+    // Wires one searchable level-select widget (New Folder or Rename
+    // Folder modal) given its id prefix. onChange fires with the newly
+    // selected level string so the caller can swap the visible metafields
+    // (exam board vs institution/module code) accordingly.
+    function setupLevelDropdown(prefix, onChange) {
+        const button = document.getElementById(`${prefix}LevelButton`);
+        const buttonText = document.getElementById(`${prefix}LevelButtonText`);
+        const dropdown = document.getElementById(`${prefix}LevelDropdown`);
+        const searchInput = document.getElementById(`${prefix}LevelSearchInput`);
+        const optionsEl = document.getElementById(`${prefix}LevelOptions`);
+
+        function renderOptions(filter) {
+            const q = (filter || '').trim().toLowerCase();
+            optionsEl.innerHTML = '';
+            const matches = LEVEL_OPTIONS.filter((lvl) => lvl.toLowerCase().includes(q));
+            matches.forEach((lvl) => {
+                const item = document.createElement('div');
+                item.className = 'level-option';
+                item.textContent = lvl;
+                item.addEventListener('click', () => selectLevel(lvl));
+                optionsEl.appendChild(item);
+            });
+            if (!matches.length) {
+                const empty = document.createElement('div');
+                empty.className = 'level-option-empty';
+                empty.textContent = 'No matches';
+                optionsEl.appendChild(empty);
+            }
+            return matches;
+        }
+
+        function selectLevel(lvl) {
+            buttonText.textContent = lvl;
+            buttonText.classList.remove('placeholder');
+            button.dataset.value = lvl;
+            closeDropdown();
+            onChange(lvl);
+        }
+
+        function openDropdown() {
+            searchInput.value = '';
+            renderOptions('');
+            dropdown.classList.add('open');
+            setTimeout(() => searchInput.focus(), 0);
+        }
+
+        function closeDropdown() {
+            dropdown.classList.remove('open');
+        }
+
+        button.addEventListener('click', () => {
+            if (dropdown.classList.contains('open')) closeDropdown();
+            else openDropdown();
+        });
+
+        searchInput.addEventListener('input', () => renderOptions(searchInput.value));
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeDropdown();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                const matches = renderOptions(searchInput.value);
+                if (matches.length === 1) selectLevel(matches[0]);
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (dropdown.classList.contains('open') && !dropdown.contains(e.target) && e.target !== button && !button.contains(e.target)) {
+                closeDropdown();
+            }
+        });
+
+        return {
+            setValue(level) {
+                if (level) {
+                    buttonText.textContent = level;
+                    buttonText.classList.remove('placeholder');
+                } else {
+                    buttonText.textContent = 'Select level…';
+                    buttonText.classList.add('placeholder');
+                }
+                button.dataset.value = level || '';
+            },
+            getValue() {
+                return button.dataset.value || '';
+            }
+        };
+    }
+
+    // Shows exam board for GCSE/A-Level/AS Level, institution + module
+    // code for university levels, nothing until a level is picked.
+    function updateLevelMetafields(prefix, level) {
+        const isUni = isUniversityLevel(level);
+        document.getElementById(`${prefix}BoardField`).style.display = (level && !isUni) ? '' : 'none';
+        document.getElementById(`${prefix}InstitutionField`).style.display = (level && isUni) ? '' : 'none';
+        document.getElementById(`${prefix}ModuleCodeField`).style.display = (level && isUni) ? '' : 'none';
+    }
+
+    const folderLevelWidget = setupLevelDropdown('folder', (level) => updateLevelMetafields('folder', level));
+    const renameFolderLevelWidget = setupLevelDropdown('renameFolder', (level) => updateLevelMetafields('renameFolder', level));
+
     function openFolderModal() {
         document.getElementById('subjectInput').value = '';
-        document.getElementById('qualificationInput').value = '';
+        folderLevelWidget.setValue('');
+        updateLevelMetafields('folder', '');
         document.getElementById('boardInput').value = '';
+        document.getElementById('institutionInput').value = '';
+        document.getElementById('moduleCodeInput').value = '';
         document.getElementById('matchSuggestion').classList.remove('show');
         pendingMatchFolder = null;
         document.getElementById('folderModalOverlay').classList.add('open');
@@ -3748,21 +4011,28 @@ SQIDAQAB
         document.getElementById('folderModalOverlay').classList.remove('open');
     }
 
-    // Enter moves through Subject -> Qualification -> Exam Board, then
-    // submits on the last field — no need to click into each box by hand.
+    // Enter moves Subject -> opens the Level dropdown; picking a level
+    // (click, or Enter with a single match) focuses the first metafield
+    // that becomes visible; that field's own Enter submits or advances.
     document.getElementById('subjectInput').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
-            document.getElementById('qualificationInput').focus();
-        }
-    });
-    document.getElementById('qualificationInput').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            document.getElementById('boardInput').focus();
+            document.getElementById('folderLevelButton').click();
         }
     });
     document.getElementById('boardInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('submitFolderBtn').click();
+        }
+    });
+    document.getElementById('institutionInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('moduleCodeInput').focus();
+        }
+    });
+    document.getElementById('moduleCodeInput').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
             document.getElementById('submitFolderBtn').click();
@@ -3774,14 +4044,26 @@ SQIDAQAB
         if (e.target.id === 'folderModalOverlay') closeFolderModal();
     });
 
-    document.getElementById('submitFolderBtn').addEventListener('click', async () => {
+    function readFolderFormFields() {
         const subject = document.getElementById('subjectInput').value.trim();
-        const qualification = document.getElementById('qualificationInput').value.trim();
+        const qualification = folderLevelWidget.getValue();
         const examBoard = document.getElementById('boardInput').value.trim();
+        const institution = document.getElementById('institutionInput').value.trim();
+        const moduleCode = document.getElementById('moduleCodeInput').value.trim();
+        return { subject, qualification, examBoard, institution, moduleCode };
+    }
 
-        if (!subject || !qualification || !examBoard) return;
+    function folderFormIsComplete({ subject, qualification, examBoard, institution, moduleCode }) {
+        if (!subject || !qualification) return false;
+        return isUniversityLevel(qualification) ? !!(institution && moduleCode) : !!examBoard;
+    }
 
-        const match = findSimilarFolder(subject, qualification, examBoard, folders);
+    document.getElementById('submitFolderBtn').addEventListener('click', async () => {
+        const { subject, qualification, examBoard, institution, moduleCode } = readFolderFormFields();
+        if (!folderFormIsComplete({ subject, qualification, examBoard, institution, moduleCode })) return;
+
+        const extraFields = isUniversityLevel(qualification) ? [institution, moduleCode] : [examBoard];
+        const match = findSimilarFolder(subject, qualification, extraFields, folders);
         if (match && !pendingMatchFolder) {
             pendingMatchFolder = match;
             document.getElementById('matchSuggestionText').textContent =
@@ -3790,7 +4072,7 @@ SQIDAQAB
             return; // wait for the user to choose
         }
 
-        await createFolder(subject, qualification, examBoard);
+        await createFolder(subject, qualification, examBoard, institution, moduleCode);
         closeFolderModal();
     });
 
@@ -3802,15 +4084,13 @@ SQIDAQAB
     });
 
     document.getElementById('createAnywayBtn').addEventListener('click', async () => {
-        const subject = document.getElementById('subjectInput').value.trim();
-        const qualification = document.getElementById('qualificationInput').value.trim();
-        const examBoard = document.getElementById('boardInput').value.trim();
-        await createFolder(subject, qualification, examBoard);
+        const { subject, qualification, examBoard, institution, moduleCode } = readFolderFormFields();
+        await createFolder(subject, qualification, examBoard, institution, moduleCode);
         closeFolderModal();
     });
 
-    async function createFolder(subject, qualification, examBoard) {
-        const id = await putFolder({ subject, qualification, examBoard, pages: [], createdAt: Date.now() });
+    async function createFolder(subject, qualification, examBoard, institution, moduleCode) {
+        const id = await putFolder({ subject, qualification, examBoard, institution, moduleCode, pages: [], createdAt: Date.now() });
         await refreshFolderList();
         selectFolder(id);
     }
@@ -3861,12 +4141,14 @@ SQIDAQAB
     });
     document.getElementById('saveRenameFolderBtn').addEventListener('click', async () => {
         const subject = document.getElementById('renameFolderSubjectInput').value.trim();
-        const qualification = document.getElementById('renameFolderQualificationInput').value.trim();
+        const qualification = renameFolderLevelWidget.getValue();
         const examBoard = document.getElementById('renameFolderBoardInput').value.trim();
+        const institution = document.getElementById('renameFolderInstitutionInput').value.trim();
+        const moduleCode = document.getElementById('renameFolderModuleCodeInput').value.trim();
         const folderId = pendingRenameFolderId;
-        if (!subject || !qualification || !examBoard || !folderId) return;
+        if (!folderId || !folderFormIsComplete({ subject, qualification, examBoard, institution, moduleCode })) return;
         closeRenameFolderModal();
-        await renameFolder(folderId, subject, qualification, examBoard);
+        await renameFolder(folderId, subject, qualification, examBoard, institution, moduleCode);
     });
 
     /* ───────────────────────── Gate + boot ───────────────────────── */
