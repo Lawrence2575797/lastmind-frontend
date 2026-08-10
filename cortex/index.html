@@ -654,23 +654,68 @@ SQIDAQAB
         }
     }
 
+    // Same loose-match heuristic used server-side (matchesUnfinishedSibling
+    // in encodingLessonService.ts) and in learn/index.html's plan progress
+    // bar — an order's concept names and actual page titles are
+    // independently typed free text, so exact equality would miss most
+    // real matches. Also used by fuzzyFindByName below for folder/
+    // subfolder/page name matching, for the same reason.
+    function normalizeForMatch(s) {
+        return (s || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    }
+
+    // Cortex is given the real folder/subfolder/page names and told to use
+    // them exactly (see CORTEX_INTENT_PROMPT rule 3), but it's still an AI
+    // reading back names from a JSON blob, not doing a string lookup — a
+    // punctuation/whitespace difference, or a name it paraphrases slightly
+    // (e.g. "Consumer Theory" for a subfolder actually called "Theory of
+    // the Consumer"), used to hard-fail here even though a person would
+    // immediately see it's the same thing. Falls back to token overlap
+    // (Jaccard-style) when there's no exact match after normalizing —
+    // but ONLY when exactly one candidate is a clear best match; a genuine
+    // tie or no overlap at all still returns null rather than guessing.
+    // Safe to be lenient here specifically because every caller of this
+    // shows the resolved target in a confirm card before actually applying
+    // anything — a wrong guess gets caught there, not silently applied.
+    function fuzzyFindByName(items, name, getName) {
+        const target = normalizeForMatch(name);
+        if (!target || !items.length) return null;
+
+        const exact = items.find((it) => normalizeForMatch(getName(it)) === target);
+        if (exact) return exact;
+
+        const targetWords = target.split(' ').filter(Boolean);
+        if (!targetWords.length) return null;
+
+        const scored = items
+            .map((it) => {
+                const itemWords = normalizeForMatch(getName(it)).split(' ').filter(Boolean);
+                const shared = itemWords.filter((w) => targetWords.includes(w)).length;
+                const union = new Set([...itemWords, ...targetWords]).size;
+                return { it, score: union ? shared / union : 0 };
+            })
+            .filter((s) => s.score > 0)
+            .sort((a, b) => b.score - a.score);
+
+        if (!scored.length) return null;
+        if (scored.length > 1 && scored[0].score === scored[1].score) return null;
+        return scored[0].it;
+    }
+
     function findFolderByName(folders, name) {
-        const n = (name || '').trim().toLowerCase();
-        return folders.find((f) => (f.subject || '').trim().toLowerCase() === n) || null;
+        return fuzzyFindByName(folders, name, (f) => f.subject || '');
     }
 
     function findSubfolderByName(folder, name) {
-        const n = (name || '').trim().toLowerCase();
-        return (folder.subfolders || []).find((sf) => (sf.name || '').trim().toLowerCase() === n) || null;
+        return fuzzyFindByName(folder.subfolders || [], name, (sf) => sf.name || '');
     }
 
     function findPageByTitleAnywhere(folders, title) {
-        const n = (title || '').trim().toLowerCase();
         for (const f of folders) {
-            const direct = (f.pages || []).find((p) => (p.title || '').trim().toLowerCase() === n);
+            const direct = fuzzyFindByName(f.pages || [], title, (p) => p.title || '');
             if (direct) return { folder: f, subfolder: null, page: direct };
             for (const sf of (f.subfolders || [])) {
-                const p = (sf.pages || []).find((p) => (p.title || '').trim().toLowerCase() === n);
+                const p = fuzzyFindByName(sf.pages || [], title, (p) => p.title || '');
                 if (p) return { folder: f, subfolder: sf, page: p };
             }
         }
@@ -816,15 +861,6 @@ SQIDAQAB
         folder.plannedConcepts = action.concepts;
         await putFolder(folder);
         return `Saved a ${action.concepts.length}-concept plan for ${folderLabel(folder)}. You'll see progress against the whole topic there now.`;
-    }
-
-    // Same loose-match heuristic used server-side (matchesUnfinishedSibling
-    // in encodingLessonService.ts) and in learn/index.html's plan progress
-    // bar — an order's concept names and actual page titles are
-    // independently typed free text, so exact equality would miss most
-    // real matches.
-    function normalizeForMatch(s) {
-        return (s || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
     }
 
     // One ordinary, separate page per concept — unlike
