@@ -3500,12 +3500,14 @@ SQIDAQAB
         // Pauses the encoding lesson on a wrong check/scene/derive/explain
         // answer and drills down through the (previously dormant) diagnostic
         // tree, nested inside the answered card, before resuming the lesson.
-        // "check" steps (a prerequisite node, not the lesson's own target
-        // concept) are forced onto the atomic path — the mechanistic path's
-        // dispatch would otherwise try to load/generate a dependency chain
-        // for that prerequisite's own key, which isn't cached and would
-        // trigger a full chain-generation call for what's meant to be a
-        // lightweight check.
+        // Any step about a prerequisite node rather than the lesson's own
+        // target concept — a "check" step, or a prerequisite promoted to a
+        // taught beat because it was named in the lesson's own title — is
+        // forced onto the atomic path (see diagnosisConceptKey below): the
+        // mechanistic path's dispatch would otherwise try to load/generate
+        // a dependency chain for that prerequisite's own key, which isn't
+        // cached and would trigger a full chain-generation call for what's
+        // meant to be lightweight.
         async function runDiagnosticDrillDown(accessToken, card, step, wrongAnswer, encodingResult) {
             const drilldownBlock = document.createElement('div');
             drilldownBlock.className = 'drilldown-block';
@@ -3518,14 +3520,22 @@ SQIDAQAB
             card.appendChild(drilldownBlock);
             drilldownBlock.scrollIntoView({ behavior: 'smooth', block: 'end' });
 
-            const isCheckStep = step.type === 'check';
-            const conceptKey = isCheckStep ? step.nodeId : encodingResult.state.conceptKey;
+            // A prerequisite step — a "check", or a prerequisite promoted to
+            // a taught beat because it was named in the lesson's own title
+            // (see ENCODING_LESSON_BATCH_PROMPT) — is anything whose
+            // diagnosisConceptKey isn't the lesson's own concept. Neither
+            // its type nor its position tells you that reliably once
+            // promoted prerequisites can be "derive"/"explain" beats too,
+            // so the backend-computed diagnosisConceptKey is the only
+            // correct signal — same one used for forceAtomic below.
+            const conceptKey = step.diagnosisConceptKey;
+            const isPrerequisiteStep = conceptKey !== encodingResult.state.conceptKey;
             const conceptLabel = step.label;
             const subject = encodingResult.state.subject;
             const question = step.type === 'explain' ? (step.checkQuestion || step.text) : step.text;
 
             function finishDrilldown() {
-                if (!isCheckStep) {
+                if (!isPrerequisiteStep) {
                     // Same conceptKey the lesson-completion grade would use —
                     // the diagnostic tree's own terminal branch already
                     // graded it, so tell submitEncodingAnswer to skip its
@@ -3579,7 +3589,7 @@ SQIDAQAB
                 startResp = await fetch(`${COMPILE_BACKEND_URL}/diagnostics/start-from-answer`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-                    body: JSON.stringify({ conceptKey, conceptLabel, subject, topic: '', question, forceAtomic: isCheckStep })
+                    body: JSON.stringify({ conceptKey, conceptLabel, subject, topic: '', question, forceAtomic: isPrerequisiteStep })
                 });
             } catch (err) {
                 drilldownBlock.innerHTML = '<div class="correction-card">Could not reach the server. Please try again.</div>';
