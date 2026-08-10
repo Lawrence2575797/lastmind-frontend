@@ -133,6 +133,30 @@
         background: var(--panel);
         border: 1px solid rgba(230, 215, 176, 0.15);
         border-bottom-left-radius: 3px;
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .chat-msg-text {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .chat-msg-speak-btn {
+        flex-shrink: 0;
+        background: none;
+        border: none;
+        color: var(--text);
+        opacity: 0.5;
+        font-size: 0.95rem;
+        cursor: pointer;
+        padding: 0;
+        line-height: 1;
+    }
+
+    .chat-msg-speak-btn:hover {
+        opacity: 1;
     }
 
     .chat-confirm-card, .chat-answer-card {
@@ -210,11 +234,15 @@
         flex: 1;
         background: var(--panel);
         border: 1px solid rgba(230, 215, 176, 0.2);
-        border-radius: 22px;
+        border-radius: 18px;
         padding: 12px 18px;
         color: var(--text);
         font-family: 'Georgia', serif;
         font-size: 0.92rem;
+        resize: none;
+        max-height: 160px;
+        overflow-y: auto;
+        line-height: 1.4;
     }
 
     #chatInput:focus { outline: none; border-color: rgba(230, 215, 176, 0.5); }
@@ -273,7 +301,7 @@
 
     <div class="chat-input-row">
         <button id="chatMicBtn" type="button" title="Speak">🎤</button>
-        <input type="text" id="chatInput" placeholder="Ask Cortex…" autocomplete="off">
+        <textarea id="chatInput" placeholder="Ask Cortex…" autocomplete="off" rows="1"></textarea>
         <button id="chatSendBtn" type="button" title="Send">➤</button>
     </div>
 </div>
@@ -517,14 +545,43 @@ SQIDAQAB
         return el;
     }
 
+    // Default is text-only now — nothing here is spoken automatically
+    // (see sendChatMessage, which only auto-speaks when the student's own
+    // message explicitly asked for that turn's reply to be read aloud).
+    // Every assistant message still gets its own speak button, so reading
+    // any of them aloud — including mid-review questions, not just the
+    // main reply — is always one click away.
     function appendAssistantMessage(text) {
         clearEmptyHint();
         const el = document.createElement('div');
         el.className = 'chat-msg chat-msg-assistant';
-        el.textContent = text;
+
+        const textEl = document.createElement('span');
+        textEl.className = 'chat-msg-text';
+        textEl.textContent = text;
+        el.appendChild(textEl);
+
+        const speakBtn = document.createElement('button');
+        speakBtn.type = 'button';
+        speakBtn.className = 'chat-msg-speak-btn';
+        speakBtn.title = 'Read aloud';
+        speakBtn.textContent = '🔊';
+        speakBtn.addEventListener('click', () => speakText(textEl.textContent));
+        el.appendChild(speakBtn);
+
         chatMessagesEl.appendChild(el);
         el.scrollIntoView({ behavior: 'smooth', block: 'end' });
         return el;
+    }
+
+    // Updates just an assistant message's text in place (used by the
+    // "…" thinking placeholder and the review-start status line) without
+    // clobbering the speak button appendAssistantMessage attached to it —
+    // a plain `el.textContent = ...` would wipe the whole element's
+    // children, button included.
+    function setAssistantMessageText(el, text) {
+        const textEl = el.querySelector('.chat-msg-text');
+        if (textEl) textEl.textContent = text;
     }
 
     // "done" lets Cortex reason about lesson order (what's already been
@@ -966,13 +1023,13 @@ SQIDAQAB
                 body: JSON.stringify({ subject, topic, concept })
             });
         } catch (err) {
-            startingEl.textContent = 'Could not reach the server. Please try again.';
+            setAssistantMessageText(startingEl, 'Could not reach the server. Please try again.');
             return;
         }
 
         if (!resp.ok) {
             const body = await resp.json().catch(() => ({}));
-            startingEl.textContent = body.error || 'Could not start this review.';
+            setAssistantMessageText(startingEl, body.error || 'Could not start this review.');
             return;
         }
 
@@ -997,6 +1054,7 @@ SQIDAQAB
         const text = input.value.trim();
         if (!text) return;
         input.value = '';
+        input.style.height = 'auto';
         appendUserMessage(text);
         chatHistory.push({ role: 'user', content: text });
 
@@ -1030,14 +1088,19 @@ SQIDAQAB
             }
 
             const result = await resp.json();
-            thinkingEl.textContent = result.reply;
+            setAssistantMessageText(thinkingEl, result.reply);
             chatHistory.push({ role: 'assistant', content: result.reply });
-            speakText(result.reply);
+            // Text-only by default — only speaks automatically when the
+            // student's own message explicitly asked for that (Cortex
+            // decides this itself, from what was actually said; see
+            // CORTEX_INTENT_PROMPT's speakAloud rule). Every message still
+            // has its own manual speak button regardless.
+            if (result.speakAloud) speakText(result.reply);
 
             if (result.action) await handleCortexAction(result.action);
         } catch (err) {
             console.error('LastMind Cortex: message failed.', err);
-            thinkingEl.textContent = 'Sorry, something went wrong. Please try again.';
+            setAssistantMessageText(thinkingEl, 'Sorry, something went wrong. Please try again.');
         } finally {
             sendBtn.disabled = false;
         }
@@ -1045,10 +1108,21 @@ SQIDAQAB
 
     document.getElementById('chatSendBtn').addEventListener('click', sendChatMessage);
     document.getElementById('chatInput').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
+        // Enter sends, same as before the box became multi-line; Shift+Enter
+        // inserts an actual newline instead, so a longer message can still
+        // be written across several lines before sending.
+        if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             sendChatMessage();
         }
+    });
+    // Grows the box as the student types past one line (up to the CSS
+    // max-height, which then scrolls) instead of scrolling the text
+    // sideways inside a fixed single line — the actual ask here: being
+    // able to see what you've written.
+    document.getElementById('chatInput').addEventListener('input', (e) => {
+        e.target.style.height = 'auto';
+        e.target.style.height = `${e.target.scrollHeight}px`;
     });
 
     // One persistent mic button drives voice for whichever text field is
