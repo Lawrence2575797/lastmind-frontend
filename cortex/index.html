@@ -396,7 +396,30 @@ SQIDAQAB
         });
     }
 
+    // Same split as learn/index.html's own UNIVERSITY_LEVELS/isUniversityLevel
+    // — a school-level folder is identified by its exam board, a university
+    // one by institution + module code instead (there is no exam board for
+    // a university course). Duplicated here rather than shared because
+    // these are separate static pages with no shared JS module, but must be
+    // kept in sync with learn/index.html's copy — a folder created there
+    // needs to be recognized the same way here.
+    const UNIVERSITY_LEVELS = new Set([
+        'Undergraduate Year 1',
+        'Undergraduate Year 2',
+        'Undergraduate Year 3',
+        'Undergraduate Year 4',
+        'Masters',
+        'PhD'
+    ]);
+    function isUniversityLevel(level) {
+        return UNIVERSITY_LEVELS.has(level);
+    }
+
     function folderLabel(f) {
+        if (isUniversityLevel(f.qualification)) {
+            const detail = [f.institution, f.moduleCode].filter(Boolean).join(', ');
+            return `${f.subject} — ${f.qualification}${detail ? ` (${detail})` : ''}`;
+        }
         return `${f.subject} — ${f.qualification} (${f.examBoard})`;
     }
 
@@ -627,7 +650,15 @@ SQIDAQAB
         return all.map((f) => ({
             name: f.subject,
             qualification: f.qualification,
-            examBoard: f.examBoard,
+            // Same split CortexFolderSummary documents server-side — a
+            // school folder's identifying detail is its exam board, a
+            // university one's is institution+moduleCode instead (never
+            // both). Omitting whichever doesn't apply, rather than sending
+            // it as undefined/empty, keeps Cortex from treating a blank
+            // examBoard as a real (missing) value on a university folder.
+            ...(isUniversityLevel(f.qualification)
+                ? { institution: f.institution || '', moduleCode: f.moduleCode || '' }
+                : { examBoard: f.examBoard || '' }),
             subfolders: (f.subfolders || []).map((sf) => ({
                 name: sf.name,
                 pages: (sf.pages || []).map(pageSummary),
@@ -677,22 +708,43 @@ SQIDAQAB
     // Safe to be lenient here specifically because every caller of this
     // shows the resolved target in a confirm card before actually applying
     // anything — a wrong guess gets caught there, not silently applied.
-    function fuzzyFindByName(items, name, getName) {
+    //
+    // getNames(item) may return either a single string or an array of
+    // strings — an item can be identified by more than one thing (e.g. a
+    // folder by its subject name OR its module code), any of which counts
+    // as a match; the item's score is whichever of its candidates scores
+    // best against the target.
+    function fuzzyFindByName(items, name, getNames) {
         const target = normalizeForMatch(name);
         if (!target || !items.length) return null;
 
-        const exact = items.find((it) => normalizeForMatch(getName(it)) === target);
-        if (exact) return exact;
+        function candidates(it) {
+            const raw = getNames(it);
+            return (Array.isArray(raw) ? raw : [raw]).map(normalizeForMatch).filter(Boolean);
+        }
+
+        // .filter, not .find — an exact match still isn't safe to use
+        // blindly when MORE THAN ONE item shares it (e.g. an A-Level
+        // "Economics" folder and a same-subject university one both
+        // exact-match a bare "Economics"); only resolve automatically when
+        // it's unique, otherwise fall through to scored matching, which
+        // can use a candidate name none of the OTHER exact matches share
+        // (a module code, an institution) to break the tie.
+        const exactMatches = items.filter((it) => candidates(it).includes(target));
+        if (exactMatches.length === 1) return exactMatches[0];
 
         const targetWords = target.split(' ').filter(Boolean);
         if (!targetWords.length) return null;
 
         const scored = items
             .map((it) => {
-                const itemWords = normalizeForMatch(getName(it)).split(' ').filter(Boolean);
-                const shared = itemWords.filter((w) => targetWords.includes(w)).length;
-                const union = new Set([...itemWords, ...targetWords]).size;
-                return { it, score: union ? shared / union : 0 };
+                const best = candidates(it).reduce((bestScore, cand) => {
+                    const candWords = cand.split(' ').filter(Boolean);
+                    const shared = candWords.filter((w) => targetWords.includes(w)).length;
+                    const union = new Set([...candWords, ...targetWords]).size;
+                    return Math.max(bestScore, union ? shared / union : 0);
+                }, 0);
+                return { it, score: best };
             })
             .filter((s) => s.score > 0)
             .sort((a, b) => b.score - a.score);
@@ -703,7 +755,25 @@ SQIDAQAB
     }
 
     function findFolderByName(folders, name) {
-        return fuzzyFindByName(folders, name, (f) => f.subject || '');
+        return fuzzyFindByName(folders, name, (f) =>
+            isUniversityLevel(f.qualification)
+                ? [f.subject, f.moduleCode, f.institution, folderLabel(f)]
+                : [f.subject, folderLabel(f)]
+        );
+    }
+
+    // Same idea as findPageByTitleAnywhere — a subfolder is identified by
+    // name alone, without needing to already know which folder it's
+    // currently in (needed for move_subfolder, and for auto-creating one
+    // via getOrCreateSubfolder inside the right folder rather than a wrong
+    // one just because two folders happen to have similarly-named
+    // subfolders). Returns { folder, subfolder } or null.
+    function findSubfolderAnywhere(folders, name) {
+        for (const f of folders) {
+            const sf = fuzzyFindByName(f.subfolders || [], name, (sf) => sf.name || '');
+            if (sf) return { folder: f, subfolder: sf };
+        }
+        return null;
     }
 
     function findSubfolderByName(folder, name) {
@@ -765,15 +835,46 @@ SQIDAQAB
         return `Moved "${action.pageTitle}" into ${folderLabel(targetFolder)}${targetSubfolder ? ' > ' + targetSubfolder.name : ''}.`;
     }
 
+    // Moves a WHOLE subfolder — its pages, lessons, and any saved plan —
+    // into a different folder, rather than one page at a time. The
+    // subfolder is located across every folder by name (findSubfolderAnywhere),
+    // same reasoning as applyMovePage not needing to be told where a page
+    // currently lives.
+    async function applyMoveSubfolder(action) {
+        const folders = await getAllFolders();
+        const loc = findSubfolderAnywhere(folders, action.subfolderName);
+        if (!loc) return `I couldn't find a subfolder called "${action.subfolderName}".`;
+
+        const targetFolder = findFolderByName(folders, action.targetFolderName);
+        if (!targetFolder) return `I couldn't find a folder called "${action.targetFolderName}".`;
+
+        if (targetFolder.id === loc.folder.id) {
+            return `"${loc.subfolder.name}" is already inside ${folderLabel(targetFolder)}.`;
+        }
+
+        const idx = (loc.folder.subfolders || []).findIndex((sf) => sf.id === loc.subfolder.id);
+        if (idx === -1) return `Something went wrong finding "${action.subfolderName}".`;
+        const [subfolder] = loc.folder.subfolders.splice(idx, 1);
+
+        targetFolder.subfolders = targetFolder.subfolders || [];
+        targetFolder.subfolders.push(subfolder);
+
+        await putFolder(loc.folder);
+        await putFolder(targetFolder);
+        return `Moved "${subfolder.name}" (and everything in it) into ${folderLabel(targetFolder)}.`;
+    }
+
     async function applyCreateFolder(action) {
         await putFolder({
             subject: action.subject,
             qualification: action.qualification,
-            examBoard: action.examBoard,
+            examBoard: action.examBoard || '',
+            institution: action.institution || '',
+            moduleCode: action.moduleCode || '',
             pages: [],
             createdAt: Date.now()
         });
-        return `Created the folder "${action.subject} — ${action.qualification} (${action.examBoard})".`;
+        return `Created the folder "${folderLabel(action)}".`;
     }
 
     async function applyCreateSubfolder(action) {
@@ -906,9 +1007,15 @@ SQIDAQAB
                 apply: () => applyMovePage(action)
             };
         }
+        if (action.type === 'move_subfolder') {
+            return {
+                text: `Move "${action.subfolderName}" (and everything in it) into ${action.targetFolderName}?`,
+                apply: () => applyMoveSubfolder(action)
+            };
+        }
         if (action.type === 'create_folder') {
             return {
-                text: `Create a new folder "${action.subject} — ${action.qualification} (${action.examBoard})"?`,
+                text: `Create a new folder "${folderLabel(action)}"?`,
                 apply: () => applyCreateFolder(action)
             };
         }
