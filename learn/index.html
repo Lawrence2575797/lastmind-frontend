@@ -3613,14 +3613,38 @@ SQIDAQAB
             const subject = encodingResult.state.subject;
             const question = step.type === 'explain' ? (step.checkQuestion || step.text) : step.text;
 
-            function finishDrilldown() {
+            function finishDrilldown(diagnosisAnswerCorrect) {
                 if (!isPrerequisiteStep) {
                     // Same conceptKey the lesson-completion grade would use —
                     // the diagnostic tree's own terminal branch already
                     // graded it, so tell submitEncodingAnswer to skip its
-                    // own grade for this concept at the end.
+                    // own grade for this concept at the end. True regardless
+                    // of which branch below runs — the tree already graded
+                    // it either way.
                     encodingResult.state.targetGradedViaDrillDown = true;
                 }
+
+                // The lesson's LAST step is the one exception to "always
+                // advances regardless of the answer's quality" (see
+                // submitEncodingAnswer's own docstring for why every other
+                // step deliberately never gates): if the diagnostic tree
+                // ran all the way through without the student ever actually
+                // getting it right, don't declare the lesson complete over
+                // an unresolved answer on the very concept it was teaching
+                // — give them one more direct attempt at the same question
+                // instead of ending here.
+                if (encodingResult.done && diagnosisAnswerCorrect !== true) {
+                    const retryNote = document.createElement('div');
+                    retryNote.className = 'correction-card';
+                    retryNote.textContent = 'Let’s try that one more time, now that we’ve gone over it.';
+                    questionFlowEl.appendChild(retryNote);
+                    retryNote.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+                    const retryState = { ...encodingResult.state, currentIndex: encodingResult.state.steps.length - 1 };
+                    renderEncodingStep(accessToken, step, retryState);
+                    return;
+                }
+
                 renderNextEncodingStep(accessToken, encodingResult);
             }
 
@@ -3631,15 +3655,36 @@ SQIDAQAB
                     correctionCard.innerHTML = `<div class="correction-label">${escapeHtml(friendlyDiagnosisLabel(result.diagnosis))}</div>${escapeHtml(result.correction || '')}`;
                     drilldownBlock.appendChild(correctionCard);
                     correctionCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
-                    finishDrilldown();
+                    finishDrilldown(result.answerCorrect);
                     return;
                 }
                 askNextDiagnostic(result.nextQuestion, result.nextOptions, result.state);
             }
 
             function askNextDiagnostic(questionText, options, diagState) {
+                let errorNote = null;
                 const qCard = renderQuestionCard(questionText, options, async (submission) => {
                     if (!submission.dontKnow && !submission.answer.trim()) return;
+                    if (errorNote) { errorNote.remove(); errorNote = null; }
+
+                    // A network/server failure here is NOT a diagnosis
+                    // outcome — it means we genuinely don't know whether the
+                    // answer was right or wrong. Previously this locked the
+                    // card as incorrect and ended the drilldown outright
+                    // (finishDrilldown), which could silently mark a
+                    // correct answer wrong and, on the lesson's last step,
+                    // finish the lesson without the misconception ever
+                    // actually being resolved. Instead: leave the same
+                    // question live (renderQuestionCard doesn't disable
+                    // its own controls while awaiting onSubmit) and let the
+                    // student retry submitting it.
+                    function showRetryableError(message) {
+                        errorNote = document.createElement('div');
+                        errorNote.className = 'correction-card';
+                        errorNote.textContent = `${message} Your answer wasn't lost — try submitting it again.`;
+                        drilldownBlock.appendChild(errorNote);
+                        errorNote.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                    }
 
                     let resp;
                     try {
@@ -3649,14 +3694,12 @@ SQIDAQAB
                             body: JSON.stringify({ state: diagState, answer: submission.answer, dontKnow: submission.dontKnow })
                         });
                     } catch (err) {
-                        lockAnsweredCard(qCard, submission.answer, false, 'Could not reach the server. Please try again.');
-                        finishDrilldown();
+                        showRetryableError('Could not reach the server.');
                         return;
                     }
                     if (!resp.ok) {
                         const body = await resp.json().catch(() => ({}));
-                        lockAnsweredCard(qCard, submission.answer, false, body.error || 'Something went wrong.');
-                        finishDrilldown();
+                        showRetryableError(body.error || 'Something went wrong processing that answer.');
                         return;
                     }
                     const result = await resp.json();
@@ -3669,26 +3712,50 @@ SQIDAQAB
                 }, drilldownBlock);
             }
 
-            let startResp;
-            try {
-                startResp = await fetch(`${COMPILE_BACKEND_URL}/diagnostics/start-from-answer`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-                    body: JSON.stringify({ conceptKey, conceptLabel, subject, topic: '', question, forceAtomic: isPrerequisiteStep })
-                });
-            } catch (err) {
-                drilldownBlock.innerHTML = '<div class="correction-card">Could not reach the server. Please try again.</div>';
-                finishDrilldown();
-                return;
+            // A failure to even START the drilldown previously ended it
+            // outright (finishDrilldown) — same problem as the retry fix in
+            // askNextDiagnostic above: a transient failure isn't a real
+            // diagnosis, and silently moving on could finish the whole
+            // lesson without ever actually resolving the wrong answer that
+            // triggered this. Retries the start call instead.
+            async function attemptStart() {
+                let startResp;
+                try {
+                    startResp = await fetch(`${COMPILE_BACKEND_URL}/diagnostics/start-from-answer`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                        body: JSON.stringify({ conceptKey, conceptLabel, subject, topic: '', question, forceAtomic: isPrerequisiteStep })
+                    });
+                } catch (err) {
+                    showStartError('Could not reach the server.');
+                    return;
+                }
+                if (!startResp.ok) {
+                    const body = await startResp.json().catch(() => ({}));
+                    showStartError(body.error || 'Could not start diagnosis.');
+                    return;
+                }
+                const startResult = await startResp.json();
+                handleDiagnosticResult(startResult);
             }
-            if (!startResp.ok) {
-                const body = await startResp.json().catch(() => ({}));
-                drilldownBlock.innerHTML = `<div class="correction-card">${escapeHtml(body.error || 'Could not start diagnosis.')}</div>`;
-                finishDrilldown();
-                return;
+
+            function showStartError(message) {
+                drilldownBlock.innerHTML = '';
+                const errorCard = document.createElement('div');
+                errorCard.className = 'correction-card';
+                errorCard.textContent = message;
+                const retryBtn = document.createElement('button');
+                retryBtn.className = 'question-submit-btn';
+                retryBtn.textContent = 'Retry';
+                retryBtn.style.marginTop = '10px';
+                retryBtn.addEventListener('click', attemptStart);
+                errorCard.appendChild(document.createElement('br'));
+                errorCard.appendChild(retryBtn);
+                drilldownBlock.appendChild(errorCard);
+                errorCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
             }
-            const startResult = await startResp.json();
-            handleDiagnosticResult(startResult);
+
+            await attemptStart();
         }
 
         // Set once /encoding-lesson/start returns, for this page-open
