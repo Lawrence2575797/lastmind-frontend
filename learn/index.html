@@ -827,6 +827,53 @@
         outline: none;
     }
 
+    /* ─── ENCODING LESSON: "show your working" maths input, for a
+       requiresCalculation step — see createMathWorkingInput ─── */
+    .math-working-input {
+        margin-bottom: 12px;
+    }
+
+    .math-working-lines {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+
+    .math-working-line {
+        background: var(--accent);
+        border-radius: 6px;
+        padding: 6px 10px;
+    }
+
+    .math-working-field.math-field-inline {
+        display: block;
+        background: none;
+        border: none;
+        padding: 0;
+        min-height: 1.6em;
+    }
+
+    .math-working-field .mq-editable-field {
+        font-size: 1.05rem;
+        color: var(--bg);
+    }
+
+    .math-working-add-btn {
+        background: none;
+        border: 1px solid rgba(230, 215, 176, 0.3);
+        border-radius: 4px;
+        color: var(--text);
+        font-size: 0.78rem;
+        padding: 5px 12px;
+        cursor: pointer;
+    }
+
+    .math-working-input.disabled {
+        opacity: 0.5;
+        pointer-events: none;
+    }
+
     /* ─── ENCODING LESSON: verified diagram (rare, only when Claude flags one as needed) ─── */
     .question-diagram {
         margin-bottom: 12px;
@@ -3648,6 +3695,11 @@ SQIDAQAB
         // visible with the answer given, a correct/incorrect indicator,
         // and any correction — rather than disappearing, so the whole
         // lesson builds up as a real vertical record as it progresses.
+        // answerGiven is normally a plain string (escaped below before ever
+        // reaching innerHTML — it's raw student-typed text). Pass
+        // { html: '...' } instead when the caller already has trusted,
+        // pre-rendered markup to show (e.g. KaTeX-rendered working for a
+        // calculation answer) — used as-is, not escaped.
         function lockAnsweredCard(card, answerGiven, correct, correction, statusLabel) {
             const resultLine = document.createElement('div');
             resultLine.style.marginTop = '10px';
@@ -3655,14 +3707,17 @@ SQIDAQAB
             resultLine.style.borderTop = '1px solid rgba(230, 215, 176, 0.12)';
             resultLine.style.fontSize = '0.85em';
             const label = statusLabel || (correct ? '✓ Correct' : '✗ Corrected');
+            const answerHtml = (answerGiven && typeof answerGiven === 'object' && 'html' in answerGiven)
+                ? (answerGiven.html || '(no answer given)')
+                : escapeHtml(answerGiven || '(no answer given)');
             resultLine.innerHTML = `
-                <div style="opacity:0.7; margin-bottom:4px;">Your answer: ${answerGiven || '(no answer given)'}</div>
+                <div style="opacity:0.7; margin-bottom:4px;">Your answer: ${answerHtml}</div>
                 <div style="color:${correct ? 'var(--accent)' : '#e6b0a8'};">${label}</div>
-                ${correction ? `<div style="margin-top:6px; opacity:0.9;">${correction}</div>` : ''}
+                ${correction ? `<div style="margin-top:6px; opacity:0.9;">${escapeHtml(correction)}</div>` : ''}
             `;
 
             // Remove the editable controls, keep the question text, add the result.
-            card.querySelectorAll('textarea, .question-card-footer, .question-submit-btn').forEach((el) => el.remove());
+            card.querySelectorAll('textarea, .math-working-input, .question-card-footer, .question-submit-btn').forEach((el) => el.remove());
             card.appendChild(resultLine);
         }
 
@@ -3782,6 +3837,86 @@ SQIDAQAB
         // gate); a weaker answer just leaves a note and contributes to a
         // lower FSRS grade for this concept overall, which is what brings it
         // back around sooner in spaced review, not re-litigating this step now.
+        // A small multi-line MathQuill "show your working" input, for a
+        // step the backend flagged requiresCalculation:true (see
+        // ENCODING_LESSON_BATCH_PROMPT rule 10) — reuses the same MQ
+        // interface and .math-field-inline styling the notes editor's own
+        // "∑ Insert Math" already uses, just wired to a dedicated answer
+        // area instead of sitting inline in prose. Starts with one line;
+        // "+ Add line" lets the student lay out actual working (not just
+        // a bare final answer), which the grading prompt reads as a
+        // whole. Returns a small controller object rather than a raw
+        // element, since callers need getValue()/isEmpty() too, not just
+        // something to append to the DOM.
+        function createMathWorkingInput() {
+            const wrap = document.createElement('div');
+            wrap.className = 'math-working-input';
+
+            const lines = document.createElement('div');
+            lines.className = 'math-working-lines';
+            wrap.appendChild(lines);
+
+            const mathFields = [];
+
+            function addLine(focus) {
+                const lineWrap = document.createElement('div');
+                lineWrap.className = 'math-working-line';
+                const field = document.createElement('span');
+                field.className = 'math-field-inline math-working-field';
+                lineWrap.appendChild(field);
+                lines.appendChild(lineWrap);
+                const mq = MQ.MathField(field, {});
+                mathFields.push(mq);
+                if (focus) mq.focus();
+                return mq;
+            }
+
+            addLine(false);
+
+            const addLineBtn = document.createElement('button');
+            addLineBtn.type = 'button';
+            addLineBtn.className = 'math-working-add-btn';
+            addLineBtn.textContent = '+ Add line';
+            addLineBtn.addEventListener('click', () => addLine(true));
+            wrap.appendChild(addLineBtn);
+
+            return {
+                container: wrap,
+                // Joined as plain LaTeX lines — the grading prompt is told
+                // this is maths-input text and reads it as such; no need
+                // for a heavier structured format for a first pass.
+                getValue() {
+                    return mathFields.map((mq) => mq.latex().trim()).filter(Boolean).join('\n');
+                },
+                isEmpty() {
+                    return mathFields.every((mq) => !mq.latex().trim());
+                },
+                // MathQuill has no first-class disable API — visually
+                // dims and stops new lines, which is all "I don't know"
+                // actually needs (the value is simply never read/sent).
+                setDisabled(disabled) {
+                    addLineBtn.disabled = disabled;
+                    wrap.classList.toggle('disabled', disabled);
+                }
+            };
+        }
+
+        // Renders a math-working input's current content as safe HTML for
+        // the locked "Your answer:" summary line (see lockAnsweredCard) —
+        // each line rendered through KaTeX individually, since KaTeX
+        // renders one expression at a time, joined with line breaks.
+        function mathWorkingToHtml(latexLines) {
+            const lines = (latexLines || '').split('\n').map((l) => l.trim()).filter(Boolean);
+            if (!lines.length) return '';
+            return lines.map((line) => {
+                try {
+                    return katex.renderToString(line, { throwOnError: false });
+                } catch (err) {
+                    return escapeHtml(line);
+                }
+            }).join('<br>');
+        }
+
         function renderEncodingAnswerCard(accessToken, step, state, explanationText) {
             const card = document.createElement('div');
             card.className = 'question-card';
@@ -3825,10 +3960,23 @@ SQIDAQAB
             text.textContent = promptText;
             card.appendChild(text);
 
-            const answerInput = document.createElement('textarea');
-            answerInput.className = 'question-answer-input';
-            answerInput.placeholder = 'Type your answer…';
-            card.appendChild(answerInput);
+            // A calculation step (see step.requiresCalculation) gets the
+            // maths-keyboard "show your working" input instead of a plain
+            // textarea — the whole point of ENCODING_LESSON_BATCH_PROMPT's
+            // self-checked expectedSolution is grading against genuine
+            // worked maths, which free text can't reliably capture.
+            const isMath = !!step.requiresCalculation;
+            let answerInput = null;
+            let mathInput = null;
+            if (isMath) {
+                mathInput = createMathWorkingInput();
+                card.appendChild(mathInput.container);
+            } else {
+                answerInput = document.createElement('textarea');
+                answerInput.className = 'question-answer-input';
+                answerInput.placeholder = 'Type your answer…';
+                card.appendChild(answerInput);
+            }
 
             const footer = document.createElement('div');
             footer.className = 'question-card-footer';
@@ -3840,8 +3988,12 @@ SQIDAQAB
             dontKnowLabel.appendChild(dontKnowCheckbox);
             dontKnowLabel.appendChild(document.createTextNode("I don't know"));
             dontKnowCheckbox.addEventListener('change', () => {
-                answerInput.disabled = dontKnowCheckbox.checked;
-                if (dontKnowCheckbox.checked) answerInput.value = '';
+                if (isMath) {
+                    mathInput.setDisabled(dontKnowCheckbox.checked);
+                } else {
+                    answerInput.disabled = dontKnowCheckbox.checked;
+                    if (dontKnowCheckbox.checked) answerInput.value = '';
+                }
             });
             footer.appendChild(dontKnowLabel);
 
@@ -3854,14 +4006,17 @@ SQIDAQAB
 
             submitBtn.addEventListener('click', async () => {
                 const dontKnow = dontKnowCheckbox.checked;
-                const answer = answerInput.value.trim();
+                const answer = isMath ? mathInput.getValue() : answerInput.value.trim();
                 if (!dontKnow && !answer) return;
                 submitBtn.disabled = true;
 
                 try {
                     const result = await postEncodingSubmit(accessToken, state, answer, dontKnow);
-                    card.querySelectorAll('textarea, .question-card-footer').forEach((el) => el.remove());
-                    lockAnsweredCard(card, dontKnow ? "(I don't know)" : answer, result.correct !== false, result.feedback);
+                    card.querySelectorAll('textarea, .math-working-input, .question-card-footer').forEach((el) => el.remove());
+                    const answerRecord = dontKnow
+                        ? "(I don't know)"
+                        : (isMath ? { html: mathWorkingToHtml(answer) } : answer);
+                    lockAnsweredCard(card, answerRecord, result.correct !== false, result.feedback);
 
                     // Any correct answer just advances as before. A wrong
                     // answer on any step type — including "implication"
