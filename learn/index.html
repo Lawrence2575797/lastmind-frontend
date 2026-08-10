@@ -733,55 +733,28 @@
         outline: none;
     }
 
-    /* ─── ENCODING LESSON: live draft flags + retry feedback ─── */
-    .draft-flags {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
+    /* ─── ENCODING LESSON: verified diagram (rare, only when Claude flags one as needed) ─── */
+    .question-diagram {
         margin-bottom: 12px;
     }
 
-    .draft-flags:empty {
-        display: none;
-        margin-bottom: 0;
-    }
-
-    .draft-flag {
-        background: rgba(230, 178, 60, 0.12);
-        border: 1px solid rgba(230, 178, 60, 0.4);
-        border-radius: 5px;
-        padding: 8px 10px;
-        font-family: 'Arial', sans-serif;
-        font-size: 0.78rem;
-    }
-
-    .draft-flag-snippet {
-        color: #e6b23c;
-        opacity: 0.9;
-    }
-
-    .draft-flag-toggle {
-        background: none;
-        border: 1px solid rgba(230, 178, 60, 0.5);
-        color: #e6b23c;
-        width: 18px;
-        height: 18px;
-        border-radius: 50%;
-        font-size: 0.7rem;
-        line-height: 1;
-        cursor: pointer;
-        margin-left: 8px;
-    }
-
-    .draft-flag-hint {
-        display: none;
-        margin-top: 6px;
-        opacity: 0.85;
-        line-height: 1.5;
-    }
-
-    .draft-flag-hint.open {
+    .question-diagram-img {
+        max-width: 100%;
+        border-radius: 6px;
         display: block;
+    }
+
+    .question-diagram-caption {
+        font-size: 0.85rem;
+        font-style: italic;
+        opacity: 0.8;
+        margin-top: 6px;
+    }
+
+    .question-diagram-attribution {
+        font-size: 0.7rem;
+        opacity: 0.55;
+        margin-top: 2px;
     }
 
     .question-card-footer {
@@ -2003,7 +1976,16 @@ SQIDAQAB
         await putFolder(folder);
         await refreshFolderList();
         if (selectedFolderId === folderId && selectedSubfolderId === subfolderId) {
-            document.getElementById('topbarTitle').textContent = `${folderLabel(folder)} · ${newName}`;
+            // A page inside this subfolder may currently be open, in which
+            // case a lot more than the topbar depends on the fresh name
+            // (breadcrumbs, lesson panel, etc.) — re-open it from the just
+            // -refreshed data instead of hand-patching individual strings,
+            // which previously left the view stale until a full reload.
+            if (selectedPageId) {
+                openPage(folderId, selectedPageId, subfolderId);
+            } else {
+                document.getElementById('topbarTitle').textContent = `${folderLabel(folder)} · ${newName}`;
+            }
         }
     }
 
@@ -2016,9 +1998,7 @@ SQIDAQAB
         await putFolder(loc.folder);
         await refreshFolderList();
         if (selectedPageId === pageId) {
-            const titleInput = document.getElementById('pageTitleInput');
-            if (titleInput) titleInput.value = newTitle;
-            document.getElementById('topbarTitle').textContent = `${folderLabel(loc.folder)} · ${newTitle || 'Untitled page'}`;
+            openPage(loc.folder.id, pageId, loc.subfolder ? loc.subfolder.id : null);
         }
     }
 
@@ -2048,8 +2028,12 @@ SQIDAQAB
         await putFolder(folder);
         await refreshFolderList();
         if (selectedFolderId === folderId) {
-            const sf = selectedSubfolderId && (folder.subfolders || []).find((x) => x.id === selectedSubfolderId);
-            document.getElementById('topbarTitle').textContent = sf ? `${folderLabel(folder)} · ${sf.name}` : folderLabel(folder);
+            if (selectedPageId) {
+                openPage(folderId, selectedPageId, selectedSubfolderId);
+            } else {
+                const sf = selectedSubfolderId && (folder.subfolders || []).find((x) => x.id === selectedSubfolderId);
+                document.getElementById('topbarTitle').textContent = sf ? `${folderLabel(folder)} · ${sf.name}` : folderLabel(folder);
+            }
         }
     }
 
@@ -3214,70 +3198,6 @@ SQIDAQAB
             return resp.json();
         }
 
-        function renderEncodingFlags(flagsList, flags) {
-            flagsList.innerHTML = '';
-            flags.forEach((flag) => {
-                const row = document.createElement('div');
-                row.className = 'draft-flag';
-
-                const snippetEl = document.createElement('span');
-                snippetEl.className = 'draft-flag-snippet';
-                snippetEl.textContent = `"${flag.snippet}"`;
-
-                const toggleBtn = document.createElement('button');
-                toggleBtn.type = 'button';
-                toggleBtn.className = 'draft-flag-toggle';
-                toggleBtn.textContent = '?';
-
-                const hintEl = document.createElement('div');
-                hintEl.className = 'draft-flag-hint';
-                hintEl.textContent = flag.hint;
-
-                toggleBtn.addEventListener('click', () => {
-                    hintEl.classList.toggle('open');
-                });
-
-                row.appendChild(snippetEl);
-                row.appendChild(toggleBtn);
-                row.appendChild(hintEl);
-                flagsList.appendChild(row);
-            });
-        }
-
-        // Debounced, capped live check while the student is still drafting
-        // — only fires after a pause in typing AND enough new text to be
-        // worth another (cheap-model) call, never on every keystroke.
-        function setupEncodingDraftFlagging(answerInput, flagsList, step) {
-            let lastCheckedLength = 0;
-            let debounceTimer = null;
-
-            answerInput.addEventListener('input', () => {
-                clearTimeout(debounceTimer);
-                const text = answerInput.value;
-                if (text.trim().length < 15) return;
-                if (text.length - lastCheckedLength < 15) return;
-
-                debounceTimer = setTimeout(async () => {
-                    lastCheckedLength = answerInput.value.length;
-                    try {
-                        const { data: { session } } = await supabaseClient.auth.getSession();
-                        if (!session) return;
-                        const resp = await fetch(`${COMPILE_BACKEND_URL}/encoding-lesson/check-draft`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-                            body: JSON.stringify({ nodeLabel: step.label, promptText: step.text, draft: answerInput.value })
-                        });
-                        if (!resp.ok) return;
-                        const { flags } = await resp.json();
-                        renderEncodingFlags(flagsList, flags || []);
-                    } catch (err) {
-                        // Silent — this is a nice-to-have while drafting, not
-                        // core functionality worth interrupting the student for.
-                    }
-                }, 1200);
-            });
-        }
-
         // "explain" steps show the direct explanation text above the
         // question, then ask a checkQuestion testing whether it actually
         // landed — brand-new content can't be verified by FSRS yet, so this
@@ -3291,6 +3211,32 @@ SQIDAQAB
         function renderEncodingAnswerCard(accessToken, step, state, explanationText) {
             const card = document.createElement('div');
             card.className = 'question-card';
+
+            if (step.diagram) {
+                const diagramWrap = document.createElement('div');
+                diagramWrap.className = 'question-diagram';
+
+                const img = document.createElement('img');
+                img.src = step.diagram.diagramUrl;
+                img.alt = step.diagram.diagramCaption || '';
+                img.className = 'question-diagram-img';
+                img.onerror = () => diagramWrap.remove();
+                diagramWrap.appendChild(img);
+
+                if (step.diagram.diagramCaption) {
+                    const caption = document.createElement('div');
+                    caption.className = 'question-diagram-caption';
+                    caption.textContent = step.diagram.diagramCaption;
+                    diagramWrap.appendChild(caption);
+                }
+
+                const attribution = document.createElement('div');
+                attribution.className = 'question-diagram-attribution';
+                attribution.textContent = step.diagram.diagramAttribution || '';
+                diagramWrap.appendChild(attribution);
+
+                card.appendChild(diagramWrap);
+            }
 
             if (explanationText) {
                 const explanation = document.createElement('div');
@@ -3310,10 +3256,6 @@ SQIDAQAB
             answerInput.placeholder = 'Type your answer…';
             card.appendChild(answerInput);
 
-            const flagsList = document.createElement('div');
-            flagsList.className = 'draft-flags';
-            card.appendChild(flagsList);
-
             const footer = document.createElement('div');
             footer.className = 'question-card-footer';
             const submitBtn = document.createElement('button');
@@ -3323,15 +3265,13 @@ SQIDAQAB
             footer.appendChild(submitBtn);
             card.appendChild(footer);
 
-            setupEncodingDraftFlagging(answerInput, flagsList, { label: step.label, text: promptText });
-
             submitBtn.addEventListener('click', async () => {
                 const answer = answerInput.value.trim();
                 submitBtn.disabled = true;
 
                 try {
                     const result = await postEncodingSubmit(accessToken, state, answer);
-                    card.querySelectorAll('textarea, .question-card-footer, .draft-flags').forEach((el) => el.remove());
+                    card.querySelectorAll('textarea, .question-card-footer').forEach((el) => el.remove());
                     lockAnsweredCard(card, answer, result.correct !== false, result.feedback);
                     renderNextEncodingStep(accessToken, result);
                 } catch (err) {
@@ -3374,7 +3314,7 @@ SQIDAQAB
             renderEncodingStep(accessToken, result.step, result.state);
         }
 
-        async function runEncodingLesson(accessToken, subject, topic, concept) {
+        async function runEncodingLesson(accessToken, subject, topic, concept, qualification, examBoard) {
             questionFlowEl.innerHTML = '<div class="correction-card">Preparing your first lesson…</div>';
 
             let resp;
@@ -3382,7 +3322,7 @@ SQIDAQAB
                 resp = await fetch(`${COMPILE_BACKEND_URL}/encoding-lesson/start`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-                    body: JSON.stringify({ subject, topic, concept })
+                    body: JSON.stringify({ subject, topic, concept, qualification: qualification || '', examBoard: examBoard || '' })
                 });
             } catch (err) {
                 questionFlowEl.innerHTML = '<div class="correction-card">Could not reach the server. Please try again.</div>';
@@ -3423,7 +3363,7 @@ SQIDAQAB
                 if (encodingDone) {
                     await runChainLesson(diagSession.access_token, subject, topic, lesson);
                 } else {
-                    await runEncodingLesson(diagSession.access_token, subject, topic, lesson);
+                    await runEncodingLesson(diagSession.access_token, subject, topic, lesson, folder.qualification, folder.examBoard);
                 }
             } catch (err) {
                 console.error('LastMind: lesson failed.', err);
