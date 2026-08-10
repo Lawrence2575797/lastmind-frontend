@@ -3471,12 +3471,13 @@ SQIDAQAB
                     card.querySelectorAll('textarea, .question-card-footer').forEach((el) => el.remove());
                     lockAnsweredCard(card, dontKnow ? "(I don't know)" : answer, result.correct !== false, result.feedback);
 
-                    // implication steps have no real chain node to root-cause
-                    // diagnose against (synthetic nodeId) — those, and any
-                    // correct answer, just advance as before. A wrong
-                    // check/scene/derive/explain answer pauses instead and
-                    // drills down through the diagnostic tree before resuming.
-                    if (result.correct === false && step.type !== 'implication') {
+                    // Any correct answer just advances as before. A wrong
+                    // answer on any step type — including "implication"
+                    // (still diagnosed against the lesson's own concept, see
+                    // diagnosisConceptKey in encodingLessonService.ts) —
+                    // pauses instead and drills down through the diagnostic
+                    // tree before resuming.
+                    if (result.correct === false) {
                         await runDiagnosticDrillDown(accessToken, card, step, answer, result);
                     } else {
                         renderNextEncodingStep(accessToken, result);
