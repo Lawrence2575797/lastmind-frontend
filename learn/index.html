@@ -3367,11 +3367,11 @@ SQIDAQAB
            ONE call by /encoding-lesson/start — grading each answer is the
            only thing that needs another call, via /encoding-lesson/submit. */
 
-        async function postEncodingSubmit(accessToken, state, answer) {
+        async function postEncodingSubmit(accessToken, state, answer, dontKnow) {
             const resp = await fetch(`${COMPILE_BACKEND_URL}/encoding-lesson/submit`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-                body: JSON.stringify({ state, answer })
+                body: JSON.stringify({ state, answer, dontKnow: !!dontKnow })
             });
             if (!resp.ok) {
                 const body = await resp.json().catch(() => ({}));
@@ -3440,6 +3440,19 @@ SQIDAQAB
 
             const footer = document.createElement('div');
             footer.className = 'question-card-footer';
+
+            const dontKnowLabel = document.createElement('label');
+            dontKnowLabel.className = 'dont-know-label';
+            const dontKnowCheckbox = document.createElement('input');
+            dontKnowCheckbox.type = 'checkbox';
+            dontKnowLabel.appendChild(dontKnowCheckbox);
+            dontKnowLabel.appendChild(document.createTextNode("I don't know"));
+            dontKnowCheckbox.addEventListener('change', () => {
+                answerInput.disabled = dontKnowCheckbox.checked;
+                if (dontKnowCheckbox.checked) answerInput.value = '';
+            });
+            footer.appendChild(dontKnowLabel);
+
             const submitBtn = document.createElement('button');
             submitBtn.className = 'question-submit-btn';
             submitBtn.type = 'button';
@@ -3448,13 +3461,15 @@ SQIDAQAB
             card.appendChild(footer);
 
             submitBtn.addEventListener('click', async () => {
+                const dontKnow = dontKnowCheckbox.checked;
                 const answer = answerInput.value.trim();
+                if (!dontKnow && !answer) return;
                 submitBtn.disabled = true;
 
                 try {
-                    const result = await postEncodingSubmit(accessToken, state, answer);
+                    const result = await postEncodingSubmit(accessToken, state, answer, dontKnow);
                     card.querySelectorAll('textarea, .question-card-footer').forEach((el) => el.remove());
-                    lockAnsweredCard(card, answer, result.correct !== false, result.feedback);
+                    lockAnsweredCard(card, dontKnow ? "(I don't know)" : answer, result.correct !== false, result.feedback);
 
                     // implication steps have no real chain node to root-cause
                     // diagnose against (synthetic nodeId) — those, and any
@@ -3560,6 +3575,8 @@ SQIDAQAB
 
             function askNextDiagnostic(questionText, options, diagState) {
                 const qCard = renderQuestionCard(questionText, options, async (submission) => {
+                    if (!submission.dontKnow && !submission.answer.trim()) return;
+
                     let resp;
                     try {
                         resp = await fetch(`${COMPILE_BACKEND_URL}/diagnostics/submit-answer`, {
@@ -3568,18 +3585,22 @@ SQIDAQAB
                             body: JSON.stringify({ state: diagState, answer: submission.answer, dontKnow: submission.dontKnow })
                         });
                     } catch (err) {
-                        lockAnsweredCard(qCard, submission.answer, true, 'Could not reach the server. Please try again.', 'Answered');
+                        lockAnsweredCard(qCard, submission.answer, false, 'Could not reach the server. Please try again.');
                         finishDrilldown();
                         return;
                     }
                     if (!resp.ok) {
                         const body = await resp.json().catch(() => ({}));
-                        lockAnsweredCard(qCard, submission.answer, true, body.error || 'Something went wrong.', 'Answered');
+                        lockAnsweredCard(qCard, submission.answer, false, body.error || 'Something went wrong.');
                         finishDrilldown();
                         return;
                     }
                     const result = await resp.json();
-                    lockAnsweredCard(qCard, submission.answer, true, null, 'Answered');
+                    const correct = result.answerCorrect !== false;
+                    const statusLabel = result.done
+                        ? (correct ? '✓ Correct' : '✗ Not quite — diagnosis complete')
+                        : (correct ? '✓ Correct — checking one more thing' : '✗ Not quite — let’s dig a bit deeper');
+                    lockAnsweredCard(qCard, submission.answer, correct, null, statusLabel);
                     handleDiagnosticResult(result);
                 }, drilldownBlock);
             }
