@@ -2411,6 +2411,67 @@ SQIDAQAB
         await refreshFolderList();
     }
 
+    // Finds where a subfolder currently lives — same purpose as
+    // findPageLocation, for the subfolder-level move/reorder functions below.
+    function findSubfolderLocation(subfolderId) {
+        for (const f of folders) {
+            const idx = (f.subfolders || []).findIndex((sf) => sf.id === subfolderId);
+            if (idx !== -1) return { folder: f, subfolderIndex: idx, subfoldersArray: f.subfolders };
+        }
+        return null;
+    }
+
+    // Moves a whole subfolder — every page in it, plus any saved plan —
+    // into a different folder, appended at the end of that folder's
+    // subfolder list. Used when dropping directly onto a FOLDER header
+    // (see buildFolderRow); dropping onto a specific SUBFOLDER instead
+    // uses moveSubfolderRelativeTo below for a precise position.
+    async function moveSubfolderToFolder(subfolderId, targetFolderId) {
+        const loc = findSubfolderLocation(subfolderId);
+        if (!loc) return;
+        if (loc.folder.id === targetFolderId) return; // already in this folder — no-op
+
+        const targetFolder = folders.find((f) => f.id === targetFolderId);
+        if (!targetFolder) return;
+
+        const [subfolder] = loc.subfoldersArray.splice(loc.subfolderIndex, 1);
+        targetFolder.subfolders = targetFolder.subfolders || [];
+        targetFolder.subfolders.push(subfolder);
+
+        await putFolder(loc.folder);
+        await putFolder(targetFolder);
+        await refreshFolderList();
+    }
+
+    // Drops a subfolder directly onto another subfolder's header — reorders
+    // within the same folder, or moves AND positions it when the target
+    // subfolder belongs to a different folder. Same "find the target after
+    // removing the dragged item" approach movePageRelativeTo uses, for the
+    // same reason: it sidesteps off-by-one issues when both happen to be
+    // in the same array.
+    async function moveSubfolderRelativeTo(draggedSubfolderId, targetSubfolderId) {
+        if (draggedSubfolderId === targetSubfolderId) return;
+
+        const dragLoc = findSubfolderLocation(draggedSubfolderId);
+        if (!dragLoc) return;
+
+        const [subfolder] = dragLoc.subfoldersArray.splice(dragLoc.subfolderIndex, 1);
+
+        const targetLoc = findSubfolderLocation(targetSubfolderId);
+        if (!targetLoc) {
+            // Target vanished mid-drag somehow — put it back rather than
+            // silently losing it.
+            dragLoc.subfoldersArray.splice(dragLoc.subfolderIndex, 0, subfolder);
+            return;
+        }
+
+        targetLoc.subfoldersArray.splice(targetLoc.subfolderIndex, 0, subfolder);
+
+        await putFolder(dragLoc.folder);
+        if (targetLoc.folder.id !== dragLoc.folder.id) await putFolder(targetLoc.folder);
+        await refreshFolderList();
+    }
+
     let pendingSubfolderFolderId = null;
 
     function openSubfolderModal(folderId) {
@@ -2794,13 +2855,17 @@ SQIDAQAB
         header.appendChild(menuWrap);
         header.addEventListener('click', () => selectFolder(f.id));
 
-        // Reordering among top-level folders.
+        // Reordering among top-level folders (existing). The header ALSO
+        // accepts a dragged subfolder (moves it into this folder — see
+        // moveSubfolderToFolder) or a dragged page (moves it out of
+        // whatever subfolder it was in, back to this folder's own root
+        // pages — see movePage's targetSubfolderId: null case).
         item.addEventListener('dragstart', (e) => {
             draggedItem = { type: 'folder', folderId: f.id };
             e.dataTransfer.effectAllowed = 'move';
         });
         header.addEventListener('dragover', (e) => {
-            if (!draggedItem || draggedItem.type !== 'folder') return;
+            if (!draggedItem || !['folder', 'subfolder', 'page'].includes(draggedItem.type)) return;
             e.preventDefault();
             header.classList.add('drag-over');
         });
@@ -2810,6 +2875,10 @@ SQIDAQAB
             header.classList.remove('drag-over');
             if (draggedItem && draggedItem.type === 'folder' && draggedItem.folderId !== f.id) {
                 await reorderFolders(draggedItem.folderId, f.id);
+            } else if (draggedItem && draggedItem.type === 'subfolder') {
+                await moveSubfolderToFolder(draggedItem.subfolderId, f.id);
+            } else if (draggedItem && draggedItem.type === 'page') {
+                await movePage(draggedItem.pageId, f.id, null);
             }
             draggedItem = null;
         });
@@ -2821,6 +2890,7 @@ SQIDAQAB
     function buildSubfolderRow(folder, sf) {
         const sfItem = document.createElement('div');
         sfItem.className = 'subfolder-item';
+        sfItem.draggable = true;
 
         const sfHeader = document.createElement('div');
         sfHeader.className = 'subfolder-header';
@@ -2841,10 +2911,24 @@ SQIDAQAB
         sfHeader.appendChild(sfMenu);
         sfHeader.addEventListener('click', () => selectSubfolder(folder.id, sf.id));
 
-        // A subfolder can receive a page dragged from this same folder's
-        // direct-pages list, shown just below it in this same view.
+        // Dragging this subfolder itself — out of its current folder and
+        // into a different one (dropped on a FOLDER header — see
+        // buildFolderRow/moveSubfolderToFolder), or onto another subfolder
+        // to reorder/reposition (see moveSubfolderRelativeTo below).
+        sfItem.addEventListener('dragstart', (e) => {
+            e.stopPropagation();
+            draggedItem = { type: 'subfolder', folderId: folder.id, subfolderId: sf.id };
+            e.dataTransfer.effectAllowed = 'move';
+        });
+
+        // This header accepts two different incoming drags: a page (adds
+        // it to this subfolder — existing behaviour), or another subfolder
+        // dropped directly on it (reorders/repositions it to sit right
+        // before this one — same "drop on the sibling" pattern
+        // buildPageItem uses for pages, see moveSubfolderRelativeTo).
         sfHeader.addEventListener('dragover', (e) => {
-            if (!draggedItem || draggedItem.type !== 'page') return;
+            if (!draggedItem) return;
+            if (draggedItem.type !== 'page' && !(draggedItem.type === 'subfolder' && draggedItem.subfolderId !== sf.id)) return;
             e.preventDefault();
             sfHeader.classList.add('drag-over');
         });
@@ -2854,6 +2938,8 @@ SQIDAQAB
             sfHeader.classList.remove('drag-over');
             if (draggedItem && draggedItem.type === 'page') {
                 await movePage(draggedItem.pageId, folder.id, sf.id);
+            } else if (draggedItem && draggedItem.type === 'subfolder' && draggedItem.subfolderId !== sf.id) {
+                await moveSubfolderRelativeTo(draggedItem.subfolderId, sf.id);
             }
             draggedItem = null;
         });
