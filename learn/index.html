@@ -295,6 +295,33 @@
         background: rgba(230, 215, 176, 0.2);
     }
 
+    /* ─── Retrieval-lesson "due in" indicator — see formatDueIn / dueInBadge.
+       Same visual language as .calendar-day-review on purpose, since it's
+       reporting the exact same underlying schedule data. ─── */
+    .due-in-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: rgba(230, 215, 176, 0.1);
+        border: 1px solid rgba(230, 215, 176, 0.2);
+        border-radius: 4px;
+        padding: 6px 10px;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.75rem;
+        cursor: pointer;
+        opacity: 0.85;
+    }
+
+    .due-in-badge:hover {
+        opacity: 1;
+        background: rgba(230, 215, 176, 0.2);
+    }
+
+    .due-in-badge.overdue {
+        border-color: #e6b0a8;
+        color: #e6b0a8;
+    }
+
     .manage-subscription-btn {
         width: 100%;
         background: none;
@@ -2296,7 +2323,10 @@ SQIDAQAB
         const items = page.lessons.map((l) => `
             <li class="multi-lesson-item done">
                 <span><span class="multi-lesson-marker">✓</span> ${escapeHtml(l.concept)}</span>
-                <button class="review-concept-btn" data-concept="${escapeHtml(l.concept)}" ${isPaidUser ? '' : 'disabled title="Upgrade to unlock diagnostics"'}>Review</button>
+                <span style="display:flex; align-items:center; gap:8px;">
+                    ${isPaidUser ? `<button type="button" class="due-in-badge multi-due-badge" data-concept="${escapeHtml(l.concept)}" title="Jump to this in the calendar">Checking schedule…</button>` : ''}
+                    <button class="review-concept-btn" data-concept="${escapeHtml(l.concept)}" ${isPaidUser ? '' : 'disabled title="Upgrade to unlock diagnostics"'}>Review</button>
+                </span>
             </li>
         `).join('');
         return `
@@ -3263,6 +3293,15 @@ SQIDAQAB
             : (page.encodingDone === true || page.taughtBefore === true);
         const showNotes = encodingDone;
 
+        // Once offerGenerateNotes has actually generated notes for this
+        // page (right at lesson completion), the notes panel locks down to
+        // a plain read-only display — no "add your own" / "Cortex" mode
+        // toggle, no editing tools — rather than offering to overwrite or
+        // duplicate what was just generated. A page that skipped that
+        // one-time offer (or has notes written by hand some other way)
+        // keeps the normal editable panel exactly as before.
+        const notesLocked = showNotes && page.notesGeneratedFromLesson === true;
+
         const lessonPanelHtml = isMulti
             ? (encodingDone ? multiLessonReviewPanelHtml(page) : multiLessonEncodingPanelHtml(page))
             : (encodingDone
@@ -3272,6 +3311,7 @@ SQIDAQAB
                 <p class="lesson-intro-message">This lesson is designed to allow you to construct the lesson with the right amount of scaffolding for you. Here is the first step:</p>
                 <div class="bottom-action-row">
                     <button class="generate-questions-btn" id="generateQuestionsBtn" ${isPaidUser ? '' : 'disabled title="Upgrade to unlock diagnostics"'}>Start Lesson</button>
+                    ${isPaidUser ? '<button type="button" class="due-in-badge" id="dueInBadge" title="Jump to this in the calendar">Checking schedule…</button>' : ''}
                 </div>
                 <div id="diagnoseQuestionFlow"></div>
             </div>
@@ -3291,26 +3331,30 @@ SQIDAQAB
         const notesPanelHtml = `
             <div class="notes-panel">
                 <input type="text" class="page-title-input" id="pageTitleInput" placeholder="Page title" value="">
-                <h3 class="notes-panel-heading">Add / Create Your Notes</h3>
+                <h3 class="notes-panel-heading">${notesLocked ? 'Your Notes' : 'Add / Create Your Notes'}</h3>
+                ${notesLocked ? '' : `
                 <div class="notes-mode-toggle">
                     <label class="notes-mode-option"><input type="radio" name="notesMode" id="notesModeOwn" checked> Add your own notes</label>
                     <label class="notes-mode-option"><input type="radio" name="notesMode" id="notesModeCortex"> Create new notes using Cortex</label>
                 </div>
+                `}
 
                 <div id="notesOwnMode">
+                    ${notesLocked ? '' : `
                     <div class="rich-toolbar">
                         <button type="button" class="toolbar-btn" id="insertMathBtn">∑ Insert Math</button>
                         <button type="button" class="toolbar-btn" id="insertMatrixBtn">⊞ Insert Matrix</button>
                     </div>
+                    `}
 
                     <div class="textarea-wrap">
-                        <div class="note-editable" id="noteBox" contenteditable="true" data-placeholder="Start typing your notes…"></div>
-                        <button type="button" class="mic-btn" id="micBtn" title="Start dictation">🎤</button>
+                        <div class="note-editable" id="noteBox" ${notesLocked ? '' : 'contenteditable="true"'} data-placeholder="Start typing your notes…"></div>
+                        ${notesLocked ? '' : '<button type="button" class="mic-btn" id="micBtn" title="Start dictation">🎤</button>'}
                     </div>
-                    <div class="dictation-status" id="dictationStatus"></div>
+                    ${notesLocked ? '' : '<div class="dictation-status" id="dictationStatus"></div>'}
                     <button class="play-btn" id="playBtn" title="Read notes aloud">▶ Play</button>
 
-                    ${isPaidUser ? `
+                    ${(!notesLocked && isPaidUser) ? `
                         <div class="bottom-action-row">
                             <button class="compile-btn" id="compileBtn">Compile</button>
                         </div>
@@ -3318,6 +3362,7 @@ SQIDAQAB
                         <div class="compiled-output" id="compiledOutput" style="display:none;"></div>
                     ` : ''}
 
+                    ${notesLocked ? '' : `
                     <div class="scratch-notes-widget" id="scratchNotesWidget">
                         <div class="scratch-notes-header" id="scratchNotesHeader">
                             <span>💡 Quick Notes</span>
@@ -3325,11 +3370,14 @@ SQIDAQAB
                         </div>
                         <textarea class="scratch-notes-textarea" id="scratchNotesBox" placeholder="Jot down a point for later, without losing your place…"></textarea>
                     </div>
+                    `}
                 </div>
 
+                ${notesLocked ? '' : `
                 <div id="notesCortexMode" style="display:none;">
                     <p class="cortex-placeholder">Cortex note generation is coming soon.</p>
                 </div>
+                `}
             </div>
 
             <div class="modal-overlay" id="matrixModalOverlay">
@@ -3383,14 +3431,16 @@ SQIDAQAB
                 }, 400);
             });
 
-            document.getElementById('notesModeOwn').addEventListener('change', () => {
-                document.getElementById('notesOwnMode').style.display = 'block';
-                document.getElementById('notesCortexMode').style.display = 'none';
-            });
-            document.getElementById('notesModeCortex').addEventListener('change', () => {
-                document.getElementById('notesOwnMode').style.display = 'none';
-                document.getElementById('notesCortexMode').style.display = 'block';
-            });
+            if (!notesLocked) {
+                document.getElementById('notesModeOwn').addEventListener('change', () => {
+                    document.getElementById('notesOwnMode').style.display = 'block';
+                    document.getElementById('notesCortexMode').style.display = 'none';
+                });
+                document.getElementById('notesModeCortex').addEventListener('change', () => {
+                    document.getElementById('notesOwnMode').style.display = 'none';
+                    document.getElementById('notesCortexMode').style.display = 'block';
+                });
+            }
 
             const noteBox = document.getElementById('noteBox');
 
@@ -3398,7 +3448,9 @@ SQIDAQAB
             // completely separate from the real notes on purpose — it's
             // never read by Compile or Play, both of which only ever look at
             // noteBox. Its own field on the page, its own debounce, its own
-            // save call.
+            // save call. None of this exists once notesLocked — editing
+            // tools generally don't, see notesLocked's own comment.
+            if (!notesLocked) {
             const scratchNotesBox = document.getElementById('scratchNotesBox');
             const scratchNotesWidget = document.getElementById('scratchNotesWidget');
             scratchNotesBox.value = page.scratchNotes || '';
@@ -3423,6 +3475,7 @@ SQIDAQAB
             document.getElementById('scratchNotesHeader').addEventListener('click', () => {
                 scratchNotesWidget.classList.toggle('collapsed');
             });
+            } // !notesLocked (scratch notes)
 
             // Builds a clean, storage-safe copy of the note's HTML: inline math
             // fields are reduced to <span class="math-field-inline"
@@ -3533,6 +3586,7 @@ SQIDAQAB
             });
             noteBox.querySelectorAll('.matrix-block').forEach(renderMatrixBlock);
 
+            if (!notesLocked) {
             noteBox.addEventListener('input', saveNoteContent);
 
             // "Insert Math" — drops a live MathQuill field at the current
@@ -3557,10 +3611,15 @@ SQIDAQAB
                 const mq = attachMathField(span, '');
                 mq.focus();
             });
+            } // !notesLocked (insert math)
 
             // "Insert Matrix" — a custom grid tool, not MathQuill (whose own
             // matrix support is genuinely broken per its GitHub issue tracker).
             // Rendered read-only via KaTeX, which handles matrix LaTeX correctly.
+            // The modal markup itself is always in the DOM (see notesPanelHtml)
+            // regardless of notesLocked — only the trigger button that opens
+            // it is removed there, so this wiring stays harmlessly inert
+            // rather than needing its own guard.
             const matrixModalOverlay = document.getElementById('matrixModalOverlay');
             const matrixGrid = document.getElementById('matrixGrid');
             const matrixRowsInput = document.getElementById('matrixRowsInput');
@@ -3580,6 +3639,7 @@ SQIDAQAB
                 }
             }
 
+            if (!notesLocked) {
             document.getElementById('insertMatrixBtn').addEventListener('click', () => {
                 const sel = window.getSelection();
                 if (sel.rangeCount && noteBox.contains(sel.getRangeAt(0).commonAncestorContainer)) {
@@ -3596,6 +3656,7 @@ SQIDAQAB
                 buildMatrixGrid();
                 matrixModalOverlay.classList.add('open');
             });
+            } // !notesLocked (insert matrix trigger)
 
             document.getElementById('matrixResizeBtn').addEventListener('click', buildMatrixGrid);
             document.getElementById('matrixCancelBtn').addEventListener('click', () => {
@@ -3629,7 +3690,7 @@ SQIDAQAB
                 saveNoteContent();
             });
 
-            if (isPaidUser) {
+            if (!notesLocked && isPaidUser) {
                 const compileBtn = document.getElementById('compileBtn');
                 const compileStatus = document.getElementById('compileStatus');
                 const compiledOutput = document.getElementById('compiledOutput');
@@ -3701,7 +3762,7 @@ SQIDAQAB
                 };
             });
 
-            setupDictation(noteBox);
+            if (!notesLocked) setupDictation(noteBox);
         }
 
         const questionFlowEl = document.getElementById('diagnoseQuestionFlow');
@@ -4513,6 +4574,10 @@ SQIDAQAB
                     }
                     const { notes } = await resp.json();
                     page.content = notesTextToHtml(notes || '');
+                    // Read by openPage to lock the notes panel down to a
+                    // plain read-only display once this has happened — see
+                    // its own comment on notesLocked for why.
+                    page.notesGeneratedFromLesson = true;
                     await putFolder(folder);
                     status.textContent = 'Notes generated ✓';
                     openPage(folder.id, page.id, loc.subfolder ? loc.subfolder.id : null);
@@ -4625,6 +4690,53 @@ SQIDAQAB
                     generateBtn.disabled = false;
                 }
             });
+        }
+
+        // Reports how long until this concept's own spaced-repetition
+        // review is due, and jumps to that date in the calendar on click —
+        // same underlying /schedule data and day-bucketing the calendar
+        // itself uses (see formatDueIn/jumpCalendarToDate), so the two
+        // never disagree. Only exists on a single-concept, already-taught
+        // page (see dueInBadge in lessonPanelHtml) — a multi-lesson page's
+        // per-concept version is wired separately below.
+        const dueInBadge = document.getElementById('dueInBadge');
+        if (dueInBadge) {
+            (async () => {
+                const scheduleData = await fetchScheduleData();
+                const entry = findScheduleEntryForConcept(scheduleData, folder.subject || '', (loc.subfolder && loc.subfolder.name) || '', page.title || 'Untitled page');
+                if (!entry) {
+                    dueInBadge.textContent = 'Not yet scheduled';
+                    dueInBadge.disabled = true;
+                    return;
+                }
+                dueInBadge.textContent = formatDueIn(entry.due);
+                dueInBadge.classList.toggle('overdue', daysBetweenLocalDays(new Date(), new Date(entry.due)) < 0);
+                dueInBadge.addEventListener('click', () => jumpCalendarToDate(entry.due));
+            })();
+        }
+
+        // Same due-in reporting as dueInBadge above, one per concept on a
+        // multi-lesson page — each has its own independent FSRS schedule
+        // (see the review-concept-btn wiring just below), so each needs
+        // its own lookup, but all share ONE /schedule fetch rather than one
+        // per concept.
+        const multiDueBadges = document.querySelectorAll('.multi-due-badge');
+        if (multiDueBadges.length) {
+            (async () => {
+                const scheduleData = await fetchScheduleData();
+                multiDueBadges.forEach((badge) => {
+                    const concept = badge.getAttribute('data-concept');
+                    const entry = findScheduleEntryForConcept(scheduleData, folder.subject || '', (loc.subfolder && loc.subfolder.name) || '', concept);
+                    if (!entry) {
+                        badge.textContent = 'Not yet scheduled';
+                        badge.disabled = true;
+                        return;
+                    }
+                    badge.textContent = formatDueIn(entry.due);
+                    badge.classList.toggle('overdue', daysBetweenLocalDays(new Date(), new Date(entry.due)) < 0);
+                    badge.addEventListener('click', () => jumpCalendarToDate(entry.due));
+                });
+            })();
         }
 
         // Per-concept review triggers on a fully-taught multi-lesson page
@@ -5305,6 +5417,71 @@ SQIDAQAB
         // the current data model, not something worth a bigger fix right
         // now. Just make normalized keys minimally more readable.
         return conceptKey.replace(/:/g, ' — ').replace(/_/g, ' ');
+    }
+
+    // Same normalization chainService.ts's normalizeConceptKey uses
+    // server-side — reproduced here so the retrieval-lesson due-in
+    // indicator (see dueInBadge below) can look up THIS page's own
+    // schedule entry by the exact key gradeAndRecordReview stores it
+    // under, rather than fuzzy-matching labels.
+    function normalizeConceptKeyClient(subject, topic, concept) {
+        const clean = (s) => (s || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_');
+        return `${clean(subject)}:${clean(topic)}:${clean(concept)}`;
+    }
+
+    // Tries the normalized key first (how the current diagnostic/chain-lesson
+    // routes track every review), then falls back to a raw-label match —
+    // see conceptKeyToLabel's own comment on the mixed data model, for
+    // anything tracked the older way. Returns null if this concept has
+    // never actually been reviewed yet — nothing to show a due date for.
+    function findScheduleEntryForConcept(scheduleData, subject, topic, concept) {
+        const normalized = normalizeConceptKeyClient(subject, topic, concept);
+        const exact = scheduleData.find((item) => item.concept_id === normalized);
+        if (exact) return exact;
+        const rawLower = (concept || '').trim().toLowerCase();
+        return scheduleData.find((item) => (item.concept_id || '').trim().toLowerCase() === rawLower) || null;
+    }
+
+    // Day-difference using LOCAL calendar days (midnight to midnight), not
+    // raw hours — matches exactly how renderCalendar buckets due items onto
+    // a specific day, so "Due today" here always agrees with which cell it
+    // actually shows up under in the calendar.
+    function daysBetweenLocalDays(from, to) {
+        const a = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+        const b = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+        return Math.round((b - a) / 86400000);
+    }
+
+    function formatDueIn(dueDateStr) {
+        const diff = daysBetweenLocalDays(new Date(), new Date(dueDateStr));
+        if (diff < 0) return `Overdue by ${-diff} day${-diff === 1 ? '' : 's'}`;
+        if (diff === 0) return 'Due today';
+        if (diff === 1) return 'Due tomorrow';
+        return `Due in ${diff} days`;
+    }
+
+    // Switches the sidebar to the Calendar tab and jumps it straight to the
+    // month containing this due date — clicking a due-in badge should show
+    // you the SAME date the calendar itself would, not just tell you about
+    // it. Deliberately doesn't reuse setSidebarTab/openSidebarCalendar
+    // directly: both reset calendarViewDate to today as their first step,
+    // which would race against setting it to the target month here.
+    async function jumpCalendarToDate(dueDateStr) {
+        sidebarTab = 'calendar';
+        document.getElementById('foldersTabBtn').classList.toggle('active', false);
+        document.getElementById('calendarTabBtn').classList.toggle('active', true);
+        document.getElementById('folderList').style.display = 'none';
+        document.getElementById('sidebarCalendar').style.display = 'block';
+        if (!isPaidUser) return;
+
+        const dueDate = new Date(dueDateStr);
+        calendarViewDate = new Date(dueDate.getFullYear(), dueDate.getMonth(), 1);
+        document.getElementById('calendarMonthLabel').textContent =
+            calendarViewDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+        document.getElementById('calendarGrid').innerHTML =
+            '<div class="empty-hint" style="grid-column: 1 / -1;">Loading…</div>';
+        cachedScheduleData = await fetchScheduleData();
+        renderCalendar();
     }
 
     // Only chain-tracked concepts use the "subject:topic:concept" key
