@@ -688,6 +688,23 @@
         margin-bottom: 12px;
     }
 
+    .unlock-notes-link {
+        display: block;
+        background: none;
+        border: none;
+        color: var(--text);
+        opacity: 0.6;
+        font-size: 0.78rem;
+        text-decoration: underline;
+        cursor: pointer;
+        padding: 0;
+        margin: -6px 0 14px;
+    }
+
+    .unlock-notes-link:hover {
+        opacity: 1;
+    }
+
     .lesson-intro-message {
         font-size: 0.92rem;
         line-height: 1.7;
@@ -881,7 +898,13 @@
         min-height: 1.6em;
     }
 
-    .math-working-field .mq-editable-field {
+    /* No space before .mq-editable-field — MathQuill adds that class
+       directly onto the element it's initialized on (this same span, via
+       math-working-field), not onto a nested child. A descendant selector
+       here never matches, so this color rule silently never applied and
+       the text fell back to inheriting the page's light --text color on
+       this box's own light --accent background — invisible. */
+    .math-working-field.mq-editable-field {
         font-size: 1.05rem;
         color: var(--bg);
     }
@@ -940,7 +963,48 @@
         text-transform: uppercase;
         color: var(--accent);
         opacity: 0.8;
+    }
+
+    .drilldown-label-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
         margin-bottom: 10px;
+    }
+
+    .retake-original-btn {
+        background: none;
+        border: 1px solid rgba(230, 215, 176, 0.3);
+        border-radius: 4px;
+        color: var(--text);
+        font-family: 'Arial', sans-serif;
+        font-size: 0.72rem;
+        padding: 4px 10px;
+        cursor: pointer;
+        opacity: 0.75;
+        flex-shrink: 0;
+    }
+
+    .retake-original-btn:hover {
+        opacity: 1;
+    }
+
+    .report-slip-btn {
+        background: none;
+        border: 1px solid rgba(230, 215, 176, 0.2);
+        border-radius: 4px;
+        color: var(--text);
+        font-family: 'Arial', sans-serif;
+        font-size: 0.78rem;
+        padding: 6px 12px;
+        margin-top: 8px;
+        cursor: pointer;
+        opacity: 0.75;
+    }
+
+    .report-slip-btn:hover {
+        opacity: 1;
     }
 
     .drilldown-block .question-card,
@@ -3300,7 +3364,19 @@ SQIDAQAB
         // duplicate what was just generated. A page that skipped that
         // one-time offer (or has notes written by hand some other way)
         // keeps the normal editable panel exactly as before.
-        const notesLocked = showNotes && page.notesGeneratedFromLesson === true;
+        //
+        // page.notesGeneratedFromLesson is only ever SET (to true) going
+        // forward from when this feature shipped — a page that already had
+        // generated notes sitting in page.content from before that has no
+        // way to positively confirm its origin. Rather than leave those
+        // pages showing the stale "which way do you want to create notes"
+        // chooser forever, treat any already-taught page with real existing
+        // content as locked by default too, UNLESS notesGeneratedFromLesson
+        // has been explicitly set to false — see the "Write your own notes
+        // instead" escape hatch in the locked view below, which is the only
+        // thing that ever sets it that way.
+        const hasNotesContent = !!(page.content && page.content.replace(/<[^>]*>/g, '').trim());
+        const notesLocked = showNotes && hasNotesContent && page.notesGeneratedFromLesson !== false;
 
         const lessonPanelHtml = isMulti
             ? (encodingDone ? multiLessonReviewPanelHtml(page) : multiLessonEncodingPanelHtml(page))
@@ -3332,6 +3408,7 @@ SQIDAQAB
             <div class="notes-panel">
                 <input type="text" class="page-title-input" id="pageTitleInput" placeholder="Page title" value="">
                 <h3 class="notes-panel-heading">${notesLocked ? 'Your Notes' : 'Add / Create Your Notes'}</h3>
+                ${notesLocked ? '<button type="button" class="unlock-notes-link" id="unlockNotesBtn">Prefer to write your own instead? Switch to editing</button>' : ''}
                 ${notesLocked ? '' : `
                 <div class="notes-mode-toggle">
                     <label class="notes-mode-option"><input type="radio" name="notesMode" id="notesModeOwn" checked> Add your own notes</label>
@@ -3430,6 +3507,17 @@ SQIDAQAB
                     renderSidebarSelection();
                 }, 400);
             });
+
+            // The one explicit way out of notesLocked — persists the
+            // override so this page stays editable from now on, rather
+            // than just hiding the read-only view for this render only.
+            if (notesLocked) {
+                document.getElementById('unlockNotesBtn').addEventListener('click', async () => {
+                    page.notesGeneratedFromLesson = false;
+                    await putFolder(folder);
+                    openPage(folder.id, page.id, loc.subfolder ? loc.subfolder.id : null);
+                });
+            }
 
             if (!notesLocked) {
                 document.getElementById('notesModeOwn').addEventListener('change', () => {
@@ -4023,6 +4111,7 @@ SQIDAQAB
             wrap.appendChild(lines);
 
             const mathFields = [];
+            let disabled = false;
 
             function addLine(focus) {
                 const lineWrap = document.createElement('div');
@@ -4032,6 +4121,24 @@ SQIDAQAB
                 lineWrap.appendChild(field);
                 lines.appendChild(lineWrap);
                 const mq = MQ.MathField(field, {});
+                // MathQuill 0.10.1's own `handlers.enter` config only ever
+                // fires on a PASTE containing a newline, not on an actual
+                // Enter/Return keypress (confirmed against its source —
+                // the only handle('enter') call site is inside its paste
+                // handler) — a real keypress is otherwise a silent no-op in
+                // a plain math field. Capturing it here instead: adds a new
+                // line and moves straight into it, same as clicking
+                // "+ Add line", so the student never has to reach for the
+                // button mid-flow. Capture phase (not bubble) so this runs
+                // before MathQuill's own textarea keydown handler and can
+                // reliably stop it from doing anything else with the key.
+                field.addEventListener('keydown', (e) => {
+                    if (disabled) return;
+                    if (e.key !== 'Enter' && e.key !== 'Return') return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    addLine(true);
+                }, true);
                 mathFields.push(mq);
                 if (focus) mq.focus();
                 return mq;
@@ -4058,11 +4165,13 @@ SQIDAQAB
                     return mathFields.every((mq) => !mq.latex().trim());
                 },
                 // MathQuill has no first-class disable API — visually
-                // dims and stops new lines, which is all "I don't know"
-                // actually needs (the value is simply never read/sent).
-                setDisabled(disabled) {
-                    addLineBtn.disabled = disabled;
-                    wrap.classList.toggle('disabled', disabled);
+                // dims and stops new lines (via the button OR Enter, see
+                // addLine's handler), which is all "I don't know" actually
+                // needs (the value is simply never read/sent).
+                setDisabled(isDisabled) {
+                    disabled = isDisabled;
+                    addLineBtn.disabled = isDisabled;
+                    wrap.classList.toggle('disabled', isDisabled);
                 }
             };
         }
@@ -4242,10 +4351,14 @@ SQIDAQAB
             const drilldownBlock = document.createElement('div');
             drilldownBlock.className = 'drilldown-block';
 
+            const labelRow = document.createElement('div');
+            labelRow.className = 'drilldown-label-row';
+
             const label = document.createElement('div');
             label.className = 'drilldown-label';
             label.textContent = 'Let’s figure out why';
-            drilldownBlock.appendChild(label);
+            labelRow.appendChild(label);
+            drilldownBlock.appendChild(labelRow);
 
             card.appendChild(drilldownBlock);
             drilldownBlock.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -4263,6 +4376,34 @@ SQIDAQAB
             const conceptLabel = step.label;
             const subject = encodingResult.state.subject;
             const question = step.type === 'explain' ? (step.checkQuestion || step.text) : step.text;
+
+            // A persistent shortcut out of the whole tree, visible for the
+            // entire drill-down (not just at one stage) — lets the student
+            // skip straight back to the ORIGINAL question the moment they
+            // remember the answer, rather than working through however much
+            // of the tree is left. Reuses the exact same "pending" stage
+            // entry point the very first slip-check normally starts from
+            // (see /diagnostics/submit-answer) — a fresh attempt at THIS
+            // question is graded exactly like a first attempt would be:
+            // correct ends the diagnosis outright, wrong restarts the tree
+            // from the top rather than leaving them stuck wherever they
+            // clicked from.
+            const retakeBtn = document.createElement('button');
+            retakeBtn.type = 'button';
+            retakeBtn.className = 'retake-original-btn';
+            retakeBtn.textContent = 'Retake original question';
+            retakeBtn.addEventListener('click', () => {
+                askNextDiagnostic(question, null, {
+                    engine: 'pending',
+                    conceptKey,
+                    conceptLabel,
+                    subject,
+                    topic: '',
+                    originalQuestion: question,
+                    slipStage: 'initial'
+                }, step.requiresCalculation);
+            });
+            labelRow.appendChild(retakeBtn);
 
             function finishDrilldown(diagnosisAnswerCorrect) {
                 if (!isPrerequisiteStep) {
@@ -4364,6 +4505,43 @@ SQIDAQAB
                     lockAnsweredCard(qCard, answerRecord, correct, null, statusLabel);
                     handleDiagnosticResult(result);
                 }, drilldownBlock, requiresCalculation);
+
+                // The wording gate's Yes/No only ever asks about wording —
+                // a student who already knows their answer was just a slip
+                // (not a wording mix-up, not a real gap) has to answer
+                // "Yes" and then walk however much of the tree automatic
+                // slip-detection takes to reach the exact same conclusion
+                // this reports directly. Text must match
+                // WORDING_CHECK_PROMPT_TEXT in diagnosticEngine.ts exactly.
+                if (questionText === 'Did you understand what this question was asking?') {
+                    const slipBtn = document.createElement('button');
+                    slipBtn.type = 'button';
+                    slipBtn.className = 'report-slip-btn';
+                    slipBtn.textContent = 'Actually, this was just a slip';
+                    slipBtn.addEventListener('click', async () => {
+                        slipBtn.disabled = true;
+                        let resp;
+                        try {
+                            resp = await fetch(`${COMPILE_BACKEND_URL}/diagnostics/report-slip`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                                body: JSON.stringify({ conceptKey })
+                            });
+                        } catch (err) {
+                            slipBtn.disabled = false;
+                            return;
+                        }
+                        if (!resp.ok) {
+                            slipBtn.disabled = false;
+                            return;
+                        }
+                        const result = await resp.json();
+                        lockAnsweredCard(qCard, '(Reported as a slip)', false, null, '↺ Marked as a slip');
+                        slipBtn.remove();
+                        handleDiagnosticResult(result);
+                    });
+                    drilldownBlock.appendChild(slipBtn);
+                }
             }
 
             // A failure to even START the drilldown previously ended it
