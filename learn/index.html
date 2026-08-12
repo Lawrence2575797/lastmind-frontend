@@ -3981,7 +3981,7 @@ SQIDAQAB
         // any correction) before the next one appears below it, building
         // the whole lesson as a real vertical record you work downward
         // through, ending in a summary at the bottom.
-        async function runChainLesson(accessToken, subject, topic, concept) {
+        async function runChainLesson(accessToken, subject, topic, concept, qualification, examBoard) {
             questionFlowEl.innerHTML = '<div class="correction-card">Generating lesson…</div>';
 
             let resp;
@@ -3992,7 +3992,7 @@ SQIDAQAB
                         'Content-Type': 'application/json',
                         Authorization: `Bearer ${accessToken}`
                     },
-                    body: JSON.stringify({ subject, topic, concept })
+                    body: JSON.stringify({ subject, topic, concept, qualification: qualification || '', examBoard: examBoard || '' })
                 });
             } catch (err) {
                 questionFlowEl.innerHTML = '<div class="correction-card">Could not reach the server. Please try again.</div>';
@@ -4400,7 +4400,9 @@ SQIDAQAB
                     subject,
                     topic: '',
                     originalQuestion: question,
-                    slipStage: 'initial'
+                    slipStage: 'initial',
+                    qualification: encodingResult.state.qualification || '',
+                    examBoard: encodingResult.state.examBoard || ''
                 }, step.requiresCalculation);
             });
             labelRow.appendChild(retakeBtn);
@@ -4570,9 +4572,15 @@ SQIDAQAB
                             contentKey: encodingResult.state.contentKey,
                             stepIndex: encodingResult.state.currentIndex - 1,
                             studentWorking: wrongAnswer,
-                            forceAtomic: isPrerequisiteStep
+                            forceAtomic: isPrerequisiteStep,
+                            qualification: encodingResult.state.qualification || '',
+                            examBoard: encodingResult.state.examBoard || ''
                         }
-                        : { conceptKey, conceptLabel, subject, topic: '', question, forceAtomic: isPrerequisiteStep };
+                        : {
+                            conceptKey, conceptLabel, subject, topic: '', question, forceAtomic: isPrerequisiteStep,
+                            qualification: encodingResult.state.qualification || '',
+                            examBoard: encodingResult.state.examBoard || ''
+                        };
                     startResp = await fetch(`${COMPILE_BACKEND_URL}${endpoint}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
@@ -4898,7 +4906,15 @@ SQIDAQAB
                     const { data: { session: diagSession } } = await supabaseClient.auth.getSession();
                     if (!diagSession) throw new Error('Not logged in.');
                     if (encodingDone) {
-                        await runChainLesson(diagSession.access_token, subject, topic, lesson);
+                        // override (a schedule-driven review of a concept
+                        // possibly from a different subject/folder than the
+                        // one currently open) carries no qualification/
+                        // examBoard of its own — see startReviewFromSchedule's
+                        // comment on this same data-model gap. Using the
+                        // currently-open folder's values in that case would
+                        // attach the WRONG level, so it's left untiered ('')
+                        // rather than guessed.
+                        await runChainLesson(diagSession.access_token, subject, topic, lesson, override ? '' : folder.qualification, override ? '' : folder.examBoard);
                     } else {
                         await runEncodingLesson(diagSession.access_token, subject, topic, lesson, folder.qualification, folder.examBoard);
                     }
@@ -4970,7 +4986,7 @@ SQIDAQAB
                 try {
                     const { data: { session: diagSession } } = await supabaseClient.auth.getSession();
                     if (!diagSession) throw new Error('Not logged in.');
-                    await runChainLesson(diagSession.access_token, folder.subject || '', (loc.subfolder && loc.subfolder.name) || '', concept);
+                    await runChainLesson(diagSession.access_token, folder.subject || '', (loc.subfolder && loc.subfolder.name) || '', concept, folder.qualification, folder.examBoard);
                 } catch (err) {
                     console.error('LastMind: review failed.', err);
                     questionFlowEl.innerHTML = '<div class="correction-card">Could not start the lesson. Please try again.</div>';
