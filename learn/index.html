@@ -4792,42 +4792,83 @@ SQIDAQAB
 
         async function runEncodingLesson(accessToken, subject, topic, concept, qualification, examBoard) {
             activeEncodingConcept = concept;
-            questionFlowEl.innerHTML = '<div class="correction-card">Preparing your first lesson…</div>';
 
-            let resp;
-            try {
-                resp = await fetch(`${COMPILE_BACKEND_URL}/encoding-lesson/start`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-                    body: JSON.stringify({
-                        subject, topic, concept,
-                        qualification: qualification || '',
-                        examBoard: examBoard || '',
-                        siblingConcepts: siblingConceptsForCurrentPage(concept)
-                    })
-                });
-            } catch (err) {
-                questionFlowEl.innerHTML = '<div class="correction-card">Could not reach the server. Please try again.</div>';
-                return;
+            async function attemptStart() {
+                // A first-time lesson on a concept that's never been taught
+                // to ANY student yet (no cached content) genuinely does
+                // stack up several sequential AI calls — building the
+                // dependency chain, writing the lesson itself, then a
+                // self-check pass on any step it wasn't confident about —
+                // easily 30-60+ seconds. Once a concept's been taught once,
+                // every later student hits the cache and this is
+                // near-instant instead; there's no way to know in advance
+                // which case this is, so the honest message covers the
+                // slow one.
+                questionFlowEl.innerHTML = '<div class="correction-card">Preparing your first lesson… this can take up to a minute for a brand-new topic.</div>';
+
+                let resp;
+                try {
+                    resp = await fetch(`${COMPILE_BACKEND_URL}/encoding-lesson/start`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                        body: JSON.stringify({
+                            subject, topic, concept,
+                            qualification: qualification || '',
+                            examBoard: examBoard || '',
+                            siblingConcepts: siblingConceptsForCurrentPage(concept)
+                        })
+                    });
+                } catch (err) {
+                    showStartError('Could not reach the server.');
+                    return;
+                }
+
+                if (!resp.ok) {
+                    const body = await resp.json().catch(() => ({}));
+                    // A cold-cache generation that runs long enough to trip
+                    // a network/platform timeout looks identical to any
+                    // other failure from here (the connection just drops —
+                    // resp.ok is never even reached, this whole block is
+                    // skipped, and it lands in the catch above instead) OR
+                    // comes back as a non-JSON error page, where body.error
+                    // is undefined. Naming that specific possibility, since
+                    // it's overwhelmingly the actual cause in practice, not
+                    // a generic "something went wrong".
+                    showStartError(body.error || 'Could not start the lesson — this can happen when a brand-new topic takes too long to generate.');
+                    return;
+                }
+
+                const startResult = await resp.json();
+                questionFlowEl.innerHTML = '';
+                lessonHookFact = startResult.hookFact || '';
+
+                const hookCard = document.createElement('div');
+                hookCard.className = 'correction-card';
+                hookCard.innerHTML = `<div class="correction-label">💡 Did you know?</div>${escapeHtml(startResult.hookFact || '')}`;
+                questionFlowEl.appendChild(hookCard);
+                hookCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+                renderEncodingStep(accessToken, startResult.step, startResult.state);
             }
 
-            if (!resp.ok) {
-                const body = await resp.json().catch(() => ({}));
-                questionFlowEl.innerHTML = `<div class="correction-card">${body.error || 'Could not start the lesson.'}</div>`;
-                return;
+            function showStartError(message) {
+                const errorCard = document.createElement('div');
+                errorCard.className = 'correction-card';
+                errorCard.textContent = `${message} Your progress wasn't lost — you can try again.`;
+                const retryBtn = document.createElement('button');
+                retryBtn.className = 'question-submit-btn';
+                retryBtn.type = 'button';
+                retryBtn.textContent = 'Retry';
+                retryBtn.style.marginTop = '10px';
+                retryBtn.addEventListener('click', attemptStart);
+                errorCard.appendChild(document.createElement('br'));
+                errorCard.appendChild(retryBtn);
+                questionFlowEl.innerHTML = '';
+                questionFlowEl.appendChild(errorCard);
+                errorCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
             }
 
-            const startResult = await resp.json();
-            questionFlowEl.innerHTML = '';
-            lessonHookFact = startResult.hookFact || '';
-
-            const hookCard = document.createElement('div');
-            hookCard.className = 'correction-card';
-            hookCard.innerHTML = `<div class="correction-label">💡 Did you know?</div>${escapeHtml(startResult.hookFact || '')}`;
-            questionFlowEl.appendChild(hookCard);
-            hookCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
-
-            renderEncodingStep(accessToken, startResult.step, startResult.state);
+            await attemptStart();
         }
 
         // Only rendered for a fresh, not-yet-started, not-already-multi
