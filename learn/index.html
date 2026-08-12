@@ -1938,6 +1938,13 @@
     const BACKEND_URL = 'https://lastmind-stripe-backend.onrender.com'; // Stripe webhook / JWT / portal backend — confirm this matches your real Render URL
     const COMPILE_BACKEND_URL = 'https://lastmind-compile-backend.onrender.com'; // Claude compile backend — live
 
+    // Dev-only: shows which internal diagnostic-engine stage/branch is
+    // currently firing above each drill-down question, so you can see what
+    // the encoding_check/wm_relax/localizing/etc. tree is actually doing
+    // while testing. Flip to false (or delete this const + its one call
+    // site in askNextDiagnostic) before launching to real students.
+    const SHOW_DIAGNOSTIC_DEBUG_STAGE = true;
+
     // Used ONLY to obtain the current session's access token, which the
     // backend verifies cryptographically before trusting anything — the
     // frontend never decides access on its own based on "a session exists."
@@ -4336,6 +4343,24 @@ SQIDAQAB
             return DIAGNOSIS_LABELS[diagnosis] || 'Let’s go over this one';
         }
 
+        // Dev-only — see SHOW_DIAGNOSTIC_DEBUG_STAGE's own comment. Reads
+        // straight off the OrchestratorState the backend already round-trips
+        // to the client (no backend change needed), so this is always exactly
+        // what's about to be sent back on the next answer submission.
+        function diagnosticStageLabel(state) {
+            if (!state) return '';
+            if (state.engine === 'pending') return `pending (slipStage: ${state.slipStage})`;
+            if (state.engine === 'atomic') return `atomic: ${(state.inner && state.inner.stage) || '?'}`;
+            if (state.engine === 'mechanistic') {
+                const inner = state.inner || {};
+                if (inner.stage === 'sub_diagnostic' && inner.subDiagnosticState) {
+                    return `mechanistic: sub_diagnostic → atomic: ${inner.subDiagnosticState.stage}`;
+                }
+                return `mechanistic: ${inner.stage || '?'}`;
+            }
+            return '';
+        }
+
         // Pauses the encoding lesson on a wrong check/scene/derive/explain
         // answer and drills down through the (previously dormant) diagnostic
         // tree, nested inside the answered card, before resuming the lesson.
@@ -4456,6 +4481,13 @@ SQIDAQAB
             }
 
             function askNextDiagnostic(questionText, options, diagState, requiresCalculation) {
+                if (SHOW_DIAGNOSTIC_DEBUG_STAGE) {
+                    const stageDebug = document.createElement('div');
+                    stageDebug.className = 'diagnostic-stage-debug';
+                    stageDebug.style.cssText = 'font-size:11px;opacity:0.6;font-family:monospace;margin:4px 0;';
+                    stageDebug.textContent = `[stage: ${diagnosticStageLabel(diagState)}]`;
+                    drilldownBlock.appendChild(stageDebug);
+                }
                 let errorNote = null;
                 const qCard = renderQuestionCard(questionText, options, async (submission) => {
                     if (!submission.dontKnow && !submission.answer.trim()) return;
@@ -4508,42 +4540,73 @@ SQIDAQAB
                     handleDiagnosticResult(result);
                 }, drilldownBlock, requiresCalculation);
 
-                // The wording gate's Yes/No only ever asks about wording —
-                // a student who already knows their answer was just a slip
-                // (not a wording mix-up, not a real gap) has to answer
-                // "Yes" and then walk however much of the tree automatic
-                // slip-detection takes to reach the exact same conclusion
-                // this reports directly. Text must match
-                // WORDING_CHECK_PROMPT_TEXT in diagnosticEngine.ts exactly.
-                if (questionText === 'Did you understand what this question was asking?') {
-                    const slipBtn = document.createElement('button');
-                    slipBtn.type = 'button';
-                    slipBtn.className = 'report-slip-btn';
-                    slipBtn.textContent = 'Actually, this was just a slip';
-                    slipBtn.addEventListener('click', async () => {
-                        slipBtn.disabled = true;
-                        let resp;
-                        try {
-                            resp = await fetch(`${COMPILE_BACKEND_URL}/diagnostics/report-slip`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-                                body: JSON.stringify({ conceptKey })
-                            });
-                        } catch (err) {
-                            slipBtn.disabled = false;
-                            return;
-                        }
-                        if (!resp.ok) {
-                            slipBtn.disabled = false;
-                            return;
-                        }
-                        const result = await resp.json();
-                        lockAnsweredCard(qCard, '(Reported as a slip)', false, null, '↺ Marked as a slip');
-                        slipBtn.remove();
-                        handleDiagnosticResult(result);
-                    });
-                    drilldownBlock.appendChild(slipBtn);
-                }
+                // Two persistent side-exits, available on every diagnostic
+                // question (not gated behind any specific one) — a student
+                // who already knows their answer was just a slip can say so
+                // directly rather than walking however much of the tree
+                // automatic slip-detection would take to reach the same
+                // conclusion; a student who found the wording unclear can
+                // ask for it to be reworded rather than guessing at what
+                // was meant. Previously the wording question was a forced
+                // Yes/No step shown after every wrong answer — this
+                // replaces it with an on-demand action instead.
+                const slipBtn = document.createElement('button');
+                slipBtn.type = 'button';
+                slipBtn.className = 'report-slip-btn';
+                slipBtn.textContent = 'Actually, this was just a slip';
+                slipBtn.addEventListener('click', async () => {
+                    slipBtn.disabled = true;
+                    let resp;
+                    try {
+                        resp = await fetch(`${COMPILE_BACKEND_URL}/diagnostics/report-slip`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                            body: JSON.stringify({ conceptKey })
+                        });
+                    } catch (err) {
+                        slipBtn.disabled = false;
+                        return;
+                    }
+                    if (!resp.ok) {
+                        slipBtn.disabled = false;
+                        return;
+                    }
+                    const result = await resp.json();
+                    lockAnsweredCard(qCard, '(Reported as a slip)', false, null, '↺ Marked as a slip');
+                    slipBtn.remove();
+                    reframeBtn.remove();
+                    handleDiagnosticResult(result);
+                });
+                drilldownBlock.appendChild(slipBtn);
+
+                const reframeBtn = document.createElement('button');
+                reframeBtn.type = 'button';
+                reframeBtn.className = 'report-slip-btn';
+                reframeBtn.textContent = 'This wording confused me — reword it';
+                reframeBtn.addEventListener('click', async () => {
+                    reframeBtn.disabled = true;
+                    let resp;
+                    try {
+                        resp = await fetch(`${COMPILE_BACKEND_URL}/diagnostics/reframe-question`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                            body: JSON.stringify({ state: diagState })
+                        });
+                    } catch (err) {
+                        reframeBtn.disabled = false;
+                        return;
+                    }
+                    if (!resp.ok) {
+                        reframeBtn.disabled = false;
+                        return;
+                    }
+                    const result = await resp.json();
+                    qCard.remove();
+                    slipBtn.remove();
+                    reframeBtn.remove();
+                    askNextDiagnostic(result.nextQuestion, result.nextOptions, result.state, result.nextRequiresCalculation);
+                });
+                drilldownBlock.appendChild(reframeBtn);
             }
 
             // A failure to even START the drilldown previously ended it
