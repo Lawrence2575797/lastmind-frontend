@@ -4088,6 +4088,24 @@ SQIDAQAB
             return resp.json();
         }
 
+        // Fired in the background the moment a cold-cache /start response's
+        // first step is on screen (contentReady: false) — generates the
+        // rest of the lesson and returns state.steps with the complete
+        // list. See pendingLessonContinuation for how its result gets
+        // merged back in before the student's answer is actually submitted.
+        async function postEncodingContinue(accessToken, state, topic, concept, siblingConcepts) {
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/encoding-lesson/continue`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                body: JSON.stringify({ state, topic, concept, siblingConcepts })
+            });
+            if (!resp.ok) {
+                const body = await resp.json().catch(() => ({}));
+                throw new Error(body.error || 'Could not finish generating this lesson.');
+            }
+            return resp.json();
+        }
+
         // "explain" steps show the direct explanation text above the
         // question, then ask a checkQuestion testing whether it actually
         // landed — brand-new content can't be verified by FSRS yet, so this
@@ -4293,7 +4311,22 @@ SQIDAQAB
                 submitBtn.disabled = true;
 
                 try {
-                    const result = await postEncodingSubmit(accessToken, state, answer, dontKnow);
+                    // If this is the lesson's first step on a cold cache,
+                    // the rest of the lesson was still generating in the
+                    // background (see pendingLessonContinuation) — wait for
+                    // it now and fold the complete step list into the state
+                    // being submitted, so grading/advancing has the whole
+                    // lesson to work with. Usually already finished by the
+                    // time the student answers; this only actually blocks
+                    // when they're unusually fast.
+                    let submitState = state;
+                    if (pendingLessonContinuation) {
+                        const continued = await pendingLessonContinuation;
+                        pendingLessonContinuation = null;
+                        submitState = continued.state;
+                    }
+
+                    const result = await postEncodingSubmit(accessToken, submitState, answer, dontKnow);
                     card.querySelectorAll('textarea, .math-working-input, .question-card-footer').forEach((el) => el.remove());
                     const answerRecord = dontKnow
                         ? "(I don't know)"
@@ -4701,6 +4734,20 @@ SQIDAQAB
         // rather than one disconnected note block per sub-lesson.
         let completedLessonTranscripts = [];
 
+        // Set by runEncodingLesson right after a cold-cache /start call
+        // (contentReady: false) — the in-flight /encoding-lesson/continue
+        // fetch generating the REST of the lesson in the background while
+        // the student reads/answers the first step. The first step's own
+        // submit handler (see renderEncodingAnswerCard) awaits this and
+        // merges the full step list into its state before ever calling
+        // /encoding-lesson/submit, so grading always has the complete
+        // lesson to work with even though the student could in principle
+        // answer faster than generation finishes. null whenever there's
+        // nothing to wait for (a cache hit, or once already merged) —
+        // every later step's submit sees null here and skips straight to
+        // submitting, same as before this two-phase split existed.
+        let pendingLessonContinuation = null;
+
         function renderEncodingStep(accessToken, step, state) {
             if (step.type === 'explain') {
                 renderEncodingAnswerCard(accessToken, step, state, step.text);
@@ -4935,6 +4982,15 @@ SQIDAQAB
                 hookCard.innerHTML = `<div class="correction-label">💡 Did you know?</div>${escapeHtml(startResult.hookFact || '')}`;
                 questionFlowEl.appendChild(hookCard);
                 hookCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+                // Cold cache — only the first step came back. Fire the rest
+                // of the generation now, in the background, right as the
+                // student is about to start reading/answering this first
+                // step, instead of making them wait for it up front. See
+                // pendingLessonContinuation.
+                pendingLessonContinuation = startResult.contentReady
+                    ? null
+                    : postEncodingContinue(accessToken, startResult.state, topic, concept, siblingConceptsForCurrentPage(concept));
 
                 renderEncodingStep(accessToken, startResult.step, startResult.state);
             }
