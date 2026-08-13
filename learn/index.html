@@ -4347,9 +4347,16 @@ SQIDAQAB
                 } catch (err) {
                     console.error('LastMind: encoding lesson submit failed.', err);
                     submitBtn.disabled = false;
+                    // postEncodingContinue/postEncodingSubmit throw a real
+                    // Error with a specific message on an actual server-side
+                    // failure (e.g. the background continuation call
+                    // erroring out) — only a genuine network-level failure
+                    // (fetch itself rejecting) lacks one, so fall back to
+                    // the generic wording just for that case instead of
+                    // always masking whatever actually went wrong.
                     const errorNote = document.createElement('div');
                     errorNote.className = 'correction-card';
-                    errorNote.textContent = 'Could not reach the server. Please try again.';
+                    errorNote.textContent = (err && err.message) || 'Could not reach the server. Please try again.';
                     card.insertAdjacentElement('afterend', errorNote);
                     errorNote.scrollIntoView({ behavior: 'smooth', block: 'end' });
                 }
