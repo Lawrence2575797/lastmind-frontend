@@ -3884,6 +3884,20 @@ SQIDAQAB
             card.appendChild(qText);
 
             if (options && options.length) {
+                const optionButtons = [];
+                // Guards against a slow response inviting extra clicks —
+                // each one used to fire its own independent onSubmit call
+                // against the same still-live diagState, so a student
+                // clicking several times while waiting got several
+                // "next question" advances stacked on top of each other
+                // once the (slow) responses all came back. Buttons
+                // re-enable once the call settles either way — on a
+                // failure they're still on screen and need to stay
+                // clickable for a retry (see askNextDiagnostic's
+                // showRetryableError); on success the caller's own
+                // lockAnsweredCard has already removed them, so
+                // re-enabling is a harmless no-op on detached nodes.
+                let submitting = false;
                 options.forEach((optionText) => {
                     const optBtn = document.createElement('button');
                     optBtn.className = 'question-submit-btn';
@@ -3895,7 +3909,18 @@ SQIDAQAB
                     optBtn.style.color = 'var(--text)';
                     optBtn.style.border = '1px solid rgba(230, 215, 176, 0.2)';
                     optBtn.textContent = optionText;
-                    optBtn.addEventListener('click', () => onSubmit({ answer: optionText, dontKnow: false }));
+                    optBtn.addEventListener('click', async () => {
+                        if (submitting) return;
+                        submitting = true;
+                        optionButtons.forEach((b) => { b.disabled = true; });
+                        try {
+                            await onSubmit({ answer: optionText, dontKnow: false });
+                        } finally {
+                            submitting = false;
+                            optionButtons.forEach((b) => { b.disabled = false; });
+                        }
+                    });
+                    optionButtons.push(optBtn);
                     card.appendChild(optBtn);
                 });
                 targetEl.appendChild(card);
@@ -3937,9 +3962,20 @@ SQIDAQAB
                 }
             });
 
-            submitBtn.addEventListener('click', () => {
-                const answer = isMath ? mathInput.getValue() : answerInput.value;
-                onSubmit({ answer, dontKnow: dontKnowCheckbox.checked });
+            // Same re-entrancy guard as the options branch above — see its
+            // comment for why this matters on a slow response.
+            let submitting = false;
+            submitBtn.addEventListener('click', async () => {
+                if (submitting) return;
+                submitting = true;
+                submitBtn.disabled = true;
+                try {
+                    const answer = isMath ? mathInput.getValue() : answerInput.value;
+                    await onSubmit({ answer, dontKnow: dontKnowCheckbox.checked });
+                } finally {
+                    submitting = false;
+                    submitBtn.disabled = false;
+                }
             });
 
             footer.appendChild(dontKnowLabel);
