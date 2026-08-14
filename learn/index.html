@@ -5564,11 +5564,15 @@ SQIDAQAB
             label.textContent = 'How this updated your review schedule';
             wrap.appendChild(label);
 
+            const RATING_EXPLANATIONS = {
+                again: 'The core of this concept was wrong, so it was graded "Again" — FSRS treats this as a genuine lapse, not just a rough patch, and schedules it back much sooner.',
+                hard: 'Part of this wasn\'t quite right, so it was graded "Hard".',
+                good: 'This was answered correctly, so it was graded "Good".',
+                easy: 'This was answered correctly, cleanly, so it was graded "Easy".',
+            };
             const ratingLine = document.createElement('div');
             ratingLine.className = 'fsrs-rating-line';
-            ratingLine.textContent = fsrsUpdate.rating === 'easy'
-                ? 'Every step in this lesson was correct, so the concept was graded "Easy".'
-                : 'At least one step in this lesson was wrong, so the concept was graded "Hard".';
+            ratingLine.textContent = RATING_EXPLANATIONS[fsrsUpdate.rating] || `Graded "${fsrsUpdate.rating}".`;
             wrap.appendChild(ratingLine);
 
             const prev = fsrsUpdate.previous;
@@ -6749,9 +6753,9 @@ SQIDAQAB
             <p><strong>Stability</strong> — the number of days your memory of this concept is predicted to last before your recall probability drops to LastMind's target of 92%. Higher stability means you'll be tested on it less often.</p>
             <p><strong>Difficulty</strong> — how inherently hard this specific concept has been for <em>you</em>, on a 1&ndash;10 scale. Higher difficulty makes future stability grow more slowly from here on.</p>
             <h4>How right and wrong answers change them</h4>
-            <p>Each time you finish a lesson on this concept, LastMind grades the whole thing as either <strong>Easy</strong> (every step correct) or <strong>Hard</strong> (at least one step wrong) — a simplified two-way version of FSRS's own four-point scale.</p>
-            <p>An <strong>Easy</strong> grade grows stability — and grows it more the closer you actually were to forgetting it. Correctly recovering a nearly-forgotten concept is stronger evidence it's genuinely learned than acing something you only reviewed yesterday, so it earns a bigger stability increase.</p>
-            <p>A <strong>Hard</strong> grade shrinks stability substantially (counted as a "lapse") and nudges difficulty up slightly, since the algorithm now treats this concept as a bit harder for you specifically, going forward.</p>
+            <p>Each time you finish a lesson or review on this concept, LastMind grades it on FSRS's real four-point scale — <strong>Again</strong>, <strong>Hard</strong>, <strong>Good</strong>, or <strong>Easy</strong> — derived automatically from how you actually answered, not a self-rating.</p>
+            <p><strong>Again</strong> means the core of the concept itself was wrong — genuinely forgotten, not just a rough patch. This uses a completely different calculation from the other three grades (FSRS's dedicated "lapse" formula), which is why it drops stability so much further than Hard does, and schedules the next attempt much sooner.</p>
+            <p><strong>Hard</strong>, <strong>Good</strong>, and <strong>Easy</strong> all share one formula — points on a single "you got it, with varying ease" scale. Hard means part of it wasn't quite right; Good means a correct, ordinary pass; Easy means a correct, comfortable pass. Recovering something you were close to forgetting grows stability more than acing something you only just reviewed, since it's stronger evidence the memory has genuinely taken hold.</p>
             <p>Your next due date isn't a fixed gap — it's calculated so your predicted recall probability decays to exactly 92% by that date, given this concept's own current stability.</p>
         `;
     }
