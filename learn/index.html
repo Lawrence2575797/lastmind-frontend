@@ -4726,14 +4726,19 @@ SQIDAQAB
             card.appendChild(resultLine);
         }
 
-        // Runs a full chain-lesson session for one concept — the opening
-        // prediction question, then the forward scaffold walk, with each
-        // answered question locking in place (answer + correct/incorrect +
-        // any correction) before the next one appears below it, building
-        // the whole lesson as a real vertical record you work downward
-        // through, ending in a summary at the bottom.
+        // Runs a full spaced-repetition RETRIEVAL session for one concept —
+        // no prerequisite testing (already verified at encoding time), just
+        // the target concept itself, at a scaffolding/interleaving depth
+        // the backend picks from this student's own FSRS stability for it.
+        // Two-phase like the encoding lesson's own runEncodingLesson: the
+        // first step comes back fast, with the rest of the session (if the
+        // tier has more than one step) generated in the background — see
+        // pendingChainContinuation below, same pattern as
+        // pendingLessonContinuation. Each answered question locks in place
+        // before the next appears below it, ending in a summary and the
+        // same FSRS before/after breakdown card an encoding lesson shows.
         async function runChainLesson(accessToken, subject, topic, concept, qualification, examBoard) {
-            questionFlowEl.innerHTML = '<div class="correction-card">Generating lesson…</div>';
+            questionFlowEl.innerHTML = '<div class="correction-card">Preparing your review…</div>';
 
             let resp;
             try {
@@ -4752,15 +4757,52 @@ SQIDAQAB
 
             if (!resp.ok) {
                 const body = await resp.json().catch(() => ({}));
-                questionFlowEl.innerHTML = `<div class="correction-card">${body.error || 'Could not start the lesson.'}</div>`;
+                questionFlowEl.innerHTML = `<div class="correction-card">${escapeHtml(body.error || 'Could not start this review.')}</div>`;
                 return;
             }
 
             const startResult = await resp.json();
-            questionFlowEl.innerHTML = ''; // clear the "Generating…" placeholder — the real vertical list starts now
+            questionFlowEl.innerHTML = ''; // clear the "Preparing…" placeholder — the real vertical list starts now
 
-            async function askNext(questionText, state) {
-                const card = renderQuestionCard(questionText, null, async (submission) => {
+            // Fires the background continuation the moment the first step is
+            // on screen — resolves to null immediately if this tier's
+            // session is only ever one step long (contentReady already
+            // true), same shape as the encoding lesson's own
+            // pendingLessonContinuation.
+            let pendingChainContinuation = startResult.contentReady
+                ? null
+                : (async () => {
+                    const contResp = await fetch(`${COMPILE_BACKEND_URL}/chain-lesson/continue`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                        body: JSON.stringify({ state: startResult.state })
+                    });
+                    if (!contResp.ok) {
+                        const body = await contResp.json().catch(() => ({}));
+                        throw new Error(body.error || 'Could not finish generating this review.');
+                    }
+                    return contResp.json();
+                })();
+
+            async function askNext(step, state) {
+                const card = renderQuestionCard(step.text, null, async (submission) => {
+                    // If this was the session's first step and the rest was
+                    // still generating in the background, wait for it now
+                    // and submit against the fully-generated state — see
+                    // the encoding lesson's own identical wait, usually
+                    // already finished by the time anyone actually answers.
+                    let submitState = state;
+                    if (pendingChainContinuation) {
+                        try {
+                            const continued = await pendingChainContinuation;
+                            submitState = continued.state;
+                        } catch (err) {
+                            lockAnsweredCard(card, submission.answer, false, err.message || 'Could not reach the server. Please try again.');
+                            return;
+                        }
+                        pendingChainContinuation = null;
+                    }
+
                     let nextResp;
                     try {
                         nextResp = await fetch(`${COMPILE_BACKEND_URL}/chain-lesson/submit`, {
@@ -4769,7 +4811,7 @@ SQIDAQAB
                                 'Content-Type': 'application/json',
                                 Authorization: `Bearer ${accessToken}`
                             },
-                            body: JSON.stringify({ state, answer: submission.answer })
+                            body: JSON.stringify({ state: submitState, answer: submission.answer, dontKnow: submission.dontKnow })
                         });
                     } catch (err) {
                         lockAnsweredCard(card, submission.answer, false, 'Could not reach the server. Please try again.');
@@ -4783,31 +4825,31 @@ SQIDAQAB
                     }
 
                     const nextResult = await nextResp.json();
+                    const answerRecord = submission.dontKnow
+                        ? "(I don't know)"
+                        : (step.requiresCalculation ? { html: mathWorkingToHtml(submission.answer) } : submission.answer);
+                    lockAnsweredCard(card, answerRecord, nextResult.correct !== false, nextResult.feedback);
 
                     if (nextResult.done) {
-                        const finalEntries = nextResult.summary || [];
-                        const finalEntry = finalEntries[finalEntries.length - 1];
-                        lockAnsweredCard(card, submission.answer, finalEntry ? finalEntry.correct : true, finalEntry ? finalEntry.correction : undefined);
-
                         const summaryCard = document.createElement('div');
                         summaryCard.className = 'correction-card';
-                        const rows = finalEntries.map((r) => {
-                            const status = r.correct ? '✓ Correct' : 'Corrected';
-                            return `<div style="margin-bottom:6px;">${r.chunkLabel}: ${status}</div>`;
-                        }).join('');
-                        summaryCard.innerHTML = `<div class="correction-label">Lesson complete</div>${rows}`;
+                        summaryCard.innerHTML = '<div class="correction-label">Review complete</div>This concept\'s review schedule has been updated.';
                         questionFlowEl.appendChild(summaryCard);
                         summaryCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
 
+                        if (nextResult.fsrsUpdate) {
+                            const fsrsCard = buildFsrsBreakdownCard(nextResult.fsrsUpdate);
+                            questionFlowEl.appendChild(fsrsCard);
+                            fsrsCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                        }
                         return;
                     }
 
-                    lockAnsweredCard(card, submission.answer, !nextResult.inlineCorrection, nextResult.inlineCorrection);
-                    await askNext(nextResult.nextQuestion, nextResult.state);
-                });
+                    await askNext(nextResult.step, nextResult.state);
+                }, null, step.requiresCalculation);
             }
 
-            await askNext(startResult.nextQuestion, startResult.state);
+            await askNext(startResult.step, startResult.state);
         }
 
         /* ───────── First-time ENCODING lesson (only while !encodingDone) ─────────
