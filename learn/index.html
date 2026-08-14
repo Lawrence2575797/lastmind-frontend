@@ -1578,6 +1578,14 @@
         border-color: rgba(230, 215, 176, 0.5);
     }
 
+    .field-hint {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.68rem;
+        opacity: 0.5;
+        line-height: 1.5;
+        margin-top: 6px;
+    }
+
     /* ─── Level dropdown (searchable) — New/Rename Folder modals ─── */
     .level-field {
         position: relative;
@@ -1850,6 +1858,15 @@
         <div class="field" id="folderModuleCodeField" style="display:none;">
             <label for="moduleCodeInput">Module Code</label>
             <input type="text" id="moduleCodeInput" placeholder="e.g. ECON10021">
+        </div>
+        <div class="field" id="folderCustomTitleField" style="display:none;">
+            <label for="customTitleInput">Title</label>
+            <input type="text" id="customTitleInput" placeholder="e.g. Running a small business">
+        </div>
+        <div class="field" id="folderCustomDescriptionField" style="display:none;">
+            <label for="customDescriptionInput">Description</label>
+            <textarea id="customDescriptionInput" class="multi-lesson-input" rows="3" placeholder="What do you want to learn? This is used to generate lessons -- e.g. &quot;the fundamentals of running a small retail business: cash flow, pricing, basic accounting, operations.&quot;"></textarea>
+            <div class="field-hint">Lessons here teach the underlying theory only -- never personal advice or recommendations for your specific situation.</div>
         </div>
 
         <div class="modal-actions">
@@ -2366,6 +2383,13 @@ SQIDAQAB
     // instead of an exam board — GCSE/A-Level/AS Level are everything else
     // (and the app's overwhelmingly common case, so they sit at the top of
     // the level dropdown).
+    // "Other" is for a self-directed topic outside any formal
+    // qualification (e.g. "running a small business") — picking it swaps
+    // the exam-board/institution fields for a title + description instead
+    // (see updateLevelMetafields), which get sent to the backend as
+    // context for generation instead of a qualification/exam board. Kept
+    // last in the list since it's the least common case.
+    const CUSTOM_LEVEL = 'Other';
     const LEVEL_OPTIONS = [
         'GCSE',
         'A-Level',
@@ -2375,7 +2399,8 @@ SQIDAQAB
         'Undergraduate Year 3',
         'Undergraduate Year 4',
         'Masters',
-        'PhD'
+        'PhD',
+        CUSTOM_LEVEL
     ];
     const UNIVERSITY_LEVELS = new Set([
         'Undergraduate Year 1',
@@ -2388,6 +2413,9 @@ SQIDAQAB
     function isUniversityLevel(level) {
         return UNIVERSITY_LEVELS.has(level);
     }
+    function isCustomLevel(level) {
+        return level === CUSTOM_LEVEL;
+    }
 
     // extraFields identify the folder beyond subject+level — [examBoard]
     // for school levels, [institution, moduleCode] for university ones.
@@ -2399,7 +2427,7 @@ SQIDAQAB
         let best = null;
         let bestScore = 0;
         for (const f of folders) {
-            const fExtra = isUniversityLevel(f.qualification) ? [f.institution || '', f.moduleCode || ''] : [f.examBoard || ''];
+            const fExtra = isCustomLevel(f.qualification) ? [f.customTitle || ''] : isUniversityLevel(f.qualification) ? [f.institution || '', f.moduleCode || ''] : [f.examBoard || ''];
             const parts = [similarity(subject, f.subject), similarity(qualification, f.qualification)];
             const len = Math.max(extraFields.length, fExtra.length);
             for (let i = 0; i < len; i++) {
@@ -2472,6 +2500,9 @@ SQIDAQAB
     let mathFieldInstances = new Map();
 
     function folderLabel(f) {
+        if (isCustomLevel(f.qualification)) {
+            return `${f.subject} — ${f.customTitle || 'Other'}`;
+        }
         if (isUniversityLevel(f.qualification)) {
             const detail = [f.institution, f.moduleCode].filter(Boolean).join(', ');
             return `${f.subject} — ${f.qualification}${detail ? ` (${detail})` : ''}`;
@@ -5236,7 +5267,7 @@ SQIDAQAB
                                 questionFlowEl.innerHTML += '<div class="correction-card">Please log in again to continue.</div>';
                                 return;
                             }
-                            await runEncodingLesson(diagSession.access_token, folder.subject || '', (loc.subfolder && loc.subfolder.name) || '', next.concept, folder.qualification, folder.examBoard);
+                            await runEncodingLesson(diagSession.access_token, folder.subject || '', (loc.subfolder && loc.subfolder.name) || '', next.concept, folder.qualification, folder.examBoard, folder.customTitle, folder.customDescription);
                         })();
                         return;
                     }
@@ -5364,7 +5395,7 @@ SQIDAQAB
             return [...fromOtherPages, ...fromThisPage];
         }
 
-        async function runEncodingLesson(accessToken, subject, topic, concept, qualification, examBoard) {
+        async function runEncodingLesson(accessToken, subject, topic, concept, qualification, examBoard, customTitle, customDescription) {
             activeEncodingConcept = concept;
 
             // Rough stage order for a cold-cache generation (chain, then
@@ -5403,6 +5434,8 @@ SQIDAQAB
                             subject, topic, concept,
                             qualification: qualification || '',
                             examBoard: examBoard || '',
+                            customTitle: customTitle || '',
+                            customDescription: customDescription || '',
                             siblingConcepts: siblingConceptsForCurrentPage(concept)
                         })
                     });
@@ -5508,7 +5541,7 @@ SQIDAQAB
                         // rather than guessed.
                         await runChainLesson(diagSession.access_token, subject, topic, lesson, override ? '' : folder.qualification, override ? '' : folder.examBoard);
                     } else {
-                        await runEncodingLesson(diagSession.access_token, subject, topic, lesson, folder.qualification, folder.examBoard);
+                        await runEncodingLesson(diagSession.access_token, subject, topic, lesson, folder.qualification, folder.examBoard, folder.customTitle, folder.customDescription);
                     }
                 } catch (err) {
                     console.error('LastMind: lesson failed.', err);
@@ -5897,12 +5930,20 @@ SQIDAQAB
     }
 
     // Shows exam board for GCSE/A-Level/AS Level, institution + module
-    // code for university levels, nothing until a level is picked.
+    // code for university levels, title + description for "Other", nothing
+    // until a level is picked. The custom-title/description fields only
+    // exist in the New Folder modal (not Rename Folder) — guarded so this
+    // stays a no-op for prefixes that don't have them.
     function updateLevelMetafields(prefix, level) {
         const isUni = isUniversityLevel(level);
-        document.getElementById(`${prefix}BoardField`).style.display = (level && !isUni) ? '' : 'none';
+        const isCustom = isCustomLevel(level);
+        document.getElementById(`${prefix}BoardField`).style.display = (level && !isUni && !isCustom) ? '' : 'none';
         document.getElementById(`${prefix}InstitutionField`).style.display = (level && isUni) ? '' : 'none';
         document.getElementById(`${prefix}ModuleCodeField`).style.display = (level && isUni) ? '' : 'none';
+        const customTitleField = document.getElementById(`${prefix}CustomTitleField`);
+        const customDescriptionField = document.getElementById(`${prefix}CustomDescriptionField`);
+        if (customTitleField) customTitleField.style.display = isCustom ? '' : 'none';
+        if (customDescriptionField) customDescriptionField.style.display = isCustom ? '' : 'none';
     }
 
     const folderLevelWidget = setupLevelDropdown('folder', (level) => updateLevelMetafields('folder', level));
@@ -5915,6 +5956,8 @@ SQIDAQAB
         document.getElementById('boardInput').value = '';
         document.getElementById('institutionInput').value = '';
         document.getElementById('moduleCodeInput').value = '';
+        document.getElementById('customTitleInput').value = '';
+        document.getElementById('customDescriptionInput').value = '';
         document.getElementById('matchSuggestion').classList.remove('show');
         pendingMatchFolder = null;
         document.getElementById('folderModalOverlay').classList.add('open');
@@ -5963,19 +6006,22 @@ SQIDAQAB
         const examBoard = document.getElementById('boardInput').value.trim();
         const institution = document.getElementById('institutionInput').value.trim();
         const moduleCode = document.getElementById('moduleCodeInput').value.trim();
-        return { subject, qualification, examBoard, institution, moduleCode };
+        const customTitle = document.getElementById('customTitleInput').value.trim();
+        const customDescription = document.getElementById('customDescriptionInput').value.trim();
+        return { subject, qualification, examBoard, institution, moduleCode, customTitle, customDescription };
     }
 
-    function folderFormIsComplete({ subject, qualification, examBoard, institution, moduleCode }) {
+    function folderFormIsComplete({ subject, qualification, examBoard, institution, moduleCode, customTitle, customDescription }) {
         if (!subject || !qualification) return false;
+        if (isCustomLevel(qualification)) return !!(customTitle && customDescription);
         return isUniversityLevel(qualification) ? !!(institution && moduleCode) : !!examBoard;
     }
 
     document.getElementById('submitFolderBtn').addEventListener('click', async () => {
-        const { subject, qualification, examBoard, institution, moduleCode } = readFolderFormFields();
-        if (!folderFormIsComplete({ subject, qualification, examBoard, institution, moduleCode })) return;
+        const { subject, qualification, examBoard, institution, moduleCode, customTitle, customDescription } = readFolderFormFields();
+        if (!folderFormIsComplete({ subject, qualification, examBoard, institution, moduleCode, customTitle, customDescription })) return;
 
-        const extraFields = isUniversityLevel(qualification) ? [institution, moduleCode] : [examBoard];
+        const extraFields = isCustomLevel(qualification) ? [customTitle] : isUniversityLevel(qualification) ? [institution, moduleCode] : [examBoard];
         const match = findSimilarFolder(subject, qualification, extraFields, folders);
         if (match && !pendingMatchFolder) {
             pendingMatchFolder = match;
@@ -5985,7 +6031,7 @@ SQIDAQAB
             return; // wait for the user to choose
         }
 
-        await createFolder(subject, qualification, examBoard, institution, moduleCode);
+        await createFolder(subject, qualification, examBoard, institution, moduleCode, customTitle, customDescription);
         closeFolderModal();
     });
 
@@ -5997,17 +6043,17 @@ SQIDAQAB
     });
 
     document.getElementById('createAnywayBtn').addEventListener('click', async () => {
-        const { subject, qualification, examBoard, institution, moduleCode } = readFolderFormFields();
-        await createFolder(subject, qualification, examBoard, institution, moduleCode);
+        const { subject, qualification, examBoard, institution, moduleCode, customTitle, customDescription } = readFolderFormFields();
+        await createFolder(subject, qualification, examBoard, institution, moduleCode, customTitle, customDescription);
         closeFolderModal();
     });
 
-    async function createFolder(subject, qualification, examBoard, institution, moduleCode) {
+    async function createFolder(subject, qualification, examBoard, institution, moduleCode, customTitle, customDescription) {
         // Generated up front (matching subfolder/page ids) rather than left
         // to IndexedDB's own autoIncrement — sync needs an id that's
         // actually unique across devices, not just within this browser.
         const id = crypto.randomUUID();
-        await putFolder({ id, subject, qualification, examBoard, institution, moduleCode, pages: [], createdAt: Date.now() });
+        await putFolder({ id, subject, qualification, examBoard, institution, moduleCode, customTitle: customTitle || '', customDescription: customDescription || '', pages: [], createdAt: Date.now() });
         await refreshFolderList();
         selectFolder(id);
     }
