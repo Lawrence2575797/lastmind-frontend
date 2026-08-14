@@ -485,6 +485,23 @@
         background: rgba(230, 215, 176, 0.1) !important;
     }
 
+    /* Shown only while dragging a subfolder — lets it be dropped onto a
+       DIFFERENT folder than the one currently open, which otherwise has no
+       visible drop target in this single-level drill-down sidebar (see
+       showFolderDropZone). */
+    .folder-drop-zone {
+        margin-top: 4px;
+        padding-top: 4px;
+        border-top: 1px dashed rgba(230, 215, 176, 0.2);
+    }
+
+    .folder-drop-target {
+        padding: 9px 12px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        opacity: 0.6;
+    }
+
     .page-item {
         padding: 8px 10px;
         font-size: 0.8rem;
@@ -2783,6 +2800,60 @@ SQIDAQAB
     // subfolder list. Used when dropping directly onto a FOLDER header
     // (see buildFolderRow); dropping onto a specific SUBFOLDER instead
     // uses moveSubfolderRelativeTo below for a precise position.
+    // The current drill-down sidebar only ever shows ONE level at a time —
+    // a folder's own subfolders, or the root folder list, never both — so
+    // dragging a subfolder normally has no visible drop target outside its
+    // current parent (moveSubfolderToFolder already supported this move,
+    // there was just nowhere to drop it). Shown for the duration of a
+    // subfolder drag only: every OTHER folder, appended below the current
+    // view, purely as drop targets.
+    function showFolderDropZone(excludeFolderId) {
+        hideFolderDropZone();
+        const listEl = document.getElementById('folderList');
+        if (!listEl) return;
+        const others = folders.filter((f) => f.id !== excludeFolderId);
+        if (!others.length) return;
+
+        const zone = document.createElement('div');
+        zone.id = 'folderDropZone';
+        zone.className = 'folder-drop-zone';
+
+        const heading = document.createElement('div');
+        heading.className = 'drill-section-label';
+        const headingText = document.createElement('span');
+        headingText.textContent = 'Drop on a folder to move it there';
+        heading.appendChild(headingText);
+        zone.appendChild(heading);
+
+        others.forEach((f) => {
+            const row = document.createElement('div');
+            row.className = 'folder-drop-target';
+            row.textContent = folderLabel(f);
+            row.addEventListener('dragover', (e) => {
+                if (!draggedItem || draggedItem.type !== 'subfolder') return;
+                e.preventDefault();
+                row.classList.add('drag-over');
+            });
+            row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+            row.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                row.classList.remove('drag-over');
+                if (draggedItem && draggedItem.type === 'subfolder') {
+                    await moveSubfolderToFolder(draggedItem.subfolderId, f.id);
+                }
+                draggedItem = null;
+            });
+            zone.appendChild(row);
+        });
+
+        listEl.appendChild(zone);
+    }
+
+    function hideFolderDropZone() {
+        const zone = document.getElementById('folderDropZone');
+        if (zone) zone.remove();
+    }
+
     async function moveSubfolderToFolder(subfolderId, targetFolderId) {
         const loc = findSubfolderLocation(subfolderId);
         if (!loc) return;
@@ -3338,6 +3409,7 @@ SQIDAQAB
             e.stopPropagation();
             draggedItem = { type: 'subfolder', folderId: folder.id, subfolderId: sf.id };
             e.dataTransfer.effectAllowed = 'move';
+            showFolderDropZone(folder.id);
         });
 
         // This header accepts two different incoming drags: a page (adds
@@ -5703,6 +5775,7 @@ SQIDAQAB
     document.addEventListener('dragend', () => {
         draggedItem = null;
         document.querySelectorAll('.drag-over').forEach((el) => el.classList.remove('drag-over'));
+        hideFolderDropZone();
     });
 
     async function createPageInFolder(folderId, subfolderId) {
