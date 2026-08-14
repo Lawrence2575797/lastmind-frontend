@@ -1150,6 +1150,53 @@
         margin-bottom: 10px;
     }
 
+    .fsrs-breakdown {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.85rem;
+        line-height: 1.6;
+    }
+
+    .fsrs-rating-line {
+        margin-bottom: 12px;
+        opacity: 0.85;
+    }
+
+    .fsrs-breakdown-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.8rem;
+        margin-bottom: 12px;
+    }
+
+    .fsrs-breakdown-table th, .fsrs-breakdown-table td {
+        text-align: left;
+        padding: 6px 8px;
+        border-bottom: 1px solid rgba(230, 215, 176, 0.12);
+    }
+
+    .fsrs-breakdown-table th {
+        opacity: 0.5;
+        font-weight: normal;
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .fsrs-breakdown-table td:first-child {
+        opacity: 0.75;
+    }
+
+    .fsrs-breakdown-table td:not(:first-child) {
+        font-family: 'Courier New', monospace;
+        color: var(--accent);
+    }
+
+    .fsrs-schedule-line {
+        font-size: 0.72rem;
+        opacity: 0.5;
+        line-height: 1.5;
+    }
+
     /* ─── PAGE EDITOR ─── */
     .page-title-input {
         width: 100%;
@@ -5228,6 +5275,66 @@ SQIDAQAB
             }
         }
 
+        // Purely explanatory — shows the actual before/after FSRS numbers
+        // this lesson's completion just wrote (see fsrsUpdate on
+        // submitEncodingAnswer's response). The scheduling decision itself
+        // already happened server-side before this ever renders; this is
+        // just "showing the work" behind it, at the student's explicit
+        // request — a temporary view, not meant to be permanent UI.
+        function buildFsrsBreakdownCard(fsrsUpdate) {
+            const wrap = document.createElement('div');
+            wrap.className = 'correction-card fsrs-breakdown';
+
+            const label = document.createElement('div');
+            label.className = 'correction-label';
+            label.textContent = 'How this updated your review schedule';
+            wrap.appendChild(label);
+
+            const ratingLine = document.createElement('div');
+            ratingLine.className = 'fsrs-rating-line';
+            ratingLine.textContent = fsrsUpdate.rating === 'easy'
+                ? 'Every step in this lesson was correct, so the concept was graded "Easy".'
+                : 'At least one step in this lesson was wrong, so the concept was graded "Hard".';
+            wrap.appendChild(ratingLine);
+
+            const prev = fsrsUpdate.previous;
+            const upd = fsrsUpdate.updated;
+            const rows = [
+                ['Stability (days of memory strength)', prev ? prev.stability.toFixed(2) : '—', upd.stability.toFixed(2)],
+                ['Difficulty', prev ? prev.difficulty.toFixed(2) : '—', upd.difficulty.toFixed(2)],
+                ['Reps', prev ? String(prev.reps) : '0', String(upd.reps)],
+                ['Lapses', prev ? String(prev.lapses) : '0', String(upd.lapses)],
+                ['Next due', prev ? new Date(prev.due).toLocaleDateString('en-GB') : '(never reviewed)', new Date(upd.due).toLocaleDateString('en-GB')],
+            ];
+
+            const table = document.createElement('table');
+            table.className = 'fsrs-breakdown-table';
+            const thead = document.createElement('tr');
+            ['', 'Before', 'After'].forEach((h) => {
+                const th = document.createElement('th');
+                th.textContent = h;
+                thead.appendChild(th);
+            });
+            table.appendChild(thead);
+            rows.forEach(([rowLabel, before, after]) => {
+                const tr = document.createElement('tr');
+                [rowLabel, before, after].forEach((val) => {
+                    const td = document.createElement('td');
+                    td.textContent = val;
+                    tr.appendChild(td);
+                });
+                table.appendChild(tr);
+            });
+            wrap.appendChild(table);
+
+            const scheduleLine = document.createElement('div');
+            scheduleLine.className = 'fsrs-schedule-line';
+            scheduleLine.textContent = `Scheduled ${upd.scheduledDays} day${upd.scheduledDays === 1 ? '' : 's'} out — LastMind aims for ~92% recall probability at that point, so a lower stability schedules sooner and a higher one lets it wait longer.`;
+            wrap.appendChild(scheduleLine);
+
+            return wrap;
+        }
+
         function renderNextEncodingStep(accessToken, result) {
             if (result.done) {
                 const summary = document.createElement('div');
@@ -5235,6 +5342,12 @@ SQIDAQAB
                 summary.innerHTML = '<div class="correction-label">Lesson complete</div>You\'ve built the whole chain yourself — nice work.';
                 questionFlowEl.appendChild(summary);
                 summary.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+                if (result.fsrsUpdate) {
+                    const fsrsCard = buildFsrsBreakdownCard(result.fsrsUpdate);
+                    questionFlowEl.appendChild(fsrsCard);
+                    fsrsCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                }
 
                 if (isMulti) {
                     completedLessonTranscripts.push({
