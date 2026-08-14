@@ -537,6 +537,45 @@
         transition: width 0.3s ease;
     }
 
+    .order-confirm-wrap {
+        padding: 4px 12px 16px;
+    }
+
+    .order-confirm-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.78rem;
+        opacity: 0.85;
+        cursor: pointer;
+    }
+
+    .order-confirm-label input[type="checkbox"] {
+        accent-color: var(--accent);
+        cursor: pointer;
+    }
+
+    .order-confirm-hint {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.68rem;
+        opacity: 0.4;
+        line-height: 1.5;
+        margin-top: 4px;
+    }
+
+    .page-item-next {
+        box-shadow: inset 2px 0 0 var(--accent);
+    }
+
+    .page-item-next-badge {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.62rem;
+        opacity: 0.65;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
     /* ─── MAIN ─── */
     .main {
         flex: 1;
@@ -2522,6 +2561,60 @@ SQIDAQAB
         return wrap;
     }
 
+    // The next page a confirmed-order list should nudge the student
+    // towards — the first page (in array order) that isn't fully done yet.
+    // Returns null when order isn't confirmed, there's nothing left to do,
+    // or there's only one page (nothing to sequence). Purely a rendering
+    // hint — every page stays clickable regardless (see
+    // siblingConceptsForCurrentPage for the confirmed-order effect on
+    // prerequisite detection itself).
+    function nextSuggestedPageId(container) {
+        if (container.orderConfirmed !== true) return null;
+        const pages = container.pages || [];
+        if (pages.length < 2) return null;
+        const next = pages.find((p) => pageAsSiblingConcepts(p).some((c) => !c.done));
+        return next ? next.id : null;
+    }
+
+    // "Is this page order correct?" toggle for a subfolder's (or a legacy
+    // direct-in-folder) page list. Confirming it does two things: later
+    // pages' encoding lessons can treat earlier pages in this exact list as
+    // genuine prerequisites instead of just any sibling (see
+    // siblingConceptsForCurrentPage), and the page list highlights the next
+    // not-yet-done page as a soft nudge — never a hard gate, every page
+    // stays clickable either way. Only shown once there are 2+ pages, since
+    // order is meaningless below that.
+    function buildOrderConfirmToggle(container, folder) {
+        const wrap = document.createElement('div');
+        wrap.className = 'order-confirm-wrap';
+
+        const label = document.createElement('label');
+        label.className = 'order-confirm-label';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = container.orderConfirmed === true;
+        checkbox.addEventListener('change', async () => {
+            container.orderConfirmed = checkbox.checked;
+            await putFolder(folder);
+            renderSidebarSelection();
+        });
+
+        const labelText = document.createElement('span');
+        labelText.textContent = 'This list is in the right order to take these lessons';
+
+        label.appendChild(checkbox);
+        label.appendChild(labelText);
+        wrap.appendChild(label);
+
+        const hint = document.createElement('div');
+        hint.className = 'order-confirm-hint';
+        hint.textContent = 'When confirmed, each page can assume the pages above it were taught first, and the next page to take gets highlighted.';
+        wrap.appendChild(hint);
+
+        return wrap;
+    }
+
     // The sub-lesson a multi-lesson page should teach next — the first one
     // not yet marked done, walked in the order they were added (same
     // sequential philosophy as a single lesson's own steps). Null once
@@ -2936,9 +3029,9 @@ SQIDAQAB
 
     // Reusable page-row builder — used both for a folder's direct pages and
     // for a subfolder's pages, so the drag/menu behaviour stays consistent.
-    function buildPageItem(page, folderId, subfolderId) {
+    function buildPageItem(page, folderId, subfolderId, isNextUp) {
         const pageEl = document.createElement('div');
-        pageEl.className = 'page-item' + (page.id === selectedPageId ? ' active' : '');
+        pageEl.className = 'page-item' + (page.id === selectedPageId ? ' active' : '') + (isNextUp ? ' page-item-next' : '');
         pageEl.draggable = true;
 
         const label = document.createElement('span');
@@ -2956,6 +3049,12 @@ SQIDAQAB
         pageEl.style.alignItems = 'center';
         pageEl.style.gap = '4px';
         pageEl.appendChild(label);
+        if (isNextUp) {
+            const badge = document.createElement('span');
+            badge.className = 'page-item-next-badge';
+            badge.textContent = 'Next up';
+            pageEl.appendChild(badge);
+        }
         pageEl.appendChild(menuWrap);
 
         pageEl.addEventListener('click', (e) => {
@@ -3279,7 +3378,11 @@ SQIDAQAB
             pagesLabel.appendChild(pagesLabelText);
             listEl.appendChild(pagesLabel);
 
-            directPages.forEach((p) => listEl.appendChild(buildPageItem(p, folder.id, null)));
+            if (directPages.length >= 2) {
+                listEl.appendChild(buildOrderConfirmToggle(folder, folder));
+            }
+            const nextUpId = nextSuggestedPageId(folder);
+            directPages.forEach((p) => listEl.appendChild(buildPageItem(p, folder.id, null, p.id === nextUpId)));
         }
     }
 
@@ -3311,7 +3414,11 @@ SQIDAQAB
             hint.textContent = 'No pages yet.';
             listEl.appendChild(hint);
         } else {
-            pages.forEach((p) => listEl.appendChild(buildPageItem(p, folder.id, subfolder.id)));
+            if (pages.length >= 2) {
+                listEl.appendChild(buildOrderConfirmToggle(subfolder, folder));
+            }
+            const nextUpId = nextSuggestedPageId(subfolder);
+            pages.forEach((p) => listEl.appendChild(buildPageItem(p, folder.id, subfolder.id, p.id === nextUpId)));
         }
     }
 
@@ -5106,8 +5213,23 @@ SQIDAQAB
         // unfinished pages — the whole reason to group concepts on one
         // page is that they depend on each other.
         function siblingConceptsForCurrentPage(excludeConcept) {
-            const siblingPages = (loc.subfolder ? loc.subfolder.pages : folder.pages) || [];
-            const fromOtherPages = siblingPages.filter((p) => p.id !== page.id).flatMap(pageAsSiblingConcepts);
+            const container = loc.subfolder || folder;
+            const siblingPages = container.pages || [];
+            // When the student has confirmed this list's order is actually
+            // correct (see the order-confirmed toggle on the subfolder/
+            // folder view), only pages genuinely BEFORE this one in that
+            // confirmed order count as sibling concepts — a coincidentally
+            // similar-sounding page later in the list isn't a real
+            // prerequisite just because it hasn't been done yet. Without
+            // confirmation there's no reliable order to lean on, so this
+            // stays the original lenient behavior: every other page in the
+            // list, regardless of position — a false negative here just
+            // falls back to the title-only heuristic, same as before.
+            const currentIdx = siblingPages.findIndex((p) => p.id === page.id);
+            const eligiblePages = (container.orderConfirmed === true && currentIdx !== -1)
+                ? siblingPages.filter((p, i) => p.id !== page.id && i < currentIdx)
+                : siblingPages.filter((p) => p.id !== page.id);
+            const fromOtherPages = eligiblePages.flatMap(pageAsSiblingConcepts);
             const fromThisPage = isMulti
                 ? page.lessons.filter((l) => l.concept !== excludeConcept).map((l) => ({ label: l.concept, done: l.encodingDone === true }))
                 : [];
