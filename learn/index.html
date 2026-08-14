@@ -438,6 +438,82 @@
         color: #e6b0a8;
     }
 
+    .fsrs-info-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        border: 1px solid rgba(230, 215, 176, 0.25);
+        background: none;
+        color: var(--text);
+        font-size: 0.72rem;
+        opacity: 0.55;
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+
+    .fsrs-info-toggle:hover, .fsrs-info-toggle.open {
+        opacity: 1;
+        border-color: var(--accent);
+        color: var(--accent);
+    }
+
+    .fsrs-info-panel {
+        width: 100%;
+        margin-top: 10px;
+        padding: 16px 18px;
+        border: 1px solid rgba(230, 215, 176, 0.2);
+        border-radius: 6px;
+        background: var(--panel);
+        font-family: 'Arial', sans-serif;
+        font-size: 0.82rem;
+        line-height: 1.65;
+    }
+
+    .fsrs-info-panel h4 {
+        font-size: 0.68rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--accent);
+        opacity: 0.8;
+        margin: 14px 0 6px;
+    }
+
+    .fsrs-info-panel h4:first-child {
+        margin-top: 0;
+    }
+
+    .fsrs-info-numbers {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.78rem;
+        margin-bottom: 4px;
+    }
+
+    .fsrs-info-numbers td {
+        padding: 3px 8px 3px 0;
+    }
+
+    .fsrs-info-numbers td:first-child {
+        opacity: 0.6;
+    }
+
+    .fsrs-info-numbers td:last-child {
+        font-family: 'Courier New', monospace;
+        color: var(--accent);
+    }
+
+    .fsrs-info-panel p {
+        margin: 0 0 8px;
+        opacity: 0.85;
+    }
+
+    .fsrs-info-panel p:last-child {
+        margin-bottom: 0;
+    }
+
     .manage-subscription-btn {
         width: 100%;
         background: none;
@@ -2895,12 +2971,14 @@ SQIDAQAB
 
     function multiLessonReviewPanelHtml(page) {
         const items = page.lessons.map((l) => `
-            <li class="multi-lesson-item done">
+            <li class="multi-lesson-item done" style="flex-wrap: wrap;">
                 <span><span class="multi-lesson-marker">✓</span> ${escapeHtml(l.concept)}</span>
                 <span style="display:flex; align-items:center; gap:8px;">
                     ${isPaidUser ? `<button type="button" class="due-in-badge multi-due-badge" data-concept="${escapeHtml(l.concept)}" title="Jump to this in the calendar">Checking schedule…</button>` : ''}
+                    ${isPaidUser ? `<button type="button" class="fsrs-info-toggle multi-due-info-toggle" data-concept="${escapeHtml(l.concept)}" title="How does this work?">ⓘ</button>` : ''}
                     <button class="review-concept-btn" data-concept="${escapeHtml(l.concept)}" ${isPaidUser ? '' : 'disabled title="Upgrade to unlock diagnostics"'}>Review</button>
                 </span>
+                ${isPaidUser ? `<div class="fsrs-info-panel multi-due-info-panel" data-concept-panel="${escapeHtml(l.concept)}" style="display:none;"></div>` : ''}
             </li>
         `).join('');
         return `
@@ -4023,7 +4101,9 @@ SQIDAQAB
                 <div class="bottom-action-row">
                     <button class="generate-questions-btn" id="generateQuestionsBtn" ${isPaidUser ? '' : 'disabled title="Upgrade to unlock diagnostics"'}>Start Lesson</button>
                     ${isPaidUser ? '<button type="button" class="due-in-badge" id="dueInBadge" title="Jump to this in the calendar">Checking schedule…</button>' : ''}
+                    ${isPaidUser ? '<button type="button" class="fsrs-info-toggle" id="dueInInfoToggle" title="How does this work?">ⓘ</button>' : ''}
                 </div>
+                <div class="fsrs-info-panel" id="dueInInfoPanel" style="display:none;"></div>
                 <div id="diagnoseQuestionFlow"></div>
             </div>
         `
@@ -5825,10 +5905,22 @@ SQIDAQAB
         // page (see dueInBadge in lessonPanelHtml) — a multi-lesson page's
         // per-concept version is wired separately below.
         const dueInBadge = document.getElementById('dueInBadge');
+        const dueInInfoToggle = document.getElementById('dueInInfoToggle');
+        const dueInInfoPanel = document.getElementById('dueInInfoPanel');
         if (dueInBadge) {
             (async () => {
                 const scheduleData = await fetchScheduleData();
                 const entry = findScheduleEntryForConcept(scheduleData, folder.subject || '', (loc.subfolder && loc.subfolder.name) || '', page.title || 'Untitled page');
+                if (dueInInfoToggle && dueInInfoPanel) {
+                    dueInInfoToggle.addEventListener('click', () => {
+                        const open = dueInInfoPanel.style.display !== 'none';
+                        dueInInfoPanel.style.display = open ? 'none' : 'block';
+                        dueInInfoToggle.classList.toggle('open', !open);
+                        if (!open && !dueInInfoPanel.innerHTML) {
+                            dueInInfoPanel.innerHTML = buildFsrsInfoPanelContent(entry);
+                        }
+                    });
+                }
                 if (!entry) {
                     dueInBadge.textContent = 'Not yet scheduled';
                     dueInBadge.disabled = true;
@@ -5852,6 +5944,20 @@ SQIDAQAB
                 multiDueBadges.forEach((badge) => {
                     const concept = badge.getAttribute('data-concept');
                     const entry = findScheduleEntryForConcept(scheduleData, folder.subject || '', (loc.subfolder && loc.subfolder.name) || '', concept);
+
+                    const infoToggle = document.querySelector(`.multi-due-info-toggle[data-concept="${CSS.escape(concept)}"]`);
+                    const infoPanel = document.querySelector(`.multi-due-info-panel[data-concept-panel="${CSS.escape(concept)}"]`);
+                    if (infoToggle && infoPanel) {
+                        infoToggle.addEventListener('click', () => {
+                            const open = infoPanel.style.display !== 'none';
+                            infoPanel.style.display = open ? 'none' : 'block';
+                            infoToggle.classList.toggle('open', !open);
+                            if (!open && !infoPanel.innerHTML) {
+                                infoPanel.innerHTML = buildFsrsInfoPanelContent(entry);
+                            }
+                        });
+                    }
+
                     if (!entry) {
                         badge.textContent = 'Not yet scheduled';
                         badge.disabled = true;
@@ -6583,6 +6689,51 @@ SQIDAQAB
         if (exact) return exact;
         const rawLower = (concept || '').trim().toLowerCase();
         return scheduleData.find((item) => (item.concept_id || '').trim().toLowerCase() === rawLower) || null;
+    }
+
+    // ts-fsrs's own State enum ordering (New/Learning/Review/Relearning) —
+    // reproduced here just for a readable label; falls back to the raw
+    // number if this ever drifts from the library's actual values, so a
+    // mismatch degrades to "State: 2" rather than a wrong label.
+    const FSRS_STATE_LABELS = { 0: 'New', 1: 'Learning', 2: 'Review', 3: 'Relearning' };
+
+    // Plain-language explanation of the actual FSRS mechanism, not just the
+    // before/after numbers the lesson-completion card already shows — this
+    // is specifically "how does this work", requested standalone from that.
+    function fsrsInfoExplanationHtml() {
+        return `
+            <h4>How this works</h4>
+            <p>LastMind uses FSRS, a real memory-modelling algorithm — not a fixed "every 3 days" schedule. Every concept tracks two core numbers.</p>
+            <p><strong>Stability</strong> — the number of days your memory of this concept is predicted to last before your recall probability drops to LastMind's target of 92%. Higher stability means you'll be tested on it less often.</p>
+            <p><strong>Difficulty</strong> — how inherently hard this specific concept has been for <em>you</em>, on a 1&ndash;10 scale. Higher difficulty makes future stability grow more slowly from here on.</p>
+            <h4>How right and wrong answers change them</h4>
+            <p>Each time you finish a lesson on this concept, LastMind grades the whole thing as either <strong>Easy</strong> (every step correct) or <strong>Hard</strong> (at least one step wrong) — a simplified two-way version of FSRS's own four-point scale.</p>
+            <p>An <strong>Easy</strong> grade grows stability — and grows it more the closer you actually were to forgetting it. Correctly recovering a nearly-forgotten concept is stronger evidence it's genuinely learned than acing something you only reviewed yesterday, so it earns a bigger stability increase.</p>
+            <p>A <strong>Hard</strong> grade shrinks stability substantially (counted as a "lapse") and nudges difficulty up slightly, since the algorithm now treats this concept as a bit harder for you specifically, going forward.</p>
+            <p>Your next due date isn't a fixed gap — it's calculated so your predicted recall probability decays to exactly 92% by that date, given this concept's own current stability.</p>
+        `;
+    }
+
+    // entry is the /schedule row for this concept (or null if never
+    // reviewed yet) — same object the due-in badge itself already fetched,
+    // no extra request needed.
+    function buildFsrsInfoPanelContent(entry) {
+        if (!entry) {
+            return `<p>This concept hasn't been reviewed yet, so there's nothing scheduled for it — its first stability/difficulty numbers only exist once you complete the encoding lesson.</p>${fsrsInfoExplanationHtml()}`;
+        }
+        const rows = [
+            ['Stability', `${Number(entry.stability).toFixed(1)} days`],
+            ['Difficulty', Number(entry.difficulty).toFixed(2)],
+            ['Reps', String(entry.reps)],
+            ['Lapses', String(entry.lapses)],
+            ['State', FSRS_STATE_LABELS[entry.state] ?? String(entry.state)],
+            ['Next due', new Date(entry.due).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })],
+        ];
+        const numbersHtml = `
+            <h4>This concept's current numbers</h4>
+            <table class="fsrs-info-numbers">${rows.map(([label, value]) => `<tr><td>${escapeHtml(label)}</td><td>${escapeHtml(value)}</td></tr>`).join('')}</table>
+        `;
+        return numbersHtml + fsrsInfoExplanationHtml();
     }
 
     // Day-difference using LOCAL calendar days (midnight to midnight), not
