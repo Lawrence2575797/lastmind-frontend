@@ -4629,7 +4629,7 @@ SQIDAQAB
                 const slipBtn = document.createElement('button');
                 slipBtn.type = 'button';
                 slipBtn.className = 'report-slip-btn';
-                slipBtn.textContent = 'Actually, this was just a slip';
+                slipBtn.textContent = 'Actually, this was just a slip — let me retry';
                 slipBtn.addEventListener('click', async () => {
                     slipBtn.disabled = true;
                     let resp;
@@ -4637,7 +4637,7 @@ SQIDAQAB
                         resp = await fetch(`${COMPILE_BACKEND_URL}/diagnostics/report-slip`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-                            body: JSON.stringify({ conceptKey })
+                            body: JSON.stringify({ state: diagState })
                         });
                     } catch (err) {
                         slipBtn.disabled = false;
@@ -4648,10 +4648,10 @@ SQIDAQAB
                         return;
                     }
                     const result = await resp.json();
-                    lockAnsweredCard(qCard, '(Reported as a slip)', false, null, '↺ Marked as a slip');
+                    qCard.remove();
                     slipBtn.remove();
                     reframeBtn.remove();
-                    handleDiagnosticResult(result);
+                    askNextDiagnostic(result.nextQuestion, result.nextOptions, result.state, result.nextRequiresCalculation);
                 });
                 drilldownBlock.appendChild(slipBtn);
 
