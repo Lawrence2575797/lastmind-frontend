@@ -386,7 +386,8 @@ SQIDAQAB
         });
     }
 
-    async function putFolder(folder) {
+    // Raw IndexedDB write, no server sync side effect — see putFolder below.
+    async function putFolderLocalOnly(folder) {
         const db = await openDB();
         return new Promise((resolve, reject) => {
             const tx = db.transaction(FOLDER_STORE, 'readwrite');
@@ -394,6 +395,135 @@ SQIDAQAB
             r.onsuccess = () => resolve(r.result);
             r.onerror = (e) => reject(e.target.error);
         });
+    }
+
+    // Mirrors learn/index.html's putFolder exactly — this file has its own
+    // separate copy of the whole IndexedDB layer (see the file-level
+    // comment above), so the same per-account sync fix has to be applied
+    // here independently, or anything Cortex creates/edits stays local to
+    // whatever device Cortex happens to be used on. See learn/index.html's
+    // own copy of this function for the full reasoning.
+    async function putFolder(folder) {
+        folder.updatedAt = Date.now();
+        const id = await putFolderLocalOnly(folder);
+        if (folder.id === undefined) folder.id = id;
+        syncFolderToServer(folder).catch((err) => {
+            console.error('LastMind Cortex: folder sync to server failed — will retry at next open.', err);
+        });
+        return id;
+    }
+
+    async function deleteFolderRecordLocalOnly(folderId) {
+        const db = await openDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(FOLDER_STORE, 'readwrite');
+            const r = tx.objectStore(FOLDER_STORE).delete(folderId);
+            r.onsuccess = () => resolve();
+            r.onerror = (e) => reject(e.target.error);
+        });
+    }
+
+    async function deleteFolderRecord(folderId) {
+        await deleteFolderRecordLocalOnly(folderId);
+        deleteFolderFromServer(folderId).catch((err) => {
+            console.error('LastMind Cortex: folder delete did not reach the server — it may reappear from another device until this is retried.', err);
+        });
+    }
+
+    // Same sync layer as learn/index.html, duplicated for the same reason
+    // as the rest of this file's IndexedDB code — see that file's own
+    // "Per-account folder sync" block for the full design reasoning
+    // (last-write-wins by updatedAt, tombstones for cross-device deletion,
+    // purely additive on top of local storage with no active account
+    // session). This copy is called from the same places: putFolder/
+    // deleteFolderRecord above, and reconcileFoldersWithServer at boot.
+    async function getSyncAccessToken() {
+        try {
+            const { data } = await supabaseClient.auth.getSession();
+            return data.session ? data.session.access_token : null;
+        } catch (err) {
+            return null;
+        }
+    }
+
+    async function syncFolderToServer(folder) {
+        const accessToken = await getSyncAccessToken();
+        if (!accessToken) return;
+        const resp = await fetch(`${COMPILE_BACKEND_URL}/sync/folders`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+            body: JSON.stringify({ folderId: String(folder.id), data: folder, updatedAt: new Date(folder.updatedAt || Date.now()).toISOString() })
+        });
+        if (!resp.ok) throw new Error(`folder sync failed: ${resp.status}`);
+    }
+
+    async function deleteFolderFromServer(folderId) {
+        const accessToken = await getSyncAccessToken();
+        if (!accessToken) return;
+        const resp = await fetch(`${COMPILE_BACKEND_URL}/sync/folders/delete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+            body: JSON.stringify({ folderId: String(folderId) })
+        });
+        if (!resp.ok) throw new Error(`folder delete sync failed: ${resp.status}`);
+    }
+
+    async function migrateLegacyFolderIds() {
+        const all = await getAllFolders();
+        for (const folder of all) {
+            if (typeof folder.id === 'number') {
+                const oldId = folder.id;
+                folder.id = crypto.randomUUID();
+                await deleteFolderRecord(oldId);
+                await putFolder(folder);
+            }
+        }
+    }
+
+    async function reconcileFoldersWithServer() {
+        const accessToken = await getSyncAccessToken();
+        if (!accessToken) return;
+
+        await migrateLegacyFolderIds();
+
+        let serverFolders;
+        try {
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/sync/folders`, {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            if (!resp.ok) return;
+            ({ folders: serverFolders } = await resp.json());
+        } catch (err) {
+            console.error('LastMind Cortex: could not reach folder sync — continuing with local folders only for this session.', err);
+            return;
+        }
+
+        const localFolders = await getAllFolders();
+        const localById = new Map(localFolders.map((f) => [String(f.id), f]));
+        const serverById = new Map(serverFolders.map((f) => [String(f.folderId), f]));
+
+        for (const { folderId, data, updatedAt, deletedAt } of serverFolders) {
+            const local = localById.get(String(folderId));
+            const serverTime = new Date(deletedAt || updatedAt).getTime();
+            if (deletedAt) {
+                if (local && (local.updatedAt || 0) < serverTime) {
+                    await deleteFolderRecordLocalOnly(local.id);
+                }
+                continue;
+            }
+            if (!local || (local.updatedAt || 0) < serverTime) {
+                data.id = local ? local.id : folderId;
+                data.updatedAt = serverTime;
+                await putFolderLocalOnly(data);
+            }
+        }
+
+        for (const local of localFolders) {
+            const server = serverById.get(String(local.id));
+            if (!server || (local.updatedAt || 0) > new Date(server.updatedAt).getTime()) {
+                await syncFolderToServer(local).catch((err) => console.error('LastMind Cortex: initial folder push failed — will retry at next open.', err));
+            }
+        }
     }
 
     // Same split as learn/index.html's own UNIVERSITY_LEVELS/isUniversityLevel
@@ -865,7 +995,13 @@ SQIDAQAB
     }
 
     async function applyCreateFolder(action) {
+        // Generated up front (matching learn/index.html's own fix) rather
+        // than left to IndexedDB's autoIncrement — sync needs an id that's
+        // actually unique across devices, and a later action in the same
+        // batch (e.g. create_subfolder targeting this folder) needs to be
+        // able to find it again right after this one lands.
         await putFolder({
+            id: crypto.randomUUID(),
             subject: action.subject,
             qualification: action.qualification,
             examBoard: action.examBoard || '',
@@ -1000,6 +1136,44 @@ SQIDAQAB
         return `Created ${toCreate.length} new page(s) in ${folderLabel(folder)}${subfolder ? ' > ' + subfolder.name : ''}: ${toCreate.join(', ')}.${skipped ? ` (${skipped} already existed, skipped.)` : ''}`;
     }
 
+    // Deletes the whole folder record — everything inside it (every
+    // subfolder and page) goes with it. Only ever reached after the
+    // student has explicitly confirmed (see the batch confirm card) —
+    // CORTEX_INTENT_PROMPT rule 12 restricts this action to explicit,
+    // unambiguous deletion requests, but the confirmation is the real
+    // safety gate, same as every other action.
+    async function applyDeleteFolder(action) {
+        const folders = await getAllFolders();
+        const folder = findFolderByName(folders, action.folderName);
+        if (!folder) return `I couldn't find a folder called "${action.folderName}".`;
+        const label = folderLabel(folder);
+        await deleteFolderRecord(folder.id);
+        return `Deleted the folder "${label}" and everything in it.`;
+    }
+
+    async function applyDeleteSubfolder(action) {
+        const folders = await getAllFolders();
+        const loc = findSubfolderAnywhere(folders, action.subfolderName);
+        if (!loc) return `I couldn't find a subfolder called "${action.subfolderName}".`;
+        const idx = (loc.folder.subfolders || []).findIndex((sf) => sf.id === loc.subfolder.id);
+        if (idx === -1) return `Something went wrong finding "${action.subfolderName}".`;
+        loc.folder.subfolders.splice(idx, 1);
+        await putFolder(loc.folder);
+        return `Deleted the subfolder "${loc.subfolder.name}" and everything in it.`;
+    }
+
+    async function applyDeletePage(action) {
+        const folders = await getAllFolders();
+        const loc = findPageByTitleAnywhere(folders, action.pageTitle);
+        if (!loc) return `I couldn't find a page called "${action.pageTitle}".`;
+        const sourceArray = loc.subfolder ? loc.subfolder.pages : loc.folder.pages;
+        const idx = sourceArray.findIndex((p) => p.id === loc.page.id);
+        if (idx === -1) return `Something went wrong finding "${action.pageTitle}".`;
+        sourceArray.splice(idx, 1);
+        await putFolder(loc.folder);
+        return `Deleted the page "${loc.page.title}".`;
+    }
+
     function describeAndBuildApplier(action) {
         if (action.type === 'move_page') {
             return {
@@ -1049,16 +1223,49 @@ SQIDAQAB
                 apply: () => applyCreatePagesFromOrder(action)
             };
         }
+        if (action.type === 'delete_folder') {
+            return {
+                text: `⚠️ Delete the folder "${action.folderName}" — this removes everything inside it and can't be undone. Are you sure?`,
+                apply: () => applyDeleteFolder(action)
+            };
+        }
+        if (action.type === 'delete_subfolder') {
+            return {
+                text: `⚠️ Delete the subfolder "${action.subfolderName}" — this removes everything inside it and can't be undone. Are you sure?`,
+                apply: () => applyDeleteSubfolder(action)
+            };
+        }
+        if (action.type === 'delete_page') {
+            return {
+                text: `⚠️ Delete the page "${action.pageTitle}" — this can't be undone. Are you sure?`,
+                apply: () => applyDeletePage(action)
+            };
+        }
         return { text: null, apply: null };
     }
 
-    function showConfirmCard(text, apply) {
+    // `items` is a list of { text, apply } — one card, one Yes/No, covering
+    // the WHOLE batch a single message asked for (see CORTEX_INTENT_PROMPT
+    // rule 2b: "make me a folder with a subfolder in it" is two actions,
+    // not two separate turns). On confirm, every apply() runs strictly in
+    // order, awaited one at a time — not in parallel — because a later
+    // action's applier does its own fresh getAllFolders() lookup, so it
+    // can only find what an earlier action in the same batch just created
+    // once that earlier write has actually landed. Each item gets its own
+    // status line, so a partial failure partway through the batch is
+    // still visible per-step rather than a single pass/fail for the whole
+    // thing.
+    function showBatchConfirmCard(items) {
         const card = document.createElement('div');
         card.className = 'chat-confirm-card';
 
         const desc = document.createElement('div');
         desc.className = 'chat-confirm-text';
-        desc.textContent = text;
+        if (items.length === 1) {
+            desc.textContent = items[0].text;
+        } else {
+            desc.innerHTML = items.map((item, i) => `${i + 1}. ${escapeHtml(item.text)}`).join('<br>');
+        }
 
         const actions = document.createElement('div');
         actions.className = 'chat-confirm-actions';
@@ -1066,7 +1273,7 @@ SQIDAQAB
         const yesBtn = document.createElement('button');
         yesBtn.className = 'chat-confirm-btn';
         yesBtn.type = 'button';
-        yesBtn.textContent = 'Yes, do it';
+        yesBtn.textContent = items.length > 1 ? `Yes, do all ${items.length}` : 'Yes, do it';
 
         const noBtn = document.createElement('button');
         noBtn.className = 'chat-confirm-btn chat-confirm-btn-no';
@@ -1079,12 +1286,19 @@ SQIDAQAB
             statusEl.className = 'chat-confirm-status';
             statusEl.textContent = 'Working…';
             card.appendChild(statusEl);
-            try {
-                statusEl.textContent = (await apply()) || 'Done.';
-            } catch (err) {
-                console.error('LastMind Cortex: action failed.', err);
-                statusEl.textContent = 'Something went wrong — please try again.';
+
+            const results = [];
+            for (const item of items) {
+                try {
+                    results.push((await item.apply()) || 'Done.');
+                } catch (err) {
+                    console.error('LastMind Cortex: action failed.', err);
+                    results.push('Something went wrong — please try again.');
+                }
             }
+            statusEl.innerHTML = results.length === 1
+                ? escapeHtml(results[0])
+                : results.map((r, i) => `${i + 1}. ${escapeHtml(r)}`).join('<br>');
         });
 
         noBtn.addEventListener('click', () => card.remove());
@@ -1205,15 +1419,26 @@ SQIDAQAB
         await askReviewQuestion(session.access_token, startResult.nextQuestion, startResult.state);
     }
 
-    async function handleCortexAction(action) {
-        if (action.type === 'list_due_reviews') return;
-        if (action.type === 'start_review') {
-            await runReviewInChat(action.conceptId);
-            return;
+    // `actions` is the full list from one Cortex response (see
+    // CortexResult.actions — always an array, possibly empty). Read-only/
+    // already-interactive actions (list_due_reviews, start_review) run
+    // immediately, same as before; everything else is a mutation and gets
+    // collected into ONE combined confirm card covering the whole batch —
+    // see showBatchConfirmCard. list_due_reviews and start_review are kept
+    // out of that batch since they don't mutate anything and have their
+    // own flow (a review runs interactively right here in chat).
+    async function handleCortexActions(actions) {
+        const toConfirm = [];
+        for (const action of actions) {
+            if (action.type === 'list_due_reviews') continue;
+            if (action.type === 'start_review') {
+                await runReviewInChat(action.conceptId);
+                continue;
+            }
+            const item = describeAndBuildApplier(action);
+            if (item.text) toConfirm.push(item);
         }
-        const { text, apply } = describeAndBuildApplier(action);
-        if (!text) return;
-        showConfirmCard(text, apply);
+        if (toConfirm.length) showBatchConfirmCard(toConfirm);
     }
 
     async function sendChatMessage() {
@@ -1266,7 +1491,7 @@ SQIDAQAB
             // has its own manual speak button regardless.
             if (result.speakAloud) speakText(result.reply);
 
-            if (result.action) await handleCortexAction(result.action);
+            if (Array.isArray(result.actions) && result.actions.length) await handleCortexActions(result.actions);
         } catch (err) {
             console.error('LastMind Cortex: message failed.', err);
             setAssistantMessageText(thinkingEl, 'Sorry, something went wrong. Please try again.');
@@ -1365,6 +1590,14 @@ SQIDAQAB
         document.getElementById('gate-message').style.display = 'none';
         document.getElementById('app').style.display = 'flex';
         document.getElementById('chatInput').focus();
+
+        // Fire-and-forget rather than awaited — Cortex reads folders fresh
+        // via getAllFolders() at the point each action actually needs them
+        // (not once at boot into a cached array like learn/index.html),
+        // so there's no render step here that depends on this having
+        // finished; it just needs to have started before the student's
+        // first message is likely to land.
+        reconcileFoldersWithServer().catch((err) => console.error('LastMind Cortex: folder reconcile failed.', err));
 
         await restoreChatHistory();
 
