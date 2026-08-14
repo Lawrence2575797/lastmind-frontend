@@ -215,6 +215,47 @@
         padding: 14px 12px 20px;
     }
 
+    /* Full-screen mode — same DOM, same renderCalendar()/prev/next logic,
+       just lifted out of the sidebar's layout via position:fixed and
+       scaled up. Toggled by calendarFullscreenBtn. */
+    .sidebar-calendar.fullscreen {
+        position: fixed;
+        inset: 0;
+        z-index: 150;
+        width: 100vw;
+        height: 100vh;
+        background: var(--bg);
+        padding: 32px clamp(16px, 8vw, 120px);
+    }
+
+    .sidebar-calendar.fullscreen .calendar-header h3 {
+        font-size: 1.5rem;
+        white-space: normal;
+    }
+
+    .sidebar-calendar.fullscreen .calendar-weekdays {
+        font-size: 0.85rem;
+        margin-bottom: 10px;
+    }
+
+    .sidebar-calendar.fullscreen .calendar-grid {
+        gap: 8px;
+    }
+
+    .sidebar-calendar.fullscreen .calendar-day {
+        min-height: 110px;
+        padding: 8px;
+        font-size: 0.78rem;
+    }
+
+    .sidebar-calendar.fullscreen .calendar-day-review,
+    .sidebar-calendar.fullscreen .calendar-day-busy,
+    .sidebar-calendar.fullscreen .calendar-day-exam {
+        padding: 4px 6px;
+        font-size: 0.74rem;
+        white-space: normal;
+    }
+
     .calendar-header {
         display: flex;
         align-items: center;
@@ -293,6 +334,81 @@
     .calendar-day-review:hover {
         opacity: 1;
         background: rgba(230, 215, 176, 0.2);
+    }
+
+    /* User-created blocks — visually distinct from the read-only FSRS
+       review chips above (different background, and a delete "×" that
+       .calendar-day-review deliberately never gets — the spaced-repetition
+       schedule can't be removed/moved from here). */
+    .calendar-day-busy, .calendar-day-exam {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 4px;
+        border-radius: 3px;
+        padding: 2px 4px;
+        margin-bottom: 2px;
+        font-size: inherit;
+        opacity: 0.9;
+    }
+
+    .calendar-day-busy {
+        background: rgba(120, 140, 200, 0.18);
+    }
+
+    .calendar-day-exam {
+        background: rgba(200, 130, 120, 0.2);
+    }
+
+    .calendar-day-event-label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .calendar-day-event-delete {
+        flex-shrink: 0;
+        opacity: 0.5;
+        cursor: pointer;
+        padding: 0 2px;
+    }
+
+    .calendar-day-event-delete:hover {
+        opacity: 1;
+    }
+
+    .calendar-day-add-hint {
+        opacity: 0;
+        text-align: center;
+        font-size: 0.65em;
+        cursor: pointer;
+        border: 1px dashed rgba(230, 215, 176, 0.3);
+        border-radius: 3px;
+        padding: 1px;
+        margin-top: 1px;
+    }
+
+    .calendar-day:hover .calendar-day-add-hint {
+        opacity: 0.6;
+    }
+
+    .calendar-day-add-hint:hover {
+        opacity: 1 !important;
+    }
+
+    .event-type-toggle {
+        display: flex;
+        gap: 8px;
+    }
+
+    .event-type-btn {
+        flex: 1;
+    }
+
+    .event-type-btn.active {
+        background: var(--accent);
+        color: var(--bg);
+        border-color: var(--accent);
     }
 
     /* ─── Retrieval-lesson "due in" indicator — see formatDueIn / dueInBadge.
@@ -1833,6 +1949,7 @@
                     <button class="btn" id="calendarPrevBtn" type="button">‹</button>
                     <h3 id="calendarMonthLabel">August 2026</h3>
                     <button class="btn" id="calendarNextBtn" type="button">›</button>
+                    <button class="btn" id="calendarFullscreenBtn" type="button" title="Full screen">⛶</button>
                 </div>
                 <div class="calendar-weekdays">
                     <span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span>
@@ -1970,6 +2087,41 @@
         <div class="modal-actions">
             <button class="btn" id="cancelPlanBtn">Cancel</button>
             <button class="btn primary" id="submitPlanBtn">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- ─── ADD CALENDAR EVENT (busy / exam) ─── -->
+<div class="modal-overlay" id="calendarEventModalOverlay">
+    <div class="modal">
+        <h3 id="calendarEventModalTitle">Add to this day</h3>
+
+        <div class="field-hint" style="margin-bottom: 16px;">No personal information -- just mark yourself busy for a time range, or flag an exam against one of your subjects.</div>
+
+        <div class="field level-field">
+            <label>Type</label>
+            <div class="event-type-toggle">
+                <button type="button" class="btn event-type-btn active" id="eventTypeBusyBtn">Busy</button>
+                <button type="button" class="btn event-type-btn" id="eventTypeExamBtn">Exam</button>
+            </div>
+        </div>
+
+        <div class="field" id="eventStartTimeField">
+            <label for="eventStartTimeInput">From</label>
+            <input type="time" id="eventStartTimeInput">
+        </div>
+        <div class="field" id="eventEndTimeField">
+            <label for="eventEndTimeInput">Until</label>
+            <input type="time" id="eventEndTimeInput">
+        </div>
+        <div class="field" id="eventFolderField" style="display:none;">
+            <label for="eventFolderSelect">Subject</label>
+            <select id="eventFolderSelect"></select>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn" id="cancelCalendarEventBtn">Cancel</button>
+            <button class="btn primary" id="submitCalendarEventBtn">Add</button>
         </div>
     </div>
 </div>
@@ -6471,7 +6623,7 @@ SQIDAQAB
             calendarViewDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
         document.getElementById('calendarGrid').innerHTML =
             '<div class="empty-hint" style="grid-column: 1 / -1;">Loading…</div>';
-        cachedScheduleData = await fetchScheduleData();
+        [cachedScheduleData, cachedCalendarEvents] = await Promise.all([fetchScheduleData(), fetchCalendarEvents()]);
         renderCalendar();
     }
 
@@ -6500,6 +6652,7 @@ SQIDAQAB
     }
 
     let cachedScheduleData = [];
+    let cachedCalendarEvents = [];
     let calendarViewDate = new Date();
 
     async function fetchScheduleData() {
@@ -6520,6 +6673,54 @@ SQIDAQAB
         }
     }
 
+    // User-created busy/exam blocks (see calendarEventsService.ts) —
+    // separate from the FSRS due-review schedule above, and separately
+    // deletable (see deleteCalendarEventById). Never carries free text.
+    async function fetchCalendarEvents() {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return [];
+
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/calendar-events`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+
+            const { events } = await resp.json();
+            return events || [];
+        } catch (err) {
+            console.error('LastMind: failed to load calendar events.', err);
+            return [];
+        }
+    }
+
+    function toDateKey(year, month, day) {
+        return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+
+    function formatTimeRange(startTime, endTime) {
+        if (startTime && endTime) return `${startTime}–${endTime}`;
+        if (startTime) return `from ${startTime}`;
+        if (endTime) return `until ${endTime}`;
+        return '';
+    }
+
+    async function deleteCalendarEventById(id) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return;
+            await fetch(`${COMPILE_BACKEND_URL}/calendar-events/delete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify({ id })
+            });
+        } catch (err) {
+            console.error('LastMind: could not delete this calendar event.', err);
+        }
+        cachedCalendarEvents = await fetchCalendarEvents();
+        renderCalendar();
+    }
+
     // Renders a real month grid for whichever month calendarViewDate is
     // currently on — each day showing the reviews actually due that
     // calendar day, clickable to jump straight into starting them.
@@ -6536,6 +6737,16 @@ SQIDAQAB
             const d = new Date(item.due);
             const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
             (byDay[key] = byDay[key] || []).push(item);
+        });
+
+        // User-created busy/exam blocks, bucketed the same way — 'T00:00:00'
+        // forces local-time parsing of the plain YYYY-MM-DD date so it
+        // never shifts a day backward for users behind UTC.
+        const eventsByDay = {};
+        cachedCalendarEvents.forEach((item) => {
+            const d = new Date(`${item.date}T00:00:00`);
+            const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+            (eventsByDay[key] = eventsByDay[key] || []).push(item);
         });
 
         const firstOfMonth = new Date(year, month, 1);
@@ -6567,6 +6778,9 @@ SQIDAQAB
 
             const dayItems = byDay[`${year}-${month}-${day}`] || [];
             dayItems.forEach((item) => {
+                // Read-only, deliberately — no delete/drag affordance
+                // anywhere on this chip. FSRS review scheduling can't be
+                // removed or moved from the calendar.
                 const chip = document.createElement('div');
                 chip.className = 'calendar-day-review';
                 chip.textContent = conceptKeyToLabel(item.concept_id);
@@ -6574,6 +6788,42 @@ SQIDAQAB
                 chip.addEventListener('click', () => startReviewFromSchedule(item.concept_id));
                 cell.appendChild(chip);
             });
+
+            const dayEvents = eventsByDay[`${year}-${month}-${day}`] || [];
+            dayEvents.forEach((event) => {
+                const chip = document.createElement('div');
+                chip.className = event.type === 'exam' ? 'calendar-day-exam' : 'calendar-day-busy';
+
+                const labelEl = document.createElement('span');
+                labelEl.className = 'calendar-day-event-label';
+                if (event.type === 'exam') {
+                    const f = folders.find((x) => x.id === event.folderId);
+                    labelEl.textContent = `Exam: ${f ? folderLabel(f) : 'Unknown subject'}`;
+                } else {
+                    labelEl.textContent = `Busy ${formatTimeRange(event.startTime, event.endTime)}`.trim();
+                }
+                labelEl.title = labelEl.textContent;
+                chip.appendChild(labelEl);
+
+                const delBtn = document.createElement('span');
+                delBtn.className = 'calendar-day-event-delete';
+                delBtn.textContent = '×';
+                delBtn.title = 'Remove';
+                delBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    deleteCalendarEventById(event.id);
+                });
+                chip.appendChild(delBtn);
+
+                cell.appendChild(chip);
+            });
+
+            const addHint = document.createElement('div');
+            addHint.className = 'calendar-day-add-hint';
+            addHint.textContent = '+';
+            addHint.title = 'Add to this day';
+            addHint.addEventListener('click', () => openCalendarEventModal(toDateKey(year, month, day)));
+            cell.appendChild(addHint);
 
             gridEl.appendChild(cell);
         }
@@ -6588,7 +6838,7 @@ SQIDAQAB
                 '<div class="empty-hint" style="grid-column: 1 / -1;">Upgrade to unlock spaced review scheduling.</div>';
             return;
         }
-        cachedScheduleData = await fetchScheduleData();
+        [cachedScheduleData, cachedCalendarEvents] = await Promise.all([fetchScheduleData(), fetchCalendarEvents()]);
         renderCalendar();
     }
 
@@ -6601,6 +6851,105 @@ SQIDAQAB
     document.getElementById('calendarNextBtn').addEventListener('click', () => {
         if (!isPaidUser) return;
         calendarViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() + 1, 1);
+        renderCalendar();
+    });
+
+    function setCalendarFullscreen(on) {
+        const cal = document.getElementById('sidebarCalendar');
+        const btn = document.getElementById('calendarFullscreenBtn');
+        cal.classList.toggle('fullscreen', on);
+        btn.textContent = on ? '✕' : '⛶';
+        btn.title = on ? 'Exit full screen' : 'Full screen';
+    }
+
+    document.getElementById('calendarFullscreenBtn').addEventListener('click', () => {
+        setCalendarFullscreen(!document.getElementById('sidebarCalendar').classList.contains('fullscreen'));
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && document.getElementById('sidebarCalendar').classList.contains('fullscreen')) {
+            setCalendarFullscreen(false);
+        }
+    });
+
+    // Add-to-day modal — Busy (time range only) or Exam (an existing
+    // folder, picked from a dropdown). Neither type has a free-text field
+    // anywhere in this flow — see calendarEvents.ts's own comment on why.
+    let pendingEventDate = null;
+
+    function setEventType(type) {
+        const isExam = type === 'exam';
+        document.getElementById('eventTypeBusyBtn').classList.toggle('active', !isExam);
+        document.getElementById('eventTypeExamBtn').classList.toggle('active', isExam);
+        document.getElementById('eventStartTimeField').style.display = isExam ? 'none' : '';
+        document.getElementById('eventEndTimeField').style.display = isExam ? 'none' : '';
+        document.getElementById('eventFolderField').style.display = isExam ? '' : 'none';
+        document.getElementById('calendarEventModalOverlay').dataset.type = type;
+    }
+
+    document.getElementById('eventTypeBusyBtn').addEventListener('click', () => setEventType('busy'));
+    document.getElementById('eventTypeExamBtn').addEventListener('click', () => setEventType('exam'));
+
+    function openCalendarEventModal(dateKey) {
+        pendingEventDate = dateKey;
+        const [y, m, d] = dateKey.split('-').map(Number);
+        document.getElementById('calendarEventModalTitle').textContent =
+            `Add to ${new Date(y, m - 1, d).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}`;
+        document.getElementById('eventStartTimeInput').value = '';
+        document.getElementById('eventEndTimeInput').value = '';
+
+        const select = document.getElementById('eventFolderSelect');
+        select.innerHTML = '';
+        folders.forEach((f) => {
+            const opt = document.createElement('option');
+            opt.value = f.id;
+            opt.textContent = folderLabel(f);
+            select.appendChild(opt);
+        });
+
+        setEventType('busy');
+        document.getElementById('calendarEventModalOverlay').classList.add('open');
+    }
+
+    function closeCalendarEventModal() {
+        document.getElementById('calendarEventModalOverlay').classList.remove('open');
+    }
+
+    document.getElementById('cancelCalendarEventBtn').addEventListener('click', closeCalendarEventModal);
+    document.getElementById('calendarEventModalOverlay').addEventListener('click', (e) => {
+        if (e.target.id === 'calendarEventModalOverlay') closeCalendarEventModal();
+    });
+
+    document.getElementById('submitCalendarEventBtn').addEventListener('click', async () => {
+        const type = document.getElementById('calendarEventModalOverlay').dataset.type || 'busy';
+        const body = { date: pendingEventDate, type };
+        if (type === 'exam') {
+            const folderId = document.getElementById('eventFolderSelect').value;
+            if (!folderId) return;
+            body.folderId = folderId;
+        } else {
+            const start = document.getElementById('eventStartTimeInput').value;
+            const end = document.getElementById('eventEndTimeInput').value;
+            if (start) body.startTime = start;
+            if (end) body.endTime = end;
+        }
+
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/calendar-events`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify(body)
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+        } catch (err) {
+            console.error('LastMind: could not add this calendar event.', err);
+            return;
+        }
+
+        closeCalendarEventModal();
+        cachedCalendarEvents = await fetchCalendarEvents();
         renderCalendar();
     });
 
