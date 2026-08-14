@@ -2042,7 +2042,11 @@ SQIDAQAB
         });
     }
 
-    async function putFolder(folder) {
+    // Raw IndexedDB write, no server sync side effect — used by putFolder
+    // below AND by the reconcile pass when writing data that just came FROM
+    // the server, where re-pushing it right back up would be a pointless
+    // round trip.
+    async function putFolderLocalOnly(folder) {
         const db = await openDB();
         return new Promise((resolve, reject) => {
             const tx = db.transaction(FOLDER_STORE, 'readwrite');
@@ -2052,14 +2056,152 @@ SQIDAQAB
         });
     }
 
+    // The one write path every actual mutation in the app goes through.
+    // Stamps updatedAt (the clock basis the reconcile pass's last-write-wins
+    // comparison uses) and fires a best-effort push to the account's synced
+    // copy — see syncFolderToServer. The push is NOT awaited: local save
+    // (and whatever the caller does next, e.g. re-rendering) should never
+    // wait on a network round trip just to keep two devices in sync: it's
+    // fire-and-forget, and any failure just means this folder gets re-sent
+    // on the next reconcile (its updatedAt will still be newer than
+    // whatever's on the server, or the server may have nothing for it yet).
+    async function putFolder(folder) {
+        folder.updatedAt = Date.now();
+        const id = await putFolderLocalOnly(folder);
+        if (folder.id === undefined) folder.id = id;
+        syncFolderToServer(folder).catch((err) => {
+            console.error('LastMind: folder sync to server failed — will retry at next app open.', err);
+        });
+        return id;
+    }
+
     async function deleteFolderRecord(folderId) {
         const db = await openDB();
-        return new Promise((resolve, reject) => {
+        await new Promise((resolve, reject) => {
             const tx = db.transaction(FOLDER_STORE, 'readwrite');
             const r = tx.objectStore(FOLDER_STORE).delete(folderId);
             r.onsuccess = () => resolve();
             r.onerror = (e) => reject(e.target.error);
         });
+        deleteFolderFromServer(folderId).catch((err) => {
+            console.error('LastMind: folder delete did not reach the server — it may reappear from another device until this is retried.', err);
+        });
+    }
+
+    /* ───────────────────── Per-account folder sync ─────────────────────
+       Makes folders/pages follow the ACCOUNT rather than the device. Local
+       IndexedDB stays the fast path every read/write actually goes through
+       (see putFolder/getAllFolders above) — this layer only mirrors it to
+       Supabase (one row per folder, keyed by the client-generated UUID) so
+       another device signed into the same account can pick it up. This is
+       last-write-wins at whole-folder granularity, reconciled once at app
+       boot — not a full offline write queue with merge/conflict resolution,
+       which is a genuinely bigger feature than "per account instead of per
+       device" asked for. A push that fails while offline isn't lost: the
+       next successful boot's reconcile re-sends anything whose local
+       updatedAt is newer than (or missing from) the server copy. */
+
+    // Only ever returns null when there's no active Supabase account session
+    // (e.g. a pure device-local subscription JWT with no linked account) —
+    // sync is purely additive on top of local storage, so every sync
+    // function below treats null as "nothing to do here", not an error.
+    async function getSyncAccessToken() {
+        try {
+            const { data } = await supabaseClient.auth.getSession();
+            return data.session ? data.session.access_token : null;
+        } catch (err) {
+            return null;
+        }
+    }
+
+    async function syncFolderToServer(folder) {
+        const accessToken = await getSyncAccessToken();
+        if (!accessToken) return;
+        const resp = await fetch(`${COMPILE_BACKEND_URL}/sync/folders`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+            body: JSON.stringify({ folderId: String(folder.id), data: folder, updatedAt: new Date(folder.updatedAt || Date.now()).toISOString() })
+        });
+        if (!resp.ok) throw new Error(`folder sync failed: ${resp.status}`);
+    }
+
+    async function deleteFolderFromServer(folderId) {
+        const accessToken = await getSyncAccessToken();
+        if (!accessToken) return;
+        const resp = await fetch(`${COMPILE_BACKEND_URL}/sync/folders/delete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+            body: JSON.stringify({ folderId: String(folderId) })
+        });
+        if (!resp.ok) throw new Error(`folder delete sync failed: ${resp.status}`);
+    }
+
+    // One-time upgrade for folders created before this feature existed —
+    // those got their id from IndexedDB's own autoIncrement (a plain
+    // number, unique only within THIS browser). Syncing needs an id that's
+    // actually unique across devices, so every folder needs a real UUID,
+    // matching how subfolders/pages already work. Safe to re-run on every
+    // boot: folders created after this ships already get a UUID up front
+    // (see createFolder), so there's nothing left to migrate once every
+    // legacy folder has been touched once.
+    async function migrateLegacyFolderIds() {
+        const all = await getAllFolders();
+        for (const folder of all) {
+            if (typeof folder.id === 'number') {
+                const oldId = folder.id;
+                folder.id = crypto.randomUUID();
+                await deleteFolderRecord(oldId);
+                await putFolder(folder);
+            }
+        }
+    }
+
+    // Runs once at boot, before the in-memory folder cache is populated
+    // (see enterApp). Pulls this account's synced folders and merges them
+    // with whatever's already local, last-write-wins by updatedAt in
+    // either direction — a folder only on the server (new device, or
+    // created elsewhere) gets pulled down; a folder only local, or newer
+    // locally than what the server has, gets pushed up. No-ops entirely if
+    // there's no active account session, leaving local-only behavior
+    // exactly as it was before this feature existed.
+    async function reconcileFoldersWithServer() {
+        const accessToken = await getSyncAccessToken();
+        if (!accessToken) return;
+
+        await migrateLegacyFolderIds();
+
+        let serverFolders;
+        try {
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/sync/folders`, {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            if (!resp.ok) return; // try again at next boot rather than blocking startup on this
+            ({ folders: serverFolders } = await resp.json());
+        } catch (err) {
+            console.error('LastMind: could not reach folder sync — continuing with local folders only for this session.', err);
+            return;
+        }
+
+        const localFolders = await getAllFolders();
+        const localById = new Map(localFolders.map((f) => [String(f.id), f]));
+        const serverById = new Map(serverFolders.map((f) => [String(f.folderId), f]));
+
+        for (const { folderId, data, updatedAt } of serverFolders) {
+            const local = localById.get(String(folderId));
+            const serverTime = new Date(updatedAt).getTime();
+            if (!local || (local.updatedAt || 0) < serverTime) {
+                data.id = local ? local.id : folderId;
+                data.updatedAt = serverTime;
+                await putFolderLocalOnly(data);
+            }
+        }
+
+        for (const local of localFolders) {
+            const server = serverById.get(String(local.id));
+            if (!server || (local.updatedAt || 0) > new Date(server.updatedAt).getTime()) {
+                await syncFolderToServer(local).catch((err) => console.error('LastMind: initial folder push failed — will retry at next app open.', err));
+            }
+        }
     }
 
     /* ───────────────────────── JWT verification ───────────────────────── */
@@ -5589,7 +5731,11 @@ SQIDAQAB
     });
 
     async function createFolder(subject, qualification, examBoard, institution, moduleCode) {
-        const id = await putFolder({ subject, qualification, examBoard, institution, moduleCode, pages: [], createdAt: Date.now() });
+        // Generated up front (matching subfolder/page ids) rather than left
+        // to IndexedDB's own autoIncrement — sync needs an id that's
+        // actually unique across devices, not just within this browser.
+        const id = crypto.randomUUID();
+        await putFolder({ id, subject, qualification, examBoard, institution, moduleCode, pages: [], createdAt: Date.now() });
         await refreshFolderList();
         selectFolder(id);
     }
@@ -6034,6 +6180,7 @@ SQIDAQAB
 
         document.getElementById('gate-message').style.display = 'none';
         document.getElementById('app').style.display = 'block';
+        await reconcileFoldersWithServer();
         await refreshFolderList();
     }
 
