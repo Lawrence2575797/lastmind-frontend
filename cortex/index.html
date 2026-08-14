@@ -446,6 +446,51 @@ SQIDAQAB
         }
     }
 
+    // Same normalization chainService.ts's normalizeConceptKey uses
+    // server-side, and the same one learn/index.html's own copy uses —
+    // reproduced here so a deletion applier can derive the exact key(s) a
+    // concept's spaced-repetition state would be stored under.
+    function normalizeConceptKeyClient(subject, topic, concept) {
+        const clean = (s) => (s || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_');
+        return `${clean(subject)}:${clean(topic)}:${clean(concept)}`;
+    }
+
+    // Every candidate spaced-repetition key a single page's concept(s)
+    // could be stored under server-side — both the normalized form (chain-
+    // level tracking) and the raw lowercased label form (atomic-path
+    // testing), since concept_id's format is a known mix of both. A multi-
+    // lesson page contributes one pair of candidates per sub-concept.
+    function conceptKeyCandidatesForPage(subject, topic, page) {
+        const labels = Array.isArray(page.lessons) && page.lessons.length
+            ? page.lessons.map((l) => l.concept)
+            : [page.title];
+        return labels.flatMap((label) => [
+            normalizeConceptKeyClient(subject, topic, label),
+            (label || '').trim().toLowerCase()
+        ]);
+    }
+
+    // Best-effort: wipes the matching concept_reviews/chain_lesson_progress
+    // rows server-side when Cortex deletes a folder/subfolder/page, so a
+    // deleted-then-recreated page for the same concept starts from a
+    // genuinely blank FSRS schedule rather than silently keeping the old
+    // review state. Never blocks or throws into the caller — the local
+    // deletion has already happened by the time this runs.
+    async function resetProgressForConcepts(conceptKeys) {
+        if (!conceptKeys || !conceptKeys.length) return;
+        try {
+            const accessToken = await getSyncAccessToken();
+            if (!accessToken) return;
+            await fetch(`${COMPILE_BACKEND_URL}/sync/reset-progress`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                body: JSON.stringify({ conceptKeys })
+            });
+        } catch (err) {
+            console.error('LastMind Cortex: could not reset spaced-repetition progress for deleted concept(s).', err);
+        }
+    }
+
     async function syncFolderToServer(folder) {
         const accessToken = await getSyncAccessToken();
         if (!accessToken) return;
@@ -1147,7 +1192,13 @@ SQIDAQAB
         const folder = findFolderByName(folders, action.folderName);
         if (!folder) return `I couldn't find a folder called "${action.folderName}".`;
         const label = folderLabel(folder);
+        const subject = folder.subject || '';
+        const conceptKeys = [
+            ...(folder.pages || []).flatMap((p) => conceptKeyCandidatesForPage(subject, '', p)),
+            ...(folder.subfolders || []).flatMap((sf) => (sf.pages || []).flatMap((p) => conceptKeyCandidatesForPage(subject, sf.name || '', p)))
+        ];
         await deleteFolderRecord(folder.id);
+        await resetProgressForConcepts(conceptKeys);
         return `Deleted the folder "${label}" and everything in it.`;
     }
 
@@ -1157,8 +1208,10 @@ SQIDAQAB
         if (!loc) return `I couldn't find a subfolder called "${action.subfolderName}".`;
         const idx = (loc.folder.subfolders || []).findIndex((sf) => sf.id === loc.subfolder.id);
         if (idx === -1) return `Something went wrong finding "${action.subfolderName}".`;
+        const conceptKeys = (loc.subfolder.pages || []).flatMap((p) => conceptKeyCandidatesForPage(loc.folder.subject || '', loc.subfolder.name || '', p));
         loc.folder.subfolders.splice(idx, 1);
         await putFolder(loc.folder);
+        await resetProgressForConcepts(conceptKeys);
         return `Deleted the subfolder "${loc.subfolder.name}" and everything in it.`;
     }
 
@@ -1169,8 +1222,10 @@ SQIDAQAB
         const sourceArray = loc.subfolder ? loc.subfolder.pages : loc.folder.pages;
         const idx = sourceArray.findIndex((p) => p.id === loc.page.id);
         if (idx === -1) return `Something went wrong finding "${action.pageTitle}".`;
+        const conceptKeys = conceptKeyCandidatesForPage(loc.folder.subject || '', (loc.subfolder && loc.subfolder.name) || '', loc.page);
         sourceArray.splice(idx, 1);
         await putFolder(loc.folder);
+        await resetProgressForConcepts(conceptKeys);
         return `Deleted the page "${loc.page.title}".`;
     }
 

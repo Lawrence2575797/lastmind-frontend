@@ -2894,9 +2894,59 @@ SQIDAQAB
         selectSubfolder(folder.id, subfolder.id);
     }
 
+    // Every candidate spaced-repetition key a single page's concept(s) could
+    // be stored under server-side — both the normalized "subject:topic:
+    // concept" form (chain-level tracking) and the raw lowercased label
+    // form (atomic-path testing), since concept_id's format is a known mix
+    // of both (see normalizeConceptKeyClient's own comment). A multi-lesson
+    // page contributes one pair of candidates per sub-concept.
+    function conceptKeyCandidatesForPage(subject, topic, page) {
+        return pageAsSiblingConcepts(page).flatMap(({ label }) => [
+            normalizeConceptKeyClient(subject, topic, label),
+            (label || '').trim().toLowerCase()
+        ]);
+    }
+
+    function collectConceptKeysForSubfolder(folder, subfolder) {
+        const subject = folder.subject || '';
+        return (subfolder.pages || []).flatMap((p) => conceptKeyCandidatesForPage(subject, subfolder.name || '', p));
+    }
+
+    function collectConceptKeysForFolder(folder) {
+        const subject = folder.subject || '';
+        const direct = (folder.pages || []).flatMap((p) => conceptKeyCandidatesForPage(subject, '', p));
+        const nested = (folder.subfolders || []).flatMap((sf) => collectConceptKeysForSubfolder(folder, sf));
+        return [...direct, ...nested];
+    }
+
+    // Best-effort: wipes the matching concept_reviews/chain_lesson_progress
+    // rows server-side so a deleted-then-recreated page for the same
+    // concept starts from a genuinely blank FSRS schedule, instead of
+    // silently keeping whatever review state the old page had. Silently
+    // no-ops when signed out (nothing synced to reset) or on any network
+    // failure — this must never block the actual local deletion, which has
+    // already happened by the time this is called.
+    async function resetProgressForConcepts(conceptKeys) {
+        if (!conceptKeys || !conceptKeys.length) return;
+        try {
+            const accessToken = await getSyncAccessToken();
+            if (!accessToken) return;
+            await fetch(`${COMPILE_BACKEND_URL}/sync/reset-progress`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                body: JSON.stringify({ conceptKeys })
+            });
+        } catch (err) {
+            console.error('LastMind: could not reset spaced-repetition progress for deleted concept(s).', err);
+        }
+    }
+
     async function deleteFolder(folderId) {
         if (!confirm('Delete this folder and everything inside it? This cannot be undone.')) return;
+        const folder = folders.find((f) => f.id === folderId);
+        const conceptKeys = folder ? collectConceptKeysForFolder(folder) : [];
         await deleteFolderRecord(folderId);
+        await resetProgressForConcepts(conceptKeys);
         if (selectedFolderId === folderId) {
             selectedFolderId = null;
             selectedSubfolderId = null;
@@ -2910,8 +2960,11 @@ SQIDAQAB
         if (!confirm('Delete this subfolder and its pages? This cannot be undone.')) return;
         const folder = folders.find((f) => f.id === folderId);
         if (!folder) return;
+        const subfolder = (folder.subfolders || []).find((sf) => sf.id === subfolderId);
+        const conceptKeys = subfolder ? collectConceptKeysForSubfolder(folder, subfolder) : [];
         folder.subfolders = (folder.subfolders || []).filter((sf) => sf.id !== subfolderId);
         await putFolder(folder);
+        await resetProgressForConcepts(conceptKeys);
         if (selectedSubfolderId === subfolderId) {
             selectedSubfolderId = null;
             selectedPageId = null;
@@ -2924,8 +2977,11 @@ SQIDAQAB
         if (!confirm('Delete this page? This cannot be undone.')) return;
         const loc = findPageLocation(pageId);
         if (!loc) return;
+        const page = loc.pagesArray[loc.pageIndex];
+        const conceptKeys = conceptKeyCandidatesForPage(loc.folder.subject || '', (loc.subfolder && loc.subfolder.name) || '', page);
         loc.pagesArray.splice(loc.pageIndex, 1);
         await putFolder(loc.folder);
+        await resetProgressForConcepts(conceptKeys);
         if (selectedPageId === pageId) {
             selectedPageId = null;
             renderWelcome();
