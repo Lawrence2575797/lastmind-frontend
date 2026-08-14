@@ -2075,14 +2075,23 @@ SQIDAQAB
         return id;
     }
 
-    async function deleteFolderRecord(folderId) {
+    // Raw IndexedDB delete, no server sync side effect — used by
+    // deleteFolderRecord below AND by the reconcile pass when acting on a
+    // tombstone that just came FROM the server, where re-pushing the same
+    // delete right back up would be a pointless round trip (it's already
+    // deleted there — that's the whole reason we're deleting it here).
+    async function deleteFolderRecordLocalOnly(folderId) {
         const db = await openDB();
-        await new Promise((resolve, reject) => {
+        return new Promise((resolve, reject) => {
             const tx = db.transaction(FOLDER_STORE, 'readwrite');
             const r = tx.objectStore(FOLDER_STORE).delete(folderId);
             r.onsuccess = () => resolve();
             r.onerror = (e) => reject(e.target.error);
         });
+    }
+
+    async function deleteFolderRecord(folderId) {
+        await deleteFolderRecordLocalOnly(folderId);
         deleteFolderFromServer(folderId).catch((err) => {
             console.error('LastMind: folder delete did not reach the server — it may reappear from another device until this is retried.', err);
         });
@@ -2186,9 +2195,21 @@ SQIDAQAB
         const localById = new Map(localFolders.map((f) => [String(f.id), f]));
         const serverById = new Map(serverFolders.map((f) => [String(f.folderId), f]));
 
-        for (const { folderId, data, updatedAt } of serverFolders) {
+        for (const { folderId, data, updatedAt, deletedAt } of serverFolders) {
             const local = localById.get(String(folderId));
-            const serverTime = new Date(updatedAt).getTime();
+            const serverTime = new Date(deletedAt || updatedAt).getTime();
+            if (deletedAt) {
+                // Someone deleted this folder on another device. Only act if
+                // that deletion is actually newer than whatever's local —
+                // this device may have kept editing it after the delete
+                // happened elsewhere, in which case the edit wins and the
+                // push loop below re-creates it server-side, same
+                // last-write-wins logic as any other conflict.
+                if (local && (local.updatedAt || 0) < serverTime) {
+                    await deleteFolderRecordLocalOnly(local.id);
+                }
+                continue;
+            }
             if (!local || (local.updatedAt || 0) < serverTime) {
                 data.id = local ? local.id : folderId;
                 data.updatedAt = serverTime;
