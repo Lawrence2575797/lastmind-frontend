@@ -187,6 +187,12 @@
         opacity: 0.9;
     }
 
+    .drill-action-btn.secondary {
+        color: var(--accent);
+        background: none;
+        border: 1px solid var(--accent);
+    }
+
     .drill-section-label {
         display: flex;
         align-items: center;
@@ -2099,19 +2105,36 @@
             <label for="moduleCodeInput">Module Code</label>
             <input type="text" id="moduleCodeInput" placeholder="e.g. ECON10021">
         </div>
-        <div class="field" id="folderCustomTitleField" style="display:none;">
-            <label for="customTitleInput">Title</label>
-            <input type="text" id="customTitleInput" placeholder="e.g. Running a small business">
-        </div>
-        <div class="field" id="folderCustomDescriptionField" style="display:none;">
-            <label for="customDescriptionInput">Description</label>
-            <textarea id="customDescriptionInput" class="multi-lesson-input" rows="3" placeholder="What do you want to learn? This is used to generate lessons -- e.g. &quot;the fundamentals of running a small retail business: cash flow, pricing, basic accounting, operations.&quot;"></textarea>
-            <div class="field-hint">Lessons here teach the underlying theory only -- never personal advice or recommendations for your specific situation.</div>
-        </div>
 
         <div class="modal-actions">
             <button class="btn" id="cancelFolderBtn">Cancel</button>
             <button class="btn primary" id="submitFolderBtn">Create</button>
+        </div>
+    </div>
+</div>
+
+<!-- ─── NEW CUSTOM ("OTHER") FOLDER MODAL ───
+     A separate, standalone flow for a self-directed topic outside any
+     formal qualification — deliberately NOT the "Other" level inside the
+     New Folder modal above. That modal's Subject field doesn't make sense
+     here (the Title already says what the folder's about), so this one
+     just asks for Title + Description directly. -->
+<div class="modal-overlay" id="customFolderModalOverlay">
+    <div class="modal">
+        <h3>New Custom Folder</h3>
+        <div class="field">
+            <label for="customFolderTitleInput">Title</label>
+            <input type="text" id="customFolderTitleInput" placeholder="e.g. Running a small business">
+        </div>
+        <div class="field">
+            <label for="customFolderDescriptionInput">Description</label>
+            <textarea id="customFolderDescriptionInput" class="multi-lesson-input" rows="3" placeholder="What do you want to learn? This is used to generate lessons -- e.g. &quot;the fundamentals of running a small retail business: cash flow, pricing, basic accounting, operations.&quot;"></textarea>
+            <div class="field-hint">Lessons here teach the underlying theory only -- never personal advice or recommendations for your specific situation.</div>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn" id="cancelCustomFolderBtn">Cancel</button>
+            <button class="btn primary" id="submitCustomFolderBtn">Create</button>
         </div>
     </div>
 </div>
@@ -2658,12 +2681,13 @@ SQIDAQAB
     // instead of an exam board — GCSE/A-Level/AS Level are everything else
     // (and the app's overwhelmingly common case, so they sit at the top of
     // the level dropdown).
-    // "Other" is for a self-directed topic outside any formal
-    // qualification (e.g. "running a small business") — picking it swaps
-    // the exam-board/institution fields for a title + description instead
-    // (see updateLevelMetafields), which get sent to the backend as
-    // context for generation instead of a qualification/exam board. Kept
-    // last in the list since it's the least common case.
+    // "Other" (CUSTOM_LEVEL) is for a self-directed topic outside any
+    // formal qualification (e.g. "running a small business"). It's
+    // deliberately NOT in this dropdown — it has its own "+ Other" button
+    // and modal (see openCustomFolderModal) that skips Subject/Level
+    // entirely and just asks for a title + description. isCustomLevel
+    // still recognizes existing folders created that way (folderLabel,
+    // findSimilarFolder, lesson generation, etc.).
     const CUSTOM_LEVEL = 'Other';
     const LEVEL_OPTIONS = [
         'GCSE',
@@ -2674,8 +2698,7 @@ SQIDAQAB
         'Undergraduate Year 3',
         'Undergraduate Year 4',
         'Masters',
-        'PhD',
-        CUSTOM_LEVEL
+        'PhD'
     ];
     const UNIVERSITY_LEVELS = new Set([
         'Undergraduate Year 1',
@@ -2776,7 +2799,10 @@ SQIDAQAB
 
     function folderLabel(f) {
         if (isCustomLevel(f.qualification)) {
-            return `${f.subject} — ${f.customTitle || 'Other'}`;
+            // subject is set equal to customTitle for these (see
+            // openCustomFolderModal's submit handler), so showing both
+            // would just repeat the same text.
+            return f.customTitle || f.subject || 'Other';
         }
         if (isUniversityLevel(f.qualification)) {
             const detail = [f.institution, f.moduleCode].filter(Boolean).join(', ');
@@ -3593,8 +3619,9 @@ SQIDAQAB
 
     // Builds the header row shared by all three drill levels: an optional
     // back button + title on the left, and the level's "create new …"
-    // action on the right.
-    function buildDrillHeader({ title, actionLabel, onAction, onBack }) {
+    // action(s) on the right. secondaryActionLabel/onSecondaryAction are
+    // only used at the root level, for the standalone "+ Other" button.
+    function buildDrillHeader({ title, actionLabel, onAction, onBack, secondaryActionLabel, onSecondaryAction }) {
         const wrap = document.createElement('div');
         wrap.className = 'drill-header';
 
@@ -3615,6 +3642,15 @@ SQIDAQAB
         titleEl.className = 'drill-title';
         titleEl.textContent = title;
         titleRow.appendChild(titleEl);
+
+        if (secondaryActionLabel) {
+            const secondaryBtn = document.createElement('button');
+            secondaryBtn.className = 'drill-action-btn secondary';
+            secondaryBtn.type = 'button';
+            secondaryBtn.textContent = secondaryActionLabel;
+            secondaryBtn.addEventListener('click', onSecondaryAction);
+            titleRow.appendChild(secondaryBtn);
+        }
 
         const actionBtn = document.createElement('button');
         actionBtn.className = 'drill-action-btn';
@@ -3755,7 +3791,9 @@ SQIDAQAB
         listEl.appendChild(buildDrillHeader({
             title: 'Folders',
             actionLabel: '+ Create new folder',
-            onAction: openFolderModal
+            onAction: openFolderModal,
+            secondaryActionLabel: '+ Other',
+            onSecondaryAction: openCustomFolderModal
         }));
 
         if (!folders.length) {
@@ -6346,21 +6384,18 @@ SQIDAQAB
         };
     }
 
-    // Shows exam board for GCSE/A-Level/AS Level, institution + module
-    // code for university levels, title + description for "Other", nothing
-    // until a level is picked. The custom-title/description fields only
-    // exist in the New Folder modal (not Rename Folder) — guarded so this
-    // stays a no-op for prefixes that don't have them.
+    // Shows exam board for GCSE/A-Level/AS Level, institution + module code
+    // for university levels, nothing until a level is picked. "Other" can't
+    // be picked from this dropdown anymore (see LEVEL_OPTIONS), but a
+    // legacy folder can still have it as its saved qualification when the
+    // Rename modal calls this with that value — isCustom just makes sure
+    // none of the school/university fields show for it there.
     function updateLevelMetafields(prefix, level) {
         const isUni = isUniversityLevel(level);
         const isCustom = isCustomLevel(level);
         document.getElementById(`${prefix}BoardField`).style.display = (level && !isUni && !isCustom) ? '' : 'none';
         document.getElementById(`${prefix}InstitutionField`).style.display = (level && isUni) ? '' : 'none';
         document.getElementById(`${prefix}ModuleCodeField`).style.display = (level && isUni) ? '' : 'none';
-        const customTitleField = document.getElementById(`${prefix}CustomTitleField`);
-        const customDescriptionField = document.getElementById(`${prefix}CustomDescriptionField`);
-        if (customTitleField) customTitleField.style.display = isCustom ? '' : 'none';
-        if (customDescriptionField) customDescriptionField.style.display = isCustom ? '' : 'none';
     }
 
     const folderLevelWidget = setupLevelDropdown('folder', (level) => updateLevelMetafields('folder', level));
@@ -6373,12 +6408,42 @@ SQIDAQAB
         document.getElementById('boardInput').value = '';
         document.getElementById('institutionInput').value = '';
         document.getElementById('moduleCodeInput').value = '';
-        document.getElementById('customTitleInput').value = '';
-        document.getElementById('customDescriptionInput').value = '';
         document.getElementById('matchSuggestion').classList.remove('show');
         pendingMatchFolder = null;
         document.getElementById('folderModalOverlay').classList.add('open');
     }
+
+    // Separate, standalone flow for a self-directed "Other" folder — no
+    // Subject or Level to fill in, just what you want to learn. subject is
+    // set equal to the title on create (see submit handler below) since the
+    // backend's lesson-generation endpoints require a non-empty subject.
+    function openCustomFolderModal() {
+        document.getElementById('customFolderTitleInput').value = '';
+        document.getElementById('customFolderDescriptionInput').value = '';
+        document.getElementById('customFolderModalOverlay').classList.add('open');
+    }
+
+    function closeCustomFolderModal() {
+        document.getElementById('customFolderModalOverlay').classList.remove('open');
+    }
+
+    document.getElementById('cancelCustomFolderBtn').addEventListener('click', closeCustomFolderModal);
+    document.getElementById('customFolderModalOverlay').addEventListener('click', (e) => {
+        if (e.target.id === 'customFolderModalOverlay') closeCustomFolderModal();
+    });
+    document.getElementById('customFolderTitleInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('customFolderDescriptionInput').focus();
+        }
+    });
+    document.getElementById('submitCustomFolderBtn').addEventListener('click', async () => {
+        const title = document.getElementById('customFolderTitleInput').value.trim();
+        const description = document.getElementById('customFolderDescriptionInput').value.trim();
+        if (!title || !description) return;
+        closeCustomFolderModal();
+        await createFolder(title, CUSTOM_LEVEL, '', '', '', title, description);
+    });
 
     function closeFolderModal() {
         document.getElementById('folderModalOverlay').classList.remove('open');
@@ -6423,22 +6488,19 @@ SQIDAQAB
         const examBoard = document.getElementById('boardInput').value.trim();
         const institution = document.getElementById('institutionInput').value.trim();
         const moduleCode = document.getElementById('moduleCodeInput').value.trim();
-        const customTitle = document.getElementById('customTitleInput').value.trim();
-        const customDescription = document.getElementById('customDescriptionInput').value.trim();
-        return { subject, qualification, examBoard, institution, moduleCode, customTitle, customDescription };
+        return { subject, qualification, examBoard, institution, moduleCode };
     }
 
-    function folderFormIsComplete({ subject, qualification, examBoard, institution, moduleCode, customTitle, customDescription }) {
+    function folderFormIsComplete({ subject, qualification, examBoard, institution, moduleCode }) {
         if (!subject || !qualification) return false;
-        if (isCustomLevel(qualification)) return !!(customTitle && customDescription);
         return isUniversityLevel(qualification) ? !!(institution && moduleCode) : !!examBoard;
     }
 
     document.getElementById('submitFolderBtn').addEventListener('click', async () => {
-        const { subject, qualification, examBoard, institution, moduleCode, customTitle, customDescription } = readFolderFormFields();
-        if (!folderFormIsComplete({ subject, qualification, examBoard, institution, moduleCode, customTitle, customDescription })) return;
+        const { subject, qualification, examBoard, institution, moduleCode } = readFolderFormFields();
+        if (!folderFormIsComplete({ subject, qualification, examBoard, institution, moduleCode })) return;
 
-        const extraFields = isCustomLevel(qualification) ? [customTitle] : isUniversityLevel(qualification) ? [institution, moduleCode] : [examBoard];
+        const extraFields = isUniversityLevel(qualification) ? [institution, moduleCode] : [examBoard];
         const match = findSimilarFolder(subject, qualification, extraFields, folders);
         if (match && !pendingMatchFolder) {
             pendingMatchFolder = match;
@@ -6448,7 +6510,7 @@ SQIDAQAB
             return; // wait for the user to choose
         }
 
-        await createFolder(subject, qualification, examBoard, institution, moduleCode, customTitle, customDescription);
+        await createFolder(subject, qualification, examBoard, institution, moduleCode);
         closeFolderModal();
     });
 
@@ -6460,8 +6522,8 @@ SQIDAQAB
     });
 
     document.getElementById('createAnywayBtn').addEventListener('click', async () => {
-        const { subject, qualification, examBoard, institution, moduleCode, customTitle, customDescription } = readFolderFormFields();
-        await createFolder(subject, qualification, examBoard, institution, moduleCode, customTitle, customDescription);
+        const { subject, qualification, examBoard, institution, moduleCode } = readFolderFormFields();
+        await createFolder(subject, qualification, examBoard, institution, moduleCode);
         closeFolderModal();
     });
 
@@ -7157,8 +7219,17 @@ SQIDAQAB
 
         document.getElementById('gate-message').style.display = 'none';
         document.getElementById('app').style.display = 'block';
-        await reconcileFoldersWithServer();
+
+        // Render whatever's already cached in IndexedDB immediately rather
+        // than blocking the first paint on reconcileFoldersWithServer's
+        // network round trip — the compile backend can take up to a minute
+        // to respond on a cold start, and the folder list shouldn't sit on
+        // "No folders yet" the whole time it does. Server sync still runs,
+        // just in the background, and re-renders once it lands.
         await refreshFolderList();
+        reconcileFoldersWithServer()
+            .then(refreshFolderList)
+            .catch((err) => console.error('LastMind: folder reconcile failed.', err));
     }
 
     (async function gate() {
