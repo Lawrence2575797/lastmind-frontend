@@ -590,7 +590,20 @@ SQIDAQAB
         return UNIVERSITY_LEVELS.has(level);
     }
 
+    // Same CUSTOM_LEVEL sentinel as learn/index.html's own "+ Other" folder
+    // type — a self-directed topic outside any formal qualification (e.g.
+    // "running a small business"), identified by customTitle/
+    // customDescription instead of an exam board or institution/module
+    // code. Duplicated here for the same reason as UNIVERSITY_LEVELS above.
+    const CUSTOM_LEVEL = 'Other';
+    function isCustomLevel(level) {
+        return level === CUSTOM_LEVEL;
+    }
+
     function folderLabel(f) {
+        if (isCustomLevel(f.qualification)) {
+            return f.customTitle || f.subject;
+        }
         if (isUniversityLevel(f.qualification)) {
             const detail = [f.institution, f.moduleCode].filter(Boolean).join(', ');
             return `${f.subject} — ${f.qualification}${detail ? ` (${detail})` : ''}`;
@@ -825,13 +838,18 @@ SQIDAQAB
         return all.map((f) => ({
             name: f.subject,
             qualification: f.qualification,
-            // Same split CortexFolderSummary documents server-side — a
-            // school folder's identifying detail is its exam board, a
-            // university one's is institution+moduleCode instead (never
-            // both). Omitting whichever doesn't apply, rather than sending
-            // it as undefined/empty, keeps Cortex from treating a blank
-            // examBoard as a real (missing) value on a university folder.
-            ...(isUniversityLevel(f.qualification)
+            // Same three-way split CortexFolderSummary documents
+            // server-side — a school folder's identifying detail is its
+            // exam board, a university one's is institution+moduleCode, and
+            // a self-directed "Other" folder's is its own customDescription
+            // (never more than one of the three). Omitting whichever
+            // doesn't apply, rather than sending it as undefined/empty,
+            // keeps Cortex from treating a blank examBoard as a real
+            // (missing) value on a folder that was never school-level to
+            // begin with.
+            ...(isCustomLevel(f.qualification)
+                ? { customTitle: f.customTitle || f.subject || '', customDescription: f.customDescription || '' }
+                : isUniversityLevel(f.qualification)
                 ? { institution: f.institution || '', moduleCode: f.moduleCode || '' }
                 : { examBoard: f.examBoard || '' }),
             subfolders: (f.subfolders || []).map((sf) => ({
@@ -1052,6 +1070,12 @@ SQIDAQAB
             examBoard: action.examBoard || '',
             institution: action.institution || '',
             moduleCode: action.moduleCode || '',
+            // Only meaningful for qualification 'Other' — matches
+            // learn/index.html's own "+ Other" modal, which always sets
+            // customTitle equal to the folder's subject/title. Harmless
+            // empty strings for every other qualification.
+            customTitle: action.customTitle || action.subject || '',
+            customDescription: action.customDescription || '',
             pages: [],
             createdAt: Date.now()
         });
