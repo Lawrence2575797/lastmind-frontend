@@ -1389,6 +1389,44 @@
         color: var(--accent);
     }
 
+    .fsrs-retrievability {
+        margin-top: 16px;
+        padding-top: 14px;
+        border-top: 1px solid rgba(230, 215, 176, 0.12);
+    }
+
+    .fsrs-retrievability-label {
+        font-size: 0.68rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        opacity: 0.55;
+        margin-bottom: 8px;
+    }
+
+    .fsrs-formula {
+        font-family: 'Courier New', monospace;
+        font-size: 0.78rem;
+        color: var(--accent);
+        background: rgba(230, 215, 176, 0.06);
+        padding: 8px 10px;
+        border-radius: 4px;
+        margin-bottom: 10px;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+
+    .fsrs-curve-svg {
+        width: 100%;
+        height: auto;
+        display: block;
+    }
+
+    .fsrs-curve-explainer {
+        font-size: 0.75rem;
+        opacity: 0.65;
+        margin-top: 8px;
+    }
+
     .fsrs-schedule-line {
         font-size: 0.72rem;
         opacity: 0.5;
@@ -5587,6 +5625,79 @@ SQIDAQAB
             }
         }
 
+        // The real FSRS-6 forgetting-curve constants, read directly out of
+        // the installed ts-fsrs source (computeDecayFactor/forgetting_curve
+        // in node_modules/ts-fsrs/dist/index.cjs) rather than approximated —
+        // this app never overrides request_retention's decay parameter (see
+        // fsrsService.ts's generatorParameters call, which only sets
+        // request_retention and maximum_interval), so the shipped default
+        // decay (FSRS6_DEFAULT_DECAY = 0.1542) is what's actually driving
+        // every schedule. FACTOR is derived FROM decay so that R(S,S) = 0.9
+        // exactly (S is defined as "days until retrievability drops to
+        // 90%") — that identity is how stability's meaning attaches to a
+        // day count in the first place.
+        const FSRS_DECAY = -0.1542;
+        const FSRS_FACTOR = 0.9803464944134799;
+
+        // R(t, S) — probability of successful recall t days after the
+        // review that produced stability S. This is the exact formula FSRS
+        // uses server-side to decide when a concept becomes due; nothing
+        // here is illustrative.
+        function fsrsRetrievability(elapsedDays, stability) {
+            return Math.pow(1 + FSRS_FACTOR * elapsedDays / stability, FSRS_DECAY);
+        }
+
+        // Builds an inline SVG plot of R(t) from t=0 out past the next
+        // scheduled review, so the student can see the actual shape of the
+        // decay (steep early, flattening out) rather than just the two
+        // stability numbers before/after. The 92% line and the scheduled
+        // review point are the same request_retention target the backend
+        // itself schedules against (see fsrsService.ts) — the vertical
+        // marker sits exactly on the curve because that crossing point IS
+        // the definition of "next due date".
+        function buildRetrievabilityCurveSvg(stability, scheduledDays) {
+            const W = 560, H = 180, PAD_L = 34, PAD_B = 22, PAD_T = 10, PAD_R = 10;
+            const plotW = W - PAD_L - PAD_R;
+            const plotH = H - PAD_T - PAD_B;
+            const tMax = Math.max(scheduledDays * 2, 14);
+            const xForT = (t) => PAD_L + (t / tMax) * plotW;
+            const yForR = (r) => PAD_T + (1 - r) * plotH;
+
+            const steps = 60;
+            let pathD = '';
+            for (let i = 0; i <= steps; i++) {
+                const t = (i / steps) * tMax;
+                const r = fsrsRetrievability(t, stability);
+                const x = xForT(t).toFixed(1);
+                const y = yForR(r).toFixed(1);
+                pathD += (i === 0 ? 'M' : 'L') + x + ',' + y + ' ';
+            }
+
+            const targetY = yForR(0.92).toFixed(1);
+            const markerX = xForT(scheduledDays).toFixed(1);
+            const markerY = yForR(0.92).toFixed(1);
+
+            const yGridlines = [1, 0.92, 0.5, 0].map((r) => {
+                const y = yForR(r).toFixed(1);
+                const isTarget = r === 0.92;
+                return `<line x1="${PAD_L}" y1="${y}" x2="${W - PAD_R}" y2="${y}" stroke="${isTarget ? 'var(--accent)' : 'rgba(230,215,176,0.15)'}" stroke-width="${isTarget ? 1 : 0.5}" stroke-dasharray="${isTarget ? '3,3' : 'none'}" />` +
+                    `<text x="${PAD_L - 6}" y="${Number(y) + 3}" text-anchor="end" font-size="9" fill="rgba(230,215,176,0.55)">${Math.round(r * 100)}%</text>`;
+            }).join('');
+
+            const xLabels = [0, Math.round(scheduledDays), Math.round(tMax)].map((t) => {
+                const x = xForT(t).toFixed(1);
+                return `<text x="${x}" y="${H - 6}" text-anchor="middle" font-size="9" fill="rgba(230,215,176,0.55)">${t}d</text>`;
+            }).join('');
+
+            return `<svg class="fsrs-curve-svg" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+                ${yGridlines}
+                ${xLabels}
+                <path d="${pathD.trim()}" fill="none" stroke="var(--accent)" stroke-width="2" />
+                <line x1="${markerX}" y1="${targetY}" x2="${markerX}" y2="${H - PAD_B}" stroke="var(--accent)" stroke-width="1" stroke-dasharray="2,2" opacity="0.6" />
+                <circle cx="${markerX}" cy="${markerY}" r="3.5" fill="var(--accent)" />
+            </svg>`;
+        }
+
         // Purely explanatory — shows the actual before/after FSRS numbers
         // this lesson's completion just wrote (see fsrsUpdate on
         // submitEncodingAnswer's response). The scheduling decision itself
@@ -5647,6 +5758,27 @@ SQIDAQAB
             scheduleLine.className = 'fsrs-schedule-line';
             scheduleLine.textContent = `Scheduled ${upd.scheduledDays} day${upd.scheduledDays === 1 ? '' : 's'} out — LastMind aims for ~92% recall probability at that point, so a lower stability schedules sooner and a higher one lets it wait longer.`;
             wrap.appendChild(scheduleLine);
+
+            const retrievabilitySection = document.createElement('div');
+            retrievabilitySection.className = 'fsrs-retrievability';
+            const retrievabilityLabel = document.createElement('div');
+            retrievabilityLabel.className = 'fsrs-retrievability-label';
+            retrievabilityLabel.textContent = 'How retrievability decays from here';
+            retrievabilitySection.appendChild(retrievabilityLabel);
+
+            const formulaLine = document.createElement('div');
+            formulaLine.className = 'fsrs-formula';
+            formulaLine.textContent = `R(t) = (1 + 0.9803 × t / ${upd.stability.toFixed(2)})^-0.1542   [S = ${upd.stability.toFixed(2)} days]`;
+            retrievabilitySection.appendChild(formulaLine);
+
+            retrievabilitySection.insertAdjacentHTML('beforeend', buildRetrievabilityCurveSvg(upd.stability, upd.scheduledDays));
+
+            const curveExplainer = document.createElement('div');
+            curveExplainer.className = 'fsrs-curve-explainer';
+            curveExplainer.textContent = `R(t) is FSRS's estimate of your chance of recalling this concept t days after this review, given its new stability of ${upd.stability.toFixed(1)} days. It starts at 100% right now and falls fastest early on, then flattens out. The dashed line marks 92% — LastMind's target retention — and the dot marks where the curve crosses it: exactly ${upd.scheduledDays} day${upd.scheduledDays === 1 ? '' : 's'} out, which is why that's the next due date. A higher stability stretches this curve sideways, so it takes longer to fall back to 92%; a lower one compresses it.`;
+            retrievabilitySection.appendChild(curveExplainer);
+
+            wrap.appendChild(retrievabilitySection);
 
             return wrap;
         }
