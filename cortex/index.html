@@ -1549,7 +1549,15 @@ SQIDAQAB
             if (Array.isArray(result.actions) && result.actions.length) await handleCortexActions(result.actions);
         } catch (err) {
             console.error('LastMind Cortex: message failed.', err);
-            setAssistantMessageText(thinkingEl, 'Sorry, something went wrong. Please try again.');
+            // Was a fixed generic string regardless of cause — genuinely
+            // impossible to tell a network failure from a backend 500 from
+            // a malformed response without opening devtools. Surface
+            // err.message when there is one (a thrown Error from the
+            // !resp.ok branch above, or JSON.parse failing on a
+            // non-JSON response) — only fall back to the generic wording
+            // for a true network-level failure, which has no message of
+            // its own.
+            setAssistantMessageText(thinkingEl, (err && err.message) ? `Something went wrong: ${err.message}` : 'Sorry, could not reach the server. Please try again.');
         } finally {
             sendBtn.disabled = false;
         }
