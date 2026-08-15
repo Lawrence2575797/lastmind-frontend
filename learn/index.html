@@ -4802,6 +4802,17 @@ SQIDAQAB
             const startResult = await resp.json();
             questionFlowEl.innerHTML = ''; // clear the "Preparing…" placeholder — the real vertical list starts now
 
+            // A saved checkpoint (lessonCheckpointService.ts on the backend)
+            // means this student already had this review open before —
+            // say so and skip straight to wherever they left off.
+            if (startResult.resumed) {
+                const resumeCard = document.createElement('div');
+                resumeCard.className = 'correction-card';
+                resumeCard.innerHTML = '<div class="correction-label">Welcome back</div>Picking up this review where you left off.';
+                questionFlowEl.appendChild(resumeCard);
+                resumeCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
+            }
+
             // Fires the background continuation the moment the first step is
             // on screen — resolves to null immediately if this tier's
             // session is only ever one step long (contentReady already
@@ -5895,11 +5906,24 @@ SQIDAQAB
                 questionFlowEl.innerHTML = '';
                 lessonHookFact = startResult.hookFact || '';
 
-                const hookCard = document.createElement('div');
-                hookCard.className = 'correction-card';
-                hookCard.innerHTML = `<div class="correction-label">💡 Did you know?</div>${escapeHtml(startResult.hookFact || '')}`;
-                questionFlowEl.appendChild(hookCard);
-                hookCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                // A saved checkpoint means this student already had this
+                // lesson open before (see lessonCheckpointService.ts on the
+                // backend) — say so instead of re-showing the hook fact as
+                // if it were new, and skip straight to wherever they left
+                // off (startResult.step/state already point there).
+                if (startResult.resumed) {
+                    const resumeCard = document.createElement('div');
+                    resumeCard.className = 'correction-card';
+                    resumeCard.innerHTML = '<div class="correction-label">Welcome back</div>Picking up this lesson where you left off.';
+                    questionFlowEl.appendChild(resumeCard);
+                    resumeCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                } else {
+                    const hookCard = document.createElement('div');
+                    hookCard.className = 'correction-card';
+                    hookCard.innerHTML = `<div class="correction-label">💡 Did you know?</div>${escapeHtml(startResult.hookFact || '')}`;
+                    questionFlowEl.appendChild(hookCard);
+                    hookCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                }
 
                 // Cold cache — only the first step came back. Fire the rest
                 // of the generation now, in the background, right as the
