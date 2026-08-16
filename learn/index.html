@@ -1318,6 +1318,38 @@
         font-family: 'Arial', sans-serif;
     }
 
+    .lesson-outline-section-label {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.68rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        opacity: 0.55;
+        margin: 16px 0 8px;
+    }
+
+    .lesson-outline-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.85rem;
+        margin: 6px 0;
+        cursor: pointer;
+    }
+
+    .lesson-outline-item input {
+        margin-top: 3px;
+        flex-shrink: 0;
+    }
+
+    .lesson-outline-hint {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.75rem;
+        opacity: 0.6;
+        margin: 16px 0 12px;
+        line-height: 1.5;
+    }
+
     .generate-notes-label {
         display: flex;
         align-items: center;
@@ -5999,7 +6031,7 @@ SQIDAQAB
                                 questionFlowEl.innerHTML += '<div class="correction-card">Please log in again to continue.</div>';
                                 return;
                             }
-                            await runEncodingLesson(diagSession.access_token, folder.subject || '', (loc.subfolder && loc.subfolder.name) || '', next.concept, folder.qualification, folder.examBoard, folder.customTitle, folder.customDescription);
+                            await startEncodingLessonWithOutline(diagSession.access_token, folder.subject || '', (loc.subfolder && loc.subfolder.name) || '', next.concept, folder.qualification, folder.examBoard, folder.customTitle, folder.customDescription);
                         })();
                         return;
                     }
@@ -6128,7 +6160,98 @@ SQIDAQAB
             return [...fromOtherPages, ...fromThisPage];
         }
 
-        async function runEncodingLesson(accessToken, subject, topic, concept, qualification, examBoard, customTitle, customDescription) {
+        // Fetches the pre-lesson outline (target concept + every grounding/
+        // recruited-mechanism prerequisite this lesson will check or lean
+        // on) and lets the student flag anything they're not actually
+        // confident about, BEFORE the lesson starts generating — see
+        // getEncodingLessonOutline in encodingLessonService.ts. Skips
+        // straight to runEncodingLesson with nothing flagged if the outline
+        // came back empty (nothing to assess) or the request failed (never
+        // block starting the lesson over this being unavailable — same
+        // fail-open posture as every other best-effort feature in this app).
+        async function startEncodingLessonWithOutline(accessToken, subject, topic, concept, qualification, examBoard, customTitle, customDescription) {
+            questionFlowEl.innerHTML = '<div class="correction-card">Preparing your lesson…</div>';
+
+            let outline;
+            try {
+                const resp = await fetch(`${COMPILE_BACKEND_URL}/encoding-lesson/outline`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                    body: JSON.stringify({
+                        subject, topic, concept,
+                        qualification: qualification || '',
+                        examBoard: examBoard || '',
+                        customTitle: customTitle || '',
+                        customDescription: customDescription || ''
+                    })
+                });
+                outline = resp.ok ? await resp.json() : null;
+            } catch (err) {
+                outline = null;
+            }
+
+            const groundingKnowledge = (outline && outline.groundingKnowledge) || [];
+            const recruitedKnowledge = (outline && outline.recruitedKnowledge) || [];
+            if (!groundingKnowledge.length && !recruitedKnowledge.length) {
+                await runEncodingLesson(accessToken, subject, topic, concept, qualification, examBoard, customTitle, customDescription, []);
+                return;
+            }
+
+            const card = document.createElement('div');
+            card.className = 'correction-card';
+
+            const label = document.createElement('div');
+            label.className = 'correction-label';
+            label.textContent = `Before we start: ${outline.targetLabel || concept}`;
+            card.appendChild(label);
+
+            const intro = document.createElement('p');
+            intro.textContent = 'This lesson draws on the following. Tick anything you’re not actually confident about — we’ll make sure it’s properly covered before the lesson leans on it, instead of assuming it and finding out partway through.';
+            card.appendChild(intro);
+
+            function renderChecklist(sectionLabel, items) {
+                if (!items.length) return;
+                const sectionEl = document.createElement('div');
+                sectionEl.className = 'lesson-outline-section-label';
+                sectionEl.textContent = sectionLabel;
+                card.appendChild(sectionEl);
+                items.forEach((item) => {
+                    const itemLabel = document.createElement('label');
+                    itemLabel.className = 'lesson-outline-item';
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.dataset.nodeId = item.nodeId;
+                    itemLabel.appendChild(checkbox);
+                    itemLabel.appendChild(document.createTextNode(item.label));
+                    card.appendChild(itemLabel);
+                });
+            }
+
+            renderChecklist('This lesson will check you know', groundingKnowledge);
+            renderChecklist('This lesson assumes you can already do', recruitedKnowledge);
+
+            const hint = document.createElement('div');
+            hint.className = 'lesson-outline-hint';
+            hint.textContent = 'Leave something unticked if you’re genuinely confident — this is just to catch real gaps before they cause confusion deeper into the lesson.';
+            card.appendChild(hint);
+
+            const continueBtn = document.createElement('button');
+            continueBtn.type = 'button';
+            continueBtn.className = 'question-submit-btn';
+            continueBtn.textContent = 'Continue to lesson';
+            continueBtn.addEventListener('click', async () => {
+                continueBtn.disabled = true;
+                const unsureIds = Array.from(card.querySelectorAll('input[type="checkbox"]:checked')).map((el) => el.dataset.nodeId);
+                await runEncodingLesson(accessToken, subject, topic, concept, qualification, examBoard, customTitle, customDescription, unsureIds);
+            });
+            card.appendChild(continueBtn);
+
+            questionFlowEl.innerHTML = '';
+            questionFlowEl.appendChild(card);
+            card.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+
+        async function runEncodingLesson(accessToken, subject, topic, concept, qualification, examBoard, customTitle, customDescription, selfReportedUnsureNodeIds) {
             activeEncodingConcept = concept;
             encodingAnswerLog = [];
 
@@ -6170,7 +6293,8 @@ SQIDAQAB
                             examBoard: examBoard || '',
                             customTitle: customTitle || '',
                             customDescription: customDescription || '',
-                            siblingConcepts: siblingConceptsForCurrentPage(concept)
+                            siblingConcepts: siblingConceptsForCurrentPage(concept),
+                            selfReportedUnsureNodeIds: selfReportedUnsureNodeIds || []
                         })
                     });
                 } catch (err) {
@@ -6277,7 +6401,7 @@ SQIDAQAB
                     } else if (savedEncodingProgress) {
                         resumeEncodingLesson(diagSession.access_token, savedEncodingProgress);
                     } else {
-                        await runEncodingLesson(diagSession.access_token, subject, topic, lesson, folder.qualification, folder.examBoard, folder.customTitle, folder.customDescription);
+                        await startEncodingLessonWithOutline(diagSession.access_token, subject, topic, lesson, folder.qualification, folder.examBoard, folder.customTitle, folder.customDescription);
                     }
                 } catch (err) {
                     console.error('LastMind: lesson failed.', err);
