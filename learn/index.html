@@ -4146,6 +4146,16 @@ SQIDAQAB
             : (page.encodingDone === true || page.taughtBefore === true);
         const showNotes = encodingDone;
 
+        // The object that owns .encodingProgress for whichever encoding
+        // lesson is currently (or was last) in progress on this page — the
+        // page itself for a single-concept page, or the specific
+        // not-yet-done sub-lesson for a multi-lesson one. Read here (once,
+        // at page-open) so both the panel HTML below and generateBtn's
+        // click handler can see whether there's a mid-lesson save to
+        // resume, without recomputing activeSubLesson twice.
+        const encodingProgressOwner = isMulti ? activeSubLesson(page) : page;
+        const savedEncodingProgress = (encodingProgressOwner && encodingProgressOwner.encodingProgress) || null;
+
         // Once offerGenerateNotes has actually generated notes for this
         // page (right at lesson completion), the notes panel locks down to
         // a plain read-only display — no "add your own" / "Cortex" mode
@@ -4186,10 +4196,10 @@ SQIDAQAB
                 : `
             <div class="lesson-panel">
                 <h3 class="lesson-panel-heading">Your First Encoding Lesson</h3>
-                <p class="lesson-intro-message">This lesson is designed to allow you to construct the lesson with the right amount of scaffolding for you. Here is the first step:</p>
-                <button type="button" class="multi-lesson-trigger-btn" id="multiLessonTriggerBtn">+ Cover multiple lessons on this page</button>
+                <p class="lesson-intro-message">${savedEncodingProgress ? 'You left this one partway through — pick up right where you stopped.' : 'This lesson is designed to allow you to construct the lesson with the right amount of scaffolding for you. Here is the first step:'}</p>
+                ${savedEncodingProgress ? '' : '<button type="button" class="multi-lesson-trigger-btn" id="multiLessonTriggerBtn">+ Cover multiple lessons on this page</button>'}
                 <div class="bottom-action-row">
-                    <button class="generate-questions-btn" id="generateQuestionsBtn" ${isPaidUser ? '' : 'disabled title="Upgrade to unlock diagnostics"'}>Start Lesson</button>
+                    <button class="generate-questions-btn" id="generateQuestionsBtn" ${isPaidUser ? '' : 'disabled title="Upgrade to unlock diagnostics"'}>${savedEncodingProgress ? 'Resume Lesson' : 'Start Lesson'}</button>
                 </div>
                 <div id="diagnoseQuestionFlow"></div>
             </div>
@@ -5195,6 +5205,23 @@ SQIDAQAB
                         : (isMath ? { html: mathWorkingToHtml(answer) } : answer);
                     lockAnsweredCard(card, answerRecord, result.correct !== false, result.feedback);
 
+                    // Checkpoint progress right here — result.state's
+                    // currentIndex is already advanced past this step
+                    // regardless of correctness (see submitEncodingAnswer's
+                    // unconditional nextIndex), so this single hook covers
+                    // both the immediately-correct path below AND the
+                    // wrong-answer-then-drilldown path, without needing a
+                    // second save call inside runDiagnosticDrillDown.
+                    // Assigned by index (result.state.currentIndex - 1), not
+                    // pushed — a wrong answer on the LAST step that fails to
+                    // resolve gets re-asked via a rewound retryState (see
+                    // finishDrilldown), which re-enters this same handler
+                    // for the SAME step index; indexing here means that
+                    // retry overwrites its own earlier attempt instead of
+                    // desyncing every later answer's alignment with `steps`.
+                    encodingAnswerLog[result.state.currentIndex - 1] = { answerGiven: answerRecord, correct: result.correct !== false, feedback: result.feedback || null };
+                    saveEncodingProgress(lessonHookFact, result.state, encodingAnswerLog);
+
                     // Any correct answer just advances as before. A wrong
                     // answer on any step type — including "implication"
                     // (still diagnosed against the lesson's own concept, see
@@ -5617,6 +5644,129 @@ SQIDAQAB
         // submitting, same as before this two-phase split existed.
         let pendingLessonContinuation = null;
 
+        // One entry per step ANSWERED so far in the currently-running
+        // encoding lesson (reset at the start of runEncodingLesson, seeded
+        // from saved progress at the start of resumeEncodingLesson) —
+        // { answerGiven, correct, feedback }, in step order. Combined with
+        // the current `state` (which already carries the full step list —
+        // see pendingLessonContinuation above), this is everything
+        // saveEncodingProgress needs to persist, and everything
+        // resumeEncodingLesson needs to rebuild the transcript on reopen.
+        let encodingAnswerLog = [];
+
+        // Writes the given page/sub-lesson's in-progress encoding lesson to
+        // IndexedDB (and, via putFolder's own fire-and-forget push, the
+        // student's synced account copy) so it survives closing the tab,
+        // the browser, or switching devices — previously nothing about a
+        // mid-lesson answer was saved anywhere, so leaving and coming back
+        // silently lost everything back to "Start Lesson". Called after
+        // EVERY answered step (see renderEncodingAnswerCard), not just at
+        // completion.
+        function saveEncodingProgress(hookFact, state, answers) {
+            const owner = isMulti ? page.lessons.find((l) => l.concept === activeEncodingConcept) : page;
+            if (!owner) return;
+            owner.encodingProgress = { hookFact, state, answers };
+            putFolder(folder);
+        }
+
+        // Removes saved progress once a lesson actually finishes — nothing
+        // left to resume, and an old EncodingLessonState sitting around
+        // (with expectedSolution stripped out) would just be a source of
+        // confusion if a later cache/prompt change made it stale.
+        function clearEncodingProgress(owner) {
+            if (owner && owner.encodingProgress) delete owner.encodingProgress;
+        }
+
+        // Rebuilds a step's card exactly as renderEncodingAnswerCard would
+        // have shown it (diagram, explanation text for an "explain" step,
+        // then the actual prompt), but already answered and locked — used
+        // to replay every step covered by saved progress before handing off
+        // to the live renderEncodingStep for whatever comes next. Never
+        // wires up a submit handler at all, rather than building one and
+        // immediately discarding it.
+        function buildAnsweredStepCard(step, answerGiven, correct, feedback) {
+            const card = document.createElement('div');
+            card.className = 'question-card';
+
+            if (step.diagram) {
+                const diagramWrap = document.createElement('div');
+                diagramWrap.className = 'question-diagram';
+                const img = document.createElement('img');
+                img.src = step.diagram.diagramUrl;
+                img.alt = step.diagram.diagramCaption || '';
+                img.className = 'question-diagram-img';
+                img.onerror = () => diagramWrap.remove();
+                diagramWrap.appendChild(img);
+                if (step.diagram.diagramCaption) {
+                    const caption = document.createElement('div');
+                    caption.className = 'question-diagram-caption';
+                    caption.textContent = step.diagram.diagramCaption;
+                    diagramWrap.appendChild(caption);
+                }
+                const attribution = document.createElement('div');
+                attribution.className = 'question-diagram-attribution';
+                attribution.textContent = step.diagram.diagramAttribution || '';
+                diagramWrap.appendChild(attribution);
+                card.appendChild(diagramWrap);
+            }
+
+            const explanationText = step.type === 'explain' ? step.text : null;
+            if (explanationText) {
+                const explanation = document.createElement('div');
+                explanation.className = 'question-card-text';
+                explanation.textContent = explanationText;
+                card.appendChild(explanation);
+            }
+
+            const promptText = explanationText ? (step.checkQuestion || step.text) : step.text;
+            const text = document.createElement('div');
+            text.className = 'question-card-text';
+            text.textContent = promptText;
+            card.appendChild(text);
+
+            questionFlowEl.appendChild(card);
+            lockAnsweredCard(card, answerGiven, correct, feedback);
+            return card;
+        }
+
+        // Continues an encoding lesson from saved progress instead of
+        // starting fresh — the counterpart to runEncodingLesson for a
+        // page/sub-lesson that already has an .encodingProgress save (see
+        // savedEncodingProgress in the page-open code above). Replays every
+        // already-answered step as a locked card so the transcript looks
+        // exactly as it did before the student left, then resumes live from
+        // the first not-yet-answered step. If progress was saved mid-way
+        // through a wrong answer's diagnostic drill-down on the LAST step
+        // (state.currentIndex already points past the end of steps — see
+        // submitEncodingAnswer's unconditional nextIndex advance), that
+        // specific remediation exchange isn't replayed, but the step itself
+        // is simply re-asked, the same rewind finishDrilldown's own "let's
+        // try that one more time" retry already does elsewhere.
+        function resumeEncodingLesson(accessToken, progress) {
+            activeEncodingConcept = isMulti ? (activeSubLesson(page) || {}).concept || '' : '';
+            lessonHookFact = progress.hookFact || '';
+            pendingLessonContinuation = null;
+            encodingAnswerLog = (progress.answers || []).slice();
+
+            questionFlowEl.innerHTML = '';
+            const hookCard = document.createElement('div');
+            hookCard.className = 'correction-card';
+            hookCard.innerHTML = `<div class="correction-label">💡 Did you know?</div>${escapeHtml(lessonHookFact)}`;
+            questionFlowEl.appendChild(hookCard);
+
+            const state = progress.state;
+            const answeredCount = Math.min(state.currentIndex, state.steps.length, encodingAnswerLog.length);
+            for (let i = 0; i < answeredCount; i++) {
+                const record = encodingAnswerLog[i];
+                buildAnsweredStepCard(state.steps[i], record.answerGiven, record.correct !== false, record.feedback);
+            }
+
+            const resumeIndex = state.currentIndex >= state.steps.length ? state.steps.length - 1 : state.currentIndex;
+            const resumeState = resumeIndex === state.currentIndex ? state : { ...state, currentIndex: resumeIndex };
+            renderEncodingStep(accessToken, state.steps[resumeIndex], resumeState);
+            questionFlowEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+
         function renderEncodingStep(accessToken, step, state) {
             if (step.type === 'explain') {
                 renderEncodingAnswerCard(accessToken, step, state, step.text);
@@ -5805,7 +5955,10 @@ SQIDAQAB
                     });
 
                     const finished = page.lessons.find((l) => l.concept === activeEncodingConcept);
-                    if (finished) finished.encodingDone = true;
+                    if (finished) {
+                        finished.encodingDone = true;
+                        clearEncodingProgress(finished);
+                    }
                     const nextIdx = page.lessons.findIndex((l) => !l.encodingDone);
                     page.currentLessonIndex = nextIdx === -1 ? page.lessons.length : nextIdx;
                     putFolder(folder);
@@ -5840,6 +5993,7 @@ SQIDAQAB
 
                 if (!page.encodingDone) {
                     page.encodingDone = true;
+                    clearEncodingProgress(page);
                     putFolder(folder);
                 }
                 offerGenerateNotes(accessToken, [{
@@ -5958,6 +6112,7 @@ SQIDAQAB
 
         async function runEncodingLesson(accessToken, subject, topic, concept, qualification, examBoard, customTitle, customDescription) {
             activeEncodingConcept = concept;
+            encodingAnswerLog = [];
 
             // Rough stage order for a cold-cache generation (chain, then
             // its fact-check, then the lesson itself, then repair/diagram)
@@ -6101,6 +6256,8 @@ SQIDAQAB
                         // attach the WRONG level, so it's left untiered ('')
                         // rather than guessed.
                         await runChainLesson(diagSession.access_token, subject, topic, lesson, override ? '' : folder.qualification, override ? '' : folder.examBoard);
+                    } else if (savedEncodingProgress) {
+                        resumeEncodingLesson(diagSession.access_token, savedEncodingProgress);
                     } else {
                         await runEncodingLesson(diagSession.access_token, subject, topic, lesson, folder.qualification, folder.examBoard, folder.customTitle, folder.customDescription);
                     }
