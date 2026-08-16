@@ -5203,6 +5203,24 @@ SQIDAQAB
                     const answerRecord = dontKnow
                         ? "(I don't know)"
                         : (isMath ? { html: mathWorkingToHtml(answer) } : answer);
+
+                    // The grading call decided this answer was responding to
+                    // a DIFFERENT question than the one actually asked, not
+                    // that the student got the real question wrong (see
+                    // submitEncodingAnswer's own misread handling) — no
+                    // "incorrect" framing, no diagnostic drill-down, no
+                    // progress checkpoint (state.currentIndex is unchanged,
+                    // there's nothing new to save). Just show a neutral note
+                    // and re-ask the same step with a more explicit wording.
+                    // result.state.reframedStepIndex caps this at one retry —
+                    // a second misread on the reworded version falls through
+                    // to ordinary wrong-answer handling below instead.
+                    if (result.misread) {
+                        lockAnsweredCard(card, answerRecord, true, null, 'Let’s make sure the question is clear');
+                        renderEncodingStep(accessToken, result.step, result.state);
+                        return;
+                    }
+
                     lockAnsweredCard(card, answerRecord, result.correct !== false, result.feedback);
 
                     // Checkpoint progress right here — result.state's
