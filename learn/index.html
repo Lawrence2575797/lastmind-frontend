@@ -3209,7 +3209,10 @@ SQIDAQAB
             <div class="bottom-action-row">
                 <button class="generate-questions-btn" id="generateQuestionsBtn" ${isPaidUser ? '' : 'disabled title="Upgrade to unlock diagnostics"'}>Start Lesson</button>
             </div>
-            <div id="diagnoseQuestionFlow"></div>
+            <div class="lesson-with-ask-layout">
+                <div id="diagnoseQuestionFlow" class="lesson-main-col"></div>
+                <div class="ask-panel-col" id="askPanelCol"></div>
+            </div>
         </div>`;
     }
 
@@ -3230,7 +3233,10 @@ SQIDAQAB
             <h3 class="lesson-panel-heading">Take a Retrieval Lesson</h3>
             <p class="lesson-intro-message">This page covers ${page.lessons.length} lessons — review whichever one's due, whenever you're ready.</p>
             <ul class="multi-lesson-list">${items}</ul>
-            <div id="diagnoseQuestionFlow"></div>
+            <div class="lesson-with-ask-layout">
+                <div id="diagnoseQuestionFlow" class="lesson-main-col"></div>
+                <div class="ask-panel-col" id="askPanelCol"></div>
+            </div>
         </div>`;
     }
 
@@ -4370,7 +4376,10 @@ SQIDAQAB
                     ${isPaidUser ? '<button type="button" class="fsrs-info-toggle" id="dueInInfoToggle" title="How does this work?">ⓘ</button>' : ''}
                 </div>
                 <div class="fsrs-info-panel" id="dueInInfoPanel" style="display:none;"></div>
-                <div id="diagnoseQuestionFlow"></div>
+                <div class="lesson-with-ask-layout">
+                    <div id="diagnoseQuestionFlow" class="lesson-main-col"></div>
+                    <div class="ask-panel-col" id="askPanelCol"></div>
+                </div>
             </div>
         `
                 : `
@@ -4464,15 +4473,12 @@ SQIDAQAB
             </div>
         `;
 
-        // Also widened for a single-lesson page's own active (not-yet-done)
-        // first encoding lesson — that's exactly when the ask-panel's own
-        // 2/3-1/3 layout is in play (see lessonPanelHtml above), and the
-        // default 780px column is too cramped to give the ask panel real
-        // room. Multi-lesson pages don't get the ask panel yet, so they
-        // stay at the narrow default until they're done and showNotes
-        // takes over.
-        const showAskPanel = !isMulti && !encodingDone;
-        contentInner.classList.toggle('content-inner-wide', showNotes || showAskPanel);
+        // Also widened whenever a lesson panel is live (every branch of
+        // lessonPanelHtml above now carries its own ask panel — first-time
+        // single/multi-lesson encoding AND single/multi-lesson retrieval)
+        // — the default 780px column is too cramped to give a 2/3-1/3
+        // split real room.
+        contentInner.classList.toggle('content-inner-wide', true);
         contentInner.innerHTML = showNotes
             ? `<div class="page-split-layout">${lessonPanelHtml}${notesPanelHtml}</div>`
             : lessonPanelHtml;
@@ -5041,6 +5047,7 @@ SQIDAQAB
 
             const startResult = await resp.json();
             questionFlowEl.innerHTML = ''; // clear the "Preparing…" placeholder — the real vertical list starts now
+            initAskPanel(accessToken, '/chain-lesson/ask', () => activeRetrievalLessonState);
 
             // Fires the background continuation the moment the first step is
             // on screen — resolves to null immediately if this tier's
@@ -5063,6 +5070,11 @@ SQIDAQAB
                 })();
 
             async function askNext(step, state) {
+                // See activeRetrievalLessonState's own comment — kept
+                // fresh here so the ask panel always knows the
+                // currently-pending step.
+                activeRetrievalLessonState = state;
+
                 const card = renderQuestionCard(step.text, null, async (submission) => {
                     // If this was the session's first step and the rest was
                     // still generating in the background, wait for it now
@@ -5181,9 +5193,9 @@ SQIDAQAB
             return resp.json();
         }
 
-        async function postAskPanelQuestion(accessToken, state, question) {
+        async function postAskPanelQuestion(accessToken, endpoint, state, question) {
             const freshToken = (await getSyncAccessToken()) || accessToken;
-            const resp = await fetch(`${COMPILE_BACKEND_URL}/encoding-lesson/ask`, {
+            const resp = await fetch(`${COMPILE_BACKEND_URL}${endpoint}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${freshToken}` },
                 body: JSON.stringify({ state, question })
@@ -5196,16 +5208,20 @@ SQIDAQAB
         }
 
         // Builds the "ask a question" side panel next to an in-progress
-        // first-time encoding lesson (see #askPanelCol in the lesson-panel
-        // template) — a place for genuine curiosity without derailing the
-        // lesson's own flow. Built ONCE per lesson view (unlike the
-        // question cards, which get appended per step) and reads
-        // activeEncodingLessonState fresh at send time so it always has
-        // whichever step is currently on screen, however far the student
-        // has actually got. A no-op if #askPanelCol isn't in the DOM
-        // (every lesson type except a single-lesson page's own first-time
-        // encoding lesson).
-        function initAskPanel(accessToken) {
+        // lesson of any kind (see #askPanelCol in whichever lesson-panel
+        // template is live) — a place for genuine curiosity without
+        // derailing the lesson's own flow. Built ONCE per lesson view
+        // (unlike the question cards, which get appended per step).
+        // `endpoint` is which backend route to ask (encoding vs retrieval
+        // lessons use different state shapes and different anti-fishing
+        // context, so they're genuinely different calls — see
+        // answerLessonQuestion/answerRetrievalQuestion server-side).
+        // `getActiveState` is read FRESH at send time (not captured once)
+        // so it always reflects whichever step is currently on screen,
+        // however far the student has actually got — pass a closure over
+        // that lesson type's own "current state" variable. A no-op if
+        // #askPanelCol isn't in the DOM.
+        function initAskPanel(accessToken, endpoint, getActiveState) {
             const col = document.getElementById('askPanelCol');
             if (!col) return;
             col.innerHTML = ''; // defensive — guards against a double-init leaving two panels stacked
@@ -5245,7 +5261,8 @@ SQIDAQAB
 
             submitBtn.addEventListener('click', async () => {
                 const question = input.value.trim();
-                if (!question || !activeEncodingLessonState) return;
+                const activeState = getActiveState();
+                if (!question || !activeState) return;
                 submitBtn.disabled = true;
 
                 const entry = document.createElement('div');
@@ -5262,7 +5279,7 @@ SQIDAQAB
                 history.scrollTop = history.scrollHeight;
 
                 try {
-                    const result = await postAskPanelQuestion(accessToken, activeEncodingLessonState, question);
+                    const result = await postAskPanelQuestion(accessToken, endpoint, activeState, question);
                     aLine.textContent = result.answer;
                     if (result.redirected) entry.classList.add('ask-panel-entry-redirected');
                     input.value = '';
@@ -6036,6 +6053,12 @@ SQIDAQAB
         // screen — initAskPanel is only ever invoked where one is.
         let activeEncodingLessonState = null;
 
+        // Same idea as activeEncodingLessonState, for a retrieval
+        // (spaced-repetition) session instead — kept fresh inside
+        // runChainLesson's own askNext, read by that lesson type's own
+        // initAskPanel call.
+        let activeRetrievalLessonState = null;
+
         // Accumulates {concept, hookFact, steps} for every sub-lesson
         // completed on a multi-lesson page this session, so the eventual
         // notes-generation offer (once ALL sub-lessons are done) can
@@ -6166,7 +6189,7 @@ SQIDAQAB
             encodingAnswerLog = (progress.answers || []).slice();
 
             questionFlowEl.innerHTML = '';
-            initAskPanel(accessToken);
+            initAskPanel(accessToken, '/encoding-lesson/ask', () => activeEncodingLessonState);
             const hookCard = document.createElement('div');
             hookCard.className = 'correction-card';
             hookCard.innerHTML = `<div class="correction-label">💡 Did you know?</div>${escapeHtml(lessonHookFact)}`;
@@ -6691,7 +6714,7 @@ SQIDAQAB
                 const startResult = await resp.json();
                 questionFlowEl.innerHTML = '';
                 lessonHookFact = startResult.hookFact || '';
-                initAskPanel(accessToken);
+                initAskPanel(accessToken, '/encoding-lesson/ask', () => activeEncodingLessonState);
 
                 const hookCard = document.createElement('div');
                 hookCard.className = 'correction-card';
