@@ -1106,6 +1106,16 @@
         margin-bottom: 16px;
     }
 
+    .question-progress-label {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.68rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--accent);
+        opacity: 0.55;
+        margin-bottom: 10px;
+    }
+
     .question-answer-input {
         width: 100%;
         min-height: 100px;
@@ -5121,9 +5131,32 @@ SQIDAQAB
             }).join('<br>');
         }
 
+        // "Question N of TOTAL" — TOTAL is only reliably known once the
+        // cold-cache background continuation (see pendingLessonContinuation)
+        // has actually merged the full step list into `state`; on the very
+        // first step of a fresh lesson it may still be in flight, so this
+        // renders "Question 1" alone and then fills in "of N" the moment
+        // that resolves — not gated behind the student actually submitting
+        // anything, so the count settles in almost immediately in practice
+        // rather than staying incomplete for the whole first question.
+        function buildQuestionProgressLabel(state) {
+            const label = document.createElement('div');
+            label.className = 'question-progress-label';
+            const current = state.currentIndex + 1;
+            const renderCount = (total) => {
+                label.textContent = total ? `Question ${current} of ${total}` : `Question ${current}`;
+            };
+            renderCount(pendingLessonContinuation ? null : state.steps.length);
+            if (pendingLessonContinuation) {
+                pendingLessonContinuation.then((continued) => renderCount(continued.state.steps.length)).catch(() => {});
+            }
+            return label;
+        }
+
         function renderEncodingAnswerCard(accessToken, step, state, explanationText) {
             const card = document.createElement('div');
             card.className = 'question-card';
+            card.appendChild(buildQuestionProgressLabel(state));
 
             if (step.diagram) {
                 const diagramWrap = document.createElement('div');
@@ -5734,9 +5767,13 @@ SQIDAQAB
         // to the live renderEncodingStep for whatever comes next. Never
         // wires up a submit handler at all, rather than building one and
         // immediately discarding it.
-        function buildAnsweredStepCard(step, answerGiven, correct, feedback) {
+        function buildAnsweredStepCard(step, answerGiven, correct, feedback, stepIndex, totalSteps) {
             const card = document.createElement('div');
             card.className = 'question-card';
+            const progressLabel = document.createElement('div');
+            progressLabel.className = 'question-progress-label';
+            progressLabel.textContent = `Question ${stepIndex + 1} of ${totalSteps}`;
+            card.appendChild(progressLabel);
 
             if (step.diagram) {
                 const diagramWrap = document.createElement('div');
@@ -5808,7 +5845,7 @@ SQIDAQAB
             const answeredCount = Math.min(state.currentIndex, state.steps.length, encodingAnswerLog.length);
             for (let i = 0; i < answeredCount; i++) {
                 const record = encodingAnswerLog[i];
-                buildAnsweredStepCard(state.steps[i], record.answerGiven, record.correct !== false, record.feedback);
+                buildAnsweredStepCard(state.steps[i], record.answerGiven, record.correct !== false, record.feedback, i, state.steps.length);
             }
 
             const resumeIndex = state.currentIndex >= state.steps.length ? state.steps.length - 1 : state.currentIndex;
