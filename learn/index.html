@@ -132,6 +132,72 @@
         padding: 10px 10px 20px;
     }
 
+    /* ─── CORTEX CHAT LIST (sidebar "Cortex" tab) ─── */
+    .cortex-chat-list {
+        display: none;
+        flex: 1;
+        overflow-y: auto;
+        padding: 10px 10px 20px;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .new-chat-btn {
+        width: 100%;
+        background: none;
+        border: 1px solid rgba(230, 215, 176, 0.3);
+        color: var(--accent);
+        font-family: 'Arial', sans-serif;
+        font-size: 0.78rem;
+        padding: 9px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+    .new-chat-btn:hover {
+        background: rgba(230, 215, 176, 0.08);
+    }
+
+    .cortex-chat-list-items {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .cortex-chat-item {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: none;
+        border: none;
+        border-radius: 4px;
+        color: var(--text);
+        padding: 9px 10px;
+        cursor: pointer;
+        font-family: 'Arial', sans-serif;
+    }
+
+    .cortex-chat-item:hover {
+        background: rgba(230, 215, 176, 0.06);
+    }
+
+    .cortex-chat-item.active {
+        background: rgba(230, 215, 176, 0.12);
+    }
+
+    .cortex-chat-item-title {
+        font-size: 0.82rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .cortex-chat-item-date {
+        font-size: 0.68rem;
+        opacity: 0.45;
+        margin-top: 2px;
+    }
+
     .drill-header {
         padding: 4px 4px 12px;
     }
@@ -852,28 +918,6 @@
         border-color: rgba(230, 215, 176, 0.55);
     }
 
-    .cortex-mic-btn {
-        flex-shrink: 0;
-        width: 42px;
-        height: 42px;
-        border-radius: 50%;
-        border: 1px solid rgba(230, 215, 176, 0.35);
-        background: rgba(230, 215, 176, 0.08);
-        color: var(--accent);
-        font-size: 1.1rem;
-        line-height: 1;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: background 0.2s, border-color 0.2s;
-    }
-
-    .cortex-mic-btn:hover {
-        background: rgba(230, 215, 176, 0.14);
-        border-color: rgba(230, 215, 176, 0.55);
-    }
-
     .content {
         flex: 1;
         overflow-y: auto;
@@ -897,34 +941,22 @@
         max-width: 1200px;
     }
 
+    /* Cortex chat now lives here directly (see renderWelcome()) — the
+       page's own logo/quote/greeting empty-state and message thread are
+       all rendered INSIDE cortex/index.html itself (loaded ?embed=1,
+       which hides its own header bar since the dashboard's topbar/sidebar
+       already frame it) rather than duplicated here. */
     .dashboard-view {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-        gap: 22px;
-        margin-top: 18vh;
+        height: calc(100vh - 160px);
+        min-height: 480px;
     }
 
-    .dashboard-logo {
-        font-size: clamp(2.4rem, 6vw, 3.8rem);
-        font-weight: 700;
-        letter-spacing: -0.02em;
-        color: var(--text);
-    }
-
-    .dashboard-logo span {
-        color: var(--accent);
-    }
-
-    .dashboard-quote {
-        font-size: 1.05rem;
-        font-style: italic;
-        color: var(--text);
-        opacity: 0.55;
-        max-width: 420px;
-        line-height: 1.7;
+    .cortex-embed-frame {
+        width: 100%;
+        height: 100%;
+        border: 1px solid rgba(230, 215, 176, 0.15);
+        border-radius: 10px;
+        background: var(--panel);
     }
 
     .bottom-action-row {
@@ -2225,19 +2257,31 @@
 
             <div class="sidebar-tabs">
                 <button class="sidebar-tab-btn active" id="foldersTabBtn" type="button">Folders</button>
-                <button class="sidebar-tab-btn" id="calendarTabBtn" type="button">Calendar</button>
+                <button class="sidebar-tab-btn" id="cortexTabBtn" type="button">Cortex</button>
             </div>
 
             <div class="folder-list" id="folderList">
                 <div class="empty-hint">No folders yet — click "+ Create new folder" to add one.</div>
             </div>
 
+            <div class="cortex-chat-list" id="cortexChatList">
+                <button type="button" class="new-chat-btn" id="newChatBtn">+ New chat</button>
+                <div class="cortex-chat-list-items" id="cortexChatListItems">
+                    <div class="empty-hint">No chats yet — start one with "+ New chat".</div>
+                </div>
+            </div>
+
+            <!-- Not a sidebar tab any more — see calendarTopbarBtn/
+                 setCalendarFullscreen. Left display:none by default and
+                 only ever shown in its own .fullscreen (full-page) mode;
+                 the DOM/CSS otherwise unchanged from when it WAS a tab, so
+                 renderCalendar() and friends needed no rework. -->
             <div class="sidebar-calendar" id="sidebarCalendar">
                 <div class="calendar-header">
                     <button class="btn" id="calendarPrevBtn" type="button">‹</button>
                     <h3 id="calendarMonthLabel">August 2026</h3>
                     <button class="btn" id="calendarNextBtn" type="button">›</button>
-                    <button class="btn" id="calendarFullscreenBtn" type="button" title="Full screen">⛶</button>
+                    <button class="btn" id="calendarFullscreenBtn" type="button" title="Exit full screen">✕</button>
                 </div>
                 <div class="calendar-weekdays">
                     <span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span>
@@ -2255,15 +2299,13 @@
             <div class="topbar">
                 <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">☰</button>
                 <span class="topbar-title" id="topbarTitle">Dashboard</span>
-                <button class="cortex-mic-btn" id="cortexMicBtn" type="button" title="Talk to Cortex">🎤</button>
-                <button class="cortex-btn-topbar" id="cortexBtn" type="button">LastMind Cortex — cognitive AI</button>
+                <button class="cortex-btn-topbar" id="calendarTopbarBtn" type="button">📅 Calendar</button>
             </div>
 
             <div class="content">
                 <div class="content-inner" id="contentInner">
                     <div class="dashboard-view">
-                        <h1 class="dashboard-logo">Last<span>Mind</span></h1>
-                        <p class="dashboard-quote">It doesn't matter how you do it, it matters that you do it.</p>
+                        <iframe class="cortex-embed-frame" id="cortexEmbedFrame" allow="microphone" title="LastMind Cortex"></iframe>
                     </div>
                 </div>
             </div>
@@ -2962,32 +3004,6 @@ SQIDAQAB
     // the review's own subject/topic/concept instead of the open page's —
     // read-and-cleared by that handler on the very next click.
     let reviewOverride = null;
-
-    // Rotates through on every login (gate resolution) — see pickNextQuote()
-    // and enterApp(), which sets currentQuote before the dashboard first
-    // renders. The stored index in AUTH_STORE persists which one was shown
-    // last, so it keeps cycling forward across sessions rather than
-    // restarting from the top.
-    const MOTIVATIONAL_QUOTES = [
-        "It doesn't matter how you do it, it matters that you do it.",
-        "Starting is the real battle; everything after is momentum.",
-        "Long horizons make short-term setbacks irrelevant.",
-        "Standards shape outcomes; raise them and outcomes follow.",
-        "The hard thing is usually the right thing.",
-        "Action without direction is noise; direction without action is fantasy.",
-        "Champions are made when nothing exciting is happening.",
-        "1% better every day.",
-        "The limit is usually the story you are telling yourself."
-    ];
-    let currentQuote = MOTIVATIONAL_QUOTES[0];
-
-    async function pickNextQuote() {
-        const stored = await getAuthRecord('quoteIndex');
-        const prevIndex = typeof stored === 'number' ? stored : -1;
-        const nextIndex = (prevIndex + 1) % MOTIVATIONAL_QUOTES.length;
-        await putAuthRecord('quoteIndex', nextIndex);
-        return MOTIVATIONAL_QUOTES[nextIndex];
-    }
 
     let draggedItem = null; // { type: 'folder'|'subfolder'|'page', folderId, subfolderId, pageId }
     let openMenuEl = null;        // currently-open three-dot dropdown, so only one is open at a time
@@ -4193,15 +4209,27 @@ SQIDAQAB
         refreshFolderList();
     }
 
-    function renderWelcome() {
+    // The dashboard IS the Cortex chat now (see the topbar/sidebar swap
+    // comments near calendarTopbarBtn/cortexTabBtn) — its logo, rotating
+    // quote, rotating greeting, and the actual message thread all render
+    // INSIDE cortex/index.html itself (?embed=1 hides its own header bar,
+    // redundant once the dashboard's own topbar/sidebar already frame
+    // it). `chatId` opens a specific past chat; `isNew` starts a fresh
+    // one; neither given falls back to whichever chat was most recently
+    // active (cortex/index.html's own resolveActiveSession) — the same
+    // "just open the dashboard" behavior as before this existed.
+    function renderWelcome(chatId, isNew) {
         stopActiveDictation();
         stopSpeaking();
-        document.getElementById('contentInner').innerHTML = `
+        const contentInner = document.getElementById('contentInner');
+        contentInner.classList.add('content-inner-wide');
+        contentInner.innerHTML = `
             <div class="dashboard-view">
-                <h1 class="dashboard-logo">Last<span>Mind</span></h1>
-                <p class="dashboard-quote">${currentQuote}</p>
+                <iframe class="cortex-embed-frame" id="cortexEmbedFrame" allow="microphone" title="LastMind Cortex"></iframe>
             </div>
         `;
+        const params = isNew ? 'embed=1&new=1' : (chatId ? `embed=1&chatId=${encodeURIComponent(chatId)}` : 'embed=1');
+        document.getElementById('cortexEmbedFrame').src = `/cortex?${params}`;
     }
 
     let saveDebounce = null;
@@ -7053,26 +7081,84 @@ SQIDAQAB
         document.getElementById('sidebar').classList.toggle('collapsed');
     });
 
-    document.getElementById('cortexBtn').addEventListener('click', () => {
-        window.location.href = '/cortex';
-    });
-    document.getElementById('cortexMicBtn').addEventListener('click', () => {
-        window.location.href = '/cortex?voice=1';
+    // Calendar now opens as a genuine full page (see setCalendarFullscreen)
+    // rather than a sidebar tab — this button lives where the old Cortex
+    // topbar button used to (see the "swap" comment on the Cortex sidebar
+    // tab below).
+    document.getElementById('calendarTopbarBtn').addEventListener('click', () => {
+        openFullPageCalendar();
     });
 
-    let sidebarTab = 'folders'; // 'folders' | 'calendar'
+    let sidebarTab = 'folders'; // 'folders' | 'cortex'
 
     function setSidebarTab(tab) {
         sidebarTab = tab;
         document.getElementById('foldersTabBtn').classList.toggle('active', tab === 'folders');
-        document.getElementById('calendarTabBtn').classList.toggle('active', tab === 'calendar');
+        document.getElementById('cortexTabBtn').classList.toggle('active', tab === 'cortex');
         document.getElementById('folderList').style.display = tab === 'folders' ? 'block' : 'none';
-        document.getElementById('sidebarCalendar').style.display = tab === 'calendar' ? 'block' : 'none';
-        if (tab === 'calendar') openSidebarCalendar();
+        document.getElementById('cortexChatList').style.display = tab === 'cortex' ? 'flex' : 'none';
+        if (tab === 'cortex') refreshCortexChatList();
     }
 
     document.getElementById('foldersTabBtn').addEventListener('click', () => setSidebarTab('folders'));
-    document.getElementById('calendarTabBtn').addEventListener('click', () => setSidebarTab('calendar'));
+    // Swapped with the old Calendar tab — Cortex now lives here in the
+    // sidebar (a list of past chats, click to continue or "+ New chat"),
+    // and the actual chat interface renders in the dashboard's own main
+    // content area (see renderWelcome()/openCortexChat below), not as a
+    // separate page navigation any more.
+    document.getElementById('cortexTabBtn').addEventListener('click', () => setSidebarTab('cortex'));
+
+    // Points the dashboard's embedded Cortex iframe at a specific chat
+    // (or a fresh one) and makes sure the dashboard itself is what's
+    // showing — same reset selectFolder(null) does, since a chat can be
+    // opened from the sidebar while some other page is open.
+    function openCortexChat(chatId, isNew) {
+        selectedFolderId = null;
+        selectedSubfolderId = null;
+        selectedPageId = null;
+        document.getElementById('topbarTitle').textContent = 'Dashboard';
+        renderWelcome(chatId, isNew);
+        refreshFolderList();
+    }
+
+    document.getElementById('newChatBtn').addEventListener('click', () => {
+        // A brand new session isn't written to storage until its first
+        // real message (see cortex/index.html's resolveActiveSession) —
+        // so it deliberately won't appear in the list yet; the list only
+        // needs refreshing again once the student actually sends something
+        // and switches back to this tab.
+        openCortexChat(null, true);
+    });
+
+    async function refreshCortexChatList() {
+        const listEl = document.getElementById('cortexChatListItems');
+        let sessions;
+        try {
+            sessions = await getAuthRecord('cortexChatSessions');
+        } catch (err) {
+            sessions = null;
+        }
+        if (!Array.isArray(sessions) || !sessions.length) {
+            listEl.innerHTML = '<div class="empty-hint">No chats yet — start one with "+ New chat".</div>';
+            return;
+        }
+        listEl.innerHTML = '';
+        sessions.slice().sort((a, b) => b.updatedAt - a.updatedAt).forEach((s) => {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'cortex-chat-item';
+            const titleEl = document.createElement('div');
+            titleEl.className = 'cortex-chat-item-title';
+            titleEl.textContent = s.title || 'New chat';
+            item.appendChild(titleEl);
+            const dateEl = document.createElement('div');
+            dateEl.className = 'cortex-chat-item-date';
+            dateEl.textContent = new Date(s.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+            item.appendChild(dateEl);
+            item.addEventListener('click', () => openCortexChat(s.id, false));
+            listEl.appendChild(item);
+        });
+    }
 
     document.addEventListener('click', (e) => {
         if (openMenuEl && !openMenuEl.contains(e.target) && !(openMenuTriggerBtn && openMenuTriggerBtn.contains(e.target))) {
@@ -7685,18 +7771,14 @@ SQIDAQAB
         return `Due in ${diff} days`;
     }
 
-    // Switches the sidebar to the Calendar tab and jumps it straight to the
-    // month containing this due date — clicking a due-in badge should show
-    // you the SAME date the calendar itself would, not just tell you about
-    // it. Deliberately doesn't reuse setSidebarTab/openSidebarCalendar
-    // directly: both reset calendarViewDate to today as their first step,
-    // which would race against setting it to the target month here.
+    // Opens the full-page calendar and jumps it straight to the month
+    // containing this due date — clicking a due-in badge should show you
+    // the SAME date the calendar itself would, not just tell you about
+    // it. Deliberately doesn't reuse openFullPageCalendar directly: it
+    // resets calendarViewDate to today as its first step, which would
+    // race against setting it to the target month here.
     async function jumpCalendarToDate(dueDateStr) {
-        sidebarTab = 'calendar';
-        document.getElementById('foldersTabBtn').classList.toggle('active', false);
-        document.getElementById('calendarTabBtn').classList.toggle('active', true);
-        document.getElementById('folderList').style.display = 'none';
-        document.getElementById('sidebarCalendar').style.display = 'block';
+        setCalendarFullscreen(true);
         if (!isPaidUser) return;
 
         const dueDate = new Date(dueDateStr);
@@ -7911,7 +7993,12 @@ SQIDAQAB
         }
     }
 
-    async function openSidebarCalendar() {
+    // Calendar's only mode now — a genuine full page (position:fixed,
+    // 100vw/100vh, see .sidebar-calendar.fullscreen), opened from the
+    // topbar's calendarTopbarBtn (swapped with the old Cortex button —
+    // see that listener's own comment).
+    async function openFullPageCalendar() {
+        setCalendarFullscreen(true);
         calendarViewDate = new Date();
         if (!isPaidUser) {
             document.getElementById('calendarMonthLabel').textContent =
@@ -7936,16 +8023,17 @@ SQIDAQAB
         renderCalendar();
     });
 
+    // Calendar is either fully hidden or fully full-page now — no more
+    // small in-sidebar mode, so this is a plain show/hide rather than a
+    // toggle between two visible states.
     function setCalendarFullscreen(on) {
         const cal = document.getElementById('sidebarCalendar');
-        const btn = document.getElementById('calendarFullscreenBtn');
         cal.classList.toggle('fullscreen', on);
-        btn.textContent = on ? '✕' : '⛶';
-        btn.title = on ? 'Exit full screen' : 'Full screen';
+        cal.style.display = on ? 'block' : 'none';
     }
 
     document.getElementById('calendarFullscreenBtn').addEventListener('click', () => {
-        setCalendarFullscreen(!document.getElementById('sidebarCalendar').classList.contains('fullscreen'));
+        setCalendarFullscreen(false);
     });
 
     document.addEventListener('keydown', (e) => {
@@ -8037,7 +8125,6 @@ SQIDAQAB
 
     async function enterApp(paid) {
         isPaidUser = paid;
-        currentQuote = await pickNextQuote();
         renderWelcome();
 
         document.getElementById('gate-message').style.display = 'none';

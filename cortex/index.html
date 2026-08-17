@@ -103,14 +103,55 @@
         gap: 14px;
     }
 
-    .chat-empty-hint {
+    /* Shown only while chatHistory is empty — replaced by the ordinary
+       scrolling message list the moment the first message (sent or
+       restored) lands (see clearEmptyHint). min-height/justify-content
+       center it within whatever room .chat-scroll actually has, with
+       padding-bottom biasing it slightly ABOVE true center rather than
+       dead-center. */
+    #chatMessages.chat-empty-active {
+        min-height: 100%;
+        justify-content: center;
+        padding-bottom: 9vh;
+    }
+
+    .chat-empty-logo {
+        text-align: center;
+        font-size: clamp(1.9rem, 5vw, 2.8rem);
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: var(--text);
+    }
+
+    .chat-empty-logo span { color: var(--accent); }
+
+    .chat-empty-quote {
+        font-family: 'Georgia', serif;
+        font-style: italic;
+        text-align: center;
+        opacity: 0.55;
+        max-width: 420px;
+        margin: 10px auto 0;
+        line-height: 1.7;
+        font-size: 0.95rem;
+    }
+
+    /* Sits just above the input row, only while chatHistory is empty —
+       a rotating original prompt, never the same wording twice in a row. */
+    .chat-greeting {
+        display: none;
+        text-align: center;
         font-family: 'Arial', sans-serif;
         font-size: 0.85rem;
-        opacity: 0.45;
-        text-align: center;
-        margin-top: 18vh;
-        line-height: 1.8;
+        opacity: 0.6;
+        padding: 0 26px 14px;
+        max-width: 680px;
+        margin: 0 auto;
     }
+
+    .chat-greeting.active { display: block; }
+
+    body.cortex-embed .cortex-header { display: none; }
 
     .chat-msg {
         max-width: 82%;
@@ -295,9 +336,14 @@
 
     <div class="chat-scroll">
         <div class="chat-inner" id="chatMessages">
-            <p class="chat-empty-hint">Ask Cortex to move a page into a different folder, generate notes for a lesson you name, or ask what reviews you have due.</p>
+            <div class="chat-empty-hint" id="chatEmptyHint">
+                <h1 class="chat-empty-logo">Last<span>Mind</span></h1>
+                <p class="chat-empty-quote" id="chatEmptyQuote"></p>
+            </div>
         </div>
     </div>
+
+    <div class="chat-greeting" id="chatGreeting"></div>
 
     <div class="chat-input-row">
         <button id="chatMicBtn" type="button" title="Speak">🎤</button>
@@ -725,16 +771,153 @@ SQIDAQAB
 
     /* ───────────────────────── Chat ───────────────────────── */
 
-    let chatHistory = []; // [{role, content}] — persisted to IndexedDB (see saveChatHistory/restoreChatHistory) so leaving and returning to this page keeps the conversation
+    let chatHistory = []; // [{role, content}] — persisted as part of the ACTIVE session, see cortexChatSessions below
     const chatMessagesEl = document.getElementById('chatMessages');
-    let emptyHintEl = document.querySelector('.chat-empty-hint');
+    let emptyHintEl = document.getElementById('chatEmptyHint');
+
+    // Rotates on every dashboard/page load, same purpose and same
+    // "keep cycling forward, never restart from the top" persistence
+    // pattern learn/index.html's own dashboard quote uses (moved here
+    // since this page now owns the whole dashboard-facing empty state
+    // when embedded — see learn/index.html's renderWelcome()).
+    const MOTIVATIONAL_QUOTES = [
+        "It doesn't matter how you do it, it matters that you do it.",
+        "Starting is the real battle; everything after is momentum.",
+        "Long horizons make short-term setbacks irrelevant.",
+        "Standards shape outcomes; raise them and outcomes follow.",
+        "The hard thing is usually the right thing.",
+        "Action without direction is noise; direction without action is fantasy.",
+        "Champions are made when nothing exciting is happening.",
+        "1% better every day.",
+        "The limit is usually the story you are telling yourself."
+    ];
+
+    async function pickNextQuote() {
+        const stored = await getAuthRecord('quoteIndex');
+        const prevIndex = typeof stored === 'number' ? stored : -1;
+        const nextIndex = (prevIndex + 1) % MOTIVATIONAL_QUOTES.length;
+        await putAuthRecord('quoteIndex', nextIndex);
+        return MOTIVATIONAL_QUOTES[nextIndex];
+    }
+
+    // Original wording only — deliberately NOT the familiar "How can I
+    // help you today?" line every other assistant opens with. Rotated the
+    // same way as the quote above, own persisted index.
+    const CORTEX_GREETINGS = [
+        "What are we working on today?",
+        "Where should we pick up?",
+        "Ask me to organize a folder, generate notes, or just talk through what's due.",
+        "What's on your mind for this session?",
+        "Ready when you are — what's first?",
+        "Tell me what you're studying and I'll help you get into it."
+    ];
+
+    async function pickNextGreeting() {
+        const stored = await getAuthRecord('cortexGreetingIndex');
+        const prevIndex = typeof stored === 'number' ? stored : -1;
+        const nextIndex = (prevIndex + 1) % CORTEX_GREETINGS.length;
+        await putAuthRecord('cortexGreetingIndex', nextIndex);
+        return CORTEX_GREETINGS[nextIndex];
+    }
+
+    // Multiple saved chat threads — replaces the old single
+    // 'cortexChatHistory' key. Each session: { id, title, createdAt,
+    // updatedAt, messages: [{role, content}] }. Shared IndexedDB (same
+    // origin, same LastMindDB database) means learn/index.html's own
+    // sidebar chat list reads this SAME array directly — no separate
+    // sync needed between the two pages.
+    let activeSessionId = null;
+
+    function newSessionId() {
+        return (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    }
+
+    async function loadSessions() {
+        try {
+            const stored = await getAuthRecord('cortexChatSessions');
+            return Array.isArray(stored) ? stored : [];
+        } catch (err) {
+            return [];
+        }
+    }
+
+    async function saveSessions(sessions) {
+        try {
+            await putAuthRecord('cortexChatSessions', sessions);
+        } catch (err) {
+            console.error('LastMind Cortex: could not save chat sessions.', err);
+        }
+    }
+
+    // One-time migration from the old single-conversation key, so an
+    // existing student's in-progress chat doesn't just vanish under the
+    // new multi-session scheme. Safe to leave the old key sitting unused
+    // afterward — it's tiny, and next boot's sessions.length check skips
+    // this entirely once it's run once.
+    async function migrateOldSingleHistory(sessions) {
+        if (sessions.length) return sessions;
+        let old;
+        try {
+            old = await getAuthRecord('cortexChatHistory');
+        } catch (err) {
+            old = null;
+        }
+        if (!Array.isArray(old) || !old.length) return sessions;
+        const firstUserTurn = old.find((t) => t.role === 'user');
+        const migrated = [{
+            id: newSessionId(),
+            title: firstUserTurn ? firstUserTurn.content.slice(0, 48) : 'Chat',
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            messages: old,
+        }];
+        await saveSessions(migrated);
+        return migrated;
+    }
+
+    // Determines which session this page load should open: an explicit
+    // ?chatId=, a fresh one for ?new=1, or — the plain "/cortex" case,
+    // same as before this existed — whichever session was most recently
+    // active. Starts a brand new session if none exist yet at all.
+    // A brand new session is deliberately NOT written to storage here —
+    // only saveChatHistory (after the first real message) persists it.
+    // Otherwise every stray "+ New chat" click (including ones abandoned
+    // without ever sending anything) would leave a permanent empty
+    // "New chat" entry cluttering the sidebar list forever.
+    async function resolveActiveSession() {
+        const params = new URLSearchParams(window.location.search);
+        let sessions = await migrateOldSingleHistory(await loadSessions());
+
+        if (params.get('new') === '1') {
+            return { id: newSessionId(), title: 'New chat', createdAt: Date.now(), updatedAt: Date.now(), messages: [] };
+        }
+
+        const requestedId = params.get('chatId');
+        if (requestedId) {
+            const found = sessions.find((s) => s.id === requestedId);
+            if (found) return found;
+        }
+
+        if (sessions.length) {
+            return sessions.slice().sort((a, b) => b.updatedAt - a.updatedAt)[0];
+        }
+
+        return { id: newSessionId(), title: 'New chat', createdAt: Date.now(), updatedAt: Date.now(), messages: [] };
+    }
 
     // Reuses the AUTH_STORE as a generic small key-value store — same
     // pattern already used elsewhere (e.g. the stored subscription ID),
     // rather than adding a whole new object store just for this.
     async function saveChatHistory() {
+        if (!activeSessionId) return;
         try {
-            await putAuthRecord('cortexChatHistory', chatHistory);
+            const sessions = await loadSessions();
+            const idx = sessions.findIndex((s) => s.id === activeSessionId);
+            const firstUserTurn = chatHistory.find((t) => t.role === 'user');
+            const title = firstUserTurn ? firstUserTurn.content.slice(0, 48) : 'New chat';
+            const updated = { id: activeSessionId, title, createdAt: idx >= 0 ? sessions[idx].createdAt : Date.now(), updatedAt: Date.now(), messages: chatHistory };
+            if (idx >= 0) sessions[idx] = updated; else sessions.unshift(updated);
+            await saveSessions(sessions);
         } catch (err) {
             console.error('LastMind Cortex: could not save chat history.', err);
         }
@@ -745,16 +928,12 @@ SQIDAQAB
     // stored, so returning to this page shows everything, not just a
     // recent tail.
     async function restoreChatHistory() {
-        let stored;
-        try {
-            stored = await getAuthRecord('cortexChatHistory');
-        } catch (err) {
-            stored = null;
-        }
-        if (!Array.isArray(stored) || !stored.length) return;
-        chatHistory = stored;
+        const session = await resolveActiveSession();
+        activeSessionId = session.id;
+        if (!session.messages || !session.messages.length) return;
+        chatHistory = session.messages;
         clearEmptyHint();
-        stored.forEach((turn) => {
+        chatHistory.forEach((turn) => {
             if (turn.role === 'user') appendUserMessage(turn.content);
             else appendAssistantMessage(turn.content);
         });
@@ -762,6 +941,25 @@ SQIDAQAB
 
     function clearEmptyHint() {
         if (emptyHintEl) { emptyHintEl.remove(); emptyHintEl = null; }
+        chatMessagesEl.classList.remove('chat-empty-active');
+        const greetingEl = document.getElementById('chatGreeting');
+        if (greetingEl) greetingEl.classList.remove('active');
+    }
+
+    // Populates the empty-state logo/quote and the rotating greeting —
+    // called once at boot, before restoreChatHistory decides whether to
+    // immediately clear it again (a session with existing messages tears
+    // this straight back down via clearEmptyHint, which is fine — cheap
+    // either way).
+    async function renderEmptyState() {
+        const quoteEl = document.getElementById('chatEmptyQuote');
+        if (quoteEl) quoteEl.textContent = await pickNextQuote();
+        const greetingEl = document.getElementById('chatGreeting');
+        if (greetingEl) {
+            greetingEl.textContent = await pickNextGreeting();
+            greetingEl.classList.add('active');
+        }
+        chatMessagesEl.classList.add('chat-empty-active');
     }
 
     function appendUserMessage(text) {
@@ -1654,6 +1852,14 @@ SQIDAQAB
         document.getElementById('app').style.display = 'flex';
         document.getElementById('chatInput').focus();
 
+        // Iframed into learn/index.html's own dashboard (see
+        // renderWelcome()) — hides this page's own back-link/title header,
+        // which would be redundant duplicated chrome once the dashboard's
+        // own topbar/sidebar are already visible around it.
+        if (new URLSearchParams(window.location.search).get('embed') === '1') {
+            document.body.classList.add('cortex-embed');
+        }
+
         // Fire-and-forget rather than awaited — Cortex reads folders fresh
         // via getAllFolders() at the point each action actually needs them
         // (not once at boot into a cached array like learn/index.html),
@@ -1662,6 +1868,7 @@ SQIDAQAB
         // first message is likely to land.
         reconcileFoldersWithServer().catch((err) => console.error('LastMind Cortex: folder reconcile failed.', err));
 
+        await renderEmptyState();
         await restoreChatHistory();
 
         if (new URLSearchParams(window.location.search).get('voice') === '1') {
