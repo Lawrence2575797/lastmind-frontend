@@ -5518,6 +5518,15 @@ SQIDAQAB
             card.appendChild(text);
         }
 
+        // Turns the tutee's own in-character reaction (see submitEncodingAnswer's
+        // "tuteeSays") into the label lockAnsweredCard shows in place of a
+        // neutral "✓ Correct"/"✗ Corrected" verdict. Returns undefined
+        // (falls back to lockAnsweredCard's own default) for the paths that
+        // never produce one — calculation steps, skip, "I don't know".
+        function tuteeReactionLabel(tuteeSays) {
+            return tuteeSays ? `🐣 ${currentTuteeName}: “${tuteeSays}”` : undefined;
+        }
+
         function renderEncodingAnswerCard(accessToken, step, state, explanationText) {
             // See activeEncodingLessonState's own comment — kept fresh here
             // so the ask panel always knows the currently-pending step.
@@ -5686,7 +5695,23 @@ SQIDAQAB
                         return;
                     }
 
-                    lockAnsweredCard(card, answerRecord, result.correct !== false, result.feedback);
+                    // The tutee showed genuine partial understanding — see
+                    // submitEncodingAnswer's own "partialFollowUp" handling.
+                    // Not graded yet: lock this attempt in with the tutee's
+                    // own reflection (what landed, what's still unclear) and
+                    // re-serve the SAME step for one more try at exactly that
+                    // gap, same non-punitive framing as the misread path
+                    // above. result.state.partialReattemptStepIndex caps
+                    // this at one retry — a second failure on the retry
+                    // falls through to the ordinary wrong-answer path below,
+                    // where Cortex (not the tutee) steps in to diagnose it.
+                    if (result.partialFollowUp) {
+                        lockAnsweredCard(card, answerRecord, true, null, tuteeReactionLabel(result.tuteeSays));
+                        renderEncodingStep(accessToken, result.step, result.state);
+                        return;
+                    }
+
+                    lockAnsweredCard(card, answerRecord, result.correct !== false, result.feedback, tuteeReactionLabel(result.tuteeSays));
 
                     // Checkpoint progress right here — result.state's
                     // currentIndex is already advanced past this step
@@ -5702,7 +5727,7 @@ SQIDAQAB
                     // for the SAME step index; indexing here means that
                     // retry overwrites its own earlier attempt instead of
                     // desyncing every later answer's alignment with `steps`.
-                    encodingAnswerLog[result.state.currentIndex - 1] = { answerGiven: answerRecord, correct: result.correct !== false, feedback: result.feedback || null };
+                    encodingAnswerLog[result.state.currentIndex - 1] = { answerGiven: answerRecord, correct: result.correct !== false, feedback: result.feedback || null, tuteeSays: result.tuteeSays || null };
                     saveEncodingProgress(lessonHookFact, result.state, encodingAnswerLog);
 
                     // Any correct answer just advances as before. A wrong
@@ -5793,7 +5818,7 @@ SQIDAQAB
 
             const label = document.createElement('div');
             label.className = 'drilldown-label';
-            label.textContent = `Let’s figure out why ${currentTuteeName} didn’t get that`;
+            label.textContent = `🧭 Cortex steps in — let’s figure out where this went wrong`;
             labelRow.appendChild(label);
             drilldownBlock.appendChild(labelRow);
 
@@ -6228,7 +6253,7 @@ SQIDAQAB
         // to the live renderEncodingStep for whatever comes next. Never
         // wires up a submit handler at all, rather than building one and
         // immediately discarding it.
-        function buildAnsweredStepCard(step, answerGiven, correct, feedback, stepIndex, totalSteps) {
+        function buildAnsweredStepCard(step, answerGiven, correct, feedback, stepIndex, totalSteps, tuteeSays) {
             const card = document.createElement('div');
             card.className = 'question-card';
             const progressLabel = document.createElement('div');
@@ -6262,7 +6287,7 @@ SQIDAQAB
             appendSpeakerLabeledText(card, explanationText, explanationText ? (step.checkQuestion || step.text) : step.text);
 
             questionFlowEl.appendChild(card);
-            lockAnsweredCard(card, answerGiven, correct, feedback);
+            lockAnsweredCard(card, answerGiven, correct, feedback, tuteeReactionLabel(tuteeSays));
             return card;
         }
 
@@ -6296,7 +6321,7 @@ SQIDAQAB
             const answeredCount = Math.min(state.currentIndex, state.steps.length, encodingAnswerLog.length);
             for (let i = 0; i < answeredCount; i++) {
                 const record = encodingAnswerLog[i];
-                buildAnsweredStepCard(state.steps[i], record.answerGiven, record.correct !== false, record.feedback, i, state.steps.length);
+                buildAnsweredStepCard(state.steps[i], record.answerGiven, record.correct !== false, record.feedback, i, state.steps.length, record.tuteeSays);
             }
 
             const resumeIndex = state.currentIndex >= state.steps.length ? state.steps.length - 1 : state.currentIndex;
