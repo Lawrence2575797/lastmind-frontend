@@ -5010,11 +5010,11 @@ SQIDAQAB
            ONE call by /encoding-lesson/start — grading each answer is the
            only thing that needs another call, via /encoding-lesson/submit. */
 
-        async function postEncodingSubmit(accessToken, state, answer, dontKnow) {
+        async function postEncodingSubmit(accessToken, state, answer, dontKnow, bypass) {
             const resp = await fetch(`${COMPILE_BACKEND_URL}/encoding-lesson/submit`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-                body: JSON.stringify({ state, answer, dontKnow: !!dontKnow })
+                body: JSON.stringify({ state, answer, dontKnow: !!dontKnow, bypass: !!bypass })
             });
             if (!resp.ok) {
                 const body = await resp.json().catch(() => ({}));
@@ -5255,35 +5255,77 @@ SQIDAQAB
             });
             footer.appendChild(dontKnowLabel);
 
+            const actionsGroup = document.createElement('div');
+            actionsGroup.style.display = 'flex';
+            actionsGroup.style.alignItems = 'center';
+            actionsGroup.style.gap = '10px';
+            footer.appendChild(actionsGroup);
+
+            // Escape hatch for when the question or grading itself seems
+            // broken (not when the student just doesn't know the answer —
+            // that's what "I don't know" is for). Skips grading entirely
+            // server-side (see submitEncodingAnswer's bypass param) and
+            // advances exactly like a clean pass: no "incorrect" framing,
+            // no diagnostic drill-down, no FSRS penalty.
+            const skipBtn = document.createElement('button');
+            skipBtn.type = 'button';
+            skipBtn.className = 'retake-original-btn';
+            skipBtn.textContent = "Skip — question seems broken";
+            actionsGroup.appendChild(skipBtn);
+
             const submitBtn = document.createElement('button');
             submitBtn.className = 'question-submit-btn';
             submitBtn.type = 'button';
             submitBtn.textContent = 'Submit';
-            footer.appendChild(submitBtn);
+            actionsGroup.appendChild(submitBtn);
             card.appendChild(footer);
+
+            // Shared by both Submit and Skip — if this is the lesson's
+            // first step on a cold cache, the rest of the lesson was still
+            // generating in the background (see pendingLessonContinuation)
+            // — wait for it now and fold the complete step list into the
+            // state being submitted, so grading/advancing has the whole
+            // lesson to work with. Usually already finished by the time the
+            // student answers; this only actually blocks when they're
+            // unusually fast.
+            async function resolveSubmitState() {
+                if (!pendingLessonContinuation) return state;
+                const continued = await pendingLessonContinuation;
+                pendingLessonContinuation = null;
+                return continued.state;
+            }
+
+            skipBtn.addEventListener('click', async () => {
+                submitBtn.disabled = true;
+                skipBtn.disabled = true;
+                try {
+                    const submitState = await resolveSubmitState();
+                    const result = await postEncodingSubmit(accessToken, submitState, '', false, true);
+                    lockAnsweredCard(card, '(skipped)', true, null, 'Skipped');
+                    encodingAnswerLog[result.state.currentIndex - 1] = { answerGiven: '(skipped)', correct: true, feedback: null };
+                    saveEncodingProgress(lessonHookFact, result.state, encodingAnswerLog);
+                    renderNextEncodingStep(accessToken, result);
+                } catch (err) {
+                    console.error('LastMind: encoding lesson skip failed.', err);
+                    submitBtn.disabled = false;
+                    skipBtn.disabled = false;
+                    const errorNote = document.createElement('div');
+                    errorNote.className = 'correction-card';
+                    errorNote.textContent = (err && err.message) || 'Could not reach the server. Please try again.';
+                    card.insertAdjacentElement('afterend', errorNote);
+                    errorNote.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                }
+            });
 
             submitBtn.addEventListener('click', async () => {
                 const dontKnow = dontKnowCheckbox.checked;
                 const answer = isMath ? mathInput.getValue() : answerInput.value.trim();
                 if (!dontKnow && !answer) return;
                 submitBtn.disabled = true;
+                skipBtn.disabled = true;
 
                 try {
-                    // If this is the lesson's first step on a cold cache,
-                    // the rest of the lesson was still generating in the
-                    // background (see pendingLessonContinuation) — wait for
-                    // it now and fold the complete step list into the state
-                    // being submitted, so grading/advancing has the whole
-                    // lesson to work with. Usually already finished by the
-                    // time the student answers; this only actually blocks
-                    // when they're unusually fast.
-                    let submitState = state;
-                    if (pendingLessonContinuation) {
-                        const continued = await pendingLessonContinuation;
-                        pendingLessonContinuation = null;
-                        submitState = continued.state;
-                    }
-
+                    const submitState = await resolveSubmitState();
                     const result = await postEncodingSubmit(accessToken, submitState, answer, dontKnow);
                     card.querySelectorAll('textarea, .math-working-input, .question-card-footer').forEach((el) => el.remove());
                     const answerRecord = dontKnow
@@ -5340,6 +5382,7 @@ SQIDAQAB
                 } catch (err) {
                     console.error('LastMind: encoding lesson submit failed.', err);
                     submitBtn.disabled = false;
+                    skipBtn.disabled = false;
                     // postEncodingContinue/postEncodingSubmit throw a real
                     // Error with a specific message on an actual server-side
                     // failure (e.g. the background continuation call
@@ -5464,6 +5507,22 @@ SQIDAQAB
                 }, step.requiresCalculation);
             });
             labelRow.appendChild(retakeBtn);
+
+            // Same escape hatch as the question card's own "Skip" button
+            // (see renderEncodingAnswerCard), for when the diagnostic tree
+            // itself is what's stuck (a broken sub-question, a loop that
+            // isn't resolving) rather than the student's understanding.
+            // Exits the tree immediately and resumes the lesson exactly as
+            // if this concept had just been diagnosed correct — no further
+            // sub-questions, no FSRS penalty.
+            const skipDrilldownBtn = document.createElement('button');
+            skipDrilldownBtn.type = 'button';
+            skipDrilldownBtn.className = 'retake-original-btn';
+            skipDrilldownBtn.textContent = 'Skip — move on';
+            skipDrilldownBtn.addEventListener('click', () => {
+                finishDrilldown(true);
+            });
+            labelRow.appendChild(skipDrilldownBtn);
 
             function finishDrilldown(diagnosisAnswerCorrect) {
                 if (!isPrerequisiteStep) {
