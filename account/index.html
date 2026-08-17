@@ -38,6 +38,11 @@
         align-items: center;
         justify-content: center;
         padding: 24px;
+        /* Extra clearance below the base 24px for a phone's home-indicator
+           bar (env(safe-area-inset-bottom) is its height; 0 on anything
+           without one), so there's always a bit of the background visible
+           below the card rather than it butting right up against it. */
+        padding-bottom: calc(24px + env(safe-area-inset-bottom));
     }
 
     .card {

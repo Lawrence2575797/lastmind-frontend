@@ -43,7 +43,13 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        /* 100vh on mobile is measured as if the browser's address bar were
+           already hidden, so on first load (bar still showing) it overshoots
+           the real visible area — 100dvh tracks the actual visible viewport
+           as the browser chrome shows/hides. Second declaration, not a
+           replacement, so a browser without dvh support just keeps 100vh. */
         height: 100vh;
+        height: 100dvh;
         font-family: 'Arial', sans-serif;
         color: var(--text);
         opacity: 0.6;
@@ -54,11 +60,13 @@
     #app {
         display: none;
         height: 100vh;
+        height: 100dvh;
     }
 
     .layout {
         display: flex;
         height: 100vh;
+        height: 100dvh;
     }
 
     /* ─── SIDEBAR ─── */
@@ -230,6 +238,7 @@
         z-index: 150;
         width: 100vw;
         height: 100vh;
+        height: 100dvh;
         background: var(--bg);
         padding: 32px clamp(16px, 8vw, 120px);
     }

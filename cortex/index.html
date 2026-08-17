@@ -30,7 +30,18 @@
         font-family: 'Georgia', serif;
         display: flex;
         flex-direction: column;
+        /* 100vh on mobile is measured as if the browser's address bar were
+           already hidden — on first load, while it's still showing, the
+           real visible area is shorter than 100vh, so a strict 100vh shell
+           pushes whatever sits at the bottom (the chat input row) below
+           what's actually on screen, with no way to scroll to it since
+           overflow is hidden here. 100dvh tracks the REAL visible viewport
+           as the browser chrome shows/hides, so the input row is always
+           inside it. Kept as a second declaration (not a replacement) so a
+           browser that doesn't understand dvh just keeps the 100vh line
+           above instead of breaking. */
         height: 100vh;
+        height: 100dvh;
         overflow: hidden;
     }
 
@@ -50,6 +61,7 @@
         display: none;
         flex-direction: column;
         height: 100vh;
+        height: 100dvh;
     }
 
     .cortex-header {
@@ -224,6 +236,11 @@
         align-items: center;
         gap: 10px;
         padding: 16px 26px 22px;
+        /* Extra bottom clearance below the base 22px, on top of it rather
+           than instead of it — on an iPhone with a home-indicator bar,
+           env(safe-area-inset-bottom) is the height of that bar; on
+           anything else it's 0, so this is a no-op there. */
+        padding-bottom: calc(22px + env(safe-area-inset-bottom));
         border-top: 1px solid rgba(230, 215, 176, 0.1);
         max-width: 680px;
         margin: 0 auto;
