@@ -887,6 +887,16 @@
         max-width: 780px;
     }
 
+    /* Applied once a page's lesson is done and the notes+retrieval stack
+       is showing (see openPage's showNotes) — the narrow single-column
+       780px width was sized for one lesson panel alone; notes specifically
+       need real room once they're carrying bold key terms, definitions,
+       and full mechanism chains rather than being squeezed into half of
+       an already-narrow column. */
+    .content-inner-wide {
+        max-width: 1200px;
+    }
+
     .dashboard-view {
         display: flex;
         flex-direction: column;
@@ -924,15 +934,19 @@
         margin-top: 16px;
     }
 
-    /* ─── NOTES / LESSON SPLIT ─── */
+    /* ─── NOTES / LESSON STACK ─── */
+    /* Was a side-by-side 50/50 split; now stacked full-width, retrieval
+       lesson first then notes below it, so neither is squeezed into half
+       the screen — notes specifically benefit from the extra width once
+       they carry bold key terms/definitions and longer mechanism chains. */
     .page-split-layout {
         display: flex;
-        gap: 28px;
-        align-items: flex-start;
+        flex-direction: column;
+        gap: 36px;
     }
 
     .notes-panel, .lesson-panel {
-        flex: 1;
+        width: 100%;
         min-width: 0;
     }
 
@@ -2063,12 +2077,6 @@
         .scratch-notes-textarea {
             height: 90px;
         }
-
-        /* Side-by-side notes/lesson columns don't fit a narrow screen —
-           stack them instead. */
-        .page-split-layout {
-            flex-direction: column;
-        }
     }
 
 </style>
@@ -2899,20 +2907,32 @@ SQIDAQAB
         return div.innerHTML;
     }
 
+    // Escapes text first (neutralizing anything HTML-special in the
+    // model's raw output), THEN turns "**bold**" into <strong> — safe
+    // because escaping runs before any of our own trusted tags are
+    // introduced, and "**" itself has no HTML meaning to survive escaping.
+    // See NOTES_FROM_LESSON_PROMPT rule 1: this is the ONLY markup the
+    // notes generator is allowed to use.
+    function boldMarkdownToHtml(text) {
+        return escapeHtml(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    }
+
     // Converts the plain-text notes returned by /encoding-lesson/generate-notes
-    // (paragraphs separated by blank lines, "- " prefixed lines as bullets —
+    // (paragraphs separated by blank lines, "**bold**" for key facts/terms —
     // see NOTES_FROM_LESSON_PROMPT) into the same simple HTML shape noteBox
-    // already round-trips through page.content. Text is escaped per line, so
-    // nothing in the model's output is ever interpreted as markup.
+    // already round-trips through page.content. "- " prefixed lines still
+    // render as a bullet list too — the prompt no longer asks for these on
+    // new notes, but notes generated before this change may still have
+    // them, and there's no reason to make old content look broken.
     function notesTextToHtml(text) {
         const blocks = (text || '').split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
         return blocks.map((block) => {
             const lines = block.split('\n').map((l) => l.trim()).filter(Boolean);
             const isList = lines.length > 0 && lines.every((l) => l.startsWith('- '));
             if (isList) {
-                return `<ul>${lines.map((l) => `<li>${escapeHtml(l.slice(2).trim())}</li>`).join('')}</ul>`;
+                return `<ul>${lines.map((l) => `<li>${boldMarkdownToHtml(l.slice(2).trim())}</li>`).join('')}</ul>`;
             }
-            return `<p>${lines.map(escapeHtml).join('<br>')}</p>`;
+            return `<p>${lines.map(boldMarkdownToHtml).join('<br>')}</p>`;
         }).join('');
     }
 
@@ -4323,8 +4343,9 @@ SQIDAQAB
             </div>
         `;
 
+        contentInner.classList.toggle('content-inner-wide', showNotes);
         contentInner.innerHTML = showNotes
-            ? `<div class="page-split-layout">${notesPanelHtml}${lessonPanelHtml}</div>`
+            ? `<div class="page-split-layout">${lessonPanelHtml}${notesPanelHtml}</div>`
             : lessonPanelHtml;
 
         mathFieldInstances = new Map(); // fresh map for this page
