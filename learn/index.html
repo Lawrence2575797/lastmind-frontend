@@ -4214,11 +4214,15 @@ SQIDAQAB
     // quote, rotating greeting, and the actual message thread all render
     // INSIDE cortex/index.html itself (?embed=1 hides its own header bar,
     // redundant once the dashboard's own topbar/sidebar already frame
-    // it). `chatId` opens a specific past chat; `isNew` starts a fresh
-    // one; neither given falls back to whichever chat was most recently
-    // active (cortex/index.html's own resolveActiveSession) — the same
-    // "just open the dashboard" behavior as before this existed.
-    function renderWelcome(chatId, isNew) {
+    // it). `chatId` opens a specific past chat (openCortexChat's
+    // continue-a-past-chat path passes isNew: false alongside it).
+    // `isNew` defaults to true — landing on the dashboard (the initial
+    // load, or navigating "home" from anywhere else in the app) should
+    // show a FRESH chat with its own welcome screen (logo + rotating
+    // quote + rotating greeting), not silently resume whatever chat was
+    // last active — the whole point of that welcome screen is to
+    // actually be seen, not skipped past by auto-restoring history.
+    function renderWelcome(chatId, isNew = true) {
         stopActiveDictation();
         stopSpeaking();
         const contentInner = document.getElementById('contentInner');
