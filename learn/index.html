@@ -956,6 +956,124 @@
         margin-bottom: 12px;
     }
 
+    /* ─── ASK PANEL (alongside an active first-time encoding lesson) ─── */
+    .lesson-with-ask-layout {
+        display: flex;
+        align-items: flex-start;
+        gap: 24px;
+        margin-top: 12px;
+    }
+
+    .lesson-main-col {
+        flex: 2 1 0;
+        min-width: 0;
+    }
+
+    .ask-panel-col {
+        flex: 1 1 0;
+        min-width: 0;
+        position: sticky;
+        top: 20px;
+    }
+
+    @media (max-width: 900px) {
+        .lesson-with-ask-layout {
+            flex-direction: column;
+        }
+        .ask-panel-col {
+            position: static;
+            width: 100%;
+        }
+    }
+
+    .ask-panel {
+        background: var(--panel);
+        border: 1px solid rgba(230, 215, 176, 0.2);
+        border-radius: 8px;
+        padding: 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        max-height: 80vh;
+    }
+
+    .ask-panel-heading {
+        font-size: 0.92rem;
+        font-weight: 700;
+    }
+
+    .ask-panel-intro {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.76rem;
+        opacity: 0.65;
+        line-height: 1.5;
+    }
+
+    .ask-panel-history {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        overflow-y: auto;
+        flex: 1 1 auto;
+    }
+
+    .ask-panel-entry-q {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.82rem;
+        font-weight: 700;
+        opacity: 0.85;
+    }
+
+    .ask-panel-entry-a {
+        font-family: 'Georgia', serif;
+        font-size: 0.85rem;
+        line-height: 1.55;
+        margin-top: 4px;
+    }
+
+    .ask-panel-entry-redirected .ask-panel-entry-a {
+        opacity: 0.85;
+        font-style: italic;
+    }
+
+    .ask-panel-input {
+        width: 100%;
+        min-height: 60px;
+        background: rgba(0, 0, 0, 0.15);
+        border: 1px solid rgba(230, 215, 176, 0.25);
+        border-radius: 6px;
+        color: var(--text);
+        font-family: 'Georgia', serif;
+        font-size: 0.85rem;
+        padding: 8px 10px;
+        resize: vertical;
+    }
+
+    .ask-panel-submit-row {
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    .ask-panel-submit-btn {
+        background: var(--accent);
+        color: var(--bg);
+        border: none;
+        border-radius: 4px;
+        padding: 7px 16px;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.78rem;
+        cursor: pointer;
+    }
+
+    .ask-panel-submit-btn:hover {
+        opacity: 0.9;
+    }
+
+    .ask-panel-submit-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+
     .unlock-notes-link {
         display: block;
         background: none;
@@ -4263,7 +4381,10 @@ SQIDAQAB
                 <div class="bottom-action-row">
                     <button class="generate-questions-btn" id="generateQuestionsBtn" ${isPaidUser ? '' : 'disabled title="Upgrade to unlock diagnostics"'}>${savedEncodingProgress ? 'Resume Lesson' : 'Start Lesson'}</button>
                 </div>
-                <div id="diagnoseQuestionFlow"></div>
+                <div class="lesson-with-ask-layout">
+                    <div id="diagnoseQuestionFlow" class="lesson-main-col"></div>
+                    <div class="ask-panel-col" id="askPanelCol"></div>
+                </div>
             </div>
         `);
 
@@ -4343,7 +4464,15 @@ SQIDAQAB
             </div>
         `;
 
-        contentInner.classList.toggle('content-inner-wide', showNotes);
+        // Also widened for a single-lesson page's own active (not-yet-done)
+        // first encoding lesson — that's exactly when the ask-panel's own
+        // 2/3-1/3 layout is in play (see lessonPanelHtml above), and the
+        // default 780px column is too cramped to give the ask panel real
+        // room. Multi-lesson pages don't get the ask panel yet, so they
+        // stay at the narrow default until they're done and showNotes
+        // takes over.
+        const showAskPanel = !isMulti && !encodingDone;
+        contentInner.classList.toggle('content-inner-wide', showNotes || showAskPanel);
         contentInner.innerHTML = showNotes
             ? `<div class="page-split-layout">${lessonPanelHtml}${notesPanelHtml}</div>`
             : lessonPanelHtml;
@@ -5052,6 +5181,100 @@ SQIDAQAB
             return resp.json();
         }
 
+        async function postAskPanelQuestion(accessToken, state, question) {
+            const freshToken = (await getSyncAccessToken()) || accessToken;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/encoding-lesson/ask`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${freshToken}` },
+                body: JSON.stringify({ state, question })
+            });
+            if (!resp.ok) {
+                const body = await resp.json().catch(() => ({}));
+                throw new Error(body.error || 'Could not answer that right now.');
+            }
+            return resp.json();
+        }
+
+        // Builds the "ask a question" side panel next to an in-progress
+        // first-time encoding lesson (see #askPanelCol in the lesson-panel
+        // template) — a place for genuine curiosity without derailing the
+        // lesson's own flow. Built ONCE per lesson view (unlike the
+        // question cards, which get appended per step) and reads
+        // activeEncodingLessonState fresh at send time so it always has
+        // whichever step is currently on screen, however far the student
+        // has actually got. A no-op if #askPanelCol isn't in the DOM
+        // (every lesson type except a single-lesson page's own first-time
+        // encoding lesson).
+        function initAskPanel(accessToken) {
+            const col = document.getElementById('askPanelCol');
+            if (!col) return;
+            col.innerHTML = ''; // defensive — guards against a double-init leaving two panels stacked
+
+            const panel = document.createElement('div');
+            panel.className = 'ask-panel';
+
+            const heading = document.createElement('div');
+            heading.className = 'ask-panel-heading';
+            heading.textContent = 'Ask a question';
+            panel.appendChild(heading);
+
+            const intro = document.createElement('div');
+            intro.className = 'ask-panel-intro';
+            intro.textContent = "Curious about something in this lesson? Ask here — it's just for your own understanding and won't affect your answers or progress.";
+            panel.appendChild(intro);
+
+            const history = document.createElement('div');
+            history.className = 'ask-panel-history';
+            panel.appendChild(history);
+
+            const input = document.createElement('textarea');
+            input.className = 'ask-panel-input';
+            input.placeholder = 'Ask anything about this lesson…';
+            panel.appendChild(input);
+
+            const submitRow = document.createElement('div');
+            submitRow.className = 'ask-panel-submit-row';
+            const submitBtn = document.createElement('button');
+            submitBtn.type = 'button';
+            submitBtn.className = 'ask-panel-submit-btn';
+            submitBtn.textContent = 'Ask';
+            submitRow.appendChild(submitBtn);
+            panel.appendChild(submitRow);
+
+            col.appendChild(panel);
+
+            submitBtn.addEventListener('click', async () => {
+                const question = input.value.trim();
+                if (!question || !activeEncodingLessonState) return;
+                submitBtn.disabled = true;
+
+                const entry = document.createElement('div');
+                entry.className = 'ask-panel-entry';
+                const qLine = document.createElement('div');
+                qLine.className = 'ask-panel-entry-q';
+                qLine.textContent = question;
+                entry.appendChild(qLine);
+                const aLine = document.createElement('div');
+                aLine.className = 'ask-panel-entry-a';
+                aLine.textContent = 'Thinking…';
+                entry.appendChild(aLine);
+                history.appendChild(entry);
+                history.scrollTop = history.scrollHeight;
+
+                try {
+                    const result = await postAskPanelQuestion(accessToken, activeEncodingLessonState, question);
+                    aLine.textContent = result.answer;
+                    if (result.redirected) entry.classList.add('ask-panel-entry-redirected');
+                    input.value = '';
+                } catch (err) {
+                    aLine.textContent = (err && err.message) || 'Could not reach the server. Please try again.';
+                } finally {
+                    submitBtn.disabled = false;
+                    history.scrollTop = history.scrollHeight;
+                }
+            });
+        }
+
         // "explain" steps show the direct explanation text above the
         // question, then ask a checkQuestion testing whether it actually
         // landed — brand-new content can't be verified by FSRS yet, so this
@@ -5186,6 +5409,10 @@ SQIDAQAB
         }
 
         function renderEncodingAnswerCard(accessToken, step, state, explanationText) {
+            // See activeEncodingLessonState's own comment — kept fresh here
+            // so the ask panel always knows the currently-pending step.
+            activeEncodingLessonState = state;
+
             const card = document.createElement('div');
             card.className = 'question-card';
             card.appendChild(buildQuestionProgressLabel(state));
@@ -5801,6 +6028,14 @@ SQIDAQAB
         // matched back to page.lessons directly).
         let activeEncodingConcept = '';
 
+        // The most recent state renderEncodingAnswerCard was given — read
+        // fresh by the ask panel's own submit handler (see initAskPanel)
+        // so it always knows which step is CURRENTLY pending, without the
+        // ask panel needing its own copy threaded through every render
+        // call. Null whenever no encoding lesson (with an ask panel) is on
+        // screen — initAskPanel is only ever invoked where one is.
+        let activeEncodingLessonState = null;
+
         // Accumulates {concept, hookFact, steps} for every sub-lesson
         // completed on a multi-lesson page this session, so the eventual
         // notes-generation offer (once ALL sub-lessons are done) can
@@ -5931,6 +6166,7 @@ SQIDAQAB
             encodingAnswerLog = (progress.answers || []).slice();
 
             questionFlowEl.innerHTML = '';
+            initAskPanel(accessToken);
             const hookCard = document.createElement('div');
             hookCard.className = 'correction-card';
             hookCard.innerHTML = `<div class="correction-label">💡 Did you know?</div>${escapeHtml(lessonHookFact)}`;
@@ -6455,6 +6691,7 @@ SQIDAQAB
                 const startResult = await resp.json();
                 questionFlowEl.innerHTML = '';
                 lessonHookFact = startResult.hookFact || '';
+                initAskPanel(accessToken);
 
                 const hookCard = document.createElement('div');
                 hookCard.className = 'correction-card';
