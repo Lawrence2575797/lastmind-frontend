@@ -5011,9 +5011,18 @@ SQIDAQAB
            only thing that needs another call, via /encoding-lesson/submit. */
 
         async function postEncodingSubmit(accessToken, state, answer, dontKnow, bypass) {
+            // Re-fetches rather than trusting the accessToken passed in —
+            // that value was captured once when the lesson started and
+            // threaded through every step since; a long lesson (several
+            // diagnostic drill-downs, misread retries) can easily outlast
+            // the token's TTL. getSyncAccessToken() re-reads the Supabase
+            // client's own session, which auto-refreshes when needed —
+            // falls back to the passed-in value only if that somehow
+            // returns nothing, rather than failing outright.
+            const freshToken = (await getSyncAccessToken()) || accessToken;
             const resp = await fetch(`${COMPILE_BACKEND_URL}/encoding-lesson/submit`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${freshToken}` },
                 body: JSON.stringify({ state, answer, dontKnow: !!dontKnow, bypass: !!bypass })
             });
             if (!resp.ok) {
@@ -5029,9 +5038,11 @@ SQIDAQAB
         // list. See pendingLessonContinuation for how its result gets
         // merged back in before the student's answer is actually submitted.
         async function postEncodingContinue(accessToken, state, topic, concept, siblingConcepts) {
+            // See postEncodingSubmit's own comment — same stale-token risk.
+            const freshToken = (await getSyncAccessToken()) || accessToken;
             const resp = await fetch(`${COMPILE_BACKEND_URL}/encoding-lesson/continue`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${freshToken}` },
                 body: JSON.stringify({ state, topic, concept, siblingConcepts })
             });
             if (!resp.ok) {
@@ -5606,9 +5617,13 @@ SQIDAQAB
 
                     let resp;
                     try {
+                        // See postEncodingSubmit's own comment — same
+                        // stale-token risk, and drill-downs are exactly the
+                        // long-running part of a lesson most likely to hit it.
+                        const freshToken = (await getSyncAccessToken()) || accessToken;
                         resp = await fetch(`${COMPILE_BACKEND_URL}/diagnostics/submit-answer`, {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${freshToken}` },
                             body: JSON.stringify({ state: diagState, answer: submission.answer, dontKnow: submission.dontKnow })
                         });
                     } catch (err) {
