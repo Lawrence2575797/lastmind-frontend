@@ -2559,9 +2559,9 @@
 
     // Dev-only: shows which internal diagnostic-engine stage/branch is
     // currently firing above each drill-down question, so you can see what
-    // the encoding_check/wm_relax/localizing/etc. tree is actually doing
-    // while testing. Flip to false (or delete this const + its one call
-    // site in askNextDiagnostic) before launching to real students.
+    // the encoding_check/localizing/etc. tree is actually doing while
+    // testing. Flip to false (or delete this const + its one call site in
+    // askNextDiagnostic) before launching to real students.
     const SHOW_DIAGNOSTIC_DEBUG_STAGE = true;
 
     // Used ONLY to obtain the current session's access token, which the
@@ -5691,7 +5691,6 @@ SQIDAQAB
 
         const DIAGNOSIS_LABELS = {
             encoding: 'You hadn’t quite learned this yet',
-            wm_overload: 'Too much to hold at once',
             decay: 'Just a bit rusty',
             interference: 'Mixed up with something similar',
             schedule_miscalibrated: 'Reviewed a bit too early',
