@@ -1270,6 +1270,16 @@
         margin-bottom: 16px;
     }
 
+    .question-speaker-label {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        opacity: 0.55;
+        margin-bottom: 6px;
+    }
+
     .question-progress-label {
         font-family: 'Arial', sans-serif;
         font-size: 0.68rem;
@@ -2299,6 +2309,7 @@
             <div class="topbar">
                 <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">☰</button>
                 <span class="topbar-title" id="topbarTitle">Dashboard</span>
+                <button class="cortex-btn-topbar" id="customiseTuteeBtn" type="button">🐣 Customise your tutee</button>
                 <button class="cortex-btn-topbar" id="calendarTopbarBtn" type="button">📅 Calendar</button>
             </div>
 
@@ -2486,6 +2497,24 @@
         <div class="modal-actions">
             <button class="btn" id="cancelRenameBtn">Cancel</button>
             <button class="btn primary" id="saveRenameBtn">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- ─── CUSTOMISE TUTEE MODAL ─── -->
+<div class="modal-overlay" id="tuteeModalOverlay">
+    <div class="modal">
+        <h3>Customise your tutee</h3>
+        <p style="font-family:'Arial', sans-serif; font-size:0.82rem; opacity:0.65; margin-bottom:14px;">Give your tutee a name — they'll ask the questions in your lessons, and you'll be the one teaching them. (Character images coming soon.)</p>
+
+        <div class="field">
+            <label for="tuteeModalInput">Tutee's name</label>
+            <input type="text" id="tuteeModalInput" placeholder="e.g. Pip" maxlength="40">
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn" id="cancelTuteeBtn">Cancel</button>
+            <button class="btn primary" id="saveTuteeBtn">Save</button>
         </div>
     </div>
 </div>
@@ -5457,6 +5486,38 @@ SQIDAQAB
             return label;
         }
 
+        // "explain" steps split into two voices now (see the tutee-framed
+        // rewrite of ENCODING_LESSON_CONTINUATION_PROMPT): Cortex directly
+        // briefs the student on a fact they couldn't derive themselves
+        // (explanationText, i.e. step.text), then the tutee asks about it
+        // (checkQuestion) — the student's job is to re-teach that fact to
+        // the tutee, not just recall it. Every other step type is purely
+        // the tutee's own question, no Cortex involvement. Shared by the
+        // live card and the answered-step replay so both stay in sync.
+        function appendSpeakerLabeledText(card, explanationText, promptText) {
+            if (explanationText) {
+                const cortexLabel = document.createElement('div');
+                cortexLabel.className = 'question-speaker-label';
+                cortexLabel.textContent = '🧭 Cortex';
+                card.appendChild(cortexLabel);
+
+                const explanation = document.createElement('div');
+                explanation.className = 'question-card-text';
+                explanation.textContent = explanationText;
+                card.appendChild(explanation);
+            }
+
+            const tuteeLabel = document.createElement('div');
+            tuteeLabel.className = 'question-speaker-label';
+            tuteeLabel.textContent = `🐣 ${currentTuteeName} asks`;
+            card.appendChild(tuteeLabel);
+
+            const text = document.createElement('div');
+            text.className = 'question-card-text';
+            text.textContent = promptText;
+            card.appendChild(text);
+        }
+
         function renderEncodingAnswerCard(accessToken, step, state, explanationText) {
             // See activeEncodingLessonState's own comment — kept fresh here
             // so the ask panel always knows the currently-pending step.
@@ -5492,18 +5553,7 @@ SQIDAQAB
                 card.appendChild(diagramWrap);
             }
 
-            if (explanationText) {
-                const explanation = document.createElement('div');
-                explanation.className = 'question-card-text';
-                explanation.textContent = explanationText;
-                card.appendChild(explanation);
-            }
-
-            const promptText = explanationText ? (step.checkQuestion || step.text) : step.text;
-            const text = document.createElement('div');
-            text.className = 'question-card-text';
-            text.textContent = promptText;
-            card.appendChild(text);
+            appendSpeakerLabeledText(card, explanationText, explanationText ? (step.checkQuestion || step.text) : step.text);
 
             // A calculation step (see step.requiresCalculation) gets the
             // maths-keyboard "show your working" input instead of a plain
@@ -5743,7 +5793,7 @@ SQIDAQAB
 
             const label = document.createElement('div');
             label.className = 'drilldown-label';
-            label.textContent = 'Let’s figure out why';
+            label.textContent = `Let’s figure out why ${currentTuteeName} didn’t get that`;
             labelRow.appendChild(label);
             drilldownBlock.appendChild(labelRow);
 
@@ -6090,6 +6140,33 @@ SQIDAQAB
         // initAskPanel call.
         let activeRetrievalLessonState = null;
 
+        // The student's tutee — the AI "student" they teach through an
+        // encoding lesson (see the tutee-framed prompt rewrite backend-
+        // side). Purely a display-layer name: the actual lesson content
+        // is cached and shared across every student who hits the same
+        // concept, so the name is never baked into generated text — it's
+        // only ever used as UI chrome (see renderEncodingAnswerCard/
+        // buildAnsweredStepCard's tutee-label prefix). Fetched once at
+        // app entry; falls back to a generic default if the fetch fails
+        // or the student hasn't customised one yet, same fail-open
+        // posture as every other best-effort personalization in this app.
+        let currentTuteeName = 'your tutee';
+
+        async function fetchTuteeName(accessToken) {
+            try {
+                const resp = await fetch(`${COMPILE_BACKEND_URL}/tutee`, {
+                    headers: { Authorization: `Bearer ${accessToken}` }
+                });
+                if (!resp.ok) return;
+                const body = await resp.json();
+                if (body && typeof body.name === 'string' && body.name.trim()) {
+                    currentTuteeName = body.name.trim();
+                }
+            } catch (err) {
+                // Fail open — lesson still works with the generic default.
+            }
+        }
+
         // Accumulates {concept, hookFact, steps} for every sub-lesson
         // completed on a multi-lesson page this session, so the eventual
         // notes-generation offer (once ALL sub-lessons are done) can
@@ -6182,18 +6259,7 @@ SQIDAQAB
             }
 
             const explanationText = step.type === 'explain' ? step.text : null;
-            if (explanationText) {
-                const explanation = document.createElement('div');
-                explanation.className = 'question-card-text';
-                explanation.textContent = explanationText;
-                card.appendChild(explanation);
-            }
-
-            const promptText = explanationText ? (step.checkQuestion || step.text) : step.text;
-            const text = document.createElement('div');
-            text.className = 'question-card-text';
-            text.textContent = promptText;
-            card.appendChild(text);
+            appendSpeakerLabeledText(card, explanationText, explanationText ? (step.checkQuestion || step.text) : step.text);
 
             questionFlowEl.appendChild(card);
             lockAnsweredCard(card, answerGiven, correct, feedback);
@@ -7559,6 +7625,47 @@ SQIDAQAB
         }
     });
 
+    function openTuteeModal() {
+        document.getElementById('tuteeModalInput').value = currentTuteeName === 'your tutee' ? '' : currentTuteeName;
+        document.getElementById('tuteeModalOverlay').classList.add('open');
+        document.getElementById('tuteeModalInput').focus();
+    }
+    function closeTuteeModal() {
+        document.getElementById('tuteeModalOverlay').classList.remove('open');
+    }
+
+    document.getElementById('customiseTuteeBtn').addEventListener('click', openTuteeModal);
+    document.getElementById('cancelTuteeBtn').addEventListener('click', closeTuteeModal);
+    document.getElementById('tuteeModalOverlay').addEventListener('click', (e) => {
+        if (e.target.id === 'tuteeModalOverlay') closeTuteeModal();
+    });
+    document.getElementById('tuteeModalInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('saveTuteeBtn').click();
+        }
+    });
+    document.getElementById('saveTuteeBtn').addEventListener('click', async () => {
+        const value = document.getElementById('tuteeModalInput').value.trim();
+        if (!value) return;
+        closeTuteeModal();
+        try {
+            const accessToken = await getSyncAccessToken();
+            if (!accessToken) return;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/tutee`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                body: JSON.stringify({ name: value })
+            });
+            if (resp.ok) {
+                const body = await resp.json();
+                if (body && typeof body.name === 'string') currentTuteeName = body.name;
+            }
+        } catch (err) {
+            console.error('LastMind: could not save tutee name.', err);
+        }
+    });
+
     document.getElementById('cancelRenameFolderBtn').addEventListener('click', closeRenameFolderModal);
     document.getElementById('renameFolderModalOverlay').addEventListener('click', (e) => {
         if (e.target.id === 'renameFolderModalOverlay') closeRenameFolderModal();
@@ -8143,6 +8250,11 @@ SQIDAQAB
         reconcileFoldersWithServer()
             .then(refreshFolderList)
             .catch((err) => console.error('LastMind: folder reconcile failed.', err));
+
+        // Fire-and-forget — nothing on this initial paint depends on the
+        // tutee's actual name being loaded yet; it just needs to be ready
+        // by the time a lesson is actually started.
+        getSyncAccessToken().then((token) => { if (token) fetchTuteeName(token); });
     }
 
     (async function gate() {
