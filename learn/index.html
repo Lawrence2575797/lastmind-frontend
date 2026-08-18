@@ -738,7 +738,7 @@
         min-height: 0;
         overflow-y: auto;
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr 1fr 1fr;
         gap: 28px;
         padding: 24px clamp(16px, 6vw, 90px) 60px;
     }
@@ -880,8 +880,182 @@
         font-size: 0.75rem;
     }
 
+    @media (max-width: 1100px) {
+        .mt-body { grid-template-columns: 1fr 1fr; }
+    }
+
     @media (max-width: 760px) {
         .mt-body { grid-template-columns: 1fr; }
+    }
+
+    /* "Peer Tutoring" hub — same full-page overlay pattern as
+       my-tutoring-view above. */
+    .peer-tutoring-view {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 150;
+        width: 100vw;
+        height: 100vh;
+        background: var(--bg);
+        flex-direction: column;
+    }
+
+    .peer-tutoring-view.fullscreen {
+        display: flex;
+    }
+
+    .pt-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 20px;
+        padding: 24px clamp(16px, 6vw, 90px) 18px;
+        border-bottom: 1px solid rgba(230, 215, 176, 0.14);
+        flex-shrink: 0;
+    }
+
+    .pt-header-title h3 {
+        margin: 0;
+        font-size: 1.4rem;
+    }
+
+    .pt-header-title p {
+        margin: 4px 0 0;
+        font-size: 0.82rem;
+        opacity: 0.6;
+    }
+
+    .pt-header .btn {
+        border: 1px solid rgba(230, 215, 176, 0.25);
+        border-radius: 6px;
+        padding: 6px 10px;
+        opacity: 0.7;
+    }
+
+    .pt-header .btn:hover { opacity: 1; }
+
+    .pt-body {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 24px clamp(16px, 6vw, 90px) 60px;
+        max-width: 780px;
+    }
+
+    .pt-optin-row {
+        background: rgba(32, 31, 33, 0.6);
+        border: 1px solid rgba(230, 215, 176, 0.14);
+        border-radius: 10px;
+        padding: 16px 18px;
+        margin-bottom: 32px;
+    }
+
+    .pt-optin-fields {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+    }
+
+    .pt-optin-fields input[type="text"] {
+        flex: 1;
+        background: rgba(20, 19, 20, 0.7);
+        border: 1px solid rgba(230, 215, 176, 0.2);
+        border-radius: 6px;
+        color: var(--text);
+        padding: 7px 9px;
+        font-size: 0.82rem;
+    }
+
+    .pt-optin-fields .btn {
+        padding: 7px 12px;
+        font-size: 0.8rem;
+        flex-shrink: 0;
+    }
+
+    .pt-section {
+        margin-bottom: 32px;
+    }
+
+    .pt-section h4 {
+        margin: 0 0 6px;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        opacity: 0.55;
+    }
+
+    .pt-hint {
+        margin: 0 0 12px;
+        font-size: 0.78rem;
+        opacity: 0.55;
+    }
+
+    .pt-concept-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .pt-concept-card {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        background: rgba(32, 31, 33, 0.6);
+        border: 1px solid rgba(230, 215, 176, 0.14);
+        border-radius: 10px;
+        padding: 12px 16px;
+    }
+
+    .pt-concept-info {
+        min-width: 0;
+    }
+
+    .pt-concept-name {
+        font-size: 0.9rem;
+        font-weight: 600;
+        margin-bottom: 3px;
+    }
+
+    .pt-concept-meta {
+        font-size: 0.75rem;
+        opacity: 0.6;
+    }
+
+    .pt-concept-card .btn {
+        flex-shrink: 0;
+        padding: 6px 12px;
+        font-size: 0.78rem;
+    }
+
+    .pt-custom-form {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .pt-custom-form input[type="text"] {
+        flex: 1;
+        min-width: 160px;
+        background: rgba(20, 19, 20, 0.7);
+        border: 1px solid rgba(230, 215, 176, 0.2);
+        border-radius: 6px;
+        color: var(--text);
+        padding: 8px 10px;
+        font-size: 0.82rem;
+    }
+
+    .pt-custom-form .btn {
+        flex-shrink: 0;
+        padding: 8px 14px;
+        font-size: 0.82rem;
+    }
+
+    .pt-custom-status {
+        margin-top: 10px;
+        font-size: 0.8rem;
+        opacity: 0.75;
     }
 
     .calendar-header {
@@ -2941,6 +3115,56 @@
                         <h4>Waiting on help</h4>
                         <div class="mt-list" id="mtRequesterList"></div>
                     </div>
+                    <div class="mt-column">
+                        <h4>Open requests you could help with</h4>
+                        <div class="mt-list" id="mtClaimableList"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- "Peer Tutoring" hub — recommended micro-concepts (mastery
+                 0/1 across every folder) worth requesting help on, plus a
+                 tightly structured "ask about something else" form (see
+                 the plan's Decisions section: reducing input variability
+                 here directly reduces legal exposure). Opt-in settings
+                 live inline at the top rather than a separate modal. Same
+                 full-page overlay pattern as myTutoringView above. -->
+            <div class="peer-tutoring-view" id="peerTutoringView">
+                <div class="pt-header">
+                    <div class="pt-header-title">
+                        <h3>Peer Tutoring</h3>
+                        <p>Concepts worth getting help on, matched to a student who's verified it.</p>
+                    </div>
+                    <button class="btn" id="ptCloseBtn" type="button" title="Close">✕</button>
+                </div>
+                <div class="pt-body" id="ptBody">
+                    <div class="pt-optin-row">
+                        <label class="dont-know-label">
+                            <input type="checkbox" id="ptOptInCheckbox">
+                            Take part as a tutor — get matched to help others with concepts you've mastered
+                        </label>
+                        <div class="pt-optin-fields">
+                            <input type="text" id="ptOptInNameInput" placeholder="Name shown to matched peers (optional)" maxlength="40">
+                            <button class="btn" id="ptSaveOptInBtn" type="button">Save</button>
+                        </div>
+                    </div>
+
+                    <div class="pt-section">
+                        <h4>Recommended for you</h4>
+                        <div class="pt-concept-list" id="ptRecommendedList"><div class="mt-empty">Loading…</div></div>
+                    </div>
+
+                    <div class="pt-section">
+                        <h4>Ask about something else</h4>
+                        <p class="pt-hint">Structured fields only — this keeps every request predictable and checked before it's ever sent.</p>
+                        <div class="pt-custom-form">
+                            <input type="text" id="ptCustomSubject" placeholder="Subject (e.g. Economics)" maxlength="60">
+                            <input type="text" id="ptCustomTopic" placeholder="Topic (optional)" maxlength="60">
+                            <input type="text" id="ptCustomConcept" placeholder="Concept (e.g. Price elasticity of demand)" maxlength="60">
+                            <button class="btn" id="ptCustomSubmitBtn" type="button">Request help</button>
+                        </div>
+                        <p class="pt-custom-status" id="ptCustomStatus" style="display:none;"></p>
+                    </div>
                 </div>
             </div>
 
@@ -2954,9 +3178,9 @@
             <div class="topbar">
                 <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">☰</button>
                 <span class="topbar-title" id="topbarTitle">Dashboard</span>
-                <button class="cortex-btn-topbar" id="tutoringOptInBtn" type="button">🤝 Peer tutoring</button>
-                <button class="cortex-btn-topbar" id="progressTopbarBtn" type="button">🗺️ Your Progress</button>
+                <button class="cortex-btn-topbar" id="peerTutoringHubBtn" type="button">🤝 Peer tutoring</button>
                 <button class="cortex-btn-topbar" id="myTutoringTopbarBtn" type="button">📋 My Tutoring<span class="mt-badge" id="mtBadge" style="display:none;"></span></button>
+                <button class="cortex-btn-topbar" id="progressTopbarBtn" type="button">🗺️ Your Progress</button>
                 <button class="cortex-btn-topbar" id="calendarTopbarBtn" type="button">📅 Calendar</button>
             </div>
 
@@ -3144,29 +3368,6 @@
         <div class="modal-actions">
             <button class="btn" id="cancelRenameBtn">Cancel</button>
             <button class="btn primary" id="saveRenameBtn">Save</button>
-        </div>
-    </div>
-</div>
-
-<!-- ─── PEER TUTORING OPT-IN MODAL ─── -->
-<div class="modal-overlay" id="tutoringOptInModalOverlay">
-    <div class="modal">
-        <h3>Peer tutoring</h3>
-        <p style="font-family:'Arial', sans-serif; font-size:0.82rem; opacity:0.65; margin-bottom:14px;">Opt in to both ask for and offer help — you'll only ever be matched with someone whose understanding of a specific concept is genuinely verified, not just self-claimed, and you'll only ever be offered help on things you've actually mastered yourself.</p>
-
-        <div class="field">
-            <label for="tutoringOptInNameInput">Name shown to matched peers (optional)</label>
-            <input type="text" id="tutoringOptInNameInput" placeholder="e.g. Sam" maxlength="40">
-        </div>
-
-        <label class="dont-know-label" style="margin-bottom:4px;">
-            <input type="checkbox" id="tutoringOptInCheckbox">
-            I want to take part in peer tutoring
-        </label>
-
-        <div class="modal-actions">
-            <button class="btn" id="cancelTutoringOptInBtn">Cancel</button>
-            <button class="btn primary" id="saveTutoringOptInBtn">Save</button>
         </div>
     </div>
 </div>
@@ -8285,51 +8486,6 @@ SQIDAQAB
         }
     });
 
-    // Peer tutoring opt-in — deliberately thin (Phase 0 of the peer-
-    // tutoring plan): just a name + a boolean. Nothing here gates on
-    // school affiliation yet (see the plan's own "Deferred" section) —
-    // only later phases' matching logic will.
-    async function openTutoringOptInModal() {
-        document.getElementById('tutoringOptInModalOverlay').classList.add('open');
-        try {
-            const accessToken = await getSyncAccessToken();
-            if (!accessToken) return;
-            const resp = await fetch(`${COMPILE_BACKEND_URL}/tutoring-profile`, {
-                headers: { Authorization: `Bearer ${accessToken}` }
-            });
-            if (!resp.ok) return;
-            const profile = await resp.json();
-            document.getElementById('tutoringOptInNameInput').value = profile.displayName || '';
-            document.getElementById('tutoringOptInCheckbox').checked = !!profile.tutoringOptIn;
-        } catch (err) {
-            console.error('LastMind: failed to load tutoring profile.', err);
-        }
-    }
-    function closeTutoringOptInModal() {
-        document.getElementById('tutoringOptInModalOverlay').classList.remove('open');
-    }
-    document.getElementById('tutoringOptInBtn').addEventListener('click', openTutoringOptInModal);
-    document.getElementById('cancelTutoringOptInBtn').addEventListener('click', closeTutoringOptInModal);
-    document.getElementById('tutoringOptInModalOverlay').addEventListener('click', (e) => {
-        if (e.target.id === 'tutoringOptInModalOverlay') closeTutoringOptInModal();
-    });
-    document.getElementById('saveTutoringOptInBtn').addEventListener('click', async () => {
-        const displayName = document.getElementById('tutoringOptInNameInput').value.trim() || null;
-        const tutoringOptIn = document.getElementById('tutoringOptInCheckbox').checked;
-        closeTutoringOptInModal();
-        try {
-            const accessToken = await getSyncAccessToken();
-            if (!accessToken) return;
-            await fetch(`${COMPILE_BACKEND_URL}/tutoring-profile`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-                body: JSON.stringify({ displayName, tutoringOptIn })
-            });
-        } catch (err) {
-            console.error('LastMind: failed to save tutoring profile.', err);
-        }
-    });
-
     document.getElementById('cancelRenameFolderBtn').addEventListener('click', closeRenameFolderModal);
     document.getElementById('renameFolderModalOverlay').addEventListener('click', (e) => {
         if (e.target.id === 'renameFolderModalOverlay') closeRenameFolderModal();
@@ -9518,6 +9674,71 @@ SQIDAQAB
         }
     }
 
+    // The low-liquidity fallback (see listClaimableHelpRequests's own
+    // comment backend-side) — open requests nobody's been auto-assigned
+    // yet, that THIS user could personally help with. Loaded alongside
+    // the two auto-assignment lists so an opted-in helper can proactively
+    // pick one up rather than only ever waiting on the automatic match.
+    async function loadClaimableRequests(session) {
+        const list = document.getElementById('mtClaimableList');
+        list.innerHTML = '<div class="mt-empty">Loading…</div>';
+        try {
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/peer-tutoring/claimable`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            const requests = await resp.json();
+            list.innerHTML = '';
+            if (!requests.length) {
+                const empty = document.createElement('div');
+                empty.className = 'mt-empty';
+                empty.textContent = 'Nothing open right now that matches what you\'ve mastered.';
+                list.appendChild(empty);
+                return;
+            }
+            requests.forEach((r) => list.appendChild(renderClaimableCard(r)));
+        } catch (err) {
+            console.error('LastMind: failed to load claimable requests.', err);
+            list.innerHTML = '<div class="mt-empty">Couldn\'t load open requests.</div>';
+        }
+    }
+
+    function renderClaimableCard(request) {
+        const card = document.createElement('div');
+        card.className = 'mt-card';
+        card.innerHTML = `
+            <div class="mt-card-concept">${escapeHtml(request.conceptId)}</div>
+            <div class="mt-card-meta">${escapeHtml(request.subject)}${request.topic ? ' · ' + escapeHtml(request.topic) : ''}</div>
+        `;
+        const claimBtn = document.createElement('button');
+        claimBtn.className = 'btn';
+        claimBtn.type = 'button';
+        claimBtn.textContent = "I'll help with this";
+        claimBtn.addEventListener('click', async () => {
+            claimBtn.disabled = true;
+            claimBtn.textContent = 'Claiming…';
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (!session) throw new Error('not signed in');
+                const resp = await fetch(`${COMPILE_BACKEND_URL}/peer-tutoring/help-requests/${request.id}/claim`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${session.access_token}` }
+                });
+                if (!resp.ok) {
+                    const body = await resp.json().catch(() => ({}));
+                    throw new Error(body.error || `Server returned ${resp.status}`);
+                }
+                openMyTutoring(); // full refresh — it's now in "Helping" too
+            } catch (err) {
+                console.error('LastMind: failed to claim a request.', err);
+                claimBtn.disabled = false;
+                claimBtn.textContent = "Couldn't claim — retry";
+            }
+        });
+        card.appendChild(claimBtn);
+        return card;
+    }
+
     async function openMyTutoring() {
         setMyTutoringFullscreen(true);
         document.getElementById('mtHelperList').innerHTML = '<div class="mt-empty">Loading…</div>';
@@ -9531,6 +9752,7 @@ SQIDAQAB
             if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
             const data = await resp.json();
             renderMyTutoringLists(data);
+            loadClaimableRequests(session);
             refreshTutoringBadge();
         } catch (err) {
             console.error('LastMind: failed to load My Tutoring.', err);
@@ -9573,6 +9795,169 @@ SQIDAQAB
 
     refreshTutoringBadge();
     window.addEventListener('focus', refreshTutoringBadge);
+
+    // ─── Peer Tutoring hub ───
+    function setPeerTutoringFullscreen(on) {
+        document.getElementById('peerTutoringView').classList.toggle('fullscreen', on);
+    }
+
+    async function loadTutoringOptInStatus(session) {
+        try {
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/tutoring-profile`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) return;
+            const profile = await resp.json();
+            document.getElementById('ptOptInNameInput').value = profile.displayName || '';
+            document.getElementById('ptOptInCheckbox').checked = !!profile.tutoringOptIn;
+        } catch (err) {
+            console.error('LastMind: failed to load tutoring profile.', err);
+        }
+    }
+
+    // Aggregates the "recommended" list across EVERY folder, not just
+    // whichever one the knowledge map happens to be showing — reuses the
+    // exact same /knowledge-map endpoint per folder (collectFolderConcepts/
+    // fetchKnowledgeMapData, both already defined for that view) rather
+    // than adding a new backend aggregate endpoint. A node can only ever
+    // appear once here even if it turns up in more than one folder's
+    // merged graph (unlikely, but a plain id-based Set guards it anyway).
+    async function loadRecommendedConcepts() {
+        const list = document.getElementById('ptRecommendedList');
+        list.innerHTML = '<div class="mt-empty">Loading…</div>';
+        const seen = new Set();
+        const items = [];
+        for (const folder of folders) {
+            const concepts = collectFolderConcepts(folder);
+            if (!concepts.length) continue;
+            const data = await fetchKnowledgeMapData(folder, concepts);
+            if (!data || !Array.isArray(data.nodes)) continue;
+            const mastery = data.mastery || {};
+            data.nodes.forEach((n) => {
+                const state = mastery[n.id] ?? 0;
+                if (state === 2 || seen.has(n.id)) return;
+                seen.add(n.id);
+                items.push({
+                    id: n.id,
+                    name: n.name,
+                    subject: folder.subject || '',
+                    topic: (n.topics && n.topics[0]) || '',
+                    state
+                });
+            });
+        }
+        list.innerHTML = '';
+        if (!items.length) {
+            list.innerHTML = '<div class="mt-empty">Nothing recommended right now — everything you\'ve covered looks solid.</div>';
+            return;
+        }
+        items.forEach((item) => list.appendChild(renderRecommendedConceptCard(item)));
+    }
+
+    function renderRecommendedConceptCard(item) {
+        const card = document.createElement('div');
+        card.className = 'pt-concept-card';
+        const info = document.createElement('div');
+        info.className = 'pt-concept-info';
+        info.innerHTML = `
+            <div class="pt-concept-name">${escapeHtml(item.name)}</div>
+            <div class="pt-concept-meta">${escapeHtml(item.subject)}${item.topic ? ' · ' + escapeHtml(item.topic) : ''} · ${item.state === 1 ? 'Due for review' : 'Not covered'}</div>
+        `;
+        const btn = document.createElement('button');
+        btn.className = 'btn';
+        btn.type = 'button';
+        btn.textContent = 'Request help';
+        btn.addEventListener('click', () => submitPeerTutoringRequest({ conceptId: item.id, subject: item.subject, topic: item.topic || null }, btn));
+        card.appendChild(info);
+        card.appendChild(btn);
+        return card;
+    }
+
+    async function submitPeerTutoringRequest(body, triggerBtn) {
+        if (triggerBtn) { triggerBtn.disabled = true; triggerBtn.textContent = 'Requesting…'; }
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) throw new Error('not signed in');
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/peer-tutoring/help-requests`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify(body)
+            });
+            if (!resp.ok) {
+                const errBody = await resp.json().catch(() => ({}));
+                throw new Error(errBody.error || `Server returned ${resp.status}`);
+            }
+            const result = await resp.json();
+            if (triggerBtn) {
+                triggerBtn.textContent = result.session ? "You're matched!" : 'Request sent';
+            }
+            refreshTutoringBadge();
+            return result;
+        } catch (err) {
+            console.error('LastMind: failed to create a peer-tutoring request.', err);
+            if (triggerBtn) { triggerBtn.disabled = false; triggerBtn.textContent = "Couldn't send — retry"; }
+            return null;
+        }
+    }
+
+    async function openPeerTutoringHub() {
+        setPeerTutoringFullscreen(true);
+        document.getElementById('ptCustomStatus').style.display = 'none';
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session) loadTutoringOptInStatus(session);
+        loadRecommendedConcepts();
+    }
+
+    document.getElementById('peerTutoringHubBtn').addEventListener('click', openPeerTutoringHub);
+    document.getElementById('ptCloseBtn').addEventListener('click', () => setPeerTutoringFullscreen(false));
+
+    document.getElementById('ptSaveOptInBtn').addEventListener('click', async () => {
+        const displayName = document.getElementById('ptOptInNameInput').value.trim() || null;
+        const tutoringOptIn = document.getElementById('ptOptInCheckbox').checked;
+        const btn = document.getElementById('ptSaveOptInBtn');
+        btn.disabled = true;
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) throw new Error('not signed in');
+            await fetch(`${COMPILE_BACKEND_URL}/tutoring-profile`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify({ displayName, tutoringOptIn })
+            });
+            btn.textContent = 'Saved ✓';
+            setTimeout(() => { btn.textContent = 'Save'; }, 1500);
+        } catch (err) {
+            console.error('LastMind: failed to save tutoring profile.', err);
+            btn.textContent = "Couldn't save — retry";
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    document.getElementById('ptCustomSubmitBtn').addEventListener('click', async () => {
+        const subject = document.getElementById('ptCustomSubject').value.trim();
+        const topic = document.getElementById('ptCustomTopic').value.trim();
+        const concept = document.getElementById('ptCustomConcept').value.trim();
+        const statusEl = document.getElementById('ptCustomStatus');
+        if (!subject || !concept) {
+            statusEl.style.display = '';
+            statusEl.textContent = 'Subject and concept are both required.';
+            return;
+        }
+        const btn = document.getElementById('ptCustomSubmitBtn');
+        const result = await submitPeerTutoringRequest({ subject, topic, concept }, btn);
+        statusEl.style.display = '';
+        if (result) {
+            statusEl.textContent = result.session ? "You're matched! Check My Tutoring." : 'Request sent — waiting for someone available.';
+            document.getElementById('ptCustomSubject').value = '';
+            document.getElementById('ptCustomTopic').value = '';
+            document.getElementById('ptCustomConcept').value = '';
+            btn.disabled = false;
+            btn.textContent = 'Request help';
+        } else {
+            statusEl.textContent = "Couldn't send your request — try again in a moment.";
+        }
+    });
 
     // Add-to-day modal — Busy (time range only) or Exam (an existing
     // folder, picked from a dropdown). Neither type has a free-text field
