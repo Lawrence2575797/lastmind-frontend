@@ -6727,7 +6727,14 @@ SQIDAQAB
                 outline = null;
             }
 
-            const groundingKnowledge = (outline && outline.groundingKnowledge) || [];
+            // Prerequisites this student already has real concept_reviews
+            // history for (see getEncodingLessonOutline's verifiedOnLastMind
+            // flag) are trusted automatically and silently skipped by the
+            // lesson itself (see stripFsrsVerifiedChecks server-side) — no
+            // point asking about them here, there's nothing left to confirm
+            // and nothing they'd tick would change what actually happens.
+            const allGroundingKnowledge = (outline && outline.groundingKnowledge) || [];
+            const groundingKnowledge = allGroundingKnowledge.filter((item) => !item.verifiedOnLastMind);
             const recruitedKnowledge = (outline && outline.recruitedKnowledge) || [];
             if (!groundingKnowledge.length && !recruitedKnowledge.length) {
                 await runEncodingLesson(accessToken, subject, topic, concept, qualification, examBoard, customTitle, customDescription, []);
@@ -6743,7 +6750,7 @@ SQIDAQAB
             card.appendChild(label);
 
             const intro = document.createElement('p');
-            intro.textContent = 'This lesson draws on the following. Tick anything you’re not actually confident about — we’ll make sure it’s properly covered before the lesson leans on it, instead of assuming it and finding out partway through.';
+            intro.textContent = 'This lesson draws on the following. Anything you’ve already covered elsewhere on LastMind is trusted automatically — for the rest, tick anything you’re not actually confident you’ve learned, so it gets properly covered instead of assumed.';
             card.appendChild(intro);
 
             function renderChecklist(sectionLabel, items) {
@@ -6764,7 +6771,7 @@ SQIDAQAB
                 });
             }
 
-            renderChecklist('This lesson will check you know', groundingKnowledge);
+            renderChecklist('You haven’t covered these on LastMind — have you definitely learned them?', groundingKnowledge);
             renderChecklist('This lesson assumes you can already do', recruitedKnowledge);
 
             const hint = document.createElement('div');
