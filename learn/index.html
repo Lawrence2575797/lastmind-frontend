@@ -825,6 +825,26 @@
         opacity: 0.7;
     }
 
+    .mt-response-textarea {
+        width: 100%;
+        margin-top: 10px;
+        background: rgba(20, 19, 20, 0.7);
+        border: 1px solid rgba(230, 215, 176, 0.2);
+        border-radius: 6px;
+        color: var(--text);
+        padding: 8px 10px;
+        font-size: 0.82rem;
+        font-family: inherit;
+        resize: vertical;
+    }
+
+    .mt-response-body {
+        font-size: 0.85rem;
+        line-height: 1.55;
+        opacity: 0.9;
+        white-space: pre-wrap;
+    }
+
     @media (max-width: 760px) {
         .mt-body { grid-template-columns: 1fr; }
     }
@@ -9349,7 +9369,46 @@ SQIDAQAB
             <span class="mt-card-status status-${session.status}">${MT_STATUS_LABELS[session.status] || session.status}</span>
             <div class="mt-card-meta">Due by ${formatDateTime(session.deadline)}</div>
         `;
+        if (session.status !== 'assigned') return card;
+
+        const textarea = document.createElement('textarea');
+        textarea.className = 'mt-response-textarea';
+        textarea.placeholder = 'Write your explanation here — it gets checked before it reaches them, then shown at the time they book.';
+        textarea.rows = 4;
+        const submitRow = document.createElement('div');
+        submitRow.className = 'mt-release-row';
+        const submitBtn = document.createElement('button');
+        submitBtn.className = 'btn';
+        submitBtn.type = 'button';
+        submitBtn.textContent = 'Submit response';
+        submitBtn.addEventListener('click', () => submitTutoringResponse(session.id, textarea, submitBtn));
+        submitRow.appendChild(submitBtn);
+        card.appendChild(textarea);
+        card.appendChild(submitRow);
         return card;
+    }
+
+    async function submitTutoringResponse(sessionId, textarea, button) {
+        const body = textarea.value.trim();
+        if (!body) return;
+        button.disabled = true;
+        button.textContent = 'Submitting…';
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) throw new Error('not signed in');
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/tutoring-sessions/${sessionId}/response`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify({ body })
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            button.textContent = 'Submitted ✓';
+            textarea.disabled = true;
+        } catch (err) {
+            console.error('LastMind: failed to submit a tutoring response.', err);
+            button.disabled = false;
+            button.textContent = "Couldn't submit — retry";
+        }
     }
 
     function renderRequesterCard(session) {
@@ -9361,10 +9420,11 @@ SQIDAQAB
             <span class="mt-card-status status-${session.status}">${MT_STATUS_LABELS[session.status] || session.status}</span>
         `;
         if (session.status === 'released') {
-            const releasedNote = document.createElement('div');
-            releasedNote.className = 'mt-release-booked';
-            releasedNote.textContent = `Available since ${formatDateTime(session.releasedAt)}`;
-            card.appendChild(releasedNote);
+            const body = document.createElement('div');
+            body.className = 'mt-response-body';
+            body.textContent = 'Loading…';
+            card.appendChild(body);
+            loadReleasedResponse(session.id, body);
             return card;
         }
         const row = document.createElement('div');
@@ -9387,6 +9447,22 @@ SQIDAQAB
             card.appendChild(note);
         }
         return card;
+    }
+
+    async function loadReleasedResponse(sessionId, bodyEl) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) throw new Error('not signed in');
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/tutoring-sessions/${sessionId}/response`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            const view = await resp.json();
+            bodyEl.textContent = view.available && view.body ? view.body : 'Not available yet.';
+        } catch (err) {
+            console.error('LastMind: failed to load a released response.', err);
+            bodyEl.textContent = "Couldn't load this response — try again in a moment.";
+        }
     }
 
     async function bookReleaseTime(sessionId, input, button) {
