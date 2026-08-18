@@ -5527,7 +5527,7 @@ SQIDAQAB
             return tuteeSays ? `🐣 ${currentTuteeName}: “${tuteeSays}”` : undefined;
         }
 
-        function renderEncodingAnswerCard(accessToken, step, state, explanationText) {
+        function renderEncodingAnswerCard(accessToken, step, state, explanationText, followUpQuestion) {
             // See activeEncodingLessonState's own comment — kept fresh here
             // so the ask panel always knows the currently-pending step.
             activeEncodingLessonState = state;
@@ -5536,33 +5536,53 @@ SQIDAQAB
             card.className = 'question-card';
             card.appendChild(buildQuestionProgressLabel(state));
 
-            if (step.diagram) {
-                const diagramWrap = document.createElement('div');
-                diagramWrap.className = 'question-diagram';
+            // followUpQuestion (see submitEncodingAnswer's "partialFollowUp")
+            // means this card is the tutee's OWN reflective reaction to an
+            // already-locked attempt at this SAME step, not a fresh ask —
+            // the original question/diagram is already visible in the card
+            // above. Repeating them here would make it look like the whole
+            // question needs re-answering instead of just the specific gap
+            // the tutee just named, so skip straight to the tutee's new
+            // line and let the student answer directly underneath it.
+            if (!followUpQuestion) {
+                if (step.diagram) {
+                    const diagramWrap = document.createElement('div');
+                    diagramWrap.className = 'question-diagram';
 
-                const img = document.createElement('img');
-                img.src = step.diagram.diagramUrl;
-                img.alt = step.diagram.diagramCaption || '';
-                img.className = 'question-diagram-img';
-                img.onerror = () => diagramWrap.remove();
-                diagramWrap.appendChild(img);
+                    const img = document.createElement('img');
+                    img.src = step.diagram.diagramUrl;
+                    img.alt = step.diagram.diagramCaption || '';
+                    img.className = 'question-diagram-img';
+                    img.onerror = () => diagramWrap.remove();
+                    diagramWrap.appendChild(img);
 
-                if (step.diagram.diagramCaption) {
-                    const caption = document.createElement('div');
-                    caption.className = 'question-diagram-caption';
-                    caption.textContent = step.diagram.diagramCaption;
-                    diagramWrap.appendChild(caption);
+                    if (step.diagram.diagramCaption) {
+                        const caption = document.createElement('div');
+                        caption.className = 'question-diagram-caption';
+                        caption.textContent = step.diagram.diagramCaption;
+                        diagramWrap.appendChild(caption);
+                    }
+
+                    const attribution = document.createElement('div');
+                    attribution.className = 'question-diagram-attribution';
+                    attribution.textContent = step.diagram.diagramAttribution || '';
+                    diagramWrap.appendChild(attribution);
+
+                    card.appendChild(diagramWrap);
                 }
 
-                const attribution = document.createElement('div');
-                attribution.className = 'question-diagram-attribution';
-                attribution.textContent = step.diagram.diagramAttribution || '';
-                diagramWrap.appendChild(attribution);
+                appendSpeakerLabeledText(card, explanationText, explanationText ? (step.checkQuestion || step.text) : step.text);
+            } else {
+                const tuteeLabel = document.createElement('div');
+                tuteeLabel.className = 'question-speaker-label';
+                tuteeLabel.textContent = `🐣 ${currentTuteeName} asks`;
+                card.appendChild(tuteeLabel);
 
-                card.appendChild(diagramWrap);
+                const text = document.createElement('div');
+                text.className = 'question-card-text';
+                text.textContent = followUpQuestion;
+                card.appendChild(text);
             }
-
-            appendSpeakerLabeledText(card, explanationText, explanationText ? (step.checkQuestion || step.text) : step.text);
 
             // A calculation step (see step.requiresCalculation) gets the
             // maths-keyboard "show your working" input instead of a plain
@@ -5697,17 +5717,21 @@ SQIDAQAB
 
                     // The tutee showed genuine partial understanding — see
                     // submitEncodingAnswer's own "partialFollowUp" handling.
-                    // Not graded yet: lock this attempt in with the tutee's
-                    // own reflection (what landed, what's still unclear) and
-                    // re-serve the SAME step for one more try at exactly that
-                    // gap, same non-punitive framing as the misread path
-                    // above. result.state.partialReattemptStepIndex caps
-                    // this at one retry — a second failure on the retry
-                    // falls through to the ordinary wrong-answer path below,
-                    // where Cortex (not the tutee) steps in to diagnose it.
+                    // Not graded yet: lock this attempt in with a neutral
+                    // label (the tutee's actual reflection is about to be
+                    // shown as the next question, not repeated here too),
+                    // then open a NEW card carrying just the tutee's own
+                    // follow-up line — not the full original question again
+                    // — with a fresh answer box directly beneath it, so the
+                    // student is visibly continuing the same exchange
+                    // rather than re-answering from scratch.
+                    // result.state.partialReattemptStepIndex caps this at
+                    // one retry — a second failure on the retry falls
+                    // through to the ordinary wrong-answer path below, where
+                    // Cortex (not the tutee) steps in to diagnose it.
                     if (result.partialFollowUp) {
-                        lockAnsweredCard(card, answerRecord, true, null, tuteeReactionLabel(result.tuteeSays));
-                        renderEncodingStep(accessToken, result.step, result.state);
+                        lockAnsweredCard(card, answerRecord, true, null, 'Partway there');
+                        renderEncodingAnswerCard(accessToken, result.step, result.state, null, result.tuteeSays);
                         return;
                     }
 
