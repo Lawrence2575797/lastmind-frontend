@@ -417,6 +417,42 @@
 
     .km-header .btn:hover { opacity: 1; }
 
+    /* Lets a student switch which of their own folders (subject +
+       qualification) the map is showing — see openKnowledgeMap. Reuses
+       the same `folders` array and folderLabel() the sidebar already
+       renders from, so it can never drift out of sync with what folders
+       actually exist. */
+    .km-folder-tabs {
+        display: flex;
+        gap: 6px;
+        padding: 12px clamp(16px, 6vw, 90px) 0;
+        overflow-x: auto;
+        flex-shrink: 0;
+        border-bottom: 1px solid rgba(230, 215, 176, 0.14);
+    }
+
+    .km-folder-tab {
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        padding: 8px 4px 10px;
+        margin-right: 14px;
+        font-size: 0.86rem;
+        color: var(--text);
+        opacity: 0.55;
+        cursor: pointer;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    .km-folder-tab:hover { opacity: 0.8; }
+
+    .km-folder-tab.active {
+        opacity: 1;
+        border-bottom-color: var(--accent);
+        color: var(--accent);
+    }
+
     .km-body {
         position: relative;
         flex: 1;
@@ -2608,6 +2644,7 @@
                     </div>
                     <button class="btn" id="kmCloseBtn" type="button" title="Close">✕</button>
                 </div>
+                <div class="km-folder-tabs" id="kmFolderTabs"></div>
                 <div class="km-body" id="kmBody">
                     <svg id="kmSvg"></svg>
                     <div class="km-legend">
@@ -8543,30 +8580,50 @@ SQIDAQAB
     // Same full-page-overlay pattern as the calendar above. Standalone
     // prototype lives at prototypes/knowledge-map/index.html (EC104,
     // hardcoded sample data) — this is that same rendering logic wired to
-    // a live per-student fetch instead.
+    // a live per-student fetch instead. Scoped per FOLDER (subject +
+    // qualification, same grain dependency_chains is already keyed by —
+    // see conceptKey/normalizeConceptKey) rather than one everything-at-once
+    // fetch: a student's map is only ever meaningful within one subject at
+    // a time, and the folder tab bar below lets them switch between
+    // whichever folders they've actually created (reusing the SAME
+    // `folders` array and folderLabel() the sidebar renders from, so this
+    // can never list a folder that doesn't really exist).
     //
     // EXPECTED ENDPOINT CONTRACT (backend not yet built — wire your own):
-    //   GET /knowledge-map, Authorization: Bearer <access_token>
+    //   GET /knowledge-map?subject=...&qualification=...&examBoard=...&customTitle=...&customDescription=...
+    //   Authorization: Bearer <access_token>
     //   -> {
     //        nodes: [{ id: string, name: string, description: string }],
     //        edges: [{ source: string, target: string }],  // source = prerequisite, target = depends-on-it
     //        mastery: { [nodeId: string]: 0 | 1 | 2 }       // 0 not covered, 1 due for review, 2 mastered
     //      }
-    //   A natural server-side source for `mastery`: dependency_chains for
-    //   whichever scope this covers, joined against this user's own
+    //   subject/qualification/examBoard identify the folder exactly the
+    //   way encoding-lesson/chain routes already do; customTitle/
+    //   customDescription are the "Other" self-directed folder's own pair
+    //   (see customContextDigest), sent instead of a formal qualification
+    //   for that folder type. A natural server-side source for `mastery`:
+    //   dependency_chains for this scope, joined against this user's own
     //   concept_reviews rows — no row for a node id => 0; a row that
     //   exists but doesn't clear getMasteryStatus's own MASTERY_STABILITY_
     //   THRESHOLD/MIN_REPS_FOR_TRUST bar => 1; a row that does => 2. Keeps
     //   "mastered" meaning the exact same thing here as it does everywhere
     //   else FSRS stability already drives a decision in this app.
     let kmSimulation = null;
+    let kmSelectedFolderId = null;
 
-    async function fetchKnowledgeMapData() {
+    async function fetchKnowledgeMapData(folder) {
         try {
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (!session) return null;
 
-            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map`, {
+            const params = new URLSearchParams({
+                subject: folder.subject || '',
+                qualification: folder.qualification || '',
+                examBoard: folder.examBoard || '',
+                customTitle: folder.customTitle || '',
+                customDescription: folder.customDescription || ''
+            });
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map?${params.toString()}`, {
                 headers: { Authorization: `Bearer ${session.access_token}` }
             });
             if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
@@ -8589,23 +8646,69 @@ SQIDAQAB
         }
     }
 
-    async function openKnowledgeMap() {
-        setKnowledgeMapFullscreen(true);
+    function renderKnowledgeMapEmptyState(message) {
         const body = document.getElementById('kmBody');
         body.querySelectorAll('.km-empty-state').forEach((el) => el.remove());
+        document.getElementById('kmCompletionPct').textContent = '0%';
+        document.getElementById('kmCompletionBarFill').style.width = '0%';
+        d3.select('#kmSvg').selectAll('*').remove();
+        const empty = document.createElement('div');
+        empty.className = 'km-empty-state';
+        empty.textContent = message;
+        body.appendChild(empty);
+    }
+
+    async function openKnowledgeMap() {
+        setKnowledgeMapFullscreen(true);
         document.getElementById('kmDetailPanel').classList.remove('visible');
 
-        const data = await fetchKnowledgeMapData();
-        if (!data || !Array.isArray(data.nodes) || !data.nodes.length) {
-            document.getElementById('kmCompletionPct').textContent = '0%';
-            document.getElementById('kmCompletionBarFill').style.width = '0%';
-            d3.select('#kmSvg').selectAll('*').remove();
-            const empty = document.createElement('div');
-            empty.className = 'km-empty-state';
-            empty.textContent = 'Nothing to show yet — your progress map fills in as you start covering concepts.';
-            body.appendChild(empty);
+        const tabsEl = document.getElementById('kmFolderTabs');
+        tabsEl.innerHTML = '';
+
+        if (!folders.length) {
+            tabsEl.style.display = 'none';
+            renderKnowledgeMapEmptyState('No folders yet — create one from the sidebar, then your progress through it will show up here.');
             return;
         }
+        tabsEl.style.display = 'flex';
+
+        // Keep whichever folder was already selected if it still exists
+        // (e.g. re-opening the view later in the session), otherwise fall
+        // back to the first folder — same "just show something sensible"
+        // default the rest of this app uses.
+        if (!folders.some((f) => f.id === kmSelectedFolderId)) {
+            kmSelectedFolderId = folders[0].id;
+        }
+
+        folders.forEach((f) => {
+            const tab = document.createElement('button');
+            tab.type = 'button';
+            tab.className = 'km-folder-tab' + (f.id === kmSelectedFolderId ? ' active' : '');
+            tab.textContent = folderLabel(f);
+            tab.addEventListener('click', () => {
+                if (kmSelectedFolderId === f.id) return;
+                kmSelectedFolderId = f.id;
+                tabsEl.querySelectorAll('.km-folder-tab').forEach((el) => el.classList.remove('active'));
+                tab.classList.add('active');
+                loadKnowledgeMapForFolder(f);
+            });
+            tabsEl.appendChild(tab);
+        });
+
+        const selectedFolder = folders.find((f) => f.id === kmSelectedFolderId);
+        await loadKnowledgeMapForFolder(selectedFolder);
+    }
+
+    async function loadKnowledgeMapForFolder(folder) {
+        document.getElementById('kmDetailPanel').classList.remove('visible');
+        renderKnowledgeMapEmptyState('Loading…');
+
+        const data = await fetchKnowledgeMapData(folder);
+        if (!data || !Array.isArray(data.nodes) || !data.nodes.length) {
+            renderKnowledgeMapEmptyState(`Nothing to show yet for ${folderLabel(folder)} — your progress map fills in as you start covering concepts.`);
+            return;
+        }
+        document.getElementById('kmBody').querySelectorAll('.km-empty-state').forEach((el) => el.remove());
         renderKnowledgeMapGraph(data);
     }
 
