@@ -9895,20 +9895,25 @@ SQIDAQAB
             const mastery = data.mastery || {};
             data.nodes.forEach((n) => {
                 const state = mastery[n.id] ?? 0;
-                if (state === 2 || seen.has(n.id)) return;
+                // Peer tutoring is for genuine struggle — something you've
+                // actually been tested on and haven't yet got solid (state
+                // 1) — not a plain coverage gap (state 0, never taught/
+                // attempted at all). Asking a peer for help on something
+                // you haven't even tried yet doesn't make sense; that's
+                // what an ordinary lesson is for.
+                if (state !== 1 || seen.has(n.id)) return;
                 seen.add(n.id);
                 items.push({
                     id: n.id,
                     name: n.name,
                     subject: folder.subject || '',
-                    topic: (n.topics && n.topics[0]) || '',
-                    state
+                    topic: (n.topics && n.topics[0]) || ''
                 });
             });
         }
         list.innerHTML = '';
         if (!items.length) {
-            list.innerHTML = '<div class="mt-empty">Nothing recommended right now — everything you\'ve covered looks solid.</div>';
+            list.innerHTML = '<div class="mt-empty">Nothing recommended right now — everything you\'ve attempted looks solid.</div>';
             return;
         }
         items.forEach((item) => list.appendChild(renderRecommendedConceptCard(item)));
@@ -9921,7 +9926,7 @@ SQIDAQAB
         info.className = 'pt-concept-info';
         info.innerHTML = `
             <div class="pt-concept-name">${escapeHtml(item.name)}</div>
-            <div class="pt-concept-meta">${escapeHtml(item.subject)}${item.topic ? ' · ' + escapeHtml(item.topic) : ''} · ${item.state === 1 ? 'Due for review' : 'Not covered'}</div>
+            <div class="pt-concept-meta">${escapeHtml(item.subject)}${item.topic ? ' · ' + escapeHtml(item.topic) : ''} · Due for review</div>
         `;
         const btn = document.createElement('button');
         btn.className = 'btn';
