@@ -8703,6 +8703,17 @@ SQIDAQAB
         setKnowledgeMapFullscreen(true);
         document.getElementById('kmDetailPanel').classList.remove('visible');
 
+        // Reads currentTuteeName live (not baked in at page load) so this
+        // stays correct even if the student renamed their tutee since the
+        // last time this view was opened — same reasoning as the tutee
+        // question labels elsewhere in the lesson UI. Framed as what the
+        // tutee itself knows, not an abstract "progress" metric — the
+        // tutee only knows what's actually been taught to it, so this
+        // graph IS that, not a separate number next to it (see the
+        // "material thing to point to" discussion this was built for).
+        document.getElementById('kmTitle').textContent = `What ${currentTuteeName} Knows`;
+        document.getElementById('kmSubtitle').textContent = `Everything you've successfully taught them, and what still needs work.`;
+
         const tabsEl = document.getElementById('kmFolderTabs');
         tabsEl.innerHTML = '';
 
