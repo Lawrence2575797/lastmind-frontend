@@ -8589,42 +8589,59 @@ SQIDAQAB
     // `folders` array and folderLabel() the sidebar renders from, so this
     // can never list a folder that doesn't really exist).
     //
-    // EXPECTED ENDPOINT CONTRACT (backend not yet built — wire your own):
-    //   GET /knowledge-map?subject=...&qualification=...&examBoard=...&customTitle=...&customDescription=...
-    //   Authorization: Bearer <access_token>
-    //   -> {
-    //        nodes: [{ id: string, name: string, description: string }],
-    //        edges: [{ source: string, target: string }],  // source = prerequisite, target = depends-on-it
-    //        mastery: { [nodeId: string]: 0 | 1 | 2 }       // 0 not covered, 1 due for review, 2 mastered
-    //      }
-    //   subject/qualification/examBoard identify the folder exactly the
-    //   way encoding-lesson/chain routes already do; customTitle/
-    //   customDescription are the "Other" self-directed folder's own pair
-    //   (see customContextDigest), sent instead of a formal qualification
-    //   for that folder type. A natural server-side source for `mastery`:
-    //   dependency_chains for this scope, joined against this user's own
-    //   concept_reviews rows — no row for a node id => 0; a row that
-    //   exists but doesn't clear getMasteryStatus's own MASTERY_STABILITY_
-    //   THRESHOLD/MIN_REPS_FOR_TRUST bar => 1; a row that does => 2. Keeps
-    //   "mastered" meaning the exact same thing here as it does everywhere
-    //   else FSRS stability already drives a decision in this app.
+    // Backend route: POST /knowledge-map (see routes/knowledgeMap.ts) ->
+    // { nodes: [{id,name}], edges: [{source,target}], mastery: {[nodeId]: 0|1|2} }.
+    // subject/qualification/examBoard/customTitle/customDescription
+    // identify the folder exactly the way encoding-lesson/chain routes
+    // already do; `concepts` (built by collectFolderConcepts below) is
+    // every page/lesson the student has actually added to it — the
+    // backend has no independent read path into a folder's own contents
+    // (folder sync stores one opaque JSON blob per folder, never parsed
+    // server-side), so this is supplied directly the same way subject/
+    // topic/concept already is on every other lesson-start call.
     let kmSimulation = null;
     let kmSelectedFolderId = null;
 
-    async function fetchKnowledgeMapData(folder) {
+    // Every concept the student has actually added within one folder —
+    // its own direct pages (topic '') plus every subfolder's own pages
+    // (topic = that subfolder's name, matching how every existing
+    // lesson-start call already derives topic — see e.g. the `topic =
+    // (loc.subfolder && loc.subfolder.name) || ''` pattern elsewhere in
+    // this file). A multi-lesson page contributes one entry per lesson;
+    // reuses pageIsMultiLesson so this can never drift from how the rest
+    // of the app already tells the two page shapes apart.
+    function collectFolderConcepts(folder) {
+        const out = [];
+        function fromPages(pages, topic) {
+            (pages || []).forEach((p) => {
+                if (pageIsMultiLesson(p)) {
+                    p.lessons.forEach((l) => { if (l.concept) out.push({ topic, concept: l.concept }); });
+                } else if (p.title) {
+                    out.push({ topic, concept: p.title });
+                }
+            });
+        }
+        fromPages(folder.pages, '');
+        (folder.subfolders || []).forEach((sf) => fromPages(sf.pages, sf.name || ''));
+        return out;
+    }
+
+    async function fetchKnowledgeMapData(folder, concepts) {
         try {
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (!session) return null;
 
-            const params = new URLSearchParams({
-                subject: folder.subject || '',
-                qualification: folder.qualification || '',
-                examBoard: folder.examBoard || '',
-                customTitle: folder.customTitle || '',
-                customDescription: folder.customDescription || ''
-            });
-            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map?${params.toString()}`, {
-                headers: { Authorization: `Bearer ${session.access_token}` }
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify({
+                    subject: folder.subject || '',
+                    qualification: folder.qualification || '',
+                    examBoard: folder.examBoard || '',
+                    customTitle: folder.customTitle || '',
+                    customDescription: folder.customDescription || '',
+                    concepts
+                })
             });
             if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
 
@@ -8701,9 +8718,18 @@ SQIDAQAB
 
     async function loadKnowledgeMapForFolder(folder) {
         document.getElementById('kmDetailPanel').classList.remove('visible');
+
+        const concepts = collectFolderConcepts(folder);
+        if (!concepts.length) {
+            // No point round-tripping to the backend for a folder that
+            // has no pages at all yet.
+            renderKnowledgeMapEmptyState(`${folderLabel(folder)} doesn't have any pages yet — add one to start building this map.`);
+            return;
+        }
+
         renderKnowledgeMapEmptyState('Loading…');
 
-        const data = await fetchKnowledgeMapData(folder);
+        const data = await fetchKnowledgeMapData(folder, concepts);
         if (!data || !Array.isArray(data.nodes) || !data.nodes.length) {
             renderKnowledgeMapEmptyState(`Nothing to show yet for ${folderLabel(folder)} — your progress map fills in as you start covering concepts.`);
             return;
