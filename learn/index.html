@@ -845,6 +845,41 @@
         white-space: pre-wrap;
     }
 
+    .mt-report-toggle {
+        margin-top: 10px;
+        background: none;
+        border: none;
+        color: var(--text);
+        opacity: 0.45;
+        font-size: 0.72rem;
+        text-decoration: underline;
+        cursor: pointer;
+        padding: 0;
+    }
+
+    .mt-report-toggle:hover { opacity: 0.7; }
+
+    .mt-report-row {
+        margin-top: 8px;
+        gap: 8px;
+        align-items: center;
+        font-size: 0.78rem;
+    }
+
+    .mt-report-row select {
+        background: rgba(20, 19, 20, 0.7);
+        border: 1px solid rgba(230, 215, 176, 0.2);
+        border-radius: 6px;
+        color: var(--text);
+        padding: 5px 7px;
+        font-size: 0.78rem;
+    }
+
+    .mt-report-row .btn {
+        padding: 5px 9px;
+        font-size: 0.75rem;
+    }
+
     @media (max-width: 760px) {
         .mt-body { grid-template-columns: 1fr; }
     }
@@ -9424,7 +9459,7 @@ SQIDAQAB
             body.className = 'mt-response-body';
             body.textContent = 'Loading…';
             card.appendChild(body);
-            loadReleasedResponse(session.id, body);
+            loadReleasedResponse(session.id, card, body);
             return card;
         }
         const row = document.createElement('div');
@@ -9449,7 +9484,7 @@ SQIDAQAB
         return card;
     }
 
-    async function loadReleasedResponse(sessionId, bodyEl) {
+    async function loadReleasedResponse(sessionId, card, bodyEl) {
         try {
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (!session) throw new Error('not signed in');
@@ -9458,11 +9493,75 @@ SQIDAQAB
             });
             if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
             const view = await resp.json();
-            bodyEl.textContent = view.available && view.body ? view.body : 'Not available yet.';
+            if (view.available && view.body) {
+                bodyEl.textContent = view.body;
+                appendReportControls(card, sessionId);
+            } else if (view.heldForReview) {
+                bodyEl.textContent = "This response is being reviewed before it's shown.";
+            } else {
+                bodyEl.textContent = 'Not available yet.';
+            }
         } catch (err) {
             console.error('LastMind: failed to load a released response.', err);
             bodyEl.textContent = "Couldn't load this response — try again in a moment.";
         }
+    }
+
+    const REPORT_REASONS = [
+        'Inappropriate or unsafe content',
+        "Doesn't actually answer the question",
+        'Asking to contact off-platform',
+        'Something else',
+    ];
+
+    function appendReportControls(card, sessionId) {
+        const toggle = document.createElement('button');
+        toggle.className = 'mt-report-toggle';
+        toggle.type = 'button';
+        toggle.textContent = 'Report this';
+        const row = document.createElement('div');
+        row.className = 'mt-report-row';
+        row.style.display = 'none';
+        const select = document.createElement('select');
+        REPORT_REASONS.forEach((reason) => {
+            const opt = document.createElement('option');
+            opt.value = reason;
+            opt.textContent = reason;
+            select.appendChild(opt);
+        });
+        const submitBtn = document.createElement('button');
+        submitBtn.className = 'btn';
+        submitBtn.type = 'button';
+        submitBtn.textContent = 'Submit report';
+        submitBtn.addEventListener('click', async () => {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Reporting…';
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (!session) throw new Error('not signed in');
+                const resp = await fetch(`${COMPILE_BACKEND_URL}/tutoring-sessions/${sessionId}/report`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                    body: JSON.stringify({ reason: select.value })
+                });
+                if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+                row.innerHTML = '';
+                row.style.display = '';
+                row.textContent = 'Reported — thank you.';
+                toggle.remove();
+            } catch (err) {
+                console.error('LastMind: failed to submit a report.', err);
+                submitBtn.disabled = false;
+                submitBtn.textContent = "Couldn't report — retry";
+            }
+        });
+        row.appendChild(select);
+        row.appendChild(submitBtn);
+        toggle.addEventListener('click', () => {
+            row.style.display = row.style.display === 'none' ? 'flex' : 'none';
+        });
+        card.appendChild(toggle);
+        card.appendChild(row);
     }
 
     async function bookReleaseTime(sessionId, input, button) {
