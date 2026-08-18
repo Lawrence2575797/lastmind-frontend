@@ -685,6 +685,150 @@
         padding: 0 40px;
     }
 
+    /* "My Tutoring" — same full-page overlay pattern as knowledge-map-view
+       above (display:none until opened, then fixed/inset:0), but a plain
+       two-column list rather than a graph. */
+    .my-tutoring-view {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 150;
+        width: 100vw;
+        height: 100vh;
+        background: var(--bg);
+        flex-direction: column;
+    }
+
+    .my-tutoring-view.fullscreen {
+        display: flex;
+    }
+
+    .mt-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 20px;
+        padding: 24px clamp(16px, 6vw, 90px) 18px;
+        border-bottom: 1px solid rgba(230, 215, 176, 0.14);
+        flex-shrink: 0;
+    }
+
+    .mt-header-title h3 {
+        margin: 0;
+        font-size: 1.4rem;
+    }
+
+    .mt-header-title p {
+        margin: 4px 0 0;
+        font-size: 0.82rem;
+        opacity: 0.6;
+    }
+
+    .mt-header .btn {
+        border: 1px solid rgba(230, 215, 176, 0.25);
+        border-radius: 6px;
+        padding: 6px 10px;
+        opacity: 0.7;
+    }
+
+    .mt-header .btn:hover { opacity: 1; }
+
+    .mt-body {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 28px;
+        padding: 24px clamp(16px, 6vw, 90px) 60px;
+    }
+
+    .mt-column h4 {
+        margin: 0 0 12px;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        opacity: 0.55;
+    }
+
+    .mt-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .mt-empty {
+        opacity: 0.5;
+        font-size: 0.85rem;
+        padding: 8px 0;
+    }
+
+    .mt-card {
+        background: rgba(32, 31, 33, 0.6);
+        border: 1px solid rgba(230, 215, 176, 0.14);
+        border-radius: 10px;
+        padding: 14px 16px;
+    }
+
+    .mt-card-concept {
+        font-size: 0.92rem;
+        font-weight: 600;
+        margin-bottom: 4px;
+    }
+
+    .mt-card-meta {
+        font-size: 0.76rem;
+        opacity: 0.6;
+        margin-bottom: 10px;
+    }
+
+    .mt-card-status {
+        display: inline-block;
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 3px 8px;
+        border-radius: 20px;
+        border: 1px solid rgba(230, 215, 176, 0.2);
+        opacity: 0.75;
+        margin-bottom: 10px;
+    }
+
+    .mt-card-status.status-missed_deadline { border-color: rgba(201, 138, 75, 0.5); color: #c98a4b; opacity: 1; }
+    .mt-card-status.status-released { border-color: var(--accent); color: var(--accent); opacity: 1; }
+
+    .mt-release-row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-top: 6px;
+    }
+
+    .mt-release-row input[type="datetime-local"] {
+        flex: 1;
+        background: rgba(20, 19, 20, 0.7);
+        border: 1px solid rgba(230, 215, 176, 0.2);
+        border-radius: 6px;
+        color: var(--text);
+        padding: 6px 8px;
+        font-size: 0.8rem;
+    }
+
+    .mt-release-row .btn {
+        padding: 6px 10px;
+        font-size: 0.78rem;
+        flex-shrink: 0;
+    }
+
+    .mt-release-booked {
+        font-size: 0.78rem;
+        opacity: 0.7;
+    }
+
+    @media (max-width: 760px) {
+        .mt-body { grid-template-columns: 1fr; }
+    }
+
     .calendar-header {
         display: flex;
         align-items: center;
@@ -2698,6 +2842,31 @@
                 </div>
             </div>
 
+            <!-- "My Tutoring" — assigned peer-tutoring tasks, both as
+                 helper (obligations with a deadline) and as requester
+                 (booking when to see the response once it's ready). Same
+                 full-page overlay pattern as knowledgeMapView above. See
+                 openMyTutoring/renderMyTutoringLists. -->
+            <div class="my-tutoring-view" id="myTutoringView">
+                <div class="mt-header">
+                    <div class="mt-header-title">
+                        <h3>My Tutoring</h3>
+                        <p>Concepts you're helping with, and help you've asked for.</p>
+                    </div>
+                    <button class="btn" id="mtCloseBtn" type="button" title="Close">✕</button>
+                </div>
+                <div class="mt-body" id="mtBody">
+                    <div class="mt-column">
+                        <h4>Helping</h4>
+                        <div class="mt-list" id="mtHelperList"></div>
+                    </div>
+                    <div class="mt-column">
+                        <h4>Waiting on help</h4>
+                        <div class="mt-list" id="mtRequesterList"></div>
+                    </div>
+                </div>
+            </div>
+
             <div class="sidebar-footer">
                 <button class="manage-subscription-btn" id="myAccountBtn">My Account</button>
             </div>
@@ -2711,6 +2880,7 @@
                 <button class="cortex-btn-topbar" id="customiseTuteeBtn" type="button">🐣 Customise your tutee</button>
                 <button class="cortex-btn-topbar" id="tutoringOptInBtn" type="button">🤝 Peer tutoring</button>
                 <button class="cortex-btn-topbar" id="progressTopbarBtn" type="button">🗺️ Your Progress</button>
+                <button class="cortex-btn-topbar" id="myTutoringTopbarBtn" type="button">📋 My Tutoring</button>
                 <button class="cortex-btn-topbar" id="calendarTopbarBtn" type="button">📅 Calendar</button>
             </div>
 
@@ -9134,6 +9304,162 @@ SQIDAQAB
     document.getElementById('kmDetailClose').addEventListener('click', () => {
         document.getElementById('kmDetailPanel').classList.remove('visible');
     });
+
+    // ─── My Tutoring ───
+    // Lists everything the signed-in student is currently either owed
+    // (asRequester — waiting on a helper's response, or free to book when
+    // to see it) or obligated to write (asHelper — a deadline-bound task,
+    // see peerTutoringMatchService.createHelpRequest). GET /tutoring-sessions
+    // also triggers the backend's lazy missed-deadline reassignment sweep
+    // on every load — see checkAndReassignMissedDeadlines's own comment.
+
+    function setMyTutoringFullscreen(on) {
+        document.getElementById('myTutoringView').classList.toggle('fullscreen', on);
+    }
+
+    // datetime-local inputs want "YYYY-MM-DDTHH:mm" in LOCAL time, not the
+    // ISO/UTC string the backend stores — this is the one conversion point
+    // for that; the reverse happens inline in bookReleaseTime below via
+    // plain `new Date(value).toISOString()`.
+    function isoToLocalInputValue(iso) {
+        const d = new Date(iso);
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    function formatDateTime(iso) {
+        if (!iso) return '';
+        return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+    }
+
+    const MT_STATUS_LABELS = {
+        assigned: 'Assigned',
+        submitted: 'Response submitted',
+        released: 'Released',
+        missed_deadline: 'Reassigning…',
+        cancelled: 'Cancelled',
+    };
+
+    function renderHelperCard(session) {
+        const card = document.createElement('div');
+        card.className = 'mt-card';
+        card.innerHTML = `
+            <div class="mt-card-concept">${escapeHtml(session.conceptId)}</div>
+            <div class="mt-card-meta">${escapeHtml(session.subject)}${session.topic ? ' · ' + escapeHtml(session.topic) : ''}</div>
+            <span class="mt-card-status status-${session.status}">${MT_STATUS_LABELS[session.status] || session.status}</span>
+            <div class="mt-card-meta">Due by ${formatDateTime(session.deadline)}</div>
+        `;
+        return card;
+    }
+
+    function renderRequesterCard(session) {
+        const card = document.createElement('div');
+        card.className = 'mt-card';
+        card.innerHTML = `
+            <div class="mt-card-concept">${escapeHtml(session.conceptId)}</div>
+            <div class="mt-card-meta">${escapeHtml(session.subject)}${session.topic ? ' · ' + escapeHtml(session.topic) : ''}</div>
+            <span class="mt-card-status status-${session.status}">${MT_STATUS_LABELS[session.status] || session.status}</span>
+        `;
+        if (session.status === 'released') {
+            const releasedNote = document.createElement('div');
+            releasedNote.className = 'mt-release-booked';
+            releasedNote.textContent = `Available since ${formatDateTime(session.releasedAt)}`;
+            card.appendChild(releasedNote);
+            return card;
+        }
+        const row = document.createElement('div');
+        row.className = 'mt-release-row';
+        const input = document.createElement('input');
+        input.type = 'datetime-local';
+        if (session.releaseTime) input.value = isoToLocalInputValue(session.releaseTime);
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'btn';
+        saveBtn.type = 'button';
+        saveBtn.textContent = session.releaseTime ? 'Update time' : 'Book a time';
+        saveBtn.addEventListener('click', () => bookReleaseTime(session.id, input, saveBtn));
+        row.appendChild(input);
+        row.appendChild(saveBtn);
+        card.appendChild(row);
+        if (session.releaseTime) {
+            const note = document.createElement('div');
+            note.className = 'mt-release-booked';
+            note.textContent = `Booked for ${formatDateTime(session.releaseTime)}`;
+            card.appendChild(note);
+        }
+        return card;
+    }
+
+    async function bookReleaseTime(sessionId, input, button) {
+        if (!input.value) return;
+        button.disabled = true;
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) throw new Error('not signed in');
+            const releaseTime = new Date(input.value).toISOString();
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/tutoring-sessions/${sessionId}/release-time`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify({ releaseTime })
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            button.textContent = 'Booked ✓';
+        } catch (err) {
+            console.error('LastMind: failed to book a release time.', err);
+            button.textContent = "Couldn't save — retry";
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    function renderMyTutoringLists(data) {
+        const helperList = document.getElementById('mtHelperList');
+        const requesterList = document.getElementById('mtRequesterList');
+        helperList.innerHTML = '';
+        requesterList.innerHTML = '';
+
+        const asHelper = (data.asHelper || []).filter((s) => s.status !== 'cancelled');
+        const asRequester = (data.asRequester || []).filter((s) => s.status !== 'cancelled');
+
+        if (!asHelper.length) {
+            const empty = document.createElement('div');
+            empty.className = 'mt-empty';
+            empty.textContent = "You're not assigned to help anyone right now.";
+            helperList.appendChild(empty);
+        } else {
+            asHelper.forEach((s) => helperList.appendChild(renderHelperCard(s)));
+        }
+
+        if (!asRequester.length) {
+            const empty = document.createElement('div');
+            empty.className = 'mt-empty';
+            empty.textContent = "You haven't asked for help yet — try \"Get help with this\" on Your Progress.";
+            requesterList.appendChild(empty);
+        } else {
+            asRequester.forEach((s) => requesterList.appendChild(renderRequesterCard(s)));
+        }
+    }
+
+    async function openMyTutoring() {
+        setMyTutoringFullscreen(true);
+        document.getElementById('mtHelperList').innerHTML = '<div class="mt-empty">Loading…</div>';
+        document.getElementById('mtRequesterList').innerHTML = '';
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) throw new Error('not signed in');
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/tutoring-sessions`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            const data = await resp.json();
+            renderMyTutoringLists(data);
+        } catch (err) {
+            console.error('LastMind: failed to load My Tutoring.', err);
+            document.getElementById('mtHelperList').innerHTML = '<div class="mt-empty">Couldn\'t load your tutoring sessions.</div>';
+        }
+    }
+
+    document.getElementById('myTutoringTopbarBtn').addEventListener('click', openMyTutoring);
+    document.getElementById('mtCloseBtn').addEventListener('click', () => setMyTutoringFullscreen(false));
 
     // Add-to-day modal — Busy (time range only) or Exam (an existing
     // folder, picked from a dropdown). Neither type has a free-text field
