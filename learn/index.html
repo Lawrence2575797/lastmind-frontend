@@ -1474,6 +1474,28 @@
         border-color: rgba(230, 215, 176, 0.55);
     }
 
+    #myTutoringTopbarBtn {
+        position: relative;
+    }
+
+    .mt-badge {
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 4px;
+        border-radius: 9px;
+        background: var(--accent);
+        color: var(--bg);
+        font-size: 0.68rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+    }
+
     .content {
         flex: 1;
         overflow-y: auto;
@@ -2935,7 +2957,7 @@
                 <button class="cortex-btn-topbar" id="customiseTuteeBtn" type="button">🐣 Customise your tutee</button>
                 <button class="cortex-btn-topbar" id="tutoringOptInBtn" type="button">🤝 Peer tutoring</button>
                 <button class="cortex-btn-topbar" id="progressTopbarBtn" type="button">🗺️ Your Progress</button>
-                <button class="cortex-btn-topbar" id="myTutoringTopbarBtn" type="button">📋 My Tutoring</button>
+                <button class="cortex-btn-topbar" id="myTutoringTopbarBtn" type="button">📋 My Tutoring<span class="mt-badge" id="mtBadge" style="display:none;"></span></button>
                 <button class="cortex-btn-topbar" id="calendarTopbarBtn" type="button">📅 Calendar</button>
             </div>
 
@@ -9439,6 +9461,7 @@ SQIDAQAB
             if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
             button.textContent = 'Submitted ✓';
             textarea.disabled = true;
+            refreshTutoringBadge();
         } catch (err) {
             console.error('LastMind: failed to submit a tutoring response.', err);
             button.disabled = false;
@@ -9627,6 +9650,7 @@ SQIDAQAB
             if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
             const data = await resp.json();
             renderMyTutoringLists(data);
+            refreshTutoringBadge();
         } catch (err) {
             console.error('LastMind: failed to load My Tutoring.', err);
             document.getElementById('mtHelperList').innerHTML = '<div class="mt-empty">Couldn\'t load your tutoring sessions.</div>';
@@ -9634,7 +9658,40 @@ SQIDAQAB
     }
 
     document.getElementById('myTutoringTopbarBtn').addEventListener('click', openMyTutoring);
-    document.getElementById('mtCloseBtn').addEventListener('click', () => setMyTutoringFullscreen(false));
+    document.getElementById('mtCloseBtn').addEventListener('click', () => {
+        setMyTutoringFullscreen(false);
+        refreshTutoringBadge();
+    });
+
+    // Topbar badge — a live count of things currently needing attention
+    // (an obligation not yet written, a response currently sitting
+    // released), not a persisted unread inbox — see the plan's Phase 5
+    // and getNotificationCounts's own comment on why there's no "seen"
+    // state. Checked on load and on window focus (e.g. tabbing back in
+    // after being away), not polled continuously.
+    async function refreshTutoringBadge() {
+        const badge = document.getElementById('mtBadge');
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) { badge.style.display = 'none'; return; }
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/peer-tutoring/notifications`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            const counts = await resp.json();
+            if (counts.total > 0) {
+                badge.textContent = counts.total > 9 ? '9+' : String(counts.total);
+                badge.style.display = 'flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        } catch (err) {
+            console.error('LastMind: failed to load tutoring notification counts.', err);
+        }
+    }
+
+    refreshTutoringBadge();
+    window.addEventListener('focus', refreshTutoringBadge);
 
     // Add-to-day modal — Busy (time range only) or Exam (an existing
     // folder, picked from a dropdown). Neither type has a free-text field
