@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LastMind — Knowledge Map Prototype (EC104)</title>
+<style>
+  :root {
+    --bg: #0e1015;
+    --bg-panel: #161922;
+    --border: #262b38;
+    --text-primary: #e7e9ee;
+    --text-dim: #8b92a5;
+    --state-0: #3a3f4c;       /* not covered — dim grey */
+    --state-0-stroke: #4a5062;
+    --state-1: #e0973f;       /* due for review — amber/orange */
+    --state-1-stroke: #f2b06a;
+    --state-2: #2fd9c3;       /* mastered — teal, lit up */
+    --state-2-stroke: #7ff0e0;
+    --edge: #2a2f3b;
+    --edge-lit: #3a4150;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Helvetica, Arial, sans-serif;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  header .title-block h1 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+  }
+
+  header .title-block p {
+    margin: 2px 0 0;
+    font-size: 12.5px;
+    color: var(--text-dim);
+  }
+
+  .completion-stat {
+    text-align: right;
+  }
+
+  .completion-stat .pct {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--state-2);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .completion-stat .label {
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-top: 4px;
+  }
+
+  .completion-bar {
+    width: 220px;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--state-0);
+    overflow: hidden;
+    margin-top: 8px;
+  }
+
+  .completion-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--state-1), var(--state-2));
+    border-radius: 3px;
+    transition: width 0.6s ease;
+  }
+
+  main {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+  }
+
+  svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    cursor: grab;
+  }
+
+  svg:active {
+    cursor: grabbing;
+  }
+
+  .link {
+    stroke: var(--edge);
+    stroke-width: 1.4px;
+    fill: none;
+  }
+
+  .node-group {
+    cursor: pointer;
+  }
+
+  .node-halo {
+    fill: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .node-circle {
+    stroke-width: 1.6px;
+    transition: filter 0.15s ease;
+  }
+
+  .node-label {
+    font-size: 10.5px;
+    fill: var(--text-dim);
+    pointer-events: none;
+    text-anchor: middle;
+    paint-order: stroke;
+    stroke: var(--bg);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+  }
+
+  .node-group.state-2 .node-label {
+    fill: #c8f5ee;
+  }
+
+  .node-group:hover .node-halo {
+    opacity: 0.35;
+  }
+
+  /* Legend */
+  .legend {
+    position: absolute;
+    left: 24px;
+    bottom: 24px;
+    background: rgba(22, 25, 34, 0.85);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    backdrop-filter: blur(6px);
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .legend-title {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  .legend-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+
+  .legend-row:last-child { margin-bottom: 0; }
+
+  .legend-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .legend-hint {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    line-height: 1.5;
+    max-width: 210px;
+  }
+
+  /* Detail panel */
+  .detail-panel {
+    position: absolute;
+    right: 24px;
+    top: 24px;
+    width: 300px;
+    background: rgba(22, 25, 34, 0.92);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    backdrop-filter: blur(8px);
+    opacity: 0;
+    transform: translateY(-6px);
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+  }
+
+  .detail-panel.visible {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  .detail-state-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 3px 9px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    margin-bottom: 12px;
+  }
+
+  .detail-state-chip .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+  }
+
+  .detail-panel h2 {
+    margin: 0 0 8px;
+    font-size: 15.5px;
+    font-weight: 600;
+  }
+
+  .detail-panel p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--text-dim);
+  }
+
+  .detail-panel .close-btn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 15px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 4px;
+  }
+
+  .detail-panel .close-btn:hover { color: var(--text-primary); }
+
+  /* Hover tooltip (lightweight, name-only) */
+  .hover-tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: rgba(14, 16, 21, 0.95);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 12px;
+    color: var(--text-primary);
+    opacity: 0;
+    transition: opacity 0.12s ease;
+    white-space: nowrap;
+    transform: translate(-50%, -130%);
+  }
+
+  .hover-tooltip.visible {
+    opacity: 1;
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header>
+    <div class="title-block">
+      <h1>EC104 — Foundations of Economics</h1>
+      <p>Knowledge map prototype — standalone, hardcoded mastery states</p>
+    </div>
+    <div class="completion-stat">
+      <div class="pct" id="completionPct">0%</div>
+      <div class="label">Mastered</div>
+      <div class="completion-bar"><div class="completion-bar-fill" id="completionBarFill" style="width:0%"></div></div>
+    </div>
+  </header>
+
+  <main>
+    <svg id="graph"></svg>
+
+    <div class="legend">
+      <div class="legend-title">Mastery</div>
+      <div class="legend-row"><span class="legend-dot" style="background:var(--state-0)"></span> Not covered</div>
+      <div class="legend-row"><span class="legend-dot" style="background:var(--state-1)"></span> Due for review</div>
+      <div class="legend-row"><span class="legend-dot" style="background:var(--state-2)"></span> Mastered</div>
+      <div class="legend-hint">Scroll to zoom. Hover for a quick label, click for the full description.</div>
+    </div>
+
+    <div class="detail-panel" id="detailPanel">
+      <button class="close-btn" id="detailClose">✕</button>
+      <div class="detail-state-chip" id="detailChip"><span class="dot"></span><span class="chip-text"></span></div>
+      <h2 id="detailName"></h2>
+      <p id="detailDescription"></p>
+    </div>
+
+    <div class="hover-tooltip" id="hoverTooltip"></div>
+  </main>
+</div>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+  // ---------------------------------------------------------------------
+  // DATA
+  // ---------------------------------------------------------------------
+  // Mirrors ec104-chain.json exactly (embedded inline rather than fetched
+  // — opening this file directly via file:// blocks fetch() of a local
+  // JSON file under most browsers' CORS rules, and the whole point of a
+  // standalone prototype is that double-clicking it just works). See
+  // ec104-chain.json for the same nodes/edges as a plain data file, and
+  // the integration version (knowledge-map.js) for the real fetch-from-API
+  // version this becomes in learn/index.html.
+  const EC104_CHAIN = {
+    nodes: [
+      { id: "scarcity_opportunity_cost", name: "Scarcity & Opportunity Cost", description: "The basic economic problem: unlimited wants versus limited resources, and the true cost of any choice as the next best alternative given up." },
+      { id: "ppf", name: "Production Possibility Frontier", description: "A curve showing the maximum feasible combinations of two goods an economy can produce given fixed resources and technology, illustrating opportunity cost and trade-offs." },
+      { id: "specialisation_trade", name: "Specialisation & Comparative Advantage", description: "Why individuals, firms and countries gain by specialising in producing what they have a comparative advantage in and trading for the rest." },
+      { id: "demand_law", name: "Law of Demand", description: "The inverse relationship between price and quantity demanded, and what the demand curve represents." },
+      { id: "demand_determinants", name: "Determinants of Demand", description: "Non-price factors — income, tastes, prices of related goods, expectations — that shift the entire demand curve rather than moving along it." },
+      { id: "supply_law", name: "Law of Supply", description: "The relationship between price and quantity supplied, and what the supply curve represents." },
+      { id: "supply_determinants", name: "Determinants of Supply", description: "Non-price factors — input costs, technology, number of sellers — that shift the entire supply curve." },
+      { id: "market_equilibrium", name: "Market Equilibrium", description: "Where demand and supply curves intersect, setting the market-clearing price and quantity, and how the price mechanism restores equilibrium after a shock." },
+      { id: "ped", name: "Price Elasticity of Demand", description: "How responsive quantity demanded is to a change in price, and what determines whether demand is elastic or inelastic." },
+      { id: "pes", name: "Price Elasticity of Supply", description: "How responsive quantity supplied is to a change in price." },
+      { id: "yed", name: "Income Elasticity of Demand", description: "How responsive demand is to a change in income — used to classify goods as normal, inferior, or luxury." },
+      { id: "xed", name: "Cross Elasticity of Demand", description: "How responsive demand for one good is to a price change in another — used to classify goods as substitutes or complements." },
+      { id: "marginal_utility", name: "Marginal Utility", description: "The extra satisfaction from consuming one more unit of a good, and why it tends to diminish as consumption increases." },
+      { id: "indifference_curves", name: "Indifference Curves & MRS", description: "Curves representing combinations of two goods that give a consumer equal satisfaction, and the marginal rate of substitution between them." },
+      { id: "budget_constraint", name: "Budget Constraint", description: "The combinations of two goods a consumer can afford given their income and the goods' prices." },
+      { id: "consumer_optimisation", name: "Consumer Optimisation", description: "How a rational consumer chooses the affordable bundle that maximises utility, where the indifference curve is tangent to the budget constraint." },
+      { id: "demand_curve_derivation", name: "Deriving the Demand Curve", description: "Deriving the individual demand curve by tracing how the utility-maximising choice changes as price varies." },
+      { id: "consumer_surplus", name: "Consumer Surplus", description: "The difference between what consumers are willing to pay and what they actually pay, shown as the area under the demand curve and above price." },
+      { id: "cost_theory", name: "Costs of Production", description: "Fixed costs, variable costs, and how marginal and average costs behave as output changes in the short run." },
+      { id: "firm_profit_max", name: "Profit Maximisation", description: "The profit-maximising output rule: produce where marginal cost equals marginal revenue." },
+      { id: "supply_curve_derivation", name: "Deriving the Supply Curve", description: "Deriving the firm's supply curve from its marginal cost curve above the shutdown point." },
+      { id: "producer_surplus", name: "Producer Surplus", description: "The difference between the price producers receive and the minimum they'd be willing to accept, shown as the area above the supply curve and below price." },
+      { id: "market_efficiency", name: "Allocative Efficiency & Total Welfare", description: "How competitive equilibrium maximises total welfare (consumer plus producer surplus), and what allocative efficiency means." },
+      { id: "price_controls", name: "Price Ceilings & Floors", description: "The effects of price ceilings and price floors on quantity, shortages, surpluses, and welfare, given the relevant elasticities." },
+      { id: "taxes_subsidies", name: "Taxes, Subsidies & Incidence", description: "How a tax or subsidy shifts the effective supply or demand curve, and how its burden splits between buyers and sellers depending on elasticity." },
+      { id: "externalities", name: "Externalities", description: "Costs or benefits of a transaction that fall on third parties, and why this causes markets to over- or under-produce relative to the social optimum." },
+      { id: "public_goods", name: "Public Goods & Free-Rider Problem", description: "Goods that are non-excludable and non-rival, why free markets under-provide them, and the free-rider problem." },
+      { id: "circular_flow", name: "Circular Flow of Income", description: "The flow of income, spending, and output between households and firms, and how it extends to include government, financial and overseas sectors." },
+      { id: "gdp", name: "Measuring GDP", description: "Measuring the total value of output in an economy via the output, income, and expenditure approaches, and why they should be equal." },
+      { id: "inflation", name: "Inflation", description: "A sustained rise in the general price level, how it's measured, and its main causes." },
+      { id: "unemployment", name: "Unemployment", description: "How unemployment is measured and classified (frictional, structural, cyclical), and its economic costs." },
+      { id: "business_cycle", name: "The Business Cycle", description: "The recurring pattern of expansion and contraction in GDP, employment, and inflation around the long-run trend." }
+    ],
+    edges: [
+      { source: "scarcity_opportunity_cost", target: "ppf" },
+      { source: "ppf", target: "specialisation_trade" },
+      { source: "scarcity_opportunity_cost", target: "demand_law" },
+      { source: "demand_law", target: "demand_determinants" },
+      { source: "scarcity_opportunity_cost", target: "supply_law" },
+      { source: "supply_law", target: "supply_determinants" },
+      { source: "demand_determinants", target: "market_equilibrium" },
+      { source: "supply_determinants", target: "market_equilibrium" },
+      { source: "demand_law", target: "ped" },
+      { source: "supply_law", target: "pes" },
+      { source: "demand_law", target: "yed" },
+      { source: "demand_law", target: "xed" },
+      { source: "scarcity_opportunity_cost", target: "marginal_utility" },
+      { source: "marginal_utility", target: "indifference_curves" },
+      { source: "scarcity_opportunity_cost", target: "budget_constraint" },
+      { source: "indifference_curves", target: "consumer_optimisation" },
+      { source: "budget_constraint", target: "consumer_optimisation" },
+      { source: "consumer_optimisation", target: "demand_curve_derivation" },
+      { source: "demand_law", target: "consumer_surplus" },
+      { source: "scarcity_opportunity_cost", target: "cost_theory" },
+      { source: "cost_theory", target: "firm_profit_max" },
+      { source: "firm_profit_max", target: "supply_curve_derivation" },
+      { source: "supply_law", target: "producer_surplus" },
+      { source: "consumer_surplus", target: "market_efficiency" },
+      { source: "producer_surplus", target: "market_efficiency" },
+      { source: "market_equilibrium", target: "market_efficiency" },
+      { source: "market_equilibrium", target: "price_controls" },
+      { source: "ped", target: "price_controls" },
+      { source: "pes", target: "price_controls" },
+      { source: "market_equilibrium", target: "taxes_subsidies" },
+      { source: "ped", target: "taxes_subsidies" },
+      { source: "pes", target: "taxes_subsidies" },
+      { source: "market_efficiency", target: "taxes_subsidies" },
+      { source: "market_efficiency", target: "externalities" },
+      { source: "market_efficiency", target: "public_goods" },
+      { source: "scarcity_opportunity_cost", target: "circular_flow" },
+      { source: "circular_flow", target: "gdp" },
+      { source: "gdp", target: "inflation" },
+      { source: "gdp", target: "unemployment" },
+      { source: "gdp", target: "business_cycle" },
+      { source: "inflation", target: "business_cycle" },
+      { source: "unemployment", target: "business_cycle" }
+    ]
+  };
+
+  // Hardcoded sample mastery states — 0 = not covered, 1 = due for review,
+  // 2 = mastered. Deliberately spread across all three so every visual
+  // state is testable at once, loosely front-loaded (foundational nodes
+  // mastered, deeper/macro nodes untouched) the way a real student's
+  // progress would actually look. In the real app this comes from
+  // concept_reviews (FSRS state) per node, not a hardcoded map.
+  const MASTERY_STATES = {
+    scarcity_opportunity_cost: 2, ppf: 2, specialisation_trade: 1,
+    demand_law: 2, demand_determinants: 2, supply_law: 2, supply_determinants: 1,
+    market_equilibrium: 2, ped: 1, pes: 1, yed: 0, xed: 0,
+    marginal_utility: 1, indifference_curves: 0, budget_constraint: 1,
+    consumer_optimisation: 0, demand_curve_derivation: 0, consumer_surplus: 1,
+    cost_theory: 1, firm_profit_max: 0, supply_curve_derivation: 0, producer_surplus: 0,
+    market_efficiency: 1, price_controls: 0, taxes_subsidies: 0,
+    externalities: 0, public_goods: 0,
+    circular_flow: 1, gdp: 1, inflation: 0, unemployment: 0, business_cycle: 0
+  };
+
+  const STATE_COLOR = { 0: "var(--state-0)", 1: "var(--state-1)", 2: "var(--state-2)" };
+  const STATE_STROKE = { 0: "var(--state-0-stroke)", 1: "var(--state-1-stroke)", 2: "var(--state-2-stroke)" };
+  const STATE_LABEL = { 0: "Not covered", 1: "Due for review", 2: "Mastered" };
+
+  // ---------------------------------------------------------------------
+  // BUILD RENDER DATA
+  // ---------------------------------------------------------------------
+  const nodeById = new Map(EC104_CHAIN.nodes.map((n) => [n.id, n]));
+
+  // In/out degree drives a modest radius scale, purely so foundational,
+  // heavily-depended-on concepts (scarcity, demand, supply...) read as
+  // visually more central than a narrow leaf topic — a small but genuine
+  // readability aid in a graph this size, not decoration.
+  const degree = new Map(EC104_CHAIN.nodes.map((n) => [n.id, 0]));
+  EC104_CHAIN.edges.forEach((e) => {
+    degree.set(e.source, (degree.get(e.source) || 0) + 1);
+    degree.set(e.target, (degree.get(e.target) || 0) + 1);
+  });
+  const maxDegree = Math.max(...degree.values());
+  const radiusScale = d3.scaleSqrt().domain([0, maxDegree]).range([8, 17]);
+
+  const nodes = EC104_CHAIN.nodes.map((n) => ({
+    ...n,
+    state: MASTERY_STATES[n.id] ?? 0,
+    r: radiusScale(degree.get(n.id) || 0)
+  }));
+  const links = EC104_CHAIN.edges.map((e) => ({ source: e.source, target: e.target }));
+
+  // ---------------------------------------------------------------------
+  // COMPLETION STAT
+  // ---------------------------------------------------------------------
+  const masteredCount = nodes.filter((n) => n.state === 2).length;
+  const completionPct = Math.round((masteredCount / nodes.length) * 100);
+  document.getElementById("completionPct").textContent = completionPct + "%";
+  requestAnimationFrame(() => {
+    document.getElementById("completionBarFill").style.width = completionPct + "%";
+  });
+
+  // ---------------------------------------------------------------------
+  // SVG SETUP
+  // ---------------------------------------------------------------------
+  const svgEl = document.getElementById("graph");
+  const mainEl = document.querySelector("main");
+  let width = mainEl.clientWidth;
+  let height = mainEl.clientHeight;
+
+  const svg = d3.select(svgEl).attr("viewBox", [0, 0, width, height]);
+  const zoomLayer = svg.append("g");
+
+  svg.call(
+    d3.zoom()
+      .scaleExtent([0.35, 2.5])
+      .on("zoom", (event) => zoomLayer.attr("transform", event.transform))
+  );
+
+  const linkSelection = zoomLayer
+    .append("g")
+    .attr("class", "links")
+    .selectAll("line")
+    .data(links)
+    .join("line")
+    .attr("class", "link");
+
+  const nodeGroup = zoomLayer
+    .append("g")
+    .attr("class", "nodes")
+    .selectAll("g")
+    .data(nodes, (d) => d.id)
+    .join("g")
+    .attr("class", (d) => `node-group state-${d.state}`);
+
+  nodeGroup
+    .append("circle")
+    .attr("class", "node-halo")
+    .attr("r", (d) => d.r + 7)
+    .attr("fill", (d) => STATE_COLOR[d.state]);
+
+  nodeGroup
+    .append("circle")
+    .attr("class", "node-circle")
+    .attr("r", (d) => d.r)
+    .attr("fill", (d) => STATE_COLOR[d.state])
+    .attr("fill-opacity", (d) => (d.state === 0 ? 0.55 : 1))
+    .attr("stroke", (d) => STATE_STROKE[d.state])
+    .style("filter", (d) => (d.state === 2 ? `drop-shadow(0 0 6px ${resolveVar("--state-2")}aa)` : "none"));
+
+  nodeGroup
+    .append("text")
+    .attr("class", "node-label")
+    .attr("dy", (d) => d.r + 13)
+    .text((d) => d.name);
+
+  function resolveVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  // ---------------------------------------------------------------------
+  // FORCE SIMULATION — arranged readably, then settles (no perpetual jitter)
+  // ---------------------------------------------------------------------
+  const simulation = d3
+    .forceSimulation(nodes)
+    .force("link", d3.forceLink(links).id((d) => d.id).distance(70).strength(0.7))
+    .force("charge", d3.forceManyBody().strength(-260))
+    .force("center", d3.forceCenter(width / 2, height / 2))
+    .force("collide", d3.forceCollide().radius((d) => d.r + 22))
+    .alphaDecay(0.035) // settles in a few seconds rather than drifting indefinitely
+    .velocityDecay(0.35);
+
+  simulation.on("tick", () => {
+    linkSelection
+      .attr("x1", (d) => d.source.x)
+      .attr("y1", (d) => d.source.y)
+      .attr("x2", (d) => d.target.x)
+      .attr("y2", (d) => d.target.y);
+
+    nodeGroup.attr("transform", (d) => `translate(${d.x},${d.y})`);
+  });
+
+  window.addEventListener("resize", () => {
+    width = mainEl.clientWidth;
+    height = mainEl.clientHeight;
+    svg.attr("viewBox", [0, 0, width, height]);
+    simulation.force("center", d3.forceCenter(width / 2, height / 2));
+    simulation.alpha(0.3).restart();
+  });
+
+  // ---------------------------------------------------------------------
+  // HOVER TOOLTIP + CLICK DETAIL PANEL
+  // ---------------------------------------------------------------------
+  const hoverTooltip = document.getElementById("hoverTooltip");
+  const detailPanel = document.getElementById("detailPanel");
+  const detailName = document.getElementById("detailName");
+  const detailDescription = document.getElementById("detailDescription");
+  const detailChip = document.getElementById("detailChip");
+  const detailChipDot = detailChip.querySelector(".dot");
+  const detailChipText = detailChip.querySelector(".chip-text");
+  const mainRect = () => mainEl.getBoundingClientRect();
+
+  nodeGroup
+    .on("mouseenter", (event, d) => {
+      const rect = mainRect();
+      hoverTooltip.textContent = d.name;
+      hoverTooltip.style.left = event.clientX - rect.left + "px";
+      hoverTooltip.style.top = event.clientY - rect.top + "px";
+      hoverTooltip.classList.add("visible");
+    })
+    .on("mousemove", (event) => {
+      const rect = mainRect();
+      hoverTooltip.style.left = event.clientX - rect.left + "px";
+      hoverTooltip.style.top = event.clientY - rect.top + "px";
+    })
+    .on("mouseleave", () => {
+      hoverTooltip.classList.remove("visible");
+    })
+    .on("click", (event, d) => {
+      detailName.textContent = d.name;
+      detailDescription.textContent = d.description;
+      detailChipDot.style.background = STATE_COLOR[d.state];
+      detailChipText.textContent = STATE_LABEL[d.state];
+      detailPanel.classList.add("visible");
+    });
+
+  document.getElementById("detailClose").addEventListener("click", () => {
+    detailPanel.classList.remove("visible");
+  });
+</script>
+</body>
+</html>

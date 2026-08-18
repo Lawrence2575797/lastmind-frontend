@@ -328,6 +328,294 @@
         white-space: normal;
     }
 
+    /* "Your Progress" knowledge map — same full-page overlay pattern as
+       .sidebar-calendar.fullscreen above (display:none until opened, then
+       position:fixed/inset:0), but its own three mastery-state colours
+       layered onto the app's existing warm dark palette rather than a
+       separate colour scheme — mastered reuses --accent itself (the same
+       gold that already means "correct"/"mastered" everywhere else in
+       this app), not a different colour for the same idea. */
+    .knowledge-map-view {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 150;
+        width: 100vw;
+        height: 100vh;
+        background: var(--bg);
+        flex-direction: column;
+    }
+
+    .knowledge-map-view.fullscreen {
+        display: flex;
+    }
+
+    .km-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 20px;
+        padding: 24px clamp(16px, 6vw, 90px) 18px;
+        border-bottom: 1px solid rgba(230, 215, 176, 0.14);
+        flex-shrink: 0;
+    }
+
+    .km-header-title h3 {
+        margin: 0;
+        font-size: 1.4rem;
+    }
+
+    .km-header-title p {
+        margin: 4px 0 0;
+        font-size: 0.82rem;
+        opacity: 0.6;
+    }
+
+    .km-completion-stat {
+        text-align: right;
+        flex-shrink: 0;
+    }
+
+    .km-pct {
+        font-size: 1.7rem;
+        font-weight: 700;
+        color: var(--accent);
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .km-pct-label {
+        font-size: 0.68rem;
+        opacity: 0.6;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-top: 4px;
+    }
+
+    .km-completion-bar {
+        width: 200px;
+        height: 4px;
+        border-radius: 3px;
+        background: rgba(230, 215, 176, 0.12);
+        overflow: hidden;
+        margin-top: 8px;
+    }
+
+    .km-completion-bar-fill {
+        height: 100%;
+        background: var(--accent);
+        border-radius: 3px;
+        transition: width 0.6s ease;
+    }
+
+    .km-header .btn {
+        border: 1px solid rgba(230, 215, 176, 0.25);
+        border-radius: 6px;
+        padding: 6px 10px;
+        opacity: 0.7;
+    }
+
+    .km-header .btn:hover { opacity: 1; }
+
+    .km-body {
+        position: relative;
+        flex: 1;
+        min-height: 0;
+    }
+
+    #kmSvg {
+        width: 100%;
+        height: 100%;
+        display: block;
+    }
+
+    .km-link {
+        stroke: rgba(230, 215, 176, 0.14);
+        stroke-width: 1.3px;
+        fill: none;
+    }
+
+    .km-node-label {
+        font-size: 10px;
+        fill: var(--text);
+        opacity: 0.55;
+        pointer-events: none;
+        text-anchor: middle;
+        paint-order: stroke;
+        stroke: var(--bg);
+        stroke-width: 3px;
+        stroke-linejoin: round;
+    }
+
+    .km-node-group.state-2 .km-node-label {
+        opacity: 0.9;
+    }
+
+    .km-node-halo {
+        fill: none;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+    }
+
+    .km-node-group:hover .km-node-halo {
+        opacity: 0.3;
+    }
+
+    .km-node-circle {
+        stroke-width: 1.5px;
+    }
+
+    /* Not covered — dim, muted grey-brown so it recedes into the dark
+       background. Due for review — a warm terracotta/amber, distinct
+       from --accent without clashing with it. Mastered — --accent itself,
+       full brightness with a soft glow. */
+    .km-dot-0, .state-0 .km-node-circle, .state-0.km-legend-dot { fill: #4a453e; }
+    .km-dot-1, .state-1 .km-node-circle, .state-1.km-legend-dot { fill: #c98a4b; }
+    .km-dot-2, .state-2 .km-node-circle, .state-2.km-legend-dot { fill: var(--accent); }
+
+    .km-legend-dot.km-dot-0, .km-detail-chip .dot.km-dot-0 { background: #4a453e; }
+    .km-legend-dot.km-dot-1, .km-detail-chip .dot.km-dot-1 { background: #c98a4b; }
+    .km-legend-dot.km-dot-2, .km-detail-chip .dot.km-dot-2 { background: var(--accent); }
+
+    .km-legend {
+        position: absolute;
+        left: 24px;
+        bottom: 24px;
+        background: rgba(32, 31, 33, 0.9);
+        border: 1px solid rgba(230, 215, 176, 0.14);
+        border-radius: 10px;
+        padding: 12px 16px;
+        backdrop-filter: blur(6px);
+        font-size: 12px;
+        opacity: 0.85;
+    }
+
+    .km-legend-title {
+        font-size: 10.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        opacity: 0.6;
+        margin-bottom: 8px;
+    }
+
+    .km-legend-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+        font-size: 12px;
+    }
+
+    .km-legend-row:last-child { margin-bottom: 0; }
+
+    .km-legend-dot {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        display: inline-block;
+    }
+
+    .km-detail-panel {
+        position: absolute;
+        right: 24px;
+        top: 24px;
+        width: 300px;
+        background: rgba(32, 31, 33, 0.94);
+        border: 1px solid rgba(230, 215, 176, 0.16);
+        border-radius: 12px;
+        padding: 18px 20px;
+        backdrop-filter: blur(8px);
+        opacity: 0;
+        transform: translateY(-6px);
+        pointer-events: none;
+        transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+
+    .km-detail-panel.visible {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+    }
+
+    .km-detail-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 10.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 3px 9px;
+        border-radius: 20px;
+        border: 1px solid rgba(230, 215, 176, 0.2);
+        opacity: 0.7;
+        margin-bottom: 12px;
+    }
+
+    .km-detail-chip .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+    }
+
+    .km-detail-panel h2 {
+        margin: 0 0 8px;
+        font-size: 15px;
+    }
+
+    .km-detail-panel p {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.55;
+        opacity: 0.75;
+    }
+
+    .km-detail-close {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        background: none;
+        border: none;
+        color: var(--text);
+        opacity: 0.6;
+        font-size: 14px;
+        cursor: pointer;
+        line-height: 1;
+        padding: 4px;
+    }
+
+    .km-detail-close:hover { opacity: 1; }
+
+    .km-hover-tooltip {
+        position: absolute;
+        pointer-events: none;
+        background: rgba(20, 19, 20, 0.96);
+        border: 1px solid rgba(230, 215, 176, 0.18);
+        border-radius: 6px;
+        padding: 5px 10px;
+        font-size: 12px;
+        opacity: 0;
+        transition: opacity 0.12s ease;
+        white-space: nowrap;
+        transform: translate(-50%, -130%);
+    }
+
+    .km-hover-tooltip.visible {
+        opacity: 1;
+    }
+
+    .km-empty-state {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0.55;
+        font-size: 0.9rem;
+        text-align: center;
+        padding: 0 40px;
+    }
+
     .calendar-header {
         display: flex;
         align-items: center;
@@ -2251,6 +2539,9 @@
      instead of routed through MathQuill at all) -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.js"></script>
+<!-- Renders the "Your Progress" knowledge map (see openKnowledgeMap) —
+     force-directed layout of the student's own dependency graph. -->
+<script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
 <body>
 
@@ -2299,6 +2590,42 @@
                 <div class="calendar-grid" id="calendarGrid"></div>
             </div>
 
+            <!-- "Your Progress" — the knowledge-map visualisation (see
+                 openKnowledgeMap/renderKnowledgeMapGraph). Same full-page
+                 pattern as sidebarCalendar above: display:none by default,
+                 only ever shown via .fullscreen (position:fixed, inset:0),
+                 opened from the topbar's progressTopbarBtn. -->
+            <div class="knowledge-map-view" id="knowledgeMapView">
+                <div class="km-header">
+                    <div class="km-header-title">
+                        <h3 id="kmTitle">Your Progress</h3>
+                        <p id="kmSubtitle">Every concept you're building toward, and how solid it is.</p>
+                    </div>
+                    <div class="km-completion-stat">
+                        <div class="km-pct" id="kmCompletionPct">0%</div>
+                        <div class="km-pct-label">Mastered</div>
+                        <div class="km-completion-bar"><div class="km-completion-bar-fill" id="kmCompletionBarFill" style="width:0%"></div></div>
+                    </div>
+                    <button class="btn" id="kmCloseBtn" type="button" title="Close">✕</button>
+                </div>
+                <div class="km-body" id="kmBody">
+                    <svg id="kmSvg"></svg>
+                    <div class="km-legend">
+                        <div class="km-legend-title">Mastery</div>
+                        <div class="km-legend-row"><span class="km-legend-dot km-dot-0"></span> Not covered</div>
+                        <div class="km-legend-row"><span class="km-legend-dot km-dot-1"></span> Due for review</div>
+                        <div class="km-legend-row"><span class="km-legend-dot km-dot-2"></span> Mastered</div>
+                    </div>
+                    <div class="km-detail-panel" id="kmDetailPanel">
+                        <button class="km-detail-close" id="kmDetailClose">✕</button>
+                        <div class="km-detail-chip" id="kmDetailChip"><span class="dot"></span><span class="chip-text"></span></div>
+                        <h2 id="kmDetailName"></h2>
+                        <p id="kmDetailDescription"></p>
+                    </div>
+                    <div class="km-hover-tooltip" id="kmHoverTooltip"></div>
+                </div>
+            </div>
+
             <div class="sidebar-footer">
                 <button class="manage-subscription-btn" id="myAccountBtn">My Account</button>
             </div>
@@ -2310,6 +2637,7 @@
                 <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">☰</button>
                 <span class="topbar-title" id="topbarTitle">Dashboard</span>
                 <button class="cortex-btn-topbar" id="customiseTuteeBtn" type="button">🐣 Customise your tutee</button>
+                <button class="cortex-btn-topbar" id="progressTopbarBtn" type="button">🗺️ Your Progress</button>
                 <button class="cortex-btn-topbar" id="calendarTopbarBtn" type="button">📅 Calendar</button>
             </div>
 
@@ -8206,6 +8534,205 @@ SQIDAQAB
         if (e.key === 'Escape' && document.getElementById('sidebarCalendar').classList.contains('fullscreen')) {
             setCalendarFullscreen(false);
         }
+        if (e.key === 'Escape' && document.getElementById('knowledgeMapView').classList.contains('fullscreen')) {
+            setKnowledgeMapFullscreen(false);
+        }
+    });
+
+    // ─── "Your Progress" knowledge map ──────────────────────────────────
+    // Same full-page-overlay pattern as the calendar above. Standalone
+    // prototype lives at prototypes/knowledge-map/index.html (EC104,
+    // hardcoded sample data) — this is that same rendering logic wired to
+    // a live per-student fetch instead.
+    //
+    // EXPECTED ENDPOINT CONTRACT (backend not yet built — wire your own):
+    //   GET /knowledge-map, Authorization: Bearer <access_token>
+    //   -> {
+    //        nodes: [{ id: string, name: string, description: string }],
+    //        edges: [{ source: string, target: string }],  // source = prerequisite, target = depends-on-it
+    //        mastery: { [nodeId: string]: 0 | 1 | 2 }       // 0 not covered, 1 due for review, 2 mastered
+    //      }
+    //   A natural server-side source for `mastery`: dependency_chains for
+    //   whichever scope this covers, joined against this user's own
+    //   concept_reviews rows — no row for a node id => 0; a row that
+    //   exists but doesn't clear getMasteryStatus's own MASTERY_STABILITY_
+    //   THRESHOLD/MIN_REPS_FOR_TRUST bar => 1; a row that does => 2. Keeps
+    //   "mastered" meaning the exact same thing here as it does everywhere
+    //   else FSRS stability already drives a decision in this app.
+    let kmSimulation = null;
+
+    async function fetchKnowledgeMapData() {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return null;
+
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+
+            return await resp.json();
+        } catch (err) {
+            console.error('LastMind: failed to load knowledge map data.', err);
+            return null;
+        }
+    }
+
+    function setKnowledgeMapFullscreen(on) {
+        const view = document.getElementById('knowledgeMapView');
+        view.classList.toggle('fullscreen', on);
+        if (!on && kmSimulation) {
+            // No point burning CPU animating a settle the student can't
+            // see — stopped on close, a fresh one starts on next open.
+            kmSimulation.stop();
+            kmSimulation = null;
+        }
+    }
+
+    async function openKnowledgeMap() {
+        setKnowledgeMapFullscreen(true);
+        const body = document.getElementById('kmBody');
+        body.querySelectorAll('.km-empty-state').forEach((el) => el.remove());
+        document.getElementById('kmDetailPanel').classList.remove('visible');
+
+        const data = await fetchKnowledgeMapData();
+        if (!data || !Array.isArray(data.nodes) || !data.nodes.length) {
+            document.getElementById('kmCompletionPct').textContent = '0%';
+            document.getElementById('kmCompletionBarFill').style.width = '0%';
+            d3.select('#kmSvg').selectAll('*').remove();
+            const empty = document.createElement('div');
+            empty.className = 'km-empty-state';
+            empty.textContent = 'Nothing to show yet — your progress map fills in as you start covering concepts.';
+            body.appendChild(empty);
+            return;
+        }
+        renderKnowledgeMapGraph(data);
+    }
+
+    // Renders the force-directed graph into #kmSvg. Deliberately NOT
+    // draggable — the layout is something to read, not rearrange; a
+    // student's map should look the same every time they open it rather
+    // than reflecting wherever they last dragged something. Zoom/pan
+    // (via d3.zoom) stays available for a graph too big to read at once.
+    function renderKnowledgeMapGraph(chainData) {
+        const svgEl = document.getElementById('kmSvg');
+        const bodyEl = document.getElementById('kmBody');
+        const width = bodyEl.clientWidth;
+        const height = bodyEl.clientHeight;
+
+        const nodeById = new Map(chainData.nodes.map((n) => [n.id, n]));
+        const mastery = chainData.mastery || {};
+
+        const degree = new Map(chainData.nodes.map((n) => [n.id, 0]));
+        (chainData.edges || []).forEach((e) => {
+            if (!nodeById.has(e.source) || !nodeById.has(e.target)) return;
+            degree.set(e.source, (degree.get(e.source) || 0) + 1);
+            degree.set(e.target, (degree.get(e.target) || 0) + 1);
+        });
+        const maxDegree = Math.max(1, ...degree.values());
+        const radiusScale = d3.scaleSqrt().domain([0, maxDegree]).range([7, 15]);
+
+        const nodes = chainData.nodes.map((n) => ({
+            ...n,
+            state: mastery[n.id] ?? 0,
+            r: radiusScale(degree.get(n.id) || 0)
+        }));
+        const links = (chainData.edges || [])
+            .filter((e) => nodeById.has(e.source) && nodeById.has(e.target))
+            .map((e) => ({ source: e.source, target: e.target }));
+
+        const masteredCount = nodes.filter((n) => n.state === 2).length;
+        const pct = Math.round((masteredCount / nodes.length) * 100);
+        document.getElementById('kmCompletionPct').textContent = pct + '%';
+        requestAnimationFrame(() => {
+            document.getElementById('kmCompletionBarFill').style.width = pct + '%';
+        });
+
+        const svg = d3.select(svgEl);
+        svg.selectAll('*').remove();
+        svg.attr('viewBox', [0, 0, width, height]);
+        const zoomLayer = svg.append('g');
+        svg.call(d3.zoom().scaleExtent([0.35, 2.5]).on('zoom', (event) => zoomLayer.attr('transform', event.transform)));
+
+        const linkSelection = zoomLayer.append('g').selectAll('line')
+            .data(links).join('line').attr('class', 'km-link');
+
+        const nodeGroup = zoomLayer.append('g').selectAll('g')
+            .data(nodes, (d) => d.id).join('g')
+            .attr('class', (d) => `km-node-group state-${d.state}`);
+
+        nodeGroup.append('circle')
+            .attr('class', 'km-node-halo')
+            .attr('r', (d) => d.r + 6);
+
+        nodeGroup.append('circle')
+            .attr('class', 'km-node-circle')
+            .attr('r', (d) => d.r)
+            .attr('fill-opacity', (d) => (d.state === 0 ? 0.55 : 1));
+
+        nodeGroup.append('text')
+            .attr('class', 'km-node-label')
+            .attr('dy', (d) => d.r + 12)
+            .text((d) => d.name);
+
+        if (kmSimulation) kmSimulation.stop();
+        kmSimulation = d3.forceSimulation(nodes)
+            .force('link', d3.forceLink(links).id((d) => d.id).distance(65).strength(0.7))
+            .force('charge', d3.forceManyBody().strength(-230))
+            .force('center', d3.forceCenter(width / 2, height / 2))
+            .force('collide', d3.forceCollide().radius((d) => d.r + 20))
+            .alphaDecay(0.035) // settles in a few seconds, no perpetual jitter
+            .velocityDecay(0.35)
+            .on('tick', () => {
+                linkSelection
+                    .attr('x1', (d) => d.source.x).attr('y1', (d) => d.source.y)
+                    .attr('x2', (d) => d.target.x).attr('y2', (d) => d.target.y);
+                nodeGroup.attr('transform', (d) => `translate(${d.x},${d.y})`);
+            });
+
+        const hoverTooltip = document.getElementById('kmHoverTooltip');
+        const detailPanel = document.getElementById('kmDetailPanel');
+        const detailName = document.getElementById('kmDetailName');
+        const detailDescription = document.getElementById('kmDetailDescription');
+        const detailChip = document.getElementById('kmDetailChip');
+        const detailChipDot = detailChip.querySelector('.dot');
+        const detailChipText = detailChip.querySelector('.chip-text');
+        const stateLabel = { 0: 'Not covered', 1: 'Due for review', 2: 'Mastered' };
+        const stateClass = { 0: 'km-dot-0', 1: 'km-dot-1', 2: 'km-dot-2' };
+
+        nodeGroup
+            .on('mouseenter', (event, d) => {
+                const rect = bodyEl.getBoundingClientRect();
+                hoverTooltip.textContent = d.name;
+                hoverTooltip.style.left = (event.clientX - rect.left) + 'px';
+                hoverTooltip.style.top = (event.clientY - rect.top) + 'px';
+                hoverTooltip.classList.add('visible');
+            })
+            .on('mousemove', (event) => {
+                const rect = bodyEl.getBoundingClientRect();
+                hoverTooltip.style.left = (event.clientX - rect.left) + 'px';
+                hoverTooltip.style.top = (event.clientY - rect.top) + 'px';
+            })
+            .on('mouseleave', () => hoverTooltip.classList.remove('visible'))
+            .on('click', (event, d) => {
+                detailName.textContent = d.name;
+                detailDescription.textContent = d.description || '';
+                detailChipDot.className = 'dot ' + stateClass[d.state];
+                detailChipText.textContent = stateLabel[d.state];
+                detailPanel.classList.add('visible');
+            });
+    }
+
+    document.getElementById('progressTopbarBtn').addEventListener('click', () => {
+        openKnowledgeMap();
+    });
+
+    document.getElementById('kmCloseBtn').addEventListener('click', () => {
+        setKnowledgeMapFullscreen(false);
+    });
+
+    document.getElementById('kmDetailClose').addEventListener('click', () => {
+        document.getElementById('kmDetailPanel').classList.remove('visible');
     });
 
     // Add-to-day modal — Busy (time range only) or Exam (an existing
