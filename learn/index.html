@@ -2695,6 +2695,7 @@
                 <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">☰</button>
                 <span class="topbar-title" id="topbarTitle">Dashboard</span>
                 <button class="cortex-btn-topbar" id="customiseTuteeBtn" type="button">🐣 Customise your tutee</button>
+                <button class="cortex-btn-topbar" id="tutoringOptInBtn" type="button">🤝 Peer tutoring</button>
                 <button class="cortex-btn-topbar" id="progressTopbarBtn" type="button">🗺️ Your Progress</button>
                 <button class="cortex-btn-topbar" id="calendarTopbarBtn" type="button">📅 Calendar</button>
             </div>
@@ -2901,6 +2902,29 @@
         <div class="modal-actions">
             <button class="btn" id="cancelTuteeBtn">Cancel</button>
             <button class="btn primary" id="saveTuteeBtn">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- ─── PEER TUTORING OPT-IN MODAL ─── -->
+<div class="modal-overlay" id="tutoringOptInModalOverlay">
+    <div class="modal">
+        <h3>Peer tutoring</h3>
+        <p style="font-family:'Arial', sans-serif; font-size:0.82rem; opacity:0.65; margin-bottom:14px;">Opt in to both ask for and offer help — you'll only ever be matched with someone whose understanding of a specific concept is genuinely verified, not just self-claimed, and you'll only ever be offered help on things you've actually mastered yourself.</p>
+
+        <div class="field">
+            <label for="tutoringOptInNameInput">Name shown to matched peers (optional)</label>
+            <input type="text" id="tutoringOptInNameInput" placeholder="e.g. Sam" maxlength="40">
+        </div>
+
+        <label class="dont-know-label" style="margin-bottom:4px;">
+            <input type="checkbox" id="tutoringOptInCheckbox">
+            I want to take part in peer tutoring
+        </label>
+
+        <div class="modal-actions">
+            <button class="btn" id="cancelTutoringOptInBtn">Cancel</button>
+            <button class="btn primary" id="saveTutoringOptInBtn">Save</button>
         </div>
     </div>
 </div>
@@ -8075,6 +8099,51 @@ SQIDAQAB
     function closeTuteeModal() {
         document.getElementById('tuteeModalOverlay').classList.remove('open');
     }
+
+    // Peer tutoring opt-in — deliberately thin (Phase 0 of the peer-
+    // tutoring plan): just a name + a boolean. Nothing here gates on
+    // school affiliation yet (see the plan's own "Deferred" section) —
+    // only later phases' matching logic will.
+    async function openTutoringOptInModal() {
+        document.getElementById('tutoringOptInModalOverlay').classList.add('open');
+        try {
+            const accessToken = await getSyncAccessToken();
+            if (!accessToken) return;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/tutoring-profile`, {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            if (!resp.ok) return;
+            const profile = await resp.json();
+            document.getElementById('tutoringOptInNameInput').value = profile.displayName || '';
+            document.getElementById('tutoringOptInCheckbox').checked = !!profile.tutoringOptIn;
+        } catch (err) {
+            console.error('LastMind: failed to load tutoring profile.', err);
+        }
+    }
+    function closeTutoringOptInModal() {
+        document.getElementById('tutoringOptInModalOverlay').classList.remove('open');
+    }
+    document.getElementById('tutoringOptInBtn').addEventListener('click', openTutoringOptInModal);
+    document.getElementById('cancelTutoringOptInBtn').addEventListener('click', closeTutoringOptInModal);
+    document.getElementById('tutoringOptInModalOverlay').addEventListener('click', (e) => {
+        if (e.target.id === 'tutoringOptInModalOverlay') closeTutoringOptInModal();
+    });
+    document.getElementById('saveTutoringOptInBtn').addEventListener('click', async () => {
+        const displayName = document.getElementById('tutoringOptInNameInput').value.trim() || null;
+        const tutoringOptIn = document.getElementById('tutoringOptInCheckbox').checked;
+        closeTutoringOptInModal();
+        try {
+            const accessToken = await getSyncAccessToken();
+            if (!accessToken) return;
+            await fetch(`${COMPILE_BACKEND_URL}/tutoring-profile`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                body: JSON.stringify({ displayName, tutoringOptIn })
+            });
+        } catch (err) {
+            console.error('LastMind: failed to save tutoring profile.', err);
+        }
+    });
 
     document.getElementById('customiseTuteeBtn').addEventListener('click', openTuteeModal);
     document.getElementById('cancelTuteeBtn').addEventListener('click', closeTuteeModal);
