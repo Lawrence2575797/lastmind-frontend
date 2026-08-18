@@ -6269,30 +6269,39 @@ SQIDAQAB
                 lineWrap.appendChild(field);
                 lines.appendChild(lineWrap);
                 const mq = MQ.MathField(field, {});
-                // MathQuill 0.10.1's own `handlers.enter` config only ever
-                // fires on a PASTE containing a newline, not on an actual
-                // Enter/Return keypress (confirmed against its source —
-                // the only handle('enter') call site is inside its paste
-                // handler) — a real keypress is otherwise a silent no-op in
-                // a plain math field. Capturing it here instead: adds a new
-                // line and moves straight into it, same as clicking
-                // "+ Add line", so the student never has to reach for the
-                // button mid-flow. Capture phase (not bubble) so this runs
-                // before MathQuill's own textarea keydown handler and can
-                // reliably stop it from doing anything else with the key.
-                field.addEventListener('keydown', (e) => {
-                    if (disabled) return;
-                    if (e.key !== 'Enter' && e.key !== 'Return') return;
-                    e.preventDefault();
-                    e.stopPropagation();
-                    addLine(true);
-                }, true);
                 mathFields.push(mq);
                 if (focus) mq.focus();
                 return mq;
             }
 
             addLine(false);
+
+            // Enter starts a new working line automatically — the student
+            // should never need to know to press a button for this, it
+            // should just happen. MathQuill 0.10.1's own `handlers.enter`
+            // config only ever fires on a PASTE containing a newline, not
+            // on an actual Enter/Return keypress (confirmed against its
+            // source — the only handle('enter') call site is inside its
+            // paste handler), so a real keypress is otherwise a silent
+            // no-op in a plain math field. Listens at the DOCUMENT level in
+            // the CAPTURE phase, filtered to "did this happen somewhere
+            // inside THIS widget" (rather than on each individual field's
+            // own element) — MathQuill builds its real keyboard-receiving
+            // textarea as its own nested structure that a field-scoped
+            // listener isn't reliably ahead of; a document-level capture
+            // listener always runs first regardless of exactly where that
+            // structure ends up, and reliably stops MathQuill's own
+            // handling of the key. One listener per widget, not per line —
+            // it just always adds a fresh line at the end and focuses it,
+            // same as clicking "+ Add line".
+            document.addEventListener('keydown', (e) => {
+                if (disabled) return;
+                if (e.key !== 'Enter' && e.key !== 'Return') return;
+                if (!wrap.contains(e.target)) return;
+                e.preventDefault();
+                e.stopPropagation();
+                addLine(true);
+            }, true);
 
             const addLineBtn = document.createElement('button');
             addLineBtn.type = 'button';
