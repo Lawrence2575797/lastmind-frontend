@@ -471,6 +471,27 @@
         fill: none;
     }
 
+    /* Soft subfolder groupings — deliberately neutral (not topic-coloured)
+       since node fill is already reserved for mastery state. A background
+       region to read as "these belong together", not a hard partition —
+       cross-group edges still draw straight through it. */
+    .km-cluster-hull {
+        fill: rgba(230, 215, 176, 0.035);
+        stroke: rgba(230, 215, 176, 0.1);
+        stroke-width: 1px;
+    }
+
+    .km-cluster-label {
+        fill: var(--text);
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        text-anchor: middle;
+        opacity: 0.5;
+        pointer-events: none;
+    }
+
     .km-node-label {
         font-size: 10px;
         fill: var(--text);
@@ -8590,7 +8611,10 @@ SQIDAQAB
     // can never list a folder that doesn't really exist).
     //
     // Backend route: POST /knowledge-map (see routes/knowledgeMap.ts) ->
-    // { nodes: [{id,name}], edges: [{source,target}], mastery: {[nodeId]: 0|1|2} }.
+    // { nodes: [{id,name,topics}], edges: [{source,target}], mastery: {[nodeId]: 0|1|2} }.
+    // node.topics is every subfolder whose own concept-chain pulled that
+    // node in (see knowledgeMapService.ts) — drives the soft per-subfolder
+    // clustering in renderKnowledgeMapGraph below.
     // subject/qualification/examBoard/customTitle/customDescription
     // identify the folder exactly the way encoding-lesson/chain routes
     // already do; `concepts` (built by collectFolderConcepts below) is
@@ -8783,6 +8807,75 @@ SQIDAQAB
         const zoomLayer = svg.append('g');
         svg.call(d3.zoom().scaleExtent([0.35, 2.5]).on('zoom', (event) => zoomLayer.attr('transform', event.transform)));
 
+        // ─── Subfolder clustering ────────────────────────────────────
+        // A node with exactly one topic (see knowledgeMapService.ts's own
+        // `topics` field) clusters toward that subfolder's own anchor
+        // point; a node shared across several topics — a genuine
+        // cross-cutting prerequisite — is pulled toward the AVERAGE of
+        // its topics' anchors, so it visually settles between the groups
+        // that actually depend on it rather than being forced arbitrarily
+        // into one. Cross-subfolder EDGES are never hidden or treated
+        // specially — `links` above already includes every one of them
+        // regardless of which topic(s) either end belongs to.
+        const topicsPresent = Array.from(new Set(nodes.flatMap((n) => (n.topics && n.topics.length ? n.topics : ['General'])))).sort();
+        const clusteringEnabled = topicsPresent.length > 1;
+        const topicAnchors = new Map();
+        if (clusteringEnabled) {
+            const clusterRadius = Math.min(width, height) * 0.32;
+            topicsPresent.forEach((topic, i) => {
+                const angle = (i / topicsPresent.length) * Math.PI * 2 - Math.PI / 2;
+                topicAnchors.set(topic, {
+                    x: width / 2 + clusterRadius * Math.cos(angle),
+                    y: height / 2 + clusterRadius * Math.sin(angle)
+                });
+            });
+        }
+        nodes.forEach((n) => {
+            if (!clusteringEnabled) { n._clusterTarget = null; return; }
+            const topics = n.topics && n.topics.length ? n.topics : ['General'];
+            const anchors = topics.map((t) => topicAnchors.get(t)).filter(Boolean);
+            n._clusterTarget = anchors.length
+                ? { x: anchors.reduce((s, a) => s + a.x, 0) / anchors.length, y: anchors.reduce((s, a) => s + a.y, 0) / anchors.length }
+                : null;
+            // Only a node belonging to exactly one topic is eligible for a
+            // drawn hull outline — a multi-topic node genuinely doesn't
+            // belong to one group, so it stays out of every hull's point
+            // set (it's still pulled toward its blended target above,
+            // just without a boundary claiming it as any one subfolder's
+            // own).
+            n._soleTopic = topics.length === 1 ? topics[0] : null;
+        });
+
+        // Hulls appended first (behind links/nodes) so they read as soft
+        // background groupings, never occluding the actual graph.
+        const hullLayer = zoomLayer.append('g').attr('class', 'km-hulls');
+        const hullPaths = clusteringEnabled
+            ? hullLayer.selectAll('path').data(topicsPresent).join('path').attr('class', 'km-cluster-hull')
+            : null;
+        const hullLabels = clusteringEnabled
+            ? hullLayer.selectAll('text').data(topicsPresent).join('text').attr('class', 'km-cluster-label').text((t) => t)
+            : null;
+        const hullLine = d3.line().curve(d3.curveCatmullRomClosed.alpha(0.8));
+
+        function updateHulls() {
+            if (!clusteringEnabled) return;
+            topicsPresent.forEach((topic) => {
+                const points = nodes.filter((n) => n._soleTopic === topic).map((n) => [n.x, n.y]);
+                const hull = points.length >= 3 ? d3.polygonHull(points) : null;
+                if (!hull) return;
+                const centroid = d3.polygonCentroid(hull);
+                const padded = hull.map(([x, y]) => {
+                    const dx = x - centroid[0], dy = y - centroid[1];
+                    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                    const pad = 34; // node radius + label clearance
+                    return [x + (dx / dist) * pad, y + (dy / dist) * pad];
+                });
+                hullPaths.filter((t) => t === topic).attr('d', hullLine(padded));
+                const top = padded.reduce((best, p) => (p[1] < best[1] ? p : best), padded[0]);
+                hullLabels.filter((t) => t === topic).attr('x', centroid[0]).attr('y', top[1] - 10);
+            });
+        }
+
         const linkSelection = zoomLayer.append('g').selectAll('line')
             .data(links).join('line').attr('class', 'km-link');
 
@@ -8804,12 +8897,38 @@ SQIDAQAB
             .attr('dy', (d) => d.r + 12)
             .text((d) => d.name);
 
+        // Rough glyph-width estimate for the 10px label font — keeps a
+        // long label ("Allocative Efficiency & Total Welfare") from
+        // overlapping its neighbours by widening ITS collision radius
+        // specifically, rather than a flat bump that wastes space around
+        // short labels or still isn't enough for long ones.
+        function estimateLabelHalfWidth(name) {
+            return Math.min((name || '').length, 42) * 2.9 + 6;
+        }
+
+        // Gently nudges each node toward its subfolder's anchor — a
+        // genuine D3 force (called every tick with the current alpha),
+        // just a plain function rather than a built-in one. Deliberately
+        // weak (0.1) so link/charge/collide still shape the LOCAL layout
+        // within a cluster; this only pulls the cluster as a whole toward
+        // its own region of the canvas.
+        function clusterForce(alpha) {
+            if (!clusteringEnabled) return;
+            const strength = 0.1;
+            nodes.forEach((d) => {
+                if (!d._clusterTarget) return;
+                d.vx += (d._clusterTarget.x - d.x) * strength * alpha;
+                d.vy += (d._clusterTarget.y - d.y) * strength * alpha;
+            });
+        }
+
         if (kmSimulation) kmSimulation.stop();
         kmSimulation = d3.forceSimulation(nodes)
-            .force('link', d3.forceLink(links).id((d) => d.id).distance(65).strength(0.7))
-            .force('charge', d3.forceManyBody().strength(-230))
+            .force('link', d3.forceLink(links).id((d) => d.id).distance(85).strength(0.65))
+            .force('charge', d3.forceManyBody().strength(-420))
             .force('center', d3.forceCenter(width / 2, height / 2))
-            .force('collide', d3.forceCollide().radius((d) => d.r + 20))
+            .force('collide', d3.forceCollide().radius((d) => Math.max(d.r + 24, estimateLabelHalfWidth(d.name) + 10)).iterations(3))
+            .force('cluster', clusterForce)
             .alphaDecay(0.035) // settles in a few seconds, no perpetual jitter
             .velocityDecay(0.35)
             .on('tick', () => {
@@ -8817,6 +8936,7 @@ SQIDAQAB
                     .attr('x1', (d) => d.source.x).attr('y1', (d) => d.source.y)
                     .attr('x2', (d) => d.target.x).attr('y2', (d) => d.target.y);
                 nodeGroup.attr('transform', (d) => `translate(${d.x},${d.y})`);
+                updateHulls();
             });
 
         const hoverTooltip = document.getElementById('kmHoverTooltip');

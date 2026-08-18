@@ -120,6 +120,27 @@
     fill: none;
   }
 
+  /* Soft subfolder groupings — deliberately neutral (not topic-coloured)
+     since node fill is already reserved for mastery state. A background
+     region to read as "these belong together", not a hard partition —
+     cross-group edges still draw straight through it. */
+  .km-cluster-hull {
+    fill: rgba(230, 215, 176, 0.035);
+    stroke: rgba(230, 215, 176, 0.1);
+    stroke-width: 1px;
+  }
+
+  .km-cluster-label {
+    fill: var(--text-dim);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    text-anchor: middle;
+    opacity: 0.55;
+    pointer-events: none;
+  }
+
   .node-group {
     cursor: pointer;
   }
@@ -343,39 +364,45 @@
   // the integration version (knowledge-map.js) for the real fetch-from-API
   // version this becomes in learn/index.html.
   const EC104_CHAIN = {
+    // "topics" mirrors the real backend's per-node topic attribution (see
+    // knowledgeMapService.ts) — the subfolder(s) whose own concept-chain
+    // pulled this node in. A true shared root like scarcity/opportunity
+    // cost legitimately lists several; most nodes belong to exactly one,
+    // which is what lets them cluster tightly under their own subfolder
+    // below (see the clustering force + hull rendering further down).
     nodes: [
-      { id: "scarcity_opportunity_cost", name: "Scarcity & Opportunity Cost", description: "The basic economic problem: unlimited wants versus limited resources, and the true cost of any choice as the next best alternative given up." },
-      { id: "ppf", name: "Production Possibility Frontier", description: "A curve showing the maximum feasible combinations of two goods an economy can produce given fixed resources and technology, illustrating opportunity cost and trade-offs." },
-      { id: "specialisation_trade", name: "Specialisation & Comparative Advantage", description: "Why individuals, firms and countries gain by specialising in producing what they have a comparative advantage in and trading for the rest." },
-      { id: "demand_law", name: "Law of Demand", description: "The inverse relationship between price and quantity demanded, and what the demand curve represents." },
-      { id: "demand_determinants", name: "Determinants of Demand", description: "Non-price factors — income, tastes, prices of related goods, expectations — that shift the entire demand curve rather than moving along it." },
-      { id: "supply_law", name: "Law of Supply", description: "The relationship between price and quantity supplied, and what the supply curve represents." },
-      { id: "supply_determinants", name: "Determinants of Supply", description: "Non-price factors — input costs, technology, number of sellers — that shift the entire supply curve." },
-      { id: "market_equilibrium", name: "Market Equilibrium", description: "Where demand and supply curves intersect, setting the market-clearing price and quantity, and how the price mechanism restores equilibrium after a shock." },
-      { id: "ped", name: "Price Elasticity of Demand", description: "How responsive quantity demanded is to a change in price, and what determines whether demand is elastic or inelastic." },
-      { id: "pes", name: "Price Elasticity of Supply", description: "How responsive quantity supplied is to a change in price." },
-      { id: "yed", name: "Income Elasticity of Demand", description: "How responsive demand is to a change in income — used to classify goods as normal, inferior, or luxury." },
-      { id: "xed", name: "Cross Elasticity of Demand", description: "How responsive demand for one good is to a price change in another — used to classify goods as substitutes or complements." },
-      { id: "marginal_utility", name: "Marginal Utility", description: "The extra satisfaction from consuming one more unit of a good, and why it tends to diminish as consumption increases." },
-      { id: "indifference_curves", name: "Indifference Curves & MRS", description: "Curves representing combinations of two goods that give a consumer equal satisfaction, and the marginal rate of substitution between them." },
-      { id: "budget_constraint", name: "Budget Constraint", description: "The combinations of two goods a consumer can afford given their income and the goods' prices." },
-      { id: "consumer_optimisation", name: "Consumer Optimisation", description: "How a rational consumer chooses the affordable bundle that maximises utility, where the indifference curve is tangent to the budget constraint." },
-      { id: "demand_curve_derivation", name: "Deriving the Demand Curve", description: "Deriving the individual demand curve by tracing how the utility-maximising choice changes as price varies." },
-      { id: "consumer_surplus", name: "Consumer Surplus", description: "The difference between what consumers are willing to pay and what they actually pay, shown as the area under the demand curve and above price." },
-      { id: "cost_theory", name: "Costs of Production", description: "Fixed costs, variable costs, and how marginal and average costs behave as output changes in the short run." },
-      { id: "firm_profit_max", name: "Profit Maximisation", description: "The profit-maximising output rule: produce where marginal cost equals marginal revenue." },
-      { id: "supply_curve_derivation", name: "Deriving the Supply Curve", description: "Deriving the firm's supply curve from its marginal cost curve above the shutdown point." },
-      { id: "producer_surplus", name: "Producer Surplus", description: "The difference between the price producers receive and the minimum they'd be willing to accept, shown as the area above the supply curve and below price." },
-      { id: "market_efficiency", name: "Allocative Efficiency & Total Welfare", description: "How competitive equilibrium maximises total welfare (consumer plus producer surplus), and what allocative efficiency means." },
-      { id: "price_controls", name: "Price Ceilings & Floors", description: "The effects of price ceilings and price floors on quantity, shortages, surpluses, and welfare, given the relevant elasticities." },
-      { id: "taxes_subsidies", name: "Taxes, Subsidies & Incidence", description: "How a tax or subsidy shifts the effective supply or demand curve, and how its burden splits between buyers and sellers depending on elasticity." },
-      { id: "externalities", name: "Externalities", description: "Costs or benefits of a transaction that fall on third parties, and why this causes markets to over- or under-produce relative to the social optimum." },
-      { id: "public_goods", name: "Public Goods & Free-Rider Problem", description: "Goods that are non-excludable and non-rival, why free markets under-provide them, and the free-rider problem." },
-      { id: "circular_flow", name: "Circular Flow of Income", description: "The flow of income, spending, and output between households and firms, and how it extends to include government, financial and overseas sectors." },
-      { id: "gdp", name: "Measuring GDP", description: "Measuring the total value of output in an economy via the output, income, and expenditure approaches, and why they should be equal." },
-      { id: "inflation", name: "Inflation", description: "A sustained rise in the general price level, how it's measured, and its main causes." },
-      { id: "unemployment", name: "Unemployment", description: "How unemployment is measured and classified (frictional, structural, cyclical), and its economic costs." },
-      { id: "business_cycle", name: "The Business Cycle", description: "The recurring pattern of expansion and contraction in GDP, employment, and inflation around the long-run trend." }
+      { id: "scarcity_opportunity_cost", name: "Scarcity & Opportunity Cost", description: "The basic economic problem: unlimited wants versus limited resources, and the true cost of any choice as the next best alternative given up.", topics: ["Foundations", "Markets & Elasticity", "Consumer & Producer Theory", "Macroeconomics"] },
+      { id: "ppf", name: "Production Possibility Frontier", description: "A curve showing the maximum feasible combinations of two goods an economy can produce given fixed resources and technology, illustrating opportunity cost and trade-offs.", topics: ["Foundations"] },
+      { id: "specialisation_trade", name: "Specialisation & Comparative Advantage", description: "Why individuals, firms and countries gain by specialising in producing what they have a comparative advantage in and trading for the rest.", topics: ["Foundations"] },
+      { id: "demand_law", name: "Law of Demand", description: "The inverse relationship between price and quantity demanded, and what the demand curve represents.", topics: ["Markets & Elasticity"] },
+      { id: "demand_determinants", name: "Determinants of Demand", description: "Non-price factors — income, tastes, prices of related goods, expectations — that shift the entire demand curve rather than moving along it.", topics: ["Markets & Elasticity"] },
+      { id: "supply_law", name: "Law of Supply", description: "The relationship between price and quantity supplied, and what the supply curve represents.", topics: ["Markets & Elasticity"] },
+      { id: "supply_determinants", name: "Determinants of Supply", description: "Non-price factors — input costs, technology, number of sellers — that shift the entire supply curve.", topics: ["Markets & Elasticity"] },
+      { id: "market_equilibrium", name: "Market Equilibrium", description: "Where demand and supply curves intersect, setting the market-clearing price and quantity, and how the price mechanism restores equilibrium after a shock.", topics: ["Markets & Elasticity"] },
+      { id: "ped", name: "Price Elasticity of Demand", description: "How responsive quantity demanded is to a change in price, and what determines whether demand is elastic or inelastic.", topics: ["Markets & Elasticity"] },
+      { id: "pes", name: "Price Elasticity of Supply", description: "How responsive quantity supplied is to a change in price.", topics: ["Markets & Elasticity"] },
+      { id: "yed", name: "Income Elasticity of Demand", description: "How responsive demand is to a change in income — used to classify goods as normal, inferior, or luxury.", topics: ["Markets & Elasticity"] },
+      { id: "xed", name: "Cross Elasticity of Demand", description: "How responsive demand for one good is to a price change in another — used to classify goods as substitutes or complements.", topics: ["Markets & Elasticity"] },
+      { id: "marginal_utility", name: "Marginal Utility", description: "The extra satisfaction from consuming one more unit of a good, and why it tends to diminish as consumption increases.", topics: ["Consumer & Producer Theory"] },
+      { id: "indifference_curves", name: "Indifference Curves & MRS", description: "Curves representing combinations of two goods that give a consumer equal satisfaction, and the marginal rate of substitution between them.", topics: ["Consumer & Producer Theory"] },
+      { id: "budget_constraint", name: "Budget Constraint", description: "The combinations of two goods a consumer can afford given their income and the goods' prices.", topics: ["Consumer & Producer Theory"] },
+      { id: "consumer_optimisation", name: "Consumer Optimisation", description: "How a rational consumer chooses the affordable bundle that maximises utility, where the indifference curve is tangent to the budget constraint.", topics: ["Consumer & Producer Theory"] },
+      { id: "demand_curve_derivation", name: "Deriving the Demand Curve", description: "Deriving the individual demand curve by tracing how the utility-maximising choice changes as price varies.", topics: ["Consumer & Producer Theory"] },
+      { id: "consumer_surplus", name: "Consumer Surplus", description: "The difference between what consumers are willing to pay and what they actually pay, shown as the area under the demand curve and above price.", topics: ["Consumer & Producer Theory"] },
+      { id: "cost_theory", name: "Costs of Production", description: "Fixed costs, variable costs, and how marginal and average costs behave as output changes in the short run.", topics: ["Consumer & Producer Theory"] },
+      { id: "firm_profit_max", name: "Profit Maximisation", description: "The profit-maximising output rule: produce where marginal cost equals marginal revenue.", topics: ["Consumer & Producer Theory"] },
+      { id: "supply_curve_derivation", name: "Deriving the Supply Curve", description: "Deriving the firm's supply curve from its marginal cost curve above the shutdown point.", topics: ["Consumer & Producer Theory"] },
+      { id: "producer_surplus", name: "Producer Surplus", description: "The difference between the price producers receive and the minimum they'd be willing to accept, shown as the area above the supply curve and below price.", topics: ["Consumer & Producer Theory"] },
+      { id: "market_efficiency", name: "Allocative Efficiency & Total Welfare", description: "How competitive equilibrium maximises total welfare (consumer plus producer surplus), and what allocative efficiency means.", topics: ["Consumer & Producer Theory"] },
+      { id: "price_controls", name: "Price Ceilings & Floors", description: "The effects of price ceilings and price floors on quantity, shortages, surpluses, and welfare, given the relevant elasticities.", topics: ["Market Failure & Policy"] },
+      { id: "taxes_subsidies", name: "Taxes, Subsidies & Incidence", description: "How a tax or subsidy shifts the effective supply or demand curve, and how its burden splits between buyers and sellers depending on elasticity.", topics: ["Market Failure & Policy"] },
+      { id: "externalities", name: "Externalities", description: "Costs or benefits of a transaction that fall on third parties, and why this causes markets to over- or under-produce relative to the social optimum.", topics: ["Market Failure & Policy"] },
+      { id: "public_goods", name: "Public Goods & Free-Rider Problem", description: "Goods that are non-excludable and non-rival, why free markets under-provide them, and the free-rider problem.", topics: ["Market Failure & Policy"] },
+      { id: "circular_flow", name: "Circular Flow of Income", description: "The flow of income, spending, and output between households and firms, and how it extends to include government, financial and overseas sectors.", topics: ["Macroeconomics"] },
+      { id: "gdp", name: "Measuring GDP", description: "Measuring the total value of output in an economy via the output, income, and expenditure approaches, and why they should be equal.", topics: ["Macroeconomics"] },
+      { id: "inflation", name: "Inflation", description: "A sustained rise in the general price level, how it's measured, and its main causes.", topics: ["Macroeconomics"] },
+      { id: "unemployment", name: "Unemployment", description: "How unemployment is measured and classified (frictional, structural, cyclical), and its economic costs.", topics: ["Macroeconomics"] },
+      { id: "business_cycle", name: "The Business Cycle", description: "The recurring pattern of expansion and contraction in GDP, employment, and inflation around the long-run trend.", topics: ["Macroeconomics"] }
     ],
     edges: [
       { source: "scarcity_opportunity_cost", target: "ppf" },
@@ -496,6 +523,74 @@
       .on("zoom", (event) => zoomLayer.attr("transform", event.transform))
   );
 
+  // ---------------------------------------------------------------------
+  // SUBFOLDER CLUSTERING — soft grouping by topic, not a rigid partition.
+  // A node with exactly one topic clusters toward that topic's own anchor
+  // point; a node shared across several topics (a genuine cross-cutting
+  // prerequisite) is pulled toward the AVERAGE of its topics' anchors, so
+  // it visually settles between the groups that actually depend on it
+  // instead of being forced arbitrarily into one. Cross-topic EDGES are
+  // never hidden or treated specially — every edge in `links` renders
+  // regardless of which topic(s) either end belongs to.
+  // ---------------------------------------------------------------------
+  const topicsPresent = Array.from(new Set(nodes.flatMap((n) => (n.topics && n.topics.length ? n.topics : ["General"])))).sort();
+  const clusteringEnabled = topicsPresent.length > 1;
+  const topicAnchors = new Map();
+  if (clusteringEnabled) {
+    const clusterRadius = Math.min(width, height) * 0.32;
+    topicsPresent.forEach((topic, i) => {
+      const angle = (i / topicsPresent.length) * Math.PI * 2 - Math.PI / 2;
+      topicAnchors.set(topic, {
+        x: width / 2 + clusterRadius * Math.cos(angle),
+        y: height / 2 + clusterRadius * Math.sin(angle)
+      });
+    });
+  }
+  nodes.forEach((n) => {
+    if (!clusteringEnabled) { n._clusterTarget = null; return; }
+    const topics = n.topics && n.topics.length ? n.topics : ["General"];
+    const anchors = topics.map((t) => topicAnchors.get(t)).filter(Boolean);
+    n._clusterTarget = anchors.length
+      ? { x: anchors.reduce((s, a) => s + a.x, 0) / anchors.length, y: anchors.reduce((s, a) => s + a.y, 0) / anchors.length }
+      : null;
+    // Single-topic nodes are the only ones eligible for a drawn hull
+    // outline below — a multi-topic node genuinely doesn't belong to one
+    // group, so it's excluded from every hull's point set (it still gets
+    // pulled toward its blended target above, just without a boundary
+    // claiming it as any one subfolder's own).
+    n._soleTopic = topics.length === 1 ? topics[0] : null;
+  });
+
+  // Hulls drawn BEHIND the links/nodes (appended first) so they read as
+  // soft background groupings, never occluding the actual graph.
+  const hullLayer = zoomLayer.append("g").attr("class", "hulls");
+  const hullPaths = clusteringEnabled
+    ? hullLayer.selectAll("path").data(topicsPresent).join("path").attr("class", "km-cluster-hull")
+    : null;
+  const hullLabels = clusteringEnabled
+    ? hullLayer.selectAll("text").data(topicsPresent).join("text").attr("class", "km-cluster-label").text((t) => t)
+    : null;
+  const hullLine = d3.line().curve(d3.curveCatmullRomClosed.alpha(0.8));
+
+  function updateHulls() {
+    if (!clusteringEnabled) return;
+    topicsPresent.forEach((topic) => {
+      const points = nodes.filter((n) => n._soleTopic === topic).map((n) => [n.x, n.y]);
+      const hull = points.length >= 3 ? d3.polygonHull(points) : null;
+      if (!hull) return;
+      const centroid = d3.polygonCentroid(hull);
+      const padded = hull.map(([x, y]) => {
+        const dx = x - centroid[0], dy = y - centroid[1];
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const pad = 34; // node radius + label clearance
+        return [x + (dx / dist) * pad, y + (dy / dist) * pad];
+      });
+      hullPaths.filter((t) => t === topic).attr("d", hullLine(padded));
+      const top = padded.reduce((best, p) => (p[1] < best[1] ? p : best), padded[0]);
+      hullLabels.filter((t) => t === topic).attr("x", centroid[0]).attr("y", top[1] - 10);
+    });
+  }
+
   const linkSelection = zoomLayer
     .append("g")
     .attr("class", "links")
@@ -537,15 +632,43 @@
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   }
 
+  // Rough glyph-width estimate for the 10.5px label font — good enough to
+  // keep a long label ("Allocative Efficiency & Total Welfare") from
+  // overlapping its neighbours without measuring real DOM text metrics
+  // for every node on every resize. Used to widen the collision radius
+  // for nodes with long names specifically, rather than a flat bump that
+  // either wastes space around short labels or still isn't enough for
+  // long ones.
+  function estimateLabelHalfWidth(name) {
+    return Math.min((name || "").length, 42) * 2.9 + 6;
+  }
+
+  // Gently nudges each node toward its subfolder's anchor point (see
+  // topicAnchors above) — a genuine D3 force (called every tick with the
+  // current alpha), just a plain function rather than one of the built-in
+  // ones. Deliberately weak (0.1) so link/charge/collide still shape the
+  // LOCAL layout within a cluster; this only pulls the cluster as a whole
+  // toward its own region of the canvas.
+  function clusterForce(alpha) {
+    if (!clusteringEnabled) return;
+    const strength = 0.1;
+    nodes.forEach((d) => {
+      if (!d._clusterTarget) return;
+      d.vx += (d._clusterTarget.x - d.x) * strength * alpha;
+      d.vy += (d._clusterTarget.y - d.y) * strength * alpha;
+    });
+  }
+
   // ---------------------------------------------------------------------
   // FORCE SIMULATION — arranged readably, then settles (no perpetual jitter)
   // ---------------------------------------------------------------------
   const simulation = d3
     .forceSimulation(nodes)
-    .force("link", d3.forceLink(links).id((d) => d.id).distance(70).strength(0.7))
-    .force("charge", d3.forceManyBody().strength(-260))
+    .force("link", d3.forceLink(links).id((d) => d.id).distance(85).strength(0.65))
+    .force("charge", d3.forceManyBody().strength(-420))
     .force("center", d3.forceCenter(width / 2, height / 2))
-    .force("collide", d3.forceCollide().radius((d) => d.r + 22))
+    .force("collide", d3.forceCollide().radius((d) => Math.max(d.r + 24, estimateLabelHalfWidth(d.name) + 10)).iterations(3))
+    .force("cluster", clusterForce)
     .alphaDecay(0.035) // settles in a few seconds rather than drifting indefinitely
     .velocityDecay(0.35);
 
@@ -557,6 +680,7 @@
       .attr("y2", (d) => d.target.y);
 
     nodeGroup.attr("transform", (d) => `translate(${d.x},${d.y})`);
+    updateHulls();
   });
 
   window.addEventListener("resize", () => {
