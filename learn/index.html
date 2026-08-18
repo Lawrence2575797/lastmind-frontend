@@ -639,6 +639,28 @@
         opacity: 0.85 !important;
     }
 
+    .km-mastery-clarity {
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid rgba(230, 215, 176, 0.12);
+        font-size: 11.5px;
+        line-height: 1.6;
+        opacity: 0.7;
+    }
+
+    .km-mastery-clarity strong {
+        opacity: 0.9;
+        font-weight: 600;
+    }
+
+    .km-mastery-clarity .durable-badge {
+        display: inline-block;
+        margin-top: 6px;
+        color: var(--accent);
+        opacity: 1;
+        font-weight: 600;
+    }
+
     .km-detail-close {
         position: absolute;
         top: 12px;
@@ -3086,6 +3108,7 @@
                         <div class="km-detail-chip" id="kmDetailChip"><span class="dot"></span><span class="chip-text"></span></div>
                         <h2 id="kmDetailName"></h2>
                         <p id="kmDetailDescription"></p>
+                        <div class="km-mastery-clarity" id="kmMasteryClarity"></div>
                         <button class="btn" id="kmGetHelpBtn" type="button" style="display:none;">🤝 Get help with this</button>
                         <p class="km-help-status" id="kmHelpStatus" style="display:none;"></p>
                     </div>
@@ -9156,6 +9179,7 @@ SQIDAQAB
 
         const nodeById = new Map(chainData.nodes.map((n) => [n.id, n]));
         const mastery = chainData.mastery || {};
+        const masteryDetail = chainData.masteryDetail || {};
 
         const degree = new Map(chainData.nodes.map((n) => [n.id, 0]));
         (chainData.edges || []).forEach((e) => {
@@ -9169,6 +9193,7 @@ SQIDAQAB
         const nodes = chainData.nodes.map((n) => ({
             ...n,
             state: mastery[n.id] ?? 0,
+            detail: masteryDetail[n.id] || null,
             r: radiusScale(degree.get(n.id) || 0)
         }));
         const links = (chainData.edges || [])
@@ -9330,6 +9355,31 @@ SQIDAQAB
         const stateLabel = { 0: 'Not covered', 1: 'Due for review', 2: 'Mastered' };
         const stateClass = { 0: 'km-dot-0', 1: 'km-dot-1', 2: 'km-dot-2' };
 
+        // Mirrors reviewService.ts's own bar — keep in sync if that ever
+        // changes. Shown here so "Mastered"/"Due for review" reads as what
+        // it actually is (a real FSRS threshold on real numbers) rather
+        // than an opaque coloured dot — see the mastery-clarity discussion
+        // this was built for.
+        const MASTERY_STABILITY_THRESHOLD_DAYS = 30;
+        const MIN_REPS_FOR_TRUST = 2;
+        const DURABLE_RELEARNING_CRITERION = 3;
+
+        function renderMasteryClarity(d) {
+            const el = document.getElementById('kmMasteryClarity');
+            if (d.state === 0 || !d.detail) {
+                el.innerHTML = d.state === 0 ? 'Not covered yet — no review recorded for this concept.' : '';
+                return;
+            }
+            const detail = d.detail;
+            const stabilityDays = Math.round(detail.stability);
+            const barLine = `<strong>${stabilityDays} day${stabilityDays === 1 ? '' : 's'}</strong> of estimated retention (FSRS predicts a 92% chance you'd still recall it that far out) from <strong>${detail.reps}</strong> review${detail.reps === 1 ? '' : 's'} — needs ${MASTERY_STABILITY_THRESHOLD_DAYS}+ days and ${MIN_REPS_FOR_TRUST}+ reviews to count as "Mastered".`;
+            const spacedLine = `<strong>${detail.spacedSuccessCount}/${DURABLE_RELEARNING_CRITERION}</strong> correct answers landed on separate, correctly-timed sessions.`;
+            const durableLine = detail.isDurablyMastered
+                ? `<span class="durable-badge">✓ Durably relearned — confirmed across ${DURABLE_RELEARNING_CRITERION}+ properly spaced sessions, not just one sitting.</span>`
+                : '';
+            el.innerHTML = `${barLine}<br>${spacedLine}${durableLine ? '<br>' + durableLine : ''}`;
+        }
+
         nodeGroup
             .on('mouseenter', (event, d) => {
                 const rect = bodyEl.getBoundingClientRect();
@@ -9349,6 +9399,7 @@ SQIDAQAB
                 detailDescription.textContent = d.description || '';
                 detailChipDot.className = 'dot ' + stateClass[d.state];
                 detailChipText.textContent = stateLabel[d.state];
+                renderMasteryClarity(d);
                 kmSelectedNode = d;
                 const helpBtn = document.getElementById('kmGetHelpBtn');
                 const helpStatus = document.getElementById('kmHelpStatus');
