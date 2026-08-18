@@ -627,6 +627,18 @@
         opacity: 0.75;
     }
 
+    #kmGetHelpBtn {
+        margin-top: 14px;
+        width: 100%;
+        font-size: 12.5px;
+    }
+
+    .km-help-status {
+        margin-top: 10px !important;
+        font-size: 12px !important;
+        opacity: 0.85 !important;
+    }
+
     .km-detail-close {
         position: absolute;
         top: 12px;
@@ -2679,6 +2691,8 @@
                         <div class="km-detail-chip" id="kmDetailChip"><span class="dot"></span><span class="chip-text"></span></div>
                         <h2 id="kmDetailName"></h2>
                         <p id="kmDetailDescription"></p>
+                        <button class="btn" id="kmGetHelpBtn" type="button" style="display:none;">🤝 Get help with this</button>
+                        <p class="km-help-status" id="kmHelpStatus" style="display:none;"></p>
                     </div>
                     <div class="km-hover-tooltip" id="kmHoverTooltip"></div>
                 </div>
@@ -8694,6 +8708,8 @@ SQIDAQAB
     // topic/concept already is on every other lesson-start call.
     let kmSimulation = null;
     let kmSelectedFolderId = null;
+    let kmCurrentSubject = '';
+    let kmSelectedNode = null;
 
     // Every concept the student has actually added within one folder —
     // its own direct pages (topic '') plus every subfolder's own pages
@@ -8822,6 +8838,7 @@ SQIDAQAB
 
     async function loadKnowledgeMapForFolder(folder) {
         document.getElementById('kmDetailPanel').classList.remove('visible');
+        kmCurrentSubject = folder.subject || '';
 
         const concepts = collectFolderConcepts(folder);
         if (!concepts.length) {
@@ -9048,9 +9065,63 @@ SQIDAQAB
                 detailDescription.textContent = d.description || '';
                 detailChipDot.className = 'dot ' + stateClass[d.state];
                 detailChipText.textContent = stateLabel[d.state];
+                kmSelectedNode = d;
+                const helpBtn = document.getElementById('kmGetHelpBtn');
+                const helpStatus = document.getElementById('kmHelpStatus');
+                helpStatus.style.display = 'none';
+                helpBtn.style.display = d.state === 2 ? 'none' : '';
+                helpBtn.disabled = false;
+                helpBtn.textContent = '🤝 Get help with this';
                 detailPanel.classList.add('visible');
             });
     }
+
+    // Posts a help request for the currently selected not-yet-mastered
+    // node — see peerTutoringMatchService.ts's createHelpRequest, which
+    // attempts an immediate auto-assignment in the same call. topics[0] is
+    // used as a best-effort subfolder/topic label (a node can belong to
+    // more than one subfolder in a merged map; the first is good enough
+    // context, never shown as if it were the only place this concept
+    // appears).
+    async function requestHelpForNode(node) {
+        const helpBtn = document.getElementById('kmGetHelpBtn');
+        const helpStatus = document.getElementById('kmHelpStatus');
+        helpBtn.disabled = true;
+        helpBtn.textContent = 'Requesting…';
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) throw new Error('not signed in');
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/peer-tutoring/help-requests`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify({
+                    conceptId: node.id,
+                    subject: kmCurrentSubject,
+                    topic: (node.topics && node.topics[0]) || null
+                })
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            const result = await resp.json();
+            helpStatus.style.display = '';
+            if (result.session) {
+                helpStatus.textContent = "You're matched! Check My Tutoring for updates.";
+                helpBtn.style.display = 'none';
+            } else {
+                helpStatus.textContent = 'Request sent — waiting for someone available to help.';
+                helpBtn.style.display = 'none';
+            }
+        } catch (err) {
+            console.error('LastMind: failed to create help request.', err);
+            helpStatus.style.display = '';
+            helpStatus.textContent = "Couldn't send your request — try again in a moment.";
+            helpBtn.disabled = false;
+            helpBtn.textContent = '🤝 Get help with this';
+        }
+    }
+
+    document.getElementById('kmGetHelpBtn').addEventListener('click', () => {
+        if (kmSelectedNode) requestHelpForNode(kmSelectedNode);
+    });
 
     document.getElementById('progressTopbarBtn').addEventListener('click', () => {
         openKnowledgeMap();
