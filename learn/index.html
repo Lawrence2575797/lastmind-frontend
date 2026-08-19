@@ -2390,6 +2390,12 @@
         font-family: 'Arial', sans-serif;
     }
 
+    .confidence-prompt-actions {
+        display: flex;
+        gap: 8px;
+        font-family: 'Arial', sans-serif;
+    }
+
     .lesson-outline-section-label {
         font-family: 'Arial', sans-serif;
         font-size: 0.68rem;
@@ -6118,6 +6124,11 @@ SQIDAQAB
                 // fresh here so the ask panel always knows the
                 // currently-pending step.
                 activeRetrievalLessonState = state;
+                // Wall-clock time this specific step has been on screen —
+                // only the LAST step's value ever actually gets used (see
+                // answerSignalService.ts), but it's simplest to just time
+                // every step the same way.
+                const questionShownAt = Date.now();
 
                 const card = renderQuestionCard(step.text, null, async (submission) => {
                     // If this was the session's first step and the rest was
@@ -6137,6 +6148,7 @@ SQIDAQAB
                         pendingChainContinuation = null;
                     }
 
+                    const responseTimeMs = Date.now() - questionShownAt;
                     let nextResp;
                     try {
                         nextResp = await fetch(`${COMPILE_BACKEND_URL}/chain-lesson/submit`, {
@@ -6145,7 +6157,7 @@ SQIDAQAB
                                 'Content-Type': 'application/json',
                                 Authorization: `Bearer ${accessToken}`
                             },
-                            body: JSON.stringify({ state: submitState, answer: submission.answer, dontKnow: submission.dontKnow })
+                            body: JSON.stringify({ state: submitState, answer: submission.answer, dontKnow: submission.dontKnow, responseTimeMs })
                         });
                     } catch (err) {
                         lockAnsweredCard(card, submission.answer, false, 'Could not reach the server. Please try again.');
@@ -6176,6 +6188,11 @@ SQIDAQAB
                             questionFlowEl.appendChild(fsrsCard);
                             fsrsCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
                         }
+                        if (nextResult.signal && nextResult.signal.promptConfidence) {
+                            const confidenceCard = renderConfidencePrompt(accessToken, nextResult.signal.id);
+                            questionFlowEl.appendChild(confidenceCard);
+                            confidenceCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                        }
                         return;
                     }
 
@@ -6184,6 +6201,56 @@ SQIDAQAB
             }
 
             await askNext(startResult.step, startResult.state);
+        }
+
+        // Only ever shown after a clean-pass retrieval lesson that took
+        // notably longer than this student's own recent normal — see
+        // answerSignalService.ts. A one-tap follow-up, not a form: a
+        // correct-but-shaky answer is exactly the case FSRS's own binary
+        // correct/incorrect grade can't distinguish from a confident one.
+        function renderConfidencePrompt(accessToken, signalId) {
+            const card = document.createElement('div');
+            card.className = 'correction-card confidence-prompt';
+            const label = document.createElement('div');
+            label.className = 'correction-label';
+            label.textContent = 'That one took a bit longer than usual';
+            card.appendChild(label);
+            const question = document.createElement('div');
+            question.textContent = 'How sure were you of your answer?';
+            question.style.marginBottom = '10px';
+            card.appendChild(question);
+
+            const actions = document.createElement('div');
+            actions.className = 'confidence-prompt-actions';
+            const options = [
+                { rating: 1, label: 'Sure' },
+                { rating: 2, label: 'Kind of guessed' },
+                { rating: 3, label: 'Really unsure' },
+            ];
+            options.forEach((opt) => {
+                const btn = document.createElement('button');
+                btn.className = 'btn';
+                btn.type = 'button';
+                btn.textContent = opt.label;
+                btn.addEventListener('click', async () => {
+                    actions.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+                    try {
+                        await fetch(`${COMPILE_BACKEND_URL}/chain-lesson/confidence`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                            body: JSON.stringify({ signalId, rating: opt.rating })
+                        });
+                    } catch (err) {
+                        console.error('LastMind: failed to save a confidence rating.', err);
+                    }
+                    label.textContent = 'Thanks — noted.';
+                    question.remove();
+                    actions.remove();
+                });
+                actions.appendChild(btn);
+            });
+            card.appendChild(actions);
+            return card;
         }
 
         /* ───────── First-time ENCODING lesson (only while !encodingDone) ─────────
@@ -10294,21 +10361,31 @@ SQIDAQAB
             const data = await fetchKnowledgeMapData(folder, concepts);
             if (!data || !Array.isArray(data.nodes)) continue;
             const mastery = data.mastery || {};
+            const lowConfidenceIds = new Set(data.lowConfidenceNodeIds || []);
             data.nodes.forEach((n) => {
                 const state = mastery[n.id] ?? 0;
+                if (seen.has(n.id)) return;
                 // Peer tutoring is for genuine struggle — something you've
                 // actually been tested on and haven't yet got solid (state
                 // 1) — not a plain coverage gap (state 0, never taught/
-                // attempted at all). Asking a peer for help on something
-                // you haven't even tried yet doesn't make sense; that's
-                // what an ordinary lesson is for.
-                if (state !== 1 || seen.has(n.id)) return;
+                // attempted at all); asking a peer for help on something
+                // you haven't even tried yet doesn't make sense, that's
+                // what an ordinary lesson is for. The one exception: a
+                // concept flagged as correct-but-shaky (answered slowly,
+                // self-reported low confidence — see
+                // answerSignalService.ts) still surfaces here even at
+                // state 2 (mastered), since a clean FSRS rating alone
+                // hides exactly this kind of struggle a peer who's been
+                // through the same confusion is well placed to help with.
+                const isLowConfidenceMastered = state === 2 && lowConfidenceIds.has(n.id);
+                if (state !== 1 && !isLowConfidenceMastered) return;
                 seen.add(n.id);
                 items.push({
                     id: n.id,
                     name: n.name,
                     subject: folder.subject || '',
-                    topic: (n.topics && n.topics[0]) || ''
+                    topic: (n.topics && n.topics[0]) || '',
+                    lowConfidence: isLowConfidenceMastered
                 });
             });
         }
@@ -10325,9 +10402,10 @@ SQIDAQAB
         card.className = 'pt-concept-card';
         const info = document.createElement('div');
         info.className = 'pt-concept-info';
+        const statusText = item.lowConfidence ? 'Passed, but flagged as shaky' : 'Due for review';
         info.innerHTML = `
             <div class="pt-concept-name">${escapeHtml(item.name)}</div>
-            <div class="pt-concept-meta">${escapeHtml(item.subject)}${item.topic ? ' · ' + escapeHtml(item.topic) : ''} · Due for review</div>
+            <div class="pt-concept-meta">${escapeHtml(item.subject)}${item.topic ? ' · ' + escapeHtml(item.topic) : ''} · ${escapeHtml(statusText)}</div>
         `;
         const btn = document.createElement('button');
         btn.className = 'btn';
