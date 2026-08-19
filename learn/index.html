@@ -10604,15 +10604,29 @@ SQIDAQAB
             const decide = async (optIn) => {
                 bannerEl.innerHTML = 'Saving…';
                 try {
-                    await fetch(`${COMPILE_BACKEND_URL}/tutoring-profile`, {
+                    const resp = await fetch(`${COMPILE_BACKEND_URL}/tutoring-profile`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
                         body: JSON.stringify({ tutoringOptIn: optIn })
                     });
+                    if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+                    // Only NOW is there really a tutoring_profiles row (hasDecided
+                    // will be true on every future check) — hiding the banner
+                    // before confirming the save landed is exactly what let this
+                    // reappear on a later visit despite the student answering.
+                    bannerEl.style.display = 'none';
                 } catch (err) {
                     console.error('LastMind: failed to save the onboarding tutoring decision.', err);
+                    bannerEl.innerHTML = `
+                        <p>Couldn't save that — want to try again?</p>
+                        <div class="pt-onboarding-actions">
+                            <button class="btn primary" type="button" id="ptOnboardYesBtn">Yes, opt me in</button>
+                            <button class="btn" type="button" id="ptOnboardNoBtn">No thanks</button>
+                        </div>
+                    `;
+                    document.getElementById('ptOnboardYesBtn').addEventListener('click', () => decide(true));
+                    document.getElementById('ptOnboardNoBtn').addEventListener('click', () => decide(false));
                 }
-                bannerEl.style.display = 'none';
             };
             document.getElementById('ptOnboardYesBtn').addEventListener('click', () => decide(true));
             document.getElementById('ptOnboardNoBtn').addEventListener('click', () => decide(false));
