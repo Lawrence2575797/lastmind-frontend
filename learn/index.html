@@ -3242,16 +3242,7 @@
                     <button class="btn" id="ptCloseBtn" type="button" title="Close">✕</button>
                 </div>
                 <div class="pt-body" id="ptBody">
-                    <div class="pt-optin-row">
-                        <label class="dont-know-label">
-                            <input type="checkbox" id="ptOptInCheckbox">
-                            Take part as a tutor — get matched to help others with concepts you've mastered
-                        </label>
-                        <div class="pt-optin-fields">
-                            <input type="text" id="ptOptInNameInput" placeholder="Name shown to matched peers (optional)" maxlength="40">
-                            <button class="btn" id="ptSaveOptInBtn" type="button">Save</button>
-                        </div>
-                    </div>
+                    <p class="pt-hint">Tutoring opt-in lives in My Account now — set it once there and it stays put, rather than a save prompt sitting here every time you open this page.</p>
 
                     <div class="pt-section">
                         <h4>Recommended for you</h4>
@@ -3526,6 +3517,18 @@
         </div>
         <button class="btn primary" id="saveAccountSettingsBtn" style="width:100%;">Save Password</button>
         <div class="account-status" id="accountSettingsStatus"></div>
+
+        <div class="my-account-divider"></div>
+
+        <label class="dont-know-label">
+            <input type="checkbox" id="ptOptInCheckbox">
+            Take part as a tutor — get matched to help others with concepts you've mastered
+        </label>
+        <div class="pt-optin-fields">
+            <input type="text" id="ptOptInNameInput" placeholder="Name shown to matched peers (optional)" maxlength="40">
+            <button class="btn" id="ptSaveOptInBtn" type="button">Save</button>
+        </div>
+        <p class="account-status" id="ptOptInStatus"></p>
 
         <div class="my-account-divider"></div>
 
@@ -8677,6 +8680,8 @@ SQIDAQAB
         document.getElementById('newAccountPasswordInput').value = '';
         document.getElementById('accountSettingsStatus').textContent = '';
         document.getElementById('accountSettingsStatus').classList.remove('error');
+        document.getElementById('ptOptInStatus').textContent = '';
+        if (session) loadTutoringOptInStatus(session);
         document.getElementById('myAccountOverlay').classList.add('open');
     });
 
@@ -10244,8 +10249,6 @@ SQIDAQAB
     async function openPeerTutoringHub() {
         setPeerTutoringFullscreen(true);
         document.getElementById('ptCustomStatus').style.display = 'none';
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (session) loadTutoringOptInStatus(session);
         loadRecommendedConcepts();
     }
 
@@ -10256,20 +10259,23 @@ SQIDAQAB
         const displayName = document.getElementById('ptOptInNameInput').value.trim() || null;
         const tutoringOptIn = document.getElementById('ptOptInCheckbox').checked;
         const btn = document.getElementById('ptSaveOptInBtn');
+        const statusEl = document.getElementById('ptOptInStatus');
         btn.disabled = true;
+        statusEl.classList.remove('error');
         try {
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (!session) throw new Error('not signed in');
-            await fetch(`${COMPILE_BACKEND_URL}/tutoring-profile`, {
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/tutoring-profile`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
                 body: JSON.stringify({ displayName, tutoringOptIn })
             });
-            btn.textContent = 'Saved ✓';
-            setTimeout(() => { btn.textContent = 'Save'; }, 1500);
+            if (!resp.ok) throw new Error(resp.status === 429 ? 'Too many attempts — wait a moment and try again.' : `Server returned ${resp.status}`);
+            statusEl.textContent = tutoringOptIn ? "Saved — you're now matchable as a tutor." : 'Saved — removed from tutoring matching.';
         } catch (err) {
             console.error('LastMind: failed to save tutoring profile.', err);
-            btn.textContent = "Couldn't save — retry";
+            statusEl.textContent = err instanceof Error && err.message.includes('Too many') ? err.message : "Couldn't save — try again.";
+            statusEl.classList.add('error');
         } finally {
             btn.disabled = false;
         }
