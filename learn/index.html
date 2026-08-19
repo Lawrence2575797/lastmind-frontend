@@ -801,6 +801,149 @@
         padding: 8px 0;
     }
 
+    /* ─── CREDIT BALANCE ───
+       Chip sits right after #sidebarToggle, deliberately not given any
+       conditional positioning — that alone satisfies "right of the
+       toggle when the sidebar's open, left edge of the screen when it's
+       collapsed," since the topbar's own left edge already moves with
+       the sidebar's width. */
+    .credit-balance-chip {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.8rem;
+        font-weight: 600;
+        background: rgba(230, 215, 176, 0.08);
+        border: 1px solid rgba(230, 215, 176, 0.3);
+        color: var(--accent);
+        padding: 7px 12px;
+        border-radius: 20px;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background 0.2s, border-color 0.2s;
+    }
+
+    .credit-balance-chip:hover {
+        background: rgba(230, 215, 176, 0.16);
+        border-color: rgba(230, 215, 176, 0.5);
+    }
+
+    .credit-balance-view {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 150;
+        width: 100vw;
+        height: 100vh;
+        background: var(--bg);
+        flex-direction: column;
+    }
+
+    .credit-balance-view.fullscreen {
+        display: flex;
+    }
+
+    .cb-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 20px;
+        padding: 24px clamp(16px, 6vw, 90px) 18px;
+        border-bottom: 1px solid rgba(230, 215, 176, 0.14);
+        flex-shrink: 0;
+    }
+
+    .cb-header-title h3 {
+        margin: 0;
+        font-size: 1.4rem;
+    }
+
+    .cb-header-title p {
+        margin: 4px 0 0;
+        font-size: 0.82rem;
+        opacity: 0.6;
+    }
+
+    .cb-header .btn {
+        border: 1px solid rgba(230, 215, 176, 0.25);
+        border-radius: 6px;
+        padding: 6px 10px;
+        opacity: 0.7;
+    }
+
+    .cb-header .btn:hover { opacity: 1; }
+
+    .cb-body {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 32px clamp(16px, 6vw, 90px) 60px;
+        max-width: 640px;
+    }
+
+    .cb-balance-display {
+        text-align: center;
+        background: var(--panel);
+        border: 1px solid rgba(230, 215, 176, 0.2);
+        border-radius: 12px;
+        padding: 32px 20px;
+        margin-bottom: 32px;
+    }
+
+    .cb-balance-number {
+        font-family: 'Georgia', serif;
+        font-size: 3rem;
+        color: var(--accent);
+    }
+
+    .cb-balance-label {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.8rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        opacity: 0.6;
+        margin-top: 4px;
+    }
+
+    .cb-section {
+        margin-bottom: 28px;
+    }
+
+    .cb-section h4 {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        opacity: 0.55;
+        margin-bottom: 12px;
+    }
+
+    .cb-explanation-list {
+        margin: 0;
+        padding-left: 20px;
+        font-size: 0.9rem;
+        line-height: 1.7;
+    }
+
+    .cb-explanation-list li {
+        margin-bottom: 8px;
+    }
+
+    .cb-pricing-note {
+        font-size: 0.8rem;
+        opacity: 0.55;
+        font-style: italic;
+        margin-top: 12px;
+    }
+
+    .cb-buy-status {
+        font-size: 0.82rem;
+        opacity: 0.75;
+        margin-top: 10px;
+    }
+
     .mt-card {
         background: rgba(32, 31, 33, 0.6);
         border: 1px solid rgba(230, 215, 176, 0.14);
@@ -3336,10 +3479,52 @@
             </div>
         </div>
 
+        <!-- "Your Credit Balance" — the peer-tutoring economy's own
+             currency (Synapses). Same full-page overlay pattern as the
+             other views above. Pricing per activity hasn't been decided
+             yet (see creditService.ts), so this explains the MODEL —
+             signup bonus, earn by tutoring, spend by requesting help —
+             without committing to numbers, and "Buy more" is
+             deliberately a placeholder rather than a real checkout until
+             that's settled. -->
+        <div class="credit-balance-view" id="creditBalanceView">
+            <div class="cb-header">
+                <div class="cb-header-title">
+                    <h3>Your Credit Balance</h3>
+                    <p>Synapses — earned by tutoring, spent on getting help.</p>
+                </div>
+                <button class="btn" id="cbCloseBtn" type="button" title="Close">✕</button>
+            </div>
+            <div class="cb-body">
+                <div class="cb-balance-display">
+                    <div class="cb-balance-number" id="cbBalanceNumber">—</div>
+                    <div class="cb-balance-label">Synapses</div>
+                </div>
+
+                <div class="cb-section">
+                    <h4>How this works</h4>
+                    <ul class="cb-explanation-list">
+                        <li>You started with a one-time welcome allowance — enough to try asking for help a few times before you've earned anything yourself.</li>
+                        <li>You <strong>earn</strong> Synapses by helping other students — writing an explanation for something you've genuinely mastered, or (coming soon) marking a longer written answer.</li>
+                        <li>You <strong>spend</strong> Synapses to request help yourself — a quick concept explanation, or (coming soon) a marked long-form answer.</li>
+                        <li>There's no recurring free top-up — this is a real two-sided exchange, so the incentive to actually tutor stays real.</li>
+                    </ul>
+                    <p class="cb-pricing-note">Exact costs per activity are still being finalized — this page will show the real numbers once they're set.</p>
+                </div>
+
+                <div class="cb-section">
+                    <h4>Need more right now?</h4>
+                    <button class="btn primary" id="cbBuyMoreBtn" type="button">Buy more credits</button>
+                    <p class="cb-buy-status" id="cbBuyStatus" style="display:none;"></p>
+                </div>
+            </div>
+        </div>
+
         <!-- ─── MAIN ─── -->
         <main class="main">
             <div class="topbar">
                 <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">☰</button>
+                <button class="credit-balance-chip" id="creditBalanceChip" type="button" title="Your credit balance">💠 <span id="creditBalanceAmount">—</span></button>
                 <span class="topbar-title" id="topbarTitle">Dashboard</span>
                 <div class="topbar-actions" id="topbarActions">
                     <button class="cortex-btn-topbar" id="peerTutoringHubBtn" type="button">🤝 Peer tutoring</button>
@@ -8254,6 +8439,51 @@ SQIDAQAB
         document.getElementById('sidebar').classList.toggle('collapsed');
     });
 
+    // ─── Credit balance (Synapses) ───
+    async function fetchCreditBalance() {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return null;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/credits/balance`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            return await resp.json();
+        } catch (err) {
+            console.error('LastMind: failed to load credit balance.', err);
+            return null;
+        }
+    }
+
+    async function refreshCreditBalanceChip() {
+        const data = await fetchCreditBalance();
+        const amount = data ? data.balance : '—';
+        document.getElementById('creditBalanceAmount').textContent = amount;
+        const bigNumber = document.getElementById('cbBalanceNumber');
+        if (bigNumber) bigNumber.textContent = amount;
+    }
+
+    function setCreditBalanceFullscreen(on) {
+        document.getElementById('creditBalanceView').classList.toggle('fullscreen', on);
+    }
+
+    document.getElementById('creditBalanceChip').addEventListener('click', async () => {
+        setCreditBalanceFullscreen(true);
+        document.getElementById('cbBuyStatus').style.display = 'none';
+        await refreshCreditBalanceChip();
+    });
+
+    document.getElementById('cbCloseBtn').addEventListener('click', () => setCreditBalanceFullscreen(false));
+
+    // Deliberately not a real checkout yet — per-activity pricing hasn't
+    // been decided (see creditService.ts), so there's nothing real to
+    // charge for. This is an honest placeholder, not a broken button.
+    document.getElementById('cbBuyMoreBtn').addEventListener('click', () => {
+        const statusEl = document.getElementById('cbBuyStatus');
+        statusEl.style.display = '';
+        statusEl.textContent = "Pricing is still being finalized — check back soon.";
+    });
+
     // Default the sidebar to collapsed on a phone-width viewport — it's a
     // fixed 280px column with no responsive handling at all otherwise, so
     // on a real phone it was permanently eating most of the screen next
@@ -10640,6 +10870,8 @@ SQIDAQAB
 
         document.getElementById('gate-message').style.display = 'none';
         document.getElementById('app').style.display = 'block';
+
+        refreshCreditBalanceChip();
 
         // Render whatever's already cached in IndexedDB immediately rather
         // than blocking the first paint on reconcileFoldersWithServer's
