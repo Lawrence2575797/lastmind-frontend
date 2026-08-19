@@ -9044,13 +9044,27 @@ SQIDAQAB
             return;
         }
         showRevisionPlanBanner('Building your revision plan…');
+        // Every concept the student has anywhere in their account (not just
+        // this exam's folder) — the backend uses this to widen the plan to
+        // PREREQUISITES that are also independently examinable, using "the
+        // student made a real page for this elsewhere" as the signal (see
+        // revisionPlanService.ts's own comment on why).
+        const examinableLabels = folders.flatMap((f) => collectFolderConcepts(f).map((c) => c.concept));
         try {
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (!session) return;
             const resp = await fetch(`${COMPILE_BACKEND_URL}/revision-plan/generate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-                body: JSON.stringify({ examEventId: event.id, concepts })
+                body: JSON.stringify({
+                    examEventId: event.id,
+                    concepts,
+                    qualification: folder.qualification || '',
+                    examBoard: folder.examBoard || '',
+                    customTitle: folder.customTitle || '',
+                    customDescription: folder.customDescription || '',
+                    examinableLabels
+                })
             });
             if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
             const plan = await resp.json();
