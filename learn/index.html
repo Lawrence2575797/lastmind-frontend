@@ -863,6 +863,13 @@
         opacity: 0.7;
     }
 
+    .mt-release-hint {
+        font-size: 0.72rem;
+        opacity: 0.55;
+        margin-top: 4px;
+        font-style: italic;
+    }
+
     .mt-response-textarea {
         width: 100%;
         margin-top: 10px;
@@ -9895,8 +9902,37 @@ SQIDAQAB
             note.className = 'mt-release-booked';
             note.textContent = `Booked for ${formatDateTime(session.releaseTime)}`;
             card.appendChild(note);
+        } else {
+            // No time booked yet — pre-fill a calendar-aware suggestion
+            // (sensible hours, on/after the deadline, skipping busy blocks)
+            // rather than leaving the input blank; still a free pick, this
+            // just removes the "when am I even free" friction most people
+            // would otherwise have to work out by hand. Fetched in the
+            // background so it never blocks the card itself from showing.
+            const hint = document.createElement('div');
+            hint.className = 'mt-release-hint';
+            hint.textContent = 'Suggesting a time based on your calendar…';
+            card.appendChild(hint);
+            loadSuggestedReleaseTime(session.id, input, hint);
         }
         return card;
+    }
+
+    async function loadSuggestedReleaseTime(sessionId, input, hintEl) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/tutoring-sessions/${sessionId}/suggest-release-time`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            const { suggested } = await resp.json();
+            if (!input.value && suggested) input.value = isoToLocalInputValue(suggested);
+            hintEl.textContent = 'Suggested based on your calendar — change it if this time doesn\'t work.';
+        } catch (err) {
+            console.error('LastMind: failed to load a suggested release time.', err);
+            hintEl.textContent = '';
+        }
     }
 
     async function loadReleasedResponse(sessionId, card, bodyEl) {
