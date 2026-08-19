@@ -487,6 +487,19 @@
         fill: none;
     }
 
+    /* Link-level mastery — same amber/cream pair as node mastery
+       (.km-dot-1/.km-dot-2) so a tested-but-not-mastered link and a
+       tested-but-not-mastered concept read as the same visual language. */
+    .km-link.state-1 {
+        stroke: #c98a4b;
+        stroke-opacity: 0.55;
+    }
+
+    .km-link.state-2 {
+        stroke: var(--accent);
+        stroke-opacity: 0.75;
+    }
+
     /* Soft subfolder groupings — deliberately neutral (not topic-coloured)
        since node fill is already reserved for mastery state. A background
        region to read as "these belong together", not a hard partition —
@@ -9872,9 +9885,10 @@ SQIDAQAB
             detail: masteryDetail[n.id] || null,
             r: radiusScale(degree.get(n.id) || 0)
         }));
+        const edgeMastery = chainData.edgeMastery || {};
         const links = (chainData.edges || [])
             .filter((e) => nodeById.has(e.source) && nodeById.has(e.target))
-            .map((e) => ({ source: e.source, target: e.target }));
+            .map((e) => ({ source: e.source, target: e.target, state: edgeMastery[`${e.source}->${e.target}`] ?? 0 }));
 
         const masteredCount = nodes.filter((n) => n.state === 2).length;
         const pct = Math.round((masteredCount / nodes.length) * 100);
@@ -9959,7 +9973,7 @@ SQIDAQAB
         }
 
         const linkSelection = zoomLayer.append('g').selectAll('line')
-            .data(links).join('line').attr('class', 'km-link');
+            .data(links).join('line').attr('class', (d) => `km-link state-${d.state}`);
 
         const nodeGroup = zoomLayer.append('g').selectAll('g')
             .data(nodes, (d) => d.id).join('g')
