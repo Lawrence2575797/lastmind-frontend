@@ -2718,52 +2718,38 @@
         border-color: rgba(230, 215, 176, 0.5);
     }
 
-    /* ─── SCRATCH NOTES ─── */
-    .scratch-notes-widget {
-        margin-top: 16px;
-        width: 100%;
+    /* ─── SCRATCH NOTES ───
+       A dropdown anchored to the note box itself (.textarea-wrap is
+       position:relative — see DICTATION section below), not a separate
+       section stacked below the whole notes panel. Opened via a toolbar
+       button (.toolbar-btn#scratchNotesToggle) sitting alongside Insert
+       Math/Matrix; closed by default, toggled via .open rather than the
+       old always-open-except-mobile .collapsed model. */
+    .scratch-notes-dropdown {
+        display: none;
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: min(320px, 92%);
+        max-height: 260px;
         background: var(--panel);
-        border: 1px solid rgba(230, 215, 176, 0.25);
+        border: 1px solid rgba(230, 215, 176, 0.3);
         border-radius: 8px;
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+        z-index: 20;
         overflow: hidden;
     }
 
-    .scratch-notes-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 10px 14px;
-        cursor: pointer;
-        font-family: 'Arial', sans-serif;
-        font-size: 0.8rem;
-        color: var(--accent);
-        user-select: none;
-    }
-
-    .scratch-notes-toggle {
-        background: none;
-        border: none;
-        color: var(--accent);
-        font-size: 0.9rem;
-        cursor: pointer;
-        transition: transform 0.2s;
-    }
-
-    .scratch-notes-widget.collapsed .scratch-notes-toggle {
-        transform: rotate(-90deg);
-    }
-
-    .scratch-notes-widget.collapsed .scratch-notes-textarea {
-        display: none;
+    .scratch-notes-dropdown.open {
+        display: block;
     }
 
     .scratch-notes-textarea {
         display: block;
         width: 100%;
-        height: 140px;
+        height: 200px;
         background: var(--bg);
         border: none;
-        border-top: 1px solid rgba(230, 215, 176, 0.15);
         color: var(--text);
         font-family: 'Georgia', serif;
         font-size: 0.85rem;
@@ -3089,8 +3075,11 @@
     }
     /* ─── MOBILE ─── */
     @media (max-width: 768px) {
+        .scratch-notes-dropdown {
+            width: 92%;
+        }
         .scratch-notes-textarea {
-            height: 90px;
+            height: 140px;
         }
     }
 
@@ -5436,12 +5425,18 @@ SQIDAQAB
                     <div class="rich-toolbar">
                         <button type="button" class="toolbar-btn" id="insertMathBtn">∑ Insert Math</button>
                         <button type="button" class="toolbar-btn" id="insertMatrixBtn">⊞ Insert Matrix</button>
+                        <button type="button" class="toolbar-btn" id="scratchNotesToggle">💡 Quick Notes ▾</button>
                     </div>
                     `}
 
                     <div class="textarea-wrap">
                         <div class="note-editable" id="noteBox" ${notesLocked ? '' : 'contenteditable="true"'} data-placeholder="Start typing your notes…"></div>
                         ${notesLocked ? '' : '<button type="button" class="mic-btn" id="micBtn" title="Start dictation">🎤</button>'}
+                        ${notesLocked ? '' : `
+                        <div class="scratch-notes-dropdown" id="scratchNotesWidget">
+                            <textarea class="scratch-notes-textarea" id="scratchNotesBox" placeholder="Jot down a point for later, without losing your place…"></textarea>
+                        </div>
+                        `}
                     </div>
                     ${notesLocked ? '' : '<div class="dictation-status" id="dictationStatus"></div>'}
                     <button class="play-btn" id="playBtn" title="Read notes aloud">▶ Play</button>
@@ -5453,16 +5448,6 @@ SQIDAQAB
                         <div class="compile-status" id="compileStatus"></div>
                         <div class="compiled-output" id="compiledOutput" style="display:none;"></div>
                     ` : ''}
-
-                    ${notesLocked ? '' : `
-                    <div class="scratch-notes-widget" id="scratchNotesWidget">
-                        <div class="scratch-notes-header" id="scratchNotesHeader">
-                            <span>💡 Quick Notes</span>
-                            <button type="button" class="scratch-notes-toggle" id="scratchNotesToggle">▾</button>
-                        </div>
-                        <textarea class="scratch-notes-textarea" id="scratchNotesBox" placeholder="Jot down a point for later, without losing your place…"></textarea>
-                    </div>
-                    `}
                 </div>
 
                 ${notesLocked ? '' : `
@@ -5562,15 +5547,8 @@ SQIDAQAB
             if (!notesLocked) {
             const scratchNotesBox = document.getElementById('scratchNotesBox');
             const scratchNotesWidget = document.getElementById('scratchNotesWidget');
+            const scratchNotesToggle = document.getElementById('scratchNotesToggle');
             scratchNotesBox.value = page.scratchNotes || '';
-
-            // Starts collapsed on mobile specifically — out of the way until
-            // tapped open, rather than taking up real screen space by default
-            // on a narrow viewport. Desktop keeps its existing open-by-default
-            // behavior unchanged.
-            if (window.innerWidth <= 768) {
-                scratchNotesWidget.classList.add('collapsed');
-            }
 
             let scratchSaveDebounce = null;
             scratchNotesBox.addEventListener('input', () => {
@@ -5581,9 +5559,16 @@ SQIDAQAB
                 }, 400);
             });
 
-            document.getElementById('scratchNotesHeader').addEventListener('click', () => {
-                scratchNotesWidget.classList.toggle('collapsed');
+            // A real dropdown now — closed by default, opened from the
+            // toolbar button, and closed again by clicking anywhere else
+            // (but not by clicking inside it, e.g. while typing).
+            scratchNotesToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                scratchNotesWidget.classList.toggle('open');
+                if (scratchNotesWidget.classList.contains('open')) scratchNotesBox.focus();
             });
+            scratchNotesWidget.addEventListener('click', (e) => e.stopPropagation());
+            document.addEventListener('click', () => scratchNotesWidget.classList.remove('open'));
             } // !notesLocked (scratch notes)
 
             // Builds a clean, storage-safe copy of the note's HTML: inline math
