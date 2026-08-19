@@ -165,7 +165,9 @@
     }
 
     .cortex-chat-item {
-        display: block;
+        display: flex;
+        align-items: center;
+        gap: 4px;
         width: 100%;
         text-align: left;
         background: none;
@@ -183,6 +185,11 @@
 
     .cortex-chat-item.active {
         background: rgba(230, 215, 176, 0.12);
+    }
+
+    .cortex-chat-item-text {
+        flex: 1;
+        min-width: 0;
     }
 
     .cortex-chat-item-title {
@@ -8162,6 +8169,37 @@ SQIDAQAB
         openCortexChat(null, true);
     });
 
+    // Chat sessions live entirely client-side in IndexedDB (see
+    // putAuthRecord/getAuthRecord, and cortex/index.html's own
+    // loadSessions/saveSessions against the same 'cortexChatSessions' key)
+    // — there's no backend route for this, so deletion is a plain
+    // read-filter-write, same shape as deleteFolder above minus the
+    // FSRS-progress-reset step (a chat has no associated concept keys).
+    // If the deleted chat happens to be the one currently open in the
+    // embedded iframe, reset to a fresh chat rather than leaving the
+    // iframe pointed at an id that no longer exists in storage.
+    async function deleteChatSession(chatId) {
+        if (!confirm('Delete this chat? This cannot be undone.')) return;
+        let sessions;
+        try {
+            sessions = await getAuthRecord('cortexChatSessions');
+        } catch (err) {
+            sessions = null;
+        }
+        if (Array.isArray(sessions)) {
+            await putAuthRecord('cortexChatSessions', sessions.filter((s) => s.id !== chatId));
+        }
+        const frame = document.getElementById('cortexEmbedFrame');
+        let frameChatId = null;
+        if (frame && frame.src) {
+            try { frameChatId = new URL(frame.src, window.location.origin).searchParams.get('chatId'); } catch (err) { /* ignore */ }
+        }
+        if (frameChatId === chatId) {
+            openCortexChat(null, true);
+        }
+        await refreshCortexChatList();
+    }
+
     async function refreshCortexChatList() {
         const listEl = document.getElementById('cortexChatListItems');
         let sessions;
@@ -8176,17 +8214,22 @@ SQIDAQAB
         }
         listEl.innerHTML = '';
         sessions.slice().sort((a, b) => b.updatedAt - a.updatedAt).forEach((s) => {
-            const item = document.createElement('button');
-            item.type = 'button';
+            const item = document.createElement('div');
             item.className = 'cortex-chat-item';
+            const textWrap = document.createElement('div');
+            textWrap.className = 'cortex-chat-item-text';
             const titleEl = document.createElement('div');
             titleEl.className = 'cortex-chat-item-title';
             titleEl.textContent = s.title || 'New chat';
-            item.appendChild(titleEl);
+            textWrap.appendChild(titleEl);
             const dateEl = document.createElement('div');
             dateEl.className = 'cortex-chat-item-date';
             dateEl.textContent = new Date(s.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-            item.appendChild(dateEl);
+            textWrap.appendChild(dateEl);
+            item.appendChild(textWrap);
+            item.appendChild(buildItemMenu([
+                { label: 'Delete Chat', danger: true, onClick: () => deleteChatSession(s.id) }
+            ]));
             item.addEventListener('click', () => openCortexChat(s.id, false));
             listEl.appendChild(item);
         });
