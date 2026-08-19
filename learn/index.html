@@ -1761,6 +1761,29 @@
         overflow: hidden;
         text-overflow: ellipsis;
         flex: 1;
+        min-width: 0;
+    }
+
+    /* Scrollable row for the action buttons specifically — never had
+       any overflow handling at all before, so on a narrow/mobile
+       viewport the buttons simply extended past the screen edge with
+       no way to reach or tap the ones that didn't fit. min-width: 0 is
+       required on a flex item for it to actually shrink below its
+       content's natural width rather than pushing the whole topbar
+       (and the page, since body has overflow:hidden) wider than the
+       viewport. */
+    .topbar-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+
+    .topbar-actions::-webkit-scrollbar {
+        display: none;
     }
 
     .cortex-btn-topbar {
@@ -3167,149 +3190,163 @@
                 </div>
             </div>
 
-            <!-- Not a sidebar tab any more — see calendarTopbarBtn/
-                 setCalendarFullscreen. Left display:none by default and
-                 only ever shown in its own .fullscreen (full-page) mode;
-                 the DOM/CSS otherwise unchanged from when it WAS a tab, so
-                 renderCalendar() and friends needed no rework. -->
-            <div class="sidebar-calendar" id="sidebarCalendar">
-                <div class="calendar-header">
-                    <button class="btn" id="calendarPrevBtn" type="button">‹</button>
-                    <h3 id="calendarMonthLabel">August 2026</h3>
-                    <button class="btn" id="calendarNextBtn" type="button">›</button>
-                    <label class="calendar-study-budget" title="How much time you actually have to study on a typical day — used to build revision plans before exams.">
-                        Study/day <input type="number" id="studyBudgetInput" min="10" max="720" step="5"> min
-                    </label>
-                    <button class="btn" id="calendarFullscreenBtn" type="button" title="Exit full screen">✕</button>
-                </div>
-                <div class="revision-plan-banner" id="revisionPlanBanner" style="display:none;"></div>
-                <div class="calendar-weekdays">
-                    <span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span>
-                </div>
-                <div class="calendar-grid" id="calendarGrid"></div>
-            </div>
-
-            <!-- "Your Progress" — the knowledge-map visualisation (see
-                 openKnowledgeMap/renderKnowledgeMapGraph). Same full-page
-                 pattern as sidebarCalendar above: display:none by default,
-                 only ever shown via .fullscreen (position:fixed, inset:0),
-                 opened from the topbar's progressTopbarBtn. -->
-            <div class="knowledge-map-view" id="knowledgeMapView">
-                <div class="km-header">
-                    <div class="km-header-title">
-                        <h3 id="kmTitle">Your Progress</h3>
-                        <p id="kmSubtitle">Every concept you're building toward, and how solid it is.</p>
-                    </div>
-                    <div class="km-completion-stat">
-                        <div class="km-pct" id="kmCompletionPct">0%</div>
-                        <div class="km-pct-label">Mastered</div>
-                        <div class="km-completion-bar"><div class="km-completion-bar-fill" id="kmCompletionBarFill" style="width:0%"></div></div>
-                    </div>
-                    <button class="btn" id="kmCloseBtn" type="button" title="Close">✕</button>
-                </div>
-                <div class="km-folder-tabs" id="kmFolderTabs"></div>
-                <div class="km-body" id="kmBody">
-                    <svg id="kmSvg"></svg>
-                    <div class="km-legend">
-                        <div class="km-legend-title">Mastery</div>
-                        <div class="km-legend-row"><span class="km-legend-dot km-dot-0"></span> Not covered</div>
-                        <div class="km-legend-row"><span class="km-legend-dot km-dot-1"></span> Due for review</div>
-                        <div class="km-legend-row"><span class="km-legend-dot km-dot-2"></span> Mastered</div>
-                    </div>
-                    <div class="km-detail-panel" id="kmDetailPanel">
-                        <button class="km-detail-close" id="kmDetailClose">✕</button>
-                        <div class="km-detail-chip" id="kmDetailChip"><span class="dot"></span><span class="chip-text"></span></div>
-                        <h2 id="kmDetailName"></h2>
-                        <p id="kmDetailDescription"></p>
-                        <div class="km-mastery-clarity" id="kmMasteryClarity"></div>
-                        <button class="btn" id="kmGetHelpBtn" type="button" style="display:none;">🤝 Get help with this</button>
-                        <p class="km-help-status" id="kmHelpStatus" style="display:none;"></p>
-                    </div>
-                    <div class="km-hover-tooltip" id="kmHoverTooltip"></div>
-                </div>
-            </div>
-
-            <!-- "My Tutoring" — assigned peer-tutoring tasks, both as
-                 helper (obligations with a deadline) and as requester
-                 (booking when to see the response once it's ready). Same
-                 full-page overlay pattern as knowledgeMapView above. See
-                 openMyTutoring/renderMyTutoringLists. -->
-            <div class="my-tutoring-view" id="myTutoringView">
-                <div class="mt-header">
-                    <div class="mt-header-title">
-                        <h3>My Tutoring</h3>
-                        <p>Concepts you're helping with, and help you've asked for.</p>
-                    </div>
-                    <button class="btn" id="mtCloseBtn" type="button" title="Close">✕</button>
-                </div>
-                <div class="mt-body" id="mtBody">
-                    <div class="pt-onboarding-banner" id="mtOnboardingBanner" style="display:none;"></div>
-                    <div class="mt-column">
-                        <h4>Helping</h4>
-                        <div class="mt-list" id="mtHelperList"></div>
-                    </div>
-                    <div class="mt-column">
-                        <h4>Waiting on help</h4>
-                        <div class="mt-list" id="mtRequesterList"></div>
-                    </div>
-                    <div class="mt-column">
-                        <h4>Open requests you could help with</h4>
-                        <div class="mt-list" id="mtClaimableList"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- "Peer Tutoring" hub — recommended micro-concepts (mastery
-                 0/1 across every folder) worth requesting help on, plus a
-                 tightly structured "ask about something else" form (see
-                 the plan's Decisions section: reducing input variability
-                 here directly reduces legal exposure). Opt-in settings
-                 live inline at the top rather than a separate modal. Same
-                 full-page overlay pattern as myTutoringView above. -->
-            <div class="peer-tutoring-view" id="peerTutoringView">
-                <div class="pt-header">
-                    <div class="pt-header-title">
-                        <h3>Peer Tutoring</h3>
-                        <p>Concepts worth getting help on, matched to a student who's verified it.</p>
-                    </div>
-                    <button class="btn" id="ptCloseBtn" type="button" title="Close">✕</button>
-                </div>
-                <div class="pt-body" id="ptBody">
-                    <div class="pt-onboarding-banner" id="ptOnboardingBanner" style="display:none;"></div>
-
-                    <div class="pt-section">
-                        <h4>Recommended for you</h4>
-                        <div class="pt-concept-list" id="ptRecommendedList"><div class="mt-empty">Loading…</div></div>
-                    </div>
-
-                    <div class="pt-section">
-                        <h4>Ask about something else</h4>
-                        <p class="pt-hint">Structured fields only — this keeps every request predictable and checked before it's ever sent.</p>
-                        <div class="pt-custom-form">
-                            <input type="text" id="ptCustomSubject" placeholder="Subject (e.g. Economics)" maxlength="60">
-                            <input type="text" id="ptCustomTopic" placeholder="Topic (optional)" maxlength="60">
-                            <input type="text" id="ptCustomConcept" placeholder="Concept (e.g. Price elasticity of demand)" maxlength="60">
-                            <button class="btn" id="ptCustomSubmitBtn" type="button">Request help</button>
-                        </div>
-                        <p class="pt-custom-status" id="ptCustomStatus" style="display:none;"></p>
-                    </div>
-                </div>
-            </div>
-
             <div class="sidebar-footer">
                 <button class="manage-subscription-btn" id="myAccountBtn">My Account</button>
             </div>
         </aside>
+
+        <!-- The four full-page overlay views below are deliberately siblings
+             of <aside class="sidebar">, NOT nested inside it (they used to
+             be, and that was a real mobile bug: .sidebar.collapsed sets
+             opacity:0/width:0, and CSS opacity applies to a fixed-position
+             descendant regardless of its own position scheme — so any
+             overlay opened while the sidebar happened to be collapsed
+             (the normal state on a phone, where the sidebar eats most of
+             the screen otherwise) rendered completely invisible even
+             though its own "fullscreen" CSS was firing correctly. Moving
+             them out here makes them immune to the sidebar's own
+             collapsed state, on any screen size. -->
+
+        <!-- Not a sidebar tab any more — see calendarTopbarBtn/
+             setCalendarFullscreen. Left display:none by default and
+             only ever shown in its own .fullscreen (full-page) mode;
+             the DOM/CSS otherwise unchanged from when it WAS a tab, so
+             renderCalendar() and friends needed no rework. -->
+        <div class="sidebar-calendar" id="sidebarCalendar">
+            <div class="calendar-header">
+                <button class="btn" id="calendarPrevBtn" type="button">‹</button>
+                <h3 id="calendarMonthLabel">August 2026</h3>
+                <button class="btn" id="calendarNextBtn" type="button">›</button>
+                <label class="calendar-study-budget" title="How much time you actually have to study on a typical day — used to build revision plans before exams.">
+                    Study/day <input type="number" id="studyBudgetInput" min="10" max="720" step="5"> min
+                </label>
+                <button class="btn" id="calendarFullscreenBtn" type="button" title="Exit full screen">✕</button>
+            </div>
+            <div class="revision-plan-banner" id="revisionPlanBanner" style="display:none;"></div>
+            <div class="calendar-weekdays">
+                <span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span>
+            </div>
+            <div class="calendar-grid" id="calendarGrid"></div>
+        </div>
+
+        <!-- "Your Progress" — the knowledge-map visualisation (see
+             openKnowledgeMap/renderKnowledgeMapGraph). Same full-page
+             pattern as sidebarCalendar above: display:none by default,
+             only ever shown via .fullscreen (position:fixed, inset:0),
+             opened from the topbar's progressTopbarBtn. -->
+        <div class="knowledge-map-view" id="knowledgeMapView">
+            <div class="km-header">
+                <div class="km-header-title">
+                    <h3 id="kmTitle">Your Progress</h3>
+                    <p id="kmSubtitle">Every concept you're building toward, and how solid it is.</p>
+                </div>
+                <div class="km-completion-stat">
+                    <div class="km-pct" id="kmCompletionPct">0%</div>
+                    <div class="km-pct-label">Mastered</div>
+                    <div class="km-completion-bar"><div class="km-completion-bar-fill" id="kmCompletionBarFill" style="width:0%"></div></div>
+                </div>
+                <button class="btn" id="kmCloseBtn" type="button" title="Close">✕</button>
+            </div>
+            <div class="km-folder-tabs" id="kmFolderTabs"></div>
+            <div class="km-body" id="kmBody">
+                <svg id="kmSvg"></svg>
+                <div class="km-legend">
+                    <div class="km-legend-title">Mastery</div>
+                    <div class="km-legend-row"><span class="km-legend-dot km-dot-0"></span> Not covered</div>
+                    <div class="km-legend-row"><span class="km-legend-dot km-dot-1"></span> Due for review</div>
+                    <div class="km-legend-row"><span class="km-legend-dot km-dot-2"></span> Mastered</div>
+                </div>
+                <div class="km-detail-panel" id="kmDetailPanel">
+                    <button class="km-detail-close" id="kmDetailClose">✕</button>
+                    <div class="km-detail-chip" id="kmDetailChip"><span class="dot"></span><span class="chip-text"></span></div>
+                    <h2 id="kmDetailName"></h2>
+                    <p id="kmDetailDescription"></p>
+                    <div class="km-mastery-clarity" id="kmMasteryClarity"></div>
+                    <button class="btn" id="kmGetHelpBtn" type="button" style="display:none;">🤝 Get help with this</button>
+                    <p class="km-help-status" id="kmHelpStatus" style="display:none;"></p>
+                </div>
+                <div class="km-hover-tooltip" id="kmHoverTooltip"></div>
+            </div>
+        </div>
+
+        <!-- "My Tutoring" — assigned peer-tutoring tasks, both as
+             helper (obligations with a deadline) and as requester
+             (booking when to see the response once it's ready). Same
+             full-page overlay pattern as knowledgeMapView above. See
+             openMyTutoring/renderMyTutoringLists. -->
+        <div class="my-tutoring-view" id="myTutoringView">
+            <div class="mt-header">
+                <div class="mt-header-title">
+                    <h3>My Tutoring</h3>
+                    <p>Concepts you're helping with, and help you've asked for.</p>
+                </div>
+                <button class="btn" id="mtCloseBtn" type="button" title="Close">✕</button>
+            </div>
+            <div class="mt-body" id="mtBody">
+                <div class="pt-onboarding-banner" id="mtOnboardingBanner" style="display:none;"></div>
+                <div class="mt-column">
+                    <h4>Helping</h4>
+                    <div class="mt-list" id="mtHelperList"></div>
+                </div>
+                <div class="mt-column">
+                    <h4>Waiting on help</h4>
+                    <div class="mt-list" id="mtRequesterList"></div>
+                </div>
+                <div class="mt-column">
+                    <h4>Open requests you could help with</h4>
+                    <div class="mt-list" id="mtClaimableList"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- "Peer Tutoring" hub — recommended micro-concepts (mastery
+             0/1 across every folder) worth requesting help on, plus a
+             tightly structured "ask about something else" form (see
+             the plan's Decisions section: reducing input variability
+             here directly reduces legal exposure). Opt-in settings
+             live inline at the top rather than a separate modal. Same
+             full-page overlay pattern as myTutoringView above. -->
+        <div class="peer-tutoring-view" id="peerTutoringView">
+            <div class="pt-header">
+                <div class="pt-header-title">
+                    <h3>Peer Tutoring</h3>
+                    <p>Concepts worth getting help on, matched to a student who's verified it.</p>
+                </div>
+                <button class="btn" id="ptCloseBtn" type="button" title="Close">✕</button>
+            </div>
+            <div class="pt-body" id="ptBody">
+                <div class="pt-onboarding-banner" id="ptOnboardingBanner" style="display:none;"></div>
+
+                <div class="pt-section">
+                    <h4>Recommended for you</h4>
+                    <div class="pt-concept-list" id="ptRecommendedList"><div class="mt-empty">Loading…</div></div>
+                </div>
+
+                <div class="pt-section">
+                    <h4>Ask about something else</h4>
+                    <p class="pt-hint">Structured fields only — this keeps every request predictable and checked before it's ever sent.</p>
+                    <div class="pt-custom-form">
+                        <input type="text" id="ptCustomSubject" placeholder="Subject (e.g. Economics)" maxlength="60">
+                        <input type="text" id="ptCustomTopic" placeholder="Topic (optional)" maxlength="60">
+                        <input type="text" id="ptCustomConcept" placeholder="Concept (e.g. Price elasticity of demand)" maxlength="60">
+                        <button class="btn" id="ptCustomSubmitBtn" type="button">Request help</button>
+                    </div>
+                    <p class="pt-custom-status" id="ptCustomStatus" style="display:none;"></p>
+                </div>
+            </div>
+        </div>
 
         <!-- ─── MAIN ─── -->
         <main class="main">
             <div class="topbar">
                 <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">☰</button>
                 <span class="topbar-title" id="topbarTitle">Dashboard</span>
-                <button class="cortex-btn-topbar" id="peerTutoringHubBtn" type="button">🤝 Peer tutoring</button>
-                <button class="cortex-btn-topbar" id="myTutoringTopbarBtn" type="button">📋 My Tutoring<span class="mt-badge" id="mtBadge" style="display:none;"></span></button>
-                <button class="cortex-btn-topbar" id="progressTopbarBtn" type="button">🗺️ Your Progress</button>
-                <button class="cortex-btn-topbar" id="calendarTopbarBtn" type="button">📅 Calendar</button>
+                <div class="topbar-actions" id="topbarActions">
+                    <button class="cortex-btn-topbar" id="peerTutoringHubBtn" type="button">🤝 Peer tutoring</button>
+                    <button class="cortex-btn-topbar" id="myTutoringTopbarBtn" type="button">📋 My Tutoring<span class="mt-badge" id="mtBadge" style="display:none;"></span></button>
+                    <button class="cortex-btn-topbar" id="progressTopbarBtn" type="button">🗺️ Your Progress</button>
+                    <button class="cortex-btn-topbar" id="calendarTopbarBtn" type="button">📅 Calendar</button>
+                </div>
             </div>
 
             <div class="content">
@@ -8216,6 +8253,17 @@ SQIDAQAB
     document.getElementById('sidebarToggle').addEventListener('click', () => {
         document.getElementById('sidebar').classList.toggle('collapsed');
     });
+
+    // Default the sidebar to collapsed on a phone-width viewport — it's a
+    // fixed 280px column with no responsive handling at all otherwise, so
+    // on a real phone it was permanently eating most of the screen next
+    // to whatever's open (folders/notes/lesson content) even though the
+    // toggle button to close it already existed. One-time default only —
+    // deliberately doesn't re-check on resize/rotate, so a manual toggle
+    // afterward isn't fought by this.
+    if (window.innerWidth <= 768) {
+        document.getElementById('sidebar').classList.add('collapsed');
+    }
 
     // Calendar now opens as a genuine full page (see setCalendarFullscreen)
     // rather than a sidebar tab — this button lives where the old Cortex
