@@ -322,10 +322,19 @@
 
     .sidebar-calendar.fullscreen .calendar-day-review,
     .sidebar-calendar.fullscreen .calendar-day-busy,
-    .sidebar-calendar.fullscreen .calendar-day-exam {
+    .sidebar-calendar.fullscreen .calendar-day-exam,
+    .sidebar-calendar.fullscreen .calendar-day-revision {
         padding: 4px 6px;
         font-size: 0.74rem;
         white-space: normal;
+    }
+
+    .sidebar-calendar.fullscreen .calendar-study-budget {
+        font-size: 0.85rem;
+    }
+
+    .sidebar-calendar.fullscreen .revision-plan-banner {
+        font-size: 0.85rem;
     }
 
     /* "Your Progress" knowledge map — same full-page overlay pattern as
@@ -1182,6 +1191,78 @@
 
     .calendar-day-exam {
         background: rgba(200, 130, 120, 0.2);
+    }
+
+    /* Scheduler-produced chips — see revisionPlanService.ts's
+       generateRevisionPlan. Distinct green-ish tint from the read-only
+       FSRS review chip and the user-created busy/exam blocks, since this
+       is a THIRD kind of thing: a suggestion the student can act on
+       (click to start) but that only exists after they've generated a
+       plan for a specific exam. */
+    .calendar-day-revision {
+        background: rgba(140, 190, 140, 0.18);
+        border-radius: 3px;
+        padding: 2px 4px;
+        margin-bottom: 2px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        cursor: pointer;
+        opacity: 0.9;
+    }
+
+    .calendar-day-revision:hover {
+        opacity: 1;
+        background: rgba(140, 190, 140, 0.3);
+    }
+
+    .calendar-day-revision.exam-practice {
+        cursor: default;
+        font-style: italic;
+    }
+
+    .calendar-day-event-generate {
+        flex-shrink: 0;
+        opacity: 0.65;
+        cursor: pointer;
+        font-size: 0.85em;
+        padding: 0 2px;
+    }
+
+    .calendar-day-event-generate:hover {
+        opacity: 1;
+    }
+
+    .calendar-study-budget {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.68rem;
+        opacity: 0.75;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    .calendar-study-budget input {
+        width: 48px;
+        background: rgba(230, 215, 176, 0.08);
+        border: 1px solid rgba(230, 215, 176, 0.2);
+        border-radius: 3px;
+        color: var(--text);
+        padding: 2px 4px;
+        font-size: inherit;
+    }
+
+    .revision-plan-banner {
+        background: rgba(140, 190, 140, 0.12);
+        border: 1px solid rgba(140, 190, 140, 0.3);
+        border-radius: 5px;
+        padding: 8px 10px;
+        margin-bottom: 10px;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.75rem;
+        line-height: 1.4;
     }
 
     .calendar-day-event-label {
@@ -3068,8 +3149,12 @@
                     <button class="btn" id="calendarPrevBtn" type="button">‹</button>
                     <h3 id="calendarMonthLabel">August 2026</h3>
                     <button class="btn" id="calendarNextBtn" type="button">›</button>
+                    <label class="calendar-study-budget" title="How much time you actually have to study on a typical day — used to build revision plans before exams.">
+                        Study/day <input type="number" id="studyBudgetInput" min="10" max="720" step="5"> min
+                    </label>
                     <button class="btn" id="calendarFullscreenBtn" type="button" title="Exit full screen">✕</button>
                 </div>
+                <div class="revision-plan-banner" id="revisionPlanBanner" style="display:none;"></div>
                 <div class="calendar-weekdays">
                     <span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span>
                 </div>
@@ -8749,7 +8834,9 @@ SQIDAQAB
             calendarViewDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
         document.getElementById('calendarGrid').innerHTML =
             '<div class="empty-hint" style="grid-column: 1 / -1;">Loading…</div>';
-        [cachedScheduleData, cachedCalendarEvents] = await Promise.all([fetchScheduleData(), fetchCalendarEvents()]);
+        [cachedScheduleData, cachedCalendarEvents, cachedStudySettings] = await Promise.all([fetchScheduleData(), fetchCalendarEvents(), fetchStudySettings()]);
+        document.getElementById('studyBudgetInput').value = cachedStudySettings.dailyMinutesBudget;
+        await refreshAllRevisionItems();
         renderCalendar();
     }
 
@@ -8779,6 +8866,8 @@ SQIDAQAB
 
     let cachedScheduleData = [];
     let cachedCalendarEvents = [];
+    let cachedStudySettings = { dailyMinutesBudget: 90 };
+    let cachedRevisionItems = []; // flat across every exam with a generated plan
     let calendarViewDate = new Date();
 
     async function fetchScheduleData() {
@@ -8817,6 +8906,127 @@ SQIDAQAB
         } catch (err) {
             console.error('LastMind: failed to load calendar events.', err);
             return [];
+        }
+    }
+
+    // Per-user daily study-time budget (see studySettingsService.ts) — the
+    // capacity constraint generateRevisionPlan uses. Defaults to 90 on any
+    // failure, matching the backend's own default.
+    async function fetchStudySettings() {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return cachedStudySettings;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/study-settings`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            return await resp.json();
+        } catch (err) {
+            console.error('LastMind: failed to load study settings.', err);
+            return cachedStudySettings;
+        }
+    }
+
+    async function saveStudySettings(dailyMinutesBudget) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/study-settings`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify({ dailyMinutesBudget })
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            cachedStudySettings = await resp.json();
+            document.getElementById('studyBudgetInput').value = cachedStudySettings.dailyMinutesBudget;
+        } catch (err) {
+            console.error('LastMind: failed to save study settings.', err);
+        }
+    }
+
+    document.getElementById('studyBudgetInput').addEventListener('change', (e) => {
+        const v = parseInt(e.target.value, 10);
+        if (!Number.isFinite(v)) return;
+        saveStudySettings(v);
+    });
+
+    // A generated revision plan's persisted items for one exam (see
+    // revisionPlanService.ts's listRevisionPlan) — fetched per exam event,
+    // never regenerated by this call.
+    async function fetchRevisionPlanForExam(examEventId) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return [];
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/revision-plan?examEventId=${encodeURIComponent(examEventId)}`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            const { items } = await resp.json();
+            return items || [];
+        } catch (err) {
+            console.error('LastMind: failed to load a revision plan.', err);
+            return [];
+        }
+    }
+
+    // Refreshes cachedRevisionItems for every exam currently on the
+    // calendar — there's no "list every plan for this user" backend
+    // route, so this fans out per exam event instead; fine in practice
+    // since a student only has a handful of exams on the calendar at once.
+    async function refreshAllRevisionItems() {
+        const examEvents = cachedCalendarEvents.filter((e) => e.type === 'exam');
+        const lists = await Promise.all(examEvents.map((e) => fetchRevisionPlanForExam(e.id)));
+        cachedRevisionItems = lists.flat();
+    }
+
+    function showRevisionPlanBanner(text) {
+        const el = document.getElementById('revisionPlanBanner');
+        el.style.display = '';
+        el.textContent = text;
+    }
+
+    function renderRevisionPlanBanner(plan, folder) {
+        const el = document.getElementById('revisionPlanBanner');
+        el.style.display = '';
+        const pct = Math.round((plan.projectedAverageRetrievability || 0) * 100);
+        let text = `Revision plan for ${folderLabel(folder)}: projected ~${pct}% average retrievability by the exam.`;
+        if (plan.atRisk && plan.atRisk.length) {
+            text += ` ${plan.atRisk.length} concept${plan.atRisk.length === 1 ? '' : 's'} won't fit at your current pace: ${plan.atRisk.map((c) => c.conceptLabel).join(', ')}.`;
+        }
+        el.textContent = text;
+    }
+
+    // Builds a day-by-day revision plan for this exam from its folder's
+    // own concepts (collectFolderConcepts — the same list the knowledge
+    // map already uses), then refreshes the calendar's revision chips.
+    async function generateRevisionPlanForExam(event) {
+        const folder = folders.find((f) => f.id === event.folderId);
+        if (!folder) {
+            showRevisionPlanBanner('Could not find the folder for this exam.');
+            return;
+        }
+        const concepts = collectFolderConcepts(folder).map((c) => ({ subject: folder.subject || '', topic: c.topic, concept: c.concept }));
+        if (!concepts.length) {
+            showRevisionPlanBanner(`${folderLabel(folder)} doesn't have any pages yet — add some before generating a revision plan.`);
+            return;
+        }
+        showRevisionPlanBanner('Building your revision plan…');
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/revision-plan/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify({ examEventId: event.id, concepts })
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            const plan = await resp.json();
+            renderRevisionPlanBanner(plan, folder);
+            await refreshAllRevisionItems();
+            renderCalendar();
+        } catch (err) {
+            console.error('LastMind: failed to generate a revision plan.', err);
+            showRevisionPlanBanner("Couldn't build a revision plan — try again in a moment.");
         }
     }
 
@@ -8875,6 +9085,16 @@ SQIDAQAB
             (eventsByDay[key] = eventsByDay[key] || []).push(item);
         });
 
+        // Revision-plan items (see revisionPlanService.ts) — bucketed the
+        // same local-time-safe way as busy/exam blocks above, since
+        // scheduledDate is the same plain YYYY-MM-DD shape.
+        const revisionByDay = {};
+        cachedRevisionItems.forEach((item) => {
+            const d = new Date(`${item.scheduledDate}T00:00:00`);
+            const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+            (revisionByDay[key] = revisionByDay[key] || []).push(item);
+        });
+
         const firstOfMonth = new Date(year, month, 1);
         // Monday-first grid: JS getDay() is 0=Sunday, convert to 0=Monday.
         const leadingBlanks = (firstOfMonth.getDay() + 6) % 7;
@@ -8931,6 +9151,18 @@ SQIDAQAB
                 labelEl.title = labelEl.textContent;
                 chip.appendChild(labelEl);
 
+                if (event.type === 'exam') {
+                    const genBtn = document.createElement('span');
+                    genBtn.className = 'calendar-day-event-generate';
+                    genBtn.textContent = '↻';
+                    genBtn.title = 'Generate a revision plan for this exam';
+                    genBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        generateRevisionPlanForExam(event);
+                    });
+                    chip.appendChild(genBtn);
+                }
+
                 const delBtn = document.createElement('span');
                 delBtn.className = 'calendar-day-event-delete';
                 delBtn.textContent = '×';
@@ -8941,6 +9173,19 @@ SQIDAQAB
                 });
                 chip.appendChild(delBtn);
 
+                cell.appendChild(chip);
+            });
+
+            const dayRevisionItems = revisionByDay[`${year}-${month}-${day}`] || [];
+            dayRevisionItems.forEach((item) => {
+                const chip = document.createElement('div');
+                chip.className = 'calendar-day-revision' + (item.itemType === 'exam_practice' ? ' exam-practice' : '');
+                const label = item.itemType === 'exam_practice' ? 'Exam practice' : `Revise: ${item.conceptLabel}`;
+                chip.textContent = `${label} (~${item.estimatedMinutes} min)`;
+                chip.title = chip.textContent;
+                if (item.itemType === 'concept') {
+                    chip.addEventListener('click', () => startReviewFromSchedule(item.conceptId));
+                }
                 cell.appendChild(chip);
             });
 
@@ -8969,7 +9214,10 @@ SQIDAQAB
                 '<div class="empty-hint" style="grid-column: 1 / -1;">Upgrade to unlock spaced review scheduling.</div>';
             return;
         }
-        [cachedScheduleData, cachedCalendarEvents] = await Promise.all([fetchScheduleData(), fetchCalendarEvents()]);
+        [cachedScheduleData, cachedCalendarEvents, cachedStudySettings] = await Promise.all([fetchScheduleData(), fetchCalendarEvents(), fetchStudySettings()]);
+        document.getElementById('studyBudgetInput').value = cachedStudySettings.dailyMinutesBudget;
+        await refreshAllRevisionItems();
+        document.getElementById('revisionPlanBanner').style.display = 'none';
         renderCalendar();
     }
 
