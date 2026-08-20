@@ -789,9 +789,21 @@
         min-height: 0;
         overflow-y: auto;
         display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
+        grid-template-columns: 1fr 1fr;
         gap: 28px;
         padding: 24px clamp(16px, 6vw, 90px) 60px;
+    }
+
+    .mt-subheading {
+        margin: 18px 0 8px;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        opacity: 0.4;
+    }
+
+    .mt-subheading:first-of-type {
+        margin-top: 0;
     }
 
     .mt-column h4 {
@@ -1276,6 +1288,175 @@
         margin-top: 10px;
         font-size: 0.8rem;
         opacity: 0.75;
+    }
+
+    /* ─── BROWSE TUTORS ───
+       Same full-page overlay pattern as .credit-balance-view — see the
+       .fullscreen rules further down. Reuses .cb-header/.cb-body for the
+       chrome, wider than cb-body's own 640px default since tutor cards
+       need more room. */
+    .browse-tutors-view {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 150;
+        width: 100vw;
+        height: 100vh;
+        background: var(--bg);
+        flex-direction: column;
+    }
+
+    .browse-tutors-view.fullscreen {
+        display: flex;
+    }
+
+    .bt-body {
+        max-width: 820px;
+    }
+
+    .bt-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-bottom: 20px;
+    }
+
+    .bt-tutor-card {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        background: rgba(32, 31, 33, 0.6);
+        border: 1px solid rgba(230, 215, 176, 0.14);
+        border-radius: 10px;
+        padding: 14px 16px;
+    }
+
+    .bt-tutor-checkbox {
+        flex-shrink: 0;
+        width: 18px;
+        height: 18px;
+        accent-color: var(--accent);
+    }
+
+    .bt-tutor-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .bt-tutor-name {
+        font-size: 0.92rem;
+        font-weight: 600;
+        margin-bottom: 3px;
+    }
+
+    .bt-tutor-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        font-size: 0.76rem;
+        opacity: 0.65;
+    }
+
+    .bt-tutor-rating {
+        color: var(--accent);
+        opacity: 1;
+    }
+
+    .bt-badge {
+        display: inline-block;
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        padding: 2px 8px;
+        border-radius: 20px;
+        border: 1px solid rgba(230, 215, 176, 0.3);
+        color: var(--accent);
+        opacity: 0.85;
+    }
+
+    .bt-submit-row {
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    .bt-submit-status {
+        margin-top: 10px;
+        font-size: 0.8rem;
+        opacity: 0.75;
+        text-align: right;
+    }
+
+    /* ─── ADMIN OVERDUE QUEUE ─── */
+    .admin-queue-view {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 150;
+        width: 100vw;
+        height: 100vh;
+        background: var(--bg);
+        flex-direction: column;
+    }
+
+    .admin-queue-view.fullscreen {
+        display: flex;
+    }
+
+    /* ─── STAR RATINGS ───
+       Used both as an interactive 1-5 input (the requester's post-session
+       rating form, 5 dimensions) and as a static read-only display
+       (a tutor's aggregate on their Browse Tutors card, a rating already
+       given/received in My Tutoring history) — .static suppresses hover/
+       click affordances for the latter case. */
+    .rating-form {
+        margin-top: 14px;
+        padding-top: 14px;
+        border-top: 1px solid rgba(230, 215, 176, 0.14);
+    }
+
+    .rating-dimension-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 8px;
+        font-size: 0.8rem;
+    }
+
+    .star-rating {
+        display: inline-flex;
+        gap: 2px;
+    }
+
+    .star-rating .star {
+        font-size: 1.05rem;
+        color: var(--accent);
+        opacity: 0.3;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .star-rating .star.filled {
+        opacity: 1;
+    }
+
+    .star-rating.static .star {
+        cursor: default;
+    }
+
+    .rating-submit-row {
+        margin-top: 10px;
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    .mt-rating-summary {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid rgba(230, 215, 176, 0.14);
+        font-size: 0.8rem;
+        opacity: 0.85;
     }
 
     .calendar-header {
@@ -3442,15 +3623,17 @@
                 <div class="pt-onboarding-banner" id="mtOnboardingBanner" style="display:none;"></div>
                 <div class="mt-column">
                     <h4>Helping</h4>
-                    <div class="mt-list" id="mtHelperList"></div>
+                    <p class="mt-subheading">Active</p>
+                    <div class="mt-list" id="mtHelperActiveList"></div>
+                    <p class="mt-subheading">History</p>
+                    <div class="mt-list" id="mtHelperHistoryList"></div>
                 </div>
                 <div class="mt-column">
                     <h4>Waiting on help</h4>
-                    <div class="mt-list" id="mtRequesterList"></div>
-                </div>
-                <div class="mt-column">
-                    <h4>Open requests you could help with</h4>
-                    <div class="mt-list" id="mtClaimableList"></div>
+                    <p class="mt-subheading">Active</p>
+                    <div class="mt-list" id="mtRequesterActiveList"></div>
+                    <p class="mt-subheading">History</p>
+                    <div class="mt-list" id="mtRequesterHistoryList"></div>
                 </div>
             </div>
         </div>
@@ -3466,7 +3649,7 @@
             <div class="pt-header">
                 <div class="pt-header-title">
                     <h3>Peer Tutoring</h3>
-                    <p>Concepts worth getting help on, matched to a student who's verified it.</p>
+                    <p>Concepts and links worth getting help on — browse students who've verified it and pick who to ask.</p>
                 </div>
                 <button class="btn" id="ptCloseBtn" type="button" title="Close">✕</button>
             </div>
@@ -3485,7 +3668,7 @@
                         <input type="text" id="ptCustomSubject" placeholder="Subject (e.g. Economics)" maxlength="60">
                         <input type="text" id="ptCustomTopic" placeholder="Topic (optional)" maxlength="60">
                         <input type="text" id="ptCustomConcept" placeholder="Concept (e.g. Price elasticity of demand)" maxlength="60">
-                        <button class="btn" id="ptCustomSubmitBtn" type="button">Request help</button>
+                        <button class="btn" id="ptCustomSubmitBtn" type="button">Find tutors</button>
                     </div>
                     <p class="pt-custom-status" id="ptCustomStatus" style="display:none;"></p>
                 </div>
@@ -3533,6 +3716,45 @@
             </div>
         </div>
 
+        <!-- "Browse Tutors" — opened scoped to one concept or link (from
+             Recommended or "add your own"), replaces the old one-click
+             auto-match entirely. Ranked by rating/availability; the
+             student picks as many as they want, first to respond wins
+             (see submitResponse's own comment backend-side). -->
+        <div class="browse-tutors-view" id="browseTutorsView">
+            <div class="cb-header">
+                <div class="cb-header-title">
+                    <h3>Browse Tutors</h3>
+                    <p id="btTargetLabel"></p>
+                </div>
+                <button class="btn" id="btCloseBtn" type="button" title="Close">✕</button>
+            </div>
+            <div class="cb-body bt-body" id="btBody">
+                <div class="bt-list" id="btList"></div>
+                <div class="bt-submit-row">
+                    <button class="btn primary" id="btRequestBtn" type="button" disabled>Request help from selected (0)</button>
+                </div>
+                <p class="bt-submit-status" id="btSubmitStatus" style="display:none;"></p>
+            </div>
+        </div>
+
+        <!-- Owner-only admin overdue-request queue — only ever fetched
+             (and its topbar entry shown) if /admin/overdue-requests
+             returns 200 rather than 403; invisible to every other
+             account. Fulfils "if they don't respond, I will step in." -->
+        <div class="admin-queue-view" id="adminQueueView">
+            <div class="cb-header">
+                <div class="cb-header-title">
+                    <h3>Overdue Requests</h3>
+                    <p>Every tutor picked for these missed their deadline — step in and answer yourself.</p>
+                </div>
+                <button class="btn" id="aqCloseBtn" type="button" title="Close">✕</button>
+            </div>
+            <div class="cb-body" id="aqBody">
+                <div class="mt-list" id="aqList"></div>
+            </div>
+        </div>
+
         <!-- ─── MAIN ─── -->
         <main class="main">
             <div class="topbar">
@@ -3544,6 +3766,7 @@
                     <button class="cortex-btn-topbar" id="myTutoringTopbarBtn" type="button">📋 My Tutoring<span class="mt-badge" id="mtBadge" style="display:none;"></span></button>
                     <button class="cortex-btn-topbar" id="progressTopbarBtn" type="button">🗺️ Your Progress</button>
                     <button class="cortex-btn-topbar" id="calendarTopbarBtn" type="button">📅 Calendar</button>
+                    <button class="cortex-btn-topbar" id="adminQueueTopbarBtn" type="button" style="display:none;">🛟 Overdue Requests<span class="mt-badge" id="aqBadge" style="display:none;"></span></button>
                 </div>
             </div>
 
@@ -10101,47 +10324,21 @@ SQIDAQAB
             });
     }
 
-    // Posts a help request for the currently selected not-yet-mastered
-    // node — see peerTutoringMatchService.ts's createHelpRequest, which
-    // attempts an immediate auto-assignment in the same call. topics[0] is
-    // used as a best-effort subfolder/topic label (a node can belong to
-    // more than one subfolder in a merged map; the first is good enough
-    // context, never shown as if it were the only place this concept
-    // appears).
-    async function requestHelpForNode(node) {
-        const helpBtn = document.getElementById('kmGetHelpBtn');
-        const helpStatus = document.getElementById('kmHelpStatus');
-        helpBtn.disabled = true;
-        helpBtn.textContent = 'Requesting…';
-        try {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) throw new Error('not signed in');
-            const resp = await fetch(`${COMPILE_BACKEND_URL}/peer-tutoring/help-requests`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-                body: JSON.stringify({
-                    conceptId: node.id,
-                    subject: kmCurrentSubject,
-                    topic: (node.topics && node.topics[0]) || null
-                })
-            });
-            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
-            const result = await resp.json();
-            helpStatus.style.display = '';
-            if (result.session) {
-                helpStatus.textContent = "You're matched! Check My Tutoring for updates.";
-                helpBtn.style.display = 'none';
-            } else {
-                helpStatus.textContent = 'Request sent — waiting for someone available to help.';
-                helpBtn.style.display = 'none';
-            }
-        } catch (err) {
-            console.error('LastMind: failed to create help request.', err);
-            helpStatus.style.display = '';
-            helpStatus.textContent = "Couldn't send your request — try again in a moment.";
-            helpBtn.disabled = false;
-            helpBtn.textContent = '🤝 Get help with this';
-        }
+    // Opens Browse Tutors scoped to the currently selected not-yet-mastered
+    // node — replaces the old direct auto-match POST entirely (see the
+    // plan: "request help should be a part of the separate browse tutors
+    // page"). topics[0] is a best-effort subfolder/topic label (a node can
+    // belong to more than one subfolder in a merged map; the first is good
+    // enough context, never shown as if it were the only place this
+    // concept appears).
+    function requestHelpForNode(node) {
+        setKnowledgeMapFullscreen(false);
+        openBrowseTutors({
+            conceptId: node.id,
+            subject: kmCurrentSubject,
+            topic: (node.topics && node.topics[0]) || null,
+            label: node.name
+        });
     }
 
     document.getElementById('kmGetHelpBtn').addEventListener('click', () => {
@@ -10191,36 +10388,165 @@ SQIDAQAB
         assigned: 'Assigned',
         submitted: 'Response submitted',
         released: 'Released',
-        missed_deadline: 'Reassigning…',
-        cancelled: 'Cancelled',
+        missed_deadline: 'Missed deadline',
+        cancelled: 'Someone else answered first',
     };
+
+    // Renders a value (0-5, decimals allowed) as filled/empty stars — used
+    // both for a tutor's aggregate on their Browse Tutors card and for a
+    // rating already given/received in My Tutoring history. Non-interactive
+    // — see buildRatingForm below for the clickable input version.
+    function renderStaticStars(value) {
+        const rounded = Math.round(value);
+        const span = document.createElement('span');
+        span.className = 'star-rating static';
+        for (let i = 1; i <= 5; i++) {
+            const star = document.createElement('span');
+            star.className = 'star' + (i <= rounded ? ' filled' : '');
+            star.textContent = '★';
+            span.appendChild(star);
+        }
+        return span;
+    }
+
+    const RATING_DIMENSIONS = [
+        { key: 'quality', label: 'Quality of explanation' },
+        { key: 'helpfulness', label: 'Helpfulness' },
+        { key: 'timeliness', label: 'Timeliness' },
+        { key: 'clarity', label: 'Clarity' },
+        { key: 'wouldRecommend', label: 'Would recommend' },
+    ];
+
+    // The requester's post-session rating form — 5 dimensions, 1-5 stars
+    // each, only shown once a session is 'released' and unrated (see
+    // renderRequesterCard). onSubmitted(rating) fires once the POST
+    // succeeds so the caller can swap the form for a read-only display.
+    function buildRatingForm(sessionId, onSubmitted) {
+        const form = document.createElement('div');
+        form.className = 'rating-form';
+        const values = {};
+        RATING_DIMENSIONS.forEach((dim) => {
+            values[dim.key] = 0;
+            const row = document.createElement('div');
+            row.className = 'rating-dimension-row';
+            const label = document.createElement('span');
+            label.textContent = dim.label;
+            const stars = document.createElement('span');
+            stars.className = 'star-rating';
+            for (let i = 1; i <= 5; i++) {
+                const star = document.createElement('span');
+                star.className = 'star';
+                star.textContent = '★';
+                star.addEventListener('click', () => {
+                    values[dim.key] = i;
+                    Array.from(stars.children).forEach((s, idx) => s.classList.toggle('filled', idx < i));
+                });
+                stars.appendChild(star);
+            }
+            row.appendChild(label);
+            row.appendChild(stars);
+            form.appendChild(row);
+        });
+        const submitRow = document.createElement('div');
+        submitRow.className = 'rating-submit-row';
+        const submitBtn = document.createElement('button');
+        submitBtn.className = 'btn primary';
+        submitBtn.type = 'button';
+        submitBtn.textContent = 'Submit rating';
+        submitBtn.addEventListener('click', async () => {
+            if (RATING_DIMENSIONS.some((dim) => !values[dim.key])) {
+                submitBtn.textContent = 'Rate every dimension first';
+                return;
+            }
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Submitting…';
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (!session) throw new Error('not signed in');
+                const resp = await fetch(`${COMPILE_BACKEND_URL}/tutoring-sessions/${sessionId}/rating`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                    body: JSON.stringify(values)
+                });
+                if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+                const rating = await resp.json();
+                onSubmitted(rating);
+            } catch (err) {
+                console.error('LastMind: failed to submit a rating.', err);
+                submitBtn.disabled = false;
+                submitBtn.textContent = "Couldn't submit — retry";
+            }
+        });
+        submitRow.appendChild(submitBtn);
+        form.appendChild(submitRow);
+        return form;
+    }
+
+    // Read-only "you were rated" / "you rated this" summary — shared by
+    // both sides of My Tutoring history once a rating exists.
+    function renderRatingSummaryNode(rating, label) {
+        const wrap = document.createElement('div');
+        wrap.className = 'mt-rating-summary';
+        const overall = (rating.quality + rating.helpfulness + rating.timeliness + rating.clarity + rating.wouldRecommend) / 5;
+        const line = document.createElement('div');
+        line.textContent = label;
+        wrap.appendChild(line);
+        wrap.appendChild(renderStaticStars(overall));
+        return wrap;
+    }
 
     function renderHelperCard(session) {
         const card = document.createElement('div');
         card.className = 'mt-card';
         card.innerHTML = `
-            <div class="mt-card-concept">${escapeHtml(session.conceptId)}</div>
+            <div class="mt-card-concept">${escapeHtml(session.conceptLabel || session.conceptId)}</div>
             <div class="mt-card-meta">${escapeHtml(session.subject)}${session.topic ? ' · ' + escapeHtml(session.topic) : ''}</div>
             <span class="mt-card-status status-${session.status}">${MT_STATUS_LABELS[session.status] || session.status}</span>
             <div class="mt-card-meta">Due by ${formatDateTime(session.deadline)}</div>
         `;
-        if (session.status !== 'assigned') return card;
-
-        const textarea = document.createElement('textarea');
-        textarea.className = 'mt-response-textarea';
-        textarea.placeholder = 'Write your explanation here — it gets checked before it reaches them, then shown at the time they book.';
-        textarea.rows = 4;
-        const submitRow = document.createElement('div');
-        submitRow.className = 'mt-release-row';
-        const submitBtn = document.createElement('button');
-        submitBtn.className = 'btn';
-        submitBtn.type = 'button';
-        submitBtn.textContent = 'Submit response';
-        submitBtn.addEventListener('click', () => submitTutoringResponse(session.id, textarea, submitBtn));
-        submitRow.appendChild(submitBtn);
-        card.appendChild(textarea);
-        card.appendChild(submitRow);
+        if (session.status === 'assigned') {
+            const textarea = document.createElement('textarea');
+            textarea.className = 'mt-response-textarea';
+            textarea.placeholder = 'Write your explanation here — it gets checked before it reaches them, then shown at the time they book.';
+            textarea.rows = 4;
+            const submitRow = document.createElement('div');
+            submitRow.className = 'mt-release-row';
+            const submitBtn = document.createElement('button');
+            submitBtn.className = 'btn';
+            submitBtn.type = 'button';
+            submitBtn.textContent = 'Submit response';
+            submitBtn.addEventListener('click', () => submitTutoringResponse(session.id, textarea, submitBtn));
+            submitRow.appendChild(submitBtn);
+            card.appendChild(textarea);
+            card.appendChild(submitRow);
+            return card;
+        }
+        if (session.status === 'submitted' || session.status === 'released') {
+            loadRatingForHelperCard(session.id, card);
+        }
         return card;
+    }
+
+    async function loadRatingForHelperCard(sessionId, card) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/tutoring-sessions/${sessionId}/rating`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) return;
+            const rating = await resp.json();
+            if (rating) {
+                card.appendChild(renderRatingSummaryNode(rating, 'You were rated:'));
+            } else {
+                const note = document.createElement('div');
+                note.className = 'mt-card-meta';
+                note.textContent = 'Not yet rated.';
+                card.appendChild(note);
+            }
+        } catch (err) {
+            console.error('LastMind: failed to load a rating.', err);
+        }
     }
 
     async function submitTutoringResponse(sessionId, textarea, button) {
@@ -10251,7 +10577,7 @@ SQIDAQAB
         const card = document.createElement('div');
         card.className = 'mt-card';
         card.innerHTML = `
-            <div class="mt-card-concept">${escapeHtml(session.conceptId)}</div>
+            <div class="mt-card-concept">${escapeHtml(session.conceptLabel || session.conceptId)}</div>
             <div class="mt-card-meta">${escapeHtml(session.subject)}${session.topic ? ' · ' + escapeHtml(session.topic) : ''}</div>
             <span class="mt-card-status status-${session.status}">${MT_STATUS_LABELS[session.status] || session.status}</span>
         `;
@@ -10261,6 +10587,7 @@ SQIDAQAB
             body.textContent = 'Loading…';
             card.appendChild(body);
             loadReleasedResponse(session.id, card, body);
+            loadRatingForRequesterCard(session.id, card);
             return card;
         }
         const row = document.createElement('div');
@@ -10394,6 +10721,32 @@ SQIDAQAB
         card.appendChild(row);
     }
 
+    // Shows the rating form once (unrated, released), or the rating
+    // already given (read-only) — the requester's own side of the same
+    // rating loadRatingForHelperCard shows on the helper's side.
+    async function loadRatingForRequesterCard(sessionId, card) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/tutoring-sessions/${sessionId}/rating`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) return;
+            const rating = await resp.json();
+            if (rating) {
+                card.appendChild(renderRatingSummaryNode(rating, 'You rated this:'));
+                return;
+            }
+            const form = buildRatingForm(sessionId, (submittedRating) => {
+                form.remove();
+                card.appendChild(renderRatingSummaryNode(submittedRating, 'You rated this:'));
+            });
+            card.appendChild(form);
+        } catch (err) {
+            console.error('LastMind: failed to load rating status.', err);
+        }
+    }
+
     async function bookReleaseTime(sessionId, input, button) {
         if (!input.value) return;
         button.disabled = true;
@@ -10416,104 +10769,49 @@ SQIDAQAB
         }
     }
 
+    // A helper's own obligation is done the moment they submit — 'assigned'
+    // is Active (still owed), everything else (submitted/released/missed/
+    // cancelled) is History. A requester is still genuinely waiting until
+    // released — 'assigned'/'submitted' stay Active; 'released'/
+    // 'missed_deadline' move to History. 'cancelled' sessions are filtered
+    // out of the requester's view entirely — they're the losing side of a
+    // first-response-wins race (see submitResponse's own comment
+    // backend-side) and carry no information for the person who asked,
+    // only for the helper who was racing (shown there so they know someone
+    // else already answered, not silently left wondering).
     function renderMyTutoringLists(data) {
-        const helperList = document.getElementById('mtHelperList');
-        const requesterList = document.getElementById('mtRequesterList');
-        helperList.innerHTML = '';
-        requesterList.innerHTML = '';
+        const helperActiveList = document.getElementById('mtHelperActiveList');
+        const helperHistoryList = document.getElementById('mtHelperHistoryList');
+        const requesterActiveList = document.getElementById('mtRequesterActiveList');
+        const requesterHistoryList = document.getElementById('mtRequesterHistoryList');
+        [helperActiveList, helperHistoryList, requesterActiveList, requesterHistoryList].forEach((el) => (el.innerHTML = ''));
 
-        const asHelper = (data.asHelper || []).filter((s) => s.status !== 'cancelled');
+        const asHelper = data.asHelper || [];
         const asRequester = (data.asRequester || []).filter((s) => s.status !== 'cancelled');
 
-        if (!asHelper.length) {
-            const empty = document.createElement('div');
-            empty.className = 'mt-empty';
-            empty.textContent = "You're not assigned to help anyone right now.";
-            helperList.appendChild(empty);
-        } else {
-            asHelper.forEach((s) => helperList.appendChild(renderHelperCard(s)));
-        }
+        const helperActive = asHelper.filter((s) => s.status === 'assigned');
+        const helperHistory = asHelper.filter((s) => s.status !== 'assigned');
+        const requesterActive = asRequester.filter((s) => s.status === 'assigned' || s.status === 'submitted');
+        const requesterHistory = asRequester.filter((s) => s.status === 'released' || s.status === 'missed_deadline');
 
-        if (!asRequester.length) {
-            const empty = document.createElement('div');
-            empty.className = 'mt-empty';
-            empty.textContent = "You haven't asked for help yet — try \"Get help with this\" on Your Progress.";
-            requesterList.appendChild(empty);
-        } else {
-            asRequester.forEach((s) => requesterList.appendChild(renderRequesterCard(s)));
-        }
-    }
-
-    // The low-liquidity fallback (see listClaimableHelpRequests's own
-    // comment backend-side) — open requests nobody's been auto-assigned
-    // yet, that THIS user could personally help with. Loaded alongside
-    // the two auto-assignment lists so an opted-in helper can proactively
-    // pick one up rather than only ever waiting on the automatic match.
-    async function loadClaimableRequests(session) {
-        const list = document.getElementById('mtClaimableList');
-        list.innerHTML = '<div class="mt-empty">Loading…</div>';
-        try {
-            const resp = await fetch(`${COMPILE_BACKEND_URL}/peer-tutoring/claimable`, {
-                headers: { Authorization: `Bearer ${session.access_token}` }
-            });
-            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
-            const requests = await resp.json();
-            list.innerHTML = '';
-            if (!requests.length) {
-                const empty = document.createElement('div');
-                empty.className = 'mt-empty';
-                empty.textContent = 'Nothing open right now that matches what you\'ve mastered.';
-                list.appendChild(empty);
+        const fillOrEmpty = (list, els, emptyText, render) => {
+            if (!list.length) {
+                els.innerHTML = `<div class="mt-empty">${emptyText}</div>`;
                 return;
             }
-            requests.forEach((r) => list.appendChild(renderClaimableCard(r)));
-        } catch (err) {
-            console.error('LastMind: failed to load claimable requests.', err);
-            list.innerHTML = '<div class="mt-empty">Couldn\'t load open requests.</div>';
-        }
-    }
-
-    function renderClaimableCard(request) {
-        const card = document.createElement('div');
-        card.className = 'mt-card';
-        card.innerHTML = `
-            <div class="mt-card-concept">${escapeHtml(request.conceptId)}</div>
-            <div class="mt-card-meta">${escapeHtml(request.subject)}${request.topic ? ' · ' + escapeHtml(request.topic) : ''}</div>
-        `;
-        const claimBtn = document.createElement('button');
-        claimBtn.className = 'btn';
-        claimBtn.type = 'button';
-        claimBtn.textContent = "I'll help with this";
-        claimBtn.addEventListener('click', async () => {
-            claimBtn.disabled = true;
-            claimBtn.textContent = 'Claiming…';
-            try {
-                const { data: { session } } = await supabaseClient.auth.getSession();
-                if (!session) throw new Error('not signed in');
-                const resp = await fetch(`${COMPILE_BACKEND_URL}/peer-tutoring/help-requests/${request.id}/claim`, {
-                    method: 'POST',
-                    headers: { Authorization: `Bearer ${session.access_token}` }
-                });
-                if (!resp.ok) {
-                    const body = await resp.json().catch(() => ({}));
-                    throw new Error(body.error || `Server returned ${resp.status}`);
-                }
-                openMyTutoring(); // full refresh — it's now in "Helping" too
-            } catch (err) {
-                console.error('LastMind: failed to claim a request.', err);
-                claimBtn.disabled = false;
-                claimBtn.textContent = "Couldn't claim — retry";
-            }
-        });
-        card.appendChild(claimBtn);
-        return card;
+            list.forEach((s) => els.appendChild(render(s)));
+        };
+        fillOrEmpty(helperActive, helperActiveList, "You're not assigned to help anyone right now.", renderHelperCard);
+        fillOrEmpty(helperHistory, helperHistoryList, 'No history yet.', renderHelperCard);
+        fillOrEmpty(requesterActive, requesterActiveList, "You haven't asked for help yet — try \"Find tutors\" on Peer Tutoring.", renderRequesterCard);
+        fillOrEmpty(requesterHistory, requesterHistoryList, 'No history yet.', renderRequesterCard);
     }
 
     async function openMyTutoring() {
         setMyTutoringFullscreen(true);
         renderTutoringOnboardingBanner(document.getElementById('mtOnboardingBanner'));
-        document.getElementById('mtHelperList').innerHTML = '<div class="mt-empty">Loading…</div>';
-        document.getElementById('mtRequesterList').innerHTML = '';
+        document.getElementById('mtHelperActiveList').innerHTML = '<div class="mt-empty">Loading…</div>';
+        document.getElementById('mtRequesterActiveList').innerHTML = '';
         try {
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (!session) throw new Error('not signed in');
@@ -10523,11 +10821,10 @@ SQIDAQAB
             if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
             const data = await resp.json();
             renderMyTutoringLists(data);
-            loadClaimableRequests(session);
             refreshTutoringBadge();
         } catch (err) {
             console.error('LastMind: failed to load My Tutoring.', err);
-            document.getElementById('mtHelperList').innerHTML = '<div class="mt-empty">Couldn\'t load your tutoring sessions.</div>';
+            document.getElementById('mtHelperActiveList').innerHTML = '<div class="mt-empty">Couldn\'t load your tutoring sessions.</div>';
         }
     }
 
@@ -10566,6 +10863,112 @@ SQIDAQAB
 
     refreshTutoringBadge();
     window.addEventListener('focus', refreshTutoringBadge);
+
+    // ─── Admin overdue-request queue ───
+    // Only ever visible to the owner's own account — /admin/overdue-requests
+    // 403s for everyone else, so the topbar entry simply never appears
+    // rather than showing and then failing. No polling; checked once per
+    // page load/focus, same cadence as the ordinary tutoring badge.
+    function setAdminQueueFullscreen(on) {
+        document.getElementById('adminQueueView').classList.toggle('fullscreen', on);
+    }
+
+    function renderOverdueCard(request) {
+        const card = document.createElement('div');
+        card.className = 'mt-card';
+        card.innerHTML = `
+            <div class="mt-card-concept">${escapeHtml(request.conceptLabel)}</div>
+            <div class="mt-card-meta">${escapeHtml(request.subject)}${request.topic ? ' · ' + escapeHtml(request.topic) : ''}</div>
+            <div class="mt-card-meta">Missed by ${request.missedHelperCount} tutor${request.missedHelperCount === 1 ? '' : 's'} · asked ${formatDateTime(request.createdAt)}</div>
+        `;
+        const claimBtn = document.createElement('button');
+        claimBtn.className = 'btn';
+        claimBtn.type = 'button';
+        claimBtn.textContent = 'Step in and help';
+        claimBtn.addEventListener('click', async () => {
+            claimBtn.disabled = true;
+            claimBtn.textContent = 'Claiming…';
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (!session) throw new Error('not signed in');
+                const resp = await fetch(`${COMPILE_BACKEND_URL}/admin/overdue-requests/${request.id}/claim`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${session.access_token}` }
+                });
+                if (!resp.ok) {
+                    const body = await resp.json().catch(() => ({}));
+                    throw new Error(body.error || `Server returned ${resp.status}`);
+                }
+                setAdminQueueFullscreen(false);
+                openMyTutoring(); // the new session is now in "Helping"
+            } catch (err) {
+                console.error('LastMind: failed to claim an overdue request.', err);
+                claimBtn.disabled = false;
+                claimBtn.textContent = "Couldn't claim — retry";
+            }
+        });
+        card.appendChild(claimBtn);
+        return card;
+    }
+
+    async function loadAdminOverdueRequests(session) {
+        const list = document.getElementById('aqList');
+        list.innerHTML = '<div class="mt-empty">Loading…</div>';
+        try {
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/admin/overdue-requests`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            const requests = await resp.json();
+            list.innerHTML = '';
+            if (!requests.length) {
+                list.innerHTML = '<div class="mt-empty">Nothing overdue right now.</div>';
+                return;
+            }
+            requests.forEach((r) => list.appendChild(renderOverdueCard(r)));
+        } catch (err) {
+            console.error('LastMind: failed to load overdue requests.', err);
+            list.innerHTML = '<div class="mt-empty">Couldn\'t load overdue requests.</div>';
+        }
+    }
+
+    async function openAdminQueue() {
+        setAdminQueueFullscreen(true);
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session) loadAdminOverdueRequests(session);
+    }
+
+    document.getElementById('adminQueueTopbarBtn').addEventListener('click', openAdminQueue);
+    document.getElementById('aqCloseBtn').addEventListener('click', () => setAdminQueueFullscreen(false));
+
+    // Silent probe — shows the topbar entry only if this account is
+    // genuinely an admin (200), stays completely invisible otherwise
+    // (403). Also surfaces a live overdue count on the badge, same visual
+    // language as the ordinary tutoring badge.
+    async function checkAdminAccess() {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/admin/overdue-requests`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) return;
+            const requests = await resp.json();
+            document.getElementById('adminQueueTopbarBtn').style.display = '';
+            const badge = document.getElementById('aqBadge');
+            if (requests.length > 0) {
+                badge.textContent = requests.length > 9 ? '9+' : String(requests.length);
+                badge.style.display = 'flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        } catch (err) {
+            console.error('LastMind: admin access check failed.', err);
+        }
+    }
+
+    checkAdminAccess();
+    window.addEventListener('focus', checkAdminAccess);
 
     // ─── Peer Tutoring hub ───
     function setPeerTutoringFullscreen(on) {
@@ -10668,6 +11071,7 @@ SQIDAQAB
             if (!data || !Array.isArray(data.nodes)) continue;
             const mastery = data.mastery || {};
             const lowConfidenceIds = new Set(data.lowConfidenceNodeIds || []);
+            const nodeNameById = new Map(data.nodes.map((n) => [n.id, n.name]));
             data.nodes.forEach((n) => {
                 const state = mastery[n.id] ?? 0;
                 if (seen.has(n.id)) return;
@@ -10694,6 +11098,29 @@ SQIDAQAB
                     lowConfidence: isLowConfidenceMastered
                 });
             });
+            // Weak LINKS — same "genuine struggle, not a coverage gap"
+            // philosophy as concepts above, using the knowledge map's
+            // already-shipped edgeMastery (state 1 = tested, not yet
+            // mastered; no low-confidence-mastered analog exists for edges
+            // yet, so just state 1). conceptId uses the exact same raw
+            // `${source}->${target}` shape submitEncodingAnswer/
+            // submitRetrievalAnswer already grade edges under.
+            const edgeMastery = data.edgeMastery || {};
+            (data.edges || []).forEach((e) => {
+                const key = `${e.source}->${e.target}`;
+                if (seen.has(key)) return;
+                if ((edgeMastery[key] ?? 0) !== 1) return;
+                seen.add(key);
+                const sourceName = nodeNameById.get(e.source) || e.source;
+                const targetName = nodeNameById.get(e.target) || e.target;
+                items.push({
+                    id: key,
+                    name: `${sourceName} → ${targetName}`,
+                    subject: folder.subject || '',
+                    topic: '',
+                    lowConfidence: false
+                });
+            });
         }
         list.innerHTML = '';
         if (!items.length) {
@@ -10716,39 +11143,146 @@ SQIDAQAB
         const btn = document.createElement('button');
         btn.className = 'btn';
         btn.type = 'button';
-        btn.textContent = 'Request help';
-        btn.addEventListener('click', () => submitPeerTutoringRequest({ conceptId: item.id, subject: item.subject, topic: item.topic || null }, btn));
+        btn.textContent = 'Find tutors';
+        btn.addEventListener('click', () => openBrowseTutors({ conceptId: item.id, subject: item.subject, topic: item.topic || null, label: item.name }));
         card.appendChild(info);
         card.appendChild(btn);
         return card;
     }
 
-    async function submitPeerTutoringRequest(body, triggerBtn) {
-        if (triggerBtn) { triggerBtn.disabled = true; triggerBtn.textContent = 'Requesting…'; }
+    // ─── Browse Tutors ───
+    // Opened scoped to one concept or link — replaces the old one-click
+    // auto-match entirely (see the plan: "request help should be a part of
+    // the separate browse tutors page"). The student picks as many
+    // tutors as they want; first to respond wins (see submitResponse's
+    // own comment backend-side) — picking more costs nothing extra, it
+    // only raises the odds someone actually answers.
+    let btCurrentTarget = null;
+    let btSelectedHelperIds = new Set();
+
+    function setBrowseTutorsFullscreen(on) {
+        document.getElementById('browseTutorsView').classList.toggle('fullscreen', on);
+    }
+
+    function updateBrowseTutorsSubmitButton() {
+        const btn = document.getElementById('btRequestBtn');
+        btn.textContent = `Request help from selected (${btSelectedHelperIds.size})`;
+        btn.disabled = btSelectedHelperIds.size === 0;
+    }
+
+    function renderTutorCard(tutor) {
+        const card = document.createElement('div');
+        card.className = 'bt-tutor-card';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'bt-tutor-checkbox';
+        checkbox.addEventListener('change', () => {
+            if (checkbox.checked) btSelectedHelperIds.add(tutor.helperId);
+            else btSelectedHelperIds.delete(tutor.helperId);
+            updateBrowseTutorsSubmitButton();
+        });
+        const info = document.createElement('div');
+        info.className = 'bt-tutor-info';
+        const name = document.createElement('div');
+        name.className = 'bt-tutor-name';
+        name.textContent = tutor.displayName || 'Anonymous tutor';
+        const meta = document.createElement('div');
+        meta.className = 'bt-tutor-meta';
+        const ratingSpan = document.createElement('span');
+        if (tutor.ratingSummary) {
+            ratingSpan.className = 'bt-tutor-rating';
+            ratingSpan.textContent = `★ ${tutor.ratingSummary.overall.toFixed(1)} (${tutor.ratingSummary.ratedSessionCount})`;
+        } else {
+            ratingSpan.textContent = 'Not yet rated';
+        }
+        const availability = document.createElement('span');
+        availability.textContent = tutor.pendingLoad > 0
+            ? `Currently helping ${tutor.pendingLoad} other${tutor.pendingLoad === 1 ? '' : 's'}`
+            : 'No pending requests';
+        meta.appendChild(ratingSpan);
+        meta.appendChild(availability);
+        if (tutor.helpedYouBefore) {
+            const badge = document.createElement('span');
+            badge.className = 'bt-badge';
+            badge.textContent = 'Helped you before';
+            meta.appendChild(badge);
+        }
+        info.appendChild(name);
+        info.appendChild(meta);
+        card.appendChild(checkbox);
+        card.appendChild(info);
+        return card;
+    }
+
+    async function loadBrowseTutors(target) {
+        const list = document.getElementById('btList');
+        list.innerHTML = '<div class="mt-empty">Loading…</div>';
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) throw new Error('not signed in');
+            const url = `${COMPILE_BACKEND_URL}/peer-tutoring/browse-tutors?conceptId=${encodeURIComponent(target.conceptId)}&subject=${encodeURIComponent(target.subject)}`;
+            const resp = await fetch(url, { headers: { Authorization: `Bearer ${session.access_token}` } });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            const tutors = await resp.json();
+            list.innerHTML = '';
+            if (!tutors.length) {
+                list.innerHTML = '<div class="mt-empty">Nobody with verified mastery of this is currently opted in — check back later.</div>';
+                return;
+            }
+            tutors.forEach((t) => list.appendChild(renderTutorCard(t)));
+        } catch (err) {
+            console.error('LastMind: failed to load tutors.', err);
+            list.innerHTML = '<div class="mt-empty">Couldn\'t load tutors.</div>';
+        }
+    }
+
+    async function openBrowseTutors(target) {
+        btCurrentTarget = target;
+        btSelectedHelperIds = new Set();
+        document.getElementById('btTargetLabel').textContent = `${target.label} — ${target.subject}${target.topic ? ' · ' + target.topic : ''}`;
+        document.getElementById('btSubmitStatus').style.display = 'none';
+        updateBrowseTutorsSubmitButton();
+        setBrowseTutorsFullscreen(true);
+        await loadBrowseTutors(target);
+    }
+
+    document.getElementById('btCloseBtn').addEventListener('click', () => setBrowseTutorsFullscreen(false));
+
+    document.getElementById('btRequestBtn').addEventListener('click', async () => {
+        if (!btCurrentTarget || !btSelectedHelperIds.size) return;
+        const btn = document.getElementById('btRequestBtn');
+        const statusEl = document.getElementById('btSubmitStatus');
+        btn.disabled = true;
+        btn.textContent = 'Requesting…';
         try {
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (!session) throw new Error('not signed in');
             const resp = await fetch(`${COMPILE_BACKEND_URL}/peer-tutoring/help-requests`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-                body: JSON.stringify(body)
+                body: JSON.stringify({
+                    conceptId: btCurrentTarget.conceptId,
+                    subject: btCurrentTarget.subject,
+                    topic: btCurrentTarget.topic || null,
+                    helperIds: Array.from(btSelectedHelperIds)
+                })
             });
             if (!resp.ok) {
                 const errBody = await resp.json().catch(() => ({}));
                 throw new Error(errBody.error || `Server returned ${resp.status}`);
             }
-            const result = await resp.json();
-            if (triggerBtn) {
-                triggerBtn.textContent = result.session ? "You're matched!" : 'Request sent';
-            }
+            statusEl.style.display = '';
+            statusEl.textContent = `Request sent to ${btSelectedHelperIds.size} tutor(s) — check My Tutoring.`;
+            btn.textContent = 'Request sent ✓';
             refreshTutoringBadge();
-            return result;
         } catch (err) {
-            console.error('LastMind: failed to create a peer-tutoring request.', err);
-            if (triggerBtn) { triggerBtn.disabled = false; triggerBtn.textContent = "Couldn't send — retry"; }
-            return null;
+            console.error('LastMind: failed to send a browse-tutors request.', err);
+            statusEl.style.display = '';
+            statusEl.textContent = "Couldn't send your request — try again in a moment.";
+            btn.disabled = false;
+            updateBrowseTutorsSubmitButton();
         }
-    }
+    });
 
     async function openPeerTutoringHub() {
         setPeerTutoringFullscreen(true);
@@ -10797,17 +11331,33 @@ SQIDAQAB
             return;
         }
         const btn = document.getElementById('ptCustomSubmitBtn');
-        const result = await submitPeerTutoringRequest({ subject, topic, concept }, btn);
-        statusEl.style.display = '';
-        if (result) {
-            statusEl.textContent = result.session ? "You're matched! Check My Tutoring." : 'Request sent — waiting for someone available.';
+        btn.disabled = true;
+        btn.textContent = 'Preparing…';
+        statusEl.style.display = 'none';
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) throw new Error('not signed in');
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/peer-tutoring/prepare-custom-concept`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify({ subject, topic, concept })
+            });
+            if (!resp.ok) {
+                const errBody = await resp.json().catch(() => ({}));
+                throw new Error(errBody.error || `Server returned ${resp.status}`);
+            }
+            const prepared = await resp.json();
             document.getElementById('ptCustomSubject').value = '';
             document.getElementById('ptCustomTopic').value = '';
             document.getElementById('ptCustomConcept').value = '';
+            openBrowseTutors(prepared);
+        } catch (err) {
+            console.error('LastMind: failed to prepare a custom concept.', err);
+            statusEl.style.display = '';
+            statusEl.textContent = "Couldn't prepare that request — try again in a moment.";
+        } finally {
             btn.disabled = false;
-            btn.textContent = 'Request help';
-        } else {
-            statusEl.textContent = "Couldn't send your request — try again in a moment.";
+            btn.textContent = 'Find tutors';
         }
     });
 
