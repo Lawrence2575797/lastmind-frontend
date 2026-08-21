@@ -4145,6 +4145,11 @@
 
         <button class="btn primary" id="manageSubscriptionBtn" style="width:100%;">Manage Subscription</button>
 
+        <div class="my-account-divider"></div>
+
+        <button class="btn" id="signOutBtn" type="button" style="width:100%;">Sign Out</button>
+        <p class="account-status" id="signOutStatus"></p>
+
         <div class="modal-actions">
             <button class="btn" id="cancelAccountSettingsBtn">Close</button>
         </div>
@@ -9762,6 +9767,45 @@ SQIDAQAB
             alert('Could not open subscription management right now. Please try again.');
             btn.disabled = false;
             btn.textContent = 'Manage Subscription';
+        }
+    });
+
+    // Clears every locally-cached record (folders + auth tokens) — the
+    // whole reason this exists is that IndexedDB here is a single,
+    // device-wide store, not scoped per account (see reconcileFoldersWithServer's
+    // own last-write-wins merge, which pushes whatever's "local" into
+    // whichever account is currently signed in). Without this, signing out
+    // and a DIFFERENT account signing in on the same device could see this
+    // account's cached folders, or worse, have them pushed into that OTHER
+    // account's real synced data. Doesn't touch this account's data on the
+    // SERVER at all — signing back in just re-syncs it fresh.
+    async function clearLocalData() {
+        const db = await openDB();
+        await Promise.all([AUTH_STORE, FOLDER_STORE].map((storeName) => new Promise((resolve, reject) => {
+            const tx = db.transaction(storeName, 'readwrite');
+            tx.objectStore(storeName).clear();
+            tx.oncomplete = () => resolve();
+            tx.onerror = (e) => reject(e.target.error);
+        })));
+    }
+
+    document.getElementById('signOutBtn').addEventListener('click', async () => {
+        const btn = document.getElementById('signOutBtn');
+        const statusEl = document.getElementById('signOutStatus');
+        btn.disabled = true;
+        btn.textContent = 'Signing out…';
+        statusEl.textContent = '';
+        statusEl.classList.remove('error');
+        try {
+            await clearLocalData();
+            await supabaseClient.auth.signOut();
+            window.location.href = '/subscribe';
+        } catch (err) {
+            console.error('LastMind: sign out failed.', err);
+            statusEl.textContent = "Couldn't sign out — try again.";
+            statusEl.classList.add('error');
+            btn.disabled = false;
+            btn.textContent = 'Sign Out';
         }
     });
 
