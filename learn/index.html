@@ -9684,7 +9684,15 @@ SQIDAQAB
             const subId = await getStoredSubscriptionId(userId);
             if (!subId) return null;
 
-            const resp = await fetch(`${BACKEND_URL}/api/token?subscriptionId=${encodeURIComponent(subId)}`);
+            // /api/token now requires proof this subscription actually
+            // belongs to the caller — see server.js's own comment on the
+            // token-replay hole this closes.
+            const { data } = await supabaseClient.auth.getSession();
+            if (!data.session) return null;
+
+            const resp = await fetch(`${BACKEND_URL}/api/token?subscriptionId=${encodeURIComponent(subId)}`, {
+                headers: { Authorization: `Bearer ${data.session.access_token}` }
+            });
             if (!resp.ok) return null;
             const { token } = await resp.json();
             await saveToken(userId, token);

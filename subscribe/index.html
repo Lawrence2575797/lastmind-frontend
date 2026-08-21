@@ -1220,7 +1220,14 @@
                 ? `sessionId=${encodeURIComponent(sessionId)}`
                 : `subscriptionId=${encodeURIComponent(subscriptionId)}`;
 
-            const resp = await fetch(`${BACKEND_URL}/api/token?${params}`);
+            // /api/token now requires proof that this checkout session or
+            // subscription actually belongs to the caller — see server.js's
+            // own comment on the token-replay hole this closes (a stale
+            // session_id revisited under a different logged-in account used
+            // to mint that OTHER account's paid token).
+            const resp = await fetch(`${BACKEND_URL}/api/token?${params}`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
             if (!resp.ok) throw new Error(`Token endpoint returned ${resp.status}`);
             const { token, subscriptionId: realSubscriptionId } = await resp.json();
 
