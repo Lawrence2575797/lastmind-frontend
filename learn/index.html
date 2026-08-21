@@ -2258,6 +2258,39 @@
         background: var(--panel);
     }
 
+    /* Free-tier dashboard — same logo/quote look Cortex's own empty state
+       uses (see cortex/index.html's .chat-empty-logo/.chat-empty-quote),
+       reproduced here since a free account never loads that iframe at all. */
+    .dashboard-locked {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding-bottom: 9vh;
+    }
+
+    .dashboard-locked-logo {
+        text-align: center;
+        font-size: clamp(1.9rem, 5vw, 2.8rem);
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: var(--text);
+    }
+
+    .dashboard-locked-logo span { color: var(--accent); }
+
+    .dashboard-locked-quote {
+        font-family: 'Georgia', serif;
+        font-style: italic;
+        text-align: center;
+        opacity: 0.55;
+        max-width: 420px;
+        margin: 10px auto 0;
+        line-height: 1.7;
+        font-size: 0.95rem;
+    }
+
     .bottom-action-row {
         display: flex;
         justify-content: flex-end;
@@ -5858,6 +5891,32 @@ SQIDAQAB
     // quote + rotating greeting), not silently resume whatever chat was
     // last active — the whole point of that welcome screen is to
     // actually be seen, not skipped past by auto-restoring history.
+    // Same list/rotation pattern as cortex/index.html's own
+    // MOTIVATIONAL_QUOTES — duplicated rather than shared, since the free
+    // dashboard needs it without ever loading that page's iframe. Rotates
+    // forward on every load (never restarts from the top), persisted the
+    // same way ('quoteIndex' in the auth store) so it stays in sync with
+    // whichever the paid dashboard would have shown next.
+    const MOTIVATIONAL_QUOTES = [
+        "It doesn't matter how you do it, it matters that you do it.",
+        "Starting is the real battle; everything after is momentum.",
+        "Long horizons make short-term setbacks irrelevant.",
+        "Standards shape outcomes; raise them and outcomes follow.",
+        "The hard thing is usually the right thing.",
+        "Action without direction is noise; direction without action is fantasy.",
+        "Champions are made when nothing exciting is happening.",
+        "1% better every day.",
+        "The limit is usually the story you are telling yourself."
+    ];
+
+    async function pickNextQuote() {
+        const stored = await getAuthRecord('quoteIndex');
+        const prevIndex = typeof stored === 'number' ? stored : -1;
+        const nextIndex = (prevIndex + 1) % MOTIVATIONAL_QUOTES.length;
+        await putAuthRecord('quoteIndex', nextIndex);
+        return MOTIVATIONAL_QUOTES[nextIndex];
+    }
+
     function renderWelcome(chatId, isNew = true) {
         stopActiveDictation();
         stopSpeaking();
@@ -5867,11 +5926,16 @@ SQIDAQAB
         // Cortex (the AI study assistant) is Premium-only — the backend now
         // enforces this on /cortex/message too, so a free account landing
         // on the default dashboard view must never get the iframe at all,
-        // rather than a chat box that just 403s on the first message.
+        // rather than a chat box that just 403s on the first message. Still
+        // shows the same LastMind logo + rotating motivational quote the
+        // paid dashboard's own empty state shows (just the chat itself
+        // swapped for an upgrade card), so the free landing page isn't bare.
         if (!isPaidUser) {
             contentInner.innerHTML = `
-                <div class="dashboard-view">
-                    <div class="correction-card" style="max-width:440px; margin:80px auto; text-align:center;">
+                <div class="dashboard-view dashboard-locked">
+                    <h1 class="dashboard-locked-logo">Last<span>Mind</span></h1>
+                    <p class="dashboard-locked-quote" id="dashboardLockedQuote"></p>
+                    <div class="correction-card" style="max-width:440px; margin-top:32px; text-align:center;">
                         <p style="margin-bottom:16px;">Cortex, LastMind's AI study assistant, is a Premium feature.</p>
                         <button class="btn primary" id="dashboardUpgradeBtn" type="button">Upgrade to unlock Cortex</button>
                     </div>
@@ -5879,6 +5943,9 @@ SQIDAQAB
             `;
             document.getElementById('dashboardUpgradeBtn').addEventListener('click', () => {
                 window.location.href = '/subscribe';
+            });
+            pickNextQuote().then((quote) => {
+                document.getElementById('dashboardLockedQuote').textContent = quote;
             });
             return;
         }
