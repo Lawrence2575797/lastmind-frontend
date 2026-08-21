@@ -2793,6 +2793,20 @@
         margin: 20px 0 0;
     }
 
+    .verification-endpoint {
+        margin: 0 0 8px;
+    }
+
+    .verification-endpoint:last-of-type {
+        margin-bottom: 0;
+    }
+
+    .verification-endpoint-context {
+        margin: 12px 0 0;
+        opacity: 0.75;
+        font-size: 0.88rem;
+    }
+
     .verification-status {
         margin-top: 10px;
         font-size: 0.82rem;
@@ -8322,11 +8336,21 @@ SQIDAQAB
             }
         }
 
+        // scenario is {context, startPoint, endPointVariable} — startPoint and
+        // endPointVariable are shown as their own explicit, separately-labeled
+        // lines (not folded into one paragraph) precisely so it's unambiguous
+        // to the student what they're deriving FROM and TOWARD. endPointVariable
+        // is deliberately phrased as a neutral question/quantity, never the
+        // resolved direction — see VERIFICATION_RUBRIC_GENERATION_PROMPT.
         function renderVerificationFreeTextStep(container, scenario) {
             container.innerHTML = `
                 <div class="verification-panel">
-                    <p class="verification-scenario"><strong>Explain the mechanism</strong> under this circumstance:</p>
-                    <div class="correction-card">${escapeHtml(scenario)}</div>
+                    <p class="verification-scenario"><strong>Explain the mechanism</strong> that connects these two points:</p>
+                    <div class="correction-card">
+                        <p class="verification-endpoint"><strong>Starting point:</strong> ${escapeHtml(scenario.startPoint)}</p>
+                        <p class="verification-endpoint"><strong>You must explain:</strong> ${escapeHtml(scenario.endPointVariable)}</p>
+                        ${scenario.context ? `<p class="verification-endpoint-context">${escapeHtml(scenario.context)}</p>` : ''}
+                    </div>
                     <textarea class="mt-response-textarea" id="verificationAnswerInput" rows="8" placeholder="Explain it step by step — make every link and any jargon you use explicit."></textarea>
                     <div class="bottom-action-row">
                         <button class="btn primary" id="verificationSubmitBtn" type="button">Submit</button>
