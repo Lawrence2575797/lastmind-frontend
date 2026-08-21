@@ -9160,7 +9160,6 @@ SQIDAQAB
     }
 
     async function refreshCreditBalanceChip() {
-        if (!isPaidUser) return;
         const data = await fetchCreditBalance();
         const amount = data ? data.balance : '—';
         document.getElementById('creditBalanceAmount').textContent = amount;
@@ -12004,13 +12003,9 @@ SQIDAQAB
         document.getElementById('myTutoringTopbarBtn').style.display = paid ? '' : 'none';
         document.getElementById('upgradeTopbarBtn').style.display = paid ? 'none' : '';
 
-        // Keys/Key Market only ever move today through tutoring spend/earn
-        // (now Premium-gated server-side too) — hide the entry point
-        // rather than show a chip that would just read "—" forever on a
-        // free account. Revisit once the rewards system lets verification
-        // itself earn Keys (see the business-plan discussion).
-        document.getElementById('creditBalanceChip').style.display = paid ? '' : 'none';
-
+        // Key Market is available on the free tier too — the plan is for
+        // verification itself to earn Keys eventually, not just tutoring
+        // (which stays Premium-only), so this stays visible either way.
         refreshCreditBalanceChip();
 
         // Render whatever's already cached in IndexedDB immediately rather
