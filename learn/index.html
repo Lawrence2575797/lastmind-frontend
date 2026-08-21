@@ -969,6 +969,46 @@
         margin-top: 10px;
     }
 
+    /* Wider than the default .cb-body (640px, still used by the admin
+       overdue-queue view) — a grid of large squares needs real room,
+       the balance/explanation text below it is still comfortably
+       readable at this width. */
+    .km-body {
+        max-width: 900px;
+    }
+
+    /* ─── KEY MARKET GRID ───
+       "Columns and rows of fairly large squares" — each tile a real
+       square (aspect-ratio: 1) rather than a fixed pixel size, so the
+       grid reflows cleanly at any width. Empty/placeholder styling for
+       now (km-market-tile-empty) since no business has ever submitted a
+       real voucher yet; a filled tile (once real reward data exists)
+       reuses .km-market-tile alone, dropping the -empty modifier. */
+    .km-market-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 14px;
+        margin-top: 14px;
+    }
+
+    .km-market-tile {
+        aspect-ratio: 1;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 12px;
+        font-size: 0.8rem;
+    }
+
+    .km-market-tile-empty {
+        background: rgba(230, 215, 176, 0.04);
+        border: 1px dashed rgba(230, 215, 176, 0.2);
+        color: var(--text);
+        opacity: 0.45;
+    }
+
     .mt-card {
         background: rgba(32, 31, 33, 0.6);
         border: 1px solid rgba(230, 215, 176, 0.14);
@@ -3675,42 +3715,52 @@
             </div>
         </div>
 
-        <!-- "Your Credit Balance" — the peer-tutoring economy's own
-             currency (Synapses). Same full-page overlay pattern as the
+        <!-- "Key Market" — the app's own currency (Keys) plus the rewards
+             marketplace it unlocks. Same full-page overlay pattern as the
              other views above. Pricing per activity hasn't been decided
-             yet (see creditService.ts), so this explains the MODEL —
-             signup bonus, earn by tutoring, spend by requesting help —
-             without committing to numbers, and "Buy more" is
-             deliberately a placeholder rather than a real checkout until
-             that's settled. -->
+             yet (see creditService.ts), so the explanation section covers
+             the MODEL — signup bonus, earn by tutoring/verified learning,
+             spend on help or real rewards — without committing to numbers.
+             "Buy more" is deliberately a placeholder rather than a real
+             checkout until that's settled, and the marketplace grid below
+             is a structural placeholder too — no business has ever
+             submitted a real voucher yet, so renderKeyMarketGrid() just
+             renders empty slots for now; swapping in real reward data
+             later only means changing what that one function renders. -->
         <div class="credit-balance-view" id="creditBalanceView">
             <div class="cb-header">
                 <div class="cb-header-title">
-                    <h3>Your Credit Balance</h3>
-                    <p>Synapses — earned by tutoring, spent on getting help.</p>
+                    <h3>Key Market</h3>
+                    <p>🔑 Keys — earned by tutoring and verified learning, spent on help or real rewards.</p>
                 </div>
                 <button class="btn" id="cbCloseBtn" type="button" title="Close">✕</button>
             </div>
-            <div class="cb-body">
+            <div class="cb-body km-body">
                 <div class="cb-balance-display">
                     <div class="cb-balance-number" id="cbBalanceNumber">—</div>
-                    <div class="cb-balance-label">Synapses</div>
+                    <div class="cb-balance-label">Keys</div>
+                </div>
+
+                <div class="cb-section">
+                    <h4>Rewards</h4>
+                    <p class="pt-hint">Real rewards from local businesses, redeemable with your Keys. Nothing's been added yet — check back soon.</p>
+                    <div class="km-market-grid" id="keyMarketGrid"></div>
                 </div>
 
                 <div class="cb-section">
                     <h4>How this works</h4>
                     <ul class="cb-explanation-list">
                         <li>You started with a one-time welcome allowance — enough to try asking for help a few times before you've earned anything yourself.</li>
-                        <li>You <strong>earn</strong> Synapses by helping other students — writing an explanation for something you've genuinely mastered, or (coming soon) marking a longer written answer.</li>
-                        <li>You <strong>spend</strong> Synapses to request help yourself — a quick concept explanation, or (coming soon) a marked long-form answer.</li>
-                        <li>There's no recurring free top-up — this is a real two-sided exchange, so the incentive to actually tutor stays real.</li>
+                        <li>You <strong>earn</strong> Keys by helping other students — writing an explanation for something you've genuinely mastered, or (coming soon) marking a longer written answer — and, in future, by verifying genuine learning.</li>
+                        <li>You <strong>spend</strong> Keys to request help yourself, or to redeem a reward from the Key Market above.</li>
+                        <li>There's no recurring free top-up — this is a real two-sided exchange, so the incentive to actually tutor (and learn) stays real.</li>
                     </ul>
                     <p class="cb-pricing-note">Exact costs per activity are still being finalized — this page will show the real numbers once they're set.</p>
                 </div>
 
                 <div class="cb-section">
                     <h4>Need more right now?</h4>
-                    <button class="btn primary" id="cbBuyMoreBtn" type="button">Buy more credits</button>
+                    <button class="btn primary" id="cbBuyMoreBtn" type="button">Buy more Keys</button>
                     <p class="cb-buy-status" id="cbBuyStatus" style="display:none;"></p>
                 </div>
             </div>
@@ -3759,8 +3809,8 @@
         <main class="main">
             <div class="topbar">
                 <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">☰</button>
-                <button class="credit-balance-chip" id="creditBalanceChip" type="button" title="Your credit balance">💠 <span id="creditBalanceAmount">—</span></button>
                 <span class="topbar-title" id="topbarTitle">Dashboard</span>
+                <button class="credit-balance-chip" id="creditBalanceChip" type="button" title="Key Market">🔑 Key Market <span id="creditBalanceAmount">—</span></button>
                 <div class="topbar-actions" id="topbarActions">
                     <button class="cortex-btn-topbar" id="peerTutoringHubBtn" type="button">🤝 Peer tutoring</button>
                     <button class="cortex-btn-topbar" id="myTutoringTopbarBtn" type="button">📋 My Tutoring<span class="mt-badge" id="mtBadge" style="display:none;"></span></button>
@@ -4708,11 +4758,13 @@ SQIDAQAB
         }).join('');
         return `
         <div class="lesson-panel">
-            <h3 class="lesson-panel-heading">Your First Encoding Lessons</h3>
-            <p class="lesson-intro-message">This page covers ${page.lessons.length} lessons, taught in order (${doneCount} of ${page.lessons.length} done so far).</p>
+            <h3 class="lesson-panel-heading">${isPaidUser ? 'Your First Encoding Lessons' : 'Undergo Learning Verification'}</h3>
+            <p class="lesson-intro-message">${isPaidUser
+                ? `This page covers ${page.lessons.length} lessons, taught in order (${doneCount} of ${page.lessons.length} done so far).`
+                : 'Prove you already know this — wherever you actually learned it — and it counts the same as learning it here.'}</p>
             <ul class="multi-lesson-list">${items}</ul>
             <div class="bottom-action-row">
-                <button class="generate-questions-btn" id="generateQuestionsBtn" ${isPaidUser ? '' : 'disabled title="Upgrade to unlock diagnostics"'}>Start Lesson</button>
+                <button class="generate-questions-btn" id="generateQuestionsBtn" ${isPaidUser ? '' : 'disabled title="Coming soon"'}>${isPaidUser ? 'Start Lesson' : 'Start Verification'}</button>
             </div>
             <div class="lesson-with-ask-layout">
                 <div id="diagnoseQuestionFlow" class="lesson-main-col"></div>
@@ -5905,11 +5957,13 @@ SQIDAQAB
         `
                 : `
             <div class="lesson-panel">
-                <h3 class="lesson-panel-heading">Your First Encoding Lesson</h3>
-                <p class="lesson-intro-message">${savedEncodingProgress ? 'You left this one partway through — pick up right where you stopped.' : 'This lesson is designed to allow you to construct the lesson with the right amount of scaffolding for you. Here is the first step:'}</p>
-                ${savedEncodingProgress ? '' : '<button type="button" class="multi-lesson-trigger-btn" id="multiLessonTriggerBtn">+ Cover multiple lessons on this page</button>'}
+                <h3 class="lesson-panel-heading">${isPaidUser ? 'Your First Encoding Lesson' : 'Undergo Learning Verification'}</h3>
+                <p class="lesson-intro-message">${isPaidUser
+                    ? (savedEncodingProgress ? 'You left this one partway through — pick up right where you stopped.' : 'This lesson is designed to allow you to construct the lesson with the right amount of scaffolding for you. Here is the first step:')
+                    : 'Prove you already know this — wherever you actually learned it — and it counts the same as learning it here.'}</p>
+                ${(!isPaidUser || savedEncodingProgress) ? '' : '<button type="button" class="multi-lesson-trigger-btn" id="multiLessonTriggerBtn">+ Cover multiple lessons on this page</button>'}
                 <div class="bottom-action-row">
-                    <button class="generate-questions-btn" id="generateQuestionsBtn" ${isPaidUser ? '' : 'disabled title="Upgrade to unlock diagnostics"'}>${savedEncodingProgress ? 'Resume Lesson' : 'Start Lesson'}</button>
+                    <button class="generate-questions-btn" id="generateQuestionsBtn" ${isPaidUser ? '' : 'disabled title="Coming soon"'}>${isPaidUser ? (savedEncodingProgress ? 'Resume Lesson' : 'Start Lesson') : 'Start Verification'}</button>
                 </div>
                 <div class="lesson-with-ask-layout">
                     <div id="diagnoseQuestionFlow" class="lesson-main-col"></div>
@@ -8684,7 +8738,7 @@ SQIDAQAB
         document.getElementById('sidebar').classList.toggle('collapsed');
     });
 
-    // ─── Credit balance (Synapses) ───
+    // ─── Key Market (balance + rewards marketplace) ───
     async function fetchCreditBalance() {
         try {
             const { data: { session } } = await supabaseClient.auth.getSession();
@@ -8712,9 +8766,28 @@ SQIDAQAB
         document.getElementById('creditBalanceView').classList.toggle('fullscreen', on);
     }
 
+    // Structural placeholder — no business has ever submitted a real
+    // voucher yet (no backend for that exists), so this just renders a
+    // grid of empty reward slots so the layout itself can be reviewed.
+    // Swapping in real data later only means changing what this one
+    // function renders; the grid/tile markup stays the same.
+    const KEY_MARKET_PLACEHOLDER_SLOT_COUNT = 8;
+
+    function renderKeyMarketGrid() {
+        const grid = document.getElementById('keyMarketGrid');
+        grid.innerHTML = '';
+        for (let i = 0; i < KEY_MARKET_PLACEHOLDER_SLOT_COUNT; i++) {
+            const tile = document.createElement('div');
+            tile.className = 'km-market-tile km-market-tile-empty';
+            tile.textContent = 'Reward slot — coming soon';
+            grid.appendChild(tile);
+        }
+    }
+
     document.getElementById('creditBalanceChip').addEventListener('click', async () => {
         setCreditBalanceFullscreen(true);
         document.getElementById('cbBuyStatus').style.display = 'none';
+        renderKeyMarketGrid();
         await refreshCreditBalanceChip();
     });
 
