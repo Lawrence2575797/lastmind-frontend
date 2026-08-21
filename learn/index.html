@@ -4116,18 +4116,27 @@ SQIDAQAB
     }
 
     // Both defined in terms of the generic pair above now, so the shape
-    // written here always matches what index.html writes after checkout —
-    // previously these used a different field name (.token instead of
-    // .value), which meant a token saved by index.html right after payment
-    // was never actually seen by this check, silently forcing an extra
-    // backend round-trip on every single visit instead of using the cached
-    // token directly.
-    async function getStoredToken() {
-        return getAuthRecord('jwt');
+    // written here always matches what subscribe/index.html writes after
+    // checkout (see that file's own scopedAuthKey — MUST stay identical).
+    //
+    // SECURITY: scoped by the currently-authenticated Supabase user id —
+    // this used to be a single bare 'jwt' key shared by the whole device,
+    // which meant a NEW, unpaid account signing in on a browser that had
+    // ever held a PAID account's session would find and reuse that other
+    // account's cached token, silently granting full paid access with no
+    // payment ever made. IndexedDB has no concept of "current user" on its
+    // own, so the caller must always pass the live Supabase user id — never
+    // read/write these without one.
+    function scopedAuthKey(base, userId) {
+        return `${base}:${userId}`;
     }
 
-    async function saveToken(token) {
-        return putAuthRecord('jwt', token);
+    async function getStoredToken(userId) {
+        return getAuthRecord(scopedAuthKey('jwt', userId));
+    }
+
+    async function saveToken(userId, token) {
+        return putAuthRecord(scopedAuthKey('jwt', userId), token);
     }
 
 
@@ -9260,21 +9269,23 @@ SQIDAQAB
 
     /* ───────────────────────── Gate + boot ───────────────────────── */
 
-    async function getStoredSubscriptionId() {
-        return getAuthRecord('subscriptionId');
+    async function getStoredSubscriptionId(userId) {
+        return getAuthRecord(scopedAuthKey('subscriptionId', userId));
     }
 
-    async function refreshTokenFromBackend() {
+    async function refreshTokenFromBackend(userId) {
         // Called when there's no usable token yet — re-fetches using whatever
-        // subscription ID was stored at signup time, if any.
+        // subscription ID was stored at signup time, if any. Scoped to the
+        // SAME userId gate() is currently checking for — see getStoredToken's
+        // own comment on why this can never be the bare/unscoped key.
         try {
-            const subId = await getStoredSubscriptionId();
+            const subId = await getStoredSubscriptionId(userId);
             if (!subId) return null;
 
             const resp = await fetch(`${BACKEND_URL}/api/token?subscriptionId=${encodeURIComponent(subId)}`);
             if (!resp.ok) return null;
             const { token } = await resp.json();
-            await saveToken(token);
+            await saveToken(userId, token);
             return token;
         } catch (err) {
             console.error('LastMind: could not refresh token from backend.', err);
@@ -11476,11 +11487,38 @@ SQIDAQAB
 
         const publicKey = await importPublicKey(PUBLIC_KEY_PEM);
 
-        let token = await getStoredToken().catch(() => null);
+        // SECURITY: the Supabase session is established FIRST, before any
+        // device-local token is ever looked up — every getStoredToken/
+        // saveToken/getStoredSubscriptionId call below is scoped to THIS
+        // user's id specifically. Checking local storage before knowing who's
+        // asking was the actual bug: IndexedDB is shared by the whole
+        // device/browser, not per-account, so a brand-new, unpaid account
+        // signing in on a browser that had ever held a DIFFERENT, paid
+        // account's session would find and reuse that other account's
+        // cached token — silently granting full paid access with no payment
+        // ever made by the new account. There is no fast path that skips
+        // knowing the current user first any more.
+        let supabaseSession = null;
+        try {
+            const { data } = await supabaseClient.auth.getSession();
+            supabaseSession = data.session;
+        } catch (err) {
+            console.error('LastMind: could not read the current session.', err);
+        }
+
+        if (!supabaseSession) {
+            // Not logged in at all — nothing to offer, send them to create an
+            // account (still free at this point; paying is optional there too).
+            window.location.href = '/subscribe';
+            return;
+        }
+
+        const userId = supabaseSession.user.id;
+        let token = await getStoredToken(userId).catch(() => null);
         let payload = token ? await verifyJWT(token, publicKey) : null;
 
         if (!payload) {
-            token = await refreshTokenFromBackend();
+            token = await refreshTokenFromBackend(userId);
             payload = token ? await verifyJWT(token, publicKey) : null;
         }
 
@@ -11489,28 +11527,23 @@ SQIDAQAB
             return;
         }
 
-        // No usable device-local JWT — try the login-anywhere path instead.
-        // This is NOT "a Supabase session exists, so let them in" (that was
-        // the security hole we removed) — the backend independently verifies
-        // this session's access token against Supabase itself before it will
-        // ever look up or return anything.
-        let supabaseSession = null;
+        // No usable device-local JWT for THIS user — try the login-anywhere
+        // path instead. This is NOT "a Supabase session exists, so let them
+        // in" (that was an earlier security hole already removed) — the
+        // backend independently verifies this session's access token
+        // against Supabase itself before it will ever look up or return
+        // anything.
         try {
-            const { data } = await supabaseClient.auth.getSession();
-            supabaseSession = data.session;
-
-            if (supabaseSession) {
-                const resp = await fetch(`${BACKEND_URL}/api/token-for-user`, {
-                    method: 'POST',
-                    headers: { Authorization: `Bearer ${supabaseSession.access_token}` }
-                });
-                if (resp.ok) {
-                    const { token: linkedToken, subscriptionId: linkedSubId } = await resp.json();
-                    payload = await verifyJWT(linkedToken, publicKey);
-                    if (payload) {
-                        await saveToken(linkedToken);
-                        if (linkedSubId) await putAuthRecord('subscriptionId', linkedSubId);
-                    }
+            const resp = await fetch(`${BACKEND_URL}/api/token-for-user`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${supabaseSession.access_token}` }
+            });
+            if (resp.ok) {
+                const { token: linkedToken, subscriptionId: linkedSubId } = await resp.json();
+                payload = await verifyJWT(linkedToken, publicKey);
+                if (payload) {
+                    await saveToken(userId, linkedToken);
+                    if (linkedSubId) await putAuthRecord(scopedAuthKey('subscriptionId', userId), linkedSubId);
                 }
             }
         } catch (err) {
@@ -11522,18 +11555,11 @@ SQIDAQAB
             return;
         }
 
-        // No active paid subscription found either way — but if they're at
-        // least logged in, let them in as free tier (framework + folders +
+        // No active paid subscription found either way — but they're at
+        // least logged in, so let them in as free tier (framework + folders +
         // dictation/TTS, no Compile) rather than bouncing them out entirely.
         // Paying is optional here, not a requirement to use the app at all.
-        if (supabaseSession) {
-            await enterApp(false);
-            return;
-        }
-
-        // Not logged in at all — nothing to offer, send them to create an
-        // account (still free at this point; paying is optional there too).
-        window.location.href = '/subscribe';
+        await enterApp(false);
     })();
 </script>
 

@@ -1178,11 +1178,44 @@
             });
         }
 
+        // SECURITY: every stored token/subscription-id record is scoped to
+        // the currently-authenticated Supabase user id — see learn/index.html's
+        // getStoredToken for the full incident this fixes (a bare, unscoped
+        // 'jwt' key meant a brand-new, unpaid account signing in on a device
+        // that had ever held a DIFFERENT paid account's session would find
+        // and reuse that other account's cached token). MUST stay identical
+        // to learn/index.html's own copy — this is the write side, that's
+        // the read side, of the exact same IndexedDB record.
+        function scopedAuthKey(base, userId) {
+            return `${base}:${userId}`;
+        }
+
+        // A locally-scoped client, deliberately separate from the
+        // `supabaseClient` created later in this file (a different
+        // <script> tag, evaluated AFTER this one — referencing that one
+        // here would throw "supabaseClient is not defined" the moment a
+        // real Stripe return actually hit this code, since classic script
+        // tags run in document order). Safe to instantiate twice: the
+        // Supabase JS SDK persists the session in the browser's own
+        // storage keyed by project, not per client instance, so this sees
+        // the exact same logged-in session the later client will.
+        function getAuthClient() {
+            return window.supabase.createClient(
+                'https://evgdecewwmkupiadgfop.supabase.co',
+                'sb_publishable_Bb-f61P1zqy_xW63D26nUw_VTOVXaub'
+            );
+        }
+
         // Exchanges a Stripe Checkout Session ID (the very first time, right
         // after checkout) or a stored subscription ID (on later refreshes)
         // for a signed JWT from the backend, and stores the durable
-        // subscription ID plus the JWT itself in IndexedDB.
+        // subscription ID plus the JWT itself in IndexedDB, scoped to
+        // whichever Supabase account is live right now.
         async function fetchAndStoreToken({ sessionId, subscriptionId } = {}) {
+            const { data: { session } } = await getAuthClient().auth.getSession();
+            if (!session) throw new Error('not signed in');
+            const userId = session.user.id;
+
             const params = sessionId
                 ? `sessionId=${encodeURIComponent(sessionId)}`
                 : `subscriptionId=${encodeURIComponent(subscriptionId)}`;
@@ -1191,12 +1224,14 @@
             if (!resp.ok) throw new Error(`Token endpoint returned ${resp.status}`);
             const { token, subscriptionId: realSubscriptionId } = await resp.json();
 
-            await putAuthRecord('subscriptionId', realSubscriptionId);
-            await putAuthRecord('jwt', token);
+            await putAuthRecord(scopedAuthKey('subscriptionId', userId), realSubscriptionId);
+            await putAuthRecord(scopedAuthKey('jwt', userId), token);
         }
 
         async function getSubscription() {
-            const subId = await getAuthRecord('subscriptionId');
+            const { data: { session } } = await getAuthClient().auth.getSession();
+            if (!session) return null;
+            const subId = await getAuthRecord(scopedAuthKey('subscriptionId', session.user.id));
             return subId ? { subscriptionID: subId } : null;
         }
 

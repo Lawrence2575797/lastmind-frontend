@@ -418,9 +418,18 @@ SQIDAQAB
         });
     }
 
-    async function getStoredToken() { return getAuthRecord('jwt'); }
-    async function saveToken(token) { return putAuthRecord('jwt', token); }
-    async function getStoredSubscriptionId() { return getAuthRecord('subscriptionId'); }
+    // SECURITY: scoped to the currently-authenticated Supabase user id —
+    // a bare, unscoped 'jwt'/'subscriptionId' key meant a brand-new, unpaid
+    // account signing in on a device that had ever held a DIFFERENT paid
+    // account's session would find and reuse that other account's cached
+    // token, silently granting full paid access with no payment ever made.
+    // MUST stay identical to learn/index.html's own copy.
+    function scopedAuthKey(base, userId) {
+        return `${base}:${userId}`;
+    }
+    async function getStoredToken(userId) { return getAuthRecord(scopedAuthKey('jwt', userId)); }
+    async function saveToken(userId, token) { return putAuthRecord(scopedAuthKey('jwt', userId), token); }
+    async function getStoredSubscriptionId(userId) { return getAuthRecord(scopedAuthKey('subscriptionId', userId)); }
 
     async function getAllFolders() {
         const db = await openDB();
@@ -698,14 +707,14 @@ SQIDAQAB
         }
     }
 
-    async function refreshTokenFromBackend() {
+    async function refreshTokenFromBackend(userId) {
         try {
-            const subId = await getStoredSubscriptionId();
+            const subId = await getStoredSubscriptionId(userId);
             if (!subId) return null;
             const resp = await fetch(`${BACKEND_URL}/api/token?subscriptionId=${encodeURIComponent(subId)}`);
             if (!resp.ok) return null;
             const { token } = await resp.json();
-            await saveToken(token);
+            await saveToken(userId, token);
             return token;
         } catch (err) {
             console.error('LastMind Cortex: could not refresh token from backend.', err);
@@ -1885,33 +1894,47 @@ SQIDAQAB
 
         const publicKey = await importPublicKey(PUBLIC_KEY_PEM);
 
-        let token = await getStoredToken().catch(() => null);
+        // SECURITY: the Supabase session is established FIRST, before any
+        // device-local token is looked up — see learn/index.html's own gate()
+        // for the full incident (checking IndexedDB, which is shared by the
+        // whole device/browser, before knowing which account is asking let a
+        // brand-new unpaid account reuse a different, paid account's cached
+        // token on the same device).
+        let supabaseSession = null;
+        try {
+            const { data } = await supabaseClient.auth.getSession();
+            supabaseSession = data.session;
+        } catch (err) {
+            console.error('LastMind Cortex: could not read the current session.', err);
+        }
+
+        if (!supabaseSession) {
+            window.location.href = '/subscribe';
+            return;
+        }
+
+        const userId = supabaseSession.user.id;
+        let token = await getStoredToken(userId).catch(() => null);
         let payload = token ? await verifyJWT(token, publicKey) : null;
 
         if (!payload) {
-            token = await refreshTokenFromBackend();
+            token = await refreshTokenFromBackend(userId);
             payload = token ? await verifyJWT(token, publicKey) : null;
         }
 
         if (payload) { await enterApp(); return; }
 
-        let supabaseSession = null;
         try {
-            const { data } = await supabaseClient.auth.getSession();
-            supabaseSession = data.session;
-
-            if (supabaseSession) {
-                const resp = await fetch(`${BACKEND_URL}/api/token-for-user`, {
-                    method: 'POST',
-                    headers: { Authorization: `Bearer ${supabaseSession.access_token}` }
-                });
-                if (resp.ok) {
-                    const { token: linkedToken, subscriptionId: linkedSubId } = await resp.json();
-                    payload = await verifyJWT(linkedToken, publicKey);
-                    if (payload) {
-                        await saveToken(linkedToken);
-                        if (linkedSubId) await putAuthRecord('subscriptionId', linkedSubId);
-                    }
+            const resp = await fetch(`${BACKEND_URL}/api/token-for-user`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${supabaseSession.access_token}` }
+            });
+            if (resp.ok) {
+                const { token: linkedToken, subscriptionId: linkedSubId } = await resp.json();
+                payload = await verifyJWT(linkedToken, publicKey);
+                if (payload) {
+                    await saveToken(userId, linkedToken);
+                    if (linkedSubId) await putAuthRecord(scopedAuthKey('subscriptionId', userId), linkedSubId);
                 }
             }
         } catch (err) {
@@ -1920,9 +1943,7 @@ SQIDAQAB
 
         if (payload) { await enterApp(); return; }
 
-        if (supabaseSession) { await enterApp(); return; }
-
-        window.location.href = '/subscribe';
+        await enterApp();
     })();
 </script>
 </body>
