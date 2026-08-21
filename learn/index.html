@@ -2786,6 +2786,62 @@
         line-height: 1.7;
     }
 
+    /* ─── FREE-TIER VERIFICATION ─── */
+    .verification-scenario {
+        font-size: 0.9rem;
+        opacity: 0.8;
+        margin: 20px 0 0;
+    }
+
+    .verification-status {
+        margin-top: 10px;
+        font-size: 0.82rem;
+        opacity: 0.75;
+    }
+
+    .verification-fillgap-input {
+        width: 100%;
+        margin-top: 12px;
+        background: rgba(20, 19, 20, 0.7);
+        border: 1px solid rgba(230, 215, 176, 0.2);
+        border-radius: 6px;
+        color: var(--text);
+        padding: 8px 10px;
+        font-size: 0.85rem;
+        font-family: inherit;
+    }
+
+    .verification-order-words {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+    }
+
+    .verification-word-chip {
+        background: rgba(230, 215, 176, 0.08);
+        border: 1px solid rgba(230, 215, 176, 0.3);
+        color: var(--text);
+        padding: 7px 12px;
+        border-radius: 20px;
+        font-size: 0.82rem;
+        cursor: pointer;
+        transition: background 0.2s, border-color 0.2s;
+    }
+
+    .verification-word-chip:hover {
+        background: rgba(230, 215, 176, 0.16);
+        border-color: rgba(230, 215, 176, 0.5);
+    }
+
+    .verification-order-chosen {
+        margin-top: 12px;
+        font-size: 0.85rem;
+        line-height: 1.9;
+        min-height: 1.9em;
+        opacity: 0.9;
+    }
+
     .generate-notes-offer {
         font-family: 'Arial', sans-serif;
     }
@@ -4764,7 +4820,7 @@ SQIDAQAB
                 : 'Prove you already know this — wherever you actually learned it — and it counts the same as learning it here.'}</p>
             <ul class="multi-lesson-list">${items}</ul>
             <div class="bottom-action-row">
-                <button class="generate-questions-btn" id="generateQuestionsBtn" ${isPaidUser ? '' : 'disabled title="Coming soon"'}>${isPaidUser ? 'Start Lesson' : 'Start Verification'}</button>
+                <button class="generate-questions-btn" id="generateQuestionsBtn">${isPaidUser ? 'Start Lesson' : 'Start Verification'}</button>
             </div>
             <div class="lesson-with-ask-layout">
                 <div id="diagnoseQuestionFlow" class="lesson-main-col"></div>
@@ -5963,7 +6019,7 @@ SQIDAQAB
                     : 'Prove you already know this — wherever you actually learned it — and it counts the same as learning it here.'}</p>
                 ${(!isPaidUser || savedEncodingProgress) ? '' : '<button type="button" class="multi-lesson-trigger-btn" id="multiLessonTriggerBtn">+ Cover multiple lessons on this page</button>'}
                 <div class="bottom-action-row">
-                    <button class="generate-questions-btn" id="generateQuestionsBtn" ${isPaidUser ? '' : 'disabled title="Coming soon"'}>${isPaidUser ? (savedEncodingProgress ? 'Resume Lesson' : 'Start Lesson') : 'Start Verification'}</button>
+                    <button class="generate-questions-btn" id="generateQuestionsBtn">${isPaidUser ? (savedEncodingProgress ? 'Resume Lesson' : 'Start Lesson') : 'Start Verification'}</button>
                 </div>
                 <div class="lesson-with-ask-layout">
                     <div id="diagnoseQuestionFlow" class="lesson-main-col"></div>
@@ -8238,6 +8294,245 @@ SQIDAQAB
         // came back empty (nothing to assess) or the request failed (never
         // block starting the lesson over this being unavailable — same
         // fail-open posture as every other best-effort feature in this app).
+        // ─── Free-tier verification ───
+        // The one thing a free-tier account can actually do — a rubric-graded
+        // free-text explanation of a concept's mechanism, learned wherever the
+        // student actually learned it. See verificationLessonService.ts for
+        // the full backend flow this drives.
+        let verificationCurrentState = null; // { concept, conceptId, rubricKey, scenario }
+
+        async function startVerificationFlow(subject, topic, concept, qualification, examBoard, customTitle, customDescription) {
+            const container = document.getElementById('diagnoseQuestionFlow');
+            container.innerHTML = '<div class="correction-card">Preparing your verification check…</div>';
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (!session) throw new Error('not signed in');
+                const resp = await fetch(`${COMPILE_BACKEND_URL}/verification/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                    body: JSON.stringify({ subject, topic, concept, qualification, examBoard, customTitle, customDescription })
+                });
+                if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+                const { rubricKey, conceptId, scenario } = await resp.json();
+                verificationCurrentState = { concept, conceptId, rubricKey, scenario };
+                renderVerificationFreeTextStep(container, scenario);
+            } catch (err) {
+                console.error('LastMind: failed to start verification.', err);
+                container.innerHTML = '<div class="correction-card">Could not start verification — try again in a moment.</div>';
+            }
+        }
+
+        function renderVerificationFreeTextStep(container, scenario) {
+            container.innerHTML = `
+                <div class="verification-panel">
+                    <p class="verification-scenario"><strong>Explain the mechanism</strong> under this circumstance:</p>
+                    <div class="correction-card">${escapeHtml(scenario)}</div>
+                    <textarea class="mt-response-textarea" id="verificationAnswerInput" rows="8" placeholder="Explain it step by step — make every link and any jargon you use explicit."></textarea>
+                    <div class="bottom-action-row">
+                        <button class="btn primary" id="verificationSubmitBtn" type="button">Submit</button>
+                    </div>
+                    <p class="verification-status" id="verificationStatus" style="display:none;"></p>
+                </div>
+            `;
+            document.getElementById('verificationSubmitBtn').addEventListener('click', submitVerificationAnswer);
+        }
+
+        async function submitVerificationAnswer() {
+            const btn = document.getElementById('verificationSubmitBtn');
+            const input = document.getElementById('verificationAnswerInput');
+            const statusEl = document.getElementById('verificationStatus');
+            const answer = input.value.trim();
+            if (!answer) return;
+            btn.disabled = true;
+            btn.textContent = 'Checking…';
+            statusEl.style.display = 'none';
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (!session) throw new Error('not signed in');
+                const resp = await fetch(`${COMPILE_BACKEND_URL}/verification/submit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                    body: JSON.stringify({
+                        concept: verificationCurrentState.concept,
+                        conceptId: verificationCurrentState.conceptId,
+                        rubricKey: verificationCurrentState.rubricKey,
+                        scenario: verificationCurrentState.scenario,
+                        answer
+                    })
+                });
+                if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+                const result = await resp.json();
+                const container = document.getElementById('diagnoseQuestionFlow');
+                if (result.verdict === 'correct') {
+                    renderVerificationOutcome(container, "Correct — that's verified. Come back on schedule for your next successive-relearning pass.");
+                } else if (result.verdict === 'unclear') {
+                    renderVerificationUnclearCheckbox(container, result.unclearReason);
+                } else {
+                    renderVerificationCorrectionAndFollowUp(container, result.correction, result.followUp);
+                }
+            } catch (err) {
+                console.error('LastMind: failed to grade verification answer.', err);
+                statusEl.style.display = '';
+                statusEl.textContent = "Couldn't check your answer — try again in a moment.";
+                btn.disabled = false;
+                btn.textContent = 'Submit';
+            }
+        }
+
+        function renderVerificationOutcome(container, message) {
+            container.innerHTML = `<div class="verification-panel"><div class="correction-card">${escapeHtml(message)}</div></div>`;
+        }
+
+        // Reuses the exact .lesson-outline-item checkbox visual pattern
+        // already used for the pre-lesson "which of these are you unsure of"
+        // checklist — same look, a different moment: post-hoc "was this
+        // genuinely unclear, or do you actually know it?" rather than a
+        // pre-emptive self-flag.
+        function renderVerificationUnclearCheckbox(container, unclearReason) {
+            container.innerHTML = `
+                <div class="verification-panel">
+                    <p class="verification-scenario">Part of this wasn't clear enough to grade confidently:</p>
+                    <div class="correction-card">${escapeHtml(unclearReason)}</div>
+                    <label class="lesson-outline-item">
+                        <input type="checkbox" id="verificationKnowsItCheckbox">
+                        I actually do know this — it just wasn't clear in what I wrote
+                    </label>
+                    <div class="bottom-action-row">
+                        <button class="btn primary" id="verificationResolveUnclearBtn" type="button">Continue</button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('verificationResolveUnclearBtn').addEventListener('click', async () => {
+                const knowsIt = document.getElementById('verificationKnowsItCheckbox').checked;
+                const btn = document.getElementById('verificationResolveUnclearBtn');
+                btn.disabled = true;
+                btn.textContent = 'Loading…';
+                try {
+                    const { data: { session } } = await supabaseClient.auth.getSession();
+                    if (!session) throw new Error('not signed in');
+                    const resp = await fetch(`${COMPILE_BACKEND_URL}/verification/resolve-unclear`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                        body: JSON.stringify({
+                            concept: verificationCurrentState.concept,
+                            conceptId: verificationCurrentState.conceptId,
+                            rubricKey: verificationCurrentState.rubricKey,
+                            unclearReason,
+                            knowsIt
+                        })
+                    });
+                    if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+                    const result = await resp.json();
+                    renderVerificationCorrectionAndFollowUp(container, result.correction, result.followUp);
+                } catch (err) {
+                    console.error('LastMind: failed to resolve unclear verdict.', err);
+                    btn.disabled = false;
+                    btn.textContent = 'Continue';
+                }
+            });
+        }
+
+        // Shared by both the "incorrect" path and the "unclear, doesn't know
+        // it" path — a correction (omitted for "unclear, does know it") plus
+        // one cheap structured follow-up, graded with no further LLM call
+        // (see gradeStructuredFollowUp's own comment backend-side).
+        function renderVerificationCorrectionAndFollowUp(container, correction, followUp) {
+            const correctionHtml = correction ? `<div class="correction-card">${escapeHtml(correction)}</div>` : '';
+            const followUpHtml = followUp.type === 'fill_gap'
+                ? `
+                    <div class="correction-card">${escapeHtml(followUp.sentence)}</div>
+                    <input type="text" class="verification-fillgap-input" id="verificationFollowUpInput" placeholder="Fill in the gap…">
+                `
+                : `
+                    <p class="verification-scenario">Click the steps in the correct order:</p>
+                    <div class="verification-order-words" id="verificationOrderWords"></div>
+                    <div class="verification-order-chosen" id="verificationOrderChosen"></div>
+                    <button class="btn" id="verificationOrderResetBtn" type="button">Reset</button>
+                `;
+            container.innerHTML = `
+                <div class="verification-panel">
+                    ${correctionHtml}
+                    <p class="verification-scenario">One more, on the same point:</p>
+                    ${followUpHtml}
+                    <div class="bottom-action-row">
+                        <button class="btn primary" id="verificationFollowUpSubmitBtn" type="button">Submit</button>
+                    </div>
+                    <p class="verification-status" id="verificationFollowUpStatus" style="display:none;"></p>
+                </div>
+            `;
+
+            let orderChosen = [];
+            if (followUp.type === 'order_words') {
+                const wordsEl = document.getElementById('verificationOrderWords');
+                const chosenEl = document.getElementById('verificationOrderChosen');
+                const renderWords = () => {
+                    wordsEl.innerHTML = '';
+                    followUp.shuffledSteps.forEach((step, idx) => {
+                        if (orderChosen.includes(idx)) return;
+                        const chip = document.createElement('button');
+                        chip.type = 'button';
+                        chip.className = 'verification-word-chip';
+                        chip.textContent = step;
+                        chip.addEventListener('click', () => {
+                            orderChosen.push(idx);
+                            renderWords();
+                            renderChosen();
+                        });
+                        wordsEl.appendChild(chip);
+                    });
+                };
+                const renderChosen = () => {
+                    chosenEl.innerHTML = orderChosen.map((idx, i) => `${i + 1}. ${escapeHtml(followUp.shuffledSteps[idx])}`).join('<br>');
+                };
+                renderWords();
+                renderChosen();
+                document.getElementById('verificationOrderResetBtn').addEventListener('click', () => {
+                    orderChosen = [];
+                    renderWords();
+                    renderChosen();
+                });
+            }
+
+            document.getElementById('verificationFollowUpSubmitBtn').addEventListener('click', async () => {
+                const btn = document.getElementById('verificationFollowUpSubmitBtn');
+                const statusEl = document.getElementById('verificationFollowUpStatus');
+                const submittedAnswer = followUp.type === 'fill_gap'
+                    ? document.getElementById('verificationFollowUpInput').value.trim()
+                    : orderChosen;
+                if (followUp.type === 'fill_gap' && !submittedAnswer) return;
+                if (followUp.type === 'order_words' && orderChosen.length !== followUp.shuffledSteps.length) {
+                    statusEl.style.display = '';
+                    statusEl.textContent = 'Place every step before submitting.';
+                    return;
+                }
+                btn.disabled = true;
+                btn.textContent = 'Checking…';
+                try {
+                    const { data: { session } } = await supabaseClient.auth.getSession();
+                    if (!session) throw new Error('not signed in');
+                    const resp = await fetch(`${COMPILE_BACKEND_URL}/verification/submit-followup`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                        body: JSON.stringify({ followUp, submittedAnswer })
+                    });
+                    if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+                    const { correct } = await resp.json();
+                    const correctOrderText = followUp.type === 'fill_gap'
+                        ? followUp.answer
+                        : followUp.correctOrder.map((i) => followUp.shuffledSteps[i]).join(' → ');
+                    renderVerificationOutcome(container, correct
+                        ? "Got it — that's noted for your next successive-relearning pass."
+                        : `Not quite — the correct answer was: ${correctOrderText}`);
+                } catch (err) {
+                    console.error('LastMind: failed to grade the follow-up.', err);
+                    statusEl.style.display = '';
+                    statusEl.textContent = "Couldn't check that — try again in a moment.";
+                    btn.disabled = false;
+                    btn.textContent = 'Submit';
+                }
+            });
+        }
+
         async function startEncodingLessonWithOutline(accessToken, subject, topic, concept, qualification, examBoard, customTitle, customDescription) {
             questionFlowEl.innerHTML = '<div class="correction-card">Preparing your lesson…</div>';
 
@@ -8465,7 +8760,12 @@ SQIDAQAB
                 try {
                     const { data: { session: diagSession } } = await supabaseClient.auth.getSession();
                     if (!diagSession) throw new Error('Not logged in.');
-                    if (encodingDone) {
+                    if (!isPaidUser) {
+                        // Free tier's one real capability — a rubric-graded
+                        // verification of knowledge learned elsewhere, not the
+                        // paid teaching flow. See startVerificationFlow.
+                        await startVerificationFlow(subject, topic, lesson, folder.qualification, folder.examBoard, folder.customTitle, folder.customDescription);
+                    } else if (encodingDone) {
                         // override (a schedule-driven review of a concept
                         // possibly from a different subject/folder than the
                         // one currently open) carries no qualification/
