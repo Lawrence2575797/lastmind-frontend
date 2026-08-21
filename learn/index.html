@@ -5863,6 +5863,26 @@ SQIDAQAB
         stopSpeaking();
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
+
+        // Cortex (the AI study assistant) is Premium-only — the backend now
+        // enforces this on /cortex/message too, so a free account landing
+        // on the default dashboard view must never get the iframe at all,
+        // rather than a chat box that just 403s on the first message.
+        if (!isPaidUser) {
+            contentInner.innerHTML = `
+                <div class="dashboard-view">
+                    <div class="correction-card" style="max-width:440px; margin:80px auto; text-align:center;">
+                        <p style="margin-bottom:16px;">Cortex, LastMind's AI study assistant, is a Premium feature.</p>
+                        <button class="btn primary" id="dashboardUpgradeBtn" type="button">Upgrade to unlock Cortex</button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('dashboardUpgradeBtn').addEventListener('click', () => {
+                window.location.href = '/subscribe';
+            });
+            return;
+        }
+
         contentInner.innerHTML = `
             <div class="dashboard-view">
                 <iframe class="cortex-embed-frame" id="cortexEmbedFrame" allow="microphone" title="LastMind Cortex"></iframe>
@@ -9140,6 +9160,7 @@ SQIDAQAB
     }
 
     async function refreshCreditBalanceChip() {
+        if (!isPaidUser) return;
         const data = await fetchCreditBalance();
         const amount = data ? data.balance : '—';
         document.getElementById('creditBalanceAmount').textContent = amount;
@@ -11982,6 +12003,13 @@ SQIDAQAB
         document.getElementById('peerTutoringHubBtn').style.display = paid ? '' : 'none';
         document.getElementById('myTutoringTopbarBtn').style.display = paid ? '' : 'none';
         document.getElementById('upgradeTopbarBtn').style.display = paid ? 'none' : '';
+
+        // Keys/Key Market only ever move today through tutoring spend/earn
+        // (now Premium-gated server-side too) — hide the entry point
+        // rather than show a chip that would just read "—" forever on a
+        // free account. Revisit once the rewards system lets verification
+        // itself earn Keys (see the business-plan discussion).
+        document.getElementById('creditBalanceChip').style.display = paid ? '' : 'none';
 
         refreshCreditBalanceChip();
 
