@@ -2179,6 +2179,17 @@
         transition: background 0.2s, border-color 0.2s;
     }
 
+    .upgrade-topbar-btn {
+        background: var(--accent);
+        color: var(--bg);
+        border-color: var(--accent);
+    }
+
+    button.upgrade-topbar-btn:hover {
+        background: var(--accent);
+        opacity: 0.85;
+    }
+
     .cortex-btn-topbar:hover {
         background: rgba(230, 215, 176, 0.14);
         border-color: rgba(230, 215, 176, 0.55);
@@ -2805,6 +2816,12 @@
         margin: 12px 0 0;
         opacity: 0.75;
         font-size: 0.88rem;
+    }
+
+    .verification-progress {
+        font-size: 0.85rem;
+        opacity: 0.7;
+        margin: 0 0 8px;
     }
 
     .verification-status {
@@ -3882,6 +3899,7 @@
                 <span class="topbar-title" id="topbarTitle">Dashboard</span>
                 <button class="credit-balance-chip" id="creditBalanceChip" type="button" title="Key Market">🔑 Key Market <span id="creditBalanceAmount">—</span></button>
                 <div class="topbar-actions" id="topbarActions">
+                    <button class="cortex-btn-topbar upgrade-topbar-btn" id="upgradeTopbarBtn" type="button" style="display:none;">⭐ Upgrade</button>
                     <button class="cortex-btn-topbar" id="peerTutoringHubBtn" type="button">🤝 Peer tutoring</button>
                     <button class="cortex-btn-topbar" id="myTutoringTopbarBtn" type="button">📋 My Tutoring<span class="mt-badge" id="mtBadge" style="display:none;"></span></button>
                     <button class="cortex-btn-topbar" id="progressTopbarBtn" type="button">🗺️ Your Progress</button>
@@ -4129,17 +4147,19 @@
         <button class="btn primary" id="saveAccountSettingsBtn" style="width:100%;">Save Password</button>
         <div class="account-status" id="accountSettingsStatus"></div>
 
-        <div class="my-account-divider"></div>
+        <div class="my-account-divider" id="ptOptInDivider"></div>
 
-        <label class="dont-know-label">
-            <input type="checkbox" id="ptOptInCheckbox">
-            Take part as a tutor — get matched to help others with concepts you've mastered
-        </label>
-        <div class="pt-optin-fields">
-            <input type="text" id="ptOptInNameInput" placeholder="Name shown to matched peers (optional)" maxlength="40">
-            <button class="btn" id="ptSaveOptInBtn" type="button">Save</button>
+        <div id="ptOptInSection">
+            <label class="dont-know-label">
+                <input type="checkbox" id="ptOptInCheckbox">
+                Take part as a tutor — get matched to help others with concepts you've mastered
+            </label>
+            <div class="pt-optin-fields">
+                <input type="text" id="ptOptInNameInput" placeholder="Name shown to matched peers (optional)" maxlength="40">
+                <button class="btn" id="ptSaveOptInBtn" type="button">Save</button>
+            </div>
+            <p class="account-status" id="ptOptInStatus"></p>
         </div>
-        <p class="account-status" id="ptOptInStatus"></p>
 
         <div class="my-account-divider"></div>
 
@@ -8318,7 +8338,7 @@ SQIDAQAB
         // free-text explanation of a concept's mechanism, learned wherever the
         // student actually learned it. See verificationLessonService.ts for
         // the full backend flow this drives.
-        let verificationCurrentState = null; // { concept, conceptId, rubricKey, scenario }
+        let verificationCurrentState = null; // { concept, conceptId, rubricKey, scenario, subject, topic, masteryTarget }
 
         async function startVerificationFlow(subject, topic, concept, qualification, examBoard, customTitle, customDescription) {
             const container = document.getElementById('diagnoseQuestionFlow');
@@ -8332,12 +8352,32 @@ SQIDAQAB
                     body: JSON.stringify({ subject, topic, concept, qualification, examBoard, customTitle, customDescription })
                 });
                 if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
-                const { rubricKey, conceptId, scenario } = await resp.json();
-                verificationCurrentState = { concept, conceptId, rubricKey, scenario };
-                renderVerificationFreeTextStep(container, scenario);
+                const { rubricKey, conceptId, scenario, spacedSuccessCount, masteryTarget } = await resp.json();
+                verificationCurrentState = { concept, conceptId, rubricKey, scenario, subject, topic, masteryTarget };
+                renderVerificationFreeTextStep(container, scenario, spacedSuccessCount, masteryTarget);
             } catch (err) {
                 console.error('LastMind: failed to start verification.', err);
                 container.innerHTML = '<div class="correction-card">Could not start verification — try again in a moment.</div>';
+            }
+        }
+
+        // Progress + next-session-due line, shown above the scenario itself —
+        // reuses the exact /schedule + findScheduleEntryForConcept machinery
+        // already built for the paid side's dueInBadge, since verification's
+        // conceptId is the SAME normalizeConceptKey format (see
+        // verificationLessonService.ts's startVerificationAttempt). Silent
+        // no-op on failure — this is progress context, never a blocker to
+        // starting the actual verification.
+        async function verificationProgressHtml(subject, topic, concept, spacedSuccessCount, masteryTarget) {
+            const progressLine = `<p class="verification-progress">${spacedSuccessCount} of ${masteryTarget} spaced passes completed toward durable verification.</p>`;
+            try {
+                const scheduleData = await fetchScheduleData();
+                const entry = findScheduleEntryForConcept(scheduleData, subject, topic, concept);
+                if (!entry) return progressLine;
+                return `${progressLine}<p class="verification-progress">Next session: ${formatDueIn(entry.due)}.</p>`;
+            } catch (err) {
+                console.error('LastMind: could not load verification schedule info.', err);
+                return progressLine;
             }
         }
 
@@ -8347,9 +8387,10 @@ SQIDAQAB
         // to the student what they're deriving FROM and TOWARD. endPointVariable
         // is deliberately phrased as a neutral question/quantity, never the
         // resolved direction — see VERIFICATION_RUBRIC_GENERATION_PROMPT.
-        function renderVerificationFreeTextStep(container, scenario) {
+        async function renderVerificationFreeTextStep(container, scenario, spacedSuccessCount, masteryTarget) {
             container.innerHTML = `
                 <div class="verification-panel">
+                    <div id="verificationProgressBlock"></div>
                     <p class="verification-scenario"><strong>Explain the mechanism</strong> that connects these two points:</p>
                     <div class="correction-card">
                         <p class="verification-endpoint"><strong>Starting point:</strong> ${escapeHtml(scenario.startPoint)}</p>
@@ -8364,6 +8405,9 @@ SQIDAQAB
                 </div>
             `;
             document.getElementById('verificationSubmitBtn').addEventListener('click', submitVerificationAnswer);
+            const { subject, topic, concept } = verificationCurrentState;
+            document.getElementById('verificationProgressBlock').innerHTML =
+                await verificationProgressHtml(subject, topic, concept, spacedSuccessCount, masteryTarget);
         }
 
         async function submitVerificationAnswer() {
@@ -8393,7 +8437,19 @@ SQIDAQAB
                 const result = await resp.json();
                 const container = document.getElementById('diagnoseQuestionFlow');
                 if (result.verdict === 'correct') {
-                    renderVerificationOutcome(container, "Correct — that's verified. Come back on schedule for your next successive-relearning pass.");
+                    const { subject, topic, concept, masteryTarget } = verificationCurrentState;
+                    let scheduleHtml = '';
+                    try {
+                        const scheduleData = await fetchScheduleData();
+                        const entry = findScheduleEntryForConcept(scheduleData, subject, topic, concept);
+                        if (entry) {
+                            const count = Math.min(entry.spaced_success_count ?? 0, masteryTarget);
+                            scheduleHtml = `<p class="verification-progress">${count} of ${masteryTarget} spaced passes completed. Next session: ${formatDueIn(entry.due)}.</p>`;
+                        }
+                    } catch (err) {
+                        console.error('LastMind: could not load updated verification schedule.', err);
+                    }
+                    renderVerificationOutcome(container, "Correct — that's verified.", scheduleHtml);
                 } else if (result.verdict === 'unclear') {
                     renderVerificationUnclearCheckbox(container, result.unclearReason);
                 } else {
@@ -8408,8 +8464,8 @@ SQIDAQAB
             }
         }
 
-        function renderVerificationOutcome(container, message) {
-            container.innerHTML = `<div class="verification-panel"><div class="correction-card">${escapeHtml(message)}</div></div>`;
+        function renderVerificationOutcome(container, message, extraHtml = '') {
+            container.innerHTML = `<div class="verification-panel"><div class="correction-card">${escapeHtml(message)}</div>${extraHtml}</div>`;
         }
 
         // Reuses the exact .lesson-outline-item checkbox visual pattern
@@ -9710,7 +9766,12 @@ SQIDAQAB
         document.getElementById('accountSettingsStatus').textContent = '';
         document.getElementById('accountSettingsStatus').classList.remove('error');
         document.getElementById('ptOptInStatus').textContent = '';
-        if (session) loadTutoringOptInStatus(session);
+        // Tutoring opt-in is Premium-only (server-enforced on every
+        // /tutoring-profile route) — hide it entirely for free accounts
+        // rather than showing a control that would just 403.
+        document.getElementById('ptOptInSection').style.display = isPaidUser ? '' : 'none';
+        document.getElementById('ptOptInDivider').style.display = isPaidUser ? '' : 'none';
+        if (session && isPaidUser) loadTutoringOptInStatus(session);
         document.getElementById('myAccountOverlay').classList.add('open');
     });
 
@@ -11302,6 +11363,7 @@ SQIDAQAB
     // after being away), not polled continuously.
     async function refreshTutoringBadge() {
         const badge = document.getElementById('mtBadge');
+        if (!isPaidUser) { badge.style.display = 'none'; return; }
         try {
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (!session) { badge.style.display = 'none'; return; }
@@ -11751,6 +11813,10 @@ SQIDAQAB
         loadRecommendedConcepts();
     }
 
+    document.getElementById('upgradeTopbarBtn').addEventListener('click', () => {
+        window.location.href = '/subscribe';
+    });
+
     document.getElementById('peerTutoringHubBtn').addEventListener('click', openPeerTutoringHub);
     document.getElementById('ptCloseBtn').addEventListener('click', () => setPeerTutoringFullscreen(false));
 
@@ -11908,6 +11974,14 @@ SQIDAQAB
 
         document.getElementById('gate-message').style.display = 'none';
         document.getElementById('app').style.display = 'block';
+
+        // Peer tutoring is Premium-only (the backend enforces this too, on
+        // every tutoring route — this just keeps a free account from ever
+        // seeing an entry point to something it'll get a 403 from). Progress
+        // (the knowledge map) and Calendar stay available either way.
+        document.getElementById('peerTutoringHubBtn').style.display = paid ? '' : 'none';
+        document.getElementById('myTutoringTopbarBtn').style.display = paid ? '' : 'none';
+        document.getElementById('upgradeTopbarBtn').style.display = paid ? 'none' : '';
 
         refreshCreditBalanceChip();
 
