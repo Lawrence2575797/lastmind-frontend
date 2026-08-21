@@ -8497,6 +8497,25 @@ SQIDAQAB
                 await verificationProgressHtml(subject, topic, concept, spacedSuccessCount, masteryTarget);
         }
 
+        // Built fresh (not from stale local state) every time a lesson
+        // actually finishes grading — reuses the exact /schedule +
+        // findScheduleEntryForConcept machinery verificationProgressHtml
+        // uses at lesson START, just re-fetched so it reflects whatever
+        // gradeAndRecordReview just wrote server-side.
+        async function buildVerificationScheduleHtml() {
+            const { subject, topic, concept, masteryTarget } = verificationCurrentState;
+            try {
+                const scheduleData = await fetchScheduleData();
+                const entry = findScheduleEntryForConcept(scheduleData, subject, topic, concept);
+                if (!entry) return '';
+                const count = Math.min(entry.spaced_success_count ?? 0, masteryTarget);
+                return `<p class="verification-progress">${count} of ${masteryTarget} spaced passes completed. Next session: ${formatDueIn(entry.due)}.</p>`;
+            } catch (err) {
+                console.error('LastMind: could not load updated verification schedule.', err);
+                return '';
+            }
+        }
+
         async function submitVerificationAnswer() {
             const btn = document.getElementById('verificationSubmitBtn');
             const input = document.getElementById('verificationAnswerInput');
@@ -8524,22 +8543,17 @@ SQIDAQAB
                 const result = await resp.json();
                 const container = document.getElementById('diagnoseQuestionFlow');
                 if (result.verdict === 'correct') {
-                    const { subject, topic, concept, masteryTarget } = verificationCurrentState;
-                    let scheduleHtml = '';
-                    try {
-                        const scheduleData = await fetchScheduleData();
-                        const entry = findScheduleEntryForConcept(scheduleData, subject, topic, concept);
-                        if (entry) {
-                            const count = Math.min(entry.spaced_success_count ?? 0, masteryTarget);
-                            scheduleHtml = `<p class="verification-progress">${count} of ${masteryTarget} spaced passes completed. Next session: ${formatDueIn(entry.due)}.</p>`;
-                        }
-                    } catch (err) {
-                        console.error('LastMind: could not load updated verification schedule.', err);
-                    }
-                    renderVerificationOutcome(container, "Correct — that's verified.", scheduleHtml);
+                    const scheduleHtml = await buildVerificationScheduleHtml();
+                    renderVerificationOutcome(container, "Lesson complete — correct, that's verified.", scheduleHtml);
                 } else if (result.verdict === 'unclear') {
                     renderVerificationUnclearCheckbox(container, result.unclearReason);
                 } else {
+                    // Already graded 'again' server-side the moment this
+                    // verdict came back — the follow-up next is purely
+                    // reinforcement, not a second grading event. Schedule
+                    // info shows once the follow-up itself finishes (see
+                    // its own submit handler), not here, so "next due"
+                    // doesn't appear while there's still a question pending.
                     renderVerificationCorrectionAndFollowUp(container, result.correction, result.followUp);
                 }
             } catch (err) {
@@ -8595,7 +8609,13 @@ SQIDAQAB
                     });
                     if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
                     const result = await resp.json();
-                    renderVerificationCorrectionAndFollowUp(container, result.correction, result.followUp);
+                    // knowsIt:true is the ONE path where nothing has been
+                    // graded yet — the follow-up about to run IS the
+                    // evidence, so it must carry conceptId and actually grade
+                    // (see gradeStructuredFollowUpWithFsrs's own comment
+                    // server-side). knowsIt:false already graded 'again'
+                    // just now, same as the outright-incorrect path.
+                    renderVerificationCorrectionAndFollowUp(container, result.correction, result.followUp, knowsIt);
                 } catch (err) {
                     console.error('LastMind: failed to resolve unclear verdict.', err);
                     btn.disabled = false;
@@ -8604,11 +8624,14 @@ SQIDAQAB
             });
         }
 
-        // Shared by both the "incorrect" path and the "unclear, doesn't know
-        // it" path — a correction (omitted for "unclear, does know it") plus
-        // one cheap structured follow-up, graded with no further LLM call
-        // (see gradeStructuredFollowUp's own comment backend-side).
-        function renderVerificationCorrectionAndFollowUp(container, correction, followUp) {
+        // Shared by all three paths that end in a structured follow-up:
+        // "incorrect" and "unclear, doesn't know it" (both already graded
+        // 'again' server-side by this point — pendingGrade false, the
+        // follow-up here is pure reinforcement) and "unclear, DOES know it"
+        // (pendingGrade true — nothing has been graded yet, so THIS
+        // follow-up is the real evidence; see gradeStructuredFollowUpWithFsrs
+        // server-side).
+        function renderVerificationCorrectionAndFollowUp(container, correction, followUp, pendingGrade = false) {
             const correctionHtml = correction ? `<div class="correction-card">${escapeHtml(correction)}</div>` : '';
             const followUpHtml = followUp.type === 'fill_gap'
                 ? `
@@ -8685,16 +8708,25 @@ SQIDAQAB
                     const resp = await fetch(`${COMPILE_BACKEND_URL}/verification/submit-followup`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-                        body: JSON.stringify({ followUp, submittedAnswer })
+                        body: JSON.stringify({
+                            followUp,
+                            submittedAnswer,
+                            // Only send conceptId on the one path where this
+                            // follow-up itself needs to grade — see this
+                            // function's own comment above.
+                            ...(pendingGrade ? { conceptId: verificationCurrentState.conceptId } : {})
+                        })
                     });
                     if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
                     const { correct } = await resp.json();
                     const correctOrderText = followUp.type === 'fill_gap'
                         ? followUp.answer
                         : followUp.correctOrder.map((i) => followUp.shuffledSteps[i]).join(' → ');
+                    const scheduleHtml = await buildVerificationScheduleHtml();
                     renderVerificationOutcome(container, correct
-                        ? "Got it — that's noted for your next successive-relearning pass."
-                        : `Not quite — the correct answer was: ${correctOrderText}`);
+                        ? "Lesson complete — that's noted for your next successive-relearning pass."
+                        : `Lesson complete — not quite. The correct answer was: ${correctOrderText}`,
+                        scheduleHtml);
                 } catch (err) {
                     console.error('LastMind: failed to grade the follow-up.', err);
                     statusEl.style.display = '';
@@ -11901,7 +11933,10 @@ SQIDAQAB
     }
 
     document.getElementById('upgradeTopbarBtn').addEventListener('click', () => {
-        window.location.href = '/subscribe';
+        // ?action=upgrade is subscribe/index.html's own existing hook — a
+        // logged-in visitor arriving with it skips straight to the payment
+        // step instead of the login/signup modal (see its bootAccount IIFE).
+        window.location.href = '/subscribe?action=upgrade';
     });
 
     document.getElementById('peerTutoringHubBtn').addEventListener('click', openPeerTutoringHub);
