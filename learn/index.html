@@ -4886,7 +4886,7 @@ SQIDAQAB
         }).join('');
         return `
         <div class="lesson-panel">
-            <h3 class="lesson-panel-heading">${isPaidUser ? 'Your First Encoding Lessons' : 'Undergo Learning Verification'}</h3>
+            <h3 class="lesson-panel-heading" id="lessonPanelHeading">${isPaidUser ? 'Your First Encoding Lessons' : 'Undergo Learning Verification'}</h3>
             <p class="lesson-intro-message">${isPaidUser
                 ? `This page covers ${page.lessons.length} lessons, taught in order (${doneCount} of ${page.lessons.length} done so far).`
                 : 'Prove you already know this — wherever you actually learned it — and it counts the same as learning it here.'}</p>
@@ -6139,7 +6139,7 @@ SQIDAQAB
         `
                 : `
             <div class="lesson-panel">
-                <h3 class="lesson-panel-heading">${isPaidUser ? 'Your First Encoding Lesson' : 'Undergo Learning Verification'}</h3>
+                <h3 class="lesson-panel-heading" id="lessonPanelHeading">${isPaidUser ? 'Your First Encoding Lesson' : 'Undergo Learning Verification'}</h3>
                 <p class="lesson-intro-message">${isPaidUser
                     ? (savedEncodingProgress ? 'You left this one partway through — pick up right where you stopped.' : 'This lesson is designed to allow you to construct the lesson with the right amount of scaffolding for you. Here is the first step:')
                     : 'Prove you already know this — wherever you actually learned it — and it counts the same as learning it here.'}</p>
@@ -6235,6 +6235,16 @@ SQIDAQAB
         contentInner.innerHTML = showNotes
             ? `<div class="page-split-layout">${lessonPanelHtml}${notesPanelHtml}</div>`
             : lessonPanelHtml;
+
+        // Free tier only, and only pre-encodingDone (the branch that
+        // actually renders #lessonPanelHeading) — relabels the panel once
+        // this isn't the student's first attempt at this concept. Per
+        // design: the very first attempt keeps "Undergo Learning
+        // Verification" (no history shown), and only once spaced_success_count
+        // is at least 1 does it become "Successive Relearning — Lesson N of 3".
+        if (!isPaidUser && !encodingDone) {
+            patchVerificationLessonHeading(folder.subject || '', (loc.subfolder && loc.subfolder.name) || '', page.title || 'Untitled page');
+        }
 
         mathFieldInstances = new Map(); // fresh map for this page
 
@@ -8502,6 +8512,29 @@ SQIDAQAB
         // findScheduleEntryForConcept machinery verificationProgressHtml
         // uses at lesson START, just re-fetched so it reflects whatever
         // gradeAndRecordReview just wrote server-side.
+        // Mirrors DURABLE_RELEARNING_CRITERION in reviewService.ts — needed
+        // here because this runs at page-open, before /verification/start
+        // has ever returned the real masteryTarget for this concept.
+        const VERIFICATION_MASTERY_TARGET = 3;
+
+        // Relabels a page's lesson-panel heading, once rendered, to show
+        // which successive-relearning attempt this is — see openPage's own
+        // call site for the "why only after the first attempt" rule.
+        async function patchVerificationLessonHeading(subject, topic, concept) {
+            const headingEl = document.getElementById('lessonPanelHeading');
+            if (!headingEl) return;
+            try {
+                const scheduleData = await fetchScheduleData();
+                const entry = findScheduleEntryForConcept(scheduleData, subject, topic, concept);
+                const count = entry ? Math.min(entry.spaced_success_count ?? 0, VERIFICATION_MASTERY_TARGET) : 0;
+                if (count >= 1) {
+                    headingEl.textContent = `Successive Relearning — Lesson ${count + 1} of ${VERIFICATION_MASTERY_TARGET}`;
+                }
+            } catch (err) {
+                console.error('LastMind: could not load verification lesson-number heading.', err);
+            }
+        }
+
         async function buildVerificationScheduleHtml() {
             const { subject, topic, concept, masteryTarget } = verificationCurrentState;
             try {
