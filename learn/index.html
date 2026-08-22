@@ -8524,9 +8524,19 @@ SQIDAQAB
             try {
                 const scheduleData = await fetchScheduleData();
                 const entry = findScheduleEntryForConcept(scheduleData, subject, topic, concept);
-                const count = entry ? Math.min(entry.spaced_success_count ?? 0, VERIFICATION_MASTERY_TARGET) : 0;
-                if (count >= 1) {
-                    headingEl.textContent = `Successive Relearning — Lesson ${count + 1} of ${VERIFICATION_MASTERY_TARGET}`;
+                // Deliberately reps (total attempts so far), NOT
+                // spaced_success_count — the latter can never reach 1 after
+                // just one attempt (FSRS only credits a pass as "genuinely
+                // spaced" by comparing it to a PREVIOUS due date, and a
+                // first-ever attempt has none to compare against; see
+                // computeSpacedSuccessUpdate's !existingRow branch
+                // server-side). "Which lesson is this" and "how many
+                // genuinely-spaced passes count toward mastery" are two
+                // different numbers — reps tracks the former.
+                const attemptsSoFar = entry ? (entry.reps ?? 0) : 0;
+                if (attemptsSoFar >= 1) {
+                    const upcomingLesson = Math.min(attemptsSoFar + 1, VERIFICATION_MASTERY_TARGET);
+                    headingEl.textContent = `Successive Relearning — Lesson ${upcomingLesson} of ${VERIFICATION_MASTERY_TARGET}`;
                 }
             } catch (err) {
                 console.error('LastMind: could not load verification lesson-number heading.', err);
