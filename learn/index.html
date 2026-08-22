@@ -4884,15 +4884,17 @@ SQIDAQAB
             const cls = l.encodingDone ? 'done' : (isCurrent ? 'current' : '');
             return `<li class="multi-lesson-item ${cls}"><span class="multi-lesson-marker">${marker}</span> ${escapeHtml(l.concept)}</li>`;
         }).join('');
+        const activeLesson = activeSubLesson(page);
+        const savedVerification = (activeLesson && activeLesson.verificationProgress) || null;
         return `
         <div class="lesson-panel">
             <h3 class="lesson-panel-heading" id="lessonPanelHeading">${isPaidUser ? 'Your First Encoding Lessons' : 'Undergo Learning Verification'}</h3>
             <p class="lesson-intro-message">${isPaidUser
                 ? `This page covers ${page.lessons.length} lessons, taught in order (${doneCount} of ${page.lessons.length} done so far).`
-                : 'Prove you already know this — wherever you actually learned it — and it counts the same as learning it here.'}</p>
+                : (savedVerification ? "You left this one partway through — pick up right where you stopped." : 'Prove you already know this — wherever you actually learned it — and it counts the same as learning it here.')}</p>
             <ul class="multi-lesson-list">${items}</ul>
             <div class="bottom-action-row">
-                <button class="generate-questions-btn" id="generateQuestionsBtn">${isPaidUser ? 'Start Lesson' : 'Start Verification'}</button>
+                <button class="generate-questions-btn" id="generateQuestionsBtn">${isPaidUser ? 'Start Lesson' : (savedVerification ? 'Resume Verification' : 'Start Verification')}</button>
             </div>
             <div class="lesson-with-ask-layout">
                 <div id="diagnoseQuestionFlow" class="lesson-main-col"></div>
@@ -6095,6 +6097,11 @@ SQIDAQAB
         const encodingProgressOwner = isMulti ? activeSubLesson(page) : page;
         const savedEncodingProgress = (encodingProgressOwner && encodingProgressOwner.encodingProgress) || null;
 
+        // Same idea as savedEncodingProgress, for the free-tier verification
+        // flow — see saveVerificationProgress/clearVerificationProgress and
+        // resumeVerificationFlow below.
+        const savedVerificationProgress = (encodingProgressOwner && encodingProgressOwner.verificationProgress) || null;
+
         // Once offerGenerateNotes has actually generated notes for this
         // page (right at lesson completion), the notes panel locks down to
         // a plain read-only display — no "add your own" / "Cortex" mode
@@ -6140,10 +6147,10 @@ SQIDAQAB
                 <h3 class="lesson-panel-heading" id="lessonPanelHeading">${isPaidUser ? 'Your First Encoding Lesson' : 'Undergo Learning Verification'}</h3>
                 <p class="lesson-intro-message">${isPaidUser
                     ? (savedEncodingProgress ? 'You left this one partway through — pick up right where you stopped.' : 'This lesson is designed to allow you to construct the lesson with the right amount of scaffolding for you. Here is the first step:')
-                    : 'Prove you already know this — wherever you actually learned it — and it counts the same as learning it here.'}</p>
+                    : (savedVerificationProgress ? 'You left this one partway through — pick up right where you stopped.' : 'Prove you already know this — wherever you actually learned it — and it counts the same as learning it here.')}</p>
                 ${(!isPaidUser || savedEncodingProgress) ? '' : '<button type="button" class="multi-lesson-trigger-btn" id="multiLessonTriggerBtn">+ Cover multiple lessons on this page</button>'}
                 <div class="bottom-action-row">
-                    <button class="generate-questions-btn" id="generateQuestionsBtn">${isPaidUser ? (savedEncodingProgress ? 'Resume Lesson' : 'Start Lesson') : 'Start Verification'}</button>
+                    <button class="generate-questions-btn" id="generateQuestionsBtn">${isPaidUser ? (savedEncodingProgress ? 'Resume Lesson' : 'Start Lesson') : (savedVerificationProgress ? 'Resume Verification' : 'Start Verification')}</button>
                 </div>
                 <div class="lesson-with-ask-layout">
                     <div id="diagnoseQuestionFlow" class="lesson-main-col"></div>
@@ -7992,6 +7999,25 @@ SQIDAQAB
             if (owner && owner.encodingProgress) delete owner.encodingProgress;
         }
 
+        // Same idea as saveEncodingProgress/clearEncodingProgress, for the
+        // free-tier verification flow — checkpoints whichever stage the
+        // student is currently on (the original free-text explanation, the
+        // "was that unclear or did you not know it" self-report, or a later
+        // correction + structured follow-up) so leaving and coming back
+        // resumes there instead of silently restarting. encodingProgressOwner
+        // is the same page-or-active-sub-lesson object encoding progress
+        // already keys off (see its own declaration above).
+        function saveVerificationProgress(checkpoint) {
+            if (!encodingProgressOwner) return;
+            encodingProgressOwner.verificationProgress = checkpoint;
+            putFolder(folder);
+        }
+
+        function clearVerificationProgress() {
+            if (encodingProgressOwner && encodingProgressOwner.verificationProgress) delete encodingProgressOwner.verificationProgress;
+            putFolder(folder);
+        }
+
         // Rebuilds a step's card exactly as renderEncodingAnswerCard would
         // have shown it (diagram, explanation text for an "explain" step,
         // then the actual prompt), but already answered and locked — used
@@ -8447,12 +8473,34 @@ SQIDAQAB
                     body: JSON.stringify({ subject, topic, concept, qualification, examBoard, customTitle, customDescription })
                 });
                 if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
-                const { rubricKey, conceptId, scenario, spacedSuccessCount, masteryTarget } = await resp.json();
+                const { rubricKey, conceptId, scenario, masteryTarget } = await resp.json();
                 verificationCurrentState = { concept, conceptId, rubricKey, scenario, subject, topic, masteryTarget };
-                renderVerificationFreeTextStep(container, scenario, spacedSuccessCount, masteryTarget);
+                saveVerificationProgress({ stage: 'free_text', conceptId, rubricKey, scenario, masteryTarget });
+                renderVerificationFreeTextStep(container, scenario, masteryTarget);
             } catch (err) {
                 console.error('LastMind: failed to start verification.', err);
                 container.innerHTML = '<div class="correction-card">Could not start verification — try again in a moment.</div>';
+            }
+        }
+
+        // Reconstructs whichever stage a checkpoint left off on (see
+        // saveVerificationProgress) — no /verification/start round trip,
+        // since everything needed to redisplay is already in the checkpoint
+        // itself. subject/topic/concept come from the SAME page context
+        // startVerificationFlow's own caller already resolves (folder
+        // subject, subfolder/topic name, page or sub-lesson concept).
+        async function resumeVerificationFlow(subject, topic, concept, checkpoint) {
+            const container = document.getElementById('diagnoseQuestionFlow');
+            verificationCurrentState = {
+                concept, conceptId: checkpoint.conceptId, rubricKey: checkpoint.rubricKey,
+                scenario: checkpoint.scenario, subject, topic, masteryTarget: checkpoint.masteryTarget
+            };
+            if (checkpoint.stage === 'unclear') {
+                renderVerificationUnclearCheckbox(container, checkpoint.unclearReason);
+            } else if (checkpoint.stage === 'correction') {
+                renderVerificationCorrectionAndFollowUp(container, checkpoint.correction, checkpoint.followUp);
+            } else {
+                await renderVerificationFreeTextStep(container, checkpoint.scenario, checkpoint.masteryTarget);
             }
         }
 
@@ -8463,16 +8511,17 @@ SQIDAQAB
         // verificationLessonService.ts's startVerificationAttempt). Silent
         // no-op on failure — this is progress context, never a blocker to
         // starting the actual verification.
-        async function verificationProgressHtml(subject, topic, concept, spacedSuccessCount, masteryTarget) {
-            const progressLine = `<p class="verification-progress">${spacedSuccessCount} of ${masteryTarget} spaced passes completed toward durable verification.</p>`;
+        async function verificationProgressHtml(subject, topic, concept, masteryTarget) {
             try {
                 const scheduleData = await fetchScheduleData();
                 const entry = findScheduleEntryForConcept(scheduleData, subject, topic, concept);
+                const count = Math.min(entry?.spaced_success_count ?? 0, masteryTarget);
+                const progressLine = `<p class="verification-progress">${count} of ${masteryTarget} spaced passes completed toward durable verification.</p>`;
                 if (!entry) return progressLine;
                 return `${progressLine}<p class="verification-progress">Next session: ${formatDueIn(entry.due)}.</p>`;
             } catch (err) {
                 console.error('LastMind: could not load verification schedule info.', err);
-                return progressLine;
+                return `<p class="verification-progress">0 of ${masteryTarget} spaced passes completed toward durable verification.</p>`;
             }
         }
 
@@ -8482,7 +8531,7 @@ SQIDAQAB
         // to the student what they're deriving FROM and TOWARD. endPointVariable
         // is deliberately phrased as a neutral question/quantity, never the
         // resolved direction — see VERIFICATION_RUBRIC_GENERATION_PROMPT.
-        async function renderVerificationFreeTextStep(container, scenario, spacedSuccessCount, masteryTarget) {
+        async function renderVerificationFreeTextStep(container, scenario, masteryTarget) {
             container.innerHTML = `
                 <div class="verification-panel">
                     <div id="verificationProgressBlock"></div>
@@ -8502,7 +8551,7 @@ SQIDAQAB
             document.getElementById('verificationSubmitBtn').addEventListener('click', submitVerificationAnswer);
             const { subject, topic, concept } = verificationCurrentState;
             document.getElementById('verificationProgressBlock').innerHTML =
-                await verificationProgressHtml(subject, topic, concept, spacedSuccessCount, masteryTarget);
+                await verificationProgressHtml(subject, topic, concept, masteryTarget);
         }
 
         // Built fresh (not from stale local state) every time a lesson
@@ -8570,8 +8619,10 @@ SQIDAQAB
                 const result = await resp.json();
                 const container = document.getElementById('diagnoseQuestionFlow');
                 if (result.verdict === 'correct') {
+                    clearVerificationProgress();
                     renderVerificationOutcome(container, "Lesson complete — correct, that's verified.");
                 } else if (result.verdict === 'unclear') {
+                    saveVerificationProgress({ ...verificationCurrentState, stage: 'unclear', unclearReason: result.unclearReason });
                     renderVerificationUnclearCheckbox(container, result.unclearReason);
                 } else {
                     // Not graded yet — the follow-up next IS the grading
@@ -8579,6 +8630,7 @@ SQIDAQAB
                     // a pass; see gradeStructuredFollowUpWithFsrs
                     // server-side). Schedule info shows once that finishes
                     // (its own submit handler), not here.
+                    saveVerificationProgress({ ...verificationCurrentState, stage: 'correction', correction: result.correction, followUp: result.followUp });
                     renderVerificationCorrectionAndFollowUp(container, result.correction, result.followUp);
                 }
             } catch (err) {
@@ -8638,6 +8690,7 @@ SQIDAQAB
                     // run IS the evidence either way (see
                     // gradeStructuredFollowUpWithFsrs's own comment
                     // server-side).
+                    saveVerificationProgress({ ...verificationCurrentState, stage: 'correction', correction: result.correction, followUp: result.followUp });
                     renderVerificationCorrectionAndFollowUp(container, result.correction, result.followUp);
                 } catch (err) {
                     console.error('LastMind: failed to resolve unclear verdict.', err);
@@ -8743,6 +8796,7 @@ SQIDAQAB
                     const correctOrderText = followUp.type === 'fill_gap'
                         ? followUp.answer
                         : followUp.correctOrder.map((i) => followUp.shuffledSteps[i]).join(' → ');
+                    clearVerificationProgress();
                     renderVerificationOutcome(container, correct
                         ? "Lesson complete — that's noted for your next successive-relearning pass."
                         : `Lesson complete — not quite. The correct answer was: ${correctOrderText}`);
@@ -8986,8 +9040,16 @@ SQIDAQAB
                     if (!isPaidUser) {
                         // Free tier's one real capability — a rubric-graded
                         // verification of knowledge learned elsewhere, not the
-                        // paid teaching flow. See startVerificationFlow.
-                        await startVerificationFlow(subject, topic, lesson, folder.qualification, folder.examBoard, folder.customTitle, folder.customDescription);
+                        // paid teaching flow. See startVerificationFlow. A
+                        // saved checkpoint (same encodingProgressOwner this
+                        // page/sub-lesson's encoding progress already keys
+                        // off) resumes exactly where it left off instead of
+                        // starting a new attempt.
+                        if (savedVerificationProgress) {
+                            await resumeVerificationFlow(subject, topic, lesson, savedVerificationProgress);
+                        } else {
+                            await startVerificationFlow(subject, topic, lesson, folder.qualification, folder.examBoard, folder.customTitle, folder.customDescription);
+                        }
                     } else if (encodingDone) {
                         // override (a schedule-driven review of a concept
                         // possibly from a different subject/folder than the
