@@ -5931,19 +5931,17 @@ SQIDAQAB
         // paid dashboard's own empty state shows (just the chat itself
         // swapped for an upgrade card), so the free landing page isn't bare.
         if (!isPaidUser) {
+            // Same look as the premium empty state (logo + rotating quote),
+            // just no chat underneath it and no upsell copy — the Upgrade
+            // button already lives in the topbar, so this page doesn't need
+            // to repeat "Cortex is Premium" back at the student every time
+            // they land here.
             contentInner.innerHTML = `
                 <div class="dashboard-view dashboard-locked">
                     <h1 class="dashboard-locked-logo">Last<span>Mind</span></h1>
                     <p class="dashboard-locked-quote" id="dashboardLockedQuote"></p>
-                    <div class="correction-card" style="max-width:440px; margin-top:32px; text-align:center;">
-                        <p style="margin-bottom:16px;">Cortex, LastMind's AI study assistant, is a Premium feature.</p>
-                        <button class="btn primary" id="dashboardUpgradeBtn" type="button">Upgrade to unlock Cortex</button>
-                    </div>
                 </div>
             `;
-            document.getElementById('dashboardUpgradeBtn').addEventListener('click', () => {
-                window.location.href = '/subscribe';
-            });
             pickNextQuote().then((quote) => {
                 document.getElementById('dashboardLockedQuote').textContent = quote;
             });
