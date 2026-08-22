@@ -8589,12 +8589,11 @@ SQIDAQAB
                 } else if (result.verdict === 'unclear') {
                     renderVerificationUnclearCheckbox(container, result.unclearReason);
                 } else {
-                    // Already graded 'again' server-side the moment this
-                    // verdict came back — the follow-up next is purely
-                    // reinforcement, not a second grading event. Schedule
-                    // info shows once the follow-up itself finishes (see
-                    // its own submit handler), not here, so "next due"
-                    // doesn't appear while there's still a question pending.
+                    // Not graded yet — the follow-up next IS the grading
+                    // moment (a wrong-then-corrected attempt still counts as
+                    // a pass; see gradeStructuredFollowUpWithFsrs
+                    // server-side). Schedule info shows once that finishes
+                    // (its own submit handler), not here.
                     renderVerificationCorrectionAndFollowUp(container, result.correction, result.followUp);
                 }
             } catch (err) {
@@ -8650,13 +8649,11 @@ SQIDAQAB
                     });
                     if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
                     const result = await resp.json();
-                    // knowsIt:true is the ONE path where nothing has been
-                    // graded yet — the follow-up about to run IS the
-                    // evidence, so it must carry conceptId and actually grade
-                    // (see gradeStructuredFollowUpWithFsrs's own comment
-                    // server-side). knowsIt:false already graded 'again'
-                    // just now, same as the outright-incorrect path.
-                    renderVerificationCorrectionAndFollowUp(container, result.correction, result.followUp, knowsIt);
+                    // Neither branch is graded yet — the follow-up about to
+                    // run IS the evidence either way (see
+                    // gradeStructuredFollowUpWithFsrs's own comment
+                    // server-side).
+                    renderVerificationCorrectionAndFollowUp(container, result.correction, result.followUp);
                 } catch (err) {
                     console.error('LastMind: failed to resolve unclear verdict.', err);
                     btn.disabled = false;
@@ -8665,14 +8662,12 @@ SQIDAQAB
             });
         }
 
-        // Shared by all three paths that end in a structured follow-up:
-        // "incorrect" and "unclear, doesn't know it" (both already graded
-        // 'again' server-side by this point — pendingGrade false, the
-        // follow-up here is pure reinforcement) and "unclear, DOES know it"
-        // (pendingGrade true — nothing has been graded yet, so THIS
-        // follow-up is the real evidence; see gradeStructuredFollowUpWithFsrs
-        // server-side).
-        function renderVerificationCorrectionAndFollowUp(container, correction, followUp, pendingGrade = false) {
+        // Shared by all three paths that end in a structured follow-up
+        // ("incorrect", "unclear, doesn't know it", "unclear, DOES know
+        // it") — none of them have graded anything yet at this point; this
+        // follow-up is the actual grading moment for all three (see
+        // gradeStructuredFollowUpWithFsrs's own comment server-side).
+        function renderVerificationCorrectionAndFollowUp(container, correction, followUp) {
             const correctionHtml = correction ? `<div class="correction-card">${escapeHtml(correction)}</div>` : '';
             const followUpHtml = followUp.type === 'fill_gap'
                 ? `
@@ -8752,10 +8747,7 @@ SQIDAQAB
                         body: JSON.stringify({
                             followUp,
                             submittedAnswer,
-                            // Only send conceptId on the one path where this
-                            // follow-up itself needs to grade — see this
-                            // function's own comment above.
-                            ...(pendingGrade ? { conceptId: verificationCurrentState.conceptId } : {})
+                            conceptId: verificationCurrentState.conceptId
                         })
                     });
                     if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
