@@ -8543,20 +8543,6 @@ SQIDAQAB
             }
         }
 
-        async function buildVerificationScheduleHtml() {
-            const { subject, topic, concept, masteryTarget } = verificationCurrentState;
-            try {
-                const scheduleData = await fetchScheduleData();
-                const entry = findScheduleEntryForConcept(scheduleData, subject, topic, concept);
-                if (!entry) return '';
-                const count = Math.min(entry.spaced_success_count ?? 0, masteryTarget);
-                return `<p class="verification-progress">${count} of ${masteryTarget} spaced passes completed. Next session: ${formatDueIn(entry.due)}.</p>`;
-            } catch (err) {
-                console.error('LastMind: could not load updated verification schedule.', err);
-                return '';
-            }
-        }
-
         async function submitVerificationAnswer() {
             const btn = document.getElementById('verificationSubmitBtn');
             const input = document.getElementById('verificationAnswerInput');
@@ -8584,8 +8570,7 @@ SQIDAQAB
                 const result = await resp.json();
                 const container = document.getElementById('diagnoseQuestionFlow');
                 if (result.verdict === 'correct') {
-                    const scheduleHtml = await buildVerificationScheduleHtml();
-                    renderVerificationOutcome(container, "Lesson complete — correct, that's verified.", scheduleHtml);
+                    renderVerificationOutcome(container, "Lesson complete — correct, that's verified.");
                 } else if (result.verdict === 'unclear') {
                     renderVerificationUnclearCheckbox(container, result.unclearReason);
                 } else {
@@ -8750,16 +8735,17 @@ SQIDAQAB
                             conceptId: verificationCurrentState.conceptId
                         })
                     });
-                    if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+                    if (!resp.ok) {
+                        const body = await resp.json().catch(() => null);
+                        throw new Error(`Server returned ${resp.status}${body?.error ? `: ${body.error}` : ''}`);
+                    }
                     const { correct } = await resp.json();
                     const correctOrderText = followUp.type === 'fill_gap'
                         ? followUp.answer
                         : followUp.correctOrder.map((i) => followUp.shuffledSteps[i]).join(' → ');
-                    const scheduleHtml = await buildVerificationScheduleHtml();
                     renderVerificationOutcome(container, correct
                         ? "Lesson complete — that's noted for your next successive-relearning pass."
-                        : `Lesson complete — not quite. The correct answer was: ${correctOrderText}`,
-                        scheduleHtml);
+                        : `Lesson complete — not quite. The correct answer was: ${correctOrderText}`);
                 } catch (err) {
                     console.error('LastMind: failed to grade the follow-up.', err);
                     statusEl.style.display = '';
