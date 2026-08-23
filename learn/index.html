@@ -7412,9 +7412,40 @@ SQIDAQAB
             // unusually fast.
             async function resolveSubmitState() {
                 if (!pendingLessonContinuation) return state;
-                const continued = await pendingLessonContinuation;
-                pendingLessonContinuation = null;
-                return continued.state;
+                // A rejected promise stays rejected forever — without
+                // re-issuing the call on failure, one blip would replay the
+                // exact same error on every future attempt to Submit OR Skip
+                // (both call this), permanently, for the rest of the lesson,
+                // with no way to recover short of reloading and losing
+                // progress. Up to 2 retries here, each a genuinely fresh
+                // call via pendingLessonContinuationRetry — stacked on top
+                // of claudeClient.ts's own internal retries on the
+                // underlying API call, this is a second, outer layer for
+                // when even those were exhausted.
+                for (let attempt = 0; ; attempt++) {
+                    try {
+                        const continued = await pendingLessonContinuation;
+                        pendingLessonContinuation = null;
+                        pendingLessonContinuationRetry = null;
+                        return continued.state;
+                    } catch (err) {
+                        if (!pendingLessonContinuationRetry || attempt >= 2) {
+                            // Out of automatic retries — throw so THIS click
+                            // shows a real error, but queue one more fresh
+                            // attempt now rather than clearing to null:
+                            // null here would make the very next check above
+                            // silently proceed with an incomplete step list
+                            // instead of genuinely retrying, and re-awaiting
+                            // the SAME dead promise would replay this exact
+                            // error forever. This way the student's next
+                            // Submit/Skip click has a real attempt waiting.
+                            if (pendingLessonContinuationRetry) pendingLessonContinuation = pendingLessonContinuationRetry();
+                            throw err;
+                        }
+                        console.error(`LastMind: background lesson generation failed, retrying (attempt ${attempt + 1}/2).`, err);
+                        pendingLessonContinuation = pendingLessonContinuationRetry();
+                    }
+                }
             }
 
             skipBtn.addEventListener('click', async () => {
@@ -7966,6 +7997,17 @@ SQIDAQAB
         // submitting, same as before this two-phase split existed.
         let pendingLessonContinuation = null;
 
+        // A zero-arg closure that re-issues the SAME postEncodingContinue
+        // call pendingLessonContinuation was originally created from — set
+        // alongside it, read only by resolveSubmitState's own retry logic
+        // below. Needed because a JS promise that rejects stays rejected
+        // forever: without this, one failed background-generation call
+        // would permanently poison every later attempt to Submit OR Skip
+        // the first question (both await this same promise) for the rest
+        // of the lesson, with no way to recover short of reloading the
+        // page and losing progress.
+        let pendingLessonContinuationRetry = null;
+
         // One entry per step ANSWERED so far in the currently-running
         // encoding lesson (reset at the start of runEncodingLesson, seeded
         // from saved progress at the start of resumeEncodingLesson) —
@@ -8080,6 +8122,7 @@ SQIDAQAB
             activeEncodingConcept = isMulti ? (activeSubLesson(page) || {}).concept || '' : '';
             lessonHookFact = progress.hookFact || '';
             pendingLessonContinuation = null;
+            pendingLessonContinuationRetry = null;
             encodingAnswerLog = (progress.answers || []).slice();
 
             questionFlowEl.innerHTML = '';
@@ -8984,9 +9027,10 @@ SQIDAQAB
                 // student is about to start reading/answering this first
                 // step, instead of making them wait for it up front. See
                 // pendingLessonContinuation.
-                pendingLessonContinuation = startResult.contentReady
+                pendingLessonContinuationRetry = startResult.contentReady
                     ? null
-                    : postEncodingContinue(accessToken, startResult.state, topic, concept, siblingConceptsForCurrentPage(concept));
+                    : () => postEncodingContinue(accessToken, startResult.state, topic, concept, siblingConceptsForCurrentPage(concept));
+                pendingLessonContinuation = pendingLessonContinuationRetry ? pendingLessonContinuationRetry() : null;
 
                 renderEncodingStep(accessToken, startResult.step, startResult.state);
             }
