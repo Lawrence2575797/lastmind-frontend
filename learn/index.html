@@ -963,12 +963,6 @@
         margin-top: 12px;
     }
 
-    .cb-buy-status {
-        font-size: 0.82rem;
-        opacity: 0.75;
-        margin-top: 10px;
-    }
-
     /* Wider than the default .cb-body (640px, still used by the admin
        overdue-queue view) — a grid of large squares needs real room,
        the balance/explanation text below it is still comfortably
@@ -3561,7 +3555,8 @@
         margin-bottom: 6px;
     }
 
-    .field input {
+    .field input,
+    .field select {
         width: 100%;
         background: var(--panel);
         border: 1px solid rgba(230, 215, 176, 0.2);
@@ -3572,7 +3567,8 @@
         font-size: 0.9rem;
     }
 
-    .field input:focus {
+    .field input:focus,
+    .field select:focus {
         outline: none;
         border-color: rgba(230, 215, 176, 0.5);
     }
@@ -3984,11 +3980,6 @@
                     <div class="km-market-grid" id="keyMarketGrid"></div>
                 </div>
 
-                <div class="cb-section">
-                    <h4>Need more right now?</h4>
-                    <button class="btn primary" id="cbBuyMoreBtn" type="button">Buy more Keys</button>
-                    <p class="cb-buy-status" id="cbBuyStatus" style="display:none;"></p>
-                </div>
             </div>
         </div>
 
@@ -4096,6 +4087,14 @@
                 <input type="text" class="level-search-input" id="folderLevelSearchInput" placeholder="Search…">
                 <div class="level-options" id="folderLevelOptions"></div>
             </div>
+        </div>
+        <div class="field" id="folderTierField" style="display:none;">
+            <label for="folderTierSelect">Tier</label>
+            <select id="folderTierSelect">
+                <option value="">Select tier…</option>
+                <option value="Foundation">Foundation</option>
+                <option value="Higher">Higher</option>
+            </select>
         </div>
         <div class="field" id="folderBoardField" style="display:none;">
             <label for="boardInput">Exam Board</label>
@@ -4264,6 +4263,14 @@
                 <input type="text" class="level-search-input" id="renameFolderLevelSearchInput" placeholder="Search…">
                 <div class="level-options" id="renameFolderLevelOptions"></div>
             </div>
+        </div>
+        <div class="field" id="renameFolderTierField" style="display:none;">
+            <label for="renameFolderTierSelect">Tier</label>
+            <select id="renameFolderTierSelect">
+                <option value="">Select tier…</option>
+                <option value="Foundation">Foundation</option>
+                <option value="Higher">Higher</option>
+            </select>
         </div>
         <div class="field" id="renameFolderBoardField" style="display:none;">
             <label for="renameFolderBoardInput">Exam Board</label>
@@ -4745,6 +4752,51 @@ SQIDAQAB
     }
     function isCustomLevel(level) {
         return level === CUSTOM_LEVEL;
+    }
+
+    // GCSE Science and Maths are the two subjects that genuinely sit
+    // Foundation/Higher tiered in the real exam system — other GCSE
+    // subjects don't, so the Tier field only ever appears for these.
+    // Subject is free text (not a dropdown), so this matches on keyword
+    // rather than an exact string — covers "Maths"/"Mathematics",
+    // "Science"/"Combined Science", and the three separate sciences.
+    const TIERED_GCSE_SUBJECT_KEYWORDS = ['math', 'science', 'biology', 'chemistry', 'physics'];
+    function isTieredGcseSubject(subject) {
+        const s = (subject || '').trim().toLowerCase();
+        return TIERED_GCSE_SUBJECT_KEYWORDS.some((kw) => s.includes(kw));
+    }
+
+    // Tier is deliberately NOT a field of its own passed through the app —
+    // every backend service (chain generation, encoding lessons,
+    // verification's exam-spec grounding, etc.) is already keyed off
+    // "qualification" as one opaque string, all the way down to
+    // exam_spec_outlines' own cache key. Composing tier directly into that
+    // string ("GCSE" + "Higher" -> "GCSE Higher") gets it threaded through
+    // every one of those existing systems for free, with zero backend
+    // changes — a genuinely separate parameter would mean touching every
+    // single one of those call sites instead. decomposeQualification is
+    // the inverse, used when re-opening an existing folder to rename.
+    function composeQualification(level, tier) {
+        return tier ? `${level} ${tier}` : level;
+    }
+    function decomposeQualification(qualification) {
+        for (const tier of ['Foundation', 'Higher']) {
+            if (qualification === `GCSE ${tier}`) return { level: 'GCSE', tier };
+        }
+        return { level: qualification, tier: '' };
+    }
+
+    // Shows the Tier field only for GCSE + a tiered subject — called on
+    // every Level change AND every Subject keystroke (see the input
+    // listeners below), since either one changing can flip the answer.
+    // Clears any selected tier the moment it's hidden, so a stale
+    // Foundation/Higher pick from a previous subject can never silently
+    // survive into a folder whose subject no longer qualifies for it.
+    function updateTierFieldVisibility(prefix, subjectInputId, level) {
+        const subject = document.getElementById(subjectInputId).value;
+        const show = level === 'GCSE' && isTieredGcseSubject(subject);
+        document.getElementById(`${prefix}TierField`).style.display = show ? '' : 'none';
+        if (!show) document.getElementById(`${prefix}TierSelect`).value = '';
     }
 
     // extraFields identify the folder beyond subject+level — [examBoard]
@@ -5483,8 +5535,10 @@ SQIDAQAB
         if (!folder) return;
         pendingRenameFolderId = folderId;
         document.getElementById('renameFolderSubjectInput').value = folder.subject || '';
-        renameFolderLevelWidget.setValue(folder.qualification || '');
-        updateLevelMetafields('renameFolder', folder.qualification || '');
+        const { level: renameLevel, tier: renameTier } = decomposeQualification(folder.qualification || '');
+        renameFolderLevelWidget.setValue(renameLevel);
+        document.getElementById('renameFolderTierSelect').value = renameTier;
+        updateLevelMetafields('renameFolder', renameLevel);
         document.getElementById('renameFolderBoardInput').value = folder.examBoard || '';
         document.getElementById('renameFolderInstitutionInput').value = folder.institution || '';
         document.getElementById('renameFolderModuleCodeInput').value = folder.moduleCode || '';
@@ -9604,15 +9658,6 @@ SQIDAQAB
 
     document.getElementById('cbCloseBtn').addEventListener('click', () => setCreditBalanceFullscreen(false));
 
-    // Deliberately not a real checkout yet — per-activity pricing hasn't
-    // been decided (see creditService.ts), so there's nothing real to
-    // charge for. This is an honest placeholder, not a broken button.
-    document.getElementById('cbBuyMoreBtn').addEventListener('click', () => {
-        const statusEl = document.getElementById('cbBuyStatus');
-        statusEl.style.display = '';
-        statusEl.textContent = "Pricing is still being finalized — check back soon.";
-    });
-
     // Default the sidebar to collapsed on a phone-width viewport — it's a
     // fixed 280px column with no responsive handling at all otherwise, so
     // on a real phone it was permanently eating most of the screen next
@@ -9884,10 +9929,22 @@ SQIDAQAB
         document.getElementById(`${prefix}BoardField`).style.display = (level && !isUni && !isCustom) ? '' : 'none';
         document.getElementById(`${prefix}InstitutionField`).style.display = (level && isUni) ? '' : 'none';
         document.getElementById(`${prefix}ModuleCodeField`).style.display = (level && isUni) ? '' : 'none';
+        const subjectInputId = prefix === 'renameFolder' ? 'renameFolderSubjectInput' : 'subjectInput';
+        updateTierFieldVisibility(prefix, subjectInputId, level);
     }
 
     const folderLevelWidget = setupLevelDropdown('folder', (level) => updateLevelMetafields('folder', level));
     const renameFolderLevelWidget = setupLevelDropdown('renameFolder', (level) => updateLevelMetafields('renameFolder', level));
+
+    // Subject is free text, so the Tier field's visibility (see
+    // isTieredGcseSubject) also needs to react to every keystroke there,
+    // not just a Level change.
+    document.getElementById('subjectInput').addEventListener('input', () => {
+        updateTierFieldVisibility('folder', 'subjectInput', folderLevelWidget.getValue());
+    });
+    document.getElementById('renameFolderSubjectInput').addEventListener('input', () => {
+        updateTierFieldVisibility('renameFolder', 'renameFolderSubjectInput', renameFolderLevelWidget.getValue());
+    });
 
     function openFolderModal() {
         document.getElementById('subjectInput').value = '';
@@ -9972,7 +10029,8 @@ SQIDAQAB
 
     function readFolderFormFields() {
         const subject = document.getElementById('subjectInput').value.trim();
-        const qualification = folderLevelWidget.getValue();
+        const tier = document.getElementById('folderTierSelect').value;
+        const qualification = composeQualification(folderLevelWidget.getValue(), tier);
         const examBoard = document.getElementById('boardInput').value.trim();
         const institution = document.getElementById('institutionInput').value.trim();
         const moduleCode = document.getElementById('moduleCodeInput').value.trim();
@@ -10141,7 +10199,8 @@ SQIDAQAB
     });
     document.getElementById('saveRenameFolderBtn').addEventListener('click', async () => {
         const subject = document.getElementById('renameFolderSubjectInput').value.trim();
-        const qualification = renameFolderLevelWidget.getValue();
+        const renameTier = document.getElementById('renameFolderTierSelect').value;
+        const qualification = composeQualification(renameFolderLevelWidget.getValue(), renameTier);
         const examBoard = document.getElementById('renameFolderBoardInput').value.trim();
         const institution = document.getElementById('renameFolderInstitutionInput').value.trim();
         const moduleCode = document.getElementById('renameFolderModuleCodeInput').value.trim();
