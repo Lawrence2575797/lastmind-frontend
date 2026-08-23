@@ -9599,29 +9599,39 @@ SQIDAQAB
     // in Supabase's own table editor), never a code change — this function
     // just renders whatever comes back.
     async function fetchRewards() {
-        try {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) return [];
-            const resp = await fetch(`${COMPILE_BACKEND_URL}/rewards`, {
-                headers: { Authorization: `Bearer ${session.access_token}` }
-            });
-            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
-            return await resp.json();
-        } catch (err) {
-            console.error('LastMind: failed to load rewards.', err);
-            return null; // null = "couldn't load", distinct from [] = "none active"
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return { rewards: [], errorMessage: 'Not signed in.' };
+        const resp = await fetch(`${COMPILE_BACKEND_URL}/rewards`, {
+            cache: 'no-store',
+            headers: { Authorization: `Bearer ${session.access_token}` }
+        });
+        if (!resp.ok) {
+            const bodyText = await resp.text().catch(() => '');
+            return { rewards: null, errorMessage: `Server returned ${resp.status}${bodyText ? `: ${bodyText.slice(0, 200)}` : ''}` };
         }
+        const rewards = await resp.json();
+        return { rewards, errorMessage: null };
     }
 
     async function renderKeyMarketGrid() {
         const grid = document.getElementById('keyMarketGrid');
         grid.innerHTML = '<div class="km-market-tile km-market-tile-empty">Loading…</div>';
-        const rewards = await fetchRewards();
+
+        let rewards, errorMessage;
+        try {
+            ({ rewards, errorMessage } = await fetchRewards());
+        } catch (err) {
+            console.error('LastMind: failed to load rewards.', err);
+            rewards = null;
+            errorMessage = err && err.message ? err.message : String(err);
+        }
+
         grid.innerHTML = '';
-        if (rewards === null) {
+
+        if (!rewards) {
             const tile = document.createElement('div');
             tile.className = 'km-market-tile km-market-tile-empty';
-            tile.textContent = "Couldn't load rewards — try again in a moment.";
+            tile.textContent = `Couldn't load rewards${errorMessage ? ` — ${errorMessage}` : ''}`;
             grid.appendChild(tile);
             return;
         }
@@ -9632,21 +9642,31 @@ SQIDAQAB
             grid.appendChild(tile);
             return;
         }
-        const balanceData = await fetchCreditBalance();
-        const balance = balanceData ? balanceData.balance : 0;
-        rewards.forEach((reward) => {
-            const affordable = balance >= reward.costKeys;
+
+        try {
+            const balanceData = await fetchCreditBalance();
+            const balance = balanceData ? balanceData.balance : 0;
+            rewards.forEach((reward) => {
+                const affordable = balance >= reward.costKeys;
+                const tile = document.createElement('div');
+                tile.className = `km-market-tile km-reward-tile${affordable ? '' : ' km-reward-locked'}`;
+                tile.innerHTML = `
+                    ${reward.category ? `<div class="km-reward-category">${escapeHtml(reward.category)}</div>` : ''}
+                    <div class="km-reward-title">${escapeHtml(reward.title)}</div>
+                    <div class="km-reward-desc">${escapeHtml(reward.description)}</div>
+                    ${reward.terms ? `<div class="km-reward-terms">${escapeHtml(reward.terms)}</div>` : ''}
+                    <div class="km-reward-cost">${reward.costKeys} Keys</div>
+                `;
+                grid.appendChild(tile);
+            });
+        } catch (err) {
+            console.error('LastMind: failed to render rewards.', err);
+            grid.innerHTML = '';
             const tile = document.createElement('div');
-            tile.className = `km-market-tile km-reward-tile${affordable ? '' : ' km-reward-locked'}`;
-            tile.innerHTML = `
-                ${reward.category ? `<div class="km-reward-category">${escapeHtml(reward.category)}</div>` : ''}
-                <div class="km-reward-title">${escapeHtml(reward.title)}</div>
-                <div class="km-reward-desc">${escapeHtml(reward.description)}</div>
-                ${reward.terms ? `<div class="km-reward-terms">${escapeHtml(reward.terms)}</div>` : ''}
-                <div class="km-reward-cost">${reward.costKeys} Keys</div>
-            `;
+            tile.className = 'km-market-tile km-market-tile-empty';
+            tile.textContent = `Couldn't display rewards — ${err && err.message ? err.message : String(err)}`;
             grid.appendChild(tile);
-        });
+        }
     }
 
     document.getElementById('creditBalanceChip').addEventListener('click', async () => {
