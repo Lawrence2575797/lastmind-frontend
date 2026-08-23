@@ -9598,19 +9598,26 @@ SQIDAQAB
     // is a content change (a row in the `rewards` table, editable directly
     // in Supabase's own table editor), never a code change — this function
     // just renders whatever comes back.
-    async function fetchRewards() {
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session) return { rewards: [], errorMessage: 'Not signed in.' };
-        const resp = await fetch(`${COMPILE_BACKEND_URL}/rewards`, {
-            cache: 'no-store',
-            headers: { Authorization: `Bearer ${session.access_token}` }
-        });
-        if (!resp.ok) {
-            const bodyText = await resp.text().catch(() => '');
-            return { rewards: null, errorMessage: `Server returned ${resp.status}${bodyText ? `: ${bodyText.slice(0, 200)}` : ''}` };
+    // Hardcoded on purpose — the earlier data-driven version (GET /rewards,
+    // a Supabase table meant to be edited directly) turned out impossible
+    // to debug when a reward silently failed to show, with no way to tell
+    // whether the cause was the table, the endpoint, auth, or caching.
+    // Coding each new deal directly here trades editability for something
+    // that's guaranteed to render, since it's just local data with no
+    // network call in the way.
+    const KEY_MARKET_REWARDS = [
+        {
+            id: 'woods-dry-cleaning',
+            title: '10% off suit dry cleaning',
+            description: 'At Woods the Cleaners.',
+            terms: 'Applies to one suit only. Placeholder reward — not valid yet.',
+            costKeys: 500,
+            category: 'Local Offers'
         }
-        const rewards = await resp.json();
-        return { rewards, errorMessage: null };
+    ];
+
+    async function fetchRewards() {
+        return { rewards: KEY_MARKET_REWARDS, errorMessage: null };
     }
 
     async function renderKeyMarketGrid() {
