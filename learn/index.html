@@ -1427,6 +1427,52 @@
         text-align: right;
     }
 
+    .bt-activity-toggle {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 16px;
+    }
+
+    .bt-activity-tab {
+        flex: 1;
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid rgba(230, 215, 176, 0.25);
+        background: transparent;
+        color: var(--text);
+        opacity: 0.7;
+        cursor: pointer;
+        font-size: 0.85rem;
+    }
+
+    .bt-activity-tab.active {
+        opacity: 1;
+        border-color: var(--accent);
+        background: rgba(230, 215, 176, 0.1);
+    }
+
+    .bt-marking-fields {
+        margin-bottom: 16px;
+    }
+
+    .bt-marking-fields label {
+        display: block;
+        font-size: 0.8rem;
+        opacity: 0.75;
+        margin: 10px 0 4px;
+    }
+
+    .bt-marking-meta {
+        font-size: 0.8rem;
+        opacity: 0.75;
+        margin-top: 6px;
+    }
+
+    .bt-marking-meta.over-limit {
+        color: #e08080;
+        opacity: 1;
+    }
+
     /* ─── ADMIN OVERDUE QUEUE ─── */
     .admin-queue-view {
         display: none;
@@ -3910,6 +3956,17 @@
                 <button class="btn" id="btCloseBtn" type="button" title="Close">✕</button>
             </div>
             <div class="cb-body bt-body" id="btBody">
+                <div class="bt-activity-toggle" id="btActivityToggle">
+                    <button type="button" class="bt-activity-tab active" id="btActivityMisconceptionBtn" data-activity="misconception">Ask about a concept</button>
+                    <button type="button" class="bt-activity-tab" id="btActivityMarkingBtn" data-activity="marking">Get an answer marked</button>
+                </div>
+                <div class="bt-marking-fields" id="btMarkingFields" style="display:none;">
+                    <label for="btMarkingQuestion">Question</label>
+                    <textarea class="mt-response-textarea" id="btMarkingQuestion" rows="4" placeholder="Paste the question you were asked…"></textarea>
+                    <label for="btMarkingAnswer">Your answer</label>
+                    <textarea class="mt-response-textarea" id="btMarkingAnswer" rows="6" placeholder="Paste your own answer, word for word…"></textarea>
+                    <p class="bt-marking-meta" id="btMarkingMeta">0 words</p>
+                </div>
                 <div class="bt-list" id="btList"></div>
                 <div class="bt-submit-row">
                     <button class="btn primary" id="btRequestBtn" type="button" disabled>Request help from selected (0)</button>
@@ -11962,15 +12019,67 @@ SQIDAQAB
     // only raises the odds someone actually answers.
     let btCurrentTarget = null;
     let btSelectedHelperIds = new Set();
+    let btActivity = 'misconception'; // 'misconception' | 'marking'
+
+    // Mirrors the backend's own constants (tutoringActivities.ts) — this is
+    // a live preview only, the server re-validates and re-classifies
+    // authoritatively from the PII-filtered text, not this client-side count.
+    const MARKING_LONG_ANSWER_MIN_WORDS = 150;
+    const MARKING_ANSWER_MAX_WORDS = 1000;
 
     function setBrowseTutorsFullscreen(on) {
         document.getElementById('browseTutorsView').classList.toggle('fullscreen', on);
     }
 
+    function countWordsClient(text) {
+        const trimmed = (text || '').trim();
+        return trimmed ? trimmed.split(/\s+/).length : 0;
+    }
+
+    // Live word-count + price-tier preview under the answer field — returns
+    // whether the current marking input is valid (non-empty question/answer,
+    // answer under the hard cap) so updateBrowseTutorsSubmitButton can gate
+    // on it.
+    function updateMarkingMeta() {
+        const question = document.getElementById('btMarkingQuestion').value;
+        const answer = document.getElementById('btMarkingAnswer').value;
+        const meta = document.getElementById('btMarkingMeta');
+        const wordCount = countWordsClient(answer);
+        if (wordCount > MARKING_ANSWER_MAX_WORDS) {
+            meta.textContent = `${wordCount} words — too long, please shorten to ${MARKING_ANSWER_MAX_WORDS} words or fewer.`;
+            meta.classList.add('over-limit');
+            return false;
+        }
+        meta.classList.remove('over-limit');
+        const tier = wordCount >= MARKING_LONG_ANSWER_MIN_WORDS
+            ? 'long answer marking — 250 Keys'
+            : 'short answer marking — 150 Keys';
+        meta.textContent = `${wordCount} word${wordCount === 1 ? '' : 's'} — ${tier}`;
+        return !!question.trim() && wordCount > 0;
+    }
+
+    document.getElementById('btMarkingAnswer').addEventListener('input', () => {
+        updateMarkingMeta();
+        updateBrowseTutorsSubmitButton();
+    });
+    document.getElementById('btMarkingQuestion').addEventListener('input', updateBrowseTutorsSubmitButton);
+
+    function setBrowseTutorsActivity(activity) {
+        btActivity = activity;
+        document.getElementById('btActivityMisconceptionBtn').classList.toggle('active', activity === 'misconception');
+        document.getElementById('btActivityMarkingBtn').classList.toggle('active', activity === 'marking');
+        document.getElementById('btMarkingFields').style.display = activity === 'marking' ? '' : 'none';
+        updateBrowseTutorsSubmitButton();
+    }
+
+    document.getElementById('btActivityMisconceptionBtn').addEventListener('click', () => setBrowseTutorsActivity('misconception'));
+    document.getElementById('btActivityMarkingBtn').addEventListener('click', () => setBrowseTutorsActivity('marking'));
+
     function updateBrowseTutorsSubmitButton() {
         const btn = document.getElementById('btRequestBtn');
+        const markingValid = btActivity !== 'marking' || updateMarkingMeta();
         btn.textContent = `Request help from selected (${btSelectedHelperIds.size})`;
-        btn.disabled = btSelectedHelperIds.size === 0;
+        btn.disabled = btSelectedHelperIds.size === 0 || !markingValid;
     }
 
     function renderTutorCard(tutor) {
@@ -12042,6 +12151,9 @@ SQIDAQAB
     async function openBrowseTutors(target) {
         btCurrentTarget = target;
         btSelectedHelperIds = new Set();
+        document.getElementById('btMarkingQuestion').value = '';
+        document.getElementById('btMarkingAnswer').value = '';
+        setBrowseTutorsActivity('misconception');
         document.getElementById('btTargetLabel').textContent = `${target.label} — ${target.subject}${target.topic ? ' · ' + target.topic : ''}`;
         document.getElementById('btSubmitStatus').style.display = 'none';
         updateBrowseTutorsSubmitButton();
@@ -12060,6 +12172,7 @@ SQIDAQAB
         try {
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (!session) throw new Error('not signed in');
+            const isMarking = btActivity === 'marking';
             const resp = await fetch(`${COMPILE_BACKEND_URL}/peer-tutoring/help-requests`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
@@ -12067,7 +12180,11 @@ SQIDAQAB
                     conceptId: btCurrentTarget.conceptId,
                     subject: btCurrentTarget.subject,
                     topic: btCurrentTarget.topic || null,
-                    helperIds: Array.from(btSelectedHelperIds)
+                    helperIds: Array.from(btSelectedHelperIds),
+                    ...(isMarking ? {
+                        questionText: document.getElementById('btMarkingQuestion').value,
+                        answerText: document.getElementById('btMarkingAnswer').value
+                    } : {})
                 })
             });
             if (!resp.ok) {
@@ -12075,7 +12192,9 @@ SQIDAQAB
                 throw new Error(errBody.error || `Server returned ${resp.status}`);
             }
             statusEl.style.display = '';
-            statusEl.textContent = `Request sent to ${btSelectedHelperIds.size} tutor(s) — check My Tutoring.`;
+            statusEl.textContent = isMarking
+                ? `Marking request sent to ${btSelectedHelperIds.size} tutor(s) — they'll see it at the next release slot. Check My Tutoring.`
+                : `Request sent to ${btSelectedHelperIds.size} tutor(s) — check My Tutoring.`;
             btn.textContent = 'Request sent ✓';
             refreshTutoringBadge();
         } catch (err) {
