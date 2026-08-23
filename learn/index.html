@@ -11450,10 +11450,17 @@ SQIDAQAB
     function renderRequesterCard(session) {
         const card = document.createElement('div');
         card.className = 'mt-card';
+        const isMarking = session.activityType === 'short_answer_marking' || session.activityType === 'long_answer_marking';
+        // A marking request sits queued (PII-filtered, but not yet shown to
+        // its tutor) until visibleAt — see peerTutoringMatchService.ts's
+        // nextReleaseSlot. Only worth surfacing while that's still true AND
+        // the tutor hasn't acted yet; once submitted/released this is moot.
+        const pendingRelease = isMarking && session.status === 'assigned' && new Date(session.visibleAt).getTime() > Date.now();
         card.innerHTML = `
             <div class="mt-card-concept">${escapeHtml(session.conceptLabel || session.conceptId)}</div>
             <div class="mt-card-meta">${escapeHtml(session.subject)}${session.topic ? ' · ' + escapeHtml(session.topic) : ''}</div>
             <span class="mt-card-status status-${session.status}">${MT_STATUS_LABELS[session.status] || session.status}</span>
+            ${pendingRelease ? `<div class="mt-card-meta">Queued — will reach your tutor at ${formatDateTime(session.visibleAt)}</div>` : ''}
         `;
         if (session.status === 'released') {
             const body = document.createElement('div');
