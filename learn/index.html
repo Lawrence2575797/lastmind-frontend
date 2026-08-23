@@ -11354,19 +11354,34 @@ SQIDAQAB
         return wrap;
     }
 
+    const MT_ACTIVITY_LABELS = {
+        misconception: 'Explain a concept',
+        short_answer_marking: 'Mark a short answer',
+        long_answer_marking: 'Mark a long answer',
+    };
+
     function renderHelperCard(session) {
+        const isMarking = session.activityType === 'short_answer_marking' || session.activityType === 'long_answer_marking';
         const card = document.createElement('div');
         card.className = 'mt-card';
         card.innerHTML = `
             <div class="mt-card-concept">${escapeHtml(session.conceptLabel || session.conceptId)}</div>
             <div class="mt-card-meta">${escapeHtml(session.subject)}${session.topic ? ' · ' + escapeHtml(session.topic) : ''}</div>
             <span class="mt-card-status status-${session.status}">${MT_STATUS_LABELS[session.status] || session.status}</span>
-            <div class="mt-card-meta">Due by ${formatDateTime(session.deadline)}</div>
+            <div class="mt-card-meta">${MT_ACTIVITY_LABELS[session.activityType] || 'Explain a concept'} · Due by ${formatDateTime(session.deadline)}</div>
+            ${isMarking ? `
+                <div class="correction-card">
+                    <p class="verification-endpoint"><strong>Question:</strong> ${escapeHtml(session.questionText || '')}</p>
+                    <p class="verification-endpoint"><strong>Student's answer:</strong> ${escapeHtml(session.answerText || '')}</p>
+                </div>
+            ` : ''}
         `;
         if (session.status === 'assigned') {
             const textarea = document.createElement('textarea');
             textarea.className = 'mt-response-textarea';
-            textarea.placeholder = 'Write your explanation here — it gets checked before it reaches them, then shown at the time they book.';
+            textarea.placeholder = isMarking
+                ? "Write your marking/feedback on this answer here — it gets checked before it reaches them, then shown at the time they book."
+                : 'Write your explanation here — it gets checked before it reaches them, then shown at the time they book.';
             textarea.rows = 4;
             const submitRow = document.createElement('div');
             submitRow.className = 'mt-release-row';
