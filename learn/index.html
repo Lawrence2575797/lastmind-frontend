@@ -9678,7 +9678,6 @@ SQIDAQAB
 
     document.getElementById('creditBalanceChip').addEventListener('click', async () => {
         setCreditBalanceFullscreen(true);
-        document.getElementById('cbBuyStatus').style.display = 'none';
         renderKeyMarketGrid();
         await refreshCreditBalanceChip();
     });
