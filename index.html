@@ -480,6 +480,26 @@
             }
         }
 
+        /* ─── FAQS / PRIVACY POLICY TITLES ─── */
+        .page-title-section {
+            padding: 20px 60px 90px;
+            text-align: center;
+        }
+
+        .page-title-section h2 {
+            font-size: clamp(1.8rem, 4vw, 2.6rem);
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .page-title-section .page-title-rule {
+            width: 56px;
+            height: 2px;
+            background: var(--accent);
+            margin: 28px auto 0;
+            opacity: 0.55;
+        }
+
         /* ─── FOOTER ─── */
         footer {
             border-top: 1px solid rgba(230, 215, 176, 0.1);
@@ -520,6 +540,23 @@
             height: 1px;
             background: var(--accent);
             opacity: 0.3;
+        }
+
+        .footer-contact {
+            font-family: 'Arial', sans-serif;
+            font-size: 0.82rem;
+            letter-spacing: 0.02em;
+        }
+
+        .footer-contact a {
+            color: var(--accent);
+            opacity: 0.85;
+            text-decoration: none;
+        }
+
+        .footer-contact a:hover {
+            opacity: 1;
+            text-decoration: underline;
         }
 
         .footer-copy {
@@ -1042,10 +1079,23 @@
 
     </section>
 
+    <!-- ─── FAQS ─── -->
+    <section class="page-title-section" id="faqs">
+        <h2>FAQs</h2>
+        <div class="page-title-rule"></div>
+    </section>
+
+    <!-- ─── PRIVACY POLICY ─── -->
+    <section class="page-title-section" id="privacy-policy">
+        <h2>Privacy Policy</h2>
+        <div class="page-title-rule"></div>
+    </section>
+
     <!-- ─── FOOTER ─── -->
     <footer>
         <div class="footer-logo">LastMind</div>
         <div class="footer-rule"></div>
+        <p class="footer-contact">Contact us at <a href="mailto:lastmindadmin@gmail.com">lastmindadmin@gmail.com</a></p>
         <p class="footer-copy">© LastMind 2026 &nbsp;·&nbsp; All rights reserved.</p>
     </footer>
 
