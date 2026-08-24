@@ -12124,52 +12124,58 @@ SQIDAQAB
         list.innerHTML = '<div class="mt-empty">Loading…</div>';
         const seen = new Set();
         const items = [];
+        // Genuine struggle, measured directly — the fraction of graded
+        // attempts on a concept that were NOT "Again" (see reviewService.ts's
+        // successRate), not the coarse mastery bucket. A concept can sit at
+        // mastery state 2 while still reading as a strong candidate here if
+        // it took many Agains to get there, and one at state 1 with a
+        // perfectly fine hit rate just hasn't accumulated enough stability
+        // yet — that's not the kind of struggle peer tutoring is for.
+        // MIN_REPS_FOR_SIGNAL guards against a single attempt producing a
+        // meaningless 0% or 100%.
+        const STRUGGLE_SUCCESS_RATE_THRESHOLD = 0.6;
+        const MIN_REPS_FOR_SIGNAL = 2;
+        function isGenuineStruggle(detail) {
+            return !!detail && detail.reps >= MIN_REPS_FOR_SIGNAL && detail.successRate < STRUGGLE_SUCCESS_RATE_THRESHOLD;
+        }
         for (const folder of folders) {
             const concepts = collectFolderConcepts(folder);
             if (!concepts.length) continue;
             const data = await fetchKnowledgeMapData(folder, concepts);
             if (!data || !Array.isArray(data.nodes)) continue;
-            const mastery = data.mastery || {};
+            const masteryDetail = data.masteryDetail || {};
             const lowConfidenceIds = new Set(data.lowConfidenceNodeIds || []);
             const nodeNameById = new Map(data.nodes.map((n) => [n.id, n.name]));
             data.nodes.forEach((n) => {
-                const state = mastery[n.id] ?? 0;
                 if (seen.has(n.id)) return;
-                // Peer tutoring is for genuine struggle — something you've
-                // actually been tested on and haven't yet got solid (state
-                // 1) — not a plain coverage gap (state 0, never taught/
-                // attempted at all); asking a peer for help on something
-                // you haven't even tried yet doesn't make sense, that's
-                // what an ordinary lesson is for. The one exception: a
-                // concept flagged as correct-but-shaky (answered slowly,
-                // self-reported low confidence — see
-                // answerSignalService.ts) still surfaces here even at
-                // state 2 (mastered), since a clean FSRS rating alone
-                // hides exactly this kind of struggle a peer who's been
-                // through the same confusion is well placed to help with.
-                const isLowConfidenceMastered = state === 2 && lowConfidenceIds.has(n.id);
-                if (state !== 1 && !isLowConfidenceMastered) return;
+                const detail = masteryDetail[n.id];
+                // A concept flagged as correct-but-shaky (answered slowly,
+                // self-reported low confidence — see answerSignalService.ts)
+                // still surfaces here even with a fine success rate, since
+                // that signal catches a kind of struggle raw accuracy alone
+                // hides.
+                const isLowConfidenceMastered = detail?.state === 2 && lowConfidenceIds.has(n.id);
+                if (!isGenuineStruggle(detail) && !isLowConfidenceMastered) return;
                 seen.add(n.id);
                 items.push({
                     id: n.id,
                     name: n.name,
                     subject: folder.subject || '',
                     topic: (n.topics && n.topics[0]) || '',
-                    lowConfidence: isLowConfidenceMastered
+                    lowConfidence: isLowConfidenceMastered,
+                    successRate: detail ? detail.successRate : 1
                 });
             });
-            // Weak LINKS — same "genuine struggle, not a coverage gap"
-            // philosophy as concepts above, using the knowledge map's
-            // already-shipped edgeMastery (state 1 = tested, not yet
-            // mastered; no low-confidence-mastered analog exists for edges
-            // yet, so just state 1). conceptId uses the exact same raw
-            // `${source}->${target}` shape submitEncodingAnswer/
+            // Weak LINKS — same struggle signal as concepts above, using the
+            // knowledge map's edgeMasteryDetail. conceptId uses the exact
+            // same raw `${source}->${target}` shape submitEncodingAnswer/
             // submitRetrievalAnswer already grade edges under.
-            const edgeMastery = data.edgeMastery || {};
+            const edgeMasteryDetail = data.edgeMasteryDetail || {};
             (data.edges || []).forEach((e) => {
                 const key = `${e.source}->${e.target}`;
                 if (seen.has(key)) return;
-                if ((edgeMastery[key] ?? 0) !== 1) return;
+                const detail = edgeMasteryDetail[key];
+                if (!isGenuineStruggle(detail)) return;
                 seen.add(key);
                 const sourceName = nodeNameById.get(e.source) || e.source;
                 const targetName = nodeNameById.get(e.target) || e.target;
@@ -12178,7 +12184,8 @@ SQIDAQAB
                     name: `${sourceName} → ${targetName}`,
                     subject: folder.subject || '',
                     topic: '',
-                    lowConfidence: false
+                    lowConfidence: false,
+                    successRate: detail.successRate
                 });
             });
         }
@@ -12187,6 +12194,10 @@ SQIDAQAB
             list.innerHTML = '<div class="mt-empty">Nothing recommended right now — everything you\'ve attempted looks solid.</div>';
             return;
         }
+        // Worst success rate first — a continuous signal actually supports
+        // ranking, unlike the old binary mastery state, so the list leads
+        // with what's genuinely struggling most rather than iteration order.
+        items.sort((a, b) => a.successRate - b.successRate);
         items.forEach((item) => list.appendChild(renderRecommendedConceptCard(item)));
     }
 
