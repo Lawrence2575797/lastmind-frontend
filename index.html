@@ -329,6 +329,43 @@
             }
         }
 
+        /* ─── WHY CHOOSE ─── */
+        .why-choose {
+            padding: 20px 60px 130px;
+            text-align: center;
+        }
+
+        .why-heading {
+            font-size: clamp(1.8rem, 4vw, 2.6rem);
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .why-heading span {
+            color: var(--accent);
+        }
+
+        .why-rule {
+            width: 56px;
+            height: 2px;
+            background: var(--accent);
+            margin: 28px auto 40px;
+            opacity: 0.55;
+        }
+
+        .why-text {
+            max-width: 640px;
+            margin: 0 auto;
+            font-size: clamp(1rem, 1.6vw, 1.1rem);
+            color: var(--text);
+            opacity: 0.8;
+            line-height: 1.8;
+        }
+
+        .why-text p + p {
+            margin-top: 22px;
+        }
+
         /* ─── FOOTER ─── */
         footer {
             border-top: 1px solid rgba(230, 215, 176, 0.1);
@@ -823,6 +860,20 @@
                 <p class="how-step-desc">Use your credits to get real-world rewards.</p>
             </div>
 
+        </div>
+
+    </section>
+
+    <!-- ─── WHY CHOOSE ─── -->
+    <section class="why-choose" id="why-choose">
+
+        <h2 class="why-heading">Why choose <span>LastMind</span>?</h2>
+
+        <div class="why-rule"></div>
+
+        <div class="why-text">
+            <p>At LastMind, we believe that a major reason students don't achieve the grades they want is not the learning platform they use, but that they don't consistently do enough effective revision.</p>
+            <p>We aim to solve this by combining a premium teaching service with rewards for verified learning progress, designed to motivate students to engage in the learning they need to succeed.</p>
         </div>
 
     </section>
