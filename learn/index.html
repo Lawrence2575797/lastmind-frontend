@@ -3920,6 +3920,7 @@
             </div>
 
             <div class="sidebar-footer">
+                <button class="manage-subscription-btn" id="seeTutorialBtn" type="button">See Tutorial</button>
                 <button class="manage-subscription-btn" id="myAccountBtn">My Account</button>
             </div>
         </aside>
@@ -4493,10 +4494,6 @@
             </div>
             <p class="account-status" id="ptOptInStatus"></p>
         </div>
-
-        <div class="my-account-divider"></div>
-
-        <button class="btn" id="seeTutorialBtn" type="button" style="width:100%;">See Tutorial</button>
 
         <div class="my-account-divider"></div>
 
@@ -9844,14 +9841,25 @@ SQIDAQAB
     // tour on their first visit after subscribing. See startTour, called
     // from enterApp once the folder list (and createFolderBtn) exist.
 
-    const FREE_TOUR_STEPS = [
+    // Steps every tour opens with, regardless of tier — how to actually
+    // get started (create a folder), how a lesson is structured over
+    // time (encoding first, then spaced repetition), and that Cortex can
+    // do the folder/page setup for you instead of doing it by hand.
+    const TOUR_INTRO_STEPS = [
         { selector: '#createFolderBtn', title: 'Start with a folder', body: "This is where a subject lives. Create one for each subject you're studying — LastMind builds lessons inside it." },
+        { selector: null, title: 'How a lesson works', body: 'Every lesson starts as an encoding lesson, where you actually learn the material for the first time. After that, spaced repetition sessions bring it back at increasing intervals so it actually sticks.' },
+        { selector: '#cortexTabBtn', title: 'Let Cortex set it up for you', body: "Don't want to build the folder structure by hand? Switch to Cortex and describe what you're studying — it can create folders and pages for you." }
+    ];
+
+    const FREE_TOUR_STEPS = [
+        ...TOUR_INTRO_STEPS,
         { selector: '#creditBalanceChip', title: 'Keys', body: 'Genuine learning progress earns you Keys. Redeem them for real rewards in the Key Market.' },
         { selector: '#locksChip', title: 'Locks', body: 'Each lesson costs a Lock. You get a fresh batch every month.' },
         { selector: null, title: 'Already know some of this?', body: 'Open any lesson and look for "Verify instead" — prove what you already know and earn Keys for it, without redoing content you’ve already mastered.' }
     ];
 
     const PREMIUM_TOUR_STEPS = [
+        ...TOUR_INTRO_STEPS,
         { selector: null, title: "You're on Premium", body: "Premium unlocks LastMind's personalised AI learning system — a diagnostics engine that finds the root cause of a misunderstanding, not just where you went wrong." },
         { selector: null, title: 'Instant verification', body: 'Learning progress made inside LastMind is verified the moment it happens on Premium — no separate step, and it earns more Keys per unit of progress.' },
         { selector: '#peerTutoringHubBtn', title: 'Tutoring', body: "Premium unlocks real tutoring. Request help here whenever you're stuck." },
@@ -10657,7 +10665,6 @@ SQIDAQAB
     // touching the seen_free_tour/seen_premium_tour flags (it's already
     // been marked seen; replaying it again shouldn't need those to change).
     document.getElementById('seeTutorialBtn').addEventListener('click', () => {
-        document.getElementById('myAccountOverlay').classList.remove('open');
         startTour(isPaidUser ? 'premium' : 'free');
     });
 
