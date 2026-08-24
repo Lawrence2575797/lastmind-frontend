@@ -1814,11 +1814,13 @@
 
     .event-type-toggle {
         display: flex;
+        flex-wrap: wrap;
         gap: 8px;
     }
 
     .event-type-btn {
         flex: 1;
+        min-width: 90px;
     }
 
     .event-type-btn.active {
@@ -4210,6 +4212,7 @@
             <div class="event-type-toggle">
                 <button type="button" class="btn event-type-btn active" id="eventTypeBusyBtn">Busy</button>
                 <button type="button" class="btn event-type-btn" id="eventTypeExamBtn">Exam</button>
+                <button type="button" class="btn event-type-btn" id="eventTypeLessonBtn">Book a lesson</button>
             </div>
         </div>
 
@@ -4225,10 +4228,41 @@
             <label for="eventFolderSelect">Subject</label>
             <select id="eventFolderSelect"></select>
         </div>
+        <!-- Not wired up yet — Locks (the deposit currency) has no
+             backend, no balance, and no forfeit logic to check against
+             yet. Shown so the booking flow is visible end to end while
+             that gets built, rather than appearing nowhere until it's
+             fully functional. -->
+        <div class="field" id="eventLessonField" style="display:none;">
+            <label for="eventLessonTimeInput">At</label>
+            <input type="time" id="eventLessonTimeInput">
+            <div class="field-hint">Deposits 1 🔒 Lock — refunded if you complete the lesson, lost if you don't. Booking isn't live yet — coming soon.</div>
+        </div>
 
         <div class="modal-actions">
             <button class="btn" id="cancelCalendarEventBtn">Cancel</button>
             <button class="btn primary" id="submitCalendarEventBtn">Add</button>
+        </div>
+    </div>
+</div>
+
+<!-- ─── LOCK A LESSON (deposit + schedule) ───
+     Entry point for the Locks flow — pick a day here, then hand off to
+     the calendar's own day modal (already opened to the "Book a lesson"
+     option) to actually pick a time. Deliberately just a day-picker, not
+     a duplicate of the calendar's own UI — the calendar is still the one
+     place a lesson actually gets booked. -->
+<div class="modal-overlay" id="lockDepositModalOverlay">
+    <div class="modal">
+        <h3>Book a lesson with a Lock</h3>
+        <div class="field-hint" style="margin-bottom: 16px;">Deposit a 🔒 Lock against a day, then pick the time on your calendar. Complete the lesson and it's refunded — miss it and it's gone.</div>
+        <div class="field">
+            <label for="lockDepositDateInput">Day</label>
+            <input type="date" id="lockDepositDateInput">
+        </div>
+        <div class="modal-actions">
+            <button class="btn" id="cancelLockDepositBtn">Cancel</button>
+            <button class="btn primary" id="continueLockDepositBtn">Continue to calendar</button>
         </div>
     </div>
 </div>
@@ -12508,24 +12542,37 @@ SQIDAQAB
 
     function setEventType(type) {
         const isExam = type === 'exam';
-        document.getElementById('eventTypeBusyBtn').classList.toggle('active', !isExam);
+        const isLesson = type === 'lesson';
+        const isBusy = type === 'busy';
+        document.getElementById('eventTypeBusyBtn').classList.toggle('active', isBusy);
         document.getElementById('eventTypeExamBtn').classList.toggle('active', isExam);
-        document.getElementById('eventStartTimeField').style.display = isExam ? 'none' : '';
-        document.getElementById('eventEndTimeField').style.display = isExam ? 'none' : '';
+        document.getElementById('eventTypeLessonBtn').classList.toggle('active', isLesson);
+        document.getElementById('eventStartTimeField').style.display = isBusy ? '' : 'none';
+        document.getElementById('eventEndTimeField').style.display = isBusy ? '' : 'none';
         document.getElementById('eventFolderField').style.display = isExam ? '' : 'none';
+        document.getElementById('eventLessonField').style.display = isLesson ? '' : 'none';
         document.getElementById('calendarEventModalOverlay').dataset.type = type;
+        // Lesson booking has no backend yet (see the field-hint above) — the
+        // field is visible so the flow reads end to end, but submitting it
+        // isn't wired up, so disable the button rather than let it silently
+        // do nothing (or error) on click.
+        const submitBtn = document.getElementById('submitCalendarEventBtn');
+        submitBtn.disabled = isLesson;
+        submitBtn.textContent = isLesson ? 'Coming soon' : 'Add';
     }
 
     document.getElementById('eventTypeBusyBtn').addEventListener('click', () => setEventType('busy'));
     document.getElementById('eventTypeExamBtn').addEventListener('click', () => setEventType('exam'));
+    document.getElementById('eventTypeLessonBtn').addEventListener('click', () => setEventType('lesson'));
 
-    function openCalendarEventModal(dateKey) {
+    function openCalendarEventModal(dateKey, initialType) {
         pendingEventDate = dateKey;
         const [y, m, d] = dateKey.split('-').map(Number);
         document.getElementById('calendarEventModalTitle').textContent =
             `Add to ${new Date(y, m - 1, d).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}`;
         document.getElementById('eventStartTimeInput').value = '';
         document.getElementById('eventEndTimeInput').value = '';
+        document.getElementById('eventLessonTimeInput').value = '';
 
         const select = document.getElementById('eventFolderSelect');
         select.innerHTML = '';
@@ -12536,7 +12583,7 @@ SQIDAQAB
             select.appendChild(opt);
         });
 
-        setEventType('busy');
+        setEventType(initialType || 'busy');
         document.getElementById('calendarEventModalOverlay').classList.add('open');
     }
 
@@ -12547,6 +12594,35 @@ SQIDAQAB
     document.getElementById('cancelCalendarEventBtn').addEventListener('click', closeCalendarEventModal);
     document.getElementById('calendarEventModalOverlay').addEventListener('click', (e) => {
         if (e.target.id === 'calendarEventModalOverlay') closeCalendarEventModal();
+    });
+
+    // Locks entry point — pick a day here, then hand off to the calendar's
+    // own day modal (opened straight to "Book a lesson") to pick a time.
+    function openLockDepositModal() {
+        const today = new Date();
+        const y = today.getFullYear();
+        const m = String(today.getMonth() + 1).padStart(2, '0');
+        const d = String(today.getDate()).padStart(2, '0');
+        document.getElementById('lockDepositDateInput').value = `${y}-${m}-${d}`;
+        document.getElementById('lockDepositModalOverlay').classList.add('open');
+    }
+
+    function closeLockDepositModal() {
+        document.getElementById('lockDepositModalOverlay').classList.remove('open');
+    }
+
+    document.getElementById('locksChip').addEventListener('click', openLockDepositModal);
+    document.getElementById('cancelLockDepositBtn').addEventListener('click', closeLockDepositModal);
+    document.getElementById('lockDepositModalOverlay').addEventListener('click', (e) => {
+        if (e.target.id === 'lockDepositModalOverlay') closeLockDepositModal();
+    });
+
+    document.getElementById('continueLockDepositBtn').addEventListener('click', async () => {
+        const dateStr = document.getElementById('lockDepositDateInput').value;
+        if (!dateStr) return;
+        closeLockDepositModal();
+        await jumpCalendarToDate(dateStr);
+        openCalendarEventModal(dateStr, 'lesson');
     });
 
     document.getElementById('submitCalendarEventBtn').addEventListener('click', async () => {
