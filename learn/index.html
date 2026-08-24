@@ -2406,6 +2406,23 @@
         margin-top: 16px;
     }
 
+    /* Premium-only — the free-tier verification flow, reused as-is,
+       offered alongside the paid encoding lesson rather than instead of
+       it (see verifyInsteadBtn's own handler). */
+    .verify-elsewhere-row {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 8px;
+        opacity: 0.75;
+    }
+
+    .verify-elsewhere-hint {
+        font-size: 0.82rem;
+        margin: 0;
+    }
+
     /* ─── NOTES / LESSON STACK ─── */
     /* Was a side-by-side 50/50 split; now stacked full-width, retrieval
        lesson first then notes below it, so neither is squeezed into half
@@ -5109,6 +5126,11 @@ SQIDAQAB
             <div class="bottom-action-row">
                 <button class="generate-questions-btn" id="generateQuestionsBtn">${isPaidUser ? 'Start Lesson' : (savedVerification ? 'Resume Verification' : 'Start Verification')}</button>
             </div>
+            ${isPaidUser ? `
+            <div class="verify-elsewhere-row">
+                <p class="verify-elsewhere-hint">Already know this from elsewhere?</p>
+                <button class="btn" id="verifyInsteadBtn" type="button">${savedVerification ? 'Resume verification' : 'Verify instead'}</button>
+            </div>` : ''}
             <div class="lesson-with-ask-layout">
                 <div id="diagnoseQuestionFlow" class="lesson-main-col"></div>
                 <div class="ask-panel-col" id="askPanelCol"></div>
@@ -6367,6 +6389,11 @@ SQIDAQAB
                 <div class="bottom-action-row">
                     <button class="generate-questions-btn" id="generateQuestionsBtn">${isPaidUser ? (savedEncodingProgress ? 'Resume Lesson' : 'Start Lesson') : (savedVerificationProgress ? 'Resume Verification' : 'Start Verification')}</button>
                 </div>
+                ${isPaidUser ? `
+                <div class="verify-elsewhere-row">
+                    <p class="verify-elsewhere-hint">Already know this from elsewhere?</p>
+                    <button class="btn" id="verifyInsteadBtn" type="button">${savedVerificationProgress ? 'Resume verification' : 'Verify instead'}</button>
+                </div>` : ''}
                 <div class="lesson-with-ask-layout">
                     <div id="diagnoseQuestionFlow" class="lesson-main-col"></div>
                     <div class="ask-panel-col" id="askPanelCol"></div>
@@ -9358,6 +9385,37 @@ SQIDAQAB
                     questionFlowEl.innerHTML = '<div class="correction-card">Could not start the lesson. Please try again.</div>';
                 } finally {
                     generateBtn.disabled = false;
+                }
+            });
+        }
+
+        // Premium-only entry point into the SAME free-tier verification
+        // flow (see the !isPaidUser branch above) — reuses
+        // startVerificationFlow/resumeVerificationFlow directly rather
+        // than reimplementing anything; only rendered when isPaidUser
+        // (see multiLessonEncodingPanelHtml / the single-lesson template
+        // above), so this button only ever exists in the DOM for a paid
+        // account.
+        const verifyInsteadBtn = document.getElementById('verifyInsteadBtn');
+        if (verifyInsteadBtn) {
+            verifyInsteadBtn.addEventListener('click', async () => {
+                const subject = folder.subject || '';
+                const topic = (loc.subfolder && loc.subfolder.name) || '';
+                const active = isMulti ? activeSubLesson(page) : null;
+                const lesson = active ? active.concept : (page.title || 'Untitled page');
+
+                verifyInsteadBtn.disabled = true;
+                try {
+                    if (savedVerificationProgress) {
+                        await resumeVerificationFlow(subject, topic, lesson, savedVerificationProgress);
+                    } else {
+                        await startVerificationFlow(subject, topic, lesson, folder.qualification, folder.examBoard, folder.customTitle, folder.customDescription);
+                    }
+                } catch (err) {
+                    console.error('LastMind: verification failed.', err);
+                    questionFlowEl.innerHTML = '<div class="correction-card">Could not start verification. Please try again.</div>';
+                } finally {
+                    verifyInsteadBtn.disabled = false;
                 }
             });
         }
