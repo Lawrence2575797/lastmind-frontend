@@ -5939,7 +5939,7 @@ SQIDAQAB
         const labelWrap = document.createElement('div');
         labelWrap.className = 'folder-item-label';
         labelWrap.innerHTML = `
-            ${folderLabel(f)}
+            ${escapeHtml(folderLabel(f))}
             <div class="folder-meta-row">
                 <span class="folder-meta">${(f.subfolders || []).length} subfolder(s) · ${(f.pages || []).length} page(s)</span>
             </div>
