@@ -4496,6 +4496,10 @@
 
         <div class="my-account-divider"></div>
 
+        <button class="btn" id="seeTutorialBtn" type="button" style="width:100%;">See Tutorial</button>
+
+        <div class="my-account-divider"></div>
+
         <button class="btn primary" id="manageSubscriptionBtn" style="width:100%;">Manage Subscription</button>
 
         <div class="my-account-divider"></div>
@@ -10646,6 +10650,15 @@ SQIDAQAB
 
     document.getElementById('cancelAccountSettingsBtn').addEventListener('click', () => {
         document.getElementById('myAccountOverlay').classList.remove('open');
+    });
+
+    // Replays the guided tour on demand — same free/premium content as
+    // the automatic first-visit tour, just triggered manually and without
+    // touching the seen_free_tour/seen_premium_tour flags (it's already
+    // been marked seen; replaying it again shouldn't need those to change).
+    document.getElementById('seeTutorialBtn').addEventListener('click', () => {
+        document.getElementById('myAccountOverlay').classList.remove('open');
+        startTour(isPaidUser ? 'premium' : 'free');
     });
 
     document.getElementById('myAccountOverlay').addEventListener('click', (e) => {
