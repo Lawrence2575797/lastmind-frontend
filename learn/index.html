@@ -4039,6 +4039,11 @@
                 <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">☰</button>
                 <span class="topbar-title" id="topbarTitle">Dashboard</span>
                 <button class="credit-balance-chip" id="creditBalanceChip" type="button" title="Key Market">🔑 Key Market <span id="creditBalanceAmount">—</span></button>
+                <!-- Placeholder only — Locks (the lesson-cap/deposit currency,
+                     kept deliberately separate from Keys) has no backend yet,
+                     so this just reserves its spot in the topbar with no
+                     balance shown, rather than displaying a real number. -->
+                <button class="credit-balance-chip" id="locksChip" type="button" title="Locks">🔒 Locks</button>
                 <div class="topbar-actions" id="topbarActions">
                     <button class="cortex-btn-topbar upgrade-topbar-btn" id="upgradeTopbarBtn" type="button" style="display:none;">⭐ Upgrade</button>
                     <button class="cortex-btn-topbar" id="peerTutoringHubBtn" type="button">🤝 Peer tutoring</button>
