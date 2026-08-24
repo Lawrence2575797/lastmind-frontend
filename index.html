@@ -366,6 +366,120 @@
             margin-top: 22px;
         }
 
+        /* ─── PLANS ─── */
+        .plans {
+            padding: 20px 60px 130px;
+            text-align: center;
+        }
+
+        .plans-heading {
+            font-size: clamp(1.8rem, 4vw, 2.6rem);
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .plans-heading span {
+            color: var(--accent);
+        }
+
+        .plans-rule {
+            width: 56px;
+            height: 2px;
+            background: var(--accent);
+            margin: 28px auto 48px;
+            opacity: 0.55;
+        }
+
+        .plans-table-wrap {
+            max-width: 720px;
+            margin: 0 auto;
+            overflow-x: auto;
+        }
+
+        .plans-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .plans-table th,
+        .plans-table td {
+            padding: 18px 16px;
+            border-bottom: 1px solid rgba(230, 215, 176, 0.12);
+        }
+
+        .plans-table th {
+            font-family: 'Arial', sans-serif;
+            font-size: 0.76rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--accent);
+            opacity: 0.85;
+            font-weight: 700;
+        }
+
+        .plans-table th:first-child,
+        .plans-table td:first-child {
+            text-align: left;
+            font-size: 0.95rem;
+            color: var(--text);
+            opacity: 0.85;
+        }
+
+        .plans-table th:not(:first-child),
+        .plans-table td:not(:first-child) {
+            text-align: center;
+            width: 110px;
+        }
+
+        .plans-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .plans-tick {
+            color: var(--accent);
+            font-size: 1.15rem;
+        }
+
+        .plans-cross {
+            color: var(--text);
+            opacity: 0.3;
+            font-size: 1.15rem;
+        }
+
+        .plans-question {
+            font-size: clamp(1.3rem, 3vw, 1.7rem);
+            font-weight: 700;
+            font-style: italic;
+            color: var(--accent);
+            margin: 64px 0 26px;
+        }
+
+        .plans-text {
+            max-width: 640px;
+            margin: 0 auto;
+            font-size: clamp(1rem, 1.6vw, 1.1rem);
+            color: var(--text);
+            opacity: 0.8;
+            line-height: 1.8;
+        }
+
+        .plans-text p + p {
+            margin-top: 22px;
+        }
+
+        @media (max-width: 560px) {
+            .plans-table th,
+            .plans-table td {
+                padding: 14px 8px;
+                font-size: 0.85rem;
+            }
+
+            .plans-table th:first-child,
+            .plans-table td:first-child {
+                font-size: 0.85rem;
+            }
+        }
+
         /* ─── FOOTER ─── */
         footer {
             border-top: 1px solid rgba(230, 215, 176, 0.1);
@@ -874,6 +988,56 @@
         <div class="why-text">
             <p>At LastMind, we believe that a major reason students don't achieve the grades they want is not the learning platform they use, but that they don't consistently do enough effective revision.</p>
             <p>We aim to solve this by combining a premium teaching service with rewards for verified learning progress, designed to motivate students to engage in the learning they need to succeed.</p>
+        </div>
+
+    </section>
+
+    <!-- ─── PLANS ─── -->
+    <section class="plans" id="plans">
+
+        <h2 class="plans-heading">Our available <span>plans</span></h2>
+
+        <div class="plans-rule"></div>
+
+        <div class="plans-table-wrap">
+            <table class="plans-table">
+                <thead>
+                    <tr>
+                        <th>Feature</th>
+                        <th>Free</th>
+                        <th>Premium</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Verified external learning</td>
+                        <td class="plans-tick">&#10003;</td>
+                        <td class="plans-tick">&#10003;</td>
+                    </tr>
+                    <tr>
+                        <td>LastMind's personalised learning system</td>
+                        <td class="plans-cross">&#10007;</td>
+                        <td class="plans-tick">&#10003;</td>
+                    </tr>
+                    <tr>
+                        <td>Higher confidence verification</td>
+                        <td class="plans-cross">&#10007;</td>
+                        <td class="plans-tick">&#10003;</td>
+                    </tr>
+                    <tr>
+                        <td>Tutoring</td>
+                        <td class="plans-cross">&#10007;</td>
+                        <td class="plans-tick">&#10003;</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p class="plans-question">So why pick premium?</p>
+
+        <div class="plans-text">
+            <p>Premium gives access to LastMind's personalised AI learning system with our very own diagnostics engine, designed to find the root cognitive cause of your misunderstandings, allowing us to correct them in the optimal way.</p>
+            <p>Premium also resolves the issue of having to verify learning after doing it, when learning progress occurs on LastMind we can verify it instantly, saving you valuable revision time, whilst giving you access to more LastMind keys per unit of progress.</p>
         </div>
 
     </section>
