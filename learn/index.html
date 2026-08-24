@@ -13068,17 +13068,36 @@ SQIDAQAB
             .then(refreshFolderList)
             .catch((err) => console.error('LastMind: folder reconcile failed.', err));
 
+        // Deep link from Cortex ("continue this review") — ?openPage=...
+        // (plus ?openFolder=... and, for a subfolder page, ?openSubfolder=...)
+        // jumps straight to that page instead of the folder root. The link
+        // is only ever built from a page that already exists in this same
+        // device's IndexedDB (see cortex/index.html's
+        // findLessonLocationForConcept), so no extra fetch is needed here.
+        const deepLinkParams = new URLSearchParams(window.location.search);
+        const deepLinkPageId = deepLinkParams.get('openPage');
+        let openedViaDeepLink = false;
+        if (deepLinkPageId) {
+            openPage(deepLinkParams.get('openFolder'), deepLinkPageId, deepLinkParams.get('openSubfolder'));
+            openedViaDeepLink = true;
+            history.replaceState(null, '', window.location.pathname);
+        }
+
         // First-visit guided tour — free tour on a brand-new account, or
         // the premium tour the first time this account shows up here with
         // an active subscription. Independent flags, so a user can see
         // both over their lifetime (free on signup, premium after
         // upgrading later). Fired after createFolderBtn exists above.
-        const tourStatus = await fetchOnboardingStatus();
-        if (tourStatus) {
-            if (paid && !tourStatus.seenPremiumTour) {
-                startTour('premium');
-            } else if (!paid && !tourStatus.seenFreeTour) {
-                startTour('free');
+        // Skipped when a deep link just opened a specific page — showing
+        // the tour on top of that would just be in the way.
+        if (!openedViaDeepLink) {
+            const tourStatus = await fetchOnboardingStatus();
+            if (tourStatus) {
+                if (paid && !tourStatus.seenPremiumTour) {
+                    startTour('premium');
+                } else if (!paid && !tourStatus.seenFreeTour) {
+                    startTour('free');
+                }
             }
         }
     }

@@ -1580,112 +1580,74 @@ SQIDAQAB
         card.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
 
-    // Runs a due review turn-by-turn right here in chat, reusing the exact
-    // same chain-lesson endpoints /learn's "Start Lesson" button drives —
-    // no backend changes needed for this action, just a chat-shaped runner.
-    async function askReviewQuestion(accessToken, questionText, state) {
-        appendAssistantMessage(questionText);
-        speakText(questionText);
-
-        const card = document.createElement('div');
-        card.className = 'chat-answer-card';
-        const input = document.createElement('textarea');
-        input.className = 'chat-answer-input';
-        input.placeholder = 'Type or speak your answer…';
-        const submitBtn = document.createElement('button');
-        submitBtn.className = 'chat-confirm-btn';
-        submitBtn.type = 'button';
-        submitBtn.textContent = 'Submit';
-
-        submitBtn.addEventListener('click', async () => {
-            const answer = input.value.trim();
-            card.remove();
-            appendUserMessage(answer || '(no answer given)');
-
-            let nextResp;
-            try {
-                nextResp = await fetch(`${COMPILE_BACKEND_URL}/chain-lesson/submit`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-                    body: JSON.stringify({ state, answer })
-                });
-            } catch (err) {
-                appendAssistantMessage('Could not reach the server. Please try again.');
-                return;
-            }
-
-            if (!nextResp.ok) {
-                const body = await nextResp.json().catch(() => ({}));
-                appendAssistantMessage(body.error || 'Something went wrong.');
-                return;
-            }
-
-            const nextResult = await nextResp.json();
-
-            if (nextResult.done) {
-                const finalEntries = nextResult.summary || [];
-                const finalEntry = finalEntries[finalEntries.length - 1];
-                if (finalEntry && finalEntry.correction) {
-                    appendAssistantMessage(finalEntry.correction);
-                    speakText(finalEntry.correction);
-                }
-                const doneMsg = 'Review complete — nice work.';
-                appendAssistantMessage(doneMsg);
-                speakText(doneMsg);
-                return;
-            }
-
-            if (nextResult.inlineCorrection) {
-                appendAssistantMessage(nextResult.inlineCorrection);
-                speakText(nextResult.inlineCorrection);
-            }
-            await askReviewQuestion(accessToken, nextResult.nextQuestion, nextResult.state);
-        });
-
-        card.appendChild(input);
-        card.appendChild(submitBtn);
-        chatMessagesEl.appendChild(card);
-        card.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    // conceptId (subject:topic:concept, each lowercased/underscored — see
+    // normalizeConceptKey server-side) can't be decoded back to the real
+    // page it came from, since that cleaning is lossy. Instead, re-derive
+    // the same key for every page already in this device's IndexedDB and
+    // compare — a multi-lesson page contributes one candidate per
+    // sub-concept (see pageIsMultiLesson/p.lessons in learn/index.html),
+    // not just its own title, since that's what actually feeds the key
+    // for an individual concept on a bundled page.
+    function cleanConceptPart(s) {
+        return (s || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_');
     }
 
-    async function runReviewInChat(conceptId) {
-        const parts = conceptId.split(':');
-        if (parts.length !== 3) {
-            appendAssistantMessage("I couldn't identify that review — let's try again.");
-            return;
+    async function findLessonLocationForConcept(conceptId) {
+        const all = await getAllFolders();
+        const matchPages = (pages, topicRaw, subject, folderId, subfolderId) => {
+            const topic = cleanConceptPart(topicRaw);
+            for (const p of (pages || [])) {
+                const isMulti = Array.isArray(p.lessons) && p.lessons.length > 0;
+                const concepts = isMulti ? p.lessons.map((l) => l.concept) : [p.title];
+                for (const c of concepts) {
+                    if (`${subject}:${topic}:${cleanConceptPart(c)}` === conceptId) {
+                        return { folderId, subfolderId, pageId: p.id };
+                    }
+                }
+            }
+            return null;
+        };
+        for (const f of all) {
+            const subject = cleanConceptPart(f.subject);
+            const direct = matchPages(f.pages, '', subject, f.id, null);
+            if (direct) return direct;
+            for (const sf of (f.subfolders || [])) {
+                const found = matchPages(sf.pages, sf.name, subject, f.id, sf.id);
+                if (found) return found;
+            }
         }
-        const subject = parts[0].replace(/_/g, ' ');
-        const topic = parts[1].replace(/_/g, ' ');
-        const concept = parts[2].replace(/_/g, ' ');
+        return null;
+    }
 
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session) {
-            appendAssistantMessage('Please log in again to start this review.');
-            return;
-        }
+    // Instead of running the review right here in chat, hand off to the
+    // real lesson page — it already has the notes panel, diagrams, and
+    // everything else a review needs, so there's no reason to rebuild a
+    // second, thinner version of it inline.
+    function presentReviewRedirect(loc) {
+        const card = document.createElement('div');
+        card.className = 'chat-confirm-card';
 
-        const startingEl = appendAssistantMessage('Starting your review…');
-        let resp;
-        try {
-            resp = await fetch(`${COMPILE_BACKEND_URL}/chain-lesson/start`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-                body: JSON.stringify({ subject, topic, concept })
-            });
-        } catch (err) {
-            setAssistantMessageText(startingEl, 'Could not reach the server. Please try again.');
-            return;
-        }
+        const desc = document.createElement('div');
+        desc.className = 'chat-confirm-text';
+        desc.textContent = "Found it — ready to pick this back up?";
+        card.appendChild(desc);
 
-        if (!resp.ok) {
-            const body = await resp.json().catch(() => ({}));
-            setAssistantMessageText(startingEl, body.error || 'Could not start this review.');
-            return;
-        }
+        const actions = document.createElement('div');
+        actions.className = 'chat-confirm-actions';
+        const goBtn = document.createElement('button');
+        goBtn.className = 'chat-confirm-btn';
+        goBtn.type = 'button';
+        goBtn.textContent = 'Continue this review';
+        goBtn.addEventListener('click', () => {
+            const params = new URLSearchParams({ openFolder: loc.folderId, openPage: loc.pageId });
+            if (loc.subfolderId) params.set('openSubfolder', loc.subfolderId);
+            window.location.href = `/learn/?${params.toString()}`;
+        });
+        actions.appendChild(goBtn);
+        card.appendChild(actions);
 
-        const startResult = await resp.json();
-        startingEl.remove();
-        await askReviewQuestion(session.access_token, startResult.nextQuestion, startResult.state);
+        chatMessagesEl.appendChild(card);
+        card.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
 
     // `actions` is the full list from one Cortex response (see
@@ -1695,13 +1657,19 @@ SQIDAQAB
     // collected into ONE combined confirm card covering the whole batch —
     // see showBatchConfirmCard. list_due_reviews and start_review are kept
     // out of that batch since they don't mutate anything and have their
-    // own flow (a review runs interactively right here in chat).
+    // own flow (start_review hands off to the real lesson page instead of
+    // running the review inline — see presentReviewRedirect).
     async function handleCortexActions(actions) {
         const toConfirm = [];
         for (const action of actions) {
             if (action.type === 'list_due_reviews') continue;
             if (action.type === 'start_review') {
-                await runReviewInChat(action.conceptId);
+                const loc = await findLessonLocationForConcept(action.conceptId);
+                if (loc) {
+                    presentReviewRedirect(loc);
+                } else {
+                    appendAssistantMessage("I couldn't find exactly where that lives anymore — check your Progress page or Calendar for it.");
+                }
                 continue;
             }
             const item = describeAndBuildApplier(action);
