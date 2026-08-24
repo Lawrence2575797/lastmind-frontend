@@ -330,6 +330,7 @@
     .sidebar-calendar.fullscreen .calendar-day-review,
     .sidebar-calendar.fullscreen .calendar-day-busy,
     .sidebar-calendar.fullscreen .calendar-day-exam,
+    .sidebar-calendar.fullscreen .calendar-day-lesson,
     .sidebar-calendar.fullscreen .calendar-day-revision {
         padding: 4px 6px;
         font-size: 0.74rem;
@@ -1684,7 +1685,7 @@
        review chips above (different background, and a delete "×" that
        .calendar-day-review deliberately never gets — the spaced-repetition
        schedule can't be removed/moved from here). */
-    .calendar-day-busy, .calendar-day-exam {
+    .calendar-day-busy, .calendar-day-exam, .calendar-day-lesson {
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -1702,6 +1703,10 @@
 
     .calendar-day-exam {
         background: rgba(200, 130, 120, 0.2);
+    }
+
+    .calendar-day-lesson {
+        background: rgba(230, 215, 176, 0.2);
     }
 
     /* Scheduler-produced chips — see revisionPlanService.ts's
@@ -4236,7 +4241,7 @@
         <div class="field" id="eventLessonField" style="display:none;">
             <label for="eventLessonTimeInput">At</label>
             <input type="time" id="eventLessonTimeInput">
-            <div class="field-hint">Deposits 1 🔒 Lock — refunded if you complete the lesson, lost if you don't. Booking isn't live yet — coming soon.</div>
+            <div class="field-hint">Deposits 10 🔒 Locks — refunded the moment you start a lesson that day, lost if the day passes and you don't.</div>
         </div>
 
         <div class="modal-actions">
@@ -4255,7 +4260,7 @@
 <div class="modal-overlay" id="lockDepositModalOverlay">
     <div class="modal">
         <h3>Book a lesson with a Lock</h3>
-        <div class="field-hint" style="margin-bottom: 16px;">Deposit a 🔒 Lock against a day, then pick the time on your calendar. Complete the lesson and it's refunded — miss it and it's gone.</div>
+        <div class="field-hint" style="margin-bottom: 16px;">Deposit 10 🔒 Locks against a day, then pick the time on your calendar. Start a lesson that day and it's refunded — let the day pass and it's gone.</div>
         <div class="field">
             <label for="lockDepositDateInput">Day</label>
             <input type="date" id="lockDepositDateInput">
@@ -10886,13 +10891,15 @@ SQIDAQAB
             const dayEvents = eventsByDay[`${year}-${month}-${day}`] || [];
             dayEvents.forEach((event) => {
                 const chip = document.createElement('div');
-                chip.className = event.type === 'exam' ? 'calendar-day-exam' : 'calendar-day-busy';
+                chip.className = event.type === 'exam' ? 'calendar-day-exam' : event.type === 'lesson' ? 'calendar-day-lesson' : 'calendar-day-busy';
 
                 const labelEl = document.createElement('span');
                 labelEl.className = 'calendar-day-event-label';
                 if (event.type === 'exam') {
                     const f = folders.find((x) => x.id === event.folderId);
                     labelEl.textContent = `Exam: ${f ? folderLabel(f) : 'Unknown subject'}`;
+                } else if (event.type === 'lesson') {
+                    labelEl.textContent = `🔒 Booked lesson${event.startTime ? ' ' + event.startTime : ''}`;
                 } else {
                     labelEl.textContent = `Busy ${formatTimeRange(event.startTime, event.endTime)}`.trim();
                 }
@@ -10911,15 +10918,23 @@ SQIDAQAB
                     chip.appendChild(genBtn);
                 }
 
-                const delBtn = document.createElement('span');
-                delBtn.className = 'calendar-day-event-delete';
-                delBtn.textContent = '×';
-                delBtn.title = 'Remove';
-                delBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    deleteCalendarEventById(event.id);
-                });
-                chip.appendChild(delBtn);
+                // Deliberately no delete affordance for a booked lesson — the
+                // deposit is only ever resolved by starting a lesson that day
+                // (refunded) or letting the day pass (forfeited), never by
+                // manually cancelling; removing the calendar_events row would
+                // cascade-delete its lock_holds row with no refund and no
+                // record of what happened to the deposit.
+                if (event.type !== 'lesson') {
+                    const delBtn = document.createElement('span');
+                    delBtn.className = 'calendar-day-event-delete';
+                    delBtn.textContent = '×';
+                    delBtn.title = 'Remove';
+                    delBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        deleteCalendarEventById(event.id);
+                    });
+                    chip.appendChild(delBtn);
+                }
 
                 cell.appendChild(chip);
             });
@@ -12574,13 +12589,9 @@ SQIDAQAB
         document.getElementById('eventFolderField').style.display = isExam ? '' : 'none';
         document.getElementById('eventLessonField').style.display = isLesson ? '' : 'none';
         document.getElementById('calendarEventModalOverlay').dataset.type = type;
-        // Lesson booking has no backend yet (see the field-hint above) — the
-        // field is visible so the flow reads end to end, but submitting it
-        // isn't wired up, so disable the button rather than let it silently
-        // do nothing (or error) on click.
         const submitBtn = document.getElementById('submitCalendarEventBtn');
-        submitBtn.disabled = isLesson;
-        submitBtn.textContent = isLesson ? 'Coming soon' : 'Add';
+        submitBtn.disabled = false;
+        submitBtn.textContent = isLesson ? 'Deposit & book' : 'Add';
     }
 
     document.getElementById('eventTypeBusyBtn').addEventListener('click', () => setEventType('busy'));
@@ -12649,6 +12660,41 @@ SQIDAQAB
 
     document.getElementById('submitCalendarEventBtn').addEventListener('click', async () => {
         const type = document.getElementById('calendarEventModalOverlay').dataset.type || 'busy';
+        const submitBtn = document.getElementById('submitCalendarEventBtn');
+
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+
+        if (type === 'lesson') {
+            const startTime = document.getElementById('eventLessonTimeInput').value;
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Booking…';
+            try {
+                const resp = await fetch(`${COMPILE_BACKEND_URL}/locks/deposit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                    body: JSON.stringify({ date: pendingEventDate, startTime: startTime || null })
+                });
+                if (!resp.ok) {
+                    const errBody = await resp.json().catch(() => ({}));
+                    alert(errBody.error || "Couldn't book this lesson slot — try again in a moment.");
+                    return;
+                }
+            } catch (err) {
+                console.error('LastMind: could not book this lesson slot.', err);
+                alert("Couldn't reach the server — try again in a moment.");
+                return;
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Deposit & book';
+            }
+            refreshLocksChip();
+            closeCalendarEventModal();
+            cachedCalendarEvents = await fetchCalendarEvents();
+            renderCalendar();
+            return;
+        }
+
         const body = { date: pendingEventDate, type };
         if (type === 'exam') {
             const folderId = document.getElementById('eventFolderSelect').value;
@@ -12662,8 +12708,6 @@ SQIDAQAB
         }
 
         try {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) return;
             const resp = await fetch(`${COMPILE_BACKEND_URL}/calendar-events`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
