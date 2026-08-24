@@ -250,6 +250,85 @@
             color: var(--bg);
         }
 
+        /* ─── HOW IT WORKS ─── */
+        .how-it-works {
+            padding: 20px 60px 120px;
+            text-align: center;
+        }
+
+        .how-heading {
+            font-size: clamp(1.8rem, 4vw, 2.6rem);
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .how-heading span {
+            color: var(--accent);
+        }
+
+        .how-rule {
+            width: 56px;
+            height: 2px;
+            background: var(--accent);
+            margin: 28px auto 60px;
+            opacity: 0.55;
+        }
+
+        .how-steps {
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            gap: 10px;
+            max-width: 1080px;
+            margin: 0 auto;
+        }
+
+        .how-step {
+            flex: 1;
+            max-width: 220px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .how-step-title {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: 14px;
+        }
+
+        .how-step-desc {
+            font-size: 0.92rem;
+            color: var(--text);
+            opacity: 0.7;
+            line-height: 1.6;
+        }
+
+        .how-arrow {
+            color: var(--accent);
+            opacity: 0.4;
+            font-size: 1.6rem;
+            padding-top: 6px;
+            flex-shrink: 0;
+        }
+
+        @media (max-width: 820px) {
+            .how-steps {
+                flex-direction: column;
+                align-items: center;
+                gap: 32px;
+            }
+
+            .how-arrow {
+                transform: rotate(90deg);
+            }
+
+            .how-step {
+                max-width: 320px;
+            }
+        }
+
         /* ─── FOOTER ─── */
         footer {
             border-top: 1px solid rgba(230, 215, 176, 0.1);
@@ -704,6 +783,45 @@
             <div class="hero-rule"></div>
 
             <button class="hero-cta" id="heroCta">Get Started</button>
+
+        </div>
+
+    </section>
+
+    <!-- ─── HOW IT WORKS ─── -->
+    <section class="how-it-works" id="how-it-works">
+
+        <h2 class="how-heading">How <span>LastMind</span> Works</h2>
+
+        <div class="how-rule"></div>
+
+        <div class="how-steps">
+
+            <div class="how-step">
+                <div class="how-step-title">Learn</div>
+                <p class="how-step-desc">AI generated lessons designed from principles grounded in neuroscience, helping you diagnose any misunderstandings.</p>
+            </div>
+
+            <div class="how-arrow">&rarr;</div>
+
+            <div class="how-step">
+                <div class="how-step-title">Verify</div>
+                <p class="how-step-desc">We monitor your lesson progress to verify when actual learning is occurring.</p>
+            </div>
+
+            <div class="how-arrow">&rarr;</div>
+
+            <div class="how-step">
+                <div class="how-step-title">Earn</div>
+                <p class="how-step-desc">Receive LastMind Keys for your verified learning.</p>
+            </div>
+
+            <div class="how-arrow">&rarr;</div>
+
+            <div class="how-step">
+                <div class="how-step-title">Redeem</div>
+                <p class="how-step-desc">Use your credits to get real-world rewards.</p>
+            </div>
 
         </div>
 
