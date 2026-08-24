@@ -3559,6 +3559,101 @@
         width: 100%;
     }
 
+    /* ─── FIRST-VISIT TOUR ─── */
+    .tour-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 500;
+        background: rgba(10, 10, 11, 0.78);
+    }
+
+    .tour-overlay.open { display: block; }
+
+    .tour-spotlight {
+        display: none;
+        position: fixed;
+        border-radius: 6px;
+        box-shadow: 0 0 0 9999px rgba(10, 10, 11, 0.78);
+        pointer-events: none;
+        transition: top 0.25s, left 0.25s, width 0.25s, height 0.25s;
+    }
+
+    .tour-tooltip {
+        position: fixed;
+        background: var(--bg);
+        border: 1px solid var(--accent);
+        border-radius: 8px;
+        padding: 18px 20px;
+        width: 280px;
+        z-index: 501;
+        transition: top 0.25s, left 0.25s;
+    }
+
+    .tour-tooltip.centered {
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%);
+        width: 320px;
+    }
+
+    .tour-step-label {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        opacity: 0.7;
+        margin-bottom: 8px;
+    }
+
+    .tour-title {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: var(--accent);
+        margin-bottom: 8px;
+    }
+
+    .tour-body {
+        font-size: 0.88rem;
+        color: var(--text);
+        opacity: 0.82;
+        line-height: 1.55;
+        margin-bottom: 16px;
+    }
+
+    .tour-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .tour-skip {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.78rem;
+        color: var(--text);
+        opacity: 0.5;
+        background: none;
+        border: none;
+        cursor: pointer;
+    }
+
+    .tour-skip:hover { opacity: 0.85; }
+
+    .tour-next {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.78rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--bg);
+        background: var(--accent);
+        border: none;
+        padding: 8px 18px;
+        border-radius: 3px;
+        cursor: pointer;
+    }
+
     .modal h3 {
         font-size: 1.15rem;
         color: var(--accent);
@@ -4285,6 +4380,26 @@
         <div class="modal-actions">
             <button class="btn" id="cancelLockDepositBtn">Cancel</button>
             <button class="btn primary" id="continueLockDepositBtn">Continue to calendar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ─── FIRST-VISIT GUIDED TOUR ───
+     Shown once per tier — free tier on a user's first visit to /learn,
+     premium tier on the first visit after their subscription becomes
+     active. tourSpotlight is a small fixed box whose oversized box-shadow
+     dims everything else, giving a cutout around the real element being
+     explained; tourOverlay itself blocks clicks on the page underneath
+     while a tour is running. See fetchOnboardingStatus/startTour below. -->
+<div class="tour-overlay" id="tourOverlay">
+    <div class="tour-spotlight" id="tourSpotlight"></div>
+    <div class="tour-tooltip" id="tourTooltip">
+        <div class="tour-step-label" id="tourStepLabel"></div>
+        <div class="tour-title" id="tourTitle"></div>
+        <div class="tour-body" id="tourBody"></div>
+        <div class="tour-actions">
+            <button class="tour-skip" id="tourSkipBtn" type="button">Skip tour</button>
+            <button class="tour-next" id="tourNextBtn" type="button">Next</button>
         </div>
     </div>
 </div>
@@ -5769,7 +5884,7 @@ SQIDAQAB
     // back button + title on the left, and the level's "create new …"
     // action(s) on the right. secondaryActionLabel/onSecondaryAction are
     // only used at the root level, for the standalone "+ Other" button.
-    function buildDrillHeader({ title, actionLabel, onAction, onBack, secondaryActionLabel, onSecondaryAction }) {
+    function buildDrillHeader({ title, actionLabel, actionId, onAction, onBack, secondaryActionLabel, onSecondaryAction }) {
         const wrap = document.createElement('div');
         wrap.className = 'drill-header';
 
@@ -5804,6 +5919,7 @@ SQIDAQAB
         actionBtn.className = 'drill-action-btn';
         actionBtn.type = 'button';
         actionBtn.textContent = actionLabel;
+        if (actionId) actionBtn.id = actionId;
         actionBtn.addEventListener('click', onAction);
         titleRow.appendChild(actionBtn);
 
@@ -5939,6 +6055,7 @@ SQIDAQAB
         listEl.appendChild(buildDrillHeader({
             title: 'Folders',
             actionLabel: '+ Create new folder',
+            actionId: 'createFolderBtn',
             onAction: openFolderModal,
             secondaryActionLabel: '+ Other',
             onSecondaryAction: openCustomFolderModal
@@ -9717,6 +9834,123 @@ SQIDAQAB
         document.getElementById('locksBalanceAmount').textContent = data ? data.balance : '—';
     }
 
+    // ─── FIRST-VISIT GUIDED TOUR ───
+    // Two independent tours, tracked server-side so they persist across
+    // devices: the free tour on a user's first /learn visit, the premium
+    // tour on their first visit after subscribing. See startTour, called
+    // from enterApp once the folder list (and createFolderBtn) exist.
+
+    const FREE_TOUR_STEPS = [
+        { selector: '#createFolderBtn', title: 'Start with a folder', body: "This is where a subject lives. Create one for each subject you're studying — LastMind builds lessons inside it." },
+        { selector: '#creditBalanceChip', title: 'Keys', body: 'Genuine learning progress earns you Keys. Redeem them for real rewards in the Key Market.' },
+        { selector: '#locksChip', title: 'Locks', body: 'Each lesson costs a Lock. You get a fresh batch every month.' },
+        { selector: null, title: 'Already know some of this?', body: 'Open any lesson and look for "Verify instead" — prove what you already know and earn Keys for it, without redoing content you’ve already mastered.' }
+    ];
+
+    const PREMIUM_TOUR_STEPS = [
+        { selector: null, title: "You're on Premium", body: "Premium unlocks LastMind's personalised AI learning system — a diagnostics engine that finds the root cause of a misunderstanding, not just where you went wrong." },
+        { selector: null, title: 'Instant verification', body: 'Learning progress made inside LastMind is verified the moment it happens on Premium — no separate step, and it earns more Keys per unit of progress.' },
+        { selector: '#peerTutoringHubBtn', title: 'Tutoring', body: "Premium unlocks real tutoring. Request help here whenever you're stuck." },
+        { selector: '#locksChip', title: 'Booking a lesson with Locks', body: 'Click here to deposit Locks toward a lesson slot on a specific day — you get the deposit back the moment you complete it.' }
+    ];
+
+    let tourSteps = [];
+    let tourIndex = 0;
+    let tourTier = null;
+
+    async function fetchOnboardingStatus() {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return null;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/onboarding/tour-status`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            return await resp.json();
+        } catch (err) {
+            console.error('LastMind: failed to load onboarding tour status.', err);
+            return null;
+        }
+    }
+
+    async function markOnboardingTourSeen(tier) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return;
+            await fetch(`${COMPILE_BACKEND_URL}/onboarding/tour-seen`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify({ tier })
+            });
+        } catch (err) {
+            console.error('LastMind: failed to mark onboarding tour seen.', err);
+        }
+    }
+
+    function startTour(tier) {
+        tourTier = tier;
+        tourSteps = tier === 'premium' ? PREMIUM_TOUR_STEPS : FREE_TOUR_STEPS;
+        tourIndex = 0;
+        document.getElementById('tourOverlay').classList.add('open');
+        showTourStep();
+    }
+
+    function endTour(markSeen) {
+        document.getElementById('tourOverlay').classList.remove('open');
+        if (markSeen && tourTier) markOnboardingTourSeen(tourTier);
+        tourSteps = [];
+        tourTier = null;
+    }
+
+    function showTourStep() {
+        const step = tourSteps[tourIndex];
+        const spotlight = document.getElementById('tourSpotlight');
+        const tooltip = document.getElementById('tourTooltip');
+        const target = step.selector ? document.querySelector(step.selector) : null;
+
+        if (target) {
+            target.scrollIntoView({ block: 'center' });
+            const rect = target.getBoundingClientRect();
+            const pad = 8;
+            spotlight.style.display = 'block';
+            spotlight.style.top = `${rect.top - pad}px`;
+            spotlight.style.left = `${rect.left - pad}px`;
+            spotlight.style.width = `${rect.width + pad * 2}px`;
+            spotlight.style.height = `${rect.height + pad * 2}px`;
+
+            tooltip.classList.remove('centered');
+            const spaceBelow = window.innerHeight - rect.bottom;
+            const top = spaceBelow > 200 ? rect.bottom + 16 : Math.max(16, rect.top - 176);
+            tooltip.style.top = `${top}px`;
+            let left = rect.left;
+            if (left + 296 > window.innerWidth - 16) left = window.innerWidth - 296 - 16;
+            if (left < 16) left = 16;
+            tooltip.style.left = `${left}px`;
+        } else {
+            spotlight.style.display = 'none';
+            tooltip.classList.add('centered');
+        }
+
+        document.getElementById('tourStepLabel').textContent = `Step ${tourIndex + 1} of ${tourSteps.length}`;
+        document.getElementById('tourTitle').textContent = step.title;
+        document.getElementById('tourBody').textContent = step.body;
+        document.getElementById('tourNextBtn').textContent = tourIndex === tourSteps.length - 1 ? 'Finish' : 'Next';
+    }
+
+    document.getElementById('tourSkipBtn').addEventListener('click', () => endTour(true));
+    document.getElementById('tourNextBtn').addEventListener('click', () => {
+        if (tourIndex < tourSteps.length - 1) {
+            tourIndex += 1;
+            showTourStep();
+        } else {
+            endTour(true);
+        }
+    });
+
+    window.addEventListener('resize', () => {
+        if (document.getElementById('tourOverlay').classList.contains('open')) showTourStep();
+    });
+
     // Data-driven — GET /rewards (rewardsService.ts) is the single source
     // of truth for what shows here. Adding, editing, or retiring a reward
     // is a content change (a row in the `rewards` table, editable directly
@@ -12813,6 +13047,20 @@ SQIDAQAB
         reconcileFoldersWithServer()
             .then(refreshFolderList)
             .catch((err) => console.error('LastMind: folder reconcile failed.', err));
+
+        // First-visit guided tour — free tour on a brand-new account, or
+        // the premium tour the first time this account shows up here with
+        // an active subscription. Independent flags, so a user can see
+        // both over their lifetime (free on signup, premium after
+        // upgrading later). Fired after createFolderBtn exists above.
+        const tourStatus = await fetchOnboardingStatus();
+        if (tourStatus) {
+            if (paid && !tourStatus.seenPremiumTour) {
+                startTour('premium');
+            } else if (!paid && !tourStatus.seenFreeTour) {
+                startTour('free');
+            }
+        }
     }
 
     (async function gate() {
