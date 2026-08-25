@@ -10815,6 +10815,13 @@ SQIDAQAB
             folder.subfolders = subtopics.map((st) => ({
                 id: crypto.randomUUID(),
                 name: st.subtopic,
+                // This order IS the specification's own dependency order —
+                // we authored it as such in spec_lesson_plans — so there's
+                // no need to make the student manually confirm it via the
+                // "Is this list in the right order?" toggle (see
+                // buildOrderConfirmToggle) before later pages can treat
+                // earlier ones as genuine prerequisites.
+                orderConfirmed: true,
                 pages: st.concepts.map((concept) => ({
                     id: crypto.randomUUID(),
                     title: concept,
