@@ -2217,6 +2217,7 @@
     }
 
     .topbar {
+        position: relative;
         display: flex;
         align-items: center;
         gap: 16px;
@@ -2269,6 +2270,43 @@
 
     .topbar-actions::-webkit-scrollbar {
         display: none;
+    }
+
+    /* Fade + tap-to-scroll hint over the right edge of the actions row,
+       mobile only, shown only while there's unreached overflow content
+       (see updateTopbarScrollHint) — the row itself already scrolled
+       fine once buttons overflowed, there was just no visible sign that
+       anything was off-screen to scroll to. */
+    .topbar-scroll-hint {
+        display: none;
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        align-items: center;
+        padding-left: 28px;
+        background: linear-gradient(to right, transparent, var(--bg) 60%);
+        pointer-events: none;
+    }
+
+    .topbar-scroll-hint-btn {
+        pointer-events: auto;
+        width: 26px;
+        height: 26px;
+        flex-shrink: 0;
+        border-radius: 50%;
+        background: var(--accent);
+        color: var(--bg);
+        border: none;
+        font-size: 0.9rem;
+        line-height: 1;
+        cursor: pointer;
+    }
+
+    @media (max-width: 768px) {
+        .topbar-actions.has-overflow ~ .topbar-scroll-hint {
+            display: flex;
+        }
     }
 
     .cortex-btn-topbar {
@@ -4158,19 +4196,31 @@
             <div class="topbar">
                 <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">☰</button>
                 <span class="topbar-title" id="topbarTitle">Dashboard</span>
-                <button class="credit-balance-chip" id="creditBalanceChip" type="button" title="Key Market">🔑 Key Market <span id="creditBalanceAmount">—</span></button>
-                <!-- Locks — the lesson-cap/deposit currency, kept
-                     deliberately separate from Keys (Keys are earned by
-                     learning and spent on rewards; Locks are granted
-                     monthly and only ever spent). -->
-                <button class="credit-balance-chip" id="locksChip" type="button" title="Locks">🔒 Locks <span id="locksBalanceAmount">—</span></button>
+                <!-- Keys/Locks used to sit outside this scrollable row, in
+                     the outer (non-scrolling) topbar flex line — on a
+                     narrow phone that row has no overflow handling of its
+                     own, so once its content exceeded the viewport width
+                     these two chips could end up pushed past the edge
+                     with no way to scroll to them, even though the actions
+                     row right after them scrolled fine. Moving them in
+                     here puts every topbar button in the one row that
+                     actually handles overflow. -->
                 <div class="topbar-actions" id="topbarActions">
+                    <button class="credit-balance-chip" id="creditBalanceChip" type="button" title="Key Market">🔑 Key Market <span id="creditBalanceAmount">—</span></button>
+                    <button class="credit-balance-chip" id="locksChip" type="button" title="Locks">🔒 Locks <span id="locksBalanceAmount">—</span></button>
                     <button class="cortex-btn-topbar upgrade-topbar-btn" id="upgradeTopbarBtn" type="button" style="display:none;">⭐ Upgrade</button>
                     <button class="cortex-btn-topbar" id="peerTutoringHubBtn" type="button">🤝 Peer tutoring</button>
                     <button class="cortex-btn-topbar" id="myTutoringTopbarBtn" type="button">📋 My Tutoring<span class="mt-badge" id="mtBadge" style="display:none;"></span></button>
                     <button class="cortex-btn-topbar" id="progressTopbarBtn" type="button">🗺️ Your Progress</button>
                     <button class="cortex-btn-topbar" id="calendarTopbarBtn" type="button">📅 Calendar</button>
                     <button class="cortex-btn-topbar" id="adminQueueTopbarBtn" type="button" style="display:none;">🛟 Overdue Requests<span class="mt-badge" id="aqBadge" style="display:none;"></span></button>
+                </div>
+                <!-- Mobile-only "there's more here" hint — a fade plus a
+                     tap-to-scroll button, shown only when topbarActions
+                     actually has unreached overflow content (see
+                     updateTopbarScrollHint). -->
+                <div class="topbar-scroll-hint" id="topbarScrollHint">
+                    <button class="topbar-scroll-hint-btn" id="topbarScrollHintBtn" type="button" aria-label="Scroll for more">›</button>
                 </div>
             </div>
 
@@ -9787,6 +9837,23 @@ SQIDAQAB
         document.getElementById('sidebar').classList.toggle('collapsed');
     });
 
+    // Shows the fade+arrow hint over the topbar's scrollable button row
+    // only while there's genuinely more to scroll to — hidden once
+    // already scrolled to the end, so it never just sits there
+    // pointing at nothing. Re-checked on scroll/resize and once after
+    // enterApp finishes toggling which buttons are even visible (paid
+    // vs free changes what's in this row, hence whether it overflows).
+    function updateTopbarScrollHint() {
+        const el = document.getElementById('topbarActions');
+        const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 4;
+        el.classList.toggle('has-overflow', el.scrollWidth > el.clientWidth + 4 && !atEnd);
+    }
+    document.getElementById('topbarActions').addEventListener('scroll', updateTopbarScrollHint);
+    window.addEventListener('resize', updateTopbarScrollHint);
+    document.getElementById('topbarScrollHintBtn').addEventListener('click', () => {
+        document.getElementById('topbarActions').scrollBy({ left: 150, behavior: 'smooth' });
+    });
+
     // ─── Key Market (balance + rewards marketplace) ───
     async function fetchCreditBalance() {
         try {
@@ -13050,6 +13117,7 @@ SQIDAQAB
         document.getElementById('peerTutoringHubBtn').style.display = paid ? '' : 'none';
         document.getElementById('myTutoringTopbarBtn').style.display = paid ? '' : 'none';
         document.getElementById('upgradeTopbarBtn').style.display = paid ? 'none' : '';
+        updateTopbarScrollHint();
 
         // Key Market is available on the free tier too — the plan is for
         // verification itself to earn Keys eventually, not just tutoring
