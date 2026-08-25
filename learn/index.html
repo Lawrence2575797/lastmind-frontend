@@ -1012,13 +1012,15 @@
         text-align: left;
         gap: 8px;
         padding: 20px;
-        background: rgba(230, 215, 176, 0.06);
+        /* A partner business's own chosen colours (see partner-signup/
+           index.html) — --reward-bg/--reward-text/--reward-accent are set
+           inline per-tile in JS when a reward carries them, falling back
+           to the usual theme colours otherwise. --reward-text cascades
+           down to the title/desc/terms/category below since none of them
+           set their own color. */
+        background: var(--reward-bg, rgba(230, 215, 176, 0.06));
+        color: var(--reward-text, var(--text));
         border: 1px solid rgba(230, 215, 176, 0.18);
-        /* A partner business's own chosen colour (see partner-signup/
-           index.html) — --reward-accent is set inline per-tile in JS when
-           a reward carries one, falling back to the usual theme gold
-           otherwise. Only the top edge and cost figure use it, so a wild
-           colour choice can't break the card's actual legibility. */
         border-top: 3px solid var(--reward-accent, var(--accent));
     }
 
@@ -10049,11 +10051,12 @@ SQIDAQAB
     // that's guaranteed to render, since it's just local data with no
     // network call in the way.
     //
-    // accentColor is optional — a hex string (e.g. '#3E7C59') a partner
-    // business chose for themselves via partner-signup/index.html. When
-    // set, it colours that reward's card top edge and Keys cost figure
-    // (see the --reward-accent custom property below); omit it entirely
-    // for a reward that should just use the normal theme gold.
+    // accentColor/backgroundColor/textColor are all optional hex strings a
+    // partner business chose for themselves via partner-signup/index.html
+    // — omit any of them for a reward that should just use the normal
+    // theme colours instead. category is 'Local Offers' or 'National';
+    // catchmentArea only applies to (and should only be set for) a Local
+    // Offers reward, shown alongside the category on the card.
     const KEY_MARKET_REWARDS = [
         {
             id: 'woods-dry-cleaning',
@@ -10100,21 +10103,37 @@ SQIDAQAB
         }
 
         try {
-            const balanceData = await fetchCreditBalance();
-            const balance = balanceData ? balanceData.balance : 0;
+            // Render every card immediately, before the balance is even
+            // requested — affordability is just a style toggle applied
+            // after the fact (below), not something worth blocking the
+            // whole grid's first paint on. Rewards themselves are local
+            // data with no network call, so this makes the grid feel
+            // instant regardless of how long the balance fetch takes.
             rewards.forEach((reward) => {
-                const affordable = balance >= reward.costKeys;
                 const tile = document.createElement('div');
-                tile.className = `km-market-tile km-reward-tile${affordable ? '' : ' km-reward-locked'}`;
+                tile.className = 'km-market-tile km-reward-tile';
+                tile.dataset.costKeys = reward.costKeys;
                 if (reward.accentColor) tile.style.setProperty('--reward-accent', reward.accentColor);
+                if (reward.backgroundColor) tile.style.setProperty('--reward-bg', reward.backgroundColor);
+                if (reward.textColor) tile.style.setProperty('--reward-text', reward.textColor);
+                const categoryLabel = reward.category === 'Local Offers' && reward.catchmentArea
+                    ? `${reward.category} · ${reward.catchmentArea}`
+                    : reward.category;
                 tile.innerHTML = `
-                    ${reward.category ? `<div class="km-reward-category">${escapeHtml(reward.category)}</div>` : ''}
+                    ${categoryLabel ? `<div class="km-reward-category">${escapeHtml(categoryLabel)}</div>` : ''}
                     <div class="km-reward-title">${escapeHtml(reward.title)}</div>
                     <div class="km-reward-desc">${escapeHtml(reward.description)}</div>
                     ${reward.terms ? `<div class="km-reward-terms">${escapeHtml(reward.terms)}</div>` : ''}
                     <div class="km-reward-cost">${reward.costKeys} Keys</div>
                 `;
                 grid.appendChild(tile);
+            });
+
+            const balanceData = await fetchCreditBalance();
+            const balance = balanceData ? balanceData.balance : 0;
+            grid.querySelectorAll('.km-reward-tile').forEach((tile) => {
+                const affordable = balance >= Number(tile.dataset.costKeys);
+                tile.classList.toggle('km-reward-locked', !affordable);
             });
         } catch (err) {
             console.error('LastMind: failed to render rewards.', err);

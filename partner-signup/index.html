@@ -81,6 +81,7 @@
     .field input[type="text"],
     .field input[type="email"],
     .field input[type="number"],
+    .field select,
     .field textarea {
         width: 100%;
         background: var(--panel);
@@ -182,7 +183,8 @@
         gap: 8px;
         padding: 20px;
         border-radius: 12px;
-        background: rgba(230, 215, 176, 0.06);
+        background: var(--reward-bg, rgba(230, 215, 176, 0.06));
+        color: var(--reward-text, var(--text));
         border: 1px solid rgba(230, 215, 176, 0.18);
         border-top: 3px solid var(--reward-accent, var(--accent));
     }
@@ -239,7 +241,7 @@
 <div class="wrap">
     <a class="logo" href="/">LastMind</a>
     <h1>List a reward on LastMind</h1>
-    <p class="intro">Students earn Keys for genuine, verified learning progress and redeem them for real rewards. Tell us about the reward you'd like to offer — pick a title, description, and your own accent colour, and see exactly how it'll look before you submit. We'll review it and confirm final details with you by email before it goes live.</p>
+    <p class="intro">Students earn Keys for genuine, verified learning progress and redeem them for real rewards. Tell us about the reward you'd like to offer — pick a title, description, and your own colours, and see exactly how it'll look before you submit. We'll review it and confirm final details with you by email before it goes live.</p>
 
     <div class="columns">
         <div>
@@ -265,8 +267,16 @@
                     <input type="text" id="rewardTerms" maxlength="300" placeholder="e.g. Applies to one item only.">
                 </div>
                 <div class="field">
-                    <label for="rewardCategory">Category (optional)</label>
-                    <input type="text" id="rewardCategory" maxlength="50" placeholder="e.g. Local Offers">
+                    <label for="rewardCategory">Category</label>
+                    <select id="rewardCategory" required>
+                        <option value="Local Offers">Local Offers</option>
+                        <option value="National">National</option>
+                    </select>
+                </div>
+                <div class="field" id="catchmentField">
+                    <label for="catchmentArea">Catchment area</label>
+                    <input type="text" id="catchmentArea" maxlength="150" placeholder="e.g. Manchester city centre, or within 5 miles of M1">
+                    <div class="field-hint">Where this offer is actually available — shown alongside your reward.</div>
                 </div>
                 <div class="field">
                     <label for="suggestedCost">Suggested cost, in Keys (optional)</label>
@@ -279,7 +289,22 @@
                         <input type="color" id="accentColor" value="#E6D7B0">
                         <span id="accentColorHex">#E6D7B0</span>
                     </div>
-                    <div class="field-hint">This is entirely your choice — it colours your card's top edge and the Keys cost, shown live in the preview.</div>
+                    <div class="field-hint">Colours your card's top edge and the Keys cost.</div>
+                </div>
+                <div class="field">
+                    <label for="backgroundColor">Background colour</label>
+                    <div class="color-row">
+                        <input type="color" id="backgroundColor" value="#201F21">
+                        <span id="backgroundColorHex">#201F21</span>
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="textColor">Text colour</label>
+                    <div class="color-row">
+                        <input type="color" id="textColor" value="#F8F5EF">
+                        <span id="textColorHex">#F8F5EF</span>
+                    </div>
+                    <div class="field-hint">All three colours are entirely your choice — check the preview stays readable before submitting.</div>
                 </div>
 
                 <button type="submit" class="submit-btn" id="submitBtn">Submit for review</button>
@@ -290,7 +315,7 @@
         <div class="preview-sticky">
             <div class="preview-label">Live preview — how your card will look</div>
             <div class="km-reward-tile" id="previewTile">
-                <div class="km-reward-category" id="previewCategory" style="display:none;"></div>
+                <div class="km-reward-category" id="previewCategory"></div>
                 <div class="km-reward-title" id="previewTitle">Your reward title</div>
                 <div class="km-reward-desc" id="previewDesc">Your description will appear here.</div>
                 <div class="km-reward-terms" id="previewTerms" style="display:none;"></div>
@@ -309,9 +334,15 @@
     const descEl = document.getElementById('rewardDescription');
     const termsEl = document.getElementById('rewardTerms');
     const categoryEl = document.getElementById('rewardCategory');
+    const catchmentField = document.getElementById('catchmentField');
+    const catchmentEl = document.getElementById('catchmentArea');
     const costEl = document.getElementById('suggestedCost');
-    const colorEl = document.getElementById('accentColor');
-    const colorHexEl = document.getElementById('accentColorHex');
+    const accentColorEl = document.getElementById('accentColor');
+    const accentColorHexEl = document.getElementById('accentColorHex');
+    const backgroundColorEl = document.getElementById('backgroundColor');
+    const backgroundColorHexEl = document.getElementById('backgroundColorHex');
+    const textColorEl = document.getElementById('textColor');
+    const textColorHexEl = document.getElementById('textColorHex');
 
     const previewTile = document.getElementById('previewTile');
     const previewCategory = document.getElementById('previewCategory');
@@ -320,19 +351,28 @@
     const previewTerms = document.getElementById('previewTerms');
     const previewCost = document.getElementById('previewCost');
 
+    function updateCatchmentVisibility() {
+        const isLocal = categoryEl.value === 'Local Offers';
+        catchmentField.style.display = isLocal ? '' : 'none';
+        catchmentEl.required = isLocal;
+    }
+
     function updatePreview() {
-        previewTile.style.setProperty('--reward-accent', colorEl.value);
-        colorHexEl.textContent = colorEl.value.toUpperCase();
+        previewTile.style.setProperty('--reward-accent', accentColorEl.value);
+        previewTile.style.setProperty('--reward-bg', backgroundColorEl.value);
+        previewTile.style.setProperty('--reward-text', textColorEl.value);
+        accentColorHexEl.textContent = accentColorEl.value.toUpperCase();
+        backgroundColorHexEl.textContent = backgroundColorEl.value.toUpperCase();
+        textColorHexEl.textContent = textColorEl.value.toUpperCase();
 
         previewTitle.textContent = titleEl.value.trim() || 'Your reward title';
         previewDesc.textContent = descEl.value.trim() || 'Your description will appear here.';
 
-        if (categoryEl.value.trim()) {
-            previewCategory.textContent = categoryEl.value.trim();
-            previewCategory.style.display = '';
-        } else {
-            previewCategory.style.display = 'none';
-        }
+        const isLocal = categoryEl.value === 'Local Offers';
+        const catchment = catchmentEl.value.trim();
+        previewCategory.textContent = isLocal && catchment
+            ? `${categoryEl.value} · ${catchment}`
+            : categoryEl.value;
 
         if (termsEl.value.trim()) {
             previewTerms.textContent = termsEl.value.trim();
@@ -344,9 +384,15 @@
         previewCost.textContent = costEl.value ? `${costEl.value} Keys` : '— Keys';
     }
 
-    [businessNameEl, contactEmailEl, titleEl, descEl, termsEl, categoryEl, costEl, colorEl].forEach((el) => {
+    categoryEl.addEventListener('change', () => {
+        updateCatchmentVisibility();
+        updatePreview();
+    });
+
+    [businessNameEl, contactEmailEl, titleEl, descEl, termsEl, catchmentEl, costEl, accentColorEl, backgroundColorEl, textColorEl].forEach((el) => {
         el.addEventListener('input', updatePreview);
     });
+    updateCatchmentVisibility();
     updatePreview();
 
     document.getElementById('rewardForm').addEventListener('submit', async (e) => {
@@ -368,9 +414,12 @@
                     title: titleEl.value.trim(),
                     description: descEl.value.trim(),
                     terms: termsEl.value.trim() || null,
-                    category: categoryEl.value.trim() || null,
+                    category: categoryEl.value,
+                    catchmentArea: categoryEl.value === 'Local Offers' ? catchmentEl.value.trim() : null,
                     suggestedCostKeys: costEl.value ? Number(costEl.value) : null,
-                    accentColor: colorEl.value
+                    accentColor: accentColorEl.value,
+                    backgroundColor: backgroundColorEl.value,
+                    textColor: textColorEl.value
                 })
             });
             const result = await resp.json().catch(() => ({}));
@@ -379,6 +428,7 @@
             statusEl.className = 'form-status success';
             statusEl.textContent = "Thanks — we've received it and will be in touch by email to confirm details before it goes live.";
             document.getElementById('rewardForm').reset();
+            updateCatchmentVisibility();
             updatePreview();
         } catch (err) {
             statusEl.className = 'form-status error';
