@@ -1040,6 +1040,13 @@
         letter-spacing: -0.01em;
     }
 
+    .km-reward-business {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.78rem;
+        opacity: 0.6;
+        margin-top: -4px;
+    }
+
     .km-reward-desc {
         font-size: 0.95rem;
         opacity: 0.8;
@@ -10056,7 +10063,8 @@ SQIDAQAB
     // — omit any of them for a reward that should just use the normal
     // theme colours instead. category is 'Local Offers' or 'National';
     // catchmentArea only applies to (and should only be set for) a Local
-    // Offers reward, shown alongside the category on the card.
+    // Offers reward, shown alongside the category on the card. businessName
+    // is optional too — shown as "by X" under the title when set.
     const KEY_MARKET_REWARDS = [
         {
             id: 'woods-dry-cleaning',
@@ -10122,6 +10130,7 @@ SQIDAQAB
                 tile.innerHTML = `
                     ${categoryLabel ? `<div class="km-reward-category">${escapeHtml(categoryLabel)}</div>` : ''}
                     <div class="km-reward-title">${escapeHtml(reward.title)}</div>
+                    ${reward.businessName ? `<div class="km-reward-business">by ${escapeHtml(reward.businessName)}</div>` : ''}
                     <div class="km-reward-desc">${escapeHtml(reward.description)}</div>
                     ${reward.terms ? `<div class="km-reward-terms">${escapeHtml(reward.terms)}</div>` : ''}
                     <div class="km-reward-cost">${reward.costKeys} Keys</div>

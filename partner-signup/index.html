@@ -206,6 +206,13 @@
         letter-spacing: -0.01em;
     }
 
+    .km-reward-business {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.78rem;
+        opacity: 0.6;
+        margin-top: -4px;
+    }
+
     .km-reward-desc {
         font-size: 0.95rem;
         opacity: 0.8;
@@ -329,6 +336,7 @@
             <div class="km-reward-tile" id="previewTile">
                 <div class="km-reward-category" id="previewCategory"></div>
                 <div class="km-reward-title" id="previewTitle">Your reward title</div>
+                <div class="km-reward-business" id="previewBusiness">by your business name</div>
                 <div class="km-reward-desc" id="previewDesc">Your description will appear here.</div>
                 <div class="km-reward-terms" id="previewTerms" style="display:none;"></div>
                 <div class="km-reward-cost" id="previewCost">— Keys</div>
@@ -359,6 +367,7 @@
     const previewTile = document.getElementById('previewTile');
     const previewCategory = document.getElementById('previewCategory');
     const previewTitle = document.getElementById('previewTitle');
+    const previewBusiness = document.getElementById('previewBusiness');
     const previewDesc = document.getElementById('previewDesc');
     const previewTerms = document.getElementById('previewTerms');
     const previewCost = document.getElementById('previewCost');
@@ -378,6 +387,7 @@
         textColorHexEl.textContent = textColorEl.value.toUpperCase();
 
         previewTitle.textContent = titleEl.value.trim() || 'Your reward title';
+        previewBusiness.textContent = `by ${businessNameEl.value.trim() || 'your business name'}`;
         previewDesc.textContent = descEl.value.trim() || 'Your description will appear here.';
 
         const isLocal = categoryEl.value === 'Local Offers';
