@@ -235,6 +235,13 @@
         top: 40px;
     }
 </style>
+<!-- Cloudflare Turnstile — the only thing standing between this public,
+     unauthenticated form and scripted spam. TODO: swap the data-sitekey
+     above for the real site key once a Turnstile widget is created in
+     the Cloudflare dashboard; 1x00000000000000000000AA is Cloudflare's
+     own documented "always passes" test key, safe as a placeholder but
+     not a real check. -->
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body>
 
@@ -253,6 +260,11 @@
                 <div class="field">
                     <label for="contactEmail">Contact email</label>
                     <input type="email" id="contactEmail" maxlength="200" required>
+                </div>
+                <div class="field">
+                    <label for="contactPhone">Contact phone (optional)</label>
+                    <input type="text" id="contactPhone" maxlength="20" placeholder="e.g. 07123 456789">
+                    <div class="field-hint">Helps us verify this is a real business before your reward goes live.</div>
                 </div>
                 <div class="field">
                     <label for="rewardTitle">Reward title</label>
@@ -305,6 +317,10 @@
                         <span id="textColorHex">#F8F5EF</span>
                     </div>
                     <div class="field-hint">All three colours are entirely your choice — check the preview stays readable before submitting.</div>
+                </div>
+
+                <div class="field">
+                    <div class="cf-turnstile" data-sitekey="1x00000000000000000000AA" data-theme="dark"></div>
                 </div>
 
                 <button type="submit" class="submit-btn" id="submitBtn">Submit for review</button>
@@ -404,6 +420,15 @@
         submitBtn.disabled = true;
         submitBtn.textContent = 'Submitting…';
 
+        const turnstileToken = window.turnstile ? window.turnstile.getResponse() : '';
+        if (!turnstileToken) {
+            statusEl.className = 'form-status error';
+            statusEl.textContent = 'Please complete the verification check above.';
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Submit for review';
+            return;
+        }
+
         try {
             const resp = await fetch(`${COMPILE_BACKEND_URL}/reward-submissions`, {
                 method: 'POST',
@@ -411,6 +436,7 @@
                 body: JSON.stringify({
                     businessName: businessNameEl.value.trim(),
                     contactEmail: contactEmailEl.value.trim(),
+                    contactPhone: document.getElementById('contactPhone').value.trim() || null,
                     title: titleEl.value.trim(),
                     description: descEl.value.trim(),
                     terms: termsEl.value.trim() || null,
@@ -419,7 +445,8 @@
                     suggestedCostKeys: costEl.value ? Number(costEl.value) : null,
                     accentColor: accentColorEl.value,
                     backgroundColor: backgroundColorEl.value,
-                    textColor: textColorEl.value
+                    textColor: textColorEl.value,
+                    turnstileToken
                 })
             });
             const result = await resp.json().catch(() => ({}));
@@ -436,6 +463,7 @@
         } finally {
             submitBtn.disabled = false;
             submitBtn.textContent = 'Submit for review';
+            if (window.turnstile) window.turnstile.reset();
         }
     });
 </script>
