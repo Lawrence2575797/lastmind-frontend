@@ -6405,9 +6405,19 @@ SQIDAQAB
 
     document.getElementById('practiceQuestionsTopbarBtn').addEventListener('click', () => {
         practiceQuestionsMode = true;
-        selectedPageId = null;
         stopActiveDictation();
         stopSpeaking();
+
+        // Already looking at a specific lesson page? Jump straight to ITS
+        // practice questions instead of making the student pick it again
+        // from the sidebar — the whole point of pressing this from inside
+        // a lesson is to reload instantly against that same page.
+        if (selectedPageId) {
+            openPracticeQuestionsForPage(selectedFolderId, selectedPageId, selectedSubfolderId);
+            return;
+        }
+
+        selectedPageId = null;
         document.getElementById('topbarTitle').textContent = 'Practice Questions';
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
@@ -6569,6 +6579,8 @@ SQIDAQAB
                     resultEl.innerHTML = `
                         <div class="correction-label">${result.markAwarded} / ${result.markTariff} marks</div>
                         ${escapeHtml(result.feedback)}
+                        ${result.conceptualMistakes ? `<div style="margin-top:10px;"><strong>Conceptual mistake:</strong> ${escapeHtml(result.conceptualMistakes)}</div>` : ''}
+                        ${result.examTechniqueTips ? `<div style="margin-top:10px;"><strong>Exam technique:</strong> ${escapeHtml(result.examTechniqueTips)}</div>` : ''}
                     `;
                     document.getElementById(`pq-answer-${q.id}`).querySelectorAll('input').forEach((el) => { el.disabled = true; });
                     if (!q.isMultipleChoice) document.getElementById(`pq-answer-${q.id}`).disabled = true;
