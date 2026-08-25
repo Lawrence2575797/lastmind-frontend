@@ -10776,12 +10776,55 @@ SQIDAQAB
         closeFolderModal();
     });
 
+    // Looks up a hand-authored spec_lesson_plans breakdown for this exact
+    // subject/qualification/examBoard, if one has been seeded server-side.
+    // Returns null (never throws) when there isn't one, or on any network
+    // failure — the caller just falls back to an empty folder in that case.
+    async function fetchStoredLessonPlan(subject, qualification, examBoard) {
+        if (!qualification) return null;
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return null;
+            const params = new URLSearchParams({ subject, qualification, examBoard: examBoard || '' });
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/spec-lesson-plan?${params.toString()}`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) return null;
+            const data = await resp.json();
+            return Array.isArray(data.subtopics) ? data.subtopics : null;
+        } catch (err) {
+            console.error('LastMind: stored lesson plan lookup failed, creating an empty folder instead.', err);
+            return null;
+        }
+    }
+
     async function createFolder(subject, qualification, examBoard, institution, moduleCode, customTitle, customDescription) {
         // Generated up front (matching subfolder/page ids) rather than left
         // to IndexedDB's own autoIncrement — sync needs an id that's
         // actually unique across devices, not just within this browser.
         const id = crypto.randomUUID();
-        await putFolder({ id, subject, qualification, examBoard, institution, moduleCode, customTitle: customTitle || '', customDescription: customDescription || '', pages: [], createdAt: Date.now() });
+        const folder = { id, subject, qualification, examBoard, institution, moduleCode, customTitle: customTitle || '', customDescription: customDescription || '', pages: [], createdAt: Date.now() };
+
+        // Courses we hold a stored lesson plan for get their whole
+        // subfolder/page structure built here, deterministically, from
+        // that data — no AI call anywhere in this path. Cortex's own
+        // "lay out this topic" ability remains as a fallback for courses
+        // without a stored plan, not the primary way structure gets built.
+        const subtopics = await fetchStoredLessonPlan(subject, qualification, examBoard);
+        if (subtopics && subtopics.length) {
+            folder.subfolders = subtopics.map((st) => ({
+                id: crypto.randomUUID(),
+                name: st.subtopic,
+                pages: st.concepts.map((concept) => ({
+                    id: crypto.randomUUID(),
+                    title: concept,
+                    content: '',
+                    createdAt: Date.now()
+                }))
+            }));
+        }
+
+        await putFolder(folder);
         await refreshFolderList();
         selectFolder(id);
     }
