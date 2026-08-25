@@ -6462,14 +6462,31 @@ SQIDAQAB
             });
             if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
             const questions = await resp.json();
-            renderPracticeQuestionList(contentInner, questions, concept);
+            renderPracticeQuestionList(contentInner, questions, concept, subject, folder.qualification || '', folder.examBoard || '');
         } catch (err) {
             console.error('LastMind: failed to load practice questions.', err);
             contentInner.innerHTML = '<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Couldn\'t load practice questions — try again in a moment.</p></div>';
         }
     }
 
-    function renderPracticeQuestionList(container, questions, concept) {
+    // Original explanation of how Edexcel A-Level Economics actually marks
+    // its questions (written independently — not quoted from any Pearson
+    // document) — general and the same for every question on this exam
+    // board, unlike answerStructureAdvice below which is specific to one
+    // question's own command word/tariff.
+    const MARK_BREAKDOWN_EXPLAINERS = {
+        'Economics::A Level::Edexcel': {
+            title: 'How marks are awarded',
+            html: `
+                <p style="margin-bottom:12px;">Edexcel A-Level Economics marks questions in two different ways, depending on how many marks they're worth.</p>
+                <p style="margin-bottom:12px;"><strong>Lower-tariff questions</strong> (2, 4, and 8 marks) are points-based: a fixed number of marks are set aside for specific things — accurate knowledge, applying it to the context given, building a logical chain of reasoning, and (for 8-markers) weighing it up. Each of these earns its own marks, added together.</p>
+                <p style="margin-bottom:12px;"><strong>Higher-tariff questions</strong> (10, 12, 15, and 25 marks) are levels-based instead: rather than adding up separate points, your whole answer is placed into one of several bands based on how well it demonstrates knowledge, application, analysis, and evaluation together. A strong point on one side won't lift you into a higher band if the rest of the answer doesn't match it — the answer is judged as a whole.</p>
+                <p>Multiple choice (1 mark) questions are simply marked right or wrong.</p>
+            `
+        }
+    };
+
+    function renderPracticeQuestionList(container, questions, concept, subject, qualification, examBoard) {
         if (!questions.length) {
             container.innerHTML = `
                 <div class="dashboard-view dashboard-locked">
@@ -6479,17 +6496,40 @@ SQIDAQAB
             return;
         }
 
-        container.innerHTML = '<div class="practice-question-list" id="practiceQuestionList" style="max-width:720px; margin:0 auto; padding:24px;"></div>';
+        const explainerKey = `${subject}::${qualification}::${examBoard}`;
+        const explainer = MARK_BREAKDOWN_EXPLAINERS[explainerKey];
+
+        container.innerHTML = `
+            <div style="display:grid; grid-template-columns: 1fr 320px; gap:24px; max-width:1040px; margin:0 auto; padding:24px; align-items:start;">
+                <div class="practice-question-list" id="practiceQuestionList"></div>
+                <div class="correction-card practice-question-sidebar" style="position:sticky; top:24px;">
+                    ${explainer ? `<p style="font-weight:700; margin-bottom:10px;">${escapeHtml(explainer.title)}</p>${explainer.html}` : '<p>Marks for this exam board are shown per-question alongside the question itself.</p>'}
+                </div>
+            </div>
+        `;
         const list = document.getElementById('practiceQuestionList');
 
         questions.forEach((q, i) => {
             const card = document.createElement('div');
             card.className = 'correction-card';
             card.style.marginBottom = '18px';
+
+            const answerInputHtml = q.isMultipleChoice && Array.isArray(q.options)
+                ? `<div class="pq-mc-options" id="pq-answer-${q.id}">
+                    ${q.options.map((opt, idx) => `
+                        <label class="dont-know-label" style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                            <input type="radio" name="pq-mc-${q.id}" value="${idx}">
+                            ${escapeHtml(opt)}
+                        </label>
+                    `).join('')}
+                   </div>`
+                : `<textarea class="mt-response-textarea" rows="6" placeholder="Type your answer…" id="pq-answer-${q.id}"></textarea>`;
+
             card.innerHTML = `
                 <p style="font-weight:700; margin-bottom:8px;">Question ${i + 1} (${q.markTariff} mark${q.markTariff === 1 ? '' : 's'})</p>
                 <p style="margin-bottom:12px;">${escapeHtml(q.questionText)}</p>
-                <textarea class="mt-response-textarea" rows="6" placeholder="Type your answer…" id="pq-answer-${q.id}"></textarea>
+                ${answerInputHtml}
+                ${q.answerStructureAdvice ? `<div class="field-hint" style="margin-top:10px; margin-bottom:6px;"><strong>How to structure your answer:</strong> ${escapeHtml(q.answerStructureAdvice)}</div>` : ''}
                 <div class="bottom-action-row">
                     <button class="btn primary" type="button" id="pq-submit-${q.id}">Submit for marking</button>
                 </div>
@@ -6498,9 +6538,16 @@ SQIDAQAB
             list.appendChild(card);
 
             document.getElementById(`pq-submit-${q.id}`).addEventListener('click', async () => {
-                const textarea = document.getElementById(`pq-answer-${q.id}`);
-                const answerText = textarea.value.trim();
-                if (!answerText) return;
+                let answerText;
+                if (q.isMultipleChoice) {
+                    const checked = document.querySelector(`input[name="pq-mc-${q.id}"]:checked`);
+                    if (!checked) return;
+                    answerText = checked.value;
+                } else {
+                    const textarea = document.getElementById(`pq-answer-${q.id}`);
+                    answerText = textarea.value.trim();
+                    if (!answerText) return;
+                }
                 const btn = document.getElementById(`pq-submit-${q.id}`);
                 const resultEl = document.getElementById(`pq-result-${q.id}`);
                 btn.disabled = true;
@@ -6523,7 +6570,8 @@ SQIDAQAB
                         <div class="correction-label">${result.markAwarded} / ${result.markTariff} marks</div>
                         ${escapeHtml(result.feedback)}
                     `;
-                    textarea.disabled = true;
+                    document.getElementById(`pq-answer-${q.id}`).querySelectorAll('input').forEach((el) => { el.disabled = true; });
+                    if (!q.isMultipleChoice) document.getElementById(`pq-answer-${q.id}`).disabled = true;
                     btn.style.display = 'none';
                 } catch (err) {
                     resultEl.style.display = '';
