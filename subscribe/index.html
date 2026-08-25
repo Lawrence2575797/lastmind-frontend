@@ -7,6 +7,12 @@
     <meta name="description" content="Sign up or log in to LastMind and choose your plan — free or Premium, with personalised AI learning, instant verification, and tutoring.">
     <meta property="og:title" content="LastMind – Subscribe">
     <meta property="og:description" content="Sign up or log in to LastMind and choose your plan — free or Premium, with personalised AI learning, instant verification, and tutoring.">
+    <!-- No query string here on purpose — this page is also reached as
+         /subscribe?action=upgrade (the topbar Upgrade button, see
+         learn/index.html), which is functionally the same page. Without
+         this, Google was treating the two as duplicate content with no
+         declared canonical. -->
+    <link rel="canonical" href="https://lastmind.co.uk/subscribe">
     <link rel="manifest" href="/manifest.json">
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
     <meta name="theme-color" content="#1A1A1C">
