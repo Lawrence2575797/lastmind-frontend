@@ -236,11 +236,7 @@
     }
 </style>
 <!-- Cloudflare Turnstile — the only thing standing between this public,
-     unauthenticated form and scripted spam. TODO: swap the data-sitekey
-     above for the real site key once a Turnstile widget is created in
-     the Cloudflare dashboard; 1x00000000000000000000AA is Cloudflare's
-     own documented "always passes" test key, safe as a placeholder but
-     not a real check. -->
+     unauthenticated form and scripted spam. -->
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body>
@@ -320,7 +316,7 @@
                 </div>
 
                 <div class="field">
-                    <div class="cf-turnstile" data-sitekey="1x00000000000000000000AA" data-theme="dark"></div>
+                    <div class="cf-turnstile" data-sitekey="0x4AAAAAAEbvWejy34wKPJx2" data-theme="dark"></div>
                 </div>
 
                 <button type="submit" class="submit-btn" id="submitBtn">Submit for review</button>
