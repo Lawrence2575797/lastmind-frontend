@@ -1009,6 +1009,12 @@
         padding: 20px;
         background: rgba(230, 215, 176, 0.06);
         border: 1px solid rgba(230, 215, 176, 0.18);
+        /* A partner business's own chosen colour (see partner-signup/
+           index.html) — --reward-accent is set inline per-tile in JS when
+           a reward carries one, falling back to the usual theme gold
+           otherwise. Only the top edge and cost figure use it, so a wild
+           colour choice can't break the card's actual legibility. */
+        border-top: 3px solid var(--reward-accent, var(--accent));
     }
 
     .km-reward-category {
@@ -1046,7 +1052,7 @@
     .km-reward-cost {
         font-weight: 700;
         font-size: 1.1rem;
-        color: var(--accent);
+        color: var(--reward-accent, var(--accent));
         padding-top: 4px;
     }
 
@@ -10030,11 +10036,6 @@ SQIDAQAB
         if (document.getElementById('tourOverlay').classList.contains('open')) showTourStep();
     });
 
-    // Data-driven — GET /rewards (rewardsService.ts) is the single source
-    // of truth for what shows here. Adding, editing, or retiring a reward
-    // is a content change (a row in the `rewards` table, editable directly
-    // in Supabase's own table editor), never a code change — this function
-    // just renders whatever comes back.
     // Hardcoded on purpose — the earlier data-driven version (GET /rewards,
     // a Supabase table meant to be edited directly) turned out impossible
     // to debug when a reward silently failed to show, with no way to tell
@@ -10042,6 +10043,12 @@ SQIDAQAB
     // Coding each new deal directly here trades editability for something
     // that's guaranteed to render, since it's just local data with no
     // network call in the way.
+    //
+    // accentColor is optional — a hex string (e.g. '#3E7C59') a partner
+    // business chose for themselves via partner-signup/index.html. When
+    // set, it colours that reward's card top edge and Keys cost figure
+    // (see the --reward-accent custom property below); omit it entirely
+    // for a reward that should just use the normal theme gold.
     const KEY_MARKET_REWARDS = [
         {
             id: 'woods-dry-cleaning',
@@ -10094,6 +10101,7 @@ SQIDAQAB
                 const affordable = balance >= reward.costKeys;
                 const tile = document.createElement('div');
                 tile.className = `km-market-tile km-reward-tile${affordable ? '' : ' km-reward-locked'}`;
+                if (reward.accentColor) tile.style.setProperty('--reward-accent', reward.accentColor);
                 tile.innerHTML = `
                     ${reward.category ? `<div class="km-reward-category">${escapeHtml(reward.category)}</div>` : ''}
                     <div class="km-reward-title">${escapeHtml(reward.title)}</div>
