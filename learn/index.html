@@ -4229,6 +4229,7 @@
                 <div class="topbar-actions" id="topbarActions">
                     <button class="credit-balance-chip" id="creditBalanceChip" type="button" title="Key Market">🔑 Key Market <span id="creditBalanceAmount">—</span></button>
                     <button class="credit-balance-chip" id="locksChip" type="button" title="Locks">🔒 Locks <span id="locksBalanceAmount">—</span></button>
+                    <button class="cortex-btn-topbar" id="practiceQuestionsTopbarBtn" type="button">📝 Practice Questions</button>
                     <button class="cortex-btn-topbar upgrade-topbar-btn" id="upgradeTopbarBtn" type="button" style="display:none;">⭐ Upgrade</button>
                     <button class="cortex-btn-topbar" id="peerTutoringHubBtn" type="button">🤝 Peer tutoring</button>
                     <button class="cortex-btn-topbar" id="myTutoringTopbarBtn" type="button">📋 My Tutoring<span class="mt-badge" id="mtBadge" style="display:none;"></span></button>
@@ -5082,6 +5083,13 @@ SQIDAQAB
     let selectedPageId = null;
     let pendingMatchFolder = null; // set when the match-suggestion is showing
 
+    // While true, clicking a page in the sidebar (see buildPageItem's click
+    // handler) opens that page's practice questions instead of its lesson —
+    // the sidebar/folder browser itself is completely unchanged, this only
+    // redirects what a click does. Set/cleared by the Practice Questions
+    // topbar button and its "Exit practice mode" button respectively.
+    let practiceQuestionsMode = false;
+
     // Set by startReviewFromSchedule() right before it programmatically
     // clicks #generateQuestionsBtn, so that click's handler (defined fresh
     // inside openPage(), scoped to whatever page happens to be open) uses
@@ -5855,7 +5863,11 @@ SQIDAQAB
 
         pageEl.addEventListener('click', (e) => {
             e.stopPropagation();
-            openPage(folderId, page.id, subfolderId || null);
+            if (practiceQuestionsMode) {
+                openPracticeQuestionsForPage(folderId, page.id, subfolderId || null);
+            } else {
+                openPage(folderId, page.id, subfolderId || null);
+            }
         });
 
         pageEl.addEventListener('dragstart', (e) => {
@@ -6383,6 +6395,144 @@ SQIDAQAB
         `;
         const params = isNew ? 'embed=1&new=1' : (chatId ? `embed=1&chatId=${encodeURIComponent(chatId)}` : 'embed=1');
         document.getElementById('cortexEmbedFrame').src = `/cortex?${params}`;
+    }
+
+    // ─── PRACTICE QUESTIONS ───
+    // Reuses the exact same folder/page sidebar as normal browsing — see
+    // practiceQuestionsMode and buildPageItem's click handler above. This
+    // only ever changes what the CONTENT area shows; the sidebar itself is
+    // never duplicated or altered.
+
+    document.getElementById('practiceQuestionsTopbarBtn').addEventListener('click', () => {
+        practiceQuestionsMode = true;
+        selectedPageId = null;
+        stopActiveDictation();
+        stopSpeaking();
+        document.getElementById('topbarTitle').textContent = 'Practice Questions';
+        const contentInner = document.getElementById('contentInner');
+        contentInner.classList.add('content-inner-wide');
+        contentInner.innerHTML = `
+            <div class="dashboard-view dashboard-locked">
+                <h1 class="dashboard-locked-logo">Practice <span>Questions</span></h1>
+                <p class="dashboard-locked-quote">Select a page from the sidebar to see its practice questions.</p>
+                <button class="btn" type="button" id="exitPracticeModeBtn" style="margin-top:24px;">Exit practice mode</button>
+            </div>
+        `;
+        document.getElementById('exitPracticeModeBtn').addEventListener('click', () => {
+            practiceQuestionsMode = false;
+            renderWelcome();
+        });
+    });
+
+    // Resolves the same subject/topic/concept triple every other feature
+    // (reviews, verification, Cortex) already keys off, then asks the
+    // backend for whatever practice_questions rows share that concept_id —
+    // see normalizeConceptKey server-side. A multi-lesson page uses its
+    // active sub-lesson's own concept, same as generateQuestionsBtn does.
+    async function openPracticeQuestionsForPage(folderId, pageId, subfolderId) {
+        stopActiveDictation();
+        stopSpeaking();
+        selectedFolderId = folderId;
+        selectedSubfolderId = subfolderId || null;
+        selectedPageId = pageId;
+
+        const loc = findPageLocation(pageId);
+        if (!loc) return;
+        const folder = loc.folder;
+        const page = loc.pagesArray.find((p) => p.id === pageId);
+        if (!page) return;
+
+        const subject = folder.subject || '';
+        const topic = (subfolderId && (folder.subfolders || []).find((s) => s.id === subfolderId) || {}).name || '';
+        const isMulti = pageIsMultiLesson(page);
+        const concept = isMulti ? ((activeSubLesson(page) || {}).concept || page.title) : page.title;
+
+        document.getElementById('topbarTitle').textContent = `${folderLabel(folder)} · ${page.title} · Practice Questions`;
+
+        const contentInner = document.getElementById('contentInner');
+        contentInner.classList.add('content-inner-wide');
+        contentInner.innerHTML = '<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Loading practice questions…</p></div>';
+
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) throw new Error('not signed in');
+            const params = new URLSearchParams({ subject, topic, concept });
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/practice-questions?${params.toString()}`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            const questions = await resp.json();
+            renderPracticeQuestionList(contentInner, questions, concept);
+        } catch (err) {
+            console.error('LastMind: failed to load practice questions.', err);
+            contentInner.innerHTML = '<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Couldn\'t load practice questions — try again in a moment.</p></div>';
+        }
+    }
+
+    function renderPracticeQuestionList(container, questions, concept) {
+        if (!questions.length) {
+            container.innerHTML = `
+                <div class="dashboard-view dashboard-locked">
+                    <p class="dashboard-locked-quote">No practice questions for "${escapeHtml(concept)}" yet — check back soon.</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = '<div class="practice-question-list" id="practiceQuestionList" style="max-width:720px; margin:0 auto; padding:24px;"></div>';
+        const list = document.getElementById('practiceQuestionList');
+
+        questions.forEach((q, i) => {
+            const card = document.createElement('div');
+            card.className = 'correction-card';
+            card.style.marginBottom = '18px';
+            card.innerHTML = `
+                <p style="font-weight:700; margin-bottom:8px;">Question ${i + 1} (${q.markTariff} mark${q.markTariff === 1 ? '' : 's'})</p>
+                <p style="margin-bottom:12px;">${escapeHtml(q.questionText)}</p>
+                <textarea class="mt-response-textarea" rows="6" placeholder="Type your answer…" id="pq-answer-${q.id}"></textarea>
+                <div class="bottom-action-row">
+                    <button class="btn primary" type="button" id="pq-submit-${q.id}">Submit for marking</button>
+                </div>
+                <div id="pq-result-${q.id}" style="margin-top:12px; display:none;"></div>
+            `;
+            list.appendChild(card);
+
+            document.getElementById(`pq-submit-${q.id}`).addEventListener('click', async () => {
+                const textarea = document.getElementById(`pq-answer-${q.id}`);
+                const answerText = textarea.value.trim();
+                if (!answerText) return;
+                const btn = document.getElementById(`pq-submit-${q.id}`);
+                const resultEl = document.getElementById(`pq-result-${q.id}`);
+                btn.disabled = true;
+                btn.textContent = 'Marking…';
+                try {
+                    const { data: { session } } = await supabaseClient.auth.getSession();
+                    if (!session) throw new Error('not signed in');
+                    const resp = await fetch(`${COMPILE_BACKEND_URL}/practice-questions/${q.id}/submit`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                        body: JSON.stringify({ answerText })
+                    });
+                    if (!resp.ok) {
+                        const body = await resp.json().catch(() => ({}));
+                        throw new Error(body.error || 'Could not mark this answer.');
+                    }
+                    const result = await resp.json();
+                    resultEl.style.display = '';
+                    resultEl.innerHTML = `
+                        <div class="correction-label">${result.markAwarded} / ${result.markTariff} marks</div>
+                        ${escapeHtml(result.feedback)}
+                    `;
+                    textarea.disabled = true;
+                    btn.style.display = 'none';
+                } catch (err) {
+                    resultEl.style.display = '';
+                    resultEl.textContent = err.message || 'Something went wrong.';
+                    btn.disabled = false;
+                    btn.textContent = 'Submit for marking';
+                }
+            });
+        });
     }
 
     let saveDebounce = null;
@@ -13157,6 +13307,7 @@ SQIDAQAB
         // seeing an entry point to something it'll get a 403 from). Progress
         // (the knowledge map) and Calendar stay available either way.
         document.getElementById('peerTutoringHubBtn').style.display = paid ? '' : 'none';
+        document.getElementById('practiceQuestionsTopbarBtn').style.display = paid ? '' : 'none';
         document.getElementById('myTutoringTopbarBtn').style.display = paid ? '' : 'none';
         document.getElementById('upgradeTopbarBtn').style.display = paid ? 'none' : '';
         updateTopbarScrollHint();
