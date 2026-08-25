@@ -105,6 +105,7 @@
             color: var(--accent);
             background: none;
             border: none;
+            text-decoration: none;
             cursor: pointer;
             opacity: 0.85;
         }
@@ -916,6 +917,8 @@
 
             .nav-left, .nav-right {
                 gap: 10px;
+                flex-wrap: wrap;
+                justify-content: flex-end;
             }
 
             .nav-outline-btn, .nav-signup-btn {
@@ -946,6 +949,7 @@
             <button class="nav-account-btn" id="myAccountBtn" style="display:none;">My Account</button>
         </div>
         <div class="nav-right">
+            <a class="nav-account-btn" href="/partner-signup">For Businesses</a>
             <button class="nav-outline-btn" id="loginBtn">Log In</button>
             <button class="nav-signup-btn" id="signupBtn">Sign Up</button>
             <button class="nav-signup-btn" id="navActionBtn" style="display:none;">Upgrade</button>
@@ -1100,7 +1104,6 @@
         <div class="footer-logo">LastMind</div>
         <div class="footer-rule"></div>
         <p class="footer-contact">Contact us at <a href="mailto:lastmindadmin@gmail.com">lastmindadmin@gmail.com</a></p>
-        <p class="footer-contact"><a href="/partner-signup">Are you a business? List a reward on LastMind</a></p>
         <p class="footer-copy">© LastMind 2026 &nbsp;·&nbsp; All rights reserved.</p>
     </footer>
 
