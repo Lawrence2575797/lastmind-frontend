@@ -6528,6 +6528,40 @@ SQIDAQAB
         `;
         const list = document.getElementById('practiceQuestionList');
 
+        // Shared between a fresh marking response and a previously-stored
+        // attempt loaded back from the server - both are the exact same
+        // {markAwarded, markTariff, feedback, conceptualMistakes,
+        // examTechniqueTips} shape.
+        function practiceResultHtml(result) {
+            return `
+                <div class="correction-label">${result.markAwarded} / ${result.markTariff} marks</div>
+                ${escapeHtml(result.feedback)}
+                ${result.conceptualMistakes ? `<div style="margin-top:10px;"><strong>Conceptual mistake:</strong> ${escapeHtml(result.conceptualMistakes)}</div>` : ''}
+                ${result.examTechniqueTips ? `<div style="margin-top:10px;"><strong>Exam technique:</strong> ${escapeHtml(result.examTechniqueTips)}</div>` : ''}
+            `;
+        }
+
+        // Locks the answer input(s) to whatever was actually submitted and
+        // hides the submit button - used both for a question that already
+        // had a stored attempt on load, and right after a fresh submission
+        // succeeds. A question can only ever be answered once server-side
+        // (see submitPracticeAnswer's re-submission guard), so this is the
+        // only state a completed question should ever show again.
+        function lockPracticeAnswerInput(q, answerText) {
+            if (q.isMultipleChoice) {
+                document.querySelectorAll(`input[name="pq-mc-${q.id}"]`).forEach((el) => {
+                    el.checked = el.value === String(answerText);
+                    el.disabled = true;
+                });
+            } else {
+                const textarea = document.getElementById(`pq-answer-${q.id}`);
+                textarea.value = answerText;
+                textarea.disabled = true;
+            }
+            const btn = document.getElementById(`pq-submit-${q.id}`);
+            if (btn) btn.style.display = 'none';
+        }
+
         questions.forEach((q, i) => {
             const card = document.createElement('div');
             card.className = 'correction-card';
@@ -6556,6 +6590,16 @@ SQIDAQAB
             `;
             list.appendChild(card);
 
+            // Already answered (loaded from the server) - show the stored
+            // result immediately, locked, with no way to redo it.
+            if (q.priorAttempt) {
+                lockPracticeAnswerInput(q, q.priorAttempt.answerText);
+                const resultEl = document.getElementById(`pq-result-${q.id}`);
+                resultEl.style.display = '';
+                resultEl.innerHTML = practiceResultHtml(q.priorAttempt);
+                return;
+            }
+
             document.getElementById(`pq-submit-${q.id}`).addEventListener('click', async () => {
                 let answerText;
                 if (q.isMultipleChoice) {
@@ -6579,21 +6623,18 @@ SQIDAQAB
                         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
                         body: JSON.stringify({ answerText })
                     });
-                    if (!resp.ok) {
-                        const body = await resp.json().catch(() => ({}));
+                    const body = await resp.json().catch(() => ({}));
+                    // 409 = this question already has a stored attempt (a
+                    // double-click, or answered from another tab in the
+                    // meantime) - the response body IS that stored result,
+                    // so render it exactly like a fresh success rather than
+                    // treating it as an error.
+                    if (!resp.ok && resp.status !== 409) {
                         throw new Error(body.error || 'Could not mark this answer.');
                     }
-                    const result = await resp.json();
                     resultEl.style.display = '';
-                    resultEl.innerHTML = `
-                        <div class="correction-label">${result.markAwarded} / ${result.markTariff} marks</div>
-                        ${escapeHtml(result.feedback)}
-                        ${result.conceptualMistakes ? `<div style="margin-top:10px;"><strong>Conceptual mistake:</strong> ${escapeHtml(result.conceptualMistakes)}</div>` : ''}
-                        ${result.examTechniqueTips ? `<div style="margin-top:10px;"><strong>Exam technique:</strong> ${escapeHtml(result.examTechniqueTips)}</div>` : ''}
-                    `;
-                    document.getElementById(`pq-answer-${q.id}`).querySelectorAll('input').forEach((el) => { el.disabled = true; });
-                    if (!q.isMultipleChoice) document.getElementById(`pq-answer-${q.id}`).disabled = true;
-                    btn.style.display = 'none';
+                    resultEl.innerHTML = practiceResultHtml(body);
+                    lockPracticeAnswerInput(q, body.answerText ?? answerText);
                 } catch (err) {
                     resultEl.style.display = '';
                     resultEl.textContent = err.message || 'Something went wrong.';
