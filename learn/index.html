@@ -7507,7 +7507,23 @@ SQIDAQAB
                     // retry overwrites its own earlier attempt instead of
                     // desyncing every later answer's alignment with `steps`.
                     encodingAnswerLog[result.state.currentIndex - 1] = { answerGiven: answerRecord, correct: result.correct !== false, feedback: result.feedback || null };
-                    saveEncodingProgress(lessonHookFact, result.state, encodingAnswerLog);
+                    // Skip the save entirely when this answer just finished
+                    // the lesson (result.done) — renderNextEncodingStep below
+                    // calls clearEncodingProgress + sets encodingDone in this
+                    // same synchronous tick, but that's a SEPARATE fire-and-
+                    // forget putFolder write with no ordering guarantee
+                    // against this one. If the student navigates away right
+                    // here, whichever write actually finishes last wins —
+                    // and this "still resumable, currentIndex past the end"
+                    // snapshot winning is exactly what makes
+                    // resumeEncodingLesson re-open the last step as if the
+                    // lesson never finished. Not saving it removes the race
+                    // instead of trying to win it; the mid-diagnostic-
+                    // drilldown-on-the-last-step case (result.done is false
+                    // there) is unaffected and still saves as before.
+                    if (!result.done) {
+                        saveEncodingProgress(lessonHookFact, result.state, encodingAnswerLog);
+                    }
 
                     // Any correct answer just advances as before. A wrong
                     // answer on any step type — including "implication"
