@@ -3963,12 +3963,12 @@
             </div>
 
             <div class="sidebar-tabs">
-                <button class="sidebar-tab-btn active" id="foldersTabBtn" type="button">Folders</button>
+                <button class="sidebar-tab-btn active" id="foldersTabBtn" type="button">Subjects</button>
                 <button class="sidebar-tab-btn" id="cortexTabBtn" type="button">Cortex</button>
             </div>
 
             <div class="folder-list" id="folderList">
-                <div class="empty-hint">No folders yet — click "+ Create new folder" to add one.</div>
+                <div class="empty-hint">No subjects yet — click "+ Create new subject" to add one.</div>
             </div>
 
             <div class="cortex-chat-list" id="cortexChatList">
@@ -4261,12 +4261,12 @@
 <!-- ─── NEW FOLDER MODAL ─── -->
 <div class="modal-overlay" id="folderModalOverlay">
     <div class="modal">
-        <h3>New Folder</h3>
+        <h3>New Subject</h3>
 
         <div class="match-suggestion" id="matchSuggestion">
             <span id="matchSuggestionText"></span>
             <div class="actions">
-                <button class="use-existing" id="useExistingBtn">Use this folder</button>
+                <button class="use-existing" id="useExistingBtn">Use this subject</button>
                 <button id="createAnywayBtn">Create new anyway</button>
             </div>
         </div>
@@ -4321,7 +4321,7 @@
      just asks for Title + Description directly. -->
 <div class="modal-overlay" id="customFolderModalOverlay">
     <div class="modal">
-        <h3>New Custom Folder</h3>
+        <h3>New Custom Subject</h3>
         <div class="field">
             <label for="customFolderTitleInput">Title</label>
             <input type="text" id="customFolderTitleInput" placeholder="e.g. Running a small business">
@@ -4335,23 +4335,6 @@
         <div class="modal-actions">
             <button class="btn" id="cancelCustomFolderBtn">Cancel</button>
             <button class="btn primary" id="submitCustomFolderBtn">Create</button>
-        </div>
-    </div>
-</div>
-
-<!-- ─── NEW SUBFOLDER MODAL ─── -->
-<div class="modal-overlay" id="subfolderModalOverlay">
-    <div class="modal">
-        <h3>New Subfolder</h3>
-
-        <div class="field">
-            <label for="subfolderNameInput">Name</label>
-            <input type="text" id="subfolderNameInput" placeholder="e.g. Atomic Structure">
-        </div>
-
-        <div class="modal-actions">
-            <button class="btn" id="cancelSubfolderBtn">Cancel</button>
-            <button class="btn primary" id="submitSubfolderBtn">Create</button>
         </div>
     </div>
 </div>
@@ -4497,7 +4480,7 @@
 <!-- ─── RENAME FOLDER MODAL ─── -->
 <div class="modal-overlay" id="renameFolderModalOverlay">
     <div class="modal">
-        <h3>Rename Folder</h3>
+        <h3>Rename Subject</h3>
 
         <div class="field">
             <label for="renameFolderSubjectInput">Subject</label>
@@ -5496,7 +5479,7 @@ SQIDAQAB
         const heading = document.createElement('div');
         heading.className = 'drill-section-label';
         const headingText = document.createElement('span');
-        headingText.textContent = 'Drop on a folder to move it there';
+        headingText.textContent = 'Drop on a subject to move it there';
         heading.appendChild(headingText);
         zone.appendChild(heading);
 
@@ -5575,19 +5558,6 @@ SQIDAQAB
         await refreshFolderList();
     }
 
-    let pendingSubfolderFolderId = null;
-
-    function openSubfolderModal(folderId) {
-        pendingSubfolderFolderId = folderId;
-        document.getElementById('subfolderNameInput').value = '';
-        document.getElementById('subfolderModalOverlay').classList.add('open');
-    }
-
-    function closeSubfolderModal() {
-        document.getElementById('subfolderModalOverlay').classList.remove('open');
-        pendingSubfolderFolderId = null;
-    }
-
     let pendingMultiLessonPageId = null;
 
     function openMultiLessonModal(pageId) {
@@ -5622,22 +5592,6 @@ SQIDAQAB
         document.getElementById('planModalOverlay').classList.remove('open');
         pendingPlanFolderId = null;
         pendingPlanSubfolderId = null;
-    }
-
-    async function createSubfolder(folderId, name) {
-        const folder = folders.find((f) => f.id === folderId);
-        if (!folder) return;
-
-        const subfolder = {
-            id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())),
-            name,
-            pages: []
-        };
-        folder.subfolders = folder.subfolders || [];
-        folder.subfolders.push(subfolder);
-        await putFolder(folder);
-        await refreshFolderList();
-        selectSubfolder(folder.id, subfolder.id);
     }
 
     // Every candidate spaced-repetition key a single page's concept(s) could
@@ -5688,7 +5642,7 @@ SQIDAQAB
     }
 
     async function deleteFolder(folderId) {
-        if (!confirm('Delete this folder and everything inside it? This cannot be undone.')) return;
+        if (!confirm('Delete this subject and everything inside it? This cannot be undone.')) return;
         const folder = folders.find((f) => f.id === folderId);
         const conceptKeys = folder ? collectConceptKeysForFolder(folder) : [];
         await deleteFolderRecord(folderId);
@@ -5999,13 +5953,15 @@ SQIDAQAB
             titleRow.appendChild(secondaryBtn);
         }
 
-        const actionBtn = document.createElement('button');
-        actionBtn.className = 'drill-action-btn';
-        actionBtn.type = 'button';
-        actionBtn.textContent = actionLabel;
-        if (actionId) actionBtn.id = actionId;
-        actionBtn.addEventListener('click', onAction);
-        titleRow.appendChild(actionBtn);
+        if (actionLabel) {
+            const actionBtn = document.createElement('button');
+            actionBtn.className = 'drill-action-btn';
+            actionBtn.type = 'button';
+            actionBtn.textContent = actionLabel;
+            if (actionId) actionBtn.id = actionId;
+            actionBtn.addEventListener('click', onAction);
+            titleRow.appendChild(actionBtn);
+        }
 
         wrap.appendChild(titleRow);
         return wrap;
@@ -6029,8 +5985,8 @@ SQIDAQAB
         `;
 
         const menuWrap = buildItemMenu([
-            { label: 'Rename Folder', onClick: () => openRenameFolderModal(f.id) },
-            { label: 'Delete Folder', danger: true, onClick: () => deleteFolder(f.id) }
+            { label: 'Rename Subject', onClick: () => openRenameFolderModal(f.id) },
+            { label: 'Delete Subject', danger: true, onClick: () => deleteFolder(f.id) }
         ]);
 
         header.appendChild(labelWrap);
@@ -6137,8 +6093,8 @@ SQIDAQAB
         listEl.innerHTML = '';
 
         listEl.appendChild(buildDrillHeader({
-            title: 'Folders',
-            actionLabel: '+ Create new folder',
+            title: 'Subjects',
+            actionLabel: '+ Create new subject',
             actionId: 'createFolderBtn',
             onAction: openFolderModal,
             secondaryActionLabel: '+ Other',
@@ -6148,7 +6104,7 @@ SQIDAQAB
         if (!folders.length) {
             const hint = document.createElement('div');
             hint.className = 'empty-hint';
-            hint.textContent = 'No folders yet — click "+ Create new folder" to add one.';
+            hint.textContent = 'No subjects yet — click "+ Create new subject" to add one.';
             listEl.appendChild(hint);
             return;
         }
@@ -6165,8 +6121,6 @@ SQIDAQAB
 
         listEl.appendChild(buildDrillHeader({
             title: folderLabel(folder),
-            actionLabel: '+ Create new subfolder',
-            onAction: () => openSubfolderModal(folder.id),
             onBack: () => selectFolder(null)
         }));
 
@@ -6182,7 +6136,7 @@ SQIDAQAB
         if (!subfolders.length) {
             const hint = document.createElement('div');
             hint.className = 'empty-hint';
-            hint.textContent = 'No subfolders yet.';
+            hint.textContent = "No subfolders yet — switch to Cortex and describe what you're studying to have it build this subject's structure.";
             listEl.appendChild(hint);
         } else {
             subfolders.forEach((sf) => listEl.appendChild(buildSubfolderRow(folder, sf)));
@@ -6197,7 +6151,7 @@ SQIDAQAB
             const pagesLabel = document.createElement('div');
             pagesLabel.className = 'drill-section-label';
             const pagesLabelText = document.createElement('span');
-            pagesLabelText.textContent = 'Pages in this folder';
+            pagesLabelText.textContent = 'Pages in this subject';
             pagesLabel.appendChild(pagesLabelText);
             listEl.appendChild(pagesLabel);
 
@@ -10204,9 +10158,9 @@ SQIDAQAB
     // time (encoding first, then spaced repetition), and that Cortex can
     // do the folder/page setup for you instead of doing it by hand.
     const TOUR_INTRO_STEPS = [
-        { selector: '#createFolderBtn', title: 'Start with a folder', body: "This is where a subject lives. Create one for each subject you're studying — LastMind builds lessons inside it." },
+        { selector: '#createFolderBtn', title: 'Start with a subject', body: "This is where a subject lives. Create one for each subject you're studying — LastMind builds lessons inside it." },
         { selector: null, title: 'How a lesson works', body: 'Every lesson starts as an encoding lesson, where you actually learn the material for the first time. After that, spaced repetition sessions bring it back at increasing intervals so it actually sticks.' },
-        { selector: '#cortexTabBtn', title: 'Let Cortex set it up for you', body: "Don't want to build the folder structure by hand? Switch to Cortex and describe what you're studying — it can create folders and pages for you." }
+        { selector: '#cortexTabBtn', title: 'Let Cortex set it up for you', body: "Don't want to build the subject structure by hand? Switch to Cortex and describe what you're studying — it can create subjects and pages for you." }
     ];
 
     const FREE_TOUR_STEPS = [
@@ -10826,7 +10780,7 @@ SQIDAQAB
         if (match && !pendingMatchFolder) {
             pendingMatchFolder = match;
             document.getElementById('matchSuggestionText').textContent =
-                `This looks similar to an existing folder: "${folderLabel(match)}".`;
+                `This looks similar to an existing subject: "${folderLabel(match)}".`;
             document.getElementById('matchSuggestion').classList.add('show');
             return; // wait for the user to choose
         }
@@ -10907,24 +10861,6 @@ SQIDAQAB
         await refreshFolderList();
         selectFolder(id);
     }
-
-    document.getElementById('cancelSubfolderBtn').addEventListener('click', closeSubfolderModal);
-    document.getElementById('subfolderModalOverlay').addEventListener('click', (e) => {
-        if (e.target.id === 'subfolderModalOverlay') closeSubfolderModal();
-    });
-    document.getElementById('subfolderNameInput').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            document.getElementById('submitSubfolderBtn').click();
-        }
-    });
-    document.getElementById('submitSubfolderBtn').addEventListener('click', async () => {
-        const name = document.getElementById('subfolderNameInput').value.trim();
-        const folderId = pendingSubfolderFolderId;
-        if (!name || !folderId) return;
-        closeSubfolderModal();
-        await createSubfolder(folderId, name);
-    });
 
     document.getElementById('cancelMultiLessonBtn').addEventListener('click', closeMultiLessonModal);
     document.getElementById('multiLessonModalOverlay').addEventListener('click', (e) => {
@@ -11482,7 +11418,7 @@ SQIDAQAB
     async function generateRevisionPlanForExam(event) {
         const folder = folders.find((f) => f.id === event.folderId);
         if (!folder) {
-            showRevisionPlanBanner('Could not find the folder for this exam.');
+            showRevisionPlanBanner('Could not find the subject for this exam.');
             return;
         }
         const concepts = collectFolderConcepts(folder).map((c) => ({ subject: folder.subject || '', topic: c.topic, concept: c.concept }));
@@ -11872,7 +11808,7 @@ SQIDAQAB
 
         if (!folders.length) {
             tabsEl.style.display = 'none';
-            renderKnowledgeMapEmptyState('No folders yet — create one from the sidebar, then your progress through it will show up here.');
+            renderKnowledgeMapEmptyState('No subjects yet — create one from the sidebar, then your progress through it will show up here.');
             return;
         }
         tabsEl.style.display = 'flex';
