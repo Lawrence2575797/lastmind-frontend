@@ -3968,7 +3968,7 @@
             </div>
 
             <div class="folder-list" id="folderList">
-                <div class="empty-hint">No subjects yet — click "+ Create new subject" to add one.</div>
+                <div class="empty-hint">No subjects yet — click "+ Add new subject" to add one.</div>
             </div>
 
             <div class="cortex-chat-list" id="cortexChatList">
@@ -6094,7 +6094,7 @@ SQIDAQAB
 
         listEl.appendChild(buildDrillHeader({
             title: 'Subjects',
-            actionLabel: '+ Create new subject',
+            actionLabel: '+ Add new subject',
             actionId: 'createFolderBtn',
             onAction: openFolderModal,
             secondaryActionLabel: '+ Other',
@@ -6104,7 +6104,7 @@ SQIDAQAB
         if (!folders.length) {
             const hint = document.createElement('div');
             hint.className = 'empty-hint';
-            hint.textContent = 'No subjects yet — click "+ Create new subject" to add one.';
+            hint.textContent = 'No subjects yet — click "+ Add new subject" to add one.';
             listEl.appendChild(hint);
             return;
         }
