@@ -11813,6 +11813,22 @@ SQIDAQAB
         }
     }
 
+    async function fetchEdgeLesson(fromNodeId, toNodeId) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return null;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/edge/${encodeURIComponent(fromNodeId)}/${encodeURIComponent(toNodeId)}/lesson`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (resp.status === 404) return { notFound: true };
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            return await resp.json();
+        } catch (err) {
+            console.error('LastMind: failed to load this connection.', err);
+            return null;
+        }
+    }
+
     // Entry point — called from selectFolder(). Clones the <template>,
     // fetches the pre-generated graph for this subject, and renders it.
     async function renderKnowledgeMapForFolder(folder) {
@@ -11995,16 +12011,38 @@ SQIDAQAB
             detailEl.querySelector('.km-inline-start-lesson-btn').addEventListener('click', async (e) => {
                 e.target.disabled = true;
                 e.target.textContent = 'Loading…';
-                const lesson = await fetchNodeLesson(d.id);
                 const lessonEl = detailEl.querySelector('.km-inline-detail-lesson');
-                if (!lesson || lesson.notFound) {
-                    lessonEl.innerHTML = `<div class="km-inline-detail-item km-inline-detail-none">No lesson generated for this concept yet.</div>`;
-                } else {
-                    lessonEl.innerHTML = `
-                        <div class="km-inline-lesson-explanation">${escapeHtml(lesson.explanation || '')}</div>
-                        ${lesson.practiceQuestion ? `<div class="km-inline-lesson-question"><strong>Practice:</strong> ${escapeHtml(lesson.practiceQuestion.questionText || '')}</div>` : ''}
+
+                // Bridges from each prerequisite are taught first (link
+                // teaching + transfer/integration questions), then the
+                // node's own encoding content — mirrors "Needs first"
+                // above: you learn how each prerequisite connects to this
+                // concept before learning the concept itself.
+                const [edgeLessons, nodeLesson] = await Promise.all([
+                    Promise.all(upstream.map((u) => fetchEdgeLesson(u.id, d.id).then((el) => ({ from: u, lesson: el })))),
+                    fetchNodeLesson(d.id)
+                ]);
+
+                const bridgeHtml = edgeLessons.map(({ from, lesson }) => {
+                    if (!lesson || lesson.notFound) return '';
+                    return `
+                        <div class="km-inline-detail-section">
+                            <h4>Bridge from "${escapeHtml(from.label)}"</h4>
+                            <div class="km-inline-lesson-explanation">${escapeHtml(lesson.linkTeaching || '')}</div>
+                            ${lesson.transferQuestion ? `<div class="km-inline-lesson-question"><strong>Transfer:</strong> ${escapeHtml(lesson.transferQuestion.questionText || '')}</div>` : ''}
+                            ${lesson.integrationQuestion ? `<div class="km-inline-lesson-question"><strong>Integration:</strong> ${escapeHtml(lesson.integrationQuestion.questionText || '')}</div>` : ''}
+                        </div>
                     `;
-                }
+                }).join('');
+
+                const nodeHtml = (!nodeLesson || nodeLesson.notFound)
+                    ? `<div class="km-inline-detail-item km-inline-detail-none">No lesson generated for this concept yet.</div>`
+                    : `
+                        <div class="km-inline-lesson-explanation">${escapeHtml(nodeLesson.explanation || '')}</div>
+                        ${nodeLesson.practiceQuestion ? `<div class="km-inline-lesson-question"><strong>Practice:</strong> ${escapeHtml(nodeLesson.practiceQuestion.questionText || '')}</div>` : ''}
+                    `;
+
+                lessonEl.innerHTML = bridgeHtml + nodeHtml;
                 e.target.remove();
             });
         }
