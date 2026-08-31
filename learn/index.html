@@ -12013,37 +12013,196 @@ SQIDAQAB
                 e.target.textContent = 'Loading…';
                 const lessonEl = detailEl.querySelector('.km-inline-detail-lesson');
 
-                // Bridges from each prerequisite are taught first (link
-                // teaching + transfer/integration questions), then the
-                // node's own encoding content — mirrors "Needs first"
-                // above: you learn how each prerequisite connects to this
-                // concept before learning the concept itself.
-                const [edgeLessons, nodeLesson] = await Promise.all([
-                    Promise.all(upstream.map((u) => fetchEdgeLesson(u.id, d.id).then((el) => ({ from: u, lesson: el })))),
-                    fetchNodeLesson(d.id)
-                ]);
-
-                const bridgeHtml = edgeLessons.map(({ from, lesson }) => {
-                    if (!lesson || lesson.notFound) return '';
-                    return `
-                        <div class="km-inline-detail-section">
-                            <h4>Bridge from "${escapeHtml(from.label)}"</h4>
-                            <div class="km-inline-lesson-explanation">${escapeHtml(lesson.linkTeaching || '')}</div>
-                            ${lesson.transferQuestion ? `<div class="km-inline-lesson-question"><strong>Transfer:</strong> ${escapeHtml(lesson.transferQuestion.questionText || '')}</div>` : ''}
-                            ${lesson.integrationQuestion ? `<div class="km-inline-lesson-question"><strong>Integration:</strong> ${escapeHtml(lesson.integrationQuestion.questionText || '')}</div>` : ''}
-                        </div>
-                    `;
-                }).join('');
-
-                const nodeHtml = (!nodeLesson || nodeLesson.notFound)
-                    ? `<div class="km-inline-detail-item km-inline-detail-none">No lesson generated for this concept yet.</div>`
-                    : `
-                        <div class="km-inline-lesson-explanation">${escapeHtml(nodeLesson.explanation || '')}</div>
-                        ${nodeLesson.practiceQuestion ? `<div class="km-inline-lesson-question"><strong>Practice:</strong> ${escapeHtml(nodeLesson.practiceQuestion.questionText || '')}</div>` : ''}
-                    `;
-
-                lessonEl.innerHTML = bridgeHtml + nodeHtml;
+                // The prerequisite gate — see chainDiagnosticService.ts.
+                // Fail OPEN specifically on this check (a network hiccup
+                // here shouldn't trap a student who's actually earned
+                // direct access) but NOT on any step once a real
+                // diagnostic is under way below, where silently bypassing
+                // a check that's already known to be required would
+                // defeat the whole point of it.
+                const gate = await postChainDiagnostic('/knowledge-map-v2/chain-diagnostic/start', {
+                    targetNodeId: d.id,
+                    subject: folder.subject || '',
+                    qualification: folder.qualification || '',
+                    examBoard: folder.examBoard || ''
+                });
                 e.target.remove();
+                if (!gate || !gate.requiresDiagnostic) {
+                    await renderNodeLessonContent(lessonEl, d, upstream);
+                    return;
+                }
+                renderChainDiagnosticAnswering(lessonEl, d, upstream, gate.state, gate.questionText);
+            });
+        }
+
+        // Bridges from each prerequisite are taught first (link teaching +
+        // transfer/integration questions), then the node's own encoding
+        // content — mirrors "Needs first" above: you learn how each
+        // prerequisite connects to this concept before learning the
+        // concept itself. Called once the student either needed no
+        // prerequisite check, or has just passed one.
+        async function renderNodeLessonContent(lessonEl, d, upstream) {
+            lessonEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Loading…</div>';
+            const [edgeLessons, nodeLesson] = await Promise.all([
+                Promise.all(upstream.map((u) => fetchEdgeLesson(u.id, d.id).then((el) => ({ from: u, lesson: el })))),
+                fetchNodeLesson(d.id)
+            ]);
+
+            const bridgeHtml = edgeLessons.map(({ from, lesson }) => {
+                if (!lesson || lesson.notFound) return '';
+                return `
+                    <div class="km-inline-detail-section">
+                        <h4>Bridge from "${escapeHtml(from.label)}"</h4>
+                        <div class="km-inline-lesson-explanation">${escapeHtml(lesson.linkTeaching || '')}</div>
+                        ${lesson.transferQuestion ? `<div class="km-inline-lesson-question"><strong>Transfer:</strong> ${escapeHtml(lesson.transferQuestion.questionText || '')}</div>` : ''}
+                        ${lesson.integrationQuestion ? `<div class="km-inline-lesson-question"><strong>Integration:</strong> ${escapeHtml(lesson.integrationQuestion.questionText || '')}</div>` : ''}
+                    </div>
+                `;
+            }).join('');
+
+            const nodeHtml = (!nodeLesson || nodeLesson.notFound)
+                ? `<div class="km-inline-detail-item km-inline-detail-none">No lesson generated for this concept yet.</div>`
+                : `
+                    <div class="km-inline-lesson-explanation">${escapeHtml(nodeLesson.explanation || '')}</div>
+                    ${nodeLesson.practiceQuestion ? `<div class="km-inline-lesson-question"><strong>Practice:</strong> ${escapeHtml(nodeLesson.practiceQuestion.questionText || '')}</div>` : ''}
+                `;
+
+            lessonEl.innerHTML = bridgeHtml + nodeHtml;
+        }
+
+        function findGraphNodeById(id) {
+            return nodes.find((n) => n.id === id) || fullData.nodes.find((n) => n.id === id);
+        }
+
+        async function postChainDiagnostic(path, body) {
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (!session) return null;
+                const resp = await fetch(`${COMPILE_BACKEND_URL}${path}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                    body: JSON.stringify(body)
+                });
+                if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+                return await resp.json();
+            } catch (err) {
+                console.error('LastMind: chain diagnostic request failed.', err);
+                return null;
+            }
+        }
+
+        const DIAG_TEXTAREA_STYLE = 'width:100%; margin-top:10px; background:var(--panel); border:1px solid rgba(230,215,176,0.2); border-radius:3px; padding:10px; font-family:Arial,sans-serif; font-size:12.5px; color:var(--text);';
+
+        // The ONE combined free-text question — testing definitions of
+        // every skipped prerequisite plus how each links to the next, all
+        // in one written response (see CHAIN_DIAGNOSTIC_QUESTION_PROMPT).
+        function renderChainDiagnosticAnswering(lessonEl, d, upstream, state, questionText) {
+            lessonEl.innerHTML = `
+                <div class="km-inline-detail-section">
+                    <h4>Before you jump ahead</h4>
+                    <div class="km-inline-lesson-question">${escapeHtml(questionText)}</div>
+                    <textarea class="km-diag-answer-input" rows="6" placeholder="Write your answer here…" style="${DIAG_TEXTAREA_STYLE}"></textarea>
+                    <button class="btn primary km-diag-submit-btn" style="margin-top:10px;">Submit</button>
+                </div>
+            `;
+            lessonEl.querySelector('.km-diag-submit-btn').addEventListener('click', async (ev) => {
+                const answer = lessonEl.querySelector('.km-diag-answer-input').value.trim();
+                if (!answer) return;
+                ev.target.disabled = true;
+                ev.target.textContent = 'Checking…';
+                const result = await postChainDiagnostic('/knowledge-map-v2/chain-diagnostic/submit', { state, answer });
+                if (!result) return renderChainDiagnosticError(lessonEl);
+                if (result.passed) return renderNodeLessonContent(lessonEl, d, upstream);
+                renderChainDiagnosticFailure(lessonEl, d, upstream, result.state, result.currentFailure);
+            });
+        }
+
+        // One wrong component at a time — its feedback, then the
+        // slip-vs-genuine-gap self-report exactly as specified: a slip
+        // earns one focused retry; a genuine gap denies access to the
+        // target and redirects to the failing lesson instead.
+        function renderChainDiagnosticFailure(lessonEl, d, upstream, state, currentFailure) {
+            lessonEl.innerHTML = `
+                <div class="km-inline-detail-section">
+                    <h4>Not quite</h4>
+                    <div class="km-inline-lesson-question">${escapeHtml(currentFailure.feedback || '')}</div>
+                    <div class="km-inline-detail-meta" style="margin-top:10px;">Was that a silly slip, or do you genuinely not know this yet?</div>
+                    <div class="km-diag-slip-choice" style="display:flex; gap:10px; margin-top:10px;">
+                        <button class="btn km-diag-slip-btn">It was a slip — let me retry</button>
+                        <button class="btn km-diag-noslip-btn">I don't know this yet</button>
+                    </div>
+                </div>
+            `;
+            const disableChoice = () => lessonEl.querySelectorAll('.km-diag-slip-choice button').forEach((b) => { b.disabled = true; });
+            lessonEl.querySelector('.km-diag-slip-btn').addEventListener('click', async () => {
+                disableChoice();
+                const result = await postChainDiagnostic('/knowledge-map-v2/chain-diagnostic/resolve-slip', { state, wasSlip: true });
+                if (!result) return renderChainDiagnosticError(lessonEl);
+                renderChainDiagnosticRetry(lessonEl, d, upstream, result.state, result.retryQuestionText);
+            });
+            lessonEl.querySelector('.km-diag-noslip-btn').addEventListener('click', async () => {
+                disableChoice();
+                const result = await postChainDiagnostic('/knowledge-map-v2/chain-diagnostic/resolve-slip', { state, wasSlip: false });
+                if (!result) return renderChainDiagnosticError(lessonEl);
+                handleChainDiagnosticStepResult(lessonEl, d, upstream, result);
+            });
+        }
+
+        // The one narrow re-ask after a slip claim — distinct from the
+        // original combined question.
+        function renderChainDiagnosticRetry(lessonEl, d, upstream, state, retryQuestionText) {
+            lessonEl.innerHTML = `
+                <div class="km-inline-detail-section">
+                    <h4>Quick retry</h4>
+                    <div class="km-inline-lesson-question">${escapeHtml(retryQuestionText || '')}</div>
+                    <textarea class="km-diag-answer-input" rows="4" placeholder="Write your answer here…" style="${DIAG_TEXTAREA_STYLE}"></textarea>
+                    <button class="btn primary km-diag-submit-btn" style="margin-top:10px;">Submit</button>
+                </div>
+            `;
+            lessonEl.querySelector('.km-diag-submit-btn').addEventListener('click', async (ev) => {
+                const answer = lessonEl.querySelector('.km-diag-answer-input').value.trim();
+                if (!answer) return;
+                ev.target.disabled = true;
+                ev.target.textContent = 'Checking…';
+                const result = await postChainDiagnostic('/knowledge-map-v2/chain-diagnostic/submit-retry', { state, answer });
+                if (!result) return renderChainDiagnosticError(lessonEl);
+                handleChainDiagnosticStepResult(lessonEl, d, upstream, result);
+            });
+        }
+
+        // Shared "what happens next" branch after resolve-slip(no) or
+        // submit-retry: either another failure to walk through, or the
+        // whole diagnostic is finalized (passed, or denied with a
+        // redirect to the specific failing lesson).
+        function handleChainDiagnosticStepResult(lessonEl, d, upstream, result) {
+            if (result.currentFailure) return renderChainDiagnosticFailure(lessonEl, d, upstream, result.state, result.currentFailure);
+            if (result.passed) return renderNodeLessonContent(lessonEl, d, upstream);
+            renderChainDiagnosticDenied(lessonEl, result.redirect);
+        }
+
+        function renderChainDiagnosticError(lessonEl) {
+            lessonEl.innerHTML += `<div class="km-inline-detail-item km-inline-detail-none">Something went wrong — try again in a moment.</div>`;
+        }
+
+        // A genuine gap — deny the target and jump the student straight to
+        // the specific concept/link they're actually missing. An edge
+        // failure redirects to the DOWNSTREAM node, since that's exactly
+        // where its own Start Lesson flow teaches this connection as a
+        // "Bridge from…" (see renderNodeLessonContent above).
+        function renderChainDiagnosticDenied(lessonEl, redirect) {
+            const label = redirect ? redirect.label : 'that concept';
+            lessonEl.innerHTML = `
+                <div class="km-inline-detail-section">
+                    <h4>Not yet</h4>
+                    <div class="km-inline-lesson-explanation">You'll need to cover "${escapeHtml(label)}" first before this concept will make sense.</div>
+                    <button class="btn primary km-diag-goto-btn" style="margin-top:10px;">Go to that lesson</button>
+                </div>
+            `;
+            lessonEl.querySelector('.km-diag-goto-btn').addEventListener('click', () => {
+                if (!redirect) return;
+                const targetId = redirect.type === 'node' ? redirect.nodeId : redirect.toNodeId;
+                const targetNode = findGraphNodeById(targetId);
+                if (targetNode) selectKmInlineNode(targetNode);
             });
         }
 
