@@ -668,7 +668,7 @@
         font-size: 12.5px;
     }
 
-    /* ─── Inline subject dependency map (replaces the old overlay) ─────── */
+    /* ─── Inline subject knowledge map (replaces the old overlay) ─────── */
     .km-inline-view { display: flex; flex-direction: column; height: 100%; min-height: 0; }
     .km-inline-topbar { display: flex; align-items: center; gap: 14px; padding: 4px 4px 16px; border-bottom: 1px solid rgba(230, 215, 176, 0.16); }
     .km-inline-title { font-size: 19px; margin: 0; font-weight: 700; color: var(--accent); }
@@ -4048,7 +4048,7 @@
             <div class="calendar-grid" id="calendarGrid"></div>
         </div>
 
-        <!-- Subject dependency map — replaces the old fullscreen-overlay
+        <!-- Subject knowledge map — replaces the old fullscreen-overlay
              "Your Progress" view entirely. Renders INLINE inside
              contentInner (see renderKnowledgeMapForFolder), the same main
              content area Cortex normally occupies, so clicking a subject
@@ -6240,7 +6240,7 @@ SQIDAQAB
     // renaming the page" — the completion write landed in IndexedDB fine,
     // but the in-memory array (and anything reading through it) never saw it.
     // Sidebar always shows the flat top-level folder list now - clicking a
-    // folder opens its dependency map in the main content area instead of
+    // folder opens its knowledge map in the main content area instead of
     // drilling into a subfolder/page list here (see selectFolder). Kept as
     // its own function/name rather than inlining renderFoldersRootLevel()
     // at each call site, since several other places still call
@@ -6262,7 +6262,7 @@ SQIDAQAB
         selectedPageId = null;
         const f = folders.find((x) => x.id === folderId);
         document.getElementById('topbarTitle').textContent = f ? folderLabel(f) : 'Dashboard';
-        // Clicking a folder now opens ITS dependency map in the main
+        // Clicking a folder now opens ITS knowledge map in the main
         // content area instead of the Cortex chat renderWelcome() shows -
         // Cortex remains the default/home view (still what renderWelcome()
         // renders, still what's shown before any folder is clicked, and
@@ -11765,7 +11765,7 @@ SQIDAQAB
         }
     }
 
-    // ─── Subject dependency map (api-generated) ─────────────────────────
+    // ─── Subject knowledge map (api-generated) ─────────────────────────
     // Renders INLINE into #contentInner when a subject folder is clicked
     // (see selectFolder) — replaces the old per-student "Your Progress"
     // overlay entirely. The graph itself is built ONCE per (subject,
@@ -11840,7 +11840,7 @@ SQIDAQAB
         contentInner.innerHTML = '';
         contentInner.appendChild(template.content.cloneNode(true));
 
-        contentInner.querySelector('.km-inline-title').textContent = `${folderLabel(folder)} — Dependency map`;
+        contentInner.querySelector('.km-inline-title').textContent = `${folderLabel(folder)} — Knowledge map`;
         contentInner.querySelector('.km-inline-sub').textContent = [folder.qualification, folder.examBoard].filter(Boolean).join(' · ');
 
         const emptyEl = contentInner.querySelector('.km-inline-empty');
@@ -11853,7 +11853,7 @@ SQIDAQAB
 
         const data = await fetchSubjectKnowledgeMap(folder);
         if (!data || !Array.isArray(data.nodes) || !data.nodes.length) {
-            showEmpty(`No dependency map has been generated for ${folderLabel(folder)} yet.`);
+            showEmpty(`No knowledge map has been generated for ${folderLabel(folder)} yet.`);
             return;
         }
 
