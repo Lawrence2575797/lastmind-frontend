@@ -712,6 +712,29 @@
     .km-inline-lesson-explanation { font-size: 12.5px; line-height: 1.6; margin-bottom: 10px; }
     .km-inline-lesson-question { font-size: 12.5px; line-height: 1.5; padding: 10px; background: rgba(230, 215, 176, 0.05); border-radius: 3px; }
     .km-inline-start-lesson-btn { margin-top: auto; width: 100%; padding: 10px 0; font-size: 13px; }
+    .km-inline-dashboard-btn { flex: none; font-size: 12px; padding: 7px 14px; }
+
+    /* Once a lesson actually starts, it takes over the whole page —
+       the graph + narrow "what this needs/unlocks" panel is exactly
+       right for browsing and picking a concept, but far too cramped for
+       reading a real explanation and working an answer. */
+    .km-lesson-fullpage { flex: 1; min-height: 0; overflow-y: auto; margin-top: 10px; display: flex; flex-direction: column; gap: 18px; }
+    /* Sticky, not just top-of-flow — a long lesson scrolls inside
+       .km-lesson-fullpage itself (see its own overflow-y:auto), so a
+       plain top-aligned button would scroll away with the content,
+       found the hard way while testing this. */
+    .km-lesson-back-btn { position: sticky; top: 0; z-index: 1; align-self: flex-start; font-size: 12px; padding: 7px 14px; background: var(--bg); }
+    .km-lesson-fullpage-body { max-width: 740px; width: 100%; margin: 0 auto 40px; display: flex; flex-direction: column; gap: 6px; font-size: 15px; }
+    .km-lesson-fullpage-body .km-inline-detail-eyebrow { font-size: 11.5px; }
+    .km-lesson-fullpage-body .km-inline-detail-label { font-size: 25px; line-height: 1.3; margin-bottom: 6px; }
+    .km-lesson-fullpage-body .km-inline-detail-meta { font-size: 12.5px; margin-bottom: 4px; }
+    .km-lesson-fullpage-body .km-inline-lesson-explanation { font-size: 15.5px; line-height: 1.9; margin-bottom: 0; }
+    .km-lesson-fullpage-body .km-inline-lesson-question { font-size: 15px; line-height: 1.8; padding: 18px 20px; margin-top: 10px; }
+    .km-lesson-fullpage-body h4.km-inline-lesson-question { background: none; padding: 0; margin: 18px 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6; }
+    .km-lesson-fullpage-body .km-inline-detail-section { margin-bottom: 0; padding: 26px 0; border-top: 1px solid rgba(230, 215, 176, 0.14); }
+    .km-lesson-fullpage-body .km-inline-detail-section:first-child { border-top: none; padding-top: 0; }
+    .km-lesson-fullpage-body .km-inline-detail-section h4 { font-size: 17px; text-transform: none; letter-spacing: normal; opacity: 1; color: var(--accent); font-weight: 700; margin-bottom: 12px; font-family: Georgia, serif; }
+    .km-lesson-fullpage-body .math-shortcut-wrap { max-width: 560px; }
 
     /* ─── Diagram-drawing question widget ─── */
     .diagram-widget { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
@@ -4131,6 +4154,7 @@
         <template id="kmInlineTemplate">
             <div class="km-inline-view">
                 <div class="km-inline-topbar">
+                    <button type="button" class="btn km-inline-dashboard-btn">← Dashboard</button>
                     <div>
                         <h1 class="km-inline-title"></h1>
                         <div class="km-inline-sub"></div>
@@ -4151,6 +4175,10 @@
                     <div class="km-inline-detail">
                         <div class="km-inline-detail-empty">Click any concept to see exactly what it needs first, and what it unlocks.</div>
                     </div>
+                </div>
+                <div class="km-lesson-fullpage" style="display:none;">
+                    <button type="button" class="btn km-lesson-back-btn">← Back to map</button>
+                    <div class="km-lesson-fullpage-body"></div>
                 </div>
             </div>
         </template>
@@ -11897,6 +11925,23 @@ SQIDAQAB
         }
     }
 
+    // Once a lesson actually starts, its content takes over the whole
+    // page (the graph + narrow "needs first/unlocks" panel stays exactly
+    // as it was for browsing/picking a concept) — these operate on
+    // `contentInner` directly rather than closing over it, so both the
+    // one-time-attached back button (in renderKnowledgeMapForFolder) and
+    // the Start Lesson handler (in renderKmInlineGraph, a sibling
+    // function, re-run on every theme switch) can call the same pair
+    // without duplicating listeners.
+    function showLessonFullpage(contentInner) {
+        contentInner.querySelector('.km-inline-workspace').style.display = 'none';
+        contentInner.querySelector('.km-lesson-fullpage').style.display = 'flex';
+    }
+    function showKmWorkspace(contentInner) {
+        contentInner.querySelector('.km-lesson-fullpage').style.display = 'none';
+        contentInner.querySelector('.km-inline-workspace').style.display = 'grid';
+    }
+
     async function fetchEdgeLesson(fromNodeId, toNodeId) {
         try {
             const { data: { session } } = await supabaseClient.auth.getSession();
@@ -11926,6 +11971,14 @@ SQIDAQAB
 
         contentInner.querySelector('.km-inline-title').textContent = `${folderLabel(folder)} — Knowledge map`;
         contentInner.querySelector('.km-inline-sub').textContent = [folder.qualification, folder.examBoard].filter(Boolean).join(' · ');
+
+        // Clicking a folder replaced the whole main content area with no
+        // way back — this is the fix: same reset selectFolder(null)/the
+        // Cortex sidebar tab already use elsewhere.
+        contentInner.querySelector('.km-inline-dashboard-btn').addEventListener('click', () => {
+            openCortexChat(null, true);
+        });
+        contentInner.querySelector('.km-lesson-back-btn').addEventListener('click', () => showKmWorkspace(contentInner));
 
         const emptyEl = contentInner.querySelector('.km-inline-empty');
         const workspaceEl = contentInner.querySelector('.km-inline-workspace');
@@ -12105,6 +12158,7 @@ SQIDAQAB
             .on('end', fitKmGraphToView);
 
         const detailEl = contentInner.querySelector('.km-inline-detail');
+        const lessonFullpageBodyEl = contentInner.querySelector('.km-lesson-fullpage-body');
         const stateLabel = { 0: 'Not started', 1: 'In progress', 2: 'Mastered' };
 
         // Click-to-highlight ONLY — every node/link is always visible at
@@ -12136,13 +12190,16 @@ SQIDAQAB
                 <div class="km-inline-detail-meta">${stateLabel[d.state]}</div>
                 <div class="km-inline-detail-section"><h4>Needs first</h4>${upItems}</div>
                 <div class="km-inline-detail-section"><h4>Builds on this</h4>${downItems}</div>
-                <div class="km-inline-detail-lesson"></div>
                 <button class="btn primary km-inline-start-lesson-btn">Start lesson</button>
             `;
             detailEl.querySelector('.km-inline-start-lesson-btn').addEventListener('click', async (e) => {
-                e.target.disabled = true;
-                e.target.textContent = 'Loading…';
-                const lessonEl = detailEl.querySelector('.km-inline-detail-lesson');
+                // The lesson takes over the whole page the moment it
+                // starts — the graph/detail panel this button lives in
+                // stays exactly as it is underneath, ready for "← Back to
+                // map" to reveal again unchanged.
+                showLessonFullpage(contentInner);
+                const lessonEl = lessonFullpageBodyEl;
+                lessonEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Loading…</div>';
 
                 // The prerequisite gate — see chainDiagnosticService.ts.
                 // Fail OPEN specifically on this check (a network hiccup
@@ -12157,7 +12214,10 @@ SQIDAQAB
                     qualification: folder.qualification || '',
                     examBoard: folder.examBoard || ''
                 });
-                e.target.remove();
+                // No longer removed — the button lives in the graph panel,
+                // now hidden behind the full-page lesson, and should still
+                // work (just re-runs the same gate+render) if the student
+                // comes back via "← Back to map" and starts it again.
                 if (!gate || !gate.requiresDiagnostic) {
                     await renderNodeLessonContent(lessonEl, d, upstream);
                     return;
