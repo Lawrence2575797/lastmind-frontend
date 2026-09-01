@@ -494,23 +494,13 @@
         transition: stroke 0.15s ease, stroke-opacity 0.15s ease, stroke-width 0.15s ease;
     }
 
-    /* Click-to-highlight: everything not directly connected to the
-       selected node recedes, and the node's own edges/neighbours light up
-       — this is what actually makes a 1200-node graph readable, since the
-       full unfiltered mass of faint lines is illegible on its own. */
-    .km-link.km-dimmed {
-        stroke-opacity: 0.05;
-    }
+    /* Click-to-highlight: the clicked node's own edges/neighbours light up
+       ON TOP of the normal graph — every link stays visible all the time,
+       this only ever ADDS emphasis, never hides anything else. */
     .km-link.km-highlighted {
         stroke: var(--accent);
         stroke-opacity: 0.9;
         stroke-width: 2px;
-    }
-    .km-node-group {
-        transition: opacity 0.15s ease;
-    }
-    .km-node-group.km-dimmed {
-        opacity: 0.25;
     }
     .km-node-group.km-selected .km-node-shape {
         stroke: var(--accent);
@@ -6037,12 +6027,11 @@ SQIDAQAB
 
         const labelWrap = document.createElement('div');
         labelWrap.className = 'folder-item-label';
-        labelWrap.innerHTML = `
-            ${escapeHtml(folderLabel(f))}
-            <div class="folder-meta-row">
-                <span class="folder-meta">${(f.subfolders || []).length} subfolder(s) · ${(f.pages || []).length} page(s)</span>
-            </div>
-        `;
+        // Subfolder/page counts removed — that structure is no longer
+        // navigated directly (see renderKnowledgeMapForFolder), so the
+        // count was a leftover reference to something the sidebar no
+        // longer drills into.
+        labelWrap.textContent = folderLabel(f);
 
         const menuWrap = buildItemMenu([
             { label: 'Rename Subject', onClick: () => openRenameFolderModal(f.id) },
@@ -11968,7 +11957,31 @@ SQIDAQAB
         svg.selectAll('*').remove();
         svg.attr('viewBox', [0, 0, width, height]);
         const zoomLayer = svg.append('g');
-        svg.call(d3.zoom().scaleExtent([0.3, 3]).on('zoom', (event) => zoomLayer.attr('transform', event.transform)));
+        // 0.3 as a lower bound only ever fit a handful of nodes — a
+        // subject-wide graph (1000+ nodes) needs to be able to shrink much
+        // further to fit the whole thing on screen at once. fitKmGraphToView
+        // below picks the actual sensible default once the layout has real
+        // positions; this floor just makes sure manual zoom-out is never
+        // artificially capped short of that.
+        const zoomBehavior = d3.zoom().scaleExtent([0.01, 3]).on('zoom', (event) => zoomLayer.attr('transform', event.transform));
+        svg.call(zoomBehavior);
+
+        function fitKmGraphToView() {
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            nodes.forEach((n) => {
+                if (typeof n.x !== 'number') return;
+                minX = Math.min(minX, n.x - n.r); maxX = Math.max(maxX, n.x + n.r);
+                minY = Math.min(minY, n.y - n.r); maxY = Math.max(maxY, n.y + n.r);
+            });
+            const w = maxX - minX, h = maxY - minY;
+            if (!isFinite(w) || !isFinite(h) || w <= 0 || h <= 0) return;
+            const fitScale = Math.min(width / w, height / h) * 0.9;
+            const scale = Math.min(3, Math.max(0.01, fitScale));
+            const tx = width / 2 - scale * (minX + w / 2);
+            const ty = height / 2 - scale * (minY + h / 2);
+            zoomBehavior.scaleExtent([Math.min(0.01, scale * 0.5), 3]);
+            svg.transition().duration(400).call(zoomBehavior.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+        }
 
         // Cluster by theme when showing "All" (mirrors the old per-subfolder
         // clustering) — a single-theme view has nothing to cluster against.
@@ -12030,26 +12043,28 @@ SQIDAQAB
                 linkSelection.attr('x1', (d) => d.source.x).attr('y1', (d) => d.source.y)
                     .attr('x2', (d) => d.target.x).attr('y2', (d) => d.target.y);
                 nodeGroup.attr('transform', (d) => `translate(${d.x},${d.y})`);
-            });
+            })
+            .on('end', fitKmGraphToView);
 
         const detailEl = contentInner.querySelector('.km-inline-detail');
         const stateLabel = { 0: 'Not started', 1: 'In progress', 2: 'Mastered' };
+
+        // Click-to-highlight ONLY — every node/link is always visible at
+        // its normal baseline; this purely ADDS a brighter ring/stroke to
+        // the clicked node and its direct edges, it never dims or hides
+        // anything else. Kept separate from selectKmInlineNode below so
+        // the initial auto-selected node on load doesn't retroactively
+        // highlight anything either — highlighting only ever follows an
+        // actual click.
+        function highlightKmConnections(d) {
+            nodeGroup.classed('km-selected', (n) => n.id === d.id);
+            linkSelection.classed('km-highlighted', (e) => e.source.id === d.id || e.target.id === d.id);
+        }
 
         function selectKmInlineNode(d) {
             const nodeById = new Map(fullData.nodes.map((n) => [n.id, n]));
             const upstream = fullData.edges.filter((e) => e.target === d.id).map((e) => nodeById.get(e.source)).filter(Boolean);
             const downstream = fullData.edges.filter((e) => e.source === d.id).map((e) => nodeById.get(e.target)).filter(Boolean);
-
-            // Click-to-highlight: dim everything except this node and what
-            // it directly links to (either direction) — reading a 1000+
-            // node graph at full brightness all the time is illegible;
-            // this is the actual fix for that.
-            const connectedIds = new Set([d.id, ...upstream.map((n) => n.id), ...downstream.map((n) => n.id)]);
-            nodeGroup.classed('km-selected', (n) => n.id === d.id);
-            nodeGroup.classed('km-dimmed', (n) => !connectedIds.has(n.id));
-            linkSelection
-                .classed('km-highlighted', (e) => e.source.id === d.id || e.target.id === d.id)
-                .classed('km-dimmed', (e) => e.source.id !== d.id && e.target.id !== d.id);
 
             const upItems = upstream.length
                 ? upstream.map((n) => `<div class="km-inline-detail-item">${escapeHtml(n.label)}</div>`).join('')
@@ -12264,7 +12279,7 @@ SQIDAQAB
             });
         }
 
-        nodeGroup.on('click', (event, d) => selectKmInlineNode(d));
+        nodeGroup.on('click', (event, d) => { highlightKmConnections(d); selectKmInlineNode(d); });
         if (nodes.length) selectKmInlineNode(nodes[0]);
     }
 
