@@ -814,6 +814,20 @@
     .math-shortcut-editor .int-limits { display: inline-flex; flex-direction: column; align-items: flex-start; vertical-align: middle; margin-left: 0.1em; font-size: 0.65em; line-height: 1.1; }
     .math-shortcut-editor .int-upper, .math-shortcut-editor .int-lower { padding: 0 0.15em; min-width: 0.6em; color: var(--accent); }
     .math-shortcut-hint { font-size: 11px; color: var(--text); opacity: 0.5; }
+    .math-shortcut-mode-badge {
+        display: inline-block;
+        margin-top: 4px;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 10.5px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        background: rgba(230, 215, 176, 0.12);
+        color: var(--accent);
+        border: 1px solid rgba(230, 215, 176, 0.25);
+        width: fit-content;
+    }
+    .math-shortcut-mode-badge.writing { opacity: 0.7; }
 
     .km-help-status {
         margin-top: 10px !important;
@@ -11666,11 +11680,17 @@ SQIDAQAB
     };
     const MATH_SHORTCUT_TWO_CHAR_GLOBAL = { '<=': '≤', '>=': '≥', '!=': '≠' };
     const MATH_SHORTCUT_ZWS_GLOBAL = '​';
-    // "and/or" is the one common English construction plain immediate "/"
-    // would otherwise mangle into a fraction — see createSmartAnswerEditor
-    // below.
-    const MATH_SHORTCUT_FRACTION_BLOCKLIST_GLOBAL = new Set(['and', 'or', 'he', 'she', 'his', 'her', 'him']);
 
+    // Automatic word/maths detection (backslash escapes, a fraction
+    // blocklist) turned out unreliable in real use — the student reported
+    // it still wasn't distinguishing correctly. Replaced with an explicit
+    // mode the student controls directly: maths shortcuts are ON by
+    // default (this is the Maths Tool, most of what's typed here is
+    // maths), and typing "#" toggles into plain English mode until the
+    // next "#" toggles back — e.g. "#integrate# x^(2) +3x" types the word
+    // "integrate" literally, then resumes maths shortcuts. The "#"
+    // keystrokes themselves are consumed (preventDefault) and never
+    // inserted, so they never show up in the answer.
     function createSmartAnswerEditor(placeholder) {
         const wrap = document.createElement('div');
         wrap.className = 'math-shortcut-wrap';
@@ -11681,8 +11701,18 @@ SQIDAQAB
         wrap.appendChild(editor);
         const hint = document.createElement('div');
         hint.className = 'math-shortcut-hint';
-        hint.textContent = 'Write normally. Maths: ^ power, _ subscript, / fraction (after a number), ] evaluate-between-limits, * ×, ~ √, \\p \\t \\d \\a \\b \\s \\l \\w \\x \\y Greek letters, \\f function, \\i integral';
+        hint.textContent = 'Maths keyboard is on by default: ^ power, _ subscript, / fraction (after a number), ] evaluate-between-limits, * ×, ~ √, Shift+letter Greek, f function, Shift+I integral. Type # to switch to plain writing, # again to switch back.';
         wrap.appendChild(hint);
+        const modeBadge = document.createElement('div');
+        modeBadge.className = 'math-shortcut-mode-badge';
+        wrap.appendChild(modeBadge);
+
+        let writingMode = false;
+        function updateModeBadge() {
+            modeBadge.textContent = writingMode ? 'Mode: writing (# for maths)' : 'Mode: maths (# for writing)';
+            modeBadge.classList.toggle('writing', writingMode);
+        }
+        updateModeBadge();
 
         function insertTextAtCaret(text) {
             const sel = window.getSelection();
@@ -11875,32 +11905,22 @@ SQIDAQAB
             range.setStart(node, offset - 1); range.collapse(true);
             sel.removeAllRanges(); sel.addRange(range);
         }
-        function maybeConvertEscape() {
-            const sel = window.getSelection();
-            if (!sel.rangeCount || !sel.isCollapsed) return;
-            const node = sel.getRangeAt(0).startContainer;
-            const offset = sel.getRangeAt(0).startOffset;
-            if (node.nodeType !== 3 || offset < 2) return;
-            const last2 = node.textContent.slice(offset - 2, offset);
-            if (last2.charAt(0) !== '\\') return;
-            const letter = last2.charAt(1);
-            const lower = letter.toLowerCase();
-            const greek = MATH_SHORTCUT_GREEK_MAP_GLOBAL[lower];
-            const isFunc = lower === 'f';
-            const isIntegral = lower === 'i';
-            if (!greek && !isFunc && !isIntegral) return;
-
-            node.textContent = node.textContent.slice(0, offset - 2) + node.textContent.slice(offset);
-            const range = document.createRange();
-            range.setStart(node, offset - 2); range.collapse(true);
-            sel.removeAllRanges(); sel.addRange(range);
-
-            if (isFunc) { insertFuncF(); return; }
-            if (isIntegral) { insertStyledSymbol('∫'); pendingIntegral = true; return; }
-            insertStyledSymbol(letter === lower ? greek.lower : greek.upper);
-        }
-
         editor.addEventListener('keydown', (ev) => {
+            // "#" always toggles the mode, in either mode, and is never
+            // itself inserted. Clears any in-flight maths state (a pending
+            // prime-chain or integral-limits trigger) so switching modes
+            // mid-expression can never leave stale state to misfire once
+            // the student switches back.
+            if (ev.key === '#') {
+                ev.preventDefault();
+                writingMode = !writingMode;
+                funcPrimeLanding = null; funcPrimeSpan = null; pendingIntegral = false;
+                updateModeBadge();
+                return;
+            }
+
+            if (writingMode) return; // plain typing — every key behaves like an ordinary textarea.
+
             const extendingPrimes = funcPrimeLanding && ev.key === "'" && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && isCaretAt(funcPrimeLanding, 1);
             if (extendingPrimes) {
                 ev.preventDefault();
@@ -11920,6 +11940,17 @@ SQIDAQAB
             if (ev.key === ']' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
                 ev.preventDefault(); insertTextAtCaret(']'); growLimitBoxes(); return;
             }
+            if (ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+                const lower = ev.key.toLowerCase();
+                if (MATH_SHORTCUT_GREEK_MAP_GLOBAL[lower] && ev.key.length === 1) {
+                    ev.preventDefault();
+                    const capsOn = ev.getModifierState && ev.getModifierState('CapsLock');
+                    insertStyledSymbol(capsOn ? MATH_SHORTCUT_GREEK_MAP_GLOBAL[lower].upper : MATH_SHORTCUT_GREEK_MAP_GLOBAL[lower].lower);
+                    return;
+                }
+                if (lower === 'i' && ev.key.length === 1) { ev.preventDefault(); insertStyledSymbol('∫'); pendingIntegral = true; return; }
+            }
+            if (ev.key === 'f' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) { ev.preventDefault(); insertFuncF(); return; }
             if (ev.key === '*') { ev.preventDefault(); insertStyledSymbol('×'); return; }
             if (ev.key === '~') { ev.preventDefault(); insertStyledSymbol('√'); return; }
             if (ev.key === '^') { ev.preventDefault(); startZone('sup'); return; }
@@ -11928,9 +11959,8 @@ SQIDAQAB
                 const fracPart = currentFracPart();
                 if (fracPart && fracPart.className === 'frac-num') { ev.preventDefault(); advanceFracNumToDen(fracPart); return; }
                 if (fracPart && fracPart.className === 'frac-den') return;
-                const token = findTokenBeforeCaret();
-                if (token && MATH_SHORTCUT_FRACTION_BLOCKLIST_GLOBAL.has(token.text.toLowerCase())) return;
                 ev.preventDefault();
+                const token = findTokenBeforeCaret();
                 if (token) {
                     const delRange = document.createRange();
                     delRange.setStart(token.node, token.start); delRange.setEnd(token.node, token.end);
@@ -11958,7 +11988,7 @@ SQIDAQAB
             }
             if (intZone && intZone.className === 'int-lower' && ev.key === ' ') { ev.preventDefault(); exitIntLimits(intZone); return; }
         });
-        editor.addEventListener('input', () => { maybeConvertTwoChar(); maybeConvertEscape(); });
+        editor.addEventListener('input', () => { if (!writingMode) maybeConvertTwoChar(); });
 
         function serializeNode(node) {
             if (node.nodeType === 3) return node.textContent.replace(/​/g, '');
