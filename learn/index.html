@@ -9709,6 +9709,19 @@ SQIDAQAB
             return `<p class="keys-earned-line">🔑 +${amount} Keys earned!</p>`;
         }
 
+        // Verify pays a coefficient of the same base a real lesson would
+        // (see knowledgeMap.ts's KM_VERIFY_COEFFICIENT_FREE/PREMIUM) —
+        // spelled out explicitly rather than just showing the final
+        // number, so it's clear this was a discount, not the full reward,
+        // and exactly how much was left unearned by not doing the lesson
+        // on LastMind directly.
+        function verifyKeysEarnedHtml(amount, base, coefficient) {
+            if (!amount) return '';
+            const pct = Math.round(coefficient * 100);
+            const missed = base - amount;
+            return `<p class="keys-earned-line">🔑 +${amount} Keys (Verify pays ${pct}% of a full lesson's ${base}${missed > 0 ? ` — you missed ${missed} by not learning this on LastMind` : ''})</p>`;
+        }
+
         // Reuses the exact .lesson-outline-item checkbox visual pattern
         // already used for the pre-lesson "which of these are you unsure of"
         // checklist — same look, a different moment: post-hoc "was this
@@ -13030,7 +13043,7 @@ SQIDAQAB
                         <div class="km-inline-detail-item km-inline-detail-item-action">
                             <span>${escapeHtml(n.label)}</span>
                             ${otherEncoded
-                                ? `<button class="btn km-review-connection-btn" data-idx="${idx}">Review connection</button>${isPaidUser ? `<button class="btn km-verify-connection-btn" data-idx="${idx}">Verify</button>` : ''}`
+                                ? `<button class="btn km-review-connection-btn" data-idx="${idx}">Review connection</button><button class="btn km-verify-connection-btn" data-idx="${idx}">Verify</button>`
                                 : `<button class="btn km-encode-first-btn" data-idx="${idx}">Encode this first</button>`}
                         </div>
                     `;
@@ -13060,7 +13073,7 @@ SQIDAQAB
                 <div class="km-inline-detail-section"><h4>Builds on this</h4>${downItems}</div>
                 <div class="km-inline-detail-actions">
                     <button class="btn km-inline-view-btn">View</button>
-                    ${isPaidUser ? '<button class="btn km-inline-verify-btn">Verify</button>' : ''}
+                    <button class="btn km-inline-verify-btn">Verify</button>
                     <button class="btn primary km-inline-start-lesson-btn">Start lesson</button>
                 </div>
             `;
@@ -13767,7 +13780,12 @@ SQIDAQAB
             const scheduleHtml = result.schedule
                 ? `<div class="km-inline-detail-item">Next review: <strong>${escapeHtml(formatDueIn(result.schedule.due))}</strong></div>`
                 : '';
-            const keysEarnedHtmlStr = keysEarnedHtml(result.keysEarned);
+            // Verify responses carry keysBase/verifyCoefficient alongside
+            // keysEarned so the discount is shown explicitly, not just the
+            // final number — a plain lesson pass never has these fields.
+            const keysEarnedHtmlStr = result.verifyCoefficient
+                ? verifyKeysEarnedHtml(result.keysEarned, result.keysBase, result.verifyCoefficient)
+                : keysEarnedHtml(result.keysEarned);
             const rec = result.recommendation;
             const recHtml = rec ? `
                 <div class="km-inline-detail-section">
