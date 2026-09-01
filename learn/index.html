@@ -713,6 +713,41 @@
     .km-inline-lesson-question { font-size: 12.5px; line-height: 1.5; padding: 10px; background: rgba(230, 215, 176, 0.05); border-radius: 3px; }
     .km-inline-start-lesson-btn { margin-top: auto; width: 100%; padding: 10px 0; font-size: 13px; }
 
+    /* ─── Diagram-drawing question widget ─── */
+    .diagram-widget { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
+    .diagram-palette { display: flex; flex-wrap: wrap; gap: 6px; }
+    .diagram-palette-btn {
+        display: flex; flex-direction: column; align-items: center; gap: 3px;
+        background: var(--panel); border: 1px solid rgba(230, 215, 176, 0.18); border-radius: 3px;
+        padding: 5px 7px; cursor: pointer; color: var(--text); font-family: Arial, sans-serif; font-size: 10px;
+    }
+    .diagram-palette-btn:hover { border-color: var(--accent); }
+    .diagram-palette-preview { width: 36px; height: 30px; }
+    .diagram-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .diagram-tool-btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+    .diagram-label-input {
+        background: var(--panel); border: 1px solid rgba(230, 215, 176, 0.2); border-radius: 3px;
+        padding: 6px 8px; font-size: 12px; color: var(--text); font-family: Arial, sans-serif; width: 140px;
+    }
+    .diagram-canvas {
+        width: 100%; max-width: 640px; aspect-ratio: 640 / 440; background: var(--panel);
+        border: 1px solid rgba(230, 215, 176, 0.18); border-radius: 6px; touch-action: none;
+    }
+    .diagram-axis { stroke: rgba(230, 215, 176, 0.6); stroke-width: 2; }
+    .diagram-axis-label { fill: var(--text); opacity: 0.6; font-size: 13px; font-family: Arial, sans-serif; }
+    .diagram-curve { fill: none; stroke: var(--accent); stroke-width: 2.5; }
+    .diagram-curve-given { stroke-opacity: 0.45; stroke-dasharray: 5 3; }
+    .diagram-curve-placed { cursor: grab; }
+    .diagram-curve-tag { fill: var(--accent); font-size: 12px; font-weight: 700; font-family: Arial, sans-serif; }
+    .diagram-shade { fill: rgba(230, 215, 176, 0.28); stroke: rgba(230, 215, 176, 0.5); stroke-width: 1; }
+    .diagram-shade-point { fill: var(--accent); }
+    .diagram-shade-draft-line { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 3 3; }
+    .diagram-arrow { stroke: #c98a4b; stroke-width: 2; }
+    .diagram-arrowhead-path { fill: #c98a4b; }
+    .diagram-label { fill: var(--text); font-size: 13px; font-weight: 600; cursor: grab; font-family: Arial, sans-serif; }
+    .diagram-submit-btn { align-self: flex-start; }
+    .diagram-result { font-size: 12.5px; }
+
     .km-help-status {
         margin-top: 10px !important;
         font-size: 12px !important;
@@ -12116,35 +12151,342 @@ SQIDAQAB
         // prerequisite check, or has just passed one.
         async function renderNodeLessonContent(lessonEl, d, upstream) {
             lessonEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Loading…</div>';
+            // Each upstream's OWN lesson is fetched too (not just the edge
+            // lesson bridging to it) purely to read its diagramSpec.curves
+            // — that becomes the ATOMIC edge question's "given" context
+            // (the prerequisite's diagram, already known, drawn fixed) so
+            // the student only has to add whatever this edge actually
+            // introduces, never redraw what they already learned.
             const [edgeLessons, nodeLesson] = await Promise.all([
-                Promise.all(upstream.map((u) => fetchEdgeLesson(u.id, d.id).then((el) => ({ from: u, lesson: el })))),
+                Promise.all(upstream.map((u) => Promise.all([fetchEdgeLesson(u.id, d.id), fetchNodeLesson(u.id)]).then(([el, ul]) => ({ from: u, lesson: el, upstreamLesson: ul })))),
                 fetchNodeLesson(d.id)
             ]);
 
-            const bridgeHtml = edgeLessons.map(({ from, lesson }) => {
-                if (!lesson || lesson.notFound) return '';
-                return `
-                    <div class="km-inline-detail-section">
-                        <h4>Bridge from "${escapeHtml(from.label)}"</h4>
-                        <div class="km-inline-lesson-explanation">${escapeHtml(lesson.linkTeaching || '')}</div>
-                        ${lesson.transferQuestion ? `<div class="km-inline-lesson-question"><strong>Transfer:</strong> ${escapeHtml(lesson.transferQuestion.questionText || '')}</div>` : ''}
-                        ${lesson.integrationQuestion ? `<div class="km-inline-lesson-question"><strong>Integration:</strong> ${escapeHtml(lesson.integrationQuestion.questionText || '')}</div>` : ''}
-                    </div>
-                `;
-            }).join('');
+            const bridgeSections = edgeLessons.map(({ from, lesson, upstreamLesson }) => {
+                if (!lesson || lesson.notFound) return null;
+                const given = (upstreamLesson && upstreamLesson.practiceQuestion && upstreamLesson.practiceQuestion.diagramSpec && upstreamLesson.practiceQuestion.diagramSpec.curves) || null;
+                return { from, lesson, given };
+            }).filter(Boolean);
 
+            const bridgeHtml = bridgeSections.map(({ from, lesson }, idx) => `
+                <div class="km-inline-detail-section">
+                    <h4>Bridge from "${escapeHtml(from.label)}"</h4>
+                    <div class="km-inline-lesson-explanation">${escapeHtml(lesson.linkTeaching || '')}</div>
+                    ${lesson.transferQuestion ? `
+                        <div class="km-inline-lesson-question"><strong>Transfer:</strong> ${lesson.transferQuestion.diagramSpec ? '' : escapeHtml(lesson.transferQuestion.questionText || '')}</div>
+                        ${lesson.transferQuestion.diagramSpec ? `<div id="km-diagram-bridge-transfer-${idx}"></div>` : ''}
+                    ` : ''}
+                    ${lesson.integrationQuestion ? `
+                        <div class="km-inline-lesson-question"><strong>Integration:</strong> ${lesson.integrationQuestion.diagramSpec ? '' : escapeHtml(lesson.integrationQuestion.questionText || '')}</div>
+                        ${lesson.integrationQuestion.diagramSpec ? `<div id="km-diagram-bridge-integration-${idx}"></div>` : ''}
+                    ` : ''}
+                </div>
+            `).join('');
+
+            const nodeHasDiagram = nodeLesson && nodeLesson.practiceQuestion && nodeLesson.practiceQuestion.diagramSpec;
             const nodeHtml = (!nodeLesson || nodeLesson.notFound)
                 ? `<div class="km-inline-detail-item km-inline-detail-none">No lesson generated for this concept yet.</div>`
                 : `
                     <div class="km-inline-lesson-explanation">${escapeHtml(nodeLesson.explanation || '')}</div>
-                    ${nodeLesson.practiceQuestion ? `<div class="km-inline-lesson-question"><strong>Practice:</strong> ${escapeHtml(nodeLesson.practiceQuestion.questionText || '')}</div>` : ''}
+                    ${nodeLesson.practiceQuestion ? `
+                        <div class="km-inline-lesson-question"><strong>Practice:</strong> ${nodeHasDiagram ? '' : escapeHtml(nodeLesson.practiceQuestion.questionText || '')}</div>
+                        ${nodeHasDiagram ? `<div id="km-diagram-node-practice"></div>` : ''}
+                    ` : ''}
                 `;
 
             lessonEl.innerHTML = bridgeHtml + nodeHtml;
+
+            // Mount each diagram widget now that its container actually
+            // exists in the DOM — MECHANISTIC (the node's own question,
+            // build the whole diagram from scratch, no `given`) vs ATOMIC
+            // (an edge's question, the prerequisite's own curves are
+            // pre-drawn/fixed via `given`, only the new element is graded)
+            // per this feature's own design.
+            bridgeSections.forEach(({ from, lesson, given }, idx) => {
+                if (lesson.transferQuestion && lesson.transferQuestion.diagramSpec) {
+                    renderDiagramWidget(lessonEl.querySelector(`#km-diagram-bridge-transfer-${idx}`), given, (answer) =>
+                        postChainDiagnostic('/knowledge-map-v2/diagram-question/submit', { fromNodeId: from.id, toNodeId: d.id, questionType: 'transfer', answer })
+                    );
+                }
+                if (lesson.integrationQuestion && lesson.integrationQuestion.diagramSpec) {
+                    renderDiagramWidget(lessonEl.querySelector(`#km-diagram-bridge-integration-${idx}`), given, (answer) =>
+                        postChainDiagnostic('/knowledge-map-v2/diagram-question/submit', { fromNodeId: from.id, toNodeId: d.id, questionType: 'integration', answer })
+                    );
+                }
+            });
+            if (nodeHasDiagram) {
+                renderDiagramWidget(lessonEl.querySelector('#km-diagram-node-practice'), null, (answer) =>
+                    postChainDiagnostic('/knowledge-map-v2/diagram-question/submit', { nodeId: d.id, questionType: 'practice', answer })
+                );
+            }
         }
 
         function findGraphNodeById(id) {
             return nodes.find((n) => n.id === id) || fullData.nodes.find((n) => n.id === id);
+        }
+
+        // ─── Diagram-drawing question widget ───
+        // Mirrors diagramGradingService.ts's geometry contract EXACTLY —
+        // canvas size, axis segments, and the curve-shape local-coordinate
+        // library are duplicated here (no shared module between this
+        // plain-JS frontend and the backend TS) — any change to one MUST
+        // be mirrored in the other or grading silently stops matching
+        // what's drawn.
+        const DIAGRAM_CANVAS_WIDTH = 640;
+        const DIAGRAM_CANVAS_HEIGHT = 440;
+        const DIAGRAM_PRICE_AXIS = [{ x: 70, y: 20 }, { x: 70, y: 390 }];
+        const DIAGRAM_QUANTITY_AXIS = [{ x: 60, y: 380 }, { x: 620, y: 380 }];
+        const DIAGRAM_CURVE_SHAPES = {
+            demand: [{ x: 0, y: 0 }, { x: 130, y: 80 }, { x: 260, y: 160 }],
+            supply: [{ x: 0, y: 160 }, { x: 130, y: 80 }, { x: 260, y: 0 }],
+            generic_price_line: [{ x: 0, y: 0 }, { x: 260, y: 0 }],
+            generic_quantity_line: [{ x: 0, y: 0 }, { x: 0, y: 220 }],
+            marginal_cost: [{ x: 0, y: 70 }, { x: 70, y: 15 }, { x: 140, y: 10 }, { x: 210, y: 35 }, { x: 260, y: 85 }],
+            average_cost: [{ x: 0, y: 100 }, { x: 90, y: 48 }, { x: 170, y: 46 }, { x: 260, y: 95 }],
+            world_supply: [{ x: 0, y: 110 }, { x: 260, y: 110 }],
+            average_revenue: [{ x: 0, y: 0 }, { x: 130, y: 80 }, { x: 260, y: 160 }],
+            marginal_revenue: [{ x: 0, y: 0 }, { x: 65, y: 80 }, { x: 130, y: 160 }],
+            ad: [{ x: 0, y: 0 }, { x: 130, y: 80 }, { x: 260, y: 160 }],
+            as_curve: [{ x: 0, y: 160 }, { x: 130, y: 80 }, { x: 260, y: 0 }],
+            lras_classical: [{ x: 0, y: 0 }, { x: 0, y: 220 }],
+            lras_keynesian: [{ x: 0, y: 200 }, { x: 100, y: 190 }, { x: 170, y: 120 }, { x: 220, y: 40 }, { x: 260, y: 0 }],
+            phillips: [{ x: 0, y: 0 }, { x: 130, y: 80 }, { x: 260, y: 160 }],
+            laffer: [{ x: 0, y: 200 }, { x: 65, y: 60 }, { x: 130, y: 20 }, { x: 195, y: 60 }, { x: 260, y: 200 }],
+            lorenz_curve: [{ x: 0, y: 200 }, { x: 80, y: 170 }, { x: 150, y: 120 }, { x: 210, y: 60 }, { x: 260, y: 0 }],
+            line_of_equality: [{ x: 0, y: 200 }, { x: 260, y: 0 }],
+            ppf: [{ x: 0, y: 0 }, { x: 60, y: 100 }, { x: 130, y: 160 }, { x: 200, y: 200 }, { x: 260, y: 215 }],
+        };
+        const DIAGRAM_PALETTE_LABELS = {
+            demand: 'Demand', supply: 'Supply', generic_price_line: 'Price line', generic_quantity_line: 'Quantity line',
+            marginal_cost: 'MC', average_cost: 'AC', world_supply: 'World supply',
+            average_revenue: 'AR', marginal_revenue: 'MR', ad: 'AD', as_curve: 'AS',
+            lras_classical: 'LRAS (classical)', lras_keynesian: 'LRAS (Keynesian)',
+            phillips: 'Phillips', laffer: 'Laffer', lorenz_curve: 'Lorenz curve', line_of_equality: 'Line of equality',
+            ppf: 'PPF',
+        };
+        // Every "given" (pre-known, from a prerequisite) curve shares this
+        // one fixed origin — matches how the grading engine's own real
+        // demand+supply crossing was verified (both placed at an identical
+        // origin, letting their opposite slopes cross naturally), not an
+        // arbitrary choice.
+        const DIAGRAM_GIVEN_ORIGIN = { x: 140, y: 90 };
+
+        function diagramTranslate(local, x, y) { return local.map((p) => ({ x: p.x + x, y: p.y + y })); }
+        function diagramPolylinePoints(poly) { return poly.map((p) => `${p.x},${p.y}`).join(' '); }
+        function diagramBaseType(type) { return (type || '').replace(/_shift_(left|right)$/, ''); }
+        function svgElement(tag, attrs) {
+            const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+            Object.entries(attrs || {}).forEach(([k, v]) => el.setAttribute(k, v));
+            return el;
+        }
+
+        let diagramWidgetSeq = 0;
+
+        // Renders one diagram-drawing question into `container`. `given`
+        // (optional array of {id, type}) is what a prerequisite already
+        // established — drawn fixed/dashed, never interactive, never part
+        // of what's submitted (see diagramGradingService.ts's own
+        // DiagramSpec.given — grading resolves these directly, it never
+        // looks for them in the student's answer). `onSubmit(answer)` does
+        // the actual POST and must resolve to the grading result.
+        function renderDiagramWidget(container, given, onSubmit) {
+            const uid = `dw${diagramWidgetSeq++}`;
+            const state = { placed: [], shades: [], labels: [], arrows: [], shadeMode: false, shadeDraft: [], arrowMode: false, arrowDraft: null, dragging: null };
+
+            container.innerHTML = `
+                <div class="diagram-widget">
+                    <div class="diagram-palette" id="${uid}-palette"></div>
+                    <div class="diagram-toolbar">
+                        <button type="button" class="btn diagram-tool-btn" id="${uid}-shade-btn">Shade a region (double-click to finish)</button>
+                        <button type="button" class="btn diagram-tool-btn" id="${uid}-arrow-btn">Add arrow (click start, then end)</button>
+                        <input type="text" class="diagram-label-input" id="${uid}-label-input" placeholder="Label text, e.g. S1">
+                        <button type="button" class="btn diagram-tool-btn" id="${uid}-label-btn">Add label</button>
+                        <button type="button" class="btn diagram-tool-btn" id="${uid}-clear-btn">Clear</button>
+                    </div>
+                    <svg class="diagram-canvas" id="${uid}-svg" viewBox="0 0 ${DIAGRAM_CANVAS_WIDTH} ${DIAGRAM_CANVAS_HEIGHT}"></svg>
+                    <button type="button" class="btn primary diagram-submit-btn" id="${uid}-submit-btn">Submit diagram</button>
+                    <div class="diagram-result" id="${uid}-result"></div>
+                </div>
+            `;
+
+            const svg = container.querySelector(`#${uid}-svg`);
+            const paletteEl = container.querySelector(`#${uid}-palette`);
+            const resultEl = container.querySelector(`#${uid}-result`);
+            const shadeBtn = container.querySelector(`#${uid}-shade-btn`);
+            const arrowBtn = container.querySelector(`#${uid}-arrow-btn`);
+
+            function svgPointFromEvent(ev) {
+                const rect = svg.getBoundingClientRect();
+                return {
+                    x: (ev.clientX - rect.left) * (DIAGRAM_CANVAS_WIDTH / rect.width),
+                    y: (ev.clientY - rect.top) * (DIAGRAM_CANVAS_HEIGHT / rect.height),
+                };
+            }
+
+            function render() {
+                svg.innerHTML = '';
+                const defs = svgElement('defs', {});
+                const marker = svgElement('marker', { id: `${uid}-arrowhead`, markerWidth: 8, markerHeight: 8, refX: 6, refY: 3, orient: 'auto' });
+                marker.appendChild(svgElement('path', { d: 'M0,0 L6,3 L0,6 Z', class: 'diagram-arrowhead-path' }));
+                defs.appendChild(marker);
+                svg.appendChild(defs);
+
+                svg.appendChild(svgElement('line', { x1: DIAGRAM_PRICE_AXIS[0].x, y1: DIAGRAM_PRICE_AXIS[0].y, x2: DIAGRAM_PRICE_AXIS[1].x, y2: DIAGRAM_PRICE_AXIS[1].y, class: 'diagram-axis' }));
+                svg.appendChild(svgElement('line', { x1: DIAGRAM_QUANTITY_AXIS[0].x, y1: DIAGRAM_QUANTITY_AXIS[0].y, x2: DIAGRAM_QUANTITY_AXIS[1].x, y2: DIAGRAM_QUANTITY_AXIS[1].y, class: 'diagram-axis' }));
+                const priceLabel = svgElement('text', { x: DIAGRAM_PRICE_AXIS[0].x - 8, y: DIAGRAM_PRICE_AXIS[0].y + 10, class: 'diagram-axis-label', 'text-anchor': 'end' });
+                priceLabel.textContent = 'Price';
+                svg.appendChild(priceLabel);
+                const qtyLabel = svgElement('text', { x: DIAGRAM_QUANTITY_AXIS[1].x, y: DIAGRAM_QUANTITY_AXIS[1].y + 18, class: 'diagram-axis-label', 'text-anchor': 'end' });
+                qtyLabel.textContent = 'Quantity';
+                svg.appendChild(qtyLabel);
+
+                (given || []).forEach((g) => {
+                    const local = DIAGRAM_CURVE_SHAPES[diagramBaseType(g.type)];
+                    if (!local) return;
+                    const poly = diagramTranslate(local, DIAGRAM_GIVEN_ORIGIN.x, DIAGRAM_GIVEN_ORIGIN.y);
+                    svg.appendChild(svgElement('polyline', { points: diagramPolylinePoints(poly), class: 'diagram-curve diagram-curve-given' }));
+                    const tag = svgElement('text', { x: poly[0].x, y: poly[0].y - 6, class: 'diagram-curve-tag' });
+                    tag.textContent = DIAGRAM_PALETTE_LABELS[diagramBaseType(g.type)] || g.type;
+                    svg.appendChild(tag);
+                });
+
+                state.shades.forEach((s) => svg.appendChild(svgElement('polygon', { points: s.points.map((p) => `${p.x},${p.y}`).join(' '), class: 'diagram-shade' })));
+                if (state.shadeDraft.length) {
+                    state.shadeDraft.forEach((p) => svg.appendChild(svgElement('circle', { cx: p.x, cy: p.y, r: 4, class: 'diagram-shade-point' })));
+                    if (state.shadeDraft.length > 1) svg.appendChild(svgElement('polyline', { points: state.shadeDraft.map((p) => `${p.x},${p.y}`).join(' '), class: 'diagram-shade-draft-line' }));
+                }
+
+                state.placed.forEach((inst) => {
+                    const local = DIAGRAM_CURVE_SHAPES[diagramBaseType(inst.curveTypeId)];
+                    if (!local) return;
+                    const poly = diagramTranslate(local, inst.x, inst.y);
+                    const el = svgElement('polyline', { points: diagramPolylinePoints(poly), class: 'diagram-curve diagram-curve-placed' });
+                    el.addEventListener('pointerdown', (ev) => {
+                        ev.preventDefault();
+                        const pt = svgPointFromEvent(ev);
+                        state.dragging = { type: 'curve', id: inst.instanceId, offsetX: pt.x - inst.x, offsetY: pt.y - inst.y };
+                    });
+                    svg.appendChild(el);
+                    const tag = svgElement('text', { x: poly[0].x, y: poly[0].y - 6, class: 'diagram-curve-tag' });
+                    tag.textContent = DIAGRAM_PALETTE_LABELS[diagramBaseType(inst.curveTypeId)] || inst.curveTypeId;
+                    svg.appendChild(tag);
+                });
+
+                state.arrows.forEach((a) => svg.appendChild(svgElement('line', { x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2, class: 'diagram-arrow', 'marker-end': `url(#${uid}-arrowhead)` })));
+                if (state.arrowDraft) svg.appendChild(svgElement('line', { x1: state.arrowDraft.x1, y1: state.arrowDraft.y1, x2: state.arrowDraft.x2, y2: state.arrowDraft.y2, class: 'diagram-arrow' }));
+
+                state.labels.forEach((l, idx) => {
+                    const el = svgElement('text', { x: l.x, y: l.y, class: 'diagram-label' });
+                    el.textContent = l.text;
+                    el.addEventListener('pointerdown', (ev) => {
+                        ev.preventDefault();
+                        const pt = svgPointFromEvent(ev);
+                        state.dragging = { type: 'label', id: idx, offsetX: pt.x - l.x, offsetY: pt.y - l.y };
+                    });
+                    svg.appendChild(el);
+                });
+            }
+
+            svg.addEventListener('pointermove', (ev) => {
+                const pt = svgPointFromEvent(ev);
+                if (state.dragging) {
+                    if (state.dragging.type === 'curve') {
+                        const inst = state.placed.find((p) => p.instanceId === state.dragging.id);
+                        if (inst) { inst.x = pt.x - state.dragging.offsetX; inst.y = pt.y - state.dragging.offsetY; render(); }
+                    } else if (state.dragging.type === 'label') {
+                        const l = state.labels[state.dragging.id];
+                        if (l) { l.x = pt.x - state.dragging.offsetX; l.y = pt.y - state.dragging.offsetY; render(); }
+                    }
+                } else if (state.arrowDraft) {
+                    state.arrowDraft.x2 = pt.x; state.arrowDraft.y2 = pt.y; render();
+                }
+            });
+            window.addEventListener('pointerup', () => { state.dragging = null; });
+
+            svg.addEventListener('click', (ev) => {
+                const pt = svgPointFromEvent(ev);
+                if (state.shadeMode) { state.shadeDraft.push(pt); render(); return; }
+                if (state.arrowMode) {
+                    if (!state.arrowDraft) {
+                        state.arrowDraft = { x1: pt.x, y1: pt.y, x2: pt.x, y2: pt.y };
+                    } else {
+                        state.arrows.push({ x1: state.arrowDraft.x1, y1: state.arrowDraft.y1, x2: pt.x, y2: pt.y });
+                        state.arrowDraft = null;
+                        state.arrowMode = false;
+                        arrowBtn.classList.remove('active');
+                    }
+                    render();
+                }
+            });
+            svg.addEventListener('dblclick', () => {
+                if (state.shadeMode && state.shadeDraft.length >= 3) {
+                    const label = window.prompt('Label this shaded area (optional):') || '';
+                    state.shades.push({ points: state.shadeDraft, label });
+                    state.shadeDraft = [];
+                    state.shadeMode = false;
+                    shadeBtn.classList.remove('active');
+                    render();
+                }
+            });
+
+            Object.keys(DIAGRAM_CURVE_SHAPES).forEach((type) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'diagram-palette-btn';
+                const preview = svgElement('svg', { viewBox: '0 0 260 220', class: 'diagram-palette-preview' });
+                preview.appendChild(svgElement('polyline', { points: diagramPolylinePoints(DIAGRAM_CURVE_SHAPES[type]), class: 'diagram-curve' }));
+                btn.appendChild(preview);
+                const labelSpan = document.createElement('span');
+                labelSpan.textContent = DIAGRAM_PALETTE_LABELS[type] || type;
+                btn.appendChild(labelSpan);
+                btn.addEventListener('click', () => {
+                    state.placed.push({ instanceId: `c${Math.random().toString(36).slice(2)}`, curveTypeId: type, x: 220, y: 160 });
+                    render();
+                });
+                paletteEl.appendChild(btn);
+            });
+
+            shadeBtn.addEventListener('click', () => {
+                state.shadeMode = !state.shadeMode;
+                state.arrowMode = false; state.shadeDraft = [];
+                shadeBtn.classList.toggle('active', state.shadeMode);
+                arrowBtn.classList.remove('active');
+            });
+            arrowBtn.addEventListener('click', () => {
+                state.arrowMode = !state.arrowMode;
+                state.shadeMode = false; state.arrowDraft = null;
+                arrowBtn.classList.toggle('active', state.arrowMode);
+                shadeBtn.classList.remove('active');
+            });
+            container.querySelector(`#${uid}-label-btn`).addEventListener('click', () => {
+                const input = container.querySelector(`#${uid}-label-input`);
+                const text = input.value.trim();
+                if (!text) return;
+                state.labels.push({ text, x: 320, y: 260 });
+                input.value = '';
+                render();
+            });
+            container.querySelector(`#${uid}-clear-btn`).addEventListener('click', () => {
+                state.placed = []; state.shades = []; state.labels = []; state.arrows = []; state.shadeDraft = [];
+                render();
+            });
+            container.querySelector(`#${uid}-submit-btn`).addEventListener('click', async (ev) => {
+                ev.target.disabled = true;
+                ev.target.textContent = 'Checking…';
+                const answer = {
+                    curves: state.placed.map((p) => ({ instanceId: p.instanceId, curveTypeId: p.curveTypeId, x: p.x, y: p.y })),
+                    shades: state.shades.map((s) => ({ points: s.points, label: s.label })),
+                    labels: state.labels.map((l) => ({ text: l.text, x: l.x, y: l.y })),
+                    arrows: state.arrows.map((a) => ({ x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2 })),
+                };
+                const result = await onSubmit(answer);
+                ev.target.remove();
+                resultEl.innerHTML = result
+                    ? `<div class="km-inline-detail-item ${result.correct ? '' : 'km-inline-detail-none'}">${escapeHtml(result.feedback || '')}</div>`
+                    : `<div class="km-inline-detail-item km-inline-detail-none">Something went wrong — try again.</div>`;
+            });
+
+            render();
         }
 
         async function postChainDiagnostic(path, body) {
