@@ -2560,6 +2560,89 @@
         min-height: 480px;
     }
 
+    .maths-tool-view {
+        display: grid;
+        grid-template-columns: 240px 1fr;
+        gap: 14px;
+        height: calc(100vh - 160px);
+        min-height: 480px;
+    }
+    .maths-tool-sidebar {
+        border: 1px solid rgba(230, 215, 176, 0.16);
+        border-radius: 8px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        min-height: 0;
+    }
+    .maths-tool-thread-list {
+        flex: 1;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .maths-tool-thread-item {
+        text-align: left;
+        background: transparent;
+        border: 1px solid transparent;
+        color: var(--text);
+        font-family: Arial, sans-serif;
+        font-size: 12.5px;
+        padding: 8px 9px;
+        border-radius: 5px;
+        cursor: pointer;
+        opacity: 0.75;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .maths-tool-thread-item:hover { background: rgba(230, 215, 176, 0.06); opacity: 1; }
+    .maths-tool-thread-item.active { background: rgba(230, 215, 176, 0.1); border-color: rgba(230, 215, 176, 0.2); opacity: 1; }
+    .maths-tool-main {
+        border: 1px solid rgba(230, 215, 176, 0.16);
+        border-radius: 8px;
+        padding: 18px;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+    .maths-tool-messages {
+        flex: 1;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding-bottom: 10px;
+    }
+    .maths-tool-bubble {
+        max-width: 80%;
+        padding: 10px 13px;
+        border-radius: 8px;
+        font-size: 13px;
+        line-height: 1.55;
+        white-space: pre-wrap;
+    }
+    .maths-tool-bubble-assistant { align-self: flex-start; background: rgba(230, 215, 176, 0.07); }
+    .maths-tool-bubble-user { align-self: flex-end; background: var(--accent); color: var(--bg); }
+    .maths-tool-composer {
+        flex: none;
+        border-top: 1px solid rgba(230, 215, 176, 0.14);
+        padding-top: 12px;
+        margin-top: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .maths-tool-mode-row {
+        display: flex;
+        gap: 18px;
+        font-size: 12.5px;
+        opacity: 0.85;
+    }
+    .maths-tool-mode-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+
     .cortex-embed-frame {
         width: 100%;
         height: 100%;
@@ -4376,6 +4459,7 @@
                     <button class="cortex-btn-topbar" id="peerTutoringHubBtn" type="button">🤝 Peer tutoring</button>
                     <button class="cortex-btn-topbar" id="myTutoringTopbarBtn" type="button">📋 My Tutoring<span class="mt-badge" id="mtBadge" style="display:none;"></span></button>
                     <button class="cortex-btn-topbar" id="calendarTopbarBtn" type="button">📅 Calendar</button>
+                    <button class="cortex-btn-topbar" id="mathsToolTopbarBtn" type="button" style="display:none;">🧮 Maths Tool</button>
                     <button class="cortex-btn-topbar" id="adminQueueTopbarBtn" type="button" style="display:none;">🛟 Overdue Requests<span class="mt-badge" id="aqBadge" style="display:none;"></span></button>
                 </div>
                 <!-- Mobile-only "there's more here" hint — a fade plus a
@@ -10578,6 +10662,11 @@ SQIDAQAB
         openFullPageCalendar();
     });
 
+    document.getElementById('mathsToolTopbarBtn').addEventListener('click', () => {
+        if (lessonInProgress) return;
+        openMathsTool();
+    });
+
     let sidebarTab = 'folders'; // 'folders' | 'cortex'
 
     function setSidebarTab(tab) {
@@ -11497,6 +11586,180 @@ SQIDAQAB
         }
     }
 
+    // ─── MATHS TOOL ───
+    // A self-serve "help me with this question" chat, one thread per
+    // question, kept OFF the record — see mathHelp.ts on the backend,
+    // which never touches FSRS. Disabled during a lesson (lessonInProgress,
+    // toggled by showLessonFullpage/showKmWorkspace above) so a student
+    // can't paste their current lesson's own question in here to have it
+    // solved for them.
+    let mathsToolThreads = [];
+    let mathsToolActiveThreadId = null;
+
+    async function fetchMathHelpThreads() {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return [];
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/math-help/threads`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            return await resp.json();
+        } catch (err) {
+            console.error('LastMind: failed to load maths tool questions.', err);
+            return [];
+        }
+    }
+
+    async function fetchMathHelpThread(id) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return null;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/math-help/threads/${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            return await resp.json();
+        } catch (err) {
+            console.error('LastMind: failed to load this question.', err);
+            return null;
+        }
+    }
+
+    async function postMathHelp(path, body) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return null;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}${path}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify(body)
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            return await resp.json();
+        } catch (err) {
+            console.error('LastMind: maths tool request failed.', err);
+            return null;
+        }
+    }
+
+    function mathsToolBubbleHtml(role, content) {
+        return `<div class="maths-tool-bubble maths-tool-bubble-${role}">${escapeHtml(content)}</div>`;
+    }
+
+    function renderMathsToolThreadList() {
+        const el = document.getElementById('mathsToolThreadList');
+        if (!el) return;
+        el.innerHTML = mathsToolThreads.length
+            ? mathsToolThreads.map((t) => `<button type="button" class="maths-tool-thread-item ${t.id === mathsToolActiveThreadId ? 'active' : ''}" data-id="${t.id}">${escapeHtml(t.title)}</button>`).join('')
+            : '<div class="km-inline-detail-item km-inline-detail-none">No questions yet</div>';
+        el.querySelectorAll('.maths-tool-thread-item').forEach((btn) => {
+            btn.addEventListener('click', () => selectMathsToolThread(btn.dataset.id));
+        });
+    }
+
+    // Re-mounted after every send rather than reused, so a stale editor/
+    // listener from the previous message never lingers.
+    function mountMathsToolComposer(composer, messagesEl, threadId, mode) {
+        composer.innerHTML = '';
+        const editor = createSmartAnswerEditor(mode === 'answer' ? 'Write your working here…' : 'Ask a follow-up…');
+        composer.appendChild(editor.container);
+        const sendBtn = document.createElement('button');
+        sendBtn.type = 'button'; sendBtn.className = 'btn primary';
+        sendBtn.textContent = 'Send'; sendBtn.style.alignSelf = 'flex-start';
+        composer.appendChild(sendBtn);
+        sendBtn.addEventListener('click', async () => {
+            if (editor.isEmpty()) return;
+            const content = editor.getValue();
+            sendBtn.disabled = true;
+            messagesEl.insertAdjacentHTML('beforeend', mathsToolBubbleHtml('user', content));
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+            composer.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Thinking…</div>';
+            const result = await postMathHelp(`/math-help/threads/${threadId}/messages`, { content });
+            messagesEl.insertAdjacentHTML('beforeend', mathsToolBubbleHtml('assistant', (result && result.content) || 'Something went wrong — try again.'));
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+            mountMathsToolComposer(composer, messagesEl, threadId, mode);
+        });
+    }
+
+    function renderMathsToolThreadMessages(main, thread) {
+        main.innerHTML = `
+            <div class="maths-tool-messages">${thread.messages.map((m) => mathsToolBubbleHtml(m.role, m.content)).join('')}</div>
+            <div class="maths-tool-composer"></div>
+        `;
+        const messagesEl = main.querySelector('.maths-tool-messages');
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+        mountMathsToolComposer(main.querySelector('.maths-tool-composer'), messagesEl, thread.id, thread.mode);
+    }
+
+    async function selectMathsToolThread(id) {
+        mathsToolActiveThreadId = id;
+        renderMathsToolThreadList();
+        const main = document.getElementById('mathsToolMain');
+        main.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Loading…</div>';
+        const thread = await fetchMathHelpThread(id);
+        if (!thread) { main.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Could not load this question.</div>'; return; }
+        renderMathsToolThreadMessages(main, thread);
+    }
+
+    // The new-question flow: a hardcoded (not API-generated) greeting,
+    // a question box, and two checkboxes deciding what happens next —
+    // 'advice' gets an immediate step-by-step walkthrough back from
+    // Claude, 'answer' hands the student the working-out box and only
+    // reviews their own attempt. Kept mutually exclusive in JS since only
+    // one mode can apply to a single question.
+    function renderMathsToolCompose() {
+        mathsToolActiveThreadId = null;
+        renderMathsToolThreadList();
+        const main = document.getElementById('mathsToolMain');
+        main.innerHTML = `
+            <div class="maths-tool-messages">${mathsToolBubbleHtml('assistant', 'How can I help you today?')}</div>
+            <div class="maths-tool-composer">
+                <div id="mathsToolNewEditor"></div>
+                <div class="maths-tool-mode-row">
+                    <label><input type="checkbox" id="mathsToolModeAnswer" checked> Let me try and answer it</label>
+                    <label><input type="checkbox" id="mathsToolModeAdvice"> Give me some advice</label>
+                </div>
+                <button type="button" class="btn primary" id="mathsToolStartBtn" style="align-self:flex-start;">Send</button>
+            </div>
+        `;
+        const editor = createSmartAnswerEditor('Type your question here…');
+        main.querySelector('#mathsToolNewEditor').appendChild(editor.container);
+        const answerBox = main.querySelector('#mathsToolModeAnswer');
+        const adviceBox = main.querySelector('#mathsToolModeAdvice');
+        answerBox.addEventListener('change', () => { if (answerBox.checked) adviceBox.checked = false; else if (!adviceBox.checked) answerBox.checked = true; });
+        adviceBox.addEventListener('change', () => { if (adviceBox.checked) answerBox.checked = false; else if (!answerBox.checked) adviceBox.checked = true; });
+        main.querySelector('#mathsToolStartBtn').addEventListener('click', async () => {
+            if (editor.isEmpty()) return;
+            const mode = adviceBox.checked ? 'advice' : 'answer';
+            const questionText = editor.getValue();
+            main.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Thinking…</div>';
+            const thread = await postMathHelp('/math-help/threads', { questionText, mode });
+            if (!thread) { main.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Something went wrong — try again.</div>'; return; }
+            mathsToolThreads.unshift({ id: thread.id, title: thread.title, mode: thread.mode, updatedAt: new Date().toISOString() });
+            mathsToolActiveThreadId = thread.id;
+            renderMathsToolThreadList();
+            renderMathsToolThreadMessages(main, thread);
+        });
+    }
+
+    async function openMathsTool() {
+        stopActiveDictation();
+        stopSpeaking();
+        document.getElementById('topbarTitle').textContent = 'Maths Tool';
+        const contentInner = document.getElementById('contentInner');
+        contentInner.classList.add('content-inner-wide');
+        contentInner.innerHTML = `
+            <div class="maths-tool-view">
+                <div class="maths-tool-sidebar">
+                    <button type="button" class="btn primary maths-tool-new-btn">+ New question</button>
+                    <div class="maths-tool-thread-list" id="mathsToolThreadList"><div class="km-inline-detail-item km-inline-detail-none">Loading…</div></div>
+                </div>
+                <div class="maths-tool-main" id="mathsToolMain"></div>
+            </div>
+        `;
+        contentInner.querySelector('.maths-tool-new-btn').addEventListener('click', renderMathsToolCompose);
+        mathsToolThreads = await fetchMathHelpThreads();
+        renderMathsToolThreadList();
+        renderMathsToolCompose();
+    }
+
     // Per-user daily study-time budget (see studySettingsService.ts) — the
     // capacity constraint generateRevisionPlan uses. Defaults to 90 on any
     // failure, matching the backend's own default.
@@ -11977,13 +12240,29 @@ SQIDAQAB
     // the Start Lesson handler (in renderKmInlineGraph, a sibling
     // function, re-run on every theme switch) can call the same pair
     // without duplicating listeners.
+    // Read by the Maths Tool nav button — a student mid-lesson could
+    // otherwise paste their own lesson's question into the (off-the-record,
+    // ungraded) help chat and have it solved for them. Toggled here rather
+    // than wherever the button is defined, since these two are the actual
+    // single choke point every lesson start/exit already passes through.
+    let lessonInProgress = false;
+    function updateMathsToolAvailability() {
+        const btn = document.getElementById('mathsToolTopbarBtn');
+        if (!btn) return;
+        btn.disabled = lessonInProgress;
+        btn.title = lessonInProgress ? 'Finish or leave your current lesson first' : '';
+    }
     function showLessonFullpage(contentInner) {
         contentInner.querySelector('.km-inline-workspace').style.display = 'none';
         contentInner.querySelector('.km-lesson-fullpage').style.display = 'flex';
+        lessonInProgress = true;
+        updateMathsToolAvailability();
     }
     function showKmWorkspace(contentInner) {
         contentInner.querySelector('.km-lesson-fullpage').style.display = 'none';
         contentInner.querySelector('.km-inline-workspace').style.display = 'grid';
+        lessonInProgress = false;
+        updateMathsToolAvailability();
     }
 
     async function fetchEdgeLesson(fromNodeId, toNodeId) {
@@ -12269,7 +12548,7 @@ SQIDAQAB
                         <div class="km-inline-detail-item km-inline-detail-item-action">
                             <span>${escapeHtml(n.label)}</span>
                             ${otherEncoded
-                                ? `<button class="btn km-review-connection-btn" data-idx="${idx}">Review connection</button>`
+                                ? `<button class="btn km-review-connection-btn" data-idx="${idx}">Review connection</button>${isPaidUser ? `<button class="btn km-verify-connection-btn" data-idx="${idx}">Verify</button>` : ''}`
                                 : `<button class="btn km-encode-first-btn" data-idx="${idx}">Encode this first</button>`}
                         </div>
                     `;
@@ -12299,15 +12578,28 @@ SQIDAQAB
                 <div class="km-inline-detail-section"><h4>Builds on this</h4>${downItems}</div>
                 <div class="km-inline-detail-actions">
                     <button class="btn km-inline-view-btn">View</button>
+                    ${isPaidUser ? '<button class="btn km-inline-verify-btn">Verify</button>' : ''}
                     <button class="btn primary km-inline-start-lesson-btn">Start lesson</button>
                 </div>
             `;
             detailEl.querySelector('.km-inline-view-btn').addEventListener('click', () => zoomToNode(d));
+            const verifyBtn = detailEl.querySelector('.km-inline-verify-btn');
+            if (verifyBtn) verifyBtn.addEventListener('click', () => {
+                showLessonFullpage(contentInner);
+                renderNodeVerifyContent(lessonFullpageBodyEl, d);
+            });
             detailEl.querySelectorAll('.km-review-connection-btn').forEach((btn) => {
                 btn.addEventListener('click', () => {
                     const n = downstream[Number(btn.dataset.idx)];
                     showLessonFullpage(contentInner);
                     renderEdgeReviewContent(lessonFullpageBodyEl, d, n);
+                });
+            });
+            detailEl.querySelectorAll('.km-verify-connection-btn').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const n = downstream[Number(btn.dataset.idx)];
+                    showLessonFullpage(contentInner);
+                    renderEdgeVerifyContent(lessonFullpageBodyEl, d, n);
                 });
             });
             detailEl.querySelectorAll('.km-encode-first-btn').forEach((btn) => {
@@ -12488,6 +12780,70 @@ SQIDAQAB
                 );
                 if (lesson.integrationQuestion.diagramSpec) renderDiagramWidget(el, given, submit, gotoEncode);
                 else renderTextQuestionWidget(el, lesson.integrationQuestion.questionText, submit, gotoEncode);
+            }
+        }
+
+        // "Verify" — the Premium test-out shortcut (see the backend's
+        // /knowledge-map-v2/verify/submit): one weak, generously-graded
+        // free-text question instead of the real lesson/review. A pass
+        // still updates the same FSRS row Start lesson / Review connection
+        // would, just at lower confidence — this is a fast recall check,
+        // not another mini-lesson, so unlike renderNodeLessonContent/
+        // renderEdgeReviewContent it never shows the teaching material.
+        function buildVerifyQuestionText(type, labelA, labelB) {
+            if (type === 'ao1') return `Explain what "${labelA}" means, in your own words.`;
+            if (type === 'transfer') return `In a sentence or two, explain how "${labelA}" connects to or leads into "${labelB}".`;
+            return `Explain how "${labelA}" and "${labelB}" fit together — how does one affect analysis or evaluation involving the other?`;
+        }
+
+        function renderNodeVerifyContent(lessonEl, d) {
+            const questionText = buildVerifyQuestionText('ao1', d.label);
+            lessonEl.innerHTML = `
+                <div class="km-inline-detail-section">
+                    <div class="km-inline-detail-eyebrow">Verify${d.subtopic ? ` — ${escapeHtml(d.subtopic)}` : ''}</div>
+                    <div class="km-inline-detail-label">${escapeHtml(d.label)}</div>
+                    <div class="km-inline-lesson-explanation">A quick check — passing counts as reviewing this, at a lower confidence than a full lesson.</div>
+                    <h4 class="km-inline-lesson-question">AO1</h4>
+                    <div id="km-verify-ao1"></div>
+                </div>
+            `;
+            const el = lessonEl.querySelector('#km-verify-ao1');
+            const submit = (answer) => postChainDiagnostic('/knowledge-map-v2/verify/submit', { nodeId: d.id, questionType: 'ao1', answer });
+            renderTextQuestionWidget(el, questionText, submit);
+        }
+
+        async function renderEdgeVerifyContent(lessonEl, fromNode, toNode) {
+            lessonEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Loading…</div>';
+            const lesson = await fetchEdgeLesson(fromNode.id, toNode.id);
+            if (!lesson || lesson.notFound) {
+                lessonEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">No lesson generated for this connection yet.</div>';
+                return;
+            }
+            lessonEl.innerHTML = `
+                <div class="km-inline-detail-section">
+                    <h4>Verify — "${escapeHtml(fromNode.label)}" → "${escapeHtml(toNode.label)}"</h4>
+                    <div class="km-inline-lesson-explanation">A quick check, at a lower confidence than the full review.</div>
+                    ${lesson.transferQuestion ? `<div><strong class="km-inline-lesson-question" style="display:block;">Transfer</strong><div id="km-verify-transfer"></div></div>` : ''}
+                    ${lesson.integrationQuestion ? `<div><strong class="km-inline-lesson-question" style="display:block;">Integration</strong><div id="km-verify-integration"></div></div>` : ''}
+                </div>
+            `;
+            const gotoEncode = (redirect) => {
+                const graphNode = findGraphNodeById(redirect.nodeId);
+                if (!graphNode) return;
+                showKmWorkspace(contentInner);
+                selectKmInlineNode(graphNode);
+            };
+            if (lesson.transferQuestion) {
+                const el = lessonEl.querySelector('#km-verify-transfer');
+                const q = buildVerifyQuestionText('transfer', fromNode.label, toNode.label);
+                const submit = (answer) => postChainDiagnostic('/knowledge-map-v2/verify/submit', { fromNodeId: fromNode.id, toNodeId: toNode.id, questionType: 'transfer', answer });
+                renderTextQuestionWidget(el, q, submit, gotoEncode);
+            }
+            if (lesson.integrationQuestion) {
+                const el = lessonEl.querySelector('#km-verify-integration');
+                const q = buildVerifyQuestionText('integration', fromNode.label, toNode.label);
+                const submit = (answer) => postChainDiagnostic('/knowledge-map-v2/verify/submit', { fromNodeId: fromNode.id, toNodeId: toNode.id, questionType: 'integration', answer });
+                renderTextQuestionWidget(el, q, submit, gotoEncode);
             }
         }
 
@@ -12859,6 +13215,348 @@ SQIDAQAB
         // real questions need this in the first place.
         function looksLikeCalculationQuestion(questionText) {
             return /\bcalculate\b/i.test(questionText || '');
+        }
+
+        // The Maths Tool's answer box (see openMathHelpTool) can't use the
+        // above split, because a single answer there routinely mixes prose
+        // AND maths in the same box — there's no whole-question signal to
+        // pick an editor by. This is the same rich contenteditable as
+        // createMathShortcutEditor, but every trigger that could plausibly
+        // appear inside an ordinary English word or sentence has been
+        // replaced with one that can't: Shift+letter/Shift+I (collides with
+        // completely ordinary mid-sentence capitalisation — "Price", "The",
+        // "Supply", "In this case" would all silently lose their first
+        // letter to a Greek symbol) and bare "f" (the exact bug reported
+        // against createMathShortcutEditor) now require a backslash escape
+        // instead (\p, \t, \d, \f, \i, ...) — a sequence nobody types in
+        // prose. ^, _, ], *, ~ are left as immediate single-key triggers
+        // since none of them legitimately appears alone in written English.
+        // "/" stays immediate too (typing "1/2" needs to just work), except
+        // for the one common English construction it would otherwise
+        // mangle — "and/or" — which is explicitly exempted below.
+        const MATH_SHORTCUT_FRACTION_BLOCKLIST = new Set(['and', 'or', 'he', 'she', 'his', 'her', 'him']);
+
+        function createSmartAnswerEditor(placeholder) {
+            const wrap = document.createElement('div');
+            wrap.className = 'math-shortcut-wrap';
+            const editor = document.createElement('div');
+            editor.className = 'math-shortcut-editor';
+            editor.contentEditable = 'true';
+            editor.dataset.placeholder = placeholder || 'Write your answer here…';
+            wrap.appendChild(editor);
+            const hint = document.createElement('div');
+            hint.className = 'math-shortcut-hint';
+            hint.textContent = 'Write normally. Maths: ^ power, _ subscript, / fraction (after a number), ] evaluate-between-limits, * ×, ~ √, \\p \\t \\d \\a \\b \\s \\l \\w \\x \\y Greek letters, \\f function, \\i integral';
+            wrap.appendChild(hint);
+
+            function insertTextAtCaret(text) {
+                const sel = window.getSelection();
+                if (!sel.rangeCount) return;
+                const range = sel.getRangeAt(0);
+                range.deleteContents();
+                const node = document.createTextNode(text);
+                range.insertNode(node);
+                range.setStartAfter(node); range.setEndAfter(node);
+                sel.removeAllRanges(); sel.addRange(range);
+            }
+            function insertStyledSymbol(text) {
+                const sel = window.getSelection();
+                if (!sel.rangeCount) return null;
+                const range = sel.getRangeAt(0);
+                range.deleteContents();
+                const span = document.createElement('i');
+                span.className = 'math-symbol';
+                span.textContent = text;
+                const landing = document.createTextNode(MATH_SHORTCUT_ZWS);
+                const frag = document.createDocumentFragment();
+                frag.appendChild(span); frag.appendChild(landing);
+                range.insertNode(frag);
+                const after = document.createRange();
+                after.setStart(landing, 1); after.collapse(true);
+                sel.removeAllRanges(); sel.addRange(after);
+                return span;
+            }
+            function startZone(tag) {
+                const sel = window.getSelection();
+                if (!sel.rangeCount) return;
+                const range = sel.getRangeAt(0);
+                range.deleteContents();
+                const zone = document.createElement(tag);
+                zone.appendChild(document.createTextNode(MATH_SHORTCUT_ZWS));
+                range.insertNode(zone);
+                const inner = document.createRange();
+                inner.setStart(zone.firstChild, 1); inner.collapse(true);
+                sel.removeAllRanges(); sel.addRange(inner);
+            }
+            function currentZone() {
+                const sel = window.getSelection();
+                if (!sel.rangeCount) return null;
+                let node = sel.getRangeAt(0).startContainer;
+                while (node && node !== editor) {
+                    if (node.nodeType === 1 && (node.tagName === 'SUP' || node.tagName === 'SUB')) return node;
+                    node = node.parentNode;
+                }
+                return null;
+            }
+            function exitZoneAfter(zoneEl) {
+                const parent = zoneEl.parentNode, nextSibling = zoneEl.nextSibling;
+                if (zoneEl.textContent === MATH_SHORTCUT_ZWS) {
+                    zoneEl.remove();
+                } else {
+                    zoneEl.normalize && zoneEl.normalize();
+                    const zw = zoneEl.firstChild;
+                    if (zw && zw.nodeType === 3 && zw.textContent.charAt(0) === MATH_SHORTCUT_ZWS) zw.textContent = zw.textContent.slice(1);
+                }
+                const landing = document.createTextNode(MATH_SHORTCUT_ZWS);
+                (parent || editor).insertBefore(landing, nextSibling || null);
+                const sel = window.getSelection();
+                const range = document.createRange();
+                range.setStart(landing, 1); range.collapse(true);
+                sel.removeAllRanges(); sel.addRange(range);
+            }
+            function findTokenBeforeCaret() {
+                const sel = window.getSelection();
+                if (!sel.rangeCount || !sel.isCollapsed) return null;
+                const range = sel.getRangeAt(0);
+                const node = range.startContainer, offset = range.startOffset;
+                if (node.nodeType !== 3) return null;
+                const text = node.textContent;
+                let start = offset;
+                while (start > 0 && /[0-9a-zA-Z.]/.test(text.charAt(start - 1))) start--;
+                if (start === offset) return null;
+                return { node, start, end: offset, text: text.slice(start, offset) };
+            }
+            function makeFraction(numText) {
+                const sel = window.getSelection();
+                if (!sel.rangeCount) return;
+                const range = sel.getRangeAt(0);
+                range.deleteContents();
+                const frac = document.createElement('span'); frac.className = 'frac';
+                const num = document.createElement('span'); num.className = 'frac-num';
+                const den = document.createElement('span'); den.className = 'frac-den';
+                num.appendChild(document.createTextNode(numText || MATH_SHORTCUT_ZWS));
+                den.appendChild(document.createTextNode(MATH_SHORTCUT_ZWS));
+                frac.appendChild(num); frac.appendChild(den);
+                range.insertNode(frac);
+                const inner = document.createRange();
+                if (numText) inner.setStart(den.firstChild, 1); else inner.setStart(num.firstChild, 1);
+                inner.collapse(true);
+                sel.removeAllRanges(); sel.addRange(inner);
+            }
+            function currentFracPart() {
+                const sel = window.getSelection();
+                if (!sel.rangeCount) return null;
+                let node = sel.getRangeAt(0).startContainer;
+                while (node && node !== editor) {
+                    if (node.nodeType === 1 && (node.className === 'frac-num' || node.className === 'frac-den')) return node;
+                    node = node.parentNode;
+                }
+                return null;
+            }
+            function advanceFracNumToDen(numEl) {
+                numEl.normalize && numEl.normalize();
+                const first = numEl.firstChild;
+                if (first && first.nodeType === 3 && first.textContent.charAt(0) === MATH_SHORTCUT_ZWS && first.textContent.length > 1) first.textContent = first.textContent.slice(1);
+                const den = numEl.parentNode.querySelector('.frac-den');
+                const sel = window.getSelection();
+                const range = document.createRange();
+                range.setStart(den.firstChild, 1); range.collapse(true);
+                sel.removeAllRanges(); sel.addRange(range);
+            }
+
+            let funcPrimeLanding = null, funcPrimeSpan = null;
+            function isCaretAt(node, offset) {
+                const sel = window.getSelection();
+                if (!sel.rangeCount || !sel.isCollapsed) return false;
+                const r = sel.getRangeAt(0);
+                return r.startContainer === node && r.startOffset === offset;
+            }
+            function insertFuncF() {
+                const sel = window.getSelection();
+                if (!sel.rangeCount) return;
+                const range = sel.getRangeAt(0);
+                range.deleteContents();
+                const letter = document.createElement('i'); letter.className = 'math-symbol'; letter.textContent = 'f';
+                const primes = document.createElement('span'); primes.className = 'func-primes';
+                const suffix = document.createTextNode('(x)');
+                const landing = document.createTextNode(MATH_SHORTCUT_ZWS);
+                const frag = document.createDocumentFragment();
+                frag.appendChild(letter); frag.appendChild(primes); frag.appendChild(suffix); frag.appendChild(landing);
+                range.insertNode(frag);
+                const after = document.createRange();
+                after.setStart(landing, 1); after.collapse(true);
+                sel.removeAllRanges(); sel.addRange(after);
+                funcPrimeLanding = landing; funcPrimeSpan = primes;
+            }
+
+            let pendingIntegral = false;
+            function growLimitBoxes() {
+                const sel = window.getSelection();
+                if (!sel.rangeCount) return;
+                const range = sel.getRangeAt(0);
+                const limitsWrap = document.createElement('span'); limitsWrap.className = 'int-limits';
+                const upper = document.createElement('span'); upper.className = 'int-upper'; upper.appendChild(document.createTextNode(MATH_SHORTCUT_ZWS));
+                const lower = document.createElement('span'); lower.className = 'int-lower'; lower.appendChild(document.createTextNode(MATH_SHORTCUT_ZWS));
+                limitsWrap.appendChild(upper); limitsWrap.appendChild(lower);
+                const landing = document.createTextNode(MATH_SHORTCUT_ZWS);
+                const frag = document.createDocumentFragment();
+                frag.appendChild(limitsWrap); frag.appendChild(landing);
+                range.insertNode(frag);
+                const inner = document.createRange();
+                inner.setStart(upper.firstChild, 1); inner.collapse(true);
+                sel.removeAllRanges(); sel.addRange(inner);
+            }
+            function currentIntLimitZone() {
+                const sel = window.getSelection();
+                if (!sel.rangeCount) return null;
+                let node = sel.getRangeAt(0).startContainer;
+                while (node && node !== editor) {
+                    if (node.nodeType === 1 && (node.className === 'int-upper' || node.className === 'int-lower')) return node;
+                    node = node.parentNode;
+                }
+                return null;
+            }
+            function exitIntLimits(lowerZoneEl) {
+                const limitsWrap = lowerZoneEl.parentNode;
+                const landing = limitsWrap.nextSibling;
+                const sel = window.getSelection();
+                const range = document.createRange();
+                if (landing && landing.nodeType === 3) range.setStart(landing, landing.textContent.length);
+                else range.setStartAfter(limitsWrap);
+                range.collapse(true);
+                sel.removeAllRanges(); sel.addRange(range);
+            }
+            function maybeConvertTwoChar() {
+                const sel = window.getSelection();
+                if (!sel.rangeCount || !sel.isCollapsed) return;
+                const node = sel.getRangeAt(0).startContainer;
+                const offset = sel.getRangeAt(0).startOffset;
+                if (node.nodeType !== 3 || offset < 2) return;
+                const last2 = node.textContent.slice(offset - 2, offset);
+                const symbol = MATH_SHORTCUT_TWO_CHAR[last2];
+                if (!symbol) return;
+                node.textContent = node.textContent.slice(0, offset - 2) + symbol + node.textContent.slice(offset);
+                const range = document.createRange();
+                range.setStart(node, offset - 1); range.collapse(true);
+                sel.removeAllRanges(); sel.addRange(range);
+            }
+            // The backslash-escape counterpart to maybeConvertTwoChar, for
+            // triggers that need a real DOM insertion (a styled symbol, a
+            // whole f(x) block, an integral) rather than a plain 1-for-1
+            // character swap. Checked before mutating anything so an
+            // unrecognized "\x" sequence (any letter not in the map) is
+            // simply left alone as literal typed text.
+            function maybeConvertEscape() {
+                const sel = window.getSelection();
+                if (!sel.rangeCount || !sel.isCollapsed) return;
+                const node = sel.getRangeAt(0).startContainer;
+                const offset = sel.getRangeAt(0).startOffset;
+                if (node.nodeType !== 3 || offset < 2) return;
+                const last2 = node.textContent.slice(offset - 2, offset);
+                if (last2.charAt(0) !== '\\') return;
+                const letter = last2.charAt(1);
+                const lower = letter.toLowerCase();
+                const greek = MATH_SHORTCUT_GREEK_MAP[lower];
+                const isFunc = lower === 'f';
+                const isIntegral = lower === 'i';
+                if (!greek && !isFunc && !isIntegral) return;
+
+                node.textContent = node.textContent.slice(0, offset - 2) + node.textContent.slice(offset);
+                const range = document.createRange();
+                range.setStart(node, offset - 2); range.collapse(true);
+                sel.removeAllRanges(); sel.addRange(range);
+
+                if (isFunc) { insertFuncF(); return; }
+                if (isIntegral) { insertStyledSymbol('∫'); pendingIntegral = true; return; }
+                insertStyledSymbol(letter === lower ? greek.lower : greek.upper);
+            }
+
+            editor.addEventListener('keydown', (ev) => {
+                const extendingPrimes = funcPrimeLanding && ev.key === "'" && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && isCaretAt(funcPrimeLanding, 1);
+                if (extendingPrimes) {
+                    ev.preventDefault();
+                    funcPrimeSpan.textContent += '′';
+                    const afterPrime = document.createRange();
+                    afterPrime.setStart(funcPrimeLanding, 1); afterPrime.collapse(true);
+                    const selPrime = window.getSelection();
+                    selPrime.removeAllRanges(); selPrime.addRange(afterPrime);
+                    return;
+                }
+                funcPrimeLanding = null; funcPrimeSpan = null;
+
+                if (pendingIntegral) {
+                    pendingIntegral = false;
+                    if (ev.key === 'd' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) { ev.preventDefault(); growLimitBoxes(); return; }
+                }
+                if (ev.key === ']' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+                    ev.preventDefault(); insertTextAtCaret(']'); growLimitBoxes(); return;
+                }
+                if (ev.key === '*') { ev.preventDefault(); insertStyledSymbol('×'); return; }
+                if (ev.key === '~') { ev.preventDefault(); insertStyledSymbol('√'); return; }
+                if (ev.key === '^') { ev.preventDefault(); startZone('sup'); return; }
+                if (ev.key === '_') { ev.preventDefault(); startZone('sub'); return; }
+                if (ev.key === '/') {
+                    const fracPart = currentFracPart();
+                    if (fracPart && fracPart.className === 'frac-num') { ev.preventDefault(); advanceFracNumToDen(fracPart); return; }
+                    if (fracPart && fracPart.className === 'frac-den') return;
+                    const token = findTokenBeforeCaret();
+                    if (token && MATH_SHORTCUT_FRACTION_BLOCKLIST.has(token.text.toLowerCase())) return;
+                    ev.preventDefault();
+                    if (token) {
+                        const delRange = document.createRange();
+                        delRange.setStart(token.node, token.start); delRange.setEnd(token.node, token.end);
+                        delRange.deleteContents();
+                        const sel0 = window.getSelection();
+                        sel0.removeAllRanges(); sel0.addRange(delRange);
+                        makeFraction(token.text);
+                    } else { makeFraction(null); }
+                    return;
+                }
+                const zone = currentZone();
+                if (zone && (ev.key === 'ArrowRight' || ev.key === ' ')) { ev.preventDefault(); exitZoneAfter(zone); return; }
+                const denPart = currentFracPart();
+                if (denPart && denPart.className === 'frac-den' && (ev.key === 'ArrowRight' || ev.key === ' ')) { ev.preventDefault(); exitZoneAfter(denPart.parentNode); return; }
+                const intZone = currentIntLimitZone();
+                if (intZone && intZone.className === 'int-upper' && ev.key === 'ArrowDown') {
+                    ev.preventDefault();
+                    const lowerZone = intZone.parentNode.querySelector('.int-lower');
+                    lowerZone.normalize && lowerZone.normalize();
+                    const toLower = document.createRange();
+                    toLower.setStart(lowerZone.firstChild, lowerZone.firstChild.textContent.length); toLower.collapse(true);
+                    const selDown = window.getSelection();
+                    selDown.removeAllRanges(); selDown.addRange(toLower);
+                    return;
+                }
+                if (intZone && intZone.className === 'int-lower' && ev.key === ' ') { ev.preventDefault(); exitIntLimits(intZone); return; }
+            });
+            editor.addEventListener('input', () => { maybeConvertTwoChar(); maybeConvertEscape(); });
+
+            function serializeNode(node) {
+                if (node.nodeType === 3) return node.textContent.replace(/​/g, '');
+                if (node.nodeType !== 1) return '';
+                if (node.classList && node.classList.contains('frac')) {
+                    const num = node.querySelector('.frac-num'), den = node.querySelector('.frac-den');
+                    return `(${serializeChildren(num)})/(${serializeChildren(den)})`;
+                }
+                if (node.classList && node.classList.contains('int-limits')) {
+                    const upper = node.querySelector('.int-upper'), lower = node.querySelector('.int-lower');
+                    return `[${serializeChildren(lower)}, ${serializeChildren(upper)}]`;
+                }
+                if (node.tagName === 'SUP') return `^(${serializeChildren(node)})`;
+                if (node.tagName === 'SUB') return `_(${serializeChildren(node)})`;
+                return serializeChildren(node);
+            }
+            function serializeChildren(node) {
+                if (!node) return '';
+                return Array.from(node.childNodes).map(serializeNode).join('');
+            }
+
+            return {
+                container: wrap,
+                getValue() { return serializeChildren(editor).trim(); },
+                isEmpty() { return !serializeChildren(editor).trim(); },
+                focus() { editor.focus(); },
+            };
         }
 
         // Shared by both question widgets — a normal correct/incorrect
@@ -14604,6 +15302,7 @@ SQIDAQAB
         document.getElementById('peerTutoringHubBtn').style.display = paid ? '' : 'none';
         document.getElementById('practiceQuestionsTopbarBtn').style.display = paid ? '' : 'none';
         document.getElementById('myTutoringTopbarBtn').style.display = paid ? '' : 'none';
+        document.getElementById('mathsToolTopbarBtn').style.display = paid ? '' : 'none';
         document.getElementById('upgradeTopbarBtn').style.display = paid ? 'none' : '';
         updateTopbarScrollHint();
 
