@@ -491,6 +491,30 @@
         stroke: rgba(230, 215, 176, 0.14);
         stroke-width: 1.3px;
         fill: none;
+        transition: stroke 0.15s ease, stroke-opacity 0.15s ease, stroke-width 0.15s ease;
+    }
+
+    /* Click-to-highlight: everything not directly connected to the
+       selected node recedes, and the node's own edges/neighbours light up
+       — this is what actually makes a 1200-node graph readable, since the
+       full unfiltered mass of faint lines is illegible on its own. */
+    .km-link.km-dimmed {
+        stroke-opacity: 0.05;
+    }
+    .km-link.km-highlighted {
+        stroke: var(--accent);
+        stroke-opacity: 0.9;
+        stroke-width: 2px;
+    }
+    .km-node-group {
+        transition: opacity 0.15s ease;
+    }
+    .km-node-group.km-dimmed {
+        opacity: 0.25;
+    }
+    .km-node-group.km-selected .km-node-shape {
+        stroke: var(--accent);
+        stroke-width: 3px;
     }
 
     /* Link-level mastery — same amber/cream pair as node mastery
@@ -528,9 +552,10 @@
     }
 
     .km-node-label {
-        font-size: 10px;
+        font-size: 11.5px;
+        font-weight: 600;
         fill: var(--text);
-        opacity: 0.55;
+        opacity: 0.75;
         pointer-events: none;
         text-anchor: middle;
         paint-order: stroke;
@@ -540,7 +565,7 @@
     }
 
     .km-node-group.state-2 .km-node-label {
-        opacity: 0.9;
+        opacity: 1;
     }
 
     .km-node-halo {
@@ -553,7 +578,7 @@
         opacity: 0.3;
     }
 
-    .km-node-circle {
+    .km-node-shape {
         stroke-width: 1.5px;
     }
 
@@ -561,9 +586,9 @@
        background. Due for review — a warm terracotta/amber, distinct
        from --accent without clashing with it. Mastered — --accent itself,
        full brightness with a soft glow. */
-    .km-dot-0, .state-0 .km-node-circle, .state-0.km-legend-dot { fill: #4a453e; }
-    .km-dot-1, .state-1 .km-node-circle, .state-1.km-legend-dot { fill: #c98a4b; }
-    .km-dot-2, .state-2 .km-node-circle, .state-2.km-legend-dot { fill: var(--accent); }
+    .km-dot-0, .state-0 .km-node-shape, .state-0.km-legend-dot { fill: #4a453e; }
+    .km-dot-1, .state-1 .km-node-shape, .state-1.km-legend-dot { fill: #c98a4b; }
+    .km-dot-2, .state-2 .km-node-shape, .state-2.km-legend-dot { fill: var(--accent); }
 
     .km-legend-dot.km-dot-0, .km-detail-chip .dot.km-dot-0 { background: #4a453e; }
     .km-legend-dot.km-dot-1, .km-detail-chip .dot.km-dot-1 { background: #c98a4b; }
@@ -11975,10 +12000,19 @@ SQIDAQAB
             .data(nodes, (d) => d.id).join('g')
             .attr('class', (d) => `km-node-group state-${d.state}`);
 
-        nodeGroup.append('circle').attr('class', 'km-node-halo').attr('r', (d) => d.r + 6);
-        nodeGroup.append('circle').attr('class', 'km-node-circle').attr('r', (d) => d.r)
+        // Squares, not circles — a plain, consistent silhouette reads
+        // faster across 1000+ nodes than a field of same-sized dots
+        // varying only by subtle radius differences.
+        nodeGroup.append('rect').attr('class', 'km-node-halo')
+            .attr('x', (d) => -(d.r + 6)).attr('y', (d) => -(d.r + 6))
+            .attr('width', (d) => (d.r + 6) * 2).attr('height', (d) => (d.r + 6) * 2)
+            .attr('rx', 4);
+        nodeGroup.append('rect').attr('class', 'km-node-shape')
+            .attr('x', (d) => -d.r).attr('y', (d) => -d.r)
+            .attr('width', (d) => d.r * 2).attr('height', (d) => d.r * 2)
+            .attr('rx', 3)
             .attr('fill-opacity', (d) => (d.state === 0 ? 0.55 : 1));
-        nodeGroup.append('text').attr('class', 'km-node-label').attr('dy', (d) => d.r + 12)
+        nodeGroup.append('text').attr('class', 'km-node-label').attr('dy', (d) => d.r + 14)
             .text((d) => (d.label.length > 40 ? d.label.slice(0, 38) + '…' : d.label));
 
         function estimateLabelHalfWidth(label) { return Math.min((label || '').length, 42) * 2.9 + 6; }
@@ -12005,6 +12039,18 @@ SQIDAQAB
             const nodeById = new Map(fullData.nodes.map((n) => [n.id, n]));
             const upstream = fullData.edges.filter((e) => e.target === d.id).map((e) => nodeById.get(e.source)).filter(Boolean);
             const downstream = fullData.edges.filter((e) => e.source === d.id).map((e) => nodeById.get(e.target)).filter(Boolean);
+
+            // Click-to-highlight: dim everything except this node and what
+            // it directly links to (either direction) — reading a 1000+
+            // node graph at full brightness all the time is illegible;
+            // this is the actual fix for that.
+            const connectedIds = new Set([d.id, ...upstream.map((n) => n.id), ...downstream.map((n) => n.id)]);
+            nodeGroup.classed('km-selected', (n) => n.id === d.id);
+            nodeGroup.classed('km-dimmed', (n) => !connectedIds.has(n.id));
+            linkSelection
+                .classed('km-highlighted', (e) => e.source.id === d.id || e.target.id === d.id)
+                .classed('km-dimmed', (e) => e.source.id !== d.id && e.target.id !== d.id);
+
             const upItems = upstream.length
                 ? upstream.map((n) => `<div class="km-inline-detail-item">${escapeHtml(n.label)}</div>`).join('')
                 : '<div class="km-inline-detail-item km-inline-detail-none">Nothing — this is a starting point</div>';
