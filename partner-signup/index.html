@@ -214,13 +214,6 @@
         margin-top: -2px;
     }
 
-    .km-reward-desc {
-        font-size: 0.82rem;
-        opacity: 0.8;
-        line-height: 1.5;
-        flex: 1;
-    }
-
     .km-reward-terms {
         font-size: 0.78rem;
         opacity: 0.6;
@@ -252,7 +245,7 @@
 <div class="wrap">
     <a class="logo" href="/">LastMind</a>
     <h1>List a reward on LastMind</h1>
-    <p class="intro">Students earn Keys for genuine, verified learning progress and redeem them for real rewards. Tell us about the reward you'd like to offer — pick a title, description, and your own colours, and see exactly how it'll look before you submit. We'll review it and confirm final details with you by email before it goes live.</p>
+    <p class="intro">Students earn Keys for genuine, verified learning progress and redeem them for real rewards. Tell us about the reward you'd like to offer — pick a title and your own colours, and see exactly how it'll look before you submit. We'll review it and confirm final details with you by email before it goes live.</p>
 
     <div class="columns">
         <div>
@@ -273,10 +266,6 @@
                 <div class="field">
                     <label for="rewardTitle">Reward title</label>
                     <input type="text" id="rewardTitle" maxlength="100" placeholder="e.g. 10% off suit dry cleaning" required>
-                </div>
-                <div class="field">
-                    <label for="rewardDescription">Description</label>
-                    <textarea id="rewardDescription" maxlength="500" placeholder="e.g. At Woods the Cleaners." required></textarea>
                 </div>
                 <div class="field">
                     <label for="rewardTerms">Terms (optional)</label>
@@ -338,7 +327,6 @@
                 <div class="km-reward-category" id="previewCategory"></div>
                 <div class="km-reward-title" id="previewTitle">Your reward title</div>
                 <div class="km-reward-business" id="previewBusiness">by your business name</div>
-                <div class="km-reward-desc" id="previewDesc">Your description will appear here.</div>
                 <div class="km-reward-terms" id="previewTerms" style="display:none;"></div>
                 <div class="km-reward-cost" id="previewCost">— Keys</div>
             </div>
@@ -352,7 +340,6 @@
     const businessNameEl = document.getElementById('businessName');
     const contactEmailEl = document.getElementById('contactEmail');
     const titleEl = document.getElementById('rewardTitle');
-    const descEl = document.getElementById('rewardDescription');
     const termsEl = document.getElementById('rewardTerms');
     const categoryEl = document.getElementById('rewardCategory');
     const catchmentField = document.getElementById('catchmentField');
@@ -369,7 +356,6 @@
     const previewCategory = document.getElementById('previewCategory');
     const previewTitle = document.getElementById('previewTitle');
     const previewBusiness = document.getElementById('previewBusiness');
-    const previewDesc = document.getElementById('previewDesc');
     const previewTerms = document.getElementById('previewTerms');
     const previewCost = document.getElementById('previewCost');
 
@@ -389,7 +375,6 @@
 
         previewTitle.textContent = titleEl.value.trim() || 'Your reward title';
         previewBusiness.textContent = `by ${businessNameEl.value.trim() || 'your business name'}`;
-        previewDesc.textContent = descEl.value.trim() || 'Your description will appear here.';
 
         const isLocal = categoryEl.value === 'Local Offers';
         const catchment = catchmentEl.value.trim();
@@ -412,7 +397,7 @@
         updatePreview();
     });
 
-    [businessNameEl, contactEmailEl, titleEl, descEl, termsEl, catchmentEl, costEl, accentColorEl, backgroundColorEl, textColorEl].forEach((el) => {
+    [businessNameEl, contactEmailEl, titleEl, termsEl, catchmentEl, costEl, accentColorEl, backgroundColorEl, textColorEl].forEach((el) => {
         el.addEventListener('input', updatePreview);
     });
     updateCatchmentVisibility();
@@ -445,7 +430,6 @@
                     contactEmail: contactEmailEl.value.trim(),
                     contactPhone: document.getElementById('contactPhone').value.trim() || null,
                     title: titleEl.value.trim(),
-                    description: descEl.value.trim(),
                     terms: termsEl.value.trim() || null,
                     category: categoryEl.value,
                     catchmentArea: categoryEl.value === 'Local Offers' ? catchmentEl.value.trim() : null,
