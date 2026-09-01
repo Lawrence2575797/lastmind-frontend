@@ -713,7 +713,9 @@
     .km-inline-lesson-explanation p { margin: 0 0 10px; }
     .km-inline-lesson-explanation p:last-child { margin-bottom: 0; }
     .km-inline-lesson-question { font-size: 12.5px; line-height: 1.5; padding: 10px; background: rgba(230, 215, 176, 0.05); border-radius: 3px; }
-    .km-inline-start-lesson-btn { margin-top: auto; width: 100%; padding: 10px 0; font-size: 13px; }
+    .km-inline-detail-actions { margin-top: auto; display: flex; gap: 8px; }
+    .km-inline-view-btn { flex: 1; padding: 10px 0; font-size: 13px; }
+    .km-inline-start-lesson-btn { flex: 2; padding: 10px 0; font-size: 13px; }
     .km-inline-dashboard-btn { flex: none; font-size: 12px; padding: 7px 14px; }
 
     /* Once a lesson actually starts, it takes over the whole page —
@@ -5267,10 +5269,19 @@ SQIDAQAB
     // individually, so this is safe to use directly as HTML.
     function splitIntoParagraphs(text, sentencesPerParagraph = 2) {
         if (!text) return '';
-        const sentences = text.match(/[^.!?]+[.!?]+(?:\s+|$)/g) || [text];
+        // Splitting on "any period" was a real, reported bug — economics
+        // prose is full of abbreviations ("e.g.", "i.e.") where the period
+        // is followed by a LOWERCASE word, not a new sentence; that broke
+        // "e.g. responding to prices" into a dangling "g." fragment. A
+        // real sentence boundary is reliably followed by whitespace then a
+        // capital letter or digit — deliberately NOT quotes/parens too,
+        // since "(e.g. 'rational economic man')" starting with a quote
+        // right after an abbreviation is exactly the kind of thing that
+        // looked like a safe signal but wasn't (found while fixing this).
+        const sentences = text.split(/(?<=[.!?])\s+(?=[A-Z0-9])/).map((s) => s.trim()).filter(Boolean);
         const paragraphs = [];
         for (let i = 0; i < sentences.length; i += sentencesPerParagraph) {
-            paragraphs.push(sentences.slice(i, i + sentencesPerParagraph).join('').trim());
+            paragraphs.push(sentences.slice(i, i + sentencesPerParagraph).join(' '));
         }
         return paragraphs.filter(Boolean).map((p) => `<p>${escapeHtml(p)}</p>`).join('');
     }
@@ -12113,7 +12124,14 @@ SQIDAQAB
             const scale = Math.min(3, Math.max(0.01, fitScale));
             const tx = width / 2 - scale * (minX + w / 2);
             const ty = height / 2 - scale * (minY + h / 2);
-            zoomBehavior.scaleExtent([Math.min(0.01, scale * 0.5), 3]);
+            // Real bug: Math.min(0.01, scale * 0.5) always resolved to the
+            // tiny hardcoded 0.01 in practice (scale * 0.5 is almost always
+            // bigger than that), so the floor never actually tracked the
+            // real fit scale — letting the graph be zoomed out into a
+            // speck surrounded by empty canvas, exactly what was reported.
+            // 60% of the fit scale allows a little extra pan/zoom room
+            // without ever losing the graph entirely.
+            zoomBehavior.scaleExtent([scale * 0.6, 3]);
             svg.transition().duration(400).call(zoomBehavior.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
         }
 
@@ -12196,6 +12214,18 @@ SQIDAQAB
             linkSelection.classed('km-highlighted', (e) => e.source.id === d.id || e.target.id === d.id);
         }
 
+        // "View" — for when you want to see WHERE a concept sits and what
+        // it connects to without committing to starting its lesson. Zooms
+        // in on the node's own current position (wherever the force layout
+        // settled it) and applies the same highlight a click would.
+        function zoomToNode(d) {
+            highlightKmConnections(d);
+            const scale = 1.4;
+            const tx = width / 2 - scale * d.x;
+            const ty = height / 2 - scale * d.y;
+            svg.transition().duration(450).call(zoomBehavior.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+        }
+
         function selectKmInlineNode(d) {
             const nodeById = new Map(fullData.nodes.map((n) => [n.id, n]));
             const upstream = fullData.edges.filter((e) => e.target === d.id).map((e) => nodeById.get(e.source)).filter(Boolean);
@@ -12213,8 +12243,12 @@ SQIDAQAB
                 <div class="km-inline-detail-meta">${stateLabel[d.state]}</div>
                 <div class="km-inline-detail-section"><h4>Needs first</h4>${upItems}</div>
                 <div class="km-inline-detail-section"><h4>Builds on this</h4>${downItems}</div>
-                <button class="btn primary km-inline-start-lesson-btn">Start lesson</button>
+                <div class="km-inline-detail-actions">
+                    <button class="btn km-inline-view-btn">View</button>
+                    <button class="btn primary km-inline-start-lesson-btn">Start lesson</button>
+                </div>
             `;
+            detailEl.querySelector('.km-inline-view-btn').addEventListener('click', () => zoomToNode(d));
             detailEl.querySelector('.km-inline-start-lesson-btn').addEventListener('click', async (e) => {
                 // The lesson takes over the whole page the moment it
                 // starts — the graph/detail panel this button lives in
