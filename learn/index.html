@@ -13767,6 +13767,7 @@ SQIDAQAB
             const scheduleHtml = result.schedule
                 ? `<div class="km-inline-detail-item">Next review: <strong>${escapeHtml(formatDueIn(result.schedule.due))}</strong></div>`
                 : '';
+            const keysEarnedHtmlStr = keysEarnedHtml(result.keysEarned);
             const rec = result.recommendation;
             const recHtml = rec ? `
                 <div class="km-inline-detail-section">
@@ -13777,7 +13778,7 @@ SQIDAQAB
                     </div>
                 </div>
             ` : '';
-            resultEl.innerHTML = feedbackHtml + scheduleHtml + recHtml;
+            resultEl.innerHTML = feedbackHtml + keysEarnedHtmlStr + scheduleHtml + recHtml;
             if (rec) {
                 resultEl.querySelector('.km-next-recommendation-btn').addEventListener('click', () => {
                     showKmWorkspace(contentInner);
