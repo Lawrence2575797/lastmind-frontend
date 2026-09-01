@@ -11643,6 +11643,351 @@ SQIDAQAB
         }
     }
 
+    // ─── Maths Tool's mixed-input editor ───
+    // Was originally written nested inside renderKnowledgeMapForFolder,
+    // alongside createMathShortcutEditor — moved to this top-level scope
+    // because the Maths Tool page is a separate top-level feature that
+    // never runs inside that closure, and calling a function only defined
+    // inside it threw a silent ReferenceError, aborting renderMathsToolCompose
+    // before it ever appended an editor or wired the Send button (the
+    // reported "no text box, no response to New question" bug). These
+    // constants are deliberately separate copies from the ones still used
+    // by createMathShortcutEditor (same values, different scope) rather
+    // than a shared import, since this app has no module system to share
+    // them through - see that function's own copies for the pure-maths
+    // editor used inside lesson answer boxes.
+    const MATH_SHORTCUT_GREEK_MAP_GLOBAL = {
+        'a': { lower: 'α', upper: 'Α' }, 'b': { lower: 'β', upper: 'Β' },
+        'd': { lower: 'δ', upper: 'Δ' }, 'y': { lower: 'γ', upper: 'Γ' },
+        'u': { lower: 'μ', upper: 'Μ' }, 'p': { lower: 'π', upper: 'Π' },
+        't': { lower: 'θ', upper: 'Θ' }, 's': { lower: 'σ', upper: 'Σ' },
+        'l': { lower: 'λ', upper: 'Λ' }, 'w': { lower: 'ω', upper: 'Ω' },
+        'x': { lower: 'χ', upper: 'Χ' },
+    };
+    const MATH_SHORTCUT_TWO_CHAR_GLOBAL = { '<=': '≤', '>=': '≥', '!=': '≠' };
+    const MATH_SHORTCUT_ZWS_GLOBAL = '​';
+    // "and/or" is the one common English construction plain immediate "/"
+    // would otherwise mangle into a fraction — see createSmartAnswerEditor
+    // below.
+    const MATH_SHORTCUT_FRACTION_BLOCKLIST_GLOBAL = new Set(['and', 'or', 'he', 'she', 'his', 'her', 'him']);
+
+    function createSmartAnswerEditor(placeholder) {
+        const wrap = document.createElement('div');
+        wrap.className = 'math-shortcut-wrap';
+        const editor = document.createElement('div');
+        editor.className = 'math-shortcut-editor';
+        editor.contentEditable = 'true';
+        editor.dataset.placeholder = placeholder || 'Write your answer here…';
+        wrap.appendChild(editor);
+        const hint = document.createElement('div');
+        hint.className = 'math-shortcut-hint';
+        hint.textContent = 'Write normally. Maths: ^ power, _ subscript, / fraction (after a number), ] evaluate-between-limits, * ×, ~ √, \\p \\t \\d \\a \\b \\s \\l \\w \\x \\y Greek letters, \\f function, \\i integral';
+        wrap.appendChild(hint);
+
+        function insertTextAtCaret(text) {
+            const sel = window.getSelection();
+            if (!sel.rangeCount) return;
+            const range = sel.getRangeAt(0);
+            range.deleteContents();
+            const node = document.createTextNode(text);
+            range.insertNode(node);
+            range.setStartAfter(node); range.setEndAfter(node);
+            sel.removeAllRanges(); sel.addRange(range);
+        }
+        function insertStyledSymbol(text) {
+            const sel = window.getSelection();
+            if (!sel.rangeCount) return null;
+            const range = sel.getRangeAt(0);
+            range.deleteContents();
+            const span = document.createElement('i');
+            span.className = 'math-symbol';
+            span.textContent = text;
+            const landing = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL);
+            const frag = document.createDocumentFragment();
+            frag.appendChild(span); frag.appendChild(landing);
+            range.insertNode(frag);
+            const after = document.createRange();
+            after.setStart(landing, 1); after.collapse(true);
+            sel.removeAllRanges(); sel.addRange(after);
+            return span;
+        }
+        function startZone(tag) {
+            const sel = window.getSelection();
+            if (!sel.rangeCount) return;
+            const range = sel.getRangeAt(0);
+            range.deleteContents();
+            const zone = document.createElement(tag);
+            zone.appendChild(document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL));
+            range.insertNode(zone);
+            const inner = document.createRange();
+            inner.setStart(zone.firstChild, 1); inner.collapse(true);
+            sel.removeAllRanges(); sel.addRange(inner);
+        }
+        function currentZone() {
+            const sel = window.getSelection();
+            if (!sel.rangeCount) return null;
+            let node = sel.getRangeAt(0).startContainer;
+            while (node && node !== editor) {
+                if (node.nodeType === 1 && (node.tagName === 'SUP' || node.tagName === 'SUB')) return node;
+                node = node.parentNode;
+            }
+            return null;
+        }
+        function exitZoneAfter(zoneEl) {
+            const parent = zoneEl.parentNode, nextSibling = zoneEl.nextSibling;
+            if (zoneEl.textContent === MATH_SHORTCUT_ZWS_GLOBAL) {
+                zoneEl.remove();
+            } else {
+                zoneEl.normalize && zoneEl.normalize();
+                const zw = zoneEl.firstChild;
+                if (zw && zw.nodeType === 3 && zw.textContent.charAt(0) === MATH_SHORTCUT_ZWS_GLOBAL) zw.textContent = zw.textContent.slice(1);
+            }
+            const landing = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL);
+            (parent || editor).insertBefore(landing, nextSibling || null);
+            const sel = window.getSelection();
+            const range = document.createRange();
+            range.setStart(landing, 1); range.collapse(true);
+            sel.removeAllRanges(); sel.addRange(range);
+        }
+        function findTokenBeforeCaret() {
+            const sel = window.getSelection();
+            if (!sel.rangeCount || !sel.isCollapsed) return null;
+            const range = sel.getRangeAt(0);
+            const node = range.startContainer, offset = range.startOffset;
+            if (node.nodeType !== 3) return null;
+            const text = node.textContent;
+            let start = offset;
+            while (start > 0 && /[0-9a-zA-Z.]/.test(text.charAt(start - 1))) start--;
+            if (start === offset) return null;
+            return { node, start, end: offset, text: text.slice(start, offset) };
+        }
+        function makeFraction(numText) {
+            const sel = window.getSelection();
+            if (!sel.rangeCount) return;
+            const range = sel.getRangeAt(0);
+            range.deleteContents();
+            const frac = document.createElement('span'); frac.className = 'frac';
+            const num = document.createElement('span'); num.className = 'frac-num';
+            const den = document.createElement('span'); den.className = 'frac-den';
+            num.appendChild(document.createTextNode(numText || MATH_SHORTCUT_ZWS_GLOBAL));
+            den.appendChild(document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL));
+            frac.appendChild(num); frac.appendChild(den);
+            range.insertNode(frac);
+            const inner = document.createRange();
+            if (numText) inner.setStart(den.firstChild, 1); else inner.setStart(num.firstChild, 1);
+            inner.collapse(true);
+            sel.removeAllRanges(); sel.addRange(inner);
+        }
+        function currentFracPart() {
+            const sel = window.getSelection();
+            if (!sel.rangeCount) return null;
+            let node = sel.getRangeAt(0).startContainer;
+            while (node && node !== editor) {
+                if (node.nodeType === 1 && (node.className === 'frac-num' || node.className === 'frac-den')) return node;
+                node = node.parentNode;
+            }
+            return null;
+        }
+        function advanceFracNumToDen(numEl) {
+            numEl.normalize && numEl.normalize();
+            const first = numEl.firstChild;
+            if (first && first.nodeType === 3 && first.textContent.charAt(0) === MATH_SHORTCUT_ZWS_GLOBAL && first.textContent.length > 1) first.textContent = first.textContent.slice(1);
+            const den = numEl.parentNode.querySelector('.frac-den');
+            const sel = window.getSelection();
+            const range = document.createRange();
+            range.setStart(den.firstChild, 1); range.collapse(true);
+            sel.removeAllRanges(); sel.addRange(range);
+        }
+
+        let funcPrimeLanding = null, funcPrimeSpan = null;
+        function isCaretAt(node, offset) {
+            const sel = window.getSelection();
+            if (!sel.rangeCount || !sel.isCollapsed) return false;
+            const r = sel.getRangeAt(0);
+            return r.startContainer === node && r.startOffset === offset;
+        }
+        function insertFuncF() {
+            const sel = window.getSelection();
+            if (!sel.rangeCount) return;
+            const range = sel.getRangeAt(0);
+            range.deleteContents();
+            const letter = document.createElement('i'); letter.className = 'math-symbol'; letter.textContent = 'f';
+            const primes = document.createElement('span'); primes.className = 'func-primes';
+            const suffix = document.createTextNode('(x)');
+            const landing = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL);
+            const frag = document.createDocumentFragment();
+            frag.appendChild(letter); frag.appendChild(primes); frag.appendChild(suffix); frag.appendChild(landing);
+            range.insertNode(frag);
+            const after = document.createRange();
+            after.setStart(landing, 1); after.collapse(true);
+            sel.removeAllRanges(); sel.addRange(after);
+            funcPrimeLanding = landing; funcPrimeSpan = primes;
+        }
+
+        let pendingIntegral = false;
+        function growLimitBoxes() {
+            const sel = window.getSelection();
+            if (!sel.rangeCount) return;
+            const range = sel.getRangeAt(0);
+            const limitsWrap = document.createElement('span'); limitsWrap.className = 'int-limits';
+            const upper = document.createElement('span'); upper.className = 'int-upper'; upper.appendChild(document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL));
+            const lower = document.createElement('span'); lower.className = 'int-lower'; lower.appendChild(document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL));
+            limitsWrap.appendChild(upper); limitsWrap.appendChild(lower);
+            const landing = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL);
+            const frag = document.createDocumentFragment();
+            frag.appendChild(limitsWrap); frag.appendChild(landing);
+            range.insertNode(frag);
+            const inner = document.createRange();
+            inner.setStart(upper.firstChild, 1); inner.collapse(true);
+            sel.removeAllRanges(); sel.addRange(inner);
+        }
+        function currentIntLimitZone() {
+            const sel = window.getSelection();
+            if (!sel.rangeCount) return null;
+            let node = sel.getRangeAt(0).startContainer;
+            while (node && node !== editor) {
+                if (node.nodeType === 1 && (node.className === 'int-upper' || node.className === 'int-lower')) return node;
+                node = node.parentNode;
+            }
+            return null;
+        }
+        function exitIntLimits(lowerZoneEl) {
+            const limitsWrap = lowerZoneEl.parentNode;
+            const landing = limitsWrap.nextSibling;
+            const sel = window.getSelection();
+            const range = document.createRange();
+            if (landing && landing.nodeType === 3) range.setStart(landing, landing.textContent.length);
+            else range.setStartAfter(limitsWrap);
+            range.collapse(true);
+            sel.removeAllRanges(); sel.addRange(range);
+        }
+        function maybeConvertTwoChar() {
+            const sel = window.getSelection();
+            if (!sel.rangeCount || !sel.isCollapsed) return;
+            const node = sel.getRangeAt(0).startContainer;
+            const offset = sel.getRangeAt(0).startOffset;
+            if (node.nodeType !== 3 || offset < 2) return;
+            const last2 = node.textContent.slice(offset - 2, offset);
+            const symbol = MATH_SHORTCUT_TWO_CHAR_GLOBAL[last2];
+            if (!symbol) return;
+            node.textContent = node.textContent.slice(0, offset - 2) + symbol + node.textContent.slice(offset);
+            const range = document.createRange();
+            range.setStart(node, offset - 1); range.collapse(true);
+            sel.removeAllRanges(); sel.addRange(range);
+        }
+        function maybeConvertEscape() {
+            const sel = window.getSelection();
+            if (!sel.rangeCount || !sel.isCollapsed) return;
+            const node = sel.getRangeAt(0).startContainer;
+            const offset = sel.getRangeAt(0).startOffset;
+            if (node.nodeType !== 3 || offset < 2) return;
+            const last2 = node.textContent.slice(offset - 2, offset);
+            if (last2.charAt(0) !== '\\') return;
+            const letter = last2.charAt(1);
+            const lower = letter.toLowerCase();
+            const greek = MATH_SHORTCUT_GREEK_MAP_GLOBAL[lower];
+            const isFunc = lower === 'f';
+            const isIntegral = lower === 'i';
+            if (!greek && !isFunc && !isIntegral) return;
+
+            node.textContent = node.textContent.slice(0, offset - 2) + node.textContent.slice(offset);
+            const range = document.createRange();
+            range.setStart(node, offset - 2); range.collapse(true);
+            sel.removeAllRanges(); sel.addRange(range);
+
+            if (isFunc) { insertFuncF(); return; }
+            if (isIntegral) { insertStyledSymbol('∫'); pendingIntegral = true; return; }
+            insertStyledSymbol(letter === lower ? greek.lower : greek.upper);
+        }
+
+        editor.addEventListener('keydown', (ev) => {
+            const extendingPrimes = funcPrimeLanding && ev.key === "'" && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && isCaretAt(funcPrimeLanding, 1);
+            if (extendingPrimes) {
+                ev.preventDefault();
+                funcPrimeSpan.textContent += '′';
+                const afterPrime = document.createRange();
+                afterPrime.setStart(funcPrimeLanding, 1); afterPrime.collapse(true);
+                const selPrime = window.getSelection();
+                selPrime.removeAllRanges(); selPrime.addRange(afterPrime);
+                return;
+            }
+            funcPrimeLanding = null; funcPrimeSpan = null;
+
+            if (pendingIntegral) {
+                pendingIntegral = false;
+                if (ev.key === 'd' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) { ev.preventDefault(); growLimitBoxes(); return; }
+            }
+            if (ev.key === ']' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+                ev.preventDefault(); insertTextAtCaret(']'); growLimitBoxes(); return;
+            }
+            if (ev.key === '*') { ev.preventDefault(); insertStyledSymbol('×'); return; }
+            if (ev.key === '~') { ev.preventDefault(); insertStyledSymbol('√'); return; }
+            if (ev.key === '^') { ev.preventDefault(); startZone('sup'); return; }
+            if (ev.key === '_') { ev.preventDefault(); startZone('sub'); return; }
+            if (ev.key === '/') {
+                const fracPart = currentFracPart();
+                if (fracPart && fracPart.className === 'frac-num') { ev.preventDefault(); advanceFracNumToDen(fracPart); return; }
+                if (fracPart && fracPart.className === 'frac-den') return;
+                const token = findTokenBeforeCaret();
+                if (token && MATH_SHORTCUT_FRACTION_BLOCKLIST_GLOBAL.has(token.text.toLowerCase())) return;
+                ev.preventDefault();
+                if (token) {
+                    const delRange = document.createRange();
+                    delRange.setStart(token.node, token.start); delRange.setEnd(token.node, token.end);
+                    delRange.deleteContents();
+                    const sel0 = window.getSelection();
+                    sel0.removeAllRanges(); sel0.addRange(delRange);
+                    makeFraction(token.text);
+                } else { makeFraction(null); }
+                return;
+            }
+            const zone = currentZone();
+            if (zone && (ev.key === 'ArrowRight' || ev.key === ' ')) { ev.preventDefault(); exitZoneAfter(zone); return; }
+            const denPart = currentFracPart();
+            if (denPart && denPart.className === 'frac-den' && (ev.key === 'ArrowRight' || ev.key === ' ')) { ev.preventDefault(); exitZoneAfter(denPart.parentNode); return; }
+            const intZone = currentIntLimitZone();
+            if (intZone && intZone.className === 'int-upper' && ev.key === 'ArrowDown') {
+                ev.preventDefault();
+                const lowerZone = intZone.parentNode.querySelector('.int-lower');
+                lowerZone.normalize && lowerZone.normalize();
+                const toLower = document.createRange();
+                toLower.setStart(lowerZone.firstChild, lowerZone.firstChild.textContent.length); toLower.collapse(true);
+                const selDown = window.getSelection();
+                selDown.removeAllRanges(); selDown.addRange(toLower);
+                return;
+            }
+            if (intZone && intZone.className === 'int-lower' && ev.key === ' ') { ev.preventDefault(); exitIntLimits(intZone); return; }
+        });
+        editor.addEventListener('input', () => { maybeConvertTwoChar(); maybeConvertEscape(); });
+
+        function serializeNode(node) {
+            if (node.nodeType === 3) return node.textContent.replace(/​/g, '');
+            if (node.nodeType !== 1) return '';
+            if (node.classList && node.classList.contains('frac')) {
+                const num = node.querySelector('.frac-num'), den = node.querySelector('.frac-den');
+                return `(${serializeChildren(num)})/(${serializeChildren(den)})`;
+            }
+            if (node.classList && node.classList.contains('int-limits')) {
+                const upper = node.querySelector('.int-upper'), lower = node.querySelector('.int-lower');
+                return `[${serializeChildren(lower)}, ${serializeChildren(upper)}]`;
+            }
+            if (node.tagName === 'SUP') return `^(${serializeChildren(node)})`;
+            if (node.tagName === 'SUB') return `_(${serializeChildren(node)})`;
+            return serializeChildren(node);
+        }
+        function serializeChildren(node) {
+            if (!node) return '';
+            return Array.from(node.childNodes).map(serializeNode).join('');
+        }
+
+        return {
+            container: wrap,
+            getValue() { return serializeChildren(editor).trim(); },
+            isEmpty() { return !serializeChildren(editor).trim(); },
+            focus() { editor.focus(); },
+        };
+    }
+
     function mathsToolBubbleHtml(role, content) {
         return `<div class="maths-tool-bubble maths-tool-bubble-${role}">${escapeHtml(content)}</div>`;
     }
@@ -13234,348 +13579,6 @@ SQIDAQAB
         // real questions need this in the first place.
         function looksLikeCalculationQuestion(questionText) {
             return /\bcalculate\b/i.test(questionText || '');
-        }
-
-        // The Maths Tool's answer box (see openMathHelpTool) can't use the
-        // above split, because a single answer there routinely mixes prose
-        // AND maths in the same box — there's no whole-question signal to
-        // pick an editor by. This is the same rich contenteditable as
-        // createMathShortcutEditor, but every trigger that could plausibly
-        // appear inside an ordinary English word or sentence has been
-        // replaced with one that can't: Shift+letter/Shift+I (collides with
-        // completely ordinary mid-sentence capitalisation — "Price", "The",
-        // "Supply", "In this case" would all silently lose their first
-        // letter to a Greek symbol) and bare "f" (the exact bug reported
-        // against createMathShortcutEditor) now require a backslash escape
-        // instead (\p, \t, \d, \f, \i, ...) — a sequence nobody types in
-        // prose. ^, _, ], *, ~ are left as immediate single-key triggers
-        // since none of them legitimately appears alone in written English.
-        // "/" stays immediate too (typing "1/2" needs to just work), except
-        // for the one common English construction it would otherwise
-        // mangle — "and/or" — which is explicitly exempted below.
-        const MATH_SHORTCUT_FRACTION_BLOCKLIST = new Set(['and', 'or', 'he', 'she', 'his', 'her', 'him']);
-
-        function createSmartAnswerEditor(placeholder) {
-            const wrap = document.createElement('div');
-            wrap.className = 'math-shortcut-wrap';
-            const editor = document.createElement('div');
-            editor.className = 'math-shortcut-editor';
-            editor.contentEditable = 'true';
-            editor.dataset.placeholder = placeholder || 'Write your answer here…';
-            wrap.appendChild(editor);
-            const hint = document.createElement('div');
-            hint.className = 'math-shortcut-hint';
-            hint.textContent = 'Write normally. Maths: ^ power, _ subscript, / fraction (after a number), ] evaluate-between-limits, * ×, ~ √, \\p \\t \\d \\a \\b \\s \\l \\w \\x \\y Greek letters, \\f function, \\i integral';
-            wrap.appendChild(hint);
-
-            function insertTextAtCaret(text) {
-                const sel = window.getSelection();
-                if (!sel.rangeCount) return;
-                const range = sel.getRangeAt(0);
-                range.deleteContents();
-                const node = document.createTextNode(text);
-                range.insertNode(node);
-                range.setStartAfter(node); range.setEndAfter(node);
-                sel.removeAllRanges(); sel.addRange(range);
-            }
-            function insertStyledSymbol(text) {
-                const sel = window.getSelection();
-                if (!sel.rangeCount) return null;
-                const range = sel.getRangeAt(0);
-                range.deleteContents();
-                const span = document.createElement('i');
-                span.className = 'math-symbol';
-                span.textContent = text;
-                const landing = document.createTextNode(MATH_SHORTCUT_ZWS);
-                const frag = document.createDocumentFragment();
-                frag.appendChild(span); frag.appendChild(landing);
-                range.insertNode(frag);
-                const after = document.createRange();
-                after.setStart(landing, 1); after.collapse(true);
-                sel.removeAllRanges(); sel.addRange(after);
-                return span;
-            }
-            function startZone(tag) {
-                const sel = window.getSelection();
-                if (!sel.rangeCount) return;
-                const range = sel.getRangeAt(0);
-                range.deleteContents();
-                const zone = document.createElement(tag);
-                zone.appendChild(document.createTextNode(MATH_SHORTCUT_ZWS));
-                range.insertNode(zone);
-                const inner = document.createRange();
-                inner.setStart(zone.firstChild, 1); inner.collapse(true);
-                sel.removeAllRanges(); sel.addRange(inner);
-            }
-            function currentZone() {
-                const sel = window.getSelection();
-                if (!sel.rangeCount) return null;
-                let node = sel.getRangeAt(0).startContainer;
-                while (node && node !== editor) {
-                    if (node.nodeType === 1 && (node.tagName === 'SUP' || node.tagName === 'SUB')) return node;
-                    node = node.parentNode;
-                }
-                return null;
-            }
-            function exitZoneAfter(zoneEl) {
-                const parent = zoneEl.parentNode, nextSibling = zoneEl.nextSibling;
-                if (zoneEl.textContent === MATH_SHORTCUT_ZWS) {
-                    zoneEl.remove();
-                } else {
-                    zoneEl.normalize && zoneEl.normalize();
-                    const zw = zoneEl.firstChild;
-                    if (zw && zw.nodeType === 3 && zw.textContent.charAt(0) === MATH_SHORTCUT_ZWS) zw.textContent = zw.textContent.slice(1);
-                }
-                const landing = document.createTextNode(MATH_SHORTCUT_ZWS);
-                (parent || editor).insertBefore(landing, nextSibling || null);
-                const sel = window.getSelection();
-                const range = document.createRange();
-                range.setStart(landing, 1); range.collapse(true);
-                sel.removeAllRanges(); sel.addRange(range);
-            }
-            function findTokenBeforeCaret() {
-                const sel = window.getSelection();
-                if (!sel.rangeCount || !sel.isCollapsed) return null;
-                const range = sel.getRangeAt(0);
-                const node = range.startContainer, offset = range.startOffset;
-                if (node.nodeType !== 3) return null;
-                const text = node.textContent;
-                let start = offset;
-                while (start > 0 && /[0-9a-zA-Z.]/.test(text.charAt(start - 1))) start--;
-                if (start === offset) return null;
-                return { node, start, end: offset, text: text.slice(start, offset) };
-            }
-            function makeFraction(numText) {
-                const sel = window.getSelection();
-                if (!sel.rangeCount) return;
-                const range = sel.getRangeAt(0);
-                range.deleteContents();
-                const frac = document.createElement('span'); frac.className = 'frac';
-                const num = document.createElement('span'); num.className = 'frac-num';
-                const den = document.createElement('span'); den.className = 'frac-den';
-                num.appendChild(document.createTextNode(numText || MATH_SHORTCUT_ZWS));
-                den.appendChild(document.createTextNode(MATH_SHORTCUT_ZWS));
-                frac.appendChild(num); frac.appendChild(den);
-                range.insertNode(frac);
-                const inner = document.createRange();
-                if (numText) inner.setStart(den.firstChild, 1); else inner.setStart(num.firstChild, 1);
-                inner.collapse(true);
-                sel.removeAllRanges(); sel.addRange(inner);
-            }
-            function currentFracPart() {
-                const sel = window.getSelection();
-                if (!sel.rangeCount) return null;
-                let node = sel.getRangeAt(0).startContainer;
-                while (node && node !== editor) {
-                    if (node.nodeType === 1 && (node.className === 'frac-num' || node.className === 'frac-den')) return node;
-                    node = node.parentNode;
-                }
-                return null;
-            }
-            function advanceFracNumToDen(numEl) {
-                numEl.normalize && numEl.normalize();
-                const first = numEl.firstChild;
-                if (first && first.nodeType === 3 && first.textContent.charAt(0) === MATH_SHORTCUT_ZWS && first.textContent.length > 1) first.textContent = first.textContent.slice(1);
-                const den = numEl.parentNode.querySelector('.frac-den');
-                const sel = window.getSelection();
-                const range = document.createRange();
-                range.setStart(den.firstChild, 1); range.collapse(true);
-                sel.removeAllRanges(); sel.addRange(range);
-            }
-
-            let funcPrimeLanding = null, funcPrimeSpan = null;
-            function isCaretAt(node, offset) {
-                const sel = window.getSelection();
-                if (!sel.rangeCount || !sel.isCollapsed) return false;
-                const r = sel.getRangeAt(0);
-                return r.startContainer === node && r.startOffset === offset;
-            }
-            function insertFuncF() {
-                const sel = window.getSelection();
-                if (!sel.rangeCount) return;
-                const range = sel.getRangeAt(0);
-                range.deleteContents();
-                const letter = document.createElement('i'); letter.className = 'math-symbol'; letter.textContent = 'f';
-                const primes = document.createElement('span'); primes.className = 'func-primes';
-                const suffix = document.createTextNode('(x)');
-                const landing = document.createTextNode(MATH_SHORTCUT_ZWS);
-                const frag = document.createDocumentFragment();
-                frag.appendChild(letter); frag.appendChild(primes); frag.appendChild(suffix); frag.appendChild(landing);
-                range.insertNode(frag);
-                const after = document.createRange();
-                after.setStart(landing, 1); after.collapse(true);
-                sel.removeAllRanges(); sel.addRange(after);
-                funcPrimeLanding = landing; funcPrimeSpan = primes;
-            }
-
-            let pendingIntegral = false;
-            function growLimitBoxes() {
-                const sel = window.getSelection();
-                if (!sel.rangeCount) return;
-                const range = sel.getRangeAt(0);
-                const limitsWrap = document.createElement('span'); limitsWrap.className = 'int-limits';
-                const upper = document.createElement('span'); upper.className = 'int-upper'; upper.appendChild(document.createTextNode(MATH_SHORTCUT_ZWS));
-                const lower = document.createElement('span'); lower.className = 'int-lower'; lower.appendChild(document.createTextNode(MATH_SHORTCUT_ZWS));
-                limitsWrap.appendChild(upper); limitsWrap.appendChild(lower);
-                const landing = document.createTextNode(MATH_SHORTCUT_ZWS);
-                const frag = document.createDocumentFragment();
-                frag.appendChild(limitsWrap); frag.appendChild(landing);
-                range.insertNode(frag);
-                const inner = document.createRange();
-                inner.setStart(upper.firstChild, 1); inner.collapse(true);
-                sel.removeAllRanges(); sel.addRange(inner);
-            }
-            function currentIntLimitZone() {
-                const sel = window.getSelection();
-                if (!sel.rangeCount) return null;
-                let node = sel.getRangeAt(0).startContainer;
-                while (node && node !== editor) {
-                    if (node.nodeType === 1 && (node.className === 'int-upper' || node.className === 'int-lower')) return node;
-                    node = node.parentNode;
-                }
-                return null;
-            }
-            function exitIntLimits(lowerZoneEl) {
-                const limitsWrap = lowerZoneEl.parentNode;
-                const landing = limitsWrap.nextSibling;
-                const sel = window.getSelection();
-                const range = document.createRange();
-                if (landing && landing.nodeType === 3) range.setStart(landing, landing.textContent.length);
-                else range.setStartAfter(limitsWrap);
-                range.collapse(true);
-                sel.removeAllRanges(); sel.addRange(range);
-            }
-            function maybeConvertTwoChar() {
-                const sel = window.getSelection();
-                if (!sel.rangeCount || !sel.isCollapsed) return;
-                const node = sel.getRangeAt(0).startContainer;
-                const offset = sel.getRangeAt(0).startOffset;
-                if (node.nodeType !== 3 || offset < 2) return;
-                const last2 = node.textContent.slice(offset - 2, offset);
-                const symbol = MATH_SHORTCUT_TWO_CHAR[last2];
-                if (!symbol) return;
-                node.textContent = node.textContent.slice(0, offset - 2) + symbol + node.textContent.slice(offset);
-                const range = document.createRange();
-                range.setStart(node, offset - 1); range.collapse(true);
-                sel.removeAllRanges(); sel.addRange(range);
-            }
-            // The backslash-escape counterpart to maybeConvertTwoChar, for
-            // triggers that need a real DOM insertion (a styled symbol, a
-            // whole f(x) block, an integral) rather than a plain 1-for-1
-            // character swap. Checked before mutating anything so an
-            // unrecognized "\x" sequence (any letter not in the map) is
-            // simply left alone as literal typed text.
-            function maybeConvertEscape() {
-                const sel = window.getSelection();
-                if (!sel.rangeCount || !sel.isCollapsed) return;
-                const node = sel.getRangeAt(0).startContainer;
-                const offset = sel.getRangeAt(0).startOffset;
-                if (node.nodeType !== 3 || offset < 2) return;
-                const last2 = node.textContent.slice(offset - 2, offset);
-                if (last2.charAt(0) !== '\\') return;
-                const letter = last2.charAt(1);
-                const lower = letter.toLowerCase();
-                const greek = MATH_SHORTCUT_GREEK_MAP[lower];
-                const isFunc = lower === 'f';
-                const isIntegral = lower === 'i';
-                if (!greek && !isFunc && !isIntegral) return;
-
-                node.textContent = node.textContent.slice(0, offset - 2) + node.textContent.slice(offset);
-                const range = document.createRange();
-                range.setStart(node, offset - 2); range.collapse(true);
-                sel.removeAllRanges(); sel.addRange(range);
-
-                if (isFunc) { insertFuncF(); return; }
-                if (isIntegral) { insertStyledSymbol('∫'); pendingIntegral = true; return; }
-                insertStyledSymbol(letter === lower ? greek.lower : greek.upper);
-            }
-
-            editor.addEventListener('keydown', (ev) => {
-                const extendingPrimes = funcPrimeLanding && ev.key === "'" && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && isCaretAt(funcPrimeLanding, 1);
-                if (extendingPrimes) {
-                    ev.preventDefault();
-                    funcPrimeSpan.textContent += '′';
-                    const afterPrime = document.createRange();
-                    afterPrime.setStart(funcPrimeLanding, 1); afterPrime.collapse(true);
-                    const selPrime = window.getSelection();
-                    selPrime.removeAllRanges(); selPrime.addRange(afterPrime);
-                    return;
-                }
-                funcPrimeLanding = null; funcPrimeSpan = null;
-
-                if (pendingIntegral) {
-                    pendingIntegral = false;
-                    if (ev.key === 'd' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) { ev.preventDefault(); growLimitBoxes(); return; }
-                }
-                if (ev.key === ']' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
-                    ev.preventDefault(); insertTextAtCaret(']'); growLimitBoxes(); return;
-                }
-                if (ev.key === '*') { ev.preventDefault(); insertStyledSymbol('×'); return; }
-                if (ev.key === '~') { ev.preventDefault(); insertStyledSymbol('√'); return; }
-                if (ev.key === '^') { ev.preventDefault(); startZone('sup'); return; }
-                if (ev.key === '_') { ev.preventDefault(); startZone('sub'); return; }
-                if (ev.key === '/') {
-                    const fracPart = currentFracPart();
-                    if (fracPart && fracPart.className === 'frac-num') { ev.preventDefault(); advanceFracNumToDen(fracPart); return; }
-                    if (fracPart && fracPart.className === 'frac-den') return;
-                    const token = findTokenBeforeCaret();
-                    if (token && MATH_SHORTCUT_FRACTION_BLOCKLIST.has(token.text.toLowerCase())) return;
-                    ev.preventDefault();
-                    if (token) {
-                        const delRange = document.createRange();
-                        delRange.setStart(token.node, token.start); delRange.setEnd(token.node, token.end);
-                        delRange.deleteContents();
-                        const sel0 = window.getSelection();
-                        sel0.removeAllRanges(); sel0.addRange(delRange);
-                        makeFraction(token.text);
-                    } else { makeFraction(null); }
-                    return;
-                }
-                const zone = currentZone();
-                if (zone && (ev.key === 'ArrowRight' || ev.key === ' ')) { ev.preventDefault(); exitZoneAfter(zone); return; }
-                const denPart = currentFracPart();
-                if (denPart && denPart.className === 'frac-den' && (ev.key === 'ArrowRight' || ev.key === ' ')) { ev.preventDefault(); exitZoneAfter(denPart.parentNode); return; }
-                const intZone = currentIntLimitZone();
-                if (intZone && intZone.className === 'int-upper' && ev.key === 'ArrowDown') {
-                    ev.preventDefault();
-                    const lowerZone = intZone.parentNode.querySelector('.int-lower');
-                    lowerZone.normalize && lowerZone.normalize();
-                    const toLower = document.createRange();
-                    toLower.setStart(lowerZone.firstChild, lowerZone.firstChild.textContent.length); toLower.collapse(true);
-                    const selDown = window.getSelection();
-                    selDown.removeAllRanges(); selDown.addRange(toLower);
-                    return;
-                }
-                if (intZone && intZone.className === 'int-lower' && ev.key === ' ') { ev.preventDefault(); exitIntLimits(intZone); return; }
-            });
-            editor.addEventListener('input', () => { maybeConvertTwoChar(); maybeConvertEscape(); });
-
-            function serializeNode(node) {
-                if (node.nodeType === 3) return node.textContent.replace(/​/g, '');
-                if (node.nodeType !== 1) return '';
-                if (node.classList && node.classList.contains('frac')) {
-                    const num = node.querySelector('.frac-num'), den = node.querySelector('.frac-den');
-                    return `(${serializeChildren(num)})/(${serializeChildren(den)})`;
-                }
-                if (node.classList && node.classList.contains('int-limits')) {
-                    const upper = node.querySelector('.int-upper'), lower = node.querySelector('.int-lower');
-                    return `[${serializeChildren(lower)}, ${serializeChildren(upper)}]`;
-                }
-                if (node.tagName === 'SUP') return `^(${serializeChildren(node)})`;
-                if (node.tagName === 'SUB') return `_(${serializeChildren(node)})`;
-                return serializeChildren(node);
-            }
-            function serializeChildren(node) {
-                if (!node) return '';
-                return Array.from(node.childNodes).map(serializeNode).join('');
-            }
-
-            return {
-                container: wrap,
-                getValue() { return serializeChildren(editor).trim(); },
-                isEmpty() { return !serializeChildren(editor).trim(); },
-                focus() { editor.focus(); },
-            };
         }
 
         // Shared by both question widgets — a normal correct/incorrect
