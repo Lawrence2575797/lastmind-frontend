@@ -710,6 +710,8 @@
     .km-inline-detail-item.km-inline-detail-none { opacity: 0.5; font-style: italic; background: transparent; border-style: dashed; }
     .km-inline-detail-lesson { margin: 10px 0; }
     .km-inline-lesson-explanation { font-size: 12.5px; line-height: 1.6; margin-bottom: 10px; }
+    .km-inline-lesson-explanation p { margin: 0 0 10px; }
+    .km-inline-lesson-explanation p:last-child { margin-bottom: 0; }
     .km-inline-lesson-question { font-size: 12.5px; line-height: 1.5; padding: 10px; background: rgba(230, 215, 176, 0.05); border-radius: 3px; }
     .km-inline-start-lesson-btn { margin-top: auto; width: 100%; padding: 10px 0; font-size: 13px; }
     .km-inline-dashboard-btn { flex: none; font-size: 12px; padding: 7px 14px; }
@@ -729,6 +731,8 @@
     .km-lesson-fullpage-body .km-inline-detail-label { font-size: 25px; line-height: 1.3; margin-bottom: 6px; }
     .km-lesson-fullpage-body .km-inline-detail-meta { font-size: 12.5px; margin-bottom: 4px; }
     .km-lesson-fullpage-body .km-inline-lesson-explanation { font-size: 15.5px; line-height: 1.9; margin-bottom: 0; }
+    .km-lesson-fullpage-body .km-inline-lesson-explanation p { margin: 0 0 16px; }
+    .km-lesson-fullpage-body .km-inline-lesson-explanation p:last-child { margin-bottom: 0; }
     .km-lesson-fullpage-body .km-inline-lesson-question { font-size: 15px; line-height: 1.8; padding: 18px 20px; margin-top: 10px; }
     .km-lesson-fullpage-body h4.km-inline-lesson-question { background: none; padding: 0; margin: 18px 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6; }
     .km-lesson-fullpage-body .km-inline-detail-section { margin-bottom: 0; padding: 26px 0; border-top: 1px solid rgba(230, 215, 176, 0.14); }
@@ -781,6 +785,7 @@
         font-size: 15px; line-height: 1.7; color: var(--text);
         background: var(--panel); border: 1.5px solid rgba(230, 215, 176, 0.2); border-radius: 6px;
         padding: 10px 12px; min-height: 70px; outline: none; caret-color: var(--accent);
+        width: 100%; box-sizing: border-box; resize: vertical;
     }
     .math-shortcut-editor:focus { border-color: var(--accent); }
     .math-shortcut-editor:empty::before { content: attr(data-placeholder); color: var(--text); opacity: 0.4; font-style: normal; }
@@ -5250,6 +5255,24 @@ SQIDAQAB
         const div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML;
+    }
+
+    // The generated node/edge teaching text (see lessonGenerationPrompts.ts)
+    // is written as continuous prose with no paragraph breaks — fine as a
+    // short block, but genuinely hard to read once it's rendered at full
+    // reading size on the lesson's own full-width page. Groups every N
+    // sentences into a paragraph rather than trying to detect real topic
+    // shifts — a plain, reliable heuristic that turns one dense block into
+    // several shorter, breathing ones. Each paragraph is escaped
+    // individually, so this is safe to use directly as HTML.
+    function splitIntoParagraphs(text, sentencesPerParagraph = 2) {
+        if (!text) return '';
+        const sentences = text.match(/[^.!?]+[.!?]+(?:\s+|$)/g) || [text];
+        const paragraphs = [];
+        for (let i = 0; i < sentences.length; i += sentencesPerParagraph) {
+            paragraphs.push(sentences.slice(i, i + sentencesPerParagraph).join('').trim());
+        }
+        return paragraphs.filter(Boolean).map((p) => `<p>${escapeHtml(p)}</p>`).join('');
     }
 
     // Escapes text first (neutralizing anything HTML-special in the
@@ -12254,7 +12277,7 @@ SQIDAQAB
             const bridgeHtml = bridgeSections.map(({ from, lesson }, idx) => `
                 <div class="km-inline-detail-section">
                     <h4>Bridge from "${escapeHtml(from.label)}"</h4>
-                    <div class="km-inline-lesson-explanation">${escapeHtml(lesson.linkTeaching || '')}</div>
+                    <div class="km-inline-lesson-explanation">${splitIntoParagraphs(lesson.linkTeaching)}</div>
                     ${lesson.transferQuestion ? `<div><strong class="km-inline-lesson-question" style="display:block;">Transfer</strong><div id="km-question-bridge-transfer-${idx}"></div></div>` : ''}
                     ${lesson.integrationQuestion ? `<div><strong class="km-inline-lesson-question" style="display:block;">Integration</strong><div id="km-question-bridge-integration-${idx}"></div></div>` : ''}
                 </div>
@@ -12263,7 +12286,7 @@ SQIDAQAB
             const nodeHtml = (!nodeLesson || nodeLesson.notFound)
                 ? `<div class="km-inline-detail-item km-inline-detail-none">No lesson generated for this concept yet.</div>`
                 : `
-                    <div class="km-inline-lesson-explanation">${escapeHtml(nodeLesson.explanation || '')}</div>
+                    <div class="km-inline-lesson-explanation">${splitIntoParagraphs(nodeLesson.explanation)}</div>
                     ${nodeLesson.practiceQuestion ? `<div><strong class="km-inline-lesson-question" style="display:block;">Practice</strong><div id="km-question-node-practice"></div></div>` : ''}
                 `;
 
@@ -12642,14 +12665,49 @@ SQIDAQAB
         // counterpart to renderDiagramWidget) using the math shortcut
         // editor above. `onSubmit(answerText)` does the actual POST and
         // must resolve to the grading result.
+        // A PLAIN textarea, same visual box as the math shortcut editor
+        // (reuses its CSS class purely for box/font/border styling) but
+        // with no keydown handler at all — so typing "f", "^", "_", "/",
+        // "*", "~" or Shift+letter in an ordinary prose answer just types
+        // that literal character, the way every other text input on the
+        // page already works.
+        function createPlainAnswerEditor(placeholder) {
+            const wrap = document.createElement('div');
+            wrap.className = 'math-shortcut-wrap';
+            const textarea = document.createElement('textarea');
+            textarea.className = 'math-shortcut-editor';
+            textarea.placeholder = placeholder || 'Write your answer here…';
+            textarea.rows = 5;
+            wrap.appendChild(textarea);
+            return {
+                container: wrap,
+                getValue() { return textarea.value.trim(); },
+                isEmpty() { return !textarea.value.trim(); },
+                focus() { textarea.focus(); },
+            };
+        }
+
+        // Only a genuine calculation needs the shortcut keyboard — every
+        // other question is ordinary prose, where hijacking "f"/"^"/"_"/
+        // "/"/"*"/"~"/Shift+letter as maths shortcuts would corrupt normal
+        // typing (this was a real, reported bug: typing the letter "f" in
+        // an explain-style answer silently became "f(x)"). Matches the
+        // same "Calculate..." convention already used when auditing which
+        // real questions need this in the first place.
+        function looksLikeCalculationQuestion(questionText) {
+            return /\bcalculate\b/i.test(questionText || '');
+        }
+
         function renderTextQuestionWidget(container, questionText, onSubmit) {
             const wrap = document.createElement('div');
             wrap.className = 'km-inline-lesson-question';
             const q = document.createElement('div');
             q.textContent = questionText || '';
             wrap.appendChild(q);
-            const mathEditor = createMathShortcutEditor('Write your answer here…');
-            wrap.appendChild(mathEditor.container);
+            const editor = looksLikeCalculationQuestion(questionText)
+                ? createMathShortcutEditor('Write your answer here…')
+                : createPlainAnswerEditor('Write your answer here…');
+            wrap.appendChild(editor.container);
             const submitBtn = document.createElement('button');
             submitBtn.type = 'button';
             submitBtn.className = 'btn primary';
@@ -12661,10 +12719,10 @@ SQIDAQAB
             wrap.appendChild(resultEl);
 
             submitBtn.addEventListener('click', async () => {
-                if (mathEditor.isEmpty()) return;
+                if (editor.isEmpty()) return;
                 submitBtn.disabled = true;
                 submitBtn.textContent = 'Checking…';
-                const result = await onSubmit(mathEditor.getValue());
+                const result = await onSubmit(editor.getValue());
                 submitBtn.remove();
                 resultEl.innerHTML = result
                     ? `<div class="km-inline-detail-item ${result.correct ? '' : 'km-inline-detail-none'}">${escapeHtml(result.feedback || '')}</div>`
