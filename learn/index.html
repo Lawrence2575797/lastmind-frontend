@@ -502,6 +502,9 @@
         stroke-opacity: 0.9;
         stroke-width: 2px;
     }
+    .km-link-arrowhead-path {
+        fill: rgba(230, 215, 176, 0.35);
+    }
     .km-node-group.km-selected .km-node-shape {
         stroke: var(--accent);
         stroke-width: 3px;
@@ -690,6 +693,7 @@
     .km-inline-sub { font-size: 12px; opacity: 0.6; margin-top: 3px; }
     .km-inline-search { margin-left: auto; }
     .km-inline-search-input { background: var(--panel); border: 1px solid rgba(230, 215, 176, 0.2); border-radius: 3px; padding: 7px 12px; font-size: 12px; color: var(--text); width: 190px; }
+    .km-inline-search-input.km-search-no-match { border-color: #c9544b; }
     .km-inline-themetabs { display: flex; gap: 6px; flex-wrap: wrap; padding: 14px 0 0; }
     .km-inline-tab { padding: 6px 13px; border-radius: 3px; font-size: 12px; font-weight: 600; border: 1px solid rgba(230, 215, 176, 0.2); color: var(--text); opacity: 0.7; cursor: pointer; background: transparent; font-family: Arial, sans-serif; }
     .km-inline-tab.active { background: var(--accent); border-color: var(--accent); color: var(--bg); opacity: 1; }
@@ -12396,6 +12400,20 @@ SQIDAQAB
         const svg = d3.select(svgEl);
         svg.selectAll('*').remove();
         svg.attr('viewBox', [0, 0, width, height]);
+        // A dependency arrow always points FROM its prerequisite (edge.source
+        // — see "Needs first" above) TOWARD the concept that depends on it
+        // (edge.target — "Builds on this"), so marker-end on the link line
+        // below reads left-to-right in the same direction the graph already
+        // treats as upstream -> downstream.
+        svg.append('defs').append('marker')
+            .attr('id', 'km-link-arrowhead')
+            .attr('viewBox', '0 0 8 8')
+            .attr('refX', 7).attr('refY', 4)
+            .attr('markerWidth', 6).attr('markerHeight', 6)
+            .attr('orient', 'auto-start-reverse')
+            .append('path')
+            .attr('d', 'M0,0 L8,4 L0,8 Z')
+            .attr('class', 'km-link-arrowhead-path');
         const zoomLayer = svg.append('g');
         // 0.3 as a lower bound only ever fit a handful of nodes — a
         // subject-wide graph (1000+ nodes) needs to be able to shrink much
@@ -12454,7 +12472,8 @@ SQIDAQAB
         }
 
         const linkSelection = zoomLayer.append('g').selectAll('line')
-            .data(links).join('line').attr('class', 'km-link state-0');
+            .data(links).join('line').attr('class', 'km-link state-0')
+            .attr('marker-end', 'url(#km-link-arrowhead)');
 
         const nodeGroup = zoomLayer.append('g').selectAll('g')
             .data(nodes, (d) => d.id).join('g')
@@ -12704,18 +12723,18 @@ SQIDAQAB
             bridgeSections.forEach(({ from, lesson, given }, idx) => {
                 if (lesson.transferQuestion) {
                     const el = lessonEl.querySelector(`#km-question-bridge-transfer-${idx}`);
-                    const submit = (answer) => postChainDiagnostic(
+                    const submit = (answer, hadRetry) => postChainDiagnostic(
                         lesson.transferQuestion.diagramSpec ? '/knowledge-map-v2/diagram-question/submit' : '/knowledge-map-v2/text-question/submit',
-                        { fromNodeId: from.id, toNodeId: d.id, questionType: 'transfer', answer }
+                        { fromNodeId: from.id, toNodeId: d.id, questionType: 'transfer', answer, hadRetry }
                     );
                     if (lesson.transferQuestion.diagramSpec) renderDiagramWidget(el, given, submit, gotoEncode);
                     else renderTextQuestionWidget(el, lesson.transferQuestion.questionText, submit, gotoEncode);
                 }
                 if (lesson.integrationQuestion) {
                     const el = lessonEl.querySelector(`#km-question-bridge-integration-${idx}`);
-                    const submit = (answer) => postChainDiagnostic(
+                    const submit = (answer, hadRetry) => postChainDiagnostic(
                         lesson.integrationQuestion.diagramSpec ? '/knowledge-map-v2/diagram-question/submit' : '/knowledge-map-v2/text-question/submit',
-                        { fromNodeId: from.id, toNodeId: d.id, questionType: 'integration', answer }
+                        { fromNodeId: from.id, toNodeId: d.id, questionType: 'integration', answer, hadRetry }
                     );
                     if (lesson.integrationQuestion.diagramSpec) renderDiagramWidget(el, given, submit, gotoEncode);
                     else renderTextQuestionWidget(el, lesson.integrationQuestion.questionText, submit, gotoEncode);
@@ -12723,9 +12742,9 @@ SQIDAQAB
             });
             if (nodeLesson && nodeLesson.practiceQuestion) {
                 const el = lessonEl.querySelector('#km-question-node-practice');
-                const submit = (answer) => postChainDiagnostic(
+                const submit = (answer, hadRetry) => postChainDiagnostic(
                     nodeLesson.practiceQuestion.diagramSpec ? '/knowledge-map-v2/diagram-question/submit' : '/knowledge-map-v2/text-question/submit',
-                    { nodeId: d.id, questionType: 'practice', answer }
+                    { nodeId: d.id, questionType: 'practice', answer, hadRetry }
                 );
                 if (nodeLesson.practiceQuestion.diagramSpec) renderDiagramWidget(el, null, submit);
                 else renderTextQuestionWidget(el, nodeLesson.practiceQuestion.questionText, submit);
@@ -12765,18 +12784,18 @@ SQIDAQAB
             };
             if (lesson.transferQuestion) {
                 const el = lessonEl.querySelector('#km-edge-review-transfer');
-                const submit = (answer) => postChainDiagnostic(
+                const submit = (answer, hadRetry) => postChainDiagnostic(
                     lesson.transferQuestion.diagramSpec ? '/knowledge-map-v2/diagram-question/submit' : '/knowledge-map-v2/text-question/submit',
-                    { fromNodeId: fromNode.id, toNodeId: toNode.id, questionType: 'transfer', answer }
+                    { fromNodeId: fromNode.id, toNodeId: toNode.id, questionType: 'transfer', answer, hadRetry }
                 );
                 if (lesson.transferQuestion.diagramSpec) renderDiagramWidget(el, given, submit, gotoEncode);
                 else renderTextQuestionWidget(el, lesson.transferQuestion.questionText, submit, gotoEncode);
             }
             if (lesson.integrationQuestion) {
                 const el = lessonEl.querySelector('#km-edge-review-integration');
-                const submit = (answer) => postChainDiagnostic(
+                const submit = (answer, hadRetry) => postChainDiagnostic(
                     lesson.integrationQuestion.diagramSpec ? '/knowledge-map-v2/diagram-question/submit' : '/knowledge-map-v2/text-question/submit',
-                    { fromNodeId: fromNode.id, toNodeId: toNode.id, questionType: 'integration', answer }
+                    { fromNodeId: fromNode.id, toNodeId: toNode.id, questionType: 'integration', answer, hadRetry }
                 );
                 if (lesson.integrationQuestion.diagramSpec) renderDiagramWidget(el, given, submit, gotoEncode);
                 else renderTextQuestionWidget(el, lesson.integrationQuestion.questionText, submit, gotoEncode);
@@ -13600,11 +13619,27 @@ SQIDAQAB
             resultEl.style.marginTop = '8px';
             wrap.appendChild(resultEl);
 
+            // A wrong first-time-encoding ('practice') attempt comes back
+            // `retryable: true` (see knowledgeMap.ts's text-question/submit)
+            // instead of being finalized — the editor/answer stays exactly
+            // as the student left it (never cleared) so they edit rather
+            // than retype, and the button becomes "Try again" rather than
+            // vanishing. A transfer/integration answer is never retryable —
+            // that's a real spaced-review lapse, graded the moment it's
+            // wrong, same as before.
+            let hadRetry = false;
             submitBtn.addEventListener('click', async () => {
                 if (editor.isEmpty()) return;
                 submitBtn.disabled = true;
                 submitBtn.textContent = 'Checking…';
-                const result = await onSubmit(editor.getValue());
+                const result = await onSubmit(editor.getValue(), hadRetry);
+                if (result && result.retryable) {
+                    hadRetry = true;
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Try again';
+                    renderQuestionResult(resultEl, result, onRequiresEncoding);
+                    return;
+                }
                 submitBtn.remove();
                 renderQuestionResult(resultEl, result, onRequiresEncoding);
             });
@@ -13858,6 +13893,12 @@ SQIDAQAB
                 state.placed = []; state.shades = []; state.labels = []; state.arrows = []; state.shadeDraft = [];
                 render();
             });
+            // Same retry-before-recording contract as renderTextQuestionWidget
+            // — a wrong 'practice' attempt comes back retryable, the
+            // canvas state (state.placed/shades/labels/arrows) is left
+            // exactly as drawn so the student can adjust rather than
+            // redraw from scratch, and the button becomes "Try again".
+            let hadRetry = false;
             container.querySelector(`#${uid}-submit-btn`).addEventListener('click', async (ev) => {
                 ev.target.disabled = true;
                 ev.target.textContent = 'Checking…';
@@ -13867,7 +13908,14 @@ SQIDAQAB
                     labels: state.labels.map((l) => ({ text: l.text, x: l.x, y: l.y })),
                     arrows: state.arrows.map((a) => ({ x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2 })),
                 };
-                const result = await onSubmit(answer);
+                const result = await onSubmit(answer, hadRetry);
+                if (result && result.retryable) {
+                    hadRetry = true;
+                    ev.target.disabled = false;
+                    ev.target.textContent = 'Try again';
+                    renderQuestionResult(resultEl, result, onRequiresEncoding);
+                    return;
+                }
                 ev.target.remove();
                 renderQuestionResult(resultEl, result, onRequiresEncoding);
             });
@@ -14009,6 +14057,30 @@ SQIDAQAB
 
         nodeGroup.on('click', (event, d) => { highlightKmConnections(d); selectKmInlineNode(d); });
         if (nodes.length) selectKmInlineNode(nodes[0]);
+
+        // Search box — was entirely inert (no listener at all) before this.
+        // Case-insensitive, substring match (a student's exact spelling/
+        // capitalisation shouldn't have to match the stored label) against
+        // whatever's currently visible in THIS render's `nodes` — re-wired
+        // (not just re-used) on every call since a theme-tab switch swaps
+        // in a whole new `nodes`/`zoomToNode` closure, and the old listener
+        // would otherwise keep searching last render's now-stale data.
+        const searchInput = contentInner.querySelector('.km-inline-search-input');
+        if (searchInput) {
+            if (searchInput._kmSearchHandler) searchInput.removeEventListener('keydown', searchInput._kmSearchHandler);
+            searchInput._kmSearchHandler = (ev) => {
+                if (ev.key !== 'Enter') return;
+                const query = searchInput.value.trim().toLowerCase();
+                if (!query) return;
+                const match = nodes.find((n) => n.label.toLowerCase().includes(query));
+                searchInput.classList.toggle('km-search-no-match', !match);
+                if (match) { selectKmInlineNode(match); zoomToNode(match); }
+            };
+            searchInput.addEventListener('keydown', searchInput._kmSearchHandler);
+            if (searchInput._kmInputHandler) searchInput.removeEventListener('input', searchInput._kmInputHandler);
+            searchInput._kmInputHandler = () => searchInput.classList.remove('km-search-no-match');
+            searchInput.addEventListener('input', searchInput._kmInputHandler);
+        }
     }
 
     // openKnowledgeMap/loadKnowledgeMapForFolder/renderKnowledgeMapGraph/
