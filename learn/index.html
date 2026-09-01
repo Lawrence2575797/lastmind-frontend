@@ -494,14 +494,6 @@
         transition: stroke 0.15s ease, stroke-opacity 0.15s ease, stroke-width 0.15s ease;
     }
 
-    /* Click-to-highlight: the clicked node's own edges/neighbours light up
-       ON TOP of the normal graph — every link stays visible all the time,
-       this only ever ADDS emphasis, never hides anything else. */
-    .km-link.km-highlighted {
-        stroke: var(--accent);
-        stroke-opacity: 0.9;
-        stroke-width: 2px;
-    }
     .km-link-arrowhead-path {
         fill: rgba(230, 215, 176, 0.35);
     }
@@ -510,17 +502,40 @@
         stroke-width: 3px;
     }
 
-    /* Link-level mastery — same amber/cream pair as node mastery
-       (.km-dot-1/.km-dot-2) so a tested-but-not-mastered link and a
-       tested-but-not-mastered concept read as the same visual language. */
+    /* Link-level mastery — same five-step ramp as node mastery
+       (.km-dot-0..4) so a link's own review progress reads as the same
+       visual language as a concept's. Opacity climbs alongside the colour
+       so a link brightens as it goes, rather than only changing hue. */
     .km-link.state-1 {
+        stroke: #8a5a3f;
+        stroke-opacity: 0.4;
+    }
+
+    .km-link.state-2 {
         stroke: #c98a4b;
         stroke-opacity: 0.55;
     }
 
-    .km-link.state-2 {
+    .km-link.state-3 {
+        stroke: #e0ab5f;
+        stroke-opacity: 0.65;
+    }
+
+    .km-link.state-4 {
         stroke: var(--accent);
         stroke-opacity: 0.75;
+    }
+
+    /* Click-to-highlight: the clicked node's own edges/neighbours light up
+       ON TOP of the normal graph — every link stays visible all the time,
+       this only ever ADDS emphasis, never hides anything else. Placed
+       AFTER the state-N rules (equal specificity, so source order decides)
+       so a highlight always wins visually, even on a link that already
+       has its own mastery-tier colour. */
+    .km-link.km-highlighted {
+        stroke: var(--accent);
+        stroke-opacity: 0.9;
+        stroke-width: 2px;
     }
 
     /* Soft subfolder groupings — deliberately neutral (not topic-coloured)
@@ -575,17 +590,23 @@
         stroke-width: 1.5px;
     }
 
-    /* Not covered — dim, muted grey-brown so it recedes into the dark
-       background. Due for review — a warm terracotta/amber, distinct
-       from --accent without clashing with it. Mastered — --accent itself,
-       full brightness with a soft glow. */
+    /* Five-step progress ramp (see masteryProgressTier in
+       renderKmInlineGraph) — not started (dim grey-brown, recedes into the
+       background) through two intermediate spaced-review steps, up to
+       durably mastered (--accent itself, full brightness). Reuses the two
+       colours the 3-tier scheme already had as this ramp's own start/near-
+       end anchors, rather than picking an unrelated new palette. */
     .km-dot-0, .state-0 .km-node-shape, .state-0.km-legend-dot { fill: #4a453e; }
-    .km-dot-1, .state-1 .km-node-shape, .state-1.km-legend-dot { fill: #c98a4b; }
-    .km-dot-2, .state-2 .km-node-shape, .state-2.km-legend-dot { fill: var(--accent); }
+    .km-dot-1, .state-1 .km-node-shape, .state-1.km-legend-dot { fill: #8a5a3f; }
+    .km-dot-2, .state-2 .km-node-shape, .state-2.km-legend-dot { fill: #c98a4b; }
+    .km-dot-3, .state-3 .km-node-shape, .state-3.km-legend-dot { fill: #e0ab5f; }
+    .km-dot-4, .state-4 .km-node-shape, .state-4.km-legend-dot { fill: var(--accent); }
 
     .km-legend-dot.km-dot-0, .km-detail-chip .dot.km-dot-0 { background: #4a453e; }
-    .km-legend-dot.km-dot-1, .km-detail-chip .dot.km-dot-1 { background: #c98a4b; }
-    .km-legend-dot.km-dot-2, .km-detail-chip .dot.km-dot-2 { background: var(--accent); }
+    .km-legend-dot.km-dot-1, .km-detail-chip .dot.km-dot-1 { background: #8a5a3f; }
+    .km-legend-dot.km-dot-2, .km-detail-chip .dot.km-dot-2 { background: #c98a4b; }
+    .km-legend-dot.km-dot-3, .km-detail-chip .dot.km-dot-3 { background: #e0ab5f; }
+    .km-legend-dot.km-dot-4, .km-detail-chip .dot.km-dot-4 { background: var(--accent); }
 
     .km-legend {
         position: absolute;
@@ -698,10 +719,13 @@
     .km-inline-tab { padding: 6px 13px; border-radius: 3px; font-size: 12px; font-weight: 600; border: 1px solid rgba(230, 215, 176, 0.2); color: var(--text); opacity: 0.7; cursor: pointer; background: transparent; font-family: Arial, sans-serif; }
     .km-inline-tab.active { background: var(--accent); border-color: var(--accent); color: var(--bg); opacity: 1; }
     .km-inline-legend { display: flex; gap: 16px; padding: 10px 0 4px; font-size: 11px; opacity: 0.7; align-items: center; }
+    .km-inline-legend-side { flex-direction: column; align-items: flex-start; gap: 7px; padding: 12px 14px; border: 1px solid rgba(230, 215, 176, 0.16); border-radius: 8px; margin-bottom: 12px; }
     .km-inline-legend-item { display: inline-flex; align-items: center; gap: 6px; }
     .km-inline-empty { padding: 40px 10px; text-align: center; opacity: 0.55; font-size: 13px; }
     .km-inline-workspace { flex: 1; display: grid; grid-template-columns: 1fr 300px; gap: 14px; min-height: 0; margin-top: 8px; }
     .km-inline-canvas-wrap { position: relative; min-height: 0; overflow: hidden; border: 1px solid rgba(230, 215, 176, 0.1); border-radius: 8px; }
+    .km-inline-side { display: flex; flex-direction: column; min-height: 0; }
+    .km-inline-side .km-inline-detail { flex: 1; }
     .km-inline-svg { width: 100%; height: 100%; display: block; min-height: 460px; }
     .km-inline-detail { border: 1px solid rgba(230, 215, 176, 0.16); border-radius: 8px; padding: 18px; overflow: auto; display: flex; flex-direction: column; }
     .km-inline-detail-empty { opacity: 0.5; font-size: 12.5px; line-height: 1.7; }
@@ -4280,18 +4304,27 @@
                     <div class="km-inline-search"><input type="text" class="km-inline-search-input" placeholder="Search concepts…"></div>
                 </div>
                 <div class="km-inline-themetabs"></div>
-                <div class="km-inline-legend">
-                    <span class="km-inline-legend-item"><span class="km-legend-dot km-dot-2"></span>Mastered</span>
-                    <span class="km-inline-legend-item"><span class="km-legend-dot km-dot-1"></span>In progress</span>
-                    <span class="km-inline-legend-item"><span class="km-legend-dot km-dot-0"></span>Not started</span>
-                </div>
                 <div class="km-inline-empty" style="display:none;"></div>
                 <div class="km-inline-workspace">
                     <div class="km-inline-canvas-wrap">
                         <svg class="km-inline-svg"></svg>
                     </div>
-                    <div class="km-inline-detail">
-                        <div class="km-inline-detail-empty">Click any concept to see exactly what it needs first, and what it unlocks.</div>
+                    <div class="km-inline-side">
+                        <!-- Progress key — one swatch per masteryProgressTier
+                             step (see renderKmInlineGraph), same colours a
+                             node/link actually takes on the graph. Static
+                             markup here since the tiers/colours are fixed;
+                             only the graph itself changes per render. -->
+                        <div class="km-inline-legend km-inline-legend-side">
+                            <span class="km-inline-legend-item"><span class="km-legend-dot km-dot-4"></span>Mastered</span>
+                            <span class="km-inline-legend-item"><span class="km-legend-dot km-dot-3"></span>2 spaced reviews</span>
+                            <span class="km-inline-legend-item"><span class="km-legend-dot km-dot-2"></span>1 spaced review</span>
+                            <span class="km-inline-legend-item"><span class="km-legend-dot km-dot-1"></span>Learning</span>
+                            <span class="km-inline-legend-item"><span class="km-legend-dot km-dot-0"></span>Not started</span>
+                        </div>
+                        <div class="km-inline-detail">
+                            <div class="km-inline-detail-empty">Click any concept to see exactly what it needs first, and what it unlocks.</div>
+                        </div>
                     </div>
                 </div>
                 <div class="km-lesson-fullpage" style="display:none;">
@@ -5387,6 +5420,20 @@ SQIDAQAB
     }
     function clearAnswerDraft(key) {
         try { localStorage.removeItem(`lm-draft:${key}`); } catch {}
+    }
+
+    // Five-step progress ramp for the knowledge map's node/link colouring —
+    // not started, through two spaced-review steps, up to durably
+    // mastered. Reuses the backend's own spacedSuccessCount/isDurablyMastered
+    // (see reviewService.ts's DURABLE_RELEARNING_CRITERION=3) rather than
+    // inventing a second "how mastered is this" scale — a concept that's
+    // been reviewed many times but keeps lapsing stays at a low tier here,
+    // which is correct: raw attempt count isn't real progress, a genuinely
+    // spaced correct answer is.
+    function masteryProgressTier(detail) {
+        if (!detail) return 0;
+        if (detail.isDurablyMastered) return 4;
+        return Math.min(3, (detail.spacedSuccessCount || 0) + 1);
     }
 
     // The generated node/edge teaching text (see lessonGenerationPrompts.ts)
@@ -12786,7 +12833,6 @@ SQIDAQAB
         const visibleIds = new Set(visibleNodes.map((n) => n.id));
         const visibleEdges = fullData.edges.filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target));
 
-        const mastery = fullData.mastery || {};
         const masteryDetail = fullData.masteryDetail || {};
 
         const degree = new Map(visibleNodes.map((n) => [n.id, 0]));
@@ -12799,11 +12845,20 @@ SQIDAQAB
 
         const nodes = visibleNodes.map((n) => ({
             ...n,
-            state: mastery[n.id] ?? 0,
+            state: masteryProgressTier(masteryDetail[n.id]),
             detail: masteryDetail[n.id] || null,
             r: radiusScale(degree.get(n.id) || 0)
         }));
-        const links = visibleEdges.map((e) => ({ source: e.source, target: e.target }));
+        // Keyed by the same raw `${source}->${target}` node-id pair the
+        // backend builds edgeMasteryDetail with (see knowledgeMapService.ts)
+        // — never the resolved concept-id query key, so this lookup works
+        // directly against visibleEdges without any extra resolution here.
+        const edgeMasteryDetail = fullData.edgeMasteryDetail || {};
+        const links = visibleEdges.map((e) => ({
+            source: e.source,
+            target: e.target,
+            state: masteryProgressTier(edgeMasteryDetail[`${e.source}->${e.target}`]),
+        }));
 
         const svg = d3.select(svgEl);
         svg.selectAll('*').remove();
@@ -12880,7 +12935,7 @@ SQIDAQAB
         }
 
         const linkSelection = zoomLayer.append('g').selectAll('line')
-            .data(links).join('line').attr('class', 'km-link state-0')
+            .data(links).join('line').attr('class', (d) => `km-link state-${d.state}`)
             .attr('marker-end', 'url(#km-link-arrowhead)');
 
         const nodeGroup = zoomLayer.append('g').selectAll('g')
@@ -12922,7 +12977,7 @@ SQIDAQAB
 
         const detailEl = contentInner.querySelector('.km-inline-detail');
         const lessonFullpageBodyEl = contentInner.querySelector('.km-lesson-fullpage-body');
-        const stateLabel = { 0: 'Not started', 1: 'In progress', 2: 'Mastered' };
+        const stateLabel = { 0: 'Not started', 1: 'Learning', 2: '1 spaced review', 3: '2 spaced reviews', 4: 'Mastered' };
 
         // Click-to-highlight ONLY — every node/link is always visible at
         // its normal baseline; this purely ADDS a brighter ring/stroke to
