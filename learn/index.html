@@ -5371,6 +5371,24 @@ SQIDAQAB
         return div.innerHTML;
     }
 
+    // Checkpointing for in-progress free-text answers — a failed
+    // submission (network hiccup, a backend 500) must never cost the
+    // student a typed answer. Saved on every keystroke, restored on
+    // mount, cleared once a submission has actually gone through
+    // (whether it then passed, failed grading, or came back retryable —
+    // the SUBMISSION succeeding is what matters here, not the grade).
+    // Deliberately per-browser only (localStorage, not synced anywhere) —
+    // this is a crash/failure safety net, not a cross-device draft system.
+    function saveAnswerDraft(key, text) {
+        try { if (text) localStorage.setItem(`lm-draft:${key}`, text); else localStorage.removeItem(`lm-draft:${key}`); } catch {}
+    }
+    function loadAnswerDraft(key) {
+        try { return localStorage.getItem(`lm-draft:${key}`) || ''; } catch { return ''; }
+    }
+    function clearAnswerDraft(key) {
+        try { localStorage.removeItem(`lm-draft:${key}`); } catch {}
+    }
+
     // The generated node/edge teaching text (see lessonGenerationPrompts.ts)
     // is written as continuous prose with no paragraph breaks — fine as a
     // short block, but genuinely hard to read once it's rendered at full
@@ -11836,6 +11854,17 @@ SQIDAQAB
             const r = sel.getRangeAt(0);
             return r.startContainer === node && r.startOffset === offset;
         }
+        // 'f' only triggers f(x) notation at a word boundary — otherwise
+        // every plain English word containing the letter (differentiate,
+        // for, of, function...) gets "(x)" spliced into the middle of it.
+        function precedingCharIsLetter() {
+            const sel = window.getSelection();
+            if (!sel.rangeCount) return false;
+            const r = sel.getRangeAt(0);
+            const node = r.startContainer, offset = r.startOffset;
+            if (node.nodeType !== 3 || offset === 0) return false;
+            return /[a-zA-Z]/.test(node.textContent.charAt(offset - 1));
+        }
         function insertFuncF() {
             const sel = window.getSelection();
             if (!sel.rangeCount) return;
@@ -11950,7 +11979,7 @@ SQIDAQAB
                 }
                 if (lower === 'i' && ev.key.length === 1) { ev.preventDefault(); insertStyledSymbol('∫'); pendingIntegral = true; return; }
             }
-            if (ev.key === 'f' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) { ev.preventDefault(); insertFuncF(); return; }
+            if (ev.key === 'f' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !precedingCharIsLetter()) { ev.preventDefault(); insertFuncF(); return; }
             if (ev.key === '*') { ev.preventDefault(); insertStyledSymbol('×'); return; }
             if (ev.key === '~') { ev.preventDefault(); insertStyledSymbol('√'); return; }
             if (ev.key === '^') { ev.preventDefault(); startZone('sup'); return; }
@@ -11994,15 +12023,19 @@ SQIDAQAB
             if (node.nodeType === 3) return node.textContent.replace(/​/g, '');
             if (node.nodeType !== 1) return '';
             if (node.classList && node.classList.contains('frac')) {
-                const num = node.querySelector('.frac-num'), den = node.querySelector('.frac-den');
-                return `(${serializeChildren(num)})/(${serializeChildren(den)})`;
+                const num = serializeChildren(node.querySelector('.frac-num'));
+                const den = serializeChildren(node.querySelector('.frac-den'));
+                if (!num && !den) return ''; // never-filled-in fraction — emit nothing, not "()/()"
+                return `(${num})/(${den})`;
             }
             if (node.classList && node.classList.contains('int-limits')) {
-                const upper = node.querySelector('.int-upper'), lower = node.querySelector('.int-lower');
-                return `[${serializeChildren(lower)}, ${serializeChildren(upper)}]`;
+                const upper = serializeChildren(node.querySelector('.int-upper'));
+                const lower = serializeChildren(node.querySelector('.int-lower'));
+                if (!upper && !lower) return ''; // never-filled-in limits box — emit nothing, not "[, ]"
+                return `[${lower}, ${upper}]`;
             }
-            if (node.tagName === 'SUP') return `^(${serializeChildren(node)})`;
-            if (node.tagName === 'SUB') return `_(${serializeChildren(node)})`;
+            if (node.tagName === 'SUP') { const inner = serializeChildren(node); return inner ? `^(${inner})` : ''; }
+            if (node.tagName === 'SUB') { const inner = serializeChildren(node); return inner ? `_(${inner})` : ''; }
             return serializeChildren(node);
         }
         function serializeChildren(node) {
@@ -13117,10 +13150,23 @@ SQIDAQAB
             });
             if (nodeLesson && nodeLesson.practiceQuestion) {
                 const el = lessonEl.querySelector('#km-question-node-practice');
-                const submit = (answer, hadRetry) => postChainDiagnostic(
-                    nodeLesson.practiceQuestion.diagramSpec ? '/knowledge-map-v2/diagram-question/submit' : '/knowledge-map-v2/text-question/submit',
-                    { nodeId: d.id, questionType: 'practice', answer, hadRetry }
-                );
+                // A real (non-retryable) pass here means this is the first
+                // time this concept has ever been encoded — the map's
+                // schedule cache is updated in place (rather than waiting
+                // for the next full /schedule refetch) and a next-step
+                // recommendation is attached, both surfaced immediately by
+                // renderQuestionResult right where the student already is.
+                const submit = async (answer, hadRetry) => {
+                    const result = await postChainDiagnostic(
+                        nodeLesson.practiceQuestion.diagramSpec ? '/knowledge-map-v2/diagram-question/submit' : '/knowledge-map-v2/text-question/submit',
+                        { nodeId: d.id, questionType: 'practice', answer, hadRetry }
+                    );
+                    if (result && result.schedule) {
+                        fullData.scheduleByConceptId.set(result.schedule.conceptId, result.schedule);
+                        result.recommendation = computeNextThingRecommendation(fullData, d.id);
+                    }
+                    return result;
+                };
                 if (nodeLesson.practiceQuestion.diagramSpec) renderDiagramWidget(el, null, submit);
                 else renderTextQuestionWidget(el, nodeLesson.practiceQuestion.questionText, submit);
             }
@@ -13400,6 +13446,17 @@ SQIDAQAB
                 const r = sel.getRangeAt(0);
                 return r.startContainer === node && r.startOffset === offset;
             }
+            // 'f' only triggers f(x) notation at a word boundary — otherwise
+            // any calculation instruction containing the letter mid-word
+            // (differentiate, for, of...) gets "(x)" spliced into it.
+            function precedingCharIsLetter() {
+                const sel = window.getSelection();
+                if (!sel.rangeCount) return false;
+                const r = sel.getRangeAt(0);
+                const node = r.startContainer, offset = r.startOffset;
+                if (node.nodeType !== 3 || offset === 0) return false;
+                return /[a-zA-Z]/.test(node.textContent.charAt(offset - 1));
+            }
             function insertFuncF() {
                 const sel = window.getSelection();
                 if (!sel.rangeCount) return;
@@ -13500,7 +13557,7 @@ SQIDAQAB
                     }
                     if (lower === 'i' && ev.key.length === 1) { ev.preventDefault(); insertStyledSymbol('∫'); pendingIntegral = true; return; }
                 }
-                if (ev.key === 'f' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) { ev.preventDefault(); insertFuncF(); return; }
+                if (ev.key === 'f' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !precedingCharIsLetter()) { ev.preventDefault(); insertFuncF(); return; }
                 if (ev.key === '*') { ev.preventDefault(); insertStyledSymbol('×'); return; }
                 if (ev.key === '~') { ev.preventDefault(); insertStyledSymbol('√'); return; }
                 if (ev.key === '^') { ev.preventDefault(); startZone('sup'); return; }
@@ -13550,15 +13607,19 @@ SQIDAQAB
                 if (node.nodeType === 3) return node.textContent.replace(/​/g, '');
                 if (node.nodeType !== 1) return '';
                 if (node.classList && node.classList.contains('frac')) {
-                    const num = node.querySelector('.frac-num'), den = node.querySelector('.frac-den');
-                    return `(${serializeChildren(num)})/(${serializeChildren(den)})`;
+                    const num = serializeChildren(node.querySelector('.frac-num'));
+                    const den = serializeChildren(node.querySelector('.frac-den'));
+                    if (!num && !den) return ''; // never-filled-in fraction — emit nothing, not "()/()"
+                    return `(${num})/(${den})`;
                 }
                 if (node.classList && node.classList.contains('int-limits')) {
-                    const upper = node.querySelector('.int-upper'), lower = node.querySelector('.int-lower');
-                    return `[${serializeChildren(lower)}, ${serializeChildren(upper)}]`;
+                    const upper = serializeChildren(node.querySelector('.int-upper'));
+                    const lower = serializeChildren(node.querySelector('.int-lower'));
+                    if (!upper && !lower) return ''; // never-filled-in limits box — emit nothing, not "[, ]"
+                    return `[${lower}, ${upper}]`;
                 }
-                if (node.tagName === 'SUP') return `^(${serializeChildren(node)})`;
-                if (node.tagName === 'SUB') return `_(${serializeChildren(node)})`;
+                if (node.tagName === 'SUP') { const inner = serializeChildren(node); return inner ? `^(${inner})` : ''; }
+                if (node.tagName === 'SUB') { const inner = serializeChildren(node); return inner ? `_(${inner})` : ''; }
                 return serializeChildren(node);
             }
             function serializeChildren(node) {
@@ -13616,6 +13677,21 @@ SQIDAQAB
         // redirect (see knowledgeMap.ts's findMissingEncoding): "you need
         // to encode X before this connection means anything" with a
         // button that takes you straight there.
+        // After finishing a node's own encoding lesson, surface the single
+        // most useful next action — reuses the exact same "downstream
+        // ready vs needs encoding" categorization as selectKmInlineNode's
+        // "Builds on this" list, just picking the first candidate rather
+        // than listing all of them. Prefers an un-encoded neighbor (what
+        // this lesson just unlocked) over one already ready for review.
+        function computeNextThingRecommendation(fullData, nodeId) {
+            const nodeById = new Map(fullData.nodes.map((n) => [n.id, n]));
+            const downstream = fullData.edges.filter((e) => e.source === nodeId).map((e) => nodeById.get(e.target)).filter(Boolean);
+            if (!downstream.length) return null;
+            const schedule = fullData.scheduleByConceptId || new Map();
+            const next = downstream.find((n) => !schedule.has(n.conceptId)) || downstream[0];
+            return { node: next, action: schedule.has(next.conceptId) ? 'review' : 'encode' };
+        }
+
         function renderQuestionResult(resultEl, result, onRequiresEncoding) {
             if (!result) {
                 resultEl.innerHTML = `<div class="km-inline-detail-item km-inline-detail-none">Something went wrong — try again.</div>`;
@@ -13629,7 +13705,31 @@ SQIDAQAB
                 resultEl.querySelector('.km-goto-encode-btn').addEventListener('click', () => onRequiresEncoding && onRequiresEncoding(result.redirect));
                 return;
             }
-            resultEl.innerHTML = `<div class="km-inline-detail-item ${result.correct ? '' : 'km-inline-detail-none'}">${escapeHtml(result.feedback || '')}</div>`;
+            const feedbackHtml = `<div class="km-inline-detail-item ${result.correct ? '' : 'km-inline-detail-none'}">${escapeHtml(result.feedback || '')}</div>`;
+            // result.schedule/recommendation are only ever attached (by the
+            // submit callback) once a grade has actually, finally landed —
+            // never present on a retryable first-encoding miss.
+            const scheduleHtml = result.schedule
+                ? `<div class="km-inline-detail-item">Next review: <strong>${escapeHtml(formatDueIn(result.schedule.due))}</strong></div>`
+                : '';
+            const rec = result.recommendation;
+            const recHtml = rec ? `
+                <div class="km-inline-detail-section">
+                    <h4>${rec.action === 'encode' ? 'Ready to learn next' : 'Ready to review next'}</h4>
+                    <div class="km-inline-detail-item km-inline-detail-item-action">
+                        <span>${escapeHtml(rec.node.label)}</span>
+                        <button type="button" class="btn km-next-recommendation-btn">View</button>
+                    </div>
+                </div>
+            ` : '';
+            resultEl.innerHTML = feedbackHtml + scheduleHtml + recHtml;
+            if (rec) {
+                resultEl.querySelector('.km-next-recommendation-btn').addEventListener('click', () => {
+                    showKmWorkspace(contentInner);
+                    selectKmInlineNode(rec.node);
+                    zoomToNode(rec.node);
+                });
+            }
         }
 
         function renderTextQuestionWidget(container, questionText, onSubmit, onRequiresEncoding) {
@@ -13652,6 +13752,23 @@ SQIDAQAB
             resultEl.style.marginTop = '8px';
             wrap.appendChild(resultEl);
 
+            // Checkpointing (see saveAnswerDraft) — questionText is unique
+            // per question across the whole map, so it doubles as a stable
+            // key with no extra plumbing through this widget's many call
+            // sites. Restoring sets the underlying input's raw content
+            // directly (plain text, not re-hydrated into the smart
+            // editor's rich sup/sub/frac structure) — sufficient to never
+            // lose the student's words, even if a restored calculation
+            // answer shows back in this app's own "^(...)"-style plain
+            // notation rather than pretty-printed.
+            const draftKey = (questionText || '').slice(0, 160);
+            const inputEl = editor.container.querySelector('.math-shortcut-editor');
+            const restored = loadAnswerDraft(draftKey);
+            if (restored && editor.isEmpty()) {
+                if (inputEl.tagName === 'TEXTAREA') inputEl.value = restored; else inputEl.textContent = restored;
+            }
+            inputEl.addEventListener('input', () => saveAnswerDraft(draftKey, editor.getValue()));
+
             // A wrong first-time-encoding ('practice') attempt comes back
             // `retryable: true` (see knowledgeMap.ts's text-question/submit)
             // instead of being finalized — the editor/answer stays exactly
@@ -13666,7 +13783,17 @@ SQIDAQAB
                 submitBtn.disabled = true;
                 submitBtn.textContent = 'Checking…';
                 const result = await onSubmit(editor.getValue(), hadRetry);
-                if (result && result.retryable) {
+                if (!result) {
+                    // The request itself failed — the draft is already
+                    // checkpointed, so just let them retry rather than
+                    // removing the only way to resubmit.
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Submit answer';
+                    renderQuestionResult(resultEl, result, onRequiresEncoding);
+                    return;
+                }
+                clearAnswerDraft(draftKey);
+                if (result.retryable) {
                     hadRetry = true;
                     submitBtn.disabled = false;
                     submitBtn.textContent = 'Try again';
@@ -13979,6 +14106,7 @@ SQIDAQAB
         // every skipped prerequisite plus how each links to the next, all
         // in one written response (see CHAIN_DIAGNOSTIC_QUESTION_PROMPT).
         function renderChainDiagnosticAnswering(lessonEl, d, upstream, state, questionText) {
+            const draftKey = `chain-diag:${d.id}`;
             lessonEl.innerHTML = `
                 <div class="km-inline-detail-section">
                     <h4>Before you jump ahead</h4>
@@ -13987,13 +14115,28 @@ SQIDAQAB
                     <button class="btn primary km-diag-submit-btn" style="margin-top:10px;">Submit</button>
                 </div>
             `;
+            const textarea = lessonEl.querySelector('.km-diag-answer-input');
+            const restored = loadAnswerDraft(draftKey);
+            if (restored) textarea.value = restored;
+            textarea.addEventListener('input', () => saveAnswerDraft(draftKey, textarea.value));
+
             lessonEl.querySelector('.km-diag-submit-btn').addEventListener('click', async (ev) => {
-                const answer = lessonEl.querySelector('.km-diag-answer-input').value.trim();
+                const answer = textarea.value.trim();
                 if (!answer) return;
                 ev.target.disabled = true;
                 ev.target.textContent = 'Checking…';
                 const result = await postChainDiagnostic('/knowledge-map-v2/chain-diagnostic/submit', { state, answer });
-                if (!result) return renderChainDiagnosticError(lessonEl);
+                if (!result) {
+                    // Request failed — the draft is already checkpointed
+                    // and the textarea is untouched (renderChainDiagnosticError
+                    // only appends, it never re-renders this element), so
+                    // just re-enable the button rather than losing the
+                    // student's typed answer.
+                    ev.target.disabled = false;
+                    ev.target.textContent = 'Submit';
+                    return renderChainDiagnosticError(lessonEl);
+                }
+                clearAnswerDraft(draftKey);
                 if (result.passed) return renderNodeLessonContent(lessonEl, d, upstream);
                 renderChainDiagnosticFailure(lessonEl, d, upstream, result.state, result.currentFailure);
             });
@@ -14016,16 +14159,17 @@ SQIDAQAB
                 </div>
             `;
             const disableChoice = () => lessonEl.querySelectorAll('.km-diag-slip-choice button').forEach((b) => { b.disabled = true; });
+            const enableChoice = () => lessonEl.querySelectorAll('.km-diag-slip-choice button').forEach((b) => { b.disabled = false; });
             lessonEl.querySelector('.km-diag-slip-btn').addEventListener('click', async () => {
                 disableChoice();
                 const result = await postChainDiagnostic('/knowledge-map-v2/chain-diagnostic/resolve-slip', { state, wasSlip: true });
-                if (!result) return renderChainDiagnosticError(lessonEl);
+                if (!result) { enableChoice(); return renderChainDiagnosticError(lessonEl); }
                 renderChainDiagnosticRetry(lessonEl, d, upstream, result.state, result.retryQuestionText);
             });
             lessonEl.querySelector('.km-diag-noslip-btn').addEventListener('click', async () => {
                 disableChoice();
                 const result = await postChainDiagnostic('/knowledge-map-v2/chain-diagnostic/resolve-slip', { state, wasSlip: false });
-                if (!result) return renderChainDiagnosticError(lessonEl);
+                if (!result) { enableChoice(); return renderChainDiagnosticError(lessonEl); }
                 handleChainDiagnosticStepResult(lessonEl, d, upstream, result);
             });
         }
@@ -14033,6 +14177,7 @@ SQIDAQAB
         // The one narrow re-ask after a slip claim — distinct from the
         // original combined question.
         function renderChainDiagnosticRetry(lessonEl, d, upstream, state, retryQuestionText) {
+            const draftKey = `chain-diag-retry:${d.id}`;
             lessonEl.innerHTML = `
                 <div class="km-inline-detail-section">
                     <h4>Quick retry</h4>
@@ -14041,13 +14186,23 @@ SQIDAQAB
                     <button class="btn primary km-diag-submit-btn" style="margin-top:10px;">Submit</button>
                 </div>
             `;
+            const textarea = lessonEl.querySelector('.km-diag-answer-input');
+            const restored = loadAnswerDraft(draftKey);
+            if (restored) textarea.value = restored;
+            textarea.addEventListener('input', () => saveAnswerDraft(draftKey, textarea.value));
+
             lessonEl.querySelector('.km-diag-submit-btn').addEventListener('click', async (ev) => {
-                const answer = lessonEl.querySelector('.km-diag-answer-input').value.trim();
+                const answer = textarea.value.trim();
                 if (!answer) return;
                 ev.target.disabled = true;
                 ev.target.textContent = 'Checking…';
                 const result = await postChainDiagnostic('/knowledge-map-v2/chain-diagnostic/submit-retry', { state, answer });
-                if (!result) return renderChainDiagnosticError(lessonEl);
+                if (!result) {
+                    ev.target.disabled = false;
+                    ev.target.textContent = 'Submit';
+                    return renderChainDiagnosticError(lessonEl);
+                }
+                clearAnswerDraft(draftKey);
                 handleChainDiagnosticStepResult(lessonEl, d, upstream, result);
             });
         }
@@ -14063,7 +14218,17 @@ SQIDAQAB
         }
 
         function renderChainDiagnosticError(lessonEl) {
-            lessonEl.innerHTML += `<div class="km-inline-detail-item km-inline-detail-none">Something went wrong — try again in a moment.</div>`;
+            // insertAdjacentHTML, NOT `lessonEl.innerHTML +=` — the latter
+            // re-serializes and rebuilds this element's ENTIRE subtree from
+            // scratch, and a <textarea>'s typed value lives only in the
+            // live DOM property, never in serialized markup, so it silently
+            // wiped out whatever the student had just written the moment a
+            // submission failed. This only appends a new node, leaving the
+            // existing textarea (and its draft-restored/typed content)
+            // completely untouched.
+            const existing = lessonEl.querySelector('.km-diag-submit-error');
+            if (existing) existing.remove();
+            lessonEl.insertAdjacentHTML('beforeend', `<div class="km-inline-detail-item km-inline-detail-none km-diag-submit-error">Something went wrong — your answer is safe, just submit again.</div>`);
         }
 
         // A genuine gap — deny the target and jump the student straight to
