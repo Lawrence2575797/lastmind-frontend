@@ -748,6 +748,29 @@
     .diagram-submit-btn { align-self: flex-start; }
     .diagram-result { font-size: 12.5px; }
 
+    /* ─── Math shortcut answer editor (ported from the Shortcut Practice
+       Pad prototype — Greek Shift+letter mapping, integral/limit-box
+       notation, function-prime chaining, evaluate-between-limits — see
+       createMathShortcutEditor) ─── */
+    .math-shortcut-wrap { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+    .math-shortcut-editor {
+        font-family: 'Courier New', monospace;
+        font-size: 15px; line-height: 1.7; color: var(--text);
+        background: var(--panel); border: 1.5px solid rgba(230, 215, 176, 0.2); border-radius: 6px;
+        padding: 10px 12px; min-height: 70px; outline: none; caret-color: var(--accent);
+    }
+    .math-shortcut-editor:focus { border-color: var(--accent); }
+    .math-shortcut-editor:empty::before { content: attr(data-placeholder); color: var(--text); opacity: 0.4; font-style: normal; }
+    .math-shortcut-editor sup, .math-shortcut-editor sub { color: var(--accent); font-weight: 500; }
+    .math-shortcut-editor .math-symbol { font-style: italic; color: var(--accent); }
+    .math-shortcut-editor .frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin: 0 0.2em; font-size: 0.82em; line-height: 1.15; }
+    .math-shortcut-editor .frac-num { padding: 0 0.2em 0.12em; border-bottom: 1.5px solid var(--text); }
+    .math-shortcut-editor .frac-den { padding: 0.12em 0.2em 0; }
+    .math-shortcut-editor .func-primes { color: var(--text); }
+    .math-shortcut-editor .int-limits { display: inline-flex; flex-direction: column; align-items: flex-start; vertical-align: middle; margin-left: 0.1em; font-size: 0.65em; line-height: 1.1; }
+    .math-shortcut-editor .int-upper, .math-shortcut-editor .int-lower { padding: 0 0.15em; min-width: 0.6em; color: var(--accent); }
+    .math-shortcut-hint { font-size: 11px; color: var(--text); opacity: 0.5; }
+
     .km-help-status {
         margin-top: 10px !important;
         font-size: 12px !important;
@@ -12172,57 +12195,424 @@ SQIDAQAB
                 <div class="km-inline-detail-section">
                     <h4>Bridge from "${escapeHtml(from.label)}"</h4>
                     <div class="km-inline-lesson-explanation">${escapeHtml(lesson.linkTeaching || '')}</div>
-                    ${lesson.transferQuestion ? `
-                        <div class="km-inline-lesson-question"><strong>Transfer:</strong> ${lesson.transferQuestion.diagramSpec ? '' : escapeHtml(lesson.transferQuestion.questionText || '')}</div>
-                        ${lesson.transferQuestion.diagramSpec ? `<div id="km-diagram-bridge-transfer-${idx}"></div>` : ''}
-                    ` : ''}
-                    ${lesson.integrationQuestion ? `
-                        <div class="km-inline-lesson-question"><strong>Integration:</strong> ${lesson.integrationQuestion.diagramSpec ? '' : escapeHtml(lesson.integrationQuestion.questionText || '')}</div>
-                        ${lesson.integrationQuestion.diagramSpec ? `<div id="km-diagram-bridge-integration-${idx}"></div>` : ''}
-                    ` : ''}
+                    ${lesson.transferQuestion ? `<div><strong class="km-inline-lesson-question" style="display:block;">Transfer</strong><div id="km-question-bridge-transfer-${idx}"></div></div>` : ''}
+                    ${lesson.integrationQuestion ? `<div><strong class="km-inline-lesson-question" style="display:block;">Integration</strong><div id="km-question-bridge-integration-${idx}"></div></div>` : ''}
                 </div>
             `).join('');
 
-            const nodeHasDiagram = nodeLesson && nodeLesson.practiceQuestion && nodeLesson.practiceQuestion.diagramSpec;
             const nodeHtml = (!nodeLesson || nodeLesson.notFound)
                 ? `<div class="km-inline-detail-item km-inline-detail-none">No lesson generated for this concept yet.</div>`
                 : `
                     <div class="km-inline-lesson-explanation">${escapeHtml(nodeLesson.explanation || '')}</div>
-                    ${nodeLesson.practiceQuestion ? `
-                        <div class="km-inline-lesson-question"><strong>Practice:</strong> ${nodeHasDiagram ? '' : escapeHtml(nodeLesson.practiceQuestion.questionText || '')}</div>
-                        ${nodeHasDiagram ? `<div id="km-diagram-node-practice"></div>` : ''}
-                    ` : ''}
+                    ${nodeLesson.practiceQuestion ? `<div><strong class="km-inline-lesson-question" style="display:block;">Practice</strong><div id="km-question-node-practice"></div></div>` : ''}
                 `;
 
             lessonEl.innerHTML = bridgeHtml + nodeHtml;
 
-            // Mount each diagram widget now that its container actually
-            // exists in the DOM — MECHANISTIC (the node's own question,
-            // build the whole diagram from scratch, no `given`) vs ATOMIC
-            // (an edge's question, the prerequisite's own curves are
-            // pre-drawn/fixed via `given`, only the new element is graded)
-            // per this feature's own design.
+            // Mount each question widget now that its container actually
+            // exists in the DOM — a diagram question (MECHANISTIC for the
+            // node's own, blank board; ATOMIC for an edge's, the
+            // prerequisite's curves pre-drawn/fixed via `given`) or the
+            // math-shortcut free-text answer widget otherwise.
             bridgeSections.forEach(({ from, lesson, given }, idx) => {
-                if (lesson.transferQuestion && lesson.transferQuestion.diagramSpec) {
-                    renderDiagramWidget(lessonEl.querySelector(`#km-diagram-bridge-transfer-${idx}`), given, (answer) =>
-                        postChainDiagnostic('/knowledge-map-v2/diagram-question/submit', { fromNodeId: from.id, toNodeId: d.id, questionType: 'transfer', answer })
+                if (lesson.transferQuestion) {
+                    const el = lessonEl.querySelector(`#km-question-bridge-transfer-${idx}`);
+                    const submit = (answer) => postChainDiagnostic(
+                        lesson.transferQuestion.diagramSpec ? '/knowledge-map-v2/diagram-question/submit' : '/knowledge-map-v2/text-question/submit',
+                        { fromNodeId: from.id, toNodeId: d.id, questionType: 'transfer', answer }
                     );
+                    if (lesson.transferQuestion.diagramSpec) renderDiagramWidget(el, given, submit);
+                    else renderTextQuestionWidget(el, lesson.transferQuestion.questionText, submit);
                 }
-                if (lesson.integrationQuestion && lesson.integrationQuestion.diagramSpec) {
-                    renderDiagramWidget(lessonEl.querySelector(`#km-diagram-bridge-integration-${idx}`), given, (answer) =>
-                        postChainDiagnostic('/knowledge-map-v2/diagram-question/submit', { fromNodeId: from.id, toNodeId: d.id, questionType: 'integration', answer })
+                if (lesson.integrationQuestion) {
+                    const el = lessonEl.querySelector(`#km-question-bridge-integration-${idx}`);
+                    const submit = (answer) => postChainDiagnostic(
+                        lesson.integrationQuestion.diagramSpec ? '/knowledge-map-v2/diagram-question/submit' : '/knowledge-map-v2/text-question/submit',
+                        { fromNodeId: from.id, toNodeId: d.id, questionType: 'integration', answer }
                     );
+                    if (lesson.integrationQuestion.diagramSpec) renderDiagramWidget(el, given, submit);
+                    else renderTextQuestionWidget(el, lesson.integrationQuestion.questionText, submit);
                 }
             });
-            if (nodeHasDiagram) {
-                renderDiagramWidget(lessonEl.querySelector('#km-diagram-node-practice'), null, (answer) =>
-                    postChainDiagnostic('/knowledge-map-v2/diagram-question/submit', { nodeId: d.id, questionType: 'practice', answer })
+            if (nodeLesson && nodeLesson.practiceQuestion) {
+                const el = lessonEl.querySelector('#km-question-node-practice');
+                const submit = (answer) => postChainDiagnostic(
+                    nodeLesson.practiceQuestion.diagramSpec ? '/knowledge-map-v2/diagram-question/submit' : '/knowledge-map-v2/text-question/submit',
+                    { nodeId: d.id, questionType: 'practice', answer }
                 );
+                if (nodeLesson.practiceQuestion.diagramSpec) renderDiagramWidget(el, null, submit);
+                else renderTextQuestionWidget(el, nodeLesson.practiceQuestion.questionText, submit);
             }
         }
 
         function findGraphNodeById(id) {
             return nodes.find((n) => n.id === id) || fullData.nodes.find((n) => n.id === id);
+        }
+
+        // ─── Math shortcut answer editor ───
+        // Ported from the "Shortcut Practice Pad" prototype into the real
+        // app, kept deliberately as its own component rather than merged
+        // into the existing MathQuill-based createMathWorkingInput — this
+        // is a different input built around a different notation set
+        // (Shift+letter Greek mapping, integral/evaluate-between-limits
+        // limit-boxes, function-prime chaining) the user specifically
+        // wanted carried over, not a replacement for the MathQuill one
+        // still used elsewhere.
+        const MATH_SHORTCUT_GREEK_MAP = {
+            'a': { lower: 'α', upper: 'Α' }, 'b': { lower: 'β', upper: 'Β' },
+            'd': { lower: 'δ', upper: 'Δ' }, 'y': { lower: 'γ', upper: 'Γ' },
+            'u': { lower: 'μ', upper: 'Μ' }, 'p': { lower: 'π', upper: 'Π' },
+            't': { lower: 'θ', upper: 'Θ' }, 's': { lower: 'σ', upper: 'Σ' },
+            'l': { lower: 'λ', upper: 'Λ' }, 'w': { lower: 'ω', upper: 'Ω' },
+            'x': { lower: 'χ', upper: 'Χ' },
+        };
+        const MATH_SHORTCUT_TWO_CHAR = { '<=': '≤', '>=': '≥', '!=': '≠' };
+        const MATH_SHORTCUT_ZWS = '​';
+
+        function createMathShortcutEditor(placeholder) {
+            const wrap = document.createElement('div');
+            wrap.className = 'math-shortcut-wrap';
+            const editor = document.createElement('div');
+            editor.className = 'math-shortcut-editor';
+            editor.contentEditable = 'true';
+            editor.dataset.placeholder = placeholder || 'Write your answer here…';
+            wrap.appendChild(editor);
+            const hint = document.createElement('div');
+            hint.className = 'math-shortcut-hint';
+            hint.textContent = 'Shortcuts: ^ power, _ subscript, / fraction, Shift+letter Greek, f function, Shift+I integral, ] evaluate-between-limits, * ×, ~ √';
+            wrap.appendChild(hint);
+
+            function insertTextAtCaret(text) {
+                const sel = window.getSelection();
+                if (!sel.rangeCount) return;
+                const range = sel.getRangeAt(0);
+                range.deleteContents();
+                const node = document.createTextNode(text);
+                range.insertNode(node);
+                range.setStartAfter(node); range.setEndAfter(node);
+                sel.removeAllRanges(); sel.addRange(range);
+            }
+            function insertStyledSymbol(text) {
+                const sel = window.getSelection();
+                if (!sel.rangeCount) return null;
+                const range = sel.getRangeAt(0);
+                range.deleteContents();
+                const span = document.createElement('i');
+                span.className = 'math-symbol';
+                span.textContent = text;
+                const landing = document.createTextNode(MATH_SHORTCUT_ZWS);
+                const frag = document.createDocumentFragment();
+                frag.appendChild(span); frag.appendChild(landing);
+                range.insertNode(frag);
+                const after = document.createRange();
+                after.setStart(landing, 1); after.collapse(true);
+                sel.removeAllRanges(); sel.addRange(after);
+                return span;
+            }
+            function startZone(tag) {
+                const sel = window.getSelection();
+                if (!sel.rangeCount) return;
+                const range = sel.getRangeAt(0);
+                range.deleteContents();
+                const zone = document.createElement(tag);
+                zone.appendChild(document.createTextNode(MATH_SHORTCUT_ZWS));
+                range.insertNode(zone);
+                const inner = document.createRange();
+                inner.setStart(zone.firstChild, 1); inner.collapse(true);
+                sel.removeAllRanges(); sel.addRange(inner);
+            }
+            function currentZone() {
+                const sel = window.getSelection();
+                if (!sel.rangeCount) return null;
+                let node = sel.getRangeAt(0).startContainer;
+                while (node && node !== editor) {
+                    if (node.nodeType === 1 && (node.tagName === 'SUP' || node.tagName === 'SUB')) return node;
+                    node = node.parentNode;
+                }
+                return null;
+            }
+            function exitZoneAfter(zoneEl) {
+                const parent = zoneEl.parentNode, nextSibling = zoneEl.nextSibling;
+                if (zoneEl.textContent === MATH_SHORTCUT_ZWS) {
+                    zoneEl.remove();
+                } else {
+                    zoneEl.normalize && zoneEl.normalize();
+                    const zw = zoneEl.firstChild;
+                    if (zw && zw.nodeType === 3 && zw.textContent.charAt(0) === MATH_SHORTCUT_ZWS) zw.textContent = zw.textContent.slice(1);
+                }
+                const landing = document.createTextNode(MATH_SHORTCUT_ZWS);
+                (parent || editor).insertBefore(landing, nextSibling || null);
+                const sel = window.getSelection();
+                const range = document.createRange();
+                range.setStart(landing, 1); range.collapse(true);
+                sel.removeAllRanges(); sel.addRange(range);
+            }
+            function findTokenBeforeCaret() {
+                const sel = window.getSelection();
+                if (!sel.rangeCount || !sel.isCollapsed) return null;
+                const range = sel.getRangeAt(0);
+                const node = range.startContainer, offset = range.startOffset;
+                if (node.nodeType !== 3) return null;
+                const text = node.textContent;
+                let start = offset;
+                while (start > 0 && /[0-9a-zA-Z.]/.test(text.charAt(start - 1))) start--;
+                if (start === offset) return null;
+                return { node, start, end: offset, text: text.slice(start, offset) };
+            }
+            function makeFraction(numText) {
+                const sel = window.getSelection();
+                if (!sel.rangeCount) return;
+                const range = sel.getRangeAt(0);
+                range.deleteContents();
+                const frac = document.createElement('span'); frac.className = 'frac';
+                const num = document.createElement('span'); num.className = 'frac-num';
+                const den = document.createElement('span'); den.className = 'frac-den';
+                num.appendChild(document.createTextNode(numText || MATH_SHORTCUT_ZWS));
+                den.appendChild(document.createTextNode(MATH_SHORTCUT_ZWS));
+                frac.appendChild(num); frac.appendChild(den);
+                range.insertNode(frac);
+                const inner = document.createRange();
+                if (numText) inner.setStart(den.firstChild, 1); else inner.setStart(num.firstChild, 1);
+                inner.collapse(true);
+                sel.removeAllRanges(); sel.addRange(inner);
+            }
+            function currentFracPart() {
+                const sel = window.getSelection();
+                if (!sel.rangeCount) return null;
+                let node = sel.getRangeAt(0).startContainer;
+                while (node && node !== editor) {
+                    if (node.nodeType === 1 && (node.className === 'frac-num' || node.className === 'frac-den')) return node;
+                    node = node.parentNode;
+                }
+                return null;
+            }
+            function advanceFracNumToDen(numEl) {
+                numEl.normalize && numEl.normalize();
+                const first = numEl.firstChild;
+                if (first && first.nodeType === 3 && first.textContent.charAt(0) === MATH_SHORTCUT_ZWS && first.textContent.length > 1) first.textContent = first.textContent.slice(1);
+                const den = numEl.parentNode.querySelector('.frac-den');
+                const sel = window.getSelection();
+                const range = document.createRange();
+                range.setStart(den.firstChild, 1); range.collapse(true);
+                sel.removeAllRanges(); sel.addRange(range);
+            }
+
+            let funcPrimeLanding = null, funcPrimeSpan = null;
+            function isCaretAt(node, offset) {
+                const sel = window.getSelection();
+                if (!sel.rangeCount || !sel.isCollapsed) return false;
+                const r = sel.getRangeAt(0);
+                return r.startContainer === node && r.startOffset === offset;
+            }
+            function insertFuncF() {
+                const sel = window.getSelection();
+                if (!sel.rangeCount) return;
+                const range = sel.getRangeAt(0);
+                range.deleteContents();
+                const letter = document.createElement('i'); letter.className = 'math-symbol'; letter.textContent = 'f';
+                const primes = document.createElement('span'); primes.className = 'func-primes';
+                const suffix = document.createTextNode('(x)');
+                const landing = document.createTextNode(MATH_SHORTCUT_ZWS);
+                const frag = document.createDocumentFragment();
+                frag.appendChild(letter); frag.appendChild(primes); frag.appendChild(suffix); frag.appendChild(landing);
+                range.insertNode(frag);
+                const after = document.createRange();
+                after.setStart(landing, 1); after.collapse(true);
+                sel.removeAllRanges(); sel.addRange(after);
+                funcPrimeLanding = landing; funcPrimeSpan = primes;
+            }
+
+            let pendingIntegral = false;
+            function growLimitBoxes() {
+                const sel = window.getSelection();
+                if (!sel.rangeCount) return;
+                const range = sel.getRangeAt(0);
+                const limitsWrap = document.createElement('span'); limitsWrap.className = 'int-limits';
+                const upper = document.createElement('span'); upper.className = 'int-upper'; upper.appendChild(document.createTextNode(MATH_SHORTCUT_ZWS));
+                const lower = document.createElement('span'); lower.className = 'int-lower'; lower.appendChild(document.createTextNode(MATH_SHORTCUT_ZWS));
+                limitsWrap.appendChild(upper); limitsWrap.appendChild(lower);
+                const landing = document.createTextNode(MATH_SHORTCUT_ZWS);
+                const frag = document.createDocumentFragment();
+                frag.appendChild(limitsWrap); frag.appendChild(landing);
+                range.insertNode(frag);
+                const inner = document.createRange();
+                inner.setStart(upper.firstChild, 1); inner.collapse(true);
+                sel.removeAllRanges(); sel.addRange(inner);
+            }
+            function currentIntLimitZone() {
+                const sel = window.getSelection();
+                if (!sel.rangeCount) return null;
+                let node = sel.getRangeAt(0).startContainer;
+                while (node && node !== editor) {
+                    if (node.nodeType === 1 && (node.className === 'int-upper' || node.className === 'int-lower')) return node;
+                    node = node.parentNode;
+                }
+                return null;
+            }
+            function exitIntLimits(lowerZoneEl) {
+                const limitsWrap = lowerZoneEl.parentNode;
+                const landing = limitsWrap.nextSibling;
+                const sel = window.getSelection();
+                const range = document.createRange();
+                if (landing && landing.nodeType === 3) range.setStart(landing, landing.textContent.length);
+                else range.setStartAfter(limitsWrap);
+                range.collapse(true);
+                sel.removeAllRanges(); sel.addRange(range);
+            }
+            function maybeConvertTwoChar() {
+                const sel = window.getSelection();
+                if (!sel.rangeCount || !sel.isCollapsed) return;
+                const node = sel.getRangeAt(0).startContainer;
+                const offset = sel.getRangeAt(0).startOffset;
+                if (node.nodeType !== 3 || offset < 2) return;
+                const last2 = node.textContent.slice(offset - 2, offset);
+                const symbol = MATH_SHORTCUT_TWO_CHAR[last2];
+                if (!symbol) return;
+                node.textContent = node.textContent.slice(0, offset - 2) + symbol + node.textContent.slice(offset);
+                const range = document.createRange();
+                range.setStart(node, offset - 1); range.collapse(true);
+                sel.removeAllRanges(); sel.addRange(range);
+            }
+
+            editor.addEventListener('keydown', (ev) => {
+                const extendingPrimes = funcPrimeLanding && ev.key === "'" && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && isCaretAt(funcPrimeLanding, 1);
+                if (extendingPrimes) {
+                    ev.preventDefault();
+                    funcPrimeSpan.textContent += '′';
+                    const afterPrime = document.createRange();
+                    afterPrime.setStart(funcPrimeLanding, 1); afterPrime.collapse(true);
+                    const selPrime = window.getSelection();
+                    selPrime.removeAllRanges(); selPrime.addRange(afterPrime);
+                    return;
+                }
+                funcPrimeLanding = null; funcPrimeSpan = null;
+
+                if (pendingIntegral) {
+                    pendingIntegral = false;
+                    if (ev.key === 'd' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) { ev.preventDefault(); growLimitBoxes(); return; }
+                }
+                if (ev.key === ']' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+                    ev.preventDefault(); insertTextAtCaret(']'); growLimitBoxes(); return;
+                }
+                if (ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+                    const lower = ev.key.toLowerCase();
+                    if (MATH_SHORTCUT_GREEK_MAP[lower] && ev.key.length === 1) {
+                        ev.preventDefault();
+                        const capsOn = ev.getModifierState && ev.getModifierState('CapsLock');
+                        insertStyledSymbol(capsOn ? MATH_SHORTCUT_GREEK_MAP[lower].upper : MATH_SHORTCUT_GREEK_MAP[lower].lower);
+                        return;
+                    }
+                    if (lower === 'i' && ev.key.length === 1) { ev.preventDefault(); insertStyledSymbol('∫'); pendingIntegral = true; return; }
+                }
+                if (ev.key === 'f' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) { ev.preventDefault(); insertFuncF(); return; }
+                if (ev.key === '*') { ev.preventDefault(); insertStyledSymbol('×'); return; }
+                if (ev.key === '~') { ev.preventDefault(); insertStyledSymbol('√'); return; }
+                if (ev.key === '^') { ev.preventDefault(); startZone('sup'); return; }
+                if (ev.key === '_') { ev.preventDefault(); startZone('sub'); return; }
+                if (ev.key === '/') {
+                    const fracPart = currentFracPart();
+                    if (fracPart && fracPart.className === 'frac-num') { ev.preventDefault(); advanceFracNumToDen(fracPart); return; }
+                    if (fracPart && fracPart.className === 'frac-den') return;
+                    ev.preventDefault();
+                    const token = findTokenBeforeCaret();
+                    if (token) {
+                        const delRange = document.createRange();
+                        delRange.setStart(token.node, token.start); delRange.setEnd(token.node, token.end);
+                        delRange.deleteContents();
+                        const sel0 = window.getSelection();
+                        sel0.removeAllRanges(); sel0.addRange(delRange);
+                        makeFraction(token.text);
+                    } else { makeFraction(null); }
+                    return;
+                }
+                const zone = currentZone();
+                if (zone && (ev.key === 'ArrowRight' || ev.key === ' ')) { ev.preventDefault(); exitZoneAfter(zone); return; }
+                const denPart = currentFracPart();
+                if (denPart && denPart.className === 'frac-den' && (ev.key === 'ArrowRight' || ev.key === ' ')) { ev.preventDefault(); exitZoneAfter(denPart.parentNode); return; }
+                const intZone = currentIntLimitZone();
+                if (intZone && intZone.className === 'int-upper' && ev.key === 'ArrowDown') {
+                    ev.preventDefault();
+                    const lowerZone = intZone.parentNode.querySelector('.int-lower');
+                    lowerZone.normalize && lowerZone.normalize();
+                    const toLower = document.createRange();
+                    toLower.setStart(lowerZone.firstChild, lowerZone.firstChild.textContent.length); toLower.collapse(true);
+                    const selDown = window.getSelection();
+                    selDown.removeAllRanges(); selDown.addRange(toLower);
+                    return;
+                }
+                if (intZone && intZone.className === 'int-lower' && ev.key === ' ') { ev.preventDefault(); exitIntLimits(intZone); return; }
+            });
+            editor.addEventListener('input', () => maybeConvertTwoChar());
+
+            // Serializes the rich contenteditable structure into a plain,
+            // readable string for the backend's grading prompt — not real
+            // LaTeX, but unambiguous enough for the model to read as maths
+            // (fractions as "(num)/(den)", powers/subscripts as "^(...)"/
+            // "_(...)", limit boxes as "[lower, upper]" right after
+            // whatever they're attached to).
+            function serializeNode(node) {
+                if (node.nodeType === 3) return node.textContent.replace(/​/g, '');
+                if (node.nodeType !== 1) return '';
+                if (node.classList && node.classList.contains('frac')) {
+                    const num = node.querySelector('.frac-num'), den = node.querySelector('.frac-den');
+                    return `(${serializeChildren(num)})/(${serializeChildren(den)})`;
+                }
+                if (node.classList && node.classList.contains('int-limits')) {
+                    const upper = node.querySelector('.int-upper'), lower = node.querySelector('.int-lower');
+                    return `[${serializeChildren(lower)}, ${serializeChildren(upper)}]`;
+                }
+                if (node.tagName === 'SUP') return `^(${serializeChildren(node)})`;
+                if (node.tagName === 'SUB') return `_(${serializeChildren(node)})`;
+                return serializeChildren(node);
+            }
+            function serializeChildren(node) {
+                if (!node) return '';
+                return Array.from(node.childNodes).map(serializeNode).join('');
+            }
+
+            return {
+                container: wrap,
+                getValue() { return serializeChildren(editor).trim(); },
+                isEmpty() { return !serializeChildren(editor).trim(); },
+                focus() { editor.focus(); },
+            };
+        }
+
+        // Renders a free-text/worked-answer question (the non-diagram
+        // counterpart to renderDiagramWidget) using the math shortcut
+        // editor above. `onSubmit(answerText)` does the actual POST and
+        // must resolve to the grading result.
+        function renderTextQuestionWidget(container, questionText, onSubmit) {
+            const wrap = document.createElement('div');
+            wrap.className = 'km-inline-lesson-question';
+            const q = document.createElement('div');
+            q.textContent = questionText || '';
+            wrap.appendChild(q);
+            const mathEditor = createMathShortcutEditor('Write your answer here…');
+            wrap.appendChild(mathEditor.container);
+            const submitBtn = document.createElement('button');
+            submitBtn.type = 'button';
+            submitBtn.className = 'btn primary';
+            submitBtn.style.marginTop = '8px';
+            submitBtn.textContent = 'Submit answer';
+            wrap.appendChild(submitBtn);
+            const resultEl = document.createElement('div');
+            resultEl.style.marginTop = '8px';
+            wrap.appendChild(resultEl);
+
+            submitBtn.addEventListener('click', async () => {
+                if (mathEditor.isEmpty()) return;
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Checking…';
+                const result = await onSubmit(mathEditor.getValue());
+                submitBtn.remove();
+                resultEl.innerHTML = result
+                    ? `<div class="km-inline-detail-item ${result.correct ? '' : 'km-inline-detail-none'}">${escapeHtml(result.feedback || '')}</div>`
+                    : `<div class="km-inline-detail-item km-inline-detail-none">Something went wrong — try again.</div>`;
+            });
+
+            container.innerHTML = '';
+            container.appendChild(wrap);
         }
 
         // ─── Diagram-drawing question widget ───
