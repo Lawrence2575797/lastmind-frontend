@@ -708,6 +708,16 @@
     .km-inline-detail-section h4 { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.55; margin: 0 0 8px; font-weight: 700; }
     .km-inline-detail-item { font-size: 12px; padding: 8px 10px; background: rgba(230, 215, 176, 0.05); border: 1px solid rgba(230, 215, 176, 0.14); border-radius: 3px; line-height: 1.4; margin-bottom: 6px; }
     .km-inline-detail-item.km-inline-detail-none { opacity: 0.5; font-style: italic; background: transparent; border-style: dashed; }
+    .km-inline-detail-item.km-inline-detail-item-action { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .km-inline-detail-item-action span { flex: 1; min-width: 0; }
+    .km-inline-detail-item-action button { flex: none; font-size: 11px; padding: 5px 9px; }
+    .km-fsrs-details { font-size: 11.5px; margin-top: 4px; }
+    .km-fsrs-details summary { cursor: pointer; opacity: 0.7; padding: 4px 0; }
+    .km-fsrs-details summary:hover { opacity: 1; }
+    .km-fsrs-details-body { padding: 8px 0 2px; line-height: 1.55; }
+    .km-fsrs-details-body h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.6; margin: 10px 0 4px; }
+    .km-fsrs-details-body h4:first-child { margin-top: 0; }
+    .km-fsrs-details-body p { margin: 0 0 8px; }
     .km-inline-detail-lesson { margin: 10px 0; }
     .km-inline-lesson-explanation { font-size: 12.5px; line-height: 1.6; margin-bottom: 10px; }
     .km-inline-lesson-explanation p { margin: 0 0 10px; }
@@ -12022,11 +12032,17 @@ SQIDAQAB
             workspaceEl.style.display = 'none';
         }
 
-        const data = await fetchSubjectKnowledgeMap(folder);
+        const [data, scheduleRows] = await Promise.all([fetchSubjectKnowledgeMap(folder), fetchScheduleData()]);
         if (!data || !Array.isArray(data.nodes) || !data.nodes.length) {
             showEmpty(`No knowledge map has been generated for ${folderLabel(folder)} yet.`);
             return;
         }
+        // Same /schedule data the calendar's own due-in badges and "how
+        // does this work?" panel already use (see buildFsrsInfoPanelContent/
+        // formatDueIn) — reused as-is rather than inventing a second FSRS
+        // display, just looked up by this graph's own node/edge concept
+        // ids instead of a page's.
+        data.scheduleByConceptId = new Map(scheduleRows.map((r) => [r.concept_id, r]));
 
         renderKmInlineThemeTabs(contentInner, folder, data);
         renderKmInlineGraph(contentInner, folder, data, null);
@@ -12230,17 +12246,55 @@ SQIDAQAB
             const nodeById = new Map(fullData.nodes.map((n) => [n.id, n]));
             const upstream = fullData.edges.filter((e) => e.target === d.id).map((e) => nodeById.get(e.source)).filter(Boolean);
             const downstream = fullData.edges.filter((e) => e.source === d.id).map((e) => nodeById.get(e.target)).filter(Boolean);
+            const schedule = fullData.scheduleByConceptId || new Map();
+            const ownEntry = schedule.get(d.conceptId);
 
             const upItems = upstream.length
                 ? upstream.map((n) => `<div class="km-inline-detail-item">${escapeHtml(n.label)}</div>`).join('')
                 : '<div class="km-inline-detail-item km-inline-detail-none">Nothing — this is a starting point</div>';
-            const downItems = downstream.length
-                ? downstream.map((n) => `<div class="km-inline-detail-item">${escapeHtml(n.label)}</div>`).join('')
-                : '<div class="km-inline-detail-item km-inline-detail-none">Nothing yet builds on this</div>';
+
+            // Once this concept has actually been encoded, "Builds on
+            // this" upgrades from a plain list into real next steps: a
+            // downstream concept that's ALSO been encoded is ready for
+            // its own spaced-repetition review (the transfer/integration
+            // connecting the two); one that hasn't needs encoding first —
+            // reviewing a connection to something never taught yet tests
+            // nothing real.
+            const downItems = !downstream.length
+                ? '<div class="km-inline-detail-item km-inline-detail-none">Nothing yet builds on this</div>'
+                : downstream.map((n, idx) => {
+                    if (!ownEntry) return `<div class="km-inline-detail-item">${escapeHtml(n.label)}</div>`;
+                    const otherEncoded = schedule.has(n.conceptId);
+                    return `
+                        <div class="km-inline-detail-item km-inline-detail-item-action">
+                            <span>${escapeHtml(n.label)}</span>
+                            ${otherEncoded
+                                ? `<button class="btn km-review-connection-btn" data-idx="${idx}">Review connection</button>`
+                                : `<button class="btn km-encode-first-btn" data-idx="${idx}">Encode this first</button>`}
+                        </div>
+                    `;
+                }).join('');
+
+            // "Your progress" — the actual FSRS numbers plus the same
+            // plain-language explanation already used elsewhere in the
+            // app (buildFsrsInfoPanelContent/fsrsInfoExplanationHtml),
+            // never a separate, second explanation of the same thing.
+            const progressHtml = ownEntry ? `
+                <div class="km-inline-detail-section">
+                    <h4>Your progress</h4>
+                    <div class="km-inline-detail-item">Next review: <strong>${escapeHtml(formatDueIn(ownEntry.due))}</strong></div>
+                    <details class="km-fsrs-details">
+                        <summary>How this works, and this concept's own numbers</summary>
+                        <div class="km-fsrs-details-body">${buildFsrsInfoPanelContent(ownEntry)}</div>
+                    </details>
+                </div>
+            ` : '';
+
             detailEl.innerHTML = `
                 <div class="km-inline-detail-eyebrow">${escapeHtml(d.subtopic || '')}</div>
                 <div class="km-inline-detail-label">${escapeHtml(d.label)}</div>
                 <div class="km-inline-detail-meta">${stateLabel[d.state]}</div>
+                ${progressHtml}
                 <div class="km-inline-detail-section"><h4>Needs first</h4>${upItems}</div>
                 <div class="km-inline-detail-section"><h4>Builds on this</h4>${downItems}</div>
                 <div class="km-inline-detail-actions">
@@ -12249,6 +12303,20 @@ SQIDAQAB
                 </div>
             `;
             detailEl.querySelector('.km-inline-view-btn').addEventListener('click', () => zoomToNode(d));
+            detailEl.querySelectorAll('.km-review-connection-btn').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const n = downstream[Number(btn.dataset.idx)];
+                    showLessonFullpage(contentInner);
+                    renderEdgeReviewContent(lessonFullpageBodyEl, d, n);
+                });
+            });
+            detailEl.querySelectorAll('.km-encode-first-btn').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const n = downstream[Number(btn.dataset.idx)];
+                    const graphNode = findGraphNodeById(n.id);
+                    if (graphNode) selectKmInlineNode(graphNode);
+                });
+            });
             detailEl.querySelector('.km-inline-start-lesson-btn').addEventListener('click', async (e) => {
                 // The lesson takes over the whole page the moment it
                 // starts — the graph/detail panel this button lives in
@@ -12331,6 +12399,16 @@ SQIDAQAB
             // node's own, blank board; ATOMIC for an edge's, the
             // prerequisite's curves pre-drawn/fixed via `given`) or the
             // math-shortcut free-text answer widget otherwise.
+            // In practice the chain-diagnostic gate already guarantees an
+            // upstream prerequisite is encoded before its bridge ever
+            // renders here — this is defense-in-depth for the same
+            // findMissingEncoding check, not an expected live path.
+            const gotoEncode = (redirect) => {
+                const graphNode = findGraphNodeById(redirect.nodeId);
+                if (!graphNode) return;
+                showKmWorkspace(contentInner);
+                selectKmInlineNode(graphNode);
+            };
             bridgeSections.forEach(({ from, lesson, given }, idx) => {
                 if (lesson.transferQuestion) {
                     const el = lessonEl.querySelector(`#km-question-bridge-transfer-${idx}`);
@@ -12338,8 +12416,8 @@ SQIDAQAB
                         lesson.transferQuestion.diagramSpec ? '/knowledge-map-v2/diagram-question/submit' : '/knowledge-map-v2/text-question/submit',
                         { fromNodeId: from.id, toNodeId: d.id, questionType: 'transfer', answer }
                     );
-                    if (lesson.transferQuestion.diagramSpec) renderDiagramWidget(el, given, submit);
-                    else renderTextQuestionWidget(el, lesson.transferQuestion.questionText, submit);
+                    if (lesson.transferQuestion.diagramSpec) renderDiagramWidget(el, given, submit, gotoEncode);
+                    else renderTextQuestionWidget(el, lesson.transferQuestion.questionText, submit, gotoEncode);
                 }
                 if (lesson.integrationQuestion) {
                     const el = lessonEl.querySelector(`#km-question-bridge-integration-${idx}`);
@@ -12347,8 +12425,8 @@ SQIDAQAB
                         lesson.integrationQuestion.diagramSpec ? '/knowledge-map-v2/diagram-question/submit' : '/knowledge-map-v2/text-question/submit',
                         { fromNodeId: from.id, toNodeId: d.id, questionType: 'integration', answer }
                     );
-                    if (lesson.integrationQuestion.diagramSpec) renderDiagramWidget(el, given, submit);
-                    else renderTextQuestionWidget(el, lesson.integrationQuestion.questionText, submit);
+                    if (lesson.integrationQuestion.diagramSpec) renderDiagramWidget(el, given, submit, gotoEncode);
+                    else renderTextQuestionWidget(el, lesson.integrationQuestion.questionText, submit, gotoEncode);
                 }
             });
             if (nodeLesson && nodeLesson.practiceQuestion) {
@@ -12359,6 +12437,57 @@ SQIDAQAB
                 );
                 if (nodeLesson.practiceQuestion.diagramSpec) renderDiagramWidget(el, null, submit);
                 else renderTextQuestionWidget(el, nodeLesson.practiceQuestion.questionText, submit);
+            }
+        }
+
+        // The "Review connection" entry point from a node's own "Builds
+        // on this" list — shows just the ONE edge's link-teaching plus
+        // transfer/integration, independent of either endpoint's own
+        // full "Start Lesson" flow. This is the actual spaced-repetition
+        // review for a link: both ends were already encoded (that's why
+        // the button was offered at all), so there's no bridge-from-
+        // upstream framing here, just the connection itself.
+        async function renderEdgeReviewContent(lessonEl, fromNode, toNode) {
+            lessonEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Loading…</div>';
+            const [lesson, fromLesson] = await Promise.all([fetchEdgeLesson(fromNode.id, toNode.id), fetchNodeLesson(fromNode.id)]);
+            if (!lesson || lesson.notFound) {
+                lessonEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">No lesson generated for this connection yet.</div>';
+                return;
+            }
+            const given = (fromLesson && fromLesson.practiceQuestion && fromLesson.practiceQuestion.diagramSpec && fromLesson.practiceQuestion.diagramSpec.curves) || null;
+
+            lessonEl.innerHTML = `
+                <div class="km-inline-detail-section">
+                    <h4>"${escapeHtml(fromNode.label)}" → "${escapeHtml(toNode.label)}"</h4>
+                    <div class="km-inline-lesson-explanation">${splitIntoParagraphs(lesson.linkTeaching)}</div>
+                    ${lesson.transferQuestion ? `<div><strong class="km-inline-lesson-question" style="display:block;">Transfer</strong><div id="km-edge-review-transfer"></div></div>` : ''}
+                    ${lesson.integrationQuestion ? `<div><strong class="km-inline-lesson-question" style="display:block;">Integration</strong><div id="km-edge-review-integration"></div></div>` : ''}
+                </div>
+            `;
+
+            const gotoEncode = (redirect) => {
+                const graphNode = findGraphNodeById(redirect.nodeId);
+                if (!graphNode) return;
+                showKmWorkspace(contentInner);
+                selectKmInlineNode(graphNode);
+            };
+            if (lesson.transferQuestion) {
+                const el = lessonEl.querySelector('#km-edge-review-transfer');
+                const submit = (answer) => postChainDiagnostic(
+                    lesson.transferQuestion.diagramSpec ? '/knowledge-map-v2/diagram-question/submit' : '/knowledge-map-v2/text-question/submit',
+                    { fromNodeId: fromNode.id, toNodeId: toNode.id, questionType: 'transfer', answer }
+                );
+                if (lesson.transferQuestion.diagramSpec) renderDiagramWidget(el, given, submit, gotoEncode);
+                else renderTextQuestionWidget(el, lesson.transferQuestion.questionText, submit, gotoEncode);
+            }
+            if (lesson.integrationQuestion) {
+                const el = lessonEl.querySelector('#km-edge-review-integration');
+                const submit = (answer) => postChainDiagnostic(
+                    lesson.integrationQuestion.diagramSpec ? '/knowledge-map-v2/diagram-question/submit' : '/knowledge-map-v2/text-question/submit',
+                    { fromNodeId: fromNode.id, toNodeId: toNode.id, questionType: 'integration', answer }
+                );
+                if (lesson.integrationQuestion.diagramSpec) renderDiagramWidget(el, given, submit, gotoEncode);
+                else renderTextQuestionWidget(el, lesson.integrationQuestion.questionText, submit, gotoEncode);
             }
         }
 
@@ -12732,7 +12861,28 @@ SQIDAQAB
             return /\bcalculate\b/i.test(questionText || '');
         }
 
-        function renderTextQuestionWidget(container, questionText, onSubmit) {
+        // Shared by both question widgets — a normal correct/incorrect
+        // result, a network failure, or the new encoding-prerequisite
+        // redirect (see knowledgeMap.ts's findMissingEncoding): "you need
+        // to encode X before this connection means anything" with a
+        // button that takes you straight there.
+        function renderQuestionResult(resultEl, result, onRequiresEncoding) {
+            if (!result) {
+                resultEl.innerHTML = `<div class="km-inline-detail-item km-inline-detail-none">Something went wrong — try again.</div>`;
+                return;
+            }
+            if (result.requiresEncoding) {
+                resultEl.innerHTML = `
+                    <div class="km-inline-detail-item km-inline-detail-none">You'll need to encode "${escapeHtml(result.redirect.label)}" first — testing this connection means nothing until both sides have actually been taught.</div>
+                    <button type="button" class="btn primary km-goto-encode-btn" style="margin-top:8px;">Go encode it</button>
+                `;
+                resultEl.querySelector('.km-goto-encode-btn').addEventListener('click', () => onRequiresEncoding && onRequiresEncoding(result.redirect));
+                return;
+            }
+            resultEl.innerHTML = `<div class="km-inline-detail-item ${result.correct ? '' : 'km-inline-detail-none'}">${escapeHtml(result.feedback || '')}</div>`;
+        }
+
+        function renderTextQuestionWidget(container, questionText, onSubmit, onRequiresEncoding) {
             const wrap = document.createElement('div');
             wrap.className = 'km-inline-lesson-question';
             const q = document.createElement('div');
@@ -12758,9 +12908,7 @@ SQIDAQAB
                 submitBtn.textContent = 'Checking…';
                 const result = await onSubmit(editor.getValue());
                 submitBtn.remove();
-                resultEl.innerHTML = result
-                    ? `<div class="km-inline-detail-item ${result.correct ? '' : 'km-inline-detail-none'}">${escapeHtml(result.feedback || '')}</div>`
-                    : `<div class="km-inline-detail-item km-inline-detail-none">Something went wrong — try again.</div>`;
+                renderQuestionResult(resultEl, result, onRequiresEncoding);
             });
 
             container.innerHTML = '';
@@ -12831,7 +12979,7 @@ SQIDAQAB
         // DiagramSpec.given — grading resolves these directly, it never
         // looks for them in the student's answer). `onSubmit(answer)` does
         // the actual POST and must resolve to the grading result.
-        function renderDiagramWidget(container, given, onSubmit) {
+        function renderDiagramWidget(container, given, onSubmit, onRequiresEncoding) {
             const uid = `dw${diagramWidgetSeq++}`;
             const state = { placed: [], shades: [], labels: [], arrows: [], shadeMode: false, shadeDraft: [], arrowMode: false, arrowDraft: null, dragging: null };
 
@@ -13023,9 +13171,7 @@ SQIDAQAB
                 };
                 const result = await onSubmit(answer);
                 ev.target.remove();
-                resultEl.innerHTML = result
-                    ? `<div class="km-inline-detail-item ${result.correct ? '' : 'km-inline-detail-none'}">${escapeHtml(result.feedback || '')}</div>`
-                    : `<div class="km-inline-detail-item km-inline-detail-none">Something went wrong — try again.</div>`;
+                renderQuestionResult(resultEl, result, onRequiresEncoding);
             });
 
             render();
