@@ -778,9 +778,25 @@
     .km-lesson-fullpage { flex: 1; min-height: 0; overflow-y: auto; margin-top: 10px; display: flex; flex-direction: column; gap: 18px; }
     /* Sticky, not just top-of-flow — a long lesson scrolls inside
        .km-lesson-fullpage itself (see its own overflow-y:auto), so a
-       plain top-aligned button would scroll away with the content,
-       found the hard way while testing this. */
-    .km-lesson-back-btn { position: sticky; top: 0; z-index: 1; align-self: flex-start; font-size: 12px; padding: 7px 14px; background: var(--bg); }
+       plain top-aligned row would scroll away with the content, found
+       the hard way while testing the back button alone. The "ready
+       next" recommendations used to render at the very bottom of the
+       result, inside that same long scroll — on a phone that meant
+       scrolling through the whole lesson to find them. Living in this
+       sticky header instead means they're visible the moment they
+       exist, with no scrolling, without sitting on top of the app's own
+       topbar (this header is still inside the page's own content flow,
+       not fixed to the viewport). */
+    .km-lesson-sticky-header { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 12px; background: var(--bg); padding-bottom: 2px; }
+    .km-lesson-back-btn { flex: none; align-self: flex-start; font-size: 12px; padding: 7px 14px; background: var(--bg); }
+    .km-lesson-next-bar { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
+    .km-lesson-next-label { flex: none; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.55; }
+    /* Horizontal scroll for the pills themselves, not the page — several
+       recommendations fit in one line this way instead of wrapping into
+       a second row that pushes the lesson content down every time. */
+    .km-lesson-next-pills { flex: 1; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+    .km-lesson-next-pills::-webkit-scrollbar { display: none; }
+    .km-lesson-next-pill { flex: none; font-size: 11px; padding: 5px 10px; white-space: nowrap; }
     .km-lesson-fullpage-body { max-width: 740px; width: 100%; margin: 0 auto 40px; display: flex; flex-direction: column; gap: 6px; font-size: 15px; }
     .km-lesson-fullpage-body .km-inline-detail-eyebrow { font-size: 11.5px; }
     .km-lesson-fullpage-body .km-inline-detail-label { font-size: 25px; line-height: 1.3; margin-bottom: 6px; }
@@ -4343,7 +4359,13 @@
                     </div>
                 </div>
                 <div class="km-lesson-fullpage" style="display:none;">
-                    <button type="button" class="btn km-lesson-back-btn">← Back to map</button>
+                    <div class="km-lesson-sticky-header">
+                        <button type="button" class="btn km-lesson-back-btn">← Back to map</button>
+                        <div class="km-lesson-next-bar" style="display:none;">
+                            <span class="km-lesson-next-label">Ready next</span>
+                            <div class="km-lesson-next-pills"></div>
+                        </div>
+                    </div>
                     <div class="km-lesson-fullpage-body"></div>
                 </div>
             </div>
@@ -12745,6 +12767,11 @@ SQIDAQAB
     function showLessonFullpage(contentInner) {
         contentInner.querySelector('.km-inline-workspace').style.display = 'none';
         contentInner.querySelector('.km-lesson-fullpage').style.display = 'flex';
+        // Starting fresh — a recommendation from whatever lesson was open
+        // last shouldn't linger into this one until this lesson earns its
+        // own (see renderNextRecommendationsBar).
+        const nextBar = contentInner.querySelector('.km-lesson-next-bar');
+        if (nextBar) { nextBar.style.display = 'none'; nextBar.querySelector('.km-lesson-next-pills').innerHTML = ''; }
         lessonInProgress = true;
         updateMathsToolAvailability();
     }
@@ -14028,28 +14055,42 @@ SQIDAQAB
             const keysEarnedHtmlStr = result.verifyCoefficient
                 ? verifyKeysEarnedHtml(result.keysEarned, result.keysBase, result.verifyCoefficient)
                 : keysEarnedHtml(result.keysEarned);
-            const recs = result.recommendations || [];
-            const recHtml = recs.length ? `
-                <div class="km-inline-detail-section">
-                    <h4>Ready next</h4>
-                    ${recs.map((rec, idx) => `
-                        <div class="km-inline-detail-item km-inline-detail-item-action">
-                            <span>${escapeHtml(rec.node.label)}${rec.action === 'review' ? ' <span class="km-inline-detail-meta">(review)</span>' : ''}</span>
-                            <button type="button" class="btn km-next-recommendation-btn" data-idx="${idx}">View</button>
-                        </div>
-                    `).join('')}
-                </div>
-            ` : '';
-            resultEl.innerHTML = feedbackHtml + keysEarnedHtmlStr + scheduleHtml + recHtml;
-            resultEl.querySelectorAll('.km-next-recommendation-btn').forEach((btn) => {
-                btn.addEventListener('click', () => {
-                    const rec = recs[Number(btn.dataset.idx)];
-                    if (!rec) return;
+            resultEl.innerHTML = feedbackHtml + keysEarnedHtmlStr + scheduleHtml;
+            // Lives in the sticky header now, not this result block — see
+            // renderNextRecommendationsBar's own comment on why.
+            renderNextRecommendationsBar(contentInner, result.recommendations || []);
+        }
+
+        // "Ready next" used to render at the bottom of this same result
+        // block, inside .km-lesson-fullpage's own long scroll — on a
+        // phone that meant scrolling through the whole lesson (bridges,
+        // explanation, question, answer, feedback) just to find it.
+        // Populating the sticky header instead (see the template's
+        // .km-lesson-next-bar, right next to "← Back to map") makes it
+        // visible the instant it exists, no scrolling required, while
+        // staying inside the page's own content flow rather than
+        // floating over the app's topbar/Maths Tool button.
+        function renderNextRecommendationsBar(contentInner, recs) {
+            const bar = contentInner.querySelector('.km-lesson-next-bar');
+            const pillsEl = bar.querySelector('.km-lesson-next-pills');
+            pillsEl.innerHTML = '';
+            if (!recs.length) {
+                bar.style.display = 'none';
+                return;
+            }
+            recs.forEach((rec) => {
+                const pill = document.createElement('button');
+                pill.type = 'button';
+                pill.className = 'btn km-lesson-next-pill';
+                pill.textContent = rec.action === 'review' ? `${rec.node.label} (review)` : rec.node.label;
+                pill.addEventListener('click', () => {
                     showKmWorkspace(contentInner);
                     selectKmInlineNode(rec.node);
                     zoomToNode(rec.node);
                 });
+                pillsEl.appendChild(pill);
             });
+            bar.style.display = 'flex';
         }
 
         function renderTextQuestionWidget(container, questionText, onSubmit, onRequiresEncoding) {
