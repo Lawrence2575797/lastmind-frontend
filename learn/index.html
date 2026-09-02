@@ -12683,24 +12683,27 @@ SQIDAQAB
     //   mastery: {[nodeId]: 0|1|2}, masteryDetail }.
     let kmInlineSimulation = null;
 
+    // Throws on any real failure (no session, network error, non-OK
+    // response) rather than swallowing it into a null the caller can't
+    // tell apart from a genuinely empty map — conflating those two was a
+    // real bug: a transient timeout or rate-limit on this endpoint (large
+    // subject-wide maps have taken several seconds to load before — see
+    // getKnowledgeMapForSubject's own history) read back as "no knowledge
+    // map has been generated for this subject", which is simply false and
+    // came and went with the failure rather than the data.
     async function fetchSubjectKnowledgeMap(folder) {
-        try {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) return null;
-            const params = new URLSearchParams({
-                subject: folder.subject || '',
-                qualification: folder.qualification || '',
-                examBoard: folder.examBoard || ''
-            });
-            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2?${params.toString()}`, {
-                headers: { Authorization: `Bearer ${session.access_token}` }
-            });
-            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
-            return await resp.json();
-        } catch (err) {
-            console.error('LastMind: failed to load the knowledge map.', err);
-            return null;
-        }
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) throw new Error('not signed in');
+        const params = new URLSearchParams({
+            subject: folder.subject || '',
+            qualification: folder.qualification || '',
+            examBoard: folder.examBoard || ''
+        });
+        const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2?${params.toString()}`, {
+            headers: { Authorization: `Bearer ${session.access_token}` }
+        });
+        if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+        return await resp.json();
     }
 
     async function fetchNodeLesson(nodeId) {
@@ -12792,13 +12795,35 @@ SQIDAQAB
 
         const emptyEl = contentInner.querySelector('.km-inline-empty');
         const workspaceEl = contentInner.querySelector('.km-inline-workspace');
-        function showEmpty(message) {
-            emptyEl.textContent = message;
+        function showEmpty(message, retryable) {
+            emptyEl.innerHTML = '';
+            emptyEl.appendChild(document.createTextNode(message));
+            if (retryable) {
+                const retryBtn = document.createElement('button');
+                retryBtn.type = 'button';
+                retryBtn.className = 'btn';
+                retryBtn.style.display = 'block';
+                retryBtn.style.margin = '14px auto 0';
+                retryBtn.textContent = 'Try again';
+                retryBtn.addEventListener('click', () => renderKnowledgeMapForFolder(folder));
+                emptyEl.appendChild(retryBtn);
+            }
             emptyEl.style.display = 'block';
             workspaceEl.style.display = 'none';
         }
 
-        const [data, scheduleRows] = await Promise.all([fetchSubjectKnowledgeMap(folder), fetchScheduleData()]);
+        let data, scheduleRows;
+        try {
+            [data, scheduleRows] = await Promise.all([fetchSubjectKnowledgeMap(folder), fetchScheduleData()]);
+        } catch (err) {
+            // A real failure (network/timeout/server error) - NOT the same
+            // as this subject genuinely having no map yet, and shouldn't
+            // be reported as if it were (see fetchSubjectKnowledgeMap's
+            // own comment on why this used to happen).
+            console.error('LastMind: failed to load the knowledge map.', err);
+            showEmpty(`Couldn't load the knowledge map for ${folderLabel(folder)} — check your connection and try again.`, true);
+            return;
+        }
         if (!data || !Array.isArray(data.nodes) || !data.nodes.length) {
             showEmpty(`No knowledge map has been generated for ${folderLabel(folder)} yet.`);
             return;
