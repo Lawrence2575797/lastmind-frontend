@@ -13013,14 +13013,29 @@ SQIDAQAB
         // repaint anyway; only the FINAL settled layout matters). Time-
         // and tick-boxed so a pathologically large graph degrades to
         // "settles a little less perfectly" rather than hanging the tab.
-        const kmWarmupDeadline = performance.now() + 800;
-        let kmWarmupTicks = 0;
-        while (kmInlineSimulation.alpha() > kmInlineSimulation.alphaMin() && kmWarmupTicks < 400 && performance.now() < kmWarmupDeadline) {
-            kmInlineSimulation.tick();
-            kmWarmupTicks++;
+        //
+        // Wrapped defensively: this fast path is new and unverified on a
+        // real device, and a graph that fails to render at all is worse
+        // than one that's merely slow — any failure here falls all the
+        // way back to the old always-worked animated tick loop rather
+        // than leaving the canvas blank.
+        try {
+            const kmWarmupDeadline = performance.now() + 800;
+            let kmWarmupTicks = 0;
+            while (kmInlineSimulation.alpha() > kmInlineSimulation.alphaMin() && kmWarmupTicks < 400 && performance.now() < kmWarmupDeadline) {
+                kmInlineSimulation.tick();
+                kmWarmupTicks++;
+            }
+            renderKmTick();
+            fitKmGraphToView();
+        } catch (err) {
+            console.error('LastMind: knowledge map fast-path render failed — falling back to animated ticks.', err);
+            kmInlineSimulation
+                .alpha(1)
+                .on('tick', renderKmTick)
+                .on('end', fitKmGraphToView)
+                .restart();
         }
-        renderKmTick();
-        fitKmGraphToView();
 
         const detailEl = contentInner.querySelector('.km-inline-detail');
         const lessonFullpageBodyEl = contentInner.querySelector('.km-lesson-fullpage-body');
