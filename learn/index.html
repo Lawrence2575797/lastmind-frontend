@@ -15009,6 +15009,28 @@ SQIDAQAB
     checkAdminAccess();
     window.addEventListener('focus', checkAdminAccess);
 
+    // A PWA that's merely switched away from and back to (not force-quit)
+    // keeps this same page instance alive — enterApp, and with it the one
+    // reconcileFoldersWithServer() call in the whole session, never runs
+    // again. So a folder deleted on another device sits as a tombstone on
+    // the server, unseen here, until this instance happens to get a full
+    // reload. Re-running the reconcile on refocus (same pattern as the
+    // tutoring badge and admin check above) closes that gap.
+    function reconcileFoldersOnResume() {
+        reconcileFoldersWithServer()
+            .then(refreshFolderList)
+            .catch((err) => console.error('LastMind: folder reconcile on resume failed.', err));
+    }
+    window.addEventListener('focus', reconcileFoldersOnResume);
+    // window focus/blur is unreliable for standalone/home-screen PWAs on
+    // mobile (the events this app otherwise relies on for "re-sync when the
+    // user comes back"), so visibilitychange is the belt-and-braces backup
+    // for exactly the case that matters here: switching back into an
+    // already-running PWA instance rather than a fresh page load.
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') reconcileFoldersOnResume();
+    });
+
     // ─── Peer Tutoring hub ───
     function setPeerTutoringFullscreen(on) {
         document.getElementById('peerTutoringView').classList.toggle('fullscreen', on);
