@@ -13042,13 +13042,15 @@ SQIDAQAB
                 ? upstream.map((n) => `<div class="km-inline-detail-item">${escapeHtml(n.label)}</div>`).join('')
                 : '<div class="km-inline-detail-item km-inline-detail-none">Nothing — this is a starting point</div>';
 
-            // Once this concept has actually been encoded, "Builds on
-            // this" upgrades from a plain list into real next steps: a
-            // downstream concept that's ALSO been encoded is ready for
-            // its own spaced-repetition review (the transfer/integration
-            // connecting the two); one that hasn't needs encoding first —
-            // reviewing a connection to something never taught yet tests
-            // nothing real.
+            // Only nodes are ever launchable, never a link on its own — a
+            // downstream concept that's ALSO been encoded is one of THIS
+            // node's own qualifying links (tested together, as part of
+            // ITS review, once due — see renderNodeReviewStart below), so
+            // there's nothing to click here beyond that; one that hasn't
+            // been encoded yet still needs its own "Encode this first"
+            // jump, since reviewing a connection to something never
+            // taught yet tests nothing real.
+            const qualifyingLinks = ownEntry ? downstream.filter((n) => schedule.has(n.conceptId)) : [];
             const downItems = !downstream.length
                 ? '<div class="km-inline-detail-item km-inline-detail-none">Nothing yet builds on this</div>'
                 : downstream.map((n, idx) => {
@@ -13058,7 +13060,7 @@ SQIDAQAB
                         <div class="km-inline-detail-item km-inline-detail-item-action">
                             <span>${escapeHtml(n.label)}</span>
                             ${otherEncoded
-                                ? `<button class="btn km-review-connection-btn" data-idx="${idx}">Review connection</button><button class="btn km-verify-connection-btn" data-idx="${idx}">Verify</button>`
+                                ? `<span class="km-inline-detail-meta">Tested in this concept's own review</span>`
                                 : `<button class="btn km-encode-first-btn" data-idx="${idx}">Encode this first</button>`}
                         </div>
                     `;
@@ -13079,6 +13081,18 @@ SQIDAQAB
                 </div>
             ` : '';
 
+            // Before the node's own AO1 has ever been done, this is the
+            // ordinary first encoding. Once it has, "review" only exists
+            // once at least one qualifying link exists (see
+            // qualifyingLinks above) — before that, the button stays
+            // disabled with an explanation rather than just re-serving
+            // the identical encoding question forever.
+            const startBtnHtml = !ownEntry
+                ? `<button class="btn primary km-inline-start-lesson-btn">Start lesson</button>`
+                : qualifyingLinks.length
+                    ? `<button class="btn primary km-inline-start-lesson-btn">Start review</button>`
+                    : `<button class="btn primary km-inline-start-lesson-btn" disabled title="Encode a linked concept first — this concept's review tests the link too.">Start review</button>`;
+
             detailEl.innerHTML = `
                 <div class="km-inline-detail-eyebrow">${escapeHtml(d.subtopic || '')}</div>
                 <div class="km-inline-detail-label">${escapeHtml(d.label)}</div>
@@ -13089,7 +13103,7 @@ SQIDAQAB
                 <div class="km-inline-detail-actions">
                     <button class="btn km-inline-view-btn">View</button>
                     <button class="btn km-inline-verify-btn">Verify</button>
-                    <button class="btn primary km-inline-start-lesson-btn">Start lesson</button>
+                    ${startBtnHtml}
                 </div>
             `;
             detailEl.querySelector('.km-inline-view-btn').addEventListener('click', () => zoomToNode(d));
@@ -13098,20 +13112,6 @@ SQIDAQAB
                 showLessonFullpage(contentInner);
                 renderNodeVerifyContent(lessonFullpageBodyEl, d);
             });
-            detailEl.querySelectorAll('.km-review-connection-btn').forEach((btn) => {
-                btn.addEventListener('click', () => {
-                    const n = downstream[Number(btn.dataset.idx)];
-                    showLessonFullpage(contentInner);
-                    renderEdgeReviewContent(lessonFullpageBodyEl, d, n);
-                });
-            });
-            detailEl.querySelectorAll('.km-verify-connection-btn').forEach((btn) => {
-                btn.addEventListener('click', () => {
-                    const n = downstream[Number(btn.dataset.idx)];
-                    showLessonFullpage(contentInner);
-                    renderEdgeVerifyContent(lessonFullpageBodyEl, d, n);
-                });
-            });
             detailEl.querySelectorAll('.km-encode-first-btn').forEach((btn) => {
                 btn.addEventListener('click', () => {
                     const n = downstream[Number(btn.dataset.idx)];
@@ -13119,38 +13119,46 @@ SQIDAQAB
                     if (graphNode) selectKmInlineNode(graphNode);
                 });
             });
-            detailEl.querySelector('.km-inline-start-lesson-btn').addEventListener('click', async (e) => {
-                // The lesson takes over the whole page the moment it
-                // starts — the graph/detail panel this button lives in
-                // stays exactly as it is underneath, ready for "← Back to
-                // map" to reveal again unchanged.
-                showLessonFullpage(contentInner);
-                const lessonEl = lessonFullpageBodyEl;
-                lessonEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Loading…</div>';
-
-                // The prerequisite gate — see chainDiagnosticService.ts.
-                // Fail OPEN specifically on this check (a network hiccup
-                // here shouldn't trap a student who's actually earned
-                // direct access) but NOT on any step once a real
-                // diagnostic is under way below, where silently bypassing
-                // a check that's already known to be required would
-                // defeat the whole point of it.
-                const gate = await postChainDiagnostic('/knowledge-map-v2/chain-diagnostic/start', {
-                    targetNodeId: d.id,
-                    subject: folder.subject || '',
-                    qualification: folder.qualification || '',
-                    examBoard: folder.examBoard || ''
+            const startBtn = detailEl.querySelector('.km-inline-start-lesson-btn');
+            if (ownEntry && qualifyingLinks.length) {
+                startBtn.addEventListener('click', () => {
+                    showLessonFullpage(contentInner);
+                    renderNodeReviewStart(lessonFullpageBodyEl, d, qualifyingLinks);
                 });
-                // No longer removed — the button lives in the graph panel,
-                // now hidden behind the full-page lesson, and should still
-                // work (just re-runs the same gate+render) if the student
-                // comes back via "← Back to map" and starts it again.
-                if (!gate || !gate.requiresDiagnostic) {
-                    await renderNodeLessonContent(lessonEl, d, upstream);
-                    return;
-                }
-                renderChainDiagnosticAnswering(lessonEl, d, upstream, gate.state, gate.questionText);
-            });
+            } else if (!ownEntry) {
+                startBtn.addEventListener('click', async (e) => {
+                    // The lesson takes over the whole page the moment it
+                    // starts — the graph/detail panel this button lives in
+                    // stays exactly as it is underneath, ready for "← Back to
+                    // map" to reveal again unchanged.
+                    showLessonFullpage(contentInner);
+                    const lessonEl = lessonFullpageBodyEl;
+                    lessonEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Loading…</div>';
+
+                    // The prerequisite gate — see chainDiagnosticService.ts.
+                    // Fail OPEN specifically on this check (a network hiccup
+                    // here shouldn't trap a student who's actually earned
+                    // direct access) but NOT on any step once a real
+                    // diagnostic is under way below, where silently bypassing
+                    // a check that's already known to be required would
+                    // defeat the whole point of it.
+                    const gate = await postChainDiagnostic('/knowledge-map-v2/chain-diagnostic/start', {
+                        targetNodeId: d.id,
+                        subject: folder.subject || '',
+                        qualification: folder.qualification || '',
+                        examBoard: folder.examBoard || ''
+                    });
+                    // No longer removed — the button lives in the graph panel,
+                    // now hidden behind the full-page lesson, and should still
+                    // work (just re-runs the same gate+render) if the student
+                    // comes back via "← Back to map" and starts it again.
+                    if (!gate || !gate.requiresDiagnostic) {
+                        await renderNodeLessonContent(lessonEl, d, upstream);
+                        return;
+                    }
+                    renderChainDiagnosticAnswering(lessonEl, d, upstream, gate.state, gate.questionText);
+                });
+            }
         }
 
         // Bridges from each prerequisite are taught first (link teaching +
@@ -13255,68 +13263,225 @@ SQIDAQAB
             }
         }
 
-        // The "Review connection" entry point from a node's own "Builds
-        // on this" list — shows just the ONE edge's link-teaching plus
-        // transfer/integration, independent of either endpoint's own
-        // full "Start Lesson" flow. This is the actual spaced-repetition
-        // review for a link: both ends were already encoded (that's why
-        // the button was offered at all), so there's no bridge-from-
-        // upstream framing here, just the connection itself.
-        async function renderEdgeReviewContent(lessonEl, fromNode, toNode) {
+        // ─── Node-level spaced review ───────────────────────────────
+        // Only ever launched from a node's own "Start review" (see
+        // selectKmInlineNode) once it has at least one qualifying link —
+        // never from a link on its own. Tests a reworded AO1, then for
+        // EACH qualifying link (across however many other chains/topics
+        // this node connects into, not just one), "identify the link"
+        // with prompted retry until correct, followed by the integration
+        // question — one combined session, all three feeding FSRS
+        // independently. See routes/knowledgeMap.ts's node-review/*
+        // endpoints.
+
+        async function renderNodeReviewStart(lessonEl, d, qualifyingLinks) {
             lessonEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Loading…</div>';
-            const [lesson, fromLesson] = await Promise.all([fetchEdgeLesson(fromNode.id, toNode.id), fetchNodeLesson(fromNode.id)]);
-            if (!lesson || lesson.notFound) {
-                lessonEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">No lesson generated for this connection yet.</div>';
+            const question = await postChainDiagnostic('/knowledge-map-v2/node-review/ao1/start', { nodeId: d.id });
+            if (!question || !question.questionText) {
+                lessonEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Could not load this review — try again in a moment.</div>';
                 return;
             }
-            const given = (fromLesson && fromLesson.practiceQuestion && fromLesson.practiceQuestion.diagramSpec && fromLesson.practiceQuestion.diagramSpec.curves) || null;
+            renderNodeReviewAo1(lessonEl, d, qualifyingLinks, question.questionText);
+        }
 
+        // Every node-review submit route returns the same { correct,
+        // feedback, keysEarned } shape once a step is genuinely finalized
+        // (never for an interim wrong link-identify attempt, which loops
+        // back into renderNodeReviewIdentify instead) — one shared
+        // "here's the result, Continue" screen for all of them.
+        function renderNodeReviewStepDone(lessonEl, result, onContinue) {
+            const feedbackHtml = `<div class="km-inline-detail-item ${result.correct ? '' : 'km-inline-detail-none'}">${escapeHtml(result.feedback || '')}</div>`;
+            lessonEl.insertAdjacentHTML('beforeend', `
+                <div class="km-review-step-done">
+                    ${feedbackHtml}
+                    ${keysEarnedHtml(result.keysEarned)}
+                    <button type="button" class="btn primary km-review-continue-btn" style="margin-top:10px;">Continue</button>
+                </div>
+            `);
+            lessonEl.querySelector('.km-review-continue-btn').addEventListener('click', onContinue);
+        }
+
+        function renderNodeReviewSubmitError(lessonEl) {
+            const existing = lessonEl.querySelector('.km-diag-submit-error');
+            if (existing) existing.remove();
+            lessonEl.insertAdjacentHTML('beforeend', `<div class="km-inline-detail-item km-inline-detail-none km-diag-submit-error">Something went wrong — your answer is safe, just submit again.</div>`);
+        }
+
+        function renderNodeReviewAo1(lessonEl, d, qualifyingLinks, questionText) {
+            const draftKey = `node-review-ao1:${d.id}`;
             lessonEl.innerHTML = `
                 <div class="km-inline-detail-section">
-                    <h4>"${escapeHtml(fromNode.label)}" → "${escapeHtml(toNode.label)}"</h4>
-                    <div class="km-inline-lesson-explanation">${splitIntoParagraphs(lesson.linkTeaching)}</div>
-                    ${lesson.transferQuestion ? `<div><strong class="km-inline-lesson-question" style="display:block;">Transfer</strong><div id="km-edge-review-transfer"></div></div>` : ''}
-                    ${lesson.integrationQuestion ? `<div><strong class="km-inline-lesson-question" style="display:block;">Integration</strong><div id="km-edge-review-integration"></div></div>` : ''}
+                    <div class="km-inline-detail-eyebrow">Review${d.subtopic ? ` — ${escapeHtml(d.subtopic)}` : ''}</div>
+                    <div class="km-inline-detail-label">${escapeHtml(d.label)}</div>
+                    <h4 class="km-inline-lesson-question">Recall check</h4>
+                    <div class="km-inline-lesson-question">${escapeHtml(questionText)}</div>
+                    <textarea class="km-diag-answer-input" rows="5" placeholder="Write your answer here…" style="${DIAG_TEXTAREA_STYLE}"></textarea>
+                    <button type="button" class="btn primary km-diag-submit-btn" style="margin-top:10px;">Submit</button>
                 </div>
             `;
+            const textarea = lessonEl.querySelector('.km-diag-answer-input');
+            const restored = loadAnswerDraft(draftKey);
+            if (restored) textarea.value = restored;
+            textarea.addEventListener('input', () => saveAnswerDraft(draftKey, textarea.value));
 
-            const gotoEncode = (redirect) => {
-                const graphNode = findGraphNodeById(redirect.nodeId);
-                if (!graphNode) return;
-                showKmWorkspace(contentInner);
-                selectKmInlineNode(graphNode);
-            };
-            if (lesson.transferQuestion) {
-                const el = lessonEl.querySelector('#km-edge-review-transfer');
-                const submit = (answer, hadRetry) => postChainDiagnostic(
-                    lesson.transferQuestion.diagramSpec ? '/knowledge-map-v2/diagram-question/submit' : '/knowledge-map-v2/text-question/submit',
-                    { fromNodeId: fromNode.id, toNodeId: toNode.id, questionType: 'transfer', answer, hadRetry }
-                );
-                if (lesson.transferQuestion.diagramSpec) renderDiagramWidget(el, given, submit, gotoEncode);
-                else renderTextQuestionWidget(el, lesson.transferQuestion.questionText, submit, gotoEncode);
+            lessonEl.querySelector('.km-diag-submit-btn').addEventListener('click', async (ev) => {
+                const answer = textarea.value.trim();
+                if (!answer) return;
+                ev.target.disabled = true;
+                ev.target.textContent = 'Checking…';
+                const result = await postChainDiagnostic('/knowledge-map-v2/node-review/ao1/submit', { nodeId: d.id, questionText, answer });
+                if (!result) {
+                    ev.target.disabled = false;
+                    ev.target.textContent = 'Submit';
+                    return renderNodeReviewSubmitError(lessonEl);
+                }
+                clearAnswerDraft(draftKey);
+                if (result.schedule) fullData.scheduleByConceptId.set(result.schedule.conceptId, result.schedule);
+                ev.target.remove();
+                renderNodeReviewStepDone(lessonEl, result, () => renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, 0, []));
+            });
+        }
+
+        async function renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, index, resultsSoFar) {
+            if (index >= qualifyingLinks.length) {
+                renderNodeReviewSummary(lessonEl, d, resultsSoFar);
+                return;
             }
-            if (lesson.integrationQuestion) {
-                const el = lessonEl.querySelector('#km-edge-review-integration');
-                const submit = (answer, hadRetry) => postChainDiagnostic(
-                    lesson.integrationQuestion.diagramSpec ? '/knowledge-map-v2/diagram-question/submit' : '/knowledge-map-v2/text-question/submit',
-                    { fromNodeId: fromNode.id, toNodeId: toNode.id, questionType: 'integration', answer, hadRetry }
-                );
-                if (lesson.integrationQuestion.diagramSpec) renderDiagramWidget(el, given, submit, gotoEncode);
-                else renderTextQuestionWidget(el, lesson.integrationQuestion.questionText, submit, gotoEncode);
+            const link = qualifyingLinks[index];
+            lessonEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Loading…</div>';
+            const question = await postChainDiagnostic('/knowledge-map-v2/node-review/link-identify/start', { fromNodeId: d.id, toNodeId: link.id });
+            if (!question || !question.questionText) {
+                // Nothing generated for this link — skip it rather than
+                // block the rest of the review on one bad connection.
+                renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, index + 1, resultsSoFar);
+                return;
             }
+            renderNodeReviewIdentify(lessonEl, d, qualifyingLinks, index, resultsSoFar, question.questionText, false, '');
+        }
+
+        // Wrong answers loop back into THIS same function (hadRetry=true,
+        // same questionText, plus a hint) rather than failing the step —
+        // see routes/knowledgeMap.ts's link-identify/submit for why no
+        // FSRS lapse is recorded for these interim attempts.
+        function renderNodeReviewIdentify(lessonEl, d, qualifyingLinks, index, resultsSoFar, questionText, hadRetry, hint) {
+            const link = qualifyingLinks[index];
+            const draftKey = `node-review-identify:${d.id}:${link.id}`;
+            lessonEl.innerHTML = `
+                <div class="km-inline-detail-section">
+                    <div class="km-inline-detail-eyebrow">Review — link ${index + 1} of ${qualifyingLinks.length}</div>
+                    <div class="km-inline-detail-label">"${escapeHtml(d.label)}" → "${escapeHtml(link.label)}"</div>
+                    <h4 class="km-inline-lesson-question">Identify the link</h4>
+                    <div class="km-inline-lesson-question">${escapeHtml(questionText)}</div>
+                    ${hint ? `<div class="km-inline-detail-item km-inline-detail-none" style="margin-top:6px;">Hint: ${escapeHtml(hint)}</div>` : ''}
+                    <textarea class="km-diag-answer-input" rows="4" placeholder="Write your answer here…" style="${DIAG_TEXTAREA_STYLE}"></textarea>
+                    <button type="button" class="btn primary km-diag-submit-btn" style="margin-top:10px;">Submit</button>
+                </div>
+            `;
+            const textarea = lessonEl.querySelector('.km-diag-answer-input');
+            const restored = loadAnswerDraft(draftKey);
+            if (restored) textarea.value = restored;
+            textarea.addEventListener('input', () => saveAnswerDraft(draftKey, textarea.value));
+
+            lessonEl.querySelector('.km-diag-submit-btn').addEventListener('click', async (ev) => {
+                const answer = textarea.value.trim();
+                if (!answer) return;
+                ev.target.disabled = true;
+                ev.target.textContent = 'Checking…';
+                const result = await postChainDiagnostic('/knowledge-map-v2/node-review/link-identify/submit', {
+                    fromNodeId: d.id, toNodeId: link.id, questionText, answer, hadRetry
+                });
+                if (!result) {
+                    ev.target.disabled = false;
+                    ev.target.textContent = 'Submit';
+                    return renderNodeReviewSubmitError(lessonEl);
+                }
+                clearAnswerDraft(draftKey);
+                if (!result.correct) {
+                    renderNodeReviewIdentify(lessonEl, d, qualifyingLinks, index, resultsSoFar, questionText, true, result.hint || '');
+                    return;
+                }
+                if (result.schedule) fullData.scheduleByConceptId.set(result.schedule.conceptId, result.schedule);
+                resultsSoFar.push({ label: `${d.label} → ${link.label} — identify`, correct: true, keysEarned: result.keysEarned });
+                ev.target.remove();
+                renderNodeReviewStepDone(lessonEl, result, () => renderNodeReviewIntegrationStart(lessonEl, d, qualifyingLinks, index, resultsSoFar));
+            });
+        }
+
+        async function renderNodeReviewIntegrationStart(lessonEl, d, qualifyingLinks, index, resultsSoFar) {
+            const link = qualifyingLinks[index];
+            lessonEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Loading…</div>';
+            const question = await postChainDiagnostic('/knowledge-map-v2/node-review/integration/start', { fromNodeId: d.id, toNodeId: link.id });
+            if (!question || question.unavailable || !question.questionText) {
+                renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, index + 1, resultsSoFar);
+                return;
+            }
+            renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, question.questionText);
+        }
+
+        function renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, questionText) {
+            const link = qualifyingLinks[index];
+            const draftKey = `node-review-integration:${d.id}:${link.id}`;
+            lessonEl.innerHTML = `
+                <div class="km-inline-detail-section">
+                    <div class="km-inline-detail-eyebrow">Review — link ${index + 1} of ${qualifyingLinks.length}</div>
+                    <div class="km-inline-detail-label">"${escapeHtml(d.label)}" → "${escapeHtml(link.label)}"</div>
+                    <h4 class="km-inline-lesson-question">Integration</h4>
+                    <div class="km-inline-lesson-question">${escapeHtml(questionText)}</div>
+                    <textarea class="km-diag-answer-input" rows="5" placeholder="Write your answer here…" style="${DIAG_TEXTAREA_STYLE}"></textarea>
+                    <button type="button" class="btn primary km-diag-submit-btn" style="margin-top:10px;">Submit</button>
+                </div>
+            `;
+            const textarea = lessonEl.querySelector('.km-diag-answer-input');
+            const restored = loadAnswerDraft(draftKey);
+            if (restored) textarea.value = restored;
+            textarea.addEventListener('input', () => saveAnswerDraft(draftKey, textarea.value));
+
+            lessonEl.querySelector('.km-diag-submit-btn').addEventListener('click', async (ev) => {
+                const answer = textarea.value.trim();
+                if (!answer) return;
+                ev.target.disabled = true;
+                ev.target.textContent = 'Checking…';
+                const result = await postChainDiagnostic('/knowledge-map-v2/node-review/integration/submit', { fromNodeId: d.id, toNodeId: link.id, answer });
+                if (!result) {
+                    ev.target.disabled = false;
+                    ev.target.textContent = 'Submit';
+                    return renderNodeReviewSubmitError(lessonEl);
+                }
+                clearAnswerDraft(draftKey);
+                if (result.schedule) fullData.scheduleByConceptId.set(result.schedule.conceptId, result.schedule);
+                resultsSoFar.push({ label: `${d.label} → ${link.label} — integration`, correct: result.correct, keysEarned: result.keysEarned });
+                ev.target.remove();
+                renderNodeReviewStepDone(lessonEl, result, () => renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, index + 1, resultsSoFar));
+            });
+        }
+
+        function renderNodeReviewSummary(lessonEl, d, resultsSoFar) {
+            const totalKeys = resultsSoFar.reduce((sum, r) => sum + (r.keysEarned || 0), 0);
+            const rows = resultsSoFar.length
+                ? resultsSoFar.map((r) => `<div class="km-inline-detail-item">${r.correct ? '✓' : '✗'} ${escapeHtml(r.label)}</div>`).join('')
+                : '';
+            lessonEl.innerHTML = `
+                <div class="km-inline-detail-section">
+                    <h4>Review complete</h4>
+                    <div class="km-inline-detail-item">"${escapeHtml(d.label)}" — recall check done.</div>
+                    ${rows}
+                    ${keysEarnedHtml(totalKeys)}
+                    <button type="button" class="btn primary km-review-back-btn" style="margin-top:10px;">Back to map</button>
+                </div>
+            `;
+            lessonEl.querySelector('.km-review-back-btn').addEventListener('click', () => showKmWorkspace(contentInner));
         }
 
         // "Verify" — the Premium test-out shortcut (see the backend's
         // /knowledge-map-v2/verify/submit): one weak, generously-graded
         // free-text question instead of the real lesson/review. A pass
-        // still updates the same FSRS row Start lesson / Review connection
+        // still updates the same FSRS row Start lesson / Start review
         // would, just at lower confidence — this is a fast recall check,
-        // not another mini-lesson, so unlike renderNodeLessonContent/
-        // renderEdgeReviewContent it never shows the teaching material.
-        function buildVerifyQuestionText(type, labelA, labelB) {
-            if (type === 'ao1') return `Explain what "${labelA}" means, in your own words.`;
-            if (type === 'transfer') return `In a sentence or two, explain how "${labelA}" connects to or leads into "${labelB}".`;
-            return `Explain how "${labelA}" and "${labelB}" fit together — how does one affect analysis or evaluation involving the other?`;
+        // not another mini-lesson, so unlike renderNodeLessonContent it
+        // never shows the teaching material. Node-only, same as every
+        // other lesson entry point — there is no per-link Verify.
+        function buildVerifyQuestionText(type, labelA) {
+            return `Explain what "${labelA}" means, in your own words.`;
         }
 
         function renderNodeVerifyContent(lessonEl, d) {
@@ -13333,41 +13498,6 @@ SQIDAQAB
             const el = lessonEl.querySelector('#km-verify-ao1');
             const submit = (answer) => postChainDiagnostic('/knowledge-map-v2/verify/submit', { nodeId: d.id, questionType: 'ao1', answer });
             renderTextQuestionWidget(el, questionText, submit);
-        }
-
-        async function renderEdgeVerifyContent(lessonEl, fromNode, toNode) {
-            lessonEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Loading…</div>';
-            const lesson = await fetchEdgeLesson(fromNode.id, toNode.id);
-            if (!lesson || lesson.notFound) {
-                lessonEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">No lesson generated for this connection yet.</div>';
-                return;
-            }
-            lessonEl.innerHTML = `
-                <div class="km-inline-detail-section">
-                    <h4>Verify — "${escapeHtml(fromNode.label)}" → "${escapeHtml(toNode.label)}"</h4>
-                    <div class="km-inline-lesson-explanation">A quick check, at a lower confidence than the full review.</div>
-                    ${lesson.transferQuestion ? `<div><strong class="km-inline-lesson-question" style="display:block;">Transfer</strong><div id="km-verify-transfer"></div></div>` : ''}
-                    ${lesson.integrationQuestion ? `<div><strong class="km-inline-lesson-question" style="display:block;">Integration</strong><div id="km-verify-integration"></div></div>` : ''}
-                </div>
-            `;
-            const gotoEncode = (redirect) => {
-                const graphNode = findGraphNodeById(redirect.nodeId);
-                if (!graphNode) return;
-                showKmWorkspace(contentInner);
-                selectKmInlineNode(graphNode);
-            };
-            if (lesson.transferQuestion) {
-                const el = lessonEl.querySelector('#km-verify-transfer');
-                const q = buildVerifyQuestionText('transfer', fromNode.label, toNode.label);
-                const submit = (answer) => postChainDiagnostic('/knowledge-map-v2/verify/submit', { fromNodeId: fromNode.id, toNodeId: toNode.id, questionType: 'transfer', answer });
-                renderTextQuestionWidget(el, q, submit, gotoEncode);
-            }
-            if (lesson.integrationQuestion) {
-                const el = lessonEl.querySelector('#km-verify-integration');
-                const q = buildVerifyQuestionText('integration', fromNode.label, toNode.label);
-                const submit = (answer) => postChainDiagnostic('/knowledge-map-v2/verify/submit', { fromNodeId: fromNode.id, toNodeId: toNode.id, questionType: 'integration', answer });
-                renderTextQuestionWidget(el, q, submit, gotoEncode);
-            }
         }
 
         function findGraphNodeById(id) {
