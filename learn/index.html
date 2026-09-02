@@ -722,7 +722,7 @@
     .km-inline-legend-side { flex-direction: column; align-items: flex-start; gap: 7px; padding: 12px 14px; border: 1px solid rgba(230, 215, 176, 0.16); border-radius: 8px; margin-bottom: 12px; }
     .km-inline-legend-item { display: inline-flex; align-items: center; gap: 6px; }
     .km-inline-empty { padding: 40px 10px; text-align: center; opacity: 0.55; font-size: 13px; }
-    .km-inline-workspace { flex: 1; display: grid; grid-template-columns: 1fr 300px; gap: 14px; min-height: 0; margin-top: 8px; }
+    .km-inline-workspace { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, min(300px, 32%)); gap: 14px; min-height: 0; margin-top: 8px; }
     .km-inline-canvas-wrap { position: relative; min-height: 0; overflow: hidden; border: 1px solid rgba(230, 215, 176, 0.1); border-radius: 8px; }
     .km-inline-side { display: flex; flex-direction: column; min-height: 0; }
     .km-inline-side .km-inline-detail { flex: 1; }
