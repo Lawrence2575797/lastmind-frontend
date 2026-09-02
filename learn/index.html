@@ -12925,7 +12925,21 @@ SQIDAQAB
             const w = maxX - minX, h = maxY - minY;
             if (!isFinite(w) || !isFinite(h) || w <= 0 || h <= 0) return;
             const fitScale = Math.min(width / w, height / h) * 0.9;
-            const scale = Math.min(3, Math.max(0.01, fitScale));
+            // A genuinely large graph (hundreds of nodes) has a settled
+            // bounding box set by collision/label spacing, not by canvas
+            // size — that box is the SAME physical size regardless of
+            // device, so "fit all of it" divides by a much smaller number
+            // on a small mobile canvas and shrinks every node into an
+            // illegible speck (confirmed with a synthetic-data render at a
+            // real mobile viewport — the graph technically wasn't blank
+            // any more after the width fix, just unreadably tiny). Never
+            // zoom out past a floor that keeps nodes visibly distinct;
+            // fitScale still wins whenever it's already generous enough
+            // (a small graph, or a big enough canvas) — this only kicks in
+            // once the graph genuinely can't fit at a legible size, and
+            // panning covers the rest.
+            const legibleFloor = 0.5;
+            const scale = Math.min(3, Math.max(0.01, Math.max(fitScale, legibleFloor)));
             const tx = width / 2 - scale * (minX + w / 2);
             const ty = height / 2 - scale * (minY + h / 2);
             // Real bug: Math.min(0.01, scale * 0.5) always resolved to the
@@ -12935,7 +12949,11 @@ SQIDAQAB
             // speck surrounded by empty canvas, exactly what was reported.
             // 60% of the fit scale allows a little extra pan/zoom room
             // without ever losing the graph entirely.
-            zoomBehavior.scaleExtent([scale * 0.6, 3]);
+            // Based on fitScale specifically, not the possibly-larger
+            // legible-floor `scale` — a graph too big to fit legibly
+            // should still be manually zoomable OUT far enough to see the
+            // whole thing, even though that's no longer the default view.
+            zoomBehavior.scaleExtent([Math.min(scale, fitScale) * 0.6, 3]);
             svg.transition().duration(400).call(zoomBehavior.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
         }
 
