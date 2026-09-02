@@ -12987,6 +12987,12 @@ SQIDAQAB
 
         function estimateLabelHalfWidth(label) { return Math.min((label || '').length, 42) * 2.9 + 6; }
 
+        function renderKmTick() {
+            linkSelection.attr('x1', (d) => d.source.x).attr('y1', (d) => d.source.y)
+                .attr('x2', (d) => d.target.x).attr('y2', (d) => d.target.y);
+            nodeGroup.attr('transform', (d) => `translate(${d.x},${d.y})`);
+        }
+
         if (kmInlineSimulation) kmInlineSimulation.stop();
         kmInlineSimulation = d3.forceSimulation(nodes)
             .force('link', d3.forceLink(links).id((d) => d.id).distance(80).strength(0.65))
@@ -12996,12 +13002,25 @@ SQIDAQAB
             .force('cluster', clusterForce)
             .alphaDecay(0.035)
             .velocityDecay(0.35)
-            .on('tick', () => {
-                linkSelection.attr('x1', (d) => d.source.x).attr('y1', (d) => d.source.y)
-                    .attr('x2', (d) => d.target.x).attr('y2', (d) => d.target.y);
-                nodeGroup.attr('transform', (d) => `translate(${d.x},${d.y})`);
-            })
-            .on('end', fitKmGraphToView);
+            .stop();
+
+        // Pre-warm the simulation fully BEFORE the first paint, rather
+        // than animating one DOM write per tick, ~200 ticks touching
+        // every node/link's SVG attributes each time — fine for a small
+        // graph, but the actual cause of "taking forever" on mobile once
+        // a subject-wide map runs into hundreds of nodes (this app has
+        // no node dragging, so nothing ever needs the live per-tick
+        // repaint anyway; only the FINAL settled layout matters). Time-
+        // and tick-boxed so a pathologically large graph degrades to
+        // "settles a little less perfectly" rather than hanging the tab.
+        const kmWarmupDeadline = performance.now() + 800;
+        let kmWarmupTicks = 0;
+        while (kmInlineSimulation.alpha() > kmInlineSimulation.alphaMin() && kmWarmupTicks < 400 && performance.now() < kmWarmupDeadline) {
+            kmInlineSimulation.tick();
+            kmWarmupTicks++;
+        }
+        renderKmTick();
+        fitKmGraphToView();
 
         const detailEl = contentInner.querySelector('.km-inline-detail');
         const lessonFullpageBodyEl = contentInner.querySelector('.km-lesson-fullpage-body');
@@ -13254,7 +13273,7 @@ SQIDAQAB
                     );
                     if (result && result.schedule) {
                         fullData.scheduleByConceptId.set(result.schedule.conceptId, result.schedule);
-                        result.recommendation = computeNextThingRecommendation(fullData, d.id);
+                        result.recommendations = computeNextThingRecommendations(fullData, d.id);
                     }
                     return result;
                 };
@@ -13890,19 +13909,39 @@ SQIDAQAB
         // redirect (see knowledgeMap.ts's findMissingEncoding): "you need
         // to encode X before this connection means anything" with a
         // button that takes you straight there.
-        // After finishing a node's own encoding lesson, surface the single
-        // most useful next action — reuses the exact same "downstream
-        // ready vs needs encoding" categorization as selectKmInlineNode's
-        // "Builds on this" list, just picking the first candidate rather
-        // than listing all of them. Prefers an un-encoded neighbor (what
-        // this lesson just unlocked) over one already ready for review.
-        function computeNextThingRecommendation(fullData, nodeId) {
+        // After finishing a node's own encoding lesson, surface every
+        // genuinely ready next step, not just the first one found — and
+        // "ready" means ALL of a candidate's prerequisites (every
+        // incoming edge, not just the one from the node just finished)
+        // are themselves already encoded, otherwise this could recommend
+        // something still blocked by a DIFFERENT unmet prerequisite
+        // elsewhere in the graph (selectKmInlineNode's "Builds on this"
+        // list has the same "both ends encoded" requirement, just for
+        // one direct edge rather than a candidate's full prerequisite
+        // set). Un-encoded candidates (what this lesson just unlocked)
+        // sort before ones already ready for review, same preference as
+        // before, just no longer capped at a single suggestion.
+        function computeNextThingRecommendations(fullData, nodeId, limit) {
+            limit = limit || 4;
             const nodeById = new Map(fullData.nodes.map((n) => [n.id, n]));
-            const downstream = fullData.edges.filter((e) => e.source === nodeId).map((e) => nodeById.get(e.target)).filter(Boolean);
-            if (!downstream.length) return null;
             const schedule = fullData.scheduleByConceptId || new Map();
-            const next = downstream.find((n) => !schedule.has(n.conceptId)) || downstream[0];
-            return { node: next, action: schedule.has(next.conceptId) ? 'review' : 'encode' };
+            const incomingByTarget = new Map();
+            fullData.edges.forEach((e) => {
+                const list = incomingByTarget.get(e.target) || [];
+                list.push(e.source);
+                incomingByTarget.set(e.target, list);
+            });
+            const downstream = fullData.edges.filter((e) => e.source === nodeId).map((e) => nodeById.get(e.target)).filter(Boolean);
+            const ready = downstream.filter((n) => {
+                const prereqIds = incomingByTarget.get(n.id) || [];
+                return prereqIds.every((pid) => {
+                    const p = nodeById.get(pid);
+                    return p && schedule.has(p.conceptId);
+                });
+            });
+            const toEncode = ready.filter((n) => !schedule.has(n.conceptId));
+            const toReview = ready.filter((n) => schedule.has(n.conceptId));
+            return [...toEncode, ...toReview].slice(0, limit).map((n) => ({ node: n, action: schedule.has(n.conceptId) ? 'review' : 'encode' }));
         }
 
         function renderQuestionResult(resultEl, result, onRequiresEncoding) {
@@ -13931,24 +13970,28 @@ SQIDAQAB
             const keysEarnedHtmlStr = result.verifyCoefficient
                 ? verifyKeysEarnedHtml(result.keysEarned, result.keysBase, result.verifyCoefficient)
                 : keysEarnedHtml(result.keysEarned);
-            const rec = result.recommendation;
-            const recHtml = rec ? `
+            const recs = result.recommendations || [];
+            const recHtml = recs.length ? `
                 <div class="km-inline-detail-section">
-                    <h4>${rec.action === 'encode' ? 'Ready to learn next' : 'Ready to review next'}</h4>
-                    <div class="km-inline-detail-item km-inline-detail-item-action">
-                        <span>${escapeHtml(rec.node.label)}</span>
-                        <button type="button" class="btn km-next-recommendation-btn">View</button>
-                    </div>
+                    <h4>Ready next</h4>
+                    ${recs.map((rec, idx) => `
+                        <div class="km-inline-detail-item km-inline-detail-item-action">
+                            <span>${escapeHtml(rec.node.label)}${rec.action === 'review' ? ' <span class="km-inline-detail-meta">(review)</span>' : ''}</span>
+                            <button type="button" class="btn km-next-recommendation-btn" data-idx="${idx}">View</button>
+                        </div>
+                    `).join('')}
                 </div>
             ` : '';
             resultEl.innerHTML = feedbackHtml + keysEarnedHtmlStr + scheduleHtml + recHtml;
-            if (rec) {
-                resultEl.querySelector('.km-next-recommendation-btn').addEventListener('click', () => {
+            resultEl.querySelectorAll('.km-next-recommendation-btn').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const rec = recs[Number(btn.dataset.idx)];
+                    if (!rec) return;
                     showKmWorkspace(contentInner);
                     selectKmInlineNode(rec.node);
                     zoomToNode(rec.node);
                 });
-            }
+            });
         }
 
         function renderTextQuestionWidget(container, questionText, onSubmit, onRequiresEncoding) {
