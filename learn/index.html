@@ -756,6 +756,21 @@
     .km-inline-start-lesson-btn { flex: 2; padding: 10px 0; font-size: 13px; }
     .km-inline-dashboard-btn { flex: none; font-size: 12px; padding: 7px 14px; }
 
+    /* The graph+side-panel grid never got the same mobile treatment as
+       every other split layout in this file (compare .mt-body and
+       .lesson-with-ask-layout, both of which collapse to one column
+       below their own breakpoint) — on a phone-width viewport the fixed
+       300px side column left almost nothing for the canvas, which is
+       what actually made the map look like it "doesn't show up" rather
+       than just being cramped. */
+    @media (max-width: 900px) {
+        .km-inline-workspace { grid-template-columns: 1fr; }
+        .km-inline-svg { min-height: 340px; }
+        .km-inline-topbar { flex-wrap: wrap; }
+        .km-inline-search { margin-left: 0; width: 100%; }
+        .km-inline-search-input { width: 100%; }
+    }
+
     /* Once a lesson actually starts, it takes over the whole page —
        the graph + narrow "what this needs/unlocks" panel is exactly
        right for browsing and picking a concept, but far too cramped for
