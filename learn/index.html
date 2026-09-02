@@ -12201,7 +12201,7 @@ SQIDAQAB
         mathsToolActiveThreadId = id;
         renderMathsToolThreadList();
         const main = document.getElementById('mathsToolMain');
-        main.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Loading…</div>';
+        showLoadingWithColdStartHint(main);
         const thread = await fetchMathHelpThread(id);
         if (!thread) { main.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Could not load this question.</div>'; return; }
         renderMathsToolThreadMessages(main, thread);
@@ -12757,6 +12757,29 @@ SQIDAQAB
     // ungraded) help chat and have it solved for them. Toggled here rather
     // than wherever the button is defined, since these two are the actual
     // single choke point every lesson start/exit already passes through.
+    // The compile backend can spin down when idle (its hosting plan's
+    // free-tier behavior) and take up to a minute to wake on the next
+    // request - during that wait a bare "Loading…" is indistinguishable
+    // from "this is broken", which is exactly what got reported: it
+    // always seemed to fail on the first attempt and only work after a
+    // refresh, because the refresh's retry landed after the backend had
+    // already woken up from the first attempt's request. Starts with the
+    // plain message - the common case, an already-warm backend, responds
+    // in well under a second, and anything more would just be noise then
+    // - and only mentions the possible cold start once it's actually
+    // been waiting a while.
+    function showLoadingWithColdStartHint(el, initialMessage) {
+        el.innerHTML = `<div class="km-inline-detail-item km-inline-detail-none km-loading-hint">${escapeHtml(initialMessage || 'Loading…')}</div>`;
+        const marker = el.querySelector('.km-loading-hint');
+        setTimeout(() => {
+            // Only overwrite if this exact marker is still there - a
+            // no-op once the real content has already replaced it.
+            if (el.querySelector('.km-loading-hint') === marker) {
+                marker.textContent = "Still loading — if this is the first request in a while, the server may be waking up from idle. This can take up to a minute.";
+            }
+        }, 4000);
+    }
+
     let lessonInProgress = false;
     function updateMathsToolAvailability() {
         const btn = document.getElementById('mathsToolTopbarBtn');
@@ -13237,7 +13260,7 @@ SQIDAQAB
                     // map" to reveal again unchanged.
                     showLessonFullpage(contentInner);
                     const lessonEl = lessonFullpageBodyEl;
-                    lessonEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Loading…</div>';
+                    showLoadingWithColdStartHint(lessonEl);
 
                     // The prerequisite gate — see chainDiagnosticService.ts.
                     // Fail OPEN specifically on this check (a network hiccup
@@ -13272,7 +13295,7 @@ SQIDAQAB
         // concept itself. Called once the student either needed no
         // prerequisite check, or has just passed one.
         async function renderNodeLessonContent(lessonEl, d, upstream) {
-            lessonEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Loading…</div>';
+            showLoadingWithColdStartHint(lessonEl);
             // Each upstream's OWN lesson is fetched too (not just the edge
             // lesson bridging to it) purely to read its diagramSpec.curves
             // — that becomes the ATOMIC edge question's "given" context
@@ -13379,7 +13402,7 @@ SQIDAQAB
         // endpoints.
 
         async function renderNodeReviewStart(lessonEl, d, qualifyingLinks) {
-            lessonEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Loading…</div>';
+            showLoadingWithColdStartHint(lessonEl);
             const question = await postChainDiagnostic('/knowledge-map-v2/node-review/ao1/start', { nodeId: d.id });
             if (!question || !question.questionText) {
                 lessonEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Could not load this review — try again in a moment.</div>';
@@ -13452,7 +13475,7 @@ SQIDAQAB
                 return;
             }
             const link = qualifyingLinks[index];
-            lessonEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Loading…</div>';
+            showLoadingWithColdStartHint(lessonEl);
             const question = await postChainDiagnostic('/knowledge-map-v2/node-review/link-identify/start', { fromNodeId: d.id, toNodeId: link.id });
             if (!question || !question.questionText) {
                 // Nothing generated for this link — skip it rather than
@@ -13513,7 +13536,7 @@ SQIDAQAB
 
         async function renderNodeReviewIntegrationStart(lessonEl, d, qualifyingLinks, index, resultsSoFar) {
             const link = qualifyingLinks[index];
-            lessonEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Loading…</div>';
+            showLoadingWithColdStartHint(lessonEl);
             const question = await postChainDiagnostic('/knowledge-map-v2/node-review/integration/start', { fromNodeId: d.id, toNodeId: link.id });
             if (!question || question.unavailable || !question.questionText) {
                 renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, index + 1, resultsSoFar);
