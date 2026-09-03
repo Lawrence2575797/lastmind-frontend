@@ -739,6 +739,11 @@
     .km-inline-detail-item.km-inline-detail-item-action { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .km-inline-detail-item-action span { flex: 1; min-width: 0; }
     .km-inline-detail-item-action button { flex: none; font-size: 11px; padding: 5px 9px; }
+    /* The specific word/phrase an AO1 slip check flagged - a plain <mark>
+       inherits the browser's default yellow-on-black, illegible against
+       this dark theme, so it's overridden to the same accent language
+       everything else here already uses. */
+    .km-slip-wrong-phrase { background: rgba(230, 215, 176, 0.35); color: var(--text); padding: 1px 3px; border-radius: 2px; }
     .km-fsrs-details { font-size: 11.5px; margin-top: 4px; }
     .km-fsrs-details summary { cursor: pointer; opacity: 0.7; padding: 4px 0; }
     .km-fsrs-details summary:hover { opacity: 1; }
@@ -13429,6 +13434,83 @@ SQIDAQAB
             lessonEl.insertAdjacentHTML('beforeend', `<div class="km-inline-detail-item km-inline-detail-none km-diag-submit-error">Something went wrong — your answer is safe, just submit again.</div>`);
         }
 
+        // Once the AO1 finally lands (whether a clean pass, or a slip
+        // that was/wasn't corrected — see renderNodeReviewAo1SlipCheck),
+        // this is the single place that decides what happens next: only a
+        // genuinely correct AO1 continues into this node's links, since
+        // testing a link off a recall that just failed tests nothing
+        // real. A wrong one ends the session here, with its own result
+        // still shown in the summary rather than silently dropped.
+        function finishNodeReviewAo1(lessonEl, d, qualifyingLinks, finalResult) {
+            if (finalResult.schedule) fullData.scheduleByConceptId.set(finalResult.schedule.conceptId, finalResult.schedule);
+            const ao1Entry = { label: `${d.label} — recall check`, correct: finalResult.correct, keysEarned: finalResult.keysEarned };
+            renderNodeReviewStepDone(lessonEl, finalResult, () => {
+                if (finalResult.correct) renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, 0, [ao1Entry]);
+                else renderNodeReviewSummary(lessonEl, d, [ao1Entry]);
+            });
+        }
+
+        // A slip candidate's highlighted word, wrapped for display — built
+        // from the exact substring the backend copied out of the
+        // student's own answer (see AO1_SLIP_CHECK_PROMPT), never
+        // re-matched loosely, so what's highlighted is exactly what they
+        // actually wrote.
+        function highlightWrongPhraseHtml(answer, wrongPhrase) {
+            const idx = answer.indexOf(wrongPhrase);
+            if (idx === -1) return escapeHtml(answer);
+            const before = answer.slice(0, idx);
+            const after = answer.slice(idx + wrongPhrase.length);
+            return `${escapeHtml(before)}<mark class="km-slip-wrong-phrase">${escapeHtml(wrongPhrase)}</mark>${escapeHtml(after)}`;
+        }
+
+        // Only reached when the backend flagged the wrong answer as a
+        // likely one-word slip rather than a genuine gap — nothing has
+        // been recorded yet (see ao1/submit's own comment), so whichever
+        // way this resolves is what actually finalizes.
+        function renderNodeReviewAo1SlipCheck(lessonEl, d, qualifyingLinks, questionText, originalAnswer, result) {
+            const wrongPhrase = result.wrongPhrase;
+            lessonEl.innerHTML = `
+                <div class="km-inline-detail-section">
+                    <div class="km-inline-detail-eyebrow">Review${d.subtopic ? ` — ${escapeHtml(d.subtopic)}` : ''}</div>
+                    <div class="km-inline-detail-label">${escapeHtml(d.label)}</div>
+                    <h4 class="km-inline-lesson-question">Almost — was that just a slip?</h4>
+                    <div class="km-inline-lesson-question">${highlightWrongPhraseHtml(originalAnswer, wrongPhrase)}</div>
+                    <label class="km-slip-checkbox-label" style="display:flex; align-items:center; gap:8px; margin-top:12px; cursor:pointer;">
+                        <input type="checkbox" class="km-slip-checkbox">
+                        <span>Yes — I just wrote the wrong word there</span>
+                    </label>
+                    <div class="km-slip-correction" style="display:none; margin-top:10px;">
+                        <input type="text" class="km-slip-correction-input" placeholder="What should it say instead?" style="${DIAG_TEXTAREA_STYLE}">
+                        <button type="button" class="btn primary km-slip-correct-submit-btn" style="margin-top:8px;">Submit correction</button>
+                    </div>
+                    <button type="button" class="btn km-slip-decline-btn" style="margin-top:10px;">No, I actually didn't know this</button>
+                </div>
+            `;
+            const checkbox = lessonEl.querySelector('.km-slip-checkbox');
+            const correctionBox = lessonEl.querySelector('.km-slip-correction');
+            checkbox.addEventListener('change', () => { correctionBox.style.display = checkbox.checked ? 'block' : 'none'; });
+
+            const finish = async (postBody, btn) => {
+                btn.disabled = true;
+                const finalResult = await postChainDiagnostic('/knowledge-map-v2/node-review/ao1/submit-slip-correction', postBody);
+                if (!finalResult) {
+                    btn.disabled = false;
+                    return renderNodeReviewSubmitError(lessonEl);
+                }
+                lessonEl.querySelectorAll('.km-slip-checkbox-label, .km-slip-correction, .km-slip-decline-btn').forEach((el) => el.remove());
+                finishNodeReviewAo1(lessonEl, d, qualifyingLinks, finalResult);
+            };
+
+            lessonEl.querySelector('.km-slip-correct-submit-btn').addEventListener('click', (ev) => {
+                const correction = lessonEl.querySelector('.km-slip-correction-input').value.trim();
+                if (!correction) return;
+                finish({ nodeId: d.id, questionText, originalAnswer, wrongPhrase, correction }, ev.target);
+            });
+            lessonEl.querySelector('.km-slip-decline-btn').addEventListener('click', (ev) => {
+                finish({ nodeId: d.id, questionText, originalAnswer, wrongPhrase, declined: true, originalFeedback: result.feedback }, ev.target);
+            });
+        }
+
         function renderNodeReviewAo1(lessonEl, d, qualifyingLinks, questionText) {
             const draftKey = `node-review-ao1:${d.id}`;
             lessonEl.innerHTML = `
@@ -13458,9 +13540,12 @@ SQIDAQAB
                     return renderNodeReviewSubmitError(lessonEl);
                 }
                 clearAnswerDraft(draftKey);
-                if (result.schedule) fullData.scheduleByConceptId.set(result.schedule.conceptId, result.schedule);
+                if (result.isSlipCandidate) {
+                    renderNodeReviewAo1SlipCheck(lessonEl, d, qualifyingLinks, questionText, answer, result);
+                    return;
+                }
                 ev.target.remove();
-                renderNodeReviewStepDone(lessonEl, result, () => renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, 0, []));
+                finishNodeReviewAo1(lessonEl, d, qualifyingLinks, result);
             });
         }
 
@@ -13471,21 +13556,24 @@ SQIDAQAB
             }
             const link = qualifyingLinks[index];
             showLoadingWithColdStartHint(lessonEl);
-            const question = await postChainDiagnostic('/knowledge-map-v2/node-review/link-identify/start', { fromNodeId: d.id, toNodeId: link.id });
-            if (!question || !question.questionText) {
+            const edge = await postChainDiagnostic('/knowledge-map-v2/node-review/link-identify/start', { fromNodeId: d.id, toNodeId: link.id });
+            if (!edge || !edge.linkText) {
                 // Nothing generated for this link — skip it rather than
                 // block the rest of the review on one bad connection.
                 renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, index + 1, resultsSoFar);
                 return;
             }
-            renderNodeReviewIdentify(lessonEl, d, qualifyingLinks, index, resultsSoFar, question.questionText, false, '');
+            renderNodeReviewIdentify(lessonEl, d, qualifyingLinks, index, resultsSoFar, edge.linkText, false);
         }
 
-        // Wrong answers loop back into THIS same function (hadRetry=true,
-        // same questionText, plus a hint) rather than failing the step —
-        // see routes/knowledgeMap.ts's link-identify/submit for why no
-        // FSRS lapse is recorded for these interim attempts.
-        function renderNodeReviewIdentify(lessonEl, d, qualifyingLinks, index, resultsSoFar, questionText, hadRetry, hint) {
+        // Shows the SAME link-teaching text this link's own encoding
+        // bridge once taught (see nodeReviewService.ts's getLinkTeachingText)
+        // and asks the student to restate it — a genuine recall check
+        // (do they remember what they were taught), not a disguised
+        // "identify it despite not being told" question. The text stays
+        // visible through a wrong attempt, so no separate hint is needed —
+        // see link-identify/submit's own comment on why.
+        function renderNodeReviewIdentify(lessonEl, d, qualifyingLinks, index, resultsSoFar, linkText, hadRetry) {
             const link = qualifyingLinks[index];
             const draftKey = `node-review-identify:${d.id}:${link.id}`;
             lessonEl.innerHTML = `
@@ -13493,8 +13581,8 @@ SQIDAQAB
                     <div class="km-inline-detail-eyebrow">Review — link ${index + 1} of ${qualifyingLinks.length}</div>
                     <div class="km-inline-detail-label">"${escapeHtml(d.label)}" → "${escapeHtml(link.label)}"</div>
                     <h4 class="km-inline-lesson-question">Identify the link</h4>
-                    <div class="km-inline-lesson-question">${escapeHtml(questionText)}</div>
-                    ${hint ? `<div class="km-inline-detail-item km-inline-detail-none" style="margin-top:6px;">Hint: ${escapeHtml(hint)}</div>` : ''}
+                    <div class="km-inline-lesson-explanation">${splitIntoParagraphs(linkText)}</div>
+                    <div class="km-inline-lesson-question">In your own words, restate the connection above.</div>
                     <textarea class="km-diag-answer-input" rows="4" placeholder="Write your answer here…" style="${DIAG_TEXTAREA_STYLE}"></textarea>
                     <button type="button" class="btn primary km-diag-submit-btn" style="margin-top:10px;">Submit</button>
                 </div>
@@ -13510,7 +13598,7 @@ SQIDAQAB
                 ev.target.disabled = true;
                 ev.target.textContent = 'Checking…';
                 const result = await postChainDiagnostic('/knowledge-map-v2/node-review/link-identify/submit', {
-                    fromNodeId: d.id, toNodeId: link.id, questionText, answer, hadRetry
+                    fromNodeId: d.id, toNodeId: link.id, answer, hadRetry
                 });
                 if (!result) {
                     ev.target.disabled = false;
@@ -13519,7 +13607,7 @@ SQIDAQAB
                 }
                 clearAnswerDraft(draftKey);
                 if (!result.correct) {
-                    renderNodeReviewIdentify(lessonEl, d, qualifyingLinks, index, resultsSoFar, questionText, true, result.hint || '');
+                    renderNodeReviewIdentify(lessonEl, d, qualifyingLinks, index, resultsSoFar, linkText, true);
                     return;
                 }
                 if (result.schedule) fullData.scheduleByConceptId.set(result.schedule.conceptId, result.schedule);
