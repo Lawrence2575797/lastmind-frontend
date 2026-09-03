@@ -14023,20 +14023,33 @@ SQIDAQAB
                 resultEl.querySelector('.km-goto-encode-btn').addEventListener('click', () => onRequiresEncoding && onRequiresEncoding(result.redirect));
                 return;
             }
-            const feedbackHtml = `<div class="km-inline-detail-item ${result.correct ? '' : 'km-inline-detail-none'}">${escapeHtml(result.feedback || '')}</div>`;
-            // result.schedule is only ever attached (by the submit
-            // callback) once a grade has actually, finally landed — never
-            // present on a retryable first-encoding miss.
-            const scheduleHtml = result.schedule
-                ? `<div class="km-inline-detail-item">Next review: <strong>${escapeHtml(formatDueIn(result.schedule.due))}</strong></div>`
-                : '';
-            // Verify responses carry keysBase/verifyCoefficient alongside
-            // keysEarned so the discount is shown explicitly, not just the
-            // final number — a plain lesson pass never has these fields.
-            const keysEarnedHtmlStr = result.verifyCoefficient
-                ? verifyKeysEarnedHtml(result.keysEarned, result.keysBase, result.verifyCoefficient)
-                : keysEarnedHtml(result.keysEarned);
-            resultEl.innerHTML = feedbackHtml + keysEarnedHtmlStr + scheduleHtml;
+            // The button is already removed/finalized by the time this
+            // runs (see the widgets below) - if anything past this point
+            // throws, the student is left staring at a blank space with
+            // no way to tell whether their answer even landed. Guarantee
+            // at least the correct/incorrect verdict always shows, same
+            // as the "Something went wrong" fallback above already does
+            // for a failed request.
+            try {
+                const feedbackHtml = `<div class="km-inline-detail-item ${result.correct ? '' : 'km-inline-detail-none'}">${escapeHtml(result.feedback || '')}</div>`;
+                // result.schedule is only ever attached (by the submit
+                // callback) once a grade has actually, finally landed —
+                // never present on a retryable first-encoding miss.
+                const scheduleHtml = result.schedule
+                    ? `<div class="km-inline-detail-item">Next review: <strong>${escapeHtml(formatDueIn(result.schedule.due))}</strong></div>`
+                    : '';
+                // Verify responses carry keysBase/verifyCoefficient
+                // alongside keysEarned so the discount is shown explicitly,
+                // not just the final number — a plain lesson pass never
+                // has these fields.
+                const keysEarnedHtmlStr = result.verifyCoefficient
+                    ? verifyKeysEarnedHtml(result.keysEarned, result.keysBase, result.verifyCoefficient)
+                    : keysEarnedHtml(result.keysEarned);
+                resultEl.innerHTML = feedbackHtml + keysEarnedHtmlStr + scheduleHtml;
+            } catch (err) {
+                console.error('LastMind: failed to render the question result.', err);
+                resultEl.innerHTML = `<div class="km-inline-detail-item">${result.correct ? '✓ Correct' : '✗ ' + escapeHtml(result.feedback || 'Not quite')} — your answer was recorded, but showing the details failed (${escapeHtml(err.message || 'unknown error')}).</div>`;
+            }
         }
 
         function renderTextQuestionWidget(container, questionText, onSubmit, onRequiresEncoding) {
