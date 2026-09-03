@@ -7095,6 +7095,30 @@ SQIDAQAB
         return utterance;
     }
 
+    // Shared by every lesson-completion screen — verification, encoding,
+    // retrieval, and the knowledge map's own lesson/review flows — empty
+    // string when nothing was earned, so it's always safe to splice into a
+    // template unconditionally. Top-level (not nested in openPage) so
+    // renderKmInlineGraph's own lesson-completion code can actually reach
+    // it too - it used to live nested inside openPage, unreachable from
+    // there despite this same comment always having said it was shared.
+    function keysEarnedHtml(amount) {
+        if (!amount) return '';
+        return `<p class="keys-earned-line">🔑 +${amount} Keys earned!</p>`;
+    }
+
+    // Verify pays a coefficient of the same base a real lesson would (see
+    // knowledgeMap.ts's KM_VERIFY_COEFFICIENT_FREE/PREMIUM) — spelled out
+    // explicitly rather than just showing the final number, so it's clear
+    // this was a discount, not the full reward, and exactly how much was
+    // left unearned by not doing the lesson on LastMind directly.
+    function verifyKeysEarnedHtml(amount, base, coefficient) {
+        if (!amount) return '';
+        const pct = Math.round(coefficient * 100);
+        const missed = base - amount;
+        return `<p class="keys-earned-line">🔑 +${amount} Keys (Verify pays ${pct}% of a full lesson's ${base}${missed > 0 ? ` — you missed ${missed} by not learning this on LastMind` : ''})</p>`;
+    }
+
     function openPage(folderId, pageId, subfolderId) {
         stopActiveDictation();
         stopSpeaking();
@@ -9753,28 +9777,6 @@ SQIDAQAB
 
         function renderVerificationOutcome(container, message, extraHtml = '') {
             container.innerHTML = `<div class="verification-panel"><div class="correction-card">${escapeHtml(message)}</div>${extraHtml}</div>`;
-        }
-
-        // Shared by every lesson-completion screen (verification, and
-        // reused below for encoding/retrieval lessons) — empty string when
-        // nothing was earned, so it's always safe to splice into a
-        // template unconditionally.
-        function keysEarnedHtml(amount) {
-            if (!amount) return '';
-            return `<p class="keys-earned-line">🔑 +${amount} Keys earned!</p>`;
-        }
-
-        // Verify pays a coefficient of the same base a real lesson would
-        // (see knowledgeMap.ts's KM_VERIFY_COEFFICIENT_FREE/PREMIUM) —
-        // spelled out explicitly rather than just showing the final
-        // number, so it's clear this was a discount, not the full reward,
-        // and exactly how much was left unearned by not doing the lesson
-        // on LastMind directly.
-        function verifyKeysEarnedHtml(amount, base, coefficient) {
-            if (!amount) return '';
-            const pct = Math.round(coefficient * 100);
-            const missed = base - amount;
-            return `<p class="keys-earned-line">🔑 +${amount} Keys (Verify pays ${pct}% of a full lesson's ${base}${missed > 0 ? ` — you missed ${missed} by not learning this on LastMind` : ''})</p>`;
         }
 
         // Reuses the exact .lesson-outline-item checkbox visual pattern
