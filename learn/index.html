@@ -12879,6 +12879,16 @@ SQIDAQAB
             workspaceEl.style.display = 'none';
         }
 
+        // This fetch is the same one that can hit a cold-started backend
+        // (see showLoadingWithColdStartHint above) - and until now nothing
+        // was shown while it was in flight, so the graph area just sat
+        // empty with no indication anything was happening. Show the same
+        // cold-start-aware loading message lessons already use, in the
+        // empty-state slot, for the whole time this fetch is in flight.
+        workspaceEl.style.display = 'none';
+        showLoadingWithColdStartHint(emptyEl, `Loading the knowledge map for ${folderLabel(folder)}…`);
+        emptyEl.style.display = 'block';
+
         let data, scheduleRows;
         try {
             [data, scheduleRows] = await Promise.all([fetchSubjectKnowledgeMap(folder), fetchScheduleData()]);
@@ -12895,6 +12905,8 @@ SQIDAQAB
             showEmpty(`No knowledge map has been generated for ${folderLabel(folder)} yet.`);
             return;
         }
+        emptyEl.style.display = 'none';
+        workspaceEl.style.display = '';
         // Same /schedule data the calendar's own due-in badges and "how
         // does this work?" panel already use (see buildFsrsInfoPanelContent/
         // formatDueIn) — reused as-is rather than inventing a second FSRS
