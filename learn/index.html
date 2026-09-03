@@ -13207,6 +13207,16 @@ SQIDAQAB
             // jump, since reviewing a connection to something never
             // taught yet tests nothing real.
             const qualifyingLinks = ownEntry ? downstream.filter((n) => schedule.has(n.conceptId)) : [];
+            // Only actually blocks review when there's a real link still
+            // untested — a node with no downstream at all has no link to
+            // test in the first place, so its review is AO1-only and
+            // should never be held hostage waiting for a link that will
+            // never exist.
+            const unencodedDownstream = ownEntry ? downstream.filter((n) => !schedule.has(n.conceptId)) : [];
+            const blockedByUnencodedLink = ownEntry && downstream.length > 0 && qualifyingLinks.length === 0;
+            const missingLinkTitle = unencodedDownstream.length === 1
+                ? `Encode "${unencodedDownstream[0].label}" first — this concept's review tests the link between them.`
+                : `Encode "${unencodedDownstream[0]?.label}" and ${unencodedDownstream.length - 1} other linked concept${unencodedDownstream.length > 2 ? 's' : ''} first — this concept's review tests those links too.`;
             const downItems = !downstream.length
                 ? '<div class="km-inline-detail-item km-inline-detail-none">Nothing yet builds on this</div>'
                 : downstream.map((n, idx) => {
@@ -13238,16 +13248,21 @@ SQIDAQAB
             ` : '';
 
             // Before the node's own AO1 has ever been done, this is the
-            // ordinary first encoding. Once it has, "review" only exists
-            // once at least one qualifying link exists (see
-            // qualifyingLinks above) — before that, the button stays
-            // disabled with an explanation rather than just re-serving
-            // the identical encoding question forever.
+            // ordinary first encoding. Once it has, "review" is only
+            // withheld when a real direct link exists but the concept on
+            // its other end hasn't been encoded yet — testing that link
+            // means nothing until both sides have actually been taught,
+            // named explicitly here (not just "a linked concept") so it's
+            // obvious exactly what still needs encoding first.
+            // title set as a DOM property below, not inlined into this HTML
+            // string — escapeHtml only escapes for text-node context, not
+            // attribute values, so a label containing a quote (plenty of
+            // concept names do) would otherwise truncate the attribute.
             const startBtnHtml = !ownEntry
                 ? `<button class="btn primary km-inline-start-lesson-btn">Start lesson</button>`
-                : qualifyingLinks.length
-                    ? `<button class="btn primary km-inline-start-lesson-btn">Start review</button>`
-                    : `<button class="btn primary km-inline-start-lesson-btn" disabled title="Encode a linked concept first — this concept's review tests the link too.">Start review</button>`;
+                : blockedByUnencodedLink
+                    ? `<button class="btn primary km-inline-start-lesson-btn" disabled>Start review</button>`
+                    : `<button class="btn primary km-inline-start-lesson-btn">Start review</button>`;
 
             detailEl.innerHTML = `
                 <div class="km-inline-detail-eyebrow">${escapeHtml(d.subtopic || '')}</div>
@@ -13276,7 +13291,8 @@ SQIDAQAB
                 });
             });
             const startBtn = detailEl.querySelector('.km-inline-start-lesson-btn');
-            if (ownEntry && qualifyingLinks.length) {
+            if (blockedByUnencodedLink) startBtn.title = missingLinkTitle;
+            if (ownEntry && !blockedByUnencodedLink) {
                 startBtn.addEventListener('click', () => {
                     showLessonFullpage(contentInner);
                     renderNodeReviewStart(lessonFullpageBodyEl, d, qualifyingLinks);
@@ -14078,7 +14094,19 @@ SQIDAQAB
             });
             const toEncode = ready.filter((n) => !schedule.has(n.conceptId));
             const toReview = ready.filter((n) => schedule.has(n.conceptId));
-            return [...toEncode, ...toReview].slice(0, limit).map((n) => ({ node: n, action: schedule.has(n.conceptId) ? 'review' : 'encode' }));
+            // Every candidate here has a direct edge from the node just
+            // finished (see `downstream` above) — an 'encode' one is only
+            // "ready" because that edge's other prerequisites are already
+            // met, but the link itself still can't be tested until this
+            // candidate is encoded too. Carrying the just-finished node's
+            // own label through lets the bar say exactly that, rather than
+            // just naming the next concept with no explanation of why.
+            const fromLabel = (nodeById.get(nodeId) || {}).label || '';
+            return [...toEncode, ...toReview].slice(0, limit).map((n) => ({
+                node: n,
+                action: schedule.has(n.conceptId) ? 'review' : 'encode',
+                linkedFromLabel: fromLabel,
+            }));
         }
 
         function renderQuestionResult(resultEl, result, onRequiresEncoding) {
@@ -14124,17 +14152,34 @@ SQIDAQAB
         // floating over the app's topbar/Maths Tool button.
         function renderNextRecommendationsBar(contentInner, recs) {
             const bar = contentInner.querySelector('.km-lesson-next-bar');
+            const labelEl = bar.querySelector('.km-lesson-next-label');
             const pillsEl = bar.querySelector('.km-lesson-next-pills');
             pillsEl.innerHTML = '';
             if (!recs.length) {
                 bar.style.display = 'none';
                 return;
             }
+            // An 'encode' recommendation here always exists because it sits
+            // on the other end of a direct link from the lesson just
+            // finished, and that link can't actually be tested until both
+            // sides are encoded (see computeNextThingRecommendations) - so
+            // when one's present, say so up front rather than just naming
+            // the next concept and leaving the "why" to a hover tooltip
+            // that a touchscreen can't even show.
+            const hasEncodeStep = recs.some((rec) => rec.action === 'encode');
+            if (labelEl) labelEl.textContent = hasEncodeStep ? 'Encode this before your review:' : 'Ready next';
             recs.forEach((rec) => {
                 const pill = document.createElement('button');
                 pill.type = 'button';
                 pill.className = 'btn km-lesson-next-pill';
-                pill.textContent = rec.action === 'review' ? `${rec.node.label} (review)` : rec.node.label;
+                if (rec.action === 'review') {
+                    pill.textContent = `${rec.node.label} (review)`;
+                } else {
+                    pill.textContent = `Encode: ${rec.node.label}`;
+                    pill.title = rec.linkedFromLabel
+                        ? `You'll need to encode "${rec.node.label}" before you can test the link between it and "${rec.linkedFromLabel}" in a review.`
+                        : `Encode "${rec.node.label}" before its link can be tested in a review.`;
+                }
                 pill.addEventListener('click', () => {
                     showKmWorkspace(contentInner);
                     selectKmInlineNode(rec.node);
