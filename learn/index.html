@@ -5511,13 +5511,24 @@ SQIDAQAB
     // already separately preserved via saveAnswerDraft, that redoing an
     // interrupted-mid-AO1 attempt isn't worth a special case). Cleared
     // the moment the review actually completes (see renderNodeReviewSummary).
+    // Checkpoints older than this are treated as abandoned rather than
+    // "just clicked off" - resuming into a half-finished review from
+    // hours/days ago is more surprising than helpful, so a stale one is
+    // discarded and the next "Start review" begins fresh from AO1.
+    const NODE_REVIEW_CHECKPOINT_MAX_AGE_MS = 2 * 60 * 60 * 1000;
     function saveNodeReviewCheckpoint(nodeId, checkpoint) {
-        try { localStorage.setItem(`lm-review-checkpoint:${nodeId}`, JSON.stringify(checkpoint)); } catch {}
+        try { localStorage.setItem(`lm-review-checkpoint:${nodeId}`, JSON.stringify({ ...checkpoint, savedAt: Date.now() })); } catch {}
     }
     function loadNodeReviewCheckpoint(nodeId) {
         try {
             const raw = localStorage.getItem(`lm-review-checkpoint:${nodeId}`);
-            return raw ? JSON.parse(raw) : null;
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (!parsed.savedAt || Date.now() - parsed.savedAt > NODE_REVIEW_CHECKPOINT_MAX_AGE_MS) {
+                clearNodeReviewCheckpoint(nodeId);
+                return null;
+            }
+            return parsed;
         } catch { return null; }
     }
     function clearNodeReviewCheckpoint(nodeId) {
