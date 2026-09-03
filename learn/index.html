@@ -13304,7 +13304,26 @@ SQIDAQAB
             // like an upstream concept is for the encoding.
             const upItems = !ownEntry
                 ? (upstream.length
-                    ? upstream.map((n) => `<div class="km-inline-detail-item">${escapeHtml(n.label)}</div>`).join('')
+                    ? upstream.map((n, idx) => {
+                        // An upstream prerequisite already encoded is done —
+                        // shown as a plain fact (tick + label), not an
+                        // action, since there's nothing left to click here;
+                        // starting the lesson below already proceeds
+                        // straight in rather than being redirected into
+                        // encoding it (see the chain-diagnostic gate on the
+                        // Start lesson handler, which only intervenes on a
+                        // genuinely unmet prerequisite).
+                        const prereqEncoded = schedule.has(n.conceptId);
+                        return prereqEncoded
+                            ? `<div class="km-inline-detail-item km-inline-detail-item-action">
+                                    <span>${escapeHtml(n.label)}</span>
+                                    <span class="km-inline-detail-meta">✓ Encoded</span>
+                               </div>`
+                            : `<div class="km-inline-detail-item km-inline-detail-item-action">
+                                    <span>${escapeHtml(n.label)}</span>
+                                    <button class="btn km-encode-prereq-btn" data-idx="${idx}">Encode this first</button>
+                               </div>`;
+                    }).join('')
                     : '<div class="km-inline-detail-item km-inline-detail-none">Nothing — this is a starting point</div>')
                 : (blockedByUnencodedLink
                     ? unencodedDownstream.map((n) => `
@@ -13392,6 +13411,15 @@ SQIDAQAB
                     // there) in one tap, rather than making this a plain
                     // link to a card the student then has to act on
                     // separately.
+                    zoomToNode(graphNode);
+                    selectKmInlineNode(graphNode);
+                });
+            });
+            detailEl.querySelectorAll('.km-encode-prereq-btn').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const n = upstream[Number(btn.dataset.idx)];
+                    const graphNode = findGraphNodeById(n.id);
+                    if (!graphNode) return;
                     zoomToNode(graphNode);
                     selectKmInlineNode(graphNode);
                 });
