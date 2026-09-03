@@ -5497,6 +5497,29 @@ SQIDAQAB
         try { localStorage.removeItem(`lm-draft:${key}`); } catch {}
     }
 
+    // A node's own spaced review (AO1, then identify+integration for each
+    // qualifying link) is one continuous multi-step session — clicking
+    // off partway through (back to the map, closing the tab) shouldn't
+    // cost the steps already finalized, only to redo AO1 and whichever
+    // links were already passed. Checkpointed after AO1 (the point
+    // Start review resumes from is always "which link, which stage of
+    // it" — AO1 itself is quick enough, and its own draft answer is
+    // already separately preserved via saveAnswerDraft, that redoing an
+    // interrupted-mid-AO1 attempt isn't worth a special case). Cleared
+    // the moment the review actually completes (see renderNodeReviewSummary).
+    function saveNodeReviewCheckpoint(nodeId, checkpoint) {
+        try { localStorage.setItem(`lm-review-checkpoint:${nodeId}`, JSON.stringify(checkpoint)); } catch {}
+    }
+    function loadNodeReviewCheckpoint(nodeId) {
+        try {
+            const raw = localStorage.getItem(`lm-review-checkpoint:${nodeId}`);
+            return raw ? JSON.parse(raw) : null;
+        } catch { return null; }
+    }
+    function clearNodeReviewCheckpoint(nodeId) {
+        try { localStorage.removeItem(`lm-review-checkpoint:${nodeId}`); } catch {}
+    }
+
     // Five-step progress ramp for the knowledge map's node/link colouring —
     // not started, through two spaced-review steps, up to durably
     // mastered. Reuses the backend's own spacedSuccessCount/isDurablyMastered
@@ -13327,7 +13350,7 @@ SQIDAQAB
             if (ownEntry && !blockedByUnencodedLink) {
                 startBtn.addEventListener('click', () => {
                     showLessonFullpage(contentInner);
-                    renderNodeReviewStart(lessonFullpageBodyEl, d, qualifyingLinks);
+                    resumeOrStartNodeReview(lessonFullpageBodyEl, d, qualifyingLinks);
                 });
             } else if (!ownEntry) {
                 startBtn.addEventListener('click', async (e) => {
@@ -13421,6 +13444,29 @@ SQIDAQAB
         // question — one combined session, all three feeding FSRS
         // independently. See routes/knowledgeMap.ts's node-review/*
         // endpoints.
+
+        // The actual "Start review" entry point — resumes a checkpointed
+        // session (see saveNodeReviewCheckpoint) if one exists for this
+        // node, otherwise starts fresh from AO1. The checkpointed link is
+        // re-located in the FRESHLY fetched qualifyingLinks by id (never
+        // by a stale index) since which links qualify can itself have
+        // changed since the checkpoint was saved (a new one encoded
+        // meanwhile, say) - if it's genuinely gone, there's nothing
+        // sensible to resume into, so this falls back to starting over.
+        function resumeOrStartNodeReview(lessonEl, d, qualifyingLinks) {
+            const checkpoint = loadNodeReviewCheckpoint(d.id);
+            const resumeIndex = checkpoint ? qualifyingLinks.findIndex((l) => l.id === checkpoint.linkToNodeId) : -1;
+            if (checkpoint && resumeIndex !== -1) {
+                if (checkpoint.stage === 'integration') {
+                    renderNodeReviewIntegrationStart(lessonEl, d, qualifyingLinks, resumeIndex, checkpoint.resultsSoFar || []);
+                } else {
+                    renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, resumeIndex, checkpoint.resultsSoFar || []);
+                }
+                return;
+            }
+            if (checkpoint) clearNodeReviewCheckpoint(d.id);
+            renderNodeReviewStart(lessonEl, d, qualifyingLinks);
+        }
 
         async function renderNodeReviewStart(lessonEl, d, qualifyingLinks) {
             showLoadingWithColdStartHint(lessonEl);
@@ -13595,6 +13641,7 @@ SQIDAQAB
         // that's integration's own separate question, next.
         function renderNodeReviewIdentify(lessonEl, d, qualifyingLinks, index, resultsSoFar, hadRetry, retryFeedback) {
             const link = qualifyingLinks[index];
+            saveNodeReviewCheckpoint(d.id, { linkToNodeId: link.id, stage: 'identify', resultsSoFar });
             const draftKey = `node-review-identify:${d.id}:${link.id}`;
             lessonEl.innerHTML = `
                 <div class="km-inline-detail-section">
@@ -13650,6 +13697,7 @@ SQIDAQAB
 
         function renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, questionText) {
             const link = qualifyingLinks[index];
+            saveNodeReviewCheckpoint(d.id, { linkToNodeId: link.id, stage: 'integration', resultsSoFar });
             const draftKey = `node-review-integration:${d.id}:${link.id}`;
             lessonEl.innerHTML = `
                 <div class="km-inline-detail-section">
@@ -13686,6 +13734,7 @@ SQIDAQAB
         }
 
         function renderNodeReviewSummary(lessonEl, d, resultsSoFar) {
+            clearNodeReviewCheckpoint(d.id);
             const totalKeys = resultsSoFar.reduce((sum, r) => sum + (r.keysEarned || 0), 0);
             const rows = resultsSoFar.length
                 ? resultsSoFar.map((r) => `<div class="km-inline-detail-item">${r.correct ? '✓' : '✗'} ${escapeHtml(r.label)}</div>`).join('')
