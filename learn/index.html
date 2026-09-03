@@ -12818,22 +12818,6 @@ SQIDAQAB
         updateMathsToolAvailability();
     }
 
-    async function fetchEdgeLesson(fromNodeId, toNodeId) {
-        try {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) return null;
-            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/edge/${encodeURIComponent(fromNodeId)}/${encodeURIComponent(toNodeId)}/lesson`, {
-                headers: { Authorization: `Bearer ${session.access_token}` }
-            });
-            if (resp.status === 404) return { notFound: true };
-            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
-            return await resp.json();
-        } catch (err) {
-            console.error('LastMind: failed to load this connection.', err);
-            return null;
-        }
-    }
-
     // Entry point — called from selectFolder(). Clones the <template>,
     // fetches the pre-generated graph for this subject, and renders it.
     async function renderKnowledgeMapForFolder(folder) {
@@ -13353,84 +13337,28 @@ SQIDAQAB
             }
         }
 
-        // Bridges from each prerequisite are taught first (link teaching +
-        // transfer/integration questions), then the node's own encoding
-        // content — mirrors "Needs first" above: you learn how each
-        // prerequisite connects to this concept before learning the
-        // concept itself. Called once the student either needed no
-        // prerequisite check, or has just passed one.
+        // Just this node's own content — explanation, then its own
+        // practice question. Transfer/integration (testing the connection
+        // to a prerequisite) is deliberately never part of encoding; that
+        // would both give away the answer to a connection the student
+        // hasn't been asked to make yet, and test it before the "Practice"
+        // question that's actually supposed to come first. That testing
+        // belongs solely to the node's own spaced review later, once both
+        // ends are genuinely encoded (see renderNodeReviewIntegration
+        // below) — never here. `upstream` is unused now (edge-bridging
+        // used to read it) but stays in the signature since several
+        // chain-diagnostic call sites already thread it through to here.
         async function renderNodeLessonContent(lessonEl, d, upstream) {
             showLoadingWithColdStartHint(lessonEl);
-            // Each upstream's OWN lesson is fetched too (not just the edge
-            // lesson bridging to it) purely to read its diagramSpec.curves
-            // — that becomes the ATOMIC edge question's "given" context
-            // (the prerequisite's diagram, already known, drawn fixed) so
-            // the student only has to add whatever this edge actually
-            // introduces, never redraw what they already learned.
-            const [edgeLessons, nodeLesson] = await Promise.all([
-                Promise.all(upstream.map((u) => Promise.all([fetchEdgeLesson(u.id, d.id), fetchNodeLesson(u.id)]).then(([el, ul]) => ({ from: u, lesson: el, upstreamLesson: ul })))),
-                fetchNodeLesson(d.id)
-            ]);
+            const nodeLesson = await fetchNodeLesson(d.id);
 
-            const bridgeSections = edgeLessons.map(({ from, lesson, upstreamLesson }) => {
-                if (!lesson || lesson.notFound) return null;
-                const given = (upstreamLesson && upstreamLesson.practiceQuestion && upstreamLesson.practiceQuestion.diagramSpec && upstreamLesson.practiceQuestion.diagramSpec.curves) || null;
-                return { from, lesson, given };
-            }).filter(Boolean);
-
-            const bridgeHtml = bridgeSections.map(({ from, lesson }, idx) => `
-                <div class="km-inline-detail-section">
-                    <h4>Bridge from "${escapeHtml(from.label)}"</h4>
-                    <div class="km-inline-lesson-explanation">${splitIntoParagraphs(lesson.linkTeaching)}</div>
-                    ${lesson.transferQuestion ? `<div><strong class="km-inline-lesson-question" style="display:block;">Transfer</strong><div id="km-question-bridge-transfer-${idx}"></div></div>` : ''}
-                    ${lesson.integrationQuestion ? `<div><strong class="km-inline-lesson-question" style="display:block;">Integration</strong><div id="km-question-bridge-integration-${idx}"></div></div>` : ''}
-                </div>
-            `).join('');
-
-            const nodeHtml = (!nodeLesson || nodeLesson.notFound)
+            lessonEl.innerHTML = (!nodeLesson || nodeLesson.notFound)
                 ? `<div class="km-inline-detail-item km-inline-detail-none">No lesson generated for this concept yet.</div>`
                 : `
                     <div class="km-inline-lesson-explanation">${splitIntoParagraphs(nodeLesson.explanation)}</div>
                     ${nodeLesson.practiceQuestion ? `<div><strong class="km-inline-lesson-question" style="display:block;">Practice</strong><div id="km-question-node-practice"></div></div>` : ''}
                 `;
 
-            lessonEl.innerHTML = bridgeHtml + nodeHtml;
-
-            // Mount each question widget now that its container actually
-            // exists in the DOM — a diagram question (MECHANISTIC for the
-            // node's own, blank board; ATOMIC for an edge's, the
-            // prerequisite's curves pre-drawn/fixed via `given`) or the
-            // math-shortcut free-text answer widget otherwise.
-            // In practice the chain-diagnostic gate already guarantees an
-            // upstream prerequisite is encoded before its bridge ever
-            // renders here — this is defense-in-depth for the same
-            // findMissingEncoding check, not an expected live path.
-            const gotoEncode = (redirect) => {
-                const graphNode = findGraphNodeById(redirect.nodeId);
-                if (!graphNode) return;
-                showKmWorkspace(contentInner);
-                selectKmInlineNode(graphNode);
-            };
-            bridgeSections.forEach(({ from, lesson, given }, idx) => {
-                if (lesson.transferQuestion) {
-                    const el = lessonEl.querySelector(`#km-question-bridge-transfer-${idx}`);
-                    const submit = (answer, hadRetry) => postChainDiagnostic(
-                        lesson.transferQuestion.diagramSpec ? '/knowledge-map-v2/diagram-question/submit' : '/knowledge-map-v2/text-question/submit',
-                        { fromNodeId: from.id, toNodeId: d.id, questionType: 'transfer', answer, hadRetry }
-                    );
-                    if (lesson.transferQuestion.diagramSpec) renderDiagramWidget(el, given, submit, gotoEncode);
-                    else renderTextQuestionWidget(el, lesson.transferQuestion.questionText, submit, gotoEncode);
-                }
-                if (lesson.integrationQuestion) {
-                    const el = lessonEl.querySelector(`#km-question-bridge-integration-${idx}`);
-                    const submit = (answer, hadRetry) => postChainDiagnostic(
-                        lesson.integrationQuestion.diagramSpec ? '/knowledge-map-v2/diagram-question/submit' : '/knowledge-map-v2/text-question/submit',
-                        { fromNodeId: from.id, toNodeId: d.id, questionType: 'integration', answer, hadRetry }
-                    );
-                    if (lesson.integrationQuestion.diagramSpec) renderDiagramWidget(el, given, submit, gotoEncode);
-                    else renderTextQuestionWidget(el, lesson.integrationQuestion.questionText, submit, gotoEncode);
-                }
-            });
             if (nodeLesson && nodeLesson.practiceQuestion) {
                 const el = lessonEl.querySelector('#km-question-node-practice');
                 // A real (non-retryable) pass here means this is the first
@@ -14612,9 +14540,9 @@ SQIDAQAB
 
         // A genuine gap — deny the target and jump the student straight to
         // the specific concept/link they're actually missing. An edge
-        // failure redirects to the DOWNSTREAM node, since that's exactly
-        // where its own Start Lesson flow teaches this connection as a
-        // "Bridge from…" (see renderNodeLessonContent above).
+        // failure redirects to the DOWNSTREAM node, so the student picks
+        // back up in the same real teaching order this gate exists to
+        // enforce, rather than being dropped on an arbitrary ancestor.
         function renderChainDiagnosticDenied(lessonEl, redirect) {
             const label = redirect ? redirect.label : 'that concept';
             lessonEl.innerHTML = `
