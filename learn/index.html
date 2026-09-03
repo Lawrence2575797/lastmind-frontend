@@ -13233,6 +13233,39 @@ SQIDAQAB
             svg.transition().duration(450).call(zoomBehavior.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
         }
 
+        // A concept's spaced review is locked until FSRS actually calls it
+        // due - starting early tests short-term memory rather than the
+        // retrieval strength FSRS is trying to measure, which would quietly
+        // corrupt the schedule it feeds back into (see gradeCorrectness).
+        // "Due" here means ANY of the review's components still needs
+        // testing: the node's own AO1 concept, or (for each qualifying
+        // link) its identify/integration concept - a link component with
+        // no schedule entry yet has never been tested at all, which counts
+        // as due now, same as a genuinely overdue one.
+        function isScheduleEntryDue(entry) {
+            return !entry || daysBetweenLocalDays(new Date(), new Date(entry.due)) <= 0;
+        }
+        function isNodeReviewDue(d, qualifyingLinks, schedule) {
+            if (isScheduleEntryDue(schedule.get(d.conceptId))) return true;
+            return qualifyingLinks.some((link) =>
+                isScheduleEntryDue(schedule.get(`${d.conceptId}->${link.conceptId}`)) ||
+                isScheduleEntryDue(schedule.get(`${d.conceptId}->${link.conceptId}::integration`))
+            );
+        }
+        // Only meaningful when isNodeReviewDue is false - every component
+        // is guaranteed to have a schedule entry in that case (a missing
+        // one would itself count as due), so this is just the earliest of
+        // them, for the locked button's tooltip.
+        function nextNodeReviewDueDate(d, qualifyingLinks, schedule) {
+            const dates = [schedule.get(d.conceptId)];
+            qualifyingLinks.forEach((link) => {
+                dates.push(schedule.get(`${d.conceptId}->${link.conceptId}`));
+                dates.push(schedule.get(`${d.conceptId}->${link.conceptId}::integration`));
+            });
+            const times = dates.filter(Boolean).map((entry) => new Date(entry.due).getTime());
+            return times.length ? new Date(Math.min(...times)) : null;
+        }
+
         function selectKmInlineNode(d) {
             const nodeById = new Map(fullData.nodes.map((n) => [n.id, n]));
             const upstream = fullData.edges.filter((e) => e.target === d.id).map((e) => nodeById.get(e.source)).filter(Boolean);
@@ -13321,11 +13354,14 @@ SQIDAQAB
             // string — escapeHtml only escapes for text-node context, not
             // attribute values, so a label containing a quote (plenty of
             // concept names do) would otherwise truncate the attribute.
+            const reviewDue = !ownEntry || blockedByUnencodedLink || isNodeReviewDue(d, qualifyingLinks, schedule);
             const startBtnHtml = !ownEntry
                 ? `<button class="btn primary km-inline-start-lesson-btn">Start lesson</button>`
                 : blockedByUnencodedLink
                     ? `<button class="btn primary km-inline-start-lesson-btn" disabled>Start review</button>`
-                    : `<button class="btn primary km-inline-start-lesson-btn">Start review</button>`;
+                    : !reviewDue
+                        ? `<button class="btn primary km-inline-start-lesson-btn" disabled>Start review</button>`
+                        : `<button class="btn primary km-inline-start-lesson-btn">Start review</button>`;
 
             detailEl.innerHTML = `
                 <div class="km-inline-detail-eyebrow">${escapeHtml(d.subtopic || '')}</div>
@@ -13361,8 +13397,13 @@ SQIDAQAB
                 });
             });
             const startBtn = detailEl.querySelector('.km-inline-start-lesson-btn');
-            if (blockedByUnencodedLink) startBtn.title = missingLinkTitle;
-            if (ownEntry && !blockedByUnencodedLink) {
+            if (blockedByUnencodedLink) {
+                startBtn.title = missingLinkTitle;
+            } else if (ownEntry && !reviewDue) {
+                const nextDue = nextNodeReviewDueDate(d, qualifyingLinks, schedule);
+                startBtn.title = nextDue ? `Not due yet — ${formatDueIn(nextDue)}` : 'Not due yet.';
+            }
+            if (ownEntry && !blockedByUnencodedLink && reviewDue) {
                 startBtn.addEventListener('click', () => {
                     showLessonFullpage(contentInner);
                     resumeOrStartNodeReview(lessonFullpageBodyEl, d, qualifyingLinks);
