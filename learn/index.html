@@ -2654,6 +2654,13 @@
         height: calc(100vh - 160px);
         min-height: 480px;
     }
+    /* Collapsing the question list frees up real width for the actual
+       typing area, which is what the sidebar was competing with on a
+       narrower screen - the toggle lives in maths-tool-main-wrap (not
+       inside .maths-tool-main itself, which gets its innerHTML replaced
+       wholesale on every thread switch) so it survives that. */
+    .maths-tool-view.sidebar-collapsed { grid-template-columns: 1fr; }
+    .maths-tool-view.sidebar-collapsed .maths-tool-sidebar { display: none; }
     .maths-tool-sidebar {
         border: 1px solid rgba(230, 215, 176, 0.16);
         border-radius: 8px;
@@ -2687,10 +2694,18 @@
     }
     .maths-tool-thread-item:hover { background: rgba(230, 215, 176, 0.06); opacity: 1; }
     .maths-tool-thread-item.active { background: rgba(230, 215, 176, 0.1); border-color: rgba(230, 215, 176, 0.2); opacity: 1; }
-    .maths-tool-main {
+    .maths-tool-main-wrap {
         border: 1px solid rgba(230, 215, 176, 0.16);
         border-radius: 8px;
         padding: 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        min-height: 0;
+    }
+    .maths-tool-sidebar-toggle-btn { align-self: flex-start; flex: none; font-size: 11px; padding: 5px 10px; }
+    .maths-tool-main {
+        flex: 1;
         display: flex;
         flex-direction: column;
         min-height: 0;
@@ -12280,15 +12295,21 @@ SQIDAQAB
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
         contentInner.innerHTML = `
-            <div class="maths-tool-view">
+            <div class="maths-tool-view" id="mathsToolView">
                 <div class="maths-tool-sidebar">
                     <button type="button" class="btn primary maths-tool-new-btn">+ New question</button>
                     <div class="maths-tool-thread-list" id="mathsToolThreadList"><div class="km-inline-detail-item km-inline-detail-none">Loading…</div></div>
                 </div>
-                <div class="maths-tool-main" id="mathsToolMain"></div>
+                <div class="maths-tool-main-wrap">
+                    <button type="button" class="btn maths-tool-sidebar-toggle-btn" id="mathsToolSidebarToggleBtn" title="Show/hide the question list">☰ Questions</button>
+                    <div class="maths-tool-main" id="mathsToolMain"></div>
+                </div>
             </div>
         `;
         contentInner.querySelector('.maths-tool-new-btn').addEventListener('click', renderMathsToolCompose);
+        contentInner.querySelector('#mathsToolSidebarToggleBtn').addEventListener('click', () => {
+            document.getElementById('mathsToolView').classList.toggle('sidebar-collapsed');
+        });
         mathsToolThreads = await fetchMathHelpThreads();
         renderMathsToolThreadList();
         renderMathsToolCompose();
