@@ -13578,23 +13578,22 @@ SQIDAQAB
             const link = qualifyingLinks[index];
             showLoadingWithColdStartHint(lessonEl);
             const edge = await postChainDiagnostic('/knowledge-map-v2/node-review/link-identify/start', { fromNodeId: d.id, toNodeId: link.id });
-            if (!edge || !edge.linkText) {
+            if (!edge || !edge.fromLabel) {
                 // Nothing generated for this link — skip it rather than
                 // block the rest of the review on one bad connection.
                 renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, index + 1, resultsSoFar);
                 return;
             }
-            renderNodeReviewIdentify(lessonEl, d, qualifyingLinks, index, resultsSoFar, edge.linkText, false);
+            renderNodeReviewIdentify(lessonEl, d, qualifyingLinks, index, resultsSoFar, false, '');
         }
 
-        // Shows the SAME link-teaching text this link's own encoding
-        // bridge once taught (see nodeReviewService.ts's getLinkTeachingText)
-        // and asks the student to restate it — a genuine recall check
-        // (do they remember what they were taught), not a disguised
-        // "identify it despite not being told" question. The text stays
-        // visible through a wrong attempt, so no separate hint is needed —
-        // see link-identify/submit's own comment on why.
-        function renderNodeReviewIdentify(lessonEl, d, qualifyingLinks, index, resultsSoFar, linkText, hadRetry) {
+        // A plain one-word/short-phrase naming check, nothing shown up
+        // front — a real recall test (can they name what links these two
+        // ideas at all), not a "read this and repeat it" exercise. See
+        // LINK_IDENTIFY_GRADE_PROMPT in the backend for why this is
+        // graded as a bare naming answer, never expecting explanation —
+        // that's integration's own separate question, next.
+        function renderNodeReviewIdentify(lessonEl, d, qualifyingLinks, index, resultsSoFar, hadRetry, retryFeedback) {
             const link = qualifyingLinks[index];
             const draftKey = `node-review-identify:${d.id}:${link.id}`;
             lessonEl.innerHTML = `
@@ -13602,9 +13601,9 @@ SQIDAQAB
                     <div class="km-inline-detail-eyebrow">Review — link ${index + 1} of ${qualifyingLinks.length}</div>
                     <div class="km-inline-detail-label">"${escapeHtml(d.label)}" → "${escapeHtml(link.label)}"</div>
                     <h4 class="km-inline-lesson-question">Identify the link</h4>
-                    <div class="km-inline-lesson-explanation">${splitIntoParagraphs(linkText)}</div>
-                    <div class="km-inline-lesson-question">In your own words, restate the connection above.</div>
-                    <textarea class="km-diag-answer-input" rows="4" placeholder="Write your answer here…" style="${DIAG_TEXTAREA_STYLE}"></textarea>
+                    <div class="km-inline-lesson-question">In one word or a short phrase, what links "${escapeHtml(d.label)}" to "${escapeHtml(link.label)}"?</div>
+                    ${retryFeedback ? `<div class="km-inline-detail-item km-inline-detail-none" style="margin-top:6px;">${escapeHtml(retryFeedback)}</div>` : ''}
+                    <textarea class="km-diag-answer-input" rows="2" placeholder="One word or a short phrase…" style="${DIAG_TEXTAREA_STYLE}"></textarea>
                     <button type="button" class="btn primary km-diag-submit-btn" style="margin-top:10px;">Submit</button>
                 </div>
             `;
@@ -13628,7 +13627,7 @@ SQIDAQAB
                 }
                 clearAnswerDraft(draftKey);
                 if (!result.correct) {
-                    renderNodeReviewIdentify(lessonEl, d, qualifyingLinks, index, resultsSoFar, linkText, true);
+                    renderNodeReviewIdentify(lessonEl, d, qualifyingLinks, index, resultsSoFar, true, result.feedback || '');
                     return;
                 }
                 if (result.schedule) fullData.scheduleByConceptId.set(result.schedule.conceptId, result.schedule);
