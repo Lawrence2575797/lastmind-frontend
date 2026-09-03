@@ -764,11 +764,28 @@
        what actually made the map look like it "doesn't show up" rather
        than just being cramped. */
     @media (max-width: 900px) {
-        .km-inline-workspace { grid-template-columns: 1fr; }
+        .km-inline-workspace { grid-template-columns: 1fr; flex: none; }
         .km-inline-svg { min-height: 340px; }
         .km-inline-topbar { flex-wrap: wrap; }
         .km-inline-search { margin-left: 0; width: 100%; }
         .km-inline-search-input { width: 100%; }
+        /* The side panel (legend + "Needs first"/"Builds on this"/the
+           View-Verify-Start-review buttons) was still fighting for
+           whatever sliver of height was left over once the canvas took
+           its share of a height-CONSTRAINED grid row (.km-inline-workspace
+           was flex:1 inside a fixed-height column) — it ended up squeezed
+           into its own tiny box with an internal scrollbar just to reach
+           the action buttons, confirmed from an actual screenshot: a
+           cramped nested scroll area, separate from the page's own
+           scroll. flex:none above lets the workspace size to its natural
+           content height instead; min-height:0/overflow:visible here do
+           the same for the side panel and detail box, so anything that
+           doesn't fit is reached by scrolling the PAGE — the same way
+           scrolling already works everywhere else in this app — rather
+           than a second, easy-to-miss scrollbar inside a small box.  */
+        .km-inline-side { flex: none; min-height: 0; }
+        .km-inline-side .km-inline-detail { flex: none; }
+        .km-inline-detail { overflow: visible; max-height: none; }
     }
 
     /* Once a lesson actually starts, it takes over the whole page —
