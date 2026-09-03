@@ -718,8 +718,7 @@
     .km-inline-themetabs { display: flex; gap: 6px; flex-wrap: wrap; padding: 14px 0 0; }
     .km-inline-tab { padding: 6px 13px; border-radius: 3px; font-size: 12px; font-weight: 600; border: 1px solid rgba(230, 215, 176, 0.2); color: var(--text); opacity: 0.7; cursor: pointer; background: transparent; font-family: Arial, sans-serif; }
     .km-inline-tab.active { background: var(--accent); border-color: var(--accent); color: var(--bg); opacity: 1; }
-    .km-inline-legend { display: flex; gap: 16px; padding: 10px 0 4px; font-size: 11px; opacity: 0.7; align-items: center; }
-    .km-inline-legend-side { flex-direction: column; align-items: flex-start; gap: 7px; padding: 12px 14px; border: 1px solid rgba(230, 215, 176, 0.16); border-radius: 8px; margin-bottom: 12px; }
+    .km-inline-legend { display: flex; gap: 16px; padding: 10px 0 4px; font-size: 11px; opacity: 0.7; align-items: center; flex-wrap: wrap; }
     .km-inline-legend-item { display: inline-flex; align-items: center; gap: 6px; }
     .km-inline-empty { padding: 40px 10px; text-align: center; opacity: 0.55; font-size: 13px; }
     .km-inline-workspace { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, min(300px, 32%)); gap: 14px; min-height: 0; margin-top: 8px; }
@@ -4377,24 +4376,29 @@
                     <div class="km-inline-search"><input type="text" class="km-inline-search-input" placeholder="Search concepts…"></div>
                 </div>
                 <div class="km-inline-themetabs"></div>
+                <!-- Progress key — one swatch per masteryProgressTier step
+                     (see renderKmInlineGraph), same colours a node/link
+                     actually takes on the graph. Static markup here since
+                     the tiers/colours are fixed; only the graph itself
+                     changes per render. Lives here (a horizontal row next
+                     to the theme tabs/node counts), not stacked inside
+                     the side panel — that pushed the detail panel below
+                     it into a cramped column needing its own inner
+                     scroll, for content that fits one row just fine on
+                     its own. -->
+                <div class="km-inline-legend">
+                    <span class="km-inline-legend-item"><span class="km-legend-dot km-dot-4"></span>Mastered</span>
+                    <span class="km-inline-legend-item"><span class="km-legend-dot km-dot-3"></span>2 spaced reviews</span>
+                    <span class="km-inline-legend-item"><span class="km-legend-dot km-dot-2"></span>1 spaced review</span>
+                    <span class="km-inline-legend-item"><span class="km-legend-dot km-dot-1"></span>Learning</span>
+                    <span class="km-inline-legend-item"><span class="km-legend-dot km-dot-0"></span>Not started</span>
+                </div>
                 <div class="km-inline-empty" style="display:none;"></div>
                 <div class="km-inline-workspace">
                     <div class="km-inline-canvas-wrap">
                         <svg class="km-inline-svg"></svg>
                     </div>
                     <div class="km-inline-side">
-                        <!-- Progress key — one swatch per masteryProgressTier
-                             step (see renderKmInlineGraph), same colours a
-                             node/link actually takes on the graph. Static
-                             markup here since the tiers/colours are fixed;
-                             only the graph itself changes per render. -->
-                        <div class="km-inline-legend km-inline-legend-side">
-                            <span class="km-inline-legend-item"><span class="km-legend-dot km-dot-4"></span>Mastered</span>
-                            <span class="km-inline-legend-item"><span class="km-legend-dot km-dot-3"></span>2 spaced reviews</span>
-                            <span class="km-inline-legend-item"><span class="km-legend-dot km-dot-2"></span>1 spaced review</span>
-                            <span class="km-inline-legend-item"><span class="km-legend-dot km-dot-1"></span>Learning</span>
-                            <span class="km-inline-legend-item"><span class="km-legend-dot km-dot-0"></span>Not started</span>
-                        </div>
                         <div class="km-inline-detail">
                             <div class="km-inline-detail-empty">Click any concept to see exactly what it needs first, and what it unlocks.</div>
                         </div>
@@ -13649,12 +13653,14 @@ SQIDAQAB
             renderNodeReviewIdentify(lessonEl, d, qualifyingLinks, index, resultsSoFar, false, '');
         }
 
-        // A plain one-word/short-phrase naming check, nothing shown up
-        // front — a real recall test (can they name what links these two
-        // ideas at all), not a "read this and repeat it" exercise. See
-        // LINK_IDENTIFY_GRADE_PROMPT in the backend for why this is
-        // graded as a bare naming answer, never expecting explanation —
-        // that's integration's own separate question, next.
+        // A one-sentence causal-connection check, nothing shown up front —
+        // a real recall test (can they state how these two ideas' own
+        // explanations connect, not just recognise a shared keyword). The
+        // link being tested is between the two EXPLANATIONS, not the two
+        // concept names — see LINK_IDENTIFY_GRADE_PROMPT in the backend:
+        // a bare term alone doesn't count, but neither does the full
+        // expanded mechanism, that's integration's own separate question,
+        // next.
         function renderNodeReviewIdentify(lessonEl, d, qualifyingLinks, index, resultsSoFar, hadRetry, retryFeedback) {
             const link = qualifyingLinks[index];
             saveNodeReviewCheckpoint(d.id, { linkToNodeId: link.id, stage: 'identify', resultsSoFar });
@@ -13664,9 +13670,9 @@ SQIDAQAB
                     <div class="km-inline-detail-eyebrow">Review — link ${index + 1} of ${qualifyingLinks.length}</div>
                     <div class="km-inline-detail-label">"${escapeHtml(d.label)}" → "${escapeHtml(link.label)}"</div>
                     <h4 class="km-inline-lesson-question">Identify the link</h4>
-                    <div class="km-inline-lesson-question">In one word or a short phrase, what links "${escapeHtml(d.label)}" to "${escapeHtml(link.label)}"?</div>
+                    <div class="km-inline-lesson-question">In one sentence, what's the connection between "${escapeHtml(d.label)}" and "${escapeHtml(link.label)}"?</div>
                     ${retryFeedback ? `<div class="km-inline-detail-item km-inline-detail-none" style="margin-top:6px;">${escapeHtml(retryFeedback)}</div>` : ''}
-                    <textarea class="km-diag-answer-input" rows="2" placeholder="One word or a short phrase…" style="${DIAG_TEXTAREA_STYLE}"></textarea>
+                    <textarea class="km-diag-answer-input" rows="3" placeholder="One sentence…" style="${DIAG_TEXTAREA_STYLE}"></textarea>
                     <button type="button" class="btn primary km-diag-submit-btn" style="margin-top:10px;">Submit</button>
                 </div>
             `;
