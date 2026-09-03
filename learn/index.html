@@ -4239,6 +4239,19 @@
         color: var(--bg);
         border: none;
     }
+    /* A disabled <button> otherwise renders identically to an active one
+       (no browser default touches color/background here) — a disabled
+       "Start review", say, looked exactly as clickable as when it
+       actually is, with no visual sign it was withheld pending some
+       other action. */
+    .btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+    .btn.primary:disabled {
+        background: rgba(230, 215, 176, 0.25);
+        color: rgba(230, 215, 176, 0.5);
+    }
     /* ─── MOBILE ─── */
     @media (max-width: 768px) {
         .scratch-notes-dropdown {
