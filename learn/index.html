@@ -13190,10 +13190,6 @@ SQIDAQAB
             const schedule = fullData.scheduleByConceptId || new Map();
             const ownEntry = schedule.get(d.conceptId);
 
-            const upItems = upstream.length
-                ? upstream.map((n) => `<div class="km-inline-detail-item">${escapeHtml(n.label)}</div>`).join('')
-                : '<div class="km-inline-detail-item km-inline-detail-none">Nothing — this is a starting point</div>';
-
             // Only nodes are ever launchable, never a link on its own — a
             // downstream concept that's ALSO been encoded is one of THIS
             // node's own qualifying links (tested together, as part of
@@ -13213,17 +13209,38 @@ SQIDAQAB
             const missingLinkTitle = unencodedDownstream.length === 1
                 ? `Encode "${unencodedDownstream[0].label}" first — this concept's review tests the link between them.`
                 : `Encode "${unencodedDownstream[0]?.label}" and ${unencodedDownstream.length - 1} other linked concept${unencodedDownstream.length > 2 ? 's' : ''} first — this concept's review tests those links too.`;
+
+            // "Needs first" means whatever the NEXT action here still
+            // requires, not always "upstream" — before this concept has
+            // ever been encoded that's its actual upstream prerequisites,
+            // but once encoded, its own upstream is already satisfied and
+            // what's actually outstanding (if anything) is the downstream
+            // link partner its review still needs — this is where the
+            // "Encode this first" jump lives now, not in "Builds on this"
+            // below, since it's a prerequisite for the review, exactly
+            // like an upstream concept is for the encoding.
+            const upItems = !ownEntry
+                ? (upstream.length
+                    ? upstream.map((n) => `<div class="km-inline-detail-item">${escapeHtml(n.label)}</div>`).join('')
+                    : '<div class="km-inline-detail-item km-inline-detail-none">Nothing — this is a starting point</div>')
+                : (blockedByUnencodedLink
+                    ? unencodedDownstream.map((n) => `
+                        <div class="km-inline-detail-item km-inline-detail-item-action">
+                            <span>${escapeHtml(n.label)}</span>
+                            <button class="btn km-encode-first-btn" data-idx="${downstream.indexOf(n)}">Encode this first</button>
+                        </div>
+                    `).join('')
+                    : '<div class="km-inline-detail-item km-inline-detail-none">Nothing — ready for review</div>');
+
             const downItems = !downstream.length
                 ? '<div class="km-inline-detail-item km-inline-detail-none">Nothing yet builds on this</div>'
-                : downstream.map((n, idx) => {
+                : downstream.map((n) => {
                     if (!ownEntry) return `<div class="km-inline-detail-item">${escapeHtml(n.label)}</div>`;
                     const otherEncoded = schedule.has(n.conceptId);
                     return `
                         <div class="km-inline-detail-item km-inline-detail-item-action">
                             <span>${escapeHtml(n.label)}</span>
-                            ${otherEncoded
-                                ? `<span class="km-inline-detail-meta">Tested in this concept's own review</span>`
-                                : `<button class="btn km-encode-first-btn" data-idx="${idx}">Encode this first</button>`}
+                            <span class="km-inline-detail-meta">${otherEncoded ? "Tested in this concept's own review" : 'Needs encoding first — see "Needs first" above'}</span>
                         </div>
                     `;
                 }).join('');
