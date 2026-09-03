@@ -13470,9 +13470,16 @@ SQIDAQAB
 
         async function renderNodeReviewStart(lessonEl, d, qualifyingLinks) {
             showLoadingWithColdStartHint(lessonEl);
-            const question = await postChainDiagnostic('/knowledge-map-v2/node-review/ao1/start', { nodeId: d.id });
-            if (!question || !question.questionText) {
-                lessonEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Could not load this review — try again in a moment.</div>';
+            let question;
+            try {
+                question = await postNodeReviewStepStart('/knowledge-map-v2/node-review/ao1/start', { nodeId: d.id });
+            } catch (err) {
+                console.error('LastMind: failed to load this review\'s recall question.', err);
+                renderNodeReviewStepLoadError(lessonEl, () => renderNodeReviewStart(lessonEl, d, qualifyingLinks));
+                return;
+            }
+            if (question.notFound || !question.questionText) {
+                lessonEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">No lesson generated for this concept yet.</div>';
                 return;
             }
             renderNodeReviewAo1(lessonEl, d, qualifyingLinks, question.questionText);
@@ -13623,10 +13630,19 @@ SQIDAQAB
             }
             const link = qualifyingLinks[index];
             showLoadingWithColdStartHint(lessonEl);
-            const edge = await postChainDiagnostic('/knowledge-map-v2/node-review/link-identify/start', { fromNodeId: d.id, toNodeId: link.id });
-            if (!edge || !edge.fromLabel) {
-                // Nothing generated for this link — skip it rather than
-                // block the rest of the review on one bad connection.
+            let edge;
+            try {
+                edge = await postNodeReviewStepStart('/knowledge-map-v2/node-review/link-identify/start', { fromNodeId: d.id, toNodeId: link.id });
+            } catch (err) {
+                console.error('LastMind: failed to load this link\'s review step.', err);
+                renderNodeReviewStepLoadError(lessonEl, () => renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, index, resultsSoFar));
+                return;
+            }
+            if (edge.notFound) {
+                // Genuinely nothing to test for this specific link (not a
+                // failed request, see postNodeReviewStepStart) - skip it
+                // rather than block the rest of the review on one bad
+                // connection.
                 renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, index + 1, resultsSoFar);
                 return;
             }
@@ -13687,8 +13703,19 @@ SQIDAQAB
         async function renderNodeReviewIntegrationStart(lessonEl, d, qualifyingLinks, index, resultsSoFar) {
             const link = qualifyingLinks[index];
             showLoadingWithColdStartHint(lessonEl);
-            const question = await postChainDiagnostic('/knowledge-map-v2/node-review/integration/start', { fromNodeId: d.id, toNodeId: link.id });
-            if (!question || question.unavailable || !question.questionText) {
+            let question;
+            try {
+                question = await postNodeReviewStepStart('/knowledge-map-v2/node-review/integration/start', { fromNodeId: d.id, toNodeId: link.id });
+            } catch (err) {
+                console.error('LastMind: failed to load this link\'s integration question.', err);
+                renderNodeReviewStepLoadError(lessonEl, () => renderNodeReviewIntegrationStart(lessonEl, d, qualifyingLinks, index, resultsSoFar));
+                return;
+            }
+            // unavailable (not notFound) is this route's own genuine
+            // "nothing to test" signal - see integration/start's own
+            // comment, a diagram-typed or missing integration question is
+            // a normal 200, not a 404.
+            if (question.unavailable || !question.questionText) {
                 renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, index + 1, resultsSoFar);
                 return;
             }
@@ -14577,6 +14604,37 @@ SQIDAQAB
                 console.error('LastMind: chain diagnostic request failed.', err);
                 return null;
             }
+        }
+
+        // Unlike postChainDiagnostic above, this THROWS on a real failure
+        // instead of collapsing it to null - the node-review "start"
+        // routes (ao1/link-identify/integration) each use a null result to
+        // mean "genuinely nothing to test here, skip it", and a cold-
+        // started backend or a network blip returning null identically to
+        // that was silently truncating whole reviews to "Review complete"
+        // after testing nothing. A genuine 404 (this specific step really
+        // doesn't apply) still resolves normally as { notFound: true } -
+        // only an actual failure throws, for the caller to show a retry
+        // rather than quietly skip past a real problem.
+        async function postNodeReviewStepStart(path, body) {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) throw new Error('not signed in');
+            const resp = await fetch(`${COMPILE_BACKEND_URL}${path}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify(body)
+            });
+            if (resp.status === 404) return { notFound: true };
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            return await resp.json();
+        }
+
+        function renderNodeReviewStepLoadError(lessonEl, onRetry) {
+            lessonEl.innerHTML = `
+                <div class="km-inline-detail-item km-inline-detail-none">Couldn't load this step — check your connection and try again.</div>
+                <button type="button" class="btn primary km-review-retry-btn" style="margin-top:10px;">Try again</button>
+            `;
+            lessonEl.querySelector('.km-review-retry-btn').addEventListener('click', onRetry);
         }
 
         const DIAG_TEXTAREA_STYLE = 'width:100%; margin-top:10px; background:var(--panel); border:1px solid rgba(230,215,176,0.2); border-radius:3px; padding:10px; font-family:Arial,sans-serif; font-size:12.5px; color:var(--text);';
