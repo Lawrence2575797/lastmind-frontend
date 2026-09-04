@@ -222,8 +222,28 @@
     .notes-tree-list {
         display: none;
         flex: 1;
+        flex-direction: column;
+        min-height: 0; /* let .notes-tree-content do the scrolling, not this */
+        padding: 10px 10px 0;
+    }
+    .notes-tree-search-input {
+        flex: none;
+        width: 100%;
+        background: rgba(230, 215, 176, 0.05);
+        border: 1px solid rgba(230, 215, 176, 0.18);
+        border-radius: 6px;
+        color: var(--text);
+        font-family: Arial, sans-serif;
+        font-size: 12px;
+        padding: 7px 9px;
+        margin-bottom: 8px;
+    }
+    .notes-tree-search-input::placeholder { color: var(--text); opacity: 0.4; }
+    .notes-tree-search-input:focus { outline: none; border-color: var(--accent); }
+    .notes-tree-content {
+        flex: 1;
         overflow-y: auto;
-        padding: 10px 10px 20px;
+        padding-bottom: 20px;
     }
 
     .notes-tree-subject { margin-bottom: 16px; }
@@ -4429,8 +4449,14 @@
                  here (not inside the notes content itself) so it scrolls
                  independently and stays visible while the picked node's
                  notes render into #contentInner on the right — see
-                 openNotesTree/selectNotesNode. -->
-            <div class="notes-tree-list" id="notesTreeList"></div>
+                 openNotesTree/selectNotesNode. The search input is a static
+                 sibling of the (re-rendered-per-load) tree content itself,
+                 so it never gets wiped by a reload — see
+                 applyNotesTreeSearch. -->
+            <div class="notes-tree-list" id="notesTreeList">
+                <input type="text" class="notes-tree-search-input" id="notesTreeSearchInput" placeholder="Search lessons…">
+                <div class="notes-tree-content" id="notesTreeContent"></div>
+            </div>
 
             <div class="sidebar-footer">
                 <button class="manage-subscription-btn" id="seeTutorialBtn" type="button">See Tutorial</button>
@@ -11005,7 +11031,7 @@ SQIDAQAB
         document.getElementById('notesTabBtn').classList.toggle('active', tab === 'notes');
         document.getElementById('folderList').style.display = tab === 'folders' ? 'block' : 'none';
         document.getElementById('cortexChatList').style.display = tab === 'cortex' ? 'flex' : 'none';
-        document.getElementById('notesTreeList').style.display = tab === 'notes' ? 'block' : 'none';
+        document.getElementById('notesTreeList').style.display = tab === 'notes' ? 'flex' : 'none';
         if (tab === 'cortex') refreshCortexChatList();
         if (tab === 'notes') openNotesTree();
     }
@@ -13192,12 +13218,59 @@ SQIDAQAB
     // stays visible/scrollable on the left while individual node clicks
     // only ever replace #contentInner, see selectNotesNode).
     async function openNotesTree() {
-        const treeEl = document.getElementById('notesTreeList');
-        treeEl.innerHTML = '<div class="empty-hint">Loading…</div>';
+        const searchInput = document.getElementById('notesTreeSearchInput');
+        searchInput.value = '';
+        const contentEl = document.getElementById('notesTreeContent');
+        contentEl.innerHTML = '<div class="empty-hint">Loading…</div>';
         showNotesEmptyState();
         const index = await fetchNotesIndex();
-        renderNotesTree(treeEl, index);
+        renderNotesTree(contentEl, index);
     }
+
+    // Live, case-insensitive substring match against each lesson's own
+    // label as the student types - matching items (and every dropdown
+    // between them and their subject) are force-shown/expanded regardless
+    // of their own collapsed state, everything else hides, so a long spec
+    // becomes instantly narrowable without hunting through Theme/Subtopic
+    // dropdowns by hand. Toggles plain visibility on the SAME tree DOM
+    // renderNotesTree already built (no re-render per keystroke) - clearing
+    // the box restores every dropdown to its default collapsed state.
+    function applyNotesTreeSearch(contentEl, rawQuery) {
+        const q = rawQuery.trim().toLowerCase();
+        if (!q) {
+            contentEl.querySelectorAll('.notes-tree-theme-body, .notes-tree-subtopic-body').forEach((el) => { el.style.display = 'none'; });
+            contentEl.querySelectorAll('.notes-tree-arrow').forEach((el) => el.classList.remove('open'));
+            contentEl.querySelectorAll('.notes-tree-node-item, .notes-tree-subtopic, .notes-tree-theme, .notes-tree-subject').forEach((el) => { el.style.display = ''; });
+            return;
+        }
+        contentEl.querySelectorAll('.notes-tree-subject').forEach((subjectEl) => {
+            let subjectHasMatch = false;
+            subjectEl.querySelectorAll('.notes-tree-theme').forEach((themeEl) => {
+                let themeHasMatch = false;
+                themeEl.querySelectorAll('.notes-tree-subtopic').forEach((subtopicEl) => {
+                    let subtopicHasMatch = false;
+                    subtopicEl.querySelectorAll('.notes-tree-node-item').forEach((nodeEl) => {
+                        const matches = nodeEl.textContent.toLowerCase().includes(q);
+                        nodeEl.style.display = matches ? '' : 'none';
+                        if (matches) subtopicHasMatch = true;
+                    });
+                    subtopicEl.style.display = subtopicHasMatch ? '' : 'none';
+                    subtopicEl.querySelector('.notes-tree-subtopic-body').style.display = subtopicHasMatch ? 'block' : 'none';
+                    subtopicEl.querySelector('.notes-tree-subtopic-toggle .notes-tree-arrow').classList.toggle('open', subtopicHasMatch);
+                    if (subtopicHasMatch) themeHasMatch = true;
+                });
+                themeEl.style.display = themeHasMatch ? '' : 'none';
+                themeEl.querySelector('.notes-tree-theme-body').style.display = themeHasMatch ? 'block' : 'none';
+                themeEl.querySelector('.notes-tree-theme-toggle .notes-tree-arrow').classList.toggle('open', themeHasMatch);
+                if (themeHasMatch) subjectHasMatch = true;
+            });
+            subjectEl.style.display = subjectHasMatch ? '' : 'none';
+        });
+    }
+
+    document.getElementById('notesTreeSearchInput').addEventListener('input', (ev) => {
+        applyNotesTreeSearch(document.getElementById('notesTreeContent'), ev.target.value);
+    });
 
     function showNotesEmptyState() {
         stopActiveDictation();
