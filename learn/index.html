@@ -12812,6 +12812,30 @@ SQIDAQAB
         return await resp.json();
     }
 
+    // A cold-started backend doesn't just respond slowly - Render's proxy
+    // can hand back an outright error response (502/503) for requests that
+    // land WHILE the instance is still booting, rather than queueing them
+    // (see showLoadingWithColdStartHint's own history of this same class of
+    // bug elsewhere). That reads as a genuine failure to fetchSubjectKnowledgeMap,
+    // even though the backend is fine seconds later - reported as "the
+    // knowledge map always fails to load on the first attempt", worse on
+    // mobile where a slower connection makes it more likely the request
+    // actually lands inside that boot window rather than just before or
+    // after it. Two silent retries, well inside the "up to a minute"
+    // cold-start window this app already tells the student about, so the
+    // student never needs to be the one clicking "Try again".
+    async function fetchSubjectKnowledgeMapWithRetry(folder, retries = 2, delayMs = 2500) {
+        for (let attempt = 0; ; attempt++) {
+            try {
+                return await fetchSubjectKnowledgeMap(folder);
+            } catch (err) {
+                if (attempt >= retries) throw err;
+                console.warn(`LastMind: knowledge map fetch failed, retrying (attempt ${attempt + 1}/${retries}).`, err);
+                await new Promise((resolve) => setTimeout(resolve, delayMs * (attempt + 1)));
+            }
+        }
+    }
+
     async function fetchNodeLesson(nodeId) {
         try {
             const { data: { session } } = await supabaseClient.auth.getSession();
@@ -12937,7 +12961,7 @@ SQIDAQAB
 
         let data, scheduleRows;
         try {
-            [data, scheduleRows] = await Promise.all([fetchSubjectKnowledgeMap(folder), fetchScheduleData()]);
+            [data, scheduleRows] = await Promise.all([fetchSubjectKnowledgeMapWithRetry(folder), fetchScheduleData()]);
         } catch (err) {
             // A real failure (network/timeout/server error) - NOT the same
             // as this subject genuinely having no map yet, and shouldn't
