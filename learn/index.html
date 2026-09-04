@@ -13166,22 +13166,6 @@ SQIDAQAB
         }
     }
 
-    async function fetchEdgeNotesGet(fromNodeId, toNodeId) {
-        try {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) return null;
-            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/edge/${encodeURIComponent(fromNodeId)}/${encodeURIComponent(toNodeId)}/notes`, {
-                headers: { Authorization: `Bearer ${session.access_token}` }
-            });
-            if (resp.status === 404) return null;
-            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
-            return await resp.json();
-        } catch (err) {
-            console.error('LastMind: failed to load these notes.', err);
-            return null;
-        }
-    }
-
     // Also unlocks these notes for the current user server-side (see
     // compileEdgeNotes's own comment) - called both from the Notes page's
     // own click (already-unlocked link, just re-fetching) and from
@@ -13373,13 +13357,21 @@ SQIDAQAB
         });
     }
 
+    // Compiles (or fetches the already-cached text for) this link's notes,
+    // rather than a plain read - a link can be marked unlocked from a
+    // genuine pass that happened before this page's own compile hook ever
+    // ran for it (see getNotesIndexForUser's own comment on the durable
+    // FSRS-backed unlock fallback), in which case no one has ever
+    // generated its note text yet. compileEdgeNotesRequest is safe to call
+    // again even when text already exists (cache-or-generate, same as the
+    // node notes compile flow) so this never re-does work needlessly.
     async function selectNotesLink(linksEl, node, link) {
         const backBtnHtml = `<button type="button" class="btn km-notes-links-back-btn">← Links</button>`;
         const wireBack = () => linksEl.querySelector('.km-notes-links-back-btn').addEventListener('click', () => renderNotesLinksPanel(linksEl, node));
 
         linksEl.innerHTML = `${backBtnHtml}<div class="km-inline-detail-empty">Loading…</div>`;
         wireBack();
-        const notes = await fetchEdgeNotesGet(node.nodeId, link.toNodeId);
+        const notes = await compileEdgeNotesRequest(node.nodeId, link.toNodeId);
         if (!notes) {
             linksEl.innerHTML = `${backBtnHtml}<div class="km-inline-detail-item km-inline-detail-none">Something went wrong loading these notes — try again.</div>`;
             wireBack();
