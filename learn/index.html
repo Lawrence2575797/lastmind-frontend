@@ -14843,7 +14843,7 @@ SQIDAQAB
                     return renderChainDiagnosticError(lessonEl);
                 }
                 clearAnswerDraft(draftKey);
-                if (result.passed) return renderNodeLessonContent(lessonEl, d, upstream);
+                if (result.passed) return renderChainDiagnosticPassed(lessonEl, d, upstream, result.keysEarned);
                 renderChainDiagnosticFailure(lessonEl, d, upstream, result.state, result.currentFailure);
             });
         }
@@ -14919,8 +14919,29 @@ SQIDAQAB
         // redirect to the specific failing lesson).
         function handleChainDiagnosticStepResult(lessonEl, d, upstream, result) {
             if (result.currentFailure) return renderChainDiagnosticFailure(lessonEl, d, upstream, result.state, result.currentFailure);
-            if (result.passed) return renderNodeLessonContent(lessonEl, d, upstream);
+            if (result.passed) return renderChainDiagnosticPassed(lessonEl, d, upstream, result.keysEarned);
             renderChainDiagnosticDenied(lessonEl, result.redirect);
+        }
+
+        // Prerequisite components that passed still earn credit even when
+        // OTHER components in the same chain turn out to be genuine gaps
+        // (this only runs on the passed:true branch, but the backend keeps
+        // paying for real passes regardless) - see gradeComponentOutcome's
+        // own comment. Shown as its own brief step, not folded silently
+        // into jumping straight to the lesson, since a student who just
+        // earned real credits for this should actually see that happen,
+        // same as every other graded action in this app.
+        function renderChainDiagnosticPassed(lessonEl, d, upstream, keysEarned) {
+            if (!keysEarned) return renderNodeLessonContent(lessonEl, d, upstream);
+            lessonEl.innerHTML = `
+                <div class="km-inline-detail-section">
+                    <h4>Prerequisites verified</h4>
+                    <div class="km-inline-lesson-explanation">You already knew this — paid at Verify's rate rather than a full lesson's, since it wasn't learned here.</div>
+                    ${keysEarnedHtml(keysEarned)}
+                    <button type="button" class="btn primary km-diag-continue-btn" style="margin-top:10px;">Continue to lesson</button>
+                </div>
+            `;
+            lessonEl.querySelector('.km-diag-continue-btn').addEventListener('click', () => renderNodeLessonContent(lessonEl, d, upstream));
         }
 
         function renderChainDiagnosticError(lessonEl) {
