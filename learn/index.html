@@ -795,19 +795,29 @@
     /* Once a lesson actually starts, it takes over the whole page —
        the graph + narrow "what this needs/unlocks" panel is exactly
        right for browsing and picking a concept, but far too cramped for
-       reading a real explanation and working an answer. */
-    .km-lesson-fullpage { flex: 1; min-height: 0; overflow-y: auto; margin-top: 10px; display: flex; flex-direction: column; gap: 18px; }
-    /* Sticky, not just top-of-flow — a long lesson scrolls inside
-       .km-lesson-fullpage itself (see its own overflow-y:auto), so a
-       plain top-aligned row would scroll away with the content, found
-       the hard way while testing the back button alone. The "ready
-       next" recommendations used to render at the very bottom of the
-       result, inside that same long scroll — on a phone that meant
-       scrolling through the whole lesson to find them. Living in this
-       sticky header instead means they're visible the moment they
-       exist, with no scrolling, without sitting on top of the app's own
-       topbar (this header is still inside the page's own content flow,
-       not fixed to the viewport). */
+       reading a real explanation and working an answer.
+       flex:1/min-height:0/overflow-y:auto used to trap a long lesson
+       inside its OWN inner scrollbar, separate from the page's own -
+       exactly the same bug already fixed for .km-inline-detail on
+       mobile (see that fix's comment above), just not caught here too,
+       and on both mobile and desktop since .km-inline-view's
+       height:100% pins this box's height regardless of viewport width.
+       flex:none lets it grow to its natural content height instead, so
+       anything that doesn't fit is reached by scrolling the PAGE (.content),
+       the same way scrolling already works everywhere else in this app. */
+    .km-lesson-fullpage { flex: none; margin-top: 10px; display: flex; flex-direction: column; gap: 18px; }
+    /* Sticky, not just top-of-flow — a plain top-aligned row would
+       scroll away with the content, found the hard way while testing
+       the back button alone. The "ready next" recommendations used to
+       render at the very bottom of the result, inside that same long
+       scroll — on a phone that meant scrolling through the whole lesson
+       to find them. Living in this sticky header instead means they're
+       visible the moment they exist, with no scrolling, without sitting
+       on top of the app's own topbar (this header is still inside the
+       page's own content flow, not fixed to the viewport) — sticky
+       positioning here tracks the nearest scrolling ancestor, which is
+       now .content (the whole page), same as before this box had its
+       own separate scroll. */
     .km-lesson-sticky-header { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 12px; background: var(--bg); padding-bottom: 2px; }
     .km-lesson-back-btn { flex: none; align-self: flex-start; font-size: 12px; padding: 7px 14px; background: var(--bg); }
     .km-lesson-fullpage-body { max-width: 740px; width: 100%; margin: 0 auto 40px; display: flex; flex-direction: column; gap: 6px; font-size: 15px; }
