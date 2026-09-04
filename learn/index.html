@@ -849,7 +849,46 @@
     .km-notes-title { font-size: 19px; margin: 0; font-weight: 700; color: var(--accent); }
     .km-notes-body { display: flex; gap: 18px; align-items: flex-start; }
     .km-notes-sidebar {
-        flex: 0 0 260px;
+        flex: 0 0 230px;
+        position: sticky;
+        top: 14px;
+        max-height: calc(100vh - 120px);
+        overflow-y: auto;
+        border: 1px solid rgba(230, 215, 176, 0.16);
+        border-radius: 8px;
+        padding: 10px;
+    }
+    /* Deliberately dense — one subject can span the whole spec, and every
+       node on it is listed (not just encoded ones, see getNotesIndexForUser's
+       own comment), so this needs to hold a lot without eating the width
+       the notes themselves need. Grouped by subtopic ("lesson title") so a
+       long subject reads as its own outline, not one flat list. */
+    .km-notes-subject-group { margin-bottom: 14px; }
+    .km-notes-subject-group:last-child { margin-bottom: 0; }
+    .km-notes-subject-heading { font-family: Georgia, serif; font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+    .km-notes-lesson-heading { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.5; font-weight: 700; margin: 8px 0 3px; padding: 0 6px; }
+    .km-notes-item {
+        display: flex; align-items: center; gap: 7px; width: 100%; text-align: left;
+        background: none; border: none; color: var(--text); font-size: 12px; line-height: 1.35;
+        padding: 4px 6px; border-radius: 4px; cursor: pointer; font-family: Arial, sans-serif;
+    }
+    .km-notes-item:hover { background: rgba(230, 215, 176, 0.08); }
+    .km-notes-item.active { background: rgba(230, 215, 176, 0.14); color: var(--accent); }
+    .km-notes-item.not-encoded { opacity: 0.45; }
+    .km-notes-item-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); opacity: 0; }
+    .km-notes-item.has-notes .km-notes-item-dot { opacity: 1; }
+    .km-notes-main { flex: 1; min-width: 0; max-width: 620px; }
+    .km-notes-main .km-inline-lesson-explanation { font-size: 15.5px; line-height: 1.9; }
+    .km-notes-main .km-inline-lesson-explanation p { margin: 0 0 16px; }
+    .km-notes-transfer-heading { font-family: Georgia, serif; font-size: 18px; font-weight: 700; color: var(--accent); margin-bottom: 14px; line-height: 1.5; }
+    /* The "Links" panel — every OUTGOING link from whichever node is
+       currently selected (see selectNotesNode), titled by the concept it
+       links TO with a "→" prefix specifically so it never reads as if it
+       WERE that concept's own entry in the main sidebar list above, just a
+       link to it (same label text otherwise, per the "title them according
+       to the concept node it links to" ask). */
+    .km-notes-links {
+        flex: 0 0 240px;
         position: sticky;
         top: 14px;
         max-height: calc(100vh - 120px);
@@ -858,27 +897,15 @@
         border-radius: 8px;
         padding: 12px;
     }
-    .km-notes-subject-group { margin-bottom: 18px; }
-    .km-notes-subject-group:last-child { margin-bottom: 0; }
-    .km-notes-subject-heading { font-family: Georgia, serif; font-size: 14px; font-weight: 700; color: var(--accent); margin-bottom: 8px; }
-    .km-notes-section-heading { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.55; font-weight: 700; margin: 10px 0 6px; }
-    .km-notes-item {
-        display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
-        background: none; border: none; color: var(--text); font-size: 12.5px;
-        padding: 6px 6px; border-radius: 4px; cursor: pointer; font-family: Arial, sans-serif;
-    }
-    .km-notes-item:hover { background: rgba(230, 215, 176, 0.08); }
-    .km-notes-item.active { background: rgba(230, 215, 176, 0.14); color: var(--accent); }
-    .km-notes-item-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); opacity: 0; }
-    .km-notes-item.has-notes .km-notes-item-dot { opacity: 1; }
-    .km-notes-main { flex: 1; min-width: 0; max-width: 720px; }
-    .km-notes-main .km-inline-lesson-explanation { font-size: 15.5px; line-height: 1.9; }
-    .km-notes-main .km-inline-lesson-explanation p { margin: 0 0 16px; }
-    .km-notes-transfer-heading { font-family: Georgia, serif; font-size: 18px; font-weight: 700; color: var(--accent); margin-bottom: 14px; line-height: 1.5; }
+    .km-notes-links-heading { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.55; font-weight: 700; margin-bottom: 8px; }
+    .km-notes-link-item.locked { opacity: 0.5; cursor: default; }
+    .km-notes-link-item.locked:hover { background: none; }
+    .km-notes-link-locked-hint { font-size: 11px; opacity: 0.6; padding: 2px 6px 8px; line-height: 1.5; }
+    .km-notes-links-back-btn { font-size: 11.5px; padding: 4px 8px; margin-bottom: 10px; }
 
     @media (max-width: 900px) {
         .km-notes-body { flex-direction: column; }
-        .km-notes-sidebar { position: static; max-height: none; width: 100%; flex-basis: auto; }
+        .km-notes-sidebar, .km-notes-links { position: static; max-height: none; width: 100%; flex-basis: auto; }
     }
 
     /* ─── Diagram-drawing question widget ─── */
@@ -4471,14 +4498,16 @@
             </div>
         </template>
 
-        <!-- Notes page (see openNotesPage) — auto-populated from every node
-             the student has encoded and every link they've unlocked
-             transfer+integration notes for (see the compile-backend's
-             knowledgeMapNotesService.ts). km-notes-main deliberately has no
-             height constraint of its own so a long note is reached by
-             scrolling the PAGE, same as everywhere else in this app —
-             km-notes-sidebar is the one deliberate exception, scrolling on
-             its own (see its own CSS comment). -->
+        <!-- Notes page (see openNotesPage) — auto-populated from EVERY node
+             on the knowledge map for any subject the student has touched
+             (not just encoded ones), in specification order, with each
+             node's own outgoing links shown in km-notes-links once it's
+             selected (see the compile-backend's knowledgeMapNotesService.ts).
+             km-notes-main deliberately has no height constraint of its own
+             so a long note is reached by scrolling the PAGE, same as
+             everywhere else in this app — km-notes-sidebar/km-notes-links
+             are the deliberate exception, each scrolling on its own (see
+             their own CSS comment). -->
         <template id="notesPageTemplate">
             <div class="km-notes-view">
                 <div class="km-notes-topbar">
@@ -4488,8 +4517,9 @@
                 <div class="km-notes-body">
                     <div class="km-notes-sidebar"></div>
                     <div class="km-notes-main">
-                        <div class="km-inline-detail-empty">Click a concept or a link on the left to see its notes.</div>
+                        <div class="km-inline-detail-empty">Click a concept on the left to see its notes.</div>
                     </div>
+                    <div class="km-notes-links"></div>
                 </div>
             </div>
         </template>
@@ -13184,97 +13214,149 @@ SQIDAQAB
 
         const sidebarEl = contentInner.querySelector('.km-notes-sidebar');
         const mainEl = contentInner.querySelector('.km-notes-main');
+        const linksEl = contentInner.querySelector('.km-notes-links');
         sidebarEl.innerHTML = '<div class="km-inline-detail-empty">Loading…</div>';
 
         const index = await fetchNotesIndex();
-        renderNotesSidebar(sidebarEl, mainEl, index);
+        renderNotesSidebar(sidebarEl, mainEl, linksEl, index);
     }
 
-    // Labels are looked up from these maps in the click handlers below,
-    // rather than round-tripped through the DOM (dataset/textContent) -
-    // simpler than escaping/unescaping a label through an HTML attribute.
-    function renderNotesSidebar(sidebarEl, mainEl, index) {
+    // Node objects (not just labels) are looked up from this map in the
+    // click handlers below, rather than round-tripped through the DOM -
+    // selectNotesNode needs each node's own encoded/hasNotes/links, not
+    // just its label. Nodes arrive from the backend already in
+    // specification order (see getNotesIndexForUser's own comment on why -
+    // subtopic strings are spec-numbered) - this only GROUPS consecutive
+    // same-subtopic nodes under one heading, it never re-sorts them.
+    // Every node on the map is listed here, not just encoded ones (a
+    // student should see the whole spec laid out) - an unencoded one is
+    // still clickable, just shown dimmed with no notes to offer yet.
+    function renderNotesSidebar(sidebarEl, mainEl, linksEl, index) {
         if (!index.subjects.length) {
             sidebarEl.innerHTML = '<div class="km-inline-detail-empty">Encode a concept on any subject\'s knowledge map to start building notes here.</div>';
             return;
         }
-        const nodeLabelById = new Map();
-        index.subjects.forEach((s) => s.nodes.forEach((n) => nodeLabelById.set(n.nodeId, n.label)));
+        const nodeById = new Map();
+        index.subjects.forEach((s) => s.nodes.forEach((n) => nodeById.set(n.nodeId, n)));
 
-        sidebarEl.innerHTML = index.subjects.map((s) => `
-            <div class="km-notes-subject-group">
-                <div class="km-notes-subject-heading">${escapeHtml(s.subject)}${(s.qualification || s.examBoard) ? ` — ${escapeHtml([s.qualification, s.examBoard].filter(Boolean).join(' · '))}` : ''}</div>
-                ${s.nodes.map((n) => `
-                    <button type="button" class="km-notes-item${n.hasNotes ? ' has-notes' : ''}" data-node-id="${n.nodeId}">
-                        <span class="km-notes-item-dot"></span><span>${escapeHtml(n.label)}</span>
-                    </button>
-                `).join('')}
-                ${s.links.length ? `
-                    <div class="km-notes-section-heading">Transfer &amp; Integration Skills</div>
-                    ${s.links.map((l) => `
-                        <button type="button" class="km-notes-item has-notes" data-from-node-id="${l.fromNodeId}" data-to-node-id="${l.toNodeId}">
-                            <span class="km-notes-item-dot"></span><span>${escapeHtml(l.fromLabel)} → ${escapeHtml(l.toLabel)}</span>
-                        </button>
+        sidebarEl.innerHTML = index.subjects.map((s) => {
+            const groups = [];
+            s.nodes.forEach((n) => {
+                const last = groups[groups.length - 1];
+                if (last && last.subtopic === n.subtopic) last.nodes.push(n);
+                else groups.push({ subtopic: n.subtopic, nodes: [n] });
+            });
+            return `
+                <div class="km-notes-subject-group">
+                    <div class="km-notes-subject-heading">${escapeHtml(s.subject)}${(s.qualification || s.examBoard) ? ` — ${escapeHtml([s.qualification, s.examBoard].filter(Boolean).join(' · '))}` : ''}</div>
+                    ${groups.map((g) => `
+                        <div class="km-notes-lesson-heading">${escapeHtml(g.subtopic || 'General')}</div>
+                        ${g.nodes.map((n) => `
+                            <button type="button" class="km-notes-item${n.hasNotes ? ' has-notes' : ''}${n.encoded ? '' : ' not-encoded'}" data-node-id="${n.nodeId}">
+                                <span class="km-notes-item-dot"></span><span>${escapeHtml(n.label)}</span>
+                            </button>
+                        `).join('')}
                     `).join('')}
-                ` : ''}
-            </div>
-        `).join('');
+                </div>
+            `;
+        }).join('');
 
-        const markActive = (btn) => {
-            sidebarEl.querySelectorAll('.km-notes-item').forEach((b) => b.classList.remove('active'));
-            btn.classList.add('active');
-        };
         sidebarEl.querySelectorAll('.km-notes-item[data-node-id]').forEach((btn) => {
             btn.addEventListener('click', () => {
-                markActive(btn);
-                selectNotesNode(mainEl, btn.dataset.nodeId, nodeLabelById.get(btn.dataset.nodeId) || '');
-            });
-        });
-        sidebarEl.querySelectorAll('.km-notes-item[data-from-node-id]').forEach((btn) => {
-            btn.addEventListener('click', () => {
-                markActive(btn);
-                selectNotesLink(mainEl, btn.dataset.fromNodeId, btn.dataset.toNodeId);
+                sidebarEl.querySelectorAll('.km-notes-item').forEach((b) => b.classList.remove('active'));
+                btn.classList.add('active');
+                selectNotesNode(mainEl, linksEl, nodeById.get(btn.dataset.nodeId));
             });
         });
     }
 
-    async function selectNotesNode(mainEl, nodeId, label) {
+    async function selectNotesNode(mainEl, linksEl, node) {
+        if (!node.encoded) {
+            mainEl.innerHTML = `
+                <div class="km-inline-detail-label" style="margin-bottom:14px;">${escapeHtml(node.label)}</div>
+                <div class="km-inline-detail-item km-inline-detail-none">Not encoded yet — head to this subject's knowledge map to start its lesson.</div>
+            `;
+            linksEl.innerHTML = '';
+            return;
+        }
+        renderNotesLinksPanel(linksEl, node);
         mainEl.innerHTML = '<div class="km-inline-detail-empty">Loading…</div>';
-        const notes = await fetchNodeNotesGet(nodeId);
+        const notes = await fetchNodeNotesGet(node.nodeId);
         if (notes) {
-            mainEl.innerHTML = `<div class="km-inline-detail-label" style="margin-bottom:14px;">${escapeHtml(label)}</div><div class="km-inline-lesson-explanation">${notesTextToHtml(notes.notes)}</div>`;
+            mainEl.innerHTML = `<div class="km-inline-detail-label" style="margin-bottom:14px;">${escapeHtml(node.label)}</div><div class="km-inline-lesson-explanation">${notesTextToHtml(notes.notes)}</div>`;
             return;
         }
         mainEl.innerHTML = `
-            <div class="km-inline-detail-label" style="margin-bottom:14px;">${escapeHtml(label)}</div>
+            <div class="km-inline-detail-label" style="margin-bottom:14px;">${escapeHtml(node.label)}</div>
             <div class="km-inline-detail-item km-inline-detail-none">No notes compiled for this concept yet.</div>
             <button type="button" class="btn primary km-notes-compile-btn" style="margin-top:10px;">Compile notes</button>
         `;
         mainEl.querySelector('.km-notes-compile-btn').addEventListener('click', async (ev) => {
             ev.target.disabled = true;
             ev.target.textContent = 'Compiling…';
-            const result = await compileNodeNotesRequest(nodeId);
+            const result = await compileNodeNotesRequest(node.nodeId);
             if (!result) {
                 ev.target.disabled = false;
                 ev.target.textContent = 'Compile notes';
                 mainEl.insertAdjacentHTML('beforeend', '<div class="km-inline-detail-item km-inline-detail-none" style="margin-top:8px;">Something went wrong — try again.</div>');
                 return;
             }
-            mainEl.innerHTML = `<div class="km-inline-detail-label" style="margin-bottom:14px;">${escapeHtml(label)}</div><div class="km-inline-lesson-explanation">${notesTextToHtml(result.notes)}</div>`;
+            mainEl.innerHTML = `<div class="km-inline-detail-label" style="margin-bottom:14px;">${escapeHtml(node.label)}</div><div class="km-inline-lesson-explanation">${notesTextToHtml(result.notes)}</div>`;
         });
     }
 
-    async function selectNotesLink(mainEl, fromNodeId, toNodeId) {
-        mainEl.innerHTML = '<div class="km-inline-detail-empty">Loading…</div>';
-        const notes = await fetchEdgeNotesGet(fromNodeId, toNodeId);
-        if (!notes) {
-            mainEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Something went wrong loading these notes — try again.</div>';
+    // The right-hand "Links" panel for whichever node is currently
+    // selected - every one of ITS OWN outgoing links (see
+    // getNotesIndexForUser's own comment: a link to a not-yet-encoded
+    // target never appears at all), titled with a "→" prefix so a link
+    // entry never reads as if it WERE that concept's own entry in the
+    // main sidebar list (same label text otherwise, per "title them
+    // according to the concept node it links to"). A link that hasn't
+    // been earned yet (no review pass yet) still shows, disabled, with a
+    // one-line explanation of what unlocks it - matching the node list's
+    // own "shown but inert until earned" treatment above.
+    function renderNotesLinksPanel(linksEl, node) {
+        if (!node.links.length) {
+            linksEl.innerHTML = `<div class="km-notes-links-heading">Links</div><div class="km-inline-detail-item km-inline-detail-none">No links tested yet for this concept.</div>`;
             return;
         }
-        mainEl.innerHTML = `
-            <div class="km-notes-transfer-heading">${escapeHtml(notes.transferSummary)}</div>
-            <div class="km-inline-lesson-explanation">${notesTextToHtml(notes.integrationSummary)}</div>
+        linksEl.innerHTML = `
+            <div class="km-notes-links-heading">Links</div>
+            ${node.links.map((l, i) => l.unlocked
+                ? `<button type="button" class="km-notes-item km-notes-link-item has-notes" data-link-idx="${i}">
+                       <span class="km-notes-item-dot"></span><span>→ ${escapeHtml(l.toLabel)}</span>
+                   </button>`
+                : `<div>
+                       <button type="button" class="km-notes-item km-notes-link-item locked" disabled>
+                           <span class="km-notes-item-dot"></span><span>→ ${escapeHtml(l.toLabel)}</span>
+                       </button>
+                       <div class="km-notes-link-locked-hint">Complete this link's spaced review to unlock its notes.</div>
+                   </div>`
+            ).join('')}
         `;
+        linksEl.querySelectorAll('.km-notes-link-item[data-link-idx]').forEach((btn) => {
+            btn.addEventListener('click', () => selectNotesLink(linksEl, node, node.links[Number(btn.dataset.linkIdx)]));
+        });
+    }
+
+    async function selectNotesLink(linksEl, node, link) {
+        const backBtnHtml = `<button type="button" class="btn km-notes-links-back-btn">← Links</button>`;
+        const wireBack = () => linksEl.querySelector('.km-notes-links-back-btn').addEventListener('click', () => renderNotesLinksPanel(linksEl, node));
+
+        linksEl.innerHTML = `${backBtnHtml}<div class="km-inline-detail-empty">Loading…</div>`;
+        wireBack();
+        const notes = await fetchEdgeNotesGet(node.nodeId, link.toNodeId);
+        if (!notes) {
+            linksEl.innerHTML = `${backBtnHtml}<div class="km-inline-detail-item km-inline-detail-none">Something went wrong loading these notes — try again.</div>`;
+            wireBack();
+            return;
+        }
+        linksEl.innerHTML = `
+            ${backBtnHtml}
+            <div class="km-notes-transfer-heading" style="font-size:15px;">${escapeHtml(notes.transferSummary)}</div>
+            <div class="km-inline-lesson-explanation" style="font-size:13px; line-height:1.7;">${notesTextToHtml(notes.integrationSummary)}</div>
+        `;
+        wireBack();
     }
 
     // The "compile notes lesson" step shown right after a node's own
