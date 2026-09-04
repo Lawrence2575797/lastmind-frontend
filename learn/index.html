@@ -834,6 +834,53 @@
     .km-lesson-fullpage-body .km-inline-detail-section h4 { font-size: 17px; text-transform: none; letter-spacing: normal; opacity: 1; color: var(--accent); font-weight: 700; margin-bottom: 12px; font-family: Georgia, serif; }
     .km-lesson-fullpage-body .math-shortcut-wrap { max-width: 560px; }
 
+    /* ─── Notes page (see openNotesPage) — the one deliberate exception to
+       "the page scrolls, not a nested box" (see .km-lesson-fullpage's own
+       fix above): .km-notes-sidebar scrolls independently of the page,
+       .km-notes-main does not. Achieved with position:sticky rather than
+       a fixed-height flex column + overflow:auto — deliberately NOT the
+       height:100% cascade .km-inline-view relies on, since that's exactly
+       the pattern that caused .km-lesson-fullpage's own nested-scroll bug.
+       Class prefix km-notes- throughout, distinct from the unrelated
+       .note-editable/.notes-panel classes (the per-page lesson-notes
+       editor) to avoid any collision. */
+    .km-notes-view { display: flex; flex-direction: column; gap: 14px; }
+    .km-notes-topbar { display: flex; align-items: center; gap: 14px; padding: 4px 4px 16px; border-bottom: 1px solid rgba(230, 215, 176, 0.16); }
+    .km-notes-title { font-size: 19px; margin: 0; font-weight: 700; color: var(--accent); }
+    .km-notes-body { display: flex; gap: 18px; align-items: flex-start; }
+    .km-notes-sidebar {
+        flex: 0 0 260px;
+        position: sticky;
+        top: 14px;
+        max-height: calc(100vh - 120px);
+        overflow-y: auto;
+        border: 1px solid rgba(230, 215, 176, 0.16);
+        border-radius: 8px;
+        padding: 12px;
+    }
+    .km-notes-subject-group { margin-bottom: 18px; }
+    .km-notes-subject-group:last-child { margin-bottom: 0; }
+    .km-notes-subject-heading { font-family: Georgia, serif; font-size: 14px; font-weight: 700; color: var(--accent); margin-bottom: 8px; }
+    .km-notes-section-heading { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.55; font-weight: 700; margin: 10px 0 6px; }
+    .km-notes-item {
+        display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+        background: none; border: none; color: var(--text); font-size: 12.5px;
+        padding: 6px 6px; border-radius: 4px; cursor: pointer; font-family: Arial, sans-serif;
+    }
+    .km-notes-item:hover { background: rgba(230, 215, 176, 0.08); }
+    .km-notes-item.active { background: rgba(230, 215, 176, 0.14); color: var(--accent); }
+    .km-notes-item-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); opacity: 0; }
+    .km-notes-item.has-notes .km-notes-item-dot { opacity: 1; }
+    .km-notes-main { flex: 1; min-width: 0; max-width: 720px; }
+    .km-notes-main .km-inline-lesson-explanation { font-size: 15.5px; line-height: 1.9; }
+    .km-notes-main .km-inline-lesson-explanation p { margin: 0 0 16px; }
+    .km-notes-transfer-heading { font-family: Georgia, serif; font-size: 18px; font-weight: 700; color: var(--accent); margin-bottom: 14px; line-height: 1.5; }
+
+    @media (max-width: 900px) {
+        .km-notes-body { flex-direction: column; }
+        .km-notes-sidebar { position: static; max-height: none; width: 100%; flex-basis: auto; }
+    }
+
     /* ─── Diagram-drawing question widget ─── */
     .diagram-widget { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
     .diagram-palette { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -4313,8 +4360,9 @@
             </div>
 
             <div class="sidebar-tabs">
-                <button class="sidebar-tab-btn active" id="foldersTabBtn" type="button">Subjects</button>
                 <button class="sidebar-tab-btn" id="cortexTabBtn" type="button">Cortex</button>
+                <button class="sidebar-tab-btn" id="notesTabBtn" type="button">Notes</button>
+                <button class="sidebar-tab-btn active" id="foldersTabBtn" type="button">Subjects</button>
             </div>
 
             <div class="folder-list" id="folderList">
@@ -4419,6 +4467,29 @@
                         <button type="button" class="btn km-lesson-back-btn">← Back to map</button>
                     </div>
                     <div class="km-lesson-fullpage-body"></div>
+                </div>
+            </div>
+        </template>
+
+        <!-- Notes page (see openNotesPage) — auto-populated from every node
+             the student has encoded and every link they've unlocked
+             transfer+integration notes for (see the compile-backend's
+             knowledgeMapNotesService.ts). km-notes-main deliberately has no
+             height constraint of its own so a long note is reached by
+             scrolling the PAGE, same as everywhere else in this app —
+             km-notes-sidebar is the one deliberate exception, scrolling on
+             its own (see its own CSS comment). -->
+        <template id="notesPageTemplate">
+            <div class="km-notes-view">
+                <div class="km-notes-topbar">
+                    <button type="button" class="btn km-notes-dashboard-btn">← Dashboard</button>
+                    <h1 class="km-notes-title">My Notes</h1>
+                </div>
+                <div class="km-notes-body">
+                    <div class="km-notes-sidebar"></div>
+                    <div class="km-notes-main">
+                        <div class="km-inline-detail-empty">Click a concept or a link on the left to see its notes.</div>
+                    </div>
                 </div>
             </div>
         </template>
@@ -10888,18 +10959,26 @@ SQIDAQAB
         openMathsTool();
     });
 
-    let sidebarTab = 'folders'; // 'folders' | 'cortex'
+    let sidebarTab = 'folders'; // 'folders' | 'cortex' | 'notes'
 
+    // Notes is a full PAGE (see openNotesPage), not a sidebar list panel
+    // like the other two - it still joins the same three-way tab row for
+    // visual consistency (and gets marked active the same way), but
+    // "switching to it" means replacing #contentInner's content, not
+    // toggling which list shows underneath the tabs.
     function setSidebarTab(tab) {
         sidebarTab = tab;
         document.getElementById('foldersTabBtn').classList.toggle('active', tab === 'folders');
         document.getElementById('cortexTabBtn').classList.toggle('active', tab === 'cortex');
+        document.getElementById('notesTabBtn').classList.toggle('active', tab === 'notes');
         document.getElementById('folderList').style.display = tab === 'folders' ? 'block' : 'none';
         document.getElementById('cortexChatList').style.display = tab === 'cortex' ? 'flex' : 'none';
         if (tab === 'cortex') refreshCortexChatList();
+        if (tab === 'notes') openNotesPage();
     }
 
     document.getElementById('foldersTabBtn').addEventListener('click', () => setSidebarTab('folders'));
+    document.getElementById('notesTabBtn').addEventListener('click', () => setSidebarTab('notes'));
     // Swapped with the old Calendar tab — Cortex now lives here in the
     // sidebar (a list of past chats, click to continue or "+ New chat"),
     // and the actual chat interface renders in the dashboard's own main
@@ -12998,6 +13077,231 @@ SQIDAQAB
         renderKmInlineGraph(contentInner, folder, data, null);
     }
 
+    // ─── Notes page ──────────────────────────────────────────────────
+    // Compiled study notes — a node's own encoding note once it's been
+    // encoded, and an edge's transfer+integration notes once a review
+    // session actually passes both checks for that link (see
+    // renderNodeReviewSummary's own hook, and this page's own "Compile
+    // notes" button for a node that's encoded but not yet compiled).
+    // Content is generated server-side from the node's/edge's own already-
+    // authored ground truth, never re-derived here — see the compile-
+    // backend's knowledgeMapNotesService.ts.
+    async function fetchNotesIndex() {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return { subjects: [] };
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/notes-index`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            return await resp.json();
+        } catch (err) {
+            console.error('LastMind: failed to load the notes index.', err);
+            return { subjects: [] };
+        }
+    }
+
+    async function fetchNodeNotesGet(nodeId) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return null;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/node/${encodeURIComponent(nodeId)}/notes`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (resp.status === 404) return null;
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            return await resp.json();
+        } catch (err) {
+            console.error('LastMind: failed to load these notes.', err);
+            return null;
+        }
+    }
+
+    async function compileNodeNotesRequest(nodeId) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return null;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/node/${encodeURIComponent(nodeId)}/notes/compile`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            return await resp.json();
+        } catch (err) {
+            console.error('LastMind: failed to compile these notes.', err);
+            return null;
+        }
+    }
+
+    async function fetchEdgeNotesGet(fromNodeId, toNodeId) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return null;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/edge/${encodeURIComponent(fromNodeId)}/${encodeURIComponent(toNodeId)}/notes`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (resp.status === 404) return null;
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            return await resp.json();
+        } catch (err) {
+            console.error('LastMind: failed to load these notes.', err);
+            return null;
+        }
+    }
+
+    // Also unlocks these notes for the current user server-side (see
+    // compileEdgeNotes's own comment) - called both from the Notes page's
+    // own click (already-unlocked link, just re-fetching) and from
+    // renderNodeReviewSummary right after a genuine pass (first unlock).
+    async function compileEdgeNotesRequest(fromNodeId, toNodeId) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return null;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/edge/${encodeURIComponent(fromNodeId)}/${encodeURIComponent(toNodeId)}/notes/compile`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            return await resp.json();
+        } catch (err) {
+            console.error('LastMind: failed to compile these notes.', err);
+            return null;
+        }
+    }
+
+    async function openNotesPage() {
+        stopActiveDictation();
+        stopSpeaking();
+        const contentInner = document.getElementById('contentInner');
+        contentInner.classList.add('content-inner-wide');
+        const template = document.getElementById('notesPageTemplate');
+        contentInner.innerHTML = '';
+        contentInner.appendChild(template.content.cloneNode(true));
+
+        contentInner.querySelector('.km-notes-dashboard-btn').addEventListener('click', () => {
+            openCortexChat(null, true);
+        });
+
+        const sidebarEl = contentInner.querySelector('.km-notes-sidebar');
+        const mainEl = contentInner.querySelector('.km-notes-main');
+        sidebarEl.innerHTML = '<div class="km-inline-detail-empty">Loading…</div>';
+
+        const index = await fetchNotesIndex();
+        renderNotesSidebar(sidebarEl, mainEl, index);
+    }
+
+    // Labels are looked up from these maps in the click handlers below,
+    // rather than round-tripped through the DOM (dataset/textContent) -
+    // simpler than escaping/unescaping a label through an HTML attribute.
+    function renderNotesSidebar(sidebarEl, mainEl, index) {
+        if (!index.subjects.length) {
+            sidebarEl.innerHTML = '<div class="km-inline-detail-empty">Encode a concept on any subject\'s knowledge map to start building notes here.</div>';
+            return;
+        }
+        const nodeLabelById = new Map();
+        index.subjects.forEach((s) => s.nodes.forEach((n) => nodeLabelById.set(n.nodeId, n.label)));
+
+        sidebarEl.innerHTML = index.subjects.map((s) => `
+            <div class="km-notes-subject-group">
+                <div class="km-notes-subject-heading">${escapeHtml(s.subject)}${(s.qualification || s.examBoard) ? ` — ${escapeHtml([s.qualification, s.examBoard].filter(Boolean).join(' · '))}` : ''}</div>
+                ${s.nodes.map((n) => `
+                    <button type="button" class="km-notes-item${n.hasNotes ? ' has-notes' : ''}" data-node-id="${n.nodeId}">
+                        <span class="km-notes-item-dot"></span><span>${escapeHtml(n.label)}</span>
+                    </button>
+                `).join('')}
+                ${s.links.length ? `
+                    <div class="km-notes-section-heading">Transfer &amp; Integration Skills</div>
+                    ${s.links.map((l) => `
+                        <button type="button" class="km-notes-item has-notes" data-from-node-id="${l.fromNodeId}" data-to-node-id="${l.toNodeId}">
+                            <span class="km-notes-item-dot"></span><span>${escapeHtml(l.fromLabel)} → ${escapeHtml(l.toLabel)}</span>
+                        </button>
+                    `).join('')}
+                ` : ''}
+            </div>
+        `).join('');
+
+        const markActive = (btn) => {
+            sidebarEl.querySelectorAll('.km-notes-item').forEach((b) => b.classList.remove('active'));
+            btn.classList.add('active');
+        };
+        sidebarEl.querySelectorAll('.km-notes-item[data-node-id]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                markActive(btn);
+                selectNotesNode(mainEl, btn.dataset.nodeId, nodeLabelById.get(btn.dataset.nodeId) || '');
+            });
+        });
+        sidebarEl.querySelectorAll('.km-notes-item[data-from-node-id]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                markActive(btn);
+                selectNotesLink(mainEl, btn.dataset.fromNodeId, btn.dataset.toNodeId);
+            });
+        });
+    }
+
+    async function selectNotesNode(mainEl, nodeId, label) {
+        mainEl.innerHTML = '<div class="km-inline-detail-empty">Loading…</div>';
+        const notes = await fetchNodeNotesGet(nodeId);
+        if (notes) {
+            mainEl.innerHTML = `<div class="km-inline-detail-label" style="margin-bottom:14px;">${escapeHtml(label)}</div><div class="km-inline-lesson-explanation">${notesTextToHtml(notes.notes)}</div>`;
+            return;
+        }
+        mainEl.innerHTML = `
+            <div class="km-inline-detail-label" style="margin-bottom:14px;">${escapeHtml(label)}</div>
+            <div class="km-inline-detail-item km-inline-detail-none">No notes compiled for this concept yet.</div>
+            <button type="button" class="btn primary km-notes-compile-btn" style="margin-top:10px;">Compile notes</button>
+        `;
+        mainEl.querySelector('.km-notes-compile-btn').addEventListener('click', async (ev) => {
+            ev.target.disabled = true;
+            ev.target.textContent = 'Compiling…';
+            const result = await compileNodeNotesRequest(nodeId);
+            if (!result) {
+                ev.target.disabled = false;
+                ev.target.textContent = 'Compile notes';
+                mainEl.insertAdjacentHTML('beforeend', '<div class="km-inline-detail-item km-inline-detail-none" style="margin-top:8px;">Something went wrong — try again.</div>');
+                return;
+            }
+            mainEl.innerHTML = `<div class="km-inline-detail-label" style="margin-bottom:14px;">${escapeHtml(label)}</div><div class="km-inline-lesson-explanation">${notesTextToHtml(result.notes)}</div>`;
+        });
+    }
+
+    async function selectNotesLink(mainEl, fromNodeId, toNodeId) {
+        mainEl.innerHTML = '<div class="km-inline-detail-empty">Loading…</div>';
+        const notes = await fetchEdgeNotesGet(fromNodeId, toNodeId);
+        if (!notes) {
+            mainEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">Something went wrong loading these notes — try again.</div>';
+            return;
+        }
+        mainEl.innerHTML = `
+            <div class="km-notes-transfer-heading">${escapeHtml(notes.transferSummary)}</div>
+            <div class="km-inline-lesson-explanation">${notesTextToHtml(notes.integrationSummary)}</div>
+        `;
+    }
+
+    // The "compile notes lesson" step shown right after a node's own
+    // encoding genuinely completes (see renderNodeLessonContent) - also
+    // reachable later from the Notes page itself for a node that skipped
+    // this step, via the exact same compile endpoint (compileNodeNotesRequest).
+    function renderCompileNotesCta(container, nodeId, label) {
+        container.innerHTML = `<button type="button" class="btn primary km-notes-compile-btn" style="margin-top:14px;">Compile notes</button>`;
+        container.querySelector('.km-notes-compile-btn').addEventListener('click', async (ev) => {
+            ev.target.disabled = true;
+            ev.target.textContent = 'Compiling…';
+            const result = await compileNodeNotesRequest(nodeId);
+            if (!result) {
+                ev.target.disabled = false;
+                ev.target.textContent = 'Compile notes';
+                container.insertAdjacentHTML('beforeend', '<div class="km-inline-detail-item km-inline-detail-none" style="margin-top:8px;">Something went wrong — try again.</div>');
+                return;
+            }
+            container.innerHTML = `
+                <div class="km-inline-detail-section" style="margin-top:14px;">
+                    <h4>Notes — ${escapeHtml(label)}</h4>
+                    <div class="km-inline-lesson-explanation">${notesTextToHtml(result.notes)}</div>
+                </div>
+            `;
+        });
+    }
+
     // Theme pills — "All" (default) plus one per distinct `theme` value
     // present in the data. Clicking one re-renders the graph filtered to
     // just that theme's own nodes/edges; "All" shows the whole subject,
@@ -13561,10 +13865,12 @@ SQIDAQAB
                 : `
                     <div class="km-inline-lesson-explanation">${splitIntoParagraphs(nodeLesson.explanation)}</div>
                     ${nodeLesson.practiceQuestion ? `<div><strong class="km-inline-lesson-question" style="display:block;">Practice</strong><div id="km-question-node-practice"></div></div>` : ''}
+                    <div id="km-node-notes-cta"></div>
                 `;
 
             if (nodeLesson && nodeLesson.practiceQuestion) {
                 const el = lessonEl.querySelector('#km-question-node-practice');
+                const notesCtaEl = lessonEl.querySelector('#km-node-notes-cta');
                 // A real (non-retryable) pass here means this is the first
                 // time this concept has ever been encoded — the map's
                 // schedule cache is updated in place (rather than waiting
@@ -13585,10 +13891,22 @@ SQIDAQAB
                         // see updateNodeMasteryState's own comment.
                         updateNodeMasteryState(d, result.schedule);
                     }
+                    // A real pass ("Compile notes" lesson) - the moment
+                    // this concept is genuinely encoded, offer to turn its
+                    // own explanation into a standalone note on the Notes
+                    // page (see renderCompileNotesCta), same as a node with
+                    // no practice question gets immediately below.
+                    if (result && result.correct && !result.retryable) {
+                        renderCompileNotesCta(notesCtaEl, d.id, d.label);
+                    }
                     return result;
                 };
                 if (nodeLesson.practiceQuestion.diagramSpec) renderDiagramWidget(el, null, submit);
                 else renderTextQuestionWidget(el, nodeLesson.practiceQuestion.questionText, submit);
+            } else if (nodeLesson) {
+                // No practice question at all - viewing the explanation IS
+                // the whole lesson, so the notes offer shows immediately.
+                renderCompileNotesCta(lessonEl.querySelector('#km-node-notes-cta'), d.id, d.label);
             }
         }
 
@@ -13860,7 +14178,7 @@ SQIDAQAB
                     fullData.scheduleByConceptId.set(result.schedule.conceptId, result.schedule);
                     updateLinkMasteryState(d.id, link.id, result.schedule);
                 }
-                resultsSoFar.push({ label: `${d.label} → ${link.label} — identify`, correct: true, keysEarned: result.keysEarned });
+                resultsSoFar.push({ label: `${d.label} → ${link.label} — identify`, correct: true, keysEarned: result.keysEarned, toNodeId: link.id, stage: 'identify' });
                 ev.target.remove();
                 renderNodeReviewStepDone(lessonEl, result, () => renderNodeReviewIntegrationStart(lessonEl, d, qualifyingLinks, index, resultsSoFar));
             });
@@ -13923,13 +14241,13 @@ SQIDAQAB
                     fullData.scheduleByConceptId.set(result.schedule.conceptId, result.schedule);
                     updateLinkMasteryState(d.id, link.id, result.schedule);
                 }
-                resultsSoFar.push({ label: `${d.label} → ${link.label} — integration`, correct: result.correct, keysEarned: result.keysEarned });
+                resultsSoFar.push({ label: `${d.label} → ${link.label} — integration`, correct: result.correct, keysEarned: result.keysEarned, toNodeId: link.id, stage: 'integration' });
                 ev.target.remove();
                 renderNodeReviewStepDone(lessonEl, result, () => renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, index + 1, resultsSoFar));
             });
         }
 
-        function renderNodeReviewSummary(lessonEl, d, resultsSoFar) {
+        async function renderNodeReviewSummary(lessonEl, d, resultsSoFar) {
             clearNodeReviewCheckpoint(d.id);
             const totalKeys = resultsSoFar.reduce((sum, r) => sum + (r.keysEarned || 0), 0);
             const rows = resultsSoFar.length
@@ -13941,10 +14259,40 @@ SQIDAQAB
                     <div class="km-inline-detail-item">"${escapeHtml(d.label)}" — recall check done.</div>
                     ${rows}
                     ${keysEarnedHtml(totalKeys)}
+                    <div id="km-review-notes-status"></div>
                     <button type="button" class="btn primary km-review-back-btn" style="margin-top:10px;">Back to map</button>
                 </div>
             `;
             lessonEl.querySelector('.km-review-back-btn').addEventListener('click', () => showKmWorkspace(contentInner));
+
+            // Every link that genuinely passed BOTH identify and
+            // integration in this exact session earns compiled
+            // transfer+integration notes on the Notes page (see
+            // compileEdgeNotesRequest/knowledgeMapNotesService.ts's
+            // compileEdgeNotes) - each link contributes one 'identify' and
+            // one 'integration' entry above, grouped here by toNodeId.
+            const linkIds = Array.from(new Set(resultsSoFar.filter((r) => r.toNodeId).map((r) => r.toNodeId)));
+            const fullyPassedLinkIds = linkIds.filter((toNodeId) =>
+                resultsSoFar.some((r) => r.toNodeId === toNodeId && r.stage === 'identify' && r.correct) &&
+                resultsSoFar.some((r) => r.toNodeId === toNodeId && r.stage === 'integration' && r.correct)
+            );
+            if (!fullyPassedLinkIds.length) return;
+
+            const compiledLabels = [];
+            for (const toNodeId of fullyPassedLinkIds) {
+                const result = await compileEdgeNotesRequest(d.id, toNodeId);
+                if (!result) continue;
+                const link = fullData.nodes.find((n) => n.id === toNodeId);
+                compiledLabels.push(link ? `${d.label} → ${link.label}` : d.label);
+            }
+            // The student may already have clicked "Back to map" (or this
+            // node's review may have been re-entered) by the time these
+            // awaits resolve - only write into the status line if this
+            // exact summary screen is still the one showing.
+            const statusEl = lessonEl.querySelector('#km-review-notes-status');
+            if (statusEl && compiledLabels.length) {
+                statusEl.innerHTML = `<p class="keys-earned-line">📝 Notes ready: ${escapeHtml(compiledLabels.join(', '))}</p>`;
+            }
         }
 
         // "Verify" — the Premium test-out shortcut (see the backend's
