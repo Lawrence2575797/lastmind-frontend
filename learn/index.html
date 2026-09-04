@@ -13187,6 +13187,41 @@ SQIDAQAB
         nodeGroup.append('text').attr('class', 'km-node-label').attr('dy', (d) => d.r + 14)
             .text((d) => (d.label.length > 40 ? d.label.slice(0, 38) + '…' : d.label));
 
+        // Patches this node's own colour/tier in place the instant a
+        // lesson or review actually completes (see each submit handler's
+        // own call to this), rather than only reflecting it after the
+        // whole graph is rebuilt from a fresh fetch - previously that
+        // meant a node stayed "Not started" until the app was closed and
+        // reopened, even though the lesson had genuinely just been
+        // encoded. Mutates the SAME datum object the click handlers
+        // already close over (so re-selecting the node picks up the new
+        // state text immediately too) and re-applies just this one
+        // node's class/fill-opacity directly - never a full
+        // renderKmInlineGraph re-run, which would restart the force
+        // simulation and reset the student's current pan/zoom.
+        function updateNodeMasteryState(nodeDatum, detail) {
+            fullData.masteryDetail = fullData.masteryDetail || {};
+            fullData.masteryDetail[nodeDatum.id] = detail;
+            nodeDatum.state = masteryProgressTier(detail);
+            nodeDatum.detail = detail;
+            const g = nodeGroup.filter((n) => n.id === nodeDatum.id);
+            g.attr('class', `km-node-group state-${nodeDatum.state}`);
+            g.select('.km-node-shape').attr('fill-opacity', nodeDatum.state === 0 ? 0.55 : 1);
+        }
+
+        // Same idea for a link's own review progress (see the matching
+        // .km-link.state-N ramp) - keyed by the raw node-id pair, same as
+        // edgeMasteryDetail/links above, not by concept id.
+        function updateLinkMasteryState(fromNodeId, toNodeId, detail) {
+            fullData.edgeMasteryDetail = fullData.edgeMasteryDetail || {};
+            fullData.edgeMasteryDetail[`${fromNodeId}->${toNodeId}`] = detail;
+            const linkDatum = links.find((l) =>
+                (l.source.id || l.source) === fromNodeId && (l.target.id || l.target) === toNodeId);
+            if (!linkDatum) return;
+            linkDatum.state = masteryProgressTier(detail);
+            linkSelection.filter((l) => l === linkDatum).attr('class', `km-link state-${linkDatum.state}`);
+        }
+
         function estimateLabelHalfWidth(label) { return Math.min((label || '').length, 42) * 2.9 + 6; }
 
         function renderKmTick() {
@@ -13544,6 +13579,11 @@ SQIDAQAB
                     );
                     if (result && result.schedule) {
                         fullData.scheduleByConceptId.set(result.schedule.conceptId, result.schedule);
+                        // The map's own colour (state-0 "Not started" ->
+                        // state-1 "Learning") used to only pick this up
+                        // after the app was fully closed and reopened -
+                        // see updateNodeMasteryState's own comment.
+                        updateNodeMasteryState(d, result.schedule);
                     }
                     return result;
                 };
@@ -13634,7 +13674,10 @@ SQIDAQAB
         // real. A wrong one ends the session here, with its own result
         // still shown in the summary rather than silently dropped.
         function finishNodeReviewAo1(lessonEl, d, qualifyingLinks, finalResult) {
-            if (finalResult.schedule) fullData.scheduleByConceptId.set(finalResult.schedule.conceptId, finalResult.schedule);
+            if (finalResult.schedule) {
+                fullData.scheduleByConceptId.set(finalResult.schedule.conceptId, finalResult.schedule);
+                updateNodeMasteryState(d, finalResult.schedule);
+            }
             const ao1Entry = { label: `${d.label} — recall check`, correct: finalResult.correct, keysEarned: finalResult.keysEarned };
             renderNodeReviewStepDone(lessonEl, finalResult, () => {
                 if (finalResult.correct) renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, 0, [ao1Entry]);
@@ -13813,7 +13856,10 @@ SQIDAQAB
                     renderNodeReviewIdentify(lessonEl, d, qualifyingLinks, index, resultsSoFar, true, result.feedback || '');
                     return;
                 }
-                if (result.schedule) fullData.scheduleByConceptId.set(result.schedule.conceptId, result.schedule);
+                if (result.schedule) {
+                    fullData.scheduleByConceptId.set(result.schedule.conceptId, result.schedule);
+                    updateLinkMasteryState(d.id, link.id, result.schedule);
+                }
                 resultsSoFar.push({ label: `${d.label} → ${link.label} — identify`, correct: true, keysEarned: result.keysEarned });
                 ev.target.remove();
                 renderNodeReviewStepDone(lessonEl, result, () => renderNodeReviewIntegrationStart(lessonEl, d, qualifyingLinks, index, resultsSoFar));
@@ -13873,7 +13919,10 @@ SQIDAQAB
                     return renderNodeReviewSubmitError(lessonEl);
                 }
                 clearAnswerDraft(draftKey);
-                if (result.schedule) fullData.scheduleByConceptId.set(result.schedule.conceptId, result.schedule);
+                if (result.schedule) {
+                    fullData.scheduleByConceptId.set(result.schedule.conceptId, result.schedule);
+                    updateLinkMasteryState(d.id, link.id, result.schedule);
+                }
                 resultsSoFar.push({ label: `${d.label} → ${link.label} — integration`, correct: result.correct, keysEarned: result.keysEarned });
                 ev.target.remove();
                 renderNodeReviewStepDone(lessonEl, result, () => renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, index + 1, resultsSoFar));
