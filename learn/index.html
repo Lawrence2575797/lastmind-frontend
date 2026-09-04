@@ -210,6 +210,51 @@
         margin-top: 2px;
     }
 
+    /* ─── NOTES TREE (sidebar "Notes" tab) — Subject > Theme > Subtopic
+       ("lesson") > atomic concept node, matching how the specification
+       itself is actually taught (see getNotesIndexForUser's own comment
+       on where the theme names/ordering come from). Lives in the app's
+       own persistent, collapsible sidebar (same overflow-y:auto pattern
+       as .folder-list/.cortex-chat-list above) rather than inside the
+       Notes content itself, so it scrolls independently of whatever notes
+       are showing in the main content area for free — no sticky-position
+       tricks needed, unlike the old in-page sidebar this replaced. */
+    .notes-tree-list {
+        display: none;
+        flex: 1;
+        overflow-y: auto;
+        padding: 10px 10px 20px;
+    }
+
+    .notes-tree-subject { margin-bottom: 16px; }
+    .notes-tree-subject:last-child { margin-bottom: 0; }
+    .notes-tree-subject-heading { font-family: Georgia, serif; font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: 6px; padding: 0 4px; }
+
+    .notes-tree-theme-toggle, .notes-tree-subtopic-toggle {
+        display: flex; align-items: center; gap: 6px; width: 100%; text-align: left;
+        background: none; border: none; color: var(--text); cursor: pointer; font-family: Arial, sans-serif;
+    }
+    .notes-tree-theme-toggle { font-size: 12px; font-weight: 600; padding: 6px 4px; }
+    .notes-tree-subtopic-toggle { font-size: 11.5px; opacity: 0.85; padding: 5px 4px; }
+    .notes-tree-theme-toggle:hover, .notes-tree-subtopic-toggle:hover { background: rgba(230, 215, 176, 0.06); border-radius: 4px; }
+
+    .notes-tree-arrow { display: inline-block; flex: none; font-size: 9px; opacity: 0.6; transition: transform 0.15s ease; }
+    .notes-tree-arrow.open { transform: rotate(90deg); }
+
+    .notes-tree-theme-body { padding-left: 10px; }
+    .notes-tree-subtopic-body { padding-left: 10px; }
+
+    .notes-tree-node-item {
+        display: flex; align-items: center; gap: 6px; width: 100%; text-align: left;
+        background: none; border: none; color: var(--text); font-size: 11.5px; line-height: 1.35;
+        padding: 4px 6px; border-radius: 4px; cursor: pointer; font-family: Arial, sans-serif;
+    }
+    .notes-tree-node-item:hover { background: rgba(230, 215, 176, 0.08); }
+    .notes-tree-node-item.active { background: rgba(230, 215, 176, 0.14); color: var(--accent); }
+    .notes-tree-node-item.not-encoded { opacity: 0.45; }
+    .notes-tree-node-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); opacity: 0; }
+    .notes-tree-node-item.has-notes .notes-tree-node-dot { opacity: 1; }
+
     .drill-header {
         padding: 4px 4px 12px;
     }
@@ -834,47 +879,23 @@
     .km-lesson-fullpage-body .km-inline-detail-section h4 { font-size: 17px; text-transform: none; letter-spacing: normal; opacity: 1; color: var(--accent); font-weight: 700; margin-bottom: 12px; font-family: Georgia, serif; }
     .km-lesson-fullpage-body .math-shortcut-wrap { max-width: 560px; }
 
-    /* ─── Notes page (see openNotesPage) — the one deliberate exception to
-       "the page scrolls, not a nested box" (see .km-lesson-fullpage's own
-       fix above): .km-notes-sidebar scrolls independently of the page,
-       .km-notes-main does not. Achieved with position:sticky rather than
-       a fixed-height flex column + overflow:auto — deliberately NOT the
-       height:100% cascade .km-inline-view relies on, since that's exactly
-       the pattern that caused .km-lesson-fullpage's own nested-scroll bug.
-       Class prefix km-notes- throughout, distinct from the unrelated
-       .note-editable/.notes-panel classes (the per-page lesson-notes
-       editor) to avoid any collision. */
-    .km-notes-view { display: flex; flex-direction: column; gap: 14px; }
-    .km-notes-topbar { display: flex; align-items: center; gap: 14px; padding: 4px 4px 16px; border-bottom: 1px solid rgba(230, 215, 176, 0.16); }
-    .km-notes-title { font-size: 19px; margin: 0; font-weight: 700; color: var(--accent); }
+    /* ─── Notes content (see selectNotesNode) — rendered straight into
+       #contentInner, same as every other dashboard view; the node/theme/
+       lesson picker itself lives in the sidebar's own Notes tab
+       (.notes-tree-list above), not here, so this is just a plain
+       page-scrolling 2-column layout (main notes + a Links panel that
+       stays pinned in view while a long note scrolls) — no nested-scroll
+       tricks needed. Class prefix km-notes- throughout, distinct from the
+       unrelated .note-editable/.notes-panel classes (the per-page
+       lesson-notes editor) to avoid any collision. .km-notes-item is also
+       reused (unmodified) by the Links panel's own entries below. */
     .km-notes-body { display: flex; gap: 18px; align-items: flex-start; }
-    .km-notes-sidebar {
-        flex: 0 0 230px;
-        position: sticky;
-        top: 14px;
-        max-height: calc(100vh - 120px);
-        overflow-y: auto;
-        border: 1px solid rgba(230, 215, 176, 0.16);
-        border-radius: 8px;
-        padding: 10px;
-    }
-    /* Deliberately dense — one subject can span the whole spec, and every
-       node on it is listed (not just encoded ones, see getNotesIndexForUser's
-       own comment), so this needs to hold a lot without eating the width
-       the notes themselves need. Grouped by subtopic ("lesson title") so a
-       long subject reads as its own outline, not one flat list. */
-    .km-notes-subject-group { margin-bottom: 14px; }
-    .km-notes-subject-group:last-child { margin-bottom: 0; }
-    .km-notes-subject-heading { font-family: Georgia, serif; font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
-    .km-notes-lesson-heading { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.5; font-weight: 700; margin: 8px 0 3px; padding: 0 6px; }
     .km-notes-item {
         display: flex; align-items: center; gap: 7px; width: 100%; text-align: left;
         background: none; border: none; color: var(--text); font-size: 12px; line-height: 1.35;
         padding: 4px 6px; border-radius: 4px; cursor: pointer; font-family: Arial, sans-serif;
     }
     .km-notes-item:hover { background: rgba(230, 215, 176, 0.08); }
-    .km-notes-item.active { background: rgba(230, 215, 176, 0.14); color: var(--accent); }
-    .km-notes-item.not-encoded { opacity: 0.45; }
     .km-notes-item-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); opacity: 0; }
     .km-notes-item.has-notes .km-notes-item-dot { opacity: 1; }
     .km-notes-main { flex: 1; min-width: 0; max-width: 620px; }
@@ -905,7 +926,7 @@
 
     @media (max-width: 900px) {
         .km-notes-body { flex-direction: column; }
-        .km-notes-sidebar, .km-notes-links { position: static; max-height: none; width: 100%; flex-basis: auto; }
+        .km-notes-links { position: static; max-height: none; width: 100%; flex-basis: auto; }
     }
 
     /* ─── Diagram-drawing question widget ─── */
@@ -4403,6 +4424,14 @@
                 </div>
             </div>
 
+            <!-- Subject > Theme > Subtopic ("lesson") > atomic concept node,
+                 populated by renderNotesTree from GET .../notes-index. Lives
+                 here (not inside the notes content itself) so it scrolls
+                 independently and stays visible while the picked node's
+                 notes render into #contentInner on the right — see
+                 openNotesTree/selectNotesNode. -->
+            <div class="notes-tree-list" id="notesTreeList"></div>
+
             <div class="sidebar-footer">
                 <button class="manage-subscription-btn" id="seeTutorialBtn" type="button">See Tutorial</button>
                 <button class="manage-subscription-btn" id="myAccountBtn">My Account</button>
@@ -4494,32 +4523,6 @@
                         <button type="button" class="btn km-lesson-back-btn">← Back to map</button>
                     </div>
                     <div class="km-lesson-fullpage-body"></div>
-                </div>
-            </div>
-        </template>
-
-        <!-- Notes page (see openNotesPage) — auto-populated from EVERY node
-             on the knowledge map for any subject the student has touched
-             (not just encoded ones), in specification order, with each
-             node's own outgoing links shown in km-notes-links once it's
-             selected (see the compile-backend's knowledgeMapNotesService.ts).
-             km-notes-main deliberately has no height constraint of its own
-             so a long note is reached by scrolling the PAGE, same as
-             everywhere else in this app — km-notes-sidebar/km-notes-links
-             are the deliberate exception, each scrolling on its own (see
-             their own CSS comment). -->
-        <template id="notesPageTemplate">
-            <div class="km-notes-view">
-                <div class="km-notes-topbar">
-                    <button type="button" class="btn km-notes-dashboard-btn">← Dashboard</button>
-                    <h1 class="km-notes-title">My Notes</h1>
-                </div>
-                <div class="km-notes-body">
-                    <div class="km-notes-sidebar"></div>
-                    <div class="km-notes-main">
-                        <div class="km-inline-detail-empty">Click a concept on the left to see its notes.</div>
-                    </div>
-                    <div class="km-notes-links"></div>
                 </div>
             </div>
         </template>
@@ -10991,11 +10994,10 @@ SQIDAQAB
 
     let sidebarTab = 'folders'; // 'folders' | 'cortex' | 'notes'
 
-    // Notes is a full PAGE (see openNotesPage), not a sidebar list panel
-    // like the other two - it still joins the same three-way tab row for
-    // visual consistency (and gets marked active the same way), but
-    // "switching to it" means replacing #contentInner's content, not
-    // toggling which list shows underneath the tabs.
+    // Notes joins the same three-way tab row as Folders/Cortex - its own
+    // sidebar panel is #notesTreeList (see openNotesTree/renderNotesTree),
+    // populated the same way #folderList/#cortexChatList are, just with a
+    // nested Subject > Theme > Subtopic > node tree instead of a flat list.
     function setSidebarTab(tab) {
         sidebarTab = tab;
         document.getElementById('foldersTabBtn').classList.toggle('active', tab === 'folders');
@@ -11003,8 +11005,9 @@ SQIDAQAB
         document.getElementById('notesTabBtn').classList.toggle('active', tab === 'notes');
         document.getElementById('folderList').style.display = tab === 'folders' ? 'block' : 'none';
         document.getElementById('cortexChatList').style.display = tab === 'cortex' ? 'flex' : 'none';
+        document.getElementById('notesTreeList').style.display = tab === 'notes' ? 'block' : 'none';
         if (tab === 'cortex') refreshCortexChatList();
-        if (tab === 'notes') openNotesPage();
+        if (tab === 'notes') openNotesTree();
     }
 
     document.getElementById('foldersTabBtn').addEventListener('click', () => setSidebarTab('folders'));
@@ -13199,84 +13202,115 @@ SQIDAQAB
         }
     }
 
-    async function openNotesPage() {
+    // Populates the sidebar's own Notes tab tree (see setSidebarTab) and
+    // resets the main content area to its empty prompt - called once when
+    // the tab itself is opened, not on every node click (the tree then
+    // stays visible/scrollable on the left while individual node clicks
+    // only ever replace #contentInner, see selectNotesNode).
+    async function openNotesTree() {
+        const treeEl = document.getElementById('notesTreeList');
+        treeEl.innerHTML = '<div class="empty-hint">Loading…</div>';
+        showNotesEmptyState();
+        const index = await fetchNotesIndex();
+        renderNotesTree(treeEl, index);
+    }
+
+    function showNotesEmptyState() {
         stopActiveDictation();
         stopSpeaking();
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
-        const template = document.getElementById('notesPageTemplate');
-        contentInner.innerHTML = '';
-        contentInner.appendChild(template.content.cloneNode(true));
-
-        contentInner.querySelector('.km-notes-dashboard-btn').addEventListener('click', () => {
-            openCortexChat(null, true);
-        });
-
-        const sidebarEl = contentInner.querySelector('.km-notes-sidebar');
-        const mainEl = contentInner.querySelector('.km-notes-main');
-        const linksEl = contentInner.querySelector('.km-notes-links');
-        sidebarEl.innerHTML = '<div class="km-inline-detail-empty">Loading…</div>';
-
-        const index = await fetchNotesIndex();
-        renderNotesSidebar(sidebarEl, mainEl, linksEl, index);
+        contentInner.innerHTML = '<div class="km-inline-detail-empty">Click a concept in the sidebar to see its notes.</div>';
     }
 
     // Node objects (not just labels) are looked up from this map in the
     // click handlers below, rather than round-tripped through the DOM -
     // selectNotesNode needs each node's own encoded/hasNotes/links, not
-    // just its label. Nodes arrive from the backend already in
-    // specification order (see getNotesIndexForUser's own comment on why -
-    // subtopic strings are spec-numbered) - this only GROUPS consecutive
-    // same-subtopic nodes under one heading, it never re-sorts them.
-    // Every node on the map is listed here, not just encoded ones (a
-    // student should see the whole spec laid out) - an unencoded one is
-    // still clickable, just shown dimmed with no notes to offer yet.
-    function renderNotesSidebar(sidebarEl, mainEl, linksEl, index) {
+    // just its label. The backend already returns Subject > Theme >
+    // Subtopic ("lesson") > node nested in genuine specification/teaching
+    // order (see getNotesIndexForUser's own comment) - this renders that
+    // structure directly as nested open/closable dropdowns, it never
+    // re-sorts or re-groups anything itself. Every node on the map is
+    // listed, not just encoded ones (a student should see the whole spec
+    // laid out) - an unencoded one is still clickable, just shown dimmed
+    // with no notes to offer yet. Toggle bodies are found via
+    // nextElementSibling rather than an id/index lookup, so nothing here
+    // needs a globally-unique key across subjects/themes/subtopics.
+    function renderNotesTree(treeEl, index) {
         if (!index.subjects.length) {
-            sidebarEl.innerHTML = '<div class="km-inline-detail-empty">Encode a concept on any subject\'s knowledge map to start building notes here.</div>';
+            treeEl.innerHTML = '<div class="empty-hint">Encode a concept on any subject\'s knowledge map to start building notes here.</div>';
             return;
         }
         const nodeById = new Map();
-        index.subjects.forEach((s) => s.nodes.forEach((n) => nodeById.set(n.nodeId, n)));
+        index.subjects.forEach((s) => s.themes.forEach((t) => t.subtopics.forEach((st) => st.nodes.forEach((n) => nodeById.set(n.nodeId, n)))));
 
-        sidebarEl.innerHTML = index.subjects.map((s) => {
-            const groups = [];
-            s.nodes.forEach((n) => {
-                const last = groups[groups.length - 1];
-                if (last && last.subtopic === n.subtopic) last.nodes.push(n);
-                else groups.push({ subtopic: n.subtopic, nodes: [n] });
-            });
-            return `
-                <div class="km-notes-subject-group">
-                    <div class="km-notes-subject-heading">${escapeHtml(s.subject)}${(s.qualification || s.examBoard) ? ` — ${escapeHtml([s.qualification, s.examBoard].filter(Boolean).join(' · '))}` : ''}</div>
-                    ${groups.map((g) => `
-                        <div class="km-notes-lesson-heading">${escapeHtml(g.subtopic || 'General')}</div>
-                        ${g.nodes.map((n) => `
-                            <button type="button" class="km-notes-item${n.hasNotes ? ' has-notes' : ''}${n.encoded ? '' : ' not-encoded'}" data-node-id="${n.nodeId}">
-                                <span class="km-notes-item-dot"></span><span>${escapeHtml(n.label)}</span>
-                            </button>
-                        `).join('')}
-                    `).join('')}
-                </div>
-            `;
-        }).join('');
+        treeEl.innerHTML = index.subjects.map((s) => `
+            <div class="notes-tree-subject">
+                <div class="notes-tree-subject-heading">${escapeHtml(s.subject)}${(s.qualification || s.examBoard) ? ` — ${escapeHtml([s.qualification, s.examBoard].filter(Boolean).join(' · '))}` : ''}</div>
+                ${s.themes.map((t) => `
+                    <div class="notes-tree-theme">
+                        <button type="button" class="notes-tree-theme-toggle"><span class="notes-tree-arrow">▶</span><span>${escapeHtml(t.theme)}</span></button>
+                        <div class="notes-tree-theme-body" style="display:none;">
+                            ${t.subtopics.map((st) => `
+                                <div class="notes-tree-subtopic">
+                                    <button type="button" class="notes-tree-subtopic-toggle"><span class="notes-tree-arrow">▶</span><span>${escapeHtml(st.subtopic)}</span></button>
+                                    <div class="notes-tree-subtopic-body" style="display:none;">
+                                        ${st.nodes.map((n) => `
+                                            <button type="button" class="notes-tree-node-item${n.hasNotes ? ' has-notes' : ''}${n.encoded ? '' : ' not-encoded'}" data-node-id="${n.nodeId}">
+                                                <span class="notes-tree-node-dot"></span><span>${escapeHtml(n.label)}</span>
+                                            </button>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `).join('');
 
-        sidebarEl.querySelectorAll('.km-notes-item[data-node-id]').forEach((btn) => {
+        const wireToggle = (btn) => {
             btn.addEventListener('click', () => {
-                sidebarEl.querySelectorAll('.km-notes-item').forEach((b) => b.classList.remove('active'));
+                const body = btn.nextElementSibling;
+                const open = body.style.display !== 'none';
+                body.style.display = open ? 'none' : 'block';
+                btn.querySelector('.notes-tree-arrow').classList.toggle('open', !open);
+            });
+        };
+        treeEl.querySelectorAll('.notes-tree-theme-toggle').forEach(wireToggle);
+        treeEl.querySelectorAll('.notes-tree-subtopic-toggle').forEach(wireToggle);
+        treeEl.querySelectorAll('.notes-tree-node-item[data-node-id]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                treeEl.querySelectorAll('.notes-tree-node-item').forEach((b) => b.classList.remove('active'));
                 btn.classList.add('active');
-                selectNotesNode(mainEl, linksEl, nodeById.get(btn.dataset.nodeId));
+                selectNotesNode(nodeById.get(btn.dataset.nodeId));
             });
         });
     }
 
-    async function selectNotesNode(mainEl, linksEl, node) {
+    // Replaces #contentInner with the picked node's own notes (left) and
+    // its Links panel (right, see renderNotesLinksPanel) - the sidebar
+    // tree itself (see renderNotesTree) stays exactly as it was, since it
+    // lives outside #contentInner entirely.
+    async function selectNotesNode(node) {
+        stopActiveDictation();
+        stopSpeaking();
+        const contentInner = document.getElementById('contentInner');
+        contentInner.classList.add('content-inner-wide');
+        contentInner.innerHTML = `
+            <div class="km-notes-body">
+                <div class="km-notes-main"></div>
+                <div class="km-notes-links"></div>
+            </div>
+        `;
+        const mainEl = contentInner.querySelector('.km-notes-main');
+        const linksEl = contentInner.querySelector('.km-notes-links');
+
         if (!node.encoded) {
             mainEl.innerHTML = `
                 <div class="km-inline-detail-label" style="margin-bottom:14px;">${escapeHtml(node.label)}</div>
                 <div class="km-inline-detail-item km-inline-detail-none">Not encoded yet — head to this subject's knowledge map to start its lesson.</div>
             `;
-            linksEl.innerHTML = '';
             return;
         }
         renderNotesLinksPanel(linksEl, node);
