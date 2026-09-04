@@ -14446,21 +14446,27 @@ SQIDAQAB
             `;
             lessonEl.querySelector('.km-review-back-btn').addEventListener('click', () => showKmWorkspace(contentInner));
 
-            // Every link that genuinely passed BOTH identify and
-            // integration in this exact session earns compiled
+            // Every link that's been COVERED (identify + integration both
+            // gone through) in this exact session earns compiled
             // transfer+integration notes on the Notes page (see
             // compileEdgeNotesRequest/knowledgeMapNotesService.ts's
             // compileEdgeNotes) - each link contributes one 'identify' and
             // one 'integration' entry above, grouped here by toNodeId.
+            // Deliberately NOT gated on integration being answered
+            // correctly - transfer/integration only ever needs covering
+            // ONCE (identify itself already retries until correct, so
+            // that half is trivially always true here), and a wrong
+            // integration answer is exactly when a student most wants the
+            // notes, not a reason to withhold them.
             const linkIds = Array.from(new Set(resultsSoFar.filter((r) => r.toNodeId).map((r) => r.toNodeId)));
-            const fullyPassedLinkIds = linkIds.filter((toNodeId) =>
-                resultsSoFar.some((r) => r.toNodeId === toNodeId && r.stage === 'identify' && r.correct) &&
-                resultsSoFar.some((r) => r.toNodeId === toNodeId && r.stage === 'integration' && r.correct)
+            const coveredLinkIds = linkIds.filter((toNodeId) =>
+                resultsSoFar.some((r) => r.toNodeId === toNodeId && r.stage === 'identify') &&
+                resultsSoFar.some((r) => r.toNodeId === toNodeId && r.stage === 'integration')
             );
-            if (!fullyPassedLinkIds.length) return;
+            if (!coveredLinkIds.length) return;
 
             const compiledLabels = [];
-            for (const toNodeId of fullyPassedLinkIds) {
+            for (const toNodeId of coveredLinkIds) {
                 const result = await compileEdgeNotesRequest(d.id, toNodeId);
                 if (!result) continue;
                 const link = fullData.nodes.find((n) => n.id === toNodeId);
