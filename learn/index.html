@@ -14037,21 +14037,55 @@ SQIDAQAB
             }
         }
 
-        // Just this node's own content — explanation, then its own
-        // practice question. Transfer/integration (testing the connection
-        // to a prerequisite) is deliberately never part of encoding; that
-        // would both give away the answer to a connection the student
-        // hasn't been asked to make yet, and test it before the "Practice"
-        // question that's actually supposed to come first. That testing
-        // belongs solely to the node's own spaced review later, once both
-        // ends are genuinely encoded (see renderNodeReviewIntegration
-        // below) — never here. `upstream` is unused now (edge-bridging
-        // used to read it) but stays in the signature since several
-        // chain-diagnostic call sites already thread it through to here.
-        async function renderNodeLessonContent(lessonEl, d, upstream) {
-            showLoadingWithColdStartHint(lessonEl);
-            const nodeLesson = await fetchNodeLesson(d.id);
+        // Before-you-know-it micro-steps (see lessonGenerationPrompts.ts's
+        // rules 6-7): an optional personal-link prompt, only when the
+        // offline content pipeline found a genuine everyday hook for this
+        // specific concept, then a prediction question asked before the
+        // explanation is shown at all - opening a real curiosity gap the
+        // explanation then resolves (the pretesting effect). Neither is
+        // graded, stored server-side, or costs an API call: the value is
+        // entirely in the student generating the attempt, not in the
+        // system checking it, so there is nothing here to grade and
+        // nothing to gain by faking it. Shown once ever per node per
+        // device - never repeated on a retry of the practice question
+        // that follows, since re-asking after the explanation's already
+        // been seen would just be noise, not a fresh prediction.
+        function nodeLessonPreAttemptSeenKey(nodeId) { return `lm-lesson-preattempt-seen:${nodeId}`; }
 
+        function renderNodeLessonPreAttempt(lessonEl, d, upstream, nodeLesson) {
+            const steps = [];
+            if (nodeLesson.personalLinkPrompt) steps.push({ kind: 'link', prompt: nodeLesson.personalLinkPrompt });
+            if (nodeLesson.predictionQuestion) steps.push({ kind: 'predict', prompt: nodeLesson.predictionQuestion });
+
+            function renderStep(index) {
+                if (index >= steps.length) {
+                    localStorage.setItem(nodeLessonPreAttemptSeenKey(d.id), '1');
+                    renderNodeLessonExplanation(lessonEl, d, upstream, nodeLesson);
+                    return;
+                }
+                const step = steps[index];
+                const heading = step.kind === 'link' ? 'Before we start' : 'Before you know how this works';
+                const reassurance = step.kind === 'link' ? "There's no wrong answer — just write what comes to mind." : "There's no right answer yet — just take a genuine guess.";
+                const placeholder = step.kind === 'link' ? 'Describe what you remember…' : 'Write your guess here…';
+                lessonEl.innerHTML = `
+                    <div class="km-inline-detail-section">
+                        <h4 class="km-inline-lesson-question">${heading}</h4>
+                        <div class="km-inline-lesson-question">${escapeHtml(step.prompt)}</div>
+                        <div class="km-inline-detail-item km-inline-detail-none">${reassurance}</div>
+                        <textarea class="km-preattempt-input" rows="4" placeholder="${placeholder}" style="${DIAG_TEXTAREA_STYLE}"></textarea>
+                        <button type="button" class="btn primary km-preattempt-continue-btn" style="margin-top:10px;">Continue</button>
+                    </div>
+                `;
+                const textarea = lessonEl.querySelector('.km-preattempt-input');
+                lessonEl.querySelector('.km-preattempt-continue-btn').addEventListener('click', () => {
+                    if (!textarea.value.trim()) return;
+                    renderStep(index + 1);
+                });
+            }
+            renderStep(0);
+        }
+
+        function renderNodeLessonExplanation(lessonEl, d, upstream, nodeLesson) {
             lessonEl.innerHTML = (!nodeLesson || nodeLesson.notFound)
                 ? `<div class="km-inline-detail-item km-inline-detail-none">No lesson generated for this concept yet.</div>`
                 : `
@@ -14100,6 +14134,32 @@ SQIDAQAB
                 // the whole lesson, so the notes offer shows immediately.
                 renderCompileNotesCta(lessonEl.querySelector('#km-node-notes-cta'), d.id, d.label);
             }
+        }
+
+        // Just this node's own content — the pre-attempt micro-steps
+        // above if this is genuinely the first time this node's lesson
+        // has ever been opened on this device, then the explanation and
+        // its own practice question. Transfer/integration (testing the
+        // connection to a prerequisite) is deliberately never part of
+        // encoding; that would both give away the answer to a connection
+        // the student hasn't been asked to make yet, and test it before
+        // the "Practice" question that's actually supposed to come first.
+        // That testing belongs solely to the node's own spaced review
+        // later, once both ends are genuinely encoded (see
+        // renderNodeReviewIntegration below) — never here, and the
+        // pre-attempt steps never run there either (see their own
+        // comment above on why). `upstream` is unused now (edge-bridging
+        // used to read it) but stays in the signature since several
+        // chain-diagnostic call sites already thread it through to here.
+        async function renderNodeLessonContent(lessonEl, d, upstream) {
+            showLoadingWithColdStartHint(lessonEl);
+            const nodeLesson = await fetchNodeLesson(d.id);
+            const hasPreAttempt = nodeLesson && !nodeLesson.notFound && (nodeLesson.predictionQuestion || nodeLesson.personalLinkPrompt);
+            if (hasPreAttempt && !localStorage.getItem(nodeLessonPreAttemptSeenKey(d.id))) {
+                renderNodeLessonPreAttempt(lessonEl, d, upstream, nodeLesson);
+                return;
+            }
+            renderNodeLessonExplanation(lessonEl, d, upstream, nodeLesson);
         }
 
         // ─── Node-level spaced review ───────────────────────────────
