@@ -13825,7 +13825,6 @@ SQIDAQAB
         function nextNodeReviewDueDate(d, qualifyingLinks, schedule) {
             const dates = [schedule.get(d.conceptId)];
             qualifyingLinks.forEach((link) => {
-                dates.push(schedule.get(`${d.conceptId}->${link.conceptId}`));
                 dates.push(schedule.get(`${d.conceptId}->${link.conceptId}::integration`));
             });
             const times = dates.filter(Boolean).map((entry) => new Date(entry.due).getTime());
@@ -14108,11 +14107,15 @@ SQIDAQAB
         // selectKmInlineNode) once it has at least one qualifying link —
         // never from a link on its own. Tests a reworded AO1, then for
         // EACH qualifying link (across however many other chains/topics
-        // this node connects into, not just one), "identify the link"
-        // with prompted retry until correct, followed by the integration
-        // question — one combined session, all three feeding FSRS
-        // independently. See routes/knowledgeMap.ts's node-review/*
-        // endpoints.
+        // this node connects into, not just one), the integration
+        // question — one combined session, both feeding FSRS
+        // independently. There is no separate "identify the link" step —
+        // a link's genuinely first-ever review shows its own teaching
+        // content up front (a "prompted" first attempt), every later
+        // spaced review is unprompted cold recall, and neither AO1 nor
+        // integration ever fails the student (a wrong answer just retries
+        // with the grading call's own feedback as a hint). See
+        // routes/knowledgeMap.ts's node-review/* endpoints.
 
         // The actual "Start review" entry point — resumes a checkpointed
         // session (see saveNodeReviewCheckpoint) if one exists for this
@@ -14126,11 +14129,7 @@ SQIDAQAB
             const checkpoint = loadNodeReviewCheckpoint(d.id);
             const resumeIndex = checkpoint ? qualifyingLinks.findIndex((l) => l.id === checkpoint.linkToNodeId) : -1;
             if (checkpoint && resumeIndex !== -1) {
-                if (checkpoint.stage === 'integration') {
-                    renderNodeReviewIntegrationStart(lessonEl, d, qualifyingLinks, resumeIndex, checkpoint.resultsSoFar || []);
-                } else {
-                    renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, resumeIndex, checkpoint.resultsSoFar || []);
-                }
+                renderNodeReviewIntegrationStart(lessonEl, d, qualifyingLinks, resumeIndex, checkpoint.resultsSoFar || []);
                 return;
             }
             if (checkpoint) clearNodeReviewCheckpoint(d.id);
@@ -14156,8 +14155,8 @@ SQIDAQAB
 
         // Every node-review submit route returns the same { correct,
         // feedback, keysEarned } shape once a step is genuinely finalized
-        // (never for an interim wrong link-identify attempt, which loops
-        // back into renderNodeReviewIdentify instead) — one shared
+        // (never for an interim wrong integration attempt, which loops
+        // back into renderNodeReviewIntegration instead) — one shared
         // "here's the result, Continue" screen for all of them.
         function renderNodeReviewStepDone(lessonEl, result, onContinue) {
             const feedbackHtml = `<div class="km-inline-detail-item ${result.correct ? '' : 'km-inline-detail-none'}">${escapeHtml(result.feedback || '')}</div>`;
@@ -14295,86 +14294,12 @@ SQIDAQAB
             });
         }
 
-        async function renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, index, resultsSoFar) {
+        function renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, index, resultsSoFar) {
             if (index >= qualifyingLinks.length) {
                 renderNodeReviewSummary(lessonEl, d, resultsSoFar);
                 return;
             }
-            const link = qualifyingLinks[index];
-            showLoadingWithColdStartHint(lessonEl);
-            let edge;
-            try {
-                edge = await postNodeReviewStepStart('/knowledge-map-v2/node-review/link-identify/start', { fromNodeId: d.id, toNodeId: link.id });
-            } catch (err) {
-                console.error('LastMind: failed to load this link\'s review step.', err);
-                renderNodeReviewStepLoadError(lessonEl, () => renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, index, resultsSoFar));
-                return;
-            }
-            if (edge.notFound) {
-                // Genuinely nothing to test for this specific link (not a
-                // failed request, see postNodeReviewStepStart) - skip it
-                // rather than block the rest of the review on one bad
-                // connection.
-                renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, index + 1, resultsSoFar);
-                return;
-            }
-            renderNodeReviewIdentify(lessonEl, d, qualifyingLinks, index, resultsSoFar, false, '');
-        }
-
-        // A one-sentence causal-connection check, nothing shown up front —
-        // a real recall test (can they state how these two ideas' own
-        // explanations connect, not just recognise a shared keyword). The
-        // link being tested is between the two EXPLANATIONS, not the two
-        // concept names — see LINK_IDENTIFY_GRADE_PROMPT in the backend:
-        // a bare term alone doesn't count, but neither does the full
-        // expanded mechanism, that's integration's own separate question,
-        // next.
-        function renderNodeReviewIdentify(lessonEl, d, qualifyingLinks, index, resultsSoFar, hadRetry, retryFeedback) {
-            const link = qualifyingLinks[index];
-            saveNodeReviewCheckpoint(d.id, { linkToNodeId: link.id, stage: 'identify', resultsSoFar });
-            const draftKey = `node-review-identify:${d.id}:${link.id}`;
-            lessonEl.innerHTML = `
-                <div class="km-inline-detail-section">
-                    <div class="km-inline-detail-eyebrow">Review — link ${index + 1} of ${qualifyingLinks.length}</div>
-                    <div class="km-inline-detail-label">"${escapeHtml(d.label)}" → "${escapeHtml(link.label)}"</div>
-                    <h4 class="km-inline-lesson-question">Identify the link</h4>
-                    <div class="km-inline-lesson-question">In one sentence, what's the connection between "${escapeHtml(d.label)}" and "${escapeHtml(link.label)}"?</div>
-                    ${retryFeedback ? `<div class="km-inline-detail-item km-inline-detail-none" style="margin-top:6px;">${escapeHtml(retryFeedback)}</div>` : ''}
-                    <textarea class="km-diag-answer-input" rows="3" placeholder="One sentence…" style="${DIAG_TEXTAREA_STYLE}"></textarea>
-                    <button type="button" class="btn primary km-diag-submit-btn" style="margin-top:10px;">Submit</button>
-                </div>
-            `;
-            const textarea = lessonEl.querySelector('.km-diag-answer-input');
-            const restored = loadAnswerDraft(draftKey);
-            if (restored) textarea.value = restored;
-            textarea.addEventListener('input', () => saveAnswerDraft(draftKey, textarea.value));
-
-            lessonEl.querySelector('.km-diag-submit-btn').addEventListener('click', async (ev) => {
-                const answer = textarea.value.trim();
-                if (!answer) return;
-                ev.target.disabled = true;
-                ev.target.textContent = 'Checking…';
-                const result = await postChainDiagnostic('/knowledge-map-v2/node-review/link-identify/submit', {
-                    fromNodeId: d.id, toNodeId: link.id, answer, hadRetry
-                });
-                if (!result) {
-                    ev.target.disabled = false;
-                    ev.target.textContent = 'Submit';
-                    return renderNodeReviewSubmitError(lessonEl);
-                }
-                clearAnswerDraft(draftKey);
-                if (!result.correct) {
-                    renderNodeReviewIdentify(lessonEl, d, qualifyingLinks, index, resultsSoFar, true, result.feedback || '');
-                    return;
-                }
-                if (result.schedule) {
-                    fullData.scheduleByConceptId.set(result.schedule.conceptId, result.schedule);
-                    updateLinkMasteryState(d.id, link.id, result.schedule);
-                }
-                resultsSoFar.push({ label: `${d.label} → ${link.label} — identify`, correct: true, keysEarned: result.keysEarned, toNodeId: link.id, stage: 'identify' });
-                ev.target.remove();
-                renderNodeReviewStepDone(lessonEl, result, () => renderNodeReviewIntegrationStart(lessonEl, d, qualifyingLinks, index, resultsSoFar));
-            });
+            renderNodeReviewIntegrationStart(lessonEl, d, qualifyingLinks, index, resultsSoFar);
         }
 
         async function renderNodeReviewIntegrationStart(lessonEl, d, qualifyingLinks, index, resultsSoFar) {
@@ -14396,10 +14321,21 @@ SQIDAQAB
                 renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, index + 1, resultsSoFar);
                 return;
             }
-            renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, question.questionText);
+            renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, question.questionText, question.linkTeaching || null, false, '');
         }
 
-        function renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, questionText) {
+        // The link-level review, one combined step per qualifying link —
+        // there is no separate "identify the link" step any more (see
+        // this section's own top comment on why integration alone is the
+        // real, sufficient gate). linkTeaching is only ever non-null on a
+        // link's genuinely first-ever review (see integration/start's own
+        // comment) - shown as "how this connects" right above the
+        // question, a "prompted" first attempt; every later spaced review
+        // gets neither, cold recall. Never fails the student - a wrong
+        // answer just retries in place with the grading call's own
+        // feedback shown as a hint, same contract AO1's slip-check
+        // already has.
+        function renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, questionText, linkTeaching, hadRetry, retryFeedback) {
             const link = qualifyingLinks[index];
             saveNodeReviewCheckpoint(d.id, { linkToNodeId: link.id, stage: 'integration', resultsSoFar });
             const draftKey = `node-review-integration:${d.id}:${link.id}`;
@@ -14407,8 +14343,13 @@ SQIDAQAB
                 <div class="km-inline-detail-section">
                     <div class="km-inline-detail-eyebrow">Review — link ${index + 1} of ${qualifyingLinks.length}</div>
                     <div class="km-inline-detail-label">"${escapeHtml(d.label)}" → "${escapeHtml(link.label)}"</div>
+                    ${linkTeaching ? `
+                        <h4 class="km-inline-lesson-question">How this connects</h4>
+                        <div class="km-inline-lesson-explanation">${notesTextToHtml(linkTeaching)}</div>
+                    ` : ''}
                     <h4 class="km-inline-lesson-question">Integration</h4>
                     <div class="km-inline-lesson-question">${escapeHtml(questionText)}</div>
+                    ${retryFeedback ? `<div class="km-inline-detail-item km-inline-detail-none" style="margin-top:6px;">${escapeHtml(retryFeedback)}</div>` : ''}
                     <textarea class="km-diag-answer-input" rows="5" placeholder="Write your answer here…" style="${DIAG_TEXTAREA_STYLE}"></textarea>
                     <button type="button" class="btn primary km-diag-submit-btn" style="margin-top:10px;">Submit</button>
                 </div>
@@ -14423,18 +14364,24 @@ SQIDAQAB
                 if (!answer) return;
                 ev.target.disabled = true;
                 ev.target.textContent = 'Checking…';
-                const result = await postChainDiagnostic('/knowledge-map-v2/node-review/integration/submit', { fromNodeId: d.id, toNodeId: link.id, answer });
+                const result = await postChainDiagnostic('/knowledge-map-v2/node-review/integration/submit', {
+                    fromNodeId: d.id, toNodeId: link.id, answer, hadRetry
+                });
                 if (!result) {
                     ev.target.disabled = false;
                     ev.target.textContent = 'Submit';
                     return renderNodeReviewSubmitError(lessonEl);
                 }
                 clearAnswerDraft(draftKey);
+                if (!result.correct) {
+                    renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, questionText, linkTeaching, true, result.feedback || '');
+                    return;
+                }
                 if (result.schedule) {
                     fullData.scheduleByConceptId.set(result.schedule.conceptId, result.schedule);
                     updateLinkMasteryState(d.id, link.id, result.schedule);
                 }
-                resultsSoFar.push({ label: `${d.label} → ${link.label} — integration`, correct: result.correct, keysEarned: result.keysEarned, toNodeId: link.id, stage: 'integration' });
+                resultsSoFar.push({ label: `${d.label} → ${link.label} — integration`, correct: true, keysEarned: result.keysEarned, toNodeId: link.id, stage: 'integration' });
                 ev.target.remove();
                 renderNodeReviewStepDone(lessonEl, result, () => renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, index + 1, resultsSoFar));
             });
@@ -14458,27 +14405,18 @@ SQIDAQAB
             `;
             lessonEl.querySelector('.km-review-back-btn').addEventListener('click', () => showKmWorkspace(contentInner));
 
-            // Every link that's been COVERED (identify + integration both
-            // gone through) in this exact session earns compiled
-            // transfer+integration notes on the Notes page (see
+            // Every link genuinely completed in this exact session (its
+            // toNodeId appears in resultsSoFar at all - integration never
+            // fails any more, see renderNodeReviewIntegration's own
+            // comment, so an entry here always means a real pass) earns
+            // compiled transfer+integration notes on the Notes page (see
             // compileEdgeNotesRequest/knowledgeMapNotesService.ts's
-            // compileEdgeNotes) - each link contributes one 'identify' and
-            // one 'integration' entry above, grouped here by toNodeId.
-            // Deliberately NOT gated on integration being answered
-            // correctly - transfer/integration only ever needs covering
-            // ONCE (identify itself already retries until correct, so
-            // that half is trivially always true here), and a wrong
-            // integration answer is exactly when a student most wants the
-            // notes, not a reason to withhold them.
+            // compileEdgeNotes).
             const linkIds = Array.from(new Set(resultsSoFar.filter((r) => r.toNodeId).map((r) => r.toNodeId)));
-            const coveredLinkIds = linkIds.filter((toNodeId) =>
-                resultsSoFar.some((r) => r.toNodeId === toNodeId && r.stage === 'identify') &&
-                resultsSoFar.some((r) => r.toNodeId === toNodeId && r.stage === 'integration')
-            );
-            if (!coveredLinkIds.length) return;
+            if (!linkIds.length) return;
 
             const compiledLabels = [];
-            for (const toNodeId of coveredLinkIds) {
+            for (const toNodeId of linkIds) {
                 const result = await compileEdgeNotesRequest(d.id, toNodeId);
                 if (!result) continue;
                 const link = fullData.nodes.find((n) => n.id === toNodeId);
@@ -15324,7 +15262,7 @@ SQIDAQAB
 
         // Unlike postChainDiagnostic above, this THROWS on a real failure
         // instead of collapsing it to null - the node-review "start"
-        // routes (ao1/link-identify/integration) each use a null result to
+        // routes (ao1/integration) each use a null result to
         // mean "genuinely nothing to test here, skip it", and a cold-
         // started backend or a network blip returning null identically to
         // that was silently truncating whole reviews to "Review complete"
