@@ -14114,6 +14114,20 @@ SQIDAQAB
             renderStep(0);
         }
 
+        // A clear, explicit "you're done" action once a lesson genuinely
+        // completes. Before this, the only way back to the map was the
+        // "← Back to map" link in the fullpage's own persistent header -
+        // present the whole time, including mid-lesson, so it never
+        // signalled "there's nothing left to do here" the way reviews'
+        // own dedicated completion screen already does (see
+        // renderNodeReviewSummary's km-review-back-btn). Same underlying
+        // action (showKmWorkspace), just surfaced at the actual moment of
+        // completion rather than left to a generic exit link.
+        function renderFinishLessonCta(container) {
+            container.innerHTML = `<button type="button" class="btn primary km-finish-lesson-btn" style="margin-top:14px;">Finish lesson</button>`;
+            container.querySelector('.km-finish-lesson-btn').addEventListener('click', () => showKmWorkspace(contentInner));
+        }
+
         function renderNodeLessonExplanation(lessonEl, d, upstream, nodeLesson) {
             lessonEl.innerHTML = (!nodeLesson || nodeLesson.notFound)
                 ? `<div class="km-inline-detail-item km-inline-detail-none">No lesson generated for this concept yet.</div>`
@@ -14121,11 +14135,13 @@ SQIDAQAB
                     <div class="km-inline-lesson-explanation">${splitIntoParagraphs(nodeLesson.explanation)}</div>
                     ${nodeLesson.practiceQuestion ? `<div><strong class="km-inline-lesson-question" style="display:block;">Practice</strong><div id="km-question-node-practice"></div></div>` : ''}
                     <div id="km-node-notes-cta"></div>
+                    <div id="km-node-finish-cta"></div>
                 `;
 
             if (nodeLesson && nodeLesson.practiceQuestion) {
                 const el = lessonEl.querySelector('#km-question-node-practice');
                 const notesCtaEl = lessonEl.querySelector('#km-node-notes-cta');
+                const finishCtaEl = lessonEl.querySelector('#km-node-finish-cta');
                 // A real (non-retryable) pass here means this is the first
                 // time this concept has ever been encoded — the map's
                 // schedule cache is updated in place (rather than waiting
@@ -14153,6 +14169,7 @@ SQIDAQAB
                     // no practice question gets immediately below.
                     if (result && result.correct && !result.retryable) {
                         renderCompileNotesCta(notesCtaEl, d.id, d.label);
+                        renderFinishLessonCta(finishCtaEl);
                     }
                     return result;
                 };
@@ -14160,8 +14177,9 @@ SQIDAQAB
                 else renderTextQuestionWidget(el, nodeLesson.practiceQuestion.questionText, submit);
             } else if (nodeLesson) {
                 // No practice question at all - viewing the explanation IS
-                // the whole lesson, so the notes offer shows immediately.
+                // the whole lesson, so both offers show immediately.
                 renderCompileNotesCta(lessonEl.querySelector('#km-node-notes-cta'), d.id, d.label);
+                renderFinishLessonCta(lessonEl.querySelector('#km-node-finish-cta'));
             }
         }
 
