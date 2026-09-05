@@ -803,11 +803,6 @@
     .km-inline-detail-item.km-inline-detail-item-action { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .km-inline-detail-item-action span { flex: 1; min-width: 0; }
     .km-inline-detail-item-action button { flex: none; font-size: 11px; padding: 5px 9px; }
-    /* The specific word/phrase an AO1 slip check flagged - a plain <mark>
-       inherits the browser's default yellow-on-black, illegible against
-       this dark theme, so it's overridden to the same accent language
-       everything else here already uses. */
-    .km-slip-wrong-phrase { background: rgba(230, 215, 176, 0.35); color: var(--text); padding: 1px 3px; border-radius: 2px; }
     .km-fsrs-details { font-size: 11.5px; margin-top: 4px; }
     .km-fsrs-details summary { cursor: pointer; opacity: 0.7; padding: 4px 0; }
     .km-fsrs-details summary:hover { opacity: 1; }
@@ -14298,48 +14293,57 @@ SQIDAQAB
             renderNodeReviewStepDone(lessonEl, finalResult, () => renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, 0, [ao1Entry]));
         }
 
-        // A slip candidate's highlighted word, wrapped for display — built
-        // from the exact substring the backend copied out of the
-        // student's own answer (see AO1_SLIP_CHECK_PROMPT), never
-        // re-matched loosely, so what's highlighted is exactly what they
-        // actually wrote.
-        function highlightWrongPhraseHtml(answer, wrongPhrase) {
+        // The flagged word/phrase becomes an editable box sitting exactly
+        // where it appeared in the student's own sentence, built from the
+        // exact substring the backend copied out of the answer (see
+        // AO1_SLIP_CHECK_PROMPT), never re-matched loosely — so what gets
+        // replaced is exactly what they actually wrote, nothing else. The
+        // input's value is set via JS after insertion, not baked into
+        // this HTML string, since escapeHtml only escapes for text-node
+        // context, not attribute values. Falls back to plain escaped text
+        // with no input on the (should-never-happen) case the phrase
+        // isn't found verbatim in the answer.
+        function inlineSlipCorrectionHtml(answer, wrongPhrase) {
             const idx = answer.indexOf(wrongPhrase);
             if (idx === -1) return escapeHtml(answer);
             const before = answer.slice(0, idx);
             const after = answer.slice(idx + wrongPhrase.length);
-            return `${escapeHtml(before)}<mark class="km-slip-wrong-phrase">${escapeHtml(wrongPhrase)}</mark>${escapeHtml(after)}`;
+            const inputStyle = 'display:inline-block; width:auto; min-width:4ch; background:var(--panel); border:1px solid rgba(230,215,176,0.5); border-radius:3px; padding:1px 5px; font:inherit; color:var(--text);';
+            return `${escapeHtml(before)}<input type="text" class="km-slip-correction-input" style="${inputStyle}">${escapeHtml(after)}`;
         }
 
         // Only reached when the backend flagged the wrong answer as a
         // likely one-word slip rather than a genuine gap — nothing has
-        // been recorded yet (see ao1/submit's own comment). Never ends the
-        // lesson: a still-wrong correction, or a decline, both drop back
-        // into a normal free-text retry (renderNodeReviewAo1) with the
-        // feedback shown as a hint; only a genuinely correct answer here
-        // finalizes anything.
+        // been recorded yet (see ao1/submit's own comment). No separate
+        // "yes, that was a slip" confirmation step first - fixing the
+        // word in place IS the confirmation, so the box is live and
+        // pre-selected immediately. Never ends the lesson: a still-wrong
+        // correction, or a decline, both drop back into a normal
+        // free-text retry (renderNodeReviewAo1) with the feedback shown
+        // as a hint; only a genuinely correct answer here finalizes
+        // anything.
         function renderNodeReviewAo1SlipCheck(lessonEl, d, qualifyingLinks, questionText, originalAnswer, result) {
             const wrongPhrase = result.wrongPhrase;
             lessonEl.innerHTML = `
                 <div class="km-inline-detail-section">
                     <div class="km-inline-detail-eyebrow">Review${d.subtopic ? ` — ${escapeHtml(d.subtopic)}` : ''}</div>
                     <div class="km-inline-detail-label">${escapeHtml(d.label)}</div>
-                    <h4 class="km-inline-lesson-question">Almost — was that just a slip?</h4>
-                    <div class="km-inline-lesson-question">${highlightWrongPhraseHtml(originalAnswer, wrongPhrase)}</div>
-                    <label class="km-slip-checkbox-label" style="display:flex; align-items:center; gap:8px; margin-top:12px; cursor:pointer;">
-                        <input type="checkbox" class="km-slip-checkbox">
-                        <span>Yes — I just wrote the wrong word there</span>
-                    </label>
-                    <div class="km-slip-correction" style="display:none; margin-top:10px;">
-                        <input type="text" class="km-slip-correction-input" placeholder="What should it say instead?" style="${DIAG_TEXTAREA_STYLE}">
-                        <button type="button" class="btn primary km-slip-correct-submit-btn" style="margin-top:8px;">Submit correction</button>
-                    </div>
+                    <h4 class="km-inline-lesson-question">Almost — just a slip?</h4>
+                    <div class="km-inline-lesson-question">${inlineSlipCorrectionHtml(originalAnswer, wrongPhrase)}</div>
+                    <div class="km-inline-detail-item km-inline-detail-none">If that's just the wrong word, fix it above and submit — otherwise say you didn't know this instead.</div>
+                    <button type="button" class="btn primary km-slip-correct-submit-btn" style="margin-top:10px;">Submit correction</button>
                     <button type="button" class="btn km-slip-decline-btn" style="margin-top:10px;">No, I actually didn't know this</button>
                 </div>
             `;
-            const checkbox = lessonEl.querySelector('.km-slip-checkbox');
-            const correctionBox = lessonEl.querySelector('.km-slip-correction');
-            checkbox.addEventListener('change', () => { correctionBox.style.display = checkbox.checked ? 'block' : 'none'; });
+            const correctionInput = lessonEl.querySelector('.km-slip-correction-input');
+            if (correctionInput) {
+                correctionInput.value = wrongPhrase;
+                const resize = () => { correctionInput.style.width = `${Math.max(correctionInput.value.length, 4)}ch`; };
+                resize();
+                correctionInput.addEventListener('input', resize);
+                correctionInput.focus();
+                correctionInput.select();
+            }
 
             const finish = async (postBody, btn) => {
                 btn.disabled = true;
@@ -14352,12 +14356,13 @@ SQIDAQAB
                     renderNodeReviewAo1(lessonEl, d, qualifyingLinks, questionText, true, finalResult.feedback || '');
                     return;
                 }
-                lessonEl.querySelectorAll('.km-slip-checkbox-label, .km-slip-correction, .km-slip-decline-btn').forEach((el) => el.remove());
+                lessonEl.querySelectorAll('.km-slip-correct-submit-btn, .km-slip-decline-btn').forEach((el) => el.remove());
+                if (correctionInput) correctionInput.disabled = true;
                 finishNodeReviewAo1(lessonEl, d, qualifyingLinks, finalResult);
             };
 
             lessonEl.querySelector('.km-slip-correct-submit-btn').addEventListener('click', (ev) => {
-                const correction = lessonEl.querySelector('.km-slip-correction-input').value.trim();
+                const correction = correctionInput ? correctionInput.value.trim() : '';
                 if (!correction) return;
                 finish({ nodeId: d.id, questionText, originalAnswer, wrongPhrase, correction }, ev.target);
             });
