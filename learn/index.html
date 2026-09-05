@@ -14176,23 +14176,19 @@ SQIDAQAB
             lessonEl.insertAdjacentHTML('beforeend', `<div class="km-inline-detail-item km-inline-detail-none km-diag-submit-error">Something went wrong — your answer is safe, just submit again.</div>`);
         }
 
-        // Once the AO1 finally lands (whether a clean pass, or a slip
-        // that was/wasn't corrected — see renderNodeReviewAo1SlipCheck),
-        // this is the single place that decides what happens next: only a
-        // genuinely correct AO1 continues into this node's links, since
-        // testing a link off a recall that just failed tests nothing
-        // real. A wrong one ends the session here, with its own result
-        // still shown in the summary rather than silently dropped.
+        // Only ever reached once the AO1 has genuinely landed correct
+        // (whether a clean pass, or a slip that got corrected — see
+        // renderNodeReviewAo1SlipCheck) - a wrong answer never ends the
+        // session here any more, it just retries in place (see
+        // renderNodeReviewAo1's own comment), so this always continues
+        // into this node's links.
         function finishNodeReviewAo1(lessonEl, d, qualifyingLinks, finalResult) {
             if (finalResult.schedule) {
                 fullData.scheduleByConceptId.set(finalResult.schedule.conceptId, finalResult.schedule);
                 updateNodeMasteryState(d, finalResult.schedule);
             }
-            const ao1Entry = { label: `${d.label} — recall check`, correct: finalResult.correct, keysEarned: finalResult.keysEarned };
-            renderNodeReviewStepDone(lessonEl, finalResult, () => {
-                if (finalResult.correct) renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, 0, [ao1Entry]);
-                else renderNodeReviewSummary(lessonEl, d, [ao1Entry]);
-            });
+            const ao1Entry = { label: `${d.label} — recall check`, correct: true, keysEarned: finalResult.keysEarned };
+            renderNodeReviewStepDone(lessonEl, finalResult, () => renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, 0, [ao1Entry]));
         }
 
         // A slip candidate's highlighted word, wrapped for display — built
@@ -14210,8 +14206,11 @@ SQIDAQAB
 
         // Only reached when the backend flagged the wrong answer as a
         // likely one-word slip rather than a genuine gap — nothing has
-        // been recorded yet (see ao1/submit's own comment), so whichever
-        // way this resolves is what actually finalizes.
+        // been recorded yet (see ao1/submit's own comment). Never ends the
+        // lesson: a still-wrong correction, or a decline, both drop back
+        // into a normal free-text retry (renderNodeReviewAo1) with the
+        // feedback shown as a hint; only a genuinely correct answer here
+        // finalizes anything.
         function renderNodeReviewAo1SlipCheck(lessonEl, d, qualifyingLinks, questionText, originalAnswer, result) {
             const wrongPhrase = result.wrongPhrase;
             lessonEl.innerHTML = `
@@ -14242,6 +14241,10 @@ SQIDAQAB
                     btn.disabled = false;
                     return renderNodeReviewSubmitError(lessonEl);
                 }
+                if (!finalResult.correct) {
+                    renderNodeReviewAo1(lessonEl, d, qualifyingLinks, questionText, true, finalResult.feedback || '');
+                    return;
+                }
                 lessonEl.querySelectorAll('.km-slip-checkbox-label, .km-slip-correction, .km-slip-decline-btn').forEach((el) => el.remove());
                 finishNodeReviewAo1(lessonEl, d, qualifyingLinks, finalResult);
             };
@@ -14256,7 +14259,14 @@ SQIDAQAB
             });
         }
 
-        function renderNodeReviewAo1(lessonEl, d, qualifyingLinks, questionText) {
+        // Never fails the lesson — a wrong answer (that isn't a flagged
+        // slip, see renderNodeReviewAo1SlipCheck) just retries in place
+        // with the grading call's own feedback shown as a hint, same
+        // contract integration/submit uses. hadRetry/retryFeedback carry
+        // that state across the loop; the SAME reworded question is reused
+        // on every retry rather than generating a new one, so retrying
+        // costs nothing extra.
+        function renderNodeReviewAo1(lessonEl, d, qualifyingLinks, questionText, hadRetry = false, retryFeedback = '') {
             const draftKey = `node-review-ao1:${d.id}`;
             lessonEl.innerHTML = `
                 <div class="km-inline-detail-section">
@@ -14264,6 +14274,7 @@ SQIDAQAB
                     <div class="km-inline-detail-label">${escapeHtml(d.label)}</div>
                     <h4 class="km-inline-lesson-question">Recall check</h4>
                     <div class="km-inline-lesson-question">${escapeHtml(questionText)}</div>
+                    ${retryFeedback ? `<div class="km-inline-detail-item km-inline-detail-none" style="margin-top:6px;">${escapeHtml(retryFeedback)}</div>` : ''}
                     <textarea class="km-diag-answer-input" rows="5" placeholder="Write your answer here…" style="${DIAG_TEXTAREA_STYLE}"></textarea>
                     <button type="button" class="btn primary km-diag-submit-btn" style="margin-top:10px;">Submit</button>
                 </div>
@@ -14278,7 +14289,7 @@ SQIDAQAB
                 if (!answer) return;
                 ev.target.disabled = true;
                 ev.target.textContent = 'Checking…';
-                const result = await postChainDiagnostic('/knowledge-map-v2/node-review/ao1/submit', { nodeId: d.id, questionText, answer });
+                const result = await postChainDiagnostic('/knowledge-map-v2/node-review/ao1/submit', { nodeId: d.id, questionText, answer, hadRetry });
                 if (!result) {
                     ev.target.disabled = false;
                     ev.target.textContent = 'Submit';
@@ -14287,6 +14298,10 @@ SQIDAQAB
                 clearAnswerDraft(draftKey);
                 if (result.isSlipCandidate) {
                     renderNodeReviewAo1SlipCheck(lessonEl, d, qualifyingLinks, questionText, answer, result);
+                    return;
+                }
+                if (!result.correct) {
+                    renderNodeReviewAo1(lessonEl, d, qualifyingLinks, questionText, true, result.feedback || '');
                     return;
                 }
                 ev.target.remove();
