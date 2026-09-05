@@ -13696,6 +13696,20 @@ SQIDAQAB
         // node's class/fill-opacity directly - never a full
         // renderKmInlineGraph re-run, which would restart the force
         // simulation and reset the student's current pan/zoom.
+        // Called the moment a lesson or review actually completes (from
+        // the practice-question/AO1/integration submit callbacks below),
+        // not on some later refresh - this is what lets the graph's own
+        // colour move state-0 "Not started" -> state-1 "Learning" without
+        // waiting for the app to be closed and reopened. The detail card
+        // sitting underneath the lesson/review fullpage has the same
+        // problem: it was rendered from this node's PRE-lesson state and
+        // "Back to map" only toggles visibility (see showKmWorkspace),
+        // never re-runs selectKmInlineNode - so without this, its "Not
+        // started"/"Needs first" text stayed stale until the student left
+        // and reselected the node, even though the graph beside it had
+        // already updated. Only re-renders it in place when it's still
+        // showing this exact node, never swaps it to a node the student
+        // didn't click.
         function updateNodeMasteryState(nodeDatum, detail) {
             fullData.masteryDetail = fullData.masteryDetail || {};
             fullData.masteryDetail[nodeDatum.id] = detail;
@@ -13704,11 +13718,15 @@ SQIDAQAB
             const g = nodeGroup.filter((n) => n.id === nodeDatum.id);
             g.attr('class', `km-node-group state-${nodeDatum.state}`);
             g.select('.km-node-shape').attr('fill-opacity', nodeDatum.state === 0 ? 0.55 : 1);
+            if (detailEl.dataset.nodeId === nodeDatum.id) selectKmInlineNode(nodeDatum);
         }
 
         // Same idea for a link's own review progress (see the matching
         // .km-link.state-N ramp) - keyed by the raw node-id pair, same as
-        // edgeMasteryDetail/links above, not by concept id.
+        // edgeMasteryDetail/links above, not by concept id. The "from"
+        // node's own card is the one whose "Builds on this"/qualifying-
+        // links list depends on this link's state, so the same in-place
+        // refresh applies there too (see updateNodeMasteryState's comment).
         function updateLinkMasteryState(fromNodeId, toNodeId, detail) {
             fullData.edgeMasteryDetail = fullData.edgeMasteryDetail || {};
             fullData.edgeMasteryDetail[`${fromNodeId}->${toNodeId}`] = detail;
@@ -13717,6 +13735,10 @@ SQIDAQAB
             if (!linkDatum) return;
             linkDatum.state = masteryProgressTier(detail);
             linkSelection.filter((l) => l === linkDatum).attr('class', `km-link state-${linkDatum.state}`);
+            if (detailEl.dataset.nodeId === fromNodeId) {
+                const fromNodeDatum = (nodeGroup.data() || []).find((n) => n.id === fromNodeId);
+                if (fromNodeDatum) selectKmInlineNode(fromNodeDatum);
+            }
         }
 
         function estimateLabelHalfWidth(label) { return Math.min((label || '').length, 42) * 2.9 + 6; }
@@ -13947,6 +13969,13 @@ SQIDAQAB
                         ? `<button class="btn primary km-inline-start-lesson-btn" disabled>Start review</button>`
                         : `<button class="btn primary km-inline-start-lesson-btn">Start review</button>`;
 
+            // Tracks which node this card currently describes, so
+            // updateNodeMasteryState/updateLinkMasteryState below can tell
+            // whether it's safe to re-render this panel in place (only
+            // when it's still showing the node whose lesson/review just
+            // changed) rather than silently swapping it to a node the
+            // student never clicked.
+            detailEl.dataset.nodeId = d.id;
             detailEl.innerHTML = `
                 <div class="km-inline-detail-eyebrow">${escapeHtml(d.subtopic || '')}</div>
                 <div class="km-inline-detail-label">${escapeHtml(d.label)}</div>
