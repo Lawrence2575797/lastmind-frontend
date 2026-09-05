@@ -14336,6 +14336,7 @@ SQIDAQAB
                 </div>
             `;
             const correctionInput = lessonEl.querySelector('.km-slip-correction-input');
+            const correctionGuard = correctionInput ? guardAnswerInput(correctionInput) : null;
             if (correctionInput) {
                 correctionInput.value = wrongPhrase;
                 const resize = () => { correctionInput.style.width = `${Math.max(correctionInput.value.length, 4)}ch`; };
@@ -14364,6 +14365,7 @@ SQIDAQAB
             lessonEl.querySelector('.km-slip-correct-submit-btn').addEventListener('click', (ev) => {
                 const correction = correctionInput ? correctionInput.value.trim() : '';
                 if (!correction) return;
+                if (correctionGuard && !correctionGuard.hasTrustedInput()) { showPasteBlockWarning(correctionInput); return; }
                 finish({ nodeId: d.id, questionText, originalAnswer, wrongPhrase, correction }, ev.target);
             });
             lessonEl.querySelector('.km-slip-decline-btn').addEventListener('click', (ev) => {
@@ -14392,13 +14394,15 @@ SQIDAQAB
                 </div>
             `;
             const textarea = lessonEl.querySelector('.km-diag-answer-input');
+            const guard = guardAnswerInput(textarea);
             const restored = loadAnswerDraft(draftKey);
-            if (restored) textarea.value = restored;
+            if (restored) { textarea.value = restored; guard.markTrusted(); }
             textarea.addEventListener('input', () => saveAnswerDraft(draftKey, textarea.value));
 
             lessonEl.querySelector('.km-diag-submit-btn').addEventListener('click', async (ev) => {
                 const answer = textarea.value.trim();
                 if (!answer) return;
+                if (!guard.hasTrustedInput()) { showPasteBlockWarning(textarea); return; }
                 ev.target.disabled = true;
                 ev.target.textContent = 'Checking…';
                 const result = await postChainDiagnostic('/knowledge-map-v2/node-review/ao1/submit', { nodeId: d.id, questionText, answer, hadRetry });
@@ -14482,13 +14486,15 @@ SQIDAQAB
                 </div>
             `;
             const textarea = lessonEl.querySelector('.km-diag-answer-input');
+            const guard = guardAnswerInput(textarea);
             const restored = loadAnswerDraft(draftKey);
-            if (restored) textarea.value = restored;
+            if (restored) { textarea.value = restored; guard.markTrusted(); }
             textarea.addEventListener('input', () => saveAnswerDraft(draftKey, textarea.value));
 
             lessonEl.querySelector('.km-diag-submit-btn').addEventListener('click', async (ev) => {
                 const answer = textarea.value.trim();
                 if (!answer) return;
+                if (!guard.hasTrustedInput()) { showPasteBlockWarning(textarea); return; }
                 ev.target.disabled = true;
                 ev.target.textContent = 'Checking…';
                 const result = await postChainDiagnostic('/knowledge-map-v2/node-review/integration/submit', {
@@ -14610,6 +14616,38 @@ SQIDAQAB
         };
         const MATH_SHORTCUT_TWO_CHAR = { '<=': '≤', '>=': '≥', '!=': '≠' };
         const MATH_SHORTCUT_ZWS = '​';
+
+        // Blocks paste/drop outright, and tracks whether the field's
+        // current content has ever been touched by a genuine (isTrusted)
+        // input event. This is the only signal that survives the two ways
+        // a script can put text in a field without the user typing it:
+        // setting .value directly (fires no event at all) or dispatching
+        // a synthetic one (isTrusted: false either way). Not proof of
+        // authorship - just closes the laziest paste/autofill path, same
+        // spirit as the paste block itself. markTrusted() exists for our
+        // OWN legitimate programmatic writes (restoring a saved draft),
+        // which must not be treated as suspicious.
+        function guardAnswerInput(el) {
+            let trusted = false;
+            el.addEventListener('paste', (e) => e.preventDefault());
+            el.addEventListener('drop', (e) => e.preventDefault());
+            el.addEventListener('input', (e) => { if (e.isTrusted) trusted = true; });
+            return { hasTrustedInput: () => trusted, markTrusted: () => { trusted = true; } };
+        }
+
+        // Shown once under an answer box when a submit is refused for
+        // having no genuine trusted input - never a punishment (the
+        // draft/answer is left untouched, they just need to retype it
+        // themselves), matching this app's flag-never-punish stance
+        // everywhere else.
+        function showPasteBlockWarning(afterEl) {
+            if (afterEl.nextElementSibling && afterEl.nextElementSibling.classList.contains('km-answer-integrity-warning')) return;
+            const warn = document.createElement('div');
+            warn.className = 'km-inline-detail-item km-inline-detail-none km-answer-integrity-warning';
+            warn.style.marginTop = '6px';
+            warn.textContent = 'Please type your answer yourself rather than pasting or inserting it.';
+            afterEl.insertAdjacentElement('afterend', warn);
+        }
 
         function createMathShortcutEditor(placeholder) {
             const wrap = document.createElement('div');
@@ -14927,11 +14965,14 @@ SQIDAQAB
                 return Array.from(node.childNodes).map(serializeNode).join('');
             }
 
+            const guard = guardAnswerInput(editor);
             return {
                 container: wrap,
                 getValue() { return serializeChildren(editor).trim(); },
                 isEmpty() { return !serializeChildren(editor).trim(); },
                 focus() { editor.focus(); },
+                hasTrustedInput: guard.hasTrustedInput,
+                markTrusted: guard.markTrusted,
             };
         }
 
@@ -14953,11 +14994,14 @@ SQIDAQAB
             textarea.placeholder = placeholder || 'Write your answer here…';
             textarea.rows = 5;
             wrap.appendChild(textarea);
+            const guard = guardAnswerInput(textarea);
             return {
                 container: wrap,
                 getValue() { return textarea.value.trim(); },
                 isEmpty() { return !textarea.value.trim(); },
                 focus() { textarea.focus(); },
+                hasTrustedInput: guard.hasTrustedInput,
+                markTrusted: guard.markTrusted,
             };
         }
 
@@ -15053,6 +15097,7 @@ SQIDAQAB
             const restored = loadAnswerDraft(draftKey);
             if (restored && editor.isEmpty()) {
                 if (inputEl.tagName === 'TEXTAREA') inputEl.value = restored; else inputEl.textContent = restored;
+                editor.markTrusted();
             }
             inputEl.addEventListener('input', () => saveAnswerDraft(draftKey, editor.getValue()));
 
@@ -15067,6 +15112,7 @@ SQIDAQAB
             let hadRetry = false;
             submitBtn.addEventListener('click', async () => {
                 if (editor.isEmpty()) return;
+                if (!editor.hasTrustedInput()) { showPasteBlockWarning(editor.container); return; }
                 submitBtn.disabled = true;
                 submitBtn.textContent = 'Checking…';
                 const result = await onSubmit(editor.getValue(), hadRetry);
@@ -15434,13 +15480,15 @@ SQIDAQAB
                 </div>
             `;
             const textarea = lessonEl.querySelector('.km-diag-answer-input');
+            const guard = guardAnswerInput(textarea);
             const restored = loadAnswerDraft(draftKey);
-            if (restored) textarea.value = restored;
+            if (restored) { textarea.value = restored; guard.markTrusted(); }
             textarea.addEventListener('input', () => saveAnswerDraft(draftKey, textarea.value));
 
             lessonEl.querySelector('.km-diag-submit-btn').addEventListener('click', async (ev) => {
                 const answer = textarea.value.trim();
                 if (!answer) return;
+                if (!guard.hasTrustedInput()) { showPasteBlockWarning(textarea); return; }
                 ev.target.disabled = true;
                 ev.target.textContent = 'Checking…';
                 const result = await postChainDiagnostic('/knowledge-map-v2/chain-diagnostic/submit', { state, answer });
@@ -15505,13 +15553,15 @@ SQIDAQAB
                 </div>
             `;
             const textarea = lessonEl.querySelector('.km-diag-answer-input');
+            const guard = guardAnswerInput(textarea);
             const restored = loadAnswerDraft(draftKey);
-            if (restored) textarea.value = restored;
+            if (restored) { textarea.value = restored; guard.markTrusted(); }
             textarea.addEventListener('input', () => saveAnswerDraft(draftKey, textarea.value));
 
             lessonEl.querySelector('.km-diag-submit-btn').addEventListener('click', async (ev) => {
                 const answer = textarea.value.trim();
                 if (!answer) return;
+                if (!guard.hasTrustedInput()) { showPasteBlockWarning(textarea); return; }
                 ev.target.disabled = true;
                 ev.target.textContent = 'Checking…';
                 const result = await postChainDiagnostic('/knowledge-map-v2/chain-diagnostic/submit-retry', { state, answer });
