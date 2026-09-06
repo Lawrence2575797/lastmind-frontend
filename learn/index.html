@@ -624,21 +624,20 @@
         pointer-events: none;
     }
 
+    /* Now the label INSIDE the card (a foreignObject div, not SVG text) -
+       see renderKmInlineGraph's grouped-column layout. */
     .km-node-label {
-        font-size: 11.5px;
+        font-size: 11px;
         font-weight: 600;
-        fill: var(--text);
-        opacity: 0.75;
+        line-height: 1.28;
+        color: var(--text);
+        padding-left: 7px;
+        padding-right: 2px;
         pointer-events: none;
-        text-anchor: middle;
-        paint-order: stroke;
-        stroke: var(--bg);
-        stroke-width: 3px;
-        stroke-linejoin: round;
-    }
-
-    .km-node-group.state-2 .km-node-label {
-        opacity: 1;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 3;
     }
 
     .km-node-halo {
@@ -652,7 +651,44 @@
     }
 
     .km-node-shape {
-        stroke-width: 1.5px;
+        stroke-width: 1.3px;
+    }
+
+    .km-node-stripe {
+        pointer-events: none;
+    }
+
+    .km-col-head {
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        fill: var(--text);
+        opacity: 0.4;
+    }
+
+    /* Knowledge & notes dropdown on a selected node's own detail card -
+       this node's own compiled notes, plus every directly linked edge's
+       compiled integration notes, without leaving the graph. */
+    .km-kd-toggle-btn { width: 100%; text-align: left; margin: 10px 0; }
+    .km-kd-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 10px;
+        padding: 8px;
+        border: 1px solid rgba(230, 215, 176, 0.14);
+        border-radius: 4px;
+        background: rgba(0, 0, 0, 0.15);
+    }
+    .km-kd-item-btn { width: 100%; text-align: left; font-size: 12.5px; }
+    .km-kd-item-label {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        opacity: 0.6;
+        margin-bottom: 4px;
     }
 
     /* Five-step progress ramp (see masteryProgressTier in
@@ -660,12 +696,21 @@
        background) through two intermediate spaced-review steps, up to
        durably mastered (--accent itself, full brightness). Reuses the two
        colours the 3-tier scheme already had as this ramp's own start/near-
-       end anchors, rather than picking an unrelated new palette. */
-    .km-dot-0, .state-0 .km-node-shape, .state-0.km-legend-dot { fill: #4a453e; }
-    .km-dot-1, .state-1 .km-node-shape, .state-1.km-legend-dot { fill: #8a5a3f; }
-    .km-dot-2, .state-2 .km-node-shape, .state-2.km-legend-dot { fill: #c98a4b; }
-    .km-dot-3, .state-3 .km-node-shape, .state-3.km-legend-dot { fill: #e0ab5f; }
-    .km-dot-4, .state-4 .km-node-shape, .state-4.km-legend-dot { fill: var(--accent); }
+       end anchors, rather than picking an unrelated new palette. Card
+       fill-opacity itself is set per-node in JS (a low tint, not a solid
+       fill - see updateNodeMasteryState) since a card this size filled
+       solid would overwhelm the text sitting on top of it; the stripe and
+       border carry the full-strength colour signal instead. */
+    .km-dot-0, .state-0 .km-node-shape, .state-0 .km-node-stripe, .state-0.km-legend-dot { fill: #4a453e; }
+    .km-dot-1, .state-1 .km-node-shape, .state-1 .km-node-stripe, .state-1.km-legend-dot { fill: #8a5a3f; }
+    .km-dot-2, .state-2 .km-node-shape, .state-2 .km-node-stripe, .state-2.km-legend-dot { fill: #c98a4b; }
+    .km-dot-3, .state-3 .km-node-shape, .state-3 .km-node-stripe, .state-3.km-legend-dot { fill: #e0ab5f; }
+    .km-dot-4, .state-4 .km-node-shape, .state-4 .km-node-stripe, .state-4.km-legend-dot { fill: var(--accent); }
+    .state-0 .km-node-shape { stroke: #4a453e; }
+    .state-1 .km-node-shape { stroke: #8a5a3f; }
+    .state-2 .km-node-shape { stroke: #c98a4b; }
+    .state-3 .km-node-shape { stroke: #e0ab5f; }
+    .state-4 .km-node-shape { stroke: var(--accent); }
 
     .km-legend-dot.km-dot-0, .km-detail-chip .dot.km-dot-0 { background: #4a453e; }
     .km-legend-dot.km-dot-1, .km-detail-chip .dot.km-dot-1 { background: #8a5a3f; }
@@ -5708,7 +5753,7 @@ SQIDAQAB
         for (let i = 0; i < sentences.length; i += sentencesPerParagraph) {
             paragraphs.push(sentences.slice(i, i + sentencesPerParagraph).join(' '));
         }
-        return paragraphs.filter(Boolean).map((p) => `<p>${escapeHtml(p)}</p>`).join('');
+        return paragraphs.filter(Boolean).map((p) => `<p>${boldMarkdownToHtml(p)}</p>`).join('');
     }
 
     // Escapes text first (neutralizing anything HTML-special in the
@@ -12942,8 +12987,6 @@ SQIDAQAB
     // Backend: GET /knowledge-map-v2 (routes/knowledgeMap.ts) ->
     // { nodes: [{id,conceptId,label,subtopic,theme}], edges: [{source,target}],
     //   mastery: {[nodeId]: 0|1|2}, masteryDetail }.
-    let kmInlineSimulation = null;
-
     // Throws on any real failure (no session, network error, non-OK
     // response) rather than swallowing it into a null the caller can't
     // tell apart from a genuinely empty map — conflating those two was a
@@ -13490,6 +13533,60 @@ SQIDAQAB
         });
     }
 
+    // Same manual, opt-in shape as renderCompileNotesCta above, but for a
+    // link's transfer+integration notes - shown once, right after that
+    // link's own integration question genuinely passes (see
+    // renderNodeReviewIntegration). Deliberately a button rather than the
+    // automatic compile this replaced: most reviews never touch every
+    // link's notes on the Notes page, so paying for a compile call on
+    // every single pass was pure waste for exactly the students who
+    // never look. A student who skips this can still compile the same
+    // notes later from the Notes page itself, via the same endpoint.
+    function renderCompileEdgeNotesCta(container, fromNodeId, toNodeId, label) {
+        container.innerHTML = `<button type="button" class="btn km-notes-compile-btn" style="margin-top:10px;">Compile notes</button>`;
+        container.querySelector('.km-notes-compile-btn').addEventListener('click', async (ev) => {
+            ev.target.disabled = true;
+            ev.target.textContent = 'Compiling…';
+            const result = await compileEdgeNotesRequest(fromNodeId, toNodeId);
+            if (!result) {
+                ev.target.disabled = false;
+                ev.target.textContent = 'Compile notes';
+                container.insertAdjacentHTML('beforeend', '<div class="km-inline-detail-item km-inline-detail-none" style="margin-top:8px;">Something went wrong — try again.</div>');
+                return;
+            }
+            container.innerHTML = `
+                <div class="km-inline-detail-section" style="margin-top:10px;">
+                    <h4>Notes — ${escapeHtml(label)}</h4>
+                    <div class="km-inline-lesson-explanation">${notesTextToHtml(result.transferSummary)}</div>
+                    <div class="km-inline-lesson-explanation">${notesTextToHtml(result.integrationSummary)}</div>
+                </div>
+            `;
+        });
+    }
+
+    // One row inside a node's "Knowledge & notes" dropdown (see
+    // selectKmInlineNode) - starts as a plain button naming what it'll
+    // show, compiles on click via whichever request the caller supplies
+    // (the node's own notes, or one specific link's integration notes),
+    // then replaces itself with the compiled text in place. Same opt-in,
+    // compile-on-demand principle as the CTA buttons above - nothing here
+    // is fetched until the student actually asks for it.
+    function renderKnowledgeDropdownItem(container, label, fetchHtml) {
+        container.innerHTML = `<button type="button" class="btn km-kd-item-btn">${escapeHtml(label)}</button>`;
+        container.querySelector('.km-kd-item-btn').addEventListener('click', async (ev) => {
+            ev.target.disabled = true;
+            ev.target.textContent = 'Loading…';
+            const html = await fetchHtml();
+            if (!html) {
+                ev.target.disabled = false;
+                ev.target.textContent = label;
+                container.insertAdjacentHTML('beforeend', '<div class="km-inline-detail-item km-inline-detail-none">Something went wrong — try again.</div>');
+                return;
+            }
+            container.innerHTML = `<div class="km-kd-item-label">${escapeHtml(label)}</div>${html}`;
+        });
+    }
+
     // Theme pills — "All" (default) plus one per distinct `theme` value
     // present in the data. Clicking one re-renders the graph filtered to
     // just that theme's own nodes/edges; "All" shows the whole subject,
@@ -13539,28 +13636,23 @@ SQIDAQAB
 
         const masteryDetail = fullData.masteryDetail || {};
 
-        const degree = new Map(visibleNodes.map((n) => [n.id, 0]));
-        visibleEdges.forEach((e) => {
-            degree.set(e.source, (degree.get(e.source) || 0) + 1);
-            degree.set(e.target, (degree.get(e.target) || 0) + 1);
-        });
-        const maxDegree = Math.max(1, ...degree.values());
-        const radiusScale = d3.scaleSqrt().domain([0, maxDegree]).range([6, 13]);
-
         const nodes = visibleNodes.map((n) => ({
             ...n,
             state: masteryProgressTier(masteryDetail[n.id]),
             detail: masteryDetail[n.id] || null,
-            r: radiusScale(degree.get(n.id) || 0)
         }));
+        const nodeById = new Map(nodes.map((n) => [n.id, n]));
         // Keyed by the same raw `${source}->${target}` node-id pair the
         // backend builds edgeMasteryDetail with (see knowledgeMapService.ts)
         // — never the resolved concept-id query key, so this lookup works
         // directly against visibleEdges without any extra resolution here.
         const edgeMasteryDetail = fullData.edgeMasteryDetail || {};
+        // source/target resolved to the actual node objects up front (the
+        // way d3.forceLink used to do it internally) - updateLinkMasteryState
+        // and every render step below read .source.x/.target.x directly.
         const links = visibleEdges.map((e) => ({
-            source: e.source,
-            target: e.target,
+            source: nodeById.get(e.source) || e.source,
+            target: nodeById.get(e.target) || e.target,
             state: masteryProgressTier(edgeMasteryDetail[`${e.source}->${e.target}`]),
         }));
 
@@ -13582,102 +13674,148 @@ SQIDAQAB
             .attr('d', 'M0,0 L8,4 L0,8 Z')
             .attr('class', 'km-link-arrowhead-path');
         const zoomLayer = svg.append('g');
-        // 0.3 as a lower bound only ever fit a handful of nodes — a
-        // subject-wide graph (1000+ nodes) needs to be able to shrink much
-        // further to fit the whole thing on screen at once. fitKmGraphToView
-        // below picks the actual sensible default once the layout has real
-        // positions; this floor just makes sure manual zoom-out is never
-        // artificially capped short of that.
         const zoomBehavior = d3.zoom().scaleExtent([0.01, 3]).on('zoom', (event) => zoomLayer.attr('transform', event.transform));
         svg.call(zoomBehavior);
+
+        // Deterministic grouped-column layout, replacing the old force
+        // simulation entirely - one column per subtopic (falling back to
+        // theme, then "General"), cards stacked top-to-bottom within a
+        // column in real prerequisite order rather than wherever a physics
+        // simulation happened to settle them. Validated at 100+ real nodes
+        // before this replaced the force layout - see the design review.
+        function columnKeyOf(n) { return n.subtopic || n.theme || 'General'; }
+        const columnOrder = [];
+        const seenColumns = new Set();
+        nodes.forEach((n) => {
+            const key = columnKeyOf(n);
+            if (!seenColumns.has(key)) { seenColumns.add(key); columnOrder.push(key); }
+        });
+
+        // Global topological sort (Kahn's algorithm) over every visible
+        // node/edge - gives each node a rank such that anything it depends
+        // on always ranks lower, even across column/subtopic boundaries.
+        // Any node the sort can't reach (a genuine cycle, or one isolated
+        // by the visible-edge filter) still needs a position, so it's
+        // appended in original order rather than dropped.
+        function topoRank(allNodes, allEdges) {
+            const indeg = new Map(allNodes.map((n) => [n.id, 0]));
+            const adj = new Map(allNodes.map((n) => [n.id, []]));
+            allEdges.forEach((e) => {
+                if (!adj.has(e.source) || !indeg.has(e.target)) return;
+                adj.get(e.source).push(e.target);
+                indeg.set(e.target, (indeg.get(e.target) || 0) + 1);
+            });
+            const queue = allNodes.filter((n) => indeg.get(n.id) === 0).map((n) => n.id);
+            const order = [];
+            const seen = new Set();
+            for (let qi = 0; qi < queue.length; qi++) {
+                const id = queue[qi];
+                if (seen.has(id)) continue;
+                seen.add(id);
+                order.push(id);
+                (adj.get(id) || []).forEach((t) => {
+                    indeg.set(t, indeg.get(t) - 1);
+                    if (indeg.get(t) === 0) queue.push(t);
+                });
+            }
+            allNodes.forEach((n) => { if (!seen.has(n.id)) order.push(n.id); });
+            return new Map(order.map((id, i) => [id, i]));
+        }
+        const topoIndex = topoRank(nodes, visibleEdges);
+
+        const CARD_W = 190, CARD_LINE_H = 14, CARD_MIN_H = 34, COL_GAP = 46, ROW_GAP = 14, PAD = 26, COL_HEAD_H = 26;
+        function estimateCardHeight(label) {
+            const charsPerLine = 24;
+            const lines = Math.max(1, Math.min(3, Math.ceil((label || '').length / charsPerLine)));
+            return Math.max(CARD_MIN_H, lines * CARD_LINE_H + 16);
+        }
+
+        const byColumn = new Map(columnOrder.map((key) => [key, []]));
+        nodes.forEach((n) => { byColumn.get(columnKeyOf(n)).push(n); });
+        byColumn.forEach((list) => list.sort((a, b) => (topoIndex.get(a.id) ?? 0) - (topoIndex.get(b.id) ?? 0)));
+
+        columnOrder.forEach((key, colIdx) => {
+            const colCenterX = PAD + colIdx * (CARD_W + COL_GAP) + CARD_W / 2;
+            let cursorY = PAD + COL_HEAD_H;
+            byColumn.get(key).forEach((n) => {
+                const h = estimateCardHeight(n.label);
+                n.halfW = CARD_W / 2;
+                n.halfH = h / 2;
+                n.x = colCenterX;
+                n.y = cursorY + n.halfH;
+                cursorY += h + ROW_GAP;
+            });
+        });
 
         function fitKmGraphToView() {
             let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
             nodes.forEach((n) => {
                 if (typeof n.x !== 'number') return;
-                minX = Math.min(minX, n.x - n.r); maxX = Math.max(maxX, n.x + n.r);
-                minY = Math.min(minY, n.y - n.r); maxY = Math.max(maxY, n.y + n.r);
+                minX = Math.min(minX, n.x - n.halfW); maxX = Math.max(maxX, n.x + n.halfW);
+                minY = Math.min(minY, n.y - n.halfH - COL_HEAD_H); maxY = Math.max(maxY, n.y + n.halfH);
             });
             const w = maxX - minX, h = maxY - minY;
             if (!isFinite(w) || !isFinite(h) || w <= 0 || h <= 0) return;
-            const fitScale = Math.min(width / w, height / h) * 0.9;
-            // A genuinely large graph (hundreds of nodes) has a settled
-            // bounding box set by collision/label spacing, not by canvas
-            // size — that box is the SAME physical size regardless of
-            // device, so "fit all of it" divides by a much smaller number
-            // on a small mobile canvas and shrinks every node into an
-            // illegible speck (confirmed with a synthetic-data render at a
-            // real mobile viewport — the graph technically wasn't blank
-            // any more after the width fix, just unreadably tiny). Never
-            // zoom out past a floor that keeps nodes visibly distinct;
-            // fitScale still wins whenever it's already generous enough
-            // (a small graph, or a big enough canvas) — this only kicks in
-            // once the graph genuinely can't fit at a legible size, and
-            // panning covers the rest.
-            const legibleFloor = 0.5;
-            const scale = Math.min(3, Math.max(0.01, Math.max(fitScale, legibleFloor)));
-            const tx = width / 2 - scale * (minX + w / 2);
-            const ty = height / 2 - scale * (minY + h / 2);
-            // Real bug: Math.min(0.01, scale * 0.5) always resolved to the
-            // tiny hardcoded 0.01 in practice (scale * 0.5 is almost always
-            // bigger than that), so the floor never actually tracked the
-            // real fit scale — letting the graph be zoomed out into a
-            // speck surrounded by empty canvas, exactly what was reported.
-            // 60% of the fit scale allows a little extra pan/zoom room
-            // without ever losing the graph entirely.
-            // Based on fitScale specifically, not the possibly-larger
-            // legible-floor `scale` — a graph too big to fit legibly
-            // should still be manually zoomable OUT far enough to see the
-            // whole thing, even though that's no longer the default view.
-            zoomBehavior.scaleExtent([Math.min(scale, fitScale) * 0.6, 3]);
-            svg.transition().duration(400).call(zoomBehavior.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+            // "Fit everything" is now the hard floor on zooming out, not a
+            // soft default - a subject-wide graph legitimately needs to
+            // shrink a lot to show it all at once, and zooming out any
+            // further than that would only ever reveal empty canvas.
+            const fitScale = Math.max(0.01, Math.min(width / w, height / h) * 0.94);
+            const tx = width / 2 - fitScale * (minX + w / 2);
+            const ty = height / 2 - fitScale * (minY + h / 2);
+            zoomBehavior.scaleExtent([fitScale, 3]);
+            svg.transition().duration(400).call(zoomBehavior.transform, d3.zoomIdentity.translate(tx, ty).scale(fitScale));
         }
 
-        // Cluster by theme when showing "All" (mirrors the old per-subfolder
-        // clustering) — a single-theme view has nothing to cluster against.
-        const clusteringEnabled = !themeFilter;
-        const themesPresent = Array.from(new Set(nodes.map((n) => n.theme || 'General'))).sort();
-        const themeAnchors = new Map();
-        if (clusteringEnabled && themesPresent.length > 1) {
-            const clusterRadius = Math.min(width, height) * 0.32;
-            themesPresent.forEach((theme, i) => {
-                const angle = (i / themesPresent.length) * Math.PI * 2 - Math.PI / 2;
-                themeAnchors.set(theme, { x: width / 2 + clusterRadius * Math.cos(angle), y: height / 2 + clusterRadius * Math.sin(angle) });
-            });
-        }
-        nodes.forEach((n) => { n._clusterTarget = themeAnchors.get(n.theme || 'General') || null; });
+        const colHeadSelection = zoomLayer.append('g').selectAll('text')
+            .data(columnOrder).join('text')
+            .attr('class', 'km-col-head')
+            .attr('x', (key, i) => PAD + i * (CARD_W + COL_GAP))
+            .attr('y', PAD + 16)
+            .text((key) => key);
 
-        function clusterForce(alpha) {
-            const strength = 0.1;
-            nodes.forEach((d) => {
-                if (!d._clusterTarget) return;
-                d.vx += (d._clusterTarget.x - d.x) * strength * alpha;
-                d.vy += (d._clusterTarget.y - d.y) * strength * alpha;
-            });
+        function linkPath(d) {
+            const s = d.source, t = d.target;
+            if (typeof s !== 'object' || typeof t !== 'object' || typeof s.x !== 'number' || typeof t.x !== 'number') return '';
+            if (columnKeyOf(s) === columnKeyOf(t)) {
+                const y1 = s.y + s.halfH, y2 = t.y - t.halfH;
+                const midY = (y1 + y2) / 2;
+                return `M${s.x},${y1} C${s.x},${midY} ${t.x},${midY} ${t.x},${y2}`;
+            }
+            const x1 = s.x + s.halfW, x2 = t.x - t.halfW;
+            const midX = (x1 + x2) / 2;
+            return `M${x1},${s.y} C${midX},${s.y} ${midX},${t.y} ${x2},${t.y}`;
         }
 
-        const linkSelection = zoomLayer.append('g').selectAll('line')
-            .data(links).join('line').attr('class', (d) => `km-link state-${d.state}`)
-            .attr('marker-end', 'url(#km-link-arrowhead)');
+        const linkSelection = zoomLayer.append('g').selectAll('path')
+            .data(links).join('path').attr('class', (d) => `km-link state-${d.state}`)
+            .attr('marker-end', 'url(#km-link-arrowhead)')
+            .attr('d', linkPath);
 
         const nodeGroup = zoomLayer.append('g').selectAll('g')
             .data(nodes, (d) => d.id).join('g')
-            .attr('class', (d) => `km-node-group state-${d.state}`);
+            .attr('class', (d) => `km-node-group state-${d.state}`)
+            .attr('transform', (d) => `translate(${d.x},${d.y})`);
 
-        // Squares, not circles — a plain, consistent silhouette reads
-        // faster across 1000+ nodes than a field of same-sized dots
-        // varying only by subtle radius differences.
         nodeGroup.append('rect').attr('class', 'km-node-halo')
-            .attr('x', (d) => -(d.r + 6)).attr('y', (d) => -(d.r + 6))
-            .attr('width', (d) => (d.r + 6) * 2).attr('height', (d) => (d.r + 6) * 2)
-            .attr('rx', 4);
+            .attr('x', (d) => -d.halfW - 5).attr('y', (d) => -d.halfH - 5)
+            .attr('width', (d) => d.halfW * 2 + 10).attr('height', (d) => d.halfH * 2 + 10)
+            .attr('rx', 8);
         nodeGroup.append('rect').attr('class', 'km-node-shape')
-            .attr('x', (d) => -d.r).attr('y', (d) => -d.r)
-            .attr('width', (d) => d.r * 2).attr('height', (d) => d.r * 2)
-            .attr('rx', 3)
-            .attr('fill-opacity', (d) => (d.state === 0 ? 0.55 : 1));
-        nodeGroup.append('text').attr('class', 'km-node-label').attr('dy', (d) => d.r + 14)
-            .text((d) => (d.label.length > 40 ? d.label.slice(0, 38) + '…' : d.label));
+            .attr('x', (d) => -d.halfW).attr('y', (d) => -d.halfH)
+            .attr('width', (d) => d.halfW * 2).attr('height', (d) => d.halfH * 2)
+            .attr('rx', 6)
+            .attr('fill-opacity', (d) => (d.state === 0 ? 0.08 : 0.15));
+        nodeGroup.append('rect').attr('class', 'km-node-stripe')
+            .attr('x', (d) => -d.halfW).attr('y', (d) => -d.halfH)
+            .attr('width', 4).attr('height', (d) => d.halfH * 2)
+            .attr('rx', 2);
+        const nodeLabelFo = nodeGroup.append('foreignObject')
+            .attr('x', (d) => -d.halfW + 4).attr('y', (d) => -d.halfH)
+            .attr('width', (d) => d.halfW * 2 - 8).attr('height', (d) => d.halfH * 2);
+        nodeLabelFo.append('xhtml:div').attr('class', 'km-node-label')
+            .style('height', '100%').style('display', '-webkit-box').style('align-items', 'center')
+            .text((d) => d.label);
 
         // Patches this node's own colour/tier in place the instant a
         // lesson or review actually completes (see each submit handler's
@@ -13688,9 +13826,9 @@ SQIDAQAB
         // encoded. Mutates the SAME datum object the click handlers
         // already close over (so re-selecting the node picks up the new
         // state text immediately too) and re-applies just this one
-        // node's class/fill-opacity directly - never a full
-        // renderKmInlineGraph re-run, which would restart the force
-        // simulation and reset the student's current pan/zoom.
+        // node's class/fill-opacity directly - the layout itself never
+        // needs to be recomputed for a mastery change, so this never
+        // resets the student's current pan/zoom.
         // Called the moment a lesson or review actually completes (from
         // the practice-question/AO1/integration submit callbacks below),
         // not on some later refresh - this is what lets the graph's own
@@ -13712,7 +13850,7 @@ SQIDAQAB
             nodeDatum.detail = detail;
             const g = nodeGroup.filter((n) => n.id === nodeDatum.id);
             g.attr('class', `km-node-group state-${nodeDatum.state}`);
-            g.select('.km-node-shape').attr('fill-opacity', nodeDatum.state === 0 ? 0.55 : 1);
+            g.select('.km-node-shape').attr('fill-opacity', nodeDatum.state === 0 ? 0.08 : 0.15);
             if (detailEl.dataset.nodeId === nodeDatum.id) selectKmInlineNode(nodeDatum);
         }
 
@@ -13736,57 +13874,7 @@ SQIDAQAB
             }
         }
 
-        function estimateLabelHalfWidth(label) { return Math.min((label || '').length, 42) * 2.9 + 6; }
-
-        function renderKmTick() {
-            linkSelection.attr('x1', (d) => d.source.x).attr('y1', (d) => d.source.y)
-                .attr('x2', (d) => d.target.x).attr('y2', (d) => d.target.y);
-            nodeGroup.attr('transform', (d) => `translate(${d.x},${d.y})`);
-        }
-
-        if (kmInlineSimulation) kmInlineSimulation.stop();
-        kmInlineSimulation = d3.forceSimulation(nodes)
-            .force('link', d3.forceLink(links).id((d) => d.id).distance(80).strength(0.65))
-            .force('charge', d3.forceManyBody().strength(-380))
-            .force('center', d3.forceCenter(width / 2, height / 2))
-            .force('collide', d3.forceCollide().radius((d) => Math.max(d.r + 22, estimateLabelHalfWidth(d.label) + 10)).iterations(3))
-            .force('cluster', clusterForce)
-            .alphaDecay(0.035)
-            .velocityDecay(0.35)
-            .stop();
-
-        // Pre-warm the simulation fully BEFORE the first paint, rather
-        // than animating one DOM write per tick, ~200 ticks touching
-        // every node/link's SVG attributes each time — fine for a small
-        // graph, but the actual cause of "taking forever" on mobile once
-        // a subject-wide map runs into hundreds of nodes (this app has
-        // no node dragging, so nothing ever needs the live per-tick
-        // repaint anyway; only the FINAL settled layout matters). Time-
-        // and tick-boxed so a pathologically large graph degrades to
-        // "settles a little less perfectly" rather than hanging the tab.
-        //
-        // Wrapped defensively: this fast path is new and unverified on a
-        // real device, and a graph that fails to render at all is worse
-        // than one that's merely slow — any failure here falls all the
-        // way back to the old always-worked animated tick loop rather
-        // than leaving the canvas blank.
-        try {
-            const kmWarmupDeadline = performance.now() + 800;
-            let kmWarmupTicks = 0;
-            while (kmInlineSimulation.alpha() > kmInlineSimulation.alphaMin() && kmWarmupTicks < 400 && performance.now() < kmWarmupDeadline) {
-                kmInlineSimulation.tick();
-                kmWarmupTicks++;
-            }
-            renderKmTick();
-            fitKmGraphToView();
-        } catch (err) {
-            console.error('LastMind: knowledge map fast-path render failed — falling back to animated ticks.', err);
-            kmInlineSimulation
-                .alpha(1)
-                .on('tick', renderKmTick)
-                .on('end', fitKmGraphToView)
-                .restart();
-        }
+        fitKmGraphToView();
 
         const detailEl = contentInner.querySelector('.km-inline-detail');
         const lessonFullpageBodyEl = contentInner.querySelector('.km-lesson-fullpage-body');
@@ -13971,10 +14059,22 @@ SQIDAQAB
             // changed) rather than silently swapping it to a node the
             // student never clicked.
             detailEl.dataset.nodeId = d.id;
+            // Every edge directly touching this node, either direction -
+            // each one's own compiled integration notes are one click
+            // away below, same as this node's own compiled knowledge.
+            const linkedForNotes = [
+                ...downstream.map((n) => ({ label: `${d.label} → ${n.label}`, fromId: d.id, toId: n.id })),
+                ...upstream.map((n) => ({ label: `${n.label} → ${d.label}`, fromId: n.id, toId: d.id })),
+            ];
             detailEl.innerHTML = `
                 <div class="km-inline-detail-eyebrow">${escapeHtml(d.subtopic || '')}</div>
                 <div class="km-inline-detail-label">${escapeHtml(d.label)}</div>
                 <div class="km-inline-detail-meta">${stateLabel[d.state]}</div>
+                <button type="button" class="btn km-kd-toggle-btn">📓 Knowledge &amp; notes ▾</button>
+                <div class="km-kd-panel" hidden>
+                    <div class="km-kd-item" id="km-kd-own"></div>
+                    ${linkedForNotes.map((item, i) => `<div class="km-kd-item" data-kd-idx="${i}"></div>`).join('')}
+                </div>
                 ${progressHtml}
                 <div class="km-inline-detail-section"><h4>Needs first</h4>${upItems}</div>
                 <div class="km-inline-detail-section"><h4>Builds on this</h4>${downItems}</div>
@@ -13984,6 +14084,19 @@ SQIDAQAB
                     ${startBtnHtml}
                 </div>
             `;
+            renderKnowledgeDropdownItem(detailEl.querySelector('#km-kd-own'), `${d.label} — knowledge`, async () => {
+                const result = await compileNodeNotesRequest(d.id);
+                return result ? notesTextToHtml(result.notes) : null;
+            });
+            linkedForNotes.forEach((item, i) => {
+                renderKnowledgeDropdownItem(detailEl.querySelector(`[data-kd-idx="${i}"]`), item.label, async () => {
+                    const result = await compileEdgeNotesRequest(item.fromId, item.toId);
+                    return result ? notesTextToHtml(result.transferSummary) + notesTextToHtml(result.integrationSummary) : null;
+                });
+            });
+            const kdToggleBtn = detailEl.querySelector('.km-kd-toggle-btn');
+            const kdPanel = detailEl.querySelector('.km-kd-panel');
+            kdToggleBtn.addEventListener('click', () => { kdPanel.hidden = !kdPanel.hidden; });
             detailEl.querySelector('.km-inline-view-btn').addEventListener('click', () => zoomToNode(d));
             const verifyBtn = detailEl.querySelector('.km-inline-verify-btn');
             if (verifyBtn) verifyBtn.addEventListener('click', () => {
@@ -14336,6 +14449,7 @@ SQIDAQAB
                 </div>
             `;
             const correctionInput = lessonEl.querySelector('.km-slip-correction-input');
+            const correctionGuard = correctionInput ? guardAnswerInput(correctionInput) : null;
             if (correctionInput) {
                 correctionInput.value = wrongPhrase;
                 const resize = () => { correctionInput.style.width = `${Math.max(correctionInput.value.length, 4)}ch`; };
@@ -14364,6 +14478,7 @@ SQIDAQAB
             lessonEl.querySelector('.km-slip-correct-submit-btn').addEventListener('click', (ev) => {
                 const correction = correctionInput ? correctionInput.value.trim() : '';
                 if (!correction) return;
+                if (correctionGuard && !correctionGuard.hasTrustedInput()) { showPasteBlockWarning(correctionInput); return; }
                 finish({ nodeId: d.id, questionText, originalAnswer, wrongPhrase, correction }, ev.target);
             });
             lessonEl.querySelector('.km-slip-decline-btn').addEventListener('click', (ev) => {
@@ -14392,13 +14507,15 @@ SQIDAQAB
                 </div>
             `;
             const textarea = lessonEl.querySelector('.km-diag-answer-input');
+            const guard = guardAnswerInput(textarea);
             const restored = loadAnswerDraft(draftKey);
-            if (restored) textarea.value = restored;
+            if (restored) { textarea.value = restored; guard.markTrusted(); }
             textarea.addEventListener('input', () => saveAnswerDraft(draftKey, textarea.value));
 
             lessonEl.querySelector('.km-diag-submit-btn').addEventListener('click', async (ev) => {
                 const answer = textarea.value.trim();
                 if (!answer) return;
+                if (!guard.hasTrustedInput()) { showPasteBlockWarning(textarea); return; }
                 ev.target.disabled = true;
                 ev.target.textContent = 'Checking…';
                 const result = await postChainDiagnostic('/knowledge-map-v2/node-review/ao1/submit', { nodeId: d.id, questionText, answer, hadRetry });
@@ -14482,13 +14599,15 @@ SQIDAQAB
                 </div>
             `;
             const textarea = lessonEl.querySelector('.km-diag-answer-input');
+            const guard = guardAnswerInput(textarea);
             const restored = loadAnswerDraft(draftKey);
-            if (restored) textarea.value = restored;
+            if (restored) { textarea.value = restored; guard.markTrusted(); }
             textarea.addEventListener('input', () => saveAnswerDraft(draftKey, textarea.value));
 
             lessonEl.querySelector('.km-diag-submit-btn').addEventListener('click', async (ev) => {
                 const answer = textarea.value.trim();
                 if (!answer) return;
+                if (!guard.hasTrustedInput()) { showPasteBlockWarning(textarea); return; }
                 ev.target.disabled = true;
                 ev.target.textContent = 'Checking…';
                 const result = await postChainDiagnostic('/knowledge-map-v2/node-review/integration/submit', {
@@ -14510,11 +14629,20 @@ SQIDAQAB
                 }
                 resultsSoFar.push({ label: `${d.label} → ${link.label} — integration`, correct: true, keysEarned: result.keysEarned, toNodeId: link.id, stage: 'integration' });
                 ev.target.remove();
+                const notesCtaEl = document.createElement('div');
+                lessonEl.appendChild(notesCtaEl);
+                renderCompileEdgeNotesCta(notesCtaEl, d.id, link.id, `${d.label} → ${link.label}`);
                 renderNodeReviewStepDone(lessonEl, result, () => renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, index + 1, resultsSoFar));
             });
         }
 
-        async function renderNodeReviewSummary(lessonEl, d, resultsSoFar) {
+        // Edge notes are no longer auto-compiled here - each link now gets
+        // its own opt-in "Compile notes" button right on its integration
+        // question (see renderNodeReviewIntegration/renderCompileEdgeNotesCta),
+        // so a student who never wants notes for a given link never pays
+        // for that compile call at all. A student who skipped it can still
+        // compile the same notes later from the Notes page itself.
+        function renderNodeReviewSummary(lessonEl, d, resultsSoFar) {
             clearNodeReviewCheckpoint(d.id);
             const totalKeys = resultsSoFar.reduce((sum, r) => sum + (r.keysEarned || 0), 0);
             const rows = resultsSoFar.length
@@ -14526,37 +14654,10 @@ SQIDAQAB
                     <div class="km-inline-detail-item">"${escapeHtml(d.label)}" — recall check done.</div>
                     ${rows}
                     ${keysEarnedHtml(totalKeys)}
-                    <div id="km-review-notes-status"></div>
                     <button type="button" class="btn primary km-review-back-btn" style="margin-top:10px;">Back to map</button>
                 </div>
             `;
             lessonEl.querySelector('.km-review-back-btn').addEventListener('click', () => showKmWorkspace(contentInner));
-
-            // Every link genuinely completed in this exact session (its
-            // toNodeId appears in resultsSoFar at all - integration never
-            // fails any more, see renderNodeReviewIntegration's own
-            // comment, so an entry here always means a real pass) earns
-            // compiled transfer+integration notes on the Notes page (see
-            // compileEdgeNotesRequest/knowledgeMapNotesService.ts's
-            // compileEdgeNotes).
-            const linkIds = Array.from(new Set(resultsSoFar.filter((r) => r.toNodeId).map((r) => r.toNodeId)));
-            if (!linkIds.length) return;
-
-            const compiledLabels = [];
-            for (const toNodeId of linkIds) {
-                const result = await compileEdgeNotesRequest(d.id, toNodeId);
-                if (!result) continue;
-                const link = fullData.nodes.find((n) => n.id === toNodeId);
-                compiledLabels.push(link ? `${d.label} → ${link.label}` : d.label);
-            }
-            // The student may already have clicked "Back to map" (or this
-            // node's review may have been re-entered) by the time these
-            // awaits resolve - only write into the status line if this
-            // exact summary screen is still the one showing.
-            const statusEl = lessonEl.querySelector('#km-review-notes-status');
-            if (statusEl && compiledLabels.length) {
-                statusEl.innerHTML = `<p class="keys-earned-line">📝 Notes ready: ${escapeHtml(compiledLabels.join(', '))}</p>`;
-            }
         }
 
         // "Verify" — the Premium test-out shortcut (see the backend's
@@ -14610,6 +14711,38 @@ SQIDAQAB
         };
         const MATH_SHORTCUT_TWO_CHAR = { '<=': '≤', '>=': '≥', '!=': '≠' };
         const MATH_SHORTCUT_ZWS = '​';
+
+        // Blocks paste/drop outright, and tracks whether the field's
+        // current content has ever been touched by a genuine (isTrusted)
+        // input event. This is the only signal that survives the two ways
+        // a script can put text in a field without the user typing it:
+        // setting .value directly (fires no event at all) or dispatching
+        // a synthetic one (isTrusted: false either way). Not proof of
+        // authorship - just closes the laziest paste/autofill path, same
+        // spirit as the paste block itself. markTrusted() exists for our
+        // OWN legitimate programmatic writes (restoring a saved draft),
+        // which must not be treated as suspicious.
+        function guardAnswerInput(el) {
+            let trusted = false;
+            el.addEventListener('paste', (e) => e.preventDefault());
+            el.addEventListener('drop', (e) => e.preventDefault());
+            el.addEventListener('input', (e) => { if (e.isTrusted) trusted = true; });
+            return { hasTrustedInput: () => trusted, markTrusted: () => { trusted = true; } };
+        }
+
+        // Shown once under an answer box when a submit is refused for
+        // having no genuine trusted input - never a punishment (the
+        // draft/answer is left untouched, they just need to retype it
+        // themselves), matching this app's flag-never-punish stance
+        // everywhere else.
+        function showPasteBlockWarning(afterEl) {
+            if (afterEl.nextElementSibling && afterEl.nextElementSibling.classList.contains('km-answer-integrity-warning')) return;
+            const warn = document.createElement('div');
+            warn.className = 'km-inline-detail-item km-inline-detail-none km-answer-integrity-warning';
+            warn.style.marginTop = '6px';
+            warn.textContent = 'Please type your answer yourself rather than pasting or inserting it.';
+            afterEl.insertAdjacentElement('afterend', warn);
+        }
 
         function createMathShortcutEditor(placeholder) {
             const wrap = document.createElement('div');
@@ -14927,11 +15060,14 @@ SQIDAQAB
                 return Array.from(node.childNodes).map(serializeNode).join('');
             }
 
+            const guard = guardAnswerInput(editor);
             return {
                 container: wrap,
                 getValue() { return serializeChildren(editor).trim(); },
                 isEmpty() { return !serializeChildren(editor).trim(); },
                 focus() { editor.focus(); },
+                hasTrustedInput: guard.hasTrustedInput,
+                markTrusted: guard.markTrusted,
             };
         }
 
@@ -14953,11 +15089,14 @@ SQIDAQAB
             textarea.placeholder = placeholder || 'Write your answer here…';
             textarea.rows = 5;
             wrap.appendChild(textarea);
+            const guard = guardAnswerInput(textarea);
             return {
                 container: wrap,
                 getValue() { return textarea.value.trim(); },
                 isEmpty() { return !textarea.value.trim(); },
                 focus() { textarea.focus(); },
+                hasTrustedInput: guard.hasTrustedInput,
+                markTrusted: guard.markTrusted,
             };
         }
 
@@ -15053,6 +15192,7 @@ SQIDAQAB
             const restored = loadAnswerDraft(draftKey);
             if (restored && editor.isEmpty()) {
                 if (inputEl.tagName === 'TEXTAREA') inputEl.value = restored; else inputEl.textContent = restored;
+                editor.markTrusted();
             }
             inputEl.addEventListener('input', () => saveAnswerDraft(draftKey, editor.getValue()));
 
@@ -15067,6 +15207,7 @@ SQIDAQAB
             let hadRetry = false;
             submitBtn.addEventListener('click', async () => {
                 if (editor.isEmpty()) return;
+                if (!editor.hasTrustedInput()) { showPasteBlockWarning(editor.container); return; }
                 submitBtn.disabled = true;
                 submitBtn.textContent = 'Checking…';
                 const result = await onSubmit(editor.getValue(), hadRetry);
@@ -15434,13 +15575,15 @@ SQIDAQAB
                 </div>
             `;
             const textarea = lessonEl.querySelector('.km-diag-answer-input');
+            const guard = guardAnswerInput(textarea);
             const restored = loadAnswerDraft(draftKey);
-            if (restored) textarea.value = restored;
+            if (restored) { textarea.value = restored; guard.markTrusted(); }
             textarea.addEventListener('input', () => saveAnswerDraft(draftKey, textarea.value));
 
             lessonEl.querySelector('.km-diag-submit-btn').addEventListener('click', async (ev) => {
                 const answer = textarea.value.trim();
                 if (!answer) return;
+                if (!guard.hasTrustedInput()) { showPasteBlockWarning(textarea); return; }
                 ev.target.disabled = true;
                 ev.target.textContent = 'Checking…';
                 const result = await postChainDiagnostic('/knowledge-map-v2/chain-diagnostic/submit', { state, answer });
@@ -15505,13 +15648,15 @@ SQIDAQAB
                 </div>
             `;
             const textarea = lessonEl.querySelector('.km-diag-answer-input');
+            const guard = guardAnswerInput(textarea);
             const restored = loadAnswerDraft(draftKey);
-            if (restored) textarea.value = restored;
+            if (restored) { textarea.value = restored; guard.markTrusted(); }
             textarea.addEventListener('input', () => saveAnswerDraft(draftKey, textarea.value));
 
             lessonEl.querySelector('.km-diag-submit-btn').addEventListener('click', async (ev) => {
                 const answer = textarea.value.trim();
                 if (!answer) return;
+                if (!guard.hasTrustedInput()) { showPasteBlockWarning(textarea); return; }
                 ev.target.disabled = true;
                 ev.target.textContent = 'Checking…';
                 const result = await postChainDiagnostic('/knowledge-map-v2/chain-diagnostic/submit-retry', { state, answer });
