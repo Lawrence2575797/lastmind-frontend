@@ -667,6 +667,30 @@
         opacity: 0.4;
     }
 
+    /* Knowledge & notes dropdown on a selected node's own detail card -
+       this node's own compiled notes, plus every directly linked edge's
+       compiled integration notes, without leaving the graph. */
+    .km-kd-toggle-btn { width: 100%; text-align: left; margin: 10px 0; }
+    .km-kd-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 10px;
+        padding: 8px;
+        border: 1px solid rgba(230, 215, 176, 0.14);
+        border-radius: 4px;
+        background: rgba(0, 0, 0, 0.15);
+    }
+    .km-kd-item-btn { width: 100%; text-align: left; font-size: 12.5px; }
+    .km-kd-item-label {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        opacity: 0.6;
+        margin-bottom: 4px;
+    }
+
     /* Five-step progress ramp (see masteryProgressTier in
        renderKmInlineGraph) — not started (dim grey-brown, recedes into the
        background) through two intermediate spaced-review steps, up to
@@ -13540,6 +13564,29 @@ SQIDAQAB
         });
     }
 
+    // One row inside a node's "Knowledge & notes" dropdown (see
+    // selectKmInlineNode) - starts as a plain button naming what it'll
+    // show, compiles on click via whichever request the caller supplies
+    // (the node's own notes, or one specific link's integration notes),
+    // then replaces itself with the compiled text in place. Same opt-in,
+    // compile-on-demand principle as the CTA buttons above - nothing here
+    // is fetched until the student actually asks for it.
+    function renderKnowledgeDropdownItem(container, label, fetchHtml) {
+        container.innerHTML = `<button type="button" class="btn km-kd-item-btn">${escapeHtml(label)}</button>`;
+        container.querySelector('.km-kd-item-btn').addEventListener('click', async (ev) => {
+            ev.target.disabled = true;
+            ev.target.textContent = 'Loading…';
+            const html = await fetchHtml();
+            if (!html) {
+                ev.target.disabled = false;
+                ev.target.textContent = label;
+                container.insertAdjacentHTML('beforeend', '<div class="km-inline-detail-item km-inline-detail-none">Something went wrong — try again.</div>');
+                return;
+            }
+            container.innerHTML = `<div class="km-kd-item-label">${escapeHtml(label)}</div>${html}`;
+        });
+    }
+
     // Theme pills — "All" (default) plus one per distinct `theme` value
     // present in the data. Clicking one re-renders the graph filtered to
     // just that theme's own nodes/edges; "All" shows the whole subject,
@@ -14012,10 +14059,22 @@ SQIDAQAB
             // changed) rather than silently swapping it to a node the
             // student never clicked.
             detailEl.dataset.nodeId = d.id;
+            // Every edge directly touching this node, either direction -
+            // each one's own compiled integration notes are one click
+            // away below, same as this node's own compiled knowledge.
+            const linkedForNotes = [
+                ...downstream.map((n) => ({ label: `${d.label} → ${n.label}`, fromId: d.id, toId: n.id })),
+                ...upstream.map((n) => ({ label: `${n.label} → ${d.label}`, fromId: n.id, toId: d.id })),
+            ];
             detailEl.innerHTML = `
                 <div class="km-inline-detail-eyebrow">${escapeHtml(d.subtopic || '')}</div>
                 <div class="km-inline-detail-label">${escapeHtml(d.label)}</div>
                 <div class="km-inline-detail-meta">${stateLabel[d.state]}</div>
+                <button type="button" class="btn km-kd-toggle-btn">📓 Knowledge &amp; notes ▾</button>
+                <div class="km-kd-panel" hidden>
+                    <div class="km-kd-item" id="km-kd-own"></div>
+                    ${linkedForNotes.map((item, i) => `<div class="km-kd-item" data-kd-idx="${i}"></div>`).join('')}
+                </div>
                 ${progressHtml}
                 <div class="km-inline-detail-section"><h4>Needs first</h4>${upItems}</div>
                 <div class="km-inline-detail-section"><h4>Builds on this</h4>${downItems}</div>
@@ -14025,6 +14084,19 @@ SQIDAQAB
                     ${startBtnHtml}
                 </div>
             `;
+            renderKnowledgeDropdownItem(detailEl.querySelector('#km-kd-own'), `${d.label} — knowledge`, async () => {
+                const result = await compileNodeNotesRequest(d.id);
+                return result ? notesTextToHtml(result.notes) : null;
+            });
+            linkedForNotes.forEach((item, i) => {
+                renderKnowledgeDropdownItem(detailEl.querySelector(`[data-kd-idx="${i}"]`), item.label, async () => {
+                    const result = await compileEdgeNotesRequest(item.fromId, item.toId);
+                    return result ? notesTextToHtml(result.transferSummary) + notesTextToHtml(result.integrationSummary) : null;
+                });
+            });
+            const kdToggleBtn = detailEl.querySelector('.km-kd-toggle-btn');
+            const kdPanel = detailEl.querySelector('.km-kd-panel');
+            kdToggleBtn.addEventListener('click', () => { kdPanel.hidden = !kdPanel.hidden; });
             detailEl.querySelector('.km-inline-view-btn').addEventListener('click', () => zoomToNode(d));
             const verifyBtn = detailEl.querySelector('.km-inline-verify-btn');
             if (verifyBtn) verifyBtn.addEventListener('click', () => {
