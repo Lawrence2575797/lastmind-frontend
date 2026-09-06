@@ -942,52 +942,14 @@
     /* ─── Notes content (see selectNotesNode) — rendered straight into
        #contentInner, same as every other dashboard view; the node/theme/
        lesson picker itself lives in the sidebar's own Notes tab
-       (.notes-tree-list above), not here, so this is just a plain
-       page-scrolling 2-column layout (main notes + a Links panel that
-       stays pinned in view while a long note scrolls) — no nested-scroll
-       tricks needed. Class prefix km-notes- throughout, distinct from the
-       unrelated .note-editable/.notes-panel classes (the per-page
-       lesson-notes editor) to avoid any collision. .km-notes-item is also
-       reused (unmodified) by the Links panel's own entries below. */
-    .km-notes-body { display: flex; gap: 18px; align-items: flex-start; }
-    .km-notes-item {
-        display: flex; align-items: center; gap: 7px; width: 100%; text-align: left;
-        background: none; border: none; color: var(--text); font-size: 12px; line-height: 1.35;
-        padding: 4px 6px; border-radius: 4px; cursor: pointer; font-family: Arial, sans-serif;
-    }
-    .km-notes-item:hover { background: rgba(230, 215, 176, 0.08); }
-    .km-notes-item-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); opacity: 0; }
-    .km-notes-item.has-notes .km-notes-item-dot { opacity: 1; }
-    .km-notes-main { flex: 1; min-width: 0; max-width: 620px; }
-    .km-notes-main .km-inline-lesson-explanation { font-size: 15.5px; line-height: 1.9; }
-    .km-notes-main .km-inline-lesson-explanation p { margin: 0 0 16px; }
-    .km-notes-transfer-heading { font-family: Georgia, serif; font-size: 18px; font-weight: 700; color: var(--accent); margin-bottom: 14px; line-height: 1.5; }
-    /* The "Links" panel — every OUTGOING link from whichever node is
-       currently selected (see selectNotesNode), titled by the concept it
-       links TO with a "→" prefix specifically so it never reads as if it
-       WERE that concept's own entry in the main sidebar list above, just a
-       link to it (same label text otherwise, per the "title them according
-       to the concept node it links to" ask). */
-    .km-notes-links {
-        flex: 0 0 240px;
-        position: sticky;
-        top: 14px;
-        max-height: calc(100vh - 120px);
-        overflow-y: auto;
-        border: 1px solid rgba(230, 215, 176, 0.16);
-        border-radius: 8px;
-        padding: 12px;
-    }
-    .km-notes-links-heading { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.55; font-weight: 700; margin-bottom: 8px; }
-    .km-notes-link-item.locked { opacity: 0.5; cursor: default; }
-    .km-notes-link-item.locked:hover { background: none; }
+       (.notes-tree-list above), not here. A single dropdown - the node's
+       own knowledge, then every direct link - reusing .km-kd-* from the
+       knowledge map's own node sidebar (see renderKnowledgeDropdownItem)
+       so both places share one visual language and one implementation. */
+    .km-notes-body { max-width: 640px; }
     .km-notes-link-locked-hint { font-size: 11px; opacity: 0.6; padding: 2px 6px 8px; line-height: 1.5; }
-    .km-notes-links-back-btn { font-size: 11.5px; padding: 4px 8px; margin-bottom: 10px; }
-
-    @media (max-width: 900px) {
-        .km-notes-body { flex-direction: column; }
-        .km-notes-links { position: static; max-height: none; width: 100%; flex-basis: auto; }
-    }
+    .km-kd-item-locked { padding: 4px 6px; }
+    .km-kd-item-locked > span { font-size: 12.5px; opacity: 0.6; }
 
     /* ─── Diagram-drawing question widget ─── */
     .diagram-widget { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
@@ -13210,22 +13172,6 @@ SQIDAQAB
         }
     }
 
-    async function fetchNodeNotesGet(nodeId) {
-        try {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) return null;
-            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/node/${encodeURIComponent(nodeId)}/notes`, {
-                headers: { Authorization: `Bearer ${session.access_token}` }
-            });
-            if (resp.status === 404) return null;
-            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
-            return await resp.json();
-        } catch (err) {
-            console.error('LastMind: failed to load these notes.', err);
-            return null;
-        }
-    }
-
     async function compileNodeNotesRequest(nodeId) {
         try {
             const { data: { session } } = await supabaseClient.auth.getSession();
@@ -13395,117 +13341,59 @@ SQIDAQAB
         });
     }
 
-    // Replaces #contentInner with the picked node's own notes (left) and
-    // its Links panel (right, see renderNotesLinksPanel) - the sidebar
-    // tree itself (see renderNotesTree) stays exactly as it was, since it
-    // lives outside #contentInner entirely.
+    // Replaces #contentInner with a single dropdown for the picked node -
+    // its own knowledge at the top, then every one of its own direct
+    // links below (see getNotesIndexForUser's own comment: a link to a
+    // not-yet-encoded target never appears at all), each one a separate
+    // item compiling that specific piece on click. Reuses the exact same
+    // renderKnowledgeDropdownItem the knowledge map's own node sidebar
+    // uses (see selectKmInlineNode) - same compile-on-demand behaviour,
+    // same endpoints, just laid out as this page's main content instead
+    // of a secondary panel. The sidebar tree itself (see renderNotesTree)
+    // stays exactly as it was, since it lives outside #contentInner
+    // entirely.
     async function selectNotesNode(node) {
         stopActiveDictation();
         stopSpeaking();
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
-        contentInner.innerHTML = `
-            <div class="km-notes-body">
-                <div class="km-notes-main"></div>
-                <div class="km-notes-links"></div>
-            </div>
-        `;
-        const mainEl = contentInner.querySelector('.km-notes-main');
-        const linksEl = contentInner.querySelector('.km-notes-links');
 
         if (!node.encoded) {
-            mainEl.innerHTML = `
-                <div class="km-inline-detail-label" style="margin-bottom:14px;">${escapeHtml(node.label)}</div>
-                <div class="km-inline-detail-item km-inline-detail-none">Not encoded yet — head to this subject's knowledge map to start its lesson.</div>
+            contentInner.innerHTML = `
+                <div class="km-notes-body">
+                    <div class="km-inline-detail-label" style="margin-bottom:14px;">${escapeHtml(node.label)}</div>
+                    <div class="km-inline-detail-item km-inline-detail-none">Not encoded yet — head to this subject's knowledge map to start its lesson.</div>
+                </div>
             `;
             return;
         }
-        renderNotesLinksPanel(linksEl, node);
-        mainEl.innerHTML = '<div class="km-inline-detail-empty">Loading…</div>';
-        const notes = await fetchNodeNotesGet(node.nodeId);
-        if (notes) {
-            mainEl.innerHTML = `<div class="km-inline-detail-label" style="margin-bottom:14px;">${escapeHtml(node.label)}</div><div class="km-inline-lesson-explanation">${notesTextToHtml(notes.notes)}</div>`;
-            return;
-        }
-        mainEl.innerHTML = `
-            <div class="km-inline-detail-label" style="margin-bottom:14px;">${escapeHtml(node.label)}</div>
-            <div class="km-inline-detail-item km-inline-detail-none">No notes compiled for this concept yet.</div>
-            <button type="button" class="btn primary km-notes-compile-btn" style="margin-top:10px;">Compile notes</button>
+
+        contentInner.innerHTML = `
+            <div class="km-notes-body">
+                <div class="km-inline-detail-label" style="margin-bottom:14px;">${escapeHtml(node.label)}</div>
+                <div class="km-kd-panel">
+                    <div class="km-kd-item" id="km-kd-own"></div>
+                    ${node.links.length ? node.links.map((l, i) => l.unlocked
+                        ? `<div class="km-kd-item" data-kd-idx="${i}"></div>`
+                        : `<div class="km-kd-item km-kd-item-locked">
+                               <span>→ ${escapeHtml(l.toLabel)}</span>
+                               <div class="km-notes-link-locked-hint">Complete this link's spaced review to unlock its notes.</div>
+                           </div>`
+                    ).join('') : '<div class="km-inline-detail-item km-inline-detail-none">No links tested yet for this concept.</div>'}
+                </div>
+            </div>
         `;
-        mainEl.querySelector('.km-notes-compile-btn').addEventListener('click', async (ev) => {
-            ev.target.disabled = true;
-            ev.target.textContent = 'Compiling…';
+        renderKnowledgeDropdownItem(contentInner.querySelector('#km-kd-own'), `${node.label} — knowledge`, async () => {
             const result = await compileNodeNotesRequest(node.nodeId);
-            if (!result) {
-                ev.target.disabled = false;
-                ev.target.textContent = 'Compile notes';
-                mainEl.insertAdjacentHTML('beforeend', '<div class="km-inline-detail-item km-inline-detail-none" style="margin-top:8px;">Something went wrong — try again.</div>');
-                return;
-            }
-            mainEl.innerHTML = `<div class="km-inline-detail-label" style="margin-bottom:14px;">${escapeHtml(node.label)}</div><div class="km-inline-lesson-explanation">${notesTextToHtml(result.notes)}</div>`;
+            return result ? notesTextToHtml(result.notes) : null;
         });
-    }
-
-    // The right-hand "Links" panel for whichever node is currently
-    // selected - every one of ITS OWN outgoing links (see
-    // getNotesIndexForUser's own comment: a link to a not-yet-encoded
-    // target never appears at all), titled with a "→" prefix so a link
-    // entry never reads as if it WERE that concept's own entry in the
-    // main sidebar list (same label text otherwise, per "title them
-    // according to the concept node it links to"). A link that hasn't
-    // been earned yet (no review pass yet) still shows, disabled, with a
-    // one-line explanation of what unlocks it - matching the node list's
-    // own "shown but inert until earned" treatment above.
-    function renderNotesLinksPanel(linksEl, node) {
-        if (!node.links.length) {
-            linksEl.innerHTML = `<div class="km-notes-links-heading">Links</div><div class="km-inline-detail-item km-inline-detail-none">No links tested yet for this concept.</div>`;
-            return;
-        }
-        linksEl.innerHTML = `
-            <div class="km-notes-links-heading">Links</div>
-            ${node.links.map((l, i) => l.unlocked
-                ? `<button type="button" class="km-notes-item km-notes-link-item has-notes" data-link-idx="${i}">
-                       <span class="km-notes-item-dot"></span><span>→ ${escapeHtml(l.toLabel)}</span>
-                   </button>`
-                : `<div>
-                       <button type="button" class="km-notes-item km-notes-link-item locked" disabled>
-                           <span class="km-notes-item-dot"></span><span>→ ${escapeHtml(l.toLabel)}</span>
-                       </button>
-                       <div class="km-notes-link-locked-hint">Complete this link's spaced review to unlock its notes.</div>
-                   </div>`
-            ).join('')}
-        `;
-        linksEl.querySelectorAll('.km-notes-link-item[data-link-idx]').forEach((btn) => {
-            btn.addEventListener('click', () => selectNotesLink(linksEl, node, node.links[Number(btn.dataset.linkIdx)]));
+        node.links.forEach((l, i) => {
+            if (!l.unlocked) return;
+            renderKnowledgeDropdownItem(contentInner.querySelector(`[data-kd-idx="${i}"]`), `${node.label} → ${l.toLabel}`, async () => {
+                const result = await compileEdgeNotesRequest(node.nodeId, l.toNodeId);
+                return result ? notesTextToHtml(result.transferSummary) + notesTextToHtml(result.integrationSummary) : null;
+            });
         });
-    }
-
-    // Compiles (or fetches the already-cached text for) this link's notes,
-    // rather than a plain read - a link can be marked unlocked from a
-    // genuine pass that happened before this page's own compile hook ever
-    // ran for it (see getNotesIndexForUser's own comment on the durable
-    // FSRS-backed unlock fallback), in which case no one has ever
-    // generated its note text yet. compileEdgeNotesRequest is safe to call
-    // again even when text already exists (cache-or-generate, same as the
-    // node notes compile flow) so this never re-does work needlessly.
-    async function selectNotesLink(linksEl, node, link) {
-        const backBtnHtml = `<button type="button" class="btn km-notes-links-back-btn">← Links</button>`;
-        const wireBack = () => linksEl.querySelector('.km-notes-links-back-btn').addEventListener('click', () => renderNotesLinksPanel(linksEl, node));
-
-        linksEl.innerHTML = `${backBtnHtml}<div class="km-inline-detail-empty">Loading…</div>`;
-        wireBack();
-        const notes = await compileEdgeNotesRequest(node.nodeId, link.toNodeId);
-        if (!notes) {
-            linksEl.innerHTML = `${backBtnHtml}<div class="km-inline-detail-item km-inline-detail-none">Something went wrong loading these notes — try again.</div>`;
-            wireBack();
-            return;
-        }
-        linksEl.innerHTML = `
-            ${backBtnHtml}
-            <div class="km-notes-transfer-heading" style="font-size:15px;">${escapeHtml(notes.transferSummary)}</div>
-            <div class="km-inline-lesson-explanation" style="font-size:13px; line-height:1.7;">${notesTextToHtml(notes.integrationSummary)}</div>
-        `;
-        wireBack();
     }
 
     // The "compile notes lesson" step shown right after a node's own
