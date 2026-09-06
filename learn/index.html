@@ -13490,6 +13490,37 @@ SQIDAQAB
         });
     }
 
+    // Same manual, opt-in shape as renderCompileNotesCta above, but for a
+    // link's transfer+integration notes - shown once, right after that
+    // link's own integration question genuinely passes (see
+    // renderNodeReviewIntegration). Deliberately a button rather than the
+    // automatic compile this replaced: most reviews never touch every
+    // link's notes on the Notes page, so paying for a compile call on
+    // every single pass was pure waste for exactly the students who
+    // never look. A student who skips this can still compile the same
+    // notes later from the Notes page itself, via the same endpoint.
+    function renderCompileEdgeNotesCta(container, fromNodeId, toNodeId, label) {
+        container.innerHTML = `<button type="button" class="btn km-notes-compile-btn" style="margin-top:10px;">Compile notes</button>`;
+        container.querySelector('.km-notes-compile-btn').addEventListener('click', async (ev) => {
+            ev.target.disabled = true;
+            ev.target.textContent = 'Compiling…';
+            const result = await compileEdgeNotesRequest(fromNodeId, toNodeId);
+            if (!result) {
+                ev.target.disabled = false;
+                ev.target.textContent = 'Compile notes';
+                container.insertAdjacentHTML('beforeend', '<div class="km-inline-detail-item km-inline-detail-none" style="margin-top:8px;">Something went wrong — try again.</div>');
+                return;
+            }
+            container.innerHTML = `
+                <div class="km-inline-detail-section" style="margin-top:10px;">
+                    <h4>Notes — ${escapeHtml(label)}</h4>
+                    <div class="km-inline-lesson-explanation">${notesTextToHtml(result.transferSummary)}</div>
+                    <div class="km-inline-lesson-explanation">${notesTextToHtml(result.integrationSummary)}</div>
+                </div>
+            `;
+        });
+    }
+
     // Theme pills — "All" (default) plus one per distinct `theme` value
     // present in the data. Clicking one re-renders the graph filtered to
     // just that theme's own nodes/edges; "All" shows the whole subject,
@@ -14516,11 +14547,20 @@ SQIDAQAB
                 }
                 resultsSoFar.push({ label: `${d.label} → ${link.label} — integration`, correct: true, keysEarned: result.keysEarned, toNodeId: link.id, stage: 'integration' });
                 ev.target.remove();
+                const notesCtaEl = document.createElement('div');
+                lessonEl.appendChild(notesCtaEl);
+                renderCompileEdgeNotesCta(notesCtaEl, d.id, link.id, `${d.label} → ${link.label}`);
                 renderNodeReviewStepDone(lessonEl, result, () => renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, index + 1, resultsSoFar));
             });
         }
 
-        async function renderNodeReviewSummary(lessonEl, d, resultsSoFar) {
+        // Edge notes are no longer auto-compiled here - each link now gets
+        // its own opt-in "Compile notes" button right on its integration
+        // question (see renderNodeReviewIntegration/renderCompileEdgeNotesCta),
+        // so a student who never wants notes for a given link never pays
+        // for that compile call at all. A student who skipped it can still
+        // compile the same notes later from the Notes page itself.
+        function renderNodeReviewSummary(lessonEl, d, resultsSoFar) {
             clearNodeReviewCheckpoint(d.id);
             const totalKeys = resultsSoFar.reduce((sum, r) => sum + (r.keysEarned || 0), 0);
             const rows = resultsSoFar.length
@@ -14532,37 +14572,10 @@ SQIDAQAB
                     <div class="km-inline-detail-item">"${escapeHtml(d.label)}" — recall check done.</div>
                     ${rows}
                     ${keysEarnedHtml(totalKeys)}
-                    <div id="km-review-notes-status"></div>
                     <button type="button" class="btn primary km-review-back-btn" style="margin-top:10px;">Back to map</button>
                 </div>
             `;
             lessonEl.querySelector('.km-review-back-btn').addEventListener('click', () => showKmWorkspace(contentInner));
-
-            // Every link genuinely completed in this exact session (its
-            // toNodeId appears in resultsSoFar at all - integration never
-            // fails any more, see renderNodeReviewIntegration's own
-            // comment, so an entry here always means a real pass) earns
-            // compiled transfer+integration notes on the Notes page (see
-            // compileEdgeNotesRequest/knowledgeMapNotesService.ts's
-            // compileEdgeNotes).
-            const linkIds = Array.from(new Set(resultsSoFar.filter((r) => r.toNodeId).map((r) => r.toNodeId)));
-            if (!linkIds.length) return;
-
-            const compiledLabels = [];
-            for (const toNodeId of linkIds) {
-                const result = await compileEdgeNotesRequest(d.id, toNodeId);
-                if (!result) continue;
-                const link = fullData.nodes.find((n) => n.id === toNodeId);
-                compiledLabels.push(link ? `${d.label} → ${link.label}` : d.label);
-            }
-            // The student may already have clicked "Back to map" (or this
-            // node's review may have been re-entered) by the time these
-            // awaits resolve - only write into the status line if this
-            // exact summary screen is still the one showing.
-            const statusEl = lessonEl.querySelector('#km-review-notes-status');
-            if (statusEl && compiledLabels.length) {
-                statusEl.innerHTML = `<p class="keys-earned-line">📝 Notes ready: ${escapeHtml(compiledLabels.join(', '))}</p>`;
-            }
         }
 
         // "Verify" — the Premium test-out shortcut (see the backend's
