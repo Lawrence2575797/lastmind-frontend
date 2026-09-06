@@ -5708,7 +5708,7 @@ SQIDAQAB
         for (let i = 0; i < sentences.length; i += sentencesPerParagraph) {
             paragraphs.push(sentences.slice(i, i + sentencesPerParagraph).join(' '));
         }
-        return paragraphs.filter(Boolean).map((p) => `<p>${escapeHtml(p)}</p>`).join('');
+        return paragraphs.filter(Boolean).map((p) => `<p>${boldMarkdownToHtml(p)}</p>`).join('');
     }
 
     // Escapes text first (neutralizing anything HTML-special in the
