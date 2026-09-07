@@ -25,6 +25,14 @@
         --panel: #201F21;
         --text: #E6D7B0;
         --accent: #E6D7B0;
+        /* "Liquid gold" - a surface treatment, never a text colour. Used
+           as a fill/background on small, discrete elements (buttons,
+           status pills, the mastered-state dot/stripe, a highlighted key
+           term) with --bg as the text colour on top of it - a solid gold
+           block behind a whole heading or paragraph would be loud rather
+           than legible, so --text/--accent stay the plain cream
+           everywhere text itself is the thing being coloured. */
+        --gold-surface: linear-gradient(135deg, #8B6914, #E8C15C 55%, #B8860B);
     }
 
     button, input, textarea, select {
@@ -705,18 +713,18 @@
     .km-dot-1, .state-1 .km-node-shape, .state-1 .km-node-stripe, .state-1.km-legend-dot { fill: #8a5a3f; }
     .km-dot-2, .state-2 .km-node-shape, .state-2 .km-node-stripe, .state-2.km-legend-dot { fill: #c98a4b; }
     .km-dot-3, .state-3 .km-node-shape, .state-3 .km-node-stripe, .state-3.km-legend-dot { fill: #e0ab5f; }
-    .km-dot-4, .state-4 .km-node-shape, .state-4 .km-node-stripe, .state-4.km-legend-dot { fill: var(--accent); }
+    .km-dot-4, .state-4 .km-node-shape, .state-4 .km-node-stripe, .state-4.km-legend-dot { fill: url(#km-gold-gradient); }
     .state-0 .km-node-shape { stroke: #4a453e; }
     .state-1 .km-node-shape { stroke: #8a5a3f; }
     .state-2 .km-node-shape { stroke: #c98a4b; }
     .state-3 .km-node-shape { stroke: #e0ab5f; }
-    .state-4 .km-node-shape { stroke: var(--accent); }
+    .state-4 .km-node-shape { stroke: url(#km-gold-gradient); }
 
     .km-legend-dot.km-dot-0, .km-detail-chip .dot.km-dot-0 { background: #4a453e; }
     .km-legend-dot.km-dot-1, .km-detail-chip .dot.km-dot-1 { background: #8a5a3f; }
     .km-legend-dot.km-dot-2, .km-detail-chip .dot.km-dot-2 { background: #c98a4b; }
     .km-legend-dot.km-dot-3, .km-detail-chip .dot.km-dot-3 { background: #e0ab5f; }
-    .km-legend-dot.km-dot-4, .km-detail-chip .dot.km-dot-4 { background: var(--accent); }
+    .km-legend-dot.km-dot-4, .km-detail-chip .dot.km-dot-4 { background: var(--gold-surface); }
 
     .km-legend {
         position: absolute;
@@ -859,6 +867,18 @@
     .km-inline-lesson-explanation { font-size: 12.5px; line-height: 1.6; margin-bottom: 10px; }
     .km-inline-lesson-explanation p { margin: 0 0 10px; }
     .km-inline-lesson-explanation p:last-child { margin-bottom: 0; }
+    /* "Liquid gold" applied to the bold key terms (**term**, see
+       boldMarkdownToHtml) - a highlighter-pen chip rather than plain
+       coloured bold text, the one place gold-as-a-surface belongs inside
+       running prose since it's a single word/phrase, not a whole
+       heading or paragraph. */
+    .km-inline-lesson-explanation strong {
+        background: var(--gold-surface);
+        color: var(--bg);
+        padding: 1px 5px;
+        border-radius: 3px;
+        font-weight: 700;
+    }
     .km-inline-lesson-question { font-size: 12.5px; line-height: 1.5; padding: 10px; background: rgba(230, 215, 176, 0.05); border-radius: 3px; }
     .km-inline-detail-actions { margin-top: auto; display: flex; gap: 8px; }
     .km-inline-view-btn { flex: 1; padding: 10px 0; font-size: 13px; }
@@ -4373,7 +4393,7 @@
     }
 
     .btn.primary {
-        background: var(--accent);
+        background: var(--gold-surface);
         color: var(--bg);
         border: none;
     }
@@ -13552,7 +13572,8 @@ SQIDAQAB
         // (edge.target — "Builds on this"), so marker-end on the link line
         // below reads left-to-right in the same direction the graph already
         // treats as upstream -> downstream.
-        svg.append('defs').append('marker')
+        const defs = svg.append('defs');
+        defs.append('marker')
             .attr('id', 'km-link-arrowhead')
             .attr('viewBox', '0 0 8 8')
             .attr('refX', 7).attr('refY', 4)
@@ -13561,6 +13582,16 @@ SQIDAQAB
             .append('path')
             .attr('d', 'M0,0 L8,4 L0,8 Z')
             .attr('class', 'km-link-arrowhead-path');
+        // SVG has no CSS-gradient equivalent for fill/stroke - "liquid
+        // gold" (see --gold-surface) needs its own <linearGradient> here,
+        // referenced via fill/stroke: url(#km-gold-gradient) wherever the
+        // mastered (state-4) tier currently used a flat --accent fill.
+        const goldGradient = defs.append('linearGradient')
+            .attr('id', 'km-gold-gradient')
+            .attr('x1', '0%').attr('y1', '0%').attr('x2', '100%').attr('y2', '100%');
+        goldGradient.append('stop').attr('offset', '0%').attr('stop-color', '#8B6914');
+        goldGradient.append('stop').attr('offset', '55%').attr('stop-color', '#E8C15C');
+        goldGradient.append('stop').attr('offset', '100%').attr('stop-color', '#B8860B');
         const zoomLayer = svg.append('g');
         const zoomBehavior = d3.zoom().scaleExtent([0.01, 3]).on('zoom', (event) => zoomLayer.attr('transform', event.transform));
         svg.call(zoomBehavior);
