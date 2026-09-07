@@ -1053,7 +1053,68 @@
         font-family: 'Arial', sans-serif; font-size: 13px; line-height: 1.6; padding: 10px 12px;
     }
     .km-personal-note-save-state { font-size: 10.5px; opacity: 0.5; margin-top: 4px; height: 14px; }
-    .km-personal-note-diagram-toggle { margin-top: 10px; font-size: 11.5px; padding: 6px 12px; }
+
+    /* Template mode needs more than .km-notes-body's usual 640px reading
+       width once the extras column sits alongside the main one - applied
+       only while template mode is active (see renderPersonalNoteEditor). */
+    .km-notes-body.km-notes-body-wide { max-width: 900px; }
+
+    .km-personal-note-guidance {
+        font-size: 11.5px; line-height: 1.65; opacity: 0.8; background: rgba(230, 215, 176, 0.05);
+        border: 1px solid rgba(230, 215, 176, 0.16); border-radius: 6px; padding: 10px 12px; margin-bottom: 14px;
+    }
+    .km-personal-note-guidance strong { opacity: 1; color: var(--accent); }
+
+    .km-personal-note-template-grid { display: grid; grid-template-columns: 1fr 240px; gap: 20px; align-items: start; }
+    @media (max-width: 820px) {
+        .km-personal-note-template-grid { grid-template-columns: 1fr; }
+    }
+    .km-personal-note-main-col { display: flex; flex-direction: column; }
+    .km-personal-note-extras-col { display: flex; flex-direction: column; gap: 6px; }
+
+    .km-personal-note-extra-checkbox {
+        display: flex; align-items: flex-start; gap: 8px; font-size: 12px; line-height: 1.4;
+        cursor: pointer; padding: 6px 0;
+    }
+    .km-personal-note-extra-checkbox input { margin-top: 2px; flex: none; }
+    .km-personal-note-extra-body { margin: 0 0 6px; }
+    .km-personal-note-extra-textarea {
+        width: 100%; min-height: 70px; resize: vertical; background: rgba(230, 215, 176, 0.05);
+        border: 1px solid rgba(230, 215, 176, 0.16); border-radius: 4px; color: var(--text);
+        font-family: 'Arial', sans-serif; font-size: 12.5px; line-height: 1.55; padding: 8px 10px;
+    }
+    .km-personal-note-diagram-host .diagram-widget { margin-top: 4px; }
+
+    /* Quick Notes - a small always-available scratchpad independent of
+       free-text/template mode (see renderQuickNotesWidget), floating
+       bottom-right and collapsed by default. z-index sits well under the
+       app's own full-screen overlays (150+) so it never covers a modal,
+       but above ordinary page content. */
+    .km-quick-notes-widget {
+        position: fixed; right: 20px; bottom: 20px; z-index: 60;
+        display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+    }
+    .km-quick-notes-toggle {
+        flex-shrink: 0; font-family: 'Arial', sans-serif; font-size: 0.78rem; font-weight: 700;
+        background: var(--gold-surface); color: var(--gold-text); border: none;
+        padding: 9px 16px; border-radius: 20px; cursor: pointer; white-space: nowrap;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+    }
+    .km-quick-notes-toggle:hover { filter: brightness(1.08); }
+    .km-quick-notes-panel {
+        display: none; width: min(300px, 80vw); background: var(--panel);
+        border: 1px solid rgba(230, 215, 176, 0.3); border-radius: 8px;
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4); overflow: hidden; padding: 10px 10px 6px;
+    }
+    .km-quick-notes-panel.open { display: block; }
+    .km-quick-notes-textarea {
+        display: block; width: 100%; height: 200px; resize: vertical; background: var(--bg);
+        border: none; color: var(--text); font-family: 'Georgia', serif; font-size: 0.85rem;
+        line-height: 1.6; padding: 8px;
+    }
+    .km-quick-notes-textarea:focus { outline: none; }
+    .km-quick-notes-textarea::placeholder { color: rgba(230, 215, 176, 0.35); }
+    .km-quick-notes-save-state { padding: 0 2px; }
 
     /* ─── Diagram-drawing question widget ─── */
     .diagram-widget { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
@@ -11251,6 +11312,11 @@ SQIDAQAB
     // nested Subject > Theme > Subtopic > node tree instead of a flat list.
     function setSidebarTab(tab) {
         sidebarTab = tab;
+        // The Quick Notes scratchpad (see renderQuickNotesWidget) floats
+        // outside #contentInner as a fixed overlay, bound to whatever
+        // node's notes were last open - leaving the Notes tab entirely
+        // needs to explicitly drop it, since nothing else will.
+        if (tab !== 'notes') removeQuickNotesWidget();
         document.getElementById('foldersTabBtn').classList.toggle('active', tab === 'folders');
         document.getElementById('cortexTabBtn').classList.toggle('active', tab === 'cortex');
         document.getElementById('notesTabBtn').classList.toggle('active', tab === 'notes');
@@ -13559,6 +13625,7 @@ SQIDAQAB
     function showNotesEmptyState() {
         stopActiveDictation();
         stopSpeaking();
+        removeQuickNotesWidget();
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
         contentInner.innerHTML = '<div class="km-inline-detail-empty">Click a concept in the sidebar to see its notes.</div>';
@@ -13647,6 +13714,7 @@ SQIDAQAB
         contentInner.classList.add('content-inner-wide');
 
         if (!node.encoded) {
+            removeQuickNotesWidget();
             contentInner.innerHTML = `
                 <div class="km-notes-body">
                     <div class="km-inline-detail-label" style="margin-bottom:14px;">${escapeHtml(node.label)}</div>
@@ -13687,18 +13755,49 @@ SQIDAQAB
         });
     }
 
+    // Guidance shown above the template's two columns - the same
+    // encoding principles the app's own AI-compiled notes lean on (see
+    // renderNodeNoteBlock's "dual coding" comment), just handed to the
+    // student directly for their OWN writing: retrieval (their own
+    // words beat copying the explanation), dual coding (pairing the
+    // words with a picture gives a second memory trace), discriminative
+    // contrast (most last-minute mix-ups come from two similar ideas
+    // never having been set against each other), and concrete/elaborative
+    // encoding (an abstract idea anchored to something real is easier to
+    // dig back up under exam pressure). The three checkboxes below map
+    // straight onto the last three - pick whichever genuinely fit this
+    // concept, never all three by default.
+    const PERSONAL_NOTE_GUIDANCE_HTML = `
+        <strong>How to structure a strong note:</strong> start with the idea in your own words —
+        that act of retrieval does more than copying the explanation ever will. Then reach for
+        whichever of the three add-ons actually fits this concept: a <strong>diagram</strong> gives you a
+        second, visual memory trace alongside the words (dual coding); a <strong>contrast</strong> sets this
+        idea against something similar from the lesson so the boundary between them sticks
+        (most mix-ups on exam day come from two ideas never having been set side by side); and a
+        <strong>real-world example</strong> anchors an abstract idea to something concrete you'll actually
+        remember. None of these are compulsory every time — use what this idea needs.
+    `;
+
     // The student's own hand-written note for this node - separate from
     // the AI-compiled "Knowledge & notes" panel below it, never touches
     // the Claude API. Free text is the default; the template toggle
     // (button lives in the page's own header row, not next to this
     // editor, and nowhere near a maths-tool toolbar - there isn't one on
-    // this page) adds a question heading and an optional hand-drawn
-    // diagram on top of the same body text, using the exact same
+    // this page) adds a question heading, guidance on how to structure
+    // the note, and a right-hand column of optional add-ons (diagram,
+    // contrast, real-world example - see PERSONAL_NOTE_GUIDANCE_HTML) on
+    // top of the same body text. The diagram add-on uses the exact same
     // interactive diagram tool practice questions use (renderDiagramWidget),
-    // just wired to save rather than grade.
+    // just wired to save rather than grade. A separate, always-available
+    // Quick Notes scratchpad floats bottom-right regardless of mode - see
+    // renderQuickNotesWidget - for jotting something down without losing
+    // your place in the note itself.
     async function renderPersonalNoteEditor(container, templateBtn, nodeId) {
         const existing = await fetchPersonalNoteRequest(nodeId);
-        let note = existing || { mode: 'freeText', heading: '', body: '', diagram: null };
+        let note = existing || { mode: 'freeText', heading: '', body: '', diagram: null, sections: {}, contrastText: '', exampleText: '', quickNotes: '' };
+        note.sections = note.sections || {};
+
+        renderQuickNotesWidget(nodeId, note);
 
         function setSaveState(el, text) {
             el.textContent = text;
@@ -13707,11 +13806,39 @@ SQIDAQAB
 
         function render() {
             templateBtn.textContent = note.mode === 'template' ? '✕ Back to free text' : '+ Add template';
+            const notesBody = container.closest('.km-notes-body');
+            if (notesBody) notesBody.classList.toggle('km-notes-body-wide', note.mode === 'template');
             container.innerHTML = note.mode === 'template' ? `
-                <input type="text" class="km-personal-note-heading-input" placeholder="Frame this as a question…" value="${escapeHtml(note.heading || '')}">
-                <textarea class="km-personal-note-textarea" placeholder="Write your notes here…">${escapeHtml(note.body || '')}</textarea>
-                <button type="button" class="btn km-personal-note-diagram-toggle">${note.diagram ? '✏️ Edit your diagram' : '📊 Add a diagram'}</button>
-                <div class="km-personal-note-diagram-host"></div>
+                <div class="km-personal-note-guidance">${PERSONAL_NOTE_GUIDANCE_HTML}</div>
+                <div class="km-personal-note-template-grid">
+                    <div class="km-personal-note-main-col">
+                        <input type="text" class="km-personal-note-heading-input" placeholder="Frame this as a question…" value="${escapeHtml(note.heading || '')}">
+                        <textarea class="km-personal-note-textarea" placeholder="Write your notes here…">${escapeHtml(note.body || '')}</textarea>
+                    </div>
+                    <div class="km-personal-note-extras-col">
+                        <label class="km-personal-note-extra-checkbox">
+                            <input type="checkbox" data-extra="diagram" ${note.sections.diagram ? 'checked' : ''}>
+                            <span>📊 Add a diagram</span>
+                        </label>
+                        <div class="km-personal-note-extra-body" data-extra-body="diagram" ${note.sections.diagram ? '' : 'hidden'}>
+                            <div class="km-personal-note-diagram-host"></div>
+                        </div>
+                        <label class="km-personal-note-extra-checkbox">
+                            <input type="checkbox" data-extra="contrast" ${note.sections.contrast ? 'checked' : ''}>
+                            <span>⚖️ Add a contrast with another part of this lesson</span>
+                        </label>
+                        <div class="km-personal-note-extra-body" data-extra-body="contrast" ${note.sections.contrast ? '' : 'hidden'}>
+                            <textarea class="km-personal-note-extra-textarea" data-extra-input="contrast" placeholder="How is this different from something else in this lesson?">${escapeHtml(note.contrastText || '')}</textarea>
+                        </div>
+                        <label class="km-personal-note-extra-checkbox">
+                            <input type="checkbox" data-extra="example" ${note.sections.example ? 'checked' : ''}>
+                            <span>🌍 Give a real-world example</span>
+                        </label>
+                        <div class="km-personal-note-extra-body" data-extra-body="example" ${note.sections.example ? '' : 'hidden'}>
+                            <textarea class="km-personal-note-extra-textarea" data-extra-input="example" placeholder="Where would you actually see this idea in action?">${escapeHtml(note.exampleText || '')}</textarea>
+                        </div>
+                    </div>
+                </div>
                 <div class="km-personal-note-save-state"></div>
             ` : `
                 <textarea class="km-personal-note-textarea" placeholder="Write your own notes for this concept…">${escapeHtml(note.body || '')}</textarea>
@@ -13721,11 +13848,15 @@ SQIDAQAB
             const saveStateEl = container.querySelector('.km-personal-note-save-state');
             const bodyEl = container.querySelector('.km-personal-note-textarea');
             const headingEl = container.querySelector('.km-personal-note-heading-input');
+            const contrastEl = container.querySelector('[data-extra-input="contrast"]');
+            const exampleEl = container.querySelector('[data-extra-input="example"]');
 
             let saveTimer = null;
             function scheduleSave() {
                 note.body = bodyEl.value;
                 if (headingEl) note.heading = headingEl.value;
+                if (contrastEl) note.contrastText = contrastEl.value;
+                if (exampleEl) note.exampleText = exampleEl.value;
                 setSaveState(saveStateEl, 'Saving…');
                 clearTimeout(saveTimer);
                 saveTimer = setTimeout(async () => {
@@ -13735,28 +13866,45 @@ SQIDAQAB
             }
             bodyEl.addEventListener('input', scheduleSave);
             if (headingEl) headingEl.addEventListener('input', scheduleSave);
+            if (contrastEl) contrastEl.addEventListener('input', scheduleSave);
+            if (exampleEl) exampleEl.addEventListener('input', scheduleSave);
 
-            const diagramToggleBtn = container.querySelector('.km-personal-note-diagram-toggle');
-            const diagramHost = container.querySelector('.km-personal-note-diagram-host');
-            if (diagramToggleBtn) {
-                diagramToggleBtn.addEventListener('click', () => {
-                    diagramToggleBtn.hidden = true;
-                    const initialState = note.diagram
-                        ? { placed: note.diagram.curves, shades: note.diagram.shades, labels: note.diagram.labels, arrows: note.diagram.arrows }
-                        : undefined;
-                    renderDiagramWidget(diagramHost, null, async (answer) => {
-                        note.diagram = answer;
+            // The diagram/contrast/example checkboxes just reveal/hide
+            // their own already-rendered body - toggling doesn't need a
+            // full re-render, EXCEPT the diagram one, which lazily mounts
+            // the (heavy, interactive) diagram widget the first time it's
+            // ticked rather than on every template-mode render.
+            container.querySelectorAll('input[data-extra]').forEach((cb) => {
+                cb.addEventListener('change', () => {
+                    const key = cb.dataset.extra;
+                    note.sections[key] = cb.checked;
+                    const body = container.querySelector(`[data-extra-body="${key}"]`);
+                    body.hidden = !cb.checked;
+                    if (key === 'diagram' && cb.checked) mountDiagramHost();
+                    setSaveState(saveStateEl, 'Saving…');
+                    clearTimeout(saveTimer);
+                    saveTimer = setTimeout(async () => {
                         const ok = await savePersonalNoteRequest(nodeId, note);
                         setSaveState(saveStateEl, ok ? 'Saved' : 'Could not save — try again');
-                        // Re-render once saved so the toggle button comes
-                        // back as "Edit your diagram" (rather than staying
-                        // hidden) - lets a student reopen and keep drawing
-                        // without having to leave and re-select this node.
-                        setTimeout(render, 800);
-                        return { correct: true, feedback: ok ? 'Diagram saved to your notes.' : 'Could not save — try again.' };
-                    }, null, initialState);
+                    }, 700);
                 });
+            });
+
+            function mountDiagramHost() {
+                const diagramHost = container.querySelector('.km-personal-note-diagram-host');
+                if (!diagramHost || diagramHost.dataset.mounted) return;
+                diagramHost.dataset.mounted = '1';
+                const initialState = note.diagram
+                    ? { placed: note.diagram.curves, shades: note.diagram.shades, labels: note.diagram.labels, arrows: note.diagram.arrows }
+                    : undefined;
+                renderDiagramWidget(diagramHost, null, async (answer) => {
+                    note.diagram = answer;
+                    const ok = await savePersonalNoteRequest(nodeId, note);
+                    setSaveState(saveStateEl, ok ? 'Saved' : 'Could not save — try again');
+                    return { correct: true, feedback: ok ? 'Diagram saved to your notes.' : 'Could not save — try again.' };
+                }, null, initialState);
             }
+            if (note.sections.diagram) mountDiagramHost();
         }
 
         templateBtn.addEventListener('click', () => {
@@ -13765,6 +13913,61 @@ SQIDAQAB
         });
 
         render();
+    }
+
+    // A small always-available scratchpad, independent of free-text vs.
+    // template mode - "jot something down without losing your place",
+    // same purpose the old per-page Quick Notes dropdown served (see
+    // .scratch-notes-dropdown), just floating bottom-right and collapsed
+    // by default rather than anchored to a toolbar button, since this
+    // page has no toolbar. Rebuilt fresh per node (removes any previous
+    // instance first) rather than toggled, since it's bound to THIS
+    // node's own note content and this page has no other unmount hook -
+    // see the cleanup call in setSidebarTab/showNotesEmptyState for the
+    // other side of that (removing it when leaving the Notes tab/node
+    // entirely, since it lives outside #contentInner as a fixed overlay).
+    function renderQuickNotesWidget(nodeId, note) {
+        const prev = document.getElementById('kmQuickNotesWidget');
+        if (prev) prev.remove();
+
+        const widget = document.createElement('div');
+        widget.className = 'km-quick-notes-widget';
+        widget.id = 'kmQuickNotesWidget';
+        widget.innerHTML = `
+            <div class="km-quick-notes-panel">
+                <textarea class="km-quick-notes-textarea" placeholder="Jot down a point for later, without losing your place…">${escapeHtml(note.quickNotes || '')}</textarea>
+                <div class="km-personal-note-save-state km-quick-notes-save-state"></div>
+            </div>
+            <button type="button" class="km-quick-notes-toggle">💡 Quick Notes ▾</button>
+        `;
+        document.body.appendChild(widget);
+
+        const toggleBtn = widget.querySelector('.km-quick-notes-toggle');
+        const panel = widget.querySelector('.km-quick-notes-panel');
+        const textarea = widget.querySelector('.km-quick-notes-textarea');
+        const saveStateEl = widget.querySelector('.km-quick-notes-save-state');
+
+        toggleBtn.addEventListener('click', () => {
+            panel.classList.toggle('open');
+            if (panel.classList.contains('open')) textarea.focus();
+        });
+
+        let saveTimer = null;
+        textarea.addEventListener('input', () => {
+            note.quickNotes = textarea.value;
+            saveStateEl.textContent = 'Saving…';
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(async () => {
+                const ok = await savePersonalNoteRequest(nodeId, note);
+                saveStateEl.textContent = ok ? 'Saved' : 'Could not save — try again';
+                if (ok) setTimeout(() => { if (saveStateEl.textContent === 'Saved') saveStateEl.textContent = ''; }, 1500);
+            }, 700);
+        });
+    }
+
+    function removeQuickNotesWidget() {
+        const el = document.getElementById('kmQuickNotesWidget');
+        if (el) el.remove();
     }
 
     // Renders one compiled node note (heading + paragraphs + an optional
