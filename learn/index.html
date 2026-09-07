@@ -13710,6 +13710,26 @@ SQIDAQAB
         return null;
     }
 
+    // Mirrors diagramGradingService.ts's own curveAxisIntersection exactly:
+    // a drawn axis always spans the full chart, so this extends the
+    // curve's own first/last-point line as an infinite line for the
+    // intersection check (never the axis, which stays bounded to what's
+    // actually drawn) - a curve positioned further out than its own local
+    // polyline length shouldn't lose its axis crossing just because the
+    // short local shape doesn't literally reach that far.
+    function diagramCurveAxisIntersection(curvePoly, axisSeg) {
+        const a1 = curvePoly[0], a2 = curvePoly[curvePoly.length - 1];
+        const [b1, b2] = axisSeg;
+        const d1x = a2.x - a1.x, d1y = a2.y - a1.y;
+        const d2x = b2.x - b1.x, d2y = b2.y - b1.y;
+        const denom = d1x * d2y - d1y * d2x;
+        if (Math.abs(denom) < 1e-9) return null;
+        const t = ((b1.x - a1.x) * d2y - (b1.y - a1.y) * d2x) / denom;
+        const u = ((b1.x - a1.x) * d1y - (b1.y - a1.y) * d1x) / denom;
+        if (u < -0.01 || u > 1.01) return null;
+        return { x: a1.x + t * d1x, y: a1.y + t * d1y };
+    }
+
     function renderStaticDiagram(container, spec) {
         if (!spec || spec.notDiagrammatic) { container.innerHTML = ''; return; }
         const curves = spec.curves || [];
@@ -13769,6 +13789,39 @@ SQIDAQAB
         qtyLabel.textContent = 'Quantity';
         svg.appendChild(qtyLabel);
 
+        // Shaded regions drawn before the curves so the fill sits behind
+        // their lines (matching renderDiagramWidget's own shades-before-
+        // curves paint order). The grading engine has no canonical
+        // polygon to check a STUDENT's freehand shade against (it only
+        // compares area overlap - see diagramGradingService.ts's own IoU
+        // comment), but that's a constraint on grading a hand-drawn
+        // answer, not on drawing one ourselves here. Every real shade in
+        // this spec is exactly 2 curves + 1 axis (validateSpec's own
+        // contract in generate_diagram_specs.js), and every one of these
+        // in a real supply/demand-style diagram is the classic triangle
+        // bounded by where the two curves cross each other and where
+        // each meets the axis - so construct that triangle directly:
+        // intersect the two curves for one vertex, intersect each curve
+        // with the axis for the other two. Falls back to the text-only
+        // caption below if any of the three points can't be resolved
+        // (e.g. two curves that don't actually cross) rather than
+        // fabricate a shape that isn't really there.
+        (spec.shades || []).forEach((s) => {
+            const curveIds = (s.boundedBy || []).filter((b) => positioned.has(b));
+            const axisName = (s.boundedBy || []).find((b) => b === 'price-axis' || b === 'quantity-axis');
+            const axisSeg = axisName === 'price-axis' ? DIAGRAM_PRICE_AXIS : axisName === 'quantity-axis' ? DIAGRAM_QUANTITY_AXIS : null;
+            const [curveA, curveB] = curveIds.map((id) => positioned.get(id));
+            const cross = curveA && curveB ? diagramPolylineIntersection(curveA.poly, curveB.poly) : null;
+            const onAxisA = curveA && axisSeg ? diagramCurveAxisIntersection(curveA.poly, axisSeg) : null;
+            const onAxisB = curveB && axisSeg ? diagramCurveAxisIntersection(curveB.poly, axisSeg) : null;
+            if (cross && onAxisA && onAxisB) {
+                svg.appendChild(svgElement('polygon', {
+                    points: [cross, onAxisA, onAxisB].map((p) => `${p.x},${p.y}`).join(' '),
+                    class: 'diagram-shade',
+                }));
+            }
+        });
+
         curves.forEach((c) => {
             const entry = positioned.get(c.id);
             if (!entry) return;
@@ -13799,13 +13852,6 @@ SQIDAQAB
 
         container.innerHTML = '';
         container.appendChild(svg);
-
-        // Shaded regions have no single canonical polygon either (the
-        // grading engine itself only compares a student's freehand
-        // shade by area overlap, never against a computed "correct"
-        // polygon - see diagramGradingService.ts's own IoU comment),
-        // so rather than fabricate a fill that might visually mislead,
-        // name the region in words under the diagram instead.
         (spec.shades || []).forEach((s) => {
             const caption = document.createElement('div');
             caption.className = 'km-note-diagram-caption';
