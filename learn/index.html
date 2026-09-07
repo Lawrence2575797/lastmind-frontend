@@ -790,6 +790,23 @@
     .km-note-comparison-col-label { font-size: 11px; font-weight: 700; margin-bottom: 6px; }
     .km-note-comparison-col ul { margin: 0; padding-left: 16px; }
     .km-note-comparison-col li { font-size: 11.5px; line-height: 1.5; margin-bottom: 4px; }
+    .km-note-worked-example {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .km-note-worked-example-line {
+        font-size: 12.5px;
+        line-height: 1.5;
+        padding: 4px 0;
+        border-bottom: 1px dashed rgba(230, 215, 176, 0.14);
+        overflow-x: auto;
+    }
+    .km-note-worked-example-line:last-child {
+        border-bottom: none;
+        padding-top: 6px;
+        font-weight: 700;
+    }
     .km-note-diagram-svg { width: 100%; height: auto; display: block; }
     .km-note-diagram-caption { font-size: 11px; line-height: 1.5; opacity: 0.75; margin-top: 6px; }
 
@@ -1052,6 +1069,22 @@
     .km-lesson-fullpage-body .km-inline-lesson-explanation { font-size: 15.5px; line-height: 1.9; margin-bottom: 0; }
     .km-lesson-fullpage-body .km-inline-lesson-explanation p { margin: 0 0 16px; }
     .km-lesson-fullpage-body .km-inline-lesson-explanation p:last-child { margin-bottom: 0; }
+    /* The compiled-note dual-coding block (renderNodeNoteBlock), scaled up
+       from the Notes page's own compact sizing to match this fullpage
+       lesson's larger reading scale - same typographic ratio the plain
+       explanation rules above already use (~12.5px/1.6 -> ~15.5px/1.9),
+       so teaching content reads consistently whether or not this
+       particular node ended up with a compiled note in place. */
+    .km-lesson-fullpage-body .km-note-question { font-size: 19px; margin-bottom: 14px; }
+    .km-lesson-fullpage-body .km-note-columns { gap: 24px; }
+    .km-lesson-fullpage-body .km-note-text p { font-size: 15.5px; line-height: 1.9; margin: 0 0 16px; }
+    .km-lesson-fullpage-body .km-note-text p:last-child { margin-bottom: 0; }
+    .km-lesson-fullpage-body .km-note-visual { padding: 16px; top: 20px; }
+    .km-lesson-fullpage-body .km-note-visual-label { font-size: 11px; }
+    .km-lesson-fullpage-body .km-note-example-text { font-size: 14px; line-height: 1.7; }
+    .km-lesson-fullpage-body .km-note-comparison-col-label { font-size: 12.5px; }
+    .km-lesson-fullpage-body .km-note-comparison-col li { font-size: 13px; line-height: 1.6; }
+    .km-lesson-fullpage-body .km-note-worked-example-line { font-size: 14.5px; }
     .km-lesson-fullpage-body .km-inline-lesson-question { font-size: 15px; line-height: 1.8; padding: 18px 20px; margin-top: 10px; }
     .km-lesson-fullpage-body h4.km-inline-lesson-question { background: none; padding: 0; margin: 18px 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6; }
     .km-lesson-fullpage-body .km-inline-detail-section { margin-bottom: 0; padding: 26px 0; border-top: 1px solid rgba(230, 215, 176, 0.14); }
@@ -14228,12 +14261,38 @@ SQIDAQAB
                     </div>
                 </div>
             `;
+        } else if (v.type === 'workedExample') {
+            visualEl.innerHTML = `<div class="km-note-visual-label">Worked example</div>`;
+            const stepsHost = document.createElement('div');
+            stepsHost.className = 'km-note-worked-example';
+            visualEl.appendChild(stepsHost);
+            renderMathLines(stepsHost, v.steps);
         } else if (v.type === 'example') {
             visualEl.innerHTML = `
                 <div class="km-note-visual-label">Real-world example</div>
                 <div class="km-note-example-text">${boldMarkdownToHtml(v.text)}</div>
             `;
         }
+    }
+
+    // Renders a sequence of LaTeX calculation lines (see
+    // NODE_NOTES_COMPILE_PROMPT's "workedExample" visual type) via KaTeX,
+    // one line per array entry - the same rendering technique
+    // mathWorkingToHtml already uses for a student's own locked working,
+    // just as real DOM elements (not an HTML string) since katex.render
+    // needs a live element to mount into.
+    function renderMathLines(container, steps) {
+        container.innerHTML = '';
+        (steps || []).forEach((line) => {
+            const lineEl = document.createElement('div');
+            lineEl.className = 'km-note-worked-example-line';
+            container.appendChild(lineEl);
+            try {
+                katex.render(line, lineEl, { throwOnError: false, displayMode: false });
+            } catch (err) {
+                lineEl.textContent = line;
+            }
+        });
     }
 
     // Same shape as renderNodeNoteBlock, minus a visual - see
@@ -14252,28 +14311,7 @@ SQIDAQAB
         `;
     }
 
-    // The "compile notes lesson" step shown right after a node's own
-    // encoding genuinely completes (see renderNodeLessonContent) - also
-    // reachable later from the Notes page itself for a node that skipped
-    // this step, via the exact same compile endpoint (compileNodeNotesRequest).
-    function renderCompileNotesCta(container, nodeId, label) {
-        container.innerHTML = `<button type="button" class="btn primary km-notes-compile-btn" style="margin-top:14px;">Compile notes</button>`;
-        container.querySelector('.km-notes-compile-btn').addEventListener('click', async (ev) => {
-            ev.target.disabled = true;
-            ev.target.textContent = 'Compiling…';
-            const result = await compileNodeNotesRequest(nodeId);
-            if (!result) {
-                ev.target.disabled = false;
-                ev.target.textContent = 'Compile notes';
-                container.insertAdjacentHTML('beforeend', '<div class="km-inline-detail-item km-inline-detail-none" style="margin-top:8px;">Something went wrong — try again.</div>');
-                return;
-            }
-            container.innerHTML = `<div class="km-inline-detail-section" style="margin-top:14px;"></div>`;
-            renderNodeNoteBlock(container.querySelector('.km-inline-detail-section'), result);
-        });
-    }
-
-    // Same manual, opt-in shape as renderCompileNotesCta above, but for a
+    // Same manual, opt-in shape as the old renderCompileNotesCta, but for a
     // link's transfer+integration notes - shown once, right after that
     // link's own integration question genuinely passes (see
     // renderNodeReviewIntegration). Deliberately a button rather than the
@@ -15590,15 +15628,30 @@ SQIDAQAB
             lessonEl.innerHTML = (!nodeLesson || nodeLesson.notFound)
                 ? `<div class="km-inline-detail-item km-inline-detail-none">No lesson generated for this concept yet.</div>`
                 : `
-                    <div class="km-inline-lesson-explanation">${splitIntoParagraphs(nodeLesson.explanation)}</div>
+                    <div class="km-inline-lesson-explanation" id="km-node-lesson-explanation">${splitIntoParagraphs(nodeLesson.explanation)}</div>
                     ${nodeLesson.practiceQuestion ? `<div><strong class="km-inline-lesson-question" style="display:block;">Practice</strong><div id="km-question-node-practice"></div></div>` : ''}
-                    <div id="km-node-notes-cta"></div>
                     <div id="km-node-finish-cta"></div>
                 `;
+            if (!nodeLesson || nodeLesson.notFound) return;
 
-            if (nodeLesson && nodeLesson.practiceQuestion) {
+            // The teaching itself now gets the same question-framed
+            // heading + dual-coding visual (worked example/diagram/
+            // comparison) the compiled Notes page uses, rather than only
+            // offering that treatment after the fact - cache-or-generate,
+            // so this costs nothing beyond the very first student to ever
+            // reach this node. Swaps in over the plain-paragraph
+            // explanation already on screen; if the compile call fails,
+            // that plain explanation is left in place rather than blocked
+            // on it, so a student is never left with nothing.
+            const explanationEl = lessonEl.querySelector('#km-node-lesson-explanation');
+            compileNodeNotesRequest(d.id).then((noteResult) => {
+                if (noteResult && explanationEl.isConnected) {
+                    renderNodeNoteBlock(explanationEl, noteResult);
+                }
+            });
+
+            if (nodeLesson.practiceQuestion) {
                 const el = lessonEl.querySelector('#km-question-node-practice');
-                const notesCtaEl = lessonEl.querySelector('#km-node-notes-cta');
                 const finishCtaEl = lessonEl.querySelector('#km-node-finish-cta');
                 // A real (non-retryable) pass here means this is the first
                 // time this concept has ever been encoded — the map's
@@ -15620,23 +15673,16 @@ SQIDAQAB
                         // see updateNodeMasteryState's own comment.
                         updateNodeMasteryState(d, result.schedule);
                     }
-                    // A real pass ("Compile notes" lesson) - the moment
-                    // this concept is genuinely encoded, offer to turn its
-                    // own explanation into a standalone note on the Notes
-                    // page (see renderCompileNotesCta), same as a node with
-                    // no practice question gets immediately below.
                     if (result && result.correct && !result.retryable) {
-                        renderCompileNotesCta(notesCtaEl, d.id, d.label);
                         renderFinishLessonCta(finishCtaEl);
                     }
                     return result;
                 };
                 if (nodeLesson.practiceQuestion.diagramSpec) renderDiagramWidget(el, null, submit);
                 else renderTextQuestionWidget(el, nodeLesson.practiceQuestion.questionText, submit);
-            } else if (nodeLesson) {
+            } else {
                 // No practice question at all - viewing the explanation IS
-                // the whole lesson, so both offers show immediately.
-                renderCompileNotesCta(lessonEl.querySelector('#km-node-notes-cta'), d.id, d.label);
+                // the whole lesson, so the finish offer shows immediately.
                 renderFinishLessonCta(lessonEl.querySelector('#km-node-finish-cta'));
             }
         }
