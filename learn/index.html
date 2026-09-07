@@ -2466,6 +2466,13 @@
         min-width: 0;
     }
 
+    /* The selected subject's own Theme -> Subtopic -> Lesson tree,
+       inline right under its row - see buildSubjectTreeHtml. Reuses the
+       Notes tab's own .notes-tree-* classes for the toggles/rows
+       themselves, just wrapped in a touch of padding to sit inside the
+       subject's own folder-item. */
+    .folder-item-tree { padding: 6px 4px 2px 6px; }
+
     .folder-item-header:hover {
         filter: brightness(1.08);
     }
@@ -2888,18 +2895,6 @@
         height: calc(100vh - 160px);
         min-height: 480px;
     }
-
-    /* A subject's own landing view - a subtopic picker over Cortex chat,
-       replacing what used to be an immediate whole-graph dump (see
-       renderSubjectLanding). The picker's own height is whatever its
-       content needs; the chat below it fills the rest. */
-    .km-subject-landing { display: flex; flex-direction: column; height: calc(100vh - 160px); min-height: 480px; }
-    .km-subject-picker { flex: none; margin-bottom: 14px; display: flex; flex-direction: column; gap: 10px; max-height: 220px; overflow-y: auto; }
-    .km-subject-theme-group { display: flex; flex-direction: column; gap: 6px; }
-    .km-subject-theme-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.55; }
-    .km-subject-subtopic-pills { display: flex; flex-wrap: wrap; gap: 6px; }
-    .km-subject-cortex-wrap { flex: 1; min-height: 0; }
-    .km-subject-cortex-wrap .cortex-embed-frame { width: 100%; height: 100%; }
 
     .maths-tool-view {
         display: grid;
@@ -5700,6 +5695,13 @@ SQIDAQAB
     let selectedFolderId = null;
     let selectedSubfolderId = null;
     let selectedPageId = null;
+    // The currently-selected subject's own knowledge-map data, once
+    // fetched - lets buildFolderRow render that subject's Theme ->
+    // Subtopic -> Lesson tree inline in the sidebar (see
+    // renderKnowledgeMapForFolder/buildSubjectTreeHtml), same visual
+    // pattern the Notes tab's own sidebar tree already uses. null while
+    // loading or before any subject is selected.
+    let selectedFolderKmData = null;
     let pendingMatchFolder = null; // set when the match-suggestion is showing
 
     // While true, clicking a page in the sidebar (see buildPageItem's click
@@ -6750,7 +6752,83 @@ SQIDAQAB
         });
 
         item.appendChild(header);
+
+        // The selected subject's own Theme -> Subtopic -> Lesson tree,
+        // inline in the sidebar right under its row - same visual
+        // language as the Notes tab's own sidebar tree (see
+        // buildSubjectTreeHtml), not a separate screen in the main
+        // content area. Rendered synchronously from whatever
+        // selectedFolderKmData currently holds; renderKnowledgeMapForFolder
+        // populates it and re-renders this list once the real fetch lands.
+        if (f.id === selectedFolderId) {
+            const treeWrap = document.createElement('div');
+            treeWrap.className = 'folder-item-tree';
+            treeWrap.innerHTML = selectedFolderKmData
+                ? buildSubjectTreeHtml(selectedFolderKmData)
+                : '<div class="empty-hint" style="padding:6px 4px;">Loading…</div>';
+            item.appendChild(treeWrap);
+            if (selectedFolderKmData) wireSubjectTree(treeWrap, f, selectedFolderKmData);
+        }
+
         return item;
+    }
+
+    // Groups this subject's flat node list into Theme -> Subtopic ->
+    // Lesson, same nesting the Notes tab's own tree shows, reusing its
+    // exact .notes-tree-* classes so both trees look identical. Node
+    // order within a subtopic is whatever the knowledge-map API already
+    // returned it in (no separate teaching-order lookup here, unlike the
+    // Notes tree's getOrComputeSubtopicOrder) - a reasonable default,
+    // not something this sidebar view needs to solve on its own.
+    function buildSubjectTreeHtml(data) {
+        const byTheme = new Map();
+        data.nodes.forEach((n) => {
+            const theme = n.theme || 'General';
+            const subtopic = n.subtopic || 'General';
+            if (!byTheme.has(theme)) byTheme.set(theme, new Map());
+            const bySubtopic = byTheme.get(theme);
+            if (!bySubtopic.has(subtopic)) bySubtopic.set(subtopic, []);
+            bySubtopic.get(subtopic).push(n);
+        });
+        return Array.from(byTheme.entries()).map(([theme, bySubtopic]) => `
+            <div class="notes-tree-theme">
+                <button type="button" class="notes-tree-theme-toggle"><span class="notes-tree-arrow">▶</span><span>${escapeHtml(theme)}</span></button>
+                <div class="notes-tree-theme-body" style="display:none;">
+                    ${Array.from(bySubtopic.entries()).sort((a, b) => compareSubtopicStrings(a[0], b[0])).map(([subtopic, nodes]) => `
+                        <div class="notes-tree-subtopic">
+                            <button type="button" class="notes-tree-subtopic-toggle"><span class="notes-tree-arrow">▶</span><span>${escapeHtml(subtopic)}</span></button>
+                            <div class="notes-tree-subtopic-body" style="display:none;">
+                                ${nodes.map((n) => `
+                                    <button type="button" class="notes-tree-node-item" data-node-id="${escapeHtml(n.id)}" data-subtopic="${escapeHtml(subtopic)}">
+                                        <span>${escapeHtml(n.label)}</span>
+                                    </button>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function wireSubjectTree(treeWrap, folder, data) {
+        const wireToggle = (btn) => {
+            btn.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                const body = btn.nextElementSibling;
+                const open = body.style.display !== 'none';
+                body.style.display = open ? 'none' : 'block';
+                btn.querySelector('.notes-tree-arrow').classList.toggle('open', !open);
+            });
+        };
+        treeWrap.querySelectorAll('.notes-tree-theme-toggle').forEach(wireToggle);
+        treeWrap.querySelectorAll('.notes-tree-subtopic-toggle').forEach(wireToggle);
+        treeWrap.querySelectorAll('.notes-tree-node-item[data-node-id]').forEach((btn) => {
+            btn.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                renderSubjectGraphView(folder, data, btn.dataset.subtopic, btn.dataset.nodeId);
+            });
+        });
     }
 
     function buildSubfolderRow(folder, sf) {
@@ -6965,6 +7043,11 @@ SQIDAQAB
         selectedFolderId = folderId;
         selectedSubfolderId = null;
         selectedPageId = null;
+        // Cleared on every selection change, not just a different folder -
+        // re-clicking the same subject should still re-show "Loading…"
+        // briefly rather than flashing whatever the last-fetched data
+        // happened to be if the fetch below hasn't resolved yet.
+        selectedFolderKmData = null;
         const f = folders.find((x) => x.id === folderId);
         document.getElementById('topbarTitle').textContent = f ? folderLabel(f) : 'Dashboard';
         // Clicking a folder now opens ITS knowledge map in the main
@@ -13197,31 +13280,27 @@ SQIDAQAB
 
     // Entry point — called from selectFolder(). Clones the <template>,
     // fetches the pre-generated graph for this subject, and renders it.
+    // Loads this subject's knowledge-map data (used to build the sidebar's
+    // own Theme -> Subtopic -> Lesson tree - see buildSubjectTreeHtml/
+    // buildFolderRow) and shows a plain "pick a lesson" prompt in the
+    // main content area until one is actually picked. The whole-subject
+    // graph (700+ nodes for a dense subject) was never legible zoomed out
+    // far enough to see it all, so it's never shown wholesale any more -
+    // renderSubjectGraphView only ever renders it scoped to ONE subtopic,
+    // triggered from the sidebar tree, which the existing fit-to-view zoom
+    // already renders genuinely close-up and readable. Cortex chat is
+    // completely unaffected by any of this - still only the dashboard's
+    // own "new chat" view, never subject-scoped.
     async function renderKnowledgeMapForFolder(folder) {
         stopActiveDictation();
         stopSpeaking();
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
-        const template = document.getElementById('kmInlineTemplate');
-        contentInner.innerHTML = '';
-        contentInner.appendChild(template.content.cloneNode(true));
 
-        contentInner.querySelector('.km-inline-title').textContent = `${folderLabel(folder)} — Knowledge map`;
-        contentInner.querySelector('.km-inline-sub').textContent = [folder.qualification, folder.examBoard].filter(Boolean).join(' · ');
-
-        // Clicking a folder replaced the whole main content area with no
-        // way back — this is the fix: same reset selectFolder(null)/the
-        // Cortex sidebar tab already use elsewhere.
-        contentInner.querySelector('.km-inline-dashboard-btn').addEventListener('click', () => {
-            openCortexChat(null, true);
-        });
-        contentInner.querySelector('.km-lesson-back-btn').addEventListener('click', () => showKmWorkspace(contentInner));
-
-        const emptyEl = contentInner.querySelector('.km-inline-empty');
-        const workspaceEl = contentInner.querySelector('.km-inline-workspace');
-        function showEmpty(message, retryable) {
-            emptyEl.innerHTML = '';
-            emptyEl.appendChild(document.createTextNode(message));
+        function showCenterMessage(message, retryable) {
+            contentInner.innerHTML = `<div class="km-inline-detail-empty"></div>`;
+            const el = contentInner.querySelector('.km-inline-detail-empty');
+            el.appendChild(document.createTextNode(message));
             if (retryable) {
                 const retryBtn = document.createElement('button');
                 retryBtn.type = 'button';
@@ -13230,21 +13309,15 @@ SQIDAQAB
                 retryBtn.style.margin = '14px auto 0';
                 retryBtn.textContent = 'Try again';
                 retryBtn.addEventListener('click', () => renderKnowledgeMapForFolder(folder));
-                emptyEl.appendChild(retryBtn);
+                el.appendChild(retryBtn);
             }
-            emptyEl.style.display = 'block';
-            workspaceEl.style.display = 'none';
         }
 
         // This fetch is the same one that can hit a cold-started backend
-        // (see showLoadingWithColdStartHint above) - and until now nothing
-        // was shown while it was in flight, so the graph area just sat
-        // empty with no indication anything was happening. Show the same
-        // cold-start-aware loading message lessons already use, in the
-        // empty-state slot, for the whole time this fetch is in flight.
-        workspaceEl.style.display = 'none';
-        showLoadingWithColdStartHint(emptyEl, `Loading the knowledge map for ${folderLabel(folder)}…`);
-        emptyEl.style.display = 'block';
+        // (see showLoadingWithColdStartHint above) - show the same
+        // cold-start-aware loading message lessons already use for the
+        // whole time it's in flight.
+        showLoadingWithColdStartHint(contentInner, `Loading ${folderLabel(folder)}…`);
 
         let data, scheduleRows;
         try {
@@ -13255,11 +13328,11 @@ SQIDAQAB
             // be reported as if it were (see fetchSubjectKnowledgeMap's
             // own comment on why this used to happen).
             console.error('LastMind: failed to load the knowledge map.', err);
-            showEmpty(`Couldn't load the knowledge map for ${folderLabel(folder)} — check your connection and try again.`, true);
+            showCenterMessage(`Couldn't load the knowledge map for ${folderLabel(folder)} — check your connection and try again.`, true);
             return;
         }
         if (!data || !Array.isArray(data.nodes) || !data.nodes.length) {
-            showEmpty(`No knowledge map has been generated for ${folderLabel(folder)} yet.`);
+            showCenterMessage(`No knowledge map has been generated for ${folderLabel(folder)} yet.`);
             return;
         }
         // Same /schedule data the calendar's own due-in badges and "how
@@ -13269,14 +13342,13 @@ SQIDAQAB
         // ids instead of a page's.
         data.scheduleByConceptId = new Map(scheduleRows.map((r) => [r.concept_id, r]));
 
-        // The whole-subject graph (700+ nodes for a dense subject) was
-        // never actually legible zoomed out far enough to see it all -
-        // Cortex chat is the real default landing experience for a
-        // subject now; the graph only ever shows up scoped to ONE
-        // subtopic at a time (see renderSubjectGraphView), which the
-        // existing fit-to-view zoom already renders genuinely close-up
-        // and readable since there's far less to fit on screen.
-        renderSubjectLanding(folder, data);
+        // A different folder may have been clicked while this fetch was
+        // in flight - don't clobber whatever's now selected/shown with a
+        // stale response for the one that was current when this started.
+        if (selectedFolderId !== folder.id) return;
+        selectedFolderKmData = data;
+        refreshFolderList();
+        showCenterMessage('Click a lesson in the sidebar to open it.');
     }
 
     // Numeric-aware comparison for spec-numbered subtopic strings ("1.1
@@ -13296,74 +13368,16 @@ SQIDAQAB
     }
 
     // The subject's own landing view: a compact subtopic picker (grouped
-    // by theme) over Cortex chat, embedded exactly the way renderWelcome
-    // already embeds it - replaces what used to be an immediate, illegible
-    // whole-graph dump. Reuses the SAME already-fetched `data` (nodes carry
-    // mastery/schedule already merged in) so picking a subtopic never
-    // re-fetches anything.
-    function renderSubjectLanding(folder, data) {
-        const contentInner = document.getElementById('contentInner');
-        contentInner.classList.add('content-inner-wide');
-
-        const byTheme = new Map();
-        data.nodes.forEach((n) => {
-            const theme = n.theme || 'General';
-            const subtopic = n.subtopic || 'General';
-            if (!byTheme.has(theme)) byTheme.set(theme, new Set());
-            byTheme.get(theme).add(subtopic);
-        });
-        const themeGroupsHtml = Array.from(byTheme.entries()).map(([theme, subtopicSet]) => {
-            const subtopics = Array.from(subtopicSet).sort(compareSubtopicStrings);
-            return `
-                <div class="km-subject-theme-group">
-                    <div class="km-subject-theme-label">${escapeHtml(theme)}</div>
-                    <div class="km-subject-subtopic-pills">
-                        ${subtopics.map((s) => `<button type="button" class="km-inline-tab" data-subtopic="${escapeHtml(s)}">${escapeHtml(s)}</button>`).join('')}
-                    </div>
-                </div>
-            `;
-        }).join('');
-
-        contentInner.innerHTML = `
-            <div class="km-subject-landing">
-                <div class="km-inline-title" style="margin-bottom:2px;">${escapeHtml(folderLabel(folder))}</div>
-                <div class="km-inline-sub" style="margin-bottom:10px;">${escapeHtml([folder.qualification, folder.examBoard].filter(Boolean).join(' · '))} — pick a subtopic to see its knowledge map, or ask Cortex below.</div>
-                <div class="km-subject-picker">${themeGroupsHtml}</div>
-                <div class="km-subject-cortex-wrap"></div>
-            </div>
-        `;
-        contentInner.querySelectorAll('.km-subject-subtopic-pills .km-inline-tab').forEach((btn) => {
-            btn.addEventListener('click', () => renderSubjectGraphView(folder, data, btn.dataset.subtopic));
-        });
-        renderSubjectCortexEmbed(contentInner.querySelector('.km-subject-cortex-wrap'));
-    }
-
-    // Same iframe embed renderWelcome uses (same Premium gate, same src) -
-    // duplicated rather than calling renderWelcome directly since that
-    // function unconditionally takes over the ENTIRE #contentInner, which
-    // would wipe out the subtopic picker sitting above it here.
-    function renderSubjectCortexEmbed(container) {
-        if (!isPaidUser) {
-            container.innerHTML = `
-                <div class="dashboard-view dashboard-locked" style="height:100%;">
-                    <h1 class="dashboard-locked-logo">Last<span>Mind</span></h1>
-                    <p class="dashboard-locked-quote" id="dashboardLockedQuote"></p>
-                </div>
-            `;
-            pickNextQuote().then((quote) => {
-                const el = document.getElementById('dashboardLockedQuote');
-                if (el) el.textContent = quote;
-            });
-            return;
-        }
-        container.innerHTML = `<iframe class="cortex-embed-frame" allow="microphone" title="LastMind Cortex" src="/cortex?embed=1"></iframe>`;
-    }
-
     // The knowledge map, scoped to exactly one subtopic - reuses the same
     // graph rendering/zoom-to-fit as before, just over a much smaller
     // node set, which is what actually makes "closer up so it's visible"
     // true (fit-to-view already zooms tighter when there's less to fit).
-    function renderSubjectGraphView(folder, data, subtopic) {
+    // Triggered from the sidebar's own subject tree (see wireSubjectTree),
+    // never from a center-page picker. `autoSelectNodeId`, when given,
+    // opens straight to that node's own detail panel once the graph
+    // mounts - clicking a specific lesson in the sidebar tree shouldn't
+    // require a second click on the graph to actually open it.
+    function renderSubjectGraphView(folder, data, subtopic, autoSelectNodeId) {
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
         const template = document.getElementById('kmInlineTemplate');
@@ -13376,12 +13390,17 @@ SQIDAQAB
 
         const backBtn = contentInner.querySelector('.km-inline-dashboard-btn');
         backBtn.textContent = `← ${folderLabel(folder)}`;
-        backBtn.addEventListener('click', () => renderSubjectLanding(folder, data));
+        backBtn.addEventListener('click', () => renderKnowledgeMapForFolder(folder));
         contentInner.querySelector('.km-lesson-back-btn').addEventListener('click', () => showKmWorkspace(contentInner));
 
         contentInner.querySelector('.km-inline-empty').style.display = 'none';
         contentInner.querySelector('.km-inline-workspace').style.display = '';
         renderKmInlineGraph(contentInner, folder, data, null, subtopic);
+
+        if (autoSelectNodeId) {
+            const nodeEl = contentInner.querySelector(`.km-node-group[data-node-id="${CSS.escape(autoSelectNodeId)}"]`);
+            if (nodeEl) nodeEl.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        }
     }
 
     // ─── Notes page ──────────────────────────────────────────────────
@@ -14626,6 +14645,7 @@ SQIDAQAB
         const nodeGroup = zoomLayer.append('g').selectAll('g')
             .data(nodes, (d) => d.id).join('g')
             .attr('class', (d) => `km-node-group state-${d.state}`)
+            .attr('data-node-id', (d) => d.id)
             .attr('transform', (d) => `translate(${d.x},${d.y})`);
 
         nodeGroup.append('rect').attr('class', 'km-node-halo')
