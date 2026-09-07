@@ -25,20 +25,6 @@
         --panel: #201F21;
         --text: #E6D7B0;
         --accent: #E6D7B0;
-        /* "Liquid gold" - a surface treatment, never a text colour. Used
-           as a fill/background on small, discrete elements (buttons,
-           status pills, the mastered-state dot/stripe, a highlighted key
-           term) with --bg as the text colour on top of it - a solid gold
-           block behind a whole heading or paragraph would be loud rather
-           than legible, so --text/--accent stay the plain cream
-           everywhere text itself is the thing being coloured. */
-        --gold-surface: linear-gradient(135deg, #8B6914, #E8C15C 55%, #B8860B);
-        /* Text ON a gold surface - darker than --bg and bolder than a
-           normal 400/500 weight, so it actually reads as ink on gold
-           rather than washing out against the lighter parts of the
-           gradient (found while widening the gold treatment past a
-           handful of spots to every button/box in the app). */
-        --gold-text: #141312;
     }
 
     button, input, textarea, select {
@@ -611,13 +597,14 @@
         stroke-width: 3px;
     }
     /* Click-to-focus (see highlightKmConnections): the clicked node's
-       direct neighbours get their own gold ring - a step down from the
-       clicked node's own --accent ring, but still clearly picked out from
-       the dimmed rest of the graph - and everything not selected or a
-       neighbour fades back, so the path a student is actually following
-       reads at a glance instead of competing with the whole subtopic. */
+       direct neighbours get their own dimmer ring - a step down from the
+       clicked node's own full-strength --accent ring, but still clearly
+       picked out from the dimmed rest of the graph - and everything not
+       selected or a neighbour fades back, so the path a student is
+       actually following reads at a glance instead of competing with the
+       whole subtopic. */
     .km-node-group.km-neighbor .km-node-shape {
-        stroke: #E8C15C;
+        stroke: rgba(230, 215, 176, 0.55);
         stroke-width: 2.5px;
     }
     .km-node-group.km-dimmed {
@@ -824,18 +811,18 @@
     .km-dot-1, .state-1 .km-node-shape, .state-1 .km-node-stripe, .state-1.km-legend-dot { fill: #8a5a3f; }
     .km-dot-2, .state-2 .km-node-shape, .state-2 .km-node-stripe, .state-2.km-legend-dot { fill: #c98a4b; }
     .km-dot-3, .state-3 .km-node-shape, .state-3 .km-node-stripe, .state-3.km-legend-dot { fill: #e0ab5f; }
-    .km-dot-4, .state-4 .km-node-shape, .state-4 .km-node-stripe, .state-4.km-legend-dot { fill: url(#km-gold-gradient); }
+    .km-dot-4, .state-4 .km-node-shape, .state-4 .km-node-stripe, .state-4.km-legend-dot { fill: var(--accent); }
     .state-0 .km-node-shape { stroke: #4a453e; }
     .state-1 .km-node-shape { stroke: #8a5a3f; }
     .state-2 .km-node-shape { stroke: #c98a4b; }
     .state-3 .km-node-shape { stroke: #e0ab5f; }
-    .state-4 .km-node-shape { stroke: url(#km-gold-gradient); }
+    .state-4 .km-node-shape { stroke: var(--accent); }
 
     .km-legend-dot.km-dot-0, .km-detail-chip .dot.km-dot-0 { background: #4a453e; }
     .km-legend-dot.km-dot-1, .km-detail-chip .dot.km-dot-1 { background: #8a5a3f; }
     .km-legend-dot.km-dot-2, .km-detail-chip .dot.km-dot-2 { background: #c98a4b; }
     .km-legend-dot.km-dot-3, .km-detail-chip .dot.km-dot-3 { background: #e0ab5f; }
-    .km-legend-dot.km-dot-4, .km-detail-chip .dot.km-dot-4 { background: var(--gold-surface); }
+    .km-legend-dot.km-dot-4, .km-detail-chip .dot.km-dot-4 { background: var(--accent); }
 
     .km-legend {
         position: absolute;
@@ -946,7 +933,7 @@
     .km-inline-search-input.km-search-no-match { border-color: #c9544b; }
     .km-inline-themetabs { display: flex; gap: 6px; flex-wrap: wrap; padding: 14px 0 0; }
     .km-inline-tab { padding: 6px 13px; border-radius: 3px; font-size: 12px; font-weight: 600; border: 1px solid rgba(230, 215, 176, 0.2); color: var(--text); opacity: 0.7; cursor: pointer; background: transparent; font-family: Arial, sans-serif; }
-    .km-inline-tab.active { background: var(--gold-surface); border-color: transparent; color: var(--gold-text); font-weight: 700; opacity: 1; }
+    .km-inline-tab.active { background: var(--accent); border-color: var(--accent); color: var(--bg); opacity: 1; }
     .km-inline-legend { display: flex; gap: 16px; padding: 10px 0 4px; font-size: 11px; opacity: 0.7; align-items: center; flex-wrap: wrap; }
     .km-inline-legend-item { display: inline-flex; align-items: center; gap: 6px; }
     .km-inline-empty { padding: 40px 10px; text-align: center; opacity: 0.55; font-size: 13px; }
@@ -962,16 +949,13 @@
     .km-inline-detail-meta { font-size: 11.5px; opacity: 0.7; margin-bottom: 16px; }
     .km-inline-detail-section { margin-bottom: 14px; }
     .km-inline-detail-section h4 { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.55; margin: 0 0 8px; font-weight: 700; }
-    .km-inline-detail-item { font-size: 12px; font-weight: 700; padding: 8px 10px; background: var(--gold-surface); color: var(--gold-text); border: none; border-radius: 3px; line-height: 1.4; margin-bottom: 6px; }
+    .km-inline-detail-item { font-size: 12px; padding: 8px 10px; background: rgba(230, 215, 176, 0.05); border: 1px solid rgba(230, 215, 176, 0.14); border-radius: 3px; line-height: 1.4; margin-bottom: 6px; }
     /* An empty/placeholder state ("nothing here yet", "no links tested")
-       stays the plain dashed outline, never gold - gold reads as content
-       or an achievement, which an empty state explicitly isn't. */
+       stays the plain dashed outline - an empty state shouldn't read as
+       content or an achievement. */
     .km-inline-detail-item.km-inline-detail-none { opacity: 0.5; font-style: italic; font-weight: 400; background: transparent; color: var(--text); border: 1px solid rgba(230, 215, 176, 0.14); border-style: dashed; }
     .km-inline-detail-item.km-inline-detail-item-action { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .km-inline-detail-item-action span { flex: 1; min-width: 0; }
-    /* A gold button on top of this item's now-gold background would have
-       no visible edge at all - invert it back to a plain dark outline
-       button so it still reads as a distinct, clickable action. */
     .km-inline-detail-item-action button.btn { flex: none; font-size: 11px; padding: 5px 9px; background: var(--bg); color: var(--text); border: 1px solid rgba(230, 215, 176, 0.3); font-weight: 600; }
     .km-fsrs-details { font-size: 11.5px; margin-top: 4px; }
     .km-fsrs-details summary { cursor: pointer; opacity: 0.7; padding: 4px 0; }
@@ -984,17 +968,9 @@
     .km-inline-lesson-explanation { font-size: 12.5px; line-height: 1.6; margin-bottom: 10px; }
     .km-inline-lesson-explanation p { margin: 0 0 10px; }
     .km-inline-lesson-explanation p:last-child { margin-bottom: 0; }
-    /* "Liquid gold" applied to the bold key terms (**term**, see
-       boldMarkdownToHtml) - a highlighter-pen chip rather than plain
-       coloured bold text, the one place gold-as-a-surface belongs inside
-       running prose since it's a single word/phrase, not a whole
-       heading or paragraph. */
     .km-inline-lesson-explanation strong {
-        background: var(--gold-surface);
-        color: var(--gold-text);
-        padding: 1px 5px;
-        border-radius: 3px;
-        font-weight: 800;
+        color: var(--accent);
+        font-weight: 700;
     }
     .km-inline-lesson-question { font-size: 12.5px; line-height: 1.5; padding: 10px; background: rgba(230, 215, 176, 0.05); border-radius: 3px; }
     .km-inline-detail-actions { margin-top: auto; display: flex; gap: 8px; }
@@ -1165,11 +1141,11 @@
     }
     .km-quick-notes-toggle {
         flex-shrink: 0; font-family: 'Arial', sans-serif; font-size: 0.78rem; font-weight: 700;
-        background: var(--gold-surface); color: var(--gold-text); border: none;
+        background: var(--accent); color: var(--bg); border: none;
         padding: 9px 16px; border-radius: 20px; cursor: pointer; white-space: nowrap;
         box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
     }
-    .km-quick-notes-toggle:hover { filter: brightness(1.08); }
+    .km-quick-notes-toggle:hover { opacity: 0.85; }
     .km-quick-notes-panel {
         display: none; width: min(300px, 80vw); background: var(--panel);
         border: 1px solid rgba(230, 215, 176, 0.3); border-radius: 8px;
@@ -1190,18 +1166,13 @@
     .diagram-palette { display: flex; flex-wrap: wrap; gap: 6px; }
     .diagram-palette-btn {
         display: flex; flex-direction: column; align-items: center; gap: 3px;
-        background: var(--gold-surface); border: none; border-radius: 3px;
-        padding: 5px 7px; cursor: pointer; color: var(--gold-text); font-family: Arial, sans-serif; font-size: 10px; font-weight: 700;
+        background: var(--panel); border: 1px solid rgba(230, 215, 176, 0.18); border-radius: 3px;
+        padding: 5px 7px; cursor: pointer; color: var(--text); font-family: Arial, sans-serif; font-size: 10px;
     }
-    .diagram-palette-btn:hover { filter: brightness(1.08); }
-    .diagram-palette-btn .diagram-curve { stroke: var(--gold-text); }
+    .diagram-palette-btn:hover { border-color: var(--accent); }
     .diagram-palette-preview { width: 36px; height: 30px; }
     .diagram-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-    /* diagram-tool-btn is a .btn, which is gold by default now - "active"
-       (shade/arrow mode currently toggled on) needs to look DIFFERENT
-       from every other already-gold button, not more gold, so this
-       inverts to a dark chip with a gold ring instead. */
-    .diagram-tool-btn.active { background: var(--bg); color: #E8C15C; border: 2px solid #E8C15C; font-weight: 700; }
+    .diagram-tool-btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
     .diagram-label-input {
         background: var(--panel); border: 1px solid rgba(230, 215, 176, 0.2); border-radius: 3px;
         padding: 6px 8px; font-size: 12px; color: var(--text); font-family: Arial, sans-serif; width: 140px;
@@ -1440,19 +1411,20 @@
         gap: 4px;
         font-family: 'Arial', sans-serif;
         font-size: 0.72rem;
-        font-weight: 700;
-        background: var(--gold-surface);
-        border: none;
-        color: var(--gold-text);
+        font-weight: 600;
+        background: rgba(230, 215, 176, 0.08);
+        border: 1px solid rgba(230, 215, 176, 0.3);
+        color: var(--accent);
         padding: 6px 10px;
         border-radius: 20px;
         cursor: pointer;
         white-space: nowrap;
-        transition: filter 0.2s;
+        transition: background 0.2s, border-color 0.2s;
     }
 
     .credit-balance-chip:hover {
-        filter: brightness(1.08);
+        background: rgba(230, 215, 176, 0.16);
+        border-color: rgba(230, 215, 176, 0.5);
     }
 
     .credit-balance-view {
@@ -2583,11 +2555,9 @@
         padding: 11px 12px;
         cursor: pointer;
         font-size: 0.85rem;
-        font-weight: 700;
         line-height: 1.4;
+        opacity: 0.85;
         border-radius: 4px;
-        background: var(--gold-surface);
-        color: var(--gold-text);
     }
 
     .folder-item-label {
@@ -2603,12 +2573,7 @@
     .folder-item-tree { padding: 6px 4px 2px 6px; }
 
     .folder-item-header:hover {
-        filter: brightness(1.08);
-    }
-
-    .folder-item-header .item-menu-btn {
-        color: var(--gold-text);
-        opacity: 0.6;
+        background: rgba(230, 215, 176, 0.06);
     }
 
     .folder-meta-row {
@@ -2942,34 +2907,31 @@
         flex-shrink: 0;
         font-family: 'Arial', sans-serif;
         font-size: 0.74rem;
-        font-weight: 700;
+        font-weight: 600;
         letter-spacing: 0.02em;
-        background: var(--gold-surface);
-        border: none;
-        color: var(--gold-text);
+        background: rgba(230, 215, 176, 0.08);
+        border: 1px solid rgba(230, 215, 176, 0.35);
+        color: var(--accent);
         padding: 8px 14px;
         border-radius: 6px;
         cursor: pointer;
         white-space: nowrap;
-        transition: filter 0.2s;
     }
 
-    /* Upgrade is the one topbar CTA that needs to outrank the rest of the
-       now-all-gold row — a dark chip with a gold ring reads as "the
-       different one" the same way .diagram-tool-btn.active/.km-inline-tab
-       .active already invert for the same reason elsewhere this pass. */
     .upgrade-topbar-btn {
-        background: var(--bg);
-        color: #E8C15C;
-        border: 2px solid #E8C15C;
+        background: var(--accent);
+        color: var(--bg);
+        border-color: var(--accent);
     }
 
     button.upgrade-topbar-btn:hover {
-        filter: brightness(1.2);
+        background: var(--accent);
+        opacity: 0.85;
     }
 
     .cortex-btn-topbar:hover {
-        filter: brightness(1.08);
+        background: rgba(230, 215, 176, 0.14);
+        border-color: rgba(230, 215, 176, 0.55);
     }
 
     #myTutoringTopbarBtn {
@@ -3107,7 +3069,7 @@
         white-space: pre-wrap;
     }
     .maths-tool-bubble-assistant { align-self: flex-start; background: rgba(230, 215, 176, 0.07); }
-    .maths-tool-bubble-user { align-self: flex-end; background: var(--gold-surface); color: var(--gold-text); font-weight: 600; }
+    .maths-tool-bubble-user { align-self: flex-end; background: var(--accent); color: var(--bg); }
     .maths-tool-composer {
         flex: none;
         border-top: 1px solid rgba(230, 215, 176, 0.14);
@@ -4618,17 +4580,18 @@
     .btn {
         font-family: 'Arial', sans-serif;
         font-size: 0.82rem;
-        font-weight: 700;
         padding: 9px 20px;
         border-radius: 3px;
         cursor: pointer;
-        border: none;
-        background: var(--gold-surface);
-        color: var(--gold-text);
+        border: 1px solid rgba(230, 215, 176, 0.3);
+        background: none;
+        color: var(--text);
     }
 
     .btn.primary {
-        font-weight: 800;
+        background: var(--accent);
+        color: var(--bg);
+        border: none;
     }
     /* A disabled <button> otherwise renders identically to an active one
        (no browser default touches color/background here) — a disabled
@@ -14985,16 +14948,6 @@ SQIDAQAB
             .append('path')
             .attr('d', 'M0,0 L8,4 L0,8 Z')
             .attr('class', 'km-link-arrowhead-path');
-        // SVG has no CSS-gradient equivalent for fill/stroke - "liquid
-        // gold" (see --gold-surface) needs its own <linearGradient> here,
-        // referenced via fill/stroke: url(#km-gold-gradient) wherever the
-        // mastered (state-4) tier currently used a flat --accent fill.
-        const goldGradient = defs.append('linearGradient')
-            .attr('id', 'km-gold-gradient')
-            .attr('x1', '0%').attr('y1', '0%').attr('x2', '100%').attr('y2', '100%');
-        goldGradient.append('stop').attr('offset', '0%').attr('stop-color', '#8B6914');
-        goldGradient.append('stop').attr('offset', '55%').attr('stop-color', '#E8C15C');
-        goldGradient.append('stop').attr('offset', '100%').attr('stop-color', '#B8860B');
         const zoomLayer = svg.append('g');
         const zoomBehavior = d3.zoom().scaleExtent([0.01, 3]).on('zoom', (event) => zoomLayer.attr('transform', event.transform));
         svg.call(zoomBehavior);
