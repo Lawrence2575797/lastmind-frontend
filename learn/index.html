@@ -13947,7 +13947,7 @@ SQIDAQAB
         renderPersonalNoteEditor(contentInner.querySelector('#km-personal-note'), contentInner.querySelector('.km-notes-template-btn'), nodeNoteStore(node.nodeId));
         renderKnowledgeDropdownItem(contentInner.querySelector('#km-kd-own'), `${node.label} — knowledge`, async () => {
             return await compileNodeNotesRequest(node.nodeId);
-        }, renderNodeNoteBlock);
+        }, renderNodeNoteBlock, buildNodeStepChecker(node.nodeId));
         node.links.forEach((l, i) => {
             if (!l.unlocked) return;
             renderKnowledgeDropdownItem(contentInner.querySelector(`[data-kd-idx="${i}"]`), `${node.label} → ${l.toLabel}`, async () => {
@@ -14193,7 +14193,11 @@ SQIDAQAB
     // spatial-contiguity payoff needs the visual to stay next to the text
     // it illustrates, which only holds if the pairing is local (see the
     // .km-note-columns CSS comment).
-    function renderNodeNoteBlock(container, data) {
+    // stepCheckFn (see buildNodeStepChecker/buildEdgeStepChecker) is only
+    // ever read for a "workedExample" visual, to power the interactive
+    // walkthrough below - every other visual type ignores it, and every
+    // caller that has no worked example to show can omit it entirely.
+    function renderNodeNoteBlock(container, data, stepCheckFn) {
         const hasVisual = data.visual && data.visual.type !== 'none';
         container.innerHTML = `
             <h4 class="km-note-question">${escapeHtml(data.heading)}</h4>
@@ -14229,13 +14233,77 @@ SQIDAQAB
             const stepsHost = document.createElement('div');
             stepsHost.className = 'km-note-worked-example';
             visualEl.appendChild(stepsHost);
-            renderMathLines(stepsHost, v.steps);
+            if (stepCheckFn) renderInteractiveWorkedExample(stepsHost, v.steps, stepCheckFn);
+            else renderMathLines(stepsHost, v.steps);
         } else if (v.type === 'example') {
             visualEl.innerHTML = `
                 <div class="km-note-visual-label">Real-world example</div>
                 <div class="km-note-example-text">${boldMarkdownToHtml(v.text)}</div>
             `;
         }
+    }
+
+    // The interactive worked-example walkthrough: instead of just reading
+    // every line, the student types each one themselves (via the same
+    // math-shortcut editor lesson questions already use) before it's
+    // revealed, checked one line at a time against the pre-generated
+    // ground truth via stepCheckFn. Confirmed lines stay visible above the
+    // current one (rendered with katex, exactly like the old static
+    // display), so by the end the student has the same fully-worked
+    // example on screen - they just retrieved it themselves first.
+    function renderInteractiveWorkedExample(container, steps, stepCheckFn) {
+        const confirmedEl = document.createElement('div');
+        container.appendChild(confirmedEl);
+        const activeEl = document.createElement('div');
+        activeEl.style.marginTop = '6px';
+        container.appendChild(activeEl);
+
+        function renderConfirmedLines(upToIndex) {
+            confirmedEl.innerHTML = '';
+            renderMathLines(confirmedEl, steps.slice(0, upToIndex));
+        }
+
+        function renderStep(index) {
+            renderConfirmedLines(index);
+            if (index >= steps.length) { activeEl.innerHTML = ''; return; }
+
+            const editor = createMathShortcutEditor('Type this line of the calculation…');
+            activeEl.innerHTML = '';
+            activeEl.appendChild(editor.container);
+            const stepLabel = document.createElement('div');
+            stepLabel.className = 'km-note-visual-label';
+            stepLabel.style.marginBottom = '4px';
+            stepLabel.textContent = `Line ${index + 1} of ${steps.length}`;
+            activeEl.insertBefore(stepLabel, editor.container);
+            const checkBtn = document.createElement('button');
+            checkBtn.type = 'button';
+            checkBtn.className = 'btn primary';
+            checkBtn.style.marginTop = '8px';
+            checkBtn.textContent = 'Check this line';
+            activeEl.appendChild(checkBtn);
+            const feedbackEl = document.createElement('div');
+            feedbackEl.style.marginTop = '8px';
+            activeEl.appendChild(feedbackEl);
+
+            checkBtn.addEventListener('click', async () => {
+                if (editor.isEmpty()) return;
+                if (!editor.hasTrustedInput()) { showPasteBlockWarning(editor.container); return; }
+                checkBtn.disabled = true;
+                checkBtn.textContent = 'Checking…';
+                const result = await stepCheckFn(index, editor.getValue());
+                checkBtn.disabled = false;
+                checkBtn.textContent = 'Check this line';
+                if (!result) {
+                    feedbackEl.innerHTML = `<div class="km-inline-detail-item km-inline-detail-none">Something went wrong — try again.</div>`;
+                    return;
+                }
+                feedbackEl.innerHTML = `<div class="km-inline-detail-item km-inline-detail-none">${escapeHtml(result.feedback || '')}</div>`;
+                if (result.correct) {
+                    setTimeout(() => renderStep(index + 1), 700);
+                }
+            });
+        }
+        renderStep(0);
     }
 
     // Renders a sequence of LaTeX calculation lines (see
@@ -14307,7 +14375,7 @@ SQIDAQAB
     // then hands the raw compiled data to `renderContent` to build in
     // place. Same opt-in, compile-on-demand principle as the CTA buttons
     // above - nothing here is fetched until the student actually asks for it.
-    function renderKnowledgeDropdownItem(container, label, fetchData, renderContent) {
+    function renderKnowledgeDropdownItem(container, label, fetchData, renderContent, stepCheckFn) {
         container.innerHTML = `<button type="button" class="btn km-kd-item-btn">${escapeHtml(label)}</button>`;
         container.querySelector('.km-kd-item-btn').addEventListener('click', async (ev) => {
             ev.target.disabled = true;
@@ -14320,7 +14388,7 @@ SQIDAQAB
                 return;
             }
             container.innerHTML = `<div class="km-kd-item-label">${escapeHtml(label)}</div><div class="km-note-block"></div>`;
-            renderContent(container.querySelector('.km-note-block'), data);
+            renderContent(container.querySelector('.km-note-block'), data, stepCheckFn);
         });
     }
 
@@ -15440,7 +15508,7 @@ SQIDAQAB
             `;
             renderKnowledgeDropdownItem(detailEl.querySelector('#km-kd-own'), `${d.label} — knowledge`, async () => {
                 return await compileNodeNotesRequest(d.id);
-            }, renderNodeNoteBlock);
+            }, renderNodeNoteBlock, buildNodeStepChecker(d.id));
             linkedForNotes.forEach((item, i) => {
                 renderKnowledgeDropdownItem(detailEl.querySelector(`[data-kd-idx="${i}"]`), item.label, async () => {
                     return await compileEdgeNotesRequest(item.fromId, item.toId);
@@ -15609,7 +15677,7 @@ SQIDAQAB
             const explanationEl = lessonEl.querySelector('#km-node-lesson-explanation');
             compileNodeNotesRequest(d.id).then((noteResult) => {
                 if (noteResult && explanationEl.isConnected) {
-                    renderNodeNoteBlock(explanationEl, noteResult);
+                    renderNodeNoteBlock(explanationEl, noteResult, buildNodeStepChecker(d.id));
                     // Re-parent (not recreate) the already-mounted practice
                     // block into the dual-coding grid's own text column, so
                     // the visual stays visible on the right while the
@@ -16582,6 +16650,19 @@ SQIDAQAB
                 console.error('LastMind: chain diagnostic request failed.', err);
                 return null;
             }
+        }
+
+        // Builds the (stepIndex, answer) => Promise<{correct, feedback}|null>
+        // function renderNodeNoteBlock's interactive workedExample
+        // walkthrough calls per step - kept as a closure over whichever id(s)
+        // the caller already has in scope, so renderNodeNoteBlock itself
+        // never needs to know whether it's showing a node's or an edge's
+        // visual, just how to check the step it's given.
+        function buildNodeStepChecker(nodeId) {
+            return (stepIndex, answer) => postChainDiagnostic(`/knowledge-map-v2/node/${nodeId}/worked-example-step/check`, { stepIndex, answer });
+        }
+        function buildEdgeStepChecker(fromNodeId, toNodeId) {
+            return (stepIndex, answer) => postChainDiagnostic(`/knowledge-map-v2/edge/${fromNodeId}/${toNodeId}/worked-example-step/check`, { stepIndex, answer });
         }
 
         // Unlike postChainDiagnostic above, this THROWS on a real failure
