@@ -14898,15 +14898,25 @@ SQIDAQAB
             state: masteryProgressTier(edgeMasteryDetail[`${e.source}->${e.target}`]),
         }));
 
-        // Undirected adjacency, built once per render (not per click) -
-        // highlightKmConnections BFS's over this to find a clicked node's
-        // WHOLE connected chain, not just its direct neighbours.
-        const connectionAdjacency = new Map(nodes.map((n) => [n.id, []]));
+        // Directed adjacency in both directions, built once per render (not
+        // per click) - highlightKmConnections walks these separately
+        // (predecessors unlimited depth, successors capped) rather than one
+        // undirected BFS, which used to highlight almost the entire subject
+        // when clicking a highly-connected foundational concept (found
+        // live: clicking "The economic problem" lit up nearly everything).
+        const predecessorAdjacency = new Map(nodes.map((n) => [n.id, []])); // prerequisites (edge.source)
+        const successorAdjacency = new Map(nodes.map((n) => [n.id, []]));   // leads-to (edge.target)
         links.forEach((l) => {
             const sId = l.source.id || l.source, tId = l.target.id || l.target;
-            if (connectionAdjacency.has(sId)) connectionAdjacency.get(sId).push(tId);
-            if (connectionAdjacency.has(tId)) connectionAdjacency.get(tId).push(sId);
+            if (successorAdjacency.has(sId)) successorAdjacency.get(sId).push(tId);
+            if (predecessorAdjacency.has(tId)) predecessorAdjacency.get(tId).push(sId);
         });
+        // Used by reachableFrom (see highlightKmConnections's own comment
+        // on why downstream is capped and prerequisites aren't). Declared
+        // here (not next to reachableFrom itself, further down) because
+        // the initial-focus zoom-in that runs right after mount already
+        // calls into reachableFrom before that point in the function body.
+        const DOWNSTREAM_HOP_LIMIT = 3;
 
         const svg = d3.select(svgEl);
         svg.selectAll('*').remove();
@@ -15180,21 +15190,37 @@ SQIDAQAB
         // actual click (or the equivalent programmatic one from
         // renderSubjectGraphView's autoSelectNodeId / a "View" cross-
         // reference below).
-        // BFS over connectionAdjacency (ignoring edge direction) to find
-        // EVERY node reachable from d, not just its direct neighbours -
-        // "the ones linked from the following node, and so on until we
-        // reach an endpoint". The whole graph is unscoped now (see this
-        // function's own file-level comment), so this chain can genuinely
-        // run through several subtopics/themes before it dead-ends -
-        // that's the real prerequisite structure, not a bug to hide.
+        // Asymmetric on purpose - "the ones linked from the following
+        // node, and so on until we reach an endpoint" for PREREQUISITES
+        // (unlimited depth: the full chain of "why do I need to know
+        // this" is genuinely useful and rarely explodes in size), but
+        // capped for what this concept LEADS TO (found live: a highly-
+        // connected foundational concept, e.g. "The economic problem",
+        // fanned out to nearly the entire subject within a few hops -
+        // beyond DOWNSTREAM_HOP_LIMIT hops ahead stops being a "focus" at
+        // all - see DOWNSTREAM_HOP_LIMIT's own declaration near the top of
+        // this function). The whole graph is unscoped now (see this
+        // function's own file-level comment), so even the capped
+        // downstream reach can still cross into other subtopics/themes
+        // before it stops.
         function reachableFrom(startId) {
             const reached = new Set([startId]);
-            const queue = [startId];
-            while (queue.length) {
-                const id = queue.shift();
-                (connectionAdjacency.get(id) || []).forEach((neighborId) => {
-                    if (!reached.has(neighborId)) { reached.add(neighborId); queue.push(neighborId); }
+            const upQueue = [startId];
+            while (upQueue.length) {
+                const id = upQueue.shift();
+                (predecessorAdjacency.get(id) || []).forEach((prereqId) => {
+                    if (!reached.has(prereqId)) { reached.add(prereqId); upQueue.push(prereqId); }
                 });
+            }
+            let frontier = [startId];
+            for (let hop = 0; hop < DOWNSTREAM_HOP_LIMIT && frontier.length; hop++) {
+                const next = [];
+                frontier.forEach((id) => {
+                    (successorAdjacency.get(id) || []).forEach((depId) => {
+                        if (!reached.has(depId)) { reached.add(depId); next.push(depId); }
+                    });
+                });
+                frontier = next;
             }
             return reached;
         }
