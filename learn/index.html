@@ -16003,49 +16003,81 @@ SQIDAQAB
                 renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, index + 1, resultsSoFar);
                 return;
             }
-            renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, question.questionText, question.linkTeaching || null, false, '');
+            renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, question.questionText, question.linkTeaching || null, question.answerInputType || null, question.notes || null, false, '');
         }
 
         // The link-level review, one combined step per qualifying link —
         // there is no separate "identify the link" step any more (see
         // this section's own top comment on why integration alone is the
-        // real, sufficient gate). linkTeaching is only ever non-null on a
-        // link's genuinely first-ever review (see integration/start's own
-        // comment) - shown as "how this connects" right above the
-        // question, a "prompted" first attempt; every later spaced review
-        // gets neither, cold recall. Never fails the student - a wrong
-        // answer just retries in place with the grading call's own
-        // feedback shown as a hint, same contract AO1's slip-check
-        // already has.
-        function renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, questionText, linkTeaching, hadRetry, retryFeedback) {
+        // real, sufficient gate). linkTeaching/notes are only ever non-null
+        // on a link's genuinely first-ever review (see integration/start's
+        // own comment) - shown as "how this connects" right above the
+        // question, a "prompted" first attempt, dual-coded the same way an
+        // encoding lesson's own explanation is (see renderNodeNoteBlock);
+        // every later spaced review gets neither, cold recall, and falls
+        // back to the old plain single-column layout. Never fails the
+        // student - a wrong answer just retries in place with the grading
+        // call's own feedback shown as a hint, same contract AO1's
+        // slip-check already has.
+        function renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, questionText, linkTeaching, answerInputType, notes, hadRetry, retryFeedback) {
             const link = qualifyingLinks[index];
             saveNodeReviewCheckpoint(d.id, { linkToNodeId: link.id, stage: 'integration', resultsSoFar });
             const draftKey = `node-review-integration:${d.id}:${link.id}`;
+
+            const questionBlockHtml = `
+                <div id="km-integration-question-block">
+                    <h4 class="km-inline-lesson-question">Integration</h4>
+                    <div class="km-inline-lesson-question">${escapeHtml(questionText)}</div>
+                    ${retryFeedback ? `<div class="km-inline-detail-item km-inline-detail-none" style="margin-top:6px;">${escapeHtml(retryFeedback)}</div>` : ''}
+                    <div id="km-integration-answer-input"></div>
+                    <button type="button" class="btn primary km-diag-submit-btn" style="margin-top:10px;">Submit</button>
+                </div>
+            `;
             lessonEl.innerHTML = `
                 <div class="km-inline-detail-section">
                     <div class="km-inline-detail-eyebrow">Review — link ${index + 1} of ${qualifyingLinks.length}</div>
                     <div class="km-inline-detail-label">"${escapeHtml(d.label)}" → "${escapeHtml(link.label)}"</div>
-                    ${linkTeaching ? `
+                    ${notes ? '<div id="km-integration-notes"></div>' : (linkTeaching ? `
                         <h4 class="km-inline-lesson-question">How this connects</h4>
                         <div class="km-inline-lesson-explanation">${notesTextToHtml(linkTeaching)}</div>
-                    ` : ''}
-                    <h4 class="km-inline-lesson-question">Integration</h4>
-                    <div class="km-inline-lesson-question">${escapeHtml(questionText)}</div>
-                    ${retryFeedback ? `<div class="km-inline-detail-item km-inline-detail-none" style="margin-top:6px;">${escapeHtml(retryFeedback)}</div>` : ''}
-                    <textarea class="km-diag-answer-input" rows="5" placeholder="Write your answer here…" style="${DIAG_TEXTAREA_STYLE}"></textarea>
-                    <button type="button" class="btn primary km-diag-submit-btn" style="margin-top:10px;">Submit</button>
+                    ` : '')}
+                    ${notes ? '' : questionBlockHtml}
                 </div>
             `;
-            const textarea = lessonEl.querySelector('.km-diag-answer-input');
-            const guard = guardAnswerInput(textarea);
+
+            // Dual-coded (text + visual side by side) exactly like an
+            // encoding lesson's own explanation, reusing the same
+            // component - the question block moves into its own text
+            // column so the visual stays visible while answering, same
+            // reasoning as renderNodeLessonExplanation. No async compile
+            // call needed here (unlike the encoding lesson) - the notes
+            // arrive already compiled in integration/start's own response.
+            if (notes) {
+                const notesEl = lessonEl.querySelector('#km-integration-notes');
+                renderNodeNoteBlock(notesEl, notes, buildEdgeStepChecker(d.id, link.id));
+                const textCol = notesEl.querySelector('.km-note-text') || notesEl;
+                textCol.insertAdjacentHTML('beforeend', questionBlockHtml);
+            }
+
+            const answerInputHost = lessonEl.querySelector('#km-integration-answer-input');
+            const useMathEditor = answerInputType ? answerInputType === 'math' : looksLikeCalculationQuestion(questionText);
+            const editor = useMathEditor
+                ? createMathShortcutEditor('Write your answer here…')
+                : createPlainAnswerEditor('Write your answer here…');
+            answerInputHost.appendChild(editor.container);
+
+            const inputEl = editor.container.querySelector('.math-shortcut-editor');
             const restored = loadAnswerDraft(draftKey);
-            if (restored) { textarea.value = restored; guard.markTrusted(); }
-            textarea.addEventListener('input', () => saveAnswerDraft(draftKey, textarea.value));
+            if (restored && editor.isEmpty()) {
+                if (inputEl.tagName === 'TEXTAREA') inputEl.value = restored; else inputEl.textContent = restored;
+                editor.markTrusted();
+            }
+            inputEl.addEventListener('input', () => saveAnswerDraft(draftKey, editor.getValue()));
 
             lessonEl.querySelector('.km-diag-submit-btn').addEventListener('click', async (ev) => {
-                const answer = textarea.value.trim();
-                if (!answer) return;
-                if (!guard.hasTrustedInput()) { showPasteBlockWarning(textarea); return; }
+                if (editor.isEmpty()) return;
+                if (!editor.hasTrustedInput()) { showPasteBlockWarning(editor.container); return; }
+                const answer = editor.getValue();
                 ev.target.disabled = true;
                 ev.target.textContent = 'Checking…';
                 const result = await postChainDiagnostic('/knowledge-map-v2/node-review/integration/submit', {
@@ -16058,7 +16090,7 @@ SQIDAQAB
                 }
                 clearAnswerDraft(draftKey);
                 if (!result.correct) {
-                    renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, questionText, linkTeaching, true, result.feedback || '');
+                    renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, questionText, linkTeaching, answerInputType, notes, true, result.feedback || '');
                     return;
                 }
                 if (result.schedule) {
