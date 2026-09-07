@@ -2871,6 +2871,18 @@
         min-height: 480px;
     }
 
+    /* A subject's own landing view - a subtopic picker over Cortex chat,
+       replacing what used to be an immediate whole-graph dump (see
+       renderSubjectLanding). The picker's own height is whatever its
+       content needs; the chat below it fills the rest. */
+    .km-subject-landing { display: flex; flex-direction: column; height: calc(100vh - 160px); min-height: 480px; }
+    .km-subject-picker { flex: none; margin-bottom: 14px; display: flex; flex-direction: column; gap: 10px; max-height: 220px; overflow-y: auto; }
+    .km-subject-theme-group { display: flex; flex-direction: column; gap: 6px; }
+    .km-subject-theme-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.55; }
+    .km-subject-subtopic-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+    .km-subject-cortex-wrap { flex: 1; min-height: 0; }
+    .km-subject-cortex-wrap .cortex-embed-frame { width: 100%; height: 100%; }
+
     .maths-tool-view {
         display: grid;
         grid-template-columns: 240px 1fr;
@@ -13233,8 +13245,6 @@ SQIDAQAB
             showEmpty(`No knowledge map has been generated for ${folderLabel(folder)} yet.`);
             return;
         }
-        emptyEl.style.display = 'none';
-        workspaceEl.style.display = '';
         // Same /schedule data the calendar's own due-in badges and "how
         // does this work?" panel already use (see buildFsrsInfoPanelContent/
         // formatDueIn) — reused as-is rather than inventing a second FSRS
@@ -13242,8 +13252,119 @@ SQIDAQAB
         // ids instead of a page's.
         data.scheduleByConceptId = new Map(scheduleRows.map((r) => [r.concept_id, r]));
 
-        renderKmInlineThemeTabs(contentInner, folder, data);
-        renderKmInlineGraph(contentInner, folder, data, null);
+        // The whole-subject graph (700+ nodes for a dense subject) was
+        // never actually legible zoomed out far enough to see it all -
+        // Cortex chat is the real default landing experience for a
+        // subject now; the graph only ever shows up scoped to ONE
+        // subtopic at a time (see renderSubjectGraphView), which the
+        // existing fit-to-view zoom already renders genuinely close-up
+        // and readable since there's far less to fit on screen.
+        renderSubjectLanding(folder, data);
+    }
+
+    // Numeric-aware comparison for spec-numbered subtopic strings ("1.1
+    // Nature of economics", "4.10 ..." before "4.2 ...") - mirrors
+    // knowledgeMapNotesService.ts's own compareSubtopics exactly, since a
+    // plain string sort puts "4.10" before "4.2".
+    function compareSubtopicStrings(a, b) {
+        const parse = (s) => {
+            const m = /^(\d+)(?:\.(\d+))?/.exec(s || '');
+            return m ? [Number(m[1]), m[2] ? Number(m[2]) : 0] : [Number.MAX_SAFE_INTEGER, 0];
+        };
+        const [aMajor, aMinor] = parse(a);
+        const [bMajor, bMinor] = parse(b);
+        if (aMajor !== bMajor) return aMajor - bMajor;
+        if (aMinor !== bMinor) return aMinor - bMinor;
+        return (a || '').localeCompare(b || '');
+    }
+
+    // The subject's own landing view: a compact subtopic picker (grouped
+    // by theme) over Cortex chat, embedded exactly the way renderWelcome
+    // already embeds it - replaces what used to be an immediate, illegible
+    // whole-graph dump. Reuses the SAME already-fetched `data` (nodes carry
+    // mastery/schedule already merged in) so picking a subtopic never
+    // re-fetches anything.
+    function renderSubjectLanding(folder, data) {
+        const contentInner = document.getElementById('contentInner');
+        contentInner.classList.add('content-inner-wide');
+
+        const byTheme = new Map();
+        data.nodes.forEach((n) => {
+            const theme = n.theme || 'General';
+            const subtopic = n.subtopic || 'General';
+            if (!byTheme.has(theme)) byTheme.set(theme, new Set());
+            byTheme.get(theme).add(subtopic);
+        });
+        const themeGroupsHtml = Array.from(byTheme.entries()).map(([theme, subtopicSet]) => {
+            const subtopics = Array.from(subtopicSet).sort(compareSubtopicStrings);
+            return `
+                <div class="km-subject-theme-group">
+                    <div class="km-subject-theme-label">${escapeHtml(theme)}</div>
+                    <div class="km-subject-subtopic-pills">
+                        ${subtopics.map((s) => `<button type="button" class="km-inline-tab" data-subtopic="${escapeHtml(s)}">${escapeHtml(s)}</button>`).join('')}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        contentInner.innerHTML = `
+            <div class="km-subject-landing">
+                <div class="km-inline-title" style="margin-bottom:2px;">${escapeHtml(folderLabel(folder))}</div>
+                <div class="km-inline-sub" style="margin-bottom:10px;">${escapeHtml([folder.qualification, folder.examBoard].filter(Boolean).join(' · '))} — pick a subtopic to see its knowledge map, or ask Cortex below.</div>
+                <div class="km-subject-picker">${themeGroupsHtml}</div>
+                <div class="km-subject-cortex-wrap"></div>
+            </div>
+        `;
+        contentInner.querySelectorAll('.km-subject-subtopic-pills .km-inline-tab').forEach((btn) => {
+            btn.addEventListener('click', () => renderSubjectGraphView(folder, data, btn.dataset.subtopic));
+        });
+        renderSubjectCortexEmbed(contentInner.querySelector('.km-subject-cortex-wrap'));
+    }
+
+    // Same iframe embed renderWelcome uses (same Premium gate, same src) -
+    // duplicated rather than calling renderWelcome directly since that
+    // function unconditionally takes over the ENTIRE #contentInner, which
+    // would wipe out the subtopic picker sitting above it here.
+    function renderSubjectCortexEmbed(container) {
+        if (!isPaidUser) {
+            container.innerHTML = `
+                <div class="dashboard-view dashboard-locked" style="height:100%;">
+                    <h1 class="dashboard-locked-logo">Last<span>Mind</span></h1>
+                    <p class="dashboard-locked-quote" id="dashboardLockedQuote"></p>
+                </div>
+            `;
+            pickNextQuote().then((quote) => {
+                const el = document.getElementById('dashboardLockedQuote');
+                if (el) el.textContent = quote;
+            });
+            return;
+        }
+        container.innerHTML = `<iframe class="cortex-embed-frame" allow="microphone" title="LastMind Cortex" src="/cortex?embed=1"></iframe>`;
+    }
+
+    // The knowledge map, scoped to exactly one subtopic - reuses the same
+    // graph rendering/zoom-to-fit as before, just over a much smaller
+    // node set, which is what actually makes "closer up so it's visible"
+    // true (fit-to-view already zooms tighter when there's less to fit).
+    function renderSubjectGraphView(folder, data, subtopic) {
+        const contentInner = document.getElementById('contentInner');
+        contentInner.classList.add('content-inner-wide');
+        const template = document.getElementById('kmInlineTemplate');
+        contentInner.innerHTML = '';
+        contentInner.appendChild(template.content.cloneNode(true));
+
+        contentInner.querySelector('.km-inline-title').textContent = subtopic;
+        contentInner.querySelector('.km-inline-sub').textContent = folderLabel(folder);
+        contentInner.querySelector('.km-inline-themetabs').style.display = 'none';
+
+        const backBtn = contentInner.querySelector('.km-inline-dashboard-btn');
+        backBtn.textContent = `← ${folderLabel(folder)}`;
+        backBtn.addEventListener('click', () => renderSubjectLanding(folder, data));
+        contentInner.querySelector('.km-lesson-back-btn').addEventListener('click', () => showKmWorkspace(contentInner));
+
+        contentInner.querySelector('.km-inline-empty').style.display = 'none';
+        contentInner.querySelector('.km-inline-workspace').style.display = '';
+        renderKmInlineGraph(contentInner, folder, data, null, subtopic);
     }
 
     // ─── Notes page ──────────────────────────────────────────────────
@@ -14304,13 +14425,15 @@ SQIDAQAB
     // renderKnowledgeMapGraph — same clustering/hover/click mechanics,
     // retargeted at the inline SVG and the new node shape (label/subtopic/
     // theme instead of name/topics, node ids are uuids not chain-node ids).
-    function renderKmInlineGraph(contentInner, folder, fullData, themeFilter) {
+    function renderKmInlineGraph(contentInner, folder, fullData, themeFilter, subtopicFilter) {
         const svgEl = contentInner.querySelector('.km-inline-svg');
         const wrapEl = contentInner.querySelector('.km-inline-canvas-wrap');
         const width = wrapEl.clientWidth || 900;
         const height = wrapEl.clientHeight || 520;
 
-        const visibleNodes = themeFilter ? fullData.nodes.filter((n) => (n.theme || 'General') === themeFilter) : fullData.nodes;
+        const visibleNodes = subtopicFilter
+            ? fullData.nodes.filter((n) => (n.subtopic || 'General') === subtopicFilter)
+            : themeFilter ? fullData.nodes.filter((n) => (n.theme || 'General') === themeFilter) : fullData.nodes;
         const visibleIds = new Set(visibleNodes.map((n) => n.id));
         const visibleEdges = fullData.edges.filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target));
 
