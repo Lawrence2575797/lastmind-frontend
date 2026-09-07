@@ -576,9 +576,25 @@
     .km-link-arrowhead-path {
         fill: rgba(230, 215, 176, 0.35);
     }
+    .km-node-group {
+        transition: opacity 0.2s ease;
+    }
     .km-node-group.km-selected .km-node-shape {
         stroke: var(--accent);
         stroke-width: 3px;
+    }
+    /* Click-to-focus (see highlightKmConnections): the clicked node's
+       direct neighbours get their own gold ring - a step down from the
+       clicked node's own --accent ring, but still clearly picked out from
+       the dimmed rest of the graph - and everything not selected or a
+       neighbour fades back, so the path a student is actually following
+       reads at a glance instead of competing with the whole subtopic. */
+    .km-node-group.km-neighbor .km-node-shape {
+        stroke: #E8C15C;
+        stroke-width: 2.5px;
+    }
+    .km-node-group.km-dimmed {
+        opacity: 0.22;
     }
 
     /* Link-level mastery — same five-step ramp as node mastery
@@ -605,16 +621,18 @@
         stroke-opacity: 0.75;
     }
 
-    /* Click-to-highlight: the clicked node's own edges/neighbours light up
-       ON TOP of the normal graph — every link stays visible all the time,
-       this only ever ADDS emphasis, never hides anything else. Placed
-       AFTER the state-N rules (equal specificity, so source order decides)
-       so a highlight always wins visually, even on a link that already
-       has its own mastery-tier colour. */
+    /* Click-to-focus: the clicked node's own edges brighten, every other
+       edge fades (.km-dimmed, right below) - see highlightKmConnections.
+       Placed AFTER the state-N rules (equal specificity, so source order
+       decides) so a highlight always wins visually, even on a link that
+       already has its own mastery-tier colour. */
     .km-link.km-highlighted {
         stroke: var(--accent);
         stroke-opacity: 0.9;
         stroke-width: 2px;
+    }
+    .km-link.km-dimmed {
+        stroke-opacity: 0.05;
     }
 
     /* Soft subfolder groupings — deliberately neutral (not topic-coloured)
@@ -670,15 +688,6 @@
 
     .km-node-stripe {
         pointer-events: none;
-    }
-
-    .km-col-head {
-        font-size: 10px;
-        font-weight: 600;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        fill: var(--text);
-        opacity: 0.4;
     }
 
     /* Knowledge & notes dropdown on a selected node's own detail card -
@@ -14701,26 +14710,12 @@ SQIDAQAB
         const zoomBehavior = d3.zoom().scaleExtent([0.01, 3]).on('zoom', (event) => zoomLayer.attr('transform', event.transform));
         svg.call(zoomBehavior);
 
-        // Deterministic grouped-column layout, replacing the old force
-        // simulation entirely - one column per subtopic (falling back to
-        // theme, then "General"), cards stacked top-to-bottom within a
-        // column in real prerequisite order rather than wherever a physics
-        // simulation happened to settle them. Validated at 100+ real nodes
-        // before this replaced the force layout - see the design review.
-        function columnKeyOf(n) { return n.subtopic || n.theme || 'General'; }
-        const columnOrder = [];
-        const seenColumns = new Set();
-        nodes.forEach((n) => {
-            const key = columnKeyOf(n);
-            if (!seenColumns.has(key)) { seenColumns.add(key); columnOrder.push(key); }
-        });
-
         // Global topological sort (Kahn's algorithm) over every visible
-        // node/edge - gives each node a rank such that anything it depends
-        // on always ranks lower, even across column/subtopic boundaries.
-        // Any node the sort can't reach (a genuine cycle, or one isolated
-        // by the visible-edge filter) still needs a position, so it's
-        // appended in original order rather than dropped.
+        // node/edge - gives each node an index such that anything it
+        // depends on always comes first. Any node the sort can't reach (a
+        // genuine cycle, or one isolated by the visible-edge filter) still
+        // needs a position, so it's appended in original order rather than
+        // dropped.
         function topoRank(allNodes, allEdges) {
             const indeg = new Map(allNodes.map((n) => [n.id, 0]));
             const adj = new Map(allNodes.map((n) => [n.id, []]));
@@ -14747,7 +14742,39 @@ SQIDAQAB
         }
         const topoIndex = topoRank(nodes, visibleEdges);
 
-        const CARD_W = 190, CARD_LINE_H = 14, CARD_MIN_H = 34, COL_GAP = 46, ROW_GAP = 14, PAD = 26, COL_HEAD_H = 26;
+        // Layered-DAG layout (Sugiyama-style ranking), replacing the old
+        // "one column per subtopic" grouping - since renderSubjectGraphView
+        // always scopes this to exactly ONE subtopic now, every node shared
+        // that same single column key, so branching/converging prerequisite
+        // structure within a subtopic (B leads to BOTH C and D, C and D
+        // both lead to E) was invisible - everything got forced into one
+        // straight vertical stack regardless of the real dependency shape.
+        // A node's rank is the LONGEST prerequisite chain beneath it (not
+        // just topoIndex, which is only a traversal order, not a depth) -
+        // computed in topo order so every prerequisite's own rank is
+        // already final by the time a node reads it - so nodes that only
+        // depend on foundational concepts share an early column, and
+        // nodes several dependencies deep land further right, with
+        // siblings at the same depth stacked in the same column.
+        function computeRank(allNodes, allEdges) {
+            const predecessors = new Map(allNodes.map((n) => [n.id, []]));
+            allEdges.forEach((e) => {
+                if (!predecessors.has(e.target)) return;
+                predecessors.get(e.target).push(e.source);
+            });
+            const rank = new Map();
+            allNodes.slice().sort((a, b) => topoIndex.get(a.id) - topoIndex.get(b.id)).forEach((n) => {
+                const preds = predecessors.get(n.id) || [];
+                const maxPredRank = preds.reduce((acc, p) => Math.max(acc, rank.has(p) ? rank.get(p) : -1), -1);
+                rank.set(n.id, maxPredRank + 1);
+            });
+            return rank;
+        }
+        const rankByNodeId = computeRank(nodes, visibleEdges);
+        function columnKeyOf(n) { return rankByNodeId.get(n.id) ?? 0; }
+        const columnOrder = Array.from(new Set(nodes.map(columnKeyOf))).sort((a, b) => a - b);
+
+        const CARD_W = 190, CARD_LINE_H = 14, CARD_MIN_H = 34, COL_GAP = 46, ROW_GAP = 14, PAD = 26;
         function estimateCardHeight(label) {
             const charsPerLine = 24;
             const lines = Math.max(1, Math.min(3, Math.ceil((label || '').length / charsPerLine)));
@@ -14760,7 +14787,7 @@ SQIDAQAB
 
         columnOrder.forEach((key, colIdx) => {
             const colCenterX = PAD + colIdx * (CARD_W + COL_GAP) + CARD_W / 2;
-            let cursorY = PAD + COL_HEAD_H;
+            let cursorY = PAD;
             byColumn.get(key).forEach((n) => {
                 const h = estimateCardHeight(n.label);
                 n.halfW = CARD_W / 2;
@@ -14776,7 +14803,7 @@ SQIDAQAB
             nodes.forEach((n) => {
                 if (typeof n.x !== 'number') return;
                 minX = Math.min(minX, n.x - n.halfW); maxX = Math.max(maxX, n.x + n.halfW);
-                minY = Math.min(minY, n.y - n.halfH - COL_HEAD_H); maxY = Math.max(maxY, n.y + n.halfH);
+                minY = Math.min(minY, n.y - n.halfH); maxY = Math.max(maxY, n.y + n.halfH);
             });
             const w = maxX - minX, h = maxY - minY;
             if (!isFinite(w) || !isFinite(h) || w <= 0 || h <= 0) return;
@@ -14790,13 +14817,6 @@ SQIDAQAB
             zoomBehavior.scaleExtent([fitScale, 3]);
             svg.transition().duration(400).call(zoomBehavior.transform, d3.zoomIdentity.translate(tx, ty).scale(fitScale));
         }
-
-        const colHeadSelection = zoomLayer.append('g').selectAll('text')
-            .data(columnOrder).join('text')
-            .attr('class', 'km-col-head')
-            .attr('x', (key, i) => PAD + i * (CARD_W + COL_GAP))
-            .attr('y', PAD + 16)
-            .text((key) => key);
 
         function linkPath(d) {
             const s = d.source, t = d.target;
@@ -14905,17 +14925,41 @@ SQIDAQAB
         const lessonFullpageBodyEl = contentInner.querySelector('.km-lesson-fullpage-body');
         const stateLabel = { 0: 'Not started', 1: 'Learning', 2: '1 spaced review', 3: '2 spaced reviews', 4: 'Mastered' };
 
-        // Click-to-highlight ONLY — every node/link is always visible at
-        // its normal baseline; this purely ADDS a brighter ring/stroke to
-        // the clicked node and its direct edges, it never dims or hides
-        // anything else. Kept separate from selectKmInlineNode below so
-        // the initial auto-selected node on load doesn't retroactively
-        // highlight anything either — highlighting only ever follows an
-        // actual click.
+        // Click-to-focus: the clicked node and its direct neighbours light
+        // up, everything else fades - a genuine focus mode, not just an
+        // added ring on top of an otherwise-unchanged graph, since a
+        // student following one concept's own connections through a busier
+        // subtopic needs the REST of the graph to visually recede, not just
+        // its own edges to brighten. Kept separate from selectKmInlineNode
+        // below so the initial auto-selected node on load doesn't
+        // retroactively focus anything either — this only ever follows an
+        // actual click (or the equivalent programmatic one from
+        // renderSubjectGraphView's autoSelectNodeId / a "View" cross-
+        // reference below).
         function highlightKmConnections(d) {
+            const neighborIds = new Set();
+            links.forEach((l) => {
+                const sId = l.source.id || l.source, tId = l.target.id || l.target;
+                if (sId === d.id) neighborIds.add(tId);
+                if (tId === d.id) neighborIds.add(sId);
+            });
             nodeGroup.classed('km-selected', (n) => n.id === d.id);
+            nodeGroup.classed('km-neighbor', (n) => neighborIds.has(n.id));
+            nodeGroup.classed('km-dimmed', (n) => n.id !== d.id && !neighborIds.has(n.id));
             linkSelection.classed('km-highlighted', (e) => e.source.id === d.id || e.target.id === d.id);
+            linkSelection.classed('km-dimmed', (e) => e.source.id !== d.id && e.target.id !== d.id);
         }
+
+        // Clicking empty canvas (not a node) drops the focus and returns
+        // every node/link to full brightness - the one way back besides
+        // clicking through every node in turn. stopPropagation on the node
+        // click handler below keeps a node click from also bubbling up and
+        // immediately undoing its own focus.
+        function clearKmHighlight() {
+            nodeGroup.classed('km-selected', false).classed('km-neighbor', false).classed('km-dimmed', false);
+            linkSelection.classed('km-highlighted', false).classed('km-dimmed', false);
+        }
+        svg.on('click', clearKmHighlight);
 
         // "View" — for when you want to see WHERE a concept sits and what
         // it connects to without committing to starting its lesson. Zooms
@@ -16446,7 +16490,7 @@ SQIDAQAB
             });
         }
 
-        nodeGroup.on('click', (event, d) => { highlightKmConnections(d); selectKmInlineNode(d); });
+        nodeGroup.on('click', (event, d) => { event.stopPropagation(); highlightKmConnections(d); selectKmInlineNode(d); });
         if (nodes.length) selectKmInlineNode(nodes[0]);
 
         // Search box — was entirely inert (no listener at all) before this.
