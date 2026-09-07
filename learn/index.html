@@ -1023,6 +1023,26 @@
     .km-kd-item-locked { padding: 4px 6px; }
     .km-kd-item-locked > span { font-size: 12.5px; opacity: 0.6; }
 
+    /* Your own notes for a node - free text by default, or a template
+       (question heading + body + an optional hand-drawn diagram), never
+       AI-generated, never shared. See renderPersonalNoteEditor. */
+    .km-notes-header-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+    .km-notes-template-btn { flex: none; font-size: 11.5px; padding: 6px 12px; }
+    .km-personal-note { margin-bottom: 18px; }
+    .km-personal-note-heading-input {
+        width: 100%; background: rgba(230, 215, 176, 0.05); border: 1px solid rgba(230, 215, 176, 0.16);
+        border-radius: 4px; color: var(--text); font-family: Georgia, serif; font-size: 14px; font-weight: 700;
+        padding: 8px 10px; margin-bottom: 8px;
+    }
+    .km-personal-note-heading-input::placeholder { opacity: 0.4; font-weight: 400; font-family: 'Arial', sans-serif; }
+    .km-personal-note-textarea {
+        width: 100%; min-height: 110px; resize: vertical; background: rgba(230, 215, 176, 0.05);
+        border: 1px solid rgba(230, 215, 176, 0.16); border-radius: 4px; color: var(--text);
+        font-family: 'Arial', sans-serif; font-size: 13px; line-height: 1.6; padding: 10px 12px;
+    }
+    .km-personal-note-save-state { font-size: 10.5px; opacity: 0.5; margin-top: 4px; height: 14px; }
+    .km-personal-note-diagram-toggle { margin-top: 10px; font-size: 11.5px; padding: 6px 12px; }
+
     /* ─── Diagram-drawing question widget ─── */
     .diagram-widget { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
     .diagram-palette { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -13286,6 +13306,39 @@ SQIDAQAB
         }
     }
 
+    // A student's own hand-written note (free text or template) - never
+    // an AI call, so no compile/generate verb here, just plain load/save.
+    async function fetchPersonalNoteRequest(nodeId) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return null;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/node/${encodeURIComponent(nodeId)}/personal-notes`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (resp.status === 404) return null;
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            return await resp.json();
+        } catch (err) {
+            console.error('LastMind: failed to load your note.', err);
+            return null;
+        }
+    }
+    async function savePersonalNoteRequest(nodeId, content) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return false;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/node/${encodeURIComponent(nodeId)}/personal-notes`, {
+                method: 'PUT',
+                headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify(content),
+            });
+            return resp.ok;
+        } catch (err) {
+            console.error('LastMind: failed to save your note.', err);
+            return false;
+        }
+    }
+
     // Populates the sidebar's own Notes tab tree (see setSidebarTab) and
     // resets the main content area to its empty prompt - called once when
     // the tab itself is opened, not on every node click (the tree then
@@ -13448,7 +13501,11 @@ SQIDAQAB
 
         contentInner.innerHTML = `
             <div class="km-notes-body">
-                <div class="km-inline-detail-label" style="margin-bottom:14px;">${escapeHtml(node.label)}</div>
+                <div class="km-notes-header-row">
+                    <div class="km-inline-detail-label" style="margin-bottom:0;">${escapeHtml(node.label)}</div>
+                    <button type="button" class="btn km-notes-template-btn">+ Add template</button>
+                </div>
+                <div id="km-personal-note"></div>
                 <div class="km-kd-panel">
                     <div class="km-kd-item" id="km-kd-own"></div>
                     ${node.links.length ? node.links.map((l, i) => l.unlocked
@@ -13461,6 +13518,7 @@ SQIDAQAB
                 </div>
             </div>
         `;
+        renderPersonalNoteEditor(contentInner.querySelector('#km-personal-note'), contentInner.querySelector('.km-notes-template-btn'), node.nodeId);
         renderKnowledgeDropdownItem(contentInner.querySelector('#km-kd-own'), `${node.label} — knowledge`, async () => {
             return await compileNodeNotesRequest(node.nodeId);
         }, renderNodeNoteBlock);
@@ -13470,6 +13528,86 @@ SQIDAQAB
                 return await compileEdgeNotesRequest(node.nodeId, l.toNodeId);
             }, renderEdgeNoteBlock);
         });
+    }
+
+    // The student's own hand-written note for this node - separate from
+    // the AI-compiled "Knowledge & notes" panel below it, never touches
+    // the Claude API. Free text is the default; the template toggle
+    // (button lives in the page's own header row, not next to this
+    // editor, and nowhere near a maths-tool toolbar - there isn't one on
+    // this page) adds a question heading and an optional hand-drawn
+    // diagram on top of the same body text, using the exact same
+    // interactive diagram tool practice questions use (renderDiagramWidget),
+    // just wired to save rather than grade.
+    async function renderPersonalNoteEditor(container, templateBtn, nodeId) {
+        const existing = await fetchPersonalNoteRequest(nodeId);
+        let note = existing || { mode: 'freeText', heading: '', body: '', diagram: null };
+
+        function setSaveState(el, text) {
+            el.textContent = text;
+            if (text === 'Saved') setTimeout(() => { if (el.textContent === 'Saved') el.textContent = ''; }, 1500);
+        }
+
+        function render() {
+            templateBtn.textContent = note.mode === 'template' ? '✕ Back to free text' : '+ Add template';
+            container.innerHTML = note.mode === 'template' ? `
+                <input type="text" class="km-personal-note-heading-input" placeholder="Frame this as a question…" value="${escapeHtml(note.heading || '')}">
+                <textarea class="km-personal-note-textarea" placeholder="Write your notes here…">${escapeHtml(note.body || '')}</textarea>
+                <button type="button" class="btn km-personal-note-diagram-toggle">${note.diagram ? '✏️ Edit your diagram' : '📊 Add a diagram'}</button>
+                <div class="km-personal-note-diagram-host"></div>
+                <div class="km-personal-note-save-state"></div>
+            ` : `
+                <textarea class="km-personal-note-textarea" placeholder="Write your own notes for this concept…">${escapeHtml(note.body || '')}</textarea>
+                <div class="km-personal-note-save-state"></div>
+            `;
+
+            const saveStateEl = container.querySelector('.km-personal-note-save-state');
+            const bodyEl = container.querySelector('.km-personal-note-textarea');
+            const headingEl = container.querySelector('.km-personal-note-heading-input');
+
+            let saveTimer = null;
+            function scheduleSave() {
+                note.body = bodyEl.value;
+                if (headingEl) note.heading = headingEl.value;
+                setSaveState(saveStateEl, 'Saving…');
+                clearTimeout(saveTimer);
+                saveTimer = setTimeout(async () => {
+                    const ok = await savePersonalNoteRequest(nodeId, note);
+                    setSaveState(saveStateEl, ok ? 'Saved' : 'Could not save — try again');
+                }, 700);
+            }
+            bodyEl.addEventListener('input', scheduleSave);
+            if (headingEl) headingEl.addEventListener('input', scheduleSave);
+
+            const diagramToggleBtn = container.querySelector('.km-personal-note-diagram-toggle');
+            const diagramHost = container.querySelector('.km-personal-note-diagram-host');
+            if (diagramToggleBtn) {
+                diagramToggleBtn.addEventListener('click', () => {
+                    diagramToggleBtn.hidden = true;
+                    const initialState = note.diagram
+                        ? { placed: note.diagram.curves, shades: note.diagram.shades, labels: note.diagram.labels, arrows: note.diagram.arrows }
+                        : undefined;
+                    renderDiagramWidget(diagramHost, null, async (answer) => {
+                        note.diagram = answer;
+                        const ok = await savePersonalNoteRequest(nodeId, note);
+                        setSaveState(saveStateEl, ok ? 'Saved' : 'Could not save — try again');
+                        // Re-render once saved so the toggle button comes
+                        // back as "Edit your diagram" (rather than staying
+                        // hidden) - lets a student reopen and keep drawing
+                        // without having to leave and re-select this node.
+                        setTimeout(render, 800);
+                        return { correct: true, feedback: ok ? 'Diagram saved to your notes.' : 'Could not save — try again.' };
+                    }, null, initialState);
+                });
+            }
+        }
+
+        templateBtn.addEventListener('click', () => {
+            note.mode = note.mode === 'template' ? 'freeText' : 'template';
+            render();
+        });
+
+        render();
     }
 
     // Renders one compiled node note (heading + paragraphs + an optional
@@ -13710,6 +13848,26 @@ SQIDAQAB
         return null;
     }
 
+    // Mirrors diagramGradingService.ts's own curveAxisIntersection exactly:
+    // a drawn axis always spans the full chart, so this extends the
+    // curve's own first/last-point line as an infinite line for the
+    // intersection check (never the axis, which stays bounded to what's
+    // actually drawn) - a curve positioned further out than its own local
+    // polyline length shouldn't lose its axis crossing just because the
+    // short local shape doesn't literally reach that far.
+    function diagramCurveAxisIntersection(curvePoly, axisSeg) {
+        const a1 = curvePoly[0], a2 = curvePoly[curvePoly.length - 1];
+        const [b1, b2] = axisSeg;
+        const d1x = a2.x - a1.x, d1y = a2.y - a1.y;
+        const d2x = b2.x - b1.x, d2y = b2.y - b1.y;
+        const denom = d1x * d2y - d1y * d2x;
+        if (Math.abs(denom) < 1e-9) return null;
+        const t = ((b1.x - a1.x) * d2y - (b1.y - a1.y) * d2x) / denom;
+        const u = ((b1.x - a1.x) * d1y - (b1.y - a1.y) * d1x) / denom;
+        if (u < -0.01 || u > 1.01) return null;
+        return { x: a1.x + t * d1x, y: a1.y + t * d1y };
+    }
+
     function renderStaticDiagram(container, spec) {
         if (!spec || spec.notDiagrammatic) { container.innerHTML = ''; return; }
         const curves = spec.curves || [];
@@ -13769,6 +13927,39 @@ SQIDAQAB
         qtyLabel.textContent = 'Quantity';
         svg.appendChild(qtyLabel);
 
+        // Shaded regions drawn before the curves so the fill sits behind
+        // their lines (matching renderDiagramWidget's own shades-before-
+        // curves paint order). The grading engine has no canonical
+        // polygon to check a STUDENT's freehand shade against (it only
+        // compares area overlap - see diagramGradingService.ts's own IoU
+        // comment), but that's a constraint on grading a hand-drawn
+        // answer, not on drawing one ourselves here. Every real shade in
+        // this spec is exactly 2 curves + 1 axis (validateSpec's own
+        // contract in generate_diagram_specs.js), and every one of these
+        // in a real supply/demand-style diagram is the classic triangle
+        // bounded by where the two curves cross each other and where
+        // each meets the axis - so construct that triangle directly:
+        // intersect the two curves for one vertex, intersect each curve
+        // with the axis for the other two. Falls back to the text-only
+        // caption below if any of the three points can't be resolved
+        // (e.g. two curves that don't actually cross) rather than
+        // fabricate a shape that isn't really there.
+        (spec.shades || []).forEach((s) => {
+            const curveIds = (s.boundedBy || []).filter((b) => positioned.has(b));
+            const axisName = (s.boundedBy || []).find((b) => b === 'price-axis' || b === 'quantity-axis');
+            const axisSeg = axisName === 'price-axis' ? DIAGRAM_PRICE_AXIS : axisName === 'quantity-axis' ? DIAGRAM_QUANTITY_AXIS : null;
+            const [curveA, curveB] = curveIds.map((id) => positioned.get(id));
+            const cross = curveA && curveB ? diagramPolylineIntersection(curveA.poly, curveB.poly) : null;
+            const onAxisA = curveA && axisSeg ? diagramCurveAxisIntersection(curveA.poly, axisSeg) : null;
+            const onAxisB = curveB && axisSeg ? diagramCurveAxisIntersection(curveB.poly, axisSeg) : null;
+            if (cross && onAxisA && onAxisB) {
+                svg.appendChild(svgElement('polygon', {
+                    points: [cross, onAxisA, onAxisB].map((p) => `${p.x},${p.y}`).join(' '),
+                    class: 'diagram-shade',
+                }));
+            }
+        });
+
         curves.forEach((c) => {
             const entry = positioned.get(c.id);
             if (!entry) return;
@@ -13799,19 +13990,285 @@ SQIDAQAB
 
         container.innerHTML = '';
         container.appendChild(svg);
-
-        // Shaded regions have no single canonical polygon either (the
-        // grading engine itself only compares a student's freehand
-        // shade by area overlap, never against a computed "correct"
-        // polygon - see diagramGradingService.ts's own IoU comment),
-        // so rather than fabricate a fill that might visually mislead,
-        // name the region in words under the diagram instead.
         (spec.shades || []).forEach((s) => {
             const caption = document.createElement('div');
             caption.className = 'km-note-diagram-caption';
             caption.textContent = `Shaded region: ${s.expectedLabel}`;
             container.appendChild(caption);
         });
+    }
+
+    let diagramWidgetSeq = 0;
+
+    // Renders one diagram-drawing question into `container`. `given`
+    // (optional array of {id, type}) is what a prerequisite already
+    // established — drawn fixed/dashed, never interactive, never part
+    // of what's submitted (see diagramGradingService.ts's own
+    // DiagramSpec.given — grading resolves these directly, it never
+    // looks for them in the student's answer). `onSubmit(answer)` does
+    // the actual POST and must resolve to the grading result.
+    // `initialState` (optional {placed,shades,labels,arrows}) seeds the
+    // canvas with a previously-saved drawing so re-opening this widget
+    // for personal notes (see renderPersonalNoteEditor) picks up where
+    // the student left off, rather than always starting blank - no
+    // practice-question caller needs this, so it's always undefined there.
+    function renderDiagramWidget(container, given, onSubmit, onRequiresEncoding, initialState) {
+        const uid = `dw${diagramWidgetSeq++}`;
+        const state = {
+            placed: (initialState && initialState.placed) || [],
+            shades: (initialState && initialState.shades) || [],
+            labels: (initialState && initialState.labels) || [],
+            arrows: (initialState && initialState.arrows) || [],
+            shadeMode: false, shadeDraft: [], arrowMode: false, arrowDraft: null, dragging: null,
+        };
+
+        container.innerHTML = `
+            <div class="diagram-widget">
+                <div class="diagram-palette" id="${uid}-palette"></div>
+                <div class="diagram-toolbar">
+                    <button type="button" class="btn diagram-tool-btn" id="${uid}-shade-btn">Shade a region (double-click to finish)</button>
+                    <button type="button" class="btn diagram-tool-btn" id="${uid}-arrow-btn">Add arrow (click start, then end)</button>
+                    <input type="text" class="diagram-label-input" id="${uid}-label-input" placeholder="Label text, e.g. S1">
+                    <button type="button" class="btn diagram-tool-btn" id="${uid}-label-btn">Add label</button>
+                    <button type="button" class="btn diagram-tool-btn" id="${uid}-clear-btn">Clear</button>
+                </div>
+                <svg class="diagram-canvas" id="${uid}-svg" viewBox="0 0 ${DIAGRAM_CANVAS_WIDTH} ${DIAGRAM_CANVAS_HEIGHT}"></svg>
+                <button type="button" class="btn primary diagram-submit-btn" id="${uid}-submit-btn">Submit diagram</button>
+                <div class="diagram-result" id="${uid}-result"></div>
+            </div>
+        `;
+
+        const svg = container.querySelector(`#${uid}-svg`);
+        const paletteEl = container.querySelector(`#${uid}-palette`);
+        const resultEl = container.querySelector(`#${uid}-result`);
+        const shadeBtn = container.querySelector(`#${uid}-shade-btn`);
+        const arrowBtn = container.querySelector(`#${uid}-arrow-btn`);
+
+        function svgPointFromEvent(ev) {
+            const rect = svg.getBoundingClientRect();
+            return {
+                x: (ev.clientX - rect.left) * (DIAGRAM_CANVAS_WIDTH / rect.width),
+                y: (ev.clientY - rect.top) * (DIAGRAM_CANVAS_HEIGHT / rect.height),
+            };
+        }
+
+        function render() {
+            svg.innerHTML = '';
+            const defs = svgElement('defs', {});
+            const marker = svgElement('marker', { id: `${uid}-arrowhead`, markerWidth: 8, markerHeight: 8, refX: 6, refY: 3, orient: 'auto' });
+            marker.appendChild(svgElement('path', { d: 'M0,0 L6,3 L0,6 Z', class: 'diagram-arrowhead-path' }));
+            defs.appendChild(marker);
+            svg.appendChild(defs);
+
+            svg.appendChild(svgElement('line', { x1: DIAGRAM_PRICE_AXIS[0].x, y1: DIAGRAM_PRICE_AXIS[0].y, x2: DIAGRAM_PRICE_AXIS[1].x, y2: DIAGRAM_PRICE_AXIS[1].y, class: 'diagram-axis' }));
+            svg.appendChild(svgElement('line', { x1: DIAGRAM_QUANTITY_AXIS[0].x, y1: DIAGRAM_QUANTITY_AXIS[0].y, x2: DIAGRAM_QUANTITY_AXIS[1].x, y2: DIAGRAM_QUANTITY_AXIS[1].y, class: 'diagram-axis' }));
+            const priceLabel = svgElement('text', { x: DIAGRAM_PRICE_AXIS[0].x - 8, y: DIAGRAM_PRICE_AXIS[0].y + 10, class: 'diagram-axis-label', 'text-anchor': 'end' });
+            priceLabel.textContent = 'Price';
+            svg.appendChild(priceLabel);
+            const qtyLabel = svgElement('text', { x: DIAGRAM_QUANTITY_AXIS[1].x, y: DIAGRAM_QUANTITY_AXIS[1].y + 18, class: 'diagram-axis-label', 'text-anchor': 'end' });
+            qtyLabel.textContent = 'Quantity';
+            svg.appendChild(qtyLabel);
+
+            (given || []).forEach((g) => {
+                const local = DIAGRAM_CURVE_SHAPES[diagramBaseType(g.type)];
+                if (!local) return;
+                const poly = diagramTranslate(local, DIAGRAM_GIVEN_ORIGIN.x, DIAGRAM_GIVEN_ORIGIN.y);
+                svg.appendChild(svgElement('polyline', { points: diagramPolylinePoints(poly), class: 'diagram-curve diagram-curve-given' }));
+                const tag = svgElement('text', { x: poly[0].x, y: poly[0].y - 6, class: 'diagram-curve-tag' });
+                tag.textContent = DIAGRAM_PALETTE_LABELS[diagramBaseType(g.type)] || g.type;
+                svg.appendChild(tag);
+            });
+
+            state.shades.forEach((s) => svg.appendChild(svgElement('polygon', { points: s.points.map((p) => `${p.x},${p.y}`).join(' '), class: 'diagram-shade' })));
+            if (state.shadeDraft.length) {
+                state.shadeDraft.forEach((p) => svg.appendChild(svgElement('circle', { cx: p.x, cy: p.y, r: 4, class: 'diagram-shade-point' })));
+                if (state.shadeDraft.length > 1) svg.appendChild(svgElement('polyline', { points: state.shadeDraft.map((p) => `${p.x},${p.y}`).join(' '), class: 'diagram-shade-draft-line' }));
+            }
+
+            state.placed.forEach((inst) => {
+                const local = DIAGRAM_CURVE_SHAPES[diagramBaseType(inst.curveTypeId)];
+                if (!local) return;
+                const poly = diagramTranslate(local, inst.x, inst.y);
+                const el = svgElement('polyline', { points: diagramPolylinePoints(poly), class: 'diagram-curve diagram-curve-placed' });
+                el.addEventListener('pointerdown', (ev) => {
+                    ev.preventDefault();
+                    const pt = svgPointFromEvent(ev);
+                    state.dragging = { type: 'curve', id: inst.instanceId, offsetX: pt.x - inst.x, offsetY: pt.y - inst.y };
+                });
+                svg.appendChild(el);
+                const tag = svgElement('text', { x: poly[0].x, y: poly[0].y - 6, class: 'diagram-curve-tag' });
+                tag.textContent = DIAGRAM_PALETTE_LABELS[diagramBaseType(inst.curveTypeId)] || inst.curveTypeId;
+                svg.appendChild(tag);
+            });
+
+            state.arrows.forEach((a) => svg.appendChild(svgElement('line', { x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2, class: 'diagram-arrow', 'marker-end': `url(#${uid}-arrowhead)` })));
+            if (state.arrowDraft) svg.appendChild(svgElement('line', { x1: state.arrowDraft.x1, y1: state.arrowDraft.y1, x2: state.arrowDraft.x2, y2: state.arrowDraft.y2, class: 'diagram-arrow' }));
+
+            state.labels.forEach((l, idx) => {
+                const el = svgElement('text', { x: l.x, y: l.y, class: 'diagram-label' });
+                el.textContent = l.text;
+                el.addEventListener('pointerdown', (ev) => {
+                    ev.preventDefault();
+                    const pt = svgPointFromEvent(ev);
+                    state.dragging = { type: 'label', id: idx, offsetX: pt.x - l.x, offsetY: pt.y - l.y };
+                });
+                svg.appendChild(el);
+            });
+        }
+
+        svg.addEventListener('pointermove', (ev) => {
+            const pt = svgPointFromEvent(ev);
+            if (state.dragging) {
+                if (state.dragging.type === 'curve') {
+                    const inst = state.placed.find((p) => p.instanceId === state.dragging.id);
+                    if (inst) { inst.x = pt.x - state.dragging.offsetX; inst.y = pt.y - state.dragging.offsetY; render(); }
+                } else if (state.dragging.type === 'label') {
+                    const l = state.labels[state.dragging.id];
+                    if (l) { l.x = pt.x - state.dragging.offsetX; l.y = pt.y - state.dragging.offsetY; render(); }
+                }
+            } else if (state.arrowDraft) {
+                state.arrowDraft.x2 = pt.x; state.arrowDraft.y2 = pt.y; render();
+            }
+        });
+        window.addEventListener('pointerup', () => { state.dragging = null; });
+
+        svg.addEventListener('click', (ev) => {
+            const pt = svgPointFromEvent(ev);
+            if (state.shadeMode) { state.shadeDraft.push(pt); render(); return; }
+            if (state.arrowMode) {
+                if (!state.arrowDraft) {
+                    state.arrowDraft = { x1: pt.x, y1: pt.y, x2: pt.x, y2: pt.y };
+                } else {
+                    state.arrows.push({ x1: state.arrowDraft.x1, y1: state.arrowDraft.y1, x2: pt.x, y2: pt.y });
+                    state.arrowDraft = null;
+                    state.arrowMode = false;
+                    arrowBtn.classList.remove('active');
+                }
+                render();
+            }
+        });
+        svg.addEventListener('dblclick', () => {
+            if (state.shadeMode && state.shadeDraft.length >= 3) {
+                const label = window.prompt('Label this shaded area (optional):') || '';
+                state.shades.push({ points: state.shadeDraft, label });
+                state.shadeDraft = [];
+                state.shadeMode = false;
+                shadeBtn.classList.remove('active');
+                render();
+            }
+        });
+
+        Object.keys(DIAGRAM_CURVE_SHAPES).forEach((type) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'diagram-palette-btn';
+            const preview = svgElement('svg', { viewBox: '0 0 260 220', class: 'diagram-palette-preview' });
+            preview.appendChild(svgElement('polyline', { points: diagramPolylinePoints(DIAGRAM_CURVE_SHAPES[type]), class: 'diagram-curve' }));
+            btn.appendChild(preview);
+            const labelSpan = document.createElement('span');
+            labelSpan.textContent = DIAGRAM_PALETTE_LABELS[type] || type;
+            btn.appendChild(labelSpan);
+            btn.addEventListener('click', () => {
+                state.placed.push({ instanceId: `c${Math.random().toString(36).slice(2)}`, curveTypeId: type, x: 220, y: 160 });
+                render();
+            });
+            paletteEl.appendChild(btn);
+        });
+
+        shadeBtn.addEventListener('click', () => {
+            state.shadeMode = !state.shadeMode;
+            state.arrowMode = false; state.shadeDraft = [];
+            shadeBtn.classList.toggle('active', state.shadeMode);
+            arrowBtn.classList.remove('active');
+        });
+        arrowBtn.addEventListener('click', () => {
+            state.arrowMode = !state.arrowMode;
+            state.shadeMode = false; state.arrowDraft = null;
+            arrowBtn.classList.toggle('active', state.arrowMode);
+            shadeBtn.classList.remove('active');
+        });
+        container.querySelector(`#${uid}-label-btn`).addEventListener('click', () => {
+            const input = container.querySelector(`#${uid}-label-input`);
+            const text = input.value.trim();
+            if (!text) return;
+            state.labels.push({ text, x: 320, y: 260 });
+            input.value = '';
+            render();
+        });
+        container.querySelector(`#${uid}-clear-btn`).addEventListener('click', () => {
+            state.placed = []; state.shades = []; state.labels = []; state.arrows = []; state.shadeDraft = [];
+            render();
+        });
+        // Same retry-before-recording contract as renderTextQuestionWidget
+        // — a wrong 'practice' attempt comes back retryable, the
+        // canvas state (state.placed/shades/labels/arrows) is left
+        // exactly as drawn so the student can adjust rather than
+        // redraw from scratch, and the button becomes "Try again".
+        let hadRetry = false;
+        container.querySelector(`#${uid}-submit-btn`).addEventListener('click', async (ev) => {
+            ev.target.disabled = true;
+            ev.target.textContent = 'Checking…';
+            const answer = {
+                curves: state.placed.map((p) => ({ instanceId: p.instanceId, curveTypeId: p.curveTypeId, x: p.x, y: p.y })),
+                shades: state.shades.map((s) => ({ points: s.points, label: s.label })),
+                labels: state.labels.map((l) => ({ text: l.text, x: l.x, y: l.y })),
+                arrows: state.arrows.map((a) => ({ x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2 })),
+            };
+            const result = await onSubmit(answer, hadRetry);
+            if (result && result.retryable) {
+                hadRetry = true;
+                ev.target.disabled = false;
+                ev.target.textContent = 'Try again';
+                renderQuestionResult(resultEl, result, onRequiresEncoding);
+                return;
+            }
+            ev.target.remove();
+            renderQuestionResult(resultEl, result, onRequiresEncoding);
+        });
+
+        render();
+    }
+
+    function renderQuestionResult(resultEl, result, onRequiresEncoding) {
+        if (!result) {
+            resultEl.innerHTML = `<div class="km-inline-detail-item km-inline-detail-none">Something went wrong — try again.</div>`;
+            return;
+        }
+        if (result.requiresEncoding) {
+            resultEl.innerHTML = `
+                <div class="km-inline-detail-item km-inline-detail-none">You'll need to encode "${escapeHtml(result.redirect.label)}" first — testing this connection means nothing until both sides have actually been taught.</div>
+                <button type="button" class="btn primary km-goto-encode-btn" style="margin-top:8px;">Go encode it</button>
+            `;
+            resultEl.querySelector('.km-goto-encode-btn').addEventListener('click', () => onRequiresEncoding && onRequiresEncoding(result.redirect));
+            return;
+        }
+        // The button is already removed/finalized by the time this
+        // runs (see the widgets below) - if anything past this point
+        // throws, the student is left staring at a blank space with
+        // no way to tell whether their answer even landed. Guarantee
+        // at least the correct/incorrect verdict always shows, same
+        // as the "Something went wrong" fallback above already does
+        // for a failed request.
+        try {
+            const feedbackHtml = `<div class="km-inline-detail-item ${result.correct ? '' : 'km-inline-detail-none'}">${escapeHtml(result.feedback || '')}</div>`;
+            // result.schedule is only ever attached (by the submit
+            // callback) once a grade has actually, finally landed —
+            // never present on a retryable first-encoding miss.
+            const scheduleHtml = result.schedule
+                ? `<div class="km-inline-detail-item">Next review: <strong>${escapeHtml(formatDueIn(result.schedule.due))}</strong></div>`
+                : '';
+            // Verify responses carry keysBase/verifyCoefficient
+            // alongside keysEarned so the discount is shown explicitly,
+            // not just the final number — a plain lesson pass never
+            // has these fields.
+            const keysEarnedHtmlStr = result.verifyCoefficient
+                ? verifyKeysEarnedHtml(result.keysEarned, result.keysBase, result.verifyCoefficient)
+                : keysEarnedHtml(result.keysEarned);
+            resultEl.innerHTML = feedbackHtml + keysEarnedHtmlStr + scheduleHtml;
+        } catch (err) {
+            console.error('LastMind: failed to render the question result.', err);
+            resultEl.innerHTML = `<div class="km-inline-detail-item">${result.correct ? '✓ Correct' : '✗ ' + escapeHtml(result.feedback || 'Not quite')} — your answer was recorded, but showing the details failed (${escapeHtml(err.message || 'unknown error')}).</div>`;
+        }
     }
 
     function renderKmInlineThemeTabs(contentInner, folder, data) {
@@ -15348,47 +15805,6 @@ SQIDAQAB
         // redirect (see knowledgeMap.ts's findMissingEncoding): "you need
         // to encode X before this connection means anything" with a
         // button that takes you straight there.
-        function renderQuestionResult(resultEl, result, onRequiresEncoding) {
-            if (!result) {
-                resultEl.innerHTML = `<div class="km-inline-detail-item km-inline-detail-none">Something went wrong — try again.</div>`;
-                return;
-            }
-            if (result.requiresEncoding) {
-                resultEl.innerHTML = `
-                    <div class="km-inline-detail-item km-inline-detail-none">You'll need to encode "${escapeHtml(result.redirect.label)}" first — testing this connection means nothing until both sides have actually been taught.</div>
-                    <button type="button" class="btn primary km-goto-encode-btn" style="margin-top:8px;">Go encode it</button>
-                `;
-                resultEl.querySelector('.km-goto-encode-btn').addEventListener('click', () => onRequiresEncoding && onRequiresEncoding(result.redirect));
-                return;
-            }
-            // The button is already removed/finalized by the time this
-            // runs (see the widgets below) - if anything past this point
-            // throws, the student is left staring at a blank space with
-            // no way to tell whether their answer even landed. Guarantee
-            // at least the correct/incorrect verdict always shows, same
-            // as the "Something went wrong" fallback above already does
-            // for a failed request.
-            try {
-                const feedbackHtml = `<div class="km-inline-detail-item ${result.correct ? '' : 'km-inline-detail-none'}">${escapeHtml(result.feedback || '')}</div>`;
-                // result.schedule is only ever attached (by the submit
-                // callback) once a grade has actually, finally landed —
-                // never present on a retryable first-encoding miss.
-                const scheduleHtml = result.schedule
-                    ? `<div class="km-inline-detail-item">Next review: <strong>${escapeHtml(formatDueIn(result.schedule.due))}</strong></div>`
-                    : '';
-                // Verify responses carry keysBase/verifyCoefficient
-                // alongside keysEarned so the discount is shown explicitly,
-                // not just the final number — a plain lesson pass never
-                // has these fields.
-                const keysEarnedHtmlStr = result.verifyCoefficient
-                    ? verifyKeysEarnedHtml(result.keysEarned, result.keysBase, result.verifyCoefficient)
-                    : keysEarnedHtml(result.keysEarned);
-                resultEl.innerHTML = feedbackHtml + keysEarnedHtmlStr + scheduleHtml;
-            } catch (err) {
-                console.error('LastMind: failed to render the question result.', err);
-                resultEl.innerHTML = `<div class="km-inline-detail-item">${result.correct ? '✓ Correct' : '✗ ' + escapeHtml(result.feedback || 'Not quite')} — your answer was recorded, but showing the details failed (${escapeHtml(err.message || 'unknown error')}).</div>`;
-            }
-        }
 
         function renderTextQuestionWidget(container, questionText, onSubmit, onRequiresEncoding) {
             const wrap = document.createElement('div');
@@ -15469,225 +15885,6 @@ SQIDAQAB
         }
 
 
-        let diagramWidgetSeq = 0;
-
-        // Renders one diagram-drawing question into `container`. `given`
-        // (optional array of {id, type}) is what a prerequisite already
-        // established — drawn fixed/dashed, never interactive, never part
-        // of what's submitted (see diagramGradingService.ts's own
-        // DiagramSpec.given — grading resolves these directly, it never
-        // looks for them in the student's answer). `onSubmit(answer)` does
-        // the actual POST and must resolve to the grading result.
-        function renderDiagramWidget(container, given, onSubmit, onRequiresEncoding) {
-            const uid = `dw${diagramWidgetSeq++}`;
-            const state = { placed: [], shades: [], labels: [], arrows: [], shadeMode: false, shadeDraft: [], arrowMode: false, arrowDraft: null, dragging: null };
-
-            container.innerHTML = `
-                <div class="diagram-widget">
-                    <div class="diagram-palette" id="${uid}-palette"></div>
-                    <div class="diagram-toolbar">
-                        <button type="button" class="btn diagram-tool-btn" id="${uid}-shade-btn">Shade a region (double-click to finish)</button>
-                        <button type="button" class="btn diagram-tool-btn" id="${uid}-arrow-btn">Add arrow (click start, then end)</button>
-                        <input type="text" class="diagram-label-input" id="${uid}-label-input" placeholder="Label text, e.g. S1">
-                        <button type="button" class="btn diagram-tool-btn" id="${uid}-label-btn">Add label</button>
-                        <button type="button" class="btn diagram-tool-btn" id="${uid}-clear-btn">Clear</button>
-                    </div>
-                    <svg class="diagram-canvas" id="${uid}-svg" viewBox="0 0 ${DIAGRAM_CANVAS_WIDTH} ${DIAGRAM_CANVAS_HEIGHT}"></svg>
-                    <button type="button" class="btn primary diagram-submit-btn" id="${uid}-submit-btn">Submit diagram</button>
-                    <div class="diagram-result" id="${uid}-result"></div>
-                </div>
-            `;
-
-            const svg = container.querySelector(`#${uid}-svg`);
-            const paletteEl = container.querySelector(`#${uid}-palette`);
-            const resultEl = container.querySelector(`#${uid}-result`);
-            const shadeBtn = container.querySelector(`#${uid}-shade-btn`);
-            const arrowBtn = container.querySelector(`#${uid}-arrow-btn`);
-
-            function svgPointFromEvent(ev) {
-                const rect = svg.getBoundingClientRect();
-                return {
-                    x: (ev.clientX - rect.left) * (DIAGRAM_CANVAS_WIDTH / rect.width),
-                    y: (ev.clientY - rect.top) * (DIAGRAM_CANVAS_HEIGHT / rect.height),
-                };
-            }
-
-            function render() {
-                svg.innerHTML = '';
-                const defs = svgElement('defs', {});
-                const marker = svgElement('marker', { id: `${uid}-arrowhead`, markerWidth: 8, markerHeight: 8, refX: 6, refY: 3, orient: 'auto' });
-                marker.appendChild(svgElement('path', { d: 'M0,0 L6,3 L0,6 Z', class: 'diagram-arrowhead-path' }));
-                defs.appendChild(marker);
-                svg.appendChild(defs);
-
-                svg.appendChild(svgElement('line', { x1: DIAGRAM_PRICE_AXIS[0].x, y1: DIAGRAM_PRICE_AXIS[0].y, x2: DIAGRAM_PRICE_AXIS[1].x, y2: DIAGRAM_PRICE_AXIS[1].y, class: 'diagram-axis' }));
-                svg.appendChild(svgElement('line', { x1: DIAGRAM_QUANTITY_AXIS[0].x, y1: DIAGRAM_QUANTITY_AXIS[0].y, x2: DIAGRAM_QUANTITY_AXIS[1].x, y2: DIAGRAM_QUANTITY_AXIS[1].y, class: 'diagram-axis' }));
-                const priceLabel = svgElement('text', { x: DIAGRAM_PRICE_AXIS[0].x - 8, y: DIAGRAM_PRICE_AXIS[0].y + 10, class: 'diagram-axis-label', 'text-anchor': 'end' });
-                priceLabel.textContent = 'Price';
-                svg.appendChild(priceLabel);
-                const qtyLabel = svgElement('text', { x: DIAGRAM_QUANTITY_AXIS[1].x, y: DIAGRAM_QUANTITY_AXIS[1].y + 18, class: 'diagram-axis-label', 'text-anchor': 'end' });
-                qtyLabel.textContent = 'Quantity';
-                svg.appendChild(qtyLabel);
-
-                (given || []).forEach((g) => {
-                    const local = DIAGRAM_CURVE_SHAPES[diagramBaseType(g.type)];
-                    if (!local) return;
-                    const poly = diagramTranslate(local, DIAGRAM_GIVEN_ORIGIN.x, DIAGRAM_GIVEN_ORIGIN.y);
-                    svg.appendChild(svgElement('polyline', { points: diagramPolylinePoints(poly), class: 'diagram-curve diagram-curve-given' }));
-                    const tag = svgElement('text', { x: poly[0].x, y: poly[0].y - 6, class: 'diagram-curve-tag' });
-                    tag.textContent = DIAGRAM_PALETTE_LABELS[diagramBaseType(g.type)] || g.type;
-                    svg.appendChild(tag);
-                });
-
-                state.shades.forEach((s) => svg.appendChild(svgElement('polygon', { points: s.points.map((p) => `${p.x},${p.y}`).join(' '), class: 'diagram-shade' })));
-                if (state.shadeDraft.length) {
-                    state.shadeDraft.forEach((p) => svg.appendChild(svgElement('circle', { cx: p.x, cy: p.y, r: 4, class: 'diagram-shade-point' })));
-                    if (state.shadeDraft.length > 1) svg.appendChild(svgElement('polyline', { points: state.shadeDraft.map((p) => `${p.x},${p.y}`).join(' '), class: 'diagram-shade-draft-line' }));
-                }
-
-                state.placed.forEach((inst) => {
-                    const local = DIAGRAM_CURVE_SHAPES[diagramBaseType(inst.curveTypeId)];
-                    if (!local) return;
-                    const poly = diagramTranslate(local, inst.x, inst.y);
-                    const el = svgElement('polyline', { points: diagramPolylinePoints(poly), class: 'diagram-curve diagram-curve-placed' });
-                    el.addEventListener('pointerdown', (ev) => {
-                        ev.preventDefault();
-                        const pt = svgPointFromEvent(ev);
-                        state.dragging = { type: 'curve', id: inst.instanceId, offsetX: pt.x - inst.x, offsetY: pt.y - inst.y };
-                    });
-                    svg.appendChild(el);
-                    const tag = svgElement('text', { x: poly[0].x, y: poly[0].y - 6, class: 'diagram-curve-tag' });
-                    tag.textContent = DIAGRAM_PALETTE_LABELS[diagramBaseType(inst.curveTypeId)] || inst.curveTypeId;
-                    svg.appendChild(tag);
-                });
-
-                state.arrows.forEach((a) => svg.appendChild(svgElement('line', { x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2, class: 'diagram-arrow', 'marker-end': `url(#${uid}-arrowhead)` })));
-                if (state.arrowDraft) svg.appendChild(svgElement('line', { x1: state.arrowDraft.x1, y1: state.arrowDraft.y1, x2: state.arrowDraft.x2, y2: state.arrowDraft.y2, class: 'diagram-arrow' }));
-
-                state.labels.forEach((l, idx) => {
-                    const el = svgElement('text', { x: l.x, y: l.y, class: 'diagram-label' });
-                    el.textContent = l.text;
-                    el.addEventListener('pointerdown', (ev) => {
-                        ev.preventDefault();
-                        const pt = svgPointFromEvent(ev);
-                        state.dragging = { type: 'label', id: idx, offsetX: pt.x - l.x, offsetY: pt.y - l.y };
-                    });
-                    svg.appendChild(el);
-                });
-            }
-
-            svg.addEventListener('pointermove', (ev) => {
-                const pt = svgPointFromEvent(ev);
-                if (state.dragging) {
-                    if (state.dragging.type === 'curve') {
-                        const inst = state.placed.find((p) => p.instanceId === state.dragging.id);
-                        if (inst) { inst.x = pt.x - state.dragging.offsetX; inst.y = pt.y - state.dragging.offsetY; render(); }
-                    } else if (state.dragging.type === 'label') {
-                        const l = state.labels[state.dragging.id];
-                        if (l) { l.x = pt.x - state.dragging.offsetX; l.y = pt.y - state.dragging.offsetY; render(); }
-                    }
-                } else if (state.arrowDraft) {
-                    state.arrowDraft.x2 = pt.x; state.arrowDraft.y2 = pt.y; render();
-                }
-            });
-            window.addEventListener('pointerup', () => { state.dragging = null; });
-
-            svg.addEventListener('click', (ev) => {
-                const pt = svgPointFromEvent(ev);
-                if (state.shadeMode) { state.shadeDraft.push(pt); render(); return; }
-                if (state.arrowMode) {
-                    if (!state.arrowDraft) {
-                        state.arrowDraft = { x1: pt.x, y1: pt.y, x2: pt.x, y2: pt.y };
-                    } else {
-                        state.arrows.push({ x1: state.arrowDraft.x1, y1: state.arrowDraft.y1, x2: pt.x, y2: pt.y });
-                        state.arrowDraft = null;
-                        state.arrowMode = false;
-                        arrowBtn.classList.remove('active');
-                    }
-                    render();
-                }
-            });
-            svg.addEventListener('dblclick', () => {
-                if (state.shadeMode && state.shadeDraft.length >= 3) {
-                    const label = window.prompt('Label this shaded area (optional):') || '';
-                    state.shades.push({ points: state.shadeDraft, label });
-                    state.shadeDraft = [];
-                    state.shadeMode = false;
-                    shadeBtn.classList.remove('active');
-                    render();
-                }
-            });
-
-            Object.keys(DIAGRAM_CURVE_SHAPES).forEach((type) => {
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'diagram-palette-btn';
-                const preview = svgElement('svg', { viewBox: '0 0 260 220', class: 'diagram-palette-preview' });
-                preview.appendChild(svgElement('polyline', { points: diagramPolylinePoints(DIAGRAM_CURVE_SHAPES[type]), class: 'diagram-curve' }));
-                btn.appendChild(preview);
-                const labelSpan = document.createElement('span');
-                labelSpan.textContent = DIAGRAM_PALETTE_LABELS[type] || type;
-                btn.appendChild(labelSpan);
-                btn.addEventListener('click', () => {
-                    state.placed.push({ instanceId: `c${Math.random().toString(36).slice(2)}`, curveTypeId: type, x: 220, y: 160 });
-                    render();
-                });
-                paletteEl.appendChild(btn);
-            });
-
-            shadeBtn.addEventListener('click', () => {
-                state.shadeMode = !state.shadeMode;
-                state.arrowMode = false; state.shadeDraft = [];
-                shadeBtn.classList.toggle('active', state.shadeMode);
-                arrowBtn.classList.remove('active');
-            });
-            arrowBtn.addEventListener('click', () => {
-                state.arrowMode = !state.arrowMode;
-                state.shadeMode = false; state.arrowDraft = null;
-                arrowBtn.classList.toggle('active', state.arrowMode);
-                shadeBtn.classList.remove('active');
-            });
-            container.querySelector(`#${uid}-label-btn`).addEventListener('click', () => {
-                const input = container.querySelector(`#${uid}-label-input`);
-                const text = input.value.trim();
-                if (!text) return;
-                state.labels.push({ text, x: 320, y: 260 });
-                input.value = '';
-                render();
-            });
-            container.querySelector(`#${uid}-clear-btn`).addEventListener('click', () => {
-                state.placed = []; state.shades = []; state.labels = []; state.arrows = []; state.shadeDraft = [];
-                render();
-            });
-            // Same retry-before-recording contract as renderTextQuestionWidget
-            // — a wrong 'practice' attempt comes back retryable, the
-            // canvas state (state.placed/shades/labels/arrows) is left
-            // exactly as drawn so the student can adjust rather than
-            // redraw from scratch, and the button becomes "Try again".
-            let hadRetry = false;
-            container.querySelector(`#${uid}-submit-btn`).addEventListener('click', async (ev) => {
-                ev.target.disabled = true;
-                ev.target.textContent = 'Checking…';
-                const answer = {
-                    curves: state.placed.map((p) => ({ instanceId: p.instanceId, curveTypeId: p.curveTypeId, x: p.x, y: p.y })),
-                    shades: state.shades.map((s) => ({ points: s.points, label: s.label })),
-                    labels: state.labels.map((l) => ({ text: l.text, x: l.x, y: l.y })),
-                    arrows: state.arrows.map((a) => ({ x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2 })),
-                };
-                const result = await onSubmit(answer, hadRetry);
-                if (result && result.retryable) {
-                    hadRetry = true;
-                    ev.target.disabled = false;
-                    ev.target.textContent = 'Try again';
-                    renderQuestionResult(resultEl, result, onRequiresEncoding);
-                    return;
-                }
-                ev.target.remove();
-                renderQuestionResult(resultEl, result, onRequiresEncoding);
-            });
-
-            render();
-        }
 
         async function postChainDiagnostic(path, body) {
             try {
