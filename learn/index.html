@@ -33,6 +33,12 @@
            than legible, so --text/--accent stay the plain cream
            everywhere text itself is the thing being coloured. */
         --gold-surface: linear-gradient(135deg, #8B6914, #E8C15C 55%, #B8860B);
+        /* Text ON a gold surface - darker than --bg and bolder than a
+           normal 400/500 weight, so it actually reads as ink on gold
+           rather than washing out against the lighter parts of the
+           gradient (found while widening the gold treatment past a
+           handful of spots to every button/box in the app). */
+        --gold-text: #141312;
     }
 
     button, input, textarea, select {
@@ -689,7 +695,7 @@
         border-radius: 4px;
         background: rgba(0, 0, 0, 0.15);
     }
-    .km-kd-item-btn.btn { width: 100%; text-align: left; font-size: 12.5px; background: var(--gold-surface); color: var(--bg); border: none; }
+    .km-kd-item-btn.btn { width: 100%; text-align: left; font-size: 12.5px; }
     .km-kd-item-label {
         font-size: 11px;
         font-weight: 600;
@@ -887,7 +893,7 @@
     .km-inline-search-input.km-search-no-match { border-color: #c9544b; }
     .km-inline-themetabs { display: flex; gap: 6px; flex-wrap: wrap; padding: 14px 0 0; }
     .km-inline-tab { padding: 6px 13px; border-radius: 3px; font-size: 12px; font-weight: 600; border: 1px solid rgba(230, 215, 176, 0.2); color: var(--text); opacity: 0.7; cursor: pointer; background: transparent; font-family: Arial, sans-serif; }
-    .km-inline-tab.active { background: var(--accent); border-color: var(--accent); color: var(--bg); opacity: 1; }
+    .km-inline-tab.active { background: var(--gold-surface); border-color: transparent; color: var(--gold-text); font-weight: 700; opacity: 1; }
     .km-inline-legend { display: flex; gap: 16px; padding: 10px 0 4px; font-size: 11px; opacity: 0.7; align-items: center; flex-wrap: wrap; }
     .km-inline-legend-item { display: inline-flex; align-items: center; gap: 6px; }
     .km-inline-empty { padding: 40px 10px; text-align: center; opacity: 0.55; font-size: 13px; }
@@ -899,15 +905,21 @@
     .km-inline-detail { border: 1px solid rgba(230, 215, 176, 0.16); border-radius: 8px; padding: 18px; overflow: auto; display: flex; flex-direction: column; }
     .km-inline-detail-empty { opacity: 0.5; font-size: 12.5px; line-height: 1.7; }
     .km-inline-detail-eyebrow { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.5; font-weight: 700; margin-bottom: 8px; }
-    .km-inline-detail-label { font-family: Georgia, serif; font-size: 16px; font-weight: 700; line-height: 1.35; margin-bottom: 8px; color: var(--accent); background: var(--gold-surface); background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .km-inline-detail-label { font-family: Georgia, serif; font-size: 16px; font-weight: 700; line-height: 1.35; margin-bottom: 8px; color: var(--accent); }
     .km-inline-detail-meta { font-size: 11.5px; opacity: 0.7; margin-bottom: 16px; }
     .km-inline-detail-section { margin-bottom: 14px; }
     .km-inline-detail-section h4 { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.55; margin: 0 0 8px; font-weight: 700; }
-    .km-inline-detail-item { font-size: 12px; padding: 8px 10px; background: rgba(230, 215, 176, 0.05); border: 1px solid rgba(230, 215, 176, 0.14); border-radius: 3px; line-height: 1.4; margin-bottom: 6px; }
-    .km-inline-detail-item.km-inline-detail-none { opacity: 0.5; font-style: italic; background: transparent; border-style: dashed; }
+    .km-inline-detail-item { font-size: 12px; font-weight: 700; padding: 8px 10px; background: var(--gold-surface); color: var(--gold-text); border: none; border-radius: 3px; line-height: 1.4; margin-bottom: 6px; }
+    /* An empty/placeholder state ("nothing here yet", "no links tested")
+       stays the plain dashed outline, never gold - gold reads as content
+       or an achievement, which an empty state explicitly isn't. */
+    .km-inline-detail-item.km-inline-detail-none { opacity: 0.5; font-style: italic; font-weight: 400; background: transparent; color: var(--text); border: 1px solid rgba(230, 215, 176, 0.14); border-style: dashed; }
     .km-inline-detail-item.km-inline-detail-item-action { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .km-inline-detail-item-action span { flex: 1; min-width: 0; }
-    .km-inline-detail-item-action button { flex: none; font-size: 11px; padding: 5px 9px; }
+    /* A gold button on top of this item's now-gold background would have
+       no visible edge at all - invert it back to a plain dark outline
+       button so it still reads as a distinct, clickable action. */
+    .km-inline-detail-item-action button.btn { flex: none; font-size: 11px; padding: 5px 9px; background: var(--bg); color: var(--text); border: 1px solid rgba(230, 215, 176, 0.3); font-weight: 600; }
     .km-fsrs-details { font-size: 11.5px; margin-top: 4px; }
     .km-fsrs-details summary { cursor: pointer; opacity: 0.7; padding: 4px 0; }
     .km-fsrs-details summary:hover { opacity: 1; }
@@ -926,10 +938,10 @@
        heading or paragraph. */
     .km-inline-lesson-explanation strong {
         background: var(--gold-surface);
-        color: var(--bg);
+        color: var(--gold-text);
         padding: 1px 5px;
         border-radius: 3px;
-        font-weight: 700;
+        font-weight: 800;
     }
     .km-inline-lesson-question { font-size: 12.5px; line-height: 1.5; padding: 10px; background: rgba(230, 215, 176, 0.05); border-radius: 3px; }
     .km-inline-detail-actions { margin-top: auto; display: flex; gap: 8px; }
@@ -1048,13 +1060,18 @@
     .diagram-palette { display: flex; flex-wrap: wrap; gap: 6px; }
     .diagram-palette-btn {
         display: flex; flex-direction: column; align-items: center; gap: 3px;
-        background: var(--panel); border: 1px solid rgba(230, 215, 176, 0.18); border-radius: 3px;
-        padding: 5px 7px; cursor: pointer; color: var(--text); font-family: Arial, sans-serif; font-size: 10px;
+        background: var(--gold-surface); border: none; border-radius: 3px;
+        padding: 5px 7px; cursor: pointer; color: var(--gold-text); font-family: Arial, sans-serif; font-size: 10px; font-weight: 700;
     }
-    .diagram-palette-btn:hover { border-color: var(--accent); }
+    .diagram-palette-btn:hover { filter: brightness(1.08); }
+    .diagram-palette-btn .diagram-curve { stroke: var(--gold-text); }
     .diagram-palette-preview { width: 36px; height: 30px; }
     .diagram-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-    .diagram-tool-btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+    /* diagram-tool-btn is a .btn, which is gold by default now - "active"
+       (shade/arrow mode currently toggled on) needs to look DIFFERENT
+       from every other already-gold button, not more gold, so this
+       inverts to a dark chip with a gold ring instead. */
+    .diagram-tool-btn.active { background: var(--bg); color: #E8C15C; border: 2px solid #E8C15C; font-weight: 700; }
     .diagram-label-input {
         background: var(--panel); border: 1px solid rgba(230, 215, 176, 0.2); border-radius: 3px;
         padding: 6px 8px; font-size: 12px; color: var(--text); font-family: Arial, sans-serif; width: 140px;
@@ -2437,10 +2454,11 @@
         padding: 11px 12px;
         cursor: pointer;
         font-size: 0.85rem;
+        font-weight: 700;
         line-height: 1.4;
         border-radius: 4px;
         background: var(--gold-surface);
-        color: var(--bg);
+        color: var(--gold-text);
     }
 
     .folder-item-label {
@@ -2453,7 +2471,7 @@
     }
 
     .folder-item-header .item-menu-btn {
-        color: var(--bg);
+        color: var(--gold-text);
         opacity: 0.6;
     }
 
@@ -2963,7 +2981,7 @@
         white-space: pre-wrap;
     }
     .maths-tool-bubble-assistant { align-self: flex-start; background: rgba(230, 215, 176, 0.07); }
-    .maths-tool-bubble-user { align-self: flex-end; background: var(--accent); color: var(--bg); }
+    .maths-tool-bubble-user { align-self: flex-end; background: var(--gold-surface); color: var(--gold-text); font-weight: 600; }
     .maths-tool-composer {
         flex: none;
         border-top: 1px solid rgba(230, 215, 176, 0.14);
@@ -4474,18 +4492,17 @@
     .btn {
         font-family: 'Arial', sans-serif;
         font-size: 0.82rem;
+        font-weight: 700;
         padding: 9px 20px;
         border-radius: 3px;
         cursor: pointer;
-        border: 1px solid rgba(230, 215, 176, 0.3);
-        background: none;
-        color: var(--text);
+        border: none;
+        background: var(--gold-surface);
+        color: var(--gold-text);
     }
 
     .btn.primary {
-        background: var(--gold-surface);
-        color: var(--bg);
-        border: none;
+        font-weight: 800;
     }
     /* A disabled <button> otherwise renders identically to an active one
        (no browser default touches color/background here) — a disabled
