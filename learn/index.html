@@ -6897,7 +6897,7 @@ SQIDAQAB
         treeWrap.querySelectorAll('.notes-tree-node-item[data-node-id]').forEach((btn) => {
             btn.addEventListener('click', (ev) => {
                 ev.stopPropagation();
-                renderSubjectGraphView(folder, data, btn.dataset.subtopic, btn.dataset.nodeId);
+                renderSubjectGraphView(folder, data, btn.dataset.nodeId);
             });
         });
     }
@@ -13359,14 +13359,17 @@ SQIDAQAB
     // Loads this subject's knowledge-map data (used to build the sidebar's
     // own Theme -> Subtopic -> Lesson tree - see buildSubjectTreeHtml/
     // buildFolderRow) and shows a plain "pick a lesson" prompt in the
-    // main content area until one is actually picked. The whole-subject
-    // graph (700+ nodes for a dense subject) was never legible zoomed out
-    // far enough to see it all, so it's never shown wholesale any more -
-    // renderSubjectGraphView only ever renders it scoped to ONE subtopic,
-    // triggered from the sidebar tree, which the existing fit-to-view zoom
-    // already renders genuinely close-up and readable. Cortex chat is
-    // completely unaffected by any of this - still only the dashboard's
-    // own "new chat" view, never subject-scoped.
+    // main content area until one is actually picked. Clicking a lesson
+    // opens the WHOLE subject graph (see renderSubjectGraphView), never a
+    // subtopic-scoped slice - real prerequisite edges genuinely cross
+    // subtopic/theme boundaries (KNOWLEDGE_MAP_VERIFICATION_PROMPT's own
+    // "Check 2" explicitly hunts for and adds these), so segregating the
+    // graph by topic would silently hide real connections. Legibility for
+    // a dense 700+-node subject instead comes from opening already
+    // zoomed/focused on the clicked lesson (renderKmInlineGraph's
+    // initialFocusNodeId), not from hiding the rest of the graph. Cortex
+    // chat is completely unaffected by any of this - still only the
+    // dashboard's own "new chat" view, never subject-scoped.
     async function renderKnowledgeMapForFolder(folder) {
         stopActiveDictation();
         stopSpeaking();
@@ -13443,24 +13446,25 @@ SQIDAQAB
         return (a || '').localeCompare(b || '');
     }
 
-    // The knowledge map, scoped to exactly one subtopic - reuses the same
-    // graph rendering/zoom-to-fit as before, just over a much smaller
-    // node set, which is what actually makes "closer up so it's visible"
-    // true (fit-to-view already zooms tighter when there's less to fit).
-    // Triggered from the sidebar's own subject tree (see wireSubjectTree),
-    // never from a center-page picker. `autoSelectNodeId`, when given,
-    // opens straight to that node's own detail panel once the graph
-    // mounts - clicking a specific lesson in the sidebar tree shouldn't
-    // require a second click on the graph to actually open it.
-    function renderSubjectGraphView(folder, data, subtopic, autoSelectNodeId) {
+    // The WHOLE subject's knowledge map, opened already zoomed/focused on
+    // whichever lesson was clicked in the sidebar tree - not scoped down
+    // to that lesson's own subtopic, since real prerequisite edges
+    // genuinely cross subtopic and theme boundaries (see
+    // renderKmInlineGraph's own comment) and a segregated view would
+    // silently hide them. `focusNodeId` is passed straight through to
+    // renderKmInlineGraph, which opens zoomed/focused on it (see
+    // zoomToNode) instead of fit-to-everything - that's what keeps a
+    // several-hundred-node subject legible without ever showing the
+    // whole sprawling thing at once.
+    function renderSubjectGraphView(folder, data, focusNodeId) {
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
         const template = document.getElementById('kmInlineTemplate');
         contentInner.innerHTML = '';
         contentInner.appendChild(template.content.cloneNode(true));
 
-        contentInner.querySelector('.km-inline-title').textContent = subtopic;
-        contentInner.querySelector('.km-inline-sub').textContent = folderLabel(folder);
+        contentInner.querySelector('.km-inline-title').textContent = folderLabel(folder);
+        contentInner.querySelector('.km-inline-sub').textContent = [folder.qualification, folder.examBoard].filter(Boolean).join(' · ');
         contentInner.querySelector('.km-inline-themetabs').style.display = 'none';
 
         const backBtn = contentInner.querySelector('.km-inline-dashboard-btn');
@@ -13470,12 +13474,7 @@ SQIDAQAB
 
         contentInner.querySelector('.km-inline-empty').style.display = 'none';
         contentInner.querySelector('.km-inline-workspace').style.display = '';
-        renderKmInlineGraph(contentInner, folder, data, null, subtopic);
-
-        if (autoSelectNodeId) {
-            const nodeEl = contentInner.querySelector(`.km-node-group[data-node-id="${CSS.escape(autoSelectNodeId)}"]`);
-            if (nodeEl) nodeEl.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        }
+        renderKmInlineGraph(contentInner, folder, data, focusNodeId);
     }
 
     // ─── Notes page ──────────────────────────────────────────────────
@@ -14644,17 +14643,26 @@ SQIDAQAB
     // renderKnowledgeMapGraph — same clustering/hover/click mechanics,
     // retargeted at the inline SVG and the new node shape (label/subtopic/
     // theme instead of name/topics, node ids are uuids not chain-node ids).
-    function renderKmInlineGraph(contentInner, folder, fullData, themeFilter, subtopicFilter) {
+    // Always renders the WHOLE subject graph now, never scoped to one
+    // subtopic/theme - real prerequisite edges genuinely cross subtopic
+    // and even theme boundaries (see KNOWLEDGE_MAP_VERIFICATION_PROMPT's
+    // own "Check 2: Cross-subtopic / cross-theme linking", which explicitly
+    // hunts for and adds exactly these), so filtering down to one subtopic
+    // silently dropped any edge crossing out of it - the graph can't
+    // honestly be segregated by topic without losing real connections.
+    // `initialFocusNodeId`, when given, opens already zoomed and focused on
+    // that node (see zoomToNode) instead of fit-to-everything, which is
+    // what actually keeps a several-hundred-node subject legible - the
+    // student never has to see the whole sprawling graph at once, just the
+    // neighbourhood around whatever lesson they clicked.
+    function renderKmInlineGraph(contentInner, folder, fullData, initialFocusNodeId) {
         const svgEl = contentInner.querySelector('.km-inline-svg');
         const wrapEl = contentInner.querySelector('.km-inline-canvas-wrap');
         const width = wrapEl.clientWidth || 900;
         const height = wrapEl.clientHeight || 520;
 
-        const visibleNodes = subtopicFilter
-            ? fullData.nodes.filter((n) => (n.subtopic || 'General') === subtopicFilter)
-            : themeFilter ? fullData.nodes.filter((n) => (n.theme || 'General') === themeFilter) : fullData.nodes;
-        const visibleIds = new Set(visibleNodes.map((n) => n.id));
-        const visibleEdges = fullData.edges.filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target));
+        const visibleNodes = fullData.nodes;
+        const visibleEdges = fullData.edges;
 
         const masteryDetail = fullData.masteryDetail || {};
 
@@ -14677,6 +14685,16 @@ SQIDAQAB
             target: nodeById.get(e.target) || e.target,
             state: masteryProgressTier(edgeMasteryDetail[`${e.source}->${e.target}`]),
         }));
+
+        // Undirected adjacency, built once per render (not per click) -
+        // highlightKmConnections BFS's over this to find a clicked node's
+        // WHOLE connected chain, not just its direct neighbours.
+        const connectionAdjacency = new Map(nodes.map((n) => [n.id, []]));
+        links.forEach((l) => {
+            const sId = l.source.id || l.source, tId = l.target.id || l.target;
+            if (connectionAdjacency.has(sId)) connectionAdjacency.get(sId).push(tId);
+            if (connectionAdjacency.has(tId)) connectionAdjacency.get(tId).push(sId);
+        });
 
         const svg = d3.select(svgEl);
         svg.selectAll('*').remove();
@@ -14919,11 +14937,25 @@ SQIDAQAB
             }
         }
 
-        fitKmGraphToView();
-
         const detailEl = contentInner.querySelector('.km-inline-detail');
         const lessonFullpageBodyEl = contentInner.querySelector('.km-lesson-fullpage-body');
         const stateLabel = { 0: 'Not started', 1: 'Learning', 2: '1 spaced review', 3: '2 spaced reviews', 4: 'Mastered' };
+
+        // Opening already zoomed/focused on the clicked lesson (see this
+        // function's own comment) is what keeps a several-hundred-node
+        // subject legible - fit-to-everything is only the fallback for
+        // when no specific node was clicked into (shouldn't happen via
+        // the sidebar tree, but the graph's own search box - see below -
+        // can still land here with nothing pre-selected on first render).
+        // selectKmInlineNode (called below) needs detailEl/stateLabel
+        // above, so this can't run any earlier than this.
+        const initialFocusNode = initialFocusNodeId ? nodeById.get(initialFocusNodeId) : null;
+        if (initialFocusNode) {
+            zoomToNode(initialFocusNode);
+            selectKmInlineNode(initialFocusNode);
+        } else {
+            fitKmGraphToView();
+        }
 
         // Click-to-focus: the clicked node and its direct neighbours light
         // up, everything else fades - a genuine focus mode, not just an
@@ -14936,18 +14968,31 @@ SQIDAQAB
         // actual click (or the equivalent programmatic one from
         // renderSubjectGraphView's autoSelectNodeId / a "View" cross-
         // reference below).
+        // BFS over connectionAdjacency (ignoring edge direction) to find
+        // EVERY node reachable from d, not just its direct neighbours -
+        // "the ones linked from the following node, and so on until we
+        // reach an endpoint". The whole graph is unscoped now (see this
+        // function's own file-level comment), so this chain can genuinely
+        // run through several subtopics/themes before it dead-ends -
+        // that's the real prerequisite structure, not a bug to hide.
+        function reachableFrom(startId) {
+            const reached = new Set([startId]);
+            const queue = [startId];
+            while (queue.length) {
+                const id = queue.shift();
+                (connectionAdjacency.get(id) || []).forEach((neighborId) => {
+                    if (!reached.has(neighborId)) { reached.add(neighborId); queue.push(neighborId); }
+                });
+            }
+            return reached;
+        }
         function highlightKmConnections(d) {
-            const neighborIds = new Set();
-            links.forEach((l) => {
-                const sId = l.source.id || l.source, tId = l.target.id || l.target;
-                if (sId === d.id) neighborIds.add(tId);
-                if (tId === d.id) neighborIds.add(sId);
-            });
+            const reached = reachableFrom(d.id);
             nodeGroup.classed('km-selected', (n) => n.id === d.id);
-            nodeGroup.classed('km-neighbor', (n) => neighborIds.has(n.id));
-            nodeGroup.classed('km-dimmed', (n) => n.id !== d.id && !neighborIds.has(n.id));
-            linkSelection.classed('km-highlighted', (e) => e.source.id === d.id || e.target.id === d.id);
-            linkSelection.classed('km-dimmed', (e) => e.source.id !== d.id && e.target.id !== d.id);
+            nodeGroup.classed('km-neighbor', (n) => n.id !== d.id && reached.has(n.id));
+            nodeGroup.classed('km-dimmed', (n) => !reached.has(n.id));
+            linkSelection.classed('km-highlighted', (e) => reached.has(e.source.id) && reached.has(e.target.id));
+            linkSelection.classed('km-dimmed', (e) => !(reached.has(e.source.id) && reached.has(e.target.id)));
         }
 
         // Clicking empty canvas (not a node) drops the focus and returns
@@ -16491,7 +16536,10 @@ SQIDAQAB
         }
 
         nodeGroup.on('click', (event, d) => { event.stopPropagation(); highlightKmConnections(d); selectKmInlineNode(d); });
-        if (nodes.length) selectKmInlineNode(nodes[0]);
+        // initialFocusNode (above) already selected the clicked lesson -
+        // only fall back to the first node in the list when nothing
+        // specific was asked for, so it doesn't get overwritten here.
+        if (!initialFocusNode && nodes.length) selectKmInlineNode(nodes[0]);
 
         // Search box — was entirely inert (no listener at all) before this.
         // Case-insensitive, substring match (a student's exact spelling/
