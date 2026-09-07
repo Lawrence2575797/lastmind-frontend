@@ -14631,35 +14631,6 @@ SQIDAQAB
         }
     }
 
-    function renderKmInlineThemeTabs(contentInner, folder, data) {
-        const themes = Array.from(new Set(data.nodes.map((n) => n.theme || 'General'))).sort();
-        const tabsEl = contentInner.querySelector('.km-inline-themetabs');
-        tabsEl.innerHTML = '';
-        const allTab = document.createElement('button');
-        allTab.type = 'button';
-        allTab.className = 'km-inline-tab active';
-        allTab.textContent = `All (${data.nodes.length})`;
-        allTab.addEventListener('click', () => {
-            tabsEl.querySelectorAll('.km-inline-tab').forEach((t) => t.classList.remove('active'));
-            allTab.classList.add('active');
-            renderKmInlineGraph(contentInner, folder, data, null);
-        });
-        tabsEl.appendChild(allTab);
-        themes.forEach((theme) => {
-            const count = data.nodes.filter((n) => (n.theme || 'General') === theme).length;
-            const tab = document.createElement('button');
-            tab.type = 'button';
-            tab.className = 'km-inline-tab';
-            tab.textContent = `${theme} (${count})`;
-            tab.addEventListener('click', () => {
-                tabsEl.querySelectorAll('.km-inline-tab').forEach((t) => t.classList.remove('active'));
-                tab.classList.add('active');
-                renderKmInlineGraph(contentInner, folder, data, theme);
-            });
-            tabsEl.appendChild(tab);
-        });
-    }
-
     // Force-directed render, adapted from the old per-student
     // renderKnowledgeMapGraph — same clustering/hover/click mechanics,
     // retargeted at the inline SVG and the new node shape (label/subtopic/
