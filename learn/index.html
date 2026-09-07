@@ -1310,20 +1310,19 @@
         gap: 4px;
         font-family: 'Arial', sans-serif;
         font-size: 0.72rem;
-        font-weight: 600;
-        background: rgba(230, 215, 176, 0.08);
-        border: 1px solid rgba(230, 215, 176, 0.3);
-        color: var(--accent);
+        font-weight: 700;
+        background: var(--gold-surface);
+        border: none;
+        color: var(--gold-text);
         padding: 6px 10px;
         border-radius: 20px;
         cursor: pointer;
         white-space: nowrap;
-        transition: background 0.2s, border-color 0.2s;
+        transition: filter 0.2s;
     }
 
     .credit-balance-chip:hover {
-        background: rgba(230, 215, 176, 0.16);
-        border-color: rgba(230, 215, 176, 0.5);
+        filter: brightness(1.08);
     }
 
     .credit-balance-view {
@@ -2813,32 +2812,34 @@
         flex-shrink: 0;
         font-family: 'Arial', sans-serif;
         font-size: 0.74rem;
-        font-weight: 600;
+        font-weight: 700;
         letter-spacing: 0.02em;
-        background: rgba(230, 215, 176, 0.08);
-        border: 1px solid rgba(230, 215, 176, 0.35);
-        color: var(--accent);
+        background: var(--gold-surface);
+        border: none;
+        color: var(--gold-text);
         padding: 8px 14px;
         border-radius: 6px;
         cursor: pointer;
         white-space: nowrap;
-        transition: background 0.2s, border-color 0.2s;
+        transition: filter 0.2s;
     }
 
+    /* Upgrade is the one topbar CTA that needs to outrank the rest of the
+       now-all-gold row — a dark chip with a gold ring reads as "the
+       different one" the same way .diagram-tool-btn.active/.km-inline-tab
+       .active already invert for the same reason elsewhere this pass. */
     .upgrade-topbar-btn {
-        background: var(--accent);
-        color: var(--bg);
-        border-color: var(--accent);
+        background: var(--bg);
+        color: #E8C15C;
+        border: 2px solid #E8C15C;
     }
 
     button.upgrade-topbar-btn:hover {
-        background: var(--accent);
-        opacity: 0.85;
+        filter: brightness(1.2);
     }
 
     .cortex-btn-topbar:hover {
-        background: rgba(230, 215, 176, 0.14);
-        border-color: rgba(230, 215, 176, 0.55);
+        filter: brightness(1.08);
     }
 
     #myTutoringTopbarBtn {
