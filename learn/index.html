@@ -15543,7 +15543,6 @@ SQIDAQAB
 
         function renderNodeLessonPreAttempt(lessonEl, d, upstream, nodeLesson) {
             const steps = [];
-            if (nodeLesson.personalLinkPrompt) steps.push({ kind: 'link', prompt: nodeLesson.personalLinkPrompt });
             if (nodeLesson.predictionQuestion) steps.push({ kind: 'predict', prompt: nodeLesson.predictionQuestion });
 
             function renderStep(index) {
@@ -15553,9 +15552,9 @@ SQIDAQAB
                     return;
                 }
                 const step = steps[index];
-                const heading = step.kind === 'link' ? 'Before we start' : 'Before you know how this works';
-                const reassurance = step.kind === 'link' ? "There's no wrong answer — just write what comes to mind." : "There's no right answer yet — just take a genuine guess.";
-                const placeholder = step.kind === 'link' ? 'Describe what you remember…' : 'Write your guess here…';
+                const heading = 'Before you know how this works';
+                const reassurance = "There's no right answer yet — just take a genuine guess.";
+                const placeholder = 'Write your guess here…';
                 lessonEl.innerHTML = `
                     <div class="km-inline-detail-section">
                         <h4 class="km-inline-lesson-question">${heading}</h4>
@@ -15669,7 +15668,7 @@ SQIDAQAB
         async function renderNodeLessonContent(lessonEl, d, upstream) {
             showLoadingWithColdStartHint(lessonEl);
             const nodeLesson = await fetchNodeLesson(d.id);
-            const hasPreAttempt = nodeLesson && !nodeLesson.notFound && (nodeLesson.predictionQuestion || nodeLesson.personalLinkPrompt);
+            const hasPreAttempt = nodeLesson && !nodeLesson.notFound && nodeLesson.predictionQuestion;
             if (hasPreAttempt && !localStorage.getItem(nodeLessonPreAttemptSeenKey(d.id))) {
                 renderNodeLessonPreAttempt(lessonEl, d, upstream, nodeLesson);
                 return;
