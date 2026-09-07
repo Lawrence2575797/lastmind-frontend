@@ -15592,7 +15592,7 @@ SQIDAQAB
                 ? `<div class="km-inline-detail-item km-inline-detail-none">No lesson generated for this concept yet.</div>`
                 : `
                     <div class="km-inline-lesson-explanation" id="km-node-lesson-explanation">${splitIntoParagraphs(nodeLesson.explanation)}</div>
-                    ${nodeLesson.practiceQuestion ? `<div><strong class="km-inline-lesson-question" style="display:block;">Practice</strong><div id="km-question-node-practice"></div></div>` : ''}
+                    <div id="km-node-practice-block">${nodeLesson.practiceQuestion ? `<strong class="km-inline-lesson-question" style="display:block;">Practice</strong><div id="km-question-node-practice"></div>` : ''}</div>
                     <div id="km-node-finish-cta"></div>
                 `;
             if (!nodeLesson || nodeLesson.notFound) return;
@@ -15610,6 +15610,17 @@ SQIDAQAB
             compileNodeNotesRequest(d.id).then((noteResult) => {
                 if (noteResult && explanationEl.isConnected) {
                     renderNodeNoteBlock(explanationEl, noteResult);
+                    // Re-parent (not recreate) the already-mounted practice
+                    // block into the dual-coding grid's own text column, so
+                    // the visual stays visible on the right while the
+                    // student answers instead of the question sitting
+                    // full-width below the whole grid - appendChild on an
+                    // already-attached node MOVES it, which preserves any
+                    // answer the student already started typing before this
+                    // (async) compile call resolved.
+                    const practiceBlock = lessonEl.querySelector('#km-node-practice-block');
+                    const textCol = explanationEl.querySelector('.km-note-text');
+                    if (practiceBlock && textCol) textCol.appendChild(practiceBlock);
                 }
             });
 
