@@ -689,7 +689,7 @@
         border-radius: 4px;
         background: rgba(0, 0, 0, 0.15);
     }
-    .km-kd-item-btn { width: 100%; text-align: left; font-size: 12.5px; }
+    .km-kd-item-btn.btn { width: 100%; text-align: left; font-size: 12.5px; background: var(--gold-surface); color: var(--bg); border: none; }
     .km-kd-item-label {
         font-size: 11px;
         font-weight: 600;
@@ -2366,8 +2366,9 @@
         cursor: pointer;
         font-size: 0.85rem;
         line-height: 1.4;
-        opacity: 0.85;
         border-radius: 4px;
+        background: var(--gold-surface);
+        color: var(--bg);
     }
 
     .folder-item-label {
@@ -2376,7 +2377,12 @@
     }
 
     .folder-item-header:hover {
-        background: rgba(230, 215, 176, 0.06);
+        filter: brightness(1.08);
+    }
+
+    .folder-item-header .item-menu-btn {
+        color: var(--bg);
+        opacity: 0.6;
     }
 
     .folder-meta-row {
