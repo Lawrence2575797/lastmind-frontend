@@ -13310,10 +13310,21 @@ SQIDAQAB
         }
     }
 
+    // notFound (a 404 with no generation attempted, e.g. a stale/bogus
+    // node id) and loadError (generation was attempted but genuinely
+    // failed - a Claude hiccup, a malformed response, a network blip) are
+    // now DIFFERENT outcomes worth showing differently - since a lesson
+    // is generated live on first request (see lessonGenerationService.ts),
+    // a cache miss essentially always means "generate it now", so most
+    // failures from here on are the transient, worth-retrying kind, not a
+    // genuine standing absence. Before on-demand generation existed, EVERY
+    // failure meant "genuinely never generated" and retrying was pointless
+    // - that's no longer true, so the caller needs to tell them apart to
+    // offer a real retry instead of a dead end.
     async function fetchNodeLesson(nodeId) {
         try {
             const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) return null;
+            if (!session) return { loadError: true };
             const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/node/${encodeURIComponent(nodeId)}/lesson`, {
                 headers: { Authorization: `Bearer ${session.access_token}` }
             });
@@ -13322,7 +13333,7 @@ SQIDAQAB
             return await resp.json();
         } catch (err) {
             console.error('LastMind: failed to load this lesson.', err);
-            return null;
+            return { loadError: true };
         }
     }
 
@@ -15656,6 +15667,18 @@ SQIDAQAB
         }
 
         function renderNodeLessonExplanation(lessonEl, d, upstream, nodeLesson) {
+            // loadError means generation was actually attempted and failed
+            // (a Claude hiccup, a malformed response, a network blip) -
+            // genuinely worth retrying, since the exact same request often
+            // just succeeds the second time. notFound (no row AND
+            // generation itself never ran, e.g. a stale/bogus node id) is
+            // now the rare case, kept as its own plain message rather than
+            // offering a retry that can't possibly help.
+            if (nodeLesson && nodeLesson.loadError) {
+                lessonEl.innerHTML = `<div class="km-inline-detail-item km-inline-detail-none">Something went wrong generating this lesson — this is usually temporary.</div><button type="button" class="btn primary km-lesson-retry-btn" style="margin-top:10px;">Try again</button>`;
+                lessonEl.querySelector('.km-lesson-retry-btn').addEventListener('click', () => renderNodeLessonContent(lessonEl, d, upstream));
+                return;
+            }
             lessonEl.innerHTML = (!nodeLesson || nodeLesson.notFound)
                 ? `<div class="km-inline-detail-item km-inline-detail-none">No lesson generated for this concept yet.</div>`
                 : `
