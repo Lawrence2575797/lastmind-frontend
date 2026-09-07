@@ -699,6 +699,58 @@
         margin-bottom: 4px;
     }
 
+    /* Compiled note block - question heading, bolded key terms in short
+       paragraphs on the left, an optional diagram/comparison/example on
+       the right (dual coding: spatial contiguity means the two sides have
+       to stay paired at THIS block's scale, never a whole page's worth of
+       left-column text against one static right-side visual - see
+       renderNodeNoteBlock). Right column collapses entirely when there's
+       no visual worth showing (rule 3 in NODE_NOTES_COMPILE_PROMPT). */
+    .km-note-question {
+        font-size: 14px;
+        font-weight: 700;
+        font-family: Georgia, serif;
+        line-height: 1.4;
+        margin-bottom: 10px;
+        color: var(--text);
+    }
+    .km-note-columns {
+        display: grid;
+        grid-template-columns: 1.3fr 1fr;
+        gap: 16px;
+        align-items: start;
+    }
+    .km-note-columns.km-note-no-visual { grid-template-columns: 1fr; }
+    .km-note-text p { margin: 0 0 10px; font-size: 12.5px; line-height: 1.6; }
+    .km-note-text p:last-child { margin-bottom: 0; }
+    .km-note-visual {
+        position: sticky;
+        top: 8px;
+        border: 1px solid rgba(230, 215, 176, 0.16);
+        border-radius: 6px;
+        padding: 12px;
+        background: rgba(230, 215, 176, 0.04);
+    }
+    .km-note-visual-label {
+        font-size: 9.5px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        opacity: 0.5;
+        margin-bottom: 8px;
+    }
+    .km-note-example-text { font-size: 12px; line-height: 1.6; }
+    .km-note-comparison-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+    .km-note-comparison-col-label { font-size: 11px; font-weight: 700; margin-bottom: 6px; }
+    .km-note-comparison-col ul { margin: 0; padding-left: 16px; }
+    .km-note-comparison-col li { font-size: 11.5px; line-height: 1.5; margin-bottom: 4px; }
+    .km-note-diagram-svg { width: 100%; height: auto; display: block; }
+    .km-note-diagram-caption { font-size: 11px; line-height: 1.5; opacity: 0.75; margin-top: 6px; }
+
     /* Five-step progress ramp (see masteryProgressTier in
        renderKmInlineGraph) — not started (dim grey-brown, recedes into the
        background) through two intermediate spaced-review steps, up to
@@ -13410,16 +13462,76 @@ SQIDAQAB
             </div>
         `;
         renderKnowledgeDropdownItem(contentInner.querySelector('#km-kd-own'), `${node.label} — knowledge`, async () => {
-            const result = await compileNodeNotesRequest(node.nodeId);
-            return result ? notesTextToHtml(result.notes) : null;
-        });
+            return await compileNodeNotesRequest(node.nodeId);
+        }, renderNodeNoteBlock);
         node.links.forEach((l, i) => {
             if (!l.unlocked) return;
             renderKnowledgeDropdownItem(contentInner.querySelector(`[data-kd-idx="${i}"]`), `${node.label} → ${l.toLabel}`, async () => {
-                const result = await compileEdgeNotesRequest(node.nodeId, l.toNodeId);
-                return result ? notesTextToHtml(result.transferSummary) + notesTextToHtml(result.integrationSummary) : null;
-            });
+                return await compileEdgeNotesRequest(node.nodeId, l.toNodeId);
+            }, renderEdgeNoteBlock);
         });
+    }
+
+    // Renders one compiled node note (heading + paragraphs + an optional
+    // right-hand visual) into `container` - shared by the "Compile notes"
+    // CTA and every "Knowledge & notes" dropdown item. Two-column layout
+    // is scoped to THIS block, not the whole page - dual coding's
+    // spatial-contiguity payoff needs the visual to stay next to the text
+    // it illustrates, which only holds if the pairing is local (see the
+    // .km-note-columns CSS comment).
+    function renderNodeNoteBlock(container, data) {
+        const hasVisual = data.visual && data.visual.type !== 'none';
+        container.innerHTML = `
+            <h4 class="km-note-question">${escapeHtml(data.heading)}</h4>
+            <div class="km-note-columns ${hasVisual ? '' : 'km-note-no-visual'}">
+                <div class="km-note-text">${(data.paragraphs || []).map((p) => `<p>${boldMarkdownToHtml(p)}</p>`).join('')}</div>
+                ${hasVisual ? '<div class="km-note-visual"></div>' : ''}
+            </div>
+        `;
+        if (!hasVisual) return;
+        const visualEl = container.querySelector('.km-note-visual');
+        const v = data.visual;
+        if (v.type === 'diagram') {
+            visualEl.innerHTML = `<div class="km-note-visual-label">Diagram</div>`;
+            const diagramHost = document.createElement('div');
+            visualEl.appendChild(diagramHost);
+            renderStaticDiagram(diagramHost, v.spec);
+        } else if (v.type === 'comparison') {
+            visualEl.innerHTML = `
+                <div class="km-note-visual-label">Compared with ${escapeHtml(v.otherLabel)}</div>
+                <div class="km-note-comparison-grid">
+                    <div class="km-note-comparison-col">
+                        <div class="km-note-comparison-col-label">This concept</div>
+                        <ul>${(v.thisPoints || []).map((p) => `<li>${boldMarkdownToHtml(p)}</li>`).join('')}</ul>
+                    </div>
+                    <div class="km-note-comparison-col">
+                        <div class="km-note-comparison-col-label">${escapeHtml(v.otherLabel)}</div>
+                        <ul>${(v.otherPoints || []).map((p) => `<li>${boldMarkdownToHtml(p)}</li>`).join('')}</ul>
+                    </div>
+                </div>
+            `;
+        } else if (v.type === 'example') {
+            visualEl.innerHTML = `
+                <div class="km-note-visual-label">Real-world example</div>
+                <div class="km-note-example-text">${boldMarkdownToHtml(v.text)}</div>
+            `;
+        }
+    }
+
+    // Same shape as renderNodeNoteBlock, minus a visual - see
+    // EDGE_NOTES_COMPILE_PROMPT's own comment on why a link's notes stay
+    // text-only. transferSummary (the one-sentence causal claim) leads,
+    // then the fuller mechanism paragraphs.
+    function renderEdgeNoteBlock(container, data) {
+        container.innerHTML = `
+            <h4 class="km-note-question">${escapeHtml(data.heading)}</h4>
+            <div class="km-note-columns km-note-no-visual">
+                <div class="km-note-text">
+                    <p><strong>${boldMarkdownToHtml(data.transferSummary)}</strong></p>
+                    ${(data.paragraphs || []).map((p) => `<p>${boldMarkdownToHtml(p)}</p>`).join('')}
+                </div>
+            </div>
+        `;
     }
 
     // The "compile notes lesson" step shown right after a node's own
@@ -13438,12 +13550,8 @@ SQIDAQAB
                 container.insertAdjacentHTML('beforeend', '<div class="km-inline-detail-item km-inline-detail-none" style="margin-top:8px;">Something went wrong — try again.</div>');
                 return;
             }
-            container.innerHTML = `
-                <div class="km-inline-detail-section" style="margin-top:14px;">
-                    <h4>Notes — ${escapeHtml(label)}</h4>
-                    <div class="km-inline-lesson-explanation">${notesTextToHtml(result.notes)}</div>
-                </div>
-            `;
+            container.innerHTML = `<div class="km-inline-detail-section" style="margin-top:14px;"></div>`;
+            renderNodeNoteBlock(container.querySelector('.km-inline-detail-section'), result);
         });
     }
 
@@ -13468,13 +13576,8 @@ SQIDAQAB
                 container.insertAdjacentHTML('beforeend', '<div class="km-inline-detail-item km-inline-detail-none" style="margin-top:8px;">Something went wrong — try again.</div>');
                 return;
             }
-            container.innerHTML = `
-                <div class="km-inline-detail-section" style="margin-top:10px;">
-                    <h4>Notes — ${escapeHtml(label)}</h4>
-                    <div class="km-inline-lesson-explanation">${notesTextToHtml(result.transferSummary)}</div>
-                    <div class="km-inline-lesson-explanation">${notesTextToHtml(result.integrationSummary)}</div>
-                </div>
-            `;
+            container.innerHTML = `<div class="km-inline-detail-section" style="margin-top:10px;"></div>`;
+            renderEdgeNoteBlock(container.querySelector('.km-inline-detail-section'), result);
         });
     }
 
@@ -13482,22 +13585,23 @@ SQIDAQAB
     // selectKmInlineNode) - starts as a plain button naming what it'll
     // show, compiles on click via whichever request the caller supplies
     // (the node's own notes, or one specific link's integration notes),
-    // then replaces itself with the compiled text in place. Same opt-in,
-    // compile-on-demand principle as the CTA buttons above - nothing here
-    // is fetched until the student actually asks for it.
-    function renderKnowledgeDropdownItem(container, label, fetchHtml) {
+    // then hands the raw compiled data to `renderContent` to build in
+    // place. Same opt-in, compile-on-demand principle as the CTA buttons
+    // above - nothing here is fetched until the student actually asks for it.
+    function renderKnowledgeDropdownItem(container, label, fetchData, renderContent) {
         container.innerHTML = `<button type="button" class="btn km-kd-item-btn">${escapeHtml(label)}</button>`;
         container.querySelector('.km-kd-item-btn').addEventListener('click', async (ev) => {
             ev.target.disabled = true;
             ev.target.textContent = 'Loading…';
-            const html = await fetchHtml();
-            if (!html) {
+            const data = await fetchData();
+            if (!data) {
                 ev.target.disabled = false;
                 ev.target.textContent = label;
                 container.insertAdjacentHTML('beforeend', '<div class="km-inline-detail-item km-inline-detail-none">Something went wrong — try again.</div>');
                 return;
             }
-            container.innerHTML = `<div class="km-kd-item-label">${escapeHtml(label)}</div>${html}`;
+            container.innerHTML = `<div class="km-kd-item-label">${escapeHtml(label)}</div><div class="km-note-block"></div>`;
+            renderContent(container.querySelector('.km-note-block'), data);
         });
     }
 
@@ -13505,6 +13609,211 @@ SQIDAQAB
     // present in the data. Clicking one re-renders the graph filtered to
     // just that theme's own nodes/edges; "All" shows the whole subject,
     // including the edges that cross theme boundaries.
+    // ─── Diagram-drawing question widget ───
+    // Mirrors diagramGradingService.ts's geometry contract EXACTLY —
+    // canvas size, axis segments, and the curve-shape local-coordinate
+    // library are duplicated here (no shared module between this
+    // plain-JS frontend and the backend TS) — any change to one MUST
+    // be mirrored in the other or grading silently stops matching
+    // what's drawn.
+    const DIAGRAM_CANVAS_WIDTH = 640;
+    const DIAGRAM_CANVAS_HEIGHT = 440;
+    const DIAGRAM_PRICE_AXIS = [{ x: 70, y: 20 }, { x: 70, y: 390 }];
+    const DIAGRAM_QUANTITY_AXIS = [{ x: 60, y: 380 }, { x: 620, y: 380 }];
+    const DIAGRAM_CURVE_SHAPES = {
+        demand: [{ x: 0, y: 0 }, { x: 130, y: 80 }, { x: 260, y: 160 }],
+        supply: [{ x: 0, y: 160 }, { x: 130, y: 80 }, { x: 260, y: 0 }],
+        generic_price_line: [{ x: 0, y: 0 }, { x: 260, y: 0 }],
+        generic_quantity_line: [{ x: 0, y: 0 }, { x: 0, y: 220 }],
+        marginal_cost: [{ x: 0, y: 70 }, { x: 70, y: 15 }, { x: 140, y: 10 }, { x: 210, y: 35 }, { x: 260, y: 85 }],
+        average_cost: [{ x: 0, y: 100 }, { x: 90, y: 48 }, { x: 170, y: 46 }, { x: 260, y: 95 }],
+        world_supply: [{ x: 0, y: 110 }, { x: 260, y: 110 }],
+        average_revenue: [{ x: 0, y: 0 }, { x: 130, y: 80 }, { x: 260, y: 160 }],
+        marginal_revenue: [{ x: 0, y: 0 }, { x: 65, y: 80 }, { x: 130, y: 160 }],
+        ad: [{ x: 0, y: 0 }, { x: 130, y: 80 }, { x: 260, y: 160 }],
+        as_curve: [{ x: 0, y: 160 }, { x: 130, y: 80 }, { x: 260, y: 0 }],
+        lras_classical: [{ x: 0, y: 0 }, { x: 0, y: 220 }],
+        lras_keynesian: [{ x: 0, y: 200 }, { x: 100, y: 190 }, { x: 170, y: 120 }, { x: 220, y: 40 }, { x: 260, y: 0 }],
+        phillips: [{ x: 0, y: 0 }, { x: 130, y: 80 }, { x: 260, y: 160 }],
+        laffer: [{ x: 0, y: 200 }, { x: 65, y: 60 }, { x: 130, y: 20 }, { x: 195, y: 60 }, { x: 260, y: 200 }],
+        lorenz_curve: [{ x: 0, y: 200 }, { x: 80, y: 170 }, { x: 150, y: 120 }, { x: 210, y: 60 }, { x: 260, y: 0 }],
+        line_of_equality: [{ x: 0, y: 200 }, { x: 260, y: 0 }],
+        ppf: [{ x: 0, y: 0 }, { x: 60, y: 100 }, { x: 130, y: 160 }, { x: 200, y: 200 }, { x: 260, y: 215 }],
+    };
+    const DIAGRAM_PALETTE_LABELS = {
+        demand: 'Demand', supply: 'Supply', generic_price_line: 'Price line', generic_quantity_line: 'Quantity line',
+        marginal_cost: 'MC', average_cost: 'AC', world_supply: 'World supply',
+        average_revenue: 'AR', marginal_revenue: 'MR', ad: 'AD', as_curve: 'AS',
+        lras_classical: 'LRAS (classical)', lras_keynesian: 'LRAS (Keynesian)',
+        phillips: 'Phillips', laffer: 'Laffer', lorenz_curve: 'Lorenz curve', line_of_equality: 'Line of equality',
+        ppf: 'PPF',
+    };
+    // Every "given" (pre-known, from a prerequisite) curve shares this
+    // one fixed origin — matches how the grading engine's own real
+    // demand+supply crossing was verified (both placed at an identical
+    // origin, letting their opposite slopes cross naturally), not an
+    // arbitrary choice.
+    const DIAGRAM_GIVEN_ORIGIN = { x: 140, y: 90 };
+
+    function diagramTranslate(local, x, y) { return local.map((p) => ({ x: p.x + x, y: p.y + y })); }
+    function diagramPolylinePoints(poly) { return poly.map((p) => `${p.x},${p.y}`).join(' '); }
+    function diagramBaseType(type) { return (type || '').replace(/_shift_(left|right)$/, ''); }
+    function svgElement(tag, attrs) {
+        const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+        Object.entries(attrs || {}).forEach(([k, v]) => el.setAttribute(k, v));
+        return el;
+    }
+
+    // Read-only rendering of a diagramSpec (from
+    // knowledge_map_node_lessons.encoding_content.practiceQuestion.diagramSpec)
+    // for the Notes page's right-hand visual - a genuinely different
+    // job from renderDiagramWidget below (which lets a STUDENT place
+    // curves for grading). Grading itself is relative-position based,
+    // not absolute-position (see diagramGradingService.ts's own
+    // comment: a shift is only checked by direction, never an exact
+    // expected coordinate), so there is no single "correct" layout to
+    // reproduce here - this picks one sensible, consistent layout:
+    // every curve with no baseCurveId shares DIAGRAM_GIVEN_ORIGIN
+    // (the same convention renderDiagramWidget's own "given" curves
+    // already use - opposite-sloping curves like demand/supply are
+    // drawn to cross naturally when co-located), and a shifted
+    // variant is offset a fixed distance in its shift's direction
+    // from whatever curve it shifts from.
+    const DIAGRAM_SHIFT_OFFSET_PX = 70;
+
+    function diagramShiftDirection(type) {
+        const m = (type || '').match(/_shift_(left|right)$/);
+        return m ? m[1] : null;
+    }
+
+    // Mirrors diagramGradingService.ts's resolveAnchor/polylineIntersection
+    // exactly (segment-intersection in parametric form) - duplicated here
+    // for the same reason the curve-shape library above is duplicated:
+    // no shared module between this plain-JS frontend and the backend TS.
+    function diagramSegmentIntersection(a1, a2, b1, b2) {
+        const d1x = a2.x - a1.x, d1y = a2.y - a1.y;
+        const d2x = b2.x - b1.x, d2y = b2.y - b1.y;
+        const denom = d1x * d2y - d1y * d2x;
+        if (Math.abs(denom) < 1e-9) return null;
+        const t = ((b1.x - a1.x) * d2y - (b1.y - a1.y) * d2x) / denom;
+        const u = ((b1.x - a1.x) * d1y - (b1.y - a1.y) * d1x) / denom;
+        if (t < -0.01 || t > 1.01 || u < -0.01 || u > 1.01) return null;
+        return { x: a1.x + t * d1x, y: a1.y + t * d1y };
+    }
+    function diagramPolylineIntersection(a, b) {
+        for (let i = 0; i < a.length - 1; i++) {
+            for (let j = 0; j < b.length - 1; j++) {
+                const hit = diagramSegmentIntersection(a[i], a[i + 1], b[j], b[j + 1]);
+                if (hit) return hit;
+            }
+        }
+        return null;
+    }
+
+    function renderStaticDiagram(container, spec) {
+        if (!spec || spec.notDiagrammatic) { container.innerHTML = ''; return; }
+        const curves = spec.curves || [];
+
+        // Position every curve: an original (no baseCurveId) curve
+        // shares the common origin; a shifted one is offset from
+        // wherever its own base curve landed, resolved recursively so
+        // a shift-of-a-shift still works.
+        const positioned = new Map(); // id -> {type, poly}
+        function positionCurve(id) {
+            if (positioned.has(id)) return positioned.get(id);
+            const c = curves.find((x) => x.id === id);
+            if (!c) return null;
+            const local = DIAGRAM_CURVE_SHAPES[diagramBaseType(c.type)];
+            if (!local) return null;
+            let origin = DIAGRAM_GIVEN_ORIGIN;
+            const dir = diagramShiftDirection(c.type);
+            if (c.baseCurveId) {
+                const base = positionCurve(c.baseCurveId);
+                if (base) {
+                    const dx = dir === 'left' ? -DIAGRAM_SHIFT_OFFSET_PX : dir === 'right' ? DIAGRAM_SHIFT_OFFSET_PX : 0;
+                    origin = { x: base.origin.x + dx, y: base.origin.y };
+                }
+            }
+            const poly = diagramTranslate(local, origin.x, origin.y);
+            const entry = { type: c.type, poly, origin };
+            positioned.set(id, entry);
+            return entry;
+        }
+        curves.forEach((c) => positionCurve(c.id));
+
+        function resolveAnchor(anchor) {
+            if (anchor === 'price-axis') return DIAGRAM_PRICE_AXIS[0];
+            if (anchor === 'quantity-axis') return DIAGRAM_QUANTITY_AXIS[1];
+            const curveMatch = /^curve:(.+)$/.exec(anchor || '');
+            if (curveMatch) {
+                const entry = positioned.get(curveMatch[1]);
+                return entry ? entry.poly[0] : null;
+            }
+            const intersectMatch = /^intersection:(.+),(.+)$/.exec(anchor || '');
+            if (intersectMatch) {
+                const a = positioned.get(intersectMatch[1].trim());
+                const b = positioned.get(intersectMatch[2].trim());
+                if (!a || !b) return null;
+                return diagramPolylineIntersection(a.poly, b.poly) || { x: (a.poly[0].x + b.poly[0].x) / 2, y: (a.poly[0].y + b.poly[0].y) / 2 };
+            }
+            return null;
+        }
+
+        const svg = svgElement('svg', { class: 'km-note-diagram-svg', viewBox: `0 0 ${DIAGRAM_CANVAS_WIDTH} ${DIAGRAM_CANVAS_HEIGHT}` });
+        svg.appendChild(svgElement('line', { x1: DIAGRAM_PRICE_AXIS[0].x, y1: DIAGRAM_PRICE_AXIS[0].y, x2: DIAGRAM_PRICE_AXIS[1].x, y2: DIAGRAM_PRICE_AXIS[1].y, class: 'diagram-axis' }));
+        svg.appendChild(svgElement('line', { x1: DIAGRAM_QUANTITY_AXIS[0].x, y1: DIAGRAM_QUANTITY_AXIS[0].y, x2: DIAGRAM_QUANTITY_AXIS[1].x, y2: DIAGRAM_QUANTITY_AXIS[1].y, class: 'diagram-axis' }));
+        const priceLabel = svgElement('text', { x: DIAGRAM_PRICE_AXIS[0].x - 8, y: DIAGRAM_PRICE_AXIS[0].y + 10, class: 'diagram-axis-label', 'text-anchor': 'end' });
+        priceLabel.textContent = 'Price';
+        svg.appendChild(priceLabel);
+        const qtyLabel = svgElement('text', { x: DIAGRAM_QUANTITY_AXIS[1].x, y: DIAGRAM_QUANTITY_AXIS[1].y + 18, class: 'diagram-axis-label', 'text-anchor': 'end' });
+        qtyLabel.textContent = 'Quantity';
+        svg.appendChild(qtyLabel);
+
+        curves.forEach((c) => {
+            const entry = positioned.get(c.id);
+            if (!entry) return;
+            svg.appendChild(svgElement('polyline', { points: diagramPolylinePoints(entry.poly), class: 'diagram-curve diagram-curve-given' }));
+        });
+
+        (spec.labels || []).forEach((l) => {
+            const pt = resolveAnchor(l.anchor);
+            if (!pt) return;
+            const tag = svgElement('text', { x: pt.x, y: pt.y - 6, class: 'diagram-curve-tag' });
+            tag.textContent = l.text;
+            svg.appendChild(tag);
+        });
+
+        (spec.arrows || []).forEach((a) => {
+            const pt = resolveAnchor(a.near);
+            if (!pt) return;
+            const len = 26;
+            const delta = { up: { x: 0, y: -len }, down: { x: 0, y: len }, left: { x: -len, y: 0 }, right: { x: len, y: 0 } }[a.direction] || { x: 0, y: 0 };
+            svg.appendChild(svgElement('line', { x1: pt.x, y1: pt.y, x2: pt.x + delta.x, y2: pt.y + delta.y, class: 'diagram-arrow', 'marker-end': 'url(#km-note-diagram-arrowhead)' }));
+        });
+
+        const defs = svgElement('defs', {});
+        const marker = svgElement('marker', { id: 'km-note-diagram-arrowhead', markerWidth: 8, markerHeight: 8, refX: 6, refY: 3, orient: 'auto' });
+        marker.appendChild(svgElement('path', { d: 'M0,0 L6,3 L0,6 Z', class: 'diagram-arrowhead-path' }));
+        defs.appendChild(marker);
+        svg.insertBefore(defs, svg.firstChild);
+
+        container.innerHTML = '';
+        container.appendChild(svg);
+
+        // Shaded regions have no single canonical polygon either (the
+        // grading engine itself only compares a student's freehand
+        // shade by area overlap, never against a computed "correct"
+        // polygon - see diagramGradingService.ts's own IoU comment),
+        // so rather than fabricate a fill that might visually mislead,
+        // name the region in words under the diagram instead.
+        (spec.shades || []).forEach((s) => {
+            const caption = document.createElement('div');
+            caption.className = 'km-note-diagram-caption';
+            caption.textContent = `Shaded region: ${s.expectedLabel}`;
+            container.appendChild(caption);
+        });
+    }
+
     function renderKmInlineThemeTabs(contentInner, folder, data) {
         const themes = Array.from(new Set(data.nodes.map((n) => n.theme || 'General'))).sort();
         const tabsEl = contentInner.querySelector('.km-inline-themetabs');
@@ -14010,14 +14319,12 @@ SQIDAQAB
                 </div>
             `;
             renderKnowledgeDropdownItem(detailEl.querySelector('#km-kd-own'), `${d.label} — knowledge`, async () => {
-                const result = await compileNodeNotesRequest(d.id);
-                return result ? notesTextToHtml(result.notes) : null;
-            });
+                return await compileNodeNotesRequest(d.id);
+            }, renderNodeNoteBlock);
             linkedForNotes.forEach((item, i) => {
                 renderKnowledgeDropdownItem(detailEl.querySelector(`[data-kd-idx="${i}"]`), item.label, async () => {
-                    const result = await compileEdgeNotesRequest(item.fromId, item.toId);
-                    return result ? notesTextToHtml(result.transferSummary) + notesTextToHtml(result.integrationSummary) : null;
-                });
+                    return await compileEdgeNotesRequest(item.fromId, item.toId);
+                }, renderEdgeNoteBlock);
             });
             const kdToggleBtn = detailEl.querySelector('.km-kd-toggle-btn');
             const kdPanel = detailEl.querySelector('.km-kd-panel');
@@ -15161,60 +15468,6 @@ SQIDAQAB
             container.appendChild(wrap);
         }
 
-        // ─── Diagram-drawing question widget ───
-        // Mirrors diagramGradingService.ts's geometry contract EXACTLY —
-        // canvas size, axis segments, and the curve-shape local-coordinate
-        // library are duplicated here (no shared module between this
-        // plain-JS frontend and the backend TS) — any change to one MUST
-        // be mirrored in the other or grading silently stops matching
-        // what's drawn.
-        const DIAGRAM_CANVAS_WIDTH = 640;
-        const DIAGRAM_CANVAS_HEIGHT = 440;
-        const DIAGRAM_PRICE_AXIS = [{ x: 70, y: 20 }, { x: 70, y: 390 }];
-        const DIAGRAM_QUANTITY_AXIS = [{ x: 60, y: 380 }, { x: 620, y: 380 }];
-        const DIAGRAM_CURVE_SHAPES = {
-            demand: [{ x: 0, y: 0 }, { x: 130, y: 80 }, { x: 260, y: 160 }],
-            supply: [{ x: 0, y: 160 }, { x: 130, y: 80 }, { x: 260, y: 0 }],
-            generic_price_line: [{ x: 0, y: 0 }, { x: 260, y: 0 }],
-            generic_quantity_line: [{ x: 0, y: 0 }, { x: 0, y: 220 }],
-            marginal_cost: [{ x: 0, y: 70 }, { x: 70, y: 15 }, { x: 140, y: 10 }, { x: 210, y: 35 }, { x: 260, y: 85 }],
-            average_cost: [{ x: 0, y: 100 }, { x: 90, y: 48 }, { x: 170, y: 46 }, { x: 260, y: 95 }],
-            world_supply: [{ x: 0, y: 110 }, { x: 260, y: 110 }],
-            average_revenue: [{ x: 0, y: 0 }, { x: 130, y: 80 }, { x: 260, y: 160 }],
-            marginal_revenue: [{ x: 0, y: 0 }, { x: 65, y: 80 }, { x: 130, y: 160 }],
-            ad: [{ x: 0, y: 0 }, { x: 130, y: 80 }, { x: 260, y: 160 }],
-            as_curve: [{ x: 0, y: 160 }, { x: 130, y: 80 }, { x: 260, y: 0 }],
-            lras_classical: [{ x: 0, y: 0 }, { x: 0, y: 220 }],
-            lras_keynesian: [{ x: 0, y: 200 }, { x: 100, y: 190 }, { x: 170, y: 120 }, { x: 220, y: 40 }, { x: 260, y: 0 }],
-            phillips: [{ x: 0, y: 0 }, { x: 130, y: 80 }, { x: 260, y: 160 }],
-            laffer: [{ x: 0, y: 200 }, { x: 65, y: 60 }, { x: 130, y: 20 }, { x: 195, y: 60 }, { x: 260, y: 200 }],
-            lorenz_curve: [{ x: 0, y: 200 }, { x: 80, y: 170 }, { x: 150, y: 120 }, { x: 210, y: 60 }, { x: 260, y: 0 }],
-            line_of_equality: [{ x: 0, y: 200 }, { x: 260, y: 0 }],
-            ppf: [{ x: 0, y: 0 }, { x: 60, y: 100 }, { x: 130, y: 160 }, { x: 200, y: 200 }, { x: 260, y: 215 }],
-        };
-        const DIAGRAM_PALETTE_LABELS = {
-            demand: 'Demand', supply: 'Supply', generic_price_line: 'Price line', generic_quantity_line: 'Quantity line',
-            marginal_cost: 'MC', average_cost: 'AC', world_supply: 'World supply',
-            average_revenue: 'AR', marginal_revenue: 'MR', ad: 'AD', as_curve: 'AS',
-            lras_classical: 'LRAS (classical)', lras_keynesian: 'LRAS (Keynesian)',
-            phillips: 'Phillips', laffer: 'Laffer', lorenz_curve: 'Lorenz curve', line_of_equality: 'Line of equality',
-            ppf: 'PPF',
-        };
-        // Every "given" (pre-known, from a prerequisite) curve shares this
-        // one fixed origin — matches how the grading engine's own real
-        // demand+supply crossing was verified (both placed at an identical
-        // origin, letting their opposite slopes cross naturally), not an
-        // arbitrary choice.
-        const DIAGRAM_GIVEN_ORIGIN = { x: 140, y: 90 };
-
-        function diagramTranslate(local, x, y) { return local.map((p) => ({ x: p.x + x, y: p.y + y })); }
-        function diagramPolylinePoints(poly) { return poly.map((p) => `${p.x},${p.y}`).join(' '); }
-        function diagramBaseType(type) { return (type || '').replace(/_shift_(left|right)$/, ''); }
-        function svgElement(tag, attrs) {
-            const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
-            Object.entries(attrs || {}).forEach(([k, v]) => el.setAttribute(k, v));
-            return el;
-        }
 
         let diagramWidgetSeq = 0;
 
