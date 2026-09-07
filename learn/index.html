@@ -254,6 +254,33 @@
     }
     .notes-tree-search-input::placeholder { color: var(--text); opacity: 0.4; }
     .notes-tree-search-input:focus { outline: none; border-color: var(--accent); }
+
+    /* General notes - a student's own notes with no lesson/subject behind
+       them (see refreshGeneralNotesSection/selectGeneralNote) - sits above
+       the subject tree, separated by its own rule so it always reads as a
+       distinct section regardless of how many/few subjects exist below it. */
+    .notes-general-section { flex: none; padding-bottom: 10px; margin-bottom: 8px; border-bottom: 1px solid rgba(230, 215, 176, 0.14); }
+    .notes-general-heading { font-family: Arial, sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.55; margin-bottom: 6px; }
+    .notes-general-new-btn { width: 100%; text-align: left; font-size: 12px; padding: 6px 10px; margin-bottom: 6px; }
+    .notes-general-list { display: flex; flex-direction: column; gap: 2px; max-height: 160px; overflow-y: auto; }
+    .notes-general-item {
+        display: block; width: 100%; text-align: left; background: none; border: none; border-radius: 4px;
+        color: var(--text); font-family: Arial, sans-serif; font-size: 12.5px; padding: 6px 8px; cursor: pointer;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .notes-general-item:hover { background: rgba(230, 215, 176, 0.08); }
+    .notes-general-item.active { background: rgba(230, 215, 176, 0.14); font-weight: 600; }
+
+    /* A general note's own editable title, replacing the fixed concept
+       label a lesson's own note shows in the same header row (see
+       .km-notes-header-row / selectGeneralNote vs. selectNotesNode). */
+    .km-general-note-title-input {
+        flex: 1; min-width: 0; background: none; border: none; border-bottom: 1px solid rgba(230, 215, 176, 0.2);
+        color: var(--accent); font-family: Georgia, serif; font-size: 20px; font-weight: 700; padding: 2px 0;
+    }
+    .km-general-note-title-input:focus { outline: none; border-bottom-color: var(--accent); }
+    .km-general-note-title-input::placeholder { color: var(--text); opacity: 0.4; font-weight: 400; }
+
     .notes-tree-content {
         flex: 1;
         overflow-y: auto;
@@ -4649,6 +4676,11 @@
                  so it never gets wiped by a reload — see
                  applyNotesTreeSearch. -->
             <div class="notes-tree-list" id="notesTreeList">
+                <!-- General notes - not tied to any lesson/subject, see
+                     renderGeneralNotesSection - a static sibling of the
+                     subject tree itself so search (applyNotesTreeSearch,
+                     scoped to .notes-tree-subject) never touches it. -->
+                <div class="notes-general-section" id="notesGeneralSection"></div>
                 <input type="text" class="notes-tree-search-input" id="notesTreeSearchInput" placeholder="Search lessons…">
                 <div class="notes-tree-content" id="notesTreeContent"></div>
             </div>
@@ -13570,6 +13602,104 @@ SQIDAQAB
         }
     }
 
+    // { fetch, save } pair renderPersonalNoteEditor/renderQuickNotesWidget
+    // actually talk to - lets the exact same editor UI (free text,
+    // template, guidance, diagram/contrast/example add-ons, Quick Notes)
+    // serve both a lesson-scoped note (nodeNoteStore) and a free-standing
+    // one with no lesson at all (generalNoteStore below), without either
+    // knowing which kind of note it's editing.
+    function nodeNoteStore(nodeId) {
+        return {
+            fetch: () => fetchPersonalNoteRequest(nodeId),
+            save: (note) => savePersonalNoteRequest(nodeId, note),
+        };
+    }
+
+    // A student's own free-standing note, not tied to any lesson - see
+    // personalGeneralNotesService.ts. Same PersonalNoteContent shape as a
+    // node's own note, plus a `title` field a node's note never needs
+    // (a node already has its own label to show as the header - a
+    // general note has nothing else to identify it by in the sidebar list).
+    async function fetchGeneralNotesList() {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return [];
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/personal-notes`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            return await resp.json();
+        } catch (err) {
+            console.error('LastMind: failed to load your general notes.', err);
+            return [];
+        }
+    }
+    async function createGeneralNoteRequest() {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return null;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/personal-notes`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${session.access_token}` },
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            return await resp.json();
+        } catch (err) {
+            console.error('LastMind: failed to create a new note.', err);
+            return null;
+        }
+    }
+    async function fetchGeneralNoteRequest(noteId) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return null;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/personal-notes/${encodeURIComponent(noteId)}`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            const { title, content } = await resp.json();
+            return { ...content, title };
+        } catch (err) {
+            console.error('LastMind: failed to load this note.', err);
+            return null;
+        }
+    }
+    async function saveGeneralNoteRequest(noteId, note) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return false;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/personal-notes/${encodeURIComponent(noteId)}`, {
+                method: 'PUT',
+                headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify(note),
+            });
+            return resp.ok;
+        } catch (err) {
+            console.error('LastMind: failed to save this note.', err);
+            return false;
+        }
+    }
+    async function deleteGeneralNoteRequest(noteId) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return false;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/personal-notes/${encodeURIComponent(noteId)}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${session.access_token}` },
+            });
+            return resp.ok;
+        } catch (err) {
+            console.error('LastMind: failed to delete this note.', err);
+            return false;
+        }
+    }
+    function generalNoteStore(noteId) {
+        return {
+            fetch: () => fetchGeneralNoteRequest(noteId),
+            save: (note) => saveGeneralNoteRequest(noteId, note),
+        };
+    }
+
     // Populates the sidebar's own Notes tab tree (see setSidebarTab) and
     // resets the main content area to its empty prompt - called once when
     // the tab itself is opened, not on every node click (the tree then
@@ -13581,8 +13711,75 @@ SQIDAQAB
         const contentEl = document.getElementById('notesTreeContent');
         contentEl.innerHTML = '<div class="empty-hint">Loading…</div>';
         showNotesEmptyState();
-        const index = await fetchNotesIndex();
+        const [index] = await Promise.all([fetchNotesIndex(), refreshGeneralNotesSection()]);
         renderNotesTree(contentEl, index);
+    }
+
+    // General notes - a student's own notes with no lesson/subject behind
+    // them at all (see personalGeneralNotesService.ts on the backend), so
+    // this section renders independently of whether they've ever added a
+    // subject or encoded anything - a brand new account sees "+ New note"
+    // and nothing else the moment they open the Notes tab.
+    async function refreshGeneralNotesSection() {
+        const sectionEl = document.getElementById('notesGeneralSection');
+        const notes = await fetchGeneralNotesList();
+        sectionEl.innerHTML = `
+            <div class="notes-general-heading">General notes</div>
+            <button type="button" class="btn notes-general-new-btn">+ New note</button>
+            <div class="notes-general-list">
+                ${notes.map((n) => `
+                    <button type="button" class="notes-general-item" data-note-id="${escapeHtml(n.id)}">
+                        <span>${escapeHtml(n.title || 'Untitled note')}</span>
+                    </button>
+                `).join('')}
+            </div>
+        `;
+        sectionEl.querySelector('.notes-general-new-btn').addEventListener('click', async () => {
+            const created = await createGeneralNoteRequest();
+            if (!created) return;
+            await refreshGeneralNotesSection();
+            selectGeneralNote(created.id, created.title);
+        });
+        sectionEl.querySelectorAll('.notes-general-item[data-note-id]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                sectionEl.querySelectorAll('.notes-general-item').forEach((b) => b.classList.remove('active'));
+                btn.classList.add('active');
+                document.querySelectorAll('.notes-tree-node-item').forEach((b) => b.classList.remove('active'));
+                selectGeneralNote(btn.dataset.noteId, btn.querySelector('span').textContent);
+            });
+        });
+    }
+
+    // Same personal-note editor a lesson's own note uses (renderPersonalNoteEditor),
+    // just with an editable title in place of a fixed concept label (see
+    // that function's own titleInputEl param) and no "Knowledge & notes"
+    // compiled panel below it, since there's no underlying lesson to
+    // compile one from.
+    function selectGeneralNote(noteId, title) {
+        stopActiveDictation();
+        stopSpeaking();
+        const contentInner = document.getElementById('contentInner');
+        contentInner.classList.add('content-inner-wide');
+        contentInner.innerHTML = `
+            <div class="km-notes-body">
+                <div class="km-notes-header-row">
+                    <input type="text" class="km-general-note-title-input" placeholder="Untitled note" value="${escapeHtml(title || '')}">
+                    <button type="button" class="btn km-notes-template-btn">+ Add template</button>
+                </div>
+                <div id="km-personal-note"></div>
+            </div>
+        `;
+        const titleInput = contentInner.querySelector('.km-general-note-title-input');
+        titleInput.addEventListener('input', () => {
+            const listBtn = document.querySelector(`.notes-general-item[data-note-id="${CSS.escape(noteId)}"] span`);
+            if (listBtn) listBtn.textContent = titleInput.value || 'Untitled note';
+        });
+        renderPersonalNoteEditor(
+            contentInner.querySelector('#km-personal-note'),
+            contentInner.querySelector('.km-notes-template-btn'),
+            generalNoteStore(noteId),
+            titleInput
+        );
     }
 
     // Live, case-insensitive substring match against each lesson's own
@@ -13751,7 +13948,7 @@ SQIDAQAB
                 </div>
             </div>
         `;
-        renderPersonalNoteEditor(contentInner.querySelector('#km-personal-note'), contentInner.querySelector('.km-notes-template-btn'), node.nodeId);
+        renderPersonalNoteEditor(contentInner.querySelector('#km-personal-note'), contentInner.querySelector('.km-notes-template-btn'), nodeNoteStore(node.nodeId));
         renderKnowledgeDropdownItem(contentInner.querySelector('#km-kd-own'), `${node.label} — knowledge`, async () => {
             return await compileNodeNotesRequest(node.nodeId);
         }, renderNodeNoteBlock);
@@ -13786,26 +13983,41 @@ SQIDAQAB
         remember. None of these are compulsory every time — use what this idea needs.
     `;
 
-    // The student's own hand-written note for this node - separate from
-    // the AI-compiled "Knowledge & notes" panel below it, never touches
-    // the Claude API. Free text is the default; the template toggle
-    // (button lives in the page's own header row, not next to this
-    // editor, and nowhere near a maths-tool toolbar - there isn't one on
-    // this page) adds a question heading, guidance on how to structure
-    // the note, and a right-hand column of optional add-ons (diagram,
-    // contrast, real-world example - see PERSONAL_NOTE_GUIDANCE_HTML) on
-    // top of the same body text. The diagram add-on uses the exact same
-    // interactive diagram tool practice questions use (renderDiagramWidget),
-    // just wired to save rather than grade. A separate, always-available
-    // Quick Notes scratchpad floats bottom-right regardless of mode - see
-    // renderQuickNotesWidget - for jotting something down without losing
-    // your place in the note itself.
-    async function renderPersonalNoteEditor(container, templateBtn, nodeId) {
-        const existing = await fetchPersonalNoteRequest(nodeId);
+    // The student's own hand-written note - separate from the AI-compiled
+    // "Knowledge & notes" panel below it (when there is one - a general
+    // note has none), never touches the Claude API. Free text is the
+    // default; the template toggle (button lives in the page's own header
+    // row, not next to this editor, and nowhere near a maths-tool toolbar -
+    // there isn't one on this page) adds a question heading, guidance on
+    // how to structure the note, and a right-hand column of optional
+    // add-ons (diagram, contrast, real-world example - see
+    // PERSONAL_NOTE_GUIDANCE_HTML) on top of the same body text. The
+    // diagram add-on uses the exact same interactive diagram tool practice
+    // questions use (renderDiagramWidget), just wired to save rather than
+    // grade. A separate, always-available Quick Notes scratchpad floats
+    // bottom-right regardless of mode - see renderQuickNotesWidget - for
+    // jotting something down without losing your place in the note itself.
+    // `noteStore` ({fetch,save} - see nodeNoteStore/generalNoteStore above)
+    // is what actually lets this one editor serve both a lesson-scoped
+    // note and a free-standing one with no lesson at all. `titleInputEl`,
+    // when given (general notes only - a node already has its own label as
+    // the header), is wired to autosave alongside the rest of the note.
+    async function renderPersonalNoteEditor(container, templateBtn, noteStore, titleInputEl) {
+        const existing = await noteStore.fetch();
         let note = existing || { mode: 'freeText', heading: '', body: '', diagram: null, sections: {}, contrastText: '', exampleText: '', quickNotes: '' };
         note.sections = note.sections || {};
+        if (titleInputEl && !note.title) note.title = titleInputEl.value || '';
 
-        renderQuickNotesWidget(nodeId, note);
+        renderQuickNotesWidget(noteStore, note);
+
+        if (titleInputEl) {
+            let titleSaveTimer = null;
+            titleInputEl.addEventListener('input', () => {
+                note.title = titleInputEl.value;
+                clearTimeout(titleSaveTimer);
+                titleSaveTimer = setTimeout(() => noteStore.save(note), 700);
+            });
+        }
 
         function setSaveState(el, text) {
             el.textContent = text;
@@ -13868,7 +14080,7 @@ SQIDAQAB
                 setSaveState(saveStateEl, 'Saving…');
                 clearTimeout(saveTimer);
                 saveTimer = setTimeout(async () => {
-                    const ok = await savePersonalNoteRequest(nodeId, note);
+                    const ok = await noteStore.save(note);
                     setSaveState(saveStateEl, ok ? 'Saved' : 'Could not save — try again');
                 }, 700);
             }
@@ -13892,7 +14104,7 @@ SQIDAQAB
                     setSaveState(saveStateEl, 'Saving…');
                     clearTimeout(saveTimer);
                     saveTimer = setTimeout(async () => {
-                        const ok = await savePersonalNoteRequest(nodeId, note);
+                        const ok = await noteStore.save(note);
                         setSaveState(saveStateEl, ok ? 'Saved' : 'Could not save — try again');
                     }, 700);
                 });
@@ -13907,7 +14119,7 @@ SQIDAQAB
                     : undefined;
                 renderDiagramWidget(diagramHost, null, async (answer) => {
                     note.diagram = answer;
-                    const ok = await savePersonalNoteRequest(nodeId, note);
+                    const ok = await noteStore.save(note);
                     setSaveState(saveStateEl, ok ? 'Saved' : 'Could not save — try again');
                     return { correct: true, feedback: ok ? 'Diagram saved to your notes.' : 'Could not save — try again.' };
                 }, null, initialState);
@@ -13934,7 +14146,7 @@ SQIDAQAB
     // see the cleanup call in setSidebarTab/showNotesEmptyState for the
     // other side of that (removing it when leaving the Notes tab/node
     // entirely, since it lives outside #contentInner as a fixed overlay).
-    function renderQuickNotesWidget(nodeId, note) {
+    function renderQuickNotesWidget(noteStore, note) {
         const prev = document.getElementById('kmQuickNotesWidget');
         if (prev) prev.remove();
 
@@ -13966,7 +14178,7 @@ SQIDAQAB
             saveStateEl.textContent = 'Saving…';
             clearTimeout(saveTimer);
             saveTimer = setTimeout(async () => {
-                const ok = await savePersonalNoteRequest(nodeId, note);
+                const ok = await noteStore.save(note);
                 saveStateEl.textContent = ok ? 'Saved' : 'Could not save — try again';
                 if (ok) setTimeout(() => { if (saveStateEl.textContent === 'Saved') saveStateEl.textContent = ''; }, 1500);
             }, 700);
