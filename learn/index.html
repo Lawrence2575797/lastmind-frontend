@@ -14938,10 +14938,20 @@ SQIDAQAB
 
         // Directed adjacency in both directions, built once per render (not
         // per click) - highlightKmConnections walks these separately
-        // (predecessors unlimited depth, successors capped) rather than one
+        // (each capped at its own hop limit below) rather than one
         // undirected BFS, which used to highlight almost the entire subject
         // when clicking a highly-connected foundational concept (found
         // live: clicking "The economic problem" lit up nearly everything).
+        // Prerequisites were originally left uncapped on the (reasonable at
+        // the time) theory that "everything you need to know first" should
+        // always show in full - but that has the identical failure mode in
+        // the other direction for any subject with a genuine high-fan-in
+        // synthesis node: Maths's "Selecting/critiquing a sampling
+        // technique" has 42 direct prerequisites (legitimately - it draws
+        // on every sampling method's own advantages/disadvantages), and
+        // walking those 42 nodes' own ancestors too lit up 17% of the whole
+        // subject from one click. Capped the same way downstream already
+        // was, for the same reason.
         const predecessorAdjacency = new Map(nodes.map((n) => [n.id, []])); // prerequisites (edge.source)
         const successorAdjacency = new Map(nodes.map((n) => [n.id, []]));   // leads-to (edge.target)
         links.forEach((l) => {
@@ -14950,11 +14960,12 @@ SQIDAQAB
             if (predecessorAdjacency.has(tId)) predecessorAdjacency.get(tId).push(sId);
         });
         // Used by reachableFrom (see highlightKmConnections's own comment
-        // on why downstream is capped and prerequisites aren't). Declared
-        // here (not next to reachableFrom itself, further down) because
-        // the initial-focus zoom-in that runs right after mount already
-        // calls into reachableFrom before that point in the function body.
+        // above on why both directions are capped). Declared here (not next
+        // to reachableFrom itself, further down) because the initial-focus
+        // zoom-in that runs right after mount already calls into
+        // reachableFrom before that point in the function body.
         const DOWNSTREAM_HOP_LIMIT = 3;
+        const UPSTREAM_HOP_LIMIT = 3;
 
         const svg = d3.select(svgEl);
         svg.selectAll('*').remove();
@@ -15228,27 +15239,27 @@ SQIDAQAB
         // actual click (or the equivalent programmatic one from
         // renderSubjectGraphView's autoSelectNodeId / a "View" cross-
         // reference below).
-        // Asymmetric on purpose - "the ones linked from the following
-        // node, and so on until we reach an endpoint" for PREREQUISITES
-        // (unlimited depth: the full chain of "why do I need to know
-        // this" is genuinely useful and rarely explodes in size), but
-        // capped for what this concept LEADS TO (found live: a highly-
-        // connected foundational concept, e.g. "The economic problem",
-        // fanned out to nearly the entire subject within a few hops -
-        // beyond DOWNSTREAM_HOP_LIMIT hops ahead stops being a "focus" at
-        // all - see DOWNSTREAM_HOP_LIMIT's own declaration near the top of
-        // this function). The whole graph is unscoped now (see this
-        // function's own file-level comment), so even the capped
-        // downstream reach can still cross into other subtopics/themes
-        // before it stops.
+        // Both directions capped at their own hop limit now (found live: a
+        // highly-connected concept can explode the reach either way - "The
+        // economic problem" fans out to nearly the entire subject within a
+        // few hops downstream, and Maths's "Selecting/critiquing a
+        // sampling technique" has 42 direct prerequisites whose own
+        // ancestors kept climbing well past what's still a useful "focus" -
+        // see DOWNSTREAM_HOP_LIMIT/UPSTREAM_HOP_LIMIT's own declaration near
+        // the top of this function). The whole graph is unscoped now (see
+        // this function's own file-level comment), so even a capped reach
+        // can still cross into other subtopics/themes before it stops.
         function reachableFrom(startId) {
             const reached = new Set([startId]);
-            const upQueue = [startId];
-            while (upQueue.length) {
-                const id = upQueue.shift();
-                (predecessorAdjacency.get(id) || []).forEach((prereqId) => {
-                    if (!reached.has(prereqId)) { reached.add(prereqId); upQueue.push(prereqId); }
+            let upFrontier = [startId];
+            for (let hop = 0; hop < UPSTREAM_HOP_LIMIT && upFrontier.length; hop++) {
+                const next = [];
+                upFrontier.forEach((id) => {
+                    (predecessorAdjacency.get(id) || []).forEach((prereqId) => {
+                        if (!reached.has(prereqId)) { reached.add(prereqId); next.push(prereqId); }
+                    });
                 });
+                upFrontier = next;
             }
             let frontier = [startId];
             for (let hop = 0; hop < DOWNSTREAM_HOP_LIMIT && frontier.length; hop++) {
