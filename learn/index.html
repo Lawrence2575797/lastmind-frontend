@@ -747,9 +747,20 @@
         display: grid;
         grid-template-columns: 1.3fr 1fr;
         gap: 16px;
-        align-items: start;
+        align-items: stretch;
     }
     .km-note-columns.km-note-no-visual { grid-template-columns: 1fr; }
+    /* A visible line down the centre, separating the two sides of dual
+       coding (text vs. visual) - only when there's actually a visual to
+       separate from (km-note-no-visual has just the one column). Stretches
+       the text column's own border to the full row height rather than a
+       separately-positioned line, so it always matches whichever side is
+       taller regardless of content length. */
+    .km-note-columns:not(.km-note-no-visual) .km-note-text {
+        border-right: 1px solid rgba(230, 215, 176, 0.16);
+        padding-right: 16px;
+    }
+    .km-note-visual { align-self: start; }
     .km-note-text p { margin: 0 0 10px; font-size: 12.5px; line-height: 1.6; }
     .km-note-text p:last-child { margin-bottom: 0; }
     .km-note-visual {
@@ -966,6 +977,13 @@
     .km-fsrs-details-body p { margin: 0 0 8px; }
     .km-inline-detail-lesson { margin: 10px 0; }
     .km-inline-lesson-explanation { font-size: 12.5px; line-height: 1.6; margin-bottom: 10px; }
+    /* Model-written exponents/subscripts (see boldMarkdownToHtml's
+       mathNotationToHtml) - accent-coloured to match the math shortcut
+       editor's own sup/sub styling, wherever generated text renders. */
+    .km-inline-lesson-explanation sup, .km-inline-lesson-explanation sub,
+    .km-note-text sup, .km-note-text sub,
+    .km-note-example-text sup, .km-note-example-text sub,
+    .km-note-comparison-col sup, .km-note-comparison-col sub { color: var(--accent); font-weight: 500; }
     .km-inline-lesson-explanation p { margin: 0 0 10px; }
     .km-inline-lesson-explanation p:last-child { margin-bottom: 0; }
     .km-inline-lesson-explanation strong {
@@ -1053,6 +1071,7 @@
        particular node ended up with a compiled note in place. */
     .km-lesson-fullpage-body .km-note-question { font-size: 19px; margin-bottom: 14px; }
     .km-lesson-fullpage-body .km-note-columns { gap: 24px; }
+    .km-lesson-fullpage-body .km-note-columns:not(.km-note-no-visual) .km-note-text { padding-right: 24px; }
     .km-lesson-fullpage-body .km-note-text p { font-size: 15.5px; line-height: 1.9; margin: 0 0 16px; }
     .km-lesson-fullpage-body .km-note-text p:last-child { margin-bottom: 0; }
     .km-lesson-fullpage-body .km-note-visual { padding: 16px; top: 20px; }
@@ -5678,6 +5697,28 @@ SQIDAQAB
 
     const MATCH_THRESHOLD = 0.72;
 
+    // "+Other" custom folders are normally free-form (subject = whatever
+    // the student typed, verbatim) - but a handful have a real,
+    // pre-generated knowledge map already seeded server-side under one
+    // exact spelling (see the knowledge-map build memory - Italian was
+    // generated with subject='Italian' exactly). The backend's map lookup
+    // is an exact string match, so a student typing "italian"/"Italiano"/
+    // a small typo would otherwise silently land on an empty map. Snaps
+    // any close spelling/casing variant of one of these onto its exact
+    // canonical spelling - both for the backend lookup AND the folder's
+    // own displayed title, so the page is always titled "Italian"
+    // regardless of what was actually typed. A genuinely unrelated custom
+    // title scores far below MATCH_THRESHOLD and is left untouched.
+    const CANONICAL_CUSTOM_SUBJECTS = ['Italian'];
+    function canonicalizeCustomSubjectTitle(title) {
+        let best = null, bestScore = 0;
+        for (const canonical of CANONICAL_CUSTOM_SUBJECTS) {
+            const score = similarity(title, canonical);
+            if (score > bestScore) { bestScore = score; best = canonical; }
+        }
+        return bestScore >= MATCH_THRESHOLD ? best : title;
+    }
+
     // Undergraduate/postgraduate levels ask for institution + module code
     // instead of an exam board — GCSE/A-Level/AS Level are everything else
     // (and the app's overwhelmingly common case, so they sit at the top of
@@ -5946,14 +5987,34 @@ SQIDAQAB
         return paragraphs.filter(Boolean).map((p) => `<p>${boldMarkdownToHtml(p)}</p>`).join('');
     }
 
+    // The model writes exponents/subscripts as plain "^"/"_" (e.g. "x^2",
+    // "a_n") rather than any markup - real, reported bug: these rendered
+    // as literal caret/underscore characters instead of raised/lowered
+    // text. Same notation the math shortcut editor's own serializeNode
+    // produces (^(...)/_(...)  for a multi-character exponent, bare
+    // ^X/_X for a single character/digit) - converted here into real
+    // <sup>/<sub> tags for DISPLAY, the mirror image of that editor's own
+    // job. Runs on already-escaped HTML, so "(" ")" surviving escaping
+    // unchanged is what the parenthesized form matches against.
+    function mathNotationToHtml(html) {
+        return html
+            .replace(/\^\(([^()]+)\)/g, '<sup>$1</sup>')
+            .replace(/\^(-?[A-Za-z0-9]+)/g, '<sup>$1</sup>')
+            .replace(/_\(([^()]+)\)/g, '<sub>$1</sub>')
+            .replace(/_(-?[A-Za-z0-9]+)/g, '<sub>$1</sub>');
+    }
+
     // Escapes text first (neutralizing anything HTML-special in the
-    // model's raw output), THEN turns "**bold**" into <strong> — safe
+    // model's raw output), THEN turns "**bold**" into <strong> and
+    // "^"/"_" exponent/subscript notation into real <sup>/<sub> — safe
     // because escaping runs before any of our own trusted tags are
-    // introduced, and "**" itself has no HTML meaning to survive escaping.
-    // See NOTES_FROM_LESSON_PROMPT rule 1: this is the ONLY markup the
-    // notes generator is allowed to use.
+    // introduced, and none of "**"/"^"/"_"/"("/")" has HTML meaning to
+    // survive escaping. See NOTES_FROM_LESSON_PROMPT rule 1: bold is the
+    // only markUP the notes generator is asked for; math notation is
+    // handled separately here since it isn't markup the model is told to
+    // produce deliberately, just how it naturally writes maths.
     function boldMarkdownToHtml(text) {
-        return escapeHtml(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        return mathNotationToHtml(escapeHtml(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>'));
     }
 
     // Converts the plain-text notes returned by /encoding-lesson/generate-notes
@@ -11677,9 +11738,10 @@ SQIDAQAB
         }
     });
     document.getElementById('submitCustomFolderBtn').addEventListener('click', async () => {
-        const title = document.getElementById('customFolderTitleInput').value.trim();
+        const rawTitle = document.getElementById('customFolderTitleInput').value.trim();
         const description = document.getElementById('customFolderDescriptionInput').value.trim();
-        if (!title || !description) return;
+        if (!rawTitle || !description) return;
+        const title = canonicalizeCustomSubjectTitle(rawTitle);
         closeCustomFolderModal();
         await createFolder(title, CUSTOM_LEVEL, '', '', '', title, description);
     });
@@ -14225,18 +14287,22 @@ SQIDAQAB
     // ever read for a "workedExample" visual, to power the interactive
     // walkthrough below - every other visual type ignores it, and every
     // caller that has no worked example to show can omit it entirely.
-    function renderNodeNoteBlock(container, data, stepCheckFn) {
-        const hasVisual = data.visual && data.visual.type !== 'none';
-        container.innerHTML = `
-            <h4 class="km-note-question">${escapeHtml(data.heading)}</h4>
-            <div class="km-note-columns ${hasVisual ? '' : 'km-note-no-visual'}">
-                <div class="km-note-text">${(data.paragraphs || []).map((p) => `<p>${boldMarkdownToHtml(p)}</p>`).join('')}</div>
-                ${hasVisual ? '<div class="km-note-visual"></div>' : ''}
-            </div>
-        `;
-        if (!hasVisual) return;
-        const visualEl = container.querySelector('.km-note-visual');
-        const v = data.visual;
+    // A "workedExample" visual with no actual steps is a real, reported
+    // bug (a model occasionally sets the type but returns an empty/missing
+    // steps array) - shows the "Worked example" label with nothing under
+    // it. Treated the same as "none" rather than rendered empty.
+    function visualHasContent(visual) {
+        if (!visual || visual.type === 'none') return false;
+        if (visual.type === 'workedExample') return Array.isArray(visual.steps) && visual.steps.length > 0;
+        return true;
+    }
+
+    // Builds just the right-hand visual into an already-mounted
+    // `.km-note-visual` element - split out from renderNodeNoteBlock so
+    // renderNodeLessonExplanation can add a visual alongside text that's
+    // already on screen without regenerating/replacing that text (see its
+    // own comment on why the swap-in must never touch already-read text).
+    function renderNoteVisual(visualEl, v, stepCheckFn) {
         if (v.type === 'diagram') {
             visualEl.innerHTML = `<div class="km-note-visual-label">Diagram</div>`;
             const diagramHost = document.createElement('div');
@@ -14269,6 +14335,19 @@ SQIDAQAB
                 <div class="km-note-example-text">${boldMarkdownToHtml(v.text)}</div>
             `;
         }
+    }
+
+    function renderNodeNoteBlock(container, data, stepCheckFn) {
+        const hasVisual = visualHasContent(data.visual);
+        container.innerHTML = `
+            <h4 class="km-note-question">${escapeHtml(data.heading)}</h4>
+            <div class="km-note-columns ${hasVisual ? '' : 'km-note-no-visual'}">
+                <div class="km-note-text">${(data.paragraphs || []).map((p) => `<p>${boldMarkdownToHtml(p)}</p>`).join('')}</div>
+                ${hasVisual ? '<div class="km-note-visual"></div>' : ''}
+            </div>
+        `;
+        if (!hasVisual) return;
+        renderNoteVisual(container.querySelector('.km-note-visual'), data.visual, stepCheckFn);
     }
 
     // The interactive worked-example walkthrough: instead of just reading
@@ -15705,31 +15784,46 @@ SQIDAQAB
                 `;
             if (!nodeLesson || nodeLesson.notFound) return;
 
-            // The teaching itself now gets the same question-framed
-            // heading + dual-coding visual (worked example/diagram/
-            // comparison) the compiled Notes page uses, rather than only
-            // offering that treatment after the fact - cache-or-generate,
-            // so this costs nothing beyond the very first student to ever
-            // reach this node. Swaps in over the plain-paragraph
-            // explanation already on screen; if the compile call fails,
-            // that plain explanation is left in place rather than blocked
-            // on it, so a student is never left with nothing.
+            // The teaching itself can get a dual-coding visual (worked
+            // example/diagram/comparison/real-world example) alongside it,
+            // the same visual the compiled Notes page uses - cache-or-
+            // generate, so this costs nothing beyond the very first
+            // student to ever reach this node. This is necessarily async
+            // (a real compile/generation call), so it resolves a few
+            // seconds after the plain explanation is already on screen -
+            // a real, reported complaint was the explanation's own TEXT
+            // visibly changing out from under a student mid-read once this
+            // resolved (renderNodeNoteBlock's compiled paragraphs are a
+            // faithful but differently-worded restatement of the same
+            // explanation). Fixed by never touching the existing paragraph
+            // nodes at all: they're re-parented (moved, not recreated)
+            // into a new text column, and only the genuinely additive
+            // visual is added beside them. No visual to add (or the
+            // compile call fails) means the explanation is left completely
+            // untouched, exactly as first shown.
             const explanationEl = lessonEl.querySelector('#km-node-lesson-explanation');
             compileNodeNotesRequest(d.id).then((noteResult) => {
-                if (noteResult && explanationEl.isConnected) {
-                    renderNodeNoteBlock(explanationEl, noteResult, buildNodeStepChecker(d.id));
-                    // Re-parent (not recreate) the already-mounted practice
-                    // block into the dual-coding grid's own text column, so
-                    // the visual stays visible on the right while the
-                    // student answers instead of the question sitting
-                    // full-width below the whole grid - appendChild on an
-                    // already-attached node MOVES it, which preserves any
-                    // answer the student already started typing before this
-                    // (async) compile call resolved.
-                    const practiceBlock = lessonEl.querySelector('#km-node-practice-block');
-                    const textCol = explanationEl.querySelector('.km-note-text');
-                    if (practiceBlock && textCol) textCol.appendChild(practiceBlock);
-                }
+                if (!noteResult || !explanationEl.isConnected || !visualHasContent(noteResult.visual)) return;
+                const textCol = document.createElement('div');
+                textCol.className = 'km-note-text';
+                while (explanationEl.firstChild) textCol.appendChild(explanationEl.firstChild);
+                const visualEl = document.createElement('div');
+                visualEl.className = 'km-note-visual';
+                const columns = document.createElement('div');
+                columns.className = 'km-note-columns';
+                columns.appendChild(textCol);
+                columns.appendChild(visualEl);
+                explanationEl.appendChild(columns);
+                renderNoteVisual(visualEl, noteResult.visual, buildNodeStepChecker(d.id));
+                // Re-parent (not recreate) the already-mounted practice
+                // block into the new text column, so the visual stays
+                // visible on the right while the student answers instead
+                // of the question sitting full-width below the whole grid
+                // - appendChild on an already-attached node MOVES it,
+                // which preserves any answer the student already started
+                // typing before this (async) compile call resolved.
+                const practiceBlock = lessonEl.querySelector('#km-node-practice-block');
+                if (practiceBlock) textCol.appendChild(practiceBlock);
             });
 
             if (nodeLesson.practiceQuestion) {
