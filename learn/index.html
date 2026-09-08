@@ -5537,6 +5537,21 @@ SQIDAQAB
         root.setProperty('--ink', themeInkFor(theme.bgColor));
         document.body.style.background = theme.bgTexture === 'wood' ? themeWoodBackground(theme.bgColor) : theme.bgColor;
         try { localStorage.setItem(THEME_CACHE_KEY, JSON.stringify(theme)); } catch (e) {}
+
+        // The Cortex chat is what "the background" actually means to most
+        // students - it's the dominant visible surface on the default
+        // dashboard view, not the thin margin around it - so live preview
+        // has to reach the embedded iframe too, not just this shell.
+        // cortex/index.html applies its own copy of the same theme
+        // independently on its own load (for standalone use), plus
+        // listens for this message for instant reflection while both are
+        // already open. Looked up fresh each call, not cached - the
+        // iframe element itself gets recreated whenever renderWelcome()
+        // re-renders the dashboard view.
+        const cortexFrame = document.getElementById('cortexEmbedFrame');
+        if (cortexFrame && cortexFrame.contentWindow) {
+            try { cortexFrame.contentWindow.postMessage({ type: 'lm-theme-update', theme }, window.location.origin); } catch (e) {}
+        }
     }
 
     function syncThemePaletteInputs() {
@@ -5565,22 +5580,20 @@ SQIDAQAB
         }
     }
 
-    let saveThemeSettingsTimer = null;
-    function saveThemeSettings(theme) {
-        clearTimeout(saveThemeSettingsTimer);
-        saveThemeSettingsTimer = setTimeout(async () => {
-            try {
-                const { data: { session } } = await supabaseClient.auth.getSession();
-                if (!session) return;
-                await fetch(`${COMPILE_BACKEND_URL}/theme-settings`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-                    body: JSON.stringify(theme)
-                });
-            } catch (err) {
-                console.error('LastMind: failed to save theme settings.', err);
-            }
-        }, 600);
+    // Explicit save only - colour/texture changes still apply live via
+    // applyTheme (instant local preview + broadcast to the Cortex iframe),
+    // but nothing is sent to the server until Save is actually clicked.
+    // Closing the panel or navigating away first discards the preview
+    // back to whatever was last saved, same as any "must hit Save" UI.
+    async function saveThemeSettings(theme) {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) throw new Error('not signed in');
+        const resp = await fetch(`${COMPILE_BACKEND_URL}/theme-settings`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify(theme)
+        });
+        if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
     }
 
     function ensureThemePaletteUI() {
@@ -5601,11 +5614,12 @@ SQIDAQAB
             <div class="theme-palette-header"><span>Colours</span><button type="button" class="theme-palette-close-btn" aria-label="Close">✕</button></div>
             <div class="theme-palette-field"><span>Text</span><input type="color" id="themeTextColor"></div>
             <div class="theme-palette-field"><span>Sidebar</span><input type="color" id="themePanelColor"></div>
-            <div class="theme-palette-field"><span>Background</span><input type="color" id="themeBgColor"></div>
+            <div class="theme-palette-field"><span>Background (the Cortex chat)</span><input type="color" id="themeBgColor"></div>
             <div class="theme-texture-toggle">
                 <button type="button" class="theme-texture-btn" data-texture="plain">Plain</button>
                 <button type="button" class="theme-texture-btn" data-texture="wood">Wood panels</button>
             </div>
+            <button type="button" class="btn primary theme-palette-save-btn" id="themeSaveBtn">Save</button>
             <button type="button" class="theme-palette-reset-btn" id="themeResetBtn">Reset to default</button>
         `;
         document.body.appendChild(panel);
@@ -5613,17 +5627,38 @@ SQIDAQAB
         btn.addEventListener('click', () => { panel.hidden = !panel.hidden; });
         panel.querySelector('.theme-palette-close-btn').addEventListener('click', () => { panel.hidden = true; });
 
-        function updateAndSave() {
-            applyTheme(currentTheme);
-            saveThemeSettings(currentTheme);
-        }
-        document.getElementById('themeTextColor').addEventListener('input', (e) => { currentTheme.textColor = e.target.value; updateAndSave(); });
-        document.getElementById('themePanelColor').addEventListener('input', (e) => { currentTheme.panelColor = e.target.value; updateAndSave(); });
-        document.getElementById('themeBgColor').addEventListener('input', (e) => { currentTheme.bgColor = e.target.value; updateAndSave(); });
+        function preview() { applyTheme(currentTheme); }
+        document.getElementById('themeTextColor').addEventListener('input', (e) => { currentTheme.textColor = e.target.value; preview(); });
+        document.getElementById('themePanelColor').addEventListener('input', (e) => { currentTheme.panelColor = e.target.value; preview(); });
+        document.getElementById('themeBgColor').addEventListener('input', (e) => { currentTheme.bgColor = e.target.value; preview(); });
         panel.querySelectorAll('.theme-texture-btn').forEach((b) => {
-            b.addEventListener('click', () => { currentTheme.bgTexture = b.dataset.texture; syncThemePaletteInputs(); updateAndSave(); });
+            b.addEventListener('click', () => { currentTheme.bgTexture = b.dataset.texture; syncThemePaletteInputs(); preview(); });
         });
-        document.getElementById('themeResetBtn').addEventListener('click', () => { currentTheme = { ...THEME_DEFAULTS }; syncThemePaletteInputs(); updateAndSave(); });
+
+        const saveBtn = document.getElementById('themeSaveBtn');
+        saveBtn.addEventListener('click', async () => {
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving…';
+            try {
+                await saveThemeSettings(currentTheme);
+                saveBtn.textContent = 'Saved ✓';
+            } catch (err) {
+                console.error('LastMind: failed to save theme settings.', err);
+                saveBtn.textContent = "Couldn't save — retry";
+            } finally {
+                saveBtn.disabled = false;
+                setTimeout(() => { saveBtn.textContent = 'Save'; }, 1800);
+            }
+        });
+
+        // Reset is a decisive action, not a preview - applies AND saves
+        // immediately, unlike the colour/texture pickers above.
+        document.getElementById('themeResetBtn').addEventListener('click', () => {
+            currentTheme = { ...THEME_DEFAULTS };
+            syncThemePaletteInputs();
+            preview();
+            saveBtn.click();
+        });
 
         syncThemePaletteInputs();
     }

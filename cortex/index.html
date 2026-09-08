@@ -402,6 +402,85 @@ vw0E+SVdYHt5pSt2ifjQQkPUiYdZU1Ii99tBKG9G9pj8dF03aJlD0oWGQoQCIIky
 SQIDAQAB
 -----END PUBLIC KEY-----`;
 
+    /* ───────────────────────── Colour palette (read-only here) ─────────────────────────
+       The actual colour-picker UI lives in learn/index.html's own corner
+       icon - this page only ever CONSUMES the shared theme, two ways: (1)
+       fetches its own copy of /theme-settings on load, so it looks right
+       whether opened standalone or embedded before any message arrives,
+       and (2) listens for a live update posted by the parent dashboard
+       while a student is actively dragging a colour picker with this
+       chat visible in the embed - without this, "real time" preview would
+       only ever show the margins around this iframe, not the actual chat
+       surface most of the screen is showing. Same --text/--panel/--ink/
+       wood-background technique as learn/index.html's own applyTheme. */
+    function themeHexToRgb(hex) {
+        hex = (hex || '').replace('#', '');
+        if (hex.length === 3) hex = hex.split('').map((c) => c + c).join('');
+        const n = parseInt(hex, 16) || 0;
+        return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+    }
+    function themeInkFor(bgHex) {
+        const { r, g, b } = themeHexToRgb(bgHex);
+        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        return luminance > 0.55 ? '#2B2118' : '#F0E6D2';
+    }
+    function themeWoodBackground(baseHex) {
+        const base = themeHexToRgb(baseHex);
+        const light = `rgb(${Math.min(255, base.r + 26)},${Math.min(255, base.g + 22)},${Math.min(255, base.b + 14)})`;
+        const dark = `rgb(${Math.max(0, base.r - 30)},${Math.max(0, base.g - 26)},${Math.max(0, base.b - 18)})`;
+        const mid = `rgb(${base.r},${base.g},${base.b})`;
+        return `repeating-linear-gradient(90deg, rgba(0,0,0,0.14) 0px, rgba(0,0,0,0.14) 2px, transparent 2px, transparent 150px),` +
+            `repeating-linear-gradient(0.6deg, rgba(255,255,255,0.06) 0px, rgba(255,255,255,0.06) 1px, transparent 1px, transparent 4px),` +
+            `repeating-linear-gradient(-1.2deg, rgba(0,0,0,0.05) 0px, rgba(0,0,0,0.05) 1px, transparent 1px, transparent 6px),` +
+            `linear-gradient(100deg, ${light}, ${mid} 35%, ${light} 55%, ${dark} 85%, ${mid} 100%)`;
+    }
+    function applyTheme(theme) {
+        const root = document.documentElement.style;
+        root.setProperty('--text', theme.textColor);
+        root.setProperty('--accent', theme.textColor);
+        root.setProperty('--panel', theme.panelColor);
+        root.setProperty('--ink', themeInkFor(theme.bgColor));
+        document.body.style.background = theme.bgTexture === 'wood' ? themeWoodBackground(theme.bgColor) : theme.bgColor;
+    }
+    async function fetchThemeSettings() {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return null;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/theme-settings`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) return null;
+            return await resp.json();
+        } catch (err) {
+            console.error('LastMind Cortex: failed to load theme settings.', err);
+            return null;
+        }
+    }
+    async function initThemeFromServer() {
+        const saved = await fetchThemeSettings();
+        if (saved) applyTheme(saved);
+    }
+    // Live preview while embedded - the parent posts its current theme on
+    // every colour-picker input event (see learn/index.html's applyTheme).
+    // Origin-checked since this only ever makes sense from the dashboard
+    // that actually embeds this page, on the same origin.
+    window.addEventListener('message', (event) => {
+        if (event.origin !== window.location.origin) return;
+        if (!event.data || event.data.type !== 'lm-theme-update') return;
+        applyTheme(event.data.theme);
+    });
+    // Applied immediately with whatever's cached from the LAST time this
+    // page's own initThemeFromServer ran (localStorage, same key
+    // learn/index.html writes to, so a student who customised colours
+    // from the dashboard sees them here too on the very next load, before
+    // the network round-trip below even starts).
+    (function applyCachedThemeEarly() {
+        try {
+            const cached = localStorage.getItem('lm-theme-settings');
+            if (cached) applyTheme(JSON.parse(cached));
+        } catch (e) {}
+    })();
+
     /* ───────────────────────── IndexedDB (same DB as /learn) ───────────────────────── */
 
     if (navigator.storage && navigator.storage.persist) {
@@ -1867,6 +1946,10 @@ SQIDAQAB
         document.getElementById('gate-message').style.display = 'none';
         document.getElementById('app').style.display = 'flex';
         document.getElementById('chatInput').focus();
+
+        // Reconciles the fast local cache (already applied above, before
+        // login even resolved) against this account's real saved colours.
+        initThemeFromServer();
 
         // Iframed into learn/index.html's own dashboard (see
         // renderWelcome()) — hides this page's own back-link/title header,
