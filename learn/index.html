@@ -18365,30 +18365,35 @@ SQIDAQAB
     document.getElementById('adminQueueTopbarBtn').addEventListener('click', openAdminQueue);
     document.getElementById('aqCloseBtn').addEventListener('click', () => setAdminQueueFullscreen(false));
 
-    // Silent probe — shows the topbar entry only if this account is
-    // genuinely an admin (200), stays completely invisible otherwise
-    // (403). Also surfaces a live overdue count on the badge, same visual
-    // language as the ordinary tutoring badge.
+    // Peer tutoring pulled from the live site (see enterApp's own
+    // comment) - nothing can generate a new overdue request while it's
+    // hidden, so this used to be a live API call on every load and window
+    // focus, for every single user (not just the owner), just to decide
+    // whether to show a queue that could never have anything real in it.
+    // Original body (the real admin-only probe) left below in a comment
+    // for whenever peer tutoring comes back.
     async function checkAdminAccess() {
-        try {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) return;
-            const resp = await fetch(`${COMPILE_BACKEND_URL}/admin/overdue-requests`, {
-                headers: { Authorization: `Bearer ${session.access_token}` }
-            });
-            if (!resp.ok) return;
-            const requests = await resp.json();
-            document.getElementById('adminQueueTopbarBtn').style.display = '';
-            const badge = document.getElementById('aqBadge');
-            if (requests.length > 0) {
-                badge.textContent = requests.length > 9 ? '9+' : String(requests.length);
-                badge.style.display = 'flex';
-            } else {
-                badge.style.display = 'none';
-            }
-        } catch (err) {
-            console.error('LastMind: admin access check failed.', err);
-        }
+        document.getElementById('adminQueueTopbarBtn').style.display = 'none';
+        document.getElementById('aqBadge').style.display = 'none';
+        // try {
+        //     const { data: { session } } = await supabaseClient.auth.getSession();
+        //     if (!session) return;
+        //     const resp = await fetch(`${COMPILE_BACKEND_URL}/admin/overdue-requests`, {
+        //         headers: { Authorization: `Bearer ${session.access_token}` }
+        //     });
+        //     if (!resp.ok) return;
+        //     const requests = await resp.json();
+        //     document.getElementById('adminQueueTopbarBtn').style.display = '';
+        //     const badge = document.getElementById('aqBadge');
+        //     if (requests.length > 0) {
+        //         badge.textContent = requests.length > 9 ? '9+' : String(requests.length);
+        //         badge.style.display = 'flex';
+        //     } else {
+        //         badge.style.display = 'none';
+        //     }
+        // } catch (err) {
+        //     console.error('LastMind: admin access check failed.', err);
+        // }
     }
 
     checkAdminAccess();
