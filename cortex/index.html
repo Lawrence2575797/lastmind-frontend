@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex">
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-<meta name="theme-color" content="#1A1A1C">
+<meta name="theme-color" content="#D9C398">
 <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
@@ -21,13 +21,31 @@
         --panel: #201F21;
         --text: #E6D7B0;
         --accent: #E6D7B0;
+        /* Only for text sitting directly on the page's own birch
+           background below (body, #gate-message, the empty-state logo,
+           the back-link) - every chat bubble/input/button keeps using
+           --text/--bg/--accent completely unchanged, since none of those
+           variables' own values changed. --bg deliberately stays the old
+           dark tone: chat-msg-user/.chat-confirm-btn/#chatMicBtn.listening
+           all still rely on it as a flat colour, unrelated to the page's
+           own canvas. */
+        --ink: #2B2118;
     }
 
     html, body { height: 100%; }
 
     body {
-        background-color: var(--bg);
-        color: var(--text);
+        /* Birch-panel background - see learn/index.html's own body rule
+           for the identical technique/reasoning (procedural wood-grain
+           via layered CSS gradients, not an image). This embeds inside
+           the dashboard's own content area, so this IS the visible
+           "Cortex page" background the dashboard shows. */
+        background:
+            repeating-linear-gradient(90deg, rgba(0,0,0,0.14) 0px, rgba(0,0,0,0.14) 2px, transparent 2px, transparent 150px),
+            repeating-linear-gradient(0.6deg, rgba(255,255,255,0.06) 0px, rgba(255,255,255,0.06) 1px, transparent 1px, transparent 4px),
+            repeating-linear-gradient(-1.2deg, rgba(0,0,0,0.05) 0px, rgba(0,0,0,0.05) 1px, transparent 1px, transparent 6px),
+            linear-gradient(100deg, #F3D9A6, #D9C398 35%, #F3D9A6 55%, #BBA986 85%, #D9C398 100%);
+        color: var(--ink);
         font-family: 'Georgia', serif;
         display: flex;
         flex-direction: column;
@@ -41,7 +59,7 @@
         justify-content: center;
         height: 100vh;
         font-family: 'Arial', sans-serif;
-        color: var(--text);
+        color: var(--ink);
         opacity: 0.6;
         font-size: 0.9rem;
         letter-spacing: 0.04em;
@@ -65,10 +83,13 @@
     .cortex-back-link {
         font-family: 'Arial', sans-serif;
         font-size: 0.82rem;
-        color: var(--accent);
+        /* Sits transparently on the header, i.e. directly on body's own
+           birch background when this page isn't embedded (embedded mode
+           hides the whole header - see body.cortex-embed below). */
+        color: var(--ink);
         opacity: 0.75;
         text-decoration: none;
-        border: 1px solid rgba(230, 215, 176, 0.3);
+        border: 1px solid rgba(43, 33, 24, 0.3);
         border-radius: 4px;
         padding: 8px 14px;
         flex-shrink: 0;
@@ -121,10 +142,13 @@
         font-size: clamp(1.9rem, 5vw, 2.8rem);
         font-weight: 700;
         letter-spacing: -0.02em;
-        color: var(--text);
+        /* Sits directly on body's own birch background - --ink reads
+           clearly there, unlike the light gold --accent/--text this used
+           to pair with the old dark background. */
+        color: var(--ink);
     }
 
-    .chat-empty-logo span { color: var(--accent); }
+    .chat-empty-logo span { color: var(--ink); opacity: 0.6; }
 
     .chat-empty-quote {
         font-family: 'Georgia', serif;
@@ -173,6 +197,11 @@
     .chat-msg-assistant {
         align-self: flex-start;
         background: var(--panel);
+        /* Explicit, not left to inherit from body - body's own text
+           colour is now --ink (matching its birch background), which
+           would be illegible against this bubble's own dark panel
+           background if left to inherit instead. */
+        color: var(--text);
         border: 1px solid rgba(230, 215, 176, 0.15);
         border-bottom-left-radius: 3px;
         display: flex;
@@ -204,6 +233,8 @@
     .chat-confirm-card, .chat-answer-card {
         align-self: stretch;
         background: var(--panel);
+        /* Same explicit-not-inherited reasoning as .chat-msg-assistant. */
+        color: var(--text);
         border: 1px solid rgba(230, 215, 176, 0.25);
         border-radius: 10px;
         padding: 16px;
