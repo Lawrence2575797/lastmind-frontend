@@ -11486,9 +11486,10 @@ SQIDAQAB
     const PREMIUM_TOUR_STEPS = [
         ...TOUR_INTRO_STEPS,
         { selector: null, title: "You're on Premium", body: "Premium unlocks LastMind's personalised AI learning system — a diagnostics engine that finds the root cause of a misunderstanding, not just where you went wrong." },
-        { selector: null, title: 'Instant verification', body: 'Learning progress made inside LastMind is verified the moment it happens on Premium — no separate step, and it earns more Keys per unit of progress.' },
-        { selector: '#peerTutoringHubBtn', title: 'Tutoring', body: "Premium unlocks real tutoring. Request help here whenever you're stuck." },
-        { selector: '#locksChip', title: 'Booking a lesson with Locks', body: 'Click here to deposit Locks toward a lesson slot on a specific day — you get the deposit back the moment you complete it.' }
+        { selector: null, title: 'Instant verification', body: 'Learning progress made inside LastMind is verified the moment it happens on Premium — no separate step, and it earns more Keys per unit of progress.' }
+        // Used to end with a step pointing at the peer-tutoring booking
+        // flow (deposit Locks toward a lesson slot) - removed along with
+        // the feature itself (see enterApp's own comment on why).
     ];
 
     let tourSteps = [];
@@ -18239,26 +18240,14 @@ SQIDAQAB
     // and getNotificationCounts's own comment on why there's no "seen"
     // state. Checked on load and on window focus (e.g. tabbing back in
     // after being away), not polled continuously.
+    // Peer tutoring pulled from the live site (see enterApp's own
+    // comment) - its topbar entry point is permanently hidden now, so this
+    // used to be a live API call on every load/focus, for every paid
+    // user, updating a badge nobody can ever see. Short-circuited rather
+    // than deleted - the original body (a real GET /peer-tutoring/notifications
+    // call) is still exactly what re-enabling the feature would need back.
     async function refreshTutoringBadge() {
-        const badge = document.getElementById('mtBadge');
-        if (!isPaidUser) { badge.style.display = 'none'; return; }
-        try {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) { badge.style.display = 'none'; return; }
-            const resp = await fetch(`${COMPILE_BACKEND_URL}/peer-tutoring/notifications`, {
-                headers: { Authorization: `Bearer ${session.access_token}` }
-            });
-            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
-            const counts = await resp.json();
-            if (counts.total > 0) {
-                badge.textContent = counts.total > 9 ? '9+' : String(counts.total);
-                badge.style.display = 'flex';
-            } else {
-                badge.style.display = 'none';
-            }
-        } catch (err) {
-            console.error('LastMind: failed to load tutoring notification counts.', err);
-        }
+        document.getElementById('mtBadge').style.display = 'none';
     }
 
     refreshTutoringBadge();
@@ -19027,13 +19016,17 @@ SQIDAQAB
         // applyCachedThemeEarly) against this account's real saved colours.
         initThemePalette();
 
-        // Peer tutoring is Premium-only (the backend enforces this too, on
-        // every tutoring route — this just keeps a free account from ever
-        // seeing an entry point to something it'll get a 403 from). Progress
-        // (the knowledge map) and Calendar stay available either way.
-        document.getElementById('peerTutoringHubBtn').style.display = paid ? '' : 'none';
+        // Peer tutoring pulled from the live site entirely, both entry
+        // points (Peer Tutoring hub + My Tutoring) - real legal exposure
+        // (matching students with tutors, payment, safeguarding) with no
+        // way to actually work yet at current user numbers (no supply-side
+        // liquidity to match against). Backend routes/data untouched, only
+        // hidden here, so this is a UI toggle to re-enable later, not a
+        // rebuild - see the peer-tutoring project memory for the fuller
+        // feature plan this pauses.
+        document.getElementById('peerTutoringHubBtn').style.display = 'none';
+        document.getElementById('myTutoringTopbarBtn').style.display = 'none';
         document.getElementById('practiceQuestionsTopbarBtn').style.display = paid ? '' : 'none';
-        document.getElementById('myTutoringTopbarBtn').style.display = paid ? '' : 'none';
         document.getElementById('mathsToolTopbarBtn').style.display = paid ? '' : 'none';
         document.getElementById('upgradeTopbarBtn').style.display = paid ? 'none' : '';
         updateTopbarScrollHint();
