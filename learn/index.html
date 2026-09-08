@@ -3311,6 +3311,58 @@
         cursor: not-allowed;
     }
 
+    /* "Ask Cortex" floating corner widget, shown for the duration of a
+       knowledge-map lesson/review/verify session (see showKmAskPanel) -
+       lives outside the lesson content itself so its conversation
+       survives every sub-screen change underneath it. */
+    .km-ask-cortex-btn {
+        position: fixed; right: 22px; bottom: 22px; z-index: 500;
+        background: var(--accent); color: var(--bg); border: none; border-radius: 999px;
+        padding: 10px 18px; font-size: 13px; font-weight: 600; cursor: pointer;
+        font-family: Arial, sans-serif;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    }
+    .km-ask-cortex-btn[hidden] { display: none; }
+    .km-ask-cortex-panel {
+        position: fixed; right: 22px; bottom: 74px; z-index: 500;
+        width: 340px; max-width: calc(100vw - 44px); max-height: 480px;
+        display: flex; flex-direction: column;
+        background: var(--panel); border: 1px solid rgba(230, 215, 176, 0.2); border-radius: 10px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+        overflow: hidden;
+    }
+    .km-ask-cortex-panel[hidden] { display: none; }
+    .km-ask-cortex-header {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 10px 12px; font-weight: 700; font-size: 13px; color: var(--text);
+        border-bottom: 1px solid rgba(230, 215, 176, 0.14);
+    }
+    .km-ask-cortex-close-btn { background: none; border: none; color: var(--text); opacity: 0.6; cursor: pointer; font-size: 13px; }
+    .km-ask-cortex-close-btn:hover { opacity: 1; }
+    .km-ask-cortex-intro { padding: 8px 12px 0; font-size: 11.5px; }
+    .km-ask-cortex-history {
+        flex: 1; overflow-y: auto; padding: 10px 12px;
+        display: flex; flex-direction: column; gap: 8px;
+    }
+    .km-ask-cortex-entry-q {
+        align-self: flex-end; background: var(--accent); color: var(--bg);
+        padding: 7px 10px; border-radius: 8px; font-size: 12.5px; max-width: 85%;
+    }
+    .km-ask-cortex-entry-a {
+        align-self: flex-start; background: rgba(230, 215, 176, 0.07); color: var(--text);
+        padding: 7px 10px; border-radius: 8px; font-size: 12.5px; line-height: 1.5; max-width: 90%;
+    }
+    .km-ask-cortex-entry-a p { margin: 0 0 8px; }
+    .km-ask-cortex-entry-a p:last-child { margin-bottom: 0; }
+    .km-ask-cortex-entry-redirected { opacity: 0.8; font-style: italic; }
+    .km-ask-cortex-composer { display: flex; gap: 6px; padding: 10px 12px; border-top: 1px solid rgba(230, 215, 176, 0.14); }
+    .km-ask-cortex-input {
+        flex: 1; resize: none; background: var(--bg); color: var(--text);
+        border: 1px solid rgba(230, 215, 176, 0.2); border-radius: 6px;
+        font-size: 12.5px; padding: 6px 8px; font-family: Arial, sans-serif;
+    }
+    .km-ask-cortex-composer .btn { align-self: flex-end; }
+
     .unlock-notes-link {
         display: block;
         background: none;
@@ -13459,17 +13511,131 @@ SQIDAQAB
         btn.disabled = lessonInProgress;
         btn.title = lessonInProgress ? 'Finish or leave your current lesson first' : '';
     }
-    function showLessonFullpage(contentInner) {
+    function showLessonFullpage(contentInner, nodeId) {
         contentInner.querySelector('.km-inline-workspace').style.display = 'none';
         contentInner.querySelector('.km-lesson-fullpage').style.display = 'flex';
         lessonInProgress = true;
         updateMathsToolAvailability();
+        showKmAskPanel(nodeId);
     }
     function showKmWorkspace(contentInner) {
         contentInner.querySelector('.km-lesson-fullpage').style.display = 'none';
         contentInner.querySelector('.km-inline-workspace').style.display = 'grid';
         lessonInProgress = false;
         updateMathsToolAvailability();
+        hideKmAskPanel();
+    }
+
+    // "Ask Cortex" floating corner panel - a place for a genuine subject
+    // question without leaving the lesson, shown for the whole duration
+    // of a knowledge-map lesson/review/verify session (see
+    // showLessonFullpage/showKmWorkspace above, the only callers). Lives
+    // in its own persistent DOM node appended directly to <body>,
+    // independent of the lesson content itself - that gets torn down and
+    // rebuilt via innerHTML on every sub-screen change (explanation ->
+    // practice question -> finish, etc.), so a panel living inside it
+    // would lose its conversation on every one of those transitions.
+    let kmAskNodeId = null;
+    let kmAskPanelEl = null;
+
+    function ensureKmAskPanel() {
+        if (kmAskPanelEl) return kmAskPanelEl;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'km-ask-cortex-btn';
+        btn.hidden = true;
+        btn.textContent = '💬 Ask Cortex';
+        document.body.appendChild(btn);
+
+        const panel = document.createElement('div');
+        panel.className = 'km-ask-cortex-panel';
+        panel.hidden = true;
+        panel.innerHTML = `
+            <div class="km-ask-cortex-header">
+                <span>Ask Cortex</span>
+                <button type="button" class="km-ask-cortex-close-btn" aria-label="Close">✕</button>
+            </div>
+            <div class="km-ask-cortex-intro km-inline-detail-item km-inline-detail-none">Cortex can help with anything about this lesson's own subject - nothing else, here.</div>
+            <div class="km-ask-cortex-history"></div>
+            <div class="km-ask-cortex-composer">
+                <textarea class="km-ask-cortex-input" rows="2" placeholder="Ask a question…"></textarea>
+                <button type="button" class="btn primary km-ask-cortex-submit-btn">Ask</button>
+            </div>
+        `;
+        document.body.appendChild(panel);
+
+        btn.addEventListener('click', () => {
+            panel.hidden = !panel.hidden;
+            if (!panel.hidden) panel.querySelector('.km-ask-cortex-input').focus();
+        });
+        panel.querySelector('.km-ask-cortex-close-btn').addEventListener('click', () => { panel.hidden = true; });
+
+        const historyEl = panel.querySelector('.km-ask-cortex-history');
+        const input = panel.querySelector('.km-ask-cortex-input');
+        const submitBtn = panel.querySelector('.km-ask-cortex-submit-btn');
+
+        async function submit() {
+            const question = input.value.trim();
+            if (!question || !kmAskNodeId) return;
+            submitBtn.disabled = true;
+            const qEl = document.createElement('div');
+            qEl.className = 'km-ask-cortex-entry-q';
+            qEl.textContent = question;
+            historyEl.appendChild(qEl);
+            const aEl = document.createElement('div');
+            aEl.className = 'km-ask-cortex-entry-a km-inline-detail-item km-inline-detail-none';
+            aEl.textContent = 'Thinking…';
+            historyEl.appendChild(aEl);
+            historyEl.scrollTop = historyEl.scrollHeight;
+            input.value = '';
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (!session) throw new Error('not signed in');
+                const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/node/${encodeURIComponent(kmAskNodeId)}/ask`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                    body: JSON.stringify({ question }),
+                });
+                if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+                const result = await resp.json();
+                aEl.classList.remove('km-inline-detail-item', 'km-inline-detail-none');
+                aEl.innerHTML = notesTextToHtml(result.answer || '');
+                if (result.redirected) aEl.classList.add('km-ask-cortex-entry-redirected');
+            } catch (err) {
+                console.error('LastMind: Ask Cortex question failed.', err);
+                aEl.textContent = 'Something went wrong — try again.';
+            } finally {
+                submitBtn.disabled = false;
+                historyEl.scrollTop = historyEl.scrollHeight;
+            }
+        }
+        submitBtn.addEventListener('click', submit);
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
+        });
+
+        kmAskPanelEl = { btn, panel, historyEl };
+        return kmAskPanelEl;
+    }
+
+    function showKmAskPanel(nodeId) {
+        const { btn, panel, historyEl } = ensureKmAskPanel();
+        if (kmAskNodeId !== nodeId) {
+            // A genuinely different concept - start the conversation
+            // fresh rather than carrying over questions/answers about a
+            // different node's own content.
+            kmAskNodeId = nodeId;
+            historyEl.innerHTML = '';
+            panel.hidden = true;
+        }
+        btn.hidden = false;
+    }
+
+    function hideKmAskPanel() {
+        kmAskNodeId = null;
+        if (!kmAskPanelEl) return;
+        kmAskPanelEl.btn.hidden = true;
+        kmAskPanelEl.panel.hidden = true;
     }
 
     // Entry point — called from selectFolder(). Clones the <template>,
@@ -15627,7 +15793,7 @@ SQIDAQAB
             detailEl.querySelector('.km-inline-view-btn').addEventListener('click', () => zoomToNode(d));
             const verifyBtn = detailEl.querySelector('.km-inline-verify-btn');
             if (verifyBtn) verifyBtn.addEventListener('click', () => {
-                showLessonFullpage(contentInner);
+                showLessonFullpage(contentInner, d.id);
                 renderNodeVerifyContent(lessonFullpageBodyEl, d);
             });
             detailEl.querySelectorAll('.km-encode-first-btn').forEach((btn) => {
@@ -15662,7 +15828,7 @@ SQIDAQAB
             }
             if (ownEntry && !blockedByUnencodedLink && reviewDue) {
                 startBtn.addEventListener('click', () => {
-                    showLessonFullpage(contentInner);
+                    showLessonFullpage(contentInner, d.id);
                     resumeOrStartNodeReview(lessonFullpageBodyEl, d, qualifyingLinks);
                 });
             } else if (!ownEntry) {
@@ -15671,7 +15837,7 @@ SQIDAQAB
                     // starts — the graph/detail panel this button lives in
                     // stays exactly as it is underneath, ready for "← Back to
                     // map" to reveal again unchanged.
-                    showLessonFullpage(contentInner);
+                    showLessonFullpage(contentInner, d.id);
                     const lessonEl = lessonFullpageBodyEl;
                     showLoadingWithColdStartHint(lessonEl);
 
