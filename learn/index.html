@@ -11,7 +11,7 @@
 <meta name="robots" content="noindex">
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-<meta name="theme-color" content="#1A1A1C">
+<meta name="theme-color" content="#D9C398">
 <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
@@ -25,6 +25,17 @@
         --panel: #201F21;
         --text: #E6D7B0;
         --accent: #E6D7B0;
+        /* Only used for text sitting directly on the page's own birch
+           background below (body, #gate-message) - everywhere else (every
+           panel, button, badge, chip, chat bubble, inset control) keeps
+           using --text/--bg/--accent completely unchanged, since none of
+           those variables' own values changed at all. --bg deliberately
+           stays the old dark tone: it's still relied on as a flat colour
+           in ~40 places (accent-filled buttons/badges/active tabs using it
+           as their contrasting text colour, "sunken" insets against
+           --panel) that have nothing to do with the page's own canvas and
+           would look wrong if it changed. */
+        --ink: #2B2118;
     }
 
     button, input, textarea, select {
@@ -38,8 +49,19 @@
     }
 
     body {
-        background-color: var(--bg);
-        color: var(--text);
+        /* Birch-panel background - a procedural wood-grain texture (plank
+           seams + grain lines layered over a light/mid/dark sweep of one
+           base tone, #D9C398) rather than an image, so it stays crisp at
+           any size with no asset to load. Visible in the content area's
+           own padding/margins (see .content/.content-inner, both
+           deliberately transparent) and any fullscreen view that doesn't
+           paint its own background over it. */
+        background:
+            repeating-linear-gradient(90deg, rgba(0,0,0,0.14) 0px, rgba(0,0,0,0.14) 2px, transparent 2px, transparent 150px),
+            repeating-linear-gradient(0.6deg, rgba(255,255,255,0.06) 0px, rgba(255,255,255,0.06) 1px, transparent 1px, transparent 4px),
+            repeating-linear-gradient(-1.2deg, rgba(0,0,0,0.05) 0px, rgba(0,0,0,0.05) 1px, transparent 1px, transparent 6px),
+            linear-gradient(100deg, #F3D9A6, #D9C398 35%, #F3D9A6 55%, #BBA986 85%, #D9C398 100%);
+        color: var(--ink);
         font-family: 'Georgia', serif;
         overflow: hidden;
     }
@@ -50,7 +72,7 @@
         justify-content: center;
         height: 100vh;
         font-family: 'Arial', sans-serif;
-        color: var(--text);
+        color: var(--ink);
         opacity: 0.6;
         font-size: 0.9rem;
         letter-spacing: 0.04em;
@@ -71,6 +93,11 @@
         width: 280px;
         flex-shrink: 0;
         background: var(--panel);
+        /* Explicit, not left to inherit from body - body's own text
+           colour now matches its birch background (see --ink), which
+           would be illegible against this panel's own dark background if
+           anything inside here relied on inheriting it instead. */
+        color: var(--text);
         border-right: 1px solid rgba(230, 215, 176, 0.12);
         display: flex;
         flex-direction: column;
@@ -1431,9 +1458,14 @@
         font-family: 'Arial', sans-serif;
         font-size: 0.72rem;
         font-weight: 600;
-        background: rgba(230, 215, 176, 0.08);
-        border: 1px solid rgba(230, 215, 176, 0.3);
-        color: var(--accent);
+        /* Ink-tinted, not gold-tinted - this chip sits transparently on
+           the topbar, i.e. directly on body's own now-light birch
+           background, where a subtle DARK tint (and dark text) is the
+           legible choice, the mirror image of the old subtle-light-tint
+           on a dark background. */
+        background: rgba(43, 33, 24, 0.06);
+        border: 1px solid rgba(43, 33, 24, 0.3);
+        color: var(--ink);
         padding: 6px 10px;
         border-radius: 20px;
         cursor: pointer;
@@ -1442,8 +1474,8 @@
     }
 
     .credit-balance-chip:hover {
-        background: rgba(230, 215, 176, 0.16);
-        border-color: rgba(230, 215, 176, 0.5);
+        background: rgba(43, 33, 24, 0.12);
+        border-color: rgba(43, 33, 24, 0.5);
     }
 
     .credit-balance-view {
@@ -2840,8 +2872,12 @@
 
     .sidebar-toggle {
         background: none;
-        border: 1px solid rgba(230, 215, 176, 0.3);
-        color: var(--accent);
+        border: 1px solid rgba(43, 33, 24, 0.3);
+        /* Sits transparently on the topbar, i.e. directly on body's own
+           birch background - --ink, not --accent, is the readable choice
+           there (see body's own comment on why --accent stays unchanged
+           everywhere it's paired with an opaque/dark surface instead). */
+        color: var(--ink);
         width: 34px;
         height: 34px;
         border-radius: 4px;
@@ -2898,7 +2934,11 @@
         bottom: 0;
         align-items: center;
         padding-left: 28px;
-        background: linear-gradient(to right, transparent, var(--bg) 60%);
+        /* Fades to the topbar's own surrounding colour (body's birch
+           background), not --bg - --bg is the old flat dark tone, kept
+           for the many places that still need a literal flat colour
+           (see body's own comment), not what actually surrounds this. */
+        background: linear-gradient(to right, transparent, #D9C398 60%);
         pointer-events: none;
     }
 
@@ -2928,9 +2968,11 @@
         font-size: 0.74rem;
         font-weight: 600;
         letter-spacing: 0.02em;
-        background: rgba(230, 215, 176, 0.08);
-        border: 1px solid rgba(230, 215, 176, 0.35);
-        color: var(--accent);
+        /* Same ink-tinted-not-gold-tinted reasoning as .credit-balance-chip
+           above - sits transparently on the (now light) topbar. */
+        background: rgba(43, 33, 24, 0.06);
+        border: 1px solid rgba(43, 33, 24, 0.35);
+        color: var(--ink);
         padding: 8px 14px;
         border-radius: 6px;
         cursor: pointer;
@@ -2949,8 +2991,8 @@
     }
 
     .cortex-btn-topbar:hover {
-        background: rgba(230, 215, 176, 0.14);
-        border-color: rgba(230, 215, 176, 0.55);
+        background: rgba(43, 33, 24, 0.12);
+        border-color: rgba(43, 33, 24, 0.55);
     }
 
     #myTutoringTopbarBtn {
