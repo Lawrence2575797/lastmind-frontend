@@ -15673,6 +15673,122 @@ SQIDAQAB
             return times.length ? new Date(Math.min(...times)) : null;
         }
 
+        // Netflix-style "what's next", offered right after a lesson or
+        // review finishes. Priority order, exactly as decided: (1) any
+        // due review, anywhere in the subject - most overdue first, since
+        // spaced repetition only works if due items are actually seen
+        // near their due date, not whenever happens to be convenient: (2)
+        // otherwise, the just-finished concept's own downstream neighbour
+        // - but only once it's actually startable, walking backward
+        // through whichever unmet prerequisite is blocking it (however
+        // many steps that takes) rather than recommending something the
+        // student can't actually begin yet; (3) if this concept has
+        // nothing left to unlock (a dead end, or everything downstream is
+        // already encoded), falls back to the next not-yet-started
+        // concept anywhere in the subject's own teaching order. Returns
+        // null once genuinely nothing is left - nothing due, nothing new
+        // left to unlock.
+        function computeNextRecommendation(fromNodeId) {
+            const schedule = fullData.scheduleByConceptId || new Map();
+            function isNodeEncoded(nodeId) {
+                const n = nodeById.get(nodeId);
+                return !!n && schedule.has(n.conceptId);
+            }
+
+            let bestDue = null;
+            nodes.forEach((n) => {
+                if (!schedule.has(n.conceptId)) return;
+                const qualifyingLinks = (successorAdjacency.get(n.id) || [])
+                    .map((id) => nodeById.get(id))
+                    .filter((ln) => ln && schedule.has(ln.conceptId));
+                if (!isNodeReviewDue(n, qualifyingLinks, schedule)) return;
+                const due = nextNodeReviewDueDate(n, qualifyingLinks, schedule) || new Date(0);
+                if (!bestDue || due < bestDue.due) bestDue = { node: n, qualifyingLinks, due };
+            });
+            if (bestDue) return { type: 'review', node: bestDue.node, qualifyingLinks: bestDue.qualifyingLinks };
+
+            const visited = new Set();
+            function firstReadyUnencoded(nodeId) {
+                if (visited.has(nodeId)) return null;
+                visited.add(nodeId);
+                if (isNodeEncoded(nodeId)) return null;
+                const unmet = (predecessorAdjacency.get(nodeId) || []).filter((id) => !isNodeEncoded(id));
+                if (!unmet.length) return nodeId; // every prerequisite already encoded - ready right now
+                for (const id of unmet) {
+                    const found = firstReadyUnencoded(id);
+                    if (found) return found;
+                }
+                return null;
+            }
+
+            for (const id of successorAdjacency.get(fromNodeId) || []) {
+                const found = firstReadyUnencoded(id);
+                if (found) return { type: 'lesson', node: nodeById.get(found) };
+            }
+            for (const n of nodes) {
+                const found = firstReadyUnencoded(n.id);
+                if (found) return { type: 'lesson', node: nodeById.get(found) };
+            }
+            return null;
+        }
+
+        async function startNodeLesson(d, upstream) {
+            showLessonFullpage(contentInner, d.id);
+            const lessonEl = lessonFullpageBodyEl;
+            showLoadingWithColdStartHint(lessonEl);
+
+            // The prerequisite gate — see chainDiagnosticService.ts. Fail
+            // OPEN specifically on this check (a network hiccup here
+            // shouldn't trap a student who's actually earned direct
+            // access) but NOT on any step once a real diagnostic is under
+            // way, where silently bypassing a check that's already known
+            // to be required would defeat the whole point of it.
+            const gate = await postChainDiagnostic('/knowledge-map-v2/chain-diagnostic/start', {
+                targetNodeId: d.id,
+                subject: folder.subject || '',
+                qualification: folder.qualification || '',
+                examBoard: folder.examBoard || ''
+            });
+            if (!gate || !gate.requiresDiagnostic) {
+                await renderNodeLessonContent(lessonEl, d, upstream);
+                return;
+            }
+            renderChainDiagnosticAnswering(lessonEl, d, upstream, gate.state, gate.questionText);
+        }
+
+        function startNodeReview(d, qualifyingLinks) {
+            showLessonFullpage(contentInner, d.id);
+            resumeOrStartNodeReview(lessonFullpageBodyEl, d, qualifyingLinks);
+        }
+
+        function upstreamOf(nodeId) {
+            return fullData.edges.filter((e) => e.target === nodeId).map((e) => nodeById.get(e.source)).filter(Boolean);
+        }
+
+        // Shared by every lesson/review completion screen - a single
+        // "Next: X" action wired straight to computeNextRecommendation's
+        // pick, with an explicit lower-key way to just stop instead of
+        // being forced to keep going.
+        function renderNextRecommendationCta(container, fromNodeId, primaryLabel) {
+            const rec = computeNextRecommendation(fromNodeId);
+            if (!rec) {
+                container.innerHTML = `<div class="km-inline-detail-item km-inline-detail-none" style="margin-top:14px;">Nothing due, and nothing new left to unlock right now - you're caught up.</div><button type="button" class="btn primary km-finish-lesson-btn" style="margin-top:10px;">${escapeHtml(primaryLabel)}</button>`;
+            } else {
+                const reason = rec.type === 'review' ? 'Due for review' : 'Up next';
+                container.innerHTML = `
+                    <div style="margin-top:14px; display:flex; flex-direction:column; align-items:flex-start; gap:8px;">
+                        <button type="button" class="btn primary km-next-lesson-btn">${escapeHtml(reason)}: ${escapeHtml(rec.node.label)} →</button>
+                        <button type="button" class="btn km-finish-lesson-btn" style="opacity:0.7;">${escapeHtml(primaryLabel)}</button>
+                    </div>
+                `;
+                container.querySelector('.km-next-lesson-btn').addEventListener('click', () => {
+                    if (rec.type === 'review') startNodeReview(rec.node, rec.qualifyingLinks);
+                    else startNodeLesson(rec.node, upstreamOf(rec.node.id));
+                });
+            }
+            container.querySelector('.km-finish-lesson-btn').addEventListener('click', () => showKmWorkspace(contentInner));
+        }
+
         function selectKmInlineNode(d) {
             const nodeById = new Map(fullData.nodes.map((n) => [n.id, n]));
             const upstream = fullData.edges.filter((e) => e.target === d.id).map((e) => nodeById.get(e.source)).filter(Boolean);
@@ -15869,58 +15985,24 @@ SQIDAQAB
                 startBtn.title = nextDue ? `Not due yet — ${formatDueIn(nextDue)}` : 'Not due yet.';
             }
             if (ownEntry && !blockedByUnencodedLink && reviewDue) {
-                startBtn.addEventListener('click', () => {
-                    showLessonFullpage(contentInner, d.id);
-                    resumeOrStartNodeReview(lessonFullpageBodyEl, d, qualifyingLinks);
-                });
+                startBtn.addEventListener('click', () => startNodeReview(d, qualifyingLinks));
             } else if (!ownEntry) {
-                startBtn.addEventListener('click', async (e) => {
-                    // The lesson takes over the whole page the moment it
-                    // starts — the graph/detail panel this button lives in
-                    // stays exactly as it is underneath, ready for "← Back to
-                    // map" to reveal again unchanged.
-                    showLessonFullpage(contentInner, d.id);
-                    const lessonEl = lessonFullpageBodyEl;
-                    showLoadingWithColdStartHint(lessonEl);
-
-                    // The prerequisite gate — see chainDiagnosticService.ts.
-                    // Fail OPEN specifically on this check (a network hiccup
-                    // here shouldn't trap a student who's actually earned
-                    // direct access) but NOT on any step once a real
-                    // diagnostic is under way below, where silently bypassing
-                    // a check that's already known to be required would
-                    // defeat the whole point of it.
-                    const gate = await postChainDiagnostic('/knowledge-map-v2/chain-diagnostic/start', {
-                        targetNodeId: d.id,
-                        subject: folder.subject || '',
-                        qualification: folder.qualification || '',
-                        examBoard: folder.examBoard || ''
-                    });
-                    // No longer removed — the button lives in the graph panel,
-                    // now hidden behind the full-page lesson, and should still
-                    // work (just re-runs the same gate+render) if the student
-                    // comes back via "← Back to map" and starts it again.
-                    if (!gate || !gate.requiresDiagnostic) {
-                        await renderNodeLessonContent(lessonEl, d, upstream);
-                        return;
-                    }
-                    renderChainDiagnosticAnswering(lessonEl, d, upstream, gate.state, gate.questionText);
-                });
+                // The lesson takes over the whole page the moment it starts
+                // — the graph/detail panel this button lives in stays
+                // exactly as it is underneath, ready for "← Back to map" to
+                // reveal again unchanged. Re-runs the same gate+render if
+                // the student comes back and starts it again.
+                startBtn.addEventListener('click', () => startNodeLesson(d, upstream));
             }
         }
 
         // A clear, explicit "you're done" action once a lesson genuinely
-        // completes. Before this, the only way back to the map was the
-        // "← Back to map" link in the fullpage's own persistent header -
-        // present the whole time, including mid-lesson, so it never
-        // signalled "there's nothing left to do here" the way reviews'
-        // own dedicated completion screen already does (see
-        // renderNodeReviewSummary's km-review-back-btn). Same underlying
-        // action (showKmWorkspace), just surfaced at the actual moment of
-        // completion rather than left to a generic exit link.
-        function renderFinishLessonCta(container) {
-            container.innerHTML = `<button type="button" class="btn primary km-finish-lesson-btn" style="margin-top:14px;">Finish lesson</button>`;
-            container.querySelector('.km-finish-lesson-btn').addEventListener('click', () => showKmWorkspace(contentInner));
+        // completes, offering the next recommended thing (see
+        // renderNextRecommendationCta) rather than leaving the student to
+        // find their own way back via the fullpage header's generic
+        // "← Back to map" link.
+        function renderFinishLessonCta(container, d) {
+            renderNextRecommendationCta(container, d.id, 'Finish lesson');
         }
 
         function renderNodeLessonExplanation(lessonEl, d, upstream, nodeLesson) {
@@ -16015,7 +16097,7 @@ SQIDAQAB
                         updateNodeMasteryState(d, result.schedule);
                     }
                     if (result && result.correct && !result.retryable) {
-                        renderFinishLessonCta(finishCtaEl);
+                        renderFinishLessonCta(finishCtaEl, d);
                     }
                     return result;
                 };
@@ -16024,7 +16106,7 @@ SQIDAQAB
             } else {
                 // No practice question at all - viewing the explanation IS
                 // the whole lesson, so the finish offer shows immediately.
-                renderFinishLessonCta(lessonEl.querySelector('#km-node-finish-cta'));
+                renderFinishLessonCta(lessonEl.querySelector('#km-node-finish-cta'), d);
             }
         }
 
@@ -16457,10 +16539,10 @@ SQIDAQAB
                     <div class="km-inline-detail-item">"${escapeHtml(d.label)}" — recall check done.</div>
                     ${rows}
                     ${keysEarnedHtml(totalKeys)}
-                    <button type="button" class="btn primary km-review-back-btn" style="margin-top:10px;">Back to map</button>
+                    <div id="km-review-next-cta"></div>
                 </div>
             `;
-            lessonEl.querySelector('.km-review-back-btn').addEventListener('click', () => showKmWorkspace(contentInner));
+            renderNextRecommendationCta(lessonEl.querySelector('#km-review-next-cta'), d.id, 'Back to map');
         }
 
         // "Verify" — the Premium test-out shortcut (see the backend's
