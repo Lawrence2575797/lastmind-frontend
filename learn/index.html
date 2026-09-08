@@ -427,7 +427,20 @@
         z-index: 150;
         width: 100vw;
         height: 100vh;
-        background: var(--bg);
+        /* var(--panel)+var(--text), not var(--bg) - every fullscreen
+           overlay in this file used var(--bg) (a fixed dark neutral,
+           unrelated to the birch/theme picker) as its surface while still
+           inheriting var(--ink) from body for its text. --ink is computed
+           to contrast against the user's CHOSEN (often light) background,
+           so pairing it with this fixed dark var(--bg) instead produces
+           dark-on-dark, invisible text, whenever the user's own
+           background happens to be light - the mirror image of the
+           cream-on-birch bug, same root cause. var(--panel)/var(--text)
+           is the one pairing in this app that's never theme-dependent.
+           See every other `.fullscreen`/`-view` rule below for the same
+           fix. */
+        background: var(--panel);
+        color: var(--text);
         padding: 32px clamp(16px, 8vw, 120px);
     }
 
@@ -483,7 +496,11 @@
         z-index: 150;
         width: 100vw;
         height: 100vh;
-        background: var(--bg);
+        /* var(--panel)+var(--text) - see .sidebar-calendar.fullscreen's
+           own comment on why var(--bg)+inherited var(--ink) goes
+           dark-on-dark once the user's chosen background is light. */
+        background: var(--panel);
+        color: var(--text);
         flex-direction: column;
     }
 
@@ -1371,7 +1388,11 @@
         z-index: 150;
         width: 100vw;
         height: 100vh;
-        background: var(--bg);
+        /* var(--panel)+var(--text) - see .sidebar-calendar.fullscreen's
+           own comment on why var(--bg)+inherited var(--ink) goes
+           dark-on-dark once the user's chosen background is light. */
+        background: var(--panel);
+        color: var(--text);
         flex-direction: column;
     }
 
@@ -1492,7 +1513,11 @@
         z-index: 150;
         width: 100vw;
         height: 100vh;
-        background: var(--bg);
+        /* var(--panel)+var(--text) - see .sidebar-calendar.fullscreen's
+           own comment on why var(--bg)+inherited var(--ink) goes
+           dark-on-dark once the user's chosen background is light. */
+        background: var(--panel);
+        color: var(--text);
         flex-direction: column;
     }
 
@@ -1851,7 +1876,11 @@
         z-index: 150;
         width: 100vw;
         height: 100vh;
-        background: var(--bg);
+        /* var(--panel)+var(--text) - see .sidebar-calendar.fullscreen's
+           own comment on why var(--bg)+inherited var(--ink) goes
+           dark-on-dark once the user's chosen background is light. */
+        background: var(--panel);
+        color: var(--text);
         flex-direction: column;
     }
 
@@ -2043,7 +2072,11 @@
         z-index: 150;
         width: 100vw;
         height: 100vh;
-        background: var(--bg);
+        /* var(--panel)+var(--text) - see .sidebar-calendar.fullscreen's
+           own comment on why var(--bg)+inherited var(--ink) goes
+           dark-on-dark once the user's chosen background is light. */
+        background: var(--panel);
+        color: var(--text);
         flex-direction: column;
     }
 
@@ -2182,7 +2215,11 @@
         z-index: 150;
         width: 100vw;
         height: 100vh;
-        background: var(--bg);
+        /* var(--panel)+var(--text) - see .sidebar-calendar.fullscreen's
+           own comment on why var(--bg)+inherited var(--ink) goes
+           dark-on-dark once the user's chosen background is light. */
+        background: var(--panel);
+        color: var(--text);
         flex-direction: column;
     }
 
