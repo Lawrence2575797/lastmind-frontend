@@ -11242,14 +11242,29 @@ SQIDAQAB
                         });
                     }
 
+                    const reviewBtn = document.querySelector(`.review-concept-btn[data-concept="${CSS.escape(concept)}"]`);
+
                     if (!entry) {
                         badge.textContent = 'Not yet scheduled';
                         badge.disabled = true;
                         return;
                     }
                     badge.textContent = formatDueIn(entry.due);
+                    const notDueYet = daysBetweenLocalDays(new Date(), new Date(entry.due)) > 0;
                     badge.classList.toggle('overdue', daysBetweenLocalDays(new Date(), new Date(entry.due)) < 0);
                     badge.addEventListener('click', () => jumpCalendarToDate(entry.due));
+
+                    // Same lock the knowledge-map panel's own "Start
+                    // review" button already has (isNodeReviewDue) —
+                    // this list previously had no client-side gate at
+                    // all, letting a click straight through to
+                    // /chain-lesson/start for a concept scheduled days
+                    // out (the backend now refuses it either way, but the
+                    // button itself should read as locked, not error).
+                    if (reviewBtn && notDueYet) {
+                        reviewBtn.disabled = true;
+                        reviewBtn.title = `Not due yet — ${formatDueIn(entry.due)}`;
+                    }
                 });
             })();
         }
