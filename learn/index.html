@@ -4469,7 +4469,14 @@
 
     .tour-tooltip {
         position: fixed;
-        background: var(--bg);
+        /* var(--panel), not var(--bg) - this is a floating card, same
+           surface convention as every other card/box in the app (see
+           .km-inline-detail etc.), not the page's own birch background -
+           var(--bg) is a stale flat fallback that no longer reflects
+           what a "surface" actually looks like now the palette is
+           user-customizable. */
+        background: var(--panel);
+        color: var(--text);
         border: 1px solid var(--accent);
         border-radius: 8px;
         padding: 18px 20px;
@@ -11530,7 +11537,8 @@ SQIDAQAB
     const TOUR_INTRO_STEPS = [
         { selector: '#createFolderBtn', title: 'Start with a subject', body: "This is where a subject lives. Create one for each subject you're studying — LastMind builds lessons inside it." },
         { selector: null, title: 'How a lesson works', body: 'The first time you meet a concept, you actually learn it — not just get quizzed on it. After that, spaced repetition brings it back at increasing intervals so it actually sticks.' },
-        { selector: '#cortexTabBtn', title: 'Let Cortex set it up for you', body: "Don't want to build the subject structure by hand? Switch to Cortex and describe what you're studying — it can create subjects and pages for you." }
+        { selector: '#cortexTabBtn', title: 'Let Cortex set it up for you', body: "Don't want to build the subject structure by hand? Switch to Cortex and describe what you're studying — it can create subjects and pages for you." },
+        { selector: '#themePaletteBtn', title: 'Make it yours', body: 'Not keen on the birch and burgundy? Click here any time to change the text, sidebar and background colours — free on every plan.' }
     ];
 
     const FREE_TOUR_STEPS = [
