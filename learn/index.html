@@ -7542,6 +7542,15 @@ SQIDAQAB
         }
     }
 
+    // Language-learning subjects need their spoken content played/recorded
+    // in the language being learned, not the browser's own locale -
+    // resolved once here rather than wherever a listening/speaking
+    // question happens to be rendered. Any subject not listed here (every
+    // non-language subject today) falls back to navigator.language,
+    // unchanged from before this map existed.
+    const SUBJECT_LOCALES = { Italian: 'it-IT' };
+    function localeForSubject(subject) { return SUBJECT_LOCALES[subject] || null; }
+
     // getVoices() often returns an empty list on the very first call, until
     // the browser finishes loading them asynchronously — this waits for
     // that instead of silently falling back to the default voice.
@@ -7564,22 +7573,30 @@ SQIDAQAB
     // the browser's language where possible; fall back to any English
     // voice, then to whatever's available, rather than forcing a voice
     // that doesn't exist on this device.
-    function pickBestVoice(voices) {
+    function pickBestVoice(voices, locale) {
         if (!voices || !voices.length) return null;
 
-        const langPrefix = (navigator.language || 'en-US').slice(0, 2).toLowerCase();
+        const langPrefix = (locale || navigator.language || 'en-US').slice(0, 2).toLowerCase();
         const googleVoices = voices.filter((v) => v.name.includes('Google'));
 
         if (googleVoices.length) {
             const langMatch = googleVoices.find((v) => v.lang.toLowerCase().startsWith(langPrefix));
-            return langMatch || googleVoices[0];
+            if (langMatch) return langMatch;
+            if (!locale) return googleVoices[0];
         }
+
+        const langVoice = voices.find((v) => v.lang.toLowerCase().startsWith(langPrefix));
+        if (langVoice) return langVoice;
+        if (locale) return null; // don't silently speak the wrong language when a specific locale was requested
 
         const enVoice = voices.find((v) => v.lang.toLowerCase().startsWith('en'));
         return enVoice || voices[0];
     }
 
-    async function speakText(text) {
+    // `locale` (e.g. 'it-IT') overrides navigator.language — used for
+    // language-subject listening questions, where the phrase must be
+    // spoken in the language being learned, not the browser's own locale.
+    async function speakText(text, locale) {
         if (!window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') {
             console.warn('LastMind: on-device text-to-speech is not supported in this browser.');
             return null;
@@ -7591,10 +7608,10 @@ SQIDAQAB
         if (!trimmed) return null;
 
         const utterance = new SpeechSynthesisUtterance(trimmed);
-        utterance.lang = navigator.language || 'en-US';
+        utterance.lang = locale || navigator.language || 'en-US';
 
         const voices = await loadVoices();
-        const bestVoice = pickBestVoice(voices);
+        const bestVoice = pickBestVoice(voices, locale);
         if (bestVoice) {
             utterance.voice = bestVoice;
             utterance.lang = bestVoice.lang;
@@ -15744,7 +15761,7 @@ SQIDAQAB
                     return result;
                 };
                 if (nodeLesson.practiceQuestion.diagramSpec) renderDiagramWidget(el, null, submit);
-                else renderTextQuestionWidget(el, nodeLesson.practiceQuestion.questionText, submit);
+                else renderTextQuestionWidget(el, nodeLesson.practiceQuestion, submit);
             } else {
                 // No practice question at all - viewing the explanation IS
                 // the whole lesson, so the finish offer shows immediately.
@@ -15826,7 +15843,7 @@ SQIDAQAB
                 lessonEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">No lesson generated for this concept yet.</div>';
                 return;
             }
-            renderNodeReviewAo1(lessonEl, d, qualifyingLinks, question.questionText);
+            renderNodeReviewAo1(lessonEl, d, qualifyingLinks, question.questionText, false, '', question.modality || null, question.audioText || null);
         }
 
         // Every node-review submit route returns the same { correct,
@@ -15896,7 +15913,7 @@ SQIDAQAB
         // free-text retry (renderNodeReviewAo1) with the feedback shown
         // as a hint; only a genuinely correct answer here finalizes
         // anything.
-        function renderNodeReviewAo1SlipCheck(lessonEl, d, qualifyingLinks, questionText, originalAnswer, result) {
+        function renderNodeReviewAo1SlipCheck(lessonEl, d, qualifyingLinks, questionText, originalAnswer, result, modality, audioText) {
             const wrongPhrase = result.wrongPhrase;
             lessonEl.innerHTML = `
                 <div class="km-inline-detail-section">
@@ -15928,7 +15945,7 @@ SQIDAQAB
                     return renderNodeReviewSubmitError(lessonEl);
                 }
                 if (!finalResult.correct) {
-                    renderNodeReviewAo1(lessonEl, d, qualifyingLinks, questionText, true, finalResult.feedback || '');
+                    renderNodeReviewAo1(lessonEl, d, qualifyingLinks, questionText, true, finalResult.feedback || '', modality, audioText);
                     return;
                 }
                 lessonEl.querySelectorAll('.km-slip-correct-submit-btn, .km-slip-decline-btn').forEach((el) => el.remove());
@@ -15954,29 +15971,57 @@ SQIDAQAB
         // that state across the loop; the SAME reworded question is reused
         // on every retry rather than generating a new one, so retrying
         // costs nothing extra.
-        function renderNodeReviewAo1(lessonEl, d, qualifyingLinks, questionText, hadRetry = false, retryFeedback = '') {
+        function renderNodeReviewAo1(lessonEl, d, qualifyingLinks, questionText, hadRetry = false, retryFeedback = '', modality, audioText) {
             const draftKey = `node-review-ao1:${d.id}`;
+            const locale = localeForSubject(folder.subject);
+            const useSpeechEditor = modality === 'speaking';
             lessonEl.innerHTML = `
                 <div class="km-inline-detail-section">
                     <div class="km-inline-detail-eyebrow">Review${d.subtopic ? ` — ${escapeHtml(d.subtopic)}` : ''}</div>
                     <div class="km-inline-detail-label">${escapeHtml(d.label)}</div>
                     <h4 class="km-inline-lesson-question">Recall check</h4>
+                    ${modality === 'listening' && audioText ? '<div id="km-ao1-audio-prompt"></div>' : ''}
                     <div class="km-inline-lesson-question">${escapeHtml(questionText)}</div>
                     ${retryFeedback ? `<div class="km-inline-detail-item km-inline-detail-none" style="margin-top:6px;">${escapeHtml(retryFeedback)}</div>` : ''}
-                    <textarea class="km-diag-answer-input" rows="5" placeholder="Write your answer here…" style="${DIAG_TEXTAREA_STYLE}"></textarea>
+                    ${useSpeechEditor ? '<div id="km-ao1-answer-input"></div>' : `<textarea class="km-diag-answer-input" rows="5" placeholder="Write your answer here…" style="${DIAG_TEXTAREA_STYLE}"></textarea>`}
                     <button type="button" class="btn primary km-diag-submit-btn" style="margin-top:10px;">Submit</button>
                 </div>
             `;
-            const textarea = lessonEl.querySelector('.km-diag-answer-input');
-            const guard = guardAnswerInput(textarea);
+            const audioPromptEl = lessonEl.querySelector('#km-ao1-audio-prompt');
+            if (audioPromptEl) renderAudioPrompt(audioPromptEl, audioText, locale);
+
+            // Same underlying textarea as before for every non-speaking
+            // modality (writing/reading/listening all still type their
+            // answer) — only "speaking" swaps in the recording widget, so
+            // this stays a single generic getAnswer/isEmpty/trust surface
+            // rather than branching every line below.
+            let getAnswer, isEmptyAnswer, hasTrustedInput, markTrusted, inputEl;
+            if (useSpeechEditor) {
+                const editor = createSpeechAnswerEditor('Press record and speak your answer…', locale);
+                lessonEl.querySelector('#km-ao1-answer-input').appendChild(editor.container);
+                inputEl = editor.container.querySelector('.math-shortcut-editor');
+                getAnswer = editor.getValue; isEmptyAnswer = editor.isEmpty;
+                hasTrustedInput = editor.hasTrustedInput; markTrusted = editor.markTrusted;
+            } else {
+                const textarea = lessonEl.querySelector('.km-diag-answer-input');
+                const guard = guardAnswerInput(textarea);
+                inputEl = textarea;
+                getAnswer = () => textarea.value.trim();
+                isEmptyAnswer = () => !textarea.value.trim();
+                hasTrustedInput = guard.hasTrustedInput; markTrusted = guard.markTrusted;
+            }
+
             const restored = loadAnswerDraft(draftKey);
-            if (restored) { textarea.value = restored; guard.markTrusted(); }
-            textarea.addEventListener('input', () => saveAnswerDraft(draftKey, textarea.value));
+            if (restored && isEmptyAnswer()) {
+                if (inputEl.tagName === 'TEXTAREA') inputEl.value = restored; else inputEl.textContent = restored;
+                markTrusted();
+            }
+            inputEl.addEventListener('input', () => saveAnswerDraft(draftKey, getAnswer()));
 
             lessonEl.querySelector('.km-diag-submit-btn').addEventListener('click', async (ev) => {
-                const answer = textarea.value.trim();
+                const answer = getAnswer();
                 if (!answer) return;
-                if (!guard.hasTrustedInput()) { showPasteBlockWarning(textarea); return; }
+                if (!hasTrustedInput()) { showPasteBlockWarning(inputEl); return; }
                 ev.target.disabled = true;
                 ev.target.textContent = 'Checking…';
                 const result = await postChainDiagnostic('/knowledge-map-v2/node-review/ao1/submit', { nodeId: d.id, questionText, answer, hadRetry });
@@ -15987,11 +16032,11 @@ SQIDAQAB
                 }
                 clearAnswerDraft(draftKey);
                 if (result.isSlipCandidate) {
-                    renderNodeReviewAo1SlipCheck(lessonEl, d, qualifyingLinks, questionText, answer, result);
+                    renderNodeReviewAo1SlipCheck(lessonEl, d, qualifyingLinks, questionText, answer, result, modality, audioText);
                     return;
                 }
                 if (!result.correct) {
-                    renderNodeReviewAo1(lessonEl, d, qualifyingLinks, questionText, true, result.feedback || '');
+                    renderNodeReviewAo1(lessonEl, d, qualifyingLinks, questionText, true, result.feedback || '', modality, audioText);
                     return;
                 }
                 ev.target.remove();
@@ -16026,7 +16071,7 @@ SQIDAQAB
                 renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, index + 1, resultsSoFar);
                 return;
             }
-            renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, question.questionText, question.linkTeaching || null, question.answerInputType || null, question.notes || null, false, '');
+            renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, question.questionText, question.linkTeaching || null, question.answerInputType || null, question.notes || null, false, '', question.modality || null, question.audioText || null);
         }
 
         // The link-level review, one combined step per qualifying link —
@@ -16042,14 +16087,16 @@ SQIDAQAB
         // student - a wrong answer just retries in place with the grading
         // call's own feedback shown as a hint, same contract AO1's
         // slip-check already has.
-        function renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, questionText, linkTeaching, answerInputType, notes, hadRetry, retryFeedback) {
+        function renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, questionText, linkTeaching, answerInputType, notes, hadRetry, retryFeedback, modality, audioText) {
             const link = qualifyingLinks[index];
             saveNodeReviewCheckpoint(d.id, { linkToNodeId: link.id, stage: 'integration', resultsSoFar });
             const draftKey = `node-review-integration:${d.id}:${link.id}`;
+            const locale = localeForSubject(folder.subject);
 
             const questionBlockHtml = `
                 <div id="km-integration-question-block">
                     <h4 class="km-inline-lesson-question">Integration</h4>
+                    ${modality === 'listening' && audioText ? '<div id="km-integration-audio-prompt"></div>' : ''}
                     <div class="km-inline-lesson-question">${escapeHtml(questionText)}</div>
                     ${retryFeedback ? `<div class="km-inline-detail-item km-inline-detail-none" style="margin-top:6px;">${escapeHtml(retryFeedback)}</div>` : ''}
                     <div id="km-integration-answer-input"></div>
@@ -16082,11 +16129,16 @@ SQIDAQAB
                 textCol.insertAdjacentHTML('beforeend', questionBlockHtml);
             }
 
+            const audioPromptEl = lessonEl.querySelector('#km-integration-audio-prompt');
+            if (audioPromptEl) renderAudioPrompt(audioPromptEl, audioText, locale);
+
             const answerInputHost = lessonEl.querySelector('#km-integration-answer-input');
             const useMathEditor = answerInputType ? answerInputType === 'math' : looksLikeCalculationQuestion(questionText);
-            const editor = useMathEditor
-                ? createMathShortcutEditor('Write your answer here…')
-                : createPlainAnswerEditor('Write your answer here…');
+            const editor = modality === 'speaking'
+                ? createSpeechAnswerEditor('Press record and speak your answer…', locale)
+                : useMathEditor
+                    ? createMathShortcutEditor('Write your answer here…')
+                    : createPlainAnswerEditor('Write your answer here…');
             answerInputHost.appendChild(editor.container);
 
             const inputEl = editor.container.querySelector('.math-shortcut-editor');
@@ -16113,7 +16165,7 @@ SQIDAQAB
                 }
                 clearAnswerDraft(draftKey);
                 if (!result.correct) {
-                    renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, questionText, linkTeaching, answerInputType, notes, true, result.feedback || '');
+                    renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, questionText, linkTeaching, answerInputType, notes, true, result.feedback || '', modality, audioText);
                     return;
                 }
                 if (result.schedule) {
@@ -16593,6 +16645,134 @@ SQIDAQAB
             };
         }
 
+        // A "speaking" question's answer is recorded, not typed — reuses
+        // the SpeechRecognitionCtor setup/event-handler pattern from
+        // setupDictation (learn/index.html's dictation mic), but holds the
+        // final transcript directly as this editor's own value instead of
+        // splicing it into a contenteditable notes box (insertTranscript
+        // is specific to that box's DOM structure, not reusable here).
+        // `locale` (e.g. 'it-IT') is set explicitly rather than left as
+        // navigator.language, since the student is speaking the language
+        // being learned, not their browser's own locale.
+        function createSpeechAnswerEditor(placeholder, locale) {
+            const wrap = document.createElement('div');
+            wrap.className = 'math-shortcut-wrap km-speech-answer-wrap';
+            const transcriptEl = document.createElement('div');
+            transcriptEl.className = 'math-shortcut-editor km-speech-transcript';
+            transcriptEl.textContent = '';
+            transcriptEl.dataset.placeholder = placeholder || 'Press record and speak your answer…';
+            wrap.appendChild(transcriptEl);
+
+            const controls = document.createElement('div');
+            controls.style.marginTop = '8px';
+            controls.style.display = 'flex';
+            controls.style.alignItems = 'center';
+            controls.style.gap = '10px';
+            const recordBtn = document.createElement('button');
+            recordBtn.type = 'button';
+            recordBtn.className = 'btn';
+            recordBtn.textContent = '🎤 Record answer';
+            controls.appendChild(recordBtn);
+            const statusEl = document.createElement('span');
+            statusEl.className = 'km-inline-detail-item km-inline-detail-none';
+            controls.appendChild(statusEl);
+            wrap.appendChild(controls);
+
+            let isListening = false;
+            const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+            if (!SpeechRecognitionCtor) {
+                recordBtn.disabled = true;
+                recordBtn.title = 'Speech recognition is not supported in this browser';
+                statusEl.textContent = 'Speech recognition is not supported in this browser.';
+            } else {
+                recordBtn.addEventListener('click', () => {
+                    if (isListening) { stopActiveDictation(); return; }
+                    stopSpeaking();
+                    const recognition = new SpeechRecognitionCtor();
+                    recognition.continuous = true;
+                    recognition.interimResults = false;
+                    recognition.lang = locale || navigator.language || 'en-US';
+
+                    recognition.onstart = () => {
+                        isListening = true;
+                        recordBtn.textContent = '■ Stop recording';
+                        statusEl.textContent = 'Listening…';
+                    };
+                    recognition.onresult = (event) => {
+                        let finalTranscript = '';
+                        for (let i = event.resultIndex; i < event.results.length; i++) {
+                            if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
+                        }
+                        if (finalTranscript.trim()) {
+                            const existing = transcriptEl.textContent.trim();
+                            transcriptEl.textContent = (existing ? `${existing} ` : '') + finalTranscript.trim();
+                            transcriptEl.dispatchEvent(new Event('input'));
+                        }
+                    };
+                    recognition.onerror = (event) => {
+                        let message;
+                        switch (event.error) {
+                            case 'not-allowed':
+                            case 'service-not-allowed':
+                                message = 'Microphone access was blocked — check your browser/site permissions.';
+                                break;
+                            case 'no-speech':
+                                message = 'No speech detected.';
+                                break;
+                            case 'audio-capture':
+                                message = 'No microphone was found.';
+                                break;
+                            case 'network':
+                                message = 'A network error interrupted recording.';
+                                break;
+                            default:
+                                message = `Recording error: ${event.error}`;
+                        }
+                        statusEl.textContent = message;
+                    };
+                    recognition.onend = () => {
+                        isListening = false;
+                        recordBtn.textContent = '🎤 Record answer';
+                        if (activeRecognition === recognition) activeRecognition = null;
+                        if (statusEl.textContent === 'Listening…') statusEl.textContent = '';
+                    };
+
+                    activeRecognition = recognition;
+                    recognition.start();
+                });
+            }
+
+            return {
+                container: wrap,
+                getValue() { return transcriptEl.textContent.trim(); },
+                isEmpty() { return !transcriptEl.textContent.trim(); },
+                focus() { recordBtn.focus(); },
+                // Spoken input has no "paste" attack surface, unlike typed
+                // input (see guardAnswerInput) — always trusted.
+                hasTrustedInput() { return true; },
+                markTrusted() {},
+            };
+        }
+
+        // Shown above a "listening" question's text so the student can
+        // hear the phrase they're being asked about, via on-device TTS —
+        // reuses speakText/pickBestVoice, parameterized by `locale` so a
+        // language-learning phrase is spoken in that language rather than
+        // the browser's own locale.
+        function renderAudioPrompt(container, audioText, locale) {
+            const wrap = document.createElement('div');
+            wrap.className = 'km-inline-detail-item km-inline-detail-none';
+            wrap.style.marginBottom = '10px';
+            const playBtn = document.createElement('button');
+            playBtn.type = 'button';
+            playBtn.className = 'btn';
+            playBtn.textContent = '🔊 Play';
+            playBtn.addEventListener('click', () => speakText(audioText, locale));
+            wrap.appendChild(playBtn);
+            container.appendChild(wrap);
+        }
+
         // Only a genuine calculation needs the shortcut keyboard — every
         // other question is ordinary prose, where hijacking "f"/"^"/"_"/
         // "/"/"*"/"~"/Shift+letter as maths shortcuts would corrupt normal
@@ -16610,15 +16790,28 @@ SQIDAQAB
         // to encode X before this connection means anything" with a
         // button that takes you straight there.
 
-        function renderTextQuestionWidget(container, questionText, onSubmit, onRequiresEncoding) {
+        // `question` is either a bare question-text string (Verify's
+        // locally-built AO1 questions, which have no modality of their
+        // own) or the full generated question object ({questionText,
+        // modality, audioText}) — a plain string is treated exactly as
+        // before (reading/writing, calculation-regex fallback).
+        function renderTextQuestionWidget(container, question, onSubmit, onRequiresEncoding) {
+            const isObj = question && typeof question === 'object';
+            const questionText = isObj ? question.questionText : question;
+            const modality = isObj ? question.modality : null;
             const wrap = document.createElement('div');
             wrap.className = 'km-inline-lesson-question';
+            if (modality === 'listening' && isObj && question.audioText) {
+                renderAudioPrompt(wrap, question.audioText, localeForSubject(folder.subject));
+            }
             const q = document.createElement('div');
             q.textContent = questionText || '';
             wrap.appendChild(q);
-            const editor = looksLikeCalculationQuestion(questionText)
-                ? createMathShortcutEditor('Write your answer here…')
-                : createPlainAnswerEditor('Write your answer here…');
+            const editor = modality === 'speaking'
+                ? createSpeechAnswerEditor('Press record and speak your answer…', localeForSubject(folder.subject))
+                : looksLikeCalculationQuestion(questionText)
+                    ? createMathShortcutEditor('Write your answer here…')
+                    : createPlainAnswerEditor('Write your answer here…');
             wrap.appendChild(editor.container);
             const submitBtn = document.createElement('button');
             submitBtn.type = 'button';
