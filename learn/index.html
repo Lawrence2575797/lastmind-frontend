@@ -964,13 +964,20 @@
     /* ─── Inline subject knowledge map (replaces the old overlay) ─────── */
     .km-inline-view { display: flex; flex-direction: column; height: 100%; min-height: 0; }
     .km-inline-topbar { display: flex; align-items: center; gap: 14px; padding: 4px 4px 16px; border-bottom: 1px solid rgba(230, 215, 176, 0.16); }
-    .km-inline-title { font-size: 19px; margin: 0; font-weight: 700; color: var(--accent); }
+    /* var(--ink), not var(--accent)/var(--text) - this title and these
+       inactive tabs sit directly on the page's own birch background (no
+       --panel box behind them), same reasoning as the body's own color
+       rule below - --accent/--text are cream, same tone as the birch
+       default, and disappear on it. See .km-inline-search-input/.km-inline-tab.active
+       just below for the OTHER case, an element genuinely paired with a
+       --panel/--accent surface of its own, where --text/--bg stay correct. */
+    .km-inline-title { font-size: 19px; margin: 0; font-weight: 700; color: var(--ink); }
     .km-inline-sub { font-size: 12px; opacity: 0.6; margin-top: 3px; }
     .km-inline-search { margin-left: auto; }
     .km-inline-search-input { background: var(--panel); border: 1px solid rgba(230, 215, 176, 0.2); border-radius: 3px; padding: 7px 12px; font-size: 12px; color: var(--text); width: 190px; }
     .km-inline-search-input.km-search-no-match { border-color: #c9544b; }
     .km-inline-themetabs { display: flex; gap: 6px; flex-wrap: wrap; padding: 14px 0 0; }
-    .km-inline-tab { padding: 6px 13px; border-radius: 3px; font-size: 12px; font-weight: 600; border: 1px solid rgba(230, 215, 176, 0.2); color: var(--text); opacity: 0.7; cursor: pointer; background: transparent; font-family: Arial, sans-serif; }
+    .km-inline-tab { padding: 6px 13px; border-radius: 3px; font-size: 12px; font-weight: 600; border: 1px solid rgba(230, 215, 176, 0.2); color: var(--ink); opacity: 0.7; cursor: pointer; background: transparent; font-family: Arial, sans-serif; }
     .km-inline-tab.active { background: var(--accent); border-color: var(--accent); color: var(--bg); opacity: 1; }
     .km-inline-legend { display: flex; gap: 16px; padding: 10px 0 4px; font-size: 11px; opacity: 0.7; align-items: center; flex-wrap: wrap; }
     .km-inline-legend-item { display: inline-flex; align-items: center; gap: 6px; }
