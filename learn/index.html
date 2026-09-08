@@ -3409,6 +3409,41 @@
     }
     .km-ask-cortex-composer .btn { align-self: flex-end; }
 
+    /* "Colour palette" floating corner icon - free, global, always
+       mounted once logged in (see initThemePalette/enterApp). Bottom-LEFT
+       deliberately, so it never collides with the bottom-right "Ask
+       Cortex" panel that only shows during a lesson. */
+    .theme-palette-btn {
+        position: fixed; left: 22px; bottom: 22px; z-index: 500;
+        width: 44px; height: 44px; border-radius: 50%;
+        background: var(--panel); color: var(--text);
+        border: 1px solid rgba(230, 215, 176, 0.3);
+        font-size: 18px; cursor: pointer;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+        display: flex; align-items: center; justify-content: center;
+    }
+    .theme-palette-panel {
+        position: fixed; left: 22px; bottom: 74px; z-index: 500;
+        width: 250px; max-width: calc(100vw - 44px);
+        background: var(--panel); color: var(--text);
+        border: 1px solid rgba(230, 215, 176, 0.2); border-radius: 10px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+        padding: 14px;
+        display: flex; flex-direction: column; gap: 10px;
+    }
+    .theme-palette-panel[hidden] { display: none; }
+    .theme-palette-header { display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 13px; }
+    .theme-palette-close-btn { background: none; border: none; color: var(--text); opacity: 0.6; cursor: pointer; font-size: 13px; }
+    .theme-palette-close-btn:hover { opacity: 1; }
+    .theme-palette-field { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; font-family: Arial, sans-serif; }
+    .theme-palette-field input[type=color] { width: 30px; height: 30px; padding: 0; border: 1px solid rgba(230, 215, 176, 0.2); border-radius: 7px; background: none; cursor: pointer; }
+    .theme-palette-field input[type=color]::-webkit-color-swatch-wrapper { padding: 2px; }
+    .theme-palette-field input[type=color]::-webkit-color-swatch { border-radius: 5px; border: none; }
+    .theme-texture-toggle { display: flex; gap: 6px; }
+    .theme-texture-btn { flex: 1; padding: 6px; font-size: 11px; font-family: Arial, sans-serif; text-align: center; border: 1px solid rgba(230, 215, 176, 0.25); border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; }
+    .theme-texture-btn.active { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+    .theme-palette-reset-btn { font-size: 11px; font-family: Arial, sans-serif; opacity: 0.7; background: none; border: none; color: var(--text); text-decoration: underline; cursor: pointer; text-align: left; padding: 0; }
+
     .unlock-notes-link {
         display: block;
         background: none;
@@ -5440,6 +5475,190 @@ vw0E+SVdYHt5pSt2ifjQQkPUiYdZU1Ii99tBKG9G9pj8dF03aJlD0oWGQoQCIIky
 8o1vawhX4Cqcrt2yDfWj9bRkwCJpbuM+v9QcvnbTYWRq/LAdfKUWiMEs1g1wAS7l
 SQIDAQAB
 -----END PUBLIC KEY-----`;
+
+    /* ───────────────────────── Colour palette ─────────────────────────
+       Free for every user, live-applied, synced to the account (not just
+       this browser) via /theme-settings - see the colour-picker artifact
+       this was designed from. Only three levers, deliberately: Text
+       (drives both --text and --accent together, matching how they're
+       already the same value by default), Sidebar (--panel - also
+       recolours every other panel-styled surface: cards, modals, the
+       Maths Tool, same as it always has), and Background (where the
+       birch-wood texture lives - a Plain/Wood toggle plus a base tint,
+       same procedural-gradient mechanism as the original birch default). */
+    const THEME_DEFAULTS = { textColor: '#E6D7B0', panelColor: '#4E1B26', bgColor: '#D9C398', bgTexture: 'wood' };
+    const THEME_CACHE_KEY = 'lm-theme-settings';
+    let currentTheme = { ...THEME_DEFAULTS };
+
+    function themeHexToRgb(hex) {
+        hex = (hex || '').replace('#', '');
+        if (hex.length === 3) hex = hex.split('').map((c) => c + c).join('');
+        const n = parseInt(hex, 16) || 0;
+        return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+    }
+
+    // A fully free-form background colour choice could just as easily be
+    // dark as light - unlike the fixed birch default, --ink can't stay a
+    // single hardcoded dark tone here, or a user who picks a dark
+    // background would get dark-on-dark topbar/sidebar-toggle text. Plain
+    // relative-luminance threshold: light background -> dark ink, dark
+    // background -> light ink.
+    function themeInkFor(bgHex) {
+        const { r, g, b } = themeHexToRgb(bgHex);
+        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        return luminance > 0.55 ? '#2B2118' : '#F0E6D2';
+    }
+
+    // Same procedural wood-grain technique as the original birch
+    // background (plank seams + grain lines layered over a light/mid/dark
+    // sweep of one base tone) - reused here so any chosen base colour, not
+    // just birch, can become a wood-panel look.
+    function themeWoodBackground(baseHex) {
+        const base = themeHexToRgb(baseHex);
+        const light = `rgb(${Math.min(255, base.r + 26)},${Math.min(255, base.g + 22)},${Math.min(255, base.b + 14)})`;
+        const dark = `rgb(${Math.max(0, base.r - 30)},${Math.max(0, base.g - 26)},${Math.max(0, base.b - 18)})`;
+        const mid = `rgb(${base.r},${base.g},${base.b})`;
+        return `repeating-linear-gradient(90deg, rgba(0,0,0,0.14) 0px, rgba(0,0,0,0.14) 2px, transparent 2px, transparent 150px),` +
+            `repeating-linear-gradient(0.6deg, rgba(255,255,255,0.06) 0px, rgba(255,255,255,0.06) 1px, transparent 1px, transparent 4px),` +
+            `repeating-linear-gradient(-1.2deg, rgba(0,0,0,0.05) 0px, rgba(0,0,0,0.05) 1px, transparent 1px, transparent 6px),` +
+            `linear-gradient(100deg, ${light}, ${mid} 35%, ${light} 55%, ${dark} 85%, ${mid} 100%)`;
+    }
+
+    // Also caches to localStorage on every call (cheap, synchronous) so
+    // the NEXT page load can re-apply the last-known theme immediately,
+    // before the account's real settings have even been fetched - without
+    // this, every reload would flash the default birch/burgundy for a
+    // moment while /theme-settings is in flight.
+    function applyTheme(theme) {
+        const root = document.documentElement.style;
+        root.setProperty('--text', theme.textColor);
+        root.setProperty('--accent', theme.textColor);
+        root.setProperty('--panel', theme.panelColor);
+        root.setProperty('--ink', themeInkFor(theme.bgColor));
+        document.body.style.background = theme.bgTexture === 'wood' ? themeWoodBackground(theme.bgColor) : theme.bgColor;
+        try { localStorage.setItem(THEME_CACHE_KEY, JSON.stringify(theme)); } catch (e) {}
+    }
+
+    function syncThemePaletteInputs() {
+        const textInput = document.getElementById('themeTextColor');
+        if (!textInput) return; // panel not mounted yet (mounted lazily on first enterApp)
+        textInput.value = currentTheme.textColor;
+        document.getElementById('themePanelColor').value = currentTheme.panelColor;
+        document.getElementById('themeBgColor').value = currentTheme.bgColor;
+        document.querySelectorAll('.theme-texture-btn').forEach((b) => {
+            b.classList.toggle('active', b.dataset.texture === currentTheme.bgTexture);
+        });
+    }
+
+    async function fetchThemeSettings() {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return null;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/theme-settings`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) return null;
+            return await resp.json();
+        } catch (err) {
+            console.error('LastMind: failed to load theme settings.', err);
+            return null;
+        }
+    }
+
+    let saveThemeSettingsTimer = null;
+    function saveThemeSettings(theme) {
+        clearTimeout(saveThemeSettingsTimer);
+        saveThemeSettingsTimer = setTimeout(async () => {
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (!session) return;
+                await fetch(`${COMPILE_BACKEND_URL}/theme-settings`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                    body: JSON.stringify(theme)
+                });
+            } catch (err) {
+                console.error('LastMind: failed to save theme settings.', err);
+            }
+        }, 600);
+    }
+
+    function ensureThemePaletteUI() {
+        if (document.getElementById('themePaletteBtn')) return;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.id = 'themePaletteBtn';
+        btn.className = 'theme-palette-btn';
+        btn.title = 'Customise colours';
+        btn.textContent = '🎨';
+        document.body.appendChild(btn);
+
+        const panel = document.createElement('div');
+        panel.id = 'themePalettePanel';
+        panel.className = 'theme-palette-panel';
+        panel.hidden = true;
+        panel.innerHTML = `
+            <div class="theme-palette-header"><span>Colours</span><button type="button" class="theme-palette-close-btn" aria-label="Close">✕</button></div>
+            <div class="theme-palette-field"><span>Text</span><input type="color" id="themeTextColor"></div>
+            <div class="theme-palette-field"><span>Sidebar</span><input type="color" id="themePanelColor"></div>
+            <div class="theme-palette-field"><span>Background</span><input type="color" id="themeBgColor"></div>
+            <div class="theme-texture-toggle">
+                <button type="button" class="theme-texture-btn" data-texture="plain">Plain</button>
+                <button type="button" class="theme-texture-btn" data-texture="wood">Wood panels</button>
+            </div>
+            <button type="button" class="theme-palette-reset-btn" id="themeResetBtn">Reset to default</button>
+        `;
+        document.body.appendChild(panel);
+
+        btn.addEventListener('click', () => { panel.hidden = !panel.hidden; });
+        panel.querySelector('.theme-palette-close-btn').addEventListener('click', () => { panel.hidden = true; });
+
+        function updateAndSave() {
+            applyTheme(currentTheme);
+            saveThemeSettings(currentTheme);
+        }
+        document.getElementById('themeTextColor').addEventListener('input', (e) => { currentTheme.textColor = e.target.value; updateAndSave(); });
+        document.getElementById('themePanelColor').addEventListener('input', (e) => { currentTheme.panelColor = e.target.value; updateAndSave(); });
+        document.getElementById('themeBgColor').addEventListener('input', (e) => { currentTheme.bgColor = e.target.value; updateAndSave(); });
+        panel.querySelectorAll('.theme-texture-btn').forEach((b) => {
+            b.addEventListener('click', () => { currentTheme.bgTexture = b.dataset.texture; syncThemePaletteInputs(); updateAndSave(); });
+        });
+        document.getElementById('themeResetBtn').addEventListener('click', () => { currentTheme = { ...THEME_DEFAULTS }; syncThemePaletteInputs(); updateAndSave(); });
+
+        syncThemePaletteInputs();
+    }
+
+    // Called once from enterApp() - mounts the palette icon and reconciles
+    // the fast local cache (already applied below, before login even
+    // resolves) with the account's real saved settings.
+    async function initThemePalette() {
+        ensureThemePaletteUI();
+        const saved = await fetchThemeSettings();
+        if (saved) {
+            currentTheme = {
+                textColor: saved.textColor || THEME_DEFAULTS.textColor,
+                panelColor: saved.panelColor || THEME_DEFAULTS.panelColor,
+                bgColor: saved.bgColor || THEME_DEFAULTS.bgColor,
+                bgTexture: saved.bgTexture === 'plain' ? 'plain' : 'wood',
+            };
+        }
+        applyTheme(currentTheme);
+        syncThemePaletteInputs();
+    }
+
+    // Applied immediately, synchronously, before the async login/gate flow
+    // even starts - a returning user's browser already has their last-
+    // applied theme cached (see applyTheme), so there's no flash of the
+    // default birch/burgundy while the account's real settings are still
+    // in flight. initThemePalette (called from enterApp once login
+    // resolves) reconciles this against the server's copy shortly after.
+    (function applyCachedThemeEarly() {
+        try {
+            const cached = localStorage.getItem(THEME_CACHE_KEY);
+            if (cached) currentTheme = { ...THEME_DEFAULTS, ...JSON.parse(cached) };
+        } catch (e) {}
+        applyTheme(currentTheme);
+    })();
 
     /* ───────────────────────── IndexedDB ───────────────────────── */
 
@@ -18802,6 +19021,11 @@ SQIDAQAB
 
         document.getElementById('gate-message').style.display = 'none';
         document.getElementById('app').style.display = 'block';
+
+        // Free for every tier - mounts the palette icon and reconciles the
+        // fast local cache (already applied before login resolved, see
+        // applyCachedThemeEarly) against this account's real saved colours.
+        initThemePalette();
 
         // Peer tutoring is Premium-only (the backend enforces this too, on
         // every tutoring route — this just keeps a free account from ever
