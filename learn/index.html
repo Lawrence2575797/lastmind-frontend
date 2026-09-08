@@ -15701,53 +15701,6 @@ SQIDAQAB
             }
         }
 
-        // Before-you-know-it micro-steps (see lessonGenerationPrompts.ts's
-        // rules 6-7): an optional personal-link prompt, only when the
-        // offline content pipeline found a genuine everyday hook for this
-        // specific concept, then a prediction question asked before the
-        // explanation is shown at all - opening a real curiosity gap the
-        // explanation then resolves (the pretesting effect). Neither is
-        // graded, stored server-side, or costs an API call: the value is
-        // entirely in the student generating the attempt, not in the
-        // system checking it, so there is nothing here to grade and
-        // nothing to gain by faking it. Shown once ever per node per
-        // device - never repeated on a retry of the practice question
-        // that follows, since re-asking after the explanation's already
-        // been seen would just be noise, not a fresh prediction.
-        function nodeLessonPreAttemptSeenKey(nodeId) { return `lm-lesson-preattempt-seen:${nodeId}`; }
-
-        function renderNodeLessonPreAttempt(lessonEl, d, upstream, nodeLesson) {
-            const steps = [];
-            if (nodeLesson.predictionQuestion) steps.push({ kind: 'predict', prompt: nodeLesson.predictionQuestion });
-
-            function renderStep(index) {
-                if (index >= steps.length) {
-                    localStorage.setItem(nodeLessonPreAttemptSeenKey(d.id), '1');
-                    renderNodeLessonExplanation(lessonEl, d, upstream, nodeLesson);
-                    return;
-                }
-                const step = steps[index];
-                const heading = 'Before you know how this works';
-                const reassurance = "There's no right answer yet — just take a genuine guess.";
-                const placeholder = 'Write your guess here…';
-                lessonEl.innerHTML = `
-                    <div class="km-inline-detail-section">
-                        <h4 class="km-inline-lesson-question">${heading}</h4>
-                        <div class="km-inline-lesson-question">${escapeHtml(step.prompt)}</div>
-                        <div class="km-inline-detail-item km-inline-detail-none">${reassurance}</div>
-                        <textarea class="km-preattempt-input" rows="4" placeholder="${placeholder}" style="${DIAG_TEXTAREA_STYLE}"></textarea>
-                        <button type="button" class="btn primary km-preattempt-continue-btn" style="margin-top:10px;">Continue</button>
-                    </div>
-                `;
-                const textarea = lessonEl.querySelector('.km-preattempt-input');
-                lessonEl.querySelector('.km-preattempt-continue-btn').addEventListener('click', () => {
-                    if (!textarea.value.trim()) return;
-                    renderStep(index + 1);
-                });
-            }
-            renderStep(0);
-        }
-
         // A clear, explicit "you're done" action once a lesson genuinely
         // completes. Before this, the only way back to the map was the
         // "← Back to map" link in the fullpage's own persistent header -
@@ -15816,14 +15769,18 @@ SQIDAQAB
                 explanationEl.appendChild(columns);
                 renderNoteVisual(visualEl, noteResult.visual, buildNodeStepChecker(d.id));
                 // Re-parent (not recreate) the already-mounted practice
-                // block into the new text column, so the visual stays
-                // visible on the right while the student answers instead
-                // of the question sitting full-width below the whole grid
-                // - appendChild on an already-attached node MOVES it,
-                // which preserves any answer the student already started
-                // typing before this (async) compile call resolved.
+                // block into the VISUAL column, not the text one - on
+                // the text side, the answer box was too easy to reach
+                // without ever actually looking at the visual next to it
+                // (a real, reported complaint). Putting it under the
+                // visual instead means reading the explanation on the
+                // left, then having to look right to answer, passing the
+                // visual on the way rather than skipping it entirely -
+                // appendChild on an already-attached node MOVES it, which
+                // preserves any answer the student already started typing
+                // before this (async) compile call resolved.
                 const practiceBlock = lessonEl.querySelector('#km-node-practice-block');
-                if (practiceBlock) textCol.appendChild(practiceBlock);
+                if (practiceBlock) visualEl.appendChild(practiceBlock);
             });
 
             if (nodeLesson.practiceQuestion) {
@@ -15881,11 +15838,6 @@ SQIDAQAB
         async function renderNodeLessonContent(lessonEl, d, upstream) {
             showLoadingWithColdStartHint(lessonEl);
             const nodeLesson = await fetchNodeLesson(d.id);
-            const hasPreAttempt = nodeLesson && !nodeLesson.notFound && nodeLesson.predictionQuestion;
-            if (hasPreAttempt && !localStorage.getItem(nodeLessonPreAttemptSeenKey(d.id))) {
-                renderNodeLessonPreAttempt(lessonEl, d, upstream, nodeLesson);
-                return;
-            }
             renderNodeLessonExplanation(lessonEl, d, upstream, nodeLesson);
         }
 
@@ -16211,16 +16163,20 @@ SQIDAQAB
 
             // Dual-coded (text + visual side by side) exactly like an
             // encoding lesson's own explanation, reusing the same
-            // component - the question block moves into its own text
-            // column so the visual stays visible while answering, same
-            // reasoning as renderNodeLessonExplanation. No async compile
-            // call needed here (unlike the encoding lesson) - the notes
-            // arrive already compiled in integration/start's own response.
+            // component - the question block moves into the VISUAL
+            // column (not the text one) when there is a visual, same
+            // reasoning as renderNodeLessonExplanation: an answer box
+            // under the text side was too easy to reach without ever
+            // looking at the visual beside it. No visual to show (or no
+            // notes at all) falls back to the text column, the only one
+            // there is. No async compile call needed here (unlike the
+            // encoding lesson) - the notes arrive already compiled in
+            // integration/start's own response.
             if (notes) {
                 const notesEl = lessonEl.querySelector('#km-integration-notes');
                 renderNodeNoteBlock(notesEl, notes, buildEdgeStepChecker(d.id, link.id));
-                const textCol = notesEl.querySelector('.km-note-text') || notesEl;
-                textCol.insertAdjacentHTML('beforeend', questionBlockHtml);
+                const targetCol = notesEl.querySelector('.km-note-visual') || notesEl.querySelector('.km-note-text') || notesEl;
+                targetCol.insertAdjacentHTML('beforeend', questionBlockHtml);
             }
 
             const audioPromptEl = lessonEl.querySelector('#km-integration-audio-prompt');
@@ -17048,7 +17004,7 @@ SQIDAQAB
             lessonEl.innerHTML = `
                 <div class="km-inline-detail-section">
                     <h4>Before you jump ahead</h4>
-                    <div class="km-inline-lesson-question">${escapeHtml(questionText)}</div>
+                    <div class="km-inline-lesson-question">${notesTextToHtml(questionText)}</div>
                     <textarea class="km-diag-answer-input" rows="6" placeholder="Write your answer here…" style="${DIAG_TEXTAREA_STYLE}"></textarea>
                     <button class="btn primary km-diag-submit-btn" style="margin-top:10px;">Submit</button>
                 </div>
@@ -17090,7 +17046,7 @@ SQIDAQAB
             lessonEl.innerHTML = `
                 <div class="km-inline-detail-section">
                     <h4>Not quite</h4>
-                    <div class="km-inline-lesson-question">${escapeHtml(currentFailure.feedback || '')}</div>
+                    <div class="km-inline-lesson-question">${notesTextToHtml(currentFailure.feedback || '')}</div>
                     <div class="km-inline-detail-meta" style="margin-top:10px;">Was that a silly slip, or do you genuinely not know this yet?</div>
                     <div class="km-diag-slip-choice" style="display:flex; gap:10px; margin-top:10px;">
                         <button class="btn km-diag-slip-btn">It was a slip — let me retry</button>
@@ -17121,7 +17077,7 @@ SQIDAQAB
             lessonEl.innerHTML = `
                 <div class="km-inline-detail-section">
                     <h4>Quick retry</h4>
-                    <div class="km-inline-lesson-question">${escapeHtml(retryQuestionText || '')}</div>
+                    <div class="km-inline-lesson-question">${notesTextToHtml(retryQuestionText || '')}</div>
                     <textarea class="km-diag-answer-input" rows="4" placeholder="Write your answer here…" style="${DIAG_TEXTAREA_STYLE}"></textarea>
                     <button class="btn primary km-diag-submit-btn" style="margin-top:10px;">Submit</button>
                 </div>
