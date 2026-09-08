@@ -419,11 +419,6 @@ SQIDAQAB
         const n = parseInt(hex, 16) || 0;
         return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
     }
-    function themeInkFor(bgHex) {
-        const { r, g, b } = themeHexToRgb(bgHex);
-        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-        return luminance > 0.55 ? '#2B2118' : '#F0E6D2';
-    }
     function themeWoodBackground(baseHex) {
         const base = themeHexToRgb(baseHex);
         const light = `rgb(${Math.min(255, base.r + 26)},${Math.min(255, base.g + 22)},${Math.min(255, base.b + 14)})`;
@@ -439,7 +434,10 @@ SQIDAQAB
         root.setProperty('--text', theme.textColor);
         root.setProperty('--accent', theme.textColor);
         root.setProperty('--panel', theme.panelColor);
-        root.setProperty('--ink', themeInkFor(theme.bgColor));
+        // Same as --text/--accent, deliberately - see learn/index.html's
+        // own applyTheme comment on why this no longer auto-computes a
+        // contrasting ink from the background's luminance.
+        root.setProperty('--ink', theme.textColor);
         document.body.style.background = theme.bgTexture === 'wood' ? themeWoodBackground(theme.bgColor) : theme.bgColor;
     }
     async function fetchThemeSettings() {

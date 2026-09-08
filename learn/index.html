@@ -410,6 +410,41 @@
         gap: 8px;
     }
 
+    /* Monthly Locks usage, shown right above Manage Subscription/Tutorial
+       - same sidebar-footer column, own small block above the buttons. */
+    .sidebar-usage-bar {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.68rem;
+    }
+    .sidebar-usage-bar-label {
+        display: flex;
+        justify-content: space-between;
+        opacity: 0.7;
+    }
+    .sidebar-usage-bar-track {
+        height: 5px;
+        border-radius: 3px;
+        background: rgba(230, 215, 176, 0.12);
+        overflow: hidden;
+    }
+    .sidebar-usage-bar-fill {
+        height: 100%;
+        background: var(--accent);
+        border-radius: 3px;
+        transition: width 0.4s ease, background 0.4s ease;
+    }
+    /* Past the monthly allotment (balance has gone negative - see
+       chargeLocksForUsage in lockService.ts, which allows this rather
+       than refuse an already-completed API call) - the bar reads as full
+       AND in a warning colour, rather than silently capping at 100% and
+       looking identical to "right at the limit". */
+    .sidebar-usage-bar-fill.over-budget {
+        background: #c9544b;
+    }
+
     /* ─── REVIEW CALENDAR ─── */
     .sidebar-calendar {
         display: none;
@@ -3479,14 +3514,22 @@
     .theme-palette-header { display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 13px; }
     .theme-palette-close-btn { background: none; border: none; color: var(--text); opacity: 0.6; cursor: pointer; font-size: 13px; }
     .theme-palette-close-btn:hover { opacity: 1; }
-    .theme-palette-field { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; font-family: Arial, sans-serif; }
+    /* Each colour choice saves/resets independently now - a label+swatch
+       row, then a second row of small per-field actions, rather than one
+       shared Save/Reset for all three at once. */
+    .theme-palette-field { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; font-family: Arial, sans-serif; }
+    .theme-palette-field-row { display: flex; align-items: center; justify-content: space-between; }
     .theme-palette-field input[type=color] { width: 30px; height: 30px; padding: 0; border: 1px solid rgba(230, 215, 176, 0.2); border-radius: 7px; background: none; cursor: pointer; }
     .theme-palette-field input[type=color]::-webkit-color-swatch-wrapper { padding: 2px; }
     .theme-palette-field input[type=color]::-webkit-color-swatch { border-radius: 5px; border: none; }
+    .theme-field-actions { display: flex; align-items: center; gap: 12px; justify-content: flex-end; }
+    .theme-field-save-btn { font-size: 11px; font-family: Arial, sans-serif; padding: 3px 10px; border-radius: 4px; border: 1px solid var(--accent); background: transparent; color: var(--accent); cursor: pointer; }
+    .theme-field-save-btn:hover { background: rgba(230, 215, 176, 0.1); }
+    .theme-field-reset-btn { font-size: 11px; font-family: Arial, sans-serif; opacity: 0.7; background: none; border: none; color: var(--text); text-decoration: underline; cursor: pointer; padding: 0; }
+    .theme-field-reset-btn:hover { opacity: 1; }
     .theme-texture-toggle { display: flex; gap: 6px; }
     .theme-texture-btn { flex: 1; padding: 6px; font-size: 11px; font-family: Arial, sans-serif; text-align: center; border: 1px solid rgba(230, 215, 176, 0.25); border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; }
     .theme-texture-btn.active { border-color: var(--accent); color: var(--accent); font-weight: 600; }
-    .theme-palette-reset-btn { font-size: 11px; font-family: Arial, sans-serif; opacity: 0.7; background: none; border: none; color: var(--text); text-decoration: underline; cursor: pointer; text-align: left; padding: 0; }
 
     .unlock-notes-link {
         display: block;
@@ -4885,6 +4928,15 @@
             </div>
 
             <div class="sidebar-footer">
+                <div class="sidebar-usage-bar" id="sidebarUsageBar" style="display:none;">
+                    <div class="sidebar-usage-bar-label">
+                        <span>Usage this month</span>
+                        <span id="sidebarUsageBarText">—</span>
+                    </div>
+                    <div class="sidebar-usage-bar-track">
+                        <div class="sidebar-usage-bar-fill" id="sidebarUsageBarFill" style="width:0%;"></div>
+                    </div>
+                </div>
                 <button class="manage-subscription-btn" id="seeTutorialBtn" type="button">See Tutorial</button>
                 <button class="manage-subscription-btn" id="myAccountBtn">My Account</button>
             </div>
@@ -5150,6 +5202,10 @@
                 <div class="topbar-actions" id="topbarActions">
                     <button class="credit-balance-chip" id="creditBalanceChip" type="button" title="Key Market">🔑 Key Market <span id="creditBalanceAmount">—</span></button>
                     <button class="credit-balance-chip" id="locksChip" type="button" title="Locks">🔒 Locks <span id="locksBalanceAmount">—</span></button>
+                    <!-- Placeholder only - what this actually does (top-up
+                         purchase flow, pricing, etc.) hasn't been designed
+                         yet, see buyMoreTokensBtn's own click handler. -->
+                    <button class="cortex-btn-topbar" id="buyMoreTokensBtn" type="button">⚡ Buy more tokens</button>
                     <button class="cortex-btn-topbar" id="practiceQuestionsTopbarBtn" type="button">📝 Practice Questions</button>
                     <button class="cortex-btn-topbar upgrade-topbar-btn" id="upgradeTopbarBtn" type="button" style="display:none;">⭐ Upgrade</button>
                     <button class="cortex-btn-topbar" id="peerTutoringHubBtn" type="button">🤝 Peer tutoring</button>
@@ -5548,18 +5604,6 @@ SQIDAQAB
         return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
     }
 
-    // A fully free-form background colour choice could just as easily be
-    // dark as light - unlike the fixed birch default, --ink can't stay a
-    // single hardcoded dark tone here, or a user who picks a dark
-    // background would get dark-on-dark topbar/sidebar-toggle text. Plain
-    // relative-luminance threshold: light background -> dark ink, dark
-    // background -> light ink.
-    function themeInkFor(bgHex) {
-        const { r, g, b } = themeHexToRgb(bgHex);
-        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-        return luminance > 0.55 ? '#2B2118' : '#F0E6D2';
-    }
-
     // Same procedural wood-grain technique as the original birch
     // background (plank seams + grain lines layered over a light/mid/dark
     // sweep of one base tone) - reused here so any chosen base colour, not
@@ -5585,7 +5629,17 @@ SQIDAQAB
         root.setProperty('--text', theme.textColor);
         root.setProperty('--accent', theme.textColor);
         root.setProperty('--panel', theme.panelColor);
-        root.setProperty('--ink', themeInkFor(theme.bgColor));
+        // Same choice as --text/--accent, deliberately - "Text" is meant
+        // to change every piece of text in the app, not just what sits on
+        // a --panel surface (sidebar etc.). This used to auto-compute a
+        // contrasting ink from the BACKGROUND's own luminance instead
+        // (themeInkFor, now removed) specifically so birch-background text
+        // stayed readable regardless of the Text choice - that safety net
+        // is gone now the Text picker is meant to control this directly;
+        // a Text colour with poor contrast against the chosen Background
+        // is now the user's own call, not something this file second-
+        // guesses.
+        root.setProperty('--ink', theme.textColor);
         document.body.style.background = theme.bgTexture === 'wood' ? themeWoodBackground(theme.bgColor) : theme.bgColor;
         try { localStorage.setItem(THEME_CACHE_KEY, JSON.stringify(theme)); } catch (e) {}
 
@@ -5636,16 +5690,31 @@ SQIDAQAB
     // but nothing is sent to the server until Save is actually clicked.
     // Closing the panel or navigating away first discards the preview
     // back to whatever was last saved, same as any "must hit Save" UI.
-    async function saveThemeSettings(theme) {
+    // Takes a PARTIAL theme object now, not always the whole thing -
+    // themeSettingsService.ts's setThemeSettings already merges against
+    // whatever's currently stored, so saving just {textColor} here can
+    // never clobber a panelColor/bgColor the user hasn't hit Save on yet.
+    async function saveThemeSettings(partialTheme) {
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) throw new Error('not signed in');
         const resp = await fetch(`${COMPILE_BACKEND_URL}/theme-settings`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-            body: JSON.stringify(theme)
+            body: JSON.stringify(partialTheme)
         });
         if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
     }
+
+    // Each of the three colour choices saves and resets completely
+    // independently - which currentTheme keys a given field's Save/Reset
+    // button actually touches. "background" bundles bgTexture in with
+    // bgColor (one combined "what does the background look like"
+    // choice), everything else is a single key.
+    const THEME_FIELDS = {
+        text: ['textColor'],
+        panel: ['panelColor'],
+        background: ['bgColor', 'bgTexture'],
+    };
 
     function ensureThemePaletteUI() {
         if (document.getElementById('themePaletteBtn')) return;
@@ -5663,15 +5732,31 @@ SQIDAQAB
         panel.hidden = true;
         panel.innerHTML = `
             <div class="theme-palette-header"><span>Colours</span><button type="button" class="theme-palette-close-btn" aria-label="Close">✕</button></div>
-            <div class="theme-palette-field"><span>Text</span><input type="color" id="themeTextColor"></div>
-            <div class="theme-palette-field"><span>Sidebar</span><input type="color" id="themePanelColor"></div>
-            <div class="theme-palette-field"><span>Background (the Cortex chat)</span><input type="color" id="themeBgColor"></div>
-            <div class="theme-texture-toggle">
-                <button type="button" class="theme-texture-btn" data-texture="plain">Plain</button>
-                <button type="button" class="theme-texture-btn" data-texture="wood">Wood panels</button>
+            <div class="theme-palette-field">
+                <div class="theme-palette-field-row"><span>Text</span><input type="color" id="themeTextColor"></div>
+                <div class="theme-field-actions">
+                    <button type="button" class="theme-field-reset-btn" data-field="text">Reset</button>
+                    <button type="button" class="theme-field-save-btn" data-field="text">Save</button>
+                </div>
             </div>
-            <button type="button" class="btn primary theme-palette-save-btn" id="themeSaveBtn">Save</button>
-            <button type="button" class="theme-palette-reset-btn" id="themeResetBtn">Reset to default</button>
+            <div class="theme-palette-field">
+                <div class="theme-palette-field-row"><span>Sidebar</span><input type="color" id="themePanelColor"></div>
+                <div class="theme-field-actions">
+                    <button type="button" class="theme-field-reset-btn" data-field="panel">Reset</button>
+                    <button type="button" class="theme-field-save-btn" data-field="panel">Save</button>
+                </div>
+            </div>
+            <div class="theme-palette-field">
+                <div class="theme-palette-field-row"><span>Background (the Cortex chat)</span><input type="color" id="themeBgColor"></div>
+                <div class="theme-texture-toggle">
+                    <button type="button" class="theme-texture-btn" data-texture="plain">Plain</button>
+                    <button type="button" class="theme-texture-btn" data-texture="wood">Wood panels</button>
+                </div>
+                <div class="theme-field-actions">
+                    <button type="button" class="theme-field-reset-btn" data-field="background">Reset</button>
+                    <button type="button" class="theme-field-save-btn" data-field="background">Save</button>
+                </div>
+            </div>
         `;
         document.body.appendChild(panel);
 
@@ -5686,29 +5771,43 @@ SQIDAQAB
             b.addEventListener('click', () => { currentTheme.bgTexture = b.dataset.texture; syncThemePaletteInputs(); preview(); });
         });
 
-        const saveBtn = document.getElementById('themeSaveBtn');
-        saveBtn.addEventListener('click', async () => {
-            saveBtn.disabled = true;
-            saveBtn.textContent = 'Saving…';
-            try {
-                await saveThemeSettings(currentTheme);
-                saveBtn.textContent = 'Saved ✓';
-            } catch (err) {
-                console.error('LastMind: failed to save theme settings.', err);
-                saveBtn.textContent = "Couldn't save — retry";
-            } finally {
-                saveBtn.disabled = false;
-                setTimeout(() => { saveBtn.textContent = 'Save'; }, 1800);
-            }
+        // One save button per field - sends ONLY that field's own key(s),
+        // not the whole currentTheme, so a colour still being previewed
+        // on another field can't get persisted by accident.
+        function saveField(field, btn) {
+            btn.disabled = true;
+            const label = btn.textContent;
+            btn.textContent = 'Saving…';
+            const payload = {};
+            THEME_FIELDS[field].forEach((key) => { payload[key] = currentTheme[key]; });
+            saveThemeSettings(payload)
+                .then(() => { btn.textContent = 'Saved ✓'; })
+                .catch((err) => {
+                    console.error('LastMind: failed to save theme field.', field, err);
+                    btn.textContent = "Couldn't save";
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                    setTimeout(() => { btn.textContent = label; }, 1800);
+                });
+        }
+        panel.querySelectorAll('.theme-field-save-btn').forEach((saveBtn) => {
+            saveBtn.addEventListener('click', () => saveField(saveBtn.dataset.field, saveBtn));
         });
 
-        // Reset is a decisive action, not a preview - applies AND saves
-        // immediately, unlike the colour/texture pickers above.
-        document.getElementById('themeResetBtn').addEventListener('click', () => {
-            currentTheme = { ...THEME_DEFAULTS };
-            syncThemePaletteInputs();
-            preview();
-            saveBtn.click();
+        // Reset is a decisive action, not a preview, same as before - but
+        // now scoped to just the one field clicked, applying AND saving
+        // immediately while leaving the other two fields' own pending
+        // edits (if any) completely untouched.
+        panel.querySelectorAll('.theme-field-reset-btn').forEach((resetBtn) => {
+            resetBtn.addEventListener('click', () => {
+                const field = resetBtn.dataset.field;
+                THEME_FIELDS[field].forEach((key) => { currentTheme[key] = THEME_DEFAULTS[key]; });
+                syncThemePaletteInputs();
+                preview();
+                const saveBtn = panel.querySelector(`.theme-field-save-btn[data-field="${field}"]`);
+                if (saveBtn) saveBtn.click();
+            });
         });
 
         syncThemePaletteInputs();
@@ -11559,6 +11658,30 @@ SQIDAQAB
     async function refreshLocksChip() {
         const data = await fetchLockBalance();
         document.getElementById('locksBalanceAmount').textContent = data ? data.balance : '—';
+        refreshSidebarUsageBar(data);
+    }
+
+    // Same {balance, allotment} fetch refreshLocksChip already made -
+    // passed in rather than re-fetched, so this never doubles the number
+    // of /locks/balance calls. Balance can go negative (see
+    // chargeLocksForUsage in lockService.ts - a real, already-incurred API
+    // cost is never refused after the fact) - clamped visually at 100%
+    // and coloured as a warning rather than silently reading identical to
+    // "exactly at the limit".
+    function refreshSidebarUsageBar(data) {
+        const bar = document.getElementById('sidebarUsageBar');
+        if (!bar) return;
+        if (!data || !data.allotment) { bar.style.display = 'none'; return; }
+        bar.style.display = 'flex';
+        const used = Math.max(0, data.allotment - data.balance);
+        const pct = Math.min(100, Math.round((used / data.allotment) * 100));
+        const overBudget = data.balance < 0;
+        document.getElementById('sidebarUsageBarText').textContent = overBudget
+            ? `${used} / ${data.allotment} (over)`
+            : `${used} / ${data.allotment}`;
+        const fill = document.getElementById('sidebarUsageBarFill');
+        fill.style.width = `${pct}%`;
+        fill.classList.toggle('over-budget', overBudget);
     }
 
     // ─── FIRST-VISIT GUIDED TOUR ───
@@ -19041,6 +19164,13 @@ SQIDAQAB
     document.getElementById('cancelLockDepositBtn').addEventListener('click', closeLockDepositModal);
     document.getElementById('lockDepositModalOverlay').addEventListener('click', (e) => {
         if (e.target.id === 'lockDepositModalOverlay') closeLockDepositModal();
+    });
+
+    // Placeholder - no purchase flow exists yet, what this button actually
+    // does hasn't been designed. Just confirms the button itself works
+    // rather than doing nothing silently on click.
+    document.getElementById('buyMoreTokensBtn').addEventListener('click', () => {
+        alert("Buying extra usage isn't set up yet - coming soon.");
     });
 
     document.getElementById('continueLockDepositBtn').addEventListener('click', async () => {
