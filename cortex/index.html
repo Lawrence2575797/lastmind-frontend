@@ -1171,12 +1171,18 @@ SQIDAQAB
 
     async function fetchDueReviews(accessToken) {
         try {
-            const resp = await fetch(`${COMPILE_BACKEND_URL}/schedule`, {
+            // /due, not /schedule - /schedule returns EVERY tracked
+            // concept regardless of due date ("soonest-first, regardless
+            // of whether it's overdue yet", see review.ts's own comment),
+            // which was making Cortex treat a concept scheduled days out
+            // as already due and proactively suggest reviewing it early.
+            // /due already filters server-side to due-or-overdue only.
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/due`, {
                 headers: { Authorization: `Bearer ${accessToken}` }
             });
             if (!resp.ok) return [];
-            const { schedule } = await resp.json();
-            return (schedule || []).map((item) => ({
+            const { due } = await resp.json();
+            return (due || []).map((item) => ({
                 conceptId: item.concept_id,
                 label: conceptKeyToLabel(item.concept_id)
             }));
