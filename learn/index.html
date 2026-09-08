@@ -15457,7 +15457,10 @@ SQIDAQAB
         // canvas state (state.placed/shades/labels/arrows) is left
         // exactly as drawn so the student can adjust rather than
         // redraw from scratch, and the button becomes "Try again".
-        let hadRetry = false;
+        // retryCount (not a boolean) — one wrong attempt before the
+        // eventual correct one grades 'hard', two or more grade 'again'
+        // outright (see reviewService.ts's deriveCorrectRating).
+        let retryCount = 0;
         container.querySelector(`#${uid}-submit-btn`).addEventListener('click', async (ev) => {
             ev.target.disabled = true;
             ev.target.textContent = 'Checking…';
@@ -15467,9 +15470,9 @@ SQIDAQAB
                 labels: state.labels.map((l) => ({ text: l.text, x: l.x, y: l.y })),
                 arrows: state.arrows.map((a) => ({ x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2 })),
             };
-            const result = await onSubmit(answer, hadRetry);
+            const result = await onSubmit(answer, retryCount);
             if (result && result.retryable) {
-                hadRetry = true;
+                retryCount++;
                 ev.target.disabled = false;
                 ev.target.textContent = 'Try again';
                 renderQuestionResult(resultEl, result, onRequiresEncoding);
@@ -16372,10 +16375,10 @@ SQIDAQAB
                 // "Builds on this" and the "Encode this first"/"Start
                 // review" gating already reflect it the moment the student
                 // is back on the map, with no stale reload needed.
-                const submit = async (answer, hadRetry) => {
+                const submit = async (answer, retryCount) => {
                     const result = await postChainDiagnostic(
                         nodeLesson.practiceQuestion.diagramSpec ? '/knowledge-map-v2/diagram-question/submit' : '/knowledge-map-v2/text-question/submit',
-                        { nodeId: d.id, questionType: 'practice', answer, hadRetry }
+                        { nodeId: d.id, questionType: 'practice', answer, retryCount }
                     );
                     if (result && result.schedule) {
                         fullData.scheduleByConceptId.set(result.schedule.conceptId, result.schedule);
@@ -16468,7 +16471,7 @@ SQIDAQAB
                 lessonEl.innerHTML = '<div class="km-inline-detail-item km-inline-detail-none">No lesson generated for this concept yet.</div>';
                 return;
             }
-            renderNodeReviewAo1(lessonEl, d, qualifyingLinks, question.questionText, false, '', question.modality || null, question.audioText || null);
+            renderNodeReviewAo1(lessonEl, d, qualifyingLinks, question.questionText, 0, '', question.modality || null, question.audioText || null);
         }
 
         // Every node-review submit route returns the same { correct,
@@ -16538,7 +16541,7 @@ SQIDAQAB
         // free-text retry (renderNodeReviewAo1) with the feedback shown
         // as a hint; only a genuinely correct answer here finalizes
         // anything.
-        function renderNodeReviewAo1SlipCheck(lessonEl, d, qualifyingLinks, questionText, originalAnswer, result, modality, audioText) {
+        function renderNodeReviewAo1SlipCheck(lessonEl, d, qualifyingLinks, questionText, originalAnswer, result, modality, audioText, retryCount) {
             const wrongPhrase = result.wrongPhrase;
             lessonEl.innerHTML = `
                 <div class="km-inline-detail-section">
@@ -16570,7 +16573,7 @@ SQIDAQAB
                     return renderNodeReviewSubmitError(lessonEl);
                 }
                 if (!finalResult.correct) {
-                    renderNodeReviewAo1(lessonEl, d, qualifyingLinks, questionText, true, finalResult.feedback || '', modality, audioText);
+                    renderNodeReviewAo1(lessonEl, d, qualifyingLinks, questionText, retryCount + 1, finalResult.feedback || '', modality, audioText);
                     return;
                 }
                 lessonEl.querySelectorAll('.km-slip-correct-submit-btn, .km-slip-decline-btn').forEach((el) => el.remove());
@@ -16582,7 +16585,7 @@ SQIDAQAB
                 const correction = correctionInput ? correctionInput.value.trim() : '';
                 if (!correction) return;
                 if (correctionGuard && !correctionGuard.hasTrustedInput()) { showPasteBlockWarning(correctionInput); return; }
-                finish({ nodeId: d.id, questionText, originalAnswer, wrongPhrase, correction }, ev.target);
+                finish({ nodeId: d.id, questionText, originalAnswer, wrongPhrase, correction, retryCount }, ev.target);
             });
             lessonEl.querySelector('.km-slip-decline-btn').addEventListener('click', (ev) => {
                 finish({ nodeId: d.id, questionText, originalAnswer, wrongPhrase, declined: true, originalFeedback: result.feedback }, ev.target);
@@ -16592,11 +16595,11 @@ SQIDAQAB
         // Never fails the lesson — a wrong answer (that isn't a flagged
         // slip, see renderNodeReviewAo1SlipCheck) just retries in place
         // with the grading call's own feedback shown as a hint, same
-        // contract integration/submit uses. hadRetry/retryFeedback carry
+        // contract integration/submit uses. retryCount/retryFeedback carry
         // that state across the loop; the SAME reworded question is reused
         // on every retry rather than generating a new one, so retrying
         // costs nothing extra.
-        function renderNodeReviewAo1(lessonEl, d, qualifyingLinks, questionText, hadRetry = false, retryFeedback = '', modality, audioText) {
+        function renderNodeReviewAo1(lessonEl, d, qualifyingLinks, questionText, retryCount = 0, retryFeedback = '', modality, audioText) {
             const draftKey = `node-review-ao1:${d.id}`;
             const locale = localeForSubject(folder.subject);
             const useSpeechEditor = modality === 'speaking';
@@ -16649,7 +16652,7 @@ SQIDAQAB
                 if (!hasTrustedInput()) { showPasteBlockWarning(inputEl); return; }
                 ev.target.disabled = true;
                 ev.target.textContent = 'Checking…';
-                const result = await postChainDiagnostic('/knowledge-map-v2/node-review/ao1/submit', { nodeId: d.id, questionText, answer, hadRetry });
+                const result = await postChainDiagnostic('/knowledge-map-v2/node-review/ao1/submit', { nodeId: d.id, questionText, answer, retryCount });
                 if (!result) {
                     ev.target.disabled = false;
                     ev.target.textContent = 'Submit';
@@ -16657,11 +16660,11 @@ SQIDAQAB
                 }
                 clearAnswerDraft(draftKey);
                 if (result.isSlipCandidate) {
-                    renderNodeReviewAo1SlipCheck(lessonEl, d, qualifyingLinks, questionText, answer, result, modality, audioText);
+                    renderNodeReviewAo1SlipCheck(lessonEl, d, qualifyingLinks, questionText, answer, result, modality, audioText, retryCount + 1);
                     return;
                 }
                 if (!result.correct) {
-                    renderNodeReviewAo1(lessonEl, d, qualifyingLinks, questionText, true, result.feedback || '', modality, audioText);
+                    renderNodeReviewAo1(lessonEl, d, qualifyingLinks, questionText, retryCount + 1, result.feedback || '', modality, audioText);
                     return;
                 }
                 ev.target.remove();
@@ -16696,7 +16699,7 @@ SQIDAQAB
                 renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, index + 1, resultsSoFar);
                 return;
             }
-            renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, question.questionText, question.linkTeaching || null, question.answerInputType || null, question.notes || null, false, '', question.modality || null, question.audioText || null);
+            renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, question.questionText, question.linkTeaching || null, question.answerInputType || null, question.notes || null, 0, '', question.modality || null, question.audioText || null);
         }
 
         // The link-level review, one combined step per qualifying link —
@@ -16712,7 +16715,7 @@ SQIDAQAB
         // student - a wrong answer just retries in place with the grading
         // call's own feedback shown as a hint, same contract AO1's
         // slip-check already has.
-        function renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, questionText, linkTeaching, answerInputType, notes, hadRetry, retryFeedback, modality, audioText) {
+        function renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, questionText, linkTeaching, answerInputType, notes, retryCount, retryFeedback, modality, audioText) {
             const link = qualifyingLinks[index];
             saveNodeReviewCheckpoint(d.id, { linkToNodeId: link.id, stage: 'integration', resultsSoFar });
             const draftKey = `node-review-integration:${d.id}:${link.id}`;
@@ -16785,7 +16788,7 @@ SQIDAQAB
                 ev.target.disabled = true;
                 ev.target.textContent = 'Checking…';
                 const result = await postChainDiagnostic('/knowledge-map-v2/node-review/integration/submit', {
-                    fromNodeId: d.id, toNodeId: link.id, answer, hadRetry
+                    fromNodeId: d.id, toNodeId: link.id, answer, retryCount
                 });
                 if (!result) {
                     ev.target.disabled = false;
@@ -16794,7 +16797,7 @@ SQIDAQAB
                 }
                 clearAnswerDraft(draftKey);
                 if (!result.correct) {
-                    renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, questionText, linkTeaching, answerInputType, notes, true, result.feedback || '', modality, audioText);
+                    renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, questionText, linkTeaching, answerInputType, notes, retryCount + 1, result.feedback || '', modality, audioText);
                     return;
                 }
                 if (result.schedule) {
@@ -17478,13 +17481,16 @@ SQIDAQAB
             // vanishing. A transfer/integration answer is never retryable —
             // that's a real spaced-review lapse, graded the moment it's
             // wrong, same as before.
-            let hadRetry = false;
+            // retryCount (not a boolean) — one wrong attempt before the
+            // eventual correct one grades 'hard', two or more grade
+            // 'again' outright (see reviewService.ts's deriveCorrectRating).
+            let retryCount = 0;
             submitBtn.addEventListener('click', async () => {
                 if (editor.isEmpty()) return;
                 if (!editor.hasTrustedInput()) { showPasteBlockWarning(editor.container); return; }
                 submitBtn.disabled = true;
                 submitBtn.textContent = 'Checking…';
-                const result = await onSubmit(editor.getValue(), hadRetry);
+                const result = await onSubmit(editor.getValue(), retryCount);
                 if (!result) {
                     // The request itself failed — the draft is already
                     // checkpointed, so just let them retry rather than
@@ -17496,7 +17502,7 @@ SQIDAQAB
                 }
                 clearAnswerDraft(draftKey);
                 if (result.retryable) {
-                    hadRetry = true;
+                    retryCount++;
                     submitBtn.disabled = false;
                     submitBtn.textContent = 'Try again';
                     renderQuestionResult(resultEl, result, onRequiresEncoding);
