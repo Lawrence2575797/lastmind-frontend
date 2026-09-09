@@ -15338,6 +15338,11 @@ SQIDAQAB
                 <div class="km-note-visual-label">Real-world example</div>
                 <div class="km-note-example-text">${boldMarkdownToHtml(v.text)}</div>
             `;
+        } else if (v.type === 'englishAnchor') {
+            visualEl.innerHTML = `
+                <div class="km-note-visual-label">English connection</div>
+                <div class="km-note-example-text">${boldMarkdownToHtml(v.text)}</div>
+            `;
         }
     }
 
