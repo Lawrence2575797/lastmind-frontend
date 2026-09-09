@@ -35,7 +35,12 @@
            as their contrasting text colour, "sunken" insets against
            --panel) that have nothing to do with the page's own canvas and
            would look wrong if it changed. */
-        --ink: #2B2118;
+        /* Burgundy, matching --panel exactly - every text-on-light-birch
+           spot in the site (body, #gate-message, and every ink-tinted
+           rgba(43,33,24,...) chip/border derived from this same colour)
+           now reads in the app's own default burgundy instead of the old
+           near-black. */
+        --ink: #4E1B26;
     }
 
     button, input, textarea, select {
@@ -2959,7 +2964,7 @@
 
     .sidebar-toggle {
         background: none;
-        border: 1px solid rgba(43, 33, 24, 0.3);
+        border: 1px solid rgba(78, 27, 38, 0.3);
         /* Sits transparently on the topbar, i.e. directly on body's own
            birch background - --ink, not --accent, is the readable choice
            there (see body's own comment on why --accent stays unchanged
@@ -4872,10 +4877,10 @@
        reasoning as body's own color: var(--ink). */
     .btn-on-content {
         color: var(--ink);
-        border-color: rgba(43, 33, 24, 0.3);
+        border-color: rgba(78, 27, 38, 0.3);
     }
     .btn-on-content:hover {
-        background: rgba(43, 33, 24, 0.06);
+        background: rgba(78, 27, 38, 0.06);
     }
     /* A disabled <button> otherwise renders identically to an active one
        (no browser default touches color/background here) — a disabled
@@ -6442,6 +6447,26 @@ SQIDAQAB
         const div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML;
+    }
+
+    // Renders the SAME plain-text maths shorthand the maths-keyboard
+    // editor's own getValue() produces/reads (see createSmartAnswerEditor's
+    // serializeNode — "^(...)" for a power, "_(...)" for a subscript, real
+    // unicode for everything else) as actual <sup>/<sub> HTML, for
+    // maths-generated text that was never typed through that editor (a
+    // generated question's own questionText/answerStructureAdvice, or a
+    // marking response's feedback) — see PRACTICE_QUESTION_GENERATION_PROMPT/
+    // the marking prompts' own rule requiring this exact convention instead
+    // of LaTeX, which this app has no renderer for. Escapes first (XSS),
+    // THEN converts the shorthand, so the sup/sub tags this inserts are the
+    // only real HTML in the result. Non-nested "^(...)"/"_(...)" only — a
+    // generated question is short enough that nesting isn't a realistic
+    // need, and a non-matching stray "^("/"_(" just prints literally.
+    function renderMathShorthand(str) {
+        const escaped = escapeHtml(str);
+        return escaped
+            .replace(/\^\(([^()]*)\)/g, '<sup>$1</sup>')
+            .replace(/_\(([^()]*)\)/g, '<sub>$1</sub>');
     }
 
     // Checkpointing for in-progress free-text answers — a failed
@@ -8176,9 +8201,9 @@ SQIDAQAB
         function practiceResultHtml(q, result) {
             return `
                 <div class="correction-label">${result.markAwarded} / ${result.markTariff} marks</div>
-                ${escapeHtml(result.feedback)}
-                ${result.conceptualMistakes ? `<div style="margin-top:10px;"><strong>Conceptual mistake:</strong> ${escapeHtml(result.conceptualMistakes)}</div>` : ''}
-                ${result.examTechniqueTips ? `<div style="margin-top:10px;"><strong>Exam technique:</strong> ${escapeHtml(result.examTechniqueTips)}</div>` : ''}
+                ${renderMathShorthand(result.feedback)}
+                ${result.conceptualMistakes ? `<div style="margin-top:10px;"><strong>Conceptual mistake:</strong> ${renderMathShorthand(result.conceptualMistakes)}</div>` : ''}
+                ${result.examTechniqueTips ? `<div style="margin-top:10px;"><strong>Exam technique:</strong> ${renderMathShorthand(result.examTechniqueTips)}</div>` : ''}
                 ${componentBreakdownHtml(q, result.componentMarks)}
             `;
         }
@@ -8218,7 +8243,7 @@ SQIDAQAB
                     ${q.options.map((opt, idx) => `
                         <label class="dont-know-label" style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
                             <input type="radio" name="pq-mc-${q.id}" value="${idx}">
-                            ${escapeHtml(opt)}
+                            ${renderMathShorthand(opt)}
                         </label>
                     `).join('')}
                    </div>`;
@@ -8232,9 +8257,9 @@ SQIDAQAB
 
             card.innerHTML = `
                 <p style="font-weight:700; margin-bottom:8px;">Question ${i + 1} (${q.markTariff} mark${q.markTariff === 1 ? '' : 's'})</p>
-                <p style="margin-bottom:12px;">${escapeHtml(q.questionText)}</p>
+                <p style="margin-bottom:12px;">${renderMathShorthand(q.questionText)}</p>
                 ${answerInputHtml}
-                ${q.answerStructureAdvice ? `<div class="field-hint" style="margin-top:10px; margin-bottom:6px;"><strong>How to structure your answer:</strong> ${escapeHtml(q.answerStructureAdvice)}</div>` : ''}
+                ${q.answerStructureAdvice ? `<div class="field-hint" style="margin-top:10px; margin-bottom:6px;"><strong>How to structure your answer:</strong> ${renderMathShorthand(q.answerStructureAdvice)}</div>` : ''}
                 <div class="bottom-action-row">
                     <button class="btn primary" type="button" id="pq-submit-${q.id}">Submit for marking</button>
                 </div>
