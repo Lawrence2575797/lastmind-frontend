@@ -8025,16 +8025,22 @@ SQIDAQAB
         });
     }
 
-    // Fetches the shrinking pick-list for this (student, spec-lesson) and
-    // renders it as a button per still-available question type. Picking
-    // one triggers a real, live, metered generation call (see
-    // generateAndRenderSpecPracticeQuestion) - up to 3 total per spec-lesson,
-    // enforced server-side (see specLessonPracticeService.ts).
+    // Renders the full persistent picture for this (student, spec-lesson):
+    // any already-picked questions FIRST (via the existing
+    // renderPracticeQuestionList card markup, unmodified - "Question N of 3"
+    // per card, answered or not), then the shrinking pick-list of still-
+    // available types below, if any picks remain. Fetched fresh from the
+    // server every time this is called (including right after a new pick),
+    // rather than patched in memory - so navigating to a different lesson
+    // and back, or a page reload, shows exactly the same state: a picked-
+    // but-unanswered question stays visible and answerable instead of
+    // disappearing, which is the whole point of persisting picks server-
+    // side (see specLessonPracticeService.ts's getPickedQuestions).
     async function renderSpecPracticePickList(folder, conceptId, concept) {
         document.getElementById('topbarTitle').textContent = `${folderLabel(folder)} · ${concept} · Practice Questions`;
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
-        contentInner.innerHTML = '<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Loading question types…</p></div>';
+        contentInner.innerHTML = '<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Loading…</p></div>';
 
         try {
             const { data: { session } } = await supabaseClient.auth.getSession();
@@ -8045,21 +8051,32 @@ SQIDAQAB
             if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
             const data = await resp.json();
 
-            if (data.picksRemaining === 0) {
-                contentInner.innerHTML = `
-                    <div class="dashboard-view dashboard-locked">
-                        <p class="dashboard-locked-quote">You've used all 3 practice questions for "${escapeHtml(concept)}".</p>
-                    </div>
-                `;
-                return;
+            contentInner.innerHTML = `
+                <div style="max-width:1040px; margin:0 auto; padding:24px;">
+                    <p style="font-weight:700; margin-bottom:16px;">${escapeHtml(concept)}</p>
+                    <div id="specPracticeQuestionsHost"></div>
+                    <div id="specPracticeTypeHost" style="max-width:640px;"></div>
+                </div>
+            `;
+
+            if (data.pickedQuestions.length) {
+                renderPracticeQuestionList(
+                    document.getElementById('specPracticeQuestionsHost'),
+                    data.pickedQuestions,
+                    concept, folder.subject || '', folder.qualification || '', folder.examBoard || '',
+                    data.componentDefinitions
+                );
             }
 
-            contentInner.innerHTML = `
-                <div style="max-width:640px; margin:0 auto; padding:24px;">
-                    <p style="font-weight:700; margin-bottom:6px;">${escapeHtml(concept)}</p>
-                    <p class="field-hint" style="margin-bottom:16px;">Pick a question type — ${data.picksRemaining} of 3 left for this lesson.</p>
-                    <div id="specPracticeTypeList"></div>
-                </div>
+            const typeHost = document.getElementById('specPracticeTypeHost');
+            if (data.picksRemaining === 0) {
+                typeHost.innerHTML = '<p class="field-hint" style="margin-top:16px;">You\'ve used all 3 practice questions for this lesson.</p>';
+                return;
+            }
+            typeHost.innerHTML = `
+                <p style="font-weight:700; margin:24px 0 6px;">Question ${data.picksUsed + 1} of 3</p>
+                <p class="field-hint" style="margin-bottom:16px;">Pick a question type to generate it.</p>
+                <div id="specPracticeTypeList"></div>
             `;
             const listEl = document.getElementById('specPracticeTypeList');
             if (!data.availableTypes.length) {
@@ -8072,20 +8089,20 @@ SQIDAQAB
                 btn.className = 'btn btn-on-content';
                 btn.style.cssText = 'display:block; width:100%; text-align:left; margin-bottom:8px;';
                 btn.textContent = `${t.displayLabel} (${t.markTariff} mark${t.markTariff === 1 ? '' : 's'})`;
-                btn.addEventListener('click', () => generateAndRenderSpecPracticeQuestion(folder, conceptId, concept, t.typeKey, btn, data.componentDefinitions));
+                btn.addEventListener('click', () => pickSpecPracticeType(folder, conceptId, concept, t.typeKey, btn));
                 listEl.appendChild(btn);
             });
         } catch (err) {
-            console.error('LastMind: failed to load available question types.', err);
-            contentInner.innerHTML = '<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Couldn\'t load question types — try again in a moment.</p></div>';
+            console.error('LastMind: failed to load Practice Questions for this lesson.', err);
+            contentInner.innerHTML = '<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Couldn\'t load Practice Questions — try again in a moment.</p></div>';
         }
     }
 
-    // Generates one real question live, then renders it via the EXISTING
-    // question-card markup/submit logic in renderPracticeQuestionList
-    // (reused unmodified - it already accepts any array of
-    // PracticeQuestionSummary-shaped questions, generated or authored).
-    async function generateAndRenderSpecPracticeQuestion(folder, conceptId, concept, typeKey, btn, componentDefinitions) {
+    // Generates one real question live, then re-renders the WHOLE persistent
+    // view (not just this one card) - the fresh fetch is what actually
+    // moves the new question up into the picked-questions list and shrinks
+    // the pick-list beneath it, same as a reload would show.
+    async function pickSpecPracticeType(folder, conceptId, concept, typeKey, btn) {
         const originalLabel = btn.textContent;
         btn.disabled = true;
         btn.textContent = 'Generating…';
@@ -8099,13 +8116,7 @@ SQIDAQAB
             });
             const body = await resp.json().catch(() => ({}));
             if (!resp.ok) throw new Error(body.error || 'Could not generate this question.');
-
-            const contentInner = document.getElementById('contentInner');
-            contentInner.innerHTML = '<button class="btn btn-on-content" type="button" id="backToSpecPracticePicksBtn" style="margin:24px 0 0 24px;">← Back to question picks</button>';
-            const cardHost = document.createElement('div');
-            contentInner.appendChild(cardHost);
-            renderPracticeQuestionList(cardHost, [body], concept, folder.subject || '', folder.qualification || '', folder.examBoard || '', componentDefinitions);
-            document.getElementById('backToSpecPracticePicksBtn').addEventListener('click', () => renderSpecPracticePickList(folder, conceptId, concept));
+            await renderSpecPracticePickList(folder, conceptId, concept);
         } catch (err) {
             console.error('LastMind: failed to generate a spec practice question.', err);
             alert(err.message || 'Could not generate this question — try again in a moment.');
@@ -8264,7 +8275,7 @@ SQIDAQAB
             }
 
             card.innerHTML = `
-                <p style="font-weight:700; margin-bottom:8px;">Question ${i + 1} (${q.markTariff} mark${q.markTariff === 1 ? '' : 's'})</p>
+                <p style="font-weight:700; margin-bottom:8px;">Question ${i + 1} of 3 · ${q.markTariff} mark${q.markTariff === 1 ? '' : 's'}</p>
                 <p style="margin-bottom:12px;">${renderMathShorthand(q.questionText)}</p>
                 ${answerInputHtml}
                 ${q.answerStructureAdvice ? `<div class="field-hint" style="margin-top:10px; margin-bottom:6px;"><strong>How to structure your answer:</strong> ${renderMathShorthand(q.answerStructureAdvice)}</div>` : ''}
