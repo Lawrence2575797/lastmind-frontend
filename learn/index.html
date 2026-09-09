@@ -8971,6 +8971,10 @@ SQIDAQAB
 
             if (!resp.ok) {
                 const body = await resp.json().catch(() => ({}));
+                if (body.code === 'LOCK_LIMIT_REACHED') {
+                    renderLockLimitReachedCard(questionFlowEl);
+                    return;
+                }
                 questionFlowEl.innerHTML = `<div class="correction-card">${escapeHtml(body.error || 'Could not start this review.')}</div>`;
                 return;
             }
@@ -11178,6 +11182,10 @@ SQIDAQAB
                 if (!resp.ok) {
                     clearInterval(progressInterval);
                     const body = await resp.json().catch(() => ({}));
+                    if (body.code === 'LOCK_LIMIT_REACHED') {
+                        renderLockLimitReachedCard(questionFlowEl);
+                        return;
+                    }
                     // A cold-cache generation that runs long enough to trip
                     // a network/platform timeout looks identical to any
                     // other failure from here (the connection just drops —
@@ -13951,6 +13959,10 @@ SQIDAQAB
                 headers: { Authorization: `Bearer ${session.access_token}` }
             });
             if (resp.status === 404) return { notFound: true };
+            if (resp.status === 429 || resp.status === 402) {
+                const body = await resp.json().catch(() => ({}));
+                if (body.code === 'LOCK_LIMIT_REACHED') return { lockLimitReached: true };
+            }
             if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
             return await resp.json();
         } catch (err) {
@@ -16126,38 +16138,30 @@ SQIDAQAB
         }
 
         // Netflix-style "what's next", offered right after a lesson or
-        // review finishes. Priority order, exactly as decided: (1) any
-        // due review, anywhere in the subject - most overdue first, since
-        // spaced repetition only works if due items are actually seen
-        // near their due date, not whenever happens to be convenient: (2)
-        // otherwise, the just-finished concept's own downstream neighbour
-        // - but only once it's actually startable, walking backward
-        // through whichever unmet prerequisite is blocking it (however
-        // many steps that takes) rather than recommending something the
-        // student can't actually begin yet; (3) if this concept has
+        // review finishes. Priority order: (1) the just-finished concept's
+        // own DIRECT downstream neighbour, if it's ready to encode right
+        // now - encoding it isn't just "the next thing to learn", it's a
+        // genuine prerequisite for the just-finished concept's own future
+        // review, since a node's review tests the link to each already-
+        // encoded downstream neighbour as a "qualifying link" (see
+        // isNodeReviewDue's own comment) - a direct dependent sitting
+        // unencoded means that link can never be tested at all, so this
+        // has to come before anything else, including a review that's
+        // already due elsewhere; (2) otherwise, any due review anywhere in
+        // the subject - most overdue first, since spaced repetition only
+        // works if due items are actually seen near their due date, not
+        // whenever happens to be convenient; (3) if this concept has
         // nothing left to unlock (a dead end, or everything downstream is
-        // already encoded), falls back to the next not-yet-started
-        // concept anywhere in the subject's own teaching order. Returns
-        // null once genuinely nothing is left - nothing due, nothing new
-        // left to unlock.
+        // already encoded) and nothing else is due, falls back to the next
+        // not-yet-started concept anywhere in the subject's own teaching
+        // order. Returns null once genuinely nothing is left - nothing
+        // due, nothing new left to unlock.
         function computeNextRecommendation(fromNodeId) {
             const schedule = fullData.scheduleByConceptId || new Map();
             function isNodeEncoded(nodeId) {
                 const n = nodeById.get(nodeId);
                 return !!n && schedule.has(n.conceptId);
             }
-
-            let bestDue = null;
-            nodes.forEach((n) => {
-                if (!schedule.has(n.conceptId)) return;
-                const qualifyingLinks = (successorAdjacency.get(n.id) || [])
-                    .map((id) => nodeById.get(id))
-                    .filter((ln) => ln && schedule.has(ln.conceptId));
-                if (!isNodeReviewDue(n, qualifyingLinks, schedule)) return;
-                const due = nextNodeReviewDueDate(n, qualifyingLinks, schedule) || new Date(0);
-                if (!bestDue || due < bestDue.due) bestDue = { node: n, qualifyingLinks, due };
-            });
-            if (bestDue) return { type: 'review', node: bestDue.node, qualifyingLinks: bestDue.qualifyingLinks };
 
             const visited = new Set();
             function firstReadyUnencoded(nodeId) {
@@ -16173,10 +16177,30 @@ SQIDAQAB
                 return null;
             }
 
+            // (1) A direct dependent of the just-finished concept, ready
+            // right now - checked BEFORE due reviews elsewhere, unlike a
+            // dependent found several steps further down the general
+            // fallback below (priority 3), which is genuinely just "next
+            // in line", not a blocker on THIS concept's own review.
             for (const id of successorAdjacency.get(fromNodeId) || []) {
                 const found = firstReadyUnencoded(id);
                 if (found) return { type: 'lesson', node: nodeById.get(found) };
             }
+
+            // (2) Any due review anywhere in the subject.
+            let bestDue = null;
+            nodes.forEach((n) => {
+                if (!schedule.has(n.conceptId)) return;
+                const qualifyingLinks = (successorAdjacency.get(n.id) || [])
+                    .map((id) => nodeById.get(id))
+                    .filter((ln) => ln && schedule.has(ln.conceptId));
+                if (!isNodeReviewDue(n, qualifyingLinks, schedule)) return;
+                const due = nextNodeReviewDueDate(n, qualifyingLinks, schedule) || new Date(0);
+                if (!bestDue || due < bestDue.due) bestDue = { node: n, qualifyingLinks, due };
+            });
+            if (bestDue) return { type: 'review', node: bestDue.node, qualifyingLinks: bestDue.qualifyingLinks };
+
+            // (3) General fallback - next not-yet-started concept anywhere.
             for (const n of nodes) {
                 const found = firstReadyUnencoded(n.id);
                 if (found) return { type: 'lesson', node: nodeById.get(found) };
@@ -16465,6 +16489,10 @@ SQIDAQAB
             // generation itself never ran, e.g. a stale/bogus node id) is
             // now the rare case, kept as its own plain message rather than
             // offering a retry that can't possibly help.
+            if (nodeLesson && nodeLesson.lockLimitReached) {
+                renderLockLimitReachedCard(lessonEl);
+                return;
+            }
             if (nodeLesson && nodeLesson.loadError) {
                 lessonEl.innerHTML = `<div class="km-inline-detail-item km-inline-detail-none">Something went wrong generating this lesson — this is usually temporary.</div><button type="button" class="btn primary km-lesson-retry-btn" style="margin-top:10px;">Try again</button>`;
                 lessonEl.querySelector('.km-lesson-retry-btn').addEventListener('click', () => renderNodeLessonContent(lessonEl, d, upstream));
@@ -16948,7 +16976,7 @@ SQIDAQAB
                 ev.target.disabled = true;
                 ev.target.textContent = 'Checking…';
                 const result = await postChainDiagnostic('/knowledge-map-v2/node-review/integration/submit', {
-                    fromNodeId: d.id, toNodeId: link.id, answer, retryCount
+                    fromNodeId: d.id, toNodeId: link.id, questionText, answer, retryCount
                 });
                 if (!result) {
                     ev.target.disabled = false;
@@ -19169,9 +19197,27 @@ SQIDAQAB
     // Placeholder - no purchase flow exists yet, what this button actually
     // does hasn't been designed. Just confirms the button itself works
     // rather than doing nothing silently on click.
-    document.getElementById('buyMoreTokensBtn').addEventListener('click', () => {
+    // Placeholder - no purchase flow exists yet, what this button actually
+    // does hasn't been designed. Shared by the topbar button AND every
+    // "Lock limit reached" card below, so both stay in sync once a real
+    // flow replaces this.
+    function showBuyMoreLocksPrompt() {
         alert("Buying extra usage isn't set up yet - coming soon.");
-    });
+    }
+    document.getElementById('buyMoreTokensBtn').addEventListener('click', showBuyMoreLocksPrompt);
+
+    // Shared "Lock limit reached" card - every place a request comes back
+    // with { code: 'LOCK_LIMIT_REACHED' } (see generationCapService.ts/
+    // lockService.ts's own InsufficientLocksError) renders this instead of
+    // its own generic error, so the message and the way out (Buy more
+    // Locks) are consistent everywhere it can happen.
+    function renderLockLimitReachedCard(container) {
+        container.innerHTML = `
+            <div class="km-inline-detail-item km-inline-detail-none">Lock limit reached — you've used up your Locks for now.</div>
+            <button type="button" class="btn primary lock-limit-buy-more-btn" style="margin-top:10px;">⚡ Buy more tokens</button>
+        `;
+        container.querySelector('.lock-limit-buy-more-btn').addEventListener('click', showBuyMoreLocksPrompt);
+    }
 
     document.getElementById('continueLockDepositBtn').addEventListener('click', async () => {
         const dateStr = document.getElementById('lockDepositDateInput').value;
