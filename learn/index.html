@@ -3272,10 +3272,17 @@
         font-size: clamp(1.9rem, 5vw, 2.8rem);
         font-weight: 700;
         letter-spacing: -0.02em;
-        color: var(--text);
+        /* var(--ink), not var(--text) - this always renders directly into
+           #contentInner, i.e. on the plain birch background, never a
+           --panel surface (checked every call site). --text/--accent are
+           forced to the same value by the theme customiser's single
+           "Text" control (see THEME_DEFAULTS' own comment), so the span
+           below was never actually a distinct colour from this either -
+           no two-tone effect lost by unifying both to ink here. */
+        color: var(--ink);
     }
 
-    .dashboard-locked-logo span { color: var(--accent); }
+    .dashboard-locked-logo span { color: var(--ink); }
 
     .dashboard-locked-quote {
         font-family: 'Georgia', serif;
