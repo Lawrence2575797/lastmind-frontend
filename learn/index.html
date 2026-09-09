@@ -5213,6 +5213,7 @@
                          yet, see buyMoreTokensBtn's own click handler. -->
                     <button class="cortex-btn-topbar" id="buyMoreTokensBtn" type="button">⚡ Buy more tokens</button>
                     <button class="cortex-btn-topbar" id="practiceQuestionsTopbarBtn" type="button">📝 Practice Questions</button>
+                    <button class="cortex-btn-topbar" id="specPracticeTopbarBtn" type="button">📘 Exam Practice</button>
                     <button class="cortex-btn-topbar upgrade-topbar-btn" id="upgradeTopbarBtn" type="button" style="display:none;">⭐ Upgrade</button>
                     <button class="cortex-btn-topbar" id="peerTutoringHubBtn" type="button">🤝 Peer tutoring</button>
                     <button class="cortex-btn-topbar" id="myTutoringTopbarBtn" type="button">📋 My Tutoring<span class="mt-badge" id="mtBadge" style="display:none;"></span></button>
@@ -6359,6 +6360,21 @@ SQIDAQAB
     // topbar button and its "Exit practice mode" button respectively.
     let practiceQuestionsMode = false;
 
+    // The standalone spec-hierarchy Practice Questions page (separate from
+    // the atomic-node practiceQuestionsMode above) - while true, buildFolderRow
+    // shows the selected subject's real exam-spec Theme -> Subtopic ->
+    // spec-lesson tree (see buildSpecLessonTreeHtml) instead of its atomic
+    // knowledge-map tree, and selectFolder fetches /spec-lesson-tree instead
+    // of the knowledge-map graph. Set/cleared by the Spec Practice topbar
+    // button and its "Exit" button respectively.
+    let specPracticeMode = false;
+    // Cache for the currently-selected subject's spec-lesson tree fetch -
+    // same role as selectedFolderKmData plays for the atomic tree. null
+    // while loading, before a subject is selected, or (a real, distinct
+    // state) when the fetch succeeded but nothing is seeded yet for this
+    // subject/board.
+    let selectedFolderSpecTree = null;
+
     // Set by startReviewFromSchedule() right before it programmatically
     // clicks #generateQuestionsBtn, so that click's handler (defined fresh
     // inside openPage(), scoped to whatever page happens to be open) uses
@@ -7428,7 +7444,15 @@ SQIDAQAB
         // content area. Rendered synchronously from whatever
         // selectedFolderKmData currently holds; renderKnowledgeMapForFolder
         // populates it and re-renders this list once the real fetch lands.
-        if (f.id === selectedFolderId) {
+        if (f.id === selectedFolderId && specPracticeMode) {
+            // Same slot, spec-hierarchy tree instead of the atomic one -
+            // see renderSpecPracticeForFolder/buildSpecLessonTreeHtml.
+            const treeWrap = document.createElement('div');
+            treeWrap.className = 'folder-item-tree';
+            treeWrap.innerHTML = buildSpecLessonTreeHtml(selectedFolderSpecTree);
+            item.appendChild(treeWrap);
+            if (selectedFolderSpecTree && selectedFolderSpecTree !== 'unseeded') wireSpecLessonTree(treeWrap, f);
+        } else if (f.id === selectedFolderId) {
             const treeWrap = document.createElement('div');
             treeWrap.className = 'folder-item-tree';
             treeWrap.innerHTML = selectedFolderKmData
@@ -7725,7 +7749,9 @@ SQIDAQAB
         // still reachable via its own sidebar tab) and is otherwise
         // unaffected by this. null folderId (e.g. after a delete) falls
         // back to Cortex, matching the prior behaviour for that case.
-        if (f) {
+        if (f && specPracticeMode) {
+            renderSpecPracticeForFolder(f);
+        } else if (f) {
             renderKnowledgeMapForFolder(f);
         } else {
             renderWelcome();
@@ -7903,6 +7929,132 @@ SQIDAQAB
             console.error('LastMind: failed to load practice questions.', err);
             contentInner.innerHTML = '<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Couldn\'t load practice questions — try again in a moment.</p></div>';
         }
+    }
+
+    // ─── SPEC PRACTICE (standalone, spec-hierarchy Practice Questions) ───
+    // A genuinely separate page from the atomic-node Practice Questions
+    // above: same sidebar (same subjects the student already has, same
+    // panel/tree CSS) but each subject's inline tree shows the REAL
+    // exam-spec Theme -> Subtopic -> spec-lesson hierarchy (from
+    // spec_lesson_plans, via GET /spec-lesson-tree) instead of the atomic
+    // knowledge-map nodes. Phase 2 of this feature: read-only tree, leaf
+    // click is a placeholder — generation lands in a later phase.
+    document.getElementById('specPracticeTopbarBtn').addEventListener('click', () => {
+        specPracticeMode = true;
+        practiceQuestionsMode = false;
+        stopActiveDictation();
+        stopSpeaking();
+        selectedPageId = null;
+        document.getElementById('topbarTitle').textContent = 'Exam Practice';
+        const contentInner = document.getElementById('contentInner');
+        contentInner.classList.add('content-inner-wide');
+        contentInner.innerHTML = `
+            <div class="dashboard-view dashboard-locked">
+                <h1 class="dashboard-locked-logo">Exam <span>Practice</span></h1>
+                <p class="dashboard-locked-quote">Select a subject, then a lesson from the sidebar.</p>
+                <button class="btn" type="button" id="exitSpecPracticeModeBtn" style="margin-top:24px;">Exit Exam Practice</button>
+            </div>
+        `;
+        document.getElementById('exitSpecPracticeModeBtn').addEventListener('click', () => {
+            specPracticeMode = false;
+            selectedFolderSpecTree = null;
+            selectFolder(null);
+        });
+        refreshFolderList();
+    });
+
+    // Fetches this subject's real spec-lesson tree and caches it into
+    // selectedFolderSpecTree, same role renderKnowledgeMapForFolder plays
+    // for the atomic tree's selectedFolderKmData. Called from selectFolder
+    // instead of renderKnowledgeMapForFolder while specPracticeMode is on.
+    async function renderSpecPracticeForFolder(folder) {
+        selectedFolderSpecTree = null;
+        refreshFolderList(); // shows "Loading…" in the sidebar immediately
+
+        const contentInner = document.getElementById('contentInner');
+        contentInner.classList.add('content-inner-wide');
+        contentInner.innerHTML = '<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Select a lesson from the sidebar.</p></div>';
+
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) throw new Error('not signed in');
+            const params = new URLSearchParams({
+                subject: folder.subject || '',
+                qualification: folder.qualification || '',
+                examBoard: folder.examBoard || ''
+            });
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/spec-lesson-tree?${params.toString()}`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            const data = await resp.json();
+            // null themes is a real, distinct state (nothing seeded yet for
+            // this subject/board) vs. [] (seeded but genuinely empty) —
+            // surfaced honestly rather than looking identical to "loading".
+            selectedFolderSpecTree = data.themes === null ? 'unseeded' : data.themes;
+            if (selectedFolderSpecTree === 'unseeded') {
+                contentInner.innerHTML = '<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Exam Practice isn\'t set up for this subject yet — check back soon.</p></div>';
+            }
+        } catch (err) {
+            console.error('LastMind: failed to load the spec lesson tree.', err);
+            selectedFolderSpecTree = 'unseeded';
+            contentInner.innerHTML = '<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Couldn\'t load Exam Practice for this subject — try again in a moment.</p></div>';
+        }
+        refreshFolderList();
+    }
+
+    // Same nesting/visual language as buildSubjectTreeHtml (reuses the
+    // identical .notes-tree-* classes) - one level deeper, since a
+    // spec-lesson sits under a subtopic here rather than being the leaf
+    // itself.
+    function buildSpecLessonTreeHtml(themes) {
+        if (themes === 'unseeded') {
+            return '<div class="empty-hint" style="padding:6px 4px;">Not set up for this subject yet.</div>';
+        }
+        if (!themes) return '<div class="empty-hint" style="padding:6px 4px;">Loading…</div>';
+        return themes.map((t) => `
+            <div class="notes-tree-theme">
+                <button type="button" class="notes-tree-theme-toggle"><span class="notes-tree-arrow">▶</span><span>${escapeHtml(t.theme)}</span></button>
+                <div class="notes-tree-theme-body" style="display:none;">
+                    ${t.subtopics.map((s) => `
+                        <div class="notes-tree-subtopic">
+                            <button type="button" class="notes-tree-subtopic-toggle"><span class="notes-tree-arrow">▶</span><span>${escapeHtml(s.subtopic)}</span></button>
+                            <div class="notes-tree-subtopic-body" style="display:none;">
+                                ${s.lessons.map((l) => `
+                                    <button type="button" class="notes-tree-node-item" data-concept-id="${escapeHtml(l.conceptId)}" data-concept="${escapeHtml(l.concept)}" data-subtopic="${escapeHtml(s.subtopic)}">
+                                        <span>${escapeHtml(l.concept)}</span>
+                                    </button>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function wireSpecLessonTree(treeWrap, folder) {
+        const wireToggle = (btn) => {
+            btn.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                const body = btn.nextElementSibling;
+                const open = body.style.display !== 'none';
+                body.style.display = open ? 'none' : 'block';
+                btn.querySelector('.notes-tree-arrow').classList.toggle('open', !open);
+            });
+        };
+        treeWrap.querySelectorAll('.notes-tree-theme-toggle').forEach(wireToggle);
+        treeWrap.querySelectorAll('.notes-tree-subtopic-toggle').forEach(wireToggle);
+        // Phase 2: generation/answering lands in a later phase - for now
+        // this just confirms the real spec-lesson tree renders correctly.
+        treeWrap.querySelectorAll('.notes-tree-node-item[data-concept-id]').forEach((btn) => {
+            btn.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                const contentInner = document.getElementById('contentInner');
+                document.getElementById('topbarTitle').textContent = `${folderLabel(folder)} · ${btn.dataset.concept} · Exam Practice`;
+                contentInner.innerHTML = `<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">"${escapeHtml(btn.dataset.concept)}" — question generation is coming in the next update.</p></div>`;
+            });
+        });
     }
 
     // Original explanation of how Edexcel A-Level Economics actually marks
