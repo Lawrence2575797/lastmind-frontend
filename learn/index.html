@@ -1521,14 +1521,14 @@
         font-family: 'Arial', sans-serif;
         font-size: 0.72rem;
         font-weight: 600;
-        /* Ink-tinted, not gold-tinted - this chip sits transparently on
-           the topbar, i.e. directly on body's own now-light birch
-           background, where a subtle DARK tint (and dark text) is the
-           legible choice, the mirror image of the old subtle-light-tint
-           on a dark background. */
-        background: rgba(43, 33, 24, 0.06);
-        border: 1px solid rgba(43, 33, 24, 0.3);
-        color: var(--ink);
+        /* Explicit purple fill rather than an ink-tinted transparency —
+           the old rgba(43,33,24,...) tint assumed a light page background
+           underneath and went unreadable once a student picked a dark
+           custom theme (same class of bug as commit 0d6165d). A fixed
+           background/text pair stays legible regardless of theme. */
+        background: #6B3FA0;
+        border: 1px solid #5A3386;
+        color: #F5EFFA;
         padding: 6px 10px;
         border-radius: 20px;
         cursor: pointer;
@@ -1537,8 +1537,8 @@
     }
 
     .credit-balance-chip:hover {
-        background: rgba(43, 33, 24, 0.12);
-        border-color: rgba(43, 33, 24, 0.5);
+        background: #7C4CB8;
+        border-color: #6B3FA0;
     }
 
     .credit-balance-view {
@@ -3047,15 +3047,21 @@
         font-size: 0.74rem;
         font-weight: 600;
         letter-spacing: 0.02em;
-        /* Same ink-tinted-not-gold-tinted reasoning as .credit-balance-chip
-           above - sits transparently on the (now light) topbar. */
-        background: rgba(43, 33, 24, 0.06);
-        border: 1px solid rgba(43, 33, 24, 0.35);
-        color: var(--ink);
+        /* Explicit purple fill, same reasoning as .credit-balance-chip
+           above - a theme-dependent ink tint went unreadable on a dark
+           custom background, so this uses a fixed background/text pair. */
+        background: #6B3FA0;
+        border: 1px solid #5A3386;
+        color: #F5EFFA;
         padding: 8px 14px;
         border-radius: 6px;
         cursor: pointer;
         white-space: nowrap;
+    }
+
+    .cortex-btn-topbar:hover {
+        background: #7C4CB8;
+        border-color: #6B3FA0;
     }
 
     .upgrade-topbar-btn {
