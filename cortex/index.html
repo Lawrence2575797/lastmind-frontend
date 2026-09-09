@@ -29,7 +29,9 @@
            dark tone: chat-msg-user/.chat-confirm-btn/#chatMicBtn.listening
            all still rely on it as a flat colour, unrelated to the page's
            own canvas. */
-        --ink: #2B2118;
+        /* Burgundy, matching learn/index.html's own --ink default (and
+           its --panel) for consistency across the two pages. */
+        --ink: #4E1B26;
     }
 
     html, body { height: 100%; }
@@ -434,10 +436,13 @@ SQIDAQAB
         root.setProperty('--text', theme.textColor);
         root.setProperty('--accent', theme.textColor);
         root.setProperty('--panel', theme.panelColor);
-        // Same as --text/--accent, deliberately - see learn/index.html's
-        // own applyTheme comment on why this no longer auto-computes a
-        // contrasting ink from the background's luminance.
-        root.setProperty('--ink', theme.textColor);
+        // --ink deliberately left untouched here - see learn/index.html's
+        // own applyTheme comment: this used to be coupled to the Text
+        // picker the same way as --text/--accent, which made the default
+        // cream Text colour illegible against the birch background every
+        // --ink consumer (this page's own .chat-empty-logo included)
+        // actually sits on. --ink now always reads its static :root
+        // default (burgundy) regardless of the Text picker.
         document.body.style.background = theme.bgTexture === 'wood' ? themeWoodBackground(theme.bgColor) : theme.bgColor;
     }
     async function fetchThemeSettings() {
