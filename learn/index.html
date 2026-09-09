@@ -5373,10 +5373,25 @@
             <label for="customFolderTitleInput">Title</label>
             <input type="text" id="customFolderTitleInput" placeholder="e.g. Running a small business">
         </div>
-        <div class="field">
-            <label for="customFolderDescriptionInput">Description</label>
+        <!-- Only revealed once classify-subject-title confirms the typed
+             title names a language - see wireCustomFolderCourseType. A
+             non-language "Other" subject skips straight to the
+             description field, unchanged from before this existed. -->
+        <div class="field" id="customFolderCourseTypeField" style="display:none;">
+            <label>Full course or crash course?</label>
+            <div style="display:flex; gap:8px;">
+                <button type="button" class="btn" id="customFolderFullCourseBtn">Full course</button>
+                <button type="button" class="btn" id="customFolderCrashCourseBtn">Crash course</button>
+            </div>
+            <div class="field-hint">A crash course learns just enough for one specific goal (e.g. "order at a restaurant") in as few days as possible - not the whole language.</div>
+        </div>
+        <div class="field" id="customFolderDescriptionField">
+            <label for="customFolderDescriptionInput" id="customFolderDescriptionLabel">Description</label>
             <textarea id="customFolderDescriptionInput" class="multi-lesson-input" rows="3" placeholder="What do you want to learn? This is used to generate lessons -- e.g. &quot;the fundamentals of running a small retail business: cash flow, pricing, basic accounting, operations.&quot;"></textarea>
-            <div class="field-hint">Lessons here teach the underlying theory only -- never personal advice or recommendations for your specific situation.</div>
+            <div class="field-hint" id="customFolderDescriptionHint">Lessons here teach the underlying theory only -- never personal advice or recommendations for your specific situation.</div>
+        </div>
+        <div class="field" id="customFolderPlanSummaryField" style="display:none;">
+            <div class="field-hint" id="customFolderPlanSummaryText"></div>
         </div>
 
         <div class="modal-actions">
@@ -12586,9 +12601,38 @@ SQIDAQAB
     // Subject or Level to fill in, just what you want to learn. subject is
     // set equal to the title on create (see submit handler below) since the
     // backend's lesson-generation endpoints require a non-empty subject.
+    //
+    // A language title additionally offers a Full course / Crash course
+    // choice (see classifySubjectTitleRequest, fired on leaving the title
+    // field) - crash course re-purposes the same description field to
+    // collect a goal + daily time budget instead of a topic description,
+    // plans a scoped node subset via objective-course/plan, and only
+    // creates the folder once the student confirms the resulting estimate
+    // (submitCustomFolderBtn does double duty as "Plan course" then
+    // "Create" for this path). See wise-humming-cloud.md for the full plan.
+    let customFolderCourseType = null; // null | 'full' | 'crash'
+    let customFolderPendingPlan = null; // objective-course/plan result, once computed - invalidated by editing the description again
+    let customFolderLastClassifiedTitle = null;
+
+    function resetCustomFolderCourseTypeUi() {
+        customFolderCourseType = null;
+        customFolderPendingPlan = null;
+        document.getElementById('customFolderCourseTypeField').style.display = 'none';
+        document.getElementById('customFolderDescriptionField').style.display = '';
+        document.getElementById('customFolderDescriptionLabel').textContent = 'Description';
+        document.getElementById('customFolderDescriptionInput').placeholder = 'What do you want to learn? This is used to generate lessons -- e.g. "the fundamentals of running a small retail business: cash flow, pricing, basic accounting, operations."';
+        document.getElementById('customFolderDescriptionHint').textContent = 'Lessons here teach the underlying theory only -- never personal advice or recommendations for your specific situation.';
+        document.getElementById('customFolderPlanSummaryField').style.display = 'none';
+        const btn = document.getElementById('submitCustomFolderBtn');
+        btn.textContent = 'Create';
+        btn.disabled = false;
+    }
+
     function openCustomFolderModal() {
         document.getElementById('customFolderTitleInput').value = '';
         document.getElementById('customFolderDescriptionInput').value = '';
+        customFolderLastClassifiedTitle = null;
+        resetCustomFolderCourseTypeUi();
         document.getElementById('customFolderModalOverlay').classList.add('open');
     }
 
@@ -12600,19 +12644,147 @@ SQIDAQAB
     document.getElementById('customFolderModalOverlay').addEventListener('click', (e) => {
         if (e.target.id === 'customFolderModalOverlay') closeCustomFolderModal();
     });
+
+    // One Haiku-tier call, fired once per distinct typed title (not on
+    // every keystroke) - see CLASSIFY_SUBJECT_TITLE_PROMPT. Defaults to
+    // treating the title as non-language on any failure, so a network
+    // hiccup just means the modal behaves exactly as it always did rather
+    // than blocking folder creation.
+    async function classifySubjectTitleRequest(title) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return false;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/classify-subject-title`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify({ title })
+            });
+            if (!resp.ok) return false;
+            const data = await resp.json();
+            return !!data.isLanguage;
+        } catch (err) {
+            console.error('LastMind: subject title classification failed - defaulting to a plain custom subject.', err);
+            return false;
+        }
+    }
+
+    async function planObjectiveCourseRequest(subject, goalAndPace) {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) throw new Error('not signed in');
+        const resp = await fetch(`${COMPILE_BACKEND_URL}/objective-course/plan`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify({ subject, goalAndPace })
+        });
+        if (!resp.ok) {
+            const body = await resp.json().catch(() => ({}));
+            throw new Error(body.error || `Server returned ${resp.status}`);
+        }
+        return await resp.json();
+    }
+
+    document.getElementById('customFolderTitleInput').addEventListener('blur', async () => {
+        const rawTitle = document.getElementById('customFolderTitleInput').value.trim();
+        if (!rawTitle) { resetCustomFolderCourseTypeUi(); customFolderLastClassifiedTitle = null; return; }
+        if (rawTitle === customFolderLastClassifiedTitle) return;
+        customFolderLastClassifiedTitle = rawTitle;
+        const isLanguage = await classifySubjectTitleRequest(rawTitle);
+        // The title may have changed again (or the modal closed) while
+        // that request was in flight - only apply a now-stale result if
+        // the title it was computed for is still what's typed.
+        if (document.getElementById('customFolderTitleInput').value.trim() !== rawTitle) return;
+        if (isLanguage) {
+            document.getElementById('customFolderCourseTypeField').style.display = '';
+        } else {
+            resetCustomFolderCourseTypeUi();
+        }
+    });
     document.getElementById('customFolderTitleInput').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
             document.getElementById('customFolderDescriptionInput').focus();
         }
     });
+
+    document.getElementById('customFolderFullCourseBtn').addEventListener('click', () => {
+        customFolderCourseType = 'full';
+        customFolderPendingPlan = null;
+        document.getElementById('customFolderDescriptionField').style.display = '';
+        document.getElementById('customFolderDescriptionLabel').textContent = 'Description';
+        document.getElementById('customFolderDescriptionInput').placeholder = 'What do you want to learn? This is used to generate lessons -- e.g. "the fundamentals of running a small retail business: cash flow, pricing, basic accounting, operations."';
+        document.getElementById('customFolderDescriptionHint').textContent = 'Lessons here teach the underlying theory only -- never personal advice or recommendations for your specific situation.';
+        document.getElementById('customFolderPlanSummaryField').style.display = 'none';
+        document.getElementById('submitCustomFolderBtn').textContent = 'Create';
+    });
+    document.getElementById('customFolderCrashCourseBtn').addEventListener('click', () => {
+        customFolderCourseType = 'crash';
+        customFolderPendingPlan = null;
+        document.getElementById('customFolderDescriptionField').style.display = '';
+        document.getElementById('customFolderDescriptionLabel').textContent = 'What do you want to be able to do, and how much time can you give it?';
+        document.getElementById('customFolderDescriptionInput').placeholder = 'e.g. "I want to be able to order food and drinks at a restaurant. I can study about 15 minutes a day."';
+        document.getElementById('customFolderDescriptionHint').textContent = 'The AI picks out just the parts of the full course you need for this goal, then estimates how many days it will take.';
+        document.getElementById('customFolderPlanSummaryField').style.display = 'none';
+        document.getElementById('submitCustomFolderBtn').textContent = 'Plan course';
+    });
+
+    // Editing the goal after a plan was already computed invalidates it -
+    // the next click must re-plan against the new text, never silently
+    // create a folder scoped to a stale goal.
+    document.getElementById('customFolderDescriptionInput').addEventListener('input', () => {
+        if (customFolderCourseType === 'crash' && customFolderPendingPlan) {
+            customFolderPendingPlan = null;
+            document.getElementById('customFolderPlanSummaryField').style.display = 'none';
+            document.getElementById('submitCustomFolderBtn').textContent = 'Plan course';
+        }
+    });
+
     document.getElementById('submitCustomFolderBtn').addEventListener('click', async () => {
         const rawTitle = document.getElementById('customFolderTitleInput').value.trim();
         const description = document.getElementById('customFolderDescriptionInput').value.trim();
         if (!rawTitle || !description) return;
         const title = canonicalizeCustomSubjectTitle(rawTitle);
+
+        if (customFolderCourseType === 'crash' && !customFolderPendingPlan) {
+            const btn = document.getElementById('submitCustomFolderBtn');
+            btn.disabled = true;
+            btn.textContent = 'Planning…';
+            try {
+                const plan = await planObjectiveCourseRequest(title, description);
+                document.getElementById('customFolderPlanSummaryField').style.display = '';
+                if (!plan.nodeIds || !plan.nodeIds.length) {
+                    document.getElementById('customFolderPlanSummaryText').textContent = `Couldn't find anything relevant to that goal in ${title} yet — try describing it differently.`;
+                    btn.disabled = false;
+                    btn.textContent = 'Plan course';
+                    return;
+                }
+                customFolderPendingPlan = plan;
+                document.getElementById('customFolderPlanSummaryText').textContent =
+                    `~${plan.estimatedLessons} lessons, roughly ${plan.estimatedDays} day${plan.estimatedDays === 1 ? '' : 's'} at ${plan.minutesPerDay} min/day. Goal: "${plan.goal}". Click Create to start.`;
+                btn.disabled = false;
+                btn.textContent = 'Create';
+            } catch (err) {
+                console.error('LastMind: objective course planning failed.', err);
+                document.getElementById('customFolderPlanSummaryField').style.display = '';
+                document.getElementById('customFolderPlanSummaryText').textContent = 'Could not plan this course — please try again.';
+                btn.disabled = false;
+                btn.textContent = 'Plan course';
+            }
+            return;
+        }
+
         closeCustomFolderModal();
-        await createFolder(title, CUSTOM_LEVEL, '', '', '', title, description);
+        if (customFolderCourseType === 'crash' && customFolderPendingPlan) {
+            const plan = customFolderPendingPlan;
+            await createFolder(title, CUSTOM_LEVEL, '', '', '', title, description, {
+                goal: plan.goal,
+                minutesPerDay: plan.minutesPerDay,
+                nodeIds: plan.nodeIds,
+                createdAt: Date.now(),
+                completedAt: null
+            });
+        } else {
+            await createFolder(title, CUSTOM_LEVEL, '', '', '', title, description);
+        }
     });
 
     function closeFolderModal() {
@@ -12720,12 +12892,18 @@ SQIDAQAB
         }
     }
 
-    async function createFolder(subject, qualification, examBoard, institution, moduleCode, customTitle, customDescription) {
+    async function createFolder(subject, qualification, examBoard, institution, moduleCode, customTitle, customDescription, objectiveScope) {
         // Generated up front (matching subfolder/page ids) rather than left
         // to IndexedDB's own autoIncrement — sync needs an id that's
         // actually unique across devices, not just within this browser.
         const id = crypto.randomUUID();
         const folder = { id, subject, qualification, examBoard, institution, moduleCode, customTitle: customTitle || '', customDescription: customDescription || '', pages: [], createdAt: Date.now() };
+        // Crash-course folders only (see the +Other modal's Crash course
+        // choice) - scopes the knowledge-map-v2 graph view down to a
+        // goal-selected node subset instead of the whole subject. See
+        // renderKnowledgeMapForFolder's own filtering and the "Continue as
+        // full course" action in renderSubjectGraphView.
+        if (objectiveScope) folder.objectiveScope = objectiveScope;
 
         // Courses we hold a stored lesson plan for get their whole
         // subfolder/page structure built here, deterministically, from
@@ -14536,6 +14714,19 @@ SQIDAQAB
             showCenterMessage(`No knowledge map has been generated for ${folderLabel(folder)} yet.`);
             return;
         }
+        // Crash-course folders (folder.objectiveScope, see the +Other
+        // modal's crash-course flow) scope down to just the node subset
+        // objective-course/plan selected, right here at the single choke
+        // point both the sidebar tree (buildSubjectTreeHtml) and the graph
+        // view (renderSubjectGraphView/renderKmInlineGraph) read `data`
+        // from - so neither needs its own awareness of scoping. Lesson
+        // fetch/review/credit routes are never touched by this; a scoped
+        // node is a completely ordinary knowledge-map-v2 node underneath.
+        if (folder.objectiveScope && Array.isArray(folder.objectiveScope.nodeIds) && folder.objectiveScope.nodeIds.length) {
+            const scopeIds = new Set(folder.objectiveScope.nodeIds);
+            data.nodes = data.nodes.filter((n) => scopeIds.has(n.id));
+            data.edges = data.edges.filter((e) => scopeIds.has(e.source) && scopeIds.has(e.target));
+        }
         // Same /schedule data the calendar's own due-in badges and "how
         // does this work?" panel already use (see buildFsrsInfoPanelContent/
         // formatDueIn) — reused as-is rather than inventing a second FSRS
@@ -14588,6 +14779,24 @@ SQIDAQAB
         contentInner.querySelector('.km-inline-title').textContent = folderLabel(folder);
         contentInner.querySelector('.km-inline-sub').textContent = [folder.qualification, folder.examBoard].filter(Boolean).join(' · ');
         contentInner.querySelector('.km-inline-themetabs').style.display = 'none';
+
+        // Crash-course folders only (folder.objectiveScope) - clears the
+        // scope and re-renders, revealing the rest of this subject's graph
+        // with all progress made so far still intact (scoped nodes are
+        // ordinary knowledge-map-v2 nodes underneath - nothing to migrate).
+        if (folder.objectiveScope) {
+            const continueBtn = document.createElement('button');
+            continueBtn.type = 'button';
+            continueBtn.className = 'btn';
+            continueBtn.style.marginLeft = '10px';
+            continueBtn.textContent = `Continue as full ${folder.subject}`;
+            continueBtn.addEventListener('click', async () => {
+                delete folder.objectiveScope;
+                await putFolder(folder);
+                renderKnowledgeMapForFolder(folder);
+            });
+            contentInner.querySelector('.km-inline-sub').insertAdjacentElement('afterend', continueBtn);
+        }
 
         const backBtn = contentInner.querySelector('.km-inline-dashboard-btn');
         backBtn.textContent = `← ${folderLabel(folder)}`;
@@ -16749,7 +16958,7 @@ SQIDAQAB
                 <div class="km-inline-detail-section"><h4>Builds on this</h4>${downItems}</div>
                 <div class="km-inline-detail-actions">
                     <button class="btn km-inline-view-btn">View</button>
-                    <button class="btn km-inline-verify-btn">Verify</button>
+                    ${folder.objectiveScope ? '' : '<button class="btn km-inline-verify-btn">Verify</button>'}
                     ${startBtnHtml}
                 </div>
             `;
