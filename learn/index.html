@@ -5679,17 +5679,18 @@ SQIDAQAB
         root.setProperty('--text', theme.textColor);
         root.setProperty('--accent', theme.textColor);
         root.setProperty('--panel', theme.panelColor);
-        // Same choice as --text/--accent, deliberately - "Text" is meant
-        // to change every piece of text in the app, not just what sits on
-        // a --panel surface (sidebar etc.). This used to auto-compute a
-        // contrasting ink from the BACKGROUND's own luminance instead
-        // (themeInkFor, now removed) specifically so birch-background text
-        // stayed readable regardless of the Text choice - that safety net
-        // is gone now the Text picker is meant to control this directly;
-        // a Text colour with poor contrast against the chosen Background
-        // is now the user's own call, not something this file second-
-        // guesses.
-        root.setProperty('--ink', theme.textColor);
+        // --ink is deliberately NOT tied to the Text picker (reverted -
+        // this used to call root.setProperty('--ink', theme.textColor),
+        // same as --text/--accent, on the theory that "Text" should
+        // control every piece of text including birch-background text,
+        // with a poor-contrast choice being the user's own call). In
+        // practice the DEFAULT Text colour (cream, #E6D7B0) is exactly
+        // what --panel/--text are for, and reads as invisible on the
+        // light birch background every --ink consumer actually sits on -
+        // real, repeatedly reported illegible text, not a user's
+        // deliberate choice. --ink now stays whatever the static :root
+        // default says (see the CSS comment there) regardless of the Text
+        // picker, same as it did before this line existed.
         document.body.style.background = theme.bgTexture === 'wood' ? themeWoodBackground(theme.bgColor) : theme.bgColor;
         try { localStorage.setItem(THEME_CACHE_KEY, JSON.stringify(theme)); } catch (e) {}
 
