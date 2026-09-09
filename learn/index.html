@@ -1521,14 +1521,17 @@
         font-family: 'Arial', sans-serif;
         font-size: 0.72rem;
         font-weight: 600;
-        /* Explicit purple fill rather than an ink-tinted transparency —
-           the old rgba(43,33,24,...) tint assumed a light page background
+        /* Same background/text pair as .sidebar itself (var(--panel)/
+           var(--text)) rather than an ink-tinted transparency — the old
+           rgba(43,33,24,...) tint assumed a light page background
            underneath and went unreadable once a student picked a dark
-           custom theme (same class of bug as commit 0d6165d). A fixed
-           background/text pair stays legible regardless of theme. */
-        background: #6B3FA0;
-        border: 1px solid #5A3386;
-        color: #F5EFFA;
+           custom theme (same class of bug as commit 0d6165d). Matching the
+           sidebar's own default burgundy keeps this legible AND on-brand,
+           and still respects a student's custom panel colour since it's
+           the same variable, not a hardcoded one. */
+        background: var(--panel);
+        border: 1px solid rgba(230, 215, 176, 0.3);
+        color: var(--text);
         padding: 6px 10px;
         border-radius: 20px;
         cursor: pointer;
@@ -1537,8 +1540,13 @@
     }
 
     .credit-balance-chip:hover {
-        background: #7C4CB8;
-        border-color: #6B3FA0;
+        /* filter, not a swapped-in background - var(--panel) is a solid
+           fill here (unlike .folder-item-header, which is transparent
+           over the sidebar's own panel background and can just add an
+           rgba tint on top), so lightening the actual rendered colour is
+           what a hover cue needs, whatever that colour is set to. */
+        filter: brightness(1.2);
+        border-color: rgba(230, 215, 176, 0.5);
     }
 
     .credit-balance-view {
@@ -3047,12 +3055,14 @@
         font-size: 0.74rem;
         font-weight: 600;
         letter-spacing: 0.02em;
-        /* Explicit purple fill, same reasoning as .credit-balance-chip
-           above - a theme-dependent ink tint went unreadable on a dark
-           custom background, so this uses a fixed background/text pair. */
-        background: #6B3FA0;
-        border: 1px solid #5A3386;
-        color: #F5EFFA;
+        /* Same background/text pair as .sidebar itself (var(--panel)/
+           var(--text)), same reasoning as .credit-balance-chip above - a
+           theme-dependent ink tint went unreadable on a dark custom
+           background, and the sidebar's own default burgundy is both
+           legible and on-brand. */
+        background: var(--panel);
+        border: 1px solid rgba(230, 215, 176, 0.3);
+        color: var(--text);
         padding: 8px 14px;
         border-radius: 6px;
         cursor: pointer;
@@ -3060,8 +3070,8 @@
     }
 
     .cortex-btn-topbar:hover {
-        background: #7C4CB8;
-        border-color: #6B3FA0;
+        filter: brightness(1.2);
+        border-color: rgba(230, 215, 176, 0.5);
     }
 
     .upgrade-topbar-btn {
@@ -3073,11 +3083,6 @@
     button.upgrade-topbar-btn:hover {
         background: var(--accent);
         opacity: 0.85;
-    }
-
-    .cortex-btn-topbar:hover {
-        background: rgba(43, 33, 24, 0.12);
-        border-color: rgba(43, 33, 24, 0.55);
     }
 
     #myTutoringTopbarBtn {
