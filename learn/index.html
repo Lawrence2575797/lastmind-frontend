@@ -8045,16 +8045,101 @@ SQIDAQAB
         };
         treeWrap.querySelectorAll('.notes-tree-theme-toggle').forEach(wireToggle);
         treeWrap.querySelectorAll('.notes-tree-subtopic-toggle').forEach(wireToggle);
-        // Phase 2: generation/answering lands in a later phase - for now
-        // this just confirms the real spec-lesson tree renders correctly.
         treeWrap.querySelectorAll('.notes-tree-node-item[data-concept-id]').forEach((btn) => {
             btn.addEventListener('click', (ev) => {
                 ev.stopPropagation();
-                const contentInner = document.getElementById('contentInner');
-                document.getElementById('topbarTitle').textContent = `${folderLabel(folder)} · ${btn.dataset.concept} · Exam Practice`;
-                contentInner.innerHTML = `<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">"${escapeHtml(btn.dataset.concept)}" — question generation is coming in the next update.</p></div>`;
+                renderSpecPracticePickList(folder, btn.dataset.conceptId, btn.dataset.concept);
             });
         });
+    }
+
+    // Fetches the shrinking pick-list for this (student, spec-lesson) and
+    // renders it as a button per still-available question type. Picking
+    // one triggers a real, live, metered generation call (see
+    // generateAndRenderSpecPracticeQuestion) - up to 3 total per spec-lesson,
+    // enforced server-side (see specLessonPracticeService.ts).
+    async function renderSpecPracticePickList(folder, conceptId, concept) {
+        document.getElementById('topbarTitle').textContent = `${folderLabel(folder)} · ${concept} · Exam Practice`;
+        const contentInner = document.getElementById('contentInner');
+        contentInner.classList.add('content-inner-wide');
+        contentInner.innerHTML = '<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Loading question types…</p></div>';
+
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) throw new Error('not signed in');
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/spec-lesson-practice/${encodeURIComponent(conceptId)}/available-types`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            const data = await resp.json();
+
+            if (data.picksRemaining === 0) {
+                contentInner.innerHTML = `
+                    <div class="dashboard-view dashboard-locked">
+                        <p class="dashboard-locked-quote">You've used all 3 practice questions for "${escapeHtml(concept)}".</p>
+                    </div>
+                `;
+                return;
+            }
+
+            contentInner.innerHTML = `
+                <div style="max-width:640px; margin:0 auto; padding:24px;">
+                    <p style="font-weight:700; margin-bottom:6px;">${escapeHtml(concept)}</p>
+                    <p class="field-hint" style="margin-bottom:16px;">Pick a question type — ${data.picksRemaining} of 3 left for this lesson.</p>
+                    <div id="specPracticeTypeList"></div>
+                </div>
+            `;
+            const listEl = document.getElementById('specPracticeTypeList');
+            if (!data.availableTypes.length) {
+                listEl.innerHTML = '<div class="empty-hint">No question types are set up for this subject yet.</div>';
+                return;
+            }
+            data.availableTypes.forEach((t) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn';
+                btn.style.cssText = 'display:block; width:100%; text-align:left; margin-bottom:8px;';
+                btn.textContent = `${t.displayLabel} (${t.markTariff} mark${t.markTariff === 1 ? '' : 's'})`;
+                btn.addEventListener('click', () => generateAndRenderSpecPracticeQuestion(folder, conceptId, concept, t.typeKey, btn));
+                listEl.appendChild(btn);
+            });
+        } catch (err) {
+            console.error('LastMind: failed to load available question types.', err);
+            contentInner.innerHTML = '<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Couldn\'t load question types — try again in a moment.</p></div>';
+        }
+    }
+
+    // Generates one real question live, then renders it via the EXISTING
+    // question-card markup/submit logic in renderPracticeQuestionList
+    // (reused unmodified - it already accepts any array of
+    // PracticeQuestionSummary-shaped questions, generated or authored).
+    async function generateAndRenderSpecPracticeQuestion(folder, conceptId, concept, typeKey, btn) {
+        const originalLabel = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Generating…';
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) throw new Error('not signed in');
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/spec-lesson-practice/${encodeURIComponent(conceptId)}/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify({ typeKey })
+            });
+            const body = await resp.json().catch(() => ({}));
+            if (!resp.ok) throw new Error(body.error || 'Could not generate this question.');
+
+            const contentInner = document.getElementById('contentInner');
+            contentInner.innerHTML = '<button class="btn" type="button" id="backToSpecPracticePicksBtn" style="margin:24px 0 0 24px;">← Back to question picks</button>';
+            const cardHost = document.createElement('div');
+            contentInner.appendChild(cardHost);
+            renderPracticeQuestionList(cardHost, [body], concept, folder.subject || '', folder.qualification || '', folder.examBoard || '');
+            document.getElementById('backToSpecPracticePicksBtn').addEventListener('click', () => renderSpecPracticePickList(folder, conceptId, concept));
+        } catch (err) {
+            console.error('LastMind: failed to generate a spec practice question.', err);
+            alert(err.message || 'Could not generate this question — try again in a moment.');
+            btn.disabled = false;
+            btn.textContent = originalLabel;
+        }
     }
 
     // Original explanation of how Edexcel A-Level Economics actually marks
