@@ -8278,6 +8278,10 @@ SQIDAQAB
             card.innerHTML = `
                 <p style="font-weight:700; margin-bottom:8px;">Question ${i + 1} of 3 · ${q.markTariff} mark${q.markTariff === 1 ? '' : 's'}</p>
                 <p style="margin-bottom:12px;">${renderMathShorthand(q.questionText)}</p>
+                <div class="km-quick-notes-toggle-row" style="margin-bottom:12px;">
+                    <button type="button" class="km-quick-notes-toggle" id="pq-quicknotes-toggle-${q.id}" style="position:static;">💡 Quick Notes ▾</button>
+                    <div class="km-quick-notes-panel" id="pq-quicknotes-panel-${q.id}" style="width:100%; margin-top:8px;"></div>
+                </div>
                 ${answerInputHtml}
                 ${q.answerStructureAdvice ? `<div class="field-hint" style="margin-top:10px; margin-bottom:6px;"><strong>How to structure your answer:</strong> ${renderMathShorthand(q.answerStructureAdvice)}</div>` : ''}
                 <div class="bottom-action-row">
@@ -8292,6 +8296,24 @@ SQIDAQAB
                 document.getElementById(`pq-answer-${q.id}`).appendChild(editor.container);
                 mathEditors.set(q.id, editor);
             }
+
+            // A scratch area, separate from the actual answer box below -
+            // "jot the substitutions down without losing your place" (e.g.
+            // u=/v'= before an integration-by-parts answer), same purpose
+            // as the Notes page's own floating Quick Notes widget, just
+            // inline per-question here and never submitted or saved
+            // anywhere - it's scratch working, not part of the graded
+            // answer. Uses the same maths-keyboard editor as the real
+            // answer input, regardless of whether THIS question itself
+            // needs one, since scratch working benefits from it either way.
+            const quickNotesToggle = document.getElementById(`pq-quicknotes-toggle-${q.id}`);
+            const quickNotesPanel = document.getElementById(`pq-quicknotes-panel-${q.id}`);
+            const quickNotesEditor = createSmartAnswerEditor('Jot workings down here — not submitted, just for you…');
+            quickNotesPanel.appendChild(quickNotesEditor.container);
+            quickNotesToggle.addEventListener('click', () => {
+                const open = quickNotesPanel.classList.toggle('open');
+                if (open) quickNotesEditor.focus();
+            });
 
             // Already answered (loaded from the server) - show the stored
             // result immediately, locked, with no way to redo it.
