@@ -8116,6 +8116,7 @@ SQIDAQAB
             });
             const body = await resp.json().catch(() => ({}));
             if (!resp.ok) throw new Error(body.error || 'Could not generate this question.');
+            refreshLocksChip(); // this call just charged real Locks - the topbar chip otherwise only refreshes on page load
             await renderSpecPracticePickList(folder, conceptId, concept);
         } catch (err) {
             console.error('LastMind: failed to generate a spec practice question.', err);
@@ -8345,6 +8346,7 @@ SQIDAQAB
                     resultEl.style.display = '';
                     resultEl.innerHTML = practiceResultHtml(q, body);
                     lockPracticeAnswerInput(q, body.answerText ?? answerText);
+                    refreshLocksChip(); // marking a non-multiple-choice answer is a real, metered call too
                 } catch (err) {
                     resultEl.style.display = '';
                     resultEl.textContent = err.message || 'Something went wrong.';
