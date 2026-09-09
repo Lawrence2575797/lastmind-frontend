@@ -4850,6 +4850,21 @@
         color: var(--bg);
         border: none;
     }
+
+    /* .btn's own color: var(--text) (cream) assumes a dark --panel
+       background behind it, which is true almost everywhere .btn is used
+       (modals, the sidebar) but NOT for a plain outline button sitting
+       directly on the light birch content-area background, as Practice
+       Questions' pick-list/exit/back buttons do — that combination was
+       showing as cream-on-birch, unreadable. Ink-toned instead, same
+       reasoning as body's own color: var(--ink). */
+    .btn-on-content {
+        color: var(--ink);
+        border-color: rgba(43, 33, 24, 0.3);
+    }
+    .btn-on-content:hover {
+        background: rgba(43, 33, 24, 0.06);
+    }
     /* A disabled <button> otherwise renders identically to an active one
        (no browser default touches color/background here) — a disabled
        "Start review", say, looked exactly as clickable as when it
@@ -7864,7 +7879,7 @@ SQIDAQAB
             <div class="dashboard-view dashboard-locked">
                 <h1 class="dashboard-locked-logo">Practice <span>Questions</span></h1>
                 <p class="dashboard-locked-quote">Select a subject, then a lesson from the sidebar.</p>
-                <button class="btn" type="button" id="exitSpecPracticeModeBtn" style="margin-top:24px;">Exit Practice Questions</button>
+                <button class="btn btn-on-content" type="button" id="exitSpecPracticeModeBtn" style="margin-top:24px;">Exit Practice Questions</button>
             </div>
         `;
         document.getElementById('exitSpecPracticeModeBtn').addEventListener('click', () => {
@@ -8009,7 +8024,7 @@ SQIDAQAB
             data.availableTypes.forEach((t) => {
                 const btn = document.createElement('button');
                 btn.type = 'button';
-                btn.className = 'btn';
+                btn.className = 'btn btn-on-content';
                 btn.style.cssText = 'display:block; width:100%; text-align:left; margin-bottom:8px;';
                 btn.textContent = `${t.displayLabel} (${t.markTariff} mark${t.markTariff === 1 ? '' : 's'})`;
                 btn.addEventListener('click', () => generateAndRenderSpecPracticeQuestion(folder, conceptId, concept, t.typeKey, btn, data.componentDefinitions));
@@ -8041,7 +8056,7 @@ SQIDAQAB
             if (!resp.ok) throw new Error(body.error || 'Could not generate this question.');
 
             const contentInner = document.getElementById('contentInner');
-            contentInner.innerHTML = '<button class="btn" type="button" id="backToSpecPracticePicksBtn" style="margin:24px 0 0 24px;">← Back to question picks</button>';
+            contentInner.innerHTML = '<button class="btn btn-on-content" type="button" id="backToSpecPracticePicksBtn" style="margin:24px 0 0 24px;">← Back to question picks</button>';
             const cardHost = document.createElement('div');
             contentInner.appendChild(cardHost);
             renderPracticeQuestionList(cardHost, [body], concept, folder.subject || '', folder.qualification || '', folder.examBoard || '', componentDefinitions);
