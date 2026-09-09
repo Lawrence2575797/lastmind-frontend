@@ -3925,6 +3925,18 @@
 
     .correction-card {
         background: var(--panel);
+        /* Missing color:var(--text) pairing - every OTHER background:
+           var(--panel) rule in this file sets this alongside it (see the
+           .sidebar-calendar.fullscreen comment repeated at a dozen sites);
+           this one didn't, so it silently relied on inheriting an
+           ancestor's color instead. That's cream-on-burgundy (fine) when
+           nested inside the lesson-taking flow's own panel-coloured
+           wrapper (.km-lesson-fullpage-body etc., which already sets
+           color:var(--text)), but ink-on-burgundy (illegible - near-black
+           on dark maroon) wherever a card renders directly into the
+           plain birch content area with no such ancestor, as Practice
+           Questions' question cards do. */
+        color: var(--text);
         border: 1px solid rgba(230, 215, 176, 0.2);
         border-radius: 8px;
         padding: 22px 24px;
