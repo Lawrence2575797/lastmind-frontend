@@ -8100,7 +8100,7 @@ SQIDAQAB
                 btn.className = 'btn';
                 btn.style.cssText = 'display:block; width:100%; text-align:left; margin-bottom:8px;';
                 btn.textContent = `${t.displayLabel} (${t.markTariff} mark${t.markTariff === 1 ? '' : 's'})`;
-                btn.addEventListener('click', () => generateAndRenderSpecPracticeQuestion(folder, conceptId, concept, t.typeKey, btn));
+                btn.addEventListener('click', () => generateAndRenderSpecPracticeQuestion(folder, conceptId, concept, t.typeKey, btn, data.componentDefinitions));
                 listEl.appendChild(btn);
             });
         } catch (err) {
@@ -8113,7 +8113,7 @@ SQIDAQAB
     // question-card markup/submit logic in renderPracticeQuestionList
     // (reused unmodified - it already accepts any array of
     // PracticeQuestionSummary-shaped questions, generated or authored).
-    async function generateAndRenderSpecPracticeQuestion(folder, conceptId, concept, typeKey, btn) {
+    async function generateAndRenderSpecPracticeQuestion(folder, conceptId, concept, typeKey, btn, componentDefinitions) {
         const originalLabel = btn.textContent;
         btn.disabled = true;
         btn.textContent = 'Generating…';
@@ -8132,7 +8132,7 @@ SQIDAQAB
             contentInner.innerHTML = '<button class="btn" type="button" id="backToSpecPracticePicksBtn" style="margin:24px 0 0 24px;">← Back to question picks</button>';
             const cardHost = document.createElement('div');
             contentInner.appendChild(cardHost);
-            renderPracticeQuestionList(cardHost, [body], concept, folder.subject || '', folder.qualification || '', folder.examBoard || '');
+            renderPracticeQuestionList(cardHost, [body], concept, folder.subject || '', folder.qualification || '', folder.examBoard || '', componentDefinitions);
             document.getElementById('backToSpecPracticePicksBtn').addEventListener('click', () => renderSpecPracticePickList(folder, conceptId, concept));
         } catch (err) {
             console.error('LastMind: failed to generate a spec practice question.', err);
@@ -8178,7 +8178,13 @@ SQIDAQAB
         }
     };
 
-    function renderPracticeQuestionList(container, questions, concept, subject, qualification, examBoard) {
+    // componentDefinitions (optional, 7th param): [{key,label}] from
+    // exam_mark_scheme_styles - only ever passed by the spec-hierarchy Exam
+    // Practice flow (see renderSpecPracticePickList), used to label an
+    // itemized per-group mark breakdown. The original atomic-node Practice
+    // Questions call site omits it and gets exactly the old plain-total
+    // behaviour, unchanged.
+    function renderPracticeQuestionList(container, questions, concept, subject, qualification, examBoard, componentDefinitions) {
         if (!questions.length) {
             container.innerHTML = `
                 <div class="dashboard-view dashboard-locked">
@@ -8190,6 +8196,7 @@ SQIDAQAB
 
         const explainerKey = `${subject}::${qualification}::${examBoard}`;
         const explainer = MARK_BREAKDOWN_EXPLAINERS[explainerKey];
+        const componentLabels = new Map((componentDefinitions || []).map((c) => [c.key, c.label]));
 
         container.innerHTML = `
             <div style="display:grid; grid-template-columns: 1fr 320px; gap:24px; max-width:1040px; margin:0 auto; padding:24px; align-items:start;">
@@ -8200,17 +8207,40 @@ SQIDAQAB
             </div>
         `;
         const list = document.getElementById('practiceQuestionList');
+        // Maths-keyboard editor instances, keyed by question id — the
+        // maths shortcut editor is a contentEditable div, not a real form
+        // control, so its value/lock state can't be read off the DOM the
+        // way a <textarea> or radio input's own attributes can.
+        const mathEditors = new Map();
+
+        // A question's own ao_component_split names which group each
+        // itemized mark belongs to (e.g. {"KAA":{...,marks:9}}) - joined
+        // against componentLabels (this subject's AO1-4/M-A-B display
+        // names) to render e.g. "Knowledge, Application, Analysis: 6/9".
+        // Falls back to the group's own key if no label set is available.
+        function componentBreakdownHtml(q, componentMarks) {
+            if (!componentMarks || !q.aoComponentSplit || !Array.isArray(q.aoComponentSplit.groups)) return '';
+            const rows = q.aoComponentSplit.groups.map((g) => {
+                const label = g.components && g.components.length
+                    ? g.components.map((k) => componentLabels.get(k) || k).join(', ')
+                    : (componentLabels.get(g.key) || g.key);
+                const awarded = componentMarks[g.key] ?? 0;
+                return `<div>${escapeHtml(label)}: ${awarded} / ${g.marks}</div>`;
+            }).join('');
+            return `<div style="margin-top:10px; padding-top:10px; border-top:1px solid rgba(230,215,176,0.15);">${rows}</div>`;
+        }
 
         // Shared between a fresh marking response and a previously-stored
         // attempt loaded back from the server - both are the exact same
         // {markAwarded, markTariff, feedback, conceptualMistakes,
-        // examTechniqueTips} shape.
-        function practiceResultHtml(result) {
+        // examTechniqueTips, componentMarks} shape.
+        function practiceResultHtml(q, result) {
             return `
                 <div class="correction-label">${result.markAwarded} / ${result.markTariff} marks</div>
                 ${escapeHtml(result.feedback)}
                 ${result.conceptualMistakes ? `<div style="margin-top:10px;"><strong>Conceptual mistake:</strong> ${escapeHtml(result.conceptualMistakes)}</div>` : ''}
                 ${result.examTechniqueTips ? `<div style="margin-top:10px;"><strong>Exam technique:</strong> ${escapeHtml(result.examTechniqueTips)}</div>` : ''}
+                ${componentBreakdownHtml(q, result.componentMarks)}
             `;
         }
 
@@ -8226,6 +8256,9 @@ SQIDAQAB
                     el.checked = el.value === String(answerText);
                     el.disabled = true;
                 });
+            } else if (mathEditors.has(q.id)) {
+                const editorEl = mathEditors.get(q.id).container.querySelector('.math-shortcut-editor');
+                editorEl.contentEditable = 'false';
             } else {
                 const textarea = document.getElementById(`pq-answer-${q.id}`);
                 textarea.value = answerText;
@@ -8240,16 +8273,23 @@ SQIDAQAB
             card.className = 'correction-card';
             card.style.marginBottom = '18px';
 
-            const answerInputHtml = q.isMultipleChoice && Array.isArray(q.options)
-                ? `<div class="pq-mc-options" id="pq-answer-${q.id}">
+            let answerInputHtml;
+            if (q.isMultipleChoice && Array.isArray(q.options)) {
+                answerInputHtml = `<div class="pq-mc-options" id="pq-answer-${q.id}">
                     ${q.options.map((opt, idx) => `
                         <label class="dont-know-label" style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
                             <input type="radio" name="pq-mc-${q.id}" value="${idx}">
                             ${escapeHtml(opt)}
                         </label>
                     `).join('')}
-                   </div>`
-                : `<textarea class="mt-response-textarea" rows="6" placeholder="Type your answer…" id="pq-answer-${q.id}"></textarea>`;
+                   </div>`;
+            } else if (q.requiresMathsKeyboard) {
+                // Real editor mounted right after card.innerHTML below —
+                // this is just its landing slot.
+                answerInputHtml = `<div id="pq-answer-${q.id}"></div>`;
+            } else {
+                answerInputHtml = `<textarea class="mt-response-textarea" rows="6" placeholder="Type your answer…" id="pq-answer-${q.id}"></textarea>`;
+            }
 
             card.innerHTML = `
                 <p style="font-weight:700; margin-bottom:8px;">Question ${i + 1} (${q.markTariff} mark${q.markTariff === 1 ? '' : 's'})</p>
@@ -8263,13 +8303,23 @@ SQIDAQAB
             `;
             list.appendChild(card);
 
+            if (q.requiresMathsKeyboard && !q.isMultipleChoice) {
+                const editor = createSmartAnswerEditor('Write your working here…');
+                document.getElementById(`pq-answer-${q.id}`).appendChild(editor.container);
+                mathEditors.set(q.id, editor);
+            }
+
             // Already answered (loaded from the server) - show the stored
             // result immediately, locked, with no way to redo it.
             if (q.priorAttempt) {
+                if (mathEditors.has(q.id)) {
+                    const editorEl = mathEditors.get(q.id).container.querySelector('.math-shortcut-editor');
+                    editorEl.textContent = q.priorAttempt.answerText;
+                }
                 lockPracticeAnswerInput(q, q.priorAttempt.answerText);
                 const resultEl = document.getElementById(`pq-result-${q.id}`);
                 resultEl.style.display = '';
-                resultEl.innerHTML = practiceResultHtml(q.priorAttempt);
+                resultEl.innerHTML = practiceResultHtml(q, q.priorAttempt);
                 return;
             }
 
@@ -8279,6 +8329,10 @@ SQIDAQAB
                     const checked = document.querySelector(`input[name="pq-mc-${q.id}"]:checked`);
                     if (!checked) return;
                     answerText = checked.value;
+                } else if (mathEditors.has(q.id)) {
+                    const editor = mathEditors.get(q.id);
+                    if (editor.isEmpty()) return;
+                    answerText = editor.getValue();
                 } else {
                     const textarea = document.getElementById(`pq-answer-${q.id}`);
                     answerText = textarea.value.trim();
@@ -8306,7 +8360,7 @@ SQIDAQAB
                         throw new Error(body.error || 'Could not mark this answer.');
                     }
                     resultEl.style.display = '';
-                    resultEl.innerHTML = practiceResultHtml(body);
+                    resultEl.innerHTML = practiceResultHtml(q, body);
                     lockPracticeAnswerInput(q, body.answerText ?? answerText);
                 } catch (err) {
                     resultEl.style.display = '';
