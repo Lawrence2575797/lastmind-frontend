@@ -1186,6 +1186,14 @@
        knowledge map's own node sidebar (see renderKnowledgeDropdownItem)
        so both places share one visual language and one implementation. */
     .km-notes-body { max-width: 640px; }
+    /* .km-inline-detail-label defaults to color:var(--accent) (cream) -
+       correct everywhere else it's used (always nested inside the graph
+       view's own .km-inline-detail, a --panel/burgundy surface), but the
+       Notes page renders it straight into the plain birch #contentInner
+       with no such wrapper - cream-on-birch, illegible. Scoped here
+       rather than changed globally so the graph view's own (correct)
+       cream-on-panel usage is untouched. */
+    .km-notes-body .km-inline-detail-label { color: var(--ink); }
     .km-notes-link-locked-hint { font-size: 11px; opacity: 0.6; padding: 2px 6px 8px; line-height: 1.5; }
     .km-kd-item-locked { padding: 4px 6px; }
     .km-kd-item-locked > span { font-size: 12.5px; opacity: 0.6; }
@@ -1197,14 +1205,20 @@
     .km-notes-template-btn { flex: none; font-size: 11.5px; padding: 6px 12px; }
     .km-personal-note { margin-bottom: 18px; }
     .km-personal-note-heading-input {
+        /* color:var(--ink), not var(--text) (cream) - this and the
+           textarea below render straight onto the plain birch page
+           background (see renderPersonalNoteEditor's own call sites),
+           never a --panel surface; their near-transparent
+           rgba(230,215,176,0.05) background is just a faint tint over
+           that birch, not a real dark fill cream text would read against. */
         width: 100%; background: rgba(230, 215, 176, 0.05); border: 1px solid rgba(230, 215, 176, 0.16);
-        border-radius: 4px; color: var(--text); font-family: Georgia, serif; font-size: 14px; font-weight: 700;
+        border-radius: 4px; color: var(--ink); font-family: Georgia, serif; font-size: 14px; font-weight: 700;
         padding: 8px 10px; margin-bottom: 8px;
     }
     .km-personal-note-heading-input::placeholder { opacity: 0.4; font-weight: 400; font-family: 'Arial', sans-serif; }
     .km-personal-note-textarea {
         width: 100%; min-height: 110px; resize: vertical; background: rgba(230, 215, 176, 0.05);
-        border: 1px solid rgba(230, 215, 176, 0.16); border-radius: 4px; color: var(--text);
+        border: 1px solid rgba(230, 215, 176, 0.16); border-radius: 4px; color: var(--ink);
         font-family: 'Arial', sans-serif; font-size: 13px; line-height: 1.6; padding: 10px 12px;
     }
     .km-personal-note-save-state { font-size: 10.5px; opacity: 0.5; margin-top: 4px; height: 14px; }
@@ -14255,23 +14269,40 @@ SQIDAQAB
     // failure meant "genuinely never generated" and retrying was pointless
     // - that's no longer true, so the caller needs to tell them apart to
     // offer a real retry instead of a dead end.
-    async function fetchNodeLesson(nodeId) {
-        try {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) return { loadError: true };
-            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/node/${encodeURIComponent(nodeId)}/lesson`, {
-                headers: { Authorization: `Bearer ${session.access_token}` }
-            });
-            if (resp.status === 404) return { notFound: true };
-            if (resp.status === 429 || resp.status === 402) {
-                const body = await resp.json().catch(() => ({}));
-                if (body.code === 'LOCK_LIMIT_REACHED') return { lockLimitReached: true };
+    // One silent retry on a transient failure before ever surfacing
+    // loadError - same reasoning fetchSubjectKnowledgeMapWithRetry already
+    // documents for the whole-graph fetch (a cold-started Render backend
+    // can hand back an outright 502/503 for a request landing mid-boot,
+    // not just respond slowly), reproduced live for this exact route: a
+    // genuine first-time generation failed once, then succeeded
+    // immediately on a second identical request. A real generation
+    // failure (not a transient one) still costs nothing extra to retry -
+    // this is exactly what the existing manual "Try again" button already
+    // did, just saving the student that one click for the common case.
+    async function fetchNodeLesson(nodeId, retries = 1) {
+        for (let attempt = 0; ; attempt++) {
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (!session) return { loadError: true };
+                const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/node/${encodeURIComponent(nodeId)}/lesson`, {
+                    headers: { Authorization: `Bearer ${session.access_token}` }
+                });
+                if (resp.status === 404) return { notFound: true };
+                if (resp.status === 429 || resp.status === 402) {
+                    const body = await resp.json().catch(() => ({}));
+                    if (body.code === 'LOCK_LIMIT_REACHED') return { lockLimitReached: true };
+                }
+                if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+                return await resp.json();
+            } catch (err) {
+                if (attempt < retries) {
+                    console.warn(`LastMind: lesson fetch failed, retrying (attempt ${attempt + 1}/${retries}).`, err);
+                    await new Promise((resolve) => setTimeout(resolve, 1500));
+                    continue;
+                }
+                console.error('LastMind: failed to load this lesson.', err);
+                return { loadError: true };
             }
-            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
-            return await resp.json();
-        } catch (err) {
-            console.error('LastMind: failed to load this lesson.', err);
-            return { loadError: true };
         }
     }
 
