@@ -5218,7 +5218,6 @@
                          yet, see buyMoreTokensBtn's own click handler. -->
                     <button class="cortex-btn-topbar" id="buyMoreTokensBtn" type="button">⚡ Buy more tokens</button>
                     <button class="cortex-btn-topbar" id="practiceQuestionsTopbarBtn" type="button">📝 Practice Questions</button>
-                    <button class="cortex-btn-topbar" id="specPracticeTopbarBtn" type="button">📘 Exam Practice</button>
                     <button class="cortex-btn-topbar upgrade-topbar-btn" id="upgradeTopbarBtn" type="button" style="display:none;">⭐ Upgrade</button>
                     <button class="cortex-btn-topbar" id="peerTutoringHubBtn" type="button">🤝 Peer tutoring</button>
                     <button class="cortex-btn-topbar" id="myTutoringTopbarBtn" type="button">📋 My Tutoring<span class="mt-badge" id="mtBadge" style="display:none;"></span></button>
@@ -6358,20 +6357,15 @@ SQIDAQAB
     let selectedFolderKmData = null;
     let pendingMatchFolder = null; // set when the match-suggestion is showing
 
-    // While true, clicking a page in the sidebar (see buildPageItem's click
-    // handler) opens that page's practice questions instead of its lesson —
-    // the sidebar/folder browser itself is completely unchanged, this only
-    // redirects what a click does. Set/cleared by the Practice Questions
-    // topbar button and its "Exit practice mode" button respectively.
-    let practiceQuestionsMode = false;
-
-    // The standalone spec-hierarchy Practice Questions page (separate from
-    // the atomic-node practiceQuestionsMode above) - while true, buildFolderRow
-    // shows the selected subject's real exam-spec Theme -> Subtopic ->
-    // spec-lesson tree (see buildSpecLessonTreeHtml) instead of its atomic
-    // knowledge-map tree, and selectFolder fetches /spec-lesson-tree instead
-    // of the knowledge-map graph. Set/cleared by the Spec Practice topbar
-    // button and its "Exit" button respectively.
+    // The standalone Practice Questions page: its OWN sidebar, not the
+    // main subjects one - while true, buildFolderRow shows the selected
+    // subject's real exam-spec Theme -> Subtopic -> spec-lesson tree (see
+    // buildSpecLessonTreeHtml) instead of its atomic knowledge-map tree,
+    // and selectFolder fetches /spec-lesson-tree instead of the
+    // knowledge-map graph. Set/cleared by the Practice Questions topbar
+    // button and its "Exit" button respectively. (This replaced an older
+    // design that reused the main subjects sidebar directly - see git
+    // history if that behaviour is ever needed again.)
     let specPracticeMode = false;
     // Cache for the currently-selected subject's spec-lesson tree fetch -
     // same role as selectedFolderKmData plays for the atomic tree. null
@@ -7237,11 +7231,7 @@ SQIDAQAB
 
         pageEl.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (practiceQuestionsMode) {
-                openPracticeQuestionsForPage(folderId, page.id, subfolderId || null);
-            } else {
-                openPage(folderId, page.id, subfolderId || null);
-            }
+            openPage(folderId, page.id, subfolderId || null);
         });
 
         pageEl.addEventListener('dragstart', (e) => {
@@ -7855,25 +7845,17 @@ SQIDAQAB
     }
 
     // ─── PRACTICE QUESTIONS ───
-    // Reuses the exact same folder/page sidebar as normal browsing — see
-    // practiceQuestionsMode and buildPageItem's click handler above. This
-    // only ever changes what the CONTENT area shows; the sidebar itself is
-    // never duplicated or altered.
-
+    // Its OWN standalone sidebar (same subjects the student already has,
+    // same panel/tree CSS as normal browsing) — NOT the main subjects
+    // sidebar's atomic-node tree. Each subject's inline tree here shows
+    // the REAL exam-spec Theme -> Subtopic -> spec-lesson hierarchy (from
+    // spec_lesson_plans, via GET /spec-lesson-tree) instead of atomic
+    // knowledge-map nodes — see buildFolderRow's specPracticeMode branch,
+    // buildSpecLessonTreeHtml, wireSpecLessonTree.
     document.getElementById('practiceQuestionsTopbarBtn').addEventListener('click', () => {
-        practiceQuestionsMode = true;
+        specPracticeMode = true;
         stopActiveDictation();
         stopSpeaking();
-
-        // Already looking at a specific lesson page? Jump straight to ITS
-        // practice questions instead of making the student pick it again
-        // from the sidebar — the whole point of pressing this from inside
-        // a lesson is to reload instantly against that same page.
-        if (selectedPageId) {
-            openPracticeQuestionsForPage(selectedFolderId, selectedPageId, selectedSubfolderId);
-            return;
-        }
-
         selectedPageId = null;
         document.getElementById('topbarTitle').textContent = 'Practice Questions';
         const contentInner = document.getElementById('contentInner');
@@ -7881,83 +7863,8 @@ SQIDAQAB
         contentInner.innerHTML = `
             <div class="dashboard-view dashboard-locked">
                 <h1 class="dashboard-locked-logo">Practice <span>Questions</span></h1>
-                <p class="dashboard-locked-quote">Select a page from the sidebar to see its practice questions.</p>
-                <button class="btn" type="button" id="exitPracticeModeBtn" style="margin-top:24px;">Exit practice mode</button>
-            </div>
-        `;
-        document.getElementById('exitPracticeModeBtn').addEventListener('click', () => {
-            practiceQuestionsMode = false;
-            renderWelcome();
-        });
-    });
-
-    // Resolves the same subject/topic/concept triple every other feature
-    // (reviews, verification, Cortex) already keys off, then asks the
-    // backend for whatever practice_questions rows share that concept_id —
-    // see normalizeConceptKey server-side. A multi-lesson page uses its
-    // active sub-lesson's own concept, same as generateQuestionsBtn does.
-    async function openPracticeQuestionsForPage(folderId, pageId, subfolderId) {
-        stopActiveDictation();
-        stopSpeaking();
-        selectedFolderId = folderId;
-        selectedSubfolderId = subfolderId || null;
-        selectedPageId = pageId;
-
-        const loc = findPageLocation(pageId);
-        if (!loc) return;
-        const folder = loc.folder;
-        const page = loc.pagesArray.find((p) => p.id === pageId);
-        if (!page) return;
-
-        const subject = folder.subject || '';
-        const topic = (subfolderId && (folder.subfolders || []).find((s) => s.id === subfolderId) || {}).name || '';
-        const isMulti = pageIsMultiLesson(page);
-        const concept = isMulti ? ((activeSubLesson(page) || {}).concept || page.title) : page.title;
-
-        document.getElementById('topbarTitle').textContent = `${folderLabel(folder)} · ${page.title} · Practice Questions`;
-
-        const contentInner = document.getElementById('contentInner');
-        contentInner.classList.add('content-inner-wide');
-        contentInner.innerHTML = '<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Loading practice questions…</p></div>';
-
-        try {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) throw new Error('not signed in');
-            const params = new URLSearchParams({ subject, topic, concept });
-            const resp = await fetch(`${COMPILE_BACKEND_URL}/practice-questions?${params.toString()}`, {
-                headers: { Authorization: `Bearer ${session.access_token}` }
-            });
-            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
-            const questions = await resp.json();
-            renderPracticeQuestionList(contentInner, questions, concept, subject, folder.qualification || '', folder.examBoard || '');
-        } catch (err) {
-            console.error('LastMind: failed to load practice questions.', err);
-            contentInner.innerHTML = '<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Couldn\'t load practice questions — try again in a moment.</p></div>';
-        }
-    }
-
-    // ─── SPEC PRACTICE (standalone, spec-hierarchy Practice Questions) ───
-    // A genuinely separate page from the atomic-node Practice Questions
-    // above: same sidebar (same subjects the student already has, same
-    // panel/tree CSS) but each subject's inline tree shows the REAL
-    // exam-spec Theme -> Subtopic -> spec-lesson hierarchy (from
-    // spec_lesson_plans, via GET /spec-lesson-tree) instead of the atomic
-    // knowledge-map nodes. Phase 2 of this feature: read-only tree, leaf
-    // click is a placeholder — generation lands in a later phase.
-    document.getElementById('specPracticeTopbarBtn').addEventListener('click', () => {
-        specPracticeMode = true;
-        practiceQuestionsMode = false;
-        stopActiveDictation();
-        stopSpeaking();
-        selectedPageId = null;
-        document.getElementById('topbarTitle').textContent = 'Exam Practice';
-        const contentInner = document.getElementById('contentInner');
-        contentInner.classList.add('content-inner-wide');
-        contentInner.innerHTML = `
-            <div class="dashboard-view dashboard-locked">
-                <h1 class="dashboard-locked-logo">Exam <span>Practice</span></h1>
                 <p class="dashboard-locked-quote">Select a subject, then a lesson from the sidebar.</p>
-                <button class="btn" type="button" id="exitSpecPracticeModeBtn" style="margin-top:24px;">Exit Exam Practice</button>
+                <button class="btn" type="button" id="exitSpecPracticeModeBtn" style="margin-top:24px;">Exit Practice Questions</button>
             </div>
         `;
         document.getElementById('exitSpecPracticeModeBtn').addEventListener('click', () => {
@@ -7998,12 +7905,12 @@ SQIDAQAB
             // surfaced honestly rather than looking identical to "loading".
             selectedFolderSpecTree = data.themes === null ? 'unseeded' : data.themes;
             if (selectedFolderSpecTree === 'unseeded') {
-                contentInner.innerHTML = '<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Exam Practice isn\'t set up for this subject yet — check back soon.</p></div>';
+                contentInner.innerHTML = '<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Practice Questions isn\'t set up for this subject yet — check back soon.</p></div>';
             }
         } catch (err) {
             console.error('LastMind: failed to load the spec lesson tree.', err);
             selectedFolderSpecTree = 'unseeded';
-            contentInner.innerHTML = '<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Couldn\'t load Exam Practice for this subject — try again in a moment.</p></div>';
+            contentInner.innerHTML = '<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Couldn\'t load Practice Questions for this subject — try again in a moment.</p></div>';
         }
         refreshFolderList();
     }
@@ -8064,7 +7971,7 @@ SQIDAQAB
     // generateAndRenderSpecPracticeQuestion) - up to 3 total per spec-lesson,
     // enforced server-side (see specLessonPracticeService.ts).
     async function renderSpecPracticePickList(folder, conceptId, concept) {
-        document.getElementById('topbarTitle').textContent = `${folderLabel(folder)} · ${concept} · Exam Practice`;
+        document.getElementById('topbarTitle').textContent = `${folderLabel(folder)} · ${concept} · Practice Questions`;
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
         contentInner.innerHTML = '<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Loading question types…</p></div>';
