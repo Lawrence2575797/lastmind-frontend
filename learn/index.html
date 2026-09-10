@@ -1081,6 +1081,15 @@
         color: var(--accent);
         font-weight: 700;
     }
+    .km-inline-lesson-explanation strong.km-speak-term {
+        cursor: pointer;
+        text-decoration: underline dotted;
+        text-underline-offset: 3px;
+    }
+    .km-inline-lesson-explanation strong.km-speak-term:hover,
+    .km-inline-lesson-explanation strong.km-speak-term:focus-visible {
+        filter: brightness(1.25);
+    }
     .km-inline-lesson-question { font-size: 12.5px; line-height: 1.5; padding: 10px; background: rgba(230, 215, 176, 0.05); border-radius: 3px; }
     .km-inline-detail-actions { margin-top: auto; display: flex; gap: 8px; }
     .km-inline-view-btn { flex: 1; padding: 10px 0; font-size: 13px; }
@@ -8466,10 +8475,86 @@ SQIDAQAB
      * play at all — that's a platform security rule speechSynthesis can't
      * bypass. Speech only starts from the explicit Play click below.
      */
+    let currentTtsAudio = null;
     function stopSpeaking() {
         if (window.speechSynthesis) {
             window.speechSynthesis.cancel();
         }
+        if (currentTtsAudio) {
+            currentTtsAudio.pause();
+            currentTtsAudio = null;
+        }
+    }
+
+    // Real, natural-sounding speech via the backend's ElevenLabs-backed
+    // /tts route (see elevenLabsService.ts) - only defined for subjects
+    // with a configured voice (Italian/Spanish today). Object URLs are
+    // cached in-memory per (subject, text) so replaying the same word/
+    // phrase within a session never re-fetches it. Returns false (never
+    // throws) on any failure - a 404 (no voice configured for this
+    // subject), a network error, or no session - so the caller can fall
+    // back to on-device speech instead of the student hearing nothing.
+    const elevenLabsAudioCache = new Map();
+    async function speakViaElevenLabs(subject, text) {
+        const trimmed = (text || '').trim();
+        if (!trimmed) return false;
+        const key = `${subject}::${trimmed}`;
+        try {
+            let url = elevenLabsAudioCache.get(key);
+            if (!url) {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (!session) return false;
+                const resp = await fetch(`${COMPILE_BACKEND_URL}/tts`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                    body: JSON.stringify({ subject, text: trimmed })
+                });
+                if (!resp.ok) return false;
+                const blob = await resp.blob();
+                url = URL.createObjectURL(blob);
+                elevenLabsAudioCache.set(key, url);
+            }
+            stopSpeaking();
+            currentTtsAudio = new Audio(url);
+            await currentTtsAudio.play();
+            return true;
+        } catch (err) {
+            console.error('LastMind: ElevenLabs playback failed, falling back to on-device speech.', err);
+            return false;
+        }
+    }
+
+    // Single entry point every "speak this aloud" call site should use -
+    // tries ElevenLabs first (real voices for Italian/Spanish), falling
+    // back to the on-device Web Speech API (speakText, below) for every
+    // other subject or on any ElevenLabs failure.
+    async function speak(subject, text) {
+        const played = await speakViaElevenLabs(subject, text);
+        if (!played) await speakText(text, localeForSubject(subject));
+    }
+
+    // Wires every bolded term inside a language-subject lesson explanation
+    // to speak itself aloud on click - the bolded terms in a language
+    // lesson's own explanation ARE the target-language vocabulary/forms
+    // being taught (see KNOWLEDGE_MAP_ENCODING_LESSON_PROMPT rule 1b), so
+    // they're exactly the right click targets for "hear this pronounced."
+    // No-op for a non-language subject (localeForSubject returns null) -
+    // never touches a non-language lesson's own bolded terms.
+    function makeTermsSpeakable(container, subject) {
+        if (!container || !localeForSubject(subject)) return;
+        container.querySelectorAll('strong').forEach((el) => {
+            const term = el.textContent.trim();
+            if (!term || el.classList.contains('km-speak-term')) return;
+            el.classList.add('km-speak-term');
+            el.setAttribute('role', 'button');
+            el.setAttribute('tabindex', '0');
+            el.title = 'Click to hear this pronounced';
+            const play = (ev) => { ev.stopPropagation(); speak(subject, term); };
+            el.addEventListener('click', play);
+            el.addEventListener('keydown', (ev) => {
+                if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); play(ev); }
+            });
+        });
     }
 
     // Language-learning subjects need their spoken content played/recorded
@@ -8478,7 +8563,7 @@ SQIDAQAB
     // question happens to be rendered. Any subject not listed here (every
     // non-language subject today) falls back to navigator.language,
     // unchanged from before this map existed.
-    const SUBJECT_LOCALES = { Italian: 'it-IT' };
+    const SUBJECT_LOCALES = { Italian: 'it-IT', Spanish: 'es-ES' };
     function localeForSubject(subject) { return SUBJECT_LOCALES[subject] || null; }
 
     // getVoices() often returns an empty list on the very first call, until
@@ -17089,6 +17174,7 @@ SQIDAQAB
                     <div id="km-node-finish-cta"></div>
                 `;
             if (!nodeLesson || nodeLesson.notFound) return;
+            makeTermsSpeakable(lessonEl.querySelector('#km-node-lesson-explanation'), folder.subject);
 
             // The teaching itself can get a dual-coding visual (worked
             // example/diagram/comparison/real-world example) alongside it,
@@ -17387,7 +17473,7 @@ SQIDAQAB
                 </div>
             `;
             const audioPromptEl = lessonEl.querySelector('#km-ao1-audio-prompt');
-            if (audioPromptEl) renderAudioPrompt(audioPromptEl, audioText, locale);
+            if (audioPromptEl) renderAudioPrompt(audioPromptEl, audioText, folder.subject);
 
             // Same underlying textarea as before for every non-speaking
             // modality (writing/reading/listening all still type their
@@ -17513,6 +17599,7 @@ SQIDAQAB
                     ${notes ? '' : questionBlockHtml}
                 </div>
             `;
+            if (linkTeaching && !notes) makeTermsSpeakable(lessonEl.querySelector('.km-inline-lesson-explanation'), folder.subject);
 
             // Dual-coded (text + visual side by side) exactly like an
             // encoding lesson's own explanation, reusing the same
@@ -17533,7 +17620,7 @@ SQIDAQAB
             }
 
             const audioPromptEl = lessonEl.querySelector('#km-integration-audio-prompt');
-            if (audioPromptEl) renderAudioPrompt(audioPromptEl, audioText, locale);
+            if (audioPromptEl) renderAudioPrompt(audioPromptEl, audioText, folder.subject);
 
             const answerInputHost = lessonEl.querySelector('#km-integration-answer-input');
             const useMathEditor = answerInputType ? answerInputType === 'math' : looksLikeCalculationQuestion(questionText);
@@ -18163,7 +18250,7 @@ SQIDAQAB
         // reuses speakText/pickBestVoice, parameterized by `locale` so a
         // language-learning phrase is spoken in that language rather than
         // the browser's own locale.
-        function renderAudioPrompt(container, audioText, locale) {
+        function renderAudioPrompt(container, audioText, subject) {
             const wrap = document.createElement('div');
             wrap.className = 'km-inline-detail-item km-inline-detail-none';
             wrap.style.marginBottom = '10px';
@@ -18171,7 +18258,7 @@ SQIDAQAB
             playBtn.type = 'button';
             playBtn.className = 'btn';
             playBtn.textContent = '🔊 Play';
-            playBtn.addEventListener('click', () => speakText(audioText, locale));
+            playBtn.addEventListener('click', () => speak(subject, audioText));
             wrap.appendChild(playBtn);
             container.appendChild(wrap);
         }
@@ -18205,7 +18292,7 @@ SQIDAQAB
             const wrap = document.createElement('div');
             wrap.className = 'km-inline-lesson-question';
             if (modality === 'listening' && isObj && question.audioText) {
-                renderAudioPrompt(wrap, question.audioText, localeForSubject(folder.subject));
+                renderAudioPrompt(wrap, question.audioText, folder.subject);
             }
             const q = document.createElement('div');
             q.textContent = questionText || '';
