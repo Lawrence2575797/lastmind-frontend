@@ -17666,10 +17666,18 @@ SQIDAQAB
                 // "Builds on this" and the "Encode this first"/"Start
                 // review" gating already reflect it the moment the student
                 // is back on the map, with no stale reload needed.
-                const submit = async (answer, retryCount) => {
+                // answerOrAnswers is a plain string for every ordinary
+                // question, or an array (one entry per blank) for a
+                // grouped fill-in-the-gaps question - see
+                // renderBlanksQuestionWidget and the backend's own
+                // isBlanksSubmission branch in text-question/submit.
+                const submit = async (answerOrAnswers, retryCount) => {
+                    const isBlanks = Array.isArray(answerOrAnswers);
                     const result = await postChainDiagnostic(
                         nodeLesson.practiceQuestion.diagramSpec ? '/knowledge-map-v2/diagram-question/submit' : '/knowledge-map-v2/text-question/submit',
-                        { nodeId: d.id, questionType: 'practice', answer, retryCount }
+                        isBlanks
+                            ? { nodeId: d.id, questionType: 'practice', answers: answerOrAnswers, retryCount }
+                            : { nodeId: d.id, questionType: 'practice', answer: answerOrAnswers, retryCount }
                     );
                     if (result && result.schedule) {
                         fullData.scheduleByConceptId.set(result.schedule.conceptId, result.schedule);
@@ -17685,6 +17693,7 @@ SQIDAQAB
                     return result;
                 };
                 if (nodeLesson.practiceQuestion.diagramSpec) renderDiagramWidget(el, null, submit);
+                else if (nodeLesson.practiceQuestion.blanks && nodeLesson.practiceQuestion.blanks.length) renderBlanksQuestionWidget(el, nodeLesson.practiceQuestion, submit);
                 else renderTextQuestionWidget(el, nodeLesson.practiceQuestion, submit);
             } else {
                 // No practice question at all - viewing the explanation IS
@@ -18802,6 +18811,88 @@ SQIDAQAB
                 }
                 submitBtn.remove();
                 renderQuestionResult(resultEl, result, onRequiresEncoding);
+            });
+
+            container.innerHTML = '';
+            container.appendChild(wrap);
+        }
+
+        // Grouped fill-in-the-gaps questions (see the backend's rule 4b/4c
+        // "blanks" output) get one small answer box per blank instead of
+        // one big text box - all submitted together via one Submit, but a
+        // wrong result only leaves the boxes that were actually wrong
+        // editable (see perBlankCorrect below), so a student who got 3 of
+        // 4 right never has to retype the ones they already knew.
+        function renderBlanksQuestionWidget(container, question, onSubmit) {
+            const wrap = document.createElement('div');
+            wrap.className = 'km-inline-lesson-question';
+            const q = document.createElement('div');
+            q.textContent = question.questionText || '';
+            q.style.marginBottom = '10px';
+            wrap.appendChild(q);
+
+            const blanksWrap = document.createElement('div');
+            blanksWrap.style.cssText = 'display:flex; flex-direction:column; gap:8px; margin-bottom:10px;';
+            const inputs = question.blanks.map((b, i) => {
+                const row = document.createElement('div');
+                row.style.cssText = 'display:flex; align-items:center; gap:8px;';
+                const label = document.createElement('span');
+                label.textContent = b.prompt || `Blank ${i + 1}`;
+                label.style.cssText = 'font-size:0.85em; min-width:120px; opacity:0.85;';
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'km-blank-input';
+                input.style.cssText = 'flex:1; min-width:0; padding:6px 8px; border-radius:4px; border:1px solid rgba(230,215,176,0.3); background:transparent; color:inherit; font:inherit;';
+                row.appendChild(label);
+                row.appendChild(input);
+                blanksWrap.appendChild(row);
+                return input;
+            });
+            wrap.appendChild(blanksWrap);
+
+            const submitBtn = document.createElement('button');
+            submitBtn.type = 'button';
+            submitBtn.className = 'btn primary';
+            submitBtn.style.marginTop = '4px';
+            submitBtn.textContent = 'Submit answers';
+            wrap.appendChild(submitBtn);
+            const resultEl = document.createElement('div');
+            resultEl.style.marginTop = '8px';
+            wrap.appendChild(resultEl);
+
+            let retryCount = 0;
+            submitBtn.addEventListener('click', async () => {
+                if (inputs.some((inp) => !inp.disabled && !inp.value.trim())) return;
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Checking…';
+                const answers = inputs.map((inp) => inp.value.trim());
+                const result = await onSubmit(answers, retryCount);
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit answers';
+                if (!result) {
+                    renderQuestionResult(resultEl, result);
+                    return;
+                }
+                if (Array.isArray(result.perBlankCorrect)) {
+                    inputs.forEach((inp, i) => {
+                        const ok = result.perBlankCorrect[i];
+                        inp.style.borderColor = ok ? '#7ecb99' : '#e88888';
+                        inp.style.background = ok ? 'rgba(126,203,153,0.14)' : 'rgba(232,136,136,0.14)';
+                        // Locks in an already-correct box so a retry only
+                        // ever touches the ones still wrong - its value
+                        // stays in the DOM (just disabled) and is still
+                        // included in the next submit below.
+                        if (ok) inp.disabled = true;
+                    });
+                }
+                if (result.retryable) {
+                    retryCount++;
+                    renderQuestionResult(resultEl, result);
+                    return;
+                }
+                submitBtn.remove();
+                inputs.forEach((inp) => { inp.disabled = true; });
+                renderQuestionResult(resultEl, result);
             });
 
             container.innerHTML = '';
