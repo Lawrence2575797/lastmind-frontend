@@ -12431,6 +12431,12 @@ SQIDAQAB
     // renderBookSessionPage's own comment) - visible to every user
     // regardless of tier, unlike the Premium-gated Maths Tool button next
     // to it.
+    // Both pages below render onto the burgundy --panel surface (not the
+    // plain birch --bg .btn normally sits on) - deliberately, so a plain
+    // .btn (cream text, see its own comment on assuming a dark panel
+    // behind it) is readable without needing .btn-on-content's ink-toned
+    // override the way Practice Questions' birch-background back buttons
+    // do.
     function renderFounderTutoringPage() {
         stopActiveDictation();
         stopSpeaking();
@@ -12439,23 +12445,35 @@ SQIDAQAB
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
         contentInner.innerHTML = `
-            <div style="max-width:640px; margin:0 auto; padding:24px 24px 48px;">
-                <button type="button" class="btn" id="founderTutoringBackBtn" style="margin-bottom:20px;">← Dashboard</button>
-                <h1 style="font-size:1.8rem; margin:0 0 8px; color:var(--ink);">Tutoring from LastMind's founder</h1>
-                <p style="font-size:1.05rem; font-weight:700; margin:0 0 10px; color:var(--ink);">This isn't just normal tutoring</p>
-                <p style="margin:0 0 22px; color:var(--ink); opacity:0.85;">Don't waste your tutoring time finding out what you need to improve on — LastMind already knows.</p>
-                <p style="margin:0 0 20px; color:var(--ink); font-weight:700;">Tutoring available in: Biology, Further Maths, Maths, and Economics.</p>
-                <button type="button" class="btn primary" id="bookSessionBtn" style="margin-bottom:36px;">Book Session</button>
+            <div style="max-width:640px; margin:24px auto 48px; padding:32px; background:var(--panel); color:var(--text); border-radius:14px;">
+                <button type="button" class="btn" id="founderTutoringHomeBtn" style="margin-bottom:24px;">🏠 Home</button>
+                <h1 style="font-size:1.8rem; margin:0 0 8px; color:var(--accent); text-align:center;">Tutoring from LastMind's founder</h1>
+                <p style="font-size:1.05rem; font-weight:700; margin:0 0 14px; text-align:center;">This isn't just normal tutoring</p>
+                <p style="margin:0 0 22px; opacity:0.85; text-align:center;">Don't waste your tutoring time finding out what you need to improve on, LastMind already knows.</p>
+                <p style="margin:0 0 20px; font-weight:700; text-align:center;">Tutoring available in: Biology, Further Maths, Maths, and Economics.</p>
+                <div style="text-align:center; margin-bottom:36px;">
+                    <button type="button" class="btn primary" id="bookSessionBtn">Book Session</button>
+                </div>
 
                 <hr style="border:none; border-top:1px solid rgba(230,215,176,0.25); margin:0 0 28px;">
 
-                <h2 style="font-size:1.3rem; margin:0 0 14px; color:var(--ink);">About the founder</h2>
-                <div style="width:120px; height:120px; border-radius:50%; background:rgba(230,215,176,0.15); display:flex; align-items:center; justify-content:center; margin-bottom:16px; font-size:0.75rem; text-align:center; opacity:0.6; color:var(--ink);">Photo coming soon</div>
-                <p style="margin:0 0 6px; font-weight:700; color:var(--ink);">Lawrence Wood</p>
-                <p style="margin:0; color:var(--ink); opacity:0.85;">8 grade 9s at GCSE, and 4 A*s at A-Level in Biology, Further Maths, Maths, and Economics.</p>
+                <h2 style="font-size:1.3rem; margin:0 0 16px; color:var(--accent); text-align:center;">About the founder</h2>
+                <div style="width:120px; height:120px; border-radius:50%; background:rgba(230,215,176,0.15); display:flex; align-items:center; justify-content:center; margin:0 auto 16px; font-size:0.75rem; text-align:center; opacity:0.6;">Photo coming soon</div>
+                <p style="margin:0 0 16px; font-weight:700; text-align:center;">Lawrence Wood</p>
+                <div style="display:flex; gap:14px; justify-content:center; flex-wrap:wrap;">
+                    <div style="background:rgba(230,215,176,0.08); border:1px solid rgba(230,215,176,0.2); border-radius:10px; padding:16px 20px; text-align:center; min-width:140px;">
+                        <div style="font-size:2rem; font-weight:800; color:var(--accent);">8</div>
+                        <div style="font-size:0.85rem; opacity:0.85;">Grade 9s at GCSE</div>
+                    </div>
+                    <div style="background:rgba(230,215,176,0.08); border:1px solid rgba(230,215,176,0.2); border-radius:10px; padding:16px 20px; text-align:center; min-width:200px;">
+                        <div style="font-size:2rem; font-weight:800; color:var(--accent);">4</div>
+                        <div style="font-size:0.85rem; opacity:0.85;">A*s at A-Level</div>
+                        <div style="font-size:0.78rem; opacity:0.65; margin-top:4px;">Biology · Further Maths · Maths · Economics</div>
+                    </div>
+                </div>
             </div>
         `;
-        document.getElementById('founderTutoringBackBtn').addEventListener('click', () => selectFolder(null));
+        document.getElementById('founderTutoringHomeBtn').addEventListener('click', () => selectFolder(null));
         document.getElementById('bookSessionBtn').addEventListener('click', renderBookSessionPage);
     }
 
@@ -12471,15 +12489,19 @@ SQIDAQAB
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
         contentInner.innerHTML = `
-            <div style="max-width:640px; margin:0 auto; padding:24px;">
-                <button type="button" class="btn" id="bookSessionBackBtn" style="margin-bottom:20px;">← Tutoring</button>
-                <h1 style="font-size:1.6rem; margin:0 0 14px; color:var(--ink);">Book a Tutoring Session</h1>
-                <p style="color:var(--ink); opacity:0.85;">Online payment and scheduling is being set up — check back shortly.</p>
+            <div style="max-width:640px; margin:24px auto 48px; padding:32px; background:var(--panel); color:var(--text); border-radius:14px;">
+                <div style="display:flex; gap:8px; margin-bottom:24px;">
+                    <button type="button" class="btn" id="bookSessionHomeBtn">🏠 Home</button>
+                    <button type="button" class="btn" id="bookSessionBackBtn">← Tutoring</button>
+                </div>
+                <h1 style="font-size:1.6rem; margin:0 0 14px; color:var(--accent); text-align:center;">Book a Tutoring Session</h1>
+                <p style="opacity:0.85; text-align:center;">Online payment and scheduling is being set up, check back shortly.</p>
             </div>
         `;
         // TODO: once a real Stripe Checkout/Payment Link exists, replace
         // the placeholder <p> above with it (a link/button pointing at the
         // Stripe-hosted page, or an embedded Checkout element).
+        document.getElementById('bookSessionHomeBtn').addEventListener('click', () => selectFolder(null));
         document.getElementById('bookSessionBackBtn').addEventListener('click', renderFounderTutoringPage);
     }
 
