@@ -12437,6 +12437,61 @@ SQIDAQAB
     // behind it) is readable without needing .btn-on-content's ink-toned
     // override the way Practice Questions' birch-background back buttons
     // do.
+    // ─── Tutoring booking calendar ───────────────────────────────────
+    // No external calendar sync (Google/Outlook) - the founder is the
+    // only supplier, so he opens/blocks his own slots directly (see
+    // renderManageAvailabilityPage) instead of syncing a real calendar.
+    // Booking is pay-first, claim-second: a student can browse the
+    // calendar (open vs unavailable, never who booked what) before
+    // paying, but only actually claims a specific slot after Stripe
+    // redirects them back post-payment (see the ?claimSlot deep link in
+    // enterApp and renderClaimSlotPage below).
+    function formatSlotRange(startTime, endTime) {
+        const start = new Date(startTime);
+        const end = new Date(endTime);
+        const dateStr = start.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+        const startStr = start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+        const endStr = end.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+        return `${dateStr}, ${startStr} – ${endStr}`;
+    }
+
+    async function fetchTutoringSlots() {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return [];
+        const resp = await fetch(`${COMPILE_BACKEND_URL}/tutoring-slots`, {
+            headers: { Authorization: `Bearer ${session.access_token}` }
+        });
+        if (!resp.ok) return [];
+        return await resp.json();
+    }
+
+    async function checkTutoringAdmin() {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return false;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/tutoring-slots/am-i-admin`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            return resp.ok;
+        } catch (err) {
+            return false;
+        }
+    }
+
+    async function populateTutoringCalendarList(listEl) {
+        const slots = await fetchTutoringSlots();
+        if (!slots.length) {
+            listEl.innerHTML = '<div style="opacity:0.7; font-size:0.85rem;">No times published yet - check back soon.</div>';
+            return;
+        }
+        listEl.innerHTML = slots.map((s) => `
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border-radius:8px; background:rgba(230,215,176,${s.available ? '0.08' : '0.04'}); margin-bottom:6px; opacity:${s.available ? '1' : '0.5'};">
+                <span style="font-size:0.85rem;">${escapeHtml(formatSlotRange(s.startTime, s.endTime))}</span>
+                <span style="font-size:0.75rem; font-weight:700;">${s.available ? 'Open' : 'Unavailable'}</span>
+            </div>
+        `).join('');
+    }
+
     function renderFounderTutoringPage() {
         stopActiveDictation();
         stopSpeaking();
@@ -12446,7 +12501,10 @@ SQIDAQAB
         contentInner.classList.add('content-inner-wide');
         contentInner.innerHTML = `
             <div style="max-width:640px; margin:24px auto 48px; padding:32px; background:var(--panel); color:var(--text); border-radius:14px;">
-                <button type="button" class="btn" id="founderTutoringHomeBtn" style="margin-bottom:24px;">🏠 Home</button>
+                <div style="display:flex; gap:8px; margin-bottom:24px;">
+                    <button type="button" class="btn" id="founderTutoringHomeBtn">🏠 Home</button>
+                    <button type="button" class="btn" id="manageAvailabilityBtn" style="display:none;">Manage availability</button>
+                </div>
                 <h1 style="font-size:1.8rem; margin:0 0 8px; color:var(--accent); text-align:center;">Tutoring from LastMind's founder</h1>
                 <p style="font-size:1.05rem; font-weight:700; margin:0 0 14px; text-align:center;">This isn't just normal tutoring</p>
                 <p style="margin:0 0 22px; opacity:0.85; text-align:center;">Don't waste your tutoring time finding out what you need to improve on, LastMind already knows.</p>
@@ -12469,6 +12527,13 @@ SQIDAQAB
                         <div style="font-size:0.8rem; opacity:0.75; margin-top:2px;">A-Level</div>
                     </div>
                 </div>
+
+                <p style="margin:0 0 12px; font-weight:700; text-align:center;">Available times</p>
+                <div id="tutoringCalendarList" style="margin-bottom:28px;">
+                    <div style="opacity:0.7; font-size:0.85rem; text-align:center;">Loading…</div>
+                </div>
+                <p style="font-size:0.78rem; opacity:0.6; text-align:center; margin:0 0 24px;">You'll pick your exact slot after payment - this just shows what's currently open.</p>
+
                 <div style="text-align:center; margin-bottom:36px;">
                     <button type="button" class="btn primary" id="bookSessionBtn">Book Session</button>
                 </div>
@@ -12493,6 +12558,13 @@ SQIDAQAB
         `;
         document.getElementById('founderTutoringHomeBtn').addEventListener('click', () => selectFolder(null));
         document.getElementById('bookSessionBtn').addEventListener('click', renderBookSessionPage);
+        populateTutoringCalendarList(document.getElementById('tutoringCalendarList'));
+        checkTutoringAdmin().then((isAdmin) => {
+            if (!isAdmin) return;
+            const btn = document.getElementById('manageAvailabilityBtn');
+            btn.style.display = '';
+            btn.addEventListener('click', renderManageAvailabilityPage);
+        });
     }
 
     // A real, hosted Stripe Payment Link (one-off payment, not a
@@ -12522,6 +12594,225 @@ SQIDAQAB
         `;
         document.getElementById('bookSessionHomeBtn').addEventListener('click', () => selectFolder(null));
         document.getElementById('bookSessionBackBtn').addEventListener('click', renderFounderTutoringPage);
+    }
+
+    // Founder-only (gated server-side by /tutoring-slots/admin's own
+    // requireAdmin, not just hidden client-side) - add new open slots,
+    // block ones he's busy for (uni work etc), reopen a blocked slot, or
+    // free a booked one back to open (e.g. a cancellation).
+    async function renderManageAvailabilityPage() {
+        stopActiveDictation();
+        stopSpeaking();
+        document.getElementById('topbarTitle').textContent = 'Manage Availability';
+        const contentInner = document.getElementById('contentInner');
+        contentInner.classList.add('content-inner-wide');
+        contentInner.innerHTML = `
+            <div style="max-width:640px; margin:24px auto 48px; padding:32px; background:var(--panel); color:var(--text); border-radius:14px;">
+                <div style="display:flex; gap:8px; margin-bottom:24px;">
+                    <button type="button" class="btn" id="manageAvailHomeBtn">🏠 Home</button>
+                    <button type="button" class="btn" id="manageAvailBackBtn">← Tutoring</button>
+                </div>
+                <h1 style="font-size:1.5rem; margin:0 0 20px; color:var(--accent); text-align:center;">Manage Availability</h1>
+
+                <div style="background:rgba(230,215,176,0.06); border:1px solid rgba(230,215,176,0.15); border-radius:10px; padding:16px; margin-bottom:24px;">
+                    <p style="font-weight:700; margin:0 0 10px;">Add a new open slot</p>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+                        <label style="font-size:0.8rem; opacity:0.85;">Start<br><input type="datetime-local" id="newSlotStart" style="margin-top:4px;"></label>
+                        <label style="font-size:0.8rem; opacity:0.85;">End<br><input type="datetime-local" id="newSlotEnd" style="margin-top:4px;"></label>
+                        <button type="button" class="btn primary" id="addSlotBtn">Add</button>
+                    </div>
+                    <div id="addSlotError" style="color:#e88; font-size:0.8rem; margin-top:8px;"></div>
+                </div>
+
+                <div id="adminSlotList">
+                    <div style="opacity:0.7; font-size:0.85rem; text-align:center;">Loading…</div>
+                </div>
+            </div>
+        `;
+        document.getElementById('manageAvailHomeBtn').addEventListener('click', () => selectFolder(null));
+        document.getElementById('manageAvailBackBtn').addEventListener('click', renderFounderTutoringPage);
+        document.getElementById('addSlotBtn').addEventListener('click', () => addTutoringSlot());
+        await refreshAdminSlotList();
+    }
+
+    async function refreshAdminSlotList() {
+        const listEl = document.getElementById('adminSlotList');
+        if (!listEl) return;
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) throw new Error('not signed in');
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/tutoring-slots/admin`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            const slots = await resp.json();
+            if (!slots.length) {
+                listEl.innerHTML = '<div class="empty-hint">No upcoming slots - add one above.</div>';
+                return;
+            }
+            listEl.innerHTML = slots.map((s) => `
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 12px; border-radius:8px; background:rgba(230,215,176,0.06); margin-bottom:6px; flex-wrap:wrap;">
+                    <div>
+                        <div style="font-size:0.85rem;">${escapeHtml(formatSlotRange(s.startTime, s.endTime))}</div>
+                        <div style="font-size:0.75rem; opacity:0.7;">
+                            ${s.status === 'booked' ? `Booked - ${escapeHtml(s.bookedName || '')} (${escapeHtml(s.bookedEmail || '')})` : s.status === 'blocked' ? 'Blocked' : 'Open'}
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:6px;">
+                        ${s.status !== 'blocked' ? `<button type="button" class="btn" data-action="block" data-id="${s.id}">Block</button>` : ''}
+                        ${s.status !== 'open' ? `<button type="button" class="btn" data-action="open" data-id="${s.id}">${s.status === 'booked' ? 'Free up' : 'Reopen'}</button>` : ''}
+                        <button type="button" class="btn" data-action="delete" data-id="${s.id}">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+            listEl.querySelectorAll('button[data-action]').forEach((btn) => {
+                btn.addEventListener('click', () => handleAdminSlotAction(btn.dataset.action, btn.dataset.id));
+            });
+        } catch (err) {
+            console.error('LastMind: failed to load admin tutoring slots.', err);
+            listEl.innerHTML = '<div class="empty-hint">Could not load the calendar - try again.</div>';
+        }
+    }
+
+    async function handleAdminSlotAction(action, id) {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+        try {
+            if (action === 'delete') {
+                if (!confirm('Delete this slot?')) return;
+                await fetch(`${COMPILE_BACKEND_URL}/tutoring-slots/${id}`, {
+                    method: 'DELETE',
+                    headers: { Authorization: `Bearer ${session.access_token}` }
+                });
+            } else {
+                await fetch(`${COMPILE_BACKEND_URL}/tutoring-slots/${id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                    body: JSON.stringify({ status: action })
+                });
+            }
+            await refreshAdminSlotList();
+        } catch (err) {
+            console.error('LastMind: tutoring slot action failed.', err);
+            alert('Something went wrong - try again.');
+        }
+    }
+
+    async function addTutoringSlot() {
+        const startInput = document.getElementById('newSlotStart');
+        const endInput = document.getElementById('newSlotEnd');
+        const errorEl = document.getElementById('addSlotError');
+        errorEl.textContent = '';
+        if (!startInput.value || !endInput.value) {
+            errorEl.textContent = 'Pick a start and end time.';
+            return;
+        }
+        const startTime = new Date(startInput.value).toISOString();
+        const endTime = new Date(endInput.value).toISOString();
+        if (new Date(endTime) <= new Date(startTime)) {
+            errorEl.textContent = 'End time must be after start time.';
+            return;
+        }
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) throw new Error('not signed in');
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/tutoring-slots`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify({ startTime, endTime })
+            });
+            if (!resp.ok) {
+                const body = await resp.json().catch(() => ({}));
+                throw new Error(body.error || 'Could not add this slot.');
+            }
+            startInput.value = '';
+            endInput.value = '';
+            await refreshAdminSlotList();
+        } catch (err) {
+            errorEl.textContent = err.message || 'Could not add this slot.';
+        }
+    }
+
+    // Reached via the ?claimSlot=1 deep link (see enterApp) - set as the
+    // Stripe Payment Link's own "after payment" redirect URL, so a student
+    // only ever lands here once they've actually paid (see
+    // tutoringSlotsService.ts's own comment on the trust boundary this
+    // implies, and why it's an accepted trade-off rather than an oversight).
+    async function renderClaimSlotPage() {
+        stopActiveDictation();
+        stopSpeaking();
+        document.getElementById('topbarTitle').textContent = 'Book Your Slot';
+        const contentInner = document.getElementById('contentInner');
+        contentInner.classList.add('content-inner-wide');
+        contentInner.innerHTML = `
+            <div style="max-width:640px; margin:24px auto 48px; padding:32px; background:var(--panel); color:var(--text); border-radius:14px;">
+                <button type="button" class="btn" id="claimSlotHomeBtn" style="margin-bottom:24px;">🏠 Home</button>
+                <h1 style="font-size:1.5rem; margin:0 0 8px; color:var(--accent); text-align:center;">Thanks for paying — pick your slot</h1>
+                <p style="opacity:0.85; text-align:center; margin:0 0 24px;">Choose a time below, then confirm with your name and email.</p>
+                <div id="claimSlotList" style="margin-bottom:20px;">
+                    <div style="opacity:0.7; font-size:0.85rem; text-align:center;">Loading…</div>
+                </div>
+                <div id="claimSlotForm" style="display:none;">
+                    <label style="font-size:0.8rem; opacity:0.85; display:block; margin-bottom:10px;">Your name<br>
+                        <input type="text" id="claimName" style="width:100%; margin-top:4px;">
+                    </label>
+                    <label style="font-size:0.8rem; opacity:0.85; display:block; margin-bottom:14px;">Your email<br>
+                        <input type="email" id="claimEmail" style="width:100%; margin-top:4px;">
+                    </label>
+                    <div style="text-align:center;">
+                        <button type="button" class="btn primary" id="confirmClaimBtn">Confirm booking</button>
+                    </div>
+                    <div id="claimError" style="color:#e88; font-size:0.8rem; margin-top:10px; text-align:center;"></div>
+                </div>
+                <div id="claimSuccess" style="display:none; text-align:center; font-weight:700;"></div>
+            </div>
+        `;
+        document.getElementById('claimSlotHomeBtn').addEventListener('click', () => selectFolder(null));
+
+        let selectedSlotId = null;
+        const listEl = document.getElementById('claimSlotList');
+        const slots = (await fetchTutoringSlots()).filter((s) => s.available);
+        if (!slots.length) {
+            listEl.innerHTML = '<div class="empty-hint">No open slots right now — contact LastMind directly and we\'ll sort out a time.</div>';
+            return;
+        }
+        listEl.innerHTML = slots.map((s) => `
+            <button type="button" class="btn" data-id="${s.id}" style="display:block; width:100%; text-align:left; margin-bottom:6px;">${escapeHtml(formatSlotRange(s.startTime, s.endTime))}</button>
+        `).join('');
+        listEl.querySelectorAll('button[data-id]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                selectedSlotId = btn.dataset.id;
+                listEl.querySelectorAll('button[data-id]').forEach((b) => b.classList.toggle('primary', b === btn));
+                document.getElementById('claimSlotForm').style.display = '';
+            });
+        });
+
+        document.getElementById('confirmClaimBtn').addEventListener('click', async () => {
+            const errorEl = document.getElementById('claimError');
+            errorEl.textContent = '';
+            const name = document.getElementById('claimName').value.trim();
+            const email = document.getElementById('claimEmail').value.trim();
+            if (!selectedSlotId) { errorEl.textContent = 'Pick a time first.'; return; }
+            if (!name || !email) { errorEl.textContent = 'Enter your name and email.'; return; }
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (!session) throw new Error('not signed in');
+                const resp = await fetch(`${COMPILE_BACKEND_URL}/tutoring-slots/${selectedSlotId}/claim`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                    body: JSON.stringify({ name, email })
+                });
+                const body = await resp.json().catch(() => ({}));
+                if (!resp.ok) throw new Error(body.error || 'That slot was just taken — pick another.');
+                document.getElementById('claimSlotList').style.display = 'none';
+                document.getElementById('claimSlotForm').style.display = 'none';
+                const successEl = document.getElementById('claimSuccess');
+                successEl.style.display = '';
+                successEl.textContent = `Booked: ${formatSlotRange(body.startTime, body.endTime)}. See you then!`;
+            } catch (err) {
+                errorEl.textContent = err.message || 'Could not book this slot — try again.';
+            }
+        });
     }
 
     document.getElementById('founderTutoringTopbarBtn').addEventListener('click', renderFounderTutoringPage);
@@ -20122,6 +20413,16 @@ SQIDAQAB
         let openedViaDeepLink = false;
         if (deepLinkPageId) {
             openPage(deepLinkParams.get('openFolder'), deepLinkPageId, deepLinkParams.get('openSubfolder'));
+            openedViaDeepLink = true;
+            history.replaceState(null, '', window.location.pathname);
+        }
+
+        // ?claimSlot=1 - set as the Stripe Payment Link's own "after
+        // payment" redirect URL (see renderClaimSlotPage's own comment),
+        // so a student lands straight on "pick your slot" the moment
+        // they've paid, without needing to find their way back manually.
+        if (deepLinkParams.has('claimSlot')) {
+            renderClaimSlotPage();
             openedViaDeepLink = true;
             history.replaceState(null, '', window.location.pathname);
         }
