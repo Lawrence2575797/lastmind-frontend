@@ -17754,6 +17754,29 @@ SQIDAQAB
                 return;
             }
             if (checkpoint) clearNodeReviewCheckpoint(d.id);
+
+            // isNodeReviewDue (what got this review offered at all) counts
+            // a qualifying link with NO integration entry yet as "due" -
+            // correct, since a brand-new link genuinely does need testing
+            // the first time - but that's a different thing from d's own
+            // AO1 recall being due again. Retesting AO1 here regardless
+            // was a real bug: AO1 stayed locked out server-side (its own
+            // due date hadn't passed) while the UI re-asked it anyway,
+            // just because some unrelated link had become newly
+            // qualifying. If AO1 itself isn't due, skip straight to the
+            // first link that actually is - AO1 stays genuinely locked
+            // until its own schedule says otherwise.
+            const schedule = fullData.scheduleByConceptId || new Map();
+            if (!isScheduleEntryDue(schedule.get(d.conceptId))) {
+                const dueLinkIndex = qualifyingLinks.findIndex((link) =>
+                    isScheduleEntryDue(schedule.get(`${d.conceptId}->${link.conceptId}`)) ||
+                    isScheduleEntryDue(schedule.get(`${d.conceptId}->${link.conceptId}::integration`))
+                );
+                if (dueLinkIndex !== -1) {
+                    renderNodeReviewIntegrationStart(lessonEl, d, qualifyingLinks, dueLinkIndex, []);
+                    return;
+                }
+            }
             renderNodeReviewStart(lessonEl, d, qualifyingLinks);
         }
 
@@ -18826,29 +18849,62 @@ SQIDAQAB
         function renderBlanksQuestionWidget(container, question, onSubmit) {
             const wrap = document.createElement('div');
             wrap.className = 'km-inline-lesson-question';
+            const blanks = question.blanks || [];
+
+            // Splices one small input in place of each "___" run directly
+            // in the question's own sentence, in reading order - so the
+            // question reads naturally with fillable gaps where the
+            // dotted lines were, not as a separate list of boxes below
+            // it. Only safe when the question text's own blank count
+            // matches the "blanks" array 1:1 (segments.length is always
+            // blanks.length+1 when every blank is genuinely a "___" run);
+            // a mismatch means the model's free-text output drifted from
+            // its own instructions, so this falls back to the plain
+            // question text with one labelled box per blank underneath -
+            // never silently mis-splices a broken layout.
+            const questionText = question.questionText || '';
+            const segments = questionText.split(/_{2,}/);
+            const canSpliceInline = segments.length === blanks.length + 1;
+
             const q = document.createElement('div');
-            q.textContent = question.questionText || '';
-            q.style.marginBottom = '10px';
+            q.style.cssText = 'margin-bottom:10px; line-height:2.1;';
             wrap.appendChild(q);
 
-            const blanksWrap = document.createElement('div');
-            blanksWrap.style.cssText = 'display:flex; flex-direction:column; gap:8px; margin-bottom:10px;';
-            const inputs = question.blanks.map((b, i) => {
-                const row = document.createElement('div');
-                row.style.cssText = 'display:flex; align-items:center; gap:8px;';
-                const label = document.createElement('span');
-                label.textContent = b.prompt || `Blank ${i + 1}`;
-                label.style.cssText = 'font-size:0.85em; min-width:120px; opacity:0.85;';
-                const input = document.createElement('input');
-                input.type = 'text';
-                input.className = 'km-blank-input';
-                input.style.cssText = 'flex:1; min-width:0; padding:6px 8px; border-radius:4px; border:1px solid rgba(230,215,176,0.3); background:transparent; color:inherit; font:inherit;';
-                row.appendChild(label);
-                row.appendChild(input);
-                blanksWrap.appendChild(row);
-                return input;
-            });
-            wrap.appendChild(blanksWrap);
+            let inputs;
+            if (canSpliceInline) {
+                inputs = [];
+                segments.forEach((segment, i) => {
+                    if (segment) q.appendChild(document.createTextNode(segment));
+                    if (i >= blanks.length) return;
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.className = 'km-blank-input';
+                    input.size = Math.max(3, Math.min(14, (blanks[i].answer || '').length + 2));
+                    input.style.cssText = 'margin:0 3px; padding:3px 7px; border-radius:4px; border:1px solid rgba(230,215,176,0.4); background:rgba(230,215,176,0.08); color:inherit; font:inherit; text-align:center;';
+                    q.appendChild(input);
+                    inputs.push(input);
+                });
+            } else {
+                q.textContent = questionText;
+                const blanksWrap = document.createElement('div');
+                blanksWrap.style.cssText = 'display:flex; flex-direction:column; gap:8px; margin-bottom:10px;';
+                inputs = blanks.map((b, i) => {
+                    const row = document.createElement('div');
+                    row.style.cssText = 'display:flex; align-items:center; gap:8px;';
+                    const label = document.createElement('span');
+                    label.textContent = b.prompt || `Blank ${i + 1}`;
+                    label.style.cssText = 'font-size:0.85em; min-width:120px; opacity:0.85;';
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.className = 'km-blank-input';
+                    input.style.cssText = 'flex:1; min-width:0; padding:6px 8px; border-radius:4px; border:1px solid rgba(230,215,176,0.3); background:transparent; color:inherit; font:inherit;';
+                    row.appendChild(label);
+                    row.appendChild(input);
+                    blanksWrap.appendChild(row);
+                    return input;
+                });
+                wrap.appendChild(blanksWrap);
+            }
 
             const submitBtn = document.createElement('button');
             submitBtn.type = 'button';
