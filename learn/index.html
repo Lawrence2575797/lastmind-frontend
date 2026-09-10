@@ -12446,23 +12446,32 @@ SQIDAQAB
     // paying, but only actually claims a specific slot after Stripe
     // redirects them back post-payment (see the ?claimSlot deep link in
     // enterApp and renderClaimSlotPage below).
-    function formatSlotRange(startTime, endTime) {
-        const start = new Date(startTime);
-        const end = new Date(endTime);
-        const dateStr = start.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-        const startStr = start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-        const endStr = end.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-        return `${dateStr}, ${startStr} – ${endStr}`;
+    // ─── Week calendar grid ──────────────────────────────────────────
+    // Every day is OPEN by default within a fixed 9am-9pm hourly template
+    // (must match DAY_START_HOUR/DAY_END_HOUR/SLOT_MINUTES in the
+    // backend's tutoringSlotsService.ts) - the backend only stores
+    // EXCEPTIONS (blocked/booked), so this never needs manual per-slot
+    // creation, and blocking one week's Tuesday never touches any other
+    // week's Tuesday. weekStart is always computed as THIS device's local
+    // Monday midnight and sent as a plain ISO instant - the backend just
+    // adds fixed hour offsets to it, so no separate timezone handling is
+    // needed anywhere in this feature (single tutor, no external sync).
+    const CAL_DAY_START_HOUR = 9;
+    const CAL_DAY_END_HOUR = 21;
+
+    function getMondayOfWeek(d) {
+        const date = new Date(d);
+        const day = date.getDay();
+        const diff = (day === 0 ? -6 : 1) - day;
+        date.setDate(date.getDate() + diff);
+        date.setHours(0, 0, 0, 0);
+        return date;
     }
 
-    async function fetchTutoringSlots() {
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session) return [];
-        const resp = await fetch(`${COMPILE_BACKEND_URL}/tutoring-slots`, {
-            headers: { Authorization: `Bearer ${session.access_token}` }
-        });
-        if (!resp.ok) return [];
-        return await resp.json();
+    function calHourLabel(h) {
+        const period = h < 12 ? 'am' : 'pm';
+        const hour12 = h % 12 === 0 ? 12 : h % 12;
+        return `${hour12}${period}`;
     }
 
     async function checkTutoringAdmin() {
@@ -12478,18 +12487,113 @@ SQIDAQAB
         }
     }
 
-    async function populateTutoringCalendarList(listEl) {
-        const slots = await fetchTutoringSlots();
-        if (!slots.length) {
-            listEl.innerHTML = '<div style="opacity:0.7; font-size:0.85rem;">No times published yet - check back soon.</div>';
-            return;
+    async function fetchWeekSlots(weekStart, admin) {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return [];
+        const path = admin ? '/tutoring-slots/week/admin' : '/tutoring-slots/week';
+        const resp = await fetch(`${COMPILE_BACKEND_URL}${path}?weekStart=${encodeURIComponent(weekStart.toISOString())}`, {
+            headers: { Authorization: `Bearer ${session.access_token}` }
+        });
+        if (!resp.ok) return [];
+        return await resp.json();
+    }
+
+    // mode: 'browse' (read-only, pre-payment) | 'admin' (founder toggles
+    // open<->blocked, or frees a booking) | 'claim' (student picks one
+    // open slot to book, via onClaimSelect(startTime, endTime)).
+    function mountWeekCalendar(container, mode, onClaimSelect) {
+        let weekStart = getMondayOfWeek(new Date());
+
+        async function renderWeek() {
+            container.innerHTML = '<div style="text-align:center; padding:24px;">Loading…</div>';
+            const slots = await fetchWeekSlots(weekStart, mode === 'admin');
+            const byKey = new Map(slots.map((s) => [s.startTime, s]));
+            const days = Array.from({ length: 7 }, (_, i) => new Date(weekStart.getTime() + i * 86400000));
+            const weekEnd = new Date(weekStart.getTime() + 6 * 86400000);
+            const weekLabel = `${weekStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${weekEnd.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
+
+            let grid = '<div style="overflow-x:auto;"><div style="display:grid; grid-template-columns:48px repeat(7, minmax(58px,1fr)); gap:3px; min-width:520px;">';
+            grid += '<div></div>';
+            days.forEach((d) => {
+                grid += `<div style="text-align:center; font-weight:700; font-size:0.8rem; padding:4px 2px; color:var(--accent);">${escapeHtml(d.toLocaleDateString(undefined, { weekday: 'short' }))}<br><span style="font-weight:600; opacity:0.9;">${d.getDate()}</span></div>`;
+            });
+            for (let h = CAL_DAY_START_HOUR; h < CAL_DAY_END_HOUR; h++) {
+                grid += `<div style="text-align:right; font-size:0.74rem; font-weight:600; padding:7px 5px 0 0; color:var(--text);">${calHourLabel(h)}</div>`;
+                days.forEach((d) => {
+                    const slotStart = new Date(d.getTime() + h * 3600000);
+                    const slotEnd = new Date(slotStart.getTime() + 60 * 60000);
+                    const key = slotStart.toISOString();
+                    const slot = byKey.get(key);
+                    let bg, color, label, clickable = false;
+                    if (!slot) {
+                        bg = 'rgba(230,215,176,0.03)'; color = 'var(--text)'; label = '';
+                    } else if (slot.status === 'open') {
+                        bg = 'rgba(140,210,160,0.28)'; color = '#eafaf0'; label = mode === 'claim' ? 'Pick' : 'Open';
+                        clickable = mode === 'admin' || mode === 'claim';
+                    } else if (slot.status === 'blocked') {
+                        bg = 'rgba(0,0,0,0.3)'; color = 'rgba(230,215,176,0.75)'; label = 'Busy';
+                        clickable = mode === 'admin';
+                    } else {
+                        bg = 'rgba(230,215,176,0.7)'; color = 'var(--panel)'; label = 'Booked';
+                        clickable = mode === 'admin';
+                    }
+                    const title = slot && slot.bookedName ? ` title="${escapeHtml(slot.bookedName)} (${escapeHtml(slot.bookedEmail || '')})"` : '';
+                    grid += `<button type="button" class="tut-cal-cell" data-start="${key}" data-end="${slotEnd.toISOString()}" data-status="${slot ? slot.status : 'past'}" ${clickable ? '' : 'disabled'}${title} style="background:${bg}; color:${color}; border:none; border-radius:5px; padding:7px 2px; font-size:0.72rem; font-weight:700; cursor:${clickable ? 'pointer' : 'default'}; min-height:34px;">${label}</button>`;
+                });
+            }
+            grid += '</div></div>';
+
+            container.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                    <button type="button" class="btn" id="calPrevWeek">‹ Prev</button>
+                    <span style="font-weight:700; color:var(--accent);">${escapeHtml(weekLabel)}</span>
+                    <button type="button" class="btn" id="calNextWeek">Next ›</button>
+                </div>
+                ${grid}
+            `;
+            document.getElementById('calPrevWeek').addEventListener('click', () => {
+                weekStart = new Date(weekStart.getTime() - 7 * 86400000);
+                renderWeek();
+            });
+            document.getElementById('calNextWeek').addEventListener('click', () => {
+                weekStart = new Date(weekStart.getTime() + 7 * 86400000);
+                renderWeek();
+            });
+            container.querySelectorAll('.tut-cal-cell:not([disabled])').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const startTime = btn.dataset.start;
+                    const endTime = btn.dataset.end;
+                    if (mode === 'admin') {
+                        if (btn.dataset.status === 'booked' && !confirm('This slot is booked. Free it up anyway? This removes the booking.')) return;
+                        try {
+                            const { data: { session } } = await supabaseClient.auth.getSession();
+                            await fetch(`${COMPILE_BACKEND_URL}/tutoring-slots/toggle`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                                body: JSON.stringify({ startTime, endTime })
+                            });
+                            await renderWeek();
+                        } catch (err) {
+                            console.error('LastMind: failed to toggle a tutoring slot.', err);
+                            alert('Something went wrong — try again.');
+                        }
+                    } else if (mode === 'claim') {
+                        onClaimSelect(startTime, endTime);
+                    }
+                });
+            });
         }
-        listEl.innerHTML = slots.map((s) => `
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border-radius:8px; background:rgba(230,215,176,${s.available ? '0.08' : '0.04'}); margin-bottom:6px; opacity:${s.available ? '1' : '0.5'};">
-                <span style="font-size:0.85rem;">${escapeHtml(formatSlotRange(s.startTime, s.endTime))}</span>
-                <span style="font-size:0.75rem; font-weight:700;">${s.available ? 'Open' : 'Unavailable'}</span>
-            </div>
-        `).join('');
+
+        renderWeek();
+    }
+
+    function formatSlotRange(startTime, endTime) {
+        const start = new Date(startTime);
+        const end = new Date(endTime);
+        const dateStr = start.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+        const startStr = start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+        const endStr = end.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+        return `${dateStr}, ${startStr} – ${endStr}`;
     }
 
     function renderFounderTutoringPage() {
@@ -12505,34 +12609,32 @@ SQIDAQAB
                     <button type="button" class="btn" id="founderTutoringHomeBtn">🏠 Home</button>
                     <button type="button" class="btn" id="manageAvailabilityBtn" style="display:none;">Manage availability</button>
                 </div>
-                <h1 style="font-size:1.8rem; margin:0 0 8px; color:var(--accent); text-align:center;">Tutoring from LastMind's founder</h1>
-                <p style="font-size:1.05rem; font-weight:700; margin:0 0 14px; text-align:center;">This isn't just normal tutoring</p>
-                <p style="margin:0 0 22px; opacity:0.85; text-align:center;">Don't waste your tutoring time finding out what you need to improve on, LastMind already knows.</p>
-                <p style="margin:0 0 14px; font-weight:700; text-align:center;">Tutoring available in:</p>
+                <h1 style="font-size:1.8rem; margin:0 0 8px; color:var(--accent); text-align:center; font-weight:800;">Tutoring from LastMind's founder</h1>
+                <p style="font-size:1.1rem; font-weight:700; margin:0 0 14px; text-align:center; color:var(--text);">This isn't just normal tutoring</p>
+                <p style="margin:0 0 22px; text-align:center; color:var(--text); opacity:0.95;">Don't waste your tutoring time finding out what you need to improve on, LastMind already knows.</p>
+                <p style="margin:0 0 14px; font-weight:700; text-align:center; color:var(--text);">Tutoring available in:</p>
                 <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-bottom:32px;">
-                    <div style="background:rgba(230,215,176,0.08); border:1px solid rgba(230,215,176,0.2); border-radius:10px; padding:10px 10px; text-align:center; min-width:0; flex:1 1 90px;">
-                        <div style="font-weight:700;">Maths</div>
-                        <div style="font-size:0.8rem; opacity:0.75; margin-top:2px;">A-Level, GCSE</div>
+                    <div style="background:rgba(230,215,176,0.1); border:1px solid rgba(230,215,176,0.3); border-radius:10px; padding:10px 10px; text-align:center; min-width:0; flex:1 1 90px;">
+                        <div style="font-weight:700; color:var(--text);">Maths</div>
+                        <div style="font-size:0.8rem; color:var(--text); opacity:0.9; margin-top:2px;">A-Level, GCSE</div>
                     </div>
-                    <div style="background:rgba(230,215,176,0.08); border:1px solid rgba(230,215,176,0.2); border-radius:10px; padding:10px 10px; text-align:center; min-width:0; flex:1 1 90px;">
-                        <div style="font-weight:700;">Further Maths</div>
-                        <div style="font-size:0.8rem; opacity:0.75; margin-top:2px;">A-Level, GCSE</div>
+                    <div style="background:rgba(230,215,176,0.1); border:1px solid rgba(230,215,176,0.3); border-radius:10px; padding:10px 10px; text-align:center; min-width:0; flex:1 1 90px;">
+                        <div style="font-weight:700; color:var(--text);">Further Maths</div>
+                        <div style="font-size:0.8rem; color:var(--text); opacity:0.9; margin-top:2px;">A-Level, GCSE</div>
                     </div>
-                    <div style="background:rgba(230,215,176,0.08); border:1px solid rgba(230,215,176,0.2); border-radius:10px; padding:10px 10px; text-align:center; min-width:0; flex:1 1 90px;">
-                        <div style="font-weight:700;">Biology</div>
-                        <div style="font-size:0.8rem; opacity:0.75; margin-top:2px;">A-Level, GCSE</div>
+                    <div style="background:rgba(230,215,176,0.1); border:1px solid rgba(230,215,176,0.3); border-radius:10px; padding:10px 10px; text-align:center; min-width:0; flex:1 1 90px;">
+                        <div style="font-weight:700; color:var(--text);">Biology</div>
+                        <div style="font-size:0.8rem; color:var(--text); opacity:0.9; margin-top:2px;">A-Level, GCSE</div>
                     </div>
-                    <div style="background:rgba(230,215,176,0.08); border:1px solid rgba(230,215,176,0.2); border-radius:10px; padding:10px 10px; text-align:center; min-width:0; flex:1 1 90px;">
-                        <div style="font-weight:700;">Economics</div>
-                        <div style="font-size:0.8rem; opacity:0.75; margin-top:2px;">A-Level</div>
+                    <div style="background:rgba(230,215,176,0.1); border:1px solid rgba(230,215,176,0.3); border-radius:10px; padding:10px 10px; text-align:center; min-width:0; flex:1 1 90px;">
+                        <div style="font-weight:700; color:var(--text);">Economics</div>
+                        <div style="font-size:0.8rem; color:var(--text); opacity:0.9; margin-top:2px;">A-Level</div>
                     </div>
                 </div>
 
-                <p style="margin:0 0 12px; font-weight:700; text-align:center;">Available times</p>
-                <div id="tutoringCalendarList" style="margin-bottom:28px;">
-                    <div style="opacity:0.7; font-size:0.85rem; text-align:center;">Loading…</div>
-                </div>
-                <p style="font-size:0.78rem; opacity:0.6; text-align:center; margin:0 0 24px;">You'll pick your exact slot after payment - this just shows what's currently open.</p>
+                <p style="margin:0 0 12px; font-weight:700; text-align:center; color:var(--text);">Available times</p>
+                <div id="tutoringCalendarMount" style="margin-bottom:16px; color:var(--text);"></div>
+                <p style="font-size:0.8rem; color:var(--text); opacity:0.9; text-align:center; margin:0 0 24px;">You'll pick your exact slot after payment - this just shows what's currently open.</p>
 
                 <div style="text-align:center; margin-bottom:36px;">
                     <button type="button" class="btn primary" id="bookSessionBtn">Book Session</button>
@@ -12540,25 +12642,25 @@ SQIDAQAB
 
                 <hr style="border:none; border-top:1px solid rgba(230,215,176,0.25); margin:0 0 28px;">
 
-                <h2 style="font-size:1.3rem; margin:0 0 16px; color:var(--accent); text-align:center;">About the founder</h2>
-                <div style="width:120px; height:120px; border-radius:50%; background:rgba(230,215,176,0.15); display:flex; align-items:center; justify-content:center; margin:0 auto 16px; font-size:0.75rem; text-align:center; opacity:0.6;">Photo coming soon</div>
-                <p style="margin:0 0 16px; font-weight:700; text-align:center;">Lawrence Wood</p>
+                <h2 style="font-size:1.3rem; margin:0 0 16px; color:var(--accent); text-align:center; font-weight:800;">About the founder</h2>
+                <div style="width:120px; height:120px; border-radius:50%; background:rgba(230,215,176,0.15); display:flex; align-items:center; justify-content:center; margin:0 auto 16px; font-size:0.75rem; text-align:center; color:var(--text); opacity:0.85;">Photo coming soon</div>
+                <p style="margin:0 0 16px; font-weight:700; text-align:center; color:var(--text);">Lawrence Wood</p>
                 <div style="display:flex; gap:14px; justify-content:center; flex-wrap:wrap;">
-                    <div style="background:rgba(230,215,176,0.08); border:1px solid rgba(230,215,176,0.2); border-radius:10px; padding:16px 20px; text-align:center; min-width:140px;">
+                    <div style="background:rgba(230,215,176,0.1); border:1px solid rgba(230,215,176,0.3); border-radius:10px; padding:16px 20px; text-align:center; min-width:140px;">
                         <div style="font-size:1.4rem; font-weight:800; color:var(--accent);">Eight Grade 9s</div>
-                        <div style="font-size:0.85rem; opacity:0.85; margin-top:4px;">at GCSE</div>
+                        <div style="font-size:0.85rem; color:var(--text); opacity:0.95; margin-top:4px;">at GCSE</div>
                     </div>
-                    <div style="background:rgba(230,215,176,0.08); border:1px solid rgba(230,215,176,0.2); border-radius:10px; padding:16px 20px; text-align:center; min-width:200px;">
+                    <div style="background:rgba(230,215,176,0.1); border:1px solid rgba(230,215,176,0.3); border-radius:10px; padding:16px 20px; text-align:center; min-width:200px;">
                         <div style="font-size:1.6rem; font-weight:800; color:var(--accent);">4 A*s</div>
-                        <div style="font-size:0.85rem; opacity:0.85; margin-top:4px;">at A-Level</div>
-                        <div style="font-size:0.78rem; opacity:0.65; margin-top:4px;">Biology · Further Maths · Maths · Economics</div>
+                        <div style="font-size:0.85rem; color:var(--text); opacity:0.95; margin-top:4px;">at A-Level</div>
+                        <div style="font-size:0.8rem; color:var(--text); opacity:0.85; margin-top:4px;">Biology · Further Maths · Maths · Economics</div>
                     </div>
                 </div>
             </div>
         `;
         document.getElementById('founderTutoringHomeBtn').addEventListener('click', () => selectFolder(null));
         document.getElementById('bookSessionBtn').addEventListener('click', renderBookSessionPage);
-        populateTutoringCalendarList(document.getElementById('tutoringCalendarList'));
+        mountWeekCalendar(document.getElementById('tutoringCalendarMount'), 'browse');
         checkTutoringAdmin().then((isAdmin) => {
             if (!isAdmin) return;
             const btn = document.getElementById('manageAvailabilityBtn');
@@ -12607,130 +12709,19 @@ SQIDAQAB
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
         contentInner.innerHTML = `
-            <div style="max-width:640px; margin:24px auto 48px; padding:32px; background:var(--panel); color:var(--text); border-radius:14px;">
+            <div style="max-width:700px; margin:24px auto 48px; padding:32px; background:var(--panel); color:var(--text); border-radius:14px;">
                 <div style="display:flex; gap:8px; margin-bottom:24px;">
                     <button type="button" class="btn" id="manageAvailHomeBtn">🏠 Home</button>
                     <button type="button" class="btn" id="manageAvailBackBtn">← Tutoring</button>
                 </div>
-                <h1 style="font-size:1.5rem; margin:0 0 20px; color:var(--accent); text-align:center;">Manage Availability</h1>
-
-                <div style="background:rgba(230,215,176,0.06); border:1px solid rgba(230,215,176,0.15); border-radius:10px; padding:16px; margin-bottom:24px;">
-                    <p style="font-weight:700; margin:0 0 10px;">Add a new open slot</p>
-                    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
-                        <label style="font-size:0.8rem; opacity:0.85;">Start<br><input type="datetime-local" id="newSlotStart" style="margin-top:4px;"></label>
-                        <label style="font-size:0.8rem; opacity:0.85;">End<br><input type="datetime-local" id="newSlotEnd" style="margin-top:4px;"></label>
-                        <button type="button" class="btn primary" id="addSlotBtn">Add</button>
-                    </div>
-                    <div id="addSlotError" style="color:#e88; font-size:0.8rem; margin-top:8px;"></div>
-                </div>
-
-                <div id="adminSlotList">
-                    <div style="opacity:0.7; font-size:0.85rem; text-align:center;">Loading…</div>
-                </div>
+                <h1 style="font-size:1.5rem; margin:0 0 12px; color:var(--accent); text-align:center; font-weight:800;">Manage Availability</h1>
+                <p style="font-size:0.85rem; text-align:center; margin:0 0 20px; color:var(--text); opacity:0.9;">Every day is open by default. Click a slot to block it (busy with uni work etc), click again to reopen it, or click a booked slot to free it up.</p>
+                <div id="manageAvailCalMount"></div>
             </div>
         `;
         document.getElementById('manageAvailHomeBtn').addEventListener('click', () => selectFolder(null));
         document.getElementById('manageAvailBackBtn').addEventListener('click', renderFounderTutoringPage);
-        document.getElementById('addSlotBtn').addEventListener('click', () => addTutoringSlot());
-        await refreshAdminSlotList();
-    }
-
-    async function refreshAdminSlotList() {
-        const listEl = document.getElementById('adminSlotList');
-        if (!listEl) return;
-        try {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) throw new Error('not signed in');
-            const resp = await fetch(`${COMPILE_BACKEND_URL}/tutoring-slots/admin`, {
-                headers: { Authorization: `Bearer ${session.access_token}` }
-            });
-            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
-            const slots = await resp.json();
-            if (!slots.length) {
-                listEl.innerHTML = '<div class="empty-hint">No upcoming slots - add one above.</div>';
-                return;
-            }
-            listEl.innerHTML = slots.map((s) => `
-                <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 12px; border-radius:8px; background:rgba(230,215,176,0.06); margin-bottom:6px; flex-wrap:wrap;">
-                    <div>
-                        <div style="font-size:0.85rem;">${escapeHtml(formatSlotRange(s.startTime, s.endTime))}</div>
-                        <div style="font-size:0.75rem; opacity:0.7;">
-                            ${s.status === 'booked' ? `Booked - ${escapeHtml(s.bookedName || '')} (${escapeHtml(s.bookedEmail || '')})` : s.status === 'blocked' ? 'Blocked' : 'Open'}
-                        </div>
-                    </div>
-                    <div style="display:flex; gap:6px;">
-                        ${s.status !== 'blocked' ? `<button type="button" class="btn" data-action="block" data-id="${s.id}">Block</button>` : ''}
-                        ${s.status !== 'open' ? `<button type="button" class="btn" data-action="open" data-id="${s.id}">${s.status === 'booked' ? 'Free up' : 'Reopen'}</button>` : ''}
-                        <button type="button" class="btn" data-action="delete" data-id="${s.id}">Delete</button>
-                    </div>
-                </div>
-            `).join('');
-            listEl.querySelectorAll('button[data-action]').forEach((btn) => {
-                btn.addEventListener('click', () => handleAdminSlotAction(btn.dataset.action, btn.dataset.id));
-            });
-        } catch (err) {
-            console.error('LastMind: failed to load admin tutoring slots.', err);
-            listEl.innerHTML = '<div class="empty-hint">Could not load the calendar - try again.</div>';
-        }
-    }
-
-    async function handleAdminSlotAction(action, id) {
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session) return;
-        try {
-            if (action === 'delete') {
-                if (!confirm('Delete this slot?')) return;
-                await fetch(`${COMPILE_BACKEND_URL}/tutoring-slots/${id}`, {
-                    method: 'DELETE',
-                    headers: { Authorization: `Bearer ${session.access_token}` }
-                });
-            } else {
-                await fetch(`${COMPILE_BACKEND_URL}/tutoring-slots/${id}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-                    body: JSON.stringify({ status: action })
-                });
-            }
-            await refreshAdminSlotList();
-        } catch (err) {
-            console.error('LastMind: tutoring slot action failed.', err);
-            alert('Something went wrong - try again.');
-        }
-    }
-
-    async function addTutoringSlot() {
-        const startInput = document.getElementById('newSlotStart');
-        const endInput = document.getElementById('newSlotEnd');
-        const errorEl = document.getElementById('addSlotError');
-        errorEl.textContent = '';
-        if (!startInput.value || !endInput.value) {
-            errorEl.textContent = 'Pick a start and end time.';
-            return;
-        }
-        const startTime = new Date(startInput.value).toISOString();
-        const endTime = new Date(endInput.value).toISOString();
-        if (new Date(endTime) <= new Date(startTime)) {
-            errorEl.textContent = 'End time must be after start time.';
-            return;
-        }
-        try {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) throw new Error('not signed in');
-            const resp = await fetch(`${COMPILE_BACKEND_URL}/tutoring-slots`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-                body: JSON.stringify({ startTime, endTime })
-            });
-            if (!resp.ok) {
-                const body = await resp.json().catch(() => ({}));
-                throw new Error(body.error || 'Could not add this slot.');
-            }
-            startInput.value = '';
-            endInput.value = '';
-            await refreshAdminSlotList();
-        } catch (err) {
-            errorEl.textContent = err.message || 'Could not add this slot.';
-        }
+        mountWeekCalendar(document.getElementById('manageAvailCalMount'), 'admin');
     }
 
     // Reached via the ?claimSlot=1 deep link (see enterApp) - set as the
@@ -12745,46 +12736,36 @@ SQIDAQAB
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
         contentInner.innerHTML = `
-            <div style="max-width:640px; margin:24px auto 48px; padding:32px; background:var(--panel); color:var(--text); border-radius:14px;">
+            <div style="max-width:700px; margin:24px auto 48px; padding:32px; background:var(--panel); color:var(--text); border-radius:14px;">
                 <button type="button" class="btn" id="claimSlotHomeBtn" style="margin-bottom:24px;">🏠 Home</button>
-                <h1 style="font-size:1.5rem; margin:0 0 8px; color:var(--accent); text-align:center;">Thanks for paying — pick your slot</h1>
-                <p style="opacity:0.85; text-align:center; margin:0 0 24px;">Choose a time below, then confirm with your name and email.</p>
-                <div id="claimSlotList" style="margin-bottom:20px;">
-                    <div style="opacity:0.7; font-size:0.85rem; text-align:center;">Loading…</div>
-                </div>
-                <div id="claimSlotForm" style="display:none;">
-                    <label style="font-size:0.8rem; opacity:0.85; display:block; margin-bottom:10px;">Your name<br>
+                <h1 style="font-size:1.5rem; margin:0 0 8px; color:var(--accent); text-align:center; font-weight:800;">Thanks for paying — pick your slot</h1>
+                <p style="text-align:center; margin:0 0 20px; color:var(--text); opacity:0.9;">Click an open time below, then confirm with your name and email.</p>
+                <div id="claimCalMount" style="margin-bottom:20px;"></div>
+                <div id="claimSlotForm" style="display:none; max-width:360px; margin:0 auto;">
+                    <p id="claimSelectedLabel" style="font-weight:700; text-align:center; margin:0 0 14px; color:var(--accent);"></p>
+                    <label style="font-size:0.85rem; display:block; margin-bottom:10px; color:var(--text);">Your name<br>
                         <input type="text" id="claimName" style="width:100%; margin-top:4px;">
                     </label>
-                    <label style="font-size:0.8rem; opacity:0.85; display:block; margin-bottom:14px;">Your email<br>
+                    <label style="font-size:0.85rem; display:block; margin-bottom:14px; color:var(--text);">Your email<br>
                         <input type="email" id="claimEmail" style="width:100%; margin-top:4px;">
                     </label>
                     <div style="text-align:center;">
                         <button type="button" class="btn primary" id="confirmClaimBtn">Confirm booking</button>
                     </div>
-                    <div id="claimError" style="color:#e88; font-size:0.8rem; margin-top:10px; text-align:center;"></div>
+                    <div id="claimError" style="color:#ffb3b3; font-weight:600; font-size:0.85rem; margin-top:10px; text-align:center;"></div>
                 </div>
-                <div id="claimSuccess" style="display:none; text-align:center; font-weight:700;"></div>
+                <div id="claimSuccess" style="display:none; text-align:center; font-weight:700; color:var(--accent); font-size:1.1rem;"></div>
             </div>
         `;
         document.getElementById('claimSlotHomeBtn').addEventListener('click', () => selectFolder(null));
 
-        let selectedSlotId = null;
-        const listEl = document.getElementById('claimSlotList');
-        const slots = (await fetchTutoringSlots()).filter((s) => s.available);
-        if (!slots.length) {
-            listEl.innerHTML = '<div class="empty-hint">No open slots right now — contact LastMind directly and we\'ll sort out a time.</div>';
-            return;
-        }
-        listEl.innerHTML = slots.map((s) => `
-            <button type="button" class="btn" data-id="${s.id}" style="display:block; width:100%; text-align:left; margin-bottom:6px;">${escapeHtml(formatSlotRange(s.startTime, s.endTime))}</button>
-        `).join('');
-        listEl.querySelectorAll('button[data-id]').forEach((btn) => {
-            btn.addEventListener('click', () => {
-                selectedSlotId = btn.dataset.id;
-                listEl.querySelectorAll('button[data-id]').forEach((b) => b.classList.toggle('primary', b === btn));
-                document.getElementById('claimSlotForm').style.display = '';
-            });
+        let selectedStart = null;
+        let selectedEnd = null;
+        mountWeekCalendar(document.getElementById('claimCalMount'), 'claim', (startTime, endTime) => {
+            selectedStart = startTime;
+            selectedEnd = endTime;
+            document.getElementById('claimSelectedLabel').textContent = `Selected: ${formatSlotRange(startTime, endTime)}`;
+            document.getElementById('claimSlotForm').style.display = '';
         });
 
         document.getElementById('confirmClaimBtn').addEventListener('click', async () => {
@@ -12792,19 +12773,19 @@ SQIDAQAB
             errorEl.textContent = '';
             const name = document.getElementById('claimName').value.trim();
             const email = document.getElementById('claimEmail').value.trim();
-            if (!selectedSlotId) { errorEl.textContent = 'Pick a time first.'; return; }
+            if (!selectedStart) { errorEl.textContent = 'Pick a time first.'; return; }
             if (!name || !email) { errorEl.textContent = 'Enter your name and email.'; return; }
             try {
                 const { data: { session } } = await supabaseClient.auth.getSession();
                 if (!session) throw new Error('not signed in');
-                const resp = await fetch(`${COMPILE_BACKEND_URL}/tutoring-slots/${selectedSlotId}/claim`, {
+                const resp = await fetch(`${COMPILE_BACKEND_URL}/tutoring-slots/claim`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-                    body: JSON.stringify({ name, email })
+                    body: JSON.stringify({ startTime: selectedStart, endTime: selectedEnd, name, email })
                 });
                 const body = await resp.json().catch(() => ({}));
                 if (!resp.ok) throw new Error(body.error || 'That slot was just taken — pick another.');
-                document.getElementById('claimSlotList').style.display = 'none';
+                document.getElementById('claimCalMount').style.display = 'none';
                 document.getElementById('claimSlotForm').style.display = 'none';
                 const successEl = document.getElementById('claimSuccess');
                 successEl.style.display = '';
