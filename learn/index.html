@@ -12512,10 +12512,29 @@ SQIDAQAB
             const weekEnd = new Date(weekStart.getTime() + 6 * 86400000);
             const weekLabel = `${weekStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${weekEnd.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
 
+            // Whether each day has any open future slot at all - decides
+            // what a bulk day-header click (admin only) does: block the
+            // whole day if anything's still open, otherwise reopen it.
+            // Never counts booked slots as "open" - a day full of
+            // bookings has nothing left to bulk-block anyway.
+            const dayHasOpen = days.map((d) => {
+                for (let h = CAL_DAY_START_HOUR; h < CAL_DAY_END_HOUR; h++) {
+                    const slot = byKey.get(new Date(d.getTime() + h * 3600000).toISOString());
+                    if (slot && slot.status === 'open') return true;
+                }
+                return false;
+            });
+
             let grid = '<div style="overflow-x:auto;"><div style="display:grid; grid-template-columns:48px repeat(7, minmax(58px,1fr)); gap:3px; min-width:520px;">';
             grid += '<div></div>';
-            days.forEach((d) => {
-                grid += `<div style="text-align:center; font-weight:700; font-size:0.8rem; padding:4px 2px; color:var(--accent);">${escapeHtml(d.toLocaleDateString(undefined, { weekday: 'short' }))}<br><span style="font-weight:600; opacity:0.9;">${d.getDate()}</span></div>`;
+            days.forEach((d, dayIdx) => {
+                const dayLabel = `${escapeHtml(d.toLocaleDateString(undefined, { weekday: 'short' }))}<br><span style="font-weight:600; opacity:0.9;">${d.getDate()}</span>`;
+                if (mode === 'admin') {
+                    const action = dayHasOpen[dayIdx] ? 'blocked' : 'open';
+                    grid += `<button type="button" class="tut-cal-day-header" data-day-start="${d.toISOString()}" data-target-status="${action}" title="${action === 'blocked' ? 'Block this whole day' : 'Reopen this whole day'}" style="background:none; border:none; cursor:pointer; text-align:center; font-weight:700; font-size:0.8rem; padding:4px 2px; color:var(--accent); text-decoration:underline dotted; text-underline-offset:3px;">${dayLabel}</button>`;
+                } else {
+                    grid += `<div style="text-align:center; font-weight:700; font-size:0.8rem; padding:4px 2px; color:var(--accent);">${dayLabel}</div>`;
+                }
             });
             for (let h = CAL_DAY_START_HOUR; h < CAL_DAY_END_HOUR; h++) {
                 grid += `<div style="text-align:right; font-size:0.74rem; font-weight:600; padding:7px 5px 0 0; color:var(--text);">${calHourLabel(h)}</div>`;
@@ -12558,6 +12577,25 @@ SQIDAQAB
             document.getElementById('calNextWeek').addEventListener('click', () => {
                 weekStart = new Date(weekStart.getTime() + 7 * 86400000);
                 renderWeek();
+            });
+            container.querySelectorAll('.tut-cal-day-header').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const dayStart = btn.dataset.dayStart;
+                    const targetStatus = btn.dataset.targetStatus;
+                    if (targetStatus === 'blocked' && !confirm('Block every open slot this day? This never touches any slot already booked.')) return;
+                    try {
+                        const { data: { session } } = await supabaseClient.auth.getSession();
+                        await fetch(`${COMPILE_BACKEND_URL}/tutoring-slots/day`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                            body: JSON.stringify({ dayStart, targetStatus })
+                        });
+                        await renderWeek();
+                    } catch (err) {
+                        console.error('LastMind: failed to bulk-update a tutoring day.', err);
+                        alert('Something went wrong — try again.');
+                    }
+                });
             });
             container.querySelectorAll('.tut-cal-cell:not([disabled])').forEach((btn) => {
                 btn.addEventListener('click', async () => {
@@ -12630,9 +12668,10 @@ SQIDAQAB
                 </div>
                 <h1 style="font-family:Georgia,serif; font-size:1.9rem; margin:0 0 10px; color:var(--accent); text-align:center; font-weight:700;">Tutoring from LastMind's founder</h1>
                 <p style="font-family:Georgia,serif; font-style:italic; font-size:1.15rem; font-weight:400; margin:0 0 14px; text-align:center; color:var(--text);">This isn't just normal tutoring</p>
-                <p style="font-family:Arial,sans-serif; margin:0 0 22px; text-align:center; color:var(--text); opacity:0.95;">Don't waste your tutoring time finding out what you need to improve on, LastMind already knows.</p>
+                <p style="font-family:Arial,sans-serif; margin:0 0 8px; text-align:center; color:var(--text); opacity:0.95;">Don't waste your tutoring time finding out what you need to improve on, LastMind already knows.</p>
+                <p style="font-family:Arial,sans-serif; margin:14px 0 22px; text-align:center; color:var(--text); opacity:0.95;">We tutor using the inferred knowledge profile from your activity on LastMind, allowing us to target your weakest concepts with clear explanations every single time.</p>
                 <p style="font-family:Arial,sans-serif; font-size:0.78rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; margin:0 0 14px; text-align:center; color:var(--text); opacity:0.85;">Tutoring available in</p>
-                <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-bottom:32px;">
+                <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-bottom:36px;">
                     <div style="background:rgba(230,215,176,0.1); border:1px solid rgba(230,215,176,0.3); border-radius:10px; padding:10px 8px; text-align:center; min-width:0; flex:1 1 90px;">
                         <div style="font-family:Georgia,serif; font-weight:700; color:var(--text); white-space:nowrap;">Maths</div>
                         <div style="font-family:Arial,sans-serif; font-size:0.76rem; color:var(--text); opacity:0.9; margin-top:2px;">A-Level, GCSE</div>
@@ -12651,20 +12690,10 @@ SQIDAQAB
                     </div>
                 </div>
 
-                <p style="font-family:Arial,sans-serif; font-size:0.78rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; margin:0 0 12px; text-align:center; color:var(--text); opacity:0.85;">Available times</p>
-                <div id="tutoringCalendarMount" style="margin-bottom:16px; color:var(--text); font-family:Arial,sans-serif;"></div>
-                <p style="font-family:Georgia,serif; font-style:italic; font-size:0.85rem; color:var(--text); opacity:0.9; text-align:center; margin:0 0 24px;">You'll pick your exact slot after payment — this just shows what's currently open.</p>
-
-                <div style="text-align:center; margin-bottom:36px;">
-                    <button type="button" class="btn primary" id="bookSessionBtn">Book Session</button>
-                </div>
-
-                <hr style="border:none; border-top:1px solid rgba(230,215,176,0.25); margin:0 0 28px;">
-
                 <h2 style="font-family:Georgia,serif; font-size:1.35rem; margin:0 0 16px; color:var(--accent); text-align:center; font-weight:700;">About the founder</h2>
                 <div style="width:120px; height:120px; border-radius:50%; background:rgba(230,215,176,0.15); display:flex; align-items:center; justify-content:center; margin:0 auto 16px; font-family:Arial,sans-serif; font-size:0.75rem; text-align:center; color:var(--text); opacity:0.85;">Photo coming soon</div>
                 <p style="font-family:Georgia,serif; font-size:1.15rem; margin:0 0 16px; font-weight:700; text-align:center; color:var(--text);">Lawrence Wood</p>
-                <div style="display:flex; gap:14px; justify-content:center; flex-wrap:wrap;">
+                <div style="display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin-bottom:36px;">
                     <div style="background:rgba(230,215,176,0.1); border:1px solid rgba(230,215,176,0.3); border-radius:10px; padding:16px 20px; text-align:center; min-width:140px;">
                         <div style="font-family:Georgia,serif; font-size:1.4rem; font-weight:700; color:var(--accent);">Eight Grade 9s</div>
                         <div style="font-family:Arial,sans-serif; font-size:0.8rem; color:var(--text); opacity:0.95; margin-top:4px; text-transform:uppercase; letter-spacing:0.04em;">at GCSE</div>
@@ -12674,6 +12703,16 @@ SQIDAQAB
                         <div style="font-family:Arial,sans-serif; font-size:0.8rem; color:var(--text); opacity:0.95; margin-top:4px; text-transform:uppercase; letter-spacing:0.04em;">at A-Level</div>
                         <div style="font-family:Arial,sans-serif; font-size:0.8rem; color:var(--text); opacity:0.85; margin-top:4px;">Biology · Further Maths · Maths · Economics</div>
                     </div>
+                </div>
+
+                <hr style="border:none; border-top:1px solid rgba(230,215,176,0.25); margin:0 0 28px;">
+
+                <p style="font-family:Arial,sans-serif; font-size:0.78rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; margin:0 0 12px; text-align:center; color:var(--text); opacity:0.85;">Available times</p>
+                <div id="tutoringCalendarMount" style="margin-bottom:16px; color:var(--text); font-family:Arial,sans-serif;"></div>
+                <p style="font-family:Georgia,serif; font-style:italic; font-size:0.85rem; color:var(--text); opacity:0.9; text-align:center; margin:0 0 24px;">You'll pick your exact slot after payment — this just shows what's currently open.</p>
+
+                <div style="text-align:center;">
+                    <button type="button" class="btn primary" id="bookSessionBtn">Book Session</button>
                 </div>
             </div>
         `;
@@ -12734,7 +12773,7 @@ SQIDAQAB
                     <button type="button" class="btn" id="manageAvailBackBtn">← Tutoring</button>
                 </div>
                 <h1 style="font-size:1.5rem; margin:0 0 12px; color:var(--accent); text-align:center; font-weight:800;">Manage Availability</h1>
-                <p style="font-size:0.85rem; text-align:center; margin:0 0 20px; color:var(--text); opacity:0.9;">Every day is open by default. Click a slot to block it (busy with uni work etc), click again to reopen it, or click a booked slot to free it up.</p>
+                <p style="font-size:0.85rem; text-align:center; margin:0 0 20px; color:var(--text); opacity:0.9;">Every day is open by default. Click a slot to block it (busy with uni work etc), click again to reopen it, or click a booked slot to free it up. Click a day's own header (e.g. "Mon 7") to block or reopen that whole day in one go.</p>
                 <div id="manageAvailCalMount"></div>
             </div>
         `;
