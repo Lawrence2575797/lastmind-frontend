@@ -5388,14 +5388,15 @@
              non-language "Other" subject skips straight to the
              description field, unchanged from before this existed. -->
         <div class="field" id="customFolderCourseTypeField" style="display:none;">
-            <label>Full course or crash course?</label>
-            <div style="display:flex; gap:8px;">
-                <button type="button" class="btn" id="customFolderFullCourseBtn">Full course</button>
-                <button type="button" class="btn" id="customFolderCrashCourseBtn">Crash course</button>
-            </div>
+            <label for="customFolderCourseTypeSelect">Full language or crash course?</label>
+            <select id="customFolderCourseTypeSelect">
+                <option value="">Choose one…</option>
+                <option value="full">Full language</option>
+                <option value="crash">Crash course</option>
+            </select>
             <div class="field-hint">A crash course learns just enough for one specific goal (e.g. "order at a restaurant") in as few days as possible - not the whole language.</div>
         </div>
-        <div class="field" id="customFolderDescriptionField">
+        <div class="field" id="customFolderDescriptionField" style="display:none;">
             <label for="customFolderDescriptionInput" id="customFolderDescriptionLabel">Description</label>
             <textarea id="customFolderDescriptionInput" class="multi-lesson-input" rows="2" placeholder="What do you want to learn? This is used to generate lessons -- e.g. &quot;the fundamentals of running a small retail business: cash flow, pricing, basic accounting, operations.&quot;"></textarea>
             <div class="field-hint" id="customFolderDescriptionHint">Lessons here teach the underlying theory only -- never personal advice or recommendations for your specific situation.</div>
@@ -13171,7 +13172,8 @@ SQIDAQAB
         customFolderCourseType = null;
         customFolderPendingPlan = null;
         document.getElementById('customFolderCourseTypeField').style.display = 'none';
-        document.getElementById('customFolderDescriptionField').style.display = '';
+        document.getElementById('customFolderCourseTypeSelect').value = '';
+        document.getElementById('customFolderDescriptionField').style.display = 'none';
         document.getElementById('customFolderDescriptionLabel').textContent = 'Description';
         document.getElementById('customFolderDescriptionInput').placeholder = 'What do you want to learn? This is used to generate lessons -- e.g. "the fundamentals of running a small retail business: cash flow, pricing, basic accounting, operations."';
         document.getElementById('customFolderDescriptionHint').textContent = 'Lessons here teach the underlying theory only -- never personal advice or recommendations for your specific situation.';
@@ -13250,6 +13252,7 @@ SQIDAQAB
             document.getElementById('customFolderCourseTypeField').style.display = '';
         } else {
             resetCustomFolderCourseTypeUi();
+            document.getElementById('customFolderDescriptionField').style.display = '';
         }
     });
     document.getElementById('customFolderTitleInput').addEventListener('keydown', (e) => {
@@ -13259,25 +13262,28 @@ SQIDAQAB
         }
     });
 
-    document.getElementById('customFolderFullCourseBtn').addEventListener('click', () => {
-        customFolderCourseType = 'full';
+    document.getElementById('customFolderCourseTypeSelect').addEventListener('change', (e) => {
+        const value = e.target.value;
         customFolderPendingPlan = null;
-        document.getElementById('customFolderDescriptionField').style.display = '';
-        document.getElementById('customFolderDescriptionLabel').textContent = 'Description';
-        document.getElementById('customFolderDescriptionInput').placeholder = 'What do you want to learn? This is used to generate lessons -- e.g. "the fundamentals of running a small retail business: cash flow, pricing, basic accounting, operations."';
-        document.getElementById('customFolderDescriptionHint').textContent = 'Lessons here teach the underlying theory only -- never personal advice or recommendations for your specific situation.';
         document.getElementById('customFolderPlanSummaryField').style.display = 'none';
-        document.getElementById('submitCustomFolderBtn').textContent = 'Create';
-    });
-    document.getElementById('customFolderCrashCourseBtn').addEventListener('click', () => {
-        customFolderCourseType = 'crash';
-        customFolderPendingPlan = null;
+        if (!value) {
+            customFolderCourseType = null;
+            document.getElementById('customFolderDescriptionField').style.display = 'none';
+            return;
+        }
+        customFolderCourseType = value;
         document.getElementById('customFolderDescriptionField').style.display = '';
-        document.getElementById('customFolderDescriptionLabel').textContent = 'What do you want to be able to do, and how much time can you give it?';
-        document.getElementById('customFolderDescriptionInput').placeholder = 'e.g. "I want to be able to order food and drinks at a restaurant. I can study about 15 minutes a day."';
-        document.getElementById('customFolderDescriptionHint').textContent = 'The AI picks out just the parts of the full course you need for this goal, then estimates how many days it will take.';
-        document.getElementById('customFolderPlanSummaryField').style.display = 'none';
-        document.getElementById('submitCustomFolderBtn').textContent = 'Plan course';
+        if (value === 'crash') {
+            document.getElementById('customFolderDescriptionLabel').textContent = 'What do you want to be able to do, and how much time can you give it?';
+            document.getElementById('customFolderDescriptionInput').placeholder = 'e.g. "I want to be able to order food and drinks at a restaurant. I can study about 15 minutes a day."';
+            document.getElementById('customFolderDescriptionHint').textContent = 'The AI picks out just the parts of the full course you need for this goal, then estimates how many days it will take.';
+            document.getElementById('submitCustomFolderBtn').textContent = 'Plan course';
+        } else {
+            document.getElementById('customFolderDescriptionLabel').textContent = 'Description';
+            document.getElementById('customFolderDescriptionInput').placeholder = 'What do you want to learn? This is used to generate lessons -- e.g. "the fundamentals of running a small retail business: cash flow, pricing, basic accounting, operations."';
+            document.getElementById('customFolderDescriptionHint').textContent = 'Lessons here teach the underlying theory only -- never personal advice or recommendations for your specific situation.';
+            document.getElementById('submitCustomFolderBtn').textContent = 'Create';
+        }
     });
 
     // Editing the goal after a plan was already computed invalidates it -
