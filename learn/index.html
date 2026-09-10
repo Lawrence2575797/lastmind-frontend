@@ -7679,19 +7679,32 @@ SQIDAQAB
             actionLabel: '+ Add new subject',
             actionId: 'createFolderBtn',
             onAction: openFolderModal,
-            secondaryActionLabel: '+ Other',
-            onSecondaryAction: openCustomFolderModal
+            secondaryActionLabel: specPracticeMode ? null : '+ Other',
+            onSecondaryAction: specPracticeMode ? null : openCustomFolderModal
         }));
 
-        if (!folders.length) {
+        // Practice Questions is the real-exam-spec feature (spec_lesson_plans
+        // + exam_question_types, keyed by subject/qualification/examBoard) -
+        // a custom "Other" subject (Italian, Spanish, ...) never has either,
+        // since those use the knowledge-map-v2 architecture instead, where
+        // each node's own lesson already carries its own practice question.
+        // Filtering them out of this list (rather than letting the student
+        // click in and hit "not set up for this subject yet") is what makes
+        // this sidebar only ever show subjects that actually have practice
+        // questions to offer.
+        const visibleFolders = specPracticeMode ? folders.filter((f) => f.qualification !== CUSTOM_LEVEL) : folders;
+
+        if (!visibleFolders.length) {
             const hint = document.createElement('div');
             hint.className = 'empty-hint';
-            hint.textContent = 'No subjects yet — click "+ Add new subject" to add one.';
+            hint.textContent = specPracticeMode
+                ? 'No subjects with Practice Questions set up yet.'
+                : 'No subjects yet — click "+ Add new subject" to add one.';
             listEl.appendChild(hint);
             return;
         }
 
-        folders.forEach((f) => listEl.appendChild(buildFolderRow(f)));
+        visibleFolders.forEach((f) => listEl.appendChild(buildFolderRow(f)));
     }
 
     // Inside a folder: its subfolders (with "+ Create new subfolder"), plus
@@ -7941,6 +7954,24 @@ SQIDAQAB
     // spec_lesson_plans, via GET /spec-lesson-tree) instead of atomic
     // knowledge-map nodes — see buildFolderRow's specPracticeMode branch,
     // buildSpecLessonTreeHtml, wireSpecLessonTree.
+    // Shared by every Practice Questions screen (this entry screen,
+    // renderSpecPracticeForFolder's lesson-tree screen, and
+    // renderSpecPracticePickList's actual question view) so there's always
+    // one consistent way back to the default Cortex dashboard, no matter
+    // how deep into a subject/lesson the student has navigated.
+    function exitSpecPracticeMode() {
+        specPracticeMode = false;
+        selectedFolderSpecTree = null;
+        selectFolder(null);
+    }
+    function specPracticeBackButtonHtml() {
+        return '<button type="button" class="btn" id="specPracticeBackBtn" style="margin-bottom:16px;">← Dashboard</button>';
+    }
+    function wireSpecPracticeBackButton() {
+        const btn = document.getElementById('specPracticeBackBtn');
+        if (btn) btn.addEventListener('click', exitSpecPracticeMode);
+    }
+
     document.getElementById('practiceQuestionsTopbarBtn').addEventListener('click', () => {
         specPracticeMode = true;
         stopActiveDictation();
@@ -7956,11 +7987,7 @@ SQIDAQAB
                 <button class="btn btn-on-content" type="button" id="exitSpecPracticeModeBtn" style="margin-top:24px;">Exit Practice Questions</button>
             </div>
         `;
-        document.getElementById('exitSpecPracticeModeBtn').addEventListener('click', () => {
-            specPracticeMode = false;
-            selectedFolderSpecTree = null;
-            selectFolder(null);
-        });
+        document.getElementById('exitSpecPracticeModeBtn').addEventListener('click', exitSpecPracticeMode);
         refreshFolderList();
     });
 
@@ -7974,7 +8001,8 @@ SQIDAQAB
 
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
-        contentInner.innerHTML = '<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Select a lesson from the sidebar.</p></div>';
+        contentInner.innerHTML = `<div class="dashboard-view dashboard-locked">${specPracticeBackButtonHtml()}<p class="dashboard-locked-quote">Select a lesson from the sidebar.</p></div>`;
+        wireSpecPracticeBackButton();
 
         try {
             const { data: { session } } = await supabaseClient.auth.getSession();
@@ -7994,12 +8022,14 @@ SQIDAQAB
             // surfaced honestly rather than looking identical to "loading".
             selectedFolderSpecTree = data.themes === null ? 'unseeded' : data.themes;
             if (selectedFolderSpecTree === 'unseeded') {
-                contentInner.innerHTML = '<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Practice Questions isn\'t set up for this subject yet — check back soon.</p></div>';
+                contentInner.innerHTML = `<div class="dashboard-view dashboard-locked">${specPracticeBackButtonHtml()}<p class="dashboard-locked-quote">Practice Questions isn't set up for this subject yet — check back soon.</p></div>`;
+                wireSpecPracticeBackButton();
             }
         } catch (err) {
             console.error('LastMind: failed to load the spec lesson tree.', err);
             selectedFolderSpecTree = 'unseeded';
-            contentInner.innerHTML = '<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Couldn\'t load Practice Questions for this subject — try again in a moment.</p></div>';
+            contentInner.innerHTML = `<div class="dashboard-view dashboard-locked">${specPracticeBackButtonHtml()}<p class="dashboard-locked-quote">Couldn't load Practice Questions for this subject — try again in a moment.</p></div>`;
+            wireSpecPracticeBackButton();
         }
         refreshFolderList();
     }
@@ -8069,7 +8099,8 @@ SQIDAQAB
         document.getElementById('topbarTitle').textContent = `${folderLabel(folder)} · ${concept} · Practice Questions`;
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
-        contentInner.innerHTML = '<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Loading…</p></div>';
+        contentInner.innerHTML = `<div class="dashboard-view dashboard-locked">${specPracticeBackButtonHtml()}<p class="dashboard-locked-quote">Loading…</p></div>`;
+        wireSpecPracticeBackButton();
 
         try {
             const { data: { session } } = await supabaseClient.auth.getSession();
@@ -8082,11 +8113,13 @@ SQIDAQAB
 
             contentInner.innerHTML = `
                 <div style="max-width:1040px; margin:0 auto; padding:24px;">
+                    ${specPracticeBackButtonHtml()}
                     <p style="font-weight:700; margin-bottom:16px;">${escapeHtml(concept)}</p>
                     <div id="specPracticeQuestionsHost"></div>
                     <div id="specPracticeTypeHost" style="max-width:640px;"></div>
                 </div>
             `;
+            wireSpecPracticeBackButton();
 
             if (data.pickedQuestions.length) {
                 renderPracticeQuestionList(
@@ -8123,7 +8156,8 @@ SQIDAQAB
             });
         } catch (err) {
             console.error('LastMind: failed to load Practice Questions for this lesson.', err);
-            contentInner.innerHTML = '<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Couldn\'t load Practice Questions — try again in a moment.</p></div>';
+            contentInner.innerHTML = `<div class="dashboard-view dashboard-locked">${specPracticeBackButtonHtml()}<p class="dashboard-locked-quote">Couldn't load Practice Questions — try again in a moment.</p></div>`;
+            wireSpecPracticeBackButton();
         }
     }
 
