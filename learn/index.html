@@ -12585,6 +12585,25 @@ SQIDAQAB
         }
 
         renderWeek();
+
+        // Live-refresh so a slot the founder just blocked (or another
+        // student just booked) disappears from a still-open browse/claim
+        // view without needing a manual reload - both "before paying"
+        // (mode 'browse') and "picking a slot after paying" (mode
+        // 'claim') need this, since the founder's Manage Availability
+        // changes are otherwise invisible until the next navigation.
+        // Stops itself once this container leaves the page (the check at
+        // the top of each tick) rather than leaking an interval that
+        // outlives the view that started it.
+        if (mode === 'browse' || mode === 'claim') {
+            const pollTimer = setInterval(() => {
+                if (!document.body.contains(container)) {
+                    clearInterval(pollTimer);
+                    return;
+                }
+                renderWeek();
+            }, 20000);
+        }
     }
 
     function formatSlotRange(startTime, endTime) {
@@ -12609,32 +12628,32 @@ SQIDAQAB
                     <button type="button" class="btn" id="founderTutoringHomeBtn">🏠 Home</button>
                     <button type="button" class="btn" id="manageAvailabilityBtn" style="display:none;">Manage availability</button>
                 </div>
-                <h1 style="font-size:1.8rem; margin:0 0 8px; color:var(--accent); text-align:center; font-weight:800;">Tutoring from LastMind's founder</h1>
-                <p style="font-size:1.1rem; font-weight:700; margin:0 0 14px; text-align:center; color:var(--text);">This isn't just normal tutoring</p>
-                <p style="margin:0 0 22px; text-align:center; color:var(--text); opacity:0.95;">Don't waste your tutoring time finding out what you need to improve on, LastMind already knows.</p>
-                <p style="margin:0 0 14px; font-weight:700; text-align:center; color:var(--text);">Tutoring available in:</p>
+                <h1 style="font-family:Georgia,serif; font-size:1.9rem; margin:0 0 10px; color:var(--accent); text-align:center; font-weight:700;">Tutoring from LastMind's founder</h1>
+                <p style="font-family:Georgia,serif; font-style:italic; font-size:1.15rem; font-weight:400; margin:0 0 14px; text-align:center; color:var(--text);">This isn't just normal tutoring</p>
+                <p style="font-family:Arial,sans-serif; margin:0 0 22px; text-align:center; color:var(--text); opacity:0.95;">Don't waste your tutoring time finding out what you need to improve on, LastMind already knows.</p>
+                <p style="font-family:Arial,sans-serif; font-size:0.78rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; margin:0 0 14px; text-align:center; color:var(--text); opacity:0.85;">Tutoring available in</p>
                 <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-bottom:32px;">
-                    <div style="background:rgba(230,215,176,0.1); border:1px solid rgba(230,215,176,0.3); border-radius:10px; padding:10px 10px; text-align:center; min-width:0; flex:1 1 90px;">
-                        <div style="font-weight:700; color:var(--text);">Maths</div>
-                        <div style="font-size:0.8rem; color:var(--text); opacity:0.9; margin-top:2px;">A-Level, GCSE</div>
+                    <div style="background:rgba(230,215,176,0.1); border:1px solid rgba(230,215,176,0.3); border-radius:10px; padding:10px 8px; text-align:center; min-width:0; flex:1 1 90px;">
+                        <div style="font-family:Georgia,serif; font-weight:700; color:var(--text); white-space:nowrap;">Maths</div>
+                        <div style="font-family:Arial,sans-serif; font-size:0.76rem; color:var(--text); opacity:0.9; margin-top:2px;">A-Level, GCSE</div>
                     </div>
-                    <div style="background:rgba(230,215,176,0.1); border:1px solid rgba(230,215,176,0.3); border-radius:10px; padding:10px 10px; text-align:center; min-width:0; flex:1 1 90px;">
-                        <div style="font-weight:700; color:var(--text);">Further Maths</div>
-                        <div style="font-size:0.8rem; color:var(--text); opacity:0.9; margin-top:2px;">A-Level, GCSE</div>
+                    <div style="background:rgba(230,215,176,0.1); border:1px solid rgba(230,215,176,0.3); border-radius:10px; padding:10px 8px; text-align:center; min-width:0; flex:1 1 110px;">
+                        <div style="font-family:Georgia,serif; font-weight:700; color:var(--text); white-space:nowrap; font-size:0.92rem;">Further Maths</div>
+                        <div style="font-family:Arial,sans-serif; font-size:0.76rem; color:var(--text); opacity:0.9; margin-top:2px;">A-Level, GCSE</div>
                     </div>
-                    <div style="background:rgba(230,215,176,0.1); border:1px solid rgba(230,215,176,0.3); border-radius:10px; padding:10px 10px; text-align:center; min-width:0; flex:1 1 90px;">
-                        <div style="font-weight:700; color:var(--text);">Biology</div>
-                        <div style="font-size:0.8rem; color:var(--text); opacity:0.9; margin-top:2px;">A-Level, GCSE</div>
+                    <div style="background:rgba(230,215,176,0.1); border:1px solid rgba(230,215,176,0.3); border-radius:10px; padding:10px 8px; text-align:center; min-width:0; flex:1 1 90px;">
+                        <div style="font-family:Georgia,serif; font-weight:700; color:var(--text); white-space:nowrap;">Biology</div>
+                        <div style="font-family:Arial,sans-serif; font-size:0.76rem; color:var(--text); opacity:0.9; margin-top:2px;">A-Level, GCSE</div>
                     </div>
-                    <div style="background:rgba(230,215,176,0.1); border:1px solid rgba(230,215,176,0.3); border-radius:10px; padding:10px 10px; text-align:center; min-width:0; flex:1 1 90px;">
-                        <div style="font-weight:700; color:var(--text);">Economics</div>
-                        <div style="font-size:0.8rem; color:var(--text); opacity:0.9; margin-top:2px;">A-Level</div>
+                    <div style="background:rgba(230,215,176,0.1); border:1px solid rgba(230,215,176,0.3); border-radius:10px; padding:10px 8px; text-align:center; min-width:0; flex:1 1 90px;">
+                        <div style="font-family:Georgia,serif; font-weight:700; color:var(--text); white-space:nowrap;">Economics</div>
+                        <div style="font-family:Arial,sans-serif; font-size:0.76rem; color:var(--text); opacity:0.9; margin-top:2px;">A-Level</div>
                     </div>
                 </div>
 
-                <p style="margin:0 0 12px; font-weight:700; text-align:center; color:var(--text);">Available times</p>
-                <div id="tutoringCalendarMount" style="margin-bottom:16px; color:var(--text);"></div>
-                <p style="font-size:0.8rem; color:var(--text); opacity:0.9; text-align:center; margin:0 0 24px;">You'll pick your exact slot after payment - this just shows what's currently open.</p>
+                <p style="font-family:Arial,sans-serif; font-size:0.78rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; margin:0 0 12px; text-align:center; color:var(--text); opacity:0.85;">Available times</p>
+                <div id="tutoringCalendarMount" style="margin-bottom:16px; color:var(--text); font-family:Arial,sans-serif;"></div>
+                <p style="font-family:Georgia,serif; font-style:italic; font-size:0.85rem; color:var(--text); opacity:0.9; text-align:center; margin:0 0 24px;">You'll pick your exact slot after payment — this just shows what's currently open.</p>
 
                 <div style="text-align:center; margin-bottom:36px;">
                     <button type="button" class="btn primary" id="bookSessionBtn">Book Session</button>
@@ -12642,18 +12661,18 @@ SQIDAQAB
 
                 <hr style="border:none; border-top:1px solid rgba(230,215,176,0.25); margin:0 0 28px;">
 
-                <h2 style="font-size:1.3rem; margin:0 0 16px; color:var(--accent); text-align:center; font-weight:800;">About the founder</h2>
-                <div style="width:120px; height:120px; border-radius:50%; background:rgba(230,215,176,0.15); display:flex; align-items:center; justify-content:center; margin:0 auto 16px; font-size:0.75rem; text-align:center; color:var(--text); opacity:0.85;">Photo coming soon</div>
-                <p style="margin:0 0 16px; font-weight:700; text-align:center; color:var(--text);">Lawrence Wood</p>
+                <h2 style="font-family:Georgia,serif; font-size:1.35rem; margin:0 0 16px; color:var(--accent); text-align:center; font-weight:700;">About the founder</h2>
+                <div style="width:120px; height:120px; border-radius:50%; background:rgba(230,215,176,0.15); display:flex; align-items:center; justify-content:center; margin:0 auto 16px; font-family:Arial,sans-serif; font-size:0.75rem; text-align:center; color:var(--text); opacity:0.85;">Photo coming soon</div>
+                <p style="font-family:Georgia,serif; font-size:1.15rem; margin:0 0 16px; font-weight:700; text-align:center; color:var(--text);">Lawrence Wood</p>
                 <div style="display:flex; gap:14px; justify-content:center; flex-wrap:wrap;">
                     <div style="background:rgba(230,215,176,0.1); border:1px solid rgba(230,215,176,0.3); border-radius:10px; padding:16px 20px; text-align:center; min-width:140px;">
-                        <div style="font-size:1.4rem; font-weight:800; color:var(--accent);">Eight Grade 9s</div>
-                        <div style="font-size:0.85rem; color:var(--text); opacity:0.95; margin-top:4px;">at GCSE</div>
+                        <div style="font-family:Georgia,serif; font-size:1.4rem; font-weight:700; color:var(--accent);">Eight Grade 9s</div>
+                        <div style="font-family:Arial,sans-serif; font-size:0.8rem; color:var(--text); opacity:0.95; margin-top:4px; text-transform:uppercase; letter-spacing:0.04em;">at GCSE</div>
                     </div>
                     <div style="background:rgba(230,215,176,0.1); border:1px solid rgba(230,215,176,0.3); border-radius:10px; padding:16px 20px; text-align:center; min-width:200px;">
-                        <div style="font-size:1.6rem; font-weight:800; color:var(--accent);">4 A*s</div>
-                        <div style="font-size:0.85rem; color:var(--text); opacity:0.95; margin-top:4px;">at A-Level</div>
-                        <div style="font-size:0.8rem; color:var(--text); opacity:0.85; margin-top:4px;">Biology · Further Maths · Maths · Economics</div>
+                        <div style="font-family:Georgia,serif; font-size:1.6rem; font-weight:700; color:var(--accent);">4 A*s</div>
+                        <div style="font-family:Arial,sans-serif; font-size:0.8rem; color:var(--text); opacity:0.95; margin-top:4px; text-transform:uppercase; letter-spacing:0.04em;">at A-Level</div>
+                        <div style="font-family:Arial,sans-serif; font-size:0.8rem; color:var(--text); opacity:0.85; margin-top:4px;">Biology · Further Maths · Maths · Economics</div>
                     </div>
                 </div>
             </div>
