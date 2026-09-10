@@ -12477,11 +12477,12 @@ SQIDAQAB
         document.getElementById('bookSessionBtn').addEventListener('click', renderBookSessionPage);
     }
 
-    // Placeholder destination until Stripe is wired up - the founder is
-    // setting up the actual Stripe product/checkout independently (see
-    // lastmind-stripe-backend), so this just needs to exist as a real page
-    // to link a Checkout/Payment Link into once that's ready, rather than
-    // block the rest of this feature on it.
+    // A real, hosted Stripe Payment Link (one-off payment, not a
+    // subscription - see lastmind-stripe-backend's own comment on why that
+    // repo's subscription machinery doesn't apply here) - the founder
+    // created this directly in the Stripe dashboard, no backend needed.
+    const TUTORING_SESSION_PAYMENT_LINK = 'https://buy.stripe.com/aFa14q8U2fR98B9bU557W04';
+
     function renderBookSessionPage() {
         stopActiveDictation();
         stopSpeaking();
@@ -12495,12 +12496,12 @@ SQIDAQAB
                     <button type="button" class="btn" id="bookSessionBackBtn">← Tutoring</button>
                 </div>
                 <h1 style="font-size:1.6rem; margin:0 0 14px; color:var(--accent); text-align:center;">Book a Tutoring Session</h1>
-                <p style="opacity:0.85; text-align:center;">Online payment and scheduling is being set up, check back shortly.</p>
+                <p style="opacity:0.85; text-align:center; margin:0 0 24px;">You'll be taken to Stripe's secure checkout to complete payment.</p>
+                <div style="text-align:center;">
+                    <a href="${TUTORING_SESSION_PAYMENT_LINK}" class="btn primary" style="display:inline-block; text-decoration:none;">Proceed to Payment</a>
+                </div>
             </div>
         `;
-        // TODO: once a real Stripe Checkout/Payment Link exists, replace
-        // the placeholder <p> above with it (a link/button pointing at the
-        // Stripe-hosted page, or an embedded Checkout element).
         document.getElementById('bookSessionHomeBtn').addEventListener('click', () => selectFolder(null));
         document.getElementById('bookSessionBackBtn').addEventListener('click', renderFounderTutoringPage);
     }
