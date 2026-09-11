@@ -17621,7 +17621,8 @@ SQIDAQAB
                 ? `<div class="km-inline-detail-item km-inline-detail-none">No lesson generated for this concept yet.</div>`
                 : `
                     <div class="km-inline-lesson-explanation" id="km-node-lesson-explanation">${splitIntoParagraphs(nodeLesson.explanation)}</div>
-                    <div id="km-node-practice-block">${nodeLesson.practiceQuestion ? `<strong class="km-inline-lesson-question" style="display:block;">Practice</strong><div id="km-question-node-practice"></div>` : ''}</div>
+                    ${nodeLesson.practiceQuestion ? `<button type="button" class="btn primary km-reveal-question-btn" id="km-reveal-question-btn" style="margin-top:14px;">Reveal question</button>` : ''}
+                    <div id="km-node-practice-block" style="${nodeLesson.practiceQuestion ? 'display:none;' : ''}">${nodeLesson.practiceQuestion ? `<strong class="km-inline-lesson-question" style="display:block;">Practice</strong><div id="km-question-node-practice"></div>` : ''}</div>
                     <div id="km-node-finish-cta"></div>
                 `;
             if (!nodeLesson || nodeLesson.notFound) return;
@@ -17674,6 +17675,17 @@ SQIDAQAB
             });
 
             if (nodeLesson.practiceQuestion) {
+                // Pure recall check: the explanation must not still be
+                // visible once the question is up, or the student can just
+                // read the answer off it instead of recalling it. Revealing
+                // is one-way for this reason - going back to re-read would
+                // defeat the point of testing recall in the first place.
+                const revealBtn = lessonEl.querySelector('#km-reveal-question-btn');
+                revealBtn.addEventListener('click', () => {
+                    explanationEl.style.display = 'none';
+                    revealBtn.style.display = 'none';
+                    lessonEl.querySelector('#km-node-practice-block').style.display = '';
+                });
                 const el = lessonEl.querySelector('#km-question-node-practice');
                 const finishCtaEl = lessonEl.querySelector('#km-node-finish-cta');
                 // A real (non-retryable) pass here means this is the first
