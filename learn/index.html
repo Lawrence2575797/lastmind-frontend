@@ -5279,7 +5279,7 @@
                          purchase flow, pricing, etc.) hasn't been designed
                          yet, see buyMoreTokensBtn's own click handler. -->
                     <button class="cortex-btn-topbar" id="buyMoreTokensBtn" type="button">⚡ Buy more tokens</button>
-                    <button class="cortex-btn-topbar" id="practiceQuestionsTopbarBtn" type="button">📝 Practice Questions</button>
+                    <button class="cortex-btn-topbar" id="practiceQuestionsTopbarBtn" type="button">📝 Exam Preparation</button>
                     <button class="cortex-btn-topbar upgrade-topbar-btn" id="upgradeTopbarBtn" type="button" style="display:none;">⭐ Upgrade</button>
                     <button class="cortex-btn-topbar" id="peerTutoringHubBtn" type="button">🤝 Peer tutoring</button>
                     <button class="cortex-btn-topbar" id="myTutoringTopbarBtn" type="button">📋 My Tutoring<span class="mt-badge" id="mtBadge" style="display:none;"></span></button>
@@ -7716,7 +7716,7 @@ SQIDAQAB
             const hint = document.createElement('div');
             hint.className = 'empty-hint';
             hint.textContent = specPracticeMode
-                ? 'No subjects with Practice Questions set up yet.'
+                ? 'No subjects with Exam Preparation set up yet.'
                 : 'No subjects yet — click "+ Add new subject" to add one.';
             listEl.appendChild(hint);
             return;
@@ -7995,14 +7995,14 @@ SQIDAQAB
         stopActiveDictation();
         stopSpeaking();
         selectedPageId = null;
-        document.getElementById('topbarTitle').textContent = 'Practice Questions';
+        document.getElementById('topbarTitle').textContent = 'Exam Preparation';
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
         contentInner.innerHTML = `
             <div class="dashboard-view dashboard-locked">
-                <h1 class="dashboard-locked-logo">Practice <span>Questions</span></h1>
+                <h1 class="dashboard-locked-logo">Exam <span>Preparation</span></h1>
                 <p class="dashboard-locked-quote">Select a subject, then a lesson from the sidebar.</p>
-                <button class="btn btn-on-content" type="button" id="exitSpecPracticeModeBtn" style="margin-top:24px;">Exit Practice Questions</button>
+                <button class="btn btn-on-content" type="button" id="exitSpecPracticeModeBtn" style="margin-top:24px;">Exit Exam Preparation</button>
             </div>
         `;
         document.getElementById('exitSpecPracticeModeBtn').addEventListener('click', exitSpecPracticeMode);
@@ -8040,13 +8040,13 @@ SQIDAQAB
             // surfaced honestly rather than looking identical to "loading".
             selectedFolderSpecTree = data.themes === null ? 'unseeded' : data.themes;
             if (selectedFolderSpecTree === 'unseeded') {
-                contentInner.innerHTML = `<div class="dashboard-view dashboard-locked">${specPracticeBackButtonHtml()}<p class="dashboard-locked-quote">Practice Questions isn't set up for this subject yet — check back soon.</p></div>`;
+                contentInner.innerHTML = `<div class="dashboard-view dashboard-locked">${specPracticeBackButtonHtml()}<p class="dashboard-locked-quote">Exam Preparation isn't set up for this subject yet — check back soon.</p></div>`;
                 wireSpecPracticeBackButton();
             }
         } catch (err) {
             console.error('LastMind: failed to load the spec lesson tree.', err);
             selectedFolderSpecTree = 'unseeded';
-            contentInner.innerHTML = `<div class="dashboard-view dashboard-locked">${specPracticeBackButtonHtml()}<p class="dashboard-locked-quote">Couldn't load Practice Questions for this subject — try again in a moment.</p></div>`;
+            contentInner.innerHTML = `<div class="dashboard-view dashboard-locked">${specPracticeBackButtonHtml()}<p class="dashboard-locked-quote">Couldn't load Exam Preparation for this subject — try again in a moment.</p></div>`;
             wireSpecPracticeBackButton();
         }
         refreshFolderList();
@@ -8114,7 +8114,7 @@ SQIDAQAB
     // disappearing, which is the whole point of persisting picks server-
     // side (see specLessonPracticeService.ts's getPickedQuestions).
     async function renderSpecPracticePickList(folder, conceptId, concept) {
-        document.getElementById('topbarTitle').textContent = `${folderLabel(folder)} · ${concept} · Practice Questions`;
+        document.getElementById('topbarTitle').textContent = `${folderLabel(folder)} · ${concept} · Exam Preparation`;
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
         contentInner.innerHTML = `<div class="dashboard-view dashboard-locked">${specPracticeBackButtonHtml()}<p class="dashboard-locked-quote">Loading…</p></div>`;
@@ -8174,7 +8174,7 @@ SQIDAQAB
             });
         } catch (err) {
             console.error('LastMind: failed to load Practice Questions for this lesson.', err);
-            contentInner.innerHTML = `<div class="dashboard-view dashboard-locked">${specPracticeBackButtonHtml()}<p class="dashboard-locked-quote">Couldn't load Practice Questions — try again in a moment.</p></div>`;
+            contentInner.innerHTML = `<div class="dashboard-view dashboard-locked">${specPracticeBackButtonHtml()}<p class="dashboard-locked-quote">Couldn't load Exam Preparation — try again in a moment.</p></div>`;
             wireSpecPracticeBackButton();
         }
     }
