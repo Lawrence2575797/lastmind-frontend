@@ -6514,7 +6514,14 @@ SQIDAQAB
         const escaped = escapeHtml(str);
         return escaped
             .replace(/\^\(([^()]*)\)/g, '<sup>$1</sup>')
-            .replace(/_\(([^()]*)\)/g, '<sub>$1</sub>');
+            .replace(/_\(([^()]*)\)/g, '<sub>$1</sub>')
+            // A model occasionally writes the literal word "sqrt(...)"
+            // instead of the real √ character the maths-keyboard convention
+            // asks for - converted here too so it renders as maths even
+            // when the model's own output slipped, matching the vinculum
+            // look with an overline on the radicand rather than leaving it
+            // as plain unrendered text.
+            .replace(/sqrt\(([^()]*)\)/gi, '√<span style="text-decoration:overline; text-decoration-thickness:1.5px;">$1</span>');
     }
 
     // Checkpointing for in-progress free-text answers — a failed
@@ -14388,7 +14395,11 @@ SQIDAQAB
     }
 
     function mathsToolBubbleHtml(role, content) {
-        return `<div class="maths-tool-bubble maths-tool-bubble-${role}">${escapeHtml(content)}</div>`;
+        // renderMathShorthand (not plain escapeHtml) - Maths Tool replies use
+        // the same "^(...)"/"sqrt(...)" shorthand every other AI-generated
+        // maths content does, but this bubble was showing it as literal
+        // unrendered text instead of real sup/sub/root notation.
+        return `<div class="maths-tool-bubble maths-tool-bubble-${role}">${renderMathShorthand(content)}</div>`;
     }
 
     function renderMathsToolThreadList() {
