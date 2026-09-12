@@ -5335,6 +5335,7 @@
                          yet, see buyMoreTokensBtn's own click handler. -->
                     <button class="cortex-btn-topbar" id="buyMoreTokensBtn" type="button">⚡ Buy more tokens</button>
                     <button class="cortex-btn-topbar" id="practiceQuestionsTopbarBtn" type="button">📝 Exam Preparation</button>
+                    <button class="cortex-btn-topbar" id="knowledgeMapTopbarBtn" type="button">🗺️ Knowledge Map</button>
                     <button class="cortex-btn-topbar upgrade-topbar-btn" id="upgradeTopbarBtn" type="button" style="display:none;">⭐ Upgrade</button>
                     <button class="cortex-btn-topbar" id="peerTutoringHubBtn" type="button">🤝 Peer tutoring</button>
                     <button class="cortex-btn-topbar" id="myTutoringTopbarBtn" type="button">📋 My Tutoring<span class="mt-badge" id="mtBadge" style="display:none;"></span></button>
@@ -6512,6 +6513,13 @@ SQIDAQAB
     // design that reused the main subjects sidebar directly - see git
     // history if that behaviour is ever needed again.)
     let specPracticeMode = false;
+    // Default subject-click behavior is now the short-form feed (see
+    // sfShowFolderFeed) per the overnight spec's short-form section - the
+    // OLD full atomic knowledge-map graph view (renderKnowledgeMapForFolder)
+    // is still there, just moved behind its own explicit mode now, same
+    // pattern as specPracticeMode above. Set/cleared by the Knowledge Map
+    // topbar button and its own "Exit" button.
+    let kmGraphMode = false;
     // Cache for the currently-selected subject's spec-lesson tree fetch -
     // same role as selectedFolderKmData plays for the atomic tree. null
     // while loading, before a subject is selected, or (a real, distinct
@@ -7619,7 +7627,7 @@ SQIDAQAB
             treeWrap.innerHTML = buildSpecLessonTreeHtml(selectedFolderSpecTree);
             item.appendChild(treeWrap);
             if (selectedFolderSpecTree && selectedFolderSpecTree !== 'unseeded') wireSpecLessonTree(treeWrap, f);
-        } else if (f.id === selectedFolderId) {
+        } else if (f.id === selectedFolderId && kmGraphMode) {
             const treeWrap = document.createElement('div');
             treeWrap.className = 'folder-item-tree';
             treeWrap.innerHTML = selectedFolderKmData
@@ -7628,6 +7636,11 @@ SQIDAQAB
             item.appendChild(treeWrap);
             if (selectedFolderKmData) wireSubjectTree(treeWrap, f, selectedFolderKmData);
         }
+        // Default mode (neither specPracticeMode nor kmGraphMode): no
+        // subtopic/lesson tree under the row at all - just the subject
+        // name, per the overnight spec's short-form section ("each
+        // subject becomes one large label"). Clicking it opens that
+        // subject's own feed in the main content area instead.
 
         return item;
     }
@@ -7922,17 +7935,20 @@ SQIDAQAB
         selectedFolderKmData = null;
         const f = folders.find((x) => x.id === folderId);
         document.getElementById('topbarTitle').textContent = f ? folderLabel(f) : 'Dashboard';
-        // Clicking a folder now opens ITS knowledge map in the main
-        // content area instead of the Cortex chat renderWelcome() shows -
-        // Cortex remains the default/home view (still what renderWelcome()
-        // renders, still what's shown before any folder is clicked, and
-        // still reachable via its own sidebar tab) and is otherwise
+        // Clicking a subject now opens ITS OWN short-form feed by default
+        // (see sfShowFolderFeed) - the full atomic knowledge-map graph
+        // only shows when Knowledge Map mode is explicitly on
+        // (kmGraphMode, its own topbar button). Cortex remains the
+        // default/home view (still what renderWelcome() renders, still
+        // what's shown before any folder is clicked) and is otherwise
         // unaffected by this. null folderId (e.g. after a delete) falls
         // back to Cortex, matching the prior behaviour for that case.
         if (f && specPracticeMode) {
             renderSpecPracticeForFolder(f);
-        } else if (f) {
+        } else if (f && kmGraphMode) {
             renderKnowledgeMapForFolder(f);
+        } else if (f) {
+            sfShowFolderFeed(f);
         } else {
             renderWelcome();
         }
@@ -8082,6 +8098,35 @@ SQIDAQAB
     }
 
     document.getElementById('practiceQuestionsTopbarBtn').addEventListener('click', renderExamPrepEntryScreen);
+
+    // Same pattern as renderExamPrepEntryScreen/exitSpecPracticeMode - the
+    // full atomic knowledge-map graph is now its own explicit mode rather
+    // than the default subject-click behavior (see selectFolder), reached
+    // from its own topbar button placed right next to Exam Preparation.
+    function exitKmGraphMode() {
+        kmGraphMode = false;
+        selectFolder(null);
+    }
+    function renderKnowledgeMapEntryScreen() {
+        kmGraphMode = true;
+        specPracticeMode = false;
+        stopActiveDictation();
+        stopSpeaking();
+        selectedPageId = null;
+        document.getElementById('topbarTitle').textContent = 'Knowledge Map';
+        const contentInner = document.getElementById('contentInner');
+        contentInner.classList.add('content-inner-wide');
+        contentInner.innerHTML = `
+            <div class="dashboard-view dashboard-locked">
+                <h1 class="dashboard-locked-logo">Knowledge <span>Map</span></h1>
+                <p class="dashboard-locked-quote">Select a subject from the sidebar to see its full map.</p>
+                <button class="btn btn-on-content" type="button" id="exitKmGraphModeBtn" style="margin-top:24px;">Exit Knowledge Map</button>
+            </div>
+        `;
+        document.getElementById('exitKmGraphModeBtn').addEventListener('click', exitKmGraphMode);
+        refreshFolderList();
+    }
+    document.getElementById('knowledgeMapTopbarBtn').addEventListener('click', renderKnowledgeMapEntryScreen);
 
     // Fetches this subject's real spec-lesson tree and caches it into
     // selectedFolderSpecTree, same role renderKnowledgeMapForFolder plays
@@ -12239,7 +12284,9 @@ SQIDAQAB
     // do the folder/page setup for you instead of doing it by hand.
     const TOUR_INTRO_STEPS = [
         { selector: '#createFolderBtn', title: 'Start with a subject', body: "This is where a subject lives. Create one for each subject you're studying — LastMind builds lessons inside it." },
+        { selector: null, title: 'Your feed', body: 'Click a subject in the sidebar and your next lesson opens as a scrolling feed — scroll or swipe down to move on, but only once you get the current one right. A wrong answer just shakes the screen so you can try again.' },
         { selector: null, title: 'How a lesson works', body: 'The first time you meet a concept, you actually learn it — not just get quizzed on it. After that, spaced repetition brings it back at increasing intervals so it actually sticks.' },
+        { selector: '#knowledgeMapTopbarBtn', title: 'See the whole picture', body: "Your feed always picks the single next best thing to do, but you can browse a subject's entire knowledge map any time here — every concept and how they connect." },
         { selector: '#cortexTabBtn', title: 'Let Cortex set it up for you', body: "Don't want to build the subject structure by hand? Switch to Cortex and describe what you're studying — it can create subjects and pages for you." },
         { selector: '#themePaletteBtn', title: 'Make it yours', body: 'Not keen on the birch and burgundy? Click here any time to change the text, sidebar and background colours — free on every plan.' }
     ];
@@ -15692,10 +15739,19 @@ SQIDAQAB
     // slide that was never gated in the first place) - calling it any
     // earlier would risk computing "what's next" against schedule data
     // that's about to go stale the moment the current slide finishes.
+    // sfFeed.scopeFolder, when set (see sfShowFolderFeed), keeps every
+    // "what's next" computation restricted to that one subject - clicking
+    // a subject in the sidebar now opens THAT subject's own feed, not a
+    // cross-subject one, so scrolling through it should stay on-subject
+    // rather than jumping elsewhere once it runs out of its own content.
+    function sfNextRecommendationForCurrentFeed() {
+        return sfFeed.scopeFolder ? sfComputeFolderRecommendation(sfFeed.scopeFolder) : sfComputeGlobalNextLesson();
+    }
+
     function sfPrefetchNext() {
         if (!sfFeed || sfFeed.prefetchPromise) return;
         sfFeed.prefetchPromise = (async () => {
-            const rec = await sfComputeGlobalNextLesson();
+            const rec = await sfNextRecommendationForCurrentFeed();
             if (!rec) return { rec: null, built: null };
             const built = await sfBuildSlidesForRecommendation(rec);
             return { rec, built };
@@ -15719,7 +15775,7 @@ SQIDAQAB
         const pending = sfFeed.prefetchPromise;
         sfFeed.prefetchPromise = null;
         const result = pending ? await pending : await (async () => {
-            const rec = await sfComputeGlobalNextLesson();
+            const rec = await sfNextRecommendationForCurrentFeed();
             return rec ? { rec, built: await sfBuildSlidesForRecommendation(rec) } : { rec: null, built: null };
         })();
         sfFeed.appending = false;
@@ -15805,19 +15861,17 @@ SQIDAQAB
         else renderWelcome();
     }
 
-    // Entry point - "sidebar open + main area shows the most-recent-
-    // unfinished lesson (or next-scheduled if finished) instead of
-    // Cortex" (see the overnight spec). Silently does nothing if there's
-    // genuinely nothing due/new anywhere, leaving whatever's already
-    // shown (Cortex) in place - a forced empty feed on login would be
-    // worse than just not showing one.
     // Shared shell for any sf-feed instance (the short-form lesson feed,
     // the Exam Prep corrections feed) - builds the standard exit-button +
     // scroll-viewport + track markup into #contentInner, sets sfFeed, and
     // wires gestures. `exitTitle`/`onClose` let each caller customize
     // where "✕" actually goes back to (Cortex for the lesson feed, the
-    // Exam Preparation entry screen for corrections).
-    function sfMountFeedShell(exitTitle, onClose) {
+    // Exam Preparation entry screen for corrections). `scopeFolder`, when
+    // given, restricts this feed to that one subject (see
+    // sfNextRecommendationForCurrentFeed) - omitted for the global,
+    // cross-subject login-time feed and for the corrections feed (which
+    // isn't lesson-recommendation-based at all).
+    function sfMountFeedShell(exitTitle, onClose, scopeFolder) {
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
         contentInner.innerHTML = `
@@ -15830,7 +15884,7 @@ SQIDAQAB
         const viewportEl = contentInner.querySelector('.sf-feed-viewport');
         const trackEl = contentInner.querySelector('.sf-feed-track');
         contentInner.querySelector('.sf-feed-exit-btn').addEventListener('click', sfCloseFeed);
-        sfFeed = { slides: [], meta: [], currentIndex: 0, locked: false, trackEl, viewportEl, appending: false, onClose };
+        sfFeed = { slides: [], meta: [], currentIndex: 0, locked: false, trackEl, viewportEl, appending: false, onClose, scopeFolder: scopeFolder || null };
         sfWireGestures(viewportEl);
         return { trackEl, viewportEl };
     }
@@ -15844,15 +15898,38 @@ SQIDAQAB
         });
     }
 
-    async function sfMaybeShowFeed() {
-        const rec = await sfComputeGlobalNextLesson();
+    // Entry point - "sidebar open + main area shows the most-recent-
+    // unfinished lesson (or next-scheduled if finished) instead of
+    // Cortex" (see the overnight spec). Silently does nothing if there's
+    // genuinely nothing due/new anywhere, leaving whatever's already
+    // shown (Cortex) in place - a forced empty feed on login would be
+    // worse than just not showing one. Called with no argument for the
+    // global, cross-subject login-time feed; called with a folder (see
+    // sfShowFolderFeed) to scope it to just that one subject instead.
+    async function sfMaybeShowFeed(scopeFolder) {
+        const rec = scopeFolder ? await sfComputeFolderRecommendation(scopeFolder) : await sfComputeGlobalNextLesson();
         if (!rec) return false;
-        const { viewportEl } = sfMountFeedShell('Back to Cortex', null);
+        const { viewportEl } = sfMountFeedShell('Back to Cortex', null, scopeFolder);
         const built = await sfBuildSlidesForRecommendation(rec);
         if (!sfFeed) return true; // closed while the first fetch was in flight
         sfAppendBuiltSlides(built);
         viewportEl.focus();
         return true;
+    }
+
+    // Per-subject feed - what clicking a subject in the sidebar now opens
+    // by default (see selectFolder). Falls back to a plain "nothing due
+    // yet" message rather than a blank screen when this subject genuinely
+    // has nothing to offer right now (e.g. a brand-new subject with
+    // nothing encoded and no map generated yet, or a subject that's fully
+    // caught up).
+    async function sfShowFolderFeed(folder) {
+        const shown = await sfMaybeShowFeed(folder);
+        if (!shown) {
+            const contentInner = document.getElementById('contentInner');
+            contentInner.classList.add('content-inner-wide');
+            contentInner.innerHTML = `<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Nothing due or new in ${escapeHtml(folderLabel(folder))} right now.</p></div>`;
+        }
     }
 
     // ---- Exam Preparation's own Corrections feed ----
@@ -21475,6 +21552,7 @@ SQIDAQAB
         document.getElementById('peerTutoringHubBtn').style.display = 'none';
         document.getElementById('myTutoringTopbarBtn').style.display = 'none';
         document.getElementById('practiceQuestionsTopbarBtn').style.display = paid ? '' : 'none';
+        document.getElementById('knowledgeMapTopbarBtn').style.display = paid ? '' : 'none';
         document.getElementById('mathsToolTopbarBtn').style.display = paid ? '' : 'none';
         document.getElementById('upgradeTopbarBtn').style.display = paid ? 'none' : '';
         updateTopbarScrollHint();
@@ -21529,29 +21607,33 @@ SQIDAQAB
         // Skipped when a deep link just opened a specific page — showing
         // the tour on top of that would just be in the way.
         //
-        // The NEW first-time subject-picker wizard takes priority over
-        // both the old product tour AND the short-form feed on a genuinely
-        // first-time account (completedSubjectPicker false) - showing a
-        // "here's your next lesson" feed before the student has picked any
-        // subjects at all would have nothing to show anyway. Once the
-        // wizard is done (or was already done in a past session), the old
-        // tour still runs on its own separate schedule, then the feed gets
-        // its turn - "sidebar open + main area shows the most-recent-
-        // unfinished lesson (or next-scheduled if finished) instead of
-        // Cortex" (see the overnight spec's short-form section).
+        // The subject-picker wizard takes priority over both the old
+        // product tour AND the short-form feed whenever there's genuinely
+        // nothing to show yet - a first-time account (completedSubjectPicker
+        // false), an account with zero subjects for any reason, OR an
+        // existing account that's simply run out of anything due/new right
+        // now (sfMaybeShowFeed returning false) - "even if they aren't new
+        // users" (per explicit feedback: this isn't a one-time-ever gate,
+        // it's an empty-state prompt). Deliberately does NOT let a failed
+        // tourStatus fetch (e.g. a migration that hasn't been run yet)
+        // block the feed from ever showing - that silently broke the whole
+        // feature for every account until the fix below: a null tourStatus
+        // just means "skip the tour-specific checks", not "show nothing".
         if (!openedViaDeepLink) {
             const tourStatus = await fetchOnboardingStatus();
-            if (tourStatus) {
-                if (!tourStatus.completedSubjectPicker) {
-                    sfShowSubjectPickerWizard();
-                } else {
+            const isFirstTime = tourStatus ? !tourStatus.completedSubjectPicker : false;
+            if (isFirstTime || !folders.length) {
+                sfShowSubjectPickerWizard();
+            } else {
+                if (tourStatus) {
                     if (paid && !tourStatus.seenPremiumTour) {
                         startTour('premium');
                     } else if (!paid && !tourStatus.seenFreeTour) {
                         startTour('free');
                     }
-                    sfMaybeShowFeed();
                 }
+                const shown = await sfMaybeShowFeed();
+                if (!shown) sfShowSubjectPickerWizard();
             }
         }
     }
