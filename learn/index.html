@@ -16024,7 +16024,7 @@ SQIDAQAB
                 <div class="sf-slide-inner">
                     <div class="sf-slide-subject">Review link · ${escapeHtml(rec.node.label)} → ${escapeHtml(link.label)}</div>
                     <div class="sf-slide-explanation">${splitIntoParagraphs(teachingText)}</div>
-                    <div class="sf-advance-hint">Scroll down ↓</div>
+                    <div class="sf-advance-hint">${sfAdvanceHintText()}</div>
                 </div>`;
             slides.push({ el: explEl, meta: { canAdvance: true, kind: 'review-link-explanation' } });
         }
@@ -16176,7 +16176,7 @@ SQIDAQAB
             <div class="sf-slide-inner">
                 <div class="sf-slide-subject">${escapeHtml(folderLabel(rec.folder))}</div>
                 <div class="sf-slide-explanation">${splitIntoParagraphs(lesson.explanation)}</div>
-                <div class="sf-advance-hint">Scroll down ↓</div>
+                <div class="sf-advance-hint">${sfAdvanceHintText()}</div>
             </div>`;
         makeTermsSpeakable(explEl.querySelector('.sf-slide-explanation'), rec.folder.subject);
 
@@ -16199,7 +16199,7 @@ SQIDAQAB
             slides.push({ el: qEl, meta: qMeta });
         } else {
             slides[0].meta.kind = 'explanation-only';
-            explEl.querySelector('.sf-advance-hint').textContent = 'Scroll down for what\'s next ↓';
+            explEl.querySelector('.sf-advance-hint').textContent = sfAdvanceHintText("for what's next");
         }
 
         return slides;
@@ -16219,6 +16219,16 @@ SQIDAQAB
     // mobile sidebar default - checked live at gesture time, not cached,
     // so rotating/resizing doesn't need a reload.
     function sfIsMobileViewport() { return window.innerWidth <= 768; }
+
+    // The forward gesture is a left swipe on mobile (sfWireGestures'
+    // touch handler treats a leftward drag as forward), not a scroll -
+    // this hint text must match whichever gesture is actually live on
+    // the device it's rendered on, checked at build time same as any
+    // other mobile-only rendering choice in this file.
+    function sfAdvanceHintText(suffix) {
+        const tail = suffix ? ` ${suffix}` : '';
+        return sfIsMobileViewport() ? `Swipe left${tail} ←` : `Scroll down${tail} ↓`;
+    }
 
     // A purely VISUAL alternative to sfMoveToIndex, used only for a
     // manual mobile swipe (see sfWireGestures) - auto-advance after a
