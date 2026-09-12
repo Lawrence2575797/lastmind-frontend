@@ -15796,6 +15796,10 @@ SQIDAQAB
         slideEl.querySelector('.sf-question-submit').addEventListener('click', sfSubmitCurrentSlide);
         let retryCount = 0;
         meta.noBack = true;
+        const draftKey = `sf-practice:${node.id}`;
+        const restoredDraft = loadAnswerDraft(draftKey);
+        if (restoredDraft && !inputEl.value) inputEl.value = restoredDraft;
+        inputEl.addEventListener('input', () => saveAnswerDraft(draftKey, inputEl.value));
         meta.trySubmit = async () => {
             const answer = (inputEl.value || '').trim();
             if (!answer) {
@@ -15813,6 +15817,7 @@ SQIDAQAB
                 return false;
             }
             if (result.correct) {
+                clearAnswerDraft(draftKey);
                 feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-correct">✓ Correct</div>`;
                 if (result.schedule) sfUpsertScheduleCache(result.schedule);
                 meta.answered = true;
@@ -15876,12 +15881,16 @@ SQIDAQAB
     // the whole review to "nothing more to test" (the exact bug the
     // graph view's own postNodeReviewStepStart comment flags).
     //
-    // Deliberately NOT ported: the graph view's localStorage checkpoint
-    // (resume this exact review across a page reload) and draft-answer
-    // persistence - the feed itself doesn't persist ANY in-progress state
-    // across a reload today (a reload just recomputes from scratch), so
-    // skipping this here is parity with the feed's existing behavior
-    // everywhere else, not a new gap specific to reviews.
+    // Draft-answer persistence (saveAnswerDraft/loadAnswerDraft) IS ported
+    // here, same as the graph view - every question builder in this feed
+    // (AO1, integration, day-1, recall, the main practice question) saves
+    // its typed/selected answer on every change and restores it if the
+    // slide is ever rebuilt, so an interruption never costs a half-typed
+    // answer. Still NOT ported: the graph view's multi-step review
+    // checkpoint (resuming which STEP of a whole review across a page
+    // reload) - the feed doesn't persist that broader in-progress state
+    // today (a reload just recomputes from scratch and re-offers the same
+    // review from its own start), only the individual answer text itself.
     function sfReviewLinkKey(node, link) { return `${node.conceptId}->${link.conceptId}`; }
 
     async function sfBuildAo1Slide(rec) {
@@ -15905,8 +15914,13 @@ SQIDAQAB
         const feedbackEl = el.querySelector('.sf-question-feedback');
         el.querySelector('.sf-question-submit').addEventListener('click', sfSubmitCurrentSlide);
         let retryCount = 0;
+        const draftKey = `sf-ao1:${rec.node.id}`;
+        const restoredDraft = loadAnswerDraft(draftKey);
+        if (restoredDraft && !inputEl.value) inputEl.value = restoredDraft;
+        inputEl.addEventListener('input', () => saveAnswerDraft(draftKey, inputEl.value));
 
         async function onCorrect(result) {
+            clearAnswerDraft(draftKey);
             if (result.schedule) sfUpsertScheduleCache(result.schedule);
             meta.answered = true;
             meta.canAdvance = true;
@@ -16046,6 +16060,10 @@ SQIDAQAB
         const feedbackEl = qEl.querySelector('.sf-question-feedback');
         qEl.querySelector('.sf-question-submit').addEventListener('click', sfSubmitCurrentSlide);
         let retryCount = 0;
+        const draftKey = `sf-integration:${rec.node.id}:${link.id}`;
+        const restoredDraft = loadAnswerDraft(draftKey);
+        if (restoredDraft && !inputEl.value) inputEl.value = restoredDraft;
+        inputEl.addEventListener('input', () => saveAnswerDraft(draftKey, inputEl.value));
         meta.trySubmit = async () => {
             const answer = (inputEl.value || '').trim();
             if (!answer) {
@@ -16063,6 +16081,7 @@ SQIDAQAB
                 return false;
             }
             if (result.correct) {
+                clearAnswerDraft(draftKey);
                 feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-correct">✓ Correct</div>`;
                 if (result.schedule) sfUpsertScheduleCache(result.schedule);
                 meta.answered = true;
@@ -16327,6 +16346,10 @@ SQIDAQAB
         const feedbackEl = el.querySelector('.sf-question-feedback');
         el.querySelector('.sf-question-submit').addEventListener('click', sfSubmitCurrentSlide);
         let awaitingSillyRetry = false;
+        const draftKey = `sf-day1:${check.checkId}`;
+        const restoredDraft = loadAnswerDraft(draftKey);
+        if (restoredDraft && !inputEl.value) inputEl.value = restoredDraft;
+        inputEl.addEventListener('input', () => saveAnswerDraft(draftKey, inputEl.value));
         meta.trySubmit = async () => {
             const answer = (inputEl.value || '').trim();
             if (!answer) {
@@ -16342,6 +16365,7 @@ SQIDAQAB
                 return false;
             }
             if (result.correct) {
+                clearAnswerDraft(draftKey);
                 feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-correct">✓ Correct</div>`;
                 meta.answered = true;
                 meta.canAdvance = true;
@@ -16353,12 +16377,14 @@ SQIDAQAB
                 awaitingSillyRetry = true;
                 inputEl.disabled = false;
                 inputEl.value = '';
+                saveAnswerDraft(draftKey, '');
                 feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">That looks like a slip, not a gap - try this one once more.</div>`;
                 return false;
             }
             // Genuinely resolved as wrong (or a still-wrong retry) - the
             // check is over either way, so the student moves on despite
             // the wrong answer rather than being stuck retrying it here.
+            clearAnswerDraft(draftKey);
             feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || "Not quite - this one will come back around.")}</div>`;
             meta.answered = true;
             meta.canAdvance = true;
@@ -16454,15 +16480,31 @@ SQIDAQAB
         const feedbackEl = el.querySelector('.sf-question-feedback');
         const inputEl = el.querySelector('.sf-question-input');
         el.querySelector('.sf-question-submit').addEventListener('click', sfSubmitCurrentSlide);
+        // recallId is stable for the lifetime of this one scheduled recall
+        // (never reused once resolved) - a real interruption (nudging away
+        // to another slide, a stray reload) must not cost whatever was
+        // already typed/picked here, exactly the "acts as an incentive not
+        // to do the recalls" complaint this exists to fix.
+        const draftKey = `sf-recall:${row.recallId}`;
         let selectedOptionIndex = null;
         if (isMcq) {
+            const restoredOption = loadAnswerDraft(draftKey);
             el.querySelectorAll('.sf-mcq-option').forEach((btn) => {
+                if (restoredOption !== '' && Number(btn.dataset.optionIndex) === Number(restoredOption)) {
+                    btn.classList.add('sf-mcq-option-selected');
+                    selectedOptionIndex = Number(restoredOption);
+                }
                 btn.addEventListener('click', () => {
                     el.querySelectorAll('.sf-mcq-option').forEach((b) => b.classList.remove('sf-mcq-option-selected'));
                     btn.classList.add('sf-mcq-option-selected');
                     selectedOptionIndex = Number(btn.dataset.optionIndex);
+                    saveAnswerDraft(draftKey, String(selectedOptionIndex));
                 });
             });
+        } else {
+            const restoredDraft = loadAnswerDraft(draftKey);
+            if (restoredDraft && !inputEl.value) inputEl.value = restoredDraft;
+            inputEl.addEventListener('input', () => saveAnswerDraft(draftKey, inputEl.value));
         }
         meta.trySubmit = async () => {
             const body = { recallCheckIndex: row.recallCheckIndex };
@@ -16489,6 +16531,7 @@ SQIDAQAB
                 return false;
             }
             if (result.correct) {
+                clearAnswerDraft(draftKey);
                 feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-correct">✓ Correct</div>`;
                 meta.answered = true;
                 meta.canAdvance = true;
