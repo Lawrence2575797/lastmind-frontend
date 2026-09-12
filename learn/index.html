@@ -15505,6 +15505,7 @@ SQIDAQAB
                 meta.answered = true;
                 meta.canAdvance = true;
                 sfShowAdvanceHint(slideEl);
+                sfPrefetchNext();
             } else {
                 retryCount += 1;
                 feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">🧭 Cortex: ${escapeHtml(result.feedback || "Not quite - check the specific wording and try again.")}</div>`;
@@ -15549,6 +15550,7 @@ SQIDAQAB
                 sfCloseFeed();
                 selectFolder(rec.folder.id);
             });
+            sfPrefetchNext();
             return [{ el, meta: { canAdvance: true, kind: 'handoff' } }];
         }
 
@@ -15566,6 +15568,7 @@ SQIDAQAB
                 sfCloseFeed();
                 selectFolder(rec.folder.id);
             });
+            sfPrefetchNext();
             return [{ el, meta: { canAdvance: true, kind: 'handoff' } }];
         }
 
@@ -15601,6 +15604,7 @@ SQIDAQAB
         } else {
             slides[0].meta.kind = 'explanation-only';
             explEl.querySelector('.sf-advance-hint').textContent = 'Scroll down for what\'s next ↓';
+            sfPrefetchNext();
         }
 
         return slides;
@@ -15616,17 +15620,48 @@ SQIDAQAB
         setTimeout(() => { if (sfFeed) sfFeed.locked = false; }, 420);
     }
 
+    // Starts computing+building the NEXT recommendation's slides in the
+    // background, cached on sfFeed.prefetchPromise for sfAppendNextRecommendation
+    // to pick up instantly instead of making the student wait on a live
+    // generation/API round trip at the exact moment they scroll there.
+    // Only ever called right after this feed's OWN schedule-affecting
+    // state has already changed (a correct answer just recorded, or a
+    // slide that was never gated in the first place) - calling it any
+    // earlier would risk computing "what's next" against schedule data
+    // that's about to go stale the moment the current slide finishes.
+    function sfPrefetchNext() {
+        if (!sfFeed || sfFeed.prefetchPromise) return;
+        sfFeed.prefetchPromise = (async () => {
+            const rec = await sfComputeGlobalNextLesson();
+            if (!rec) return { rec: null, built: null };
+            const built = await sfBuildSlidesForRecommendation(rec);
+            return { rec, built };
+        })();
+    }
+
     // Appends the next recommendation's slides once the student scrolls
     // past the last slide currently built - keeps the feed effectively
-    // infinite (one lesson/review at a time, computed fresh each time)
-    // without pre-fetching every subject's whole future up front.
+    // infinite (one lesson/review at a time) without ever pre-fetching
+    // every subject's whole future up front. Uses sfFeed.prefetchPromise
+    // when one is already in flight/resolved (see sfPrefetchNext) so the
+    // common case - the student answers correctly, a prefetch starts
+    // immediately, then they take at least a moment to actually scroll -
+    // has zero visible generation delay; falls back to a fresh compute on
+    // a cold appendage (e.g. the student scrolled unusually fast, or this
+    // is the very first append after the feed's own initial slide had no
+    // question to answer).
     async function sfAppendNextRecommendation() {
         if (!sfFeed || sfFeed.appending) return;
         sfFeed.appending = true;
-        const rec = await sfComputeGlobalNextLesson();
+        const pending = sfFeed.prefetchPromise;
+        sfFeed.prefetchPromise = null;
+        const result = pending ? await pending : await (async () => {
+            const rec = await sfComputeGlobalNextLesson();
+            return rec ? { rec, built: await sfBuildSlidesForRecommendation(rec) } : { rec: null, built: null };
+        })();
         sfFeed.appending = false;
         if (!sfFeed) return; // feed closed while this was in flight
-        if (!rec) {
+        if (!result.rec) {
             const el = document.createElement('div');
             el.className = 'sf-feed-slide';
             el.innerHTML = `
@@ -15642,9 +15677,7 @@ SQIDAQAB
             sfMoveToIndex(sfFeed.currentIndex + 1);
             return;
         }
-        const built = await sfBuildSlidesForRecommendation(rec);
-        if (!sfFeed) return;
-        built.forEach(({ el, meta }) => {
+        result.built.forEach(({ el, meta }) => {
             meta.index = sfFeed.slides.length;
             sfFeed.trackEl.appendChild(el);
             sfFeed.slides.push(el);
