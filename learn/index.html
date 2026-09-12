@@ -21558,9 +21558,41 @@ SQIDAQAB
         renderCalendar();
     });
 
+    // Shown the instant the app opens, instead of flashing Cortex first -
+    // real bug report: Cortex's own burgundy screen used to sit there
+    // silently (renderWelcome() was called immediately, then quietly
+    // replaced once the wizard/feed decision resolved) with zero
+    // indication anything was happening, which on a genuine backend cold
+    // start (the compile backend's free-tier plan can take up to a
+    // minute to wake from idle) looked completely frozen rather than
+    // loading. Rotates through a few plain status messages, then - same
+    // escalation showLoadingWithColdStartHint already uses elsewhere in
+    // this file - explicitly names the possible cold start once it's
+    // actually been a few seconds, rather than leaving a silent app that
+    // looks broken.
+    function renderFeedLoadingScreen() {
+        const contentInner = document.getElementById('contentInner');
+        if (!contentInner) return;
+        contentInner.classList.add('content-inner-wide');
+        const messages = ['Finding your next lesson…', 'Checking what\'s due…', 'Loading your knowledge map…', 'Almost there…'];
+        contentInner.innerHTML = `<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote" id="sfLoadingMessage">${escapeHtml(messages[0])}</p></div>`;
+        let i = 0;
+        const intervalId = setInterval(() => {
+            const el = document.getElementById('sfLoadingMessage');
+            if (!el) { clearInterval(intervalId); return; }
+            i = (i + 1) % messages.length;
+            el.textContent = messages[i];
+        }, 2500);
+        setTimeout(() => {
+            clearInterval(intervalId);
+            const el = document.getElementById('sfLoadingMessage');
+            if (el) el.textContent = "Still loading — if this is the first request in a while, the server may be waking up from idle. This can take up to a minute.";
+        }, 8000);
+    }
+
     async function enterApp(paid) {
         isPaidUser = paid;
-        renderWelcome();
+        renderFeedLoadingScreen();
 
         document.getElementById('gate-message').style.display = 'none';
         document.getElementById('app').style.display = 'block';
