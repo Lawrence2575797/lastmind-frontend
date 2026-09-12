@@ -8045,7 +8045,12 @@ SQIDAQAB
         if (btn) btn.addEventListener('click', exitSpecPracticeMode);
     }
 
-    document.getElementById('practiceQuestionsTopbarBtn').addEventListener('click', () => {
+    // Own sidebar tab within Exam Preparation specifically (per the
+    // overnight spec) for the personalized corrections feed - kept as a
+    // button on this entry screen rather than a new global sidebar tab,
+    // since it's meant to live "within" this page, not compete with the
+    // app-wide Cortex/Notes/Subjects tabs.
+    function renderExamPrepEntryScreen() {
         specPracticeMode = true;
         stopActiveDictation();
         stopSpeaking();
@@ -8057,12 +8062,16 @@ SQIDAQAB
             <div class="dashboard-view dashboard-locked">
                 <h1 class="dashboard-locked-logo">Exam <span>Preparation</span></h1>
                 <p class="dashboard-locked-quote">Select a subject, then a lesson from the sidebar.</p>
-                <button class="btn btn-on-content" type="button" id="exitSpecPracticeModeBtn" style="margin-top:24px;">Exit Exam Preparation</button>
+                <button class="btn btn-on-content" type="button" id="examPrepCorrectionsBtn" style="margin-top:24px;">📝 Corrections</button>
+                <button class="btn btn-on-content" type="button" id="exitSpecPracticeModeBtn" style="margin-top:10px;">Exit Exam Preparation</button>
             </div>
         `;
+        document.getElementById('examPrepCorrectionsBtn').addEventListener('click', () => sfShowCorrectionsFeed(renderExamPrepEntryScreen));
         document.getElementById('exitSpecPracticeModeBtn').addEventListener('click', exitSpecPracticeMode);
         refreshFolderList();
-    });
+    }
+
+    document.getElementById('practiceQuestionsTopbarBtn').addEventListener('click', renderExamPrepEntryScreen);
 
     // Fetches this subject's real spec-lesson tree and caches it into
     // selectedFolderSpecTree, same role renderKnowledgeMapForFolder plays
@@ -15736,8 +15745,10 @@ SQIDAQAB
     }
 
     function sfCloseFeed() {
+        const onClose = sfFeed && sfFeed.onClose;
         sfFeed = null;
-        renderWelcome();
+        if (onClose) onClose();
+        else renderWelcome();
     }
 
     // Entry point - "sidebar open + main area shows the most-recent-
@@ -15746,14 +15757,18 @@ SQIDAQAB
     // genuinely nothing due/new anywhere, leaving whatever's already
     // shown (Cortex) in place - a forced empty feed on login would be
     // worse than just not showing one.
-    async function sfMaybeShowFeed() {
-        const rec = await sfComputeGlobalNextLesson();
-        if (!rec) return false;
+    // Shared shell for any sf-feed instance (the short-form lesson feed,
+    // the Exam Prep corrections feed) - builds the standard exit-button +
+    // scroll-viewport + track markup into #contentInner, sets sfFeed, and
+    // wires gestures. `exitTitle`/`onClose` let each caller customize
+    // where "✕" actually goes back to (Cortex for the lesson feed, the
+    // Exam Preparation entry screen for corrections).
+    function sfMountFeedShell(exitTitle, onClose) {
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
         contentInner.innerHTML = `
             <div class="sf-feed-root">
-                <button type="button" class="sf-feed-exit-btn" title="Back to Cortex">✕</button>
+                <button type="button" class="sf-feed-exit-btn" title="${escapeHtml(exitTitle)}">✕</button>
                 <div class="sf-feed-viewport">
                     <div class="sf-feed-track"></div>
                 </div>
@@ -15761,18 +15776,132 @@ SQIDAQAB
         const viewportEl = contentInner.querySelector('.sf-feed-viewport');
         const trackEl = contentInner.querySelector('.sf-feed-track');
         contentInner.querySelector('.sf-feed-exit-btn').addEventListener('click', sfCloseFeed);
-        sfFeed = { slides: [], meta: [], currentIndex: 0, locked: false, trackEl, viewportEl, appending: false };
-        const built = await sfBuildSlidesForRecommendation(rec);
-        if (!sfFeed) return true; // closed while the first fetch was in flight
+        sfFeed = { slides: [], meta: [], currentIndex: 0, locked: false, trackEl, viewportEl, appending: false, onClose };
+        sfWireGestures(viewportEl);
+        return { trackEl, viewportEl };
+    }
+
+    function sfAppendBuiltSlides(built) {
         built.forEach(({ el, meta }) => {
             meta.index = sfFeed.slides.length;
-            trackEl.appendChild(el);
+            sfFeed.trackEl.appendChild(el);
             sfFeed.slides.push(el);
             sfFeed.meta.push(meta);
         });
-        sfWireGestures(viewportEl);
+    }
+
+    async function sfMaybeShowFeed() {
+        const rec = await sfComputeGlobalNextLesson();
+        if (!rec) return false;
+        const { viewportEl } = sfMountFeedShell('Back to Cortex', null);
+        const built = await sfBuildSlidesForRecommendation(rec);
+        if (!sfFeed) return true; // closed while the first fetch was in flight
+        sfAppendBuiltSlides(built);
         viewportEl.focus();
         return true;
+    }
+
+    // ---- Exam Preparation's own Corrections feed ----
+    //
+    // A personalized correction (mistake -> explanation -> follow-up
+    // question) IS the whole slide here, unlike the lesson feed's
+    // explanation/question split - "read the intervention -> answer ->
+    // correct advances to next correction" (see the overnight spec) reads
+    // both together on one screen. Reuses sfMountFeedShell/sfWireGestures/
+    // sfShakeSlide/sfMoveToIndex verbatim - only the slide content and the
+    // submit endpoint differ from the lesson feed.
+    async function sfFetchCorrections() {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return [];
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/exam-prep-corrections`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            return await resp.json();
+        } catch (err) {
+            console.error('LastMind: failed to load Exam Prep corrections.', err);
+            return [];
+        }
+    }
+
+    // onCorrectLast fires only when THIS slide is the last correction in
+    // the batch and gets answered correctly - appends the one-time
+    // "you're done" end slide right at that moment, rather than polling
+    // for it separately.
+    function sfBuildCorrectionSlide(correction, isLast, onCorrectLast) {
+        const el = document.createElement('div');
+        el.className = 'sf-feed-slide';
+        el.innerHTML = `
+            <div class="sf-slide-inner">
+                <div class="sf-slide-subject">${escapeHtml(correction.subject)} · correction</div>
+                <div class="sf-speaker-label">🧭 Cortex</div>
+                <div class="sf-slide-explanation">${splitIntoParagraphs(correction.correctionExplanation)}</div>
+                <p class="sf-question-text">${escapeHtml(correction.followupQuestionText)}</p>
+                <form class="sf-question-form">
+                    <textarea class="sf-question-input" rows="3" placeholder="Your answer" autocomplete="off"></textarea>
+                    <button type="submit" class="btn primary sf-question-submit">Submit</button>
+                </form>
+                <div class="sf-question-feedback"></div>
+                <div class="sf-advance-hint" hidden>${isLast ? "That's every correction for now ↓" : 'Scroll down for the next correction ↓'}</div>
+            </div>`;
+        const meta = { canAdvance: false, kind: 'correction', answered: false };
+
+        const formEl = el.querySelector('.sf-question-form');
+        const inputEl = el.querySelector('.sf-question-input');
+        const submitBtn = el.querySelector('.sf-question-submit');
+        const feedbackEl = el.querySelector('.sf-question-feedback');
+        let submitting = false;
+        formEl.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const answer = (inputEl.value || '').trim();
+            if (!answer || submitting) return;
+            submitting = true;
+            submitBtn.disabled = true;
+            const result = await sfPostBackend(`/exam-prep-corrections/${correction.id}/submit`, { answerText: answer });
+            submitting = false;
+            submitBtn.disabled = false;
+            if (!result) {
+                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Something went wrong submitting that - try again.</div>`;
+                return;
+            }
+            if (result.correct) {
+                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-correct">✓ Correct</div>`;
+                inputEl.disabled = true;
+                submitBtn.hidden = true;
+                meta.answered = true;
+                meta.canAdvance = true;
+                sfShowAdvanceHint(el);
+                if (isLast && onCorrectLast) onCorrectLast();
+            } else {
+                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">🧭 Cortex: ${escapeHtml(result.feedback || 'Not quite - try again.')}</div>`;
+                sfShakeSlide(el);
+            }
+        });
+        return { el, meta };
+    }
+
+    async function sfShowCorrectionsFeed(onExit) {
+        const corrections = await sfFetchCorrections();
+        if (!corrections.length) {
+            alert("No corrections waiting right now - nice work.");
+            return;
+        }
+        const { viewportEl } = sfMountFeedShell('Back to Exam Preparation', onExit);
+        const onCorrectLast = () => {
+            const el = document.createElement('div');
+            el.className = 'sf-feed-slide';
+            el.innerHTML = `
+                <div class="sf-slide-inner sf-handoff">
+                    <div class="sf-speaker-label">🧭 Cortex</div>
+                    <p class="sf-handoff-text">All caught up on corrections for now.</p>
+                    <button type="button" class="btn sf-handoff-btn">Back to Exam Preparation</button>
+                </div>`;
+            el.querySelector('.sf-handoff-btn').addEventListener('click', sfCloseFeed);
+            sfAppendBuiltSlides([{ el, meta: { canAdvance: false, kind: 'end' } }]);
+        };
+        corrections.forEach((c, i) => sfAppendBuiltSlides([sfBuildCorrectionSlide(c, i === corrections.length - 1, onCorrectLast)]));
+        viewportEl.focus();
     }
 
     // ---- First-time subject-picker wizard ----
