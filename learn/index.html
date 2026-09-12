@@ -5008,7 +5008,7 @@
 </head>
 <body>
 
-<div id="gate-message">Checking your subscription…</div>
+<div id="gate-message" style="background:#D9C398; color:#4E1B26;">Checking your subscription…</div>
 
 <div id="app">
     <div class="layout">
@@ -21731,6 +21731,30 @@ SQIDAQAB
             await enterApp(true); // preview mode shows the full paid experience
             return;
         }
+
+        // This whole gate can make up to two real network calls to the
+        // Stripe backend (refreshTokenFromBackend, /api/token-for-user)
+        // before enterApp ever runs, and that's a SEPARATE Render service
+        // from the compile backend - it can go cold independently, and a
+        // static "Checking your subscription…" with no escalation looked
+        // completely frozen for a real reported minute-plus wait, the
+        // same failure mode already fixed for enterApp's own loading
+        // screen. Purely cosmetic - stops itself the moment #gate-message
+        // is hidden (enterApp's own first real action), touches nothing
+        // about the actual auth/verification logic below.
+        const gateMessageEl = document.getElementById('gate-message');
+        let gateMessageStep = 0;
+        const gateMessages = ['Checking your subscription…', 'Still checking…', 'Almost there…'];
+        const gateMessageInterval = setInterval(() => {
+            if (!gateMessageEl || gateMessageEl.style.display === 'none') { clearInterval(gateMessageInterval); return; }
+            gateMessageStep = (gateMessageStep + 1) % gateMessages.length;
+            gateMessageEl.textContent = gateMessages[gateMessageStep];
+        }, 3000);
+        setTimeout(() => {
+            if (!gateMessageEl || gateMessageEl.style.display === 'none') { clearInterval(gateMessageInterval); return; }
+            clearInterval(gateMessageInterval);
+            gateMessageEl.textContent = "Still checking — if this is the first request in a while, the server may be waking up from idle. This can take up to a minute.";
+        }, 8000);
 
         const publicKey = await importPublicKey(PUBLIC_KEY_PEM);
 
