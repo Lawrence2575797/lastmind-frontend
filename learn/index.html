@@ -16215,6 +16215,50 @@ SQIDAQAB
         setTimeout(() => { if (sfFeed) sfFeed.locked = false; }, 420);
     }
 
+    // Same breakpoint this app already uses elsewhere for its one-time
+    // mobile sidebar default - checked live at gesture time, not cached,
+    // so rotating/resizing doesn't need a reload.
+    function sfIsMobileViewport() { return window.innerWidth <= 768; }
+
+    // A purely VISUAL alternative to sfMoveToIndex, used only for a
+    // manual mobile swipe (see sfWireGestures) - auto-advance after a
+    // correct answer stays vertical always ("the page automatically
+    // scrolls down to the next input" - explicit instruction), this is
+    // only for the swipe gesture ITSELF, to actually look like swiping
+    // left/right rather than the underlying vertical stack's own up/down
+    // motion. Three phases, all on the SAME track transform (no separate
+    // horizontal layout needed): current content slides out (left when
+    // advancing, right when going back), an instant untransitioned snap
+    // to the new slide's real vertical slot while still off-screen the
+    // OPPOSITE way, then that slides into view - the same trick a
+    // carousel uses to fake horizontal motion on top of a vertically
+    // stacked list.
+    function sfMoveToIndexHorizontal(newIndex, direction) {
+        if (!sfFeed || sfFeed.locked) return;
+        newIndex = Math.max(0, Math.min(newIndex, sfFeed.slides.length - 1));
+        if (newIndex === sfFeed.currentIndex) return;
+        sfFeed.locked = true;
+        const track = sfFeed.trackEl;
+        const exitX = direction > 0 ? -100 : 100;
+        const enterX = direction > 0 ? 100 : -100;
+        track.style.transition = 'transform 300ms ease';
+        track.style.transform = `translate(${exitX}%, -${sfFeed.currentIndex * 100}%)`;
+        setTimeout(() => {
+            if (!sfFeed) return;
+            sfFeed.currentIndex = newIndex;
+            track.style.transition = 'none';
+            track.style.transform = `translate(${enterX}%, -${newIndex * 100}%)`;
+            void track.offsetWidth; // force reflow so the next change animates instead of coalescing with this one
+            track.style.transition = 'transform 300ms ease';
+            track.style.transform = `translate(0%, -${newIndex * 100}%)`;
+            setTimeout(() => {
+                if (!sfFeed) return;
+                sfFeed.locked = false;
+                track.style.transition = ''; // back to the stylesheet's own vertical-only transition for every later move
+            }, 320);
+        }, 300);
+    }
+
     // Same as sfMoveToIndex, but clears any in-progress transition lock
     // first - used for the two navigations in this feature that must
     // always go through regardless of ordinary gating: jumping to a due
@@ -16620,24 +16664,30 @@ SQIDAQAB
         sfMoveToIndex(sfFeed.currentIndex + 1);
     }
 
-    // Plain scroll navigation only - never submits anything. An unanswered
-    // question slide (canAdvance false) just shakes on a forward attempt,
-    // the same "not yet" signal as always; answering it happens through
-    // its own Submit button (sfSubmitCurrentSlide), which auto-advances on
-    // a correct answer without the student needing to scroll at all.
-    function sfTryAdvance(direction) {
+    // Plain manual navigation only - never submits anything. An
+    // unanswered question slide (canAdvance false) just shakes on a
+    // forward attempt, the same "not yet" signal as always; answering it
+    // happens through its own Submit button (sfSubmitCurrentSlide), which
+    // auto-advances on a correct answer without any gesture needed at
+    // all - ALWAYS vertically (sfMoveToIndex), on every device, since
+    // that part is automatic, not a swipe the student performed.
+    // useHorizontal (mobile's manual swipe - see sfWireGestures) only
+    // changes how THIS manual move visually plays out, never the auto-
+    // advance path above.
+    function sfTryAdvance(direction, useHorizontal) {
         if (!sfFeed || sfFeed.locked) return;
         const currentMeta = sfFeed.meta[sfFeed.currentIndex];
+        const move = (idx) => useHorizontal ? sfMoveToIndexHorizontal(idx, direction) : sfMoveToIndex(idx);
         if (direction > 0) {
             if (currentMeta && !currentMeta.canAdvance) {
                 sfShakeSlide(sfFeed.slides[sfFeed.currentIndex]);
                 return;
             }
             if (sfFeed.currentIndex >= sfFeed.slides.length - 1) {
-                sfAppendNextRecommendation();
+                sfAppendNextRecommendation(); // fetches/builds new content - stays vertical even on mobile, not a simple swipe between already-built slides
                 return;
             }
-            sfMoveToIndex(sfFeed.currentIndex + 1);
+            move(sfFeed.currentIndex + 1);
         } else {
             // Once forward-scrolled onto a slide marked noBack (an answer
             // box reached from its own content slide), scrolling back up
@@ -16647,7 +16697,7 @@ SQIDAQAB
                 sfShakeSlide(sfFeed.slides[sfFeed.currentIndex]);
                 return;
             }
-            sfMoveToIndex(sfFeed.currentIndex - 1);
+            move(sfFeed.currentIndex - 1);
         }
     }
 
@@ -16759,20 +16809,41 @@ SQIDAQAB
 
         // Deliberately passive (no preventDefault) - the browser's own
         // native touch-scroll of the current slide (overflow-y:auto)
-        // runs freely during the drag, so by touchend scrollTop already
-        // reflects wherever that landed. Only once the content has
-        // nothing left to scroll in the swiped direction does the SAME
-        // gesture also count as a page-advance - checked here, after the
-        // native scroll already happened, not before it.
+        // runs freely during the drag.
+        //
+        // On MOBILE specifically (per explicit instruction, desktop/
+        // laptop keeps the vertical behaviour above unchanged): vertical
+        // dragging is ALWAYS just reading/scrolling the current slide's
+        // content, full stop - it never advances, no matter how far you
+        // scroll or how fast. A LEFT swipe is the only way to manually
+        // move forward (right swipe to go back, same noBack gating as
+        // ever) - see sfMoveToIndexHorizontal for the visual "slides
+        // left/right" treatment this triggers instead of the plain
+        // vertical one. Auto-advance after a correct answer is a
+        // completely separate path (sfSubmitCurrentSlide) and stays
+        // vertical on every device regardless of any of this.
+        let touchStartX = null;
         let touchStartY = null;
         viewportEl.addEventListener('touchstart', (e) => {
-            touchStartY = sfEventTargetIsTextInput(e) ? null : e.touches[0].clientY;
+            if (sfEventTargetIsTextInput(e)) { touchStartX = null; touchStartY = null; return; }
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
         }, { passive: true });
         viewportEl.addEventListener('touchend', (e) => {
             if (touchStartY === null) return;
+            const dx = touchStartX - e.changedTouches[0].clientX;
             const dy = touchStartY - e.changedTouches[0].clientY;
+            touchStartX = null;
             touchStartY = null;
             const THRESHOLD = 50;
+
+            if (sfIsMobileViewport()) {
+                if (Math.abs(dx) < THRESHOLD || Math.abs(dx) < Math.abs(dy)) return; // not a clear horizontal swipe - leave it to the native vertical scroll
+                if (dx > 0) sfTryAdvance(1, true);
+                else sfTryAdvance(-1, true);
+                return;
+            }
+
             if (Math.abs(dy) < THRESHOLD) return;
             const { scrollable, atTop, atBottom } = sfCurrentSlideScrollState();
             if (scrollable && ((dy > 0 && !atBottom) || (dy < 0 && !atTop))) return; // the native scroll already handled it
