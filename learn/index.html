@@ -5324,6 +5324,11 @@
         <main class="main">
             <div class="topbar">
                 <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">☰</button>
+                <!-- Always visible, on every page (Knowledge Map, Exam
+                     Preparation, or any other subpage) - one consistent way
+                     back to the main feed, not scoped to any one mode's own
+                     exit button. See goToMainFeed. -->
+                <button class="btn" id="dashboardTopbarBtn" type="button" title="Back to feed">🏠 Dashboard</button>
                 <span class="topbar-title" id="topbarTitle">Dashboard</span>
                 <!-- Keys/Locks used to sit outside this scrollable row, in
                      the outer (non-scrolling) topbar flex line — on a
@@ -8083,15 +8088,20 @@ SQIDAQAB
     // renderSpecPracticePickList's actual question view) so there's always
     // one consistent way back to the default Cortex dashboard, no matter
     // how deep into a subject/lesson the student has navigated.
-    function exitSpecPracticeMode() {
+    // Shared "back to the main feed" action - turns off every special mode
+    // and re-enters selectFolder with whatever subject was already active,
+    // so it falls into the plain sfShowFolderFeed branch (or Cortex, if no
+    // subject was active). Used by exitSpecPracticeMode/exitKmGraphMode AND
+    // the persistent topbar Dashboard button, so there's one consistent way
+    // back to the feed no matter which page/mode the student is currently on.
+    function goToMainFeed() {
         specPracticeMode = false;
         kmGraphMode = false;
         selectedFolderSpecTree = null;
-        // Return to the subject's own feed (not Cortex) when a subject was
-        // active - selectFolder falls into its plain sfShowFolderFeed branch
-        // now that both mode flags are off. null (no subject was active)
-        // still falls back to Cortex, same as before.
         selectFolder(selectedFolderId);
+    }
+    function exitSpecPracticeMode() {
+        goToMainFeed();
     }
     function specPracticeBackButtonHtml() {
         return '<button type="button" class="btn" id="specPracticeBackBtn" style="margin-bottom:16px;">← Dashboard</button>';
@@ -8127,17 +8137,14 @@ SQIDAQAB
     }
 
     document.getElementById('practiceQuestionsTopbarBtn').addEventListener('click', renderExamPrepEntryScreen);
+    document.getElementById('dashboardTopbarBtn').addEventListener('click', goToMainFeed);
 
     // Same pattern as renderExamPrepEntryScreen/exitSpecPracticeMode - the
     // full atomic knowledge-map graph is now its own explicit mode rather
     // than the default subject-click behavior (see selectFolder), reached
     // from its own topbar button placed right next to Exam Preparation.
     function exitKmGraphMode() {
-        kmGraphMode = false;
-        specPracticeMode = false;
-        // Return to the subject's own feed (not Cortex) when a subject was
-        // active - see exitSpecPracticeMode's identical comment.
-        selectFolder(selectedFolderId);
+        goToMainFeed();
     }
     function renderKnowledgeMapEntryScreen() {
         kmGraphMode = true;
