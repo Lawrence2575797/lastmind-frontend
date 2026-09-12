@@ -1212,6 +1212,10 @@
     .sf-slide-explanation { font-size: 17px; line-height: 1.85; }
     .sf-slide-explanation p { margin: 0 0 16px; }
     .sf-slide-explanation p:last-child { margin-bottom: 0; }
+    .sf-slide-explanation ul, .sf-slide-explanation ol { margin: 0 0 16px; padding-left: 26px; }
+    .sf-slide-explanation ul:last-child, .sf-slide-explanation ol:last-child { margin-bottom: 0; }
+    .sf-slide-explanation li { margin-bottom: 8px; }
+    .sf-slide-explanation li:last-child { margin-bottom: 0; }
     .sf-speaker-label { font-size: 13px; font-weight: 700; opacity: 0.75; }
     .sf-question-text { font-size: 18px; line-height: 1.7; margin: 0; }
     .sf-question-input { width: 100%; box-sizing: border-box; font: inherit; font-size: 15px; padding: 12px 14px; border-radius: 8px; border: 1px solid rgba(230, 215, 176, 0.25); background: var(--bg); color: var(--text); resize: vertical; }
@@ -6691,23 +6695,65 @@ SQIDAQAB
     // shifts — a plain, reliable heuristic that turns one dense block into
     // several shorter, breathing ones. Each paragraph is escaped
     // individually, so this is safe to use directly as HTML.
+    //
+    // Also renders real markdown-style bullet ("* "/"- ") and numbered
+    // ("1. ") lines as actual <ul>/<ol> lists rather than folding them
+    // into prose - the prompt now writes enumerable content (e.g. "4
+    // types of X") this way specifically because a bulleted breakdown is
+    // much harder to skim-and-miss-a-word than the same facts buried
+    // mid-sentence in a paragraph. Old content with no line breaks at
+    // all still works exactly as before (one big line, all prose).
     function splitIntoParagraphs(text, sentencesPerParagraph = 2) {
         if (!text) return '';
-        // Splitting on "any period" was a real, reported bug — economics
-        // prose is full of abbreviations ("e.g.", "i.e.") where the period
-        // is followed by a LOWERCASE word, not a new sentence; that broke
-        // "e.g. responding to prices" into a dangling "g." fragment. A
-        // real sentence boundary is reliably followed by whitespace then a
-        // capital letter or digit — deliberately NOT quotes/parens too,
-        // since "(e.g. 'rational economic man')" starting with a quote
-        // right after an abbreviation is exactly the kind of thing that
-        // looked like a safe signal but wasn't (found while fixing this).
-        const sentences = text.split(/(?<=[.!?])\s+(?=[A-Z0-9])/).map((s) => s.trim()).filter(Boolean);
-        const paragraphs = [];
-        for (let i = 0; i < sentences.length; i += sentencesPerParagraph) {
-            paragraphs.push(sentences.slice(i, i + sentencesPerParagraph).join(' '));
+        const html = [];
+        let listBuffer = null; // { type: 'ul'|'ol', items: [] }
+        let proseBuffer = [];
+
+        function flushProse() {
+            if (!proseBuffer.length) return;
+            // Splitting on "any period" was a real, reported bug —
+            // economics prose is full of abbreviations ("e.g.", "i.e.")
+            // where the period is followed by a LOWERCASE word, not a new
+            // sentence; that broke "e.g. responding to prices" into a
+            // dangling "g." fragment. A real sentence boundary is
+            // reliably followed by whitespace then a capital letter or
+            // digit — deliberately NOT quotes/parens too, since "(e.g.
+            // 'rational economic man')" starting with a quote right
+            // after an abbreviation is exactly the kind of thing that
+            // looked like a safe signal but wasn't (found while fixing
+            // this).
+            const sentences = proseBuffer.join(' ').split(/(?<=[.!?])\s+(?=[A-Z0-9])/).map((s) => s.trim()).filter(Boolean);
+            for (let i = 0; i < sentences.length; i += sentencesPerParagraph) {
+                html.push(`<p>${boldMarkdownToHtml(sentences.slice(i, i + sentencesPerParagraph).join(' '))}</p>`);
+            }
+            proseBuffer = [];
         }
-        return paragraphs.filter(Boolean).map((p) => `<p>${boldMarkdownToHtml(p)}</p>`).join('');
+        function flushList() {
+            if (!listBuffer) return;
+            const tag = listBuffer.type;
+            html.push(`<${tag}>${listBuffer.items.map((item) => `<li>${boldMarkdownToHtml(item)}</li>`).join('')}</${tag}>`);
+            listBuffer = null;
+        }
+
+        text.split(/\n+/).map((l) => l.trim()).filter(Boolean).forEach((line) => {
+            const bulletMatch = line.match(/^[*-]\s+(.*)/);
+            const numberedMatch = line.match(/^\d+[.)]\s+(.*)/);
+            if (bulletMatch) {
+                flushProse();
+                if (!listBuffer || listBuffer.type !== 'ul') { flushList(); listBuffer = { type: 'ul', items: [] }; }
+                listBuffer.items.push(bulletMatch[1]);
+            } else if (numberedMatch) {
+                flushProse();
+                if (!listBuffer || listBuffer.type !== 'ol') { flushList(); listBuffer = { type: 'ol', items: [] }; }
+                listBuffer.items.push(numberedMatch[1]);
+            } else {
+                flushList();
+                proseBuffer.push(line);
+            }
+        });
+        flushList();
+        flushProse();
+        return html.join('');
     }
 
     // The model writes exponents/subscripts as plain "^"/"_" (e.g. "x^2",
