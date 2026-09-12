@@ -13882,12 +13882,13 @@ SQIDAQAB
         document.getElementById('accountSettingsStatus').textContent = '';
         document.getElementById('accountSettingsStatus').classList.remove('error');
         document.getElementById('ptOptInStatus').textContent = '';
-        // Tutoring opt-in is Premium-only (server-enforced on every
-        // /tutoring-profile route) — hide it entirely for free accounts
-        // rather than showing a control that would just 403.
-        document.getElementById('ptOptInSection').style.display = isPaidUser ? '' : 'none';
-        document.getElementById('ptOptInDivider').style.display = isPaidUser ? '' : 'none';
-        if (session && isPaidUser) loadTutoringOptInStatus(session);
+        // Peer tutoring is pulled from the live site entirely (see the
+        // topbar buttons' own hidden-on-login comment) - its backend
+        // routes are unmounted, so this opt-in control would just 404 if
+        // shown. Hidden unconditionally now rather than gated on paid
+        // tier, same "UI toggle, not a rebuild" reasoning.
+        document.getElementById('ptOptInSection').style.display = 'none';
+        document.getElementById('ptOptInDivider').style.display = 'none';
         document.getElementById('myAccountOverlay').classList.add('open');
     });
 
