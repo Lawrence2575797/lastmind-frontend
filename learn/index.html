@@ -15852,10 +15852,23 @@ SQIDAQAB
         }
     }
 
+    // True while the key/wheel event's real target is a text input the
+    // student could legitimately be typing into (the answer textarea) -
+    // real bug found: without this, pressing spacebar while writing an
+    // answer (an extremely common thing to do) got hijacked as a scroll-
+    // advance attempt instead of typing a space, and arrow keys couldn't
+    // move the cursor within a multi-line answer either. Scrolling/paging
+    // must never fire from a keystroke the student meant for the textbox.
+    function sfEventTargetIsTextInput(e) {
+        const t = e.target;
+        return !!t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT' || t.isContentEditable);
+    }
+
     function sfWireGestures(viewportEl) {
         let wheelAccum = 0;
         let wheelResetTimer = null;
         viewportEl.addEventListener('wheel', (e) => {
+            if (sfEventTargetIsTextInput(e)) return;
             e.preventDefault();
             wheelAccum += e.deltaY;
             clearTimeout(wheelResetTimer);
@@ -15866,7 +15879,9 @@ SQIDAQAB
         }, { passive: false });
 
         let touchStartY = null;
-        viewportEl.addEventListener('touchstart', (e) => { touchStartY = e.touches[0].clientY; }, { passive: true });
+        viewportEl.addEventListener('touchstart', (e) => {
+            touchStartY = sfEventTargetIsTextInput(e) ? null : e.touches[0].clientY;
+        }, { passive: true });
         viewportEl.addEventListener('touchend', (e) => {
             if (touchStartY === null) return;
             const dy = touchStartY - e.changedTouches[0].clientY;
@@ -15878,6 +15893,7 @@ SQIDAQAB
 
         viewportEl.tabIndex = 0;
         viewportEl.addEventListener('keydown', (e) => {
+            if (sfEventTargetIsTextInput(e)) return;
             if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); sfTryAdvance(1); }
             else if (e.key === 'ArrowUp' || e.key === 'PageUp') { e.preventDefault(); sfTryAdvance(-1); }
         });
