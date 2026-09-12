@@ -15670,6 +15670,7 @@ SQIDAQAB
                 return false;
             }
             inputEl.disabled = true;
+            feedbackEl.innerHTML = `<div class="sf-feedback-line">Checking…</div>`;
             const result = await sfPostBackend('/knowledge-map-v2/text-question/submit', {
                 nodeId: node.id, questionType: 'practice', answer, retryCount
             });
@@ -15835,6 +15836,7 @@ SQIDAQAB
                 return false;
             }
             inputEl.disabled = true;
+            feedbackEl.innerHTML = `<div class="sf-feedback-line">Checking…</div>`;
             const result = await sfPostBackend('/knowledge-map-v2/node-review/ao1/submit', { nodeId: rec.node.id, questionText: data.questionText, answer, retryCount });
             if (!result) {
                 inputEl.disabled = false;
@@ -15913,6 +15915,7 @@ SQIDAQAB
                 return false;
             }
             inputEl.disabled = true;
+            feedbackEl.innerHTML = `<div class="sf-feedback-line">Checking…</div>`;
             const result = await sfPostBackend('/knowledge-map-v2/node-review/integration/submit', {
                 fromNodeId: rec.node.id, toNodeId: link.id, questionText: data.questionText, answer, retryCount
             });
@@ -16174,6 +16177,7 @@ SQIDAQAB
                 return false;
             }
             inputEl.disabled = true;
+            feedbackEl.innerHTML = `<div class="sf-feedback-line">Checking…</div>`;
             const result = await sfPostBackend(`/immediate-recalls/${row.recallId}/submit`, { answer });
             if (!result) {
                 inputEl.disabled = false;
@@ -16627,6 +16631,7 @@ SQIDAQAB
                 return false;
             }
             inputEl.disabled = true;
+            feedbackEl.innerHTML = `<div class="sf-feedback-line">Checking…</div>`;
             const result = await sfPostBackend(`/exam-prep-corrections/${correction.id}/submit`, { answerText: answer });
             if (!result) {
                 inputEl.disabled = false;
