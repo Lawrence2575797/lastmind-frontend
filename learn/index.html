@@ -1206,7 +1206,21 @@
     .sf-feed-exit-btn { position: absolute; top: 14px; right: 14px; z-index: 2; width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(0,0,0,0.25); color: var(--text); font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
     .sf-feed-viewport { position: absolute; inset: 0; overflow: hidden; outline: none; }
     .sf-feed-track { display: flex; flex-direction: column; height: 100%; transition: transform 400ms cubic-bezier(0.22, 1, 0.36, 1); will-change: transform; }
-    .sf-feed-slide { flex: none; height: 100%; display: flex; align-items: center; justify-content: center; padding: 40px 32px; box-sizing: border-box; }
+    /* overflow-y:auto + a generous bottom padding is what makes a slide
+       taller than the viewport (common on mobile) actually scrollable
+       in place, rather than the bottom of the content being invisibly
+       clipped - see sfWireGestures's own comment on the matching JS
+       half of this fix. align-items:center still centers a SHORT slide
+       exactly as before; "safe center" (ignored by browsers that don't
+       support it, in which case the plain "center" above still applies)
+       switches a TALLER, scrolling slide to start-aligned instead of
+       centered, so scrolling to the top actually reaches the true start
+       of the content instead of a symmetrically-clipped middle. The
+       extra bottom padding is deliberately much larger than the top -
+       an obvious visible gap after the last element (the submit button,
+       or the advance hint) that makes "you've reached the real end, not
+       a cut-off" unambiguous once scrolled all the way down. */
+    .sf-feed-slide { flex: none; height: 100%; display: flex; align-items: center; align-items: safe center; justify-content: center; padding: 40px 32px 140px; box-sizing: border-box; overflow-y: auto; -webkit-overflow-scrolling: touch; }
     .sf-slide-inner { max-width: 620px; width: 100%; display: flex; flex-direction: column; gap: 14px; }
     .sf-slide-subject { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.6; }
     .sf-slide-explanation { font-size: 17px; line-height: 1.85; }
@@ -16687,6 +16701,35 @@ SQIDAQAB
         return !!t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT' || t.isContentEditable);
     }
 
+    // Real bug found and fixed: on mobile, a slide whose content is
+    // taller than the screen had no way to actually read the overflow -
+    // the wheel handler called preventDefault() unconditionally (killing
+    // any native scroll), and the slide itself had no scrollable area at
+    // all, so ANY swipe/scroll gesture - regardless of how much content
+    // was still off-screen - immediately navigated to the next slide.
+    // Fix: a slide is now internally scrollable (overflow-y:auto, see
+    // .sf-feed-slide's own CSS comment), and a downward gesture only
+    // ever counts as "advance to next slide" once the CURRENT slide is
+    // already scrolled to its own bottom (equivalently, short enough to
+    // need no scrolling at all) - otherwise it's left alone to scroll
+    // the content in place, exactly like an ordinary web page. Mirrors
+    // for scrolling back up against the top. This is the whole reason
+    // for the generous bottom padding in the CSS too - a real, visible
+    // gap after the last element makes "this really is the bottom, one
+    // more scroll moves on" unambiguous rather than looking like more
+    // content might still be cut off below.
+    function sfCurrentSlideScrollState() {
+        const slideEl = sfFeed && sfFeed.slides[sfFeed.currentIndex];
+        if (!slideEl) return { scrollable: false, atTop: true, atBottom: true };
+        const EPSILON = 2;
+        const scrollable = slideEl.scrollHeight > slideEl.clientHeight + EPSILON;
+        return {
+            scrollable,
+            atTop: slideEl.scrollTop <= EPSILON,
+            atBottom: slideEl.scrollTop + slideEl.clientHeight >= slideEl.scrollHeight - EPSILON,
+        };
+    }
+
     function sfWireGestures(viewportEl) {
         let wheelAccum = 0;
         let wheelResetTimer = null;
@@ -16702,6 +16745,8 @@ SQIDAQAB
         let gestureLocked = false;
         viewportEl.addEventListener('wheel', (e) => {
             if (sfEventTargetIsTextInput(e)) return;
+            const { scrollable, atTop, atBottom } = sfCurrentSlideScrollState();
+            if (scrollable && ((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop))) return; // let the native scroll happen
             e.preventDefault();
             clearTimeout(wheelResetTimer);
             wheelResetTimer = setTimeout(() => { wheelAccum = 0; gestureLocked = false; }, 200);
@@ -16712,6 +16757,13 @@ SQIDAQAB
             else if (wheelAccum < -THRESHOLD) { gestureLocked = true; sfTryAdvance(-1); }
         }, { passive: false });
 
+        // Deliberately passive (no preventDefault) - the browser's own
+        // native touch-scroll of the current slide (overflow-y:auto)
+        // runs freely during the drag, so by touchend scrollTop already
+        // reflects wherever that landed. Only once the content has
+        // nothing left to scroll in the swiped direction does the SAME
+        // gesture also count as a page-advance - checked here, after the
+        // native scroll already happened, not before it.
         let touchStartY = null;
         viewportEl.addEventListener('touchstart', (e) => {
             touchStartY = sfEventTargetIsTextInput(e) ? null : e.touches[0].clientY;
@@ -16721,6 +16773,9 @@ SQIDAQAB
             const dy = touchStartY - e.changedTouches[0].clientY;
             touchStartY = null;
             const THRESHOLD = 50;
+            if (Math.abs(dy) < THRESHOLD) return;
+            const { scrollable, atTop, atBottom } = sfCurrentSlideScrollState();
+            if (scrollable && ((dy > 0 && !atBottom) || (dy < 0 && !atTop))) return; // the native scroll already handled it
             if (dy > THRESHOLD) sfTryAdvance(1);
             else if (dy < -THRESHOLD) sfTryAdvance(-1);
         }, { passive: true });
@@ -16728,8 +16783,22 @@ SQIDAQAB
         viewportEl.tabIndex = 0;
         viewportEl.addEventListener('keydown', (e) => {
             if (sfEventTargetIsTextInput(e)) return;
-            if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); sfTryAdvance(1); }
-            else if (e.key === 'ArrowUp' || e.key === 'PageUp') { e.preventDefault(); sfTryAdvance(-1); }
+            const { scrollable, atTop, atBottom } = sfCurrentSlideScrollState();
+            // Unlike wheel/touch, a native arrow-key/space scroll only
+            // ever applies to whatever element actually has focus
+            // (viewportEl here, which isn't the scrollable slide itself)
+            // - so "let the browser handle it" doesn't work for keyboard;
+            // scroll the slide manually instead of advancing.
+            const slideEl = sfFeed && sfFeed.slides[sfFeed.currentIndex];
+            if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ') {
+                e.preventDefault();
+                if (scrollable && !atBottom) { slideEl.scrollTop += slideEl.clientHeight * 0.8; return; }
+                sfTryAdvance(1);
+            } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
+                e.preventDefault();
+                if (scrollable && !atTop) { slideEl.scrollTop -= slideEl.clientHeight * 0.8; return; }
+                sfTryAdvance(-1);
+            }
         });
     }
 
