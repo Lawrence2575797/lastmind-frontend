@@ -15500,6 +15500,16 @@ SQIDAQAB
     // already on screen again, or skip a sibling that's only unblocked
     // once THIS node finishes - both would be wrong once the real answer
     // lands a few moments later.
+    // Fetches this user's due Day-1 checks (see day1CheckService.ts on
+    // the backend - the day-after check for a concept's first encoding
+    // or a link's first integration, prioritised alongside real spaced
+    // reviews). Not folder-scoped server-side (it's a plain per-user
+    // list), so callers filter by subject themselves.
+    async function sfFetchDueDay1Checks() {
+        const result = await sfGetBackend('/day1-checks/due');
+        return (result && result.checks) || [];
+    }
+
     async function sfComputeFolderRecommendation(folder, pretendEncodedNodeId) {
         let data;
         try {
@@ -15551,6 +15561,22 @@ SQIDAQAB
             const due = sfNextNodeReviewDueDate(n, qualifyingLinks, schedule) || new Date(0);
             if (!bestDue || due < bestDue.due) bestDue = { node: n, qualifyingLinks, due };
         });
+
+        // Day-1 checks are prioritised alongside real spaced reviews
+        // (both outrank a new lesson) - compare whichever is earliest
+        // due between the two, since a folder can have at most one of
+        // each as its own best candidate.
+        const day1Checks = (await sfFetchDueDay1Checks()).filter((c) => c.subject === folder.subject);
+        const bestDay1 = day1Checks.length
+            ? day1Checks.reduce((a, b) => (new Date(a.dueDate) <= new Date(b.dueDate) ? a : b))
+            : null;
+
+        if (bestDue && bestDay1) {
+            return new Date(bestDay1.dueDate) < bestDue.due
+                ? { type: 'day1', check: bestDay1, folder, due: new Date(bestDay1.dueDate) }
+                : { type: 'review', node: bestDue.node, qualifyingLinks: bestDue.qualifyingLinks, folder, due: bestDue.due };
+        }
+        if (bestDay1) return { type: 'day1', check: bestDay1, folder, due: new Date(bestDay1.dueDate) };
         if (bestDue) return { type: 'review', node: bestDue.node, qualifyingLinks: bestDue.qualifyingLinks, folder, due: bestDue.due };
 
         for (const n of data.nodes) {
@@ -15561,14 +15587,14 @@ SQIDAQAB
     }
 
     // The single best thing to show across every subject the student has
-    // - a due review anywhere beats a new lesson anywhere (spaced
-    // repetition only works if due items are actually seen near their due
-    // date), earliest-due-first among reviews; otherwise the first
-    // not-yet-started concept found, in sidebar folder order (an arbitrary
-    // but stable, predictable tie-break).
+    // - a due review OR Day-1 check anywhere beats a new lesson anywhere
+    // (spaced repetition only works if due items are actually seen near
+    // their due date), earliest-due-first among the two; otherwise the
+    // first not-yet-started concept found, in sidebar folder order (an
+    // arbitrary but stable, predictable tie-break).
     async function sfComputeGlobalNextLesson(pretendEncodedNodeId) {
         const recs = (await Promise.all((folders || []).map((f) => sfComputeFolderRecommendation(f, pretendEncodedNodeId).catch(() => null)))).filter(Boolean);
-        const dueReviews = recs.filter((r) => r.type === 'review').sort((a, b) => a.due - b.due);
+        const dueReviews = recs.filter((r) => r.type === 'review' || r.type === 'day1').sort((a, b) => a.due - b.due);
         if (dueReviews.length) return dueReviews[0];
         return recs.find((r) => r.type === 'lesson') || null;
     }
@@ -15982,6 +16008,10 @@ SQIDAQAB
     // recommendation, or the ported spaced-review flow above for a
     // 'review' one.
     async function sfBuildSlidesForRecommendation(rec) {
+        if (rec.type === 'day1') {
+            sfPrefetchNext();
+            return [sfBuildDay1CheckSlide(rec.check)];
+        }
         if (rec.type === 'review') {
             const slides = await sfBuildReviewSlides(rec);
             if (slides.length) {
@@ -16107,6 +16137,75 @@ SQIDAQAB
             sfFeed.slides.splice(index + i, 0, el);
             sfFeed.meta.splice(index + i, 0, meta);
         });
+    }
+
+    // Builds a Day-1 check's slide - the day-after check for a concept's
+    // first encoding or a link's first integration (see day1CheckService.ts
+    // on the backend). Unlike every other question slide, a RESOLVED
+    // outcome always lets the student move on even when wrong - a Day-1
+    // check gets at most one extra attempt (only when the wrong answer is
+    // flagged as a careless slip, not a real gap), and once that's used
+    // up the check is genuinely over either way; the concept just waits
+    // for its next real trigger (a fresh recall cascade or the concept's
+    // own FSRS review) rather than retrying here indefinitely.
+    function sfBuildDay1CheckSlide(check) {
+        const el = document.createElement('div');
+        el.className = 'sf-feed-slide';
+        el.innerHTML = `
+            <div class="sf-slide-inner">
+                <div class="sf-slide-subject">Day-1 check · ${escapeHtml(check.subject)}</div>
+                <div class="sf-speaker-label">Cortex asks</div>
+                <p class="sf-question-text">${escapeHtml(check.questionText)}</p>
+                <textarea class="sf-question-input" rows="3" placeholder="Your answer" autocomplete="off"></textarea>
+                <button type="button" class="btn primary sf-question-submit">Submit</button>
+                <div class="sf-question-feedback"></div>
+                <div class="sf-advance-hint" hidden>Moving on…</div>
+            </div>`;
+        const meta = { canAdvance: false, kind: 'day1', answered: false, noBack: true };
+        const inputEl = el.querySelector('.sf-question-input');
+        const feedbackEl = el.querySelector('.sf-question-feedback');
+        el.querySelector('.sf-question-submit').addEventListener('click', sfSubmitCurrentSlide);
+        let awaitingSillyRetry = false;
+        meta.trySubmit = async () => {
+            const answer = (inputEl.value || '').trim();
+            if (!answer) {
+                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Write an answer before continuing.</div>`;
+                return false;
+            }
+            inputEl.disabled = true;
+            feedbackEl.innerHTML = `<div class="sf-feedback-line">Checking…</div>`;
+            const result = await sfPostBackend(`/day1-checks/${check.checkId}/submit`, { answer, retryAfterSillyMistake: awaitingSillyRetry });
+            if (!result) {
+                inputEl.disabled = false;
+                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Something went wrong submitting that - try again.</div>`;
+                return false;
+            }
+            if (result.correct) {
+                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-correct">✓ Correct</div>`;
+                meta.answered = true;
+                meta.canAdvance = true;
+                sfShowAdvanceHint(el);
+                sfPrefetchNext();
+                return true;
+            }
+            if (result.sillyMistake && !awaitingSillyRetry) {
+                awaitingSillyRetry = true;
+                inputEl.disabled = false;
+                inputEl.value = '';
+                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">That looks like a slip, not a gap - try this one once more.</div>`;
+                return false;
+            }
+            // Genuinely resolved as wrong (or a still-wrong retry) - the
+            // check is over either way, so the student moves on despite
+            // the wrong answer rather than being stuck retrying it here.
+            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || "Not quite - this one will come back around.")}</div>`;
+            meta.answered = true;
+            meta.canAdvance = true;
+            sfShowAdvanceHint(el);
+            sfPrefetchNext();
+            return true;
+        };
+        return { el, meta };
     }
 
     // ---- Same-session immediate recalls ----
