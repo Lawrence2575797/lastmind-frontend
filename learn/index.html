@@ -15708,23 +15708,283 @@ SQIDAQAB
         slideEl.classList.add('sf-shake');
     }
 
+    // ---- Spaced review, ported into the feed (AO1 + qualifying links) ----
+    //
+    // This is the same review engine the knowledge-map graph view's
+    // "Start review" flow drives (node-review/ao1/*, node-review/integration/*)
+    // - not a reimplementation of the grading/FSRS logic, just a different
+    // skin: one slide per question instead of a full-page multi-step
+    // overlay, with each step's NEXT step built and spliced in just-in-time
+    // (sfInsertSlidesAt) rather than the whole session being pre-built up
+    // front - the exact same "insert ahead, then let scrolling carry the
+    // student into it" pattern sfJumpToRecalls already uses.
+    //
+    // Faithfully preserves the graph view's own carefully-tuned rules
+    // (see OVERNIGHT_SPEC_STATUS.md's note on how easy this gating is to
+    // get subtly wrong): AO1 is only shown when its OWN due date has
+    // passed, independent of the node-level bundle check that decided to
+    // offer this review at all - if AO1 itself isn't due but a qualifying
+    // link is, AO1 is skipped entirely and the session starts at the
+    // first genuinely-due link. Every qualifying link is still tested
+    // once a review starts (not just the currently-due ones), matching
+    // the graph view's own "reviewing a node refreshes its whole link
+    // bundle" design. A wrong answer never ends the session - always a
+    // retry in place, matching "AO1 never fails" (integration answers are
+    // never FSRS-graded when wrong, only the eventual correct pass is -
+    // the backend already enforces this, nothing extra needed here for
+    // it). Teaching content (linkTeaching/notes) is only ever shown on a
+    // link's genuinely first-ever integration review (isFirstAttempt) -
+    // every later spaced review of that same link is cold recall, no
+    // teaching slide, or the whole point of spaced review is lost. An
+    // `{unavailable:true}` link (diagram-typed or missing question) is a
+    // normal, legitimate "skip this one" signal, not a failure - a real
+    // network failure instead stops here rather than silently truncating
+    // the whole review to "nothing more to test" (the exact bug the
+    // graph view's own postNodeReviewStepStart comment flags).
+    //
+    // Deliberately NOT ported: the graph view's localStorage checkpoint
+    // (resume this exact review across a page reload) and draft-answer
+    // persistence - the feed itself doesn't persist ANY in-progress state
+    // across a reload today (a reload just recomputes from scratch), so
+    // skipping this here is parity with the feed's existing behavior
+    // everywhere else, not a new gap specific to reviews.
+    function sfReviewLinkKey(node, link) { return `${node.conceptId}->${link.conceptId}`; }
+
+    async function sfBuildAo1Slide(rec) {
+        const data = await sfPostBackend('/knowledge-map-v2/node-review/ao1/start', { nodeId: rec.node.id });
+        if (!data || data.notFound || !data.questionText) return null;
+
+        const el = document.createElement('div');
+        el.className = 'sf-feed-slide';
+        el.innerHTML = `
+            <div class="sf-slide-inner">
+                <div class="sf-slide-subject">🔁 Review · ${escapeHtml(folderLabel(rec.folder))}</div>
+                <div class="sf-speaker-label">🧭 Cortex asks</div>
+                <p class="sf-question-text">${escapeHtml(data.questionText)}</p>
+                <textarea class="sf-question-input" rows="3" placeholder="Your answer - scroll down to submit" autocomplete="off"></textarea>
+                <div class="sf-question-feedback"></div>
+                <div class="sf-advance-hint" hidden>Scroll down for what's next ↓</div>
+            </div>`;
+        const meta = { canAdvance: false, kind: 'review-ao1', answered: false, noBack: true };
+        const inputEl = el.querySelector('.sf-question-input');
+        const feedbackEl = el.querySelector('.sf-question-feedback');
+        let retryCount = 0;
+
+        async function onCorrect(result) {
+            if (result.schedule) sfUpsertScheduleCache(result.schedule);
+            meta.answered = true;
+            meta.canAdvance = true;
+            sfShowAdvanceHint(el);
+            sfPrefetchNext();
+            if (!sfFeed) return;
+            const nextSlides = await sfBuildIntegrationSlidesFrom(rec, 0);
+            if (nextSlides.length && sfFeed) sfInsertSlidesAt(sfFeed.currentIndex + 1, nextSlides);
+        }
+
+        // Not a confirmation dialog - the flagged word becomes a live,
+        // pre-filled, pre-selected inline correction spliced into the
+        // student's own answer text, same design as the graph view's
+        // inlineSlipCorrectionHtml. This is a click-driven action (two
+        // distinct choices, not a free-text answer), so it bypasses
+        // trySubmit/scrolling entirely rather than trying to force a
+        // binary choice into the scroll-to-submit metaphor.
+        function renderSlipCheck(wrongPhrase, originalAnswer, questionText) {
+            const idx = originalAnswer.indexOf(wrongPhrase);
+            const before = idx === -1 ? originalAnswer : originalAnswer.slice(0, idx);
+            const after = idx === -1 ? '' : originalAnswer.slice(idx + wrongPhrase.length);
+            feedbackEl.innerHTML = `
+                <div class="sf-feedback-line sf-feedback-wrong">That doesn't look quite right - fix just the highlighted part:</div>
+                <p style="margin:8px 0;">${escapeHtml(before)}<input type="text" class="sf-slip-correction-input" value="${escapeHtml(wrongPhrase)}" style="width:140px;font:inherit;padding:2px 6px;border-radius:4px;border:1px solid rgba(230,215,176,0.4);background:var(--bg);color:var(--text);">${escapeHtml(after)}</p>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button type="button" class="btn primary sf-slip-submit-btn">Submit correction</button>
+                    <button type="button" class="btn sf-slip-decline-btn">No, I actually didn't know this</button>
+                </div>`;
+            const correctionInput = feedbackEl.querySelector('.sf-slip-correction-input');
+            correctionInput.focus();
+            correctionInput.select();
+            feedbackEl.querySelector('.sf-slip-submit-btn').addEventListener('click', async () => {
+                const result = await sfPostBackend('/knowledge-map-v2/node-review/ao1/submit-slip-correction', {
+                    nodeId: rec.node.id, questionText, originalAnswer, wrongPhrase, correction: correctionInput.value, retryCount
+                });
+                if (result && result.correct) {
+                    feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-correct">✓ Correct</div>`;
+                    await onCorrect(result);
+                    sfForceMoveToIndex(sfFeed.currentIndex + 1);
+                } else {
+                    retryCount += 1;
+                    feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">🧭 Cortex: ${escapeHtml((result && result.feedback) || 'Not quite - try again.')}</div>`;
+                    inputEl.disabled = false;
+                    inputEl.value = originalAnswer;
+                }
+            });
+            feedbackEl.querySelector('.sf-slip-decline-btn').addEventListener('click', async () => {
+                const result = await sfPostBackend('/knowledge-map-v2/node-review/ao1/submit-slip-correction', {
+                    nodeId: rec.node.id, questionText, originalAnswer, declined: true, retryCount
+                });
+                retryCount += 1;
+                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">🧭 Cortex: ${escapeHtml((result && result.feedback) || 'Not quite - try again.')}</div>`;
+                inputEl.disabled = false;
+                inputEl.value = '';
+            });
+        }
+
+        meta.trySubmit = async () => {
+            const answer = (inputEl.value || '').trim();
+            if (!answer) {
+                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Write an answer before continuing.</div>`;
+                return false;
+            }
+            inputEl.disabled = true;
+            const result = await sfPostBackend('/knowledge-map-v2/node-review/ao1/submit', { nodeId: rec.node.id, questionText: data.questionText, answer, retryCount });
+            if (!result) {
+                inputEl.disabled = false;
+                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Something went wrong submitting that - try again.</div>`;
+                return false;
+            }
+            if (result.correct) {
+                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-correct">✓ Correct</div>`;
+                await onCorrect(result);
+                return true;
+            }
+            if (result.isSlipCandidate) {
+                renderSlipCheck(result.wrongPhrase, answer, data.questionText);
+                return false;
+            }
+            retryCount += 1;
+            inputEl.disabled = false;
+            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">🧭 Cortex: ${escapeHtml(result.feedback || "Not quite - try again.")}</div>`;
+            return false;
+        };
+        return { el, meta };
+    }
+
+    // Recursively finds the first qualifying link (starting at `index`)
+    // whose integration question is actually available, skipping any
+    // {unavailable:true} ones exactly like the graph view's own
+    // renderNodeReviewLinkStart - and builds its slide(s): an explanation
+    // slide first ONLY on that link's genuine first-ever attempt (never
+    // on a later spaced review of the same link), then the question
+    // slide. A real network failure (data === null) stops here rather
+    // than skipping ahead, since silently treating a failure as "nothing
+    // left to test" would truncate the review without the student ever
+    // knowing why.
+    async function sfBuildIntegrationSlidesFrom(rec, index) {
+        if (!sfFeed || index >= rec.qualifyingLinks.length) return [];
+        const link = rec.qualifyingLinks[index];
+        const data = await sfPostBackend('/knowledge-map-v2/node-review/integration/start', { fromNodeId: rec.node.id, toNodeId: link.id });
+        if (!data) return [];
+        if (data.unavailable) return sfBuildIntegrationSlidesFrom(rec, index + 1);
+
+        const slides = [];
+        const teachingText = (data.notes && Array.isArray(data.notes.paragraphs) && data.notes.paragraphs.length)
+            ? data.notes.paragraphs.join('\n\n')
+            : data.linkTeaching;
+        if (data.isFirstAttempt && teachingText) {
+            const explEl = document.createElement('div');
+            explEl.className = 'sf-feed-slide';
+            explEl.innerHTML = `
+                <div class="sf-slide-inner">
+                    <div class="sf-slide-subject">🔁 Review link · ${escapeHtml(rec.node.label)} → ${escapeHtml(link.label)}</div>
+                    <div class="sf-slide-explanation">${splitIntoParagraphs(teachingText)}</div>
+                    <div class="sf-advance-hint">Scroll down ↓</div>
+                </div>`;
+            slides.push({ el: explEl, meta: { canAdvance: true, kind: 'review-link-explanation' } });
+        }
+
+        const qEl = document.createElement('div');
+        qEl.className = 'sf-feed-slide';
+        qEl.innerHTML = `
+            <div class="sf-slide-inner">
+                <div class="sf-slide-subject">🔁 Review link ${index + 1} of ${rec.qualifyingLinks.length} · ${escapeHtml(rec.node.label)} → ${escapeHtml(link.label)}</div>
+                <div class="sf-speaker-label">🧭 Cortex asks</div>
+                <p class="sf-question-text">${escapeHtml(data.questionText)}</p>
+                <textarea class="sf-question-input" rows="3" placeholder="Your answer - scroll down to submit" autocomplete="off"></textarea>
+                <div class="sf-question-feedback"></div>
+                <div class="sf-advance-hint" hidden>Scroll down for what's next ↓</div>
+            </div>`;
+        const meta = { canAdvance: false, kind: 'review-integration', answered: false, noBack: true };
+        const inputEl = qEl.querySelector('.sf-question-input');
+        const feedbackEl = qEl.querySelector('.sf-question-feedback');
+        let retryCount = 0;
+        meta.trySubmit = async () => {
+            const answer = (inputEl.value || '').trim();
+            if (!answer) {
+                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Write an answer before continuing.</div>`;
+                return false;
+            }
+            inputEl.disabled = true;
+            const result = await sfPostBackend('/knowledge-map-v2/node-review/integration/submit', {
+                fromNodeId: rec.node.id, toNodeId: link.id, questionText: data.questionText, answer, retryCount
+            });
+            if (!result) {
+                inputEl.disabled = false;
+                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Something went wrong submitting that - try again.</div>`;
+                return false;
+            }
+            if (result.correct) {
+                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-correct">✓ Correct</div>`;
+                if (result.schedule) sfUpsertScheduleCache(result.schedule);
+                meta.answered = true;
+                meta.canAdvance = true;
+                sfShowAdvanceHint(qEl);
+                sfPrefetchNext();
+                if (sfFeed) {
+                    const nextSlides = await sfBuildIntegrationSlidesFrom(rec, index + 1);
+                    if (nextSlides.length && sfFeed) sfInsertSlidesAt(sfFeed.currentIndex + 1, nextSlides);
+                }
+                return true;
+            }
+            retryCount += 1;
+            inputEl.disabled = false;
+            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">🧭 Cortex: ${escapeHtml(result.feedback || "Not quite - try again.")}</div>`;
+            return false;
+        };
+        slides.push({ el: qEl, meta });
+        return slides;
+    }
+
+    // Entry point - decides whether this session starts at AO1 or skips
+    // straight to the first genuinely-due qualifying link (see this
+    // section's own top comment on why that decision can't just be "AO1
+    // due OR any link due" - that's only the bundle check for whether to
+    // offer a review at all, not for which step actually starts it).
+    async function sfBuildReviewSlides(rec) {
+        const schedule = new Map((cachedScheduleData || []).map((r) => [r.concept_id, r]));
+        const ao1Due = sfIsScheduleEntryDue(schedule.get(rec.node.conceptId));
+        if (ao1Due) {
+            const ao1Slide = await sfBuildAo1Slide(rec);
+            if (ao1Slide) return [ao1Slide];
+            // No AO1 content exists (shouldn't normally happen for an
+            // already-encoded node) - fall through to links instead of
+            // failing the whole review outright.
+        }
+        const startIndex = rec.qualifyingLinks.findIndex((link) =>
+            sfIsScheduleEntryDue(schedule.get(sfReviewLinkKey(rec.node, link))) ||
+            sfIsScheduleEntryDue(schedule.get(`${sfReviewLinkKey(rec.node, link)}::integration`))
+        );
+        return sfBuildIntegrationSlidesFrom(rec, startIndex === -1 ? 0 : startIndex);
+    }
+
     // Builds the explanation+question slide pair for a 'lesson'
-    // recommendation, or a single handoff slide for a 'review' one (see
-    // OVERNIGHT_SPEC_STATUS.md for why reviews hand off to the existing
-    // per-folder review UI rather than being reimplemented natively here
-    // in this first pass - the AO1/qualifying-link review flow is a
-    // materially more complex, already carefully-tuned multi-step process
-    // this feed doesn't yet reproduce).
+    // recommendation, or the ported spaced-review flow above for a
+    // 'review' one.
     async function sfBuildSlidesForRecommendation(rec) {
         if (rec.type === 'review') {
+            const slides = await sfBuildReviewSlides(rec);
+            if (slides.length) {
+                sfPrefetchNext();
+                return slides;
+            }
+            // Last-resort fallback (a real network failure, or a data state
+            // with genuinely nothing left to ask) - same handoff pattern
+            // used for a lesson that fails to load below.
             const el = document.createElement('div');
             el.className = 'sf-feed-slide';
             el.innerHTML = `
                 <div class="sf-slide-inner sf-handoff">
                     <div class="sf-speaker-label">🧭 Cortex</div>
-                    <p class="sf-handoff-text">Time for a spaced review: <strong>${escapeHtml(rec.node.label)}</strong> in ${escapeHtml(folderLabel(rec.folder))}.</p>
-                    <button type="button" class="btn primary sf-handoff-btn">Open ${escapeHtml(folderLabel(rec.folder))} to continue →</button>
-                    <div class="sf-advance-hint" hidden>Scroll down for what's next ↓</div>
+                    <p class="sf-handoff-text">Couldn't load the spaced review for <strong>${escapeHtml(rec.node.label)}</strong> right now - open ${escapeHtml(folderLabel(rec.folder))} directly instead.</p>
+                    <button type="button" class="btn primary sf-handoff-btn">Open ${escapeHtml(folderLabel(rec.folder))} →</button>
                 </div>`;
             el.querySelector('.sf-handoff-btn').addEventListener('click', () => {
                 sfCloseFeed();
@@ -15816,6 +16076,23 @@ SQIDAQAB
         if (!sfFeed) return;
         sfFeed.locked = false;
         sfMoveToIndex(newIndex);
+    }
+
+    // Splices freshly-built slides into the track at a specific position
+    // (rather than always appending at the end - see sfAppendBuiltSlides).
+    // Used both by the immediate-recall interrupt (sfJumpToRecalls) and by
+    // the ported spaced-review flow (sfBuildIntegrationSlidesFrom) to
+    // insert each next step right after wherever the student currently is,
+    // just-in-time, rather than pre-building an entire multi-step session
+    // up front.
+    function sfInsertSlidesAt(index, built) {
+        if (!sfFeed || !built.length) return;
+        const refEl = sfFeed.slides[index] || null;
+        built.forEach(({ el, meta }, i) => {
+            sfFeed.trackEl.insertBefore(el, refEl);
+            sfFeed.slides.splice(index + i, 0, el);
+            sfFeed.meta.splice(index + i, 0, meta);
+        });
     }
 
     // ---- Same-session immediate recalls ----
@@ -15949,13 +16226,7 @@ SQIDAQAB
             return true;
         };
 
-        const refEl = sfFeed.slides[insertAt] || null;
-        usable.forEach(({ row, question }, i) => {
-            const { el, meta } = sfBuildImmediateRecallSlide(row, question, onOneDone);
-            sfFeed.trackEl.insertBefore(el, refEl);
-            sfFeed.slides.splice(insertAt + i, 0, el);
-            sfFeed.meta.splice(insertAt + i, 0, meta);
-        });
+        sfInsertSlidesAt(insertAt, usable.map(({ row, question }) => sfBuildImmediateRecallSlide(row, question, onOneDone)));
         sfForceMoveToIndex(insertAt);
     }
 
