@@ -16121,6 +16121,14 @@ SQIDAQAB
         sfFeed.nudgeEl.innerHTML = '';
     }
 
+    // Matches the backend's own RECALL_GRACE_MS (knowledgeMap.ts) - a
+    // missed recall is given up on permanently, not shown later, so an
+    // ignored nudge shouldn't linger past the same window either. The
+    // backend is the actual source of truth (it expires the row on the
+    // next /immediate-recalls/due fetch regardless), this just keeps the
+    // UI honest within a single continuous session in the meantime.
+    const SF_RECALL_GRACE_MS = 3 * 60 * 1000;
+
     function sfShowRecallNudge(rows) {
         if (!sfFeed || !sfFeed.nudgeEl || !rows.length) return;
         const label = rows.length === 1 ? `Time for a quick recall: ${escapeHtml(rows[0].label)}` : `Time for ${rows.length} quick recalls`;
@@ -16132,6 +16140,10 @@ SQIDAQAB
             sfHideRecallNudge();
             sfJumpToRecalls(rows);
         });
+        const expireTimer = setTimeout(() => {
+            if (sfFeed && sfFeed.nudgeEl && !sfFeed.nudgeEl.hidden) sfHideRecallNudge();
+        }, SF_RECALL_GRACE_MS);
+        sfFeed.recallTimers.push(expireTimer);
     }
 
     // Builds one recall's slide - just the original practice question
@@ -16524,6 +16536,17 @@ SQIDAQAB
     // global, cross-subject login-time feed; called with a folder (see
     // sfShowFolderFeed) to scope it to just that one subject instead.
     async function sfMaybeShowFeed(scopeFolder) {
+        // Real bug found: cachedScheduleData (what every isNodeEncoded/
+        // isNodeReviewDue check below is keyed against) was previously
+        // only ever populated as a side effect of visiting the Calendar or
+        // Revision Plan pages - never on login, never when opening the
+        // feed directly. Since the feed is now the default entry point,
+        // a student who never happened to open Calendar/Revision Plan
+        // first saw an empty schedule cache, which made every already-
+        // encoded concept look brand new and re-recommended lessons
+        // they'd already finished. Always refresh it here, before
+        // computing anything - a plain DB read, not an AI call.
+        cachedScheduleData = await fetchScheduleData();
         const rec = scopeFolder ? await sfComputeFolderRecommendation(scopeFolder) : await sfComputeGlobalNextLesson();
         if (!rec) return false;
         const { viewportEl } = sfMountFeedShell('Back to Cortex', null, scopeFolder);
