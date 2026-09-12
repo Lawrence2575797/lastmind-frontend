@@ -15469,12 +15469,22 @@ SQIDAQAB
     function sfIsScheduleEntryDue(entry) {
         return !entry || daysBetweenLocalDays(new Date(), new Date(entry.due)) <= 0;
     }
+    // Real bug found and fixed: this used to ALSO check a bare
+    // `fromConceptId->toConceptId` key (no ::integration suffix) as an OR
+    // condition - that key belongs to a completely different, unrelated
+    // mechanism (the free-tier chain-diagnostic gate's own transfer/
+    // integration check), which most real node/link pairs have simply
+    // never gone through at all. Since that row then genuinely doesn't
+    // exist, sfIsScheduleEntryDue's `!entry` treated its ABSENCE as
+    // "due" - meaning nearly every qualifying link read as permanently
+    // due regardless of what its REAL ::integration schedule entry
+    // actually said, since the two were combined with OR. This is also
+    // why sfNextNodeReviewDueDate (below) never agreed with this
+    // function - it only ever checked the real ::integration key. Now
+    // both check exactly the same thing.
     function sfIsNodeReviewDue(node, qualifyingLinks, schedule) {
         if (sfIsScheduleEntryDue(schedule.get(node.conceptId))) return true;
-        return qualifyingLinks.some((link) =>
-            sfIsScheduleEntryDue(schedule.get(`${node.conceptId}->${link.conceptId}`)) ||
-            sfIsScheduleEntryDue(schedule.get(`${node.conceptId}->${link.conceptId}::integration`))
-        );
+        return qualifyingLinks.some((link) => sfIsScheduleEntryDue(schedule.get(`${node.conceptId}->${link.conceptId}::integration`)));
     }
     function sfNextNodeReviewDueDate(node, qualifyingLinks, schedule) {
         const dates = [schedule.get(node.conceptId)];
@@ -19023,18 +19033,29 @@ SQIDAQAB
         // corrupt the schedule it feeds back into (see gradeCorrectness).
         // "Due" here means ANY of the review's components still needs
         // testing: the node's own AO1 concept, or (for each qualifying
-        // link) its identify/integration concept - a link component with
-        // no schedule entry yet has never been tested at all, which counts
+        // link) its integration concept - a link with no ::integration
+        // schedule entry yet has never been tested at all, which counts
         // as due now, same as a genuinely overdue one.
+        //
+        // Real bug found and fixed: this used to ALSO check a bare
+        // `fromConceptId->toConceptId` key (no ::integration suffix) as an
+        // OR condition - that key belongs to a completely different,
+        // unrelated mechanism (the free-tier chain-diagnostic gate's own
+        // transfer/integration check), which most real node/link pairs
+        // have simply never gone through. Since that row then genuinely
+        // doesn't exist, `!entry` treated its ABSENCE as "due" - meaning
+        // nearly every qualifying link read as permanently due regardless
+        // of what its REAL ::integration entry actually said, since the
+        // two were combined with OR. nextNodeReviewDueDate (below) never
+        // agreed with this function for exactly this reason - it only
+        // ever checked the real ::integration key. Now both check
+        // exactly the same thing.
         function isScheduleEntryDue(entry) {
             return !entry || daysBetweenLocalDays(new Date(), new Date(entry.due)) <= 0;
         }
         function isNodeReviewDue(d, qualifyingLinks, schedule) {
             if (isScheduleEntryDue(schedule.get(d.conceptId))) return true;
-            return qualifyingLinks.some((link) =>
-                isScheduleEntryDue(schedule.get(`${d.conceptId}->${link.conceptId}`)) ||
-                isScheduleEntryDue(schedule.get(`${d.conceptId}->${link.conceptId}::integration`))
-            );
+            return qualifyingLinks.some((link) => isScheduleEntryDue(schedule.get(`${d.conceptId}->${link.conceptId}::integration`)));
         }
         // Only meaningful when isNodeReviewDue is false - every component
         // is guaranteed to have a schedule entry in that case (a missing
