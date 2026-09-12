@@ -15444,7 +15444,16 @@ SQIDAQAB
     // yet, a network error) - the caller treats that exactly like "nothing
     // to do in this folder" rather than surfacing a per-folder error on
     // what's meant to be a single, calm "here's your next lesson" screen.
-    async function sfComputeFolderRecommendation(folder) {
+    // pretendEncodedNodeId: the node the student is CURRENTLY partway
+    // through (not yet graded) - see sfPrefetchNext's own comment on why
+    // the next lesson now starts generating the moment the current one
+    // opens, not only once it's answered. Treating this one node as
+    // already-encoded while computing "what's next" is what makes that
+    // safe: without it, an early prefetch could recommend the very node
+    // already on screen again, or skip a sibling that's only unblocked
+    // once THIS node finishes - both would be wrong once the real answer
+    // lands a few moments later.
+    async function sfComputeFolderRecommendation(folder, pretendEncodedNodeId) {
         let data;
         try {
             data = await fetchSubjectKnowledgeMapWithRetry(folder);
@@ -15467,6 +15476,7 @@ SQIDAQAB
         });
 
         function isNodeEncoded(nodeId) {
+            if (nodeId === pretendEncodedNodeId) return true;
             const n = nodeById.get(nodeId);
             return !!n && schedule.has(n.conceptId);
         }
@@ -15509,8 +15519,8 @@ SQIDAQAB
     // date), earliest-due-first among reviews; otherwise the first
     // not-yet-started concept found, in sidebar folder order (an arbitrary
     // but stable, predictable tie-break).
-    async function sfComputeGlobalNextLesson() {
-        const recs = (await Promise.all((folders || []).map((f) => sfComputeFolderRecommendation(f).catch(() => null)))).filter(Boolean);
+    async function sfComputeGlobalNextLesson(pretendEncodedNodeId) {
+        const recs = (await Promise.all((folders || []).map((f) => sfComputeFolderRecommendation(f, pretendEncodedNodeId).catch(() => null)))).filter(Boolean);
         const dueReviews = recs.filter((r) => r.type === 'review').sort((a, b) => a.due - b.due);
         if (dueReviews.length) return dueReviews[0];
         return recs.find((r) => r.type === 'lesson') || null;
@@ -15682,6 +15692,14 @@ SQIDAQAB
             return [{ el, meta: { canAdvance: true, kind: 'handoff' } }];
         }
 
+        // "Starting one lesson should trigger generation of the next" -
+        // fires here, the moment THIS lesson's own content has loaded and
+        // is about to be shown, not gated on the student actually
+        // answering it - see sfPrefetchNext's own comment on why
+        // rec.node.id is passed through as the pretend-already-encoded
+        // override that keeps this safe to do this early.
+        sfPrefetchNext(rec.node.id);
+
         const explEl = document.createElement('div');
         explEl.className = 'sf-feed-slide';
         explEl.innerHTML = `
@@ -15714,7 +15732,6 @@ SQIDAQAB
         } else {
             slides[0].meta.kind = 'explanation-only';
             explEl.querySelector('.sf-advance-hint').textContent = 'Scroll down for what\'s next ↓';
-            sfPrefetchNext();
         }
 
         return slides;
@@ -15734,24 +15751,33 @@ SQIDAQAB
     // background, cached on sfFeed.prefetchPromise for sfAppendNextRecommendation
     // to pick up instantly instead of making the student wait on a live
     // generation/API round trip at the exact moment they scroll there.
-    // Only ever called right after this feed's OWN schedule-affecting
-    // state has already changed (a correct answer just recorded, or a
-    // slide that was never gated in the first place) - calling it any
-    // earlier would risk computing "what's next" against schedule data
-    // that's about to go stale the moment the current slide finishes.
     // sfFeed.scopeFolder, when set (see sfShowFolderFeed), keeps every
     // "what's next" computation restricted to that one subject - clicking
     // a subject in the sidebar now opens THAT subject's own feed, not a
     // cross-subject one, so scrolling through it should stay on-subject
     // rather than jumping elsewhere once it runs out of its own content.
-    function sfNextRecommendationForCurrentFeed() {
-        return sfFeed.scopeFolder ? sfComputeFolderRecommendation(sfFeed.scopeFolder) : sfComputeGlobalNextLesson();
+    // pretendEncodedNodeId is threaded straight through to
+    // sfComputeFolderRecommendation/sfComputeGlobalNextLesson - see their
+    // own comment for why an in-progress node is treated as already-
+    // encoded while deciding what comes after it.
+    function sfNextRecommendationForCurrentFeed(pretendEncodedNodeId) {
+        return sfFeed.scopeFolder
+            ? sfComputeFolderRecommendation(sfFeed.scopeFolder, pretendEncodedNodeId)
+            : sfComputeGlobalNextLesson(pretendEncodedNodeId);
     }
 
-    function sfPrefetchNext() {
+    // Starts generating the NEXT lesson the moment the CURRENT one opens
+    // (not only once it's answered) - "starting one lesson should trigger
+    // generation of the next" - so the real Claude API call for lesson
+    // N+1's content has the whole time the student spends reading/
+    // answering lesson N to finish, rather than starting only at the very
+    // end of it. currentNodeId (the lesson just opened, not yet graded)
+    // is passed through as pretendEncodedNodeId so the recommendation
+    // itself can't be computed as if this lesson never happened.
+    function sfPrefetchNext(currentNodeId) {
         if (!sfFeed || sfFeed.prefetchPromise) return;
         sfFeed.prefetchPromise = (async () => {
-            const rec = await sfNextRecommendationForCurrentFeed();
+            const rec = await sfNextRecommendationForCurrentFeed(currentNodeId);
             if (!rec) return { rec: null, built: null };
             const built = await sfBuildSlidesForRecommendation(rec);
             return { rec, built };
