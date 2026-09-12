@@ -1228,6 +1228,12 @@
         40%, 60% { transform: translateX(10px); }
     }
     .sf-shake { animation: sf-shake 400ms; }
+    /* Interrupt nudge for a due immediate recall (see sfShowRecallNudge) -
+       floats above the feed rather than replacing the current slide, so
+       the student can finish reading/typing before choosing to jump. */
+    .sf-recall-nudge { position: absolute; left: 16px; right: 16px; bottom: 16px; z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-radius: 10px; background: rgba(0,0,0,0.55); backdrop-filter: blur(4px); font-size: 14px; }
+    .sf-recall-nudge-text { flex: 1; }
+    .sf-recall-nudge-btn { flex: none; }
 
     /* ─── First-time subject-picker wizard (see sfShowSubjectPickerWizard)
        — reuses .tour-overlay's centered-overlay visual language but is a
@@ -15599,6 +15605,21 @@ SQIDAQAB
         }
     }
 
+    async function sfGetBackend(path) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return null;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}${path}`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            return await resp.json();
+        } catch (err) {
+            console.error('LastMind: short-form feed request failed.', err);
+            return null;
+        }
+    }
+
     // Keeps cachedScheduleData (the shared, already-fetched /schedule
     // cache every other view in this app reads) in sync after a correct
     // answer in the feed - otherwise the very next sfComputeFolderRecommendation
@@ -15664,6 +15685,7 @@ SQIDAQAB
                 meta.canAdvance = true;
                 sfShowAdvanceHint(slideEl);
                 sfPrefetchNext();
+                sfRefreshImmediateRecalls();
                 return true;
             }
             inputEl.disabled = false;
@@ -15782,6 +15804,203 @@ SQIDAQAB
         setTimeout(() => { if (sfFeed) sfFeed.locked = false; }, 420);
     }
 
+    // Same as sfMoveToIndex, but clears any in-progress transition lock
+    // first - used for the two navigations in this feature that must
+    // always go through regardless of ordinary gating: jumping to a due
+    // recall (deliberately bypasses the "must answer correctly to
+    // advance" rule the student's CURRENT slide might otherwise enforce -
+    // that's the "bypass" the recall interrupt is explicitly meant to
+    // have) and returning to the lesson the student left once every due
+    // recall is cleared.
+    function sfForceMoveToIndex(newIndex) {
+        if (!sfFeed) return;
+        sfFeed.locked = false;
+        sfMoveToIndex(newIndex);
+    }
+
+    // ---- Same-session immediate recalls ----
+    //
+    // A recall is a lightweight, non-punitive "did you actually retain
+    // this" check scheduled ~2 minutes after a concept's first-ever
+    // encoding (see scheduleImmediateRecall in reviewService.ts) -
+    // deliberately separate from real FSRS spaced review, which stays on
+    // its own multi-day schedule untouched by any of this. Rather than a
+    // popup that sends the student to a different page, a due recall is
+    // inserted as a real slide right after wherever they currently are in
+    // the feed - answering it (shake-until-correct, exactly like any
+    // other question slide) then jumps back to the exact slide they were
+    // on, so nothing about the lesson they were mid-way through is lost
+    // or skipped.
+    //
+    // If the student ignores the nudge and it's never answered, nothing
+    // else happens - no forced makeup, no penalty recorded anywhere. The
+    // concept's own already-scheduled real FSRS review is what actually
+    // decides the algorithm's next move; a missed recall just means that
+    // next real review is the first genuine signal either way, on the
+    // student's own account.
+    function sfHideRecallNudge() {
+        if (!sfFeed || !sfFeed.nudgeEl) return;
+        sfFeed.nudgeEl.hidden = true;
+        sfFeed.nudgeEl.innerHTML = '';
+    }
+
+    function sfShowRecallNudge(rows) {
+        if (!sfFeed || !sfFeed.nudgeEl || !rows.length) return;
+        const label = rows.length === 1 ? `Time for a quick recall: ${escapeHtml(rows[0].label)}` : `Time for ${rows.length} quick recalls`;
+        sfFeed.nudgeEl.hidden = false;
+        sfFeed.nudgeEl.innerHTML = `
+            <div class="sf-recall-nudge-text">🧭 ${label}</div>
+            <button type="button" class="btn primary sf-recall-nudge-btn">Scroll to it →</button>`;
+        sfFeed.nudgeEl.querySelector('.sf-recall-nudge-btn').addEventListener('click', () => {
+            sfHideRecallNudge();
+            sfJumpToRecalls(rows);
+        });
+    }
+
+    // Builds one recall's slide - just the original practice question
+    // re-asked (retrieval practice, not re-reading the explanation), with
+    // its own trySubmit wired to the dedicated /immediate-recalls endpoint
+    // (never the normal grading route - see that route's own comment on
+    // why this must never touch real FSRS state). onDone fires only once,
+    // the moment this specific recall is answered correctly.
+    function sfBuildImmediateRecallSlide(row, question, onDone) {
+        const el = document.createElement('div');
+        el.className = 'sf-feed-slide';
+        el.innerHTML = `
+            <div class="sf-slide-inner">
+                <div class="sf-slide-subject">🔁 Quick recall · ${escapeHtml(row.subject)}</div>
+                <div class="sf-speaker-label">🧭 Cortex asks</div>
+                <p class="sf-question-text">${escapeHtml(question.questionText)}</p>
+                <textarea class="sf-question-input" rows="3" placeholder="Your answer - scroll down to submit" autocomplete="off"></textarea>
+                <div class="sf-question-feedback"></div>
+                <div class="sf-advance-hint" hidden>Scroll down for what's next ↓</div>
+            </div>`;
+        const meta = { canAdvance: false, kind: 'recall', answered: false, noBack: true };
+        const inputEl = el.querySelector('.sf-question-input');
+        const feedbackEl = el.querySelector('.sf-question-feedback');
+        meta.trySubmit = async () => {
+            const answer = (inputEl.value || '').trim();
+            if (!answer) {
+                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Write an answer before continuing.</div>`;
+                return false;
+            }
+            inputEl.disabled = true;
+            const result = await sfPostBackend(`/immediate-recalls/${row.recallId}/submit`, { answer });
+            if (!result) {
+                inputEl.disabled = false;
+                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Something went wrong submitting that - try again.</div>`;
+                return false;
+            }
+            if (result.correct) {
+                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-correct">✓ Correct</div>`;
+                meta.answered = true;
+                meta.canAdvance = true;
+                sfShowAdvanceHint(el);
+                // onDone returns true only for the LAST recall in this
+                // batch, and performs its own navigation back to the
+                // lesson the student left (see sfJumpToRecalls) - signal
+                // that with 'handled' so sfTryAdvance doesn't ALSO try to
+                // advance one more step past wherever that jump landed.
+                const wasLast = onDone();
+                return wasLast ? 'handled' : true;
+            }
+            inputEl.disabled = false;
+            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">🧭 Cortex: ${escapeHtml(result.feedback || "Not quite - try again.")}</div>`;
+            return false;
+        };
+        return { el, meta };
+    }
+
+    // Inserts a batch of recall slides right after the student's current
+    // position, then force-navigates to the first one. Once the LAST one
+    // in the batch is answered correctly, the whole batch is removed from
+    // the track (they're resolved, nothing left to revisit) and the
+    // student is force-navigated back to returnIndex - the exact slide
+    // they were on when interrupted, untouched the whole time.
+    async function sfJumpToRecalls(rows) {
+        if (!sfFeed || !rows.length) return;
+        const returnIndex = sfFeed.currentIndex;
+        const insertAt = returnIndex + 1;
+
+        const withQuestions = await Promise.all(rows.map(async (row) => {
+            const lesson = await fetchNodeLesson(row.nodeId);
+            const question = lesson && lesson.practiceQuestion && lesson.practiceQuestion.questionText ? lesson.practiceQuestion : null;
+            return { row, question };
+        }));
+        const usable = withQuestions.filter((r) => r.question);
+        if (!sfFeed || !usable.length) return; // feed closed mid-fetch, or nothing left to actually ask
+
+        // Returns true only when THIS call was the one that cleared the
+        // last remaining recall in the batch (see sfBuildImmediateRecallSlide's
+        // use of this return value to report 'handled' back to sfTryAdvance).
+        let remaining = usable.length;
+        const onOneDone = () => {
+            remaining -= 1;
+            if (remaining > 0 || !sfFeed) return false;
+            // Whole batch cleared - remove these slides and jump back.
+            for (let i = 0; i < usable.length; i++) {
+                const el = sfFeed.slides[insertAt];
+                if (el && el.parentNode) el.parentNode.removeChild(el);
+                sfFeed.slides.splice(insertAt, 1);
+                sfFeed.meta.splice(insertAt, 1);
+            }
+            sfFeed.currentIndex = Math.min(sfFeed.currentIndex, sfFeed.slides.length - 1);
+            sfForceMoveToIndex(returnIndex);
+            return true;
+        };
+
+        const refEl = sfFeed.slides[insertAt] || null;
+        usable.forEach(({ row, question }, i) => {
+            const { el, meta } = sfBuildImmediateRecallSlide(row, question, onOneDone);
+            sfFeed.trackEl.insertBefore(el, refEl);
+            sfFeed.slides.splice(insertAt + i, 0, el);
+            sfFeed.meta.splice(insertAt + i, 0, meta);
+        });
+        sfForceMoveToIndex(insertAt);
+    }
+
+    // Schedules a client-side timer for one due row (fires immediately if
+    // dueAt has already passed) - deliberately not polling, since at most
+    // a couple of these are ever pending at once (one per concept just
+    // encoded) and each one's own due time is already known up front.
+    // Multiple timers landing close together are coalesced into one
+    // nudge/jump by sfCheckDueRecalls re-reading sfFeed.pendingRecallRows
+    // rather than each timer showing its own separate nudge.
+    function sfScheduleRecallTimer(row) {
+        if (!sfFeed || sfFeed.trackedRecallIds.has(row.recallId)) return;
+        sfFeed.trackedRecallIds.add(row.recallId);
+        sfFeed.pendingRecallRows = sfFeed.pendingRecallRows || [];
+        sfFeed.pendingRecallRows.push(row);
+        const delay = Math.max(0, new Date(row.dueAt).getTime() - Date.now());
+        const timer = setTimeout(() => sfCheckDueRecalls(), delay);
+        sfFeed.recallTimers.push(timer);
+    }
+
+    // Fires once a scheduled timer's due time arrives - gathers every
+    // currently-due, not-yet-nudged row (not just the one that triggered)
+    // into a single nudge, so two recalls landing seconds apart show one
+    // banner instead of stacking two.
+    function sfCheckDueRecalls() {
+        if (!sfFeed || !sfFeed.pendingRecallRows) return;
+        const now = Date.now();
+        const due = sfFeed.pendingRecallRows.filter((r) => new Date(r.dueAt).getTime() <= now);
+        if (!due.length) return;
+        sfFeed.pendingRecallRows = sfFeed.pendingRecallRows.filter((r) => new Date(r.dueAt).getTime() > now);
+        sfShowRecallNudge(due);
+    }
+
+    // Fetches this user's due/upcoming recalls once and schedules a timer
+    // for each. Called on feed mount, and again after every correctly-
+    // answered lesson question (a fresh encoding schedules a brand new
+    // recall row server-side - see scheduleImmediateRecall - that this
+    // feed session wouldn't otherwise know about).
+    async function sfRefreshImmediateRecalls() {
+        if (!sfFeed) return;
+        const result = await sfGetBackend('/immediate-recalls/due');
+        if (!sfFeed || !result || !result.recalls) return;
+        result.recalls.forEach((row) => sfScheduleRecallTimer(row));
+    }
+
     // Starts computing+building the NEXT recommendation's slides in the
     // background, cached on sfFeed.prefetchPromise for sfAppendNextRecommendation
     // to pick up instantly instead of making the student wait on a live
@@ -15890,6 +16109,12 @@ SQIDAQAB
                 finally { if (sfFeed) sfFeed.locked = false; }
                 if (!sfFeed) return; // feed closed while the submit was in flight
                 if (!ok) { sfShakeSlide(sfFeed.slides[sfFeed.currentIndex]); return; }
+                // 'handled' means trySubmit already navigated itself (the
+                // last recall in a batch jumping back to the lesson the
+                // student left - see sfJumpToRecalls) - the normal +1
+                // advance below would otherwise skip straight past
+                // whatever it just navigated back to.
+                if (ok === 'handled') return;
             }
             if (sfFeed.currentIndex >= sfFeed.slides.length - 1) {
                 sfAppendNextRecommendation();
@@ -15971,6 +16196,7 @@ SQIDAQAB
 
     function sfCloseFeed() {
         const onClose = sfFeed && sfFeed.onClose;
+        if (sfFeed && sfFeed.recallTimers) sfFeed.recallTimers.forEach(clearTimeout);
         sfFeed = null;
         if (onClose) onClose();
         else renderWelcome();
@@ -15995,11 +16221,16 @@ SQIDAQAB
                 <div class="sf-feed-viewport">
                     <div class="sf-feed-track"></div>
                 </div>
+                <div class="sf-recall-nudge" hidden></div>
             </div>`;
         const viewportEl = contentInner.querySelector('.sf-feed-viewport');
         const trackEl = contentInner.querySelector('.sf-feed-track');
+        const nudgeEl = contentInner.querySelector('.sf-recall-nudge');
         contentInner.querySelector('.sf-feed-exit-btn').addEventListener('click', sfCloseFeed);
-        sfFeed = { slides: [], meta: [], currentIndex: 0, locked: false, trackEl, viewportEl, appending: false, onClose, scopeFolder: scopeFolder || null };
+        sfFeed = {
+            slides: [], meta: [], currentIndex: 0, locked: false, trackEl, viewportEl, nudgeEl, appending: false, onClose, scopeFolder: scopeFolder || null,
+            recallTimers: [], trackedRecallIds: new Set(),
+        };
         sfWireGestures(viewportEl);
         return { trackEl, viewportEl };
     }
@@ -16029,6 +16260,7 @@ SQIDAQAB
         if (!sfFeed) return true; // closed while the first fetch was in flight
         sfAppendBuiltSlides(built);
         viewportEl.focus();
+        sfRefreshImmediateRecalls();
         return true;
     }
 
