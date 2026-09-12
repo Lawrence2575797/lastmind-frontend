@@ -212,6 +212,10 @@
             <button class="tab-btn" id="signupTab">Sign Up</button>
         </div>
 
+        <div class="field" id="firstNameField" style="display:none;">
+            <label for="firstNameInput">First name</label>
+            <input type="text" id="firstNameInput" placeholder="First name" autocomplete="given-name" maxlength="60">
+        </div>
         <div class="field">
             <label for="emailInput">Email</label>
             <input type="email" id="emailInput" placeholder="you@example.com" autocomplete="email">
@@ -219,6 +223,10 @@
         <div class="field" id="passwordField">
             <label for="passwordInput">Password</label>
             <input type="password" id="passwordInput" placeholder="At least 6 characters" autocomplete="current-password">
+        </div>
+        <div class="field" id="dobField" style="display:none;">
+            <label for="dobInput">Date of birth</label>
+            <input type="date" id="dobInput" autocomplete="bday">
         </div>
 
         <button class="primary-btn" id="submitBtn">Log In</button>
@@ -244,8 +252,12 @@
 
     /* ───────────────────────── Core auth functions ───────────────────────── */
 
-    async function signUp(email, password) {
-        return supabaseClient.auth.signUp({ email, password });
+    async function signUp(email, password, firstName, dateOfBirth) {
+        return supabaseClient.auth.signUp({
+            email,
+            password,
+            options: { data: { first_name: firstName, date_of_birth: dateOfBirth } },
+        });
     }
 
     async function signIn(email, password) {
@@ -278,12 +290,30 @@
 
     const loginTab = document.getElementById('loginTab');
     const signupTab = document.getElementById('signupTab');
+    const firstNameField = document.getElementById('firstNameField');
+    const firstNameInput = document.getElementById('firstNameInput');
     const emailInput = document.getElementById('emailInput');
     const passwordInput = document.getElementById('passwordInput');
     const passwordField = document.getElementById('passwordField');
+    const dobField = document.getElementById('dobField');
+    const dobInput = document.getElementById('dobInput');
     const submitBtn = document.getElementById('submitBtn');
     const forgotBtn = document.getElementById('forgotBtn');
     const authStatus = document.getElementById('authStatus');
+
+    // Same minimum-age rule and date-of-birth check as the landing page's
+    // own signup modal (index.html) - see that file's own comment on why a
+    // checkbox alone no longer counts as effective age assurance.
+    const MIN_SIGNUP_AGE_YEARS = 13;
+    function computeAge(dobStr) {
+        const dob = new Date(dobStr);
+        if (Number.isNaN(dob.getTime())) return null;
+        const today = new Date();
+        let age = today.getFullYear() - dob.getFullYear();
+        const hasHadBirthdayThisYear = (today.getMonth() > dob.getMonth()) || (today.getMonth() === dob.getMonth() && today.getDate() >= dob.getDate());
+        if (!hasHadBirthdayThisYear) age -= 1;
+        return age;
+    }
 
     const sessionEmailEl = document.getElementById('sessionEmail');
     const logoutBtn = document.getElementById('logoutBtn');
@@ -311,6 +341,9 @@
         loginTab.classList.toggle('active', mode === 'login');
         signupTab.classList.toggle('active', mode === 'signup');
 
+        firstNameField.style.display = mode === 'signup' ? 'block' : 'none';
+        dobField.style.display = mode === 'signup' ? 'block' : 'none';
+
         if (mode === 'forgot') {
             passwordField.style.display = 'none';
             submitBtn.textContent = 'Send Reset Email';
@@ -329,10 +362,32 @@
     submitBtn.addEventListener('click', async () => {
         const email = emailInput.value.trim();
         const password = passwordInput.value;
+        const firstName = firstNameInput.value.trim();
+        const dateOfBirth = dobInput.value;
 
         if (!email) {
             setStatus(authStatus, 'Enter your email.', true);
             return;
+        }
+
+        if (mode === 'signup') {
+            if (!firstName) {
+                setStatus(authStatus, 'Enter your first name.', true);
+                return;
+            }
+            if (!dateOfBirth) {
+                setStatus(authStatus, 'Enter your date of birth.', true);
+                return;
+            }
+            const age = computeAge(dateOfBirth);
+            if (age === null) {
+                setStatus(authStatus, 'Enter a valid date of birth.', true);
+                return;
+            }
+            if (age < MIN_SIGNUP_AGE_YEARS) {
+                setStatus(authStatus, 'You need to be at least 13 years old to create a LastMind account.', true);
+                return;
+            }
         }
 
         submitBtn.disabled = true;
@@ -355,7 +410,7 @@
             }
 
             if (mode === 'signup') {
-                const { data, error } = await signUp(email, password);
+                const { data, error } = await signUp(email, password, firstName, dateOfBirth);
                 if (error) {
                     setStatus(authStatus, error.message, true);
                     return;

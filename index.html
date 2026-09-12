@@ -1128,6 +1128,10 @@
                     </div>
 
                     <div class="account-form">
+                        <div class="account-field" id="acctFirstNameField" style="display:none;">
+                            <label for="acctFirstNameInput">First name</label>
+                            <input type="text" id="acctFirstNameInput" placeholder="First name" autocomplete="given-name" maxlength="60">
+                        </div>
                         <div class="account-field">
                             <label for="acctEmailInput">Email</label>
                             <input type="email" id="acctEmailInput" placeholder="you@example.com" autocomplete="email">
@@ -1135,6 +1139,10 @@
                         <div class="account-field" id="acctPasswordField">
                             <label for="acctPasswordInput">Password</label>
                             <input type="password" id="acctPasswordInput" placeholder="At least 6 characters" autocomplete="current-password">
+                        </div>
+                        <div class="account-field" id="acctDobField" style="display:none;">
+                            <label for="acctDobInput">Date of birth</label>
+                            <input type="date" id="acctDobInput" autocomplete="bday">
                         </div>
 
                         <button class="account-submit-btn" id="acctSubmitBtn">Log In</button>
@@ -1402,8 +1410,16 @@
 
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        async function signUp(email, password) {
-            return supabaseClient.auth.signUp({ email, password });
+        // firstName/dateOfBirth are optional params (login/forgot never pass
+        // them) - stored in Supabase Auth's own user_metadata (options.data),
+        // never a separate app table, matching the "no name field exists
+        // today" gap this was added to close.
+        async function signUp(email, password, firstName, dateOfBirth) {
+            return supabaseClient.auth.signUp({
+                email,
+                password,
+                options: { data: { first_name: firstName, date_of_birth: dateOfBirth } },
+            });
         }
 
         async function signIn(email, password) {
@@ -1432,13 +1448,18 @@
 
         const acctLoginTab = document.getElementById('acctLoginTab');
         const acctSignupTab = document.getElementById('acctSignupTab');
+        const acctFirstNameField = document.getElementById('acctFirstNameField');
+        const acctFirstNameInput = document.getElementById('acctFirstNameInput');
         const acctEmailInput = document.getElementById('acctEmailInput');
         const acctPasswordInput = document.getElementById('acctPasswordInput');
         const acctPasswordField = document.getElementById('acctPasswordField');
+        const acctDobField = document.getElementById('acctDobField');
+        const acctDobInput = document.getElementById('acctDobInput');
         const acctSubmitBtn = document.getElementById('acctSubmitBtn');
         const acctForgotBtn = document.getElementById('acctForgotBtn');
         const acctStatus = document.getElementById('acctStatus');
 
+        const ageGateEl = document.querySelector('.age-gate');
         const ageConfirmCheckbox = document.getElementById('ageConfirmCheckbox');
         const stripeLockOverlay = document.getElementById('stripeLockOverlay');
 
@@ -1449,6 +1470,26 @@
         ageConfirmCheckbox.addEventListener('change', () => {
             stripeLockOverlay.classList.toggle('unlocked', isAgeConfirmed());
         });
+
+        // A checkbox alone isn't treated as effective age assurance any more
+        // (see the ICO/Ofcom joint statement on age assurance) - creating a
+        // NEW account now requires an actual date of birth instead, checked
+        // below in the signup submit handler. The checkbox stays for the
+        // login/forgot-password views and the separate Upgrade/payment step
+        // (an existing account with no date of birth on file yet still
+        // needs some confirmation before checkout unlocks) - it just no
+        // longer appears during signup itself, where it would be redundant
+        // with the real date-of-birth check.
+        const MIN_SIGNUP_AGE_YEARS = 13;
+        function computeAge(dobStr) {
+            const dob = new Date(dobStr);
+            if (Number.isNaN(dob.getTime())) return null;
+            const today = new Date();
+            let age = today.getFullYear() - dob.getFullYear();
+            const hasHadBirthdayThisYear = (today.getMonth() > dob.getMonth()) || (today.getMonth() === dob.getMonth() && today.getDate() >= dob.getDate());
+            if (!hasHadBirthdayThisYear) age -= 1;
+            return age;
+        }
 
         // Replace both URLs with your real Stripe Payment Links once created.
         const STRIPE_LINKS = {
@@ -1498,6 +1539,10 @@
             acctLoginTab.classList.toggle('active', acctMode === 'login');
             acctSignupTab.classList.toggle('active', acctMode === 'signup');
 
+            acctFirstNameField.style.display = acctMode === 'signup' ? 'block' : 'none';
+            acctDobField.style.display = acctMode === 'signup' ? 'block' : 'none';
+            ageGateEl.style.display = acctMode === 'signup' ? 'none' : 'block';
+
             if (acctMode === 'forgot') {
                 acctPasswordField.style.display = 'none';
                 acctSubmitBtn.textContent = 'Send Reset Email';
@@ -1541,17 +1586,43 @@
         acctForgotBtn.addEventListener('click', () => setAcctMode(acctMode === 'forgot' ? 'login' : 'forgot'));
 
         acctSubmitBtn.addEventListener('click', async () => {
-            if (!isAgeConfirmed()) {
+            // Signup checks a real date of birth instead of the checkbox
+            // (see setAcctMode) - login/forgot still need the checkbox
+            // confirmed since neither of those flows collects a date of
+            // birth to check instead.
+            if (acctMode !== 'signup' && !isAgeConfirmed()) {
                 setAcctStatus('Please confirm you are at least 13 years old.', true);
                 return;
             }
 
             const email = acctEmailInput.value.trim();
             const password = acctPasswordInput.value;
+            const firstName = acctFirstNameInput.value.trim();
+            const dateOfBirth = acctDobInput.value;
 
             if (!email) {
                 setAcctStatus('Enter your email.', true);
                 return;
+            }
+
+            if (acctMode === 'signup') {
+                if (!firstName) {
+                    setAcctStatus('Enter your first name.', true);
+                    return;
+                }
+                if (!dateOfBirth) {
+                    setAcctStatus('Enter your date of birth.', true);
+                    return;
+                }
+                const age = computeAge(dateOfBirth);
+                if (age === null) {
+                    setAcctStatus('Enter a valid date of birth.', true);
+                    return;
+                }
+                if (age < MIN_SIGNUP_AGE_YEARS) {
+                    setAcctStatus('You need to be at least 13 years old to create a LastMind account.', true);
+                    return;
+                }
             }
 
             acctSubmitBtn.disabled = true;
@@ -1570,7 +1641,7 @@
                 }
 
                 if (acctMode === 'signup') {
-                    const { data, error } = await signUp(email, password);
+                    const { data, error } = await signUp(email, password, firstName, dateOfBirth);
                     if (error) { setAcctStatus(error.message, true); return; }
                     if (data.session) {
                         window.location.href = '/learn';
