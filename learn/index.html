@@ -5693,6 +5693,16 @@
         <button class="btn" id="signOutBtn" type="button" style="width:100%;">Sign Out</button>
         <p class="account-status" id="signOutStatus"></p>
 
+        <div class="my-account-divider"></div>
+
+        <button class="btn" id="deleteAccountBtn" type="button" style="width:100%; color:#eb9694;">Delete Account</button>
+        <div id="deleteAccountConfirmFields" style="display:none; margin-top:10px;">
+            <p class="account-status" style="margin-bottom:8px;">This permanently deletes your account and everything in it - there's no undo. If you have an active subscription, cancel it first via "Manage Subscription" above (deleting your account does not cancel billing). Type your email to confirm:</p>
+            <input type="email" id="deleteAccountConfirmInput" placeholder="your@email.com" autocomplete="off">
+            <button class="btn" id="deleteAccountConfirmBtn" type="button" style="width:100%; margin-top:8px; color:#eb9694;">Permanently Delete My Account</button>
+        </div>
+        <p class="account-status" id="deleteAccountStatus"></p>
+
         <div class="modal-actions">
             <button class="btn" id="cancelAccountSettingsBtn">Close</button>
         </div>
@@ -13833,6 +13843,50 @@ SQIDAQAB
             statusEl.classList.add('error');
             btn.disabled = false;
             btn.textContent = 'Sign Out';
+        }
+    });
+
+    // Shows the real confirmation fields (email re-type + a second,
+    // unmistakably-labelled button) rather than deleting on the first
+    // click - this is irreversible, so a single misclick must never be
+    // enough to trigger it.
+    document.getElementById('deleteAccountBtn').addEventListener('click', () => {
+        document.getElementById('deleteAccountConfirmFields').style.display = 'block';
+        document.getElementById('deleteAccountBtn').style.display = 'none';
+    });
+
+    document.getElementById('deleteAccountConfirmBtn').addEventListener('click', async () => {
+        const btn = document.getElementById('deleteAccountConfirmBtn');
+        const statusEl = document.getElementById('deleteAccountStatus');
+        const confirmEmail = document.getElementById('deleteAccountConfirmInput').value.trim();
+        statusEl.textContent = '';
+        statusEl.classList.remove('error');
+        if (!confirmEmail) {
+            statusEl.textContent = 'Type your account email to confirm.';
+            statusEl.classList.add('error');
+            return;
+        }
+        btn.disabled = true;
+        btn.textContent = 'Deleting…';
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) throw new Error('not signed in');
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/account/delete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify({ confirmEmail })
+            });
+            const result = await resp.json();
+            if (!resp.ok) throw new Error(result.error || `Server returned ${resp.status}`);
+            await clearLocalData();
+            await supabaseClient.auth.signOut();
+            window.location.href = '/subscribe';
+        } catch (err) {
+            console.error('LastMind: account deletion failed.', err);
+            statusEl.textContent = err.message || "Couldn't delete your account — try again.";
+            statusEl.classList.add('error');
+            btn.disabled = false;
+            btn.textContent = 'Permanently Delete My Account';
         }
     });
 
