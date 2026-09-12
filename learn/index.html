@@ -1187,6 +1187,61 @@
     .km-lesson-fullpage-body .km-inline-detail-section h4 { font-size: 17px; text-transform: none; letter-spacing: normal; opacity: 1; color: var(--accent); font-weight: 700; margin-bottom: 12px; font-family: Georgia, serif; }
     .km-lesson-fullpage-body .math-shortcut-wrap { max-width: 560px; }
 
+    /* ─── Short-form scrolling feed (see sfMaybeShowFeed) — a separate,
+       parallel lesson surface rendered straight into #contentInner, one
+       vertical slide per screen, advanced by a real scroll/swipe/keyboard
+       gesture (sfWireGestures) rather than a click. The track's own
+       transform is driven entirely by JS (sfMoveToIndex), not CSS
+       scroll-snap — native scroll can't be conditionally blocked per-step,
+       and blocking is the whole point (advancing past a question is only
+       ever allowed once it's answered correctly). */
+    .sf-feed-root { position: relative; height: calc(100vh - 90px); min-height: 420px; border-radius: 12px; overflow: hidden; background: var(--panel); }
+    .sf-feed-exit-btn { position: absolute; top: 14px; right: 14px; z-index: 2; width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(0,0,0,0.25); color: var(--text); font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .sf-feed-viewport { position: absolute; inset: 0; overflow: hidden; outline: none; }
+    .sf-feed-track { display: flex; flex-direction: column; height: 100%; transition: transform 400ms cubic-bezier(0.22, 1, 0.36, 1); will-change: transform; }
+    .sf-feed-slide { flex: none; height: 100%; display: flex; align-items: center; justify-content: center; padding: 40px 32px; box-sizing: border-box; }
+    .sf-slide-inner { max-width: 620px; width: 100%; display: flex; flex-direction: column; gap: 14px; }
+    .sf-slide-subject { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.6; }
+    .sf-slide-explanation { font-size: 17px; line-height: 1.85; }
+    .sf-slide-explanation p { margin: 0 0 16px; }
+    .sf-slide-explanation p:last-child { margin-bottom: 0; }
+    .sf-speaker-label { font-size: 13px; font-weight: 700; opacity: 0.75; }
+    .sf-question-text { font-size: 18px; line-height: 1.7; margin: 0; }
+    .sf-question-form { display: flex; flex-direction: column; gap: 10px; }
+    .sf-question-input { width: 100%; box-sizing: border-box; font: inherit; font-size: 15px; padding: 12px 14px; border-radius: 8px; border: 1px solid rgba(230, 215, 176, 0.25); background: var(--bg); color: var(--text); resize: vertical; }
+    .sf-question-submit { align-self: flex-start; }
+    .sf-feedback-line { font-size: 14.5px; line-height: 1.6; padding: 10px 12px; border-radius: 8px; background: rgba(0,0,0,0.15); }
+    .sf-feedback-correct { color: #6fcf97; }
+    .sf-feedback-wrong { color: #eb9694; }
+    .sf-advance-hint { font-size: 12.5px; opacity: 0.55; margin-top: 4px; }
+    .sf-handoff { align-items: flex-start; }
+    .sf-handoff-text { font-size: 16px; line-height: 1.7; }
+    @keyframes sf-shake {
+        10%, 90% { transform: translateX(-4px); }
+        20%, 80% { transform: translateX(7px); }
+        30%, 50%, 70% { transform: translateX(-10px); }
+        40%, 60% { transform: translateX(10px); }
+    }
+    .sf-shake { animation: sf-shake 400ms; }
+
+    /* ─── First-time subject-picker wizard (see sfShowSubjectPickerWizard)
+       — reuses .tour-overlay's centered-overlay visual language but is a
+       separate overlay/class so it can't collide with the existing
+       product tour, and sits above it (z-index 600 vs .tour-overlay's
+       ~500) since it takes priority on a genuinely first-time account. */
+    .sf-wizard-overlay { position: fixed; inset: 0; z-index: 600; background: rgba(10, 8, 6, 0.72); display: flex; align-items: center; justify-content: center; padding: 24px; }
+    .sf-wizard-card { max-width: 640px; width: 100%; max-height: 86vh; overflow-y: auto; background: var(--panel); color: var(--text); border-radius: 14px; padding: 32px 34px; display: flex; flex-direction: column; gap: 18px; }
+    .sf-wizard-greeting { font-family: Georgia, serif; font-size: 24px; margin: 0; }
+    .sf-wizard-step-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.55; }
+    .sf-wizard-subject-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .sf-wizard-subject-block { border: 1px solid rgba(230, 215, 176, 0.2); border-radius: 10px; padding: 18px 10px; text-align: center; cursor: pointer; background: var(--bg); color: var(--text); font-size: 14px; }
+    .sf-wizard-subject-block.selected { border-color: var(--accent); background: rgba(230, 215, 176, 0.12); }
+    .sf-wizard-choice-row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .sf-wizard-choice-btn { flex: 1; min-width: 130px; padding: 14px; border-radius: 10px; border: 1px solid rgba(230, 215, 176, 0.2); background: var(--bg); color: var(--text); cursor: pointer; font-size: 14.5px; }
+    .sf-wizard-choice-btn.selected { border-color: var(--accent); background: rgba(230, 215, 176, 0.12); }
+    .sf-wizard-select { width: 100%; box-sizing: border-box; font: inherit; font-size: 15px; padding: 12px 14px; border-radius: 8px; border: 1px solid rgba(230, 215, 176, 0.25); background: var(--bg); color: var(--text); }
+    .sf-wizard-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+
     /* ─── Notes content (see selectNotesNode) — rendered straight into
        #contentInner, same as every other dashboard view; the node/theme/
        lesson picker itself lives in the sidebar's own Notes tab
@@ -15240,6 +15295,614 @@ SQIDAQAB
     // initialFocusNodeId), not from hiding the rest of the graph. Cortex
     // chat is completely unaffected by any of this - still only the
     // dashboard's own "new chat" view, never subject-scoped.
+
+    // ---- Short-form feed: cross-folder "what's next" ----
+    //
+    // computeNextRecommendation (inside renderKmInlineGraph, much further
+    // down this file) already picks "what should this student do next" -
+    // but it's a closure over that function's own local nodes/nodeById/
+    // predecessorAdjacency/successorAdjacency, built as a side effect of
+    // actually rendering one folder's full D3 graph. The short-form feed
+    // needs the same DECISION for potentially every folder at once, at
+    // login time, with no graph ever rendered - so the small pure pieces
+    // of that logic (isNodeReviewDue/nextNodeReviewDueDate and the
+    // priority walk itself) are duplicated here as plain top-level
+    // functions operating on freshly-fetched data, rather than risking any
+    // refactor of the existing, already-correct, currently-live function.
+    function sfIsScheduleEntryDue(entry) {
+        return !entry || daysBetweenLocalDays(new Date(), new Date(entry.due)) <= 0;
+    }
+    function sfIsNodeReviewDue(node, qualifyingLinks, schedule) {
+        if (sfIsScheduleEntryDue(schedule.get(node.conceptId))) return true;
+        return qualifyingLinks.some((link) =>
+            sfIsScheduleEntryDue(schedule.get(`${node.conceptId}->${link.conceptId}`)) ||
+            sfIsScheduleEntryDue(schedule.get(`${node.conceptId}->${link.conceptId}::integration`))
+        );
+    }
+    function sfNextNodeReviewDueDate(node, qualifyingLinks, schedule) {
+        const dates = [schedule.get(node.conceptId)];
+        qualifyingLinks.forEach((link) => dates.push(schedule.get(`${node.conceptId}->${link.conceptId}::integration`)));
+        const times = dates.filter(Boolean).map((entry) => new Date(entry.due).getTime());
+        return times.length ? new Date(Math.min(...times)) : null;
+    }
+
+    // One folder's own recommendation, computed from a fresh fetch (no
+    // rendering) - same priority as computeNextRecommendation minus
+    // priority (1) ("the just-finished concept's own direct dependent"),
+    // which only makes sense mid-session, not at login with nothing yet
+    // "just finished". Returns null on any failure (a folder with no map
+    // yet, a network error) - the caller treats that exactly like "nothing
+    // to do in this folder" rather than surfacing a per-folder error on
+    // what's meant to be a single, calm "here's your next lesson" screen.
+    async function sfComputeFolderRecommendation(folder) {
+        let data;
+        try {
+            data = await fetchSubjectKnowledgeMapWithRetry(folder);
+        } catch (err) {
+            return null;
+        }
+        if (!data || !Array.isArray(data.nodes) || !data.nodes.length) return null;
+        if (folder.objectiveScope && Array.isArray(folder.objectiveScope.nodeIds) && folder.objectiveScope.nodeIds.length) {
+            const scopeIds = new Set(folder.objectiveScope.nodeIds);
+            data.nodes = data.nodes.filter((n) => scopeIds.has(n.id));
+            data.edges = data.edges.filter((e) => scopeIds.has(e.source) && scopeIds.has(e.target));
+        }
+        const schedule = new Map((cachedScheduleData || []).map((r) => [r.concept_id, r]));
+        const nodeById = new Map(data.nodes.map((n) => [n.id, n]));
+        const predecessorAdjacency = new Map(data.nodes.map((n) => [n.id, []]));
+        const successorAdjacency = new Map(data.nodes.map((n) => [n.id, []]));
+        data.edges.forEach((e) => {
+            if (successorAdjacency.has(e.source)) successorAdjacency.get(e.source).push(e.target);
+            if (predecessorAdjacency.has(e.target)) predecessorAdjacency.get(e.target).push(e.source);
+        });
+
+        function isNodeEncoded(nodeId) {
+            const n = nodeById.get(nodeId);
+            return !!n && schedule.has(n.conceptId);
+        }
+        const visited = new Set();
+        function firstReadyUnencoded(nodeId) {
+            if (visited.has(nodeId)) return null;
+            visited.add(nodeId);
+            if (isNodeEncoded(nodeId)) return null;
+            const unmet = (predecessorAdjacency.get(nodeId) || []).filter((id) => !isNodeEncoded(id));
+            if (!unmet.length) return nodeId;
+            for (const id of unmet) {
+                const found = firstReadyUnencoded(id);
+                if (found) return found;
+            }
+            return null;
+        }
+
+        let bestDue = null;
+        data.nodes.forEach((n) => {
+            if (!schedule.has(n.conceptId)) return;
+            const qualifyingLinks = (successorAdjacency.get(n.id) || [])
+                .map((id) => nodeById.get(id))
+                .filter((ln) => ln && schedule.has(ln.conceptId));
+            if (!sfIsNodeReviewDue(n, qualifyingLinks, schedule)) return;
+            const due = sfNextNodeReviewDueDate(n, qualifyingLinks, schedule) || new Date(0);
+            if (!bestDue || due < bestDue.due) bestDue = { node: n, qualifyingLinks, due };
+        });
+        if (bestDue) return { type: 'review', node: bestDue.node, qualifyingLinks: bestDue.qualifyingLinks, folder, due: bestDue.due };
+
+        for (const n of data.nodes) {
+            const found = firstReadyUnencoded(n.id);
+            if (found) return { type: 'lesson', node: nodeById.get(found), folder, due: null };
+        }
+        return null;
+    }
+
+    // The single best thing to show across every subject the student has
+    // - a due review anywhere beats a new lesson anywhere (spaced
+    // repetition only works if due items are actually seen near their due
+    // date), earliest-due-first among reviews; otherwise the first
+    // not-yet-started concept found, in sidebar folder order (an arbitrary
+    // but stable, predictable tie-break).
+    async function sfComputeGlobalNextLesson() {
+        const recs = (await Promise.all((folders || []).map((f) => sfComputeFolderRecommendation(f).catch(() => null)))).filter(Boolean);
+        const dueReviews = recs.filter((r) => r.type === 'review').sort((a, b) => a.due - b.due);
+        if (dueReviews.length) return dueReviews[0];
+        return recs.find((r) => r.type === 'lesson') || null;
+    }
+
+    // ---- Short-form feed: the scrolling feed itself ----
+    //
+    // A separate, parallel lesson surface living entirely inside
+    // #contentInner (same choke point renderKnowledgeMapForFolder/
+    // renderSpecPracticeEntry already replace) - it never touches the
+    // knowledge-map graph view, review engine, or credits/Locks system;
+    // it only calls the same already-existing, already-metered
+    // text-question/submit endpoint every other practice question in this
+    // app uses. One vertical "slide" per screen (explanation, then its
+    // question), advanced by a real scroll/swipe/keyboard gesture rather
+    // than a click - scrolling INTO a question slide is what "reveals" it
+    // (the explanation before it is already off-screen by construction,
+    // so there's no separate reveal-button mechanic needed here the way
+    // the ordinary graph-view lesson has one). Advancing PAST a question
+    // slide is only ever allowed once it's been answered correctly - a
+    // wrong answer shakes the slide and shows Cortex's own correction,
+    // and the student stays put and retries.
+    let sfFeed = null; // { slides: [], meta: [], currentIndex, locked, trackEl, viewportEl }
+
+    async function sfPostBackend(path, body) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return null;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}${path}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify(body)
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            return await resp.json();
+        } catch (err) {
+            console.error('LastMind: short-form feed request failed.', err);
+            return null;
+        }
+    }
+
+    // Keeps cachedScheduleData (the shared, already-fetched /schedule
+    // cache every other view in this app reads) in sync after a correct
+    // answer in the feed - otherwise the very next sfComputeFolderRecommendation
+    // call would re-recommend the concept just finished, since it would
+    // still look un-encoded/un-reviewed from cachedScheduleData's own,
+    // now-stale point of view.
+    function sfUpsertScheduleCache(scheduleResult) {
+        if (!scheduleResult || !scheduleResult.conceptId) return;
+        const row = {
+            concept_id: scheduleResult.conceptId,
+            due: scheduleResult.due,
+            stability: scheduleResult.stability,
+            difficulty: scheduleResult.difficulty,
+            reps: scheduleResult.reps,
+            lapses: scheduleResult.lapses,
+            state: scheduleResult.state,
+            spaced_success_count: scheduleResult.spacedSuccessCount,
+        };
+        cachedScheduleData = cachedScheduleData || [];
+        const idx = cachedScheduleData.findIndex((r) => r.concept_id === row.concept_id);
+        if (idx === -1) cachedScheduleData.push(row);
+        else cachedScheduleData[idx] = row;
+    }
+
+    // One slide's markup + wiring for a 'lesson' recommendation's
+    // PRACTICE QUESTION (the explanation slide before it is plain static
+    // content, built directly in sfBuildSlidesForRecommendation). Only
+    // handles the common case (a plain reading/writing text answer) -
+    // diagram questions, grouped fill-in-the-blanks, and listening/speaking
+    // modalities fall back to a plain single textbox rather than their
+    // richer widget from the full graph-view lesson, which remains the
+    // complete experience for those question types. This keeps the feed's
+    // own gesture/gating logic simple and correct rather than
+    // reimplementing every widget type a second time.
+    function sfWireQuestionSlide(slideEl, node, meta) {
+        const formEl = slideEl.querySelector('.sf-question-form');
+        const inputEl = slideEl.querySelector('.sf-question-input');
+        const submitBtn = slideEl.querySelector('.sf-question-submit');
+        const feedbackEl = slideEl.querySelector('.sf-question-feedback');
+        let retryCount = 0;
+        let submitting = false;
+        async function doSubmit() {
+            const answer = (inputEl.value || '').trim();
+            if (!answer || submitting) return;
+            submitting = true;
+            submitBtn.disabled = true;
+            const result = await sfPostBackend('/knowledge-map-v2/text-question/submit', {
+                nodeId: node.id, questionType: 'practice', answer, retryCount
+            });
+            submitting = false;
+            submitBtn.disabled = false;
+            if (!result) {
+                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Something went wrong submitting that - try again.</div>`;
+                return;
+            }
+            if (result.correct) {
+                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-correct">✓ Correct</div>`;
+                inputEl.disabled = true;
+                submitBtn.hidden = true;
+                if (result.schedule) sfUpsertScheduleCache(result.schedule);
+                meta.answered = true;
+                meta.canAdvance = true;
+                sfShowAdvanceHint(slideEl);
+            } else {
+                retryCount += 1;
+                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">🧭 Cortex: ${escapeHtml(result.feedback || "Not quite - check the specific wording and try again.")}</div>`;
+                sfShakeSlide(slideEl);
+            }
+        }
+        formEl.addEventListener('submit', (e) => { e.preventDefault(); doSubmit(); });
+    }
+
+    function sfShowAdvanceHint(slideEl) {
+        const hint = slideEl.querySelector('.sf-advance-hint');
+        if (hint) hint.hidden = false;
+    }
+
+    function sfShakeSlide(slideEl) {
+        slideEl.classList.remove('sf-shake');
+        // Force reflow so the class can be re-added to replay the
+        // animation on a second consecutive wrong answer/blocked scroll.
+        void slideEl.offsetWidth;
+        slideEl.classList.add('sf-shake');
+    }
+
+    // Builds the explanation+question slide pair for a 'lesson'
+    // recommendation, or a single handoff slide for a 'review' one (see
+    // OVERNIGHT_SPEC_STATUS.md for why reviews hand off to the existing
+    // per-folder review UI rather than being reimplemented natively here
+    // in this first pass - the AO1/qualifying-link review flow is a
+    // materially more complex, already carefully-tuned multi-step process
+    // this feed doesn't yet reproduce).
+    async function sfBuildSlidesForRecommendation(rec) {
+        if (rec.type === 'review') {
+            const el = document.createElement('div');
+            el.className = 'sf-feed-slide';
+            el.innerHTML = `
+                <div class="sf-slide-inner sf-handoff">
+                    <div class="sf-speaker-label">🧭 Cortex</div>
+                    <p class="sf-handoff-text">Time for a spaced review: <strong>${escapeHtml(rec.node.label)}</strong> in ${escapeHtml(folderLabel(rec.folder))}.</p>
+                    <button type="button" class="btn primary sf-handoff-btn">Open ${escapeHtml(folderLabel(rec.folder))} to continue →</button>
+                    <div class="sf-advance-hint" hidden>Scroll down for what's next ↓</div>
+                </div>`;
+            el.querySelector('.sf-handoff-btn').addEventListener('click', () => {
+                sfCloseFeed();
+                selectFolder(rec.folder.id);
+            });
+            return [{ el, meta: { canAdvance: true, kind: 'handoff' } }];
+        }
+
+        const lesson = await fetchNodeLesson(rec.node.id);
+        if (!lesson || lesson.notFound || lesson.loadError || !lesson.explanation) {
+            const el = document.createElement('div');
+            el.className = 'sf-feed-slide';
+            el.innerHTML = `
+                <div class="sf-slide-inner sf-handoff">
+                    <div class="sf-speaker-label">🧭 Cortex</div>
+                    <p class="sf-handoff-text">Couldn't load the next lesson right now - open ${escapeHtml(folderLabel(rec.folder))} directly instead.</p>
+                    <button type="button" class="btn primary sf-handoff-btn">Open ${escapeHtml(folderLabel(rec.folder))} →</button>
+                </div>`;
+            el.querySelector('.sf-handoff-btn').addEventListener('click', () => {
+                sfCloseFeed();
+                selectFolder(rec.folder.id);
+            });
+            return [{ el, meta: { canAdvance: true, kind: 'handoff' } }];
+        }
+
+        const explEl = document.createElement('div');
+        explEl.className = 'sf-feed-slide';
+        explEl.innerHTML = `
+            <div class="sf-slide-inner">
+                <div class="sf-slide-subject">${escapeHtml(folderLabel(rec.folder))}</div>
+                <div class="sf-slide-explanation">${splitIntoParagraphs(lesson.explanation)}</div>
+                <div class="sf-advance-hint">Scroll down ↓</div>
+            </div>`;
+        makeTermsSpeakable(explEl.querySelector('.sf-slide-explanation'), rec.folder.subject);
+
+        const slides = [{ el: explEl, meta: { canAdvance: true, kind: 'explanation' } }];
+
+        if (lesson.practiceQuestion && lesson.practiceQuestion.questionText) {
+            const qEl = document.createElement('div');
+            qEl.className = 'sf-feed-slide';
+            qEl.innerHTML = `
+                <div class="sf-slide-inner">
+                    <div class="sf-speaker-label">🧭 Cortex asks</div>
+                    <p class="sf-question-text">${escapeHtml(lesson.practiceQuestion.questionText)}</p>
+                    <form class="sf-question-form">
+                        <textarea class="sf-question-input" rows="3" placeholder="Your answer" autocomplete="off"></textarea>
+                        <button type="submit" class="btn primary sf-question-submit">Submit</button>
+                    </form>
+                    <div class="sf-question-feedback"></div>
+                    <div class="sf-advance-hint" hidden>Scroll down for what's next ↓</div>
+                </div>`;
+            const qMeta = { canAdvance: false, kind: 'question', answered: false };
+            sfWireQuestionSlide(qEl, rec.node, qMeta);
+            slides.push({ el: qEl, meta: qMeta });
+        } else {
+            slides[0].meta.kind = 'explanation-only';
+            explEl.querySelector('.sf-advance-hint').textContent = 'Scroll down for what\'s next ↓';
+        }
+
+        return slides;
+    }
+
+    function sfMoveToIndex(newIndex) {
+        if (!sfFeed || sfFeed.locked) return;
+        newIndex = Math.max(0, Math.min(newIndex, sfFeed.slides.length - 1));
+        if (newIndex === sfFeed.currentIndex) return;
+        sfFeed.locked = true;
+        sfFeed.currentIndex = newIndex;
+        sfFeed.trackEl.style.transform = `translateY(-${newIndex * 100}%)`;
+        setTimeout(() => { if (sfFeed) sfFeed.locked = false; }, 420);
+    }
+
+    // Appends the next recommendation's slides once the student scrolls
+    // past the last slide currently built - keeps the feed effectively
+    // infinite (one lesson/review at a time, computed fresh each time)
+    // without pre-fetching every subject's whole future up front.
+    async function sfAppendNextRecommendation() {
+        if (!sfFeed || sfFeed.appending) return;
+        sfFeed.appending = true;
+        const rec = await sfComputeGlobalNextLesson();
+        sfFeed.appending = false;
+        if (!sfFeed) return; // feed closed while this was in flight
+        if (!rec) {
+            const el = document.createElement('div');
+            el.className = 'sf-feed-slide';
+            el.innerHTML = `
+                <div class="sf-slide-inner sf-handoff">
+                    <div class="sf-speaker-label">🧭 Cortex</div>
+                    <p class="sf-handoff-text">Nothing due, and nothing new left to unlock right now - you're caught up.</p>
+                    <button type="button" class="btn sf-handoff-btn">Back to Cortex</button>
+                </div>`;
+            el.querySelector('.sf-handoff-btn').addEventListener('click', sfCloseFeed);
+            sfFeed.trackEl.appendChild(el);
+            sfFeed.slides.push(el);
+            sfFeed.meta.push({ canAdvance: false, kind: 'end' });
+            sfMoveToIndex(sfFeed.currentIndex + 1);
+            return;
+        }
+        const built = await sfBuildSlidesForRecommendation(rec);
+        if (!sfFeed) return;
+        built.forEach(({ el, meta }) => {
+            meta.index = sfFeed.slides.length;
+            sfFeed.trackEl.appendChild(el);
+            sfFeed.slides.push(el);
+            sfFeed.meta.push(meta);
+        });
+        sfMoveToIndex(sfFeed.currentIndex + 1);
+    }
+
+    function sfTryAdvance(direction) {
+        if (!sfFeed || sfFeed.locked) return;
+        const currentMeta = sfFeed.meta[sfFeed.currentIndex];
+        if (direction > 0) {
+            if (currentMeta && !currentMeta.canAdvance) {
+                sfShakeSlide(sfFeed.slides[sfFeed.currentIndex]);
+                return;
+            }
+            if (sfFeed.currentIndex >= sfFeed.slides.length - 1) {
+                sfAppendNextRecommendation();
+                return;
+            }
+            sfMoveToIndex(sfFeed.currentIndex + 1);
+        } else {
+            sfMoveToIndex(sfFeed.currentIndex - 1);
+        }
+    }
+
+    function sfWireGestures(viewportEl) {
+        let wheelAccum = 0;
+        let wheelResetTimer = null;
+        viewportEl.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            wheelAccum += e.deltaY;
+            clearTimeout(wheelResetTimer);
+            wheelResetTimer = setTimeout(() => { wheelAccum = 0; }, 200);
+            const THRESHOLD = 45;
+            if (wheelAccum > THRESHOLD) { wheelAccum = 0; sfTryAdvance(1); }
+            else if (wheelAccum < -THRESHOLD) { wheelAccum = 0; sfTryAdvance(-1); }
+        }, { passive: false });
+
+        let touchStartY = null;
+        viewportEl.addEventListener('touchstart', (e) => { touchStartY = e.touches[0].clientY; }, { passive: true });
+        viewportEl.addEventListener('touchend', (e) => {
+            if (touchStartY === null) return;
+            const dy = touchStartY - e.changedTouches[0].clientY;
+            touchStartY = null;
+            const THRESHOLD = 50;
+            if (dy > THRESHOLD) sfTryAdvance(1);
+            else if (dy < -THRESHOLD) sfTryAdvance(-1);
+        }, { passive: true });
+
+        viewportEl.tabIndex = 0;
+        viewportEl.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); sfTryAdvance(1); }
+            else if (e.key === 'ArrowUp' || e.key === 'PageUp') { e.preventDefault(); sfTryAdvance(-1); }
+        });
+    }
+
+    function sfCloseFeed() {
+        sfFeed = null;
+        renderWelcome();
+    }
+
+    // Entry point - "sidebar open + main area shows the most-recent-
+    // unfinished lesson (or next-scheduled if finished) instead of
+    // Cortex" (see the overnight spec). Silently does nothing if there's
+    // genuinely nothing due/new anywhere, leaving whatever's already
+    // shown (Cortex) in place - a forced empty feed on login would be
+    // worse than just not showing one.
+    async function sfMaybeShowFeed() {
+        const rec = await sfComputeGlobalNextLesson();
+        if (!rec) return false;
+        const contentInner = document.getElementById('contentInner');
+        contentInner.classList.add('content-inner-wide');
+        contentInner.innerHTML = `
+            <div class="sf-feed-root">
+                <button type="button" class="sf-feed-exit-btn" title="Back to Cortex">✕</button>
+                <div class="sf-feed-viewport">
+                    <div class="sf-feed-track"></div>
+                </div>
+            </div>`;
+        const viewportEl = contentInner.querySelector('.sf-feed-viewport');
+        const trackEl = contentInner.querySelector('.sf-feed-track');
+        contentInner.querySelector('.sf-feed-exit-btn').addEventListener('click', sfCloseFeed);
+        sfFeed = { slides: [], meta: [], currentIndex: 0, locked: false, trackEl, viewportEl, appending: false };
+        const built = await sfBuildSlidesForRecommendation(rec);
+        if (!sfFeed) return true; // closed while the first fetch was in flight
+        built.forEach(({ el, meta }) => {
+            meta.index = sfFeed.slides.length;
+            trackEl.appendChild(el);
+            sfFeed.slides.push(el);
+            sfFeed.meta.push(meta);
+        });
+        sfWireGestures(viewportEl);
+        viewportEl.focus();
+        return true;
+    }
+
+    // ---- First-time subject-picker wizard ----
+    //
+    // Fixed to the subjects with a REAL generated knowledge map, each with
+    // its own already-correct qualification/examBoard pairing baked in -
+    // asking the student to pick a level/exam-board for every subject
+    // would be pointless friction for subjects where only one real
+    // combination exists at all (Economics is the ONLY one with a genuine
+    // level/board choice worth surfacing, since A-Level Edexcel is
+    // currently the only board that has real content - the others are
+    // built under the same 'Other' qualification the app's own +Other
+    // modal already uses). "+Add new subject"/"+Other" stays reachable
+    // from the sidebar afterwards, same as always - it's deliberately
+    // left OUT of this first-time flow per the overnight spec.
+    const SF_WIZARD_SUBJECTS = [
+        { key: 'economics', label: 'Economics', subject: 'Economics', needsLevelStep: true },
+        { key: 'maths', label: 'Mathematics', subject: 'Mathematics', qualification: 'A-Level', examBoard: 'Edexcel' },
+        { key: 'spanish', label: 'Spanish', subject: 'Spanish', qualification: 'Other', examBoard: '' },
+        { key: 'italian', label: 'Italian', subject: 'Italian', qualification: 'Other', examBoard: '' },
+    ];
+
+    let sfWizard = null; // { overlayEl, step, selectedKeys, economicsLevel, greetingName }
+
+    function sfWizardGreetingName() {
+        const email = (supabaseClient && sfWizard && sfWizard.email) || '';
+        const local = email.split('@')[0];
+        return local ? local.replace(/[._]+/g, ' ').trim() : 'there';
+    }
+
+    function sfWizardCardHtml() {
+        const step = sfWizard.step;
+        if (step === 'subjects') {
+            const blocks = SF_WIZARD_SUBJECTS.map((s) => `
+                <div class="sf-wizard-subject-block${sfWizard.selectedKeys.has(s.key) ? ' selected' : ''}" data-subject-key="${escapeHtml(s.key)}">${escapeHtml(s.label)}</div>
+            `).join('');
+            return `
+                <p class="sf-wizard-greeting">Hi ${escapeHtml(sfWizardGreetingName())}, from Cortex 🧭</p>
+                <div class="sf-wizard-step-label">What are you studying?</div>
+                <div class="sf-wizard-subject-grid">${blocks}</div>
+                <div class="sf-wizard-actions">
+                    <span></span>
+                    <button type="button" class="btn primary sf-wizard-next-btn">Continue →</button>
+                </div>`;
+        }
+        if (step === 'level') {
+            return `
+                <div class="sf-wizard-step-label">Economics — which level?</div>
+                <div class="sf-wizard-choice-row">
+                    <button type="button" class="sf-wizard-choice-btn${sfWizard.economicsLevel === 'GCSE' ? ' selected' : ''}" data-level="GCSE">GCSE</button>
+                    <button type="button" class="sf-wizard-choice-btn${sfWizard.economicsLevel === 'A-Level' ? ' selected' : ''}" data-level="A-Level">A-Level</button>
+                </div>
+                <div class="sf-wizard-actions">
+                    <button type="button" class="btn sf-wizard-back-btn">← Back</button>
+                    <button type="button" class="btn primary sf-wizard-next-btn">Continue →</button>
+                </div>`;
+        }
+        if (step === 'examboard') {
+            return `
+                <div class="sf-wizard-step-label">Economics — exam board</div>
+                <select class="sf-wizard-select" disabled>
+                    <option>Edexcel</option>
+                </select>
+                <div class="sf-wizard-step-label" style="margin-top:-6px;">Edexcel is currently the only exam board with a real lesson map here - more are on the way.</div>
+                <div class="sf-wizard-actions">
+                    <button type="button" class="btn sf-wizard-back-btn">← Back</button>
+                    <button type="button" class="btn primary sf-wizard-next-btn">Continue →</button>
+                </div>`;
+        }
+        // 'nonexam'
+        return `
+            <div class="sf-wizard-step-label">One more thing</div>
+            <p style="margin:0; font-size:15px; line-height:1.6;">Would you like to add a non-examination lesson course too?</p>
+            <div class="sf-wizard-choice-row">
+                <button type="button" class="sf-wizard-choice-btn" data-nonexam="no">Not right now</button>
+                <button type="button" class="sf-wizard-choice-btn" data-nonexam="yes">Yes</button>
+            </div>
+            <div class="sf-wizard-step-label">There's nothing to set up here yet either way - this is just so we know what to build next.</div>
+            <div class="sf-wizard-actions">
+                <span></span>
+                <button type="button" class="btn primary sf-wizard-finish-btn">Done</button>
+            </div>`;
+    }
+
+    function sfWizardNextStepAfterSubjects() {
+        return sfWizard.selectedKeys.has('economics') ? 'level' : 'nonexam';
+    }
+
+    function sfRenderWizardStep() {
+        const cardEl = sfWizard.overlayEl.querySelector('.sf-wizard-card');
+        cardEl.innerHTML = sfWizardCardHtml();
+
+        if (sfWizard.step === 'subjects') {
+            cardEl.querySelectorAll('.sf-wizard-subject-block').forEach((el) => {
+                el.addEventListener('click', () => {
+                    const key = el.dataset.subjectKey;
+                    if (sfWizard.selectedKeys.has(key)) sfWizard.selectedKeys.delete(key);
+                    else sfWizard.selectedKeys.add(key);
+                    sfRenderWizardStep();
+                });
+            });
+            cardEl.querySelector('.sf-wizard-next-btn').addEventListener('click', () => {
+                sfWizard.step = sfWizardNextStepAfterSubjects();
+                sfRenderWizardStep();
+            });
+        } else if (sfWizard.step === 'level') {
+            cardEl.querySelectorAll('[data-level]').forEach((btn) => {
+                btn.addEventListener('click', () => { sfWizard.economicsLevel = btn.dataset.level; sfRenderWizardStep(); });
+            });
+            cardEl.querySelector('.sf-wizard-back-btn').addEventListener('click', () => { sfWizard.step = 'subjects'; sfRenderWizardStep(); });
+            cardEl.querySelector('.sf-wizard-next-btn').addEventListener('click', () => { sfWizard.step = 'examboard'; sfRenderWizardStep(); });
+        } else if (sfWizard.step === 'examboard') {
+            cardEl.querySelector('.sf-wizard-back-btn').addEventListener('click', () => { sfWizard.step = 'level'; sfRenderWizardStep(); });
+            cardEl.querySelector('.sf-wizard-next-btn').addEventListener('click', () => { sfWizard.step = 'nonexam'; sfRenderWizardStep(); });
+        } else {
+            cardEl.querySelectorAll('[data-nonexam]').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    cardEl.querySelectorAll('[data-nonexam]').forEach((b) => b.classList.remove('selected'));
+                    btn.classList.add('selected');
+                });
+            });
+            cardEl.querySelector('.sf-wizard-finish-btn').addEventListener('click', sfFinishWizard);
+        }
+    }
+
+    async function sfFinishWizard() {
+        const cardEl = sfWizard.overlayEl.querySelector('.sf-wizard-card');
+        cardEl.innerHTML = `<div class="sf-wizard-step-label">Setting things up…</div>`;
+        for (const key of sfWizard.selectedKeys) {
+            const s = SF_WIZARD_SUBJECTS.find((x) => x.key === key);
+            if (!s) continue;
+            const qualification = s.needsLevelStep ? sfWizard.economicsLevel : s.qualification;
+            const examBoard = s.needsLevelStep ? 'Edexcel' : s.examBoard;
+            try {
+                await createFolder(s.subject, qualification, examBoard, '', '', '', '');
+            } catch (err) {
+                console.error(`LastMind: onboarding wizard failed to create folder for ${s.subject}.`, err);
+            }
+        }
+        await sfPostBackend('/onboarding/subject-picker-seen', {});
+        document.body.removeChild(sfWizard.overlayEl);
+        sfWizard = null;
+        await refreshFolderList();
+        const shown = await sfMaybeShowFeed();
+        if (!shown) renderWelcome();
+    }
+
+    async function sfShowSubjectPickerWizard() {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const overlayEl = document.createElement('div');
+        overlayEl.className = 'sf-wizard-overlay';
+        overlayEl.innerHTML = `<div class="sf-wizard-card"></div>`;
+        document.body.appendChild(overlayEl);
+        sfWizard = {
+            overlayEl,
+            step: 'subjects',
+            selectedKeys: new Set(),
+            economicsLevel: 'A-Level',
+            email: session?.user?.email || '',
+        };
+        sfRenderWizardStep();
+    }
+
     async function renderKnowledgeMapForFolder(folder) {
         stopActiveDictation();
         stopSpeaking();
@@ -20649,13 +21312,29 @@ SQIDAQAB
         // upgrading later). Fired after createFolderBtn exists above.
         // Skipped when a deep link just opened a specific page — showing
         // the tour on top of that would just be in the way.
+        //
+        // The NEW first-time subject-picker wizard takes priority over
+        // both the old product tour AND the short-form feed on a genuinely
+        // first-time account (completedSubjectPicker false) - showing a
+        // "here's your next lesson" feed before the student has picked any
+        // subjects at all would have nothing to show anyway. Once the
+        // wizard is done (or was already done in a past session), the old
+        // tour still runs on its own separate schedule, then the feed gets
+        // its turn - "sidebar open + main area shows the most-recent-
+        // unfinished lesson (or next-scheduled if finished) instead of
+        // Cortex" (see the overnight spec's short-form section).
         if (!openedViaDeepLink) {
             const tourStatus = await fetchOnboardingStatus();
             if (tourStatus) {
-                if (paid && !tourStatus.seenPremiumTour) {
-                    startTour('premium');
-                } else if (!paid && !tourStatus.seenFreeTour) {
-                    startTour('free');
+                if (!tourStatus.completedSubjectPicker) {
+                    sfShowSubjectPickerWizard();
+                } else {
+                    if (paid && !tourStatus.seenPremiumTour) {
+                        startTour('premium');
+                    } else if (!paid && !tourStatus.seenFreeTour) {
+                        startTour('free');
+                    }
+                    sfMaybeShowFeed();
                 }
             }
         }
