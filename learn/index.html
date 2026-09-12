@@ -1214,9 +1214,7 @@
     .sf-slide-explanation p:last-child { margin-bottom: 0; }
     .sf-speaker-label { font-size: 13px; font-weight: 700; opacity: 0.75; }
     .sf-question-text { font-size: 18px; line-height: 1.7; margin: 0; }
-    .sf-question-form { display: flex; flex-direction: column; gap: 10px; }
     .sf-question-input { width: 100%; box-sizing: border-box; font: inherit; font-size: 15px; padding: 12px 14px; border-radius: 8px; border: 1px solid rgba(230, 215, 176, 0.25); background: var(--bg); color: var(--text); resize: vertical; }
-    .sf-question-submit { align-self: flex-start; }
     .sf-feedback-line { font-size: 14.5px; line-height: 1.6; padding: 10px 12px; border-radius: 8px; background: rgba(0,0,0,0.15); }
     .sf-feedback-correct { color: #6fcf97; }
     .sf-feedback-wrong { color: #eb9694; }
@@ -15635,43 +15633,44 @@ SQIDAQAB
     // complete experience for those question types. This keeps the feed's
     // own gesture/gating logic simple and correct rather than
     // reimplementing every widget type a second time.
+    // No Submit button - scrolling forward past this slide IS the submit
+    // action (see sfTryAdvance). meta.trySubmit resolves true (advance
+    // allowed) only on a correct answer; false shakes the slide and keeps
+    // the student on it to fix their answer and scroll again.
     function sfWireQuestionSlide(slideEl, node, meta) {
-        const formEl = slideEl.querySelector('.sf-question-form');
         const inputEl = slideEl.querySelector('.sf-question-input');
-        const submitBtn = slideEl.querySelector('.sf-question-submit');
         const feedbackEl = slideEl.querySelector('.sf-question-feedback');
         let retryCount = 0;
-        let submitting = false;
-        async function doSubmit() {
+        meta.noBack = true;
+        meta.trySubmit = async () => {
             const answer = (inputEl.value || '').trim();
-            if (!answer || submitting) return;
-            submitting = true;
-            submitBtn.disabled = true;
+            if (!answer) {
+                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Write an answer before continuing.</div>`;
+                return false;
+            }
+            inputEl.disabled = true;
             const result = await sfPostBackend('/knowledge-map-v2/text-question/submit', {
                 nodeId: node.id, questionType: 'practice', answer, retryCount
             });
-            submitting = false;
-            submitBtn.disabled = false;
             if (!result) {
+                inputEl.disabled = false;
                 feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Something went wrong submitting that - try again.</div>`;
-                return;
+                return false;
             }
             if (result.correct) {
                 feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-correct">✓ Correct</div>`;
-                inputEl.disabled = true;
-                submitBtn.hidden = true;
                 if (result.schedule) sfUpsertScheduleCache(result.schedule);
                 meta.answered = true;
                 meta.canAdvance = true;
                 sfShowAdvanceHint(slideEl);
                 sfPrefetchNext();
-            } else {
-                retryCount += 1;
-                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">🧭 Cortex: ${escapeHtml(result.feedback || "Not quite - check the specific wording and try again.")}</div>`;
-                sfShakeSlide(slideEl);
+                return true;
             }
-        }
-        formEl.addEventListener('submit', (e) => { e.preventDefault(); doSubmit(); });
+            inputEl.disabled = false;
+            retryCount += 1;
+            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">🧭 Cortex: ${escapeHtml(result.feedback || "Not quite - check the specific wording and try again.")}</div>`;
+            return false;
+        };
     }
 
     function sfShowAdvanceHint(slideEl) {
@@ -15758,10 +15757,7 @@ SQIDAQAB
                 <div class="sf-slide-inner">
                     <div class="sf-speaker-label">🧭 Cortex asks</div>
                     <p class="sf-question-text">${escapeHtml(lesson.practiceQuestion.questionText)}</p>
-                    <form class="sf-question-form">
-                        <textarea class="sf-question-input" rows="3" placeholder="Your answer" autocomplete="off"></textarea>
-                        <button type="submit" class="btn primary sf-question-submit">Submit</button>
-                    </form>
+                    <textarea class="sf-question-input" rows="3" placeholder="Your answer - scroll down to submit" autocomplete="off"></textarea>
                     <div class="sf-question-feedback"></div>
                     <div class="sf-advance-hint" hidden>Scroll down for what's next ↓</div>
                 </div>`;
@@ -15870,13 +15866,30 @@ SQIDAQAB
         sfMoveToIndex(sfFeed.currentIndex + 1);
     }
 
-    function sfTryAdvance(direction) {
+    // Scrolling forward past an unanswered question slide now IS the
+    // submit action (no separate Submit button) - if the slide exposes
+    // "trySubmit" (see sfWireQuestionSlide/sfBuildCorrectionSlide), calling
+    // it grades the current answer; a wrong/empty answer shakes the slide
+    // (via trySubmit itself) and this function returns without moving,
+    // leaving the student stuck there to fix it and scroll again. Locking
+    // sfFeed for the duration of the await blocks any other gesture from
+    // being processed mid-submit (on top of the wheel handler's own
+    // per-gesture cooldown - see sfWireGestures).
+    async function sfTryAdvance(direction) {
         if (!sfFeed || sfFeed.locked) return;
         const currentMeta = sfFeed.meta[sfFeed.currentIndex];
         if (direction > 0) {
             if (currentMeta && !currentMeta.canAdvance) {
-                sfShakeSlide(sfFeed.slides[sfFeed.currentIndex]);
-                return;
+                if (!currentMeta.trySubmit) {
+                    sfShakeSlide(sfFeed.slides[sfFeed.currentIndex]);
+                    return;
+                }
+                sfFeed.locked = true;
+                let ok = false;
+                try { ok = await currentMeta.trySubmit(); }
+                finally { if (sfFeed) sfFeed.locked = false; }
+                if (!sfFeed) return; // feed closed while the submit was in flight
+                if (!ok) { sfShakeSlide(sfFeed.slides[sfFeed.currentIndex]); return; }
             }
             if (sfFeed.currentIndex >= sfFeed.slides.length - 1) {
                 sfAppendNextRecommendation();
@@ -15884,6 +15897,14 @@ SQIDAQAB
             }
             sfMoveToIndex(sfFeed.currentIndex + 1);
         } else {
+            // Once forward-scrolled onto a slide marked noBack (an answer
+            // box reached from its own content slide), scrolling back up
+            // to review that content is blocked - answer it or fix it,
+            // don't back out of it.
+            if (currentMeta && currentMeta.noBack) {
+                sfShakeSlide(sfFeed.slides[sfFeed.currentIndex]);
+                return;
+            }
             sfMoveToIndex(sfFeed.currentIndex - 1);
         }
     }
@@ -15903,15 +15924,28 @@ SQIDAQAB
     function sfWireGestures(viewportEl) {
         let wheelAccum = 0;
         let wheelResetTimer = null;
+        // Real bug: a single fast trackpad/mouse-wheel fling sends MANY
+        // wheel events in a burst. Resetting wheelAccum to 0 immediately
+        // after firing let a big enough fling cross the threshold a
+        // SECOND time before the fling itself was even over, advancing
+        // (or, once scrolling submits an answer - see sfTryAdvance -
+        // submitting/shaking and then immediately trying to advance again)
+        // multiple slides from what the student experienced as one scroll.
+        // Fix: once a threshold crossing fires, ignore all further wheel
+        // deltas until the physical gesture has actually ended (no wheel
+        // events for 200ms, the same timer that already existed for
+        // resetting the accumulator) - one scroll can only move one page.
+        let gestureLocked = false;
         viewportEl.addEventListener('wheel', (e) => {
             if (sfEventTargetIsTextInput(e)) return;
             e.preventDefault();
-            wheelAccum += e.deltaY;
             clearTimeout(wheelResetTimer);
-            wheelResetTimer = setTimeout(() => { wheelAccum = 0; }, 200);
+            wheelResetTimer = setTimeout(() => { wheelAccum = 0; gestureLocked = false; }, 200);
+            if (gestureLocked) return;
+            wheelAccum += e.deltaY;
             const THRESHOLD = 45;
-            if (wheelAccum > THRESHOLD) { wheelAccum = 0; sfTryAdvance(1); }
-            else if (wheelAccum < -THRESHOLD) { wheelAccum = 0; sfTryAdvance(-1); }
+            if (wheelAccum > THRESHOLD) { gestureLocked = true; sfTryAdvance(1); }
+            else if (wheelAccum < -THRESHOLD) { gestureLocked = true; sfTryAdvance(-1); }
         }, { passive: false });
 
         let touchStartY = null;
@@ -16050,46 +16084,41 @@ SQIDAQAB
                 <div class="sf-speaker-label">🧭 Cortex</div>
                 <div class="sf-slide-explanation">${splitIntoParagraphs(correction.correctionExplanation)}</div>
                 <p class="sf-question-text">${escapeHtml(correction.followupQuestionText)}</p>
-                <form class="sf-question-form">
-                    <textarea class="sf-question-input" rows="3" placeholder="Your answer" autocomplete="off"></textarea>
-                    <button type="submit" class="btn primary sf-question-submit">Submit</button>
-                </form>
+                <textarea class="sf-question-input" rows="3" placeholder="Your answer - scroll down to submit" autocomplete="off"></textarea>
                 <div class="sf-question-feedback"></div>
                 <div class="sf-advance-hint" hidden>${isLast ? "That's every correction for now ↓" : 'Scroll down for the next correction ↓'}</div>
             </div>`;
-        const meta = { canAdvance: false, kind: 'correction', answered: false };
+        const meta = { canAdvance: false, kind: 'correction', answered: false, noBack: true };
 
-        const formEl = el.querySelector('.sf-question-form');
         const inputEl = el.querySelector('.sf-question-input');
-        const submitBtn = el.querySelector('.sf-question-submit');
         const feedbackEl = el.querySelector('.sf-question-feedback');
-        let submitting = false;
-        formEl.addEventListener('submit', async (e) => {
-            e.preventDefault();
+        // No Submit button - scrolling forward past this slide IS the
+        // submit action (see sfTryAdvance), same as sfWireQuestionSlide.
+        meta.trySubmit = async () => {
             const answer = (inputEl.value || '').trim();
-            if (!answer || submitting) return;
-            submitting = true;
-            submitBtn.disabled = true;
+            if (!answer) {
+                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Write an answer before continuing.</div>`;
+                return false;
+            }
+            inputEl.disabled = true;
             const result = await sfPostBackend(`/exam-prep-corrections/${correction.id}/submit`, { answerText: answer });
-            submitting = false;
-            submitBtn.disabled = false;
             if (!result) {
+                inputEl.disabled = false;
                 feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Something went wrong submitting that - try again.</div>`;
-                return;
+                return false;
             }
             if (result.correct) {
                 feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-correct">✓ Correct</div>`;
-                inputEl.disabled = true;
-                submitBtn.hidden = true;
                 meta.answered = true;
                 meta.canAdvance = true;
                 sfShowAdvanceHint(el);
                 if (isLast && onCorrectLast) onCorrectLast();
-            } else {
-                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">🧭 Cortex: ${escapeHtml(result.feedback || 'Not quite - try again.')}</div>`;
-                sfShakeSlide(el);
+                return true;
             }
-        });
+            inputEl.disabled = false;
+            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">🧭 Cortex: ${escapeHtml(result.feedback || 'Not quite - try again.')}</div>`;
+            return false;
+        };
         return { el, meta };
     }
 
