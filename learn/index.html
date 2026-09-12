@@ -21575,7 +21575,18 @@ SQIDAQAB
         if (!contentInner) return;
         contentInner.classList.add('content-inner-wide');
         const messages = ['Finding your next lesson…', 'Checking what\'s due…', 'Loading your knowledge map…', 'Almost there…'];
-        contentInner.innerHTML = `<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote" id="sfLoadingMessage">${escapeHtml(messages[0])}</p></div>`;
+        // Explicit background+text pair here, not the shared
+        // .dashboard-locked-quote class - that one relies on inheriting
+        // --ink (a fixed, non-customizable burgundy accent) from body,
+        // which only reads correctly against the default birch page
+        // background. A real bug report: with a customized theme, --ink
+        // text can land on a background it was never designed to contrast
+        // against, rendering genuinely invisible (present in the DOM,
+        // selectable, just unreadable). --panel/--text are the pair the
+        // theme customizer actually keeps coordinated (see .sf-feed-root
+        // and .modal, which already use exactly this combination), so
+        // this stays readable under any theme.
+        contentInner.innerHTML = `<div class="dashboard-view dashboard-locked"><p id="sfLoadingMessage" style="font-style:italic; text-align:center; opacity:0.85; max-width:420px; margin:0 auto; line-height:1.7; font-size:0.95rem; background:var(--panel); color:var(--text); padding:14px 20px; border-radius:8px;">${escapeHtml(messages[0])}</p></div>`;
         let i = 0;
         const intervalId = setInterval(() => {
             const el = document.getElementById('sfLoadingMessage');
