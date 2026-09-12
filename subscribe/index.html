@@ -480,6 +480,16 @@
             opacity: 0.3;
         }
 
+        .footer-copy a {
+            color: var(--accent);
+            opacity: 1;
+            text-decoration: none;
+        }
+
+        .footer-copy a:hover {
+            text-decoration: underline;
+        }
+
         .footer-copy {
             font-family: 'Arial', sans-serif;
             font-size: 0.75rem;
@@ -1052,6 +1062,11 @@
             A system built to strengthen memory, resolve misunderstandings and support long-term learning.
         </p>
         <div class="footer-rule"></div>
+        <p class="footer-copy">
+            <a href="/privacy/">Privacy Policy</a> &nbsp;·&nbsp;
+            <a href="/privacy/for-students/">Your Privacy at LastMind</a> &nbsp;·&nbsp;
+            <a href="/terms/">Terms and Conditions</a>
+        </p>
         <p class="footer-copy">© LastMind 2026 &nbsp;·&nbsp; All rights reserved.</p>
     </footer>
 
@@ -1063,6 +1078,10 @@
             <div class="age-gate">
                 <input type="checkbox" id="ageConfirmCheckbox">
                 <label for="ageConfirmCheckbox">I confirm that I am at least 13 years old.</label>
+            </div>
+            <div class="age-gate" id="termsGateDiv">
+                <input type="checkbox" id="termsAgreeCheckbox">
+                <label for="termsAgreeCheckbox">I agree to the <a href="/terms/" target="_blank" rel="noopener">Terms and Conditions</a> and <a href="/privacy/" target="_blank" rel="noopener">Privacy Policy</a>.</label>
             </div>
 
             <!-- STEP 1: create/log into an account -->
@@ -1410,15 +1429,22 @@
 
         const ageGateEl = document.querySelector('.age-gate');
         const ageConfirmCheckbox = document.getElementById('ageConfirmCheckbox');
+        const termsGateDiv = document.getElementById('termsGateDiv');
+        const termsAgreeCheckbox = document.getElementById('termsAgreeCheckbox');
         const stripeLockOverlay = document.getElementById('stripeLockOverlay');
 
         function isAgeConfirmed() {
             return ageConfirmCheckbox.checked;
         }
+        function isTermsAgreed() {
+            return termsAgreeCheckbox.checked;
+        }
 
-        ageConfirmCheckbox.addEventListener('change', () => {
-            stripeLockOverlay.classList.toggle('unlocked', isAgeConfirmed());
-        });
+        function refreshStripeLock() {
+            stripeLockOverlay.classList.toggle('unlocked', isAgeConfirmed() && isTermsAgreed());
+        }
+        ageConfirmCheckbox.addEventListener('change', refreshStripeLock);
+        termsAgreeCheckbox.addEventListener('change', refreshStripeLock);
 
         // A checkbox alone isn't effective age assurance any more (see the
         // ICO/Ofcom joint statement on age assurance) - creating a NEW
@@ -1487,6 +1513,8 @@
             acctFirstNameField.style.display = acctMode === 'signup' ? 'block' : 'none';
             acctDobField.style.display = acctMode === 'signup' ? 'block' : 'none';
             ageGateEl.style.display = acctMode === 'signup' ? 'none' : 'block';
+            termsGateDiv.style.display = acctMode === 'signup' ? 'block' : 'none';
+            refreshStripeLock();
 
             if (acctMode === 'forgot') {
                 acctPasswordField.style.display = 'none';
@@ -1523,6 +1551,9 @@
             renderAccountSession(session);
             accountStep.style.display = 'none';
             paymentStep.style.display = 'block';
+            ageGateEl.style.display = 'block';
+            termsGateDiv.style.display = 'block';
+            refreshStripeLock();
             setBillingPlan(currentPlan);
         }
 
@@ -1564,6 +1595,10 @@
                 }
                 if (age < MIN_SIGNUP_AGE_YEARS) {
                     setAcctStatus('You need to be at least 13 years old to create a LastMind account.', true);
+                    return;
+                }
+                if (!isTermsAgreed()) {
+                    setAcctStatus('Please agree to the Terms and Conditions and Privacy Policy.', true);
                     return;
                 }
             }

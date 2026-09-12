@@ -228,6 +228,10 @@
             <label for="dobInput">Date of birth</label>
             <input type="date" id="dobInput" autocomplete="bday">
         </div>
+        <div id="termsGateDiv" style="display:none; margin-bottom:14px; font-size:0.82rem; align-items:flex-start; gap:8px;">
+            <input type="checkbox" id="termsAgreeCheckbox" style="margin-top:3px;">
+            <label for="termsAgreeCheckbox">I agree to the <a href="/terms/" target="_blank" rel="noopener" style="color:var(--accent);">Terms and Conditions</a> and <a href="/privacy/" target="_blank" rel="noopener" style="color:var(--accent);">Privacy Policy</a>.</label>
+        </div>
 
         <button class="primary-btn" id="submitBtn">Log In</button>
         <button class="link-btn" id="forgotBtn">Forgot your password?</button>
@@ -297,6 +301,8 @@
     const passwordField = document.getElementById('passwordField');
     const dobField = document.getElementById('dobField');
     const dobInput = document.getElementById('dobInput');
+    const termsGateDiv = document.getElementById('termsGateDiv');
+    const termsAgreeCheckbox = document.getElementById('termsAgreeCheckbox');
     const submitBtn = document.getElementById('submitBtn');
     const forgotBtn = document.getElementById('forgotBtn');
     const authStatus = document.getElementById('authStatus');
@@ -343,6 +349,7 @@
 
         firstNameField.style.display = mode === 'signup' ? 'block' : 'none';
         dobField.style.display = mode === 'signup' ? 'block' : 'none';
+        termsGateDiv.style.display = mode === 'signup' ? 'flex' : 'none';
 
         if (mode === 'forgot') {
             passwordField.style.display = 'none';
@@ -386,6 +393,10 @@
             }
             if (age < MIN_SIGNUP_AGE_YEARS) {
                 setStatus(authStatus, 'You need to be at least 13 years old to create a LastMind account.', true);
+                return;
+            }
+            if (!termsAgreeCheckbox.checked) {
+                setStatus(authStatus, 'Please agree to the Terms and Conditions and Privacy Policy.', true);
                 return;
             }
         }

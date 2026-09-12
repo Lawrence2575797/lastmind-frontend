@@ -564,6 +564,16 @@
             text-decoration: underline;
         }
 
+        .footer-copy a {
+            color: var(--accent);
+            opacity: 1;
+            text-decoration: none;
+        }
+
+        .footer-copy a:hover {
+            text-decoration: underline;
+        }
+
         .footer-copy {
             font-family: 'Arial', sans-serif;
             font-size: 0.75rem;
@@ -1104,6 +1114,11 @@
         <div class="footer-logo">LastMind</div>
         <div class="footer-rule"></div>
         <p class="footer-contact">Contact us at <a href="mailto:lastmindadmin@gmail.com">lastmindadmin@gmail.com</a></p>
+        <p class="footer-copy">
+            <a href="/privacy/">Privacy Policy</a> &nbsp;·&nbsp;
+            <a href="/privacy/for-students/">Your Privacy at LastMind</a> &nbsp;·&nbsp;
+            <a href="/terms/">Terms and Conditions</a>
+        </p>
         <p class="footer-copy">© LastMind 2026 &nbsp;·&nbsp; All rights reserved.</p>
     </footer>
 
@@ -1115,6 +1130,10 @@
             <div class="age-gate">
                 <input type="checkbox" id="ageConfirmCheckbox">
                 <label for="ageConfirmCheckbox">I confirm that I am at least 13 years old.</label>
+            </div>
+            <div class="age-gate" id="termsGateDiv">
+                <input type="checkbox" id="termsAgreeCheckbox">
+                <label for="termsAgreeCheckbox">I agree to the <a href="/terms/" target="_blank" rel="noopener">Terms and Conditions</a> and <a href="/privacy/" target="_blank" rel="noopener">Privacy Policy</a>.</label>
             </div>
 
             <!-- STEP 1: create/log into an account -->
@@ -1461,15 +1480,27 @@
 
         const ageGateEl = document.querySelector('.age-gate');
         const ageConfirmCheckbox = document.getElementById('ageConfirmCheckbox');
+        const termsGateDiv = document.getElementById('termsGateDiv');
+        const termsAgreeCheckbox = document.getElementById('termsAgreeCheckbox');
         const stripeLockOverlay = document.getElementById('stripeLockOverlay');
 
         function isAgeConfirmed() {
             return ageConfirmCheckbox.checked;
         }
+        function isTermsAgreed() {
+            return termsAgreeCheckbox.checked;
+        }
 
-        ageConfirmCheckbox.addEventListener('change', () => {
-            stripeLockOverlay.classList.toggle('unlocked', isAgeConfirmed());
-        });
+        // Checkout only unlocks once BOTH boxes are checked - agreeing to
+        // the Terms (which spells out the cancellation/refund policy) is
+        // required at the exact moment a paid contract is being formed,
+        // not just assumed from having ticked it once at signup, since an
+        // existing account may predate the Terms existing at all.
+        function refreshStripeLock() {
+            stripeLockOverlay.classList.toggle('unlocked', isAgeConfirmed() && isTermsAgreed());
+        }
+        ageConfirmCheckbox.addEventListener('change', refreshStripeLock);
+        termsAgreeCheckbox.addEventListener('change', refreshStripeLock);
 
         // A checkbox alone isn't treated as effective age assurance any more
         // (see the ICO/Ofcom joint statement on age assurance) - creating a
@@ -1542,6 +1573,11 @@
             acctFirstNameField.style.display = acctMode === 'signup' ? 'block' : 'none';
             acctDobField.style.display = acctMode === 'signup' ? 'block' : 'none';
             ageGateEl.style.display = acctMode === 'signup' ? 'none' : 'block';
+            // Unlike the age checkbox, Terms agreement is still required
+            // for signup itself (creating an account) - only hidden for
+            // plain login/forgot, where no new agreement is being formed.
+            termsGateDiv.style.display = acctMode === 'signup' ? 'block' : 'none';
+            refreshStripeLock();
 
             if (acctMode === 'forgot') {
                 acctPasswordField.style.display = 'none';
@@ -1578,6 +1614,12 @@
             renderAccountSession(session);
             accountStep.style.display = 'none';
             paymentStep.style.display = 'block';
+            // Entering a paid contract - re-require both boxes here even
+            // for an account that predates the Terms/Terms checkbox
+            // existing at all, or that last left these hidden in login mode.
+            ageGateEl.style.display = 'block';
+            termsGateDiv.style.display = 'block';
+            refreshStripeLock();
             setBillingPlan(currentPlan);
         }
 
@@ -1621,6 +1663,10 @@
                 }
                 if (age < MIN_SIGNUP_AGE_YEARS) {
                     setAcctStatus('You need to be at least 13 years old to create a LastMind account.', true);
+                    return;
+                }
+                if (!isTermsAgreed()) {
+                    setAcctStatus('Please agree to the Terms and Conditions and Privacy Policy.', true);
                     return;
                 }
             }
