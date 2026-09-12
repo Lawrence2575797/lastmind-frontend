@@ -1215,6 +1215,7 @@
     .sf-speaker-label { font-size: 13px; font-weight: 700; opacity: 0.75; }
     .sf-question-text { font-size: 18px; line-height: 1.7; margin: 0; }
     .sf-question-input { width: 100%; box-sizing: border-box; font: inherit; font-size: 15px; padding: 12px 14px; border-radius: 8px; border: 1px solid rgba(230, 215, 176, 0.25); background: var(--bg); color: var(--text); resize: vertical; }
+    .sf-question-submit { align-self: flex-start; }
     .sf-mcq-options { display: flex; flex-direction: column; gap: 8px; }
     .sf-mcq-option { text-align: left; width: 100%; padding: 12px 14px; border-radius: 8px; border: 1px solid rgba(230, 215, 176, 0.25); background: var(--bg); color: var(--text); font: inherit; font-size: 15px; cursor: pointer; }
     .sf-mcq-option-selected { border-color: var(--text); background: rgba(230, 215, 176, 0.12); }
@@ -15581,14 +15582,14 @@ SQIDAQAB
     // it only calls the same already-existing, already-metered
     // text-question/submit endpoint every other practice question in this
     // app uses. One vertical "slide" per screen (explanation, then its
-    // question), advanced by a real scroll/swipe/keyboard gesture rather
-    // than a click - scrolling INTO a question slide is what "reveals" it
-    // (the explanation before it is already off-screen by construction,
-    // so there's no separate reveal-button mechanic needed here the way
-    // the ordinary graph-view lesson has one). Advancing PAST a question
-    // slide is only ever allowed once it's been answered correctly - a
-    // wrong answer shakes the slide and shows Cortex's own correction,
-    // and the student stays put and retries.
+    // question) - plain content slides advance on a real scroll/swipe/
+    // keyboard gesture, but a question slide's own Submit button is what
+    // grades it (see sfSubmitCurrentSlide): a correct answer auto-
+    // advances the feed a beat later with no gesture needed, a wrong
+    // answer shakes the slide and shows Cortex's own correction, and the
+    // student stays put to fix it and submit again. Scrolling manually
+    // past an unanswered question just shakes it too - answering only
+    // ever happens through the button.
     let sfFeed = null; // { slides: [], meta: [], currentIndex, locked, trackEl, viewportEl }
 
     async function sfPostBackend(path, body) {
@@ -15657,13 +15658,14 @@ SQIDAQAB
     // complete experience for those question types. This keeps the feed's
     // own gesture/gating logic simple and correct rather than
     // reimplementing every widget type a second time.
-    // No Submit button - scrolling forward past this slide IS the submit
-    // action (see sfTryAdvance). meta.trySubmit resolves true (advance
-    // allowed) only on a correct answer; false shakes the slide and keeps
-    // the student on it to fix their answer and scroll again.
+    // The Submit button (sfSubmitCurrentSlide) calls meta.trySubmit -
+    // resolves true on a correct answer, which auto-advances the feed a
+    // beat later with no scroll gesture needed; false shakes the slide
+    // and keeps the student on it to fix their answer and submit again.
     function sfWireQuestionSlide(slideEl, node, meta) {
         const inputEl = slideEl.querySelector('.sf-question-input');
         const feedbackEl = slideEl.querySelector('.sf-question-feedback');
+        slideEl.querySelector('.sf-question-submit').addEventListener('click', sfSubmitCurrentSlide);
         let retryCount = 0;
         meta.noBack = true;
         meta.trySubmit = async () => {
@@ -15765,13 +15767,15 @@ SQIDAQAB
                 <div class="sf-slide-subject">Review · ${escapeHtml(folderLabel(rec.folder))}</div>
                 <div class="sf-speaker-label">Cortex asks</div>
                 <p class="sf-question-text">${escapeHtml(data.questionText)}</p>
-                <textarea class="sf-question-input" rows="3" placeholder="Your answer - scroll down to submit" autocomplete="off"></textarea>
+                <textarea class="sf-question-input" rows="3" placeholder="Your answer" autocomplete="off"></textarea>
+                <button type="button" class="btn primary sf-question-submit">Submit</button>
                 <div class="sf-question-feedback"></div>
-                <div class="sf-advance-hint" hidden>Scroll down for what's next ↓</div>
+                <div class="sf-advance-hint" hidden>Moving on…</div>
             </div>`;
         const meta = { canAdvance: false, kind: 'review-ao1', answered: false, noBack: true };
         const inputEl = el.querySelector('.sf-question-input');
         const feedbackEl = el.querySelector('.sf-question-feedback');
+        el.querySelector('.sf-question-submit').addEventListener('click', sfSubmitCurrentSlide);
         let retryCount = 0;
 
         async function onCorrect(result) {
@@ -15813,7 +15817,8 @@ SQIDAQAB
                 if (result && result.correct) {
                     feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-correct">✓ Correct</div>`;
                     await onCorrect(result);
-                    sfForceMoveToIndex(sfFeed.currentIndex + 1);
+                    await sfDelay(SF_AUTO_ADVANCE_DELAY_MS);
+                    if (sfFeed) sfForceMoveToIndex(sfFeed.currentIndex + 1);
                 } else {
                     retryCount += 1;
                     feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml((result && result.feedback) || 'Not quite - try again.')}</div>`;
@@ -15903,13 +15908,15 @@ SQIDAQAB
                 <div class="sf-slide-subject">Review link ${index + 1} of ${rec.qualifyingLinks.length} · ${escapeHtml(rec.node.label)} → ${escapeHtml(link.label)}</div>
                 <div class="sf-speaker-label">Cortex asks</div>
                 <p class="sf-question-text">${escapeHtml(data.questionText)}</p>
-                <textarea class="sf-question-input" rows="3" placeholder="Your answer - scroll down to submit" autocomplete="off"></textarea>
+                <textarea class="sf-question-input" rows="3" placeholder="Your answer" autocomplete="off"></textarea>
+                <button type="button" class="btn primary sf-question-submit">Submit</button>
                 <div class="sf-question-feedback"></div>
-                <div class="sf-advance-hint" hidden>Scroll down for what's next ↓</div>
+                <div class="sf-advance-hint" hidden>Moving on…</div>
             </div>`;
         const meta = { canAdvance: false, kind: 'review-integration', answered: false, noBack: true };
         const inputEl = qEl.querySelector('.sf-question-input');
         const feedbackEl = qEl.querySelector('.sf-question-feedback');
+        qEl.querySelector('.sf-question-submit').addEventListener('click', sfSubmitCurrentSlide);
         let retryCount = 0;
         meta.trySubmit = async () => {
             const answer = (inputEl.value || '').trim();
@@ -16045,9 +16052,10 @@ SQIDAQAB
                 <div class="sf-slide-inner">
                     <div class="sf-speaker-label">Cortex asks</div>
                     <p class="sf-question-text">${escapeHtml(lesson.practiceQuestion.questionText)}</p>
-                    <textarea class="sf-question-input" rows="3" placeholder="Your answer - scroll down to submit" autocomplete="off"></textarea>
+                    <textarea class="sf-question-input" rows="3" placeholder="Your answer" autocomplete="off"></textarea>
+                    <button type="button" class="btn primary sf-question-submit">Submit</button>
                     <div class="sf-question-feedback"></div>
-                    <div class="sf-advance-hint" hidden>Scroll down for what's next ↓</div>
+                    <div class="sf-advance-hint" hidden>Moving on…</div>
                 </div>`;
             const qMeta = { canAdvance: false, kind: 'question', answered: false };
             sfWireQuestionSlide(qEl, rec.node, qMeta);
@@ -16171,19 +16179,21 @@ SQIDAQAB
         const isMcq = row.format === 'multiple_choice';
         const answerHtml = isMcq
             ? `<div class="sf-mcq-options">${(row.options || []).map((opt, i) => `<button type="button" class="btn sf-mcq-option" data-option-index="${i}">${escapeHtml(opt)}</button>`).join('')}</div>`
-            : `<textarea class="sf-question-input" rows="${row.format === 'fill_blank' ? 1 : 3}" placeholder="${row.format === 'fill_blank' ? 'Fill in the blank - scroll down to submit' : 'Your answer - scroll down to submit'}" autocomplete="off"></textarea>`;
+            : `<textarea class="sf-question-input" rows="${row.format === 'fill_blank' ? 1 : 3}" placeholder="${row.format === 'fill_blank' ? 'Fill in the blank' : 'Your answer'}" autocomplete="off"></textarea>`;
         el.innerHTML = `
             <div class="sf-slide-inner">
                 <div class="sf-slide-subject">Quick recall · ${escapeHtml(row.subject)}</div>
                 <div class="sf-speaker-label">Cortex asks</div>
                 <p class="sf-question-text">${escapeHtml(row.questionText)}</p>
                 ${answerHtml}
+                <button type="button" class="btn primary sf-question-submit">Submit</button>
                 <div class="sf-question-feedback"></div>
-                <div class="sf-advance-hint" hidden>${isMcq ? 'Selected - scroll down to submit ↓' : "Scroll down for what's next ↓"}</div>
+                <div class="sf-advance-hint" hidden>Moving on…</div>
             </div>`;
         const meta = { canAdvance: false, kind: 'recall', answered: false, noBack: true };
         const feedbackEl = el.querySelector('.sf-question-feedback');
         const inputEl = el.querySelector('.sf-question-input');
+        el.querySelector('.sf-question-submit').addEventListener('click', sfSubmitCurrentSlide);
         let selectedOptionIndex = null;
         if (isMcq) {
             el.querySelectorAll('.sf-mcq-option').forEach((btn) => {
@@ -16191,7 +16201,6 @@ SQIDAQAB
                     el.querySelectorAll('.sf-mcq-option').forEach((b) => b.classList.remove('sf-mcq-option-selected'));
                     btn.classList.add('sf-mcq-option-selected');
                     selectedOptionIndex = Number(btn.dataset.optionIndex);
-                    sfShowAdvanceHint(el);
                 });
             });
         }
@@ -16405,36 +16414,18 @@ SQIDAQAB
         sfMoveToIndex(sfFeed.currentIndex + 1);
     }
 
-    // Scrolling forward past an unanswered question slide now IS the
-    // submit action (no separate Submit button) - if the slide exposes
-    // "trySubmit" (see sfWireQuestionSlide/sfBuildCorrectionSlide), calling
-    // it grades the current answer; a wrong/empty answer shakes the slide
-    // (via trySubmit itself) and this function returns without moving,
-    // leaving the student stuck there to fix it and scroll again. Locking
-    // sfFeed for the duration of the await blocks any other gesture from
-    // being processed mid-submit (on top of the wheel handler's own
-    // per-gesture cooldown - see sfWireGestures).
-    async function sfTryAdvance(direction) {
+    // Plain scroll navigation only - never submits anything. An unanswered
+    // question slide (canAdvance false) just shakes on a forward attempt,
+    // the same "not yet" signal as always; answering it happens through
+    // its own Submit button (sfSubmitCurrentSlide), which auto-advances on
+    // a correct answer without the student needing to scroll at all.
+    function sfTryAdvance(direction) {
         if (!sfFeed || sfFeed.locked) return;
         const currentMeta = sfFeed.meta[sfFeed.currentIndex];
         if (direction > 0) {
             if (currentMeta && !currentMeta.canAdvance) {
-                if (!currentMeta.trySubmit) {
-                    sfShakeSlide(sfFeed.slides[sfFeed.currentIndex]);
-                    return;
-                }
-                sfFeed.locked = true;
-                let ok = false;
-                try { ok = await currentMeta.trySubmit(); }
-                finally { if (sfFeed) sfFeed.locked = false; }
-                if (!sfFeed) return; // feed closed while the submit was in flight
-                if (!ok) { sfShakeSlide(sfFeed.slides[sfFeed.currentIndex]); return; }
-                // 'handled' means trySubmit already navigated itself (the
-                // last recall in a batch jumping back to the lesson the
-                // student left - see sfJumpToRecalls) - the normal +1
-                // advance below would otherwise skip straight past
-                // whatever it just navigated back to.
-                if (ok === 'handled') return;
+                sfShakeSlide(sfFeed.slides[sfFeed.currentIndex]);
+                return;
             }
             if (sfFeed.currentIndex >= sfFeed.slides.length - 1) {
                 sfAppendNextRecommendation();
@@ -16452,6 +16443,44 @@ SQIDAQAB
             }
             sfMoveToIndex(sfFeed.currentIndex - 1);
         }
+    }
+
+    // How long a correct answer's confirmation sits on screen before the
+    // automatic advance - long enough to actually register "I got that
+    // right", short enough to keep the feed's own momentum rather than
+    // feeling like a stall.
+    const SF_AUTO_ADVANCE_DELAY_MS = 700;
+
+    function sfDelay(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+
+    // The Submit button's click handler for whichever slide is currently
+    // showing - reads sfFeed.currentIndex at call time rather than a
+    // closed-over reference, so every question slide can wire its own
+    // button to this exact same function. Wrong/empty shakes the slide
+    // and leaves the student to fix it and press Submit again; correct
+    // performs the advance ITSELF a beat later - the scrolling motion is
+    // automatic, not a gesture the student has to make.
+    async function sfSubmitCurrentSlide() {
+        if (!sfFeed || sfFeed.locked) return;
+        const currentMeta = sfFeed.meta[sfFeed.currentIndex];
+        if (!currentMeta || !currentMeta.trySubmit || currentMeta.canAdvance) return;
+        sfFeed.locked = true;
+        let ok = false;
+        try { ok = await currentMeta.trySubmit(); }
+        finally { if (sfFeed) sfFeed.locked = false; }
+        if (!sfFeed) return; // feed closed while the submit was in flight
+        if (!ok) { sfShakeSlide(sfFeed.slides[sfFeed.currentIndex]); return; }
+        // 'handled' means trySubmit already navigated itself (the last
+        // recall in a batch jumping back to the lesson the student left -
+        // see sfJumpToRecalls) - no further auto-advance needed on top.
+        if (ok === 'handled') return;
+        await sfDelay(SF_AUTO_ADVANCE_DELAY_MS);
+        if (!sfFeed) return;
+        if (sfFeed.currentIndex >= sfFeed.slides.length - 1) {
+            sfAppendNextRecommendation();
+            return;
+        }
+        sfMoveToIndex(sfFeed.currentIndex + 1);
     }
 
     // True while the key/wheel event's real target is a text input the
@@ -16473,8 +16502,6 @@ SQIDAQAB
         // wheel events in a burst. Resetting wheelAccum to 0 immediately
         // after firing let a big enough fling cross the threshold a
         // SECOND time before the fling itself was even over, advancing
-        // (or, once scrolling submits an answer - see sfTryAdvance -
-        // submitting/shaking and then immediately trying to advance again)
         // multiple slides from what the student experienced as one scroll.
         // Fix: once a threshold crossing fires, ignore all further wheel
         // deltas until the physical gesture has actually ended (no wheel
@@ -16647,16 +16674,16 @@ SQIDAQAB
                 <div class="sf-speaker-label">Cortex</div>
                 <div class="sf-slide-explanation">${splitIntoParagraphs(correction.correctionExplanation)}</div>
                 <p class="sf-question-text">${escapeHtml(correction.followupQuestionText)}</p>
-                <textarea class="sf-question-input" rows="3" placeholder="Your answer - scroll down to submit" autocomplete="off"></textarea>
+                <textarea class="sf-question-input" rows="3" placeholder="Your answer" autocomplete="off"></textarea>
+                <button type="button" class="btn primary sf-question-submit">Submit</button>
                 <div class="sf-question-feedback"></div>
-                <div class="sf-advance-hint" hidden>${isLast ? "That's every correction for now ↓" : 'Scroll down for the next correction ↓'}</div>
+                <div class="sf-advance-hint" hidden>${isLast ? "That's every correction for now" : 'Moving on to the next correction…'}</div>
             </div>`;
         const meta = { canAdvance: false, kind: 'correction', answered: false, noBack: true };
 
         const inputEl = el.querySelector('.sf-question-input');
         const feedbackEl = el.querySelector('.sf-question-feedback');
-        // No Submit button - scrolling forward past this slide IS the
-        // submit action (see sfTryAdvance), same as sfWireQuestionSlide.
+        el.querySelector('.sf-question-submit').addEventListener('click', sfSubmitCurrentSlide);
         meta.trySubmit = async () => {
             const answer = (inputEl.value || '').trim();
             if (!answer) {
