@@ -847,6 +847,8 @@
     .km-note-visual { align-self: start; }
     .km-note-text p { margin: 0 0 10px; font-size: 12.5px; line-height: 1.6; }
     .km-note-text p:last-child { margin-bottom: 0; }
+    .km-note-edit-btn { margin-top: 8px; font-size: 11.5px; padding: 5px 12px; }
+    .km-note-edit-textarea { width: 100%; box-sizing: border-box; margin-top: 4px; }
     .km-note-visual {
         position: sticky;
         top: 8px;
@@ -7316,7 +7318,7 @@ SQIDAQAB
     }
 
     async function deleteFolder(folderId) {
-        if (!confirm('Delete this subject and everything inside it? This cannot be undone.')) return;
+        if (!confirm('Delete this subject and everything inside it, including your progress and any notes you\'ve written or compiled for it? This cannot be undone.')) return;
         const folder = folders.find((f) => f.id === folderId);
         const conceptKeys = folder ? collectConceptKeysForFolder(folder) : [];
         await deleteFolderRecord(folderId);
@@ -17480,6 +17482,42 @@ SQIDAQAB
         }
     }
 
+    // A student's own rewrite of an auto-compiled note - see
+    // wireNoteEditButton. Never touches the Claude API either; this just
+    // overwrites what the Notes page (and everywhere else the note is
+    // shown) displays for this one node/link, for this one student, from
+    // then on.
+    async function updateNodeNoteRequest(nodeId, paragraphs) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return false;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/node/${encodeURIComponent(nodeId)}/notes`, {
+                method: 'PUT',
+                headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ paragraphs }),
+            });
+            return resp.ok;
+        } catch (err) {
+            console.error('LastMind: failed to save your edit to this note.', err);
+            return false;
+        }
+    }
+    async function updateEdgeNoteRequest(fromNodeId, toNodeId, paragraphs) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return false;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/edge/${encodeURIComponent(fromNodeId)}/${encodeURIComponent(toNodeId)}/notes`, {
+                method: 'PUT',
+                headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ paragraphs }),
+            });
+            return resp.ok;
+        } catch (err) {
+            console.error('LastMind: failed to save your edit to this note.', err);
+            return false;
+        }
+    }
+
     // A student's own hand-written note (free text or template) - never
     // an AI call, so no compile/generate verb here, just plain load/save.
     async function fetchPersonalNoteRequest(nodeId) {
@@ -17846,9 +17884,9 @@ SQIDAQAB
                     <div class="km-inline-detail-label" style="margin-bottom:0;">${escapeHtml(node.label)}</div>
                     <button type="button" class="btn km-notes-template-btn">+ Add template</button>
                 </div>
+                <div id="km-kd-own" style="margin-bottom:14px;"></div>
                 <div id="km-personal-note"></div>
                 <div class="km-kd-panel">
-                    <div class="km-kd-item" id="km-kd-own"></div>
                     ${node.links.length ? node.links.map((l, i) => l.unlocked
                         ? `<div class="km-kd-item" data-kd-idx="${i}"></div>`
                         : `<div class="km-kd-item km-kd-item-locked">
@@ -17860,14 +17898,14 @@ SQIDAQAB
             </div>
         `;
         renderPersonalNoteEditor(contentInner.querySelector('#km-personal-note'), contentInner.querySelector('.km-notes-template-btn'), nodeNoteStore(node.nodeId));
-        renderKnowledgeDropdownItem(contentInner.querySelector('#km-kd-own'), `${node.label} — knowledge`, async () => {
+        renderAutoCompiledNote(contentInner.querySelector('#km-kd-own'), async () => {
             return await compileNodeNotesRequest(node.nodeId);
-        }, renderNodeNoteBlock, buildNodeStepChecker(node.nodeId));
+        }, renderNodeNoteBlock, buildNodeStepChecker(node.nodeId), (paragraphs) => updateNodeNoteRequest(node.nodeId, paragraphs), true);
         node.links.forEach((l, i) => {
             if (!l.unlocked) return;
-            renderKnowledgeDropdownItem(contentInner.querySelector(`[data-kd-idx="${i}"]`), `${node.label} → ${l.toLabel}`, async () => {
+            renderAutoCompiledNote(contentInner.querySelector(`[data-kd-idx="${i}"]`), async () => {
                 return await compileEdgeNotesRequest(node.nodeId, l.toNodeId);
-            }, renderEdgeNoteBlock);
+            }, renderEdgeNoteBlock, null, (paragraphs) => updateEdgeNoteRequest(node.nodeId, l.toNodeId, paragraphs));
         });
     }
 
@@ -18167,17 +18205,85 @@ SQIDAQAB
         }
     }
 
-    function renderNodeNoteBlock(container, data, stepCheckFn) {
+    // editSave, when given, is (paragraphs: string[]) => Promise<boolean> -
+    // saves a student's own rewrite of this note and reports whether it
+    // went through. Only the Notes sidebar passes this (see
+    // selectNotesNode) - every other caller (the old graph-view's inline
+    // dual-coding preview) omits it and gets the exact same read-only
+    // block as before, unchanged. skipHeading - the Notes sidebar's own
+    // node-note call also omits this: that page already shows the node's
+    // label as the page's own title right above, and a node note's own
+    // heading is just that same label again (no more question-framed
+    // heading now that compiling doesn't go through a model - see
+    // getNodeNoteBaseline) - showing it twice would be pure duplication.
+    function renderNodeNoteBlock(container, data, stepCheckFn, editSave, skipHeading) {
         const hasVisual = visualHasContent(data.visual);
         container.innerHTML = `
-            <h4 class="km-note-question">${escapeHtml(data.heading)}</h4>
+            ${skipHeading ? '' : `<h4 class="km-note-question">${escapeHtml(data.heading)}</h4>`}
             <div class="km-note-columns ${hasVisual ? '' : 'km-note-no-visual'}">
                 <div class="km-note-text">${(data.paragraphs || []).map((p) => `<p>${boldMarkdownToHtml(p)}</p>`).join('')}</div>
                 ${hasVisual ? '<div class="km-note-visual"></div>' : ''}
             </div>
         `;
-        if (!hasVisual) return;
-        renderNoteVisual(container.querySelector('.km-note-visual'), data.visual, stepCheckFn);
+        if (hasVisual) renderNoteVisual(container.querySelector('.km-note-visual'), data.visual, stepCheckFn);
+        if (editSave) wireNoteEditButton(container.querySelector('.km-note-columns'), container.querySelector('.km-note-text'), data.paragraphs || [], editSave);
+    }
+
+    // A note's paragraph text, in place, editable - reuses the same
+    // scroll-to-submit-adjacent textarea styling as everything else in
+    // this app rather than inventing a new input style. Cancel restores
+    // the paragraphs exactly as they were before this edit attempt (never
+    // whatever's still sitting in the textarea) - re-wires its own Edit
+    // button afterward either way (save or cancel) so the block stays
+    // editable indefinitely, not just once.
+    function wireNoteEditButton(columnsEl, textEl, paragraphs, saveFn) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn km-note-edit-btn';
+        btn.textContent = 'Edit';
+        columnsEl.insertAdjacentElement('afterend', btn);
+        btn.addEventListener('click', () => {
+            btn.remove();
+            const textarea = document.createElement('textarea');
+            textarea.className = 'sf-question-input km-note-edit-textarea';
+            textarea.rows = Math.max(4, paragraphs.length * 2);
+            textarea.value = paragraphs.join('\n\n');
+            textEl.replaceWith(textarea);
+            const actions = document.createElement('div');
+            actions.style.cssText = 'margin-top:8px;display:flex;gap:8px;';
+            const saveBtn = document.createElement('button');
+            saveBtn.type = 'button'; saveBtn.className = 'btn primary'; saveBtn.textContent = 'Save';
+            const cancelBtn = document.createElement('button');
+            cancelBtn.type = 'button'; cancelBtn.className = 'btn'; cancelBtn.textContent = 'Cancel';
+            actions.appendChild(saveBtn);
+            actions.appendChild(cancelBtn);
+            textarea.insertAdjacentElement('afterend', actions);
+
+            function restore(newParagraphs) {
+                const restoredText = document.createElement('div');
+                restoredText.className = 'km-note-text';
+                restoredText.innerHTML = newParagraphs.map((p) => `<p>${boldMarkdownToHtml(p)}</p>`).join('');
+                textarea.replaceWith(restoredText);
+                actions.remove();
+                wireNoteEditButton(columnsEl, restoredText, newParagraphs, saveFn);
+            }
+
+            cancelBtn.addEventListener('click', () => restore(paragraphs));
+            saveBtn.addEventListener('click', async () => {
+                saveBtn.disabled = true;
+                cancelBtn.disabled = true;
+                saveBtn.textContent = 'Saving…';
+                const newParagraphs = textarea.value.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+                const ok = await saveFn(newParagraphs);
+                if (!ok) {
+                    saveBtn.disabled = false;
+                    cancelBtn.disabled = false;
+                    saveBtn.textContent = 'Save';
+                    return;
+                }
+                restore(newParagraphs);
+            });
+        });
     }
 
     // The interactive worked-example walkthrough: instead of just reading
@@ -18263,46 +18369,30 @@ SQIDAQAB
         });
     }
 
-    // Same shape as renderNodeNoteBlock, minus a visual - see
-    // EDGE_NOTES_COMPILE_PROMPT's own comment on why a link's notes stay
-    // text-only. transferSummary (the one-sentence causal claim) leads,
-    // then the fuller mechanism paragraphs.
-    function renderEdgeNoteBlock(container, data) {
+    // Same shape as renderNodeNoteBlock, minus a visual - a link's notes
+    // stay text-only. editSave - see renderNodeNoteBlock's own comment.
+    function renderEdgeNoteBlock(container, data, stepCheckFn, editSave) {
         container.innerHTML = `
             <h4 class="km-note-question">${escapeHtml(data.heading)}</h4>
             <div class="km-note-columns km-note-no-visual">
-                <div class="km-note-text">
-                    <p><strong>${boldMarkdownToHtml(data.transferSummary)}</strong></p>
-                    ${(data.paragraphs || []).map((p) => `<p>${boldMarkdownToHtml(p)}</p>`).join('')}
-                </div>
+                <div class="km-note-text">${(data.paragraphs || []).map((p) => `<p>${boldMarkdownToHtml(p)}</p>`).join('')}</div>
             </div>
         `;
+        if (editSave) wireNoteEditButton(container.querySelector('.km-note-columns'), container.querySelector('.km-note-text'), data.paragraphs || [], editSave);
     }
 
-    // Same manual, opt-in shape as the old renderCompileNotesCta, but for a
-    // link's transfer+integration notes - shown once, right after that
-    // link's own integration question genuinely passes (see
-    // renderNodeReviewIntegration). Deliberately a button rather than the
-    // automatic compile this replaced: most reviews never touch every
-    // link's notes on the Notes page, so paying for a compile call on
-    // every single pass was pure waste for exactly the students who
-    // never look. A student who skips this can still compile the same
-    // notes later from the Notes page itself, via the same endpoint.
-    function renderCompileEdgeNotesCta(container, fromNodeId, toNodeId, label) {
-        container.innerHTML = `<button type="button" class="btn km-notes-compile-btn" style="margin-top:10px;">Compile notes</button>`;
-        container.querySelector('.km-notes-compile-btn').addEventListener('click', async (ev) => {
-            ev.target.disabled = true;
-            ev.target.textContent = 'Compiling…';
-            const result = await compileEdgeNotesRequest(fromNodeId, toNodeId);
-            if (!result) {
-                ev.target.disabled = false;
-                ev.target.textContent = 'Compile notes';
-                container.insertAdjacentHTML('beforeend', '<div class="km-inline-detail-item km-inline-detail-none" style="margin-top:8px;">Something went wrong — try again.</div>');
-                return;
-            }
-            container.innerHTML = `<div class="km-inline-detail-section" style="margin-top:10px;"></div>`;
-            renderEdgeNoteBlock(container.querySelector('.km-inline-detail-section'), result);
-        });
+    // Shown the moment a link's own integration question genuinely passes
+    // (see renderNodeReviewIntegration) - automatic now that compiling a
+    // note is a plain text filter over already-cached content, not a
+    // Claude call (see knowledgeMapNotesService.ts's own top comment):
+    // there's no cost left to justify making the student ask for this
+    // with a button first.
+    async function renderCompileEdgeNotesCta(container, fromNodeId, toNodeId, label) {
+        container.innerHTML = '';
+        const result = await compileEdgeNotesRequest(fromNodeId, toNodeId);
+        if (!result) return;
+        container.innerHTML = `<div class="km-inline-detail-section" style="margin-top:10px;"></div>`;
+        renderEdgeNoteBlock(container.querySelector('.km-inline-detail-section'), result);
     }
 
     // One row inside a node's "Knowledge & notes" dropdown (see
@@ -18310,8 +18400,10 @@ SQIDAQAB
     // show, compiles on click via whichever request the caller supplies
     // (the node's own notes, or one specific link's integration notes),
     // then hands the raw compiled data to `renderContent` to build in
-    // place. Same opt-in, compile-on-demand principle as the CTA buttons
-    // above - nothing here is fetched until the student actually asks for it.
+    // place. Kept click-to-expand here (unlike the Notes sidebar's own
+    // renderAutoCompiledNote below) purely to save this panel's own
+    // vertical space - it's a disclosure toggle, not a "generate" action;
+    // compiling itself costs nothing either way.
     function renderKnowledgeDropdownItem(container, label, fetchData, renderContent, stepCheckFn) {
         container.innerHTML = `<button type="button" class="btn km-kd-item-btn">${escapeHtml(label)}</button>`;
         container.querySelector('.km-kd-item-btn').addEventListener('click', async (ev) => {
@@ -18327,6 +18419,25 @@ SQIDAQAB
             container.innerHTML = `<div class="km-kd-item-label">${escapeHtml(label)}</div><div class="km-note-block"></div>`;
             renderContent(container.querySelector('.km-note-block'), data, stepCheckFn);
         });
+    }
+
+    // The Notes sidebar's own version of the row above - no button at
+    // all, no "Loading…" state to click past: a lesson's note (and each
+    // unlocked link's) is compiled automatically the instant its section
+    // of the page is shown, since compiling costs nothing any more (see
+    // knowledgeMapNotesService.ts's own top comment). editSave, when
+    // given, is threaded through to renderContent so the student can
+    // rewrite what's shown in place (see wireNoteEditButton).
+    async function renderAutoCompiledNote(container, fetchData, renderContent, stepCheckFn, editSave, skipHeading) {
+        container.innerHTML = `<div class="km-inline-detail-item km-inline-detail-none">Loading…</div>`;
+        const data = await fetchData();
+        if (!container.isConnected) return;
+        if (!data) {
+            container.innerHTML = `<div class="km-inline-detail-item km-inline-detail-none">Something went wrong — try again.</div>`;
+            return;
+        }
+        container.innerHTML = `<div class="km-note-block"></div>`;
+        renderContent(container.querySelector('.km-note-block'), data, stepCheckFn, editSave, skipHeading);
     }
 
     // Theme pills — "All" (default) plus one per distinct `theme` value
