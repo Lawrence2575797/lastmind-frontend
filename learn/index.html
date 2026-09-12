@@ -7795,6 +7795,24 @@ SQIDAQAB
         // click in and hit "not set up for this subject yet") is what makes
         // this sidebar only ever show subjects that actually have practice
         // questions to offer.
+        // Corrections lives in the Exam Preparation sidebar itself, above
+        // the subject list - it's a personalized feed across every subject's
+        // mistakes, not a per-subject thing, so it sits above rather than
+        // inside any one folder's row.
+        if (specPracticeMode) {
+            const correctionsItem = document.createElement('div');
+            correctionsItem.className = 'folder-item';
+            const correctionsHeader = document.createElement('div');
+            correctionsHeader.className = 'folder-item-header';
+            const correctionsLabel = document.createElement('div');
+            correctionsLabel.className = 'folder-item-label';
+            correctionsLabel.textContent = '📝 Corrections';
+            correctionsHeader.appendChild(correctionsLabel);
+            correctionsHeader.addEventListener('click', () => sfShowCorrectionsFeed(renderExamPrepEntryScreen));
+            correctionsItem.appendChild(correctionsHeader);
+            listEl.appendChild(correctionsItem);
+        }
+
         const visibleFolders = specPracticeMode ? folders.filter((f) => f.qualification !== CUSTOM_LEVEL) : folders;
 
         if (!visibleFolders.length) {
@@ -8069,7 +8087,11 @@ SQIDAQAB
         specPracticeMode = false;
         kmGraphMode = false;
         selectedFolderSpecTree = null;
-        selectFolder(null);
+        // Return to the subject's own feed (not Cortex) when a subject was
+        // active - selectFolder falls into its plain sfShowFolderFeed branch
+        // now that both mode flags are off. null (no subject was active)
+        // still falls back to Cortex, same as before.
+        selectFolder(selectedFolderId);
     }
     function specPracticeBackButtonHtml() {
         return '<button type="button" class="btn" id="specPracticeBackBtn" style="margin-bottom:16px;">← Dashboard</button>';
@@ -8097,11 +8119,9 @@ SQIDAQAB
             <div class="dashboard-view dashboard-locked">
                 <h1 class="dashboard-locked-logo">Exam <span>Preparation</span></h1>
                 <p class="dashboard-locked-quote">Select a subject, then a lesson from the sidebar.</p>
-                <button class="btn btn-on-content" type="button" id="examPrepCorrectionsBtn" style="margin-top:24px;">📝 Corrections</button>
-                <button class="btn btn-on-content" type="button" id="exitSpecPracticeModeBtn" style="margin-top:10px;">Exit Exam Preparation</button>
+                <button class="btn btn-on-content" type="button" id="exitSpecPracticeModeBtn" style="margin-top:24px;">← Back</button>
             </div>
         `;
-        document.getElementById('examPrepCorrectionsBtn').addEventListener('click', () => sfShowCorrectionsFeed(renderExamPrepEntryScreen));
         document.getElementById('exitSpecPracticeModeBtn').addEventListener('click', exitSpecPracticeMode);
         refreshFolderList();
     }
@@ -8115,7 +8135,9 @@ SQIDAQAB
     function exitKmGraphMode() {
         kmGraphMode = false;
         specPracticeMode = false;
-        selectFolder(null);
+        // Return to the subject's own feed (not Cortex) when a subject was
+        // active - see exitSpecPracticeMode's identical comment.
+        selectFolder(selectedFolderId);
     }
     function renderKnowledgeMapEntryScreen() {
         kmGraphMode = true;
@@ -8130,7 +8152,7 @@ SQIDAQAB
             <div class="dashboard-view dashboard-locked">
                 <h1 class="dashboard-locked-logo">Knowledge <span>Map</span></h1>
                 <p class="dashboard-locked-quote">Select a subject from the sidebar to see its full map.</p>
-                <button class="btn btn-on-content" type="button" id="exitKmGraphModeBtn" style="margin-top:24px;">Exit Knowledge Map</button>
+                <button class="btn btn-on-content" type="button" id="exitKmGraphModeBtn" style="margin-top:24px;">← Back</button>
             </div>
         `;
         document.getElementById('exitKmGraphModeBtn').addEventListener('click', exitKmGraphMode);
