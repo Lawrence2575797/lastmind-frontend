@@ -22782,7 +22782,7 @@ SQIDAQAB
             clearInterval(intervalId);
             const el = document.getElementById('sfLoadingMessage');
             if (el) el.textContent = "Still loading — if this is the first request in a while, the server may be waking up from idle. This can take up to a minute.";
-        }, 8000);
+        }, 4000);
     }
 
     async function enterApp(paid) {
