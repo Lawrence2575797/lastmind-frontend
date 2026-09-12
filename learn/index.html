@@ -16277,7 +16277,7 @@ SQIDAQAB
     // backend is the actual source of truth (it expires the row on the
     // next /immediate-recalls/due fetch regardless), this just keeps the
     // UI honest within a single continuous session in the meantime.
-    const SF_RECALL_GRACE_MS = 15 * 1000;
+    const SF_RECALL_GRACE_MS = 30 * 1000;
 
     function sfShowRecallNudge(rows) {
         if (!sfFeed || !sfFeed.nudgeEl || !rows.length) return;
