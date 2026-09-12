@@ -15510,6 +15510,16 @@ SQIDAQAB
         return (result && result.checks) || [];
     }
 
+    // Every concept_id (node or edge/integration) that hasn't cleared
+    // its Day-1 check yet, regardless of whether that check is due
+    // today - "integration must be after passing a Day-1 check" means
+    // the real AO1/qualifying-link spaced-review system must never
+    // offer one of these, even a day early.
+    async function sfFetchPendingDay1ConceptIds() {
+        const result = await sfGetBackend('/day1-checks/pending');
+        return new Set((result && result.conceptIds) || []);
+    }
+
     async function sfComputeFolderRecommendation(folder, pretendEncodedNodeId) {
         let data;
         try {
@@ -15551,14 +15561,36 @@ SQIDAQAB
             return null;
         }
 
+        // "Integration must be after passing a Day-1 check" - a concept
+        // (node OR a specific qualifying link) that hasn't cleared its
+        // own Day-1 check yet is never offered by the real spaced-review
+        // system below, even if its Day-1 isn't due until tomorrow.
+        const pendingDay1ConceptIds = await sfFetchPendingDay1ConceptIds();
+
         let bestDue = null;
         data.nodes.forEach((n) => {
             if (!schedule.has(n.conceptId)) return;
+            const nodeAo1Gated = pendingDay1ConceptIds.has(n.conceptId);
             const qualifyingLinks = (successorAdjacency.get(n.id) || [])
                 .map((id) => nodeById.get(id))
-                .filter((ln) => ln && schedule.has(ln.conceptId));
-            if (!sfIsNodeReviewDue(n, qualifyingLinks, schedule)) return;
-            const due = sfNextNodeReviewDueDate(n, qualifyingLinks, schedule) || new Date(0);
+                .filter((ln) => ln && schedule.has(ln.conceptId))
+                .filter((ln) => !pendingDay1ConceptIds.has(sfReviewLinkKey(n, ln) + '::integration'));
+            if (nodeAo1Gated && !qualifyingLinks.length) return; // nothing left to test yet
+
+            // Same due-check sfIsNodeReviewDue/sfNextNodeReviewDueDate do,
+            // but with AO1 itself left out of both when it's Day-1-gated
+            // - qualifyingLinks is already pre-filtered above, so this
+            // only needs to skip the node's OWN concept_id lookup, not
+            // reimplement the link-side logic.
+            const linkDueDates = qualifyingLinks
+                .map((link) => schedule.get(`${n.conceptId}->${link.conceptId}::integration`))
+                .filter(Boolean);
+            const isDue = nodeAo1Gated
+                ? linkDueDates.some((entry) => sfIsScheduleEntryDue(entry))
+                : sfIsNodeReviewDue(n, qualifyingLinks, schedule);
+            if (!isDue) return;
+            const relevantDates = nodeAo1Gated ? linkDueDates : [schedule.get(n.conceptId), ...linkDueDates].filter(Boolean);
+            const due = relevantDates.length ? new Date(Math.min(...relevantDates.map((entry) => new Date(entry.due).getTime()))) : new Date(0);
             if (!bestDue || due < bestDue.due) bestDue = { node: n, qualifyingLinks, due };
         });
 
@@ -15989,7 +16021,12 @@ SQIDAQAB
     // offer a review at all, not for which step actually starts it).
     async function sfBuildReviewSlides(rec) {
         const schedule = new Map((cachedScheduleData || []).map((r) => [r.concept_id, r]));
-        const ao1Due = sfIsScheduleEntryDue(schedule.get(rec.node.conceptId));
+        // rec.qualifyingLinks already excludes any Day-1-gated link (see
+        // sfComputeFolderRecommendation), but AO1 itself needs its own
+        // check here too - this function doesn't otherwise know whether
+        // the node's OWN concept cleared its Day-1 check yet.
+        const pendingDay1ConceptIds = await sfFetchPendingDay1ConceptIds();
+        const ao1Due = !pendingDay1ConceptIds.has(rec.node.conceptId) && sfIsScheduleEntryDue(schedule.get(rec.node.conceptId));
         if (ao1Due) {
             const ao1Slide = await sfBuildAo1Slide(rec);
             if (ao1Slide) return [ao1Slide];
@@ -16240,7 +16277,7 @@ SQIDAQAB
     // backend is the actual source of truth (it expires the row on the
     // next /immediate-recalls/due fetch regardless), this just keeps the
     // UI honest within a single continuous session in the meantime.
-    const SF_RECALL_GRACE_MS = 3 * 60 * 1000;
+    const SF_RECALL_GRACE_MS = 15 * 1000;
 
     function sfShowRecallNudge(rows) {
         if (!sfFeed || !sfFeed.nudgeEl || !rows.length) return;
