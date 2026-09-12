@@ -1215,6 +1215,9 @@
     .sf-speaker-label { font-size: 13px; font-weight: 700; opacity: 0.75; }
     .sf-question-text { font-size: 18px; line-height: 1.7; margin: 0; }
     .sf-question-input { width: 100%; box-sizing: border-box; font: inherit; font-size: 15px; padding: 12px 14px; border-radius: 8px; border: 1px solid rgba(230, 215, 176, 0.25); background: var(--bg); color: var(--text); resize: vertical; }
+    .sf-mcq-options { display: flex; flex-direction: column; gap: 8px; }
+    .sf-mcq-option { text-align: left; width: 100%; padding: 12px 14px; border-radius: 8px; border: 1px solid rgba(230, 215, 176, 0.25); background: var(--bg); color: var(--text); font: inherit; font-size: 15px; cursor: pointer; }
+    .sf-mcq-option-selected { border-color: var(--text); background: rgba(230, 215, 176, 0.12); }
     .sf-feedback-line { font-size: 14.5px; line-height: 1.6; padding: 10px 12px; border-radius: 8px; background: rgba(0,0,0,0.15); }
     .sf-feedback-correct { color: #6fcf97; }
     .sf-feedback-wrong { color: #eb9694; }
@@ -16149,38 +16152,70 @@ SQIDAQAB
         sfFeed.recallTimers.push(expireTimer);
     }
 
-    // Builds one recall's slide - just the original practice question
-    // re-asked (retrieval practice, not re-reading the explanation), with
-    // its own trySubmit wired to the dedicated /immediate-recalls endpoint
-    // (never the normal grading route - see that route's own comment on
-    // why this must never touch real FSRS state). onDone fires only once,
-    // the moment this specific recall is answered correctly.
-    function sfBuildImmediateRecallSlide(row, question, onDone) {
+    // Builds one recall's slide from whichever cached question GET
+    // /immediate-recalls/due picked for it (row.format/questionText/
+    // options - see recallChecks in lessonGenerationPrompts.ts) - a
+    // deliberately different question than the node's own main practice
+    // question, not a literal repeat. Renders one of three formats:
+    // free-text (a textarea, same scroll-to-submit pattern as any other
+    // question), fill-blank (a single short input for the one blank),
+    // or multiple-choice (click an option to select it, then scroll down
+    // to submit the selection - clicking never submits by itself). Graded
+    // via the dedicated /immediate-recalls endpoint (never the normal
+    // grading route - see that route's own comment on why this must
+    // never touch real FSRS state). onDone fires only once, the moment
+    // this specific recall is answered correctly.
+    function sfBuildImmediateRecallSlide(row, onDone) {
         const el = document.createElement('div');
         el.className = 'sf-feed-slide';
+        const isMcq = row.format === 'multiple_choice';
+        const answerHtml = isMcq
+            ? `<div class="sf-mcq-options">${(row.options || []).map((opt, i) => `<button type="button" class="btn sf-mcq-option" data-option-index="${i}">${escapeHtml(opt)}</button>`).join('')}</div>`
+            : `<textarea class="sf-question-input" rows="${row.format === 'fill_blank' ? 1 : 3}" placeholder="${row.format === 'fill_blank' ? 'Fill in the blank - scroll down to submit' : 'Your answer - scroll down to submit'}" autocomplete="off"></textarea>`;
         el.innerHTML = `
             <div class="sf-slide-inner">
                 <div class="sf-slide-subject">Quick recall · ${escapeHtml(row.subject)}</div>
                 <div class="sf-speaker-label">Cortex asks</div>
-                <p class="sf-question-text">${escapeHtml(question.questionText)}</p>
-                <textarea class="sf-question-input" rows="3" placeholder="Your answer - scroll down to submit" autocomplete="off"></textarea>
+                <p class="sf-question-text">${escapeHtml(row.questionText)}</p>
+                ${answerHtml}
                 <div class="sf-question-feedback"></div>
-                <div class="sf-advance-hint" hidden>Scroll down for what's next ↓</div>
+                <div class="sf-advance-hint" hidden>${isMcq ? 'Selected - scroll down to submit ↓' : "Scroll down for what's next ↓"}</div>
             </div>`;
         const meta = { canAdvance: false, kind: 'recall', answered: false, noBack: true };
-        const inputEl = el.querySelector('.sf-question-input');
         const feedbackEl = el.querySelector('.sf-question-feedback');
+        const inputEl = el.querySelector('.sf-question-input');
+        let selectedOptionIndex = null;
+        if (isMcq) {
+            el.querySelectorAll('.sf-mcq-option').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    el.querySelectorAll('.sf-mcq-option').forEach((b) => b.classList.remove('sf-mcq-option-selected'));
+                    btn.classList.add('sf-mcq-option-selected');
+                    selectedOptionIndex = Number(btn.dataset.optionIndex);
+                    sfShowAdvanceHint(el);
+                });
+            });
+        }
         meta.trySubmit = async () => {
-            const answer = (inputEl.value || '').trim();
-            if (!answer) {
-                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Write an answer before continuing.</div>`;
-                return false;
+            const body = { recallCheckIndex: row.recallCheckIndex };
+            if (isMcq) {
+                if (selectedOptionIndex === null) {
+                    feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Pick an option before continuing.</div>`;
+                    return false;
+                }
+                body.selectedOptionIndex = selectedOptionIndex;
+            } else {
+                const answer = (inputEl.value || '').trim();
+                if (!answer) {
+                    feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Write an answer before continuing.</div>`;
+                    return false;
+                }
+                body.answer = answer;
+                inputEl.disabled = true;
             }
-            inputEl.disabled = true;
             feedbackEl.innerHTML = `<div class="sf-feedback-line">Checking…</div>`;
-            const result = await sfPostBackend(`/immediate-recalls/${row.recallId}/submit`, { answer });
+            const result = await sfPostBackend(`/immediate-recalls/${row.recallId}/submit`, body);
             if (!result) {
-                inputEl.disabled = false;
+                if (inputEl) inputEl.disabled = false;
                 feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Something went wrong submitting that - try again.</div>`;
                 return false;
             }
@@ -16197,7 +16232,7 @@ SQIDAQAB
                 const wasLast = onDone();
                 return wasLast ? 'handled' : true;
             }
-            inputEl.disabled = false;
+            if (inputEl) inputEl.disabled = false;
             feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || "Not quite - try again.")}</div>`;
             return false;
         };
@@ -16215,13 +16250,11 @@ SQIDAQAB
         const returnIndex = sfFeed.currentIndex;
         const insertAt = returnIndex + 1;
 
-        const withQuestions = await Promise.all(rows.map(async (row) => {
-            const lesson = await fetchNodeLesson(row.nodeId);
-            const question = lesson && lesson.practiceQuestion && lesson.practiceQuestion.questionText ? lesson.practiceQuestion : null;
-            return { row, question };
-        }));
-        const usable = withQuestions.filter((r) => r.question);
-        if (!sfFeed || !usable.length) return; // feed closed mid-fetch, or nothing left to actually ask
+        // GET /immediate-recalls/due already picked and attached each
+        // row's own question (format/questionText/options) server-side -
+        // no separate fetch needed here any more.
+        const usable = rows.filter((row) => row.questionText);
+        if (!sfFeed || !usable.length) return;
 
         // Returns true only when THIS call was the one that cleared the
         // last remaining recall in the batch (see sfBuildImmediateRecallSlide's
@@ -16242,7 +16275,7 @@ SQIDAQAB
             return true;
         };
 
-        sfInsertSlidesAt(insertAt, usable.map(({ row, question }) => sfBuildImmediateRecallSlide(row, question, onOneDone)));
+        sfInsertSlidesAt(insertAt, usable.map((row) => sfBuildImmediateRecallSlide(row, onOneDone)));
         sfForceMoveToIndex(insertAt);
     }
 
