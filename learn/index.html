@@ -15676,14 +15676,15 @@ SQIDAQAB
             if (!bestDue || due < bestDue.due) bestDue = { node: n, qualifyingLinks, due };
         });
 
-        // Day-1 checks are prioritised alongside real spaced reviews
-        // (both outrank a new lesson) - compare whichever is earliest
-        // due between the two, since a folder can have at most one of
-        // each as its own best candidate.
+        // Day-1 checks are prioritised alongside real spaced reviews (both
+        // outrank a new lesson) - the checks themselves already come back
+        // from the backend pre-ordered by the subject's own teaching
+        // sequence (see orderDay1ChecksByLessonOrder), not by due_date
+        // (near-meaningless here - everything overdue shares "today") and
+        // never by recall/FSRS priority, so the first one for this
+        // folder's subject is simply taken as-is.
         const day1Checks = (await sfFetchDueDay1Checks()).filter((c) => c.subject === folder.subject);
-        const bestDay1 = day1Checks.length
-            ? day1Checks.reduce((a, b) => (new Date(a.dueDate) <= new Date(b.dueDate) ? a : b))
-            : null;
+        const bestDay1 = day1Checks.length ? day1Checks[0] : null;
 
         if (bestDue && bestDay1) {
             return new Date(bestDay1.dueDate) < bestDue.due
