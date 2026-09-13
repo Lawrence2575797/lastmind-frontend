@@ -16148,13 +16148,27 @@ SQIDAQAB
     // 'review' one.
     async function sfBuildSlidesForRecommendation(rec) {
         if (rec.type === 'day1') {
-            sfPrefetchNext();
+            // Deliberately NOT prefetching here (unlike a lesson opening,
+            // which passes pretendEncodedNodeId specifically to account for
+            // "not graded yet") - a real, found bug: prefetching before
+            // this check is even answered computes "what's next" while
+            // THIS SAME concept is still the earliest-due unresolved one,
+            // caching a self-referential "recommend myself again"
+            // recommendation. The on-answer sfPrefetchNext() call inside
+            // sfBuildDay1CheckSlide's own trySubmit (which only fires
+            // AFTER the real resolve completes) is what correctly prefetches
+            // this - this early call just raced it and lost, showing up as
+            // the same question appearing twice in a row.
             return [sfBuildDay1CheckSlide(rec.check)];
         }
         if (rec.type === 'review') {
             const slides = await sfBuildReviewSlides(rec);
             if (slides.length) {
-                sfPrefetchNext();
+                // Same reasoning as the day1 branch above - AO1/integration
+                // slides already prefetch correctly on their own answer
+                // (see sfBuildAo1Slide/sfBuildIntegrationSlidesFrom's own
+                // onCorrect), so prefetching here too, before this review
+                // is resolved, only risks the same self-referential race.
                 return slides;
             }
             // Last-resort fallback (a real network failure, or a data state
