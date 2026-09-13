@@ -17069,6 +17069,27 @@ SQIDAQAB
         }
     }
 
+    // Opens one specific node's lesson in the main scroll-to-reveal feed,
+    // for the Knowledge Map graph view's own "Start review"/"Encode this
+    // first" buttons (see startNodeLesson) - the graph used to open these
+    // inline in its own detail panel via renderNodeLessonContent, a
+    // click-a-button-to-reveal interaction left over from before the feed
+    // existed, different from the scroll gesture every other lesson in the
+    // app now uses. Reuses the exact same feed-mounting/slide-building code
+    // sfMaybeShowFeed does, just seeded with the node the student explicitly
+    // picked in the graph instead of asking the recommendation engine what's
+    // next - the whole point of clicking a specific node in the graph is
+    // picking exactly that one. Closing the feed returns to the graph
+    // (rather than Cortex/welcome) since that's where this was opened from.
+    async function sfOpenNodeLessonInFeed(folder, node) {
+        const { viewportEl } = sfMountFeedShell('Back to Knowledge Map', () => renderKnowledgeMapForFolder(folder), folder);
+        const built = await sfBuildSlidesForRecommendation({ node, folder });
+        if (!sfFeed) return; // closed while the fetch was in flight
+        sfAppendBuiltSlides(built);
+        viewportEl.focus();
+        sfRefreshImmediateRecalls();
+    }
+
     // ---- Exam Preparation's own Corrections feed ----
     //
     // A personalized correction (mistake -> explanation -> follow-up
@@ -19554,7 +19575,7 @@ SQIDAQAB
                 examBoard: folder.examBoard || ''
             });
             if (!gate || !gate.requiresDiagnostic) {
-                await renderNodeLessonContent(lessonEl, d, upstream);
+                sfOpenNodeLessonInFeed(folder, d);
                 return;
             }
             renderChainDiagnosticAnswering(lessonEl, d, upstream, gate.state, gate.questionText);
@@ -21386,7 +21407,7 @@ SQIDAQAB
         // earned real credits for this should actually see that happen,
         // same as every other graded action in this app.
         function renderChainDiagnosticPassed(lessonEl, d, upstream, keysEarned) {
-            if (!keysEarned) return renderNodeLessonContent(lessonEl, d, upstream);
+            if (!keysEarned) return sfOpenNodeLessonInFeed(folder, d);
             lessonEl.innerHTML = `
                 <div class="km-inline-detail-section">
                     <h4>Prerequisites verified</h4>
@@ -21395,7 +21416,7 @@ SQIDAQAB
                     <button type="button" class="btn primary km-diag-continue-btn" style="margin-top:10px;">Continue to lesson</button>
                 </div>
             `;
-            lessonEl.querySelector('.km-diag-continue-btn').addEventListener('click', () => renderNodeLessonContent(lessonEl, d, upstream));
+            lessonEl.querySelector('.km-diag-continue-btn').addEventListener('click', () => sfOpenNodeLessonInFeed(folder, d));
         }
 
         function renderChainDiagnosticError(lessonEl) {
