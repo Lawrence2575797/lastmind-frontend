@@ -15369,7 +15369,7 @@ SQIDAQAB
             // Only overwrite if this exact marker is still there - a
             // no-op once the real content has already replaced it.
             if (el.querySelector('.km-loading-hint') === marker) {
-                marker.textContent = "Still loading — if this is the first request in a while, the server may be waking up from idle. This can take up to a minute.";
+                marker.textContent = "Still loading — this is taking longer than usual, but hasn't failed. Hang tight.";
             }
         }, 4000);
     }
@@ -16277,9 +16277,22 @@ SQIDAQAB
             <div class="sf-slide-inner">
                 <div class="sf-slide-subject">${escapeHtml(folderLabel(rec.folder))}</div>
                 <div class="sf-slide-explanation">${splitIntoParagraphs(lesson.explanation)}</div>
+                <div class="sf-diagram-explanation-host"></div>
                 <div class="sf-advance-hint">${sfAdvanceHintText()}</div>
             </div>`;
         makeTermsSpeakable(explEl.querySelector('.sf-slide-explanation'), rec.folder.subject);
+        // The same read-only illustration the Notes page already shows for
+        // a diagrammatic concept (renderStaticDiagram, via the SAME
+        // diagramSpec practiceQuestion carries) - real gap found: a concept
+        // whose whole point IS a curve's shape (e.g. price elasticity of
+        // supply's four categories) was only ever described in words here,
+        // even though the exact diagram was sitting right there on
+        // practiceQuestion.diagramSpec the whole time, already used to grade
+        // the question that follows.
+        const diagramSpec = lesson.practiceQuestion && lesson.practiceQuestion.diagramSpec;
+        if (diagramSpec && !diagramSpec.notDiagrammatic) {
+            renderStaticDiagram(explEl.querySelector('.sf-diagram-explanation-host'), diagramSpec);
+        }
 
         const slides = [{ el: explEl, meta: { canAdvance: true, kind: 'explanation' } }];
 
@@ -18622,6 +18635,14 @@ SQIDAQAB
         lorenz_curve: [{ x: 0, y: 200 }, { x: 80, y: 170 }, { x: 150, y: 120 }, { x: 210, y: 60 }, { x: 260, y: 0 }],
         line_of_equality: [{ x: 0, y: 200 }, { x: 260, y: 0 }],
         ppf: [{ x: 0, y: 0 }, { x: 60, y: 100 }, { x: 130, y: 160 }, { x: 200, y: 200 }, { x: 260, y: 215 }],
+        // Relative-elasticity variants - see diagramGradingService.ts's own
+        // comment on why "perfectly" elastic/inelastic reuse generic_price_
+        // line/generic_quantity_line instead of needing entries here, and why
+        // "relatively" elastic/inelastic need their own distinct slope.
+        demand_relatively_elastic: [{ x: 0, y: 0 }, { x: 130, y: 40 }, { x: 260, y: 80 }],
+        demand_relatively_inelastic: [{ x: 0, y: 0 }, { x: 130, y: 120 }, { x: 260, y: 240 }],
+        supply_relatively_elastic: [{ x: 0, y: 80 }, { x: 130, y: 40 }, { x: 260, y: 0 }],
+        supply_relatively_inelastic: [{ x: 0, y: 240 }, { x: 130, y: 120 }, { x: 260, y: 0 }],
     };
     const DIAGRAM_PALETTE_LABELS = {
         demand: 'Demand', supply: 'Supply', generic_price_line: 'Price line', generic_quantity_line: 'Quantity line',
@@ -18630,6 +18651,8 @@ SQIDAQAB
         lras_classical: 'LRAS (classical)', lras_keynesian: 'LRAS (Keynesian)',
         phillips: 'Phillips', laffer: 'Laffer', lorenz_curve: 'Lorenz curve', line_of_equality: 'Line of equality',
         ppf: 'PPF',
+        demand_relatively_elastic: 'Demand (relatively elastic)', demand_relatively_inelastic: 'Demand (relatively inelastic)',
+        supply_relatively_elastic: 'Supply (relatively elastic)', supply_relatively_inelastic: 'Supply (relatively inelastic)',
     };
     // Every "given" (pre-known, from a prerequisite) curve shares this
     // one fixed origin — matches how the grading engine's own real
@@ -22947,7 +22970,7 @@ SQIDAQAB
         setTimeout(() => {
             clearInterval(intervalId);
             const el = document.getElementById('sfLoadingMessage');
-            if (el) el.textContent = "Still loading — if this is the first request in a while, the server may be waking up from idle. This can take up to a minute.";
+            if (el) el.textContent = "Still loading — this is taking longer than usual, but hasn't failed. Hang tight.";
         }, 4000);
     }
 
@@ -23092,7 +23115,7 @@ SQIDAQAB
         setTimeout(() => {
             if (!gateMessageEl || gateMessageEl.style.display === 'none') { clearInterval(gateMessageInterval); return; }
             clearInterval(gateMessageInterval);
-            gateMessageEl.textContent = "Still checking — if this is the first request in a while, the server may be waking up from idle. This can take up to a minute.";
+            gateMessageEl.textContent = "Still checking — this is taking longer than usual, but hasn't failed. Hang tight.";
         }, 8000);
 
         const publicKey = await importPublicKey(PUBLIC_KEY_PEM);
