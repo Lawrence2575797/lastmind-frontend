@@ -16788,21 +16788,41 @@ SQIDAQAB
         if (!currentMeta || !currentMeta.trySubmit || currentMeta.canAdvance) return;
         sfFeed.locked = true;
         let ok = false;
-        try { ok = await currentMeta.trySubmit(); }
-        finally { if (sfFeed) sfFeed.locked = false; }
+        try {
+            ok = await currentMeta.trySubmit();
+        } catch (err) {
+            if (sfFeed) sfFeed.locked = false;
+            throw err;
+        }
         if (!sfFeed) return; // feed closed while the submit was in flight
-        if (!ok) { sfShakeSlide(sfFeed.slides[sfFeed.currentIndex]); return; }
+        if (!ok) { sfFeed.locked = false; sfShakeSlide(sfFeed.slides[sfFeed.currentIndex]); return; }
         // 'handled' means trySubmit already navigated itself (the last
         // recall in a batch jumping back to the lesson the student left -
         // see sfJumpToRecalls) - no further auto-advance needed on top.
-        if (ok === 'handled') return;
-        await sfDelay(SF_AUTO_ADVANCE_DELAY_MS);
-        if (!sfFeed) return;
-        if (sfFeed.currentIndex >= sfFeed.slides.length - 1) {
-            sfAppendNextRecommendation();
-            return;
+        if (ok === 'handled') { sfFeed.locked = false; return; }
+        // Deliberately still locked through this whole delay-then-advance
+        // sequence, not just the grading call above - a real, reproduced
+        // bug: releasing the lock right after grading let a manual
+        // scroll/swipe during this exact window reach sfTryAdvance, which
+        // has its own "at the end? append the next recommendation" check
+        // (see sfTryAdvance) - completely independent of this function's
+        // own upcoming call to the same sfAppendNextRecommendation(). Both
+        // then genuinely computed and appended the SAME "next" thing
+        // (nothing had changed between the two calls), which is exactly
+        // what showed up as the identical question appearing twice in a
+        // row. Every question type shares this one function, so this
+        // could happen after any of them, not just Day-1 checks.
+        try {
+            await sfDelay(SF_AUTO_ADVANCE_DELAY_MS);
+            if (!sfFeed) return;
+            if (sfFeed.currentIndex >= sfFeed.slides.length - 1) {
+                await sfAppendNextRecommendation();
+            } else {
+                sfMoveToIndex(sfFeed.currentIndex + 1);
+            }
+        } finally {
+            if (sfFeed) sfFeed.locked = false;
         }
-        sfMoveToIndex(sfFeed.currentIndex + 1);
     }
 
     // True while the key/wheel event's real target is a text input the
