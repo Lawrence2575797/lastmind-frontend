@@ -15803,46 +15803,74 @@ SQIDAQAB
 
     // One slide's markup + wiring for a 'lesson' recommendation's
     // PRACTICE QUESTION (the explanation slide before it is plain static
-    // content, built directly in sfBuildSlidesForRecommendation). Only
-    // handles the common case (a plain reading/writing text answer) -
-    // diagram questions, grouped fill-in-the-blanks, and listening/speaking
-    // modalities fall back to a plain single textbox rather than their
-    // richer widget from the full graph-view lesson, which remains the
-    // complete experience for those question types. This keeps the feed's
-    // own gesture/gating logic simple and correct rather than
-    // reimplementing every widget type a second time.
+    // content, built directly in sfBuildSlidesForRecommendation). Handles
+    // both a plain reading/writing text answer AND (see useMathEditor) a
+    // genuine calculation answered via the maths keyboard - grouped
+    // fill-in-the-blanks and listening/speaking modalities still fall back
+    // to a plain single textbox rather than their richer widget from the
+    // full graph-view lesson, which remains the complete experience for
+    // those question types. This keeps the feed's own gesture/gating logic
+    // simple and correct rather than reimplementing every widget type a
+    // second time.
     // The Submit button (sfSubmitCurrentSlide) calls meta.trySubmit -
     // resolves true on a correct answer, which auto-advances the feed a
     // beat later with no scroll gesture needed; false shakes the slide
     // and keeps the student on it to fix their answer and submit again.
-    function sfWireQuestionSlide(slideEl, node, meta) {
-        const inputEl = slideEl.querySelector('.sf-question-input');
+    //
+    // useMathEditor: real gap found - a node's own practiceQuestion has no
+    // answerInputType field at all (unlike an edge's integrationQuestion,
+    // which does), and this feed never even checked for one anyway; every
+    // "Calculate..." node question was landing on a plain textbox with no
+    // way to write actual maths notation. Mounts createMathWorkingInput()
+    // (the same MathQuill "show your working" widget the old graph-view
+    // review flow already uses - see renderNodeReviewIntegration) into
+    // container instead of a plain textarea when true, using
+    // looksLikeCalculationQuestion's own detection (see its own comment -
+    // only a genuine calculation gets the shortcut keyboard, since its
+    // single-letter shortcuts would corrupt ordinary prose typing).
+    // Draft-restore is skipped for the math case (createMathWorkingInput
+    // has no setValue - only ever starts with one blank line) - a real,
+    // small gap versus the plain-text path, not a correctness issue.
+    function sfWireQuestionSlide(slideEl, node, meta, useMathEditor) {
         const feedbackEl = slideEl.querySelector('.sf-question-feedback');
+        let mathInput = null;
+        let inputEl = null;
+        if (useMathEditor) {
+            const host = slideEl.querySelector('.sf-question-input-host');
+            mathInput = createMathWorkingInput();
+            host.appendChild(mathInput.container);
+        } else {
+            inputEl = slideEl.querySelector('.sf-question-input');
+        }
+        const getAnswer = () => (useMathEditor ? mathInput.getValue() : (inputEl.value || '')).trim();
+        const setDisabled = (v) => { if (useMathEditor) mathInput.setDisabled(v); else inputEl.disabled = v; };
         slideEl.querySelector('.sf-question-submit').addEventListener('click', sfSubmitCurrentSlide);
         let retryCount = 0;
         meta.noBack = true;
         const draftKey = `sf-practice:${node.id}`;
-        const restoredDraft = loadAnswerDraft(draftKey);
-        if (restoredDraft && !inputEl.value) inputEl.value = restoredDraft;
-        inputEl.addEventListener('input', () => saveAnswerDraft(draftKey, inputEl.value));
+        if (!useMathEditor) {
+            const restoredDraft = loadAnswerDraft(draftKey);
+            if (restoredDraft && !inputEl.value) inputEl.value = restoredDraft;
+            inputEl.addEventListener('input', () => saveAnswerDraft(draftKey, inputEl.value));
+        }
         meta.trySubmit = async () => {
-            const answer = (inputEl.value || '').trim();
+            const answer = getAnswer();
             if (!answer) {
-                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Write an answer before continuing.</div>`;
+                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">${useMathEditor ? 'Write your working before continuing.' : 'Write an answer before continuing.'}</div>`;
                 return false;
             }
-            inputEl.disabled = true;
+            setDisabled(true);
             feedbackEl.innerHTML = `<div class="sf-feedback-line">Checking…</div>`;
             const result = await sfPostBackend('/knowledge-map-v2/text-question/submit', {
                 nodeId: node.id, questionType: 'practice', answer, retryCount
             });
             if (!result) {
-                inputEl.disabled = false;
+                setDisabled(false);
                 feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Something went wrong submitting that - try again.</div>`;
                 return false;
             }
             if (result.correct) {
-                clearAnswerDraft(draftKey);
+                if (!useMathEditor) clearAnswerDraft(draftKey);
                 feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-correct">✓ Correct</div>`;
                 if (result.schedule) sfUpsertScheduleCache(result.schedule);
                 meta.answered = true;
@@ -15852,7 +15880,7 @@ SQIDAQAB
                 sfRefreshImmediateRecalls();
                 return true;
             }
-            inputEl.disabled = false;
+            setDisabled(false);
             retryCount += 1;
             feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || "Not quite - check the specific wording and try again.")}</div>`;
             return false;
@@ -16309,19 +16337,26 @@ SQIDAQAB
             sfWireDiagramQuestionSlide(qEl.querySelector('.sf-diagram-question-host'), rec.node, qMeta);
             slides.push({ el: qEl, meta: qMeta });
         } else if (lesson.practiceQuestion && lesson.practiceQuestion.questionText) {
+            // A node's own practiceQuestion has no answerInputType field at
+            // all (only an edge's integrationQuestion does - see
+            // sfWireQuestionSlide's own comment on the gap this closes) -
+            // same detection the old graph-view flow already uses.
+            const useMathEditor = looksLikeCalculationQuestion(lesson.practiceQuestion.questionText);
             const qEl = document.createElement('div');
             qEl.className = 'sf-feed-slide';
             qEl.innerHTML = `
                 <div class="sf-slide-inner">
                     <div class="sf-speaker-label">Cortex asks</div>
                     <p class="sf-question-text">${escapeHtml(lesson.practiceQuestion.questionText)}</p>
-                    <textarea class="sf-question-input" rows="3" placeholder="Your answer" autocomplete="off"></textarea>
+                    ${useMathEditor
+                        ? '<div class="sf-question-input-host"></div>'
+                        : '<textarea class="sf-question-input" rows="3" placeholder="Your answer" autocomplete="off"></textarea>'}
                     <button type="button" class="btn primary sf-question-submit">Submit</button>
                     <div class="sf-question-feedback"></div>
                     <div class="sf-advance-hint" hidden>Moving on…</div>
                 </div>`;
             const qMeta = { canAdvance: false, kind: 'question', answered: false };
-            sfWireQuestionSlide(qEl, rec.node, qMeta);
+            sfWireQuestionSlide(qEl, rec.node, qMeta, useMathEditor);
             slides.push({ el: qEl, meta: qMeta });
         } else {
             slides[0].meta.kind = 'explanation-only';
