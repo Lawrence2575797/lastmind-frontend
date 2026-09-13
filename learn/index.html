@@ -15649,15 +15649,26 @@ SQIDAQAB
         // system below, even if its Day-1 isn't due until tomorrow.
         const pendingDay1ConceptIds = await sfFetchPendingDay1ConceptIds();
 
+        // Picks the FIRST due review found while walking data.nodes in its
+        // own order, rather than the earliest-due-date one - data.nodes
+        // already comes back from the backend in genuine teaching order
+        // (subtopic/spec order, corrected against the real prerequisite
+        // graph - see getKnowledgeMapForSubject's own topologicalNodeOrder
+        // step), same source day1 checks now order by too (see
+        // orderDay1ChecksByLessonOrder on the backend). Explicit instruction:
+        // once something is genuinely due, which one to show first should
+        // follow teaching order, not chase whichever happens to be most
+        // overdue - the same reasoning already applied to Day-1 checks
+        // below, generalised to real spaced reviews too.
         let bestDue = null;
-        data.nodes.forEach((n) => {
-            if (!schedule.has(n.conceptId)) return;
+        for (const n of data.nodes) {
+            if (!schedule.has(n.conceptId)) continue;
             const nodeAo1Gated = pendingDay1ConceptIds.has(n.conceptId);
             const qualifyingLinks = (successorAdjacency.get(n.id) || [])
                 .map((id) => nodeById.get(id))
                 .filter((ln) => ln && schedule.has(ln.conceptId))
                 .filter((ln) => !pendingDay1ConceptIds.has(sfReviewLinkKey(n, ln) + '::integration'));
-            if (nodeAo1Gated && !qualifyingLinks.length) return; // nothing left to test yet
+            if (nodeAo1Gated && !qualifyingLinks.length) continue; // nothing left to test yet
 
             // Same due-check sfIsNodeReviewDue/sfNextNodeReviewDueDate do,
             // but with AO1 itself left out of both when it's Day-1-gated
@@ -15670,11 +15681,12 @@ SQIDAQAB
             const isDue = nodeAo1Gated
                 ? linkDueDates.some((entry) => sfIsScheduleEntryDue(entry))
                 : sfIsNodeReviewDue(n, qualifyingLinks, schedule);
-            if (!isDue) return;
+            if (!isDue) continue;
             const relevantDates = nodeAo1Gated ? linkDueDates : [schedule.get(n.conceptId), ...linkDueDates].filter(Boolean);
             const due = relevantDates.length ? new Date(Math.min(...relevantDates.map((entry) => new Date(entry.due).getTime()))) : new Date(0);
-            if (!bestDue || due < bestDue.due) bestDue = { node: n, qualifyingLinks, due };
-        });
+            bestDue = { node: n, qualifyingLinks, due };
+            break;
+        }
 
         // Day-1 checks are prioritised alongside real spaced reviews (both
         // outrank a new lesson) - the checks themselves already come back
@@ -16394,6 +16406,7 @@ SQIDAQAB
             if (result.correct) {
                 clearAnswerDraft(draftKey);
                 feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-correct">✓ Correct</div>`;
+                sfUpsertScheduleCache(result.schedule);
                 meta.answered = true;
                 meta.canAdvance = true;
                 sfShowAdvanceHint(el);
@@ -16413,6 +16426,7 @@ SQIDAQAB
             // the wrong answer rather than being stuck retrying it here.
             clearAnswerDraft(draftKey);
             feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || "Not quite - this one will come back around.")}</div>`;
+            sfUpsertScheduleCache(result.schedule);
             meta.answered = true;
             meta.canAdvance = true;
             sfShowAdvanceHint(el);
@@ -19536,17 +19550,24 @@ SQIDAQAB
                 if (found) return { type: 'lesson', node: nodeById.get(found) };
             }
 
-            // (2) Any due review anywhere in the subject.
+            // (2) Any due review anywhere in the subject - the FIRST one
+            // found while walking `nodes` in its own order, not the
+            // earliest-due-date one. `nodes` is already in genuine teaching
+            // order (see getKnowledgeMapForSubject's own topologicalNodeOrder
+            // step) - same reasoning as sfComputeFolderRecommendation's
+            // identical fix, generalised here too so both recommendation
+            // paths agree.
             let bestDue = null;
-            nodes.forEach((n) => {
-                if (!schedule.has(n.conceptId)) return;
+            for (const n of nodes) {
+                if (!schedule.has(n.conceptId)) continue;
                 const qualifyingLinks = (successorAdjacency.get(n.id) || [])
                     .map((id) => nodeById.get(id))
                     .filter((ln) => ln && schedule.has(ln.conceptId));
-                if (!isNodeReviewDue(n, qualifyingLinks, schedule)) return;
+                if (!isNodeReviewDue(n, qualifyingLinks, schedule)) continue;
                 const due = nextNodeReviewDueDate(n, qualifyingLinks, schedule) || new Date(0);
-                if (!bestDue || due < bestDue.due) bestDue = { node: n, qualifyingLinks, due };
-            });
+                bestDue = { node: n, qualifyingLinks, due };
+                break;
+            }
             if (bestDue) return { type: 'review', node: bestDue.node, qualifyingLinks: bestDue.qualifyingLinks };
 
             // (3) General fallback - next not-yet-started concept anywhere.
