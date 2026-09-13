@@ -1191,6 +1191,24 @@
     .km-lesson-fullpage-body .km-inline-detail-section h4 { font-size: 17px; text-transform: none; letter-spacing: normal; opacity: 1; color: var(--accent); font-weight: 700; margin-bottom: 12px; font-family: Georgia, serif; }
     .km-lesson-fullpage-body .math-shortcut-wrap { max-width: 560px; }
 
+    /* ─── Prerequisite check (see renderPrereqCheckAnswering) — one
+       vertical column per prerequisite chain, side by side when the
+       target has more than one. column-reverse (not a reversed array)
+       is what puts the earliest prerequisite at the BOTTOM of each
+       column and the step closest to the target at the top, per
+       explicit instruction to work bottom-to-top. */
+    .km-prereq-columns { display: flex; gap: 20px; overflow-x: auto; padding: 4px 2px 16px; margin-top: 10px; }
+    .km-prereq-column { display: flex; flex-direction: column-reverse; gap: 12px; min-width: 250px; flex: 1 0 250px; }
+    .km-prereq-step { background: rgba(230, 215, 176, 0.05); border: 1px solid rgba(230, 215, 176, 0.16); border-radius: 6px; padding: 12px; }
+    .km-prereq-step.km-prereq-step-correct { border-color: rgba(120, 200, 140, 0.5); background: rgba(120, 200, 140, 0.07); }
+    .km-prereq-step.km-prereq-step-wrong { border-color: rgba(224, 128, 128, 0.45); background: rgba(224, 128, 128, 0.06); }
+    .km-prereq-step-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.6; margin-bottom: 4px; }
+    .km-prereq-step-question { font-size: 13px; line-height: 1.5; margin-bottom: 8px; }
+    .km-prereq-step-feedback { font-size: 12px; line-height: 1.45; margin-top: 8px; opacity: 0.85; }
+    .km-prereq-retry-row { margin-top: 8px; display: flex; align-items: center; gap: 6px; font-size: 12px; }
+    .km-prereq-submit-row { margin-top: 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .km-prereq-status { font-size: 12.5px; opacity: 0.7; margin-top: 8px; }
+
     /* ─── Short-form scrolling feed (see sfMaybeShowFeed) — a separate,
        parallel lesson surface rendered straight into #contentInner, one
        vertical slide per screen, advanced by a real scroll/swipe/keyboard
@@ -15021,17 +15039,17 @@ SQIDAQAB
     }
     // Real bug found and fixed: this used to ALSO check a bare
     // `fromConceptId->toConceptId` key (no ::integration suffix) as an OR
-    // condition - that key belongs to a completely different, unrelated
-    // mechanism (the free-tier chain-diagnostic gate's own transfer/
-    // integration check), which most real node/link pairs have simply
-    // never gone through at all. Since that row then genuinely doesn't
-    // exist, sfIsScheduleEntryDue's `!entry` treated its ABSENCE as
-    // "due" - meaning nearly every qualifying link read as permanently
-    // due regardless of what its REAL ::integration schedule entry
-    // actually said, since the two were combined with OR. This is also
-    // why sfNextNodeReviewDueDate (below) never agreed with this
-    // function - it only ever checked the real ::integration key. Now
-    // both check exactly the same thing.
+    // condition - that key belonged to a since-removed mechanism (the old
+    // combined-question chain-diagnostic gate's own transfer/integration
+    // check), which most real node/link pairs had simply never gone
+    // through at all. Since that row then genuinely doesn't exist,
+    // sfIsScheduleEntryDue's `!entry` treated its ABSENCE as "due" -
+    // meaning nearly every qualifying link read as permanently due
+    // regardless of what its REAL ::integration schedule entry actually
+    // said, since the two were combined with OR. This is also why
+    // sfNextNodeReviewDueDate (below) never agreed with this function -
+    // it only ever checked the real ::integration key. Now both check
+    // exactly the same thing.
     function sfIsNodeReviewDue(node, qualifyingLinks, schedule) {
         if (sfIsScheduleEntryDue(schedule.get(node.conceptId))) return true;
         return qualifyingLinks.some((link) => sfIsScheduleEntryDue(schedule.get(`${node.conceptId}->${link.conceptId}::integration`)));
@@ -19199,8 +19217,8 @@ SQIDAQAB
         //
         // Real bug found and fixed: this used to ALSO check a bare
         // `fromConceptId->toConceptId` key (no ::integration suffix) as an
-        // OR condition - that key belongs to a completely different,
-        // unrelated mechanism (the free-tier chain-diagnostic gate's own
+        // OR condition - that key belonged to a since-removed mechanism
+        // (the old combined-question chain-diagnostic gate's own
         // transfer/integration check), which most real node/link pairs
         // have simply never gone through. Since that row then genuinely
         // doesn't exist, `!entry` treated its ABSENCE as "due" - meaning
@@ -19316,20 +19334,20 @@ SQIDAQAB
             // The prerequisite gate — see chainDiagnosticService.ts. Fail
             // OPEN specifically on this check (a network hiccup here
             // shouldn't trap a student who's actually earned direct
-            // access) but NOT on any step once a real diagnostic is under
-            // way, where silently bypassing a check that's already known
-            // to be required would defeat the whole point of it.
-            const gate = await postChainDiagnostic('/knowledge-map-v2/chain-diagnostic/start', {
+            // access) but NOT on any step once a real check is under way,
+            // where silently bypassing a check that's already known to be
+            // required would defeat the whole point of it.
+            const gate = await postChainDiagnostic('/knowledge-map-v2/prereq-check/start', {
                 targetNodeId: d.id,
                 subject: folder.subject || '',
                 qualification: folder.qualification || '',
                 examBoard: folder.examBoard || ''
             });
-            if (!gate || !gate.requiresDiagnostic) {
+            if (!gate || !gate.requiresCheck) {
                 sfOpenNodeLessonInFeed(folder, d);
                 return;
             }
-            renderChainDiagnosticAnswering(lessonEl, d, upstream, gate.state, gate.questionText);
+            renderPrereqCheckAnswering(lessonEl, d, gate.state, gate.chains, gate.targetLabel);
         }
 
         function startNodeReview(d, qualifyingLinks) {
@@ -21055,159 +21073,255 @@ SQIDAQAB
 
         const DIAG_TEXTAREA_STYLE = 'width:100%; margin-top:10px; background:var(--panel); border:1px solid rgba(230,215,176,0.2); border-radius:3px; padding:10px; font-family:Arial,sans-serif; font-size:12.5px; color:var(--text);';
 
-        // The ONE combined free-text question — testing definitions of
-        // every skipped prerequisite plus how each links to the next, all
-        // in one written response (see CHAIN_DIAGNOSTIC_QUESTION_PROMPT).
-        function renderChainDiagnosticAnswering(lessonEl, d, upstream, state, questionText) {
-            const draftKey = `chain-diag:${d.id}`;
+        // One separate short question per prerequisite component (a
+        // node's own AO1/knowledge, or the link between two consecutive
+        // concepts), laid out as one vertical column per prerequisite
+        // chain — side by side when the target has more than one — each
+        // column read bottom-to-top (earliest prerequisite at the
+        // bottom, working up to the target). One submit button grades
+        // every box at once (see PER_STEP_GRADE_PROMPT).
+        function renderPrereqCheckAnswering(lessonEl, d, state, chains, targetLabel) {
+            const flatSteps = chains.flat();
+            const columnsHtml = chains.map((chain, ci) => `
+                <div class="km-prereq-column" data-chain-index="${ci}">
+                    ${chain.map((step) => `
+                        <div class="km-prereq-step" data-component-id="${escapeHtml(step.componentId)}">
+                            <div class="km-prereq-step-label">${step.type === 'encoding' ? escapeHtml(step.label) : `${escapeHtml(step.fromLabel)} → ${escapeHtml(step.toLabel)}`}</div>
+                            <div class="km-prereq-step-question">${escapeHtml(step.questionText)}</div>
+                            <div class="km-prereq-step-input"></div>
+                            <div class="km-prereq-step-feedback" hidden></div>
+                        </div>
+                    `).join('')}
+                </div>
+            `).join('');
+
             lessonEl.innerHTML = `
                 <div class="km-inline-detail-section">
                     <h4>Before you jump ahead</h4>
-                    <div class="km-inline-lesson-question">${notesTextToHtml(questionText)}</div>
-                    <textarea class="km-diag-answer-input" rows="6" placeholder="Write your answer here…" style="${DIAG_TEXTAREA_STYLE}"></textarea>
-                    <button class="btn primary km-diag-submit-btn" style="margin-top:10px;">Submit</button>
-                </div>
-            `;
-            const textarea = lessonEl.querySelector('.km-diag-answer-input');
-            const guard = guardAnswerInput(textarea);
-            const restored = loadAnswerDraft(draftKey);
-            if (restored) { textarea.value = restored; guard.markTrusted(); }
-            textarea.addEventListener('input', () => saveAnswerDraft(draftKey, textarea.value));
-
-            lessonEl.querySelector('.km-diag-submit-btn').addEventListener('click', async (ev) => {
-                const answer = textarea.value.trim();
-                if (!answer) return;
-                if (!guard.hasTrustedInput()) { showPasteBlockWarning(textarea); return; }
-                ev.target.disabled = true;
-                ev.target.textContent = 'Checking…';
-                const result = await postChainDiagnostic('/knowledge-map-v2/chain-diagnostic/submit', { state, answer });
-                if (!result) {
-                    // Request failed — the draft is already checkpointed
-                    // and the textarea is untouched (renderChainDiagnosticError
-                    // only appends, it never re-renders this element), so
-                    // just re-enable the button rather than losing the
-                    // student's typed answer.
-                    ev.target.disabled = false;
-                    ev.target.textContent = 'Submit';
-                    return renderChainDiagnosticError(lessonEl);
-                }
-                clearAnswerDraft(draftKey);
-                if (result.passed) return sfOpenNodeLessonInFeed(folder, d);
-                renderChainDiagnosticFailure(lessonEl, d, upstream, result.state, result.currentFailure);
-            });
-        }
-
-        // One wrong component at a time — its feedback, then the
-        // slip-vs-genuine-gap self-report exactly as specified: a slip
-        // earns one focused retry; a genuine gap denies access to the
-        // target and redirects to the failing lesson instead.
-        function renderChainDiagnosticFailure(lessonEl, d, upstream, state, currentFailure) {
-            lessonEl.innerHTML = `
-                <div class="km-inline-detail-section">
-                    <h4>Not quite</h4>
-                    <div class="km-inline-lesson-question">${notesTextToHtml(currentFailure.feedback || '')}</div>
-                    <div class="km-inline-detail-meta" style="margin-top:10px;">Was that a silly slip, or do you genuinely not know this yet?</div>
-                    <div class="km-diag-slip-choice" style="display:flex; gap:10px; margin-top:10px;">
-                        <button class="btn km-diag-slip-btn">It was a slip — let me retry</button>
-                        <button class="btn km-diag-noslip-btn">I don't know this yet</button>
+                    <div class="km-inline-lesson-explanation">These build up to "${escapeHtml(targetLabel)}" — work from the bottom of each column upward.</div>
+                    <div class="km-prereq-columns">${columnsHtml}</div>
+                    <div class="km-prereq-submit-row">
+                        <button class="btn primary km-prereq-submit-btn" disabled>Submit all</button>
                     </div>
+                    <div class="km-prereq-status" hidden></div>
                 </div>
             `;
-            const disableChoice = () => lessonEl.querySelectorAll('.km-diag-slip-choice button').forEach((b) => { b.disabled = true; });
-            const enableChoice = () => lessonEl.querySelectorAll('.km-diag-slip-choice button').forEach((b) => { b.disabled = false; });
-            lessonEl.querySelector('.km-diag-slip-btn').addEventListener('click', async () => {
-                disableChoice();
-                const result = await postChainDiagnostic('/knowledge-map-v2/chain-diagnostic/resolve-slip', { state, wasSlip: true });
-                if (!result) { enableChoice(); return renderChainDiagnosticError(lessonEl); }
-                renderChainDiagnosticRetry(lessonEl, d, upstream, result.state, result.retryQuestionText);
-            });
-            lessonEl.querySelector('.km-diag-noslip-btn').addEventListener('click', async () => {
-                disableChoice();
-                const result = await postChainDiagnostic('/knowledge-map-v2/chain-diagnostic/resolve-slip', { state, wasSlip: false });
-                if (!result) { enableChoice(); return renderChainDiagnosticError(lessonEl); }
-                handleChainDiagnosticStepResult(lessonEl, d, upstream, result);
-            });
-        }
 
-        // The one narrow re-ask after a slip claim — distinct from the
-        // original combined question.
-        function renderChainDiagnosticRetry(lessonEl, d, upstream, state, retryQuestionText) {
-            const draftKey = `chain-diag-retry:${d.id}`;
-            lessonEl.innerHTML = `
-                <div class="km-inline-detail-section">
-                    <h4>Quick retry</h4>
-                    <div class="km-inline-lesson-question">${notesTextToHtml(retryQuestionText || '')}</div>
-                    <textarea class="km-diag-answer-input" rows="4" placeholder="Write your answer here…" style="${DIAG_TEXTAREA_STYLE}"></textarea>
-                    <button class="btn primary km-diag-submit-btn" style="margin-top:10px;">Submit</button>
-                </div>
-            `;
-            const textarea = lessonEl.querySelector('.km-diag-answer-input');
-            const guard = guardAnswerInput(textarea);
-            const restored = loadAnswerDraft(draftKey);
-            if (restored) { textarea.value = restored; guard.markTrusted(); }
-            textarea.addEventListener('input', () => saveAnswerDraft(draftKey, textarea.value));
-
-            lessonEl.querySelector('.km-diag-submit-btn').addEventListener('click', async (ev) => {
-                const answer = textarea.value.trim();
-                if (!answer) return;
-                if (!guard.hasTrustedInput()) { showPasteBlockWarning(textarea); return; }
-                ev.target.disabled = true;
-                ev.target.textContent = 'Checking…';
-                const result = await postChainDiagnostic('/knowledge-map-v2/chain-diagnostic/submit-retry', { state, answer });
-                if (!result) {
-                    ev.target.disabled = false;
-                    ev.target.textContent = 'Submit';
-                    return renderChainDiagnosticError(lessonEl);
+            const editors = new Map();
+            const updateSubmitEnabled = () => { submitBtn.disabled = [...editors.values()].some((e) => e.isEmpty()); };
+            lessonEl.querySelectorAll('.km-prereq-step').forEach((stepEl) => {
+                const componentId = stepEl.dataset.componentId;
+                const step = flatSteps.find((s) => s.componentId === componentId);
+                const editor = looksLikeCalculationQuestion(step.questionText) ? createMathShortcutEditor('Write your answer here…') : createPlainAnswerEditor('Write your answer here…');
+                stepEl.querySelector('.km-prereq-step-input').appendChild(editor.container);
+                editors.set(componentId, editor);
+                const inputEl = editor.container.querySelector('.math-shortcut-editor');
+                const draftKey = `prereq-check:${d.id}:${componentId}`;
+                const restored = loadAnswerDraft(draftKey);
+                if (restored && editor.isEmpty()) {
+                    if (inputEl.tagName === 'TEXTAREA') inputEl.value = restored; else inputEl.textContent = restored;
+                    editor.markTrusted();
                 }
-                clearAnswerDraft(draftKey);
-                handleChainDiagnosticStepResult(lessonEl, d, upstream, result);
+                inputEl.addEventListener('input', () => { saveAnswerDraft(draftKey, editor.getValue()); updateSubmitEnabled(); });
+            });
+
+            const submitBtn = lessonEl.querySelector('.km-prereq-submit-btn');
+            updateSubmitEnabled();
+
+            submitBtn.addEventListener('click', async () => {
+                for (const editor of editors.values()) {
+                    if (!editor.hasTrustedInput()) { showPasteBlockWarning(editor.container); return; }
+                }
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Checking…';
+                const answers = {};
+                editors.forEach((editor, componentId) => { answers[componentId] = editor.getValue(); });
+                const result = await postChainDiagnostic('/knowledge-map-v2/prereq-check/submit', { state, answers });
+                if (!result) {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Submit all';
+                    renderPrereqCheckError(lessonEl);
+                    return;
+                }
+                editors.forEach((editor, componentId) => clearAnswerDraft(`prereq-check:${d.id}:${componentId}`));
+                renderPrereqCheckResults(lessonEl, d, state, chains, answers, result.results);
             });
         }
 
-        // Shared "what happens next" branch after resolve-slip(no) or
-        // submit-retry: either another failure to walk through, or the
-        // whole diagnostic is finalized (passed, or denied with a
-        // redirect to the specific failing lesson).
-        function handleChainDiagnosticStepResult(lessonEl, d, upstream, result) {
-            if (result.currentFailure) return renderChainDiagnosticFailure(lessonEl, d, upstream, result.state, result.currentFailure);
-            if (result.passed) return sfOpenNodeLessonInFeed(folder, d);
-            renderChainDiagnosticDenied(lessonEl, result.redirect);
+        // Shows every step's own verdict in place, offers a "silly
+        // mistake" retry for anything flagged as one (see
+        // PER_STEP_GRADE_PROMPT's sillyMistake field), and a Continue
+        // action that's always available — whatever's still unresolved
+        // when it's clicked is treated as a genuine gap (see
+        // finalizePrereqCheck) rather than blocking the student.
+        function renderPrereqCheckResults(lessonEl, d, state, chains, answers, results) {
+            const flatSteps = chains.flat();
+            const resultByComponentId = new Map(results.map((r) => [r.componentId, r]));
+            const resolvedCorrect = new Map(results.map((r) => [r.componentId, r.correct]));
+
+            lessonEl.querySelector('.km-prereq-submit-row').innerHTML = `<button class="btn primary km-prereq-continue-btn">Continue</button>`;
+            lessonEl.querySelector('.km-prereq-status').hidden = false;
+            lessonEl.querySelector('.km-prereq-status').textContent = 'Anything still marked wrong will be added to your feed as its own fresh lesson.';
+
+            function renderStepRetryBox(stepEl, componentId, retryQuestionText) {
+                const existing = stepEl.querySelector('.km-prereq-retry-box');
+                if (existing) existing.remove();
+                const box = document.createElement('div');
+                box.className = 'km-prereq-retry-box';
+                box.style.marginTop = '10px';
+                box.innerHTML = `
+                    <div class="km-prereq-step-question">${escapeHtml(retryQuestionText)}</div>
+                    <div class="km-prereq-retry-input"></div>
+                    <button type="button" class="btn primary km-prereq-retry-submit-btn" style="margin-top:8px;">Submit retry</button>
+                `;
+                stepEl.appendChild(box);
+                const editor = looksLikeCalculationQuestion(retryQuestionText) ? createMathShortcutEditor('Write your answer here…') : createPlainAnswerEditor('Write your answer here…');
+                box.querySelector('.km-prereq-retry-input').appendChild(editor.container);
+                box.querySelector('.km-prereq-retry-submit-btn').addEventListener('click', async (ev) => {
+                    if (editor.isEmpty()) return;
+                    if (!editor.hasTrustedInput()) { showPasteBlockWarning(editor.container); return; }
+                    ev.target.disabled = true;
+                    ev.target.textContent = 'Checking…';
+                    const resp = await postChainDiagnostic('/knowledge-map-v2/prereq-check/submit-retry-steps', {
+                        state,
+                        items: [{ componentId, questionText: retryQuestionText, answer: editor.getValue() }],
+                    });
+                    const retryResult = resp && Array.isArray(resp.results) ? resp.results[0] : null;
+                    if (!retryResult) {
+                        ev.target.disabled = false;
+                        ev.target.textContent = 'Submit retry';
+                        renderPrereqCheckError(lessonEl);
+                        return;
+                    }
+                    resolvedCorrect.set(componentId, retryResult.correct);
+                    box.remove();
+                    stepEl.classList.remove('km-prereq-step-correct', 'km-prereq-step-wrong');
+                    stepEl.classList.add(retryResult.correct ? 'km-prereq-step-correct' : 'km-prereq-step-wrong');
+                    stepEl.querySelector('.km-prereq-step-feedback').innerHTML = `<div>${escapeHtml(retryResult.feedback || '')}</div>`;
+                });
+            }
+
+            lessonEl.querySelectorAll('.km-prereq-step').forEach((stepEl) => {
+                const componentId = stepEl.dataset.componentId;
+                const r = resultByComponentId.get(componentId);
+                if (!r) return;
+                stepEl.classList.add(r.correct ? 'km-prereq-step-correct' : 'km-prereq-step-wrong');
+                const inputHost = stepEl.querySelector('.km-prereq-step-input');
+                inputHost.querySelectorAll('textarea, [contenteditable]').forEach((el) => { el.setAttribute('disabled', 'true'); el.contentEditable = false; });
+                const feedbackEl = stepEl.querySelector('.km-prereq-step-feedback');
+                feedbackEl.hidden = false;
+                feedbackEl.innerHTML = `<div>${escapeHtml(r.feedback || '')}</div>`;
+
+                if (!r.correct && r.sillyMistake) {
+                    const retryRow = document.createElement('div');
+                    retryRow.className = 'km-prereq-retry-row';
+                    retryRow.innerHTML = `<label><input type="checkbox" class="km-prereq-retry-checkbox"> I think this was a silly mistake — let me try again</label>`;
+                    stepEl.appendChild(retryRow);
+                    retryRow.querySelector('.km-prereq-retry-checkbox').addEventListener('change', async (ev) => {
+                        if (!ev.target.checked) return;
+                        ev.target.disabled = true;
+                        retryRow.insertAdjacentHTML('beforeend', '<span style="margin-left:6px; opacity:0.6;">Loading…</span>');
+                        const retryResp = await postChainDiagnostic('/knowledge-map-v2/prereq-check/retry-steps', {
+                            state,
+                            items: [{ componentId, originalAnswer: answers[componentId] || '', originalFeedback: r.feedback || '' }],
+                        });
+                        const retryItem = retryResp && Array.isArray(retryResp.retries) ? retryResp.retries[0] : null;
+                        if (!retryItem) {
+                            // Leave the checkbox available rather than
+                            // removing the only way to retry - just undo
+                            // the loading state so the student can tick
+                            // it again.
+                            retryRow.querySelector('span').remove();
+                            ev.target.disabled = false;
+                            ev.target.checked = false;
+                            renderPrereqCheckError(lessonEl);
+                            return;
+                        }
+                        retryRow.remove();
+                        renderStepRetryBox(stepEl, componentId, retryItem.questionText);
+                    });
+                }
+            });
+
+            lessonEl.querySelector('.km-prereq-continue-btn').addEventListener('click', async (ev) => {
+                ev.target.disabled = true;
+                ev.target.textContent = 'Continuing…';
+                const genuineGapComponentIds = flatSteps.map((s) => s.componentId).filter((id) => !resolvedCorrect.get(id));
+                const ok = await finalizePrereqCheck(d, state, genuineGapComponentIds);
+                if (!ok) {
+                    ev.target.disabled = false;
+                    ev.target.textContent = 'Continue';
+                    renderPrereqCheckError(lessonEl);
+                }
+            });
         }
 
-        function renderChainDiagnosticError(lessonEl) {
+        // No gaps left -> straight into the target's own lesson, exactly
+        // as if the check had never been needed. Any real gaps -> seeded
+        // into the main feed in prerequisite order (see
+        // buildGapFeedItems), each running through the EXACT SAME fresh
+        // encoding/integration lesson flow a brand-new concept always
+        // does (sfBuildSlidesForRecommendation / sfBuildIntegrationSlidesFrom
+        // — nothing bespoke here), with the target's own lesson appended
+        // last so it only ever appears once every prerequisite has
+        // genuinely been encoded.
+        // Returns false only on a genuine request failure (the caller
+        // shows an error and lets the student press Continue again) -
+        // never silently drops real gaps onto the floor and jumps
+        // straight to the target the way the initial diagnostic-start
+        // gate deliberately fails open on a network hiccup; by this
+        // point genuine gaps are already known to exist; the difference
+        // between "the call failed" and "there's genuinely nothing left"
+        // has to be preserved rather than treated identically.
+        async function finalizePrereqCheck(d, state, genuineGapComponentIds) {
+            if (!genuineGapComponentIds.length) {
+                sfOpenNodeLessonInFeed(folder, d);
+                return true;
+            }
+            const resp = await postChainDiagnostic('/knowledge-map-v2/prereq-check/finalize', { state, genuineGapComponentIds });
+            if (!resp || !Array.isArray(resp.items)) return false;
+            const items = resp.items;
+            if (!items.length) {
+                sfOpenNodeLessonInFeed(folder, d);
+                return true;
+            }
+
+            const { viewportEl } = sfMountFeedShell('Back to Knowledge Map', () => renderKnowledgeMapForFolder(folder), folder);
+            for (const item of items) {
+                if (!sfFeed) return true; // closed while a fetch was in flight - not a failure
+                let built = [];
+                if (item.type === 'node') {
+                    const node = findGraphNodeById(item.nodeId);
+                    if (node) built = await sfBuildSlidesForRecommendation({ node, folder });
+                } else {
+                    const fromNode = findGraphNodeById(item.fromNodeId);
+                    const toNode = findGraphNodeById(item.toNodeId);
+                    if (fromNode && toNode) built = await sfBuildIntegrationSlidesFrom({ node: fromNode, qualifyingLinks: [toNode] }, 0);
+                }
+                if (!sfFeed) return true;
+                if (built.length) sfAppendBuiltSlides(built);
+            }
+            if (!sfFeed) return true;
+            const targetBuilt = await sfBuildSlidesForRecommendation({ node: d, folder });
+            if (!sfFeed) return true;
+            sfAppendBuiltSlides(targetBuilt);
+            viewportEl.focus();
+            sfRefreshImmediateRecalls();
+            return true;
+        }
+
+        function renderPrereqCheckError(lessonEl) {
             // insertAdjacentHTML, NOT `lessonEl.innerHTML +=` — the latter
             // re-serializes and rebuilds this element's ENTIRE subtree from
-            // scratch, and a <textarea>'s typed value lives only in the
-            // live DOM property, never in serialized markup, so it silently
-            // wiped out whatever the student had just written the moment a
-            // submission failed. This only appends a new node, leaving the
-            // existing textarea (and its draft-restored/typed content)
+            // scratch, and a typed answer lives only in the live DOM
+            // property, never in serialized markup, so it would silently
+            // wipe out whatever the student had already written across
+            // every column the moment ONE submission failed. This only
+            // appends a new node, leaving every existing answer box
             // completely untouched.
-            const existing = lessonEl.querySelector('.km-diag-submit-error');
+            const existing = lessonEl.querySelector('.km-prereq-submit-error');
             if (existing) existing.remove();
-            lessonEl.insertAdjacentHTML('beforeend', `<div class="km-inline-detail-item km-inline-detail-none km-diag-submit-error">Something went wrong — your answer is safe, just submit again.</div>`);
-        }
-
-        // A genuine gap — deny the target and jump the student straight to
-        // the specific concept/link they're actually missing. An edge
-        // failure redirects to the DOWNSTREAM node, so the student picks
-        // back up in the same real teaching order this gate exists to
-        // enforce, rather than being dropped on an arbitrary ancestor.
-        function renderChainDiagnosticDenied(lessonEl, redirect) {
-            const label = redirect ? redirect.label : 'that concept';
-            lessonEl.innerHTML = `
-                <div class="km-inline-detail-section">
-                    <h4>Not yet</h4>
-                    <div class="km-inline-lesson-explanation">You'll need to cover "${escapeHtml(label)}" first before this concept will make sense.</div>
-                    <button class="btn primary km-diag-goto-btn" style="margin-top:10px;">Go to that lesson</button>
-                </div>
-            `;
-            lessonEl.querySelector('.km-diag-goto-btn').addEventListener('click', () => {
-                if (!redirect) return;
-                const targetId = redirect.type === 'node' ? redirect.nodeId : redirect.toNodeId;
-                const targetNode = findGraphNodeById(targetId);
-                if (targetNode) selectKmInlineNode(targetNode);
-            });
+            lessonEl.insertAdjacentHTML('beforeend', `<div class="km-inline-detail-item km-inline-detail-none km-prereq-submit-error">Something went wrong — your answers are safe, just try again.</div>`);
         }
 
         nodeGroup.on('click', (event, d) => { event.stopPropagation(); highlightKmConnections(d); selectKmInlineNode(d); });
