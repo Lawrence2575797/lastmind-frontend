@@ -14818,6 +14818,7 @@ SQIDAQAB
                 if (resp.status === 404) return { notFound: true };
                 if (resp.status === 429 || resp.status === 402) {
                     const body = await resp.json().catch(() => ({}));
+                    if (body.code === 'GENERATION_RATE_LIMIT') return { generationRateLimited: true };
                     if (body.code === 'LOCK_LIMIT_REACHED') return { lockLimitReached: true };
                 }
                 if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
@@ -19633,6 +19634,10 @@ SQIDAQAB
             // generation itself never ran, e.g. a stale/bogus node id) is
             // now the rare case, kept as its own plain message rather than
             // offering a retry that can't possibly help.
+            if (nodeLesson && nodeLesson.generationRateLimited) {
+                renderGenerationRateLimitCard(lessonEl);
+                return;
+            }
             if (nodeLesson && nodeLesson.lockLimitReached) {
                 renderLockLimitReachedCard(lessonEl);
                 return;
@@ -19801,6 +19806,10 @@ SQIDAQAB
             showLoadingWithColdStartHint(lessonEl);
             const nodeLesson = await fetchNodeLesson(d.id);
 
+            if (nodeLesson && nodeLesson.generationRateLimited) {
+                renderGenerationRateLimitCard(lessonEl);
+                return;
+            }
             if (nodeLesson && nodeLesson.lockLimitReached) {
                 renderLockLimitReachedCard(lessonEl);
                 return;
@@ -22647,6 +22656,21 @@ SQIDAQAB
             <button type="button" class="btn primary lock-limit-buy-more-btn" style="margin-top:10px;">Buy more tokens</button>
         `;
         container.querySelector('.lock-limit-buy-more-btn').addEventListener('click', showBuyMoreLocksPrompt);
+    }
+
+    // Distinct from renderLockLimitReachedCard above - a real, reported
+    // bug: generating brand-new lesson content is throttled by its OWN
+    // separate rate limit (generationCapService.ts's
+    // GENERATION_RATE_LIMIT), completely unrelated to the Locks balance
+    // shown in the topbar. Showing the Locks card ("Buy more tokens") for
+    // this left a student with a huge, untouched Locks balance confused
+    // about why they were blocked at all, and offered an action that
+    // genuinely cannot help - there's nothing to buy, this resets on its
+    // own on a rolling window (see the backend's own window/limit fields).
+    function renderGenerationRateLimitCard(container) {
+        container.innerHTML = `
+            <div class="km-inline-detail-item km-inline-detail-none">You've reached today's limit on generating brand-new lesson content — this isn't about your Locks balance, and it resets automatically. Already-generated lessons still work normally; try this one again shortly.</div>
+        `;
     }
 
     document.getElementById('continueLockDepositBtn').addEventListener('click', async () => {
