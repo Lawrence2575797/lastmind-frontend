@@ -16353,11 +16353,17 @@ SQIDAQAB
             sfWireDiagramQuestionSlide(qEl.querySelector('.sf-diagram-question-host'), rec.node, qMeta);
             slides.push({ el: qEl, meta: qMeta });
         } else if (lesson.practiceQuestion && lesson.practiceQuestion.questionText) {
-            // A node's own practiceQuestion has no answerInputType field at
-            // all (only an edge's integrationQuestion does - see
-            // sfWireQuestionSlide's own comment on the gap this closes) -
-            // same detection the old graph-view flow already uses.
-            const useMathEditor = looksLikeCalculationQuestion(lesson.practiceQuestion.questionText);
+            // Prefers the model's own explicit answerInputType (now generated
+            // for every node's practiceQuestion, not just an edge's
+            // integrationQuestion - see KNOWLEDGE_MAP_ENCODING_LESSON_PROMPT's
+            // rule 4a2) over the regex fallback, since a real calculation
+            // question very often doesn't contain the literal word
+            // "calculate" ("Simplify √12", "Work out 5√2 + 3√2") - the
+            // fallback still covers whatever content was generated before
+            // that field existed.
+            const useMathEditor = lesson.practiceQuestion.answerInputType
+                ? lesson.practiceQuestion.answerInputType === 'math'
+                : looksLikeCalculationQuestion(lesson.practiceQuestion.questionText);
             const qEl = document.createElement('div');
             qEl.className = 'sf-feed-slide';
             qEl.innerHTML = `
