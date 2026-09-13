@@ -15573,7 +15573,18 @@ SQIDAQAB
             const nodeAo1Gated = pendingDay1ConceptIds.has(n.conceptId);
             const qualifyingLinks = (successorAdjacency.get(n.id) || [])
                 .map((id) => nodeById.get(id))
-                .filter((ln) => ln && schedule.has(ln.conceptId))
+                // Explicit new rule: a link's FIRST-EVER integration
+                // opportunity is introduced right after its to-node's own
+                // FIRST REAL spaced-repetition session, not merely once
+                // that node has been encoded at all (the old rule) - "not
+                // the day1 check" specifically, since the day1 grade only
+                // sets the real interval (see the day1-check FSRS commit),
+                // it isn't itself a spaced session. reps counts every real
+                // FSRS grade on this concept (1 = initial encoding, 2 =
+                // day1's own grade, 3 = the genuine first spaced review
+                // once that interval elapses) - reps>=3 is "that first
+                // spaced session has now actually happened".
+                .filter((ln) => ln && (schedule.get(ln.conceptId)?.reps || 0) >= 3)
                 .filter((ln) => !pendingDay1ConceptIds.has(sfReviewLinkKey(n, ln) + '::integration'));
             if (nodeAo1Gated && !qualifyingLinks.length) continue; // nothing left to test yet
 
