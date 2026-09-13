@@ -15859,6 +15859,49 @@ SQIDAQAB
         };
     }
 
+    // Diagram-answer counterpart to sfWireQuestionSlide, for a practice
+    // question whose lesson.practiceQuestion.diagramSpec makes it a "place
+    // curves on axes" question rather than a free-text one (Economics
+    // supply/demand-style concepts - see diagramGradingService.ts's own
+    // CURVE_SHAPES). Real gap found and fixed: the feed used to fall back
+    // to a plain textbox for these (see sfWireQuestionSlide's own comment -
+    // a deliberate simplification when the feed was first built, on the
+    // theory that the full graph-view lesson remained available for the
+    // richer widget) - but starting a lesson from the Knowledge Map now
+    // opens THIS feed too (see sfOpenNodeLessonInFeed), so that fallback
+    // silently lost diagram questions entirely rather than just being an
+    // occasional simplification.
+    //
+    // renderDiagramWidget manages its own retry-vs-final submit button
+    // internally (see its own comment) rather than exposing a
+    // trySubmit-shaped hook, so this doesn't go through the shared
+    // meta.trySubmit/sfSubmitCurrentSlide path the way every other question
+    // slide does - onSubmit grades directly, and only on a genuinely final
+    // (non-retryable) result does it drive the exact same lock+advance tail
+    // sfSubmitCurrentSlide itself uses (sfAdvanceAfterCorrectAnswer), so the
+    // feed still moves on identically to any other question type once this
+    // one is truly answered.
+    function sfWireDiagramQuestionSlide(containerEl, node, meta) {
+        meta.noBack = true;
+        renderDiagramWidget(containerEl, null, async (answer, retryCount) => {
+            const result = await sfPostBackend('/knowledge-map-v2/diagram-question/submit', {
+                nodeId: node.id, questionType: 'practice', answer, retryCount
+            });
+            if (result && result.correct && !result.retryable) {
+                if (result.schedule) sfUpsertScheduleCache(result.schedule);
+                meta.answered = true;
+                meta.canAdvance = true;
+                sfPrefetchNext();
+                sfRefreshImmediateRecalls();
+                if (sfFeed && !sfFeed.locked) {
+                    sfFeed.locked = true;
+                    sfAdvanceAfterCorrectAnswer();
+                }
+            }
+            return result;
+        });
+    }
+
     function sfShowAdvanceHint(slideEl) {
         const hint = slideEl.querySelector('.sf-advance-hint');
         if (hint) hint.hidden = false;
@@ -16240,7 +16283,19 @@ SQIDAQAB
 
         const slides = [{ el: explEl, meta: { canAdvance: true, kind: 'explanation' } }];
 
-        if (lesson.practiceQuestion && lesson.practiceQuestion.questionText) {
+        if (lesson.practiceQuestion && lesson.practiceQuestion.diagramSpec) {
+            const qEl = document.createElement('div');
+            qEl.className = 'sf-feed-slide';
+            qEl.innerHTML = `
+                <div class="sf-slide-inner">
+                    <div class="sf-speaker-label">Cortex asks</div>
+                    <p class="sf-question-text">${escapeHtml(lesson.practiceQuestion.questionText)}</p>
+                    <div class="sf-diagram-question-host"></div>
+                </div>`;
+            const qMeta = { canAdvance: false, kind: 'question', answered: false };
+            sfWireDiagramQuestionSlide(qEl.querySelector('.sf-diagram-question-host'), rec.node, qMeta);
+            slides.push({ el: qEl, meta: qMeta });
+        } else if (lesson.practiceQuestion && lesson.practiceQuestion.questionText) {
             const qEl = document.createElement('div');
             qEl.className = 'sf-feed-slide';
             qEl.innerHTML = `
@@ -16810,6 +16865,29 @@ SQIDAQAB
     // and leaves the student to fix it and press Submit again; correct
     // performs the advance ITSELF a beat later - the scrolling motion is
     // automatic, not a gesture the student has to make.
+    // The delay-then-advance tail shared by every question type that grades
+    // through the normal trySubmit/sfSubmitCurrentSlide path below AND by
+    // the diagram-question widget (sfWireDiagramQuestionSlide), which
+    // grades through its OWN internal submit button instead (renderDiagramWidget
+    // manages its own retry-vs-final button state, so it can't be driven
+    // through the shared trySubmit contract the same way a plain textarea
+    // question is) but still needs to land in the exact same feed position
+    // afterward. Caller is responsible for having already set
+    // sfFeed.locked = true and meta.answered/canAdvance before calling this.
+    async function sfAdvanceAfterCorrectAnswer() {
+        try {
+            await sfDelay(SF_AUTO_ADVANCE_DELAY_MS);
+            if (!sfFeed) return;
+            if (sfFeed.currentIndex >= sfFeed.slides.length - 1) {
+                await sfAppendNextRecommendation();
+            } else {
+                sfMoveToIndex(sfFeed.currentIndex + 1);
+            }
+        } finally {
+            if (sfFeed) sfFeed.locked = false;
+        }
+    }
+
     async function sfSubmitCurrentSlide() {
         if (!sfFeed || sfFeed.locked) return;
         const currentMeta = sfFeed.meta[sfFeed.currentIndex];
@@ -16840,17 +16918,7 @@ SQIDAQAB
         // what showed up as the identical question appearing twice in a
         // row. Every question type shares this one function, so this
         // could happen after any of them, not just Day-1 checks.
-        try {
-            await sfDelay(SF_AUTO_ADVANCE_DELAY_MS);
-            if (!sfFeed) return;
-            if (sfFeed.currentIndex >= sfFeed.slides.length - 1) {
-                await sfAppendNextRecommendation();
-            } else {
-                sfMoveToIndex(sfFeed.currentIndex + 1);
-            }
-        } finally {
-            if (sfFeed) sfFeed.locked = false;
-        }
+        await sfAdvanceAfterCorrectAnswer();
     }
 
     // True while the key/wheel event's real target is a text input the
