@@ -21440,27 +21440,48 @@ SQIDAQAB
         // specific was asked for, so it doesn't get overwritten here.
         if (!initialFocusNode && nodes.length) selectKmInlineNode(nodes[0]);
 
-        // Search box — was entirely inert (no listener at all) before this.
-        // Case-insensitive, substring match (a student's exact spelling/
-        // capitalisation shouldn't have to match the stored label) against
-        // whatever's currently visible in THIS render's `nodes` — re-wired
-        // (not just re-used) on every call since a theme-tab switch swaps
-        // in a whole new `nodes`/`zoomToNode` closure, and the old listener
-        // would otherwise keep searching last render's now-stale data.
+        // Search box. Case-insensitive, substring match (a student's exact
+        // spelling/capitalisation shouldn't have to match the stored label)
+        // against whatever's currently visible in THIS render's `nodes` —
+        // re-wired (not just re-used) on every call since a theme-tab switch
+        // swaps in a whole new `nodes`/`zoomToNode` closure, and the old
+        // listener would otherwise keep searching last render's now-stale
+        // data.
+        //
+        // Live-as-you-type (debounced), not Enter-only as this used to be -
+        // confirmed live that an Enter-only trigger left the box looking
+        // completely inert on a mobile virtual keyboard (iOS Safari in
+        // particular doesn't reliably fire a `keydown`/key:'Enter' for the
+        // keyboard's own Return/Go/Search button on a plain text input),
+        // even though the exact same handler worked fine from a physical
+        // keyboard. Matching-as-you-type sidesteps that platform quirk
+        // entirely instead of chasing it, and is also just what a "Search
+        // concepts…" box is expected to do. Debounced rather than firing on
+        // every keystroke so a fast typist isn't fighting the graph
+        // re-zooming after each letter.
         const searchInput = contentInner.querySelector('.km-inline-search-input');
         if (searchInput) {
-            if (searchInput._kmSearchHandler) searchInput.removeEventListener('keydown', searchInput._kmSearchHandler);
-            searchInput._kmSearchHandler = (ev) => {
-                if (ev.key !== 'Enter') return;
+            if (searchInput._kmSearchDebounce) clearTimeout(searchInput._kmSearchDebounce);
+            const runKmSearch = () => {
                 const query = searchInput.value.trim().toLowerCase();
-                if (!query) return;
+                if (!query) { searchInput.classList.remove('km-search-no-match'); return; }
                 const match = nodes.find((n) => n.label.toLowerCase().includes(query));
                 searchInput.classList.toggle('km-search-no-match', !match);
                 if (match) { selectKmInlineNode(match); zoomToNode(match); }
             };
+            if (searchInput._kmSearchHandler) searchInput.removeEventListener('keydown', searchInput._kmSearchHandler);
+            searchInput._kmSearchHandler = (ev) => {
+                if (ev.key !== 'Enter') return;
+                if (searchInput._kmSearchDebounce) clearTimeout(searchInput._kmSearchDebounce);
+                runKmSearch();
+            };
             searchInput.addEventListener('keydown', searchInput._kmSearchHandler);
             if (searchInput._kmInputHandler) searchInput.removeEventListener('input', searchInput._kmInputHandler);
-            searchInput._kmInputHandler = () => searchInput.classList.remove('km-search-no-match');
+            searchInput._kmInputHandler = () => {
+                searchInput.classList.remove('km-search-no-match');
+                if (searchInput._kmSearchDebounce) clearTimeout(searchInput._kmSearchDebounce);
+                searchInput._kmSearchDebounce = setTimeout(runKmSearch, 300);
+            };
             searchInput.addEventListener('input', searchInput._kmInputHandler);
         }
     }
