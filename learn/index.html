@@ -1059,6 +1059,7 @@
        content or an achievement. */
     .km-inline-detail-item.km-inline-detail-none { opacity: 0.5; font-style: italic; font-weight: 400; background: transparent; color: var(--text); border: 1px solid rgba(230, 215, 176, 0.14); border-style: dashed; }
     .km-inline-detail-item.km-inline-detail-item-action { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .km-inline-detail-item.km-untracked-hint { background: transparent; border-style: dashed; font-style: italic; opacity: 0.85; }
     .km-inline-detail-item-action span { flex: 1; min-width: 0; }
     .km-inline-detail-item-action button.btn { flex: none; font-size: 11px; padding: 5px 9px; background: var(--bg); color: var(--text); border: 1px solid rgba(230, 215, 176, 0.3); font-weight: 600; }
     .km-fsrs-details { font-size: 11.5px; margin-top: 4px; }
@@ -1095,6 +1096,7 @@
     .km-inline-lesson-question { font-size: 12.5px; line-height: 1.5; padding: 10px; background: rgba(230, 215, 176, 0.05); border-radius: 3px; }
     .km-inline-detail-actions { margin-top: auto; display: flex; gap: 8px; }
     .km-inline-view-btn { flex: 1; padding: 10px 0; font-size: 13px; }
+    .km-inline-untracked-btn { flex: 1; padding: 10px 0; font-size: 12px; }
     .km-inline-start-lesson-btn { flex: 2; padding: 10px 0; font-size: 13px; }
     .km-inline-dashboard-btn { flex: none; font-size: 12px; padding: 7px 14px; }
 
@@ -18765,7 +18767,14 @@ SQIDAQAB
             const scheduleHtml = result.schedule
                 ? `<div class="km-inline-detail-item">Next review: <strong>${escapeHtml(formatDueIn(result.schedule.due))}</strong></div>`
                 : '';
-            resultEl.innerHTML = feedbackHtml + scheduleHtml;
+            // hint is only ever set on an incorrect LastMind Untracked
+            // answer (see untracked-submit) - real Socratic guidance
+            // toward the right idea, shown alongside the plain feedback
+            // rather than replacing it.
+            const hintHtml = result.hint
+                ? `<div class="km-inline-detail-item km-untracked-hint">💡 ${escapeHtml(result.hint)}</div>`
+                : '';
+            resultEl.innerHTML = feedbackHtml + hintHtml + scheduleHtml;
         } catch (err) {
             console.error('LastMind: failed to render the question result.', err);
             resultEl.innerHTML = `<div class="km-inline-detail-item">${result.correct ? '✓ Correct' : '✗ ' + escapeHtml(result.feedback || 'Not quite')} — your answer was recorded, but showing the details failed (${escapeHtml(err.message || 'unknown error')}).</div>`;
@@ -19500,6 +19509,7 @@ SQIDAQAB
                 <div class="km-inline-detail-section"><h4>Builds on this</h4>${downItems}</div>
                 <div class="km-inline-detail-actions">
                     <button class="btn km-inline-view-btn">View</button>
+                    <button class="btn km-inline-untracked-btn" title="Try this lesson without it being tracked or scheduled">LastMind Untracked</button>
                     ${startBtnHtml}
                 </div>
             `;
@@ -19515,6 +19525,7 @@ SQIDAQAB
             const kdPanel = detailEl.querySelector('.km-kd-panel');
             kdToggleBtn.addEventListener('click', () => { kdPanel.hidden = !kdPanel.hidden; });
             detailEl.querySelector('.km-inline-view-btn').addEventListener('click', () => zoomToNode(d));
+            detailEl.querySelector('.km-inline-untracked-btn').addEventListener('click', () => renderUntrackedLesson(contentInner, d));
             detailEl.querySelectorAll('.km-encode-first-btn').forEach((btn) => {
                 btn.addEventListener('click', () => {
                     const n = downstream[Number(btn.dataset.idx)];
@@ -19716,6 +19727,77 @@ SQIDAQAB
             showLoadingWithColdStartHint(lessonEl);
             const nodeLesson = await fetchNodeLesson(d.id);
             renderNodeLessonExplanation(lessonEl, d, upstream, nodeLesson);
+        }
+
+        // ─── LastMind Untracked ─────────────────────────────────────
+        // A deliberately unscheduled run through a node's own lesson —
+        // same explanation + practice question content as a real lesson
+        // (fetchNodeLesson is the exact same cache-or-generate call), but
+        // graded via /untracked-submit instead of /text-question|diagram-
+        // question/submit, which never touches FSRS at all (see that
+        // route's own comment): no concept_reviews row, no Day-1 or
+        // immediate-recall scheduling, this node is never marked encoded.
+        // Its real scheduled lesson (whenever the student actually starts
+        // it for real) still runs completely fresh afterward. No feed, no
+        // "Finish lesson" CTA to click through — a correct answer just
+        // closes this page back to the map on its own after a beat to let
+        // the "Correct!" feedback register.
+        const UNTRACKED_AUTO_CLOSE_DELAY_MS = 1100;
+
+        function renderUntrackedLesson(contentInner, d) {
+            showLessonFullpage(contentInner, d.id);
+            renderUntrackedLessonContent(lessonFullpageBodyEl, d, contentInner);
+        }
+
+        async function renderUntrackedLessonContent(lessonEl, d, contentInner) {
+            showLoadingWithColdStartHint(lessonEl);
+            const nodeLesson = await fetchNodeLesson(d.id);
+
+            if (nodeLesson && nodeLesson.lockLimitReached) {
+                renderLockLimitReachedCard(lessonEl);
+                return;
+            }
+            if (nodeLesson && nodeLesson.loadError) {
+                lessonEl.innerHTML = `<div class="km-inline-detail-item km-inline-detail-none">Something went wrong generating this lesson — this is usually temporary.</div><button type="button" class="btn primary km-lesson-retry-btn" style="margin-top:10px;">Try again</button>`;
+                lessonEl.querySelector('.km-lesson-retry-btn').addEventListener('click', () => renderUntrackedLessonContent(lessonEl, d, contentInner));
+                return;
+            }
+            lessonEl.innerHTML = (!nodeLesson || nodeLesson.notFound)
+                ? `<div class="km-inline-detail-item km-inline-detail-none">No lesson generated for this concept yet.</div>`
+                : `
+                    <div class="km-inline-detail-eyebrow">${escapeHtml(d.subtopic || '')} — LastMind Untracked</div>
+                    <div class="km-inline-detail-label">${escapeHtml(d.label)}</div>
+                    <div class="km-inline-detail-item km-inline-detail-none">Not tracked — this won't be scheduled or counted as encoded. Your real lesson for this concept still starts fresh later.</div>
+                    <div class="km-inline-lesson-explanation" id="km-untracked-explanation">${splitIntoParagraphs(nodeLesson.explanation)}</div>
+                    ${nodeLesson.practiceQuestion ? `<button type="button" class="btn primary km-untracked-reveal-btn" style="margin-top:14px;">Reveal question</button>` : ''}
+                    <div id="km-untracked-practice-block" style="${nodeLesson.practiceQuestion ? 'display:none;' : ''}">${nodeLesson.practiceQuestion ? `<strong class="km-inline-lesson-question" style="display:block;">Practice</strong><div id="km-untracked-question"></div>` : ''}</div>
+                `;
+            if (!nodeLesson || nodeLesson.notFound) return;
+            const explanationEl = lessonEl.querySelector('#km-untracked-explanation');
+            makeTermsSpeakable(explanationEl, folder.subject);
+
+            if (!nodeLesson.practiceQuestion) return;
+            const revealBtn = lessonEl.querySelector('.km-untracked-reveal-btn');
+            revealBtn.addEventListener('click', () => {
+                explanationEl.style.display = 'none';
+                revealBtn.style.display = 'none';
+                lessonEl.querySelector('#km-untracked-practice-block').style.display = '';
+            });
+            const el = lessonEl.querySelector('#km-untracked-question');
+            const submit = async (answerOrAnswers) => {
+                const isBlanks = Array.isArray(answerOrAnswers);
+                const result = await postChainDiagnostic(
+                    `/knowledge-map-v2/node/${d.id}/untracked-submit`,
+                    isBlanks ? { answers: answerOrAnswers } : { answer: answerOrAnswers }
+                );
+                if (result && result.correct) {
+                    setTimeout(() => { if (contentInner.isConnected) showKmWorkspace(contentInner); }, UNTRACKED_AUTO_CLOSE_DELAY_MS);
+                }
+                return result;
+            };
+            if (nodeLesson.practiceQuestion.diagramSpec) renderDiagramWidget(el, null, submit);
+            else if (nodeLesson.practiceQuestion.blanks && nodeLesson.practiceQuestion.blanks.length) renderBlanksQuestionWidget(el, nodeLesson.practiceQuestion, submit);
+            else renderTextQuestionWidget(el, nodeLesson.practiceQuestion, submit);
         }
 
         // ─── Node-level spaced review ───────────────────────────────
