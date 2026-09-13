@@ -22859,14 +22859,20 @@ SQIDAQAB
         // Skipped when a deep link just opened a specific page — showing
         // the tour on top of that would just be in the way.
         //
-        // The subject-picker wizard takes priority over both the old
-        // product tour AND the short-form feed whenever there's genuinely
-        // nothing to show yet - a first-time account (completedSubjectPicker
-        // false), an account with zero subjects for any reason, OR an
-        // existing account that's simply run out of anything due/new right
-        // now (sfMaybeShowFeed returning false) - "even if they aren't new
-        // users" (per explicit feedback: this isn't a one-time-ever gate,
-        // it's an empty-state prompt). Deliberately does NOT let a failed
+        // The subject-picker wizard is a genuine one-time-ever, first-
+        // signup gate (completedSubjectPicker false) - or, separately, a
+        // real empty-state fallback for an account with literally zero
+        // subjects (for whatever reason, e.g. having deleted them all),
+        // since there's nothing else useful this screen could show them
+        // either way. It must NOT re-show just because today's feed
+        // happens to have nothing due/new right now - a real, reported
+        // bug: a student who'd already completed onboarding and has real
+        // subjects got asked "what are you studying?" again on every
+        // login once they'd caught up on that day's lessons, since
+        // sfMaybeShowFeed legitimately returns false whenever there's
+        // simply nothing due yet. That case now falls through to the
+        // normal Cortex welcome screen instead, same as any other
+        // caught-up return visit. Deliberately does NOT let a failed
         // tourStatus fetch (e.g. a migration that hasn't been run yet)
         // block the feed from ever showing - that silently broke the whole
         // feature for every account until the fix below: a null tourStatus
@@ -22885,7 +22891,7 @@ SQIDAQAB
                     }
                 }
                 const shown = await sfMaybeShowFeed();
-                if (!shown) sfShowSubjectPickerWizard();
+                if (!shown) renderWelcome();
             }
         }
     }
