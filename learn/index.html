@@ -1667,25 +1667,6 @@
         border-color: rgba(230, 215, 176, 0.5);
     }
 
-    .credit-balance-view {
-        display: none;
-        position: fixed;
-        inset: 0;
-        z-index: 150;
-        width: 100vw;
-        height: 100vh;
-        /* var(--panel)+var(--text) - see .sidebar-calendar.fullscreen's
-           own comment on why var(--bg)+inherited var(--ink) goes
-           dark-on-dark once the user's chosen background is light. */
-        background: var(--panel);
-        color: var(--text);
-        flex-direction: column;
-    }
-
-    .credit-balance-view.fullscreen {
-        display: flex;
-    }
-
     .cb-header {
         display: flex;
         align-items: flex-start;
@@ -1722,178 +1703,6 @@
         overflow-y: auto;
         padding: 32px clamp(16px, 6vw, 90px) 60px;
         max-width: 640px;
-    }
-
-    .cb-balance-display {
-        text-align: center;
-        background: var(--panel);
-        border: 1px solid rgba(230, 215, 176, 0.2);
-        border-radius: 12px;
-        padding: 32px 20px;
-        margin-bottom: 32px;
-    }
-
-    .cb-balance-number {
-        font-family: 'Georgia', serif;
-        font-size: 3rem;
-        color: var(--accent);
-    }
-
-    .cb-balance-label {
-        font-family: 'Arial', sans-serif;
-        font-size: 0.8rem;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        opacity: 0.6;
-        margin-top: 4px;
-    }
-
-    .cb-section {
-        margin-bottom: 28px;
-    }
-
-    .cb-section h4 {
-        font-family: 'Arial', sans-serif;
-        font-size: 0.78rem;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        opacity: 0.55;
-        margin-bottom: 12px;
-    }
-
-    .cb-explanation-list {
-        margin: 0;
-        padding-left: 20px;
-        font-size: 0.9rem;
-        line-height: 1.7;
-    }
-
-    .cb-explanation-list li {
-        margin-bottom: 8px;
-    }
-
-    .cb-pricing-note {
-        font-size: 0.8rem;
-        opacity: 0.55;
-        font-style: italic;
-        margin-top: 12px;
-    }
-
-    /* Wider than the default .cb-body (640px, still used by the admin
-       overdue-queue view) — a grid of large squares needs real room,
-       the balance/explanation text below it is still comfortably
-       readable at this width. */
-    .km-body {
-        max-width: 900px;
-    }
-
-    /* ─── KEY MARKET GRID ───
-       Data-driven from GET /rewards (rewardsService.ts) — the grid renders
-       exactly whatever's active in that table, nothing hardcoded here.
-       km-market-tile-empty is now only the loading/empty-state placeholder,
-       not a stand-in for "no data yet" — real reward tiles use
-       .km-reward-tile instead, which drops the fixed square aspect-ratio
-       (there's real content to lay out: icon, title, description, cost)
-       for a natural min-height card instead. */
-    .km-market-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-        gap: 18px;
-        margin-top: 14px;
-    }
-
-    .km-market-tile {
-        aspect-ratio: 1;
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-        padding: 12px;
-        font-size: 0.8rem;
-    }
-
-    .km-reward-tile {
-        aspect-ratio: auto;
-        min-height: 260px;
-        flex-direction: column;
-        align-items: flex-start;
-        justify-content: flex-start;
-        text-align: left;
-        gap: 8px;
-        padding: 20px;
-        /* A partner business's own chosen colours (see partner-signup/
-           index.html) — --reward-bg/--reward-text/--reward-accent are set
-           inline per-tile in JS when a reward carries them, falling back
-           to the usual theme colours otherwise. --reward-text cascades
-           down to the title/desc/terms/category below since none of them
-           set their own color. */
-        background: var(--reward-bg, rgba(230, 215, 176, 0.06));
-        color: var(--reward-text, var(--text));
-        border: 1px solid rgba(230, 215, 176, 0.18);
-        border-top: 3px solid var(--reward-accent, var(--accent));
-    }
-
-    .km-reward-category {
-        font-size: 0.72rem;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        opacity: 0.55;
-        font-weight: 600;
-    }
-
-    .km-reward-title {
-        font-family: 'Georgia', serif;
-        font-weight: 700;
-        font-size: 1.3rem;
-        line-height: 1.3;
-        letter-spacing: -0.01em;
-    }
-
-    .km-reward-business {
-        font-family: 'Arial', sans-serif;
-        font-weight: 600;
-        font-size: 1.05rem;
-        opacity: 0.85;
-        margin-top: -2px;
-    }
-
-    .km-reward-desc {
-        font-size: 0.82rem;
-        opacity: 0.8;
-        line-height: 1.5;
-        flex: 1;
-    }
-
-    .km-reward-terms {
-        font-size: 0.78rem;
-        opacity: 0.6;
-        font-style: italic;
-        line-height: 1.4;
-        margin-top: auto;
-        padding-top: 8px;
-    }
-
-    .km-reward-cost {
-        font-weight: 700;
-        font-size: 1.1rem;
-        color: var(--reward-accent, var(--accent));
-        padding-top: 4px;
-    }
-
-    .km-reward-tile.km-reward-locked {
-        opacity: 0.5;
-    }
-
-    .km-reward-tile.km-reward-locked .km-reward-cost {
-        color: #e08080;
-    }
-
-    .km-market-tile-empty {
-        background: rgba(230, 215, 176, 0.04);
-        border: 1px dashed rgba(230, 215, 176, 0.2);
-        color: var(--text);
-        opacity: 0.45;
     }
 
     .mt-card {
@@ -2222,7 +2031,8 @@
     }
 
     /* ─── BROWSE TUTORS ───
-       Same full-page overlay pattern as .credit-balance-view — see the
+       Same full-page overlay pattern used by other .cb-header/.cb-body
+       overlays (see the admin overdue-queue view below) — see the
        .fullscreen rules further down. Reuses .cb-header/.cb-body for the
        chrome, wider than cb-body's own 640px default since tutor cards
        need more room. */
@@ -4098,16 +3908,6 @@
         margin: 0 0 8px;
     }
 
-    /* Shown after ANY lesson completion that actually paid Keys —
-       verification, encoding, and retrieval lessons all reuse this same
-       class via keysEarnedHtml(), not just verification's own screens. */
-    .keys-earned-line {
-        font-size: 0.9rem;
-        font-weight: 600;
-        color: var(--accent);
-        margin: 10px 0 0;
-    }
-
     .verification-status {
         margin-top: 10px;
         font-size: 0.82rem;
@@ -5263,41 +5063,6 @@
             </div>
         </div>
 
-        <!-- "Key Market" — the app's own currency (Keys) plus the rewards
-             marketplace it unlocks. Same full-page overlay pattern as the
-             other views above. Pricing per activity hasn't been decided
-             yet (see creditService.ts), so the explanation section covers
-             the MODEL — signup bonus, earn by tutoring/verified learning,
-             spend on help or real rewards — without committing to numbers.
-             "Buy more" is deliberately a placeholder rather than a real
-             checkout until that's settled, and the marketplace grid below
-             is a structural placeholder too — no business has ever
-             submitted a real voucher yet, so renderKeyMarketGrid() just
-             renders empty slots for now; swapping in real reward data
-             later only means changing what that one function renders. -->
-        <div class="credit-balance-view" id="creditBalanceView">
-            <div class="cb-header">
-                <div class="cb-header-title">
-                    <h3>Key Market</h3>
-                    <p>Keys — earned by tutoring and verified learning, spent on help or real rewards.</p>
-                </div>
-                <button class="btn" id="cbCloseBtn" type="button" title="Close">✕</button>
-            </div>
-            <div class="cb-body km-body">
-                <div class="cb-balance-display">
-                    <div class="cb-balance-number" id="cbBalanceNumber">—</div>
-                    <div class="cb-balance-label">Keys</div>
-                </div>
-
-                <div class="cb-section">
-                    <h4>Rewards</h4>
-                    <p class="pt-hint">Real rewards from local businesses, redeemable with your Keys.</p>
-                    <div class="km-market-grid" id="keyMarketGrid"></div>
-                </div>
-
-            </div>
-        </div>
-
         <!-- "Browse Tutors" — opened scoped to one concept or link (from
              Recommended or "add your own"), replaces the old one-click
              auto-match entirely. Ranked by rating/availability; the
@@ -5358,17 +5123,16 @@
                      exit button. See goToMainFeed. -->
                 <button class="btn" id="dashboardTopbarBtn" type="button" title="Back to feed">Dashboard</button>
                 <span class="topbar-title" id="topbarTitle">Dashboard</span>
-                <!-- Keys/Locks used to sit outside this scrollable row, in
+                <!-- Locks used to sit outside this scrollable row, in
                      the outer (non-scrolling) topbar flex line — on a
                      narrow phone that row has no overflow handling of its
                      own, so once its content exceeded the viewport width
-                     these two chips could end up pushed past the edge
-                     with no way to scroll to them, even though the actions
-                     row right after them scrolled fine. Moving them in
+                     this chip could end up pushed past the edge
+                     with no way to scroll to it, even though the actions
+                     row right after it scrolled fine. Moving it in
                      here puts every topbar button in the one row that
                      actually handles overflow. -->
                 <div class="topbar-actions" id="topbarActions">
-                    <button class="credit-balance-chip" id="creditBalanceChip" type="button" title="Key Market">Key Market <span id="creditBalanceAmount">—</span></button>
                     <button class="credit-balance-chip" id="locksChip" type="button" title="Locks">Locks <span id="locksBalanceAmount">—</span></button>
                     <!-- Placeholder only - what this actually does (top-up
                          purchase flow, pricing, etc.) hasn't been designed
@@ -8882,30 +8646,6 @@ SQIDAQAB
         return utterance;
     }
 
-    // Shared by every lesson-completion screen — verification, encoding,
-    // retrieval, and the knowledge map's own lesson/review flows — empty
-    // string when nothing was earned, so it's always safe to splice into a
-    // template unconditionally. Top-level (not nested in openPage) so
-    // renderKmInlineGraph's own lesson-completion code can actually reach
-    // it too - it used to live nested inside openPage, unreachable from
-    // there despite this same comment always having said it was shared.
-    function keysEarnedHtml(amount) {
-        if (!amount) return '';
-        return `<p class="keys-earned-line">+${amount} Keys earned!</p>`;
-    }
-
-    // Verify pays a coefficient of the same base a real lesson would (see
-    // knowledgeMap.ts's KM_VERIFY_COEFFICIENT_FREE/PREMIUM) — spelled out
-    // explicitly rather than just showing the final number, so it's clear
-    // this was a discount, not the full reward, and exactly how much was
-    // left unearned by not doing the lesson on LastMind directly.
-    function verifyKeysEarnedHtml(amount, base, coefficient) {
-        if (!amount) return '';
-        const pct = Math.round(coefficient * 100);
-        const missed = base - amount;
-        return `<p class="keys-earned-line">+${amount} Keys (Verify pays ${pct}% of a full lesson's ${base}${missed > 0 ? ` — you missed ${missed} by not learning this on LastMind` : ''})</p>`;
-    }
-
     function openPage(folderId, pageId, subfolderId) {
         stopActiveDictation();
         stopSpeaking();
@@ -9770,13 +9510,6 @@ SQIDAQAB
                             const fsrsCard = buildFsrsBreakdownCard(nextResult.fsrsUpdate);
                             questionFlowEl.appendChild(fsrsCard);
                             fsrsCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
-                        }
-                        if (nextResult.keysEarned) {
-                            const keysLine = document.createElement('div');
-                            keysLine.innerHTML = keysEarnedHtml(nextResult.keysEarned);
-                            questionFlowEl.appendChild(keysLine);
-                            keysLine.scrollIntoView({ behavior: 'smooth', block: 'end' });
-                            refreshCreditBalanceChip();
                         }
                         if (nextResult.signal && nextResult.signal.promptConfidence) {
                             const confidenceCard = renderConfidencePrompt(accessToken, nextResult.signal.id);
@@ -11104,14 +10837,6 @@ SQIDAQAB
                     fsrsCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
                 }
 
-                if (result.keysEarned) {
-                    const keysLine = document.createElement('div');
-                    keysLine.innerHTML = keysEarnedHtml(result.keysEarned);
-                    questionFlowEl.appendChild(keysLine);
-                    keysLine.scrollIntoView({ behavior: 'smooth', block: 'end' });
-                    refreshCreditBalanceChip();
-                }
-
                 if (isMulti) {
                     completedLessonTranscripts.push({
                         concept: activeEncodingConcept,
@@ -11450,8 +11175,7 @@ SQIDAQAB
                 const container = document.getElementById('diagnoseQuestionFlow');
                 if (result.verdict === 'correct') {
                     clearVerificationProgress();
-                    renderVerificationOutcome(container, "Lesson complete — correct, that's verified.", keysEarnedHtml(result.keysEarned));
-                    if (result.keysEarned) refreshCreditBalanceChip();
+                    renderVerificationOutcome(container, "Lesson complete — correct, that's verified.");
                 } else if (result.verdict === 'unclear') {
                     saveVerificationProgress({ ...verificationCurrentState, stage: 'unclear', unclearReason: result.unclearReason });
                     renderVerificationUnclearCheckbox(container, result.unclearReason);
@@ -11623,16 +11347,14 @@ SQIDAQAB
                         const body = await resp.json().catch(() => null);
                         throw new Error(`Server returned ${resp.status}${body?.error ? `: ${body.error}` : ''}`);
                     }
-                    const { correct, keysEarned } = await resp.json();
+                    const { correct } = await resp.json();
                     const correctOrderText = followUp.type === 'fill_gap'
                         ? followUp.answer
                         : followUp.correctOrder.map((i) => followUp.shuffledSteps[i]).join(' → ');
                     clearVerificationProgress();
                     renderVerificationOutcome(container, correct
                         ? "Lesson complete — that's noted for your next successive-relearning pass."
-                        : `Lesson complete — not quite. The correct answer was: ${correctOrderText}`,
-                        keysEarnedHtml(keysEarned));
-                    if (keysEarned) refreshCreditBalanceChip();
+                        : `Lesson complete — not quite. The correct answer was: ${correctOrderText}`);
                 } catch (err) {
                     console.error('LastMind: failed to grade the follow-up.', err);
                     statusEl.style.display = '';
@@ -12225,34 +11947,6 @@ SQIDAQAB
         document.getElementById('topbarActions').scrollBy({ left: 150, behavior: 'smooth' });
     });
 
-    // ─── Key Market (balance + rewards marketplace) ───
-    async function fetchCreditBalance() {
-        try {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) return null;
-            const resp = await fetch(`${COMPILE_BACKEND_URL}/credits/balance`, {
-                headers: { Authorization: `Bearer ${session.access_token}` }
-            });
-            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
-            return await resp.json();
-        } catch (err) {
-            console.error('LastMind: failed to load credit balance.', err);
-            return null;
-        }
-    }
-
-    async function refreshCreditBalanceChip() {
-        const data = await fetchCreditBalance();
-        const amount = data ? data.balance : '—';
-        document.getElementById('creditBalanceAmount').textContent = amount;
-        const bigNumber = document.getElementById('cbBalanceNumber');
-        if (bigNumber) bigNumber.textContent = amount;
-    }
-
-    function setCreditBalanceFullscreen(on) {
-        document.getElementById('creditBalanceView').classList.toggle('fullscreen', on);
-    }
-
     async function fetchLockBalance() {
         try {
             const { data: { session } } = await supabaseClient.auth.getSession();
@@ -12318,15 +12012,14 @@ SQIDAQAB
 
     const FREE_TOUR_STEPS = [
         ...TOUR_INTRO_STEPS,
-        { selector: '#creditBalanceChip', title: 'Keys', body: 'Genuine learning progress earns you Keys. Redeem them for real rewards in the Key Market.' },
         { selector: '#locksChip', title: 'Locks', body: 'Each lesson costs a Lock. You get a fresh batch every month.' },
-        { selector: null, title: 'Already know some of this?', body: 'Open any lesson and look for "Verify instead" — prove what you already know and earn Keys for it, without redoing content you’ve already mastered.' }
+        { selector: null, title: 'Already know some of this?', body: 'Open any lesson and look for "Verify instead" — prove what you already know without redoing content you’ve already mastered.' }
     ];
 
     const PREMIUM_TOUR_STEPS = [
         ...TOUR_INTRO_STEPS,
         { selector: null, title: "You're on Premium", body: "Premium unlocks LastMind's personalised AI learning system — a diagnostics engine that finds the root cause of a misunderstanding, not just where you went wrong." },
-        { selector: null, title: 'Instant verification', body: 'Learning progress made inside LastMind is verified the moment it happens on Premium — no separate step, and it earns more Keys per unit of progress.' }
+        { selector: null, title: 'Instant verification', body: 'Learning progress made inside LastMind is verified the moment it happens on Premium — no separate step.' }
         // Used to end with a step pointing at the peer-tutoring booking
         // flow (deposit Locks toward a lesson slot) - removed along with
         // the feature itself (see enterApp's own comment on why).
@@ -12428,130 +12121,6 @@ SQIDAQAB
     window.addEventListener('resize', () => {
         if (document.getElementById('tourOverlay').classList.contains('open')) showTourStep();
     });
-
-    // Hardcoded on purpose — the earlier data-driven version (GET /rewards,
-    // a Supabase table meant to be edited directly) turned out impossible
-    // to debug when a reward silently failed to show, with no way to tell
-    // whether the cause was the table, the endpoint, auth, or caching.
-    // Coding each new deal directly here trades editability for something
-    // that's guaranteed to render, since it's just local data with no
-    // network call in the way.
-    //
-    // accentColor/backgroundColor/textColor are all optional hex strings a
-    // partner business chose for themselves via partner-signup/index.html
-    // — omit any of them for a reward that should just use the normal
-    // theme colours instead. category is 'Local Offers' or 'National';
-    // catchmentArea only applies to (and should only be set for) a Local
-    // Offers reward, shown alongside the category on the card. businessName
-    // is optional too — shown as "by X" under the title when set.
-    const KEY_MARKET_REWARDS = [
-        {
-            id: 'woods-dry-cleaning',
-            title: '10% off suit dry cleaning',
-            description: 'At Woods the Cleaners.',
-            terms: 'Applies to one suit only. Placeholder reward — not valid yet.',
-            costKeys: 500,
-            category: 'Local Offers'
-        },
-        {
-            id: 'made-by-sophie-cakes',
-            businessName: 'Made by Sophie',
-            title: '20% off cakes/tray bakes',
-            description: '',
-            terms: 'Applies to one order per customer.',
-            costKeys: 500,
-            category: 'Local Offers',
-            accentColor: '#ffffff',
-            backgroundColor: '#e2a2be',
-            textColor: '#ffffff'
-        }
-    ];
-
-    async function fetchRewards() {
-        return { rewards: KEY_MARKET_REWARDS, errorMessage: null };
-    }
-
-    async function renderKeyMarketGrid() {
-        const grid = document.getElementById('keyMarketGrid');
-        grid.innerHTML = '<div class="km-market-tile km-market-tile-empty">Loading…</div>';
-
-        let rewards, errorMessage;
-        try {
-            ({ rewards, errorMessage } = await fetchRewards());
-        } catch (err) {
-            console.error('LastMind: failed to load rewards.', err);
-            rewards = null;
-            errorMessage = err && err.message ? err.message : String(err);
-        }
-
-        grid.innerHTML = '';
-
-        if (!rewards) {
-            const tile = document.createElement('div');
-            tile.className = 'km-market-tile km-market-tile-empty';
-            tile.textContent = `Couldn't load rewards${errorMessage ? ` — ${errorMessage}` : ''}`;
-            grid.appendChild(tile);
-            return;
-        }
-        if (!rewards.length) {
-            const tile = document.createElement('div');
-            tile.className = 'km-market-tile km-market-tile-empty';
-            tile.textContent = 'No rewards available yet — check back soon.';
-            grid.appendChild(tile);
-            return;
-        }
-
-        try {
-            // Render every card immediately, before the balance is even
-            // requested — affordability is just a style toggle applied
-            // after the fact (below), not something worth blocking the
-            // whole grid's first paint on. Rewards themselves are local
-            // data with no network call, so this makes the grid feel
-            // instant regardless of how long the balance fetch takes.
-            rewards.forEach((reward) => {
-                const tile = document.createElement('div');
-                tile.className = 'km-market-tile km-reward-tile';
-                tile.dataset.costKeys = reward.costKeys;
-                if (reward.accentColor) tile.style.setProperty('--reward-accent', reward.accentColor);
-                if (reward.backgroundColor) tile.style.setProperty('--reward-bg', reward.backgroundColor);
-                if (reward.textColor) tile.style.setProperty('--reward-text', reward.textColor);
-                const categoryLabel = reward.category === 'Local Offers' && reward.catchmentArea
-                    ? `${reward.category} · ${reward.catchmentArea}`
-                    : reward.category;
-                tile.innerHTML = `
-                    ${categoryLabel ? `<div class="km-reward-category">${escapeHtml(categoryLabel)}</div>` : ''}
-                    <div class="km-reward-title">${escapeHtml(reward.title)}</div>
-                    ${reward.businessName ? `<div class="km-reward-business">by ${escapeHtml(reward.businessName)}</div>` : ''}
-                    <div class="km-reward-desc">${escapeHtml(reward.description)}</div>
-                    ${reward.terms ? `<div class="km-reward-terms">${escapeHtml(reward.terms)}</div>` : ''}
-                    <div class="km-reward-cost">${reward.costKeys} Keys</div>
-                `;
-                grid.appendChild(tile);
-            });
-
-            const balanceData = await fetchCreditBalance();
-            const balance = balanceData ? balanceData.balance : 0;
-            grid.querySelectorAll('.km-reward-tile').forEach((tile) => {
-                const affordable = balance >= Number(tile.dataset.costKeys);
-                tile.classList.toggle('km-reward-locked', !affordable);
-            });
-        } catch (err) {
-            console.error('LastMind: failed to render rewards.', err);
-            grid.innerHTML = '';
-            const tile = document.createElement('div');
-            tile.className = 'km-market-tile km-market-tile-empty';
-            tile.textContent = `Couldn't display rewards — ${err && err.message ? err.message : String(err)}`;
-            grid.appendChild(tile);
-        }
-    }
-
-    document.getElementById('creditBalanceChip').addEventListener('click', async () => {
-        setCreditBalanceFullscreen(true);
-        renderKeyMarketGrid();
-        await refreshCreditBalanceChip();
-    });
-
-    document.getElementById('cbCloseBtn').addEventListener('click', () => setCreditBalanceFullscreen(false));
 
     // Default the sidebar to collapsed on a phone-width viewport — it's a
     // fixed 280px column with no responsive handling at all otherwise, so
@@ -19196,14 +18765,7 @@ SQIDAQAB
             const scheduleHtml = result.schedule
                 ? `<div class="km-inline-detail-item">Next review: <strong>${escapeHtml(formatDueIn(result.schedule.due))}</strong></div>`
                 : '';
-            // Verify responses carry keysBase/verifyCoefficient
-            // alongside keysEarned so the discount is shown explicitly,
-            // not just the final number — a plain lesson pass never
-            // has these fields.
-            const keysEarnedHtmlStr = result.verifyCoefficient
-                ? verifyKeysEarnedHtml(result.keysEarned, result.keysBase, result.verifyCoefficient)
-                : keysEarnedHtml(result.keysEarned);
-            resultEl.innerHTML = feedbackHtml + keysEarnedHtmlStr + scheduleHtml;
+            resultEl.innerHTML = feedbackHtml + scheduleHtml;
         } catch (err) {
             console.error('LastMind: failed to render the question result.', err);
             resultEl.innerHTML = `<div class="km-inline-detail-item">${result.correct ? '✓ Correct' : '✗ ' + escapeHtml(result.feedback || 'Not quite')} — your answer was recorded, but showing the details failed (${escapeHtml(err.message || 'unknown error')}).</div>`;
@@ -19938,7 +19500,6 @@ SQIDAQAB
                 <div class="km-inline-detail-section"><h4>Builds on this</h4>${downItems}</div>
                 <div class="km-inline-detail-actions">
                     <button class="btn km-inline-view-btn">View</button>
-                    ${folder.objectiveScope ? '' : '<button class="btn km-inline-verify-btn">Verify</button>'}
                     ${startBtnHtml}
                 </div>
             `;
@@ -19954,11 +19515,6 @@ SQIDAQAB
             const kdPanel = detailEl.querySelector('.km-kd-panel');
             kdToggleBtn.addEventListener('click', () => { kdPanel.hidden = !kdPanel.hidden; });
             detailEl.querySelector('.km-inline-view-btn').addEventListener('click', () => zoomToNode(d));
-            const verifyBtn = detailEl.querySelector('.km-inline-verify-btn');
-            if (verifyBtn) verifyBtn.addEventListener('click', () => {
-                showLessonFullpage(contentInner, d.id);
-                renderNodeVerifyContent(lessonFullpageBodyEl, d);
-            });
             detailEl.querySelectorAll('.km-encode-first-btn').forEach((btn) => {
                 btn.addEventListener('click', () => {
                     const n = downstream[Number(btn.dataset.idx)];
@@ -20237,16 +19793,15 @@ SQIDAQAB
         }
 
         // Every node-review submit route returns the same { correct,
-        // feedback, keysEarned } shape once a step is genuinely finalized
-        // (never for an interim wrong integration attempt, which loops
-        // back into renderNodeReviewIntegration instead) — one shared
-        // "here's the result, Continue" screen for all of them.
+        // feedback } shape once a step is genuinely finalized (never for
+        // an interim wrong integration attempt, which loops back into
+        // renderNodeReviewIntegration instead) — one shared "here's the
+        // result, Continue" screen for all of them.
         function renderNodeReviewStepDone(lessonEl, result, onContinue) {
             const feedbackHtml = `<div class="km-inline-detail-item ${result.correct ? '' : 'km-inline-detail-none'}">${escapeHtml(result.feedback || '')}</div>`;
             lessonEl.insertAdjacentHTML('beforeend', `
                 <div class="km-review-step-done">
                     ${feedbackHtml}
-                    ${keysEarnedHtml(result.keysEarned)}
                     <button type="button" class="btn primary km-review-continue-btn" style="margin-top:10px;">Continue</button>
                 </div>
             `);
@@ -20270,7 +19825,7 @@ SQIDAQAB
                 fullData.scheduleByConceptId.set(finalResult.schedule.conceptId, finalResult.schedule);
                 updateNodeMasteryState(d, finalResult.schedule);
             }
-            const ao1Entry = { label: `${d.label} — recall check`, correct: true, keysEarned: finalResult.keysEarned };
+            const ao1Entry = { label: `${d.label} — recall check`, correct: true };
             renderNodeReviewStepDone(lessonEl, finalResult, () => renderNodeReviewLinkStart(lessonEl, d, qualifyingLinks, 0, [ao1Entry]));
         }
 
@@ -20567,7 +20122,7 @@ SQIDAQAB
                     fullData.scheduleByConceptId.set(result.schedule.conceptId, result.schedule);
                     updateLinkMasteryState(d.id, link.id, result.schedule);
                 }
-                resultsSoFar.push({ label: `${d.label} → ${link.label} — integration`, correct: true, keysEarned: result.keysEarned, toNodeId: link.id, stage: 'integration' });
+                resultsSoFar.push({ label: `${d.label} → ${link.label} — integration`, correct: true, toNodeId: link.id, stage: 'integration' });
                 ev.target.remove();
                 const notesCtaEl = document.createElement('div');
                 lessonEl.appendChild(notesCtaEl);
@@ -20584,7 +20139,6 @@ SQIDAQAB
         // compile the same notes later from the Notes page itself.
         function renderNodeReviewSummary(lessonEl, d, resultsSoFar) {
             clearNodeReviewCheckpoint(d.id);
-            const totalKeys = resultsSoFar.reduce((sum, r) => sum + (r.keysEarned || 0), 0);
             const rows = resultsSoFar.length
                 ? resultsSoFar.map((r) => `<div class="km-inline-detail-item">${r.correct ? '✓' : '✗'} ${escapeHtml(r.label)}</div>`).join('')
                 : '';
@@ -20593,39 +20147,10 @@ SQIDAQAB
                     <h4>Review complete</h4>
                     <div class="km-inline-detail-item">"${escapeHtml(d.label)}" — recall check done.</div>
                     ${rows}
-                    ${keysEarnedHtml(totalKeys)}
                     <div id="km-review-next-cta"></div>
                 </div>
             `;
             renderNextRecommendationCta(lessonEl.querySelector('#km-review-next-cta'), d.id, 'Back to map');
-        }
-
-        // "Verify" — the Premium test-out shortcut (see the backend's
-        // /knowledge-map-v2/verify/submit): one weak, generously-graded
-        // free-text question instead of the real lesson/review. A pass
-        // still updates the same FSRS row Start lesson / Start review
-        // would, just at lower confidence — this is a fast recall check,
-        // not another mini-lesson, so unlike renderNodeLessonContent it
-        // never shows the teaching material. Node-only, same as every
-        // other lesson entry point — there is no per-link Verify.
-        function buildVerifyQuestionText(type, labelA) {
-            return `Explain what "${labelA}" means, in your own words.`;
-        }
-
-        function renderNodeVerifyContent(lessonEl, d) {
-            const questionText = buildVerifyQuestionText('ao1', d.label);
-            lessonEl.innerHTML = `
-                <div class="km-inline-detail-section">
-                    <div class="km-inline-detail-eyebrow">Verify${d.subtopic ? ` — ${escapeHtml(d.subtopic)}` : ''}</div>
-                    <div class="km-inline-detail-label">${escapeHtml(d.label)}</div>
-                    <div class="km-inline-lesson-explanation">A quick check — passing counts as reviewing this, at a lower confidence than a full lesson.</div>
-                    <h4 class="km-inline-lesson-question">AO1</h4>
-                    <div id="km-verify-ao1"></div>
-                </div>
-            `;
-            const el = lessonEl.querySelector('#km-verify-ao1');
-            const submit = (answer) => postChainDiagnostic('/knowledge-map-v2/verify/submit', { nodeId: d.id, questionType: 'ao1', answer });
-            renderTextQuestionWidget(el, questionText, submit);
         }
 
         function findGraphNodeById(id) {
@@ -21485,7 +21010,7 @@ SQIDAQAB
                     return renderChainDiagnosticError(lessonEl);
                 }
                 clearAnswerDraft(draftKey);
-                if (result.passed) return renderChainDiagnosticPassed(lessonEl, d, upstream, result.keysEarned);
+                if (result.passed) return sfOpenNodeLessonInFeed(folder, d);
                 renderChainDiagnosticFailure(lessonEl, d, upstream, result.state, result.currentFailure);
             });
         }
@@ -21563,29 +21088,8 @@ SQIDAQAB
         // redirect to the specific failing lesson).
         function handleChainDiagnosticStepResult(lessonEl, d, upstream, result) {
             if (result.currentFailure) return renderChainDiagnosticFailure(lessonEl, d, upstream, result.state, result.currentFailure);
-            if (result.passed) return renderChainDiagnosticPassed(lessonEl, d, upstream, result.keysEarned);
+            if (result.passed) return sfOpenNodeLessonInFeed(folder, d);
             renderChainDiagnosticDenied(lessonEl, result.redirect);
-        }
-
-        // Prerequisite components that passed still earn credit even when
-        // OTHER components in the same chain turn out to be genuine gaps
-        // (this only runs on the passed:true branch, but the backend keeps
-        // paying for real passes regardless) - see gradeComponentOutcome's
-        // own comment. Shown as its own brief step, not folded silently
-        // into jumping straight to the lesson, since a student who just
-        // earned real credits for this should actually see that happen,
-        // same as every other graded action in this app.
-        function renderChainDiagnosticPassed(lessonEl, d, upstream, keysEarned) {
-            if (!keysEarned) return sfOpenNodeLessonInFeed(folder, d);
-            lessonEl.innerHTML = `
-                <div class="km-inline-detail-section">
-                    <h4>Prerequisites verified</h4>
-                    <div class="km-inline-lesson-explanation">You already knew this — paid at Verify's rate rather than a full lesson's, since it wasn't learned here.</div>
-                    ${keysEarnedHtml(keysEarned)}
-                    <button type="button" class="btn primary km-diag-continue-btn" style="margin-top:10px;">Continue to lesson</button>
-                </div>
-            `;
-            lessonEl.querySelector('.km-diag-continue-btn').addEventListener('click', () => sfOpenNodeLessonInFeed(folder, d));
         }
 
         function renderChainDiagnosticError(lessonEl) {
@@ -22578,8 +22082,8 @@ SQIDAQAB
         }
         meta.classList.remove('over-limit');
         const tier = wordCount >= MARKING_LONG_ANSWER_MIN_WORDS
-            ? 'long answer marking — 250 Keys'
-            : 'short answer marking — 150 Keys';
+            ? 'long answer marking'
+            : 'short answer marking';
         meta.textContent = `${wordCount} word${wordCount === 1 ? '' : 's'} — ${tier}`;
         return !!question.trim() && wordCount > 0;
     }
@@ -23059,10 +22563,6 @@ SQIDAQAB
         document.getElementById('upgradeTopbarBtn').style.display = paid ? 'none' : '';
         updateTopbarScrollHint();
 
-        // Key Market is available on the free tier too — the plan is for
-        // verification itself to earn Keys eventually, not just tutoring
-        // (which stays Premium-only), so this stays visible either way.
-        refreshCreditBalanceChip();
         refreshLocksChip();
 
         // Render whatever's already cached in IndexedDB immediately rather
