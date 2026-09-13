@@ -1513,7 +1513,15 @@
 
             acctFirstNameField.style.display = acctMode === 'signup' ? 'block' : 'none';
             acctDobField.style.display = acctMode === 'signup' ? 'block' : 'none';
-            ageGateEl.style.display = acctMode === 'signup' ? 'none' : 'block';
+            // Age is verified from the real date of birth collected at
+            // signup (acctDobField) - a returning user already has this on
+            // file, so re-showing the checkbox on every single login was
+            // pure friction for no reason. Never shown here for login/
+            // signup any more - the one remaining case that still needs
+            // it, a legacy account with no date of birth on file at all,
+            // is handled once, after sign-in, by showLegacyAgeConfirmStep
+            // below - not on every visit for every account.
+            ageGateEl.style.display = 'none';
             termsGateDiv.style.display = acctMode === 'signup' ? 'block' : 'none';
             refreshStripeLock();
 
@@ -1562,11 +1570,32 @@
         acctSignupTab.addEventListener('click', () => setAcctMode('signup'));
         acctForgotBtn.addEventListener('click', () => setAcctMode(acctMode === 'forgot' ? 'login' : 'forgot'));
 
+        // Nudges a legacy account (one that predates the date-of-birth
+        // field) through a one-time age confirmation after sign-in, before
+        // continuing to /learn - see the signIn branch below for when this
+        // fires. The real Supabase session is already live at this point
+        // (signIn already succeeded) - this is just a soft, one-time
+        // confirmation step, not a re-gate of authentication itself.
+        function showLegacyAgeConfirmStep() {
+            acctMode = 'legacyAgeConfirm';
+            acctFirstNameField.style.display = 'none';
+            acctPasswordField.style.display = 'none';
+            acctDobField.style.display = 'none';
+            termsGateDiv.style.display = 'none';
+            ageGateEl.style.display = 'block';
+            acctEmailInput.disabled = true;
+            acctSubmitBtn.textContent = 'Confirm and continue';
+            setAcctStatus('Your account predates date-of-birth verification — please confirm your age to continue.');
+        }
+
         acctSubmitBtn.addEventListener('click', async () => {
-            // Signup checks a real date of birth instead of the checkbox
-            // (see setAcctMode) - login/forgot still need the checkbox.
-            if (acctMode !== 'signup' && !isAgeConfirmed()) {
-                setAcctStatus('Please confirm you are at least 13 years old.', true);
+            if (acctMode === 'legacyAgeConfirm') {
+                if (!isAgeConfirmed()) {
+                    setAcctStatus('Please confirm you are at least 13 years old.', true);
+                    return;
+                }
+                acctEmailInput.disabled = false;
+                window.location.href = '/learn';
                 return;
             }
 
@@ -1630,6 +1659,10 @@
                 } else {
                     const { data, error } = await signIn(email, password);
                     if (error) { setAcctStatus(error.message, true); return; }
+                    if (!data.session?.user?.user_metadata?.date_of_birth) {
+                        showLegacyAgeConfirmStep();
+                        return;
+                    }
                     window.location.href = '/learn';
                 }
             } catch (err) {

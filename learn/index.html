@@ -16943,25 +16943,39 @@ SQIDAQAB
 
     // ---- First-time subject-picker wizard ----
     //
-    // Fixed to the subjects with a REAL generated knowledge map, each with
-    // its own already-correct qualification/examBoard pairing baked in -
-    // asking the student to pick a level/exam-board for every subject
-    // would be pointless friction for subjects where only one real
-    // combination exists at all (Economics is the ONLY one with a genuine
-    // level/board choice worth surfacing, since A-Level Edexcel is
-    // currently the only board that has real content - the others are
-    // built under the same 'Other' qualification the app's own +Other
-    // modal already uses). "+Add new subject"/"+Other" stays reachable
-    // from the sidebar afterwards, same as always - it's deliberately
-    // left OUT of this first-time flow per the overnight spec.
+    // Fixed to the subjects with a REAL generated knowledge map, each
+    // option below hand-verified against knowledge_map_nodes (see the
+    // GCSE Maths build) rather than assumed - asking the student to pick
+    // a level for every subject would be pointless friction for one with
+    // only a single real combination (Spanish/Italian, both "Other" only
+    // right now), but a genuine, real omission for one with several (a
+    // reported bug: Maths silently forced every student into A-Level with
+    // no way to pick GCSE, even after GCSE Foundation/Higher maps were
+    // built and live). `options` is deliberately a flat list, not a
+    // separate level+tier step - "GCSE Foundation"/"GCSE Higher" read as
+    // their own complete choices, matching how they're stored as distinct
+    // `qualification` strings everywhere else in this app (see
+    // isTieredGcseSubject's own comment). "+Add new subject"/"+Other"
+    // stays reachable from the sidebar afterwards, same as always - it's
+    // deliberately left OUT of this first-time flow per the overnight spec.
     const SF_WIZARD_SUBJECTS = [
-        { key: 'economics', label: 'Economics', subject: 'Economics', needsLevelStep: true },
-        { key: 'maths', label: 'Mathematics', subject: 'Mathematics', qualification: 'A-Level', examBoard: 'Edexcel' },
-        { key: 'spanish', label: 'Spanish', subject: 'Spanish', qualification: 'Other', examBoard: '' },
-        { key: 'italian', label: 'Italian', subject: 'Italian', qualification: 'Other', examBoard: '' },
+        { key: 'economics', label: 'Economics', subject: 'Economics', options: [
+            { label: 'A-Level', qualification: 'A-Level', examBoard: 'Edexcel' },
+        ] },
+        { key: 'maths', label: 'Mathematics', subject: 'Mathematics', options: [
+            { label: 'A-Level', qualification: 'A-Level', examBoard: 'Edexcel' },
+            { label: 'GCSE Foundation', qualification: 'GCSE Foundation', examBoard: 'Edexcel' },
+            { label: 'GCSE Higher', qualification: 'GCSE Higher', examBoard: 'Edexcel' },
+        ] },
+        { key: 'spanish', label: 'Spanish', subject: 'Spanish', options: [
+            { label: 'Other', qualification: 'Other', examBoard: '' },
+        ] },
+        { key: 'italian', label: 'Italian', subject: 'Italian', options: [
+            { label: 'Other', qualification: 'Other', examBoard: '' },
+        ] },
     ];
 
-    let sfWizard = null; // { overlayEl, step, selectedKeys, economicsLevel, greetingName }
+    let sfWizard = null; // { overlayEl, step, selectedKeys, levelQueue, levelQueueIndex, levelChoices, email }
 
     function sfWizardGreetingName() {
         const email = (supabaseClient && sfWizard && sfWizard.email) || '';
@@ -16985,27 +16999,22 @@ SQIDAQAB
                 </div>`;
         }
         if (step === 'level') {
+            // One subject at a time, in the order it was picked - each
+            // gets its OWN question rather than one bundled together, so
+            // "which level" is always unambiguous about which subject
+            // it's asking about.
+            const s = SF_WIZARD_SUBJECTS.find((x) => x.key === sfWizard.levelQueue[sfWizard.levelQueueIndex]);
+            const chosenLabel = sfWizard.levelChoices[s.key];
+            const choiceButtons = s.options.map((o) => `
+                <button type="button" class="sf-wizard-choice-btn${chosenLabel === o.label ? ' selected' : ''}" data-option-label="${escapeHtml(o.label)}">${escapeHtml(o.label)}</button>
+            `).join('');
+            const isFirst = sfWizard.levelQueueIndex === 0;
             return `
-                <div class="sf-wizard-step-label">Economics — which level?</div>
-                <div class="sf-wizard-choice-row">
-                    <button type="button" class="sf-wizard-choice-btn${sfWizard.economicsLevel === 'GCSE' ? ' selected' : ''}" data-level="GCSE">GCSE</button>
-                    <button type="button" class="sf-wizard-choice-btn${sfWizard.economicsLevel === 'A-Level' ? ' selected' : ''}" data-level="A-Level">A-Level</button>
-                </div>
+                <div class="sf-wizard-step-label">${escapeHtml(s.label)} — which level?</div>
+                <div class="sf-wizard-choice-row">${choiceButtons}</div>
                 <div class="sf-wizard-actions">
                     <button type="button" class="btn sf-wizard-back-btn">← Back</button>
-                    <button type="button" class="btn primary sf-wizard-next-btn">Continue →</button>
-                </div>`;
-        }
-        if (step === 'examboard') {
-            return `
-                <div class="sf-wizard-step-label">Economics — exam board</div>
-                <select class="sf-wizard-select" disabled>
-                    <option>Edexcel</option>
-                </select>
-                <div class="sf-wizard-step-label" style="margin-top:-6px;">Edexcel is currently the only exam board with a real lesson map here - more are on the way.</div>
-                <div class="sf-wizard-actions">
-                    <button type="button" class="btn sf-wizard-back-btn">← Back</button>
-                    <button type="button" class="btn primary sf-wizard-next-btn">Continue →</button>
+                    <button type="button" class="btn primary sf-wizard-next-btn"${chosenLabel ? '' : ' disabled'}>Continue →</button>
                 </div>`;
         }
         // 'nonexam'
@@ -17023,8 +17032,12 @@ SQIDAQAB
             </div>`;
     }
 
-    function sfWizardNextStepAfterSubjects() {
-        return sfWizard.selectedKeys.has('economics') ? 'level' : 'nonexam';
+    // Every selected subject with more than one real option needs its own
+    // level question, in the order it was picked on the subjects screen -
+    // a subject with only one real option (Spanish, Italian, Economics
+    // right now) is unambiguous and skipped entirely, never asked.
+    function sfWizardBuildLevelQueue() {
+        return SF_WIZARD_SUBJECTS.filter((s) => sfWizard.selectedKeys.has(s.key) && s.options.length > 1).map((s) => s.key);
     }
 
     function sfRenderWizardStep() {
@@ -17041,18 +17054,33 @@ SQIDAQAB
                 });
             });
             cardEl.querySelector('.sf-wizard-next-btn').addEventListener('click', () => {
-                sfWizard.step = sfWizardNextStepAfterSubjects();
+                sfWizard.levelQueue = sfWizardBuildLevelQueue();
+                sfWizard.levelQueueIndex = 0;
+                sfWizard.step = sfWizard.levelQueue.length ? 'level' : 'nonexam';
                 sfRenderWizardStep();
             });
         } else if (sfWizard.step === 'level') {
-            cardEl.querySelectorAll('[data-level]').forEach((btn) => {
-                btn.addEventListener('click', () => { sfWizard.economicsLevel = btn.dataset.level; sfRenderWizardStep(); });
+            const s = SF_WIZARD_SUBJECTS.find((x) => x.key === sfWizard.levelQueue[sfWizard.levelQueueIndex]);
+            cardEl.querySelectorAll('[data-option-label]').forEach((btn) => {
+                btn.addEventListener('click', () => { sfWizard.levelChoices[s.key] = btn.dataset.optionLabel; sfRenderWizardStep(); });
             });
-            cardEl.querySelector('.sf-wizard-back-btn').addEventListener('click', () => { sfWizard.step = 'subjects'; sfRenderWizardStep(); });
-            cardEl.querySelector('.sf-wizard-next-btn').addEventListener('click', () => { sfWizard.step = 'examboard'; sfRenderWizardStep(); });
-        } else if (sfWizard.step === 'examboard') {
-            cardEl.querySelector('.sf-wizard-back-btn').addEventListener('click', () => { sfWizard.step = 'level'; sfRenderWizardStep(); });
-            cardEl.querySelector('.sf-wizard-next-btn').addEventListener('click', () => { sfWizard.step = 'nonexam'; sfRenderWizardStep(); });
+            cardEl.querySelector('.sf-wizard-back-btn').addEventListener('click', () => {
+                if (sfWizard.levelQueueIndex > 0) {
+                    sfWizard.levelQueueIndex -= 1;
+                } else {
+                    sfWizard.step = 'subjects';
+                }
+                sfRenderWizardStep();
+            });
+            cardEl.querySelector('.sf-wizard-next-btn').addEventListener('click', () => {
+                if (!sfWizard.levelChoices[s.key]) return;
+                if (sfWizard.levelQueueIndex < sfWizard.levelQueue.length - 1) {
+                    sfWizard.levelQueueIndex += 1;
+                } else {
+                    sfWizard.step = 'nonexam';
+                }
+                sfRenderWizardStep();
+            });
         } else {
             cardEl.querySelectorAll('[data-nonexam]').forEach((btn) => {
                 btn.addEventListener('click', () => {
@@ -17070,10 +17098,10 @@ SQIDAQAB
         for (const key of sfWizard.selectedKeys) {
             const s = SF_WIZARD_SUBJECTS.find((x) => x.key === key);
             if (!s) continue;
-            const qualification = s.needsLevelStep ? sfWizard.economicsLevel : s.qualification;
-            const examBoard = s.needsLevelStep ? 'Edexcel' : s.examBoard;
+            const chosenLabel = sfWizard.levelChoices[key];
+            const option = (chosenLabel && s.options.find((o) => o.label === chosenLabel)) || s.options[0];
             try {
-                await createFolder(s.subject, qualification, examBoard, '', '', '', '');
+                await createFolder(s.subject, option.qualification, option.examBoard, '', '', '', '');
             } catch (err) {
                 console.error(`LastMind: onboarding wizard failed to create folder for ${s.subject}.`, err);
             }
@@ -17096,7 +17124,9 @@ SQIDAQAB
             overlayEl,
             step: 'subjects',
             selectedKeys: new Set(),
-            economicsLevel: 'A-Level',
+            levelQueue: [],
+            levelQueueIndex: 0,
+            levelChoices: {},
             email: session?.user?.email || '',
         };
         sfRenderWizardStep();
