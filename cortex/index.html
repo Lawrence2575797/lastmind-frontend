@@ -1848,7 +1848,14 @@ SQIDAQAB
             // has its own manual speak button regardless.
             if (result.speakAloud) speakText(result.reply);
 
-            if (Array.isArray(result.actions) && result.actions.length) await handleCortexActions(result.actions);
+            // Cortex no longer takes actions on the student's account (see
+            // cortexPrompts.ts's own top comment) - the backend never
+            // returns an "actions" field any more, so there is nothing
+            // left to apply here. handleCortexActions and its appliers
+            // below are now dead code, kept only because ripping out ~10
+            // interdependent functions wasn't worth the risk in the same
+            // pass as this behavior change - safe to delete in a later
+            // cleanup pass since nothing calls them any more.
         } catch (err) {
             console.error('LastMind Cortex: message failed.', err);
             // Was a fixed generic string regardless of cause — genuinely
