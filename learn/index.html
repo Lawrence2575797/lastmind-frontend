@@ -12380,7 +12380,11 @@ SQIDAQAB
     const PREMIUM_TOUR_STEPS = [
         ...TOUR_INTRO_STEPS,
         { selector: null, title: "You're on Premium", body: "Premium unlocks LastMind's personalised AI learning system — a diagnostics engine that finds the root cause of a misunderstanding, not just where you went wrong." },
-        { selector: null, title: 'Instant verification', body: 'Learning progress made inside LastMind is verified the moment it happens on Premium — no separate step.' }
+        { selector: null, title: 'Instant verification', body: 'Learning progress made inside LastMind is verified the moment it happens on Premium — no separate step.' },
+        // Premium-only real feature (mathHelp.ts's own requirePaidTier)
+        // with no tour step at all before this - a real gap, same class
+        // of bug as the tour itself skipping first-time signups entirely.
+        { selector: '#mathsToolTopbarBtn', title: 'Stuck on a maths question', body: "The Maths Tool is a separate, self-serve chat for working through any maths question on the spot — off the record, not a graded lesson, just help when you're stuck." }
         // Used to end with a step pointing at the peer-tutoring booking
         // flow (deposit Locks toward a lesson slot) - removed along with
         // the feature itself (see enterApp's own comment on why).
