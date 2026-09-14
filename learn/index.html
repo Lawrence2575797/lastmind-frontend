@@ -6169,14 +6169,32 @@ SQIDAQAB
     }
 
 
+    // FOLDER_STORE is IndexedDB - per BROWSER/origin, not per account (no
+    // user scoping in its own schema at all - see FOLDER_STORE's own
+    // keyPath). A real reported bug: a folder left behind by a DIFFERENT
+    // account that once used this same browser/device could get pulled
+    // into whichever account is currently logged in, and
+    // reconcileFoldersWithServer's own "push anything local-only" loop
+    // would then PERSIST it server-side under the wrong account, not just
+    // show it locally. userId is stamped onto every folder record now
+    // (see createFolder and reconcileFoldersWithServer's own pull-down
+    // loop) specifically so this filter, and that loop's own guard, have
+    // something real to check against. A record with no userId at all is
+    // a pre-fix folder (or one written before this account's own session
+    // was available) - kept, not hidden, to avoid making an existing
+    // account's genuine folders vanish; only a folder whose STAMPED
+    // userId actively disagrees with who's logged in now is filtered.
     async function getAllFolders() {
         const db = await openDB();
-        return new Promise((resolve, reject) => {
+        const all = await new Promise((resolve, reject) => {
             const tx = db.transaction(FOLDER_STORE, 'readonly');
             const r = tx.objectStore(FOLDER_STORE).getAll();
             r.onsuccess = () => resolve(r.result || []);
             r.onerror = (e) => reject(e.target.error);
         });
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const userId = session?.user?.id;
+        return userId ? all.filter((f) => !f.userId || f.userId === userId) : all;
     }
 
     // Raw IndexedDB write, no server sync side effect — used by putFolder
@@ -6313,6 +6331,8 @@ SQIDAQAB
     async function reconcileFoldersWithServer() {
         const accessToken = await getSyncAccessToken();
         if (!accessToken) return;
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const userId = session?.user?.id || null;
 
         await migrateLegacyFolderIds();
 
@@ -6350,11 +6370,23 @@ SQIDAQAB
             if (!local || (local.updatedAt || 0) < serverTime) {
                 data.id = local ? local.id : folderId;
                 data.updatedAt = serverTime;
+                data.userId = userId; // stamped - see getAllFolders' own comment
                 await putFolderLocalOnly(data);
             }
         }
 
         for (const local of localFolders) {
+            // Real reported bug: a folder left behind by a DIFFERENT
+            // account that once used this same browser/device has no
+            // matching row on THIS account's server list (it's "local-
+            // only" from this account's point of view), so this loop used
+            // to adopt it wholesale - pushing it up and genuinely
+            // persisting it server-side under the wrong account. A local
+            // folder whose own stamped userId actively disagrees with
+            // who's logged in now is never this account's to push -
+            // skipped entirely rather than treated as an unsynced local
+            // change.
+            if (local.userId && local.userId !== userId) continue;
             const server = serverById.get(String(local.id));
             if (!server || (local.updatedAt || 0) > new Date(server.updatedAt).getTime()) {
                 await syncFolderToServer(local).catch((err) => console.error('LastMind: initial folder push failed — will retry at next app open.', err));
@@ -13561,7 +13593,12 @@ SQIDAQAB
         // to IndexedDB's own autoIncrement — sync needs an id that's
         // actually unique across devices, not just within this browser.
         const id = crypto.randomUUID();
-        const folder = { id, subject, qualification, examBoard, institution, moduleCode, customTitle: customTitle || '', customDescription: customDescription || '', pages: [], createdAt: Date.now() };
+        // userId - see getAllFolders' own comment on why every folder
+        // record is stamped with who actually created it, now that this
+        // matters for filtering out a different account's leftover data
+        // on a shared browser/device.
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const folder = { id, subject, qualification, examBoard, institution, moduleCode, customTitle: customTitle || '', customDescription: customDescription || '', pages: [], createdAt: Date.now(), userId: session?.user?.id || null };
         // Crash-course folders only (see the +Other modal's Crash course
         // choice) - scopes the knowledge-map-v2 graph view down to a
         // goal-selected node subset instead of the whole subject. See
