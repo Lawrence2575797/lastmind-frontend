@@ -1492,10 +1492,29 @@
         background: var(--panel); border: 1px solid rgba(230, 215, 176, 0.2); border-radius: 3px;
         padding: 6px 8px; font-size: 12px; color: var(--text); font-family: Arial, sans-serif; width: 140px;
     }
+    /* Canvas + notes box sit side by side (notes to the right, per the
+       feature request) and wrap to a stack under it on a narrow screen.
+       The canvas itself is deliberately NOT part of body.theme-bg-image's
+       see-through/blur selector list below - it stays a solid --panel
+       backdrop regardless of theme, so a drawn curve/shade always reads
+       against a flat surface; only the notes box goes translucent. */
+    .diagram-canvas-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; }
     .diagram-canvas {
-        width: 100%; max-width: 640px; aspect-ratio: 640 / 440; background: var(--panel);
+        flex: 3 1 420px; max-width: 640px; aspect-ratio: 640 / 440; background: var(--panel);
         border: 1px solid rgba(230, 215, 176, 0.18); border-radius: 6px; touch-action: none;
     }
+    .diagram-notes-box {
+        flex: 1 1 200px; max-width: 260px; min-height: 220px; background: var(--panel);
+        border: 1px solid rgba(230, 215, 176, 0.18); border-radius: 6px; padding: 12px;
+        display: flex; flex-direction: column; gap: 6px;
+    }
+    .diagram-notes-label { font-size: 11px; font-family: Arial, sans-serif; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.05em; }
+    .diagram-notes-input {
+        flex: 1; min-height: 180px; resize: vertical; background: transparent; border: none;
+        color: var(--text); font: inherit; font-size: 13px; line-height: 1.6;
+    }
+    .diagram-notes-input:focus { outline: none; }
+    .diagram-notes-input::placeholder { color: var(--text); opacity: 0.4; }
     .diagram-axis { stroke: rgba(230, 215, 176, 0.6); stroke-width: 2; }
     .diagram-axis-label { fill: var(--text); opacity: 0.6; font-size: 13px; font-family: Arial, sans-serif; }
     .diagram-curve { fill: none; stroke: var(--accent); stroke-width: 2.5; }
@@ -1509,11 +1528,10 @@
        to translate" convention as ordinary vector-drawing tools. */
     .diagram-curve-handle-hit { fill: transparent; cursor: ew-resize; }
     .diagram-curve-handle-dot { fill: var(--bg); stroke: var(--accent); stroke-width: 2; pointer-events: none; }
+    .diagram-shade-vertex-hit { fill: transparent; cursor: move; }
     .diagram-intersection-guide { stroke: var(--text); opacity: 0.35; stroke-width: 1; stroke-dasharray: 3 3; }
     .diagram-intersection-label { fill: var(--text); font-size: 12px; font-weight: 700; font-family: Arial, sans-serif; opacity: 0.85; }
     .diagram-shade { fill: rgba(230, 215, 176, 0.28); stroke: rgba(230, 215, 176, 0.5); stroke-width: 1; }
-    .diagram-shade-point { fill: var(--accent); }
-    .diagram-shade-draft-line { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 3 3; }
     .diagram-arrow { stroke: #c98a4b; stroke-width: 2; }
     .diagram-arrowhead-path { fill: #c98a4b; }
     .diagram-label { fill: var(--text); font-size: 13px; font-weight: 600; cursor: grab; font-family: Arial, sans-serif; }
@@ -3617,7 +3635,8 @@
     body.theme-bg-image .pq-assist-card,
     body.theme-bg-image .pq-model-answer-panel,
     body.theme-bg-image .maths-tool-sidebar,
-    body.theme-bg-image .maths-tool-main-wrap {
+    body.theme-bg-image .maths-tool-main-wrap,
+    body.theme-bg-image .diagram-notes-box {
         background: rgba(var(--panel-rgb), 0.22);
         backdrop-filter: blur(6px);
         -webkit-backdrop-filter: blur(6px);
@@ -15249,12 +15268,11 @@ SQIDAQAB
 
     // ─── Economics Drawing Tool - a standalone gallery around the same
     // renderDiagramWidget every graded diagram question already uses (see
-    // its own comment on "given"/onSubmit/initialState). Free-draw, not
-    // graded - onSubmit here just persists the drawing and returns
-    // {correct:true, feedback:'Saved'} so the widget's own existing
-    // submit-then-lock UX (proven already for a personal note's own
-    // diagram, see renderPersonalNoteEditor's mountDiagramHost) works
-    // unmodified - no changes needed to the shared widget itself. ───
+    // its own comment on "given"/onSubmit/initialState/options). Free-
+    // draw, not graded - passes { mode: 'save' } so the widget shows a
+    // plain Save button (never Submit/marking UI) and its notes box, and
+    // onSubmit here just persists the drawing (curves/shades/labels/
+    // arrows/notes) to this diagram's row. ───
 
     async function econFetch(path, options) {
         const { data: { session } } = await supabaseClient.auth.getSession();
@@ -15346,12 +15364,12 @@ SQIDAQAB
         document.getElementById('econDiagramBackBtn').addEventListener('click', renderEconDiagramGallery);
 
         const initialState = diagram.diagramState && Object.keys(diagram.diagramState).length
-            ? { placed: diagram.diagramState.curves || [], shades: diagram.diagramState.shades || [], labels: diagram.diagramState.labels || [], arrows: diagram.diagramState.arrows || [] }
+            ? { placed: diagram.diagramState.curves || [], shades: diagram.diagramState.shades || [], labels: diagram.diagramState.labels || [], arrows: diagram.diagramState.arrows || [], notes: diagram.diagramState.notes || '' }
             : undefined;
         renderDiagramWidget(document.getElementById('econDiagramWidgetHost'), null, async (answer) => {
             const saved = await econFetch(`/economics-diagrams/${diagram.id}`, { method: 'PUT', body: JSON.stringify({ diagramState: answer }) });
-            return { correct: true, feedback: saved ? 'Saved to your gallery.' : "Couldn't save — try again." };
-        }, null, initialState);
+            return { correct: !!saved, feedback: saved ? 'Saved to your gallery.' : "Couldn't save — try again." };
+        }, null, initialState, { mode: 'save', notes: true });
     }
 
     // Per-user daily study-time budget (see studySettingsService.ts) — the
@@ -19310,8 +19328,8 @@ SQIDAQAB
                     note.diagram = answer;
                     const ok = await noteStore.save(note);
                     setSaveState(saveStateEl, ok ? 'Saved' : 'Could not save — try again');
-                    return { correct: true, feedback: ok ? 'Diagram saved to your notes.' : 'Could not save — try again.' };
-                }, null, initialState);
+                    return { correct: ok, feedback: ok ? 'Diagram saved to your notes.' : 'Could not save — try again.' };
+                }, null, initialState, { mode: 'save' });
             }
             if (note.sections.diagram) mountDiagramHost();
         }
@@ -19857,6 +19875,51 @@ SQIDAQAB
         return { x: a1.x + t * d1x, y: a1.y + t * d1y };
     }
 
+    // Auto-shade: cast a ray from the click point out to `segments`
+    // (every placed curve's own individual straight sub-segments, plus
+    // both axes - never an infinite extension of a curve, so a region
+    // only "counts" as a boundary where something is actually drawn) and
+    // keep the nearest hit; a direction with no boundary at all falls
+    // back to the canvas edge so the region still closes instead of
+    // leaving a gap. Connecting the hits in angle order traces the
+    // star-shaped cell around the click point - the "fill the triangle/
+    // square it's in" behaviour - and every point is independently
+    // draggable afterward (see renderDiagramWidget's shadeVertex
+    // dragging) for fine correction once it's roughly right.
+    function diagramRaySegmentHit(origin, dir, a, b) {
+        const d2x = b.x - a.x, d2y = b.y - a.y;
+        const denom = dir.x * d2y - dir.y * d2x;
+        if (Math.abs(denom) < 1e-9) return null;
+        const t = ((a.x - origin.x) * d2y - (a.y - origin.y) * d2x) / denom;
+        const u = ((a.x - origin.x) * dir.y - (a.y - origin.y) * dir.x) / denom;
+        if (t <= 1e-6 || u < -0.001 || u > 1.001) return null;
+        return { t, point: { x: origin.x + t * dir.x, y: origin.y + t * dir.y } };
+    }
+    const DIAGRAM_CANVAS_EDGES = [
+        [{ x: 0, y: 0 }, { x: DIAGRAM_CANVAS_WIDTH, y: 0 }],
+        [{ x: DIAGRAM_CANVAS_WIDTH, y: 0 }, { x: DIAGRAM_CANVAS_WIDTH, y: DIAGRAM_CANVAS_HEIGHT }],
+        [{ x: DIAGRAM_CANVAS_WIDTH, y: DIAGRAM_CANVAS_HEIGHT }, { x: 0, y: DIAGRAM_CANVAS_HEIGHT }],
+        [{ x: 0, y: DIAGRAM_CANVAS_HEIGHT }, { x: 0, y: 0 }],
+    ];
+    function diagramNearestHit(origin, dir, segments) {
+        let closest = null;
+        for (const [a, b] of segments) {
+            const hit = diagramRaySegmentHit(origin, dir, a, b);
+            if (hit && (!closest || hit.t < closest.t)) closest = hit;
+        }
+        return closest;
+    }
+    function diagramAutoShadeAt(pt, segments, rayCount) {
+        const points = [];
+        for (let i = 0; i < rayCount; i++) {
+            const angle = (i / rayCount) * Math.PI * 2;
+            const dir = { x: Math.cos(angle), y: Math.sin(angle) };
+            const hit = diagramNearestHit(pt, dir, segments) || diagramNearestHit(pt, dir, DIAGRAM_CANVAS_EDGES);
+            if (hit) points.push(hit.point);
+        }
+        return points;
+    }
+
     function renderStaticDiagram(container, spec) {
         if (!spec || spec.notDiagrammatic) { container.innerHTML = ''; return; }
         const curves = spec.curves || [];
@@ -20001,28 +20064,55 @@ SQIDAQAB
     // for personal notes (see renderPersonalNoteEditor) picks up where
     // the student left off, rather than always starting blank - no
     // practice-question caller needs this, so it's always undefined there.
-    function renderDiagramWidget(container, given, onSubmit, onRequiresEncoding, initialState) {
+    // `options.mode` - 'grade' (default, every practice-question/lesson
+    // caller) keeps the existing Submit-and-mark behaviour untouched.
+    // 'save' (every free-draw caller - the standalone Economics Drawing
+    // Tool gallery AND a personal note's own diagram section, neither of
+    // which grades anything) swaps the button to a plain Save with no
+    // marking UI at all - there's nothing to grade a free-draw reference
+    // diagram against, so reusing the grading copy/feedback styling
+    // there was always just misleading. `options.notes` (independent of
+    // mode) turns on the right-hand notes box - only the standalone
+    // gallery passes it; a personal note already has its own free-text
+    // sections to describe the diagram in, so a second notes field there
+    // would just be a duplicate place to write the same thing.
+    function renderDiagramWidget(container, given, onSubmit, onRequiresEncoding, initialState, options) {
         const uid = `dw${diagramWidgetSeq++}`;
+        const mode = (options && options.mode) || 'grade';
+        const showNotes = !!(options && options.notes);
         const state = {
             placed: (initialState && initialState.placed) || [],
             shades: (initialState && initialState.shades) || [],
             labels: (initialState && initialState.labels) || [],
             arrows: (initialState && initialState.arrows) || [],
-            shadeMode: false, shadeDraft: [], arrowMode: false, arrowDraft: null, dragging: null,
+            shadeMode: false, arrowMode: false, arrowDraft: null, dragging: null,
         };
+        const initialNotes = (initialState && initialState.notes) || '';
+        // Kept in sync by render() every call so the click handler (auto-
+        // shade) can read the current placed-curve geometry without
+        // recomputing it - render() is the only place that already walks
+        // state.placed into transformed polylines.
+        let currentPlacedPolys = [];
 
         container.innerHTML = `
             <div class="diagram-widget">
                 <div class="diagram-palette" id="${uid}-palette"></div>
                 <div class="diagram-toolbar">
-                    <button type="button" class="btn diagram-tool-btn" id="${uid}-shade-btn">Shade a region (double-click to finish)</button>
+                    <button type="button" class="btn diagram-tool-btn" id="${uid}-shade-btn">Shade a region (click inside it)</button>
                     <button type="button" class="btn diagram-tool-btn" id="${uid}-arrow-btn">Add arrow (click start, then end)</button>
                     <input type="text" class="diagram-label-input" id="${uid}-label-input" placeholder="Label text, e.g. S1">
                     <button type="button" class="btn diagram-tool-btn" id="${uid}-label-btn">Add label</button>
                     <button type="button" class="btn diagram-tool-btn" id="${uid}-clear-btn">Clear</button>
                 </div>
-                <svg class="diagram-canvas" id="${uid}-svg" viewBox="0 0 ${DIAGRAM_CANVAS_WIDTH} ${DIAGRAM_CANVAS_HEIGHT}"></svg>
-                <button type="button" class="btn primary diagram-submit-btn" id="${uid}-submit-btn">Submit diagram</button>
+                <div class="diagram-canvas-row">
+                    <svg class="diagram-canvas" id="${uid}-svg" viewBox="0 0 ${DIAGRAM_CANVAS_WIDTH} ${DIAGRAM_CANVAS_HEIGHT}"></svg>
+                    ${showNotes ? `
+                    <div class="diagram-notes-box">
+                        <div class="diagram-notes-label">Notes</div>
+                        <textarea class="diagram-notes-input" id="${uid}-notes" placeholder="Describe what this diagram shows…">${escapeHtml(initialNotes)}</textarea>
+                    </div>` : ''}
+                </div>
+                <button type="button" class="btn primary diagram-submit-btn" id="${uid}-submit-btn">${mode === 'save' ? 'Save' : 'Submit diagram'}</button>
                 <div class="diagram-result" id="${uid}-result"></div>
             </div>
         `;
@@ -20032,6 +20122,7 @@ SQIDAQAB
         const resultEl = container.querySelector(`#${uid}-result`);
         const shadeBtn = container.querySelector(`#${uid}-shade-btn`);
         const arrowBtn = container.querySelector(`#${uid}-arrow-btn`);
+        const notesInput = showNotes ? container.querySelector(`#${uid}-notes`) : null;
 
         function svgPointFromEvent(ev) {
             const rect = svg.getBoundingClientRect();
@@ -20069,10 +20160,6 @@ SQIDAQAB
             });
 
             state.shades.forEach((s) => svg.appendChild(svgElement('polygon', { points: s.points.map((p) => `${p.x},${p.y}`).join(' '), class: 'diagram-shade' })));
-            if (state.shadeDraft.length) {
-                state.shadeDraft.forEach((p) => svg.appendChild(svgElement('circle', { cx: p.x, cy: p.y, r: 4, class: 'diagram-shade-point' })));
-                if (state.shadeDraft.length > 1) svg.appendChild(svgElement('polyline', { points: state.shadeDraft.map((p) => `${p.x},${p.y}`).join(' '), class: 'diagram-shade-draft-line' }));
-            }
 
             const placedPolys = [];
             state.placed.forEach((inst) => {
@@ -20109,14 +20196,44 @@ SQIDAQAB
                 });
             });
 
-            // Auto price/quantity labelling wherever two placed curves
-            // cross - dashed guide lines dropped to each axis plus a
-            // Pn/Qn tag, the standard textbook equilibrium-point
-            // convention, using the same intersection math
-            // renderStaticDiagram/diagramGradingService.ts already rely
-            // on (never stored - recomputed from state.placed every
-            // render, so dragging a curve updates it live).
+            currentPlacedPolys = placedPolys;
+
+            // Auto price/quantity labelling. Two passes, one shared
+            // sequence counter: first each individual placed curve
+            // against each axis (a single crossing only ever earns the
+            // one value that axis actually measures - Pn where it
+            // crosses the price axis, Qn where it crosses quantity -
+            // never both), then every pair of placed curves against each
+            // other (a full equilibrium point, so both). Both passes
+            // reuse diagramPolylineIntersection - a real BOUNDED segment
+            // test against the actual drawn axis segment, deliberately
+            // not diagramCurveAxisIntersection's infinite-line version
+            // (that one's for renderStaticDiagram's spec-driven layout,
+            // where a curve's local shape is trusted to be positioned
+            // correctly already - here a student's curve floating
+            // somewhere that merely LINES UP with an axis shouldn't earn
+            // a label it doesn't visually touch). Recomputed from
+            // state.placed every render, never stored, so dragging a
+            // curve updates the labels live.
             let intersectionSeq = 0;
+            placedPolys.forEach((poly) => {
+                const priceHit = diagramPolylineIntersection(poly, DIAGRAM_PRICE_AXIS);
+                if (priceHit) {
+                    intersectionSeq++;
+                    svg.appendChild(svgElement('circle', { cx: priceHit.x, cy: priceHit.y, r: 2.5, class: 'diagram-curve-handle-dot' }));
+                    const pLabel = svgElement('text', { x: DIAGRAM_PRICE_AXIS[0].x - 6, y: priceHit.y + 4, class: 'diagram-intersection-label', 'text-anchor': 'end' });
+                    pLabel.textContent = `P${intersectionSeq}`;
+                    svg.appendChild(pLabel);
+                }
+                const qtyHit = diagramPolylineIntersection(poly, DIAGRAM_QUANTITY_AXIS);
+                if (qtyHit) {
+                    intersectionSeq++;
+                    svg.appendChild(svgElement('circle', { cx: qtyHit.x, cy: qtyHit.y, r: 2.5, class: 'diagram-curve-handle-dot' }));
+                    const qLabel = svgElement('text', { x: qtyHit.x, y: DIAGRAM_QUANTITY_AXIS[0].y + 16, class: 'diagram-intersection-label', 'text-anchor': 'middle' });
+                    qLabel.textContent = `Q${intersectionSeq}`;
+                    svg.appendChild(qLabel);
+                }
+            });
             for (let i = 0; i < placedPolys.length; i++) {
                 for (let j = i + 1; j < placedPolys.length; j++) {
                     const hit = diagramPolylineIntersection(placedPolys[i], placedPolys[j]);
@@ -20148,6 +20265,26 @@ SQIDAQAB
                 });
                 svg.appendChild(el);
             });
+
+            // One draggable handle per shade vertex, drawn last so they
+            // sit on top of everything (fill, curves, labels) and always
+            // win the pointerdown. Each drags completely independently -
+            // no anchor/gradient math like the curve endpoints above,
+            // just a free move of that one corner - which is what lets a
+            // rough auto-shade (see diagramAutoShadeAt) get nudged onto
+            // exactly the triangle/rectangle the student actually meant.
+            state.shades.forEach((s, shadeIdx) => {
+                s.points.forEach((p, vIdx) => {
+                    const hit = svgElement('circle', { cx: p.x, cy: p.y, r: 9, class: 'diagram-shade-vertex-hit' });
+                    hit.addEventListener('pointerdown', (ev) => {
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                        state.dragging = { type: 'shadeVertex', shadeIdx, vIdx };
+                    });
+                    svg.appendChild(hit);
+                    svg.appendChild(svgElement('circle', { cx: p.x, cy: p.y, r: 3.5, class: 'diagram-curve-handle-dot' }));
+                });
+            });
         }
 
         svg.addEventListener('pointermove', (ev) => {
@@ -20176,6 +20313,9 @@ SQIDAQAB
                 } else if (state.dragging.type === 'label') {
                     const l = state.labels[state.dragging.id];
                     if (l) { l.x = pt.x - state.dragging.offsetX; l.y = pt.y - state.dragging.offsetY; render(); }
+                } else if (state.dragging.type === 'shadeVertex') {
+                    const s = state.shades[state.dragging.shadeIdx];
+                    if (s) { s.points[state.dragging.vIdx] = { x: pt.x, y: pt.y }; render(); }
                 }
             } else if (state.arrowDraft) {
                 state.arrowDraft.x2 = pt.x; state.arrowDraft.y2 = pt.y; render();
@@ -20185,7 +20325,31 @@ SQIDAQAB
 
         svg.addEventListener('click', (ev) => {
             const pt = svgPointFromEvent(ev);
-            if (state.shadeMode) { state.shadeDraft.push(pt); render(); return; }
+            if (state.shadeMode) {
+                // One click auto-fills whatever triangle/rectangle/etc
+                // the click point sits inside, bounded by the curves and
+                // axes actually drawn (see diagramAutoShadeAt) - the
+                // corners are then individually draggable (the
+                // shadeVertex handles in render()) for fine correction,
+                // rather than making the student place every point by
+                // hand. Mode switches off after one shade, same
+                // one-shot convention as the arrow tool below.
+                const segments = [];
+                currentPlacedPolys.forEach((poly) => {
+                    for (let i = 0; i < poly.length - 1; i++) segments.push([poly[i], poly[i + 1]]);
+                });
+                segments.push([DIAGRAM_PRICE_AXIS[0], DIAGRAM_PRICE_AXIS[1]]);
+                segments.push([DIAGRAM_QUANTITY_AXIS[0], DIAGRAM_QUANTITY_AXIS[1]]);
+                const points = diagramAutoShadeAt(pt, segments, 48);
+                if (points.length >= 3) {
+                    const label = window.prompt('Label this shaded area (optional):') || '';
+                    state.shades.push({ points, label });
+                }
+                state.shadeMode = false;
+                shadeBtn.classList.remove('active');
+                render();
+                return;
+            }
             if (state.arrowMode) {
                 if (!state.arrowDraft) {
                     state.arrowDraft = { x1: pt.x, y1: pt.y, x2: pt.x, y2: pt.y };
@@ -20195,16 +20359,6 @@ SQIDAQAB
                     state.arrowMode = false;
                     arrowBtn.classList.remove('active');
                 }
-                render();
-            }
-        });
-        svg.addEventListener('dblclick', () => {
-            if (state.shadeMode && state.shadeDraft.length >= 3) {
-                const label = window.prompt('Label this shaded area (optional):') || '';
-                state.shades.push({ points: state.shadeDraft, label });
-                state.shadeDraft = [];
-                state.shadeMode = false;
-                shadeBtn.classList.remove('active');
                 render();
             }
         });
@@ -20228,7 +20382,7 @@ SQIDAQAB
 
         shadeBtn.addEventListener('click', () => {
             state.shadeMode = !state.shadeMode;
-            state.arrowMode = false; state.shadeDraft = [];
+            state.arrowMode = false;
             shadeBtn.classList.toggle('active', state.shadeMode);
             arrowBtn.classList.remove('active');
         });
@@ -20247,7 +20401,7 @@ SQIDAQAB
             render();
         });
         container.querySelector(`#${uid}-clear-btn`).addEventListener('click', () => {
-            state.placed = []; state.shades = []; state.labels = []; state.arrows = []; state.shadeDraft = [];
+            state.placed = []; state.shades = []; state.labels = []; state.arrows = [];
             render();
         });
         // Same retry-before-recording contract as renderTextQuestionWidget
@@ -20261,14 +20415,30 @@ SQIDAQAB
         let retryCount = 0;
         container.querySelector(`#${uid}-submit-btn`).addEventListener('click', async (ev) => {
             ev.target.disabled = true;
-            ev.target.textContent = 'Checking…';
+            ev.target.textContent = mode === 'save' ? 'Saving…' : 'Checking…';
             const answer = {
                 curves: state.placed.map((p) => ({ instanceId: p.instanceId, curveTypeId: p.curveTypeId, x: p.x, y: p.y, scaleX: p.scaleX || 1, scaleY: p.scaleY || 1 })),
                 shades: state.shades.map((s) => ({ points: s.points, label: s.label })),
                 labels: state.labels.map((l) => ({ text: l.text, x: l.x, y: l.y })),
                 arrows: state.arrows.map((a) => ({ x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2 })),
+                ...(notesInput ? { notes: notesInput.value } : {}),
             };
             const result = await onSubmit(answer, retryCount);
+            if (mode === 'save') {
+                // No marking here - a free-draw reference diagram has
+                // nothing to grade against, so this is a plain save
+                // confirmation, never the correct/incorrect styling
+                // renderQuestionResult below is built for. Button stays
+                // (re-enabled, text back to "Save") so the student can
+                // keep editing and save again, rather than being locked
+                // out the way a graded submission's button is.
+                ev.target.disabled = false;
+                ev.target.textContent = 'Save';
+                resultEl.innerHTML = result && result.correct
+                    ? `<div class="km-inline-detail-item">${escapeHtml(result.feedback || 'Saved.')}</div>`
+                    : `<div class="km-inline-detail-item km-inline-detail-none">${escapeHtml((result && result.feedback) || "Couldn't save — try again.")}</div>`;
+                return;
+            }
             if (result && result.retryable) {
                 retryCount++;
                 ev.target.disabled = false;
