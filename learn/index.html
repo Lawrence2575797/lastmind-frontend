@@ -5707,6 +5707,11 @@ SQIDAQAB
     // canyon) plus a text/panel pairing pulled from its own palette
     // (weathered dark timber/leather panel, sun-bleached sand text) rather
     // than reusing Havnstad's fjord-toned colours against a desert photo.
+    // Castle, riverside city, and space station follow the exact same
+    // structure - a real generated scene plus a text/panel pairing pulled
+    // from that scene's own palette (cool stone grey for the castle, soft
+    // plum/blush for the flowering riverside city, deep space navy/cyan
+    // for the station).
     const THEME_PRESETS = [
         {
             key: 'havnstad',
@@ -5718,6 +5723,21 @@ SQIDAQAB
             label: 'Wild West',
             theme: { textColor: '#EDE0C8', panelColor: '#241812', bgColor: '#C9793C', bgTexture: 'wild-west-town' },
         },
+        {
+            key: 'castle',
+            label: 'Medieval Castle',
+            theme: { textColor: '#EFE4C4', panelColor: '#2A2A28', bgColor: '#C9A227', bgTexture: 'medieval-castle' },
+        },
+        {
+            key: 'riverside',
+            label: 'Riverside City',
+            theme: { textColor: '#F6E9E6', panelColor: '#3A2233', bgColor: '#D9A6C2', bgTexture: 'riverside-city' },
+        },
+        {
+            key: 'space',
+            label: 'Space Station',
+            theme: { textColor: '#E4F2FF', panelColor: '#0B1A2B', bgColor: '#2E7DD1', bgTexture: 'space-station' },
+        },
     ];
 
     // bgTexture values backed by a real image rather than a procedural
@@ -5727,6 +5747,9 @@ SQIDAQAB
     const THEME_IMAGE_BACKGROUNDS = {
         'havnstad-village': '/assets/theme/havnstad-village.jpg',
         'wild-west-town': '/assets/theme/wild-west-town.jpg',
+        'medieval-castle': '/assets/theme/medieval-castle.jpg',
+        'riverside-city': '/assets/theme/riverside-city.jpg',
+        'space-station': '/assets/theme/space-station.jpg',
     };
 
     function themeHexToRgb(hex) {
@@ -12928,8 +12951,20 @@ SQIDAQAB
     // sidebar (a list of past chats, click to continue or "+ New chat"),
     // and the actual chat interface renders in the dashboard's own main
     // content area (see renderWelcome()/openCortexChat below), not as a
-    // separate page navigation any more.
-    document.getElementById('cortexTabBtn').addEventListener('click', () => setSidebarTab('cortex'));
+    // separate page navigation any more. setSidebarTab only ever swaps
+    // which panel the SIDEBAR itself shows - it never touches the main
+    // content area, so clicking this while some other view (a feed, a
+    // knowledge map) was already open in #contentInner left the sidebar's
+    // chat list showing with no chat/textbox actually on screen anywhere.
+    // Real reported bug: "no textbox shows up". renderWelcome() is what
+    // actually puts the chat surface in the main content area - calling
+    // it here is what makes clicking Cortex behave like a real nav
+    // destination (same as clicking a specific past chat via
+    // openCortexChat does further down), not just a sidebar list swap.
+    document.getElementById('cortexTabBtn').addEventListener('click', () => {
+        setSidebarTab('cortex');
+        renderWelcome();
+    });
 
     // Points the dashboard's embedded Cortex iframe at a specific chat
     // (or a fresh one) and makes sure the dashboard itself is what's
@@ -15601,7 +15636,15 @@ SQIDAQAB
     async function sfGetStudentName() {
         if (sfCachedStudentName !== null) return sfCachedStudentName;
         const { data: { session } } = await supabaseClient.auth.getSession();
-        sfCachedStudentName = sfDeriveNameFromEmail(session?.user?.email || '');
+        // first_name is the real name the student typed at signup (see
+        // subscribe/index.html's signUp - stored in Supabase Auth's own
+        // user_metadata, not something this app caches anywhere itself).
+        // Falls back to the email-derived guess only for an older account
+        // from before that field was collected, or the rare case it's
+        // genuinely blank - never preferring the email guess over a real
+        // name the student actually gave.
+        const realName = (session?.user?.user_metadata?.first_name || '').trim();
+        sfCachedStudentName = realName || sfDeriveNameFromEmail(session?.user?.email || '');
         return sfCachedStudentName;
     }
 
@@ -16317,7 +16360,12 @@ SQIDAQAB
             renderStaticDiagram(explEl.querySelector('.sf-diagram-explanation-host'), diagramSpec);
         }
 
-        const slides = [{ el: explEl, meta: { canAdvance: true, kind: 'explanation' } }];
+        // nodeId is carried on every slide's own meta from here on so
+        // sfCheckDueRecalls can tell whether a recall about to be nudged
+        // is for the SAME concept the student is currently mid-lesson on
+        // (see its own comment) - a real reported bug otherwise, a recall
+        // interrupting the very lesson that just scheduled it.
+        const slides = [{ el: explEl, meta: { canAdvance: true, kind: 'explanation', nodeId: rec.node.id } }];
 
         if (lesson.practiceQuestion && lesson.practiceQuestion.diagramSpec) {
             const qEl = document.createElement('div');
@@ -16328,7 +16376,7 @@ SQIDAQAB
                     <p class="sf-question-text">${escapeHtml(lesson.practiceQuestion.questionText)}</p>
                     <div class="sf-diagram-question-host"></div>
                 </div>`;
-            const qMeta = { canAdvance: false, kind: 'question', answered: false };
+            const qMeta = { canAdvance: false, kind: 'question', answered: false, nodeId: rec.node.id };
             sfWireDiagramQuestionSlide(qEl.querySelector('.sf-diagram-question-host'), rec.node, qMeta);
             slides.push({ el: qEl, meta: qMeta });
         } else if (lesson.practiceQuestion && lesson.practiceQuestion.questionText) {
@@ -16356,7 +16404,7 @@ SQIDAQAB
                     <div class="sf-question-feedback"></div>
                     <div class="sf-advance-hint" hidden>Moving on…</div>
                 </div>`;
-            const qMeta = { canAdvance: false, kind: 'question', answered: false };
+            const qMeta = { canAdvance: false, kind: 'question', answered: false, nodeId: rec.node.id };
             sfWireQuestionSlide(qEl, rec.node, qMeta, useMathEditor);
             slides.push({ el: qEl, meta: qMeta });
         } else {
@@ -16790,12 +16838,26 @@ SQIDAQAB
     // currently-due, not-yet-nudged row (not just the one that triggered)
     // into a single nudge, so two recalls landing seconds apart show one
     // banner instead of stacking two.
+    //
+    // Real reported bug: a recall for concept X could become due, and get
+    // nudged, WHILE the student was still mid-lesson on X itself (its own
+    // encoding just scheduled this exact recall a couple of minutes
+    // earlier - see recordFirstTeachingSignals) - interrupting the lesson
+    // that taught it with a quiz on it before the student even finished
+    // learning it. A due row whose nodeId matches the slide currently on
+    // screen (see the explanation/question slides' own nodeId in meta) is
+    // left in pendingRecallRows rather than nudged now - it stays
+    // genuinely due and gets picked up the next time a timer fires or the
+    // feed moves on to something else (sfServeDueRecallOrAppendNext's own
+    // fresh server check at the next lesson-transition point), not lost.
     function sfCheckDueRecalls() {
         if (!sfFeed || !sfFeed.pendingRecallRows) return;
         const now = Date.now();
-        const due = sfFeed.pendingRecallRows.filter((r) => new Date(r.dueAt).getTime() <= now);
+        const currentNodeId = sfFeed.meta[sfFeed.currentIndex] && sfFeed.meta[sfFeed.currentIndex].nodeId;
+        const due = sfFeed.pendingRecallRows.filter((r) => new Date(r.dueAt).getTime() <= now && r.nodeId !== currentNodeId);
         if (!due.length) return;
-        sfFeed.pendingRecallRows = sfFeed.pendingRecallRows.filter((r) => new Date(r.dueAt).getTime() > now);
+        const dueIds = new Set(due.map((r) => r.recallId));
+        sfFeed.pendingRecallRows = sfFeed.pendingRecallRows.filter((r) => !dueIds.has(r.recallId));
         sfShowRecallNudge(due);
     }
 
@@ -17523,6 +17585,10 @@ SQIDAQAB
     let sfWizard = null; // { overlayEl, step, selectedKeys, levelQueue, levelQueueIndex, levelChoices, email }
 
     function sfWizardGreetingName() {
+        // first_name is the real name given at signup - preferred over
+        // guessing one from the email's local part (see the same fix in
+        // sfGetStudentName, used by the feed's own greeting banner).
+        if (sfWizard && sfWizard.firstName) return sfWizard.firstName;
         const email = (supabaseClient && sfWizard && sfWizard.email) || '';
         const local = email.split('@')[0];
         return local ? local.replace(/[._]+/g, ' ').trim() : 'there';
@@ -17685,6 +17751,7 @@ SQIDAQAB
             levelQueueIndex: 0,
             levelChoices: {},
             email: session?.user?.email || '',
+            firstName: (session?.user?.user_metadata?.first_name || '').trim(),
         };
         sfRenderWizardStep();
     }
