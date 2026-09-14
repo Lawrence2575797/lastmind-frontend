@@ -17753,6 +17753,21 @@ SQIDAQAB
         await refreshFolderList();
         const shown = await sfMaybeShowFeed();
         if (!shown) renderWelcome();
+
+        // A genuine first-time signup never reached enterApp's own tour
+        // check (see its comment - the wizard branch there returns
+        // straight to sfMaybeShowFeed/renderWelcome with no tour trigger
+        // at all) - real reported gap, a brand-new account skipped the
+        // guided tour entirely. Re-checked fresh rather than assumed,
+        // since this same wizard also doubles as the empty-state fallback
+        // for a returning account with zero subjects left (see
+        // sfShowSubjectPickerWizard's own comment) - that account may
+        // have already seen its tour, and must not get it replayed.
+        const tourStatus = await fetchOnboardingStatus();
+        if (tourStatus) {
+            if (isPaidUser && !tourStatus.seenPremiumTour) startTour('premium');
+            else if (!isPaidUser && !tourStatus.seenFreeTour) startTour('free');
+        }
     }
 
     async function sfShowSubjectPickerWizard() {
