@@ -7947,6 +7947,7 @@ SQIDAQAB
         treeWrap.querySelectorAll('.notes-tree-node-item[data-node-id]').forEach((btn) => {
             btn.addEventListener('click', (ev) => {
                 ev.stopPropagation();
+                sfCloseSidebarOnMobile();
                 renderSubjectGraphView(folder, data, btn.dataset.nodeId);
             });
         });
@@ -8375,6 +8376,7 @@ SQIDAQAB
         `;
         document.getElementById('exitSpecPracticeModeBtn').addEventListener('click', exitSpecPracticeMode);
         refreshFolderList();
+        sfOpenSidebarOnMobile();
     }
 
     document.getElementById('practiceQuestionsTopbarBtn').addEventListener('click', renderExamPrepEntryScreen);
@@ -8405,6 +8407,7 @@ SQIDAQAB
         `;
         document.getElementById('exitKmGraphModeBtn').addEventListener('click', exitKmGraphMode);
         refreshFolderList();
+        sfOpenSidebarOnMobile();
     }
     document.getElementById('knowledgeMapTopbarBtn').addEventListener('click', renderKnowledgeMapEntryScreen);
 
@@ -8420,6 +8423,7 @@ SQIDAQAB
         contentInner.classList.add('content-inner-wide');
         contentInner.innerHTML = `<div class="dashboard-view dashboard-locked">${specPracticeBackButtonHtml()}<p class="dashboard-locked-quote">Select a lesson from the sidebar.</p></div>`;
         wireSpecPracticeBackButton();
+        sfOpenSidebarOnMobile();
 
         try {
             const { data: { session } } = await supabaseClient.auth.getSession();
@@ -8496,6 +8500,7 @@ SQIDAQAB
         treeWrap.querySelectorAll('.notes-tree-node-item[data-concept-id]').forEach((btn) => {
             btn.addEventListener('click', (ev) => {
                 ev.stopPropagation();
+                sfCloseSidebarOnMobile();
                 renderSpecPracticePickList(folder, btn.dataset.conceptId, btn.dataset.concept);
             });
         });
@@ -12327,6 +12332,36 @@ SQIDAQAB
     document.getElementById('sidebarToggle').addEventListener('click', () => {
         document.getElementById('sidebar').classList.toggle('collapsed');
     });
+
+    // Swipe right from the very edge of the screen also opens the
+    // sidebar, alongside tapping ☰ - only when the swipe genuinely
+    // STARTS within a thin strip of the left edge (not "swipe right
+    // anywhere"), which is what keeps this from ever firing on the
+    // feed's own right-swipe-to-go-back gesture (sfWireGestures' touch
+    // handler, scoped to .sf-feed-viewport) - a real swipe-back inside
+    // the feed starts wherever the student's thumb already is, not
+    // pinned to the literal edge, so the two never actually compete.
+    // Passive throughout (no preventDefault) - this only ever watches,
+    // it never blocks the page's own native scrolling/gestures.
+    (function sfWireEdgeSwipeToOpenSidebar() {
+        const EDGE_PX = 24;
+        const SWIPE_PX = 50;
+        let startX = null, startY = null, active = false;
+        document.addEventListener('touchstart', (e) => {
+            const t = e.touches[0];
+            startX = t.clientX;
+            startY = t.clientY;
+            active = sfIsMobileViewport() && startX <= EDGE_PX && document.getElementById('sidebar').classList.contains('collapsed');
+        }, { passive: true });
+        document.addEventListener('touchend', (e) => {
+            if (!active || startX === null) { active = false; return; }
+            const t = e.changedTouches[0];
+            const dx = t.clientX - startX;
+            const dy = Math.abs(t.clientY - startY);
+            if (dx > SWIPE_PX && dy < 60) sfOpenSidebarOnMobile();
+            startX = null; startY = null; active = false;
+        }, { passive: true });
+    })();
 
     // Shows the fade+arrow hint over the topbar's scrollable button row
     // only while there's genuinely more to scroll to — hidden once
@@ -16514,6 +16549,25 @@ SQIDAQAB
     // so rotating/resizing doesn't need a reload.
     function sfIsMobileViewport() { return window.innerWidth <= 768; }
 
+    // Auto-open/close the sidebar around a "pick something from the
+    // sidebar" moment - real reported friction: on mobile, the sidebar
+    // starts collapsed (see the window.innerWidth <= 768 default further
+    // down), so every one of these screens (Knowledge Map's "click a
+    // lesson in the sidebar", Exam Preparation's "select a subject, then
+    // a lesson") required a manual tap on ☰ just to see the thing the
+    // screen was telling you to use, and then ANOTHER manual tap to get
+    // it back out of the way once you'd picked something. Desktop is
+    // untouched - the sidebar is never collapsed there in the first
+    // place, so both of these are no-ops.
+    function sfOpenSidebarOnMobile() {
+        if (!sfIsMobileViewport()) return;
+        document.getElementById('sidebar').classList.remove('collapsed');
+    }
+    function sfCloseSidebarOnMobile() {
+        if (!sfIsMobileViewport()) return;
+        document.getElementById('sidebar').classList.add('collapsed');
+    }
+
     // The forward gesture is a left swipe on mobile (sfWireGestures'
     // touch handler treats a leftward drag as forward), not a scroll -
     // this hint text must match whichever gesture is actually live on
@@ -17926,6 +17980,7 @@ SQIDAQAB
         selectedFolderKmData = data;
         refreshFolderList();
         showCenterMessage('Click a lesson in the sidebar to open it.');
+        sfOpenSidebarOnMobile();
     }
 
     // Numeric-aware comparison for spec-numbered subtopic strings ("1.1
