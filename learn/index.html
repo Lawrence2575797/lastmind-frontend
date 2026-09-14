@@ -1330,7 +1330,10 @@
     .sf-feed-root.has-mini-cortex .sf-feed-viewport { right: 300px; }
     .sf-feed-root.has-mini-cortex .sf-feed-exit-btn { right: 314px; }
     .sf-feed-root.has-mini-cortex .sf-recall-nudge { right: 316px; }
-    .sf-mini-cortex-panel { position: absolute; top: 0; right: 0; bottom: 0; width: 300px; border-left: 1px solid rgba(230, 215, 176, 0.15); background: var(--bg); display: flex; flex-direction: column; z-index: 2; }
+    /* var(--panel), not --bg - matches .sf-feed-root's own background
+       exactly (same variable), so the panel reads as part of the same
+       box rather than a mismatched second surface bolted on next to it. */
+    .sf-mini-cortex-panel { position: absolute; top: 0; right: 0; bottom: 0; width: 300px; border-left: 1px solid rgba(230, 215, 176, 0.15); background: var(--panel); display: flex; flex-direction: column; z-index: 2; }
     .sf-mini-cortex-header { flex: none; padding: 14px 16px 10px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.6; border-bottom: 1px solid rgba(230, 215, 176, 0.1); }
     .sf-mini-cortex-thread { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
     .sf-mini-cortex-empty { font-size: 13px; line-height: 1.6; opacity: 0.55; }
@@ -3598,7 +3601,8 @@
        colour the active preset chose, instead of a hardcoded value that
        would look wrong under some future second image preset. */
     body.theme-bg-image .sidebar,
-    body.theme-bg-image .sf-feed-root {
+    body.theme-bg-image .sf-feed-root,
+    body.theme-bg-image .sf-mini-cortex-panel {
         background: rgba(var(--panel-rgb), 0.22);
         backdrop-filter: blur(6px);
         -webkit-backdrop-filter: blur(6px);
@@ -12343,15 +12347,17 @@ SQIDAQAB
 
     // Steps every tour opens with, regardless of tier — how to actually
     // get started (create a folder), how a lesson is structured over
-    // time (encoding first, then spaced repetition), and that Cortex can
-    // do the folder/page setup for you instead of doing it by hand.
+    // time (encoding first, then spaced repetition), and what Cortex is
+    // actually for now (general learning assistance, not folder/page
+    // setup - see cortexPrompts.ts's own top comment on why that
+    // capability was removed).
     const TOUR_INTRO_STEPS = [
         { selector: '#createFolderBtn', title: 'Start with a subject', body: "This is where a subject lives. Create one for each subject you're studying — LastMind builds lessons inside it." },
         { selector: null, title: 'Your feed', body: 'Click a subject in the sidebar and your next lesson opens as a scrolling feed. Scroll (or swipe left on mobile) as directed to reach the question — on completion you\'ll be moved on to the next lesson automatically.' },
         { selector: null, title: 'How a lesson works', body: 'The first time you meet a concept, you actually learn it — not just get quizzed on it. After that, spaced repetition brings it back at increasing intervals so it actually sticks.' },
         { selector: '#knowledgeMapTopbarBtn', title: 'See the whole picture', body: "Your feed always picks the single next best thing to do, but you can browse a subject's entire knowledge map any time here — every concept and how they connect." },
-        { selector: '#cortexTabBtn', title: 'Let Cortex set it up for you', body: "Don't want to build the subject structure by hand? Switch to Cortex and describe what you're studying — it can create subjects and pages for you." },
-        { selector: '#themePaletteBtn', title: 'Make it yours', body: 'Not keen on the birch and burgundy? Click here any time to change the text, sidebar and background colours — free on every plan.' }
+        { selector: '#cortexTabBtn', title: 'Ask Cortex', body: "Cortex is here for general learning help — explaining a concept you're stuck on, talking through exam technique, or just thinking something through out loud. It won't set up subjects or pages for you though; that's done from the sidebar itself." },
+        { selector: '#themePaletteBtn', title: 'Make it yours', body: 'Not keen on the birch and burgundy? Click here any time to change the text, sidebar and background colours, or pick a ready-made scene like Havnstad or Wild West from the presets at the top — free on every plan.' }
     ];
 
     const FREE_TOUR_STEPS = [
