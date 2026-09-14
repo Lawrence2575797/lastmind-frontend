@@ -17017,21 +17017,30 @@ SQIDAQAB
     // isTieredGcseSubject's own comment). "+Add new subject"/"+Other"
     // stays reachable from the sidebar afterwards, same as always - it's
     // deliberately left OUT of this first-time flow per the overnight spec.
+    // examLesson splits the subject-picker screen into two sections (see
+    // sfWizardCardHtml's 'subjects' step) and decides whether this subject
+    // gets a level/exam-board step at all (a non-exam lesson has neither).
+    // examBoards is only ever populated with boards that genuinely have
+    // real knowledge-map content behind them right now (verified against
+    // the live data, not a generic textbook list) - rendered as a real
+    // <select> even with one option, so it's structurally ready for a
+    // second board the moment one actually exists, rather than silently
+    // hardcoding the only one.
     const SF_WIZARD_SUBJECTS = [
-        { key: 'economics', label: 'Economics', subject: 'Economics', options: [
-            { label: 'A-Level', qualification: 'A-Level', examBoard: 'Edexcel' },
-        ] },
-        { key: 'maths', label: 'Mathematics', subject: 'Mathematics', options: [
-            { label: 'A-Level', qualification: 'A-Level', examBoard: 'Edexcel' },
-            { label: 'GCSE Foundation', qualification: 'GCSE Foundation', examBoard: 'Edexcel' },
-            { label: 'GCSE Higher', qualification: 'GCSE Higher', examBoard: 'Edexcel' },
-        ] },
-        { key: 'spanish', label: 'Spanish', subject: 'Spanish', options: [
-            { label: 'Other', qualification: 'Other', examBoard: '' },
-        ] },
-        { key: 'italian', label: 'Italian', subject: 'Italian', options: [
-            { label: 'Other', qualification: 'Other', examBoard: '' },
-        ] },
+        { key: 'economics', label: 'Economics', subject: 'Economics', examLesson: true,
+          qualifications: [{ label: 'A-Level', qualification: 'A-Level' }],
+          examBoards: ['Edexcel'] },
+        { key: 'maths', label: 'Mathematics', subject: 'Mathematics', examLesson: true,
+          qualifications: [
+              { label: 'A-Level', qualification: 'A-Level' },
+              { label: 'GCSE Foundation', qualification: 'GCSE Foundation' },
+              { label: 'GCSE Higher', qualification: 'GCSE Higher' },
+          ],
+          examBoards: ['Edexcel'] },
+        { key: 'spanish', label: 'Spanish', subject: 'Spanish', examLesson: false,
+          qualifications: [{ label: 'Other', qualification: 'Other' }] },
+        { key: 'italian', label: 'Italian', subject: 'Italian', examLesson: false,
+          qualifications: [{ label: 'Other', qualification: 'Other' }] },
     ];
 
     let sfWizard = null; // { overlayEl, step, selectedKeys, levelQueue, levelQueueIndex, levelChoices, email }
@@ -17042,61 +17051,58 @@ SQIDAQAB
         return local ? local.replace(/[._]+/g, ' ').trim() : 'there';
     }
 
+    function sfWizardSubjectBlockHtml(s) {
+        return `<div class="sf-wizard-subject-block${sfWizard.selectedKeys.has(s.key) ? ' selected' : ''}" data-subject-key="${escapeHtml(s.key)}">${escapeHtml(s.label)}</div>`;
+    }
+
     function sfWizardCardHtml() {
         const step = sfWizard.step;
         if (step === 'subjects') {
-            const blocks = SF_WIZARD_SUBJECTS.map((s) => `
-                <div class="sf-wizard-subject-block${sfWizard.selectedKeys.has(s.key) ? ' selected' : ''}" data-subject-key="${escapeHtml(s.key)}">${escapeHtml(s.label)}</div>
-            `).join('');
+            const examBlocks = SF_WIZARD_SUBJECTS.filter((s) => s.examLesson).map(sfWizardSubjectBlockHtml).join('');
+            const nonExamBlocks = SF_WIZARD_SUBJECTS.filter((s) => !s.examLesson).map(sfWizardSubjectBlockHtml).join('');
             return `
                 <p class="sf-wizard-greeting">Hi ${escapeHtml(sfWizardGreetingName())}, from Cortex</p>
                 <div class="sf-wizard-step-label">What are you studying?</div>
-                <div class="sf-wizard-subject-grid">${blocks}</div>
+                <div class="sf-wizard-section-label">Exam lessons</div>
+                <div class="sf-wizard-subject-grid">${examBlocks}</div>
+                <div class="sf-wizard-section-label">Non-exam lessons</div>
+                <div class="sf-wizard-subject-grid">${nonExamBlocks}</div>
                 <div class="sf-wizard-actions">
                     <span></span>
                     <button type="button" class="btn primary sf-wizard-next-btn">Continue →</button>
                 </div>`;
         }
-        if (step === 'level') {
-            // One subject at a time, in the order it was picked - each
-            // gets its OWN question rather than one bundled together, so
-            // "which level" is always unambiguous about which subject
-            // it's asking about.
-            const s = SF_WIZARD_SUBJECTS.find((x) => x.key === sfWizard.levelQueue[sfWizard.levelQueueIndex]);
-            const chosenLabel = sfWizard.levelChoices[s.key];
-            const choiceButtons = s.options.map((o) => `
-                <button type="button" class="sf-wizard-choice-btn${chosenLabel === o.label ? ' selected' : ''}" data-option-label="${escapeHtml(o.label)}">${escapeHtml(o.label)}</button>
-            `).join('');
-            const isFirst = sfWizard.levelQueueIndex === 0;
-            return `
-                <div class="sf-wizard-step-label">${escapeHtml(s.label)} — which level?</div>
-                <div class="sf-wizard-choice-row">${choiceButtons}</div>
-                <div class="sf-wizard-actions">
-                    <button type="button" class="btn sf-wizard-back-btn">← Back</button>
-                    <button type="button" class="btn primary sf-wizard-next-btn"${chosenLabel ? '' : ' disabled'}>Continue →</button>
-                </div>`;
-        }
-        // 'nonexam'
+        // 'level' — only ever reached for an examLesson subject (see
+        // sfWizardBuildLevelQueue) - asks qualification (when there's more
+        // than one) AND exam board, every time, as a real dropdown.
+        const s = SF_WIZARD_SUBJECTS.find((x) => x.key === sfWizard.levelQueue[sfWizard.levelQueueIndex]);
+        const chosen = sfWizard.levelChoices[s.key] || {};
+        const qualButtons = s.qualifications.length > 1
+            ? `<div class="sf-wizard-choice-row">${s.qualifications.map((q) => `
+                <button type="button" class="sf-wizard-choice-btn${chosen.qualification === q.qualification ? ' selected' : ''}" data-qualification="${escapeHtml(q.qualification)}">${escapeHtml(q.label)}</button>
+              `).join('')}</div>`
+            : '';
+        const examBoardSelect = `
+            <label class="sf-wizard-select-label" for="sfWizardExamBoardSelect">Exam board</label>
+            <select id="sfWizardExamBoardSelect" class="sf-wizard-select">
+                ${s.examBoards.map((b) => `<option value="${escapeHtml(b)}"${chosen.examBoard === b ? ' selected' : ''}>${escapeHtml(b)}</option>`).join('')}
+            </select>`;
+        const ready = (s.qualifications.length === 1 || chosen.qualification) && chosen.examBoard;
         return `
-            <div class="sf-wizard-step-label">One more thing</div>
-            <p style="margin:0; font-size:15px; line-height:1.6;">Would you like to add a non-examination lesson course too?</p>
-            <div class="sf-wizard-choice-row">
-                <button type="button" class="sf-wizard-choice-btn" data-nonexam="no">Not right now</button>
-                <button type="button" class="sf-wizard-choice-btn" data-nonexam="yes">Yes</button>
-            </div>
-            <div class="sf-wizard-step-label">There's nothing to set up here yet either way - this is just so we know what to build next.</div>
+            <div class="sf-wizard-step-label">${escapeHtml(s.label)}</div>
+            ${qualButtons}
+            ${examBoardSelect}
             <div class="sf-wizard-actions">
-                <span></span>
-                <button type="button" class="btn primary sf-wizard-finish-btn">Done</button>
+                <button type="button" class="btn sf-wizard-back-btn">← Back</button>
+                <button type="button" class="btn primary sf-wizard-next-btn"${ready ? '' : ' disabled'}>Continue →</button>
             </div>`;
     }
 
-    // Every selected subject with more than one real option needs its own
-    // level question, in the order it was picked on the subjects screen -
-    // a subject with only one real option (Spanish, Italian, Economics
-    // right now) is unambiguous and skipped entirely, never asked.
+    // Every selected exam-lesson subject gets its own level/exam-board
+    // question, in the order it was picked - a non-exam subject (Spanish,
+    // Italian) has neither and is never asked anything further.
     function sfWizardBuildLevelQueue() {
-        return SF_WIZARD_SUBJECTS.filter((s) => sfWizard.selectedKeys.has(s.key) && s.options.length > 1).map((s) => s.key);
+        return SF_WIZARD_SUBJECTS.filter((s) => sfWizard.selectedKeys.has(s.key) && s.examLesson).map((s) => s.key);
     }
 
     function sfRenderWizardStep() {
@@ -17115,39 +17121,53 @@ SQIDAQAB
             cardEl.querySelector('.sf-wizard-next-btn').addEventListener('click', () => {
                 sfWizard.levelQueue = sfWizardBuildLevelQueue();
                 sfWizard.levelQueueIndex = 0;
-                sfWizard.step = sfWizard.levelQueue.length ? 'level' : 'nonexam';
-                sfRenderWizardStep();
+                if (sfWizard.levelQueue.length) {
+                    sfWizard.step = 'level';
+                    sfRenderWizardStep();
+                } else {
+                    sfFinishWizard();
+                }
             });
-        } else if (sfWizard.step === 'level') {
+        } else {
+            // 'level' — the only other step now that 'nonexam' is gone; a
+            // non-exam subject never reaches this step at all (see
+            // sfWizardBuildLevelQueue).
             const s = SF_WIZARD_SUBJECTS.find((x) => x.key === sfWizard.levelQueue[sfWizard.levelQueueIndex]);
-            cardEl.querySelectorAll('[data-option-label]').forEach((btn) => {
-                btn.addEventListener('click', () => { sfWizard.levelChoices[s.key] = btn.dataset.optionLabel; sfRenderWizardStep(); });
+            // Default a single-option qualification/exam board immediately
+            // rather than making the student click a choice that isn't
+            // really a choice - only the exam-board <select> ever needs
+            // this today (every current subject has exactly one
+            // qualification OR the student must pick), but written
+            // generically for whenever a second exam board exists.
+            const chosen = sfWizard.levelChoices[s.key] || (sfWizard.levelChoices[s.key] = {});
+            if (s.qualifications.length === 1 && !chosen.qualification) chosen.qualification = s.qualifications[0].qualification;
+            if (s.examBoards.length === 1 && !chosen.examBoard) chosen.examBoard = s.examBoards[0];
+
+            cardEl.querySelectorAll('[data-qualification]').forEach((btn) => {
+                btn.addEventListener('click', () => { chosen.qualification = btn.dataset.qualification; sfRenderWizardStep(); });
             });
+            const examBoardSelectEl = cardEl.querySelector('#sfWizardExamBoardSelect');
+            if (examBoardSelectEl) {
+                examBoardSelectEl.addEventListener('change', () => { chosen.examBoard = examBoardSelectEl.value; });
+            }
             cardEl.querySelector('.sf-wizard-back-btn').addEventListener('click', () => {
                 if (sfWizard.levelQueueIndex > 0) {
                     sfWizard.levelQueueIndex -= 1;
+                    sfRenderWizardStep();
                 } else {
                     sfWizard.step = 'subjects';
+                    sfRenderWizardStep();
                 }
-                sfRenderWizardStep();
             });
             cardEl.querySelector('.sf-wizard-next-btn').addEventListener('click', () => {
-                if (!sfWizard.levelChoices[s.key]) return;
+                if (!chosen.qualification || !chosen.examBoard) return;
                 if (sfWizard.levelQueueIndex < sfWizard.levelQueue.length - 1) {
                     sfWizard.levelQueueIndex += 1;
+                    sfRenderWizardStep();
                 } else {
-                    sfWizard.step = 'nonexam';
+                    sfFinishWizard();
                 }
-                sfRenderWizardStep();
             });
-        } else {
-            cardEl.querySelectorAll('[data-nonexam]').forEach((btn) => {
-                btn.addEventListener('click', () => {
-                    cardEl.querySelectorAll('[data-nonexam]').forEach((b) => b.classList.remove('selected'));
-                    btn.classList.add('selected');
-                });
-            });
-            cardEl.querySelector('.sf-wizard-finish-btn').addEventListener('click', sfFinishWizard);
         }
     }
 
@@ -17157,10 +17177,11 @@ SQIDAQAB
         for (const key of sfWizard.selectedKeys) {
             const s = SF_WIZARD_SUBJECTS.find((x) => x.key === key);
             if (!s) continue;
-            const chosenLabel = sfWizard.levelChoices[key];
-            const option = (chosenLabel && s.options.find((o) => o.label === chosenLabel)) || s.options[0];
+            const chosen = sfWizard.levelChoices[key] || {};
+            const qualification = (chosen.qualification && s.qualifications.find((q) => q.qualification === chosen.qualification)?.qualification) || s.qualifications[0].qualification;
+            const examBoard = s.examBoards ? (chosen.examBoard || s.examBoards[0]) : '';
             try {
-                await createFolder(s.subject, option.qualification, option.examBoard, '', '', '', '');
+                await createFolder(s.subject, qualification, examBoard, '', '', '', '');
             } catch (err) {
                 console.error(`LastMind: onboarding wizard failed to create folder for ${s.subject}.`, err);
             }
