@@ -1535,8 +1535,36 @@
     .diagram-arrow { stroke: #c98a4b; stroke-width: 2; }
     .diagram-arrowhead-path { fill: #c98a4b; }
     .diagram-label { fill: var(--text); font-size: 13px; font-weight: 600; cursor: grab; font-family: Arial, sans-serif; }
+    /* One of these sits next to every deletable curve/label/shade/arrow
+       (see diagramDeleteGlyph) - small enough to stay out of the way,
+       clearly a different colour from everything else on the canvas so
+       it doesn't read as part of the drawing itself. */
+    .diagram-delete-glyph { fill: #d9534f; font-size: 13px; font-weight: 700; font-family: Arial, sans-serif; cursor: pointer; }
+    .diagram-delete-glyph:hover { fill: #ff6b66; }
+    /* Shading now works by picking boundary edges (see renderDiagramWidget's
+       edge-select shade mode) - a selected curve/axis gets this highlight
+       so it's obvious what's currently chosen before hitting Fill. */
+    .diagram-edge-selectable { cursor: pointer; }
+    .diagram-edge-selected { stroke: #4fc3f7 !important; stroke-width: 4; }
     .diagram-submit-btn { align-self: flex-start; }
     .diagram-result { font-size: 12.5px; }
+
+    /* ─── Economics Drawing Tool gallery - a grid of cards, each with its
+       own rendered preview (see renderMiniDiagramPreview), not just a
+       text row. auto-fill/minmax picks however many columns actually fit
+       the available width, rather than a column count that would break
+       on a narrow screen. ─── */
+    .econ-diagram-gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+    .econ-diagram-gallery-card {
+        background: var(--panel); border: 1px solid rgba(230, 215, 176, 0.16); border-radius: 10px;
+        padding: 12px; display: flex; flex-direction: column; gap: 8px; cursor: pointer; text-align: left;
+    }
+    .econ-diagram-gallery-card:hover { border-color: var(--accent); }
+    .econ-diagram-gallery-preview { width: 100%; aspect-ratio: 640 / 440; background: var(--bg); border-radius: 6px; overflow: hidden; }
+    .econ-diagram-gallery-preview svg { width: 100%; height: 100%; display: block; }
+    .econ-diagram-gallery-title { font-weight: 700; font-size: 13.5px; color: var(--text); }
+    .econ-diagram-gallery-date { font-size: 11px; opacity: 0.6; }
+    .econ-diagram-gallery-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
     /* ─── Math shortcut answer editor (ported from the Shortcut Practice
        Pad prototype — Greek Shift+letter mapping, integral/limit-box
@@ -15300,11 +15328,11 @@ SQIDAQAB
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
         contentInner.innerHTML = `
-            <div class="dashboard-view dashboard-locked" style="max-width:760px; margin:0 auto;">
+            <div class="dashboard-view dashboard-locked" style="max-width:960px; margin:0 auto;">
                 <h1 class="dashboard-locked-logo">Economics <span>Drawing Tool</span></h1>
                 <p class="dashboard-locked-quote">Build and save supply/demand-style diagrams for your course — everything here is yours to come back to any time.</p>
                 <button type="button" class="btn primary" id="econDiagramNewBtn" style="margin:16px auto 24px; display:block;">+ Create new diagram</button>
-                <div class="econ-diagram-gallery-list" id="econDiagramGalleryList"><div class="km-inline-detail-item km-inline-detail-none">Loading…</div></div>
+                <div class="econ-diagram-gallery-grid" id="econDiagramGalleryList"><div class="km-inline-detail-item km-inline-detail-none">Loading…</div></div>
             </div>
         `;
         document.getElementById('econDiagramNewBtn').addEventListener('click', async () => {
@@ -15314,6 +15342,9 @@ SQIDAQAB
             if (created) openEconDiagramEditor(created);
         });
 
+        // /economics-diagrams now returns each diagram's own diagramState
+        // (see economicsDiagramService.ts's own comment on why - a gallery
+        // card needs it for its preview thumbnail, not just its title).
         const result = await econFetch('/economics-diagrams');
         if (document.getElementById('topbarTitle').textContent !== 'Economics Drawing Tool') return; // navigated away while loading
         const listEl = document.getElementById('econDiagramGalleryList');
@@ -15323,20 +15354,28 @@ SQIDAQAB
             return;
         }
         listEl.innerHTML = diagrams.map((d) => `
-            <div class="correction-card econ-diagram-gallery-item" style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px;">
-                <div>
-                    <div style="font-weight:700;">${escapeHtml(d.title)}</div>
-                    <div style="font-size:12px; opacity:0.65; margin-top:2px;">Updated ${escapeHtml(new Date(d.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }))}</div>
-                </div>
-                <div style="display:flex; gap:8px; flex:none;">
+            <div class="econ-diagram-gallery-card" data-id="${escapeHtml(d.id)}">
+                <div class="econ-diagram-gallery-preview" id="econDiagramPreview-${escapeHtml(d.id)}"></div>
+                <div class="econ-diagram-gallery-title">${escapeHtml(d.title)}</div>
+                <div class="econ-diagram-gallery-date">Updated ${escapeHtml(new Date(d.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }))}</div>
+                <div class="econ-diagram-gallery-actions">
                     <button type="button" class="btn econ-diagram-open-btn" data-id="${escapeHtml(d.id)}">Open</button>
                     <button type="button" class="btn econ-diagram-delete-btn" data-id="${escapeHtml(d.id)}" title="Delete">✕</button>
                 </div>
             </div>
         `).join('');
-        listEl.querySelectorAll('.econ-diagram-open-btn').forEach((btn) => {
-            btn.addEventListener('click', async () => {
-                const diagram = await econFetch(`/economics-diagrams/${btn.dataset.id}`);
+        diagrams.forEach((d) => {
+            const previewEl = document.getElementById(`econDiagramPreview-${d.id}`);
+            if (previewEl) renderMiniDiagramPreview(previewEl, d.diagramState);
+        });
+        // The whole card opens the diagram (a gallery card is the natural
+        // click target once it's showing a real preview, not just a text
+        // row) - the explicit Open button stays too for a clear, findable
+        // affordance. Delete stops propagation so it doesn't also open.
+        listEl.querySelectorAll('.econ-diagram-gallery-card').forEach((card) => {
+            card.addEventListener('click', async (ev) => {
+                if (ev.target.closest('.econ-diagram-delete-btn')) return;
+                const diagram = await econFetch(`/economics-diagrams/${card.dataset.id}`);
                 if (diagram) openEconDiagramEditor(diagram);
             });
         });
@@ -19809,6 +19848,18 @@ SQIDAQAB
         return el;
     }
 
+    // A small clickable "x" - every deletable thing in renderDiagramWidget
+    // (a placed curve, a label, a shade, an arrow) gets exactly one of
+    // these next to it. stopPropagation on both pointerdown and click so
+    // it never also triggers the drag handler sitting right underneath it.
+    function diagramDeleteGlyph(x, y, onDelete) {
+        const el = svgElement('text', { x, y, class: 'diagram-delete-glyph', 'text-anchor': 'middle' });
+        el.textContent = '✕';
+        el.addEventListener('pointerdown', (ev) => { ev.preventDefault(); ev.stopPropagation(); });
+        el.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); onDelete(); });
+        return el;
+    }
+
     // Read-only rendering of a diagramSpec (from
     // knowledge_map_node_lessons.encoding_content.practiceQuestion.diagramSpec)
     // for the Notes page's right-hand visual - a genuinely different
@@ -19875,49 +19926,52 @@ SQIDAQAB
         return { x: a1.x + t * d1x, y: a1.y + t * d1y };
     }
 
-    // Auto-shade: cast a ray from the click point out to `segments`
-    // (every placed curve's own individual straight sub-segments, plus
-    // both axes - never an infinite extension of a curve, so a region
-    // only "counts" as a boundary where something is actually drawn) and
-    // keep the nearest hit; a direction with no boundary at all falls
-    // back to the canvas edge so the region still closes instead of
-    // leaving a gap. Connecting the hits in angle order traces the
-    // star-shaped cell around the click point - the "fill the triangle/
-    // square it's in" behaviour - and every point is independently
-    // draggable afterward (see renderDiagramWidget's shadeVertex
-    // dragging) for fine correction once it's roughly right.
-    function diagramRaySegmentHit(origin, dir, a, b) {
-        const d2x = b.x - a.x, d2y = b.y - a.y;
-        const denom = dir.x * d2y - dir.y * d2x;
-        if (Math.abs(denom) < 1e-9) return null;
-        const t = ((a.x - origin.x) * d2y - (a.y - origin.y) * d2x) / denom;
-        const u = ((a.x - origin.x) * dir.y - (a.y - origin.y) * dir.x) / denom;
-        if (t <= 1e-6 || u < -0.001 || u > 1.001) return null;
-        return { t, point: { x: origin.x + t * dir.x, y: origin.y + t * dir.y } };
-    }
-    const DIAGRAM_CANVAS_EDGES = [
-        [{ x: 0, y: 0 }, { x: DIAGRAM_CANVAS_WIDTH, y: 0 }],
-        [{ x: DIAGRAM_CANVAS_WIDTH, y: 0 }, { x: DIAGRAM_CANVAS_WIDTH, y: DIAGRAM_CANVAS_HEIGHT }],
-        [{ x: DIAGRAM_CANVAS_WIDTH, y: DIAGRAM_CANVAS_HEIGHT }, { x: 0, y: DIAGRAM_CANVAS_HEIGHT }],
-        [{ x: 0, y: DIAGRAM_CANVAS_HEIGHT }, { x: 0, y: 0 }],
-    ];
-    function diagramNearestHit(origin, dir, segments) {
-        let closest = null;
-        for (const [a, b] of segments) {
-            const hit = diagramRaySegmentHit(origin, dir, a, b);
-            if (hit && (!closest || hit.t < closest.t)) closest = hit;
+    // Shading: the student picks WHICH placed curves/axes bound the area
+    // (see renderDiagramWidget's edge-select shade mode - click each
+    // boundary line, then Fill), rather than the tool guessing a region
+    // from a single click point. Every pairwise bounded intersection
+    // among the chosen edges is a real corner of the shape (reuses
+    // diagramPolylineIntersection - both a placed curve's own transformed
+    // polyline and an axis's 2-point array work as "a polyline" here);
+    // sorting those corners by angle around their own centroid is what
+    // turns an unordered intersection set into a valid simple polygon -
+    // sound for the convex shapes (triangles, rectangles, trapezoids)
+    // these lines actually bound.
+    function diagramEdgeToSegments(edge, state) {
+        if (edge.type === 'axis') {
+            return edge.which === 'price' ? DIAGRAM_PRICE_AXIS : DIAGRAM_QUANTITY_AXIS;
         }
-        return closest;
+        const inst = state.placed.find((p) => p.instanceId === edge.id);
+        if (!inst) return null;
+        const local = DIAGRAM_CURVE_SHAPES[diagramBaseType(inst.curveTypeId)];
+        return local ? diagramPlacedPoly(local, inst) : null;
     }
-    function diagramAutoShadeAt(pt, segments, rayCount) {
+    function diagramShadeFromEdges(edgeList, state) {
+        const polys = edgeList.map((e) => diagramEdgeToSegments(e, state)).filter(Boolean);
         const points = [];
-        for (let i = 0; i < rayCount; i++) {
-            const angle = (i / rayCount) * Math.PI * 2;
-            const dir = { x: Math.cos(angle), y: Math.sin(angle) };
-            const hit = diagramNearestHit(pt, dir, segments) || diagramNearestHit(pt, dir, DIAGRAM_CANVAS_EDGES);
-            if (hit) points.push(hit.point);
+        for (let i = 0; i < polys.length; i++) {
+            for (let j = i + 1; j < polys.length; j++) {
+                const hit = diagramPolylineIntersection(polys[i], polys[j]);
+                if (hit) points.push(hit);
+            }
         }
+        if (points.length < 3) return null;
+        const cx = points.reduce((s, p) => s + p.x, 0) / points.length;
+        const cy = points.reduce((s, p) => s + p.y, 0) / points.length;
+        points.sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));
         return points;
+    }
+    function diagramToggleEdgeSelection(state, edge) {
+        const idx = state.edgeSelection.findIndex((e) => (
+            e.type === edge.type && (e.type === 'axis' ? e.which === edge.which : e.id === edge.id)
+        ));
+        if (idx >= 0) state.edgeSelection.splice(idx, 1);
+        else state.edgeSelection.push(edge);
+    }
+    function diagramIsEdgeSelected(state, edge) {
+        return state.edgeSelection.some((e) => (
+            e.type === edge.type && (e.type === 'axis' ? e.which === edge.which : e.id === edge.id)
+        ));
     }
 
     function renderStaticDiagram(container, spec) {
@@ -20050,6 +20104,41 @@ SQIDAQAB
         });
     }
 
+    // Read-only small preview of a STUDENT-DRAWN diagram (the answer/
+    // diagramState shape renderDiagramWidget itself saves - each curve
+    // carries its own x/y/scaleX/scaleY placement, not the abstract
+    // DiagramSpec shape renderStaticDiagram draws from a generated
+    // question) - used for the Economics Drawing Tool gallery's own card
+    // thumbnails (see renderEconDiagramGallery). No interactivity, no
+    // auto P/Q labelling, no delete buttons - just what's actually drawn,
+    // at whatever size the caller's own CSS scales the SVG to.
+    function renderMiniDiagramPreview(container, diagramState) {
+        const svg = svgElement('svg', { viewBox: `0 0 ${DIAGRAM_CANVAS_WIDTH} ${DIAGRAM_CANVAS_HEIGHT}` });
+        svg.appendChild(svgElement('line', { x1: DIAGRAM_PRICE_AXIS[0].x, y1: DIAGRAM_PRICE_AXIS[0].y, x2: DIAGRAM_PRICE_AXIS[1].x, y2: DIAGRAM_PRICE_AXIS[1].y, class: 'diagram-axis' }));
+        svg.appendChild(svgElement('line', { x1: DIAGRAM_QUANTITY_AXIS[0].x, y1: DIAGRAM_QUANTITY_AXIS[0].y, x2: DIAGRAM_QUANTITY_AXIS[1].x, y2: DIAGRAM_QUANTITY_AXIS[1].y, class: 'diagram-axis' }));
+
+        ((diagramState && diagramState.shades) || []).forEach((s) => {
+            svg.appendChild(svgElement('polygon', { points: (s.points || []).map((p) => `${p.x},${p.y}`).join(' '), class: 'diagram-shade' }));
+        });
+        ((diagramState && diagramState.curves) || []).forEach((inst) => {
+            const local = DIAGRAM_CURVE_SHAPES[diagramBaseType(inst.curveTypeId)];
+            if (!local) return;
+            const poly = diagramPlacedPoly(local, inst);
+            svg.appendChild(svgElement('polyline', { points: diagramPolylinePoints(poly), class: 'diagram-curve diagram-curve-placed' }));
+        });
+        ((diagramState && diagramState.arrows) || []).forEach((a) => {
+            svg.appendChild(svgElement('line', { x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2, class: 'diagram-arrow' }));
+        });
+        ((diagramState && diagramState.labels) || []).forEach((l) => {
+            const el = svgElement('text', { x: l.x, y: l.y, class: 'diagram-label' });
+            el.textContent = l.text;
+            svg.appendChild(el);
+        });
+
+        container.innerHTML = '';
+        container.appendChild(svg);
+    }
+
     let diagramWidgetSeq = 0;
 
     // Renders one diagram-drawing question into `container`. `given`
@@ -20085,20 +20174,16 @@ SQIDAQAB
             shades: (initialState && initialState.shades) || [],
             labels: (initialState && initialState.labels) || [],
             arrows: (initialState && initialState.arrows) || [],
-            shadeMode: false, arrowMode: false, arrowDraft: null, dragging: null,
+            shadeMode: false, edgeSelection: [], arrowMode: false, arrowDraft: null, dragging: null,
         };
         const initialNotes = (initialState && initialState.notes) || '';
-        // Kept in sync by render() every call so the click handler (auto-
-        // shade) can read the current placed-curve geometry without
-        // recomputing it - render() is the only place that already walks
-        // state.placed into transformed polylines.
-        let currentPlacedPolys = [];
 
         container.innerHTML = `
             <div class="diagram-widget">
                 <div class="diagram-palette" id="${uid}-palette"></div>
                 <div class="diagram-toolbar">
-                    <button type="button" class="btn diagram-tool-btn" id="${uid}-shade-btn">Shade a region (click inside it)</button>
+                    <button type="button" class="btn diagram-tool-btn" id="${uid}-shade-btn">Shade a region (click each edge)</button>
+                    <button type="button" class="btn primary diagram-tool-btn" id="${uid}-fill-shade-btn" hidden>Fill shaded region</button>
                     <button type="button" class="btn diagram-tool-btn" id="${uid}-arrow-btn">Add arrow (click start, then end)</button>
                     <input type="text" class="diagram-label-input" id="${uid}-label-input" placeholder="Label text, e.g. S1">
                     <button type="button" class="btn diagram-tool-btn" id="${uid}-label-btn">Add label</button>
@@ -20121,6 +20206,7 @@ SQIDAQAB
         const paletteEl = container.querySelector(`#${uid}-palette`);
         const resultEl = container.querySelector(`#${uid}-result`);
         const shadeBtn = container.querySelector(`#${uid}-shade-btn`);
+        const fillShadeBtn = container.querySelector(`#${uid}-fill-shade-btn`);
         const arrowBtn = container.querySelector(`#${uid}-arrow-btn`);
         const notesInput = showNotes ? container.querySelector(`#${uid}-notes`) : null;
 
@@ -20140,8 +20226,22 @@ SQIDAQAB
             defs.appendChild(marker);
             svg.appendChild(defs);
 
-            svg.appendChild(svgElement('line', { x1: DIAGRAM_PRICE_AXIS[0].x, y1: DIAGRAM_PRICE_AXIS[0].y, x2: DIAGRAM_PRICE_AXIS[1].x, y2: DIAGRAM_PRICE_AXIS[1].y, class: 'diagram-axis' }));
-            svg.appendChild(svgElement('line', { x1: DIAGRAM_QUANTITY_AXIS[0].x, y1: DIAGRAM_QUANTITY_AXIS[0].y, x2: DIAGRAM_QUANTITY_AXIS[1].x, y2: DIAGRAM_QUANTITY_AXIS[1].y, class: 'diagram-axis' }));
+            const priceAxisEdge = { type: 'axis', which: 'price' };
+            const qtyAxisEdge = { type: 'axis', which: 'quantity' };
+            const priceAxisEl = svgElement('line', {
+                x1: DIAGRAM_PRICE_AXIS[0].x, y1: DIAGRAM_PRICE_AXIS[0].y, x2: DIAGRAM_PRICE_AXIS[1].x, y2: DIAGRAM_PRICE_AXIS[1].y,
+                class: `diagram-axis${state.shadeMode ? ' diagram-edge-selectable' : ''}${diagramIsEdgeSelected(state, priceAxisEdge) ? ' diagram-edge-selected' : ''}`,
+            });
+            const qtyAxisEl = svgElement('line', {
+                x1: DIAGRAM_QUANTITY_AXIS[0].x, y1: DIAGRAM_QUANTITY_AXIS[0].y, x2: DIAGRAM_QUANTITY_AXIS[1].x, y2: DIAGRAM_QUANTITY_AXIS[1].y,
+                class: `diagram-axis${state.shadeMode ? ' diagram-edge-selectable' : ''}${diagramIsEdgeSelected(state, qtyAxisEdge) ? ' diagram-edge-selected' : ''}`,
+            });
+            if (state.shadeMode) {
+                priceAxisEl.addEventListener('pointerdown', (ev) => { ev.preventDefault(); ev.stopPropagation(); diagramToggleEdgeSelection(state, priceAxisEdge); render(); });
+                qtyAxisEl.addEventListener('pointerdown', (ev) => { ev.preventDefault(); ev.stopPropagation(); diagramToggleEdgeSelection(state, qtyAxisEdge); render(); });
+            }
+            svg.appendChild(priceAxisEl);
+            svg.appendChild(qtyAxisEl);
             const priceLabel = svgElement('text', { x: DIAGRAM_PRICE_AXIS[0].x - 8, y: DIAGRAM_PRICE_AXIS[0].y + 10, class: 'diagram-axis-label', 'text-anchor': 'end' });
             priceLabel.textContent = 'Price';
             svg.appendChild(priceLabel);
@@ -20159,7 +20259,12 @@ SQIDAQAB
                 svg.appendChild(tag);
             });
 
-            state.shades.forEach((s) => svg.appendChild(svgElement('polygon', { points: s.points.map((p) => `${p.x},${p.y}`).join(' '), class: 'diagram-shade' })));
+            state.shades.forEach((s, shadeIdx) => {
+                svg.appendChild(svgElement('polygon', { points: s.points.map((p) => `${p.x},${p.y}`).join(' '), class: 'diagram-shade' }));
+                const cx = s.points.reduce((sum, p) => sum + p.x, 0) / s.points.length;
+                const cy = s.points.reduce((sum, p) => sum + p.y, 0) / s.points.length;
+                svg.appendChild(diagramDeleteGlyph(cx, cy, () => { state.shades.splice(shadeIdx, 1); render(); }));
+            });
 
             const placedPolys = [];
             state.placed.forEach((inst) => {
@@ -20167,9 +20272,20 @@ SQIDAQAB
                 if (!local) return;
                 const poly = diagramPlacedPoly(local, inst);
                 placedPolys.push(poly);
-                const el = svgElement('polyline', { points: diagramPolylinePoints(poly), class: 'diagram-curve diagram-curve-placed' });
+                const curveEdge = { type: 'curve', id: inst.instanceId };
+                const selected = diagramIsEdgeSelected(state, curveEdge);
+                const el = svgElement('polyline', {
+                    points: diagramPolylinePoints(poly),
+                    class: `diagram-curve diagram-curve-placed${state.shadeMode ? ' diagram-edge-selectable' : ''}${selected ? ' diagram-edge-selected' : ''}`,
+                });
                 el.addEventListener('pointerdown', (ev) => {
                     ev.preventDefault();
+                    if (state.shadeMode) {
+                        ev.stopPropagation();
+                        diagramToggleEdgeSelection(state, curveEdge);
+                        render();
+                        return;
+                    }
                     const pt = svgPointFromEvent(ev);
                     state.dragging = { type: 'curve', id: inst.instanceId, offsetX: pt.x - inst.x, offsetY: pt.y - inst.y };
                 });
@@ -20177,26 +20293,33 @@ SQIDAQAB
                 const tag = svgElement('text', { x: poly[0].x, y: poly[0].y - 6, class: 'diagram-curve-tag' });
                 tag.textContent = DIAGRAM_PALETTE_LABELS[diagramBaseType(inst.curveTypeId)] || inst.curveTypeId;
                 svg.appendChild(tag);
+                svg.appendChild(diagramDeleteGlyph(poly[0].x, poly[0].y - 20, () => {
+                    state.placed = state.placed.filter((p) => p.instanceId !== inst.instanceId);
+                    render();
+                }));
 
                 // Endpoint handles - drag either dot to extend/shorten the
                 // curve along its own fixed direction (gradient never
                 // changes, only length: see diagramBeginEndpointDrag).
                 // A near-invisible larger hit-ring plus a small visible
                 // dot, one pair per end, drawn after the curve/tag so they
-                // sit on top and win the pointerdown.
-                [{ end: 'near', pt: poly[0] }, { end: 'far', pt: poly[poly.length - 1] }].forEach((h) => {
-                    const hit = svgElement('circle', { cx: h.pt.x, cy: h.pt.y, r: 11, class: 'diagram-curve-handle-hit' });
-                    hit.addEventListener('pointerdown', (ev) => {
-                        ev.preventDefault();
-                        ev.stopPropagation();
-                        state.dragging = diagramBeginEndpointDrag(inst, local, h.end, poly);
+                // sit on top and win the pointerdown. Skipped in shade
+                // mode - clicking the curve there picks it as a boundary
+                // edge instead, and a handle sitting right on top of that
+                // same click target would just make edge-picking fiddly.
+                if (!state.shadeMode) {
+                    [{ end: 'near', pt: poly[0] }, { end: 'far', pt: poly[poly.length - 1] }].forEach((h) => {
+                        const hit = svgElement('circle', { cx: h.pt.x, cy: h.pt.y, r: 11, class: 'diagram-curve-handle-hit' });
+                        hit.addEventListener('pointerdown', (ev) => {
+                            ev.preventDefault();
+                            ev.stopPropagation();
+                            state.dragging = diagramBeginEndpointDrag(inst, local, h.end, poly);
+                        });
+                        svg.appendChild(hit);
+                        svg.appendChild(svgElement('circle', { cx: h.pt.x, cy: h.pt.y, r: 4.5, class: 'diagram-curve-handle-dot' }));
                     });
-                    svg.appendChild(hit);
-                    svg.appendChild(svgElement('circle', { cx: h.pt.x, cy: h.pt.y, r: 4.5, class: 'diagram-curve-handle-dot' }));
-                });
+                }
             });
-
-            currentPlacedPolys = placedPolys;
 
             // Auto price/quantity labelling. Two passes, one shared
             // sequence counter: first each individual placed curve
@@ -20252,7 +20375,13 @@ SQIDAQAB
                 }
             }
 
-            state.arrows.forEach((a) => svg.appendChild(svgElement('line', { x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2, class: 'diagram-arrow', 'marker-end': `url(#${uid}-arrowhead)` })));
+            state.arrows.forEach((a, arrowIdx) => {
+                svg.appendChild(svgElement('line', { x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2, class: 'diagram-arrow', 'marker-end': `url(#${uid}-arrowhead)` }));
+                svg.appendChild(diagramDeleteGlyph((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2 - 8, () => {
+                    state.arrows.splice(arrowIdx, 1);
+                    render();
+                }));
+            });
             if (state.arrowDraft) svg.appendChild(svgElement('line', { x1: state.arrowDraft.x1, y1: state.arrowDraft.y1, x2: state.arrowDraft.x2, y2: state.arrowDraft.y2, class: 'diagram-arrow' }));
 
             state.labels.forEach((l, idx) => {
@@ -20264,15 +20393,19 @@ SQIDAQAB
                     state.dragging = { type: 'label', id: idx, offsetX: pt.x - l.x, offsetY: pt.y - l.y };
                 });
                 svg.appendChild(el);
+                svg.appendChild(diagramDeleteGlyph(l.x, l.y - 14, () => {
+                    state.labels.splice(idx, 1);
+                    render();
+                }));
             });
 
             // One draggable handle per shade vertex, drawn last so they
             // sit on top of everything (fill, curves, labels) and always
             // win the pointerdown. Each drags completely independently -
             // no anchor/gradient math like the curve endpoints above,
-            // just a free move of that one corner - which is what lets a
-            // rough auto-shade (see diagramAutoShadeAt) get nudged onto
-            // exactly the triangle/rectangle the student actually meant.
+            // just a free move of that one corner - which is what lets
+            // the edge-picked shape (see diagramShadeFromEdges) get
+            // nudged onto exactly what the student meant.
             state.shades.forEach((s, shadeIdx) => {
                 s.points.forEach((p, vIdx) => {
                     const hit = svgElement('circle', { cx: p.x, cy: p.y, r: 9, class: 'diagram-shade-vertex-hit' });
@@ -20285,6 +20418,9 @@ SQIDAQAB
                     svg.appendChild(svgElement('circle', { cx: p.x, cy: p.y, r: 3.5, class: 'diagram-curve-handle-dot' }));
                 });
             });
+
+            fillShadeBtn.hidden = !state.shadeMode;
+            fillShadeBtn.disabled = state.edgeSelection.length < 2;
         }
 
         svg.addEventListener('pointermove', (ev) => {
@@ -20325,31 +20461,6 @@ SQIDAQAB
 
         svg.addEventListener('click', (ev) => {
             const pt = svgPointFromEvent(ev);
-            if (state.shadeMode) {
-                // One click auto-fills whatever triangle/rectangle/etc
-                // the click point sits inside, bounded by the curves and
-                // axes actually drawn (see diagramAutoShadeAt) - the
-                // corners are then individually draggable (the
-                // shadeVertex handles in render()) for fine correction,
-                // rather than making the student place every point by
-                // hand. Mode switches off after one shade, same
-                // one-shot convention as the arrow tool below.
-                const segments = [];
-                currentPlacedPolys.forEach((poly) => {
-                    for (let i = 0; i < poly.length - 1; i++) segments.push([poly[i], poly[i + 1]]);
-                });
-                segments.push([DIAGRAM_PRICE_AXIS[0], DIAGRAM_PRICE_AXIS[1]]);
-                segments.push([DIAGRAM_QUANTITY_AXIS[0], DIAGRAM_QUANTITY_AXIS[1]]);
-                const points = diagramAutoShadeAt(pt, segments, 48);
-                if (points.length >= 3) {
-                    const label = window.prompt('Label this shaded area (optional):') || '';
-                    state.shades.push({ points, label });
-                }
-                state.shadeMode = false;
-                shadeBtn.classList.remove('active');
-                render();
-                return;
-            }
             if (state.arrowMode) {
                 if (!state.arrowDraft) {
                     state.arrowDraft = { x1: pt.x, y1: pt.y, x2: pt.x, y2: pt.y };
@@ -20382,15 +20493,35 @@ SQIDAQAB
 
         shadeBtn.addEventListener('click', () => {
             state.shadeMode = !state.shadeMode;
-            state.arrowMode = false;
+            state.edgeSelection = [];
+            state.arrowMode = false; state.arrowDraft = null;
             shadeBtn.classList.toggle('active', state.shadeMode);
             arrowBtn.classList.remove('active');
+            render();
+        });
+        // Fill: every pairwise crossing among the edges picked in shade
+        // mode (see diagramShadeFromEdges) becomes one shaded region -
+        // hidden/disabled outside shade mode / before 2 edges are chosen
+        // (kept in sync every render(), not just here, since toggling
+        // shadeMode or picking/unpicking an edge both go through render()
+        // too).
+        fillShadeBtn.addEventListener('click', () => {
+            const shadePoints = diagramShadeFromEdges(state.edgeSelection, state);
+            if (shadePoints) {
+                const label = window.prompt('Label this shaded area (optional):') || '';
+                state.shades.push({ points: shadePoints, label });
+            }
+            state.shadeMode = false;
+            state.edgeSelection = [];
+            shadeBtn.classList.remove('active');
+            render();
         });
         arrowBtn.addEventListener('click', () => {
             state.arrowMode = !state.arrowMode;
-            state.shadeMode = false; state.arrowDraft = null;
+            state.shadeMode = false; state.edgeSelection = []; state.arrowDraft = null;
             arrowBtn.classList.toggle('active', state.arrowMode);
             shadeBtn.classList.remove('active');
+            render();
         });
         container.querySelector(`#${uid}-label-btn`).addEventListener('click', () => {
             const input = container.querySelector(`#${uid}-label-input`);
@@ -20401,7 +20532,7 @@ SQIDAQAB
             render();
         });
         container.querySelector(`#${uid}-clear-btn`).addEventListener('click', () => {
-            state.placed = []; state.shades = []; state.labels = []; state.arrows = [];
+            state.placed = []; state.shades = []; state.labels = []; state.arrows = []; state.edgeSelection = [];
             render();
         });
         // Same retry-before-recording contract as renderTextQuestionWidget
