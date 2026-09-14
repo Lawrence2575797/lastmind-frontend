@@ -16472,7 +16472,7 @@ SQIDAQAB
             sfFeed.trackEl.appendChild(el);
             sfFeed.slides.push(el);
             sfFeed.meta.push({ canAdvance: false, kind: 'end' });
-            sfMoveToIndex(sfFeed.currentIndex + 1);
+            sfForceMoveToIndex(sfFeed.currentIndex + 1);
             return;
         }
         result.built.forEach(({ el, meta }) => {
@@ -16481,7 +16481,17 @@ SQIDAQAB
             sfFeed.slides.push(el);
             sfFeed.meta.push(meta);
         });
-        sfMoveToIndex(sfFeed.currentIndex + 1);
+        // sfForceMoveToIndex, not sfMoveToIndex - this is called both from
+        // the manual swipe/scroll path (sfTryAdvance, already unlocked) and
+        // from the auto-advance-after-correct-answer path
+        // (sfAdvanceAfterCorrectAnswer), which holds sfFeed.locked = true
+        // for this entire async append. Plain sfMoveToIndex's own lock
+        // check silently no-ops in that second case - a real bug found
+        // live: the "Moving on…" hint showed, then nothing happened until
+        // the student manually scrolled/swiped (which worked because the
+        // lock had been released by then, in sfAdvanceAfterCorrectAnswer's
+        // own finally block, well after this call had already been a no-op).
+        sfForceMoveToIndex(sfFeed.currentIndex + 1);
     }
 
     // Plain manual navigation only - never submits anything. An
@@ -16552,7 +16562,7 @@ SQIDAQAB
             if (sfFeed.currentIndex >= sfFeed.slides.length - 1) {
                 await sfAppendNextRecommendation();
             } else {
-                sfMoveToIndex(sfFeed.currentIndex + 1);
+                sfForceMoveToIndex(sfFeed.currentIndex + 1);
             }
         } finally {
             if (sfFeed) sfFeed.locked = false;
