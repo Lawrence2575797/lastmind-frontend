@@ -1232,8 +1232,24 @@
        button) without reopening that gap on a wide screen. The
        mini-Cortex side panel (300px, has-mini-cortex) still gets its own
        room since it's now INSIDE this narrower box - see its own CSS. */
-    .sf-feed-root { position: relative; height: calc(100vh - 90px); min-height: 420px; max-width: 760px; margin: 0 auto; border-radius: 12px; overflow: hidden; background: var(--panel); color: var(--text); }
+    /* -128px, not -90px - .sf-greeting-banner (see its own CSS) now sits
+       above this as a permanent sibling, not overlaid on top of it, so its
+       own height has to come out of the feed's budget too or the bottom
+       of the feed would run past the viewport. */
+    .sf-feed-root { position: relative; height: calc(100vh - 128px); min-height: 420px; max-width: 760px; margin: 0 auto; border-radius: 12px; overflow: hidden; background: var(--panel); color: var(--text); }
     .sf-feed-exit-btn { position: absolute; top: 14px; right: 14px; z-index: 2; width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(0,0,0,0.25); color: var(--text); font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    /* Persistent greeting above the feed (see sfMountGreetingBanner) - a
+       genuine sibling of .sf-feed-root, not part of any one slide, so it
+       never scrolls or advances away as the student moves through the
+       feed - it "stays", the way it was asked for. Same max-width/margin
+       as the feed root itself so it lines up with the box underneath
+       rather than spanning the full wide column. */
+    .sf-greeting-banner { max-width: 760px; margin: 0 auto 12px; padding: 0 4px; font-size: 14px; font-style: italic; opacity: 0.75; min-height: 1.2em; }
+    /* Matches .sf-feed-root.has-mini-cortex's own widened max-width (see
+       its CSS comment) - can't reach that with a CSS sibling selector
+       since the banner comes BEFORE the feed root in the DOM, so
+       sfMountFeedShell sets this class directly instead. */
+    .sf-greeting-banner.has-mini-cortex { max-width: 1060px; }
     .sf-feed-viewport { position: absolute; inset: 0; overflow: hidden; outline: none; }
     .sf-feed-track { display: flex; flex-direction: column; height: 100%; transition: transform 400ms cubic-bezier(0.22, 1, 0.36, 1); will-change: transform; }
     /* overflow-y:auto + a generous bottom padding is what makes a slide
@@ -1270,6 +1286,14 @@
     .sf-feedback-line { font-size: 14.5px; line-height: 1.6; padding: 10px 12px; border-radius: 8px; background: rgba(0,0,0,0.15); }
     .sf-feedback-correct { color: #6fcf97; }
     .sf-feedback-wrong { color: #eb9694; }
+    /* Encouragement line (see sfShowCorrectFeedback) - deliberately quiet
+       and separate from the ✓ Correct line above it (own background,
+       italic) rather than styled to look like another status readout, so
+       it reads as a genuine aside, not a second system message. The tough-
+       concept variant gets the accent colour and a touch more weight -
+       still restrained, not a banner. */
+    .sf-encouragement { margin-top: 6px; background: transparent; padding: 0 2px; font-style: italic; opacity: 0.85; }
+    .sf-encouragement-tough { color: var(--accent); opacity: 1; font-weight: 600; }
     .sf-advance-hint { font-size: 12.5px; opacity: 0.55; margin-top: 4px; }
     .sf-handoff { align-items: flex-start; }
     .sf-handoff-text { font-size: 16px; line-height: 1.7; }
@@ -5984,7 +6008,14 @@ SQIDAQAB
                 textColor: saved.textColor || THEME_DEFAULTS.textColor,
                 panelColor: saved.panelColor || THEME_DEFAULTS.panelColor,
                 bgColor: saved.bgColor || THEME_DEFAULTS.bgColor,
-                bgTexture: saved.bgTexture === 'plain' ? 'plain' : 'wood',
+                // Was `saved.bgTexture === 'plain' ? 'plain' : 'wood'` -
+                // silently discarded any image preset (e.g.
+                // 'havnstad-village') back to 'wood' on every reload, since
+                // it only ever recognised those two procedural textures.
+                // Any bgTexture the backend actually returned is already
+                // validated server-side (see themeSettingsService.ts's
+                // VALID_BG_TEXTURES) - safe to pass through as-is.
+                bgTexture: saved.bgTexture || THEME_DEFAULTS.bgTexture,
             };
         }
         applyTheme(currentTheme);
@@ -15542,6 +15573,84 @@ SQIDAQAB
         }
     }
 
+    // Shared "what do we call this student" helper - derived from their
+    // login email the same way sfWizardGreetingName does for the
+    // onboarding wizard, but usable from anywhere (the wizard's version
+    // only exists inside that flow's own sfWizard state). Cached after the
+    // first real lookup (empty string is a valid, cacheable answer - an
+    // account with no usable local-part still shouldn't re-fetch the
+    // session every time), so the encouragement pool and greeting banner
+    // both source name/time behaviour from exactly one lookup per page load.
+    let sfCachedStudentName = null;
+    function sfDeriveNameFromEmail(email) {
+        const local = (email || '').split('@')[0];
+        return local ? local.replace(/[._]+/g, ' ').trim() : '';
+    }
+    async function sfGetStudentName() {
+        if (sfCachedStudentName !== null) return sfCachedStudentName;
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        sfCachedStudentName = sfDeriveNameFromEmail(session?.user?.email || '');
+        return sfCachedStudentName;
+    }
+
+    // Last few encouragement messages actually shown this session (see
+    // sfShowCorrectFeedback) - sent back on the next request so the
+    // backend's own pick can skip them (see encouragementService.ts's
+    // pickEncouragementMessage). A light "don't immediately repeat", not a
+    // durable record - capped small since it only needs to cover the last
+    // handful of questions, not a whole session's worth.
+    let sfRecentEncouragements = [];
+    function sfPushRecentEncouragement(message) {
+        sfRecentEncouragements.push(message);
+        if (sfRecentEncouragements.length > 4) sfRecentEncouragements.shift();
+    }
+
+    // Shows the plain "✓ Correct" line immediately (unchanged - still the
+    // one clear machine-readable signal the question was graded right),
+    // then fetches and appends a genuine, contextual line underneath it
+    // once the pick resolves. toughConcept - true when this question
+    // needed at least one wrong attempt first (the retryCount > 0 already
+    // being tracked at every call site below) - switches the backend's
+    // pool from routine correct-answer copy to the heartfelt "you just got
+    // through something hard" one. Best-effort and silent on failure: a
+    // missing encouragement line is a non-event, not something worth
+    // showing an error for. feedbackEl.isConnected guards against
+    // appending to a slide the student has already scrolled/advanced past
+    // by the time the fetch resolves.
+    async function sfShowCorrectFeedback(feedbackEl, toughConcept) {
+        feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-correct">✓ Correct</div>`;
+        const studentName = await sfGetStudentName();
+        const result = await sfPostBackend('/encouragement-message', {
+            toughConcept: !!toughConcept,
+            studentName,
+            recentlyShown: sfRecentEncouragements,
+        });
+        if (!result || !result.message || !feedbackEl.isConnected) return;
+        sfPushRecentEncouragement(result.message);
+        const line = document.createElement('div');
+        line.className = toughConcept ? 'sf-feedback-line sf-encouragement sf-encouragement-tough' : 'sf-feedback-line sf-encouragement';
+        line.textContent = result.message;
+        feedbackEl.appendChild(line);
+    }
+
+    // Persistent greeting banner shown above the feed for the whole time
+    // it's open (see sfMountFeedShell) - purely client-side (time of day +
+    // the same derived name), no API call needed for something this
+    // simple. "stays" per the student's own ask: it's a sibling of
+    // .sf-feed-root, not part of any one slide, so it never scrolls or
+    // advances away as the student moves through the feed.
+    function sfTimeOfDayGreeting() {
+        const hour = new Date().getHours();
+        if (hour < 5) return 'Still up';
+        if (hour < 12) return 'Good morning';
+        if (hour < 18) return 'Good afternoon';
+        return 'Good evening';
+    }
+    async function sfMountGreetingBanner(bannerEl) {
+        const name = await sfGetStudentName();
+        bannerEl.textContent = name ? `${sfTimeOfDayGreeting()}, ${name}.` : `${sfTimeOfDayGreeting()}.`;
+    }
+
     // Keeps cachedScheduleData (the shared, already-fetched /schedule
     // cache every other view in this app reads) in sync after a correct
     // answer in the feed - otherwise the very next sfComputeFolderRecommendation
@@ -15745,7 +15854,7 @@ SQIDAQAB
             }
             if (result.correct) {
                 if (!useMathEditor) clearAnswerDraft(draftKey);
-                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-correct">✓ Correct</div>`;
+                sfShowCorrectFeedback(feedbackEl, retryCount > 0);
                 if (result.schedule) sfUpsertScheduleCache(result.schedule);
                 meta.answered = true;
                 meta.canAdvance = true;
@@ -15927,7 +16036,7 @@ SQIDAQAB
                     nodeId: rec.node.id, questionText, originalAnswer, wrongPhrase, correction: correctionInput.value, retryCount
                 });
                 if (result && result.correct) {
-                    feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-correct">✓ Correct</div>`;
+                    sfShowCorrectFeedback(feedbackEl, retryCount > 0);
                     await onCorrect(result);
                     await sfDelay(SF_AUTO_ADVANCE_DELAY_MS);
                     if (sfFeed) sfForceMoveToIndex(sfFeed.currentIndex + 1);
@@ -15964,7 +16073,7 @@ SQIDAQAB
                 return false;
             }
             if (result.correct) {
-                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-correct">✓ Correct</div>`;
+                sfShowCorrectFeedback(feedbackEl, retryCount > 0);
                 await onCorrect(result);
                 return true;
             }
@@ -16052,7 +16161,7 @@ SQIDAQAB
             }
             if (result.correct) {
                 clearAnswerDraft(draftKey);
-                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-correct">✓ Correct</div>`;
+                sfShowCorrectFeedback(feedbackEl, retryCount > 0);
                 if (result.schedule) sfUpsertScheduleCache(result.schedule);
                 meta.answered = true;
                 meta.canAdvance = true;
@@ -16388,7 +16497,7 @@ SQIDAQAB
             }
             if (result.correct) {
                 clearAnswerDraft(draftKey);
-                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-correct">✓ Correct</div>`;
+                sfShowCorrectFeedback(feedbackEl, awaitingSillyRetry);
                 sfUpsertScheduleCache(result.schedule);
                 meta.answered = true;
                 meta.canAdvance = true;
@@ -16556,7 +16665,7 @@ SQIDAQAB
             }
             if (result.correct) {
                 clearAnswerDraft(draftKey);
-                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-correct">✓ Correct</div>`;
+                sfShowCorrectFeedback(feedbackEl, false);
                 meta.answered = true;
                 meta.canAdvance = true;
                 sfShowAdvanceHint(el);
@@ -17077,6 +17186,7 @@ SQIDAQAB
                     </form>
                 </aside>` : '';
         contentInner.innerHTML = `
+            <div class="sf-greeting-banner${isPaidUser ? ' has-mini-cortex' : ''}"></div>
             <div class="sf-feed-root${isPaidUser ? ' has-mini-cortex' : ''}">
                 <button type="button" class="sf-feed-exit-btn" title="${escapeHtml(exitTitle)}">✕</button>
                 <div class="sf-feed-viewport">
@@ -17089,6 +17199,7 @@ SQIDAQAB
         const trackEl = contentInner.querySelector('.sf-feed-track');
         const nudgeEl = contentInner.querySelector('.sf-recall-nudge');
         contentInner.querySelector('.sf-feed-exit-btn').addEventListener('click', sfCloseFeed);
+        sfMountGreetingBanner(contentInner.querySelector('.sf-greeting-banner'));
         sfFeed = {
             slides: [], meta: [], currentIndex: 0, locked: false, trackEl, viewportEl, nudgeEl, appending: false, onClose, scopeFolder: scopeFolder || null,
             recallTimers: [], trackedRecallIds: new Set(), miniCortexHistory: [],
@@ -17317,7 +17428,7 @@ SQIDAQAB
                 return false;
             }
             if (result.correct) {
-                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-correct">✓ Correct</div>`;
+                sfShowCorrectFeedback(feedbackEl, false);
                 meta.answered = true;
                 meta.canAdvance = true;
                 sfShowAdvanceHint(el);
