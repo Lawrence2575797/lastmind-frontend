@@ -3587,17 +3587,18 @@
     .theme-preset-btn:hover { background: rgba(230, 215, 176, 0.1); }
 
     /* Image-backed background textures (see THEME_IMAGE_BACKGROUNDS) -
-       toggled on document.body by applyTheme. The sidebar deliberately
-       gets NO background-image of its own here: backdrop-filter blurs
-       whatever is actually behind the element, which - since the body's
-       own background is what's painted behind it - is the exact same
-       fixed image the rest of the page shows, just blurred in place,
-       rather than a flat colour block or a second, separately-cropped
-       copy of the picture. --panel-rgb (set alongside --panel in
-       applyTheme) keeps the tint on-theme with whatever panel colour the
-       active preset chose, instead of a hardcoded value that would look
-       wrong under some future second image preset. */
-    body.theme-bg-image .sidebar {
+       toggled on document.body by applyTheme. The sidebar AND the feed's
+       own box deliberately get NO background-image of their own here:
+       backdrop-filter blurs whatever is actually behind the element,
+       which - since the body's own background is what's painted behind
+       both - is the exact same fixed image the rest of the page shows,
+       just blurred in place, rather than a flat colour block or a second,
+       separately-cropped copy of the picture. --panel-rgb (set alongside
+       --panel in applyTheme) keeps the tint on-theme with whatever panel
+       colour the active preset chose, instead of a hardcoded value that
+       would look wrong under some future second image preset. */
+    body.theme-bg-image .sidebar,
+    body.theme-bg-image .sf-feed-root {
         background: rgba(var(--panel-rgb), 0.45);
         backdrop-filter: blur(26px);
         -webkit-backdrop-filter: blur(26px);
@@ -5701,11 +5702,21 @@ SQIDAQAB
     // havnstad-bible.html's :root dark tokens) so the in-app theme
     // actually matches the village it depicts, rather than an arbitrary
     // pairing that happens to be legible.
+    // Wild West follows the exact same structure as Havnstad - a real
+    // generated scene (a mining town, Ironclaw Gulch, in a red-rock desert
+    // canyon) plus a text/panel pairing pulled from its own palette
+    // (weathered dark timber/leather panel, sun-bleached sand text) rather
+    // than reusing Havnstad's fjord-toned colours against a desert photo.
     const THEME_PRESETS = [
         {
             key: 'havnstad',
             label: 'Havnstad',
             theme: { textColor: '#E9E0CB', panelColor: '#1D262D', bgColor: '#D97A52', bgTexture: 'havnstad-village' },
+        },
+        {
+            key: 'wildwest',
+            label: 'Wild West',
+            theme: { textColor: '#EDE0C8', panelColor: '#241812', bgColor: '#C9793C', bgTexture: 'wild-west-town' },
         },
     ];
 
@@ -5715,6 +5726,7 @@ SQIDAQAB
     // load from) so one relative-to-root path works from either page.
     const THEME_IMAGE_BACKGROUNDS = {
         'havnstad-village': '/assets/theme/havnstad-village.jpg',
+        'wild-west-town': '/assets/theme/wild-west-town.jpg',
     };
 
     function themeHexToRgb(hex) {
