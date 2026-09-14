@@ -3644,6 +3644,7 @@
     .pq-model-answer-toggle:hover { opacity: 1; }
     .pq-model-answer-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.6; margin-bottom: 8px; padding-right: 70px; }
     .pq-model-answer-score { font-size: 12.5px; opacity: 0.75; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(230, 215, 176, 0.15); }
+    .pq-model-answer-diagram { margin-bottom: 12px; }
 
     /* Progress Report (see renderProgressReport) */
     .pr-page { max-width: 880px; margin: 0 auto; padding: 32px 24px 60px; display: flex; flex-direction: column; gap: 30px; }
@@ -9037,19 +9038,28 @@ SQIDAQAB
                 panel.innerHTML = `
                     <button type="button" class="pq-model-answer-toggle" id="pq-model-answer-toggle-${q.id}">Hide</button>
                     <div class="pq-model-answer-label">Model answer</div>
+                    ${body.diagramSpec ? `<div class="pq-model-answer-diagram" id="pq-model-answer-diagram-${q.id}"></div>` : ''}
                     <div class="pq-model-answer-body">${notesTextToHtml(body.modelAnswerText)}</div>
                     <div class="pq-model-answer-score">Self-checked: ${body.selfCheck.markAwarded} / ${body.selfCheck.markTariff} marks against the mark scheme.</div>
                 `;
                 panel.hidden = false;
+                // renderStaticDiagram is the same read-only renderer the
+                // Notes page uses for a knowledge-map node's own
+                // diagramSpec - reused here since it's the exact same
+                // {curves,shades,labels,arrows} contract (see
+                // PRACTICE_QUESTION_DIAGRAM_GENERATION_PROMPT).
+                if (body.diagramSpec) renderStaticDiagram(document.getElementById(`pq-model-answer-diagram-${q.id}`), body.diagramSpec);
                 document.getElementById(`pq-model-answer-toggle-${q.id}`).addEventListener('click', () => {
                     const bodyEl = panel.querySelector('.pq-model-answer-body');
                     const scoreEl = panel.querySelector('.pq-model-answer-score');
                     const labelEl = panel.querySelector('.pq-model-answer-label');
+                    const diagramEl = panel.querySelector('.pq-model-answer-diagram');
                     const toggleBtn = document.getElementById(`pq-model-answer-toggle-${q.id}`);
                     const hiding = bodyEl.style.display !== 'none';
                     bodyEl.style.display = hiding ? 'none' : '';
                     scoreEl.style.display = hiding ? 'none' : '';
                     labelEl.style.display = hiding ? 'none' : '';
+                    if (diagramEl) diagramEl.style.display = hiding ? 'none' : '';
                     toggleBtn.textContent = hiding ? 'Show' : 'Hide';
                 });
                 refreshLocksChip();
@@ -9158,7 +9168,15 @@ SQIDAQAB
             card.style.marginBottom = '18px';
 
             let answerInputHtml;
-            if (q.isMultipleChoice && Array.isArray(q.options)) {
+            if (q.requiresDiagram) {
+                // Real widget mounted right after card.innerHTML below -
+                // this is just its landing slot, same pattern as the
+                // maths-keyboard case. It carries its OWN submit button
+                // (see renderDiagramWidget itself), so the shared
+                // "Submit for marking" button in bottom-action-row is
+                // omitted entirely for this question type - see below.
+                answerInputHtml = `<div id="pq-answer-${q.id}"></div>`;
+            } else if (q.isMultipleChoice && Array.isArray(q.options)) {
                 answerInputHtml = `<div class="pq-mc-options" id="pq-answer-${q.id}">
                     ${q.options.map((opt, idx) => `
                         <label class="dont-know-label" style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
@@ -9185,7 +9203,7 @@ SQIDAQAB
                 ${answerInputHtml}
                 ${q.answerStructureAdvice ? `<div class="field-hint" style="margin-top:10px; margin-bottom:6px;"><strong>How to structure your answer:</strong> ${renderMathShorthand(q.answerStructureAdvice)}</div>` : ''}
                 <div class="bottom-action-row">
-                    <button class="btn primary" type="button" id="pq-submit-${q.id}">Submit for marking</button>
+                    ${q.requiresDiagram ? '' : `<button class="btn primary" type="button" id="pq-submit-${q.id}">Submit for marking</button>`}
                     <button class="btn" type="button" id="pq-assist-btn-${q.id}">Cortex assistance</button>
                     <button class="btn" type="button" id="pq-modelanswer-btn-${q.id}">Model answer</button>
                 </div>
@@ -9230,6 +9248,29 @@ SQIDAQAB
                 const resultEl = document.getElementById(`pq-result-${q.id}`);
                 resultEl.style.display = '';
                 resultEl.innerHTML = practiceResultHtml(q, q.priorAttempt);
+                return;
+            }
+
+            // Diagram questions carry their own submit button (inside
+            // renderDiagramWidget itself) and grade deterministically, not
+            // via AI - the shared textarea/mcq submit wiring below doesn't
+            // apply at all, and #pq-submit-${q.id} doesn't even exist in
+            // the DOM for this question type (see the bottom-action-row
+            // template above), so this must return before reaching it.
+            if (q.requiresDiagram) {
+                renderDiagramWidget(document.getElementById(`pq-answer-${q.id}`), null, async (answer) => {
+                    const { data: { session } } = await supabaseClient.auth.getSession();
+                    if (!session) return { correct: false, feedback: 'Not signed in.' };
+                    const resp = await fetch(`${COMPILE_BACKEND_URL}/practice-questions/${q.id}/submit`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                        body: JSON.stringify({ answerText: JSON.stringify(answer) })
+                    });
+                    const body = await resp.json().catch(() => ({}));
+                    if (!resp.ok && resp.status !== 409) return { correct: false, feedback: body.error || 'Could not mark this answer.' };
+                    refreshLocksChip(); // marking a diagram is still a real graded event, same chip refresh every other question type already does
+                    return { correct: (body.markAwarded || 0) > 0, feedback: body.feedback || '' };
+                });
                 return;
             }
 
