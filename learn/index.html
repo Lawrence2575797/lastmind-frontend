@@ -5253,7 +5253,7 @@
                      back to the main feed, not scoped to any one mode's own
                      exit button. See goToMainFeed. -->
                 <button class="btn" id="dashboardTopbarBtn" type="button" title="Back to feed">Dashboard</button>
-                <span class="topbar-title" id="topbarTitle">Dashboard</span>
+                <span class="topbar-title" id="topbarTitle"></span>
                 <!-- Locks used to sit outside this scrollable row, in
                      the outer (non-scrolling) topbar flex line — on a
                      narrow phone that row has no overflow handling of its
@@ -8167,7 +8167,11 @@ SQIDAQAB
         // happened to be if the fetch below hasn't resolved yet.
         selectedFolderKmData = null;
         const f = folders.find((x) => x.id === folderId);
-        document.getElementById('topbarTitle').textContent = f ? folderLabel(f) : 'Dashboard';
+        // Empty, not 'Dashboard' - the topbar's own Dashboard button
+        // (#dashboardTopbarBtn) sits right next to this span, so falling
+        // back to the same word here just duplicated it, one working
+        // button and one inert label both saying the same thing.
+        document.getElementById('topbarTitle').textContent = f ? folderLabel(f) : '';
         // Clicking a subject now opens ITS OWN short-form feed by default
         // (see sfShowFolderFeed) - the full atomic knowledge-map graph
         // only shows when Knowledge Map mode is explicitly on
@@ -8194,7 +8198,7 @@ SQIDAQAB
         selectedPageId = null;
         const f = folders.find((x) => x.id === folderId);
         const sf = f && (f.subfolders || []).find((x) => x.id === subfolderId);
-        document.getElementById('topbarTitle').textContent = (f && sf) ? `${folderLabel(f)} · ${sf.name}` : 'Dashboard';
+        document.getElementById('topbarTitle').textContent = (f && sf) ? `${folderLabel(f)} · ${sf.name}` : '';
         renderWelcome();
         refreshFolderList();
     }
@@ -12996,7 +13000,7 @@ SQIDAQAB
         selectedFolderId = null;
         selectedSubfolderId = null;
         selectedPageId = null;
-        document.getElementById('topbarTitle').textContent = 'Dashboard';
+        document.getElementById('topbarTitle').textContent = '';
         renderWelcome(chatId, isNew);
         refreshFolderList();
     }
