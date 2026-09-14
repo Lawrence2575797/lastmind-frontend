@@ -3604,11 +3604,40 @@
     body.theme-bg-image .sf-feed-root,
     body.theme-bg-image .sf-mini-cortex-panel,
     body.theme-bg-image .km-inline-canvas-wrap,
-    body.theme-bg-image .km-inline-detail {
+    body.theme-bg-image .km-inline-detail,
+    body.theme-bg-image .pq-assist-card,
+    body.theme-bg-image .pq-model-answer-panel {
         background: rgba(var(--panel-rgb), 0.22);
         backdrop-filter: blur(6px);
         -webkit-backdrop-filter: blur(6px);
     }
+
+    /* Practice Questions - Cortex assistance + Model answer (see
+       renderPracticeQuestionList's own comment on why these sit next to
+       Submit). pq-assist-overlay reuses .sf-wizard-overlay's exact dim/
+       center treatment; pq-assist-card is its own class (not
+       .sf-wizard-card) so it can hold a multi-select button grid instead
+       of a wizard step, but shares the same var(--panel) background so
+       it reads as the same kind of surface. */
+    .pq-assist-card { max-width: 480px; width: 100%; max-height: 86vh; overflow-y: auto; background: var(--panel); color: var(--text); border-radius: 14px; padding: 28px 30px; display: flex; flex-direction: column; gap: 16px; }
+    .pq-assist-title { font-family: Georgia, serif; font-size: 20px; margin: 0; }
+    .pq-assist-options { display: flex; flex-direction: column; gap: 8px; }
+    .pq-assist-option-btn { text-align: left; width: 100%; padding: 12px 14px; border-radius: 8px; border: 1px solid rgba(230, 215, 176, 0.25); background: var(--bg); color: var(--text); font: inherit; font-size: 14.5px; cursor: pointer; }
+    .pq-assist-option-btn.selected { border-color: var(--accent); background: var(--accent); color: var(--bg); font-weight: 700; }
+    .pq-assist-actions { display: flex; justify-content: flex-end; gap: 10px; }
+    .pq-assist-result { margin-top: 10px; padding: 12px 14px; border-radius: 8px; background: rgba(0,0,0,0.15); font-size: 14.5px; line-height: 1.6; }
+
+    /* Model answer panel - sits below a question's own answer box/result,
+       above the pick-list for the next question (see
+       renderPracticeQuestionList's own placement comment). Persists once
+       shown; the hide/show toggle in its own corner is a SIBLING of the
+       collapsible body, not inside it, so it never disappears along with
+       the content it's toggling. */
+    .pq-model-answer-panel { position: relative; margin-top: 16px; padding: 16px 18px; border-radius: 10px; background: var(--panel); border: 1px solid rgba(230, 215, 176, 0.15); }
+    .pq-model-answer-toggle { position: absolute; top: 10px; right: 10px; font-size: 11px; font-family: Arial, sans-serif; padding: 4px 10px; border-radius: 12px; border: 1px solid rgba(230, 215, 176, 0.3); background: transparent; color: var(--text); cursor: pointer; opacity: 0.8; }
+    .pq-model-answer-toggle:hover { opacity: 1; }
+    .pq-model-answer-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.6; margin-bottom: 8px; padding-right: 70px; }
+    .pq-model-answer-score { font-size: 12.5px; opacity: 0.75; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(230, 215, 176, 0.15); }
 
     .unlock-notes-link {
         display: block;
@@ -8647,6 +8676,147 @@ SQIDAQAB
         }
     };
 
+    // Must stay in sync with the backend's own
+    // PRACTICE_QUESTION_ASSISTANCE_TYPES (practiceQuestionService.ts) -
+    // these keys are what actually gets sent; labels are only ever
+    // rendered here, never re-derived server-side.
+    const PQ_ASSISTANCE_TYPES = [
+        { key: 'structure', label: 'How to structure the answer' },
+        { key: 'points', label: 'What points/content to cover' },
+        { key: 'terminology', label: 'Unfamiliar terminology in the question' },
+        { key: 'markscheme', label: 'What the mark scheme is really asking for' },
+    ];
+
+    // Multi-select overlay (not a free textbox, per explicit instruction)
+    // for picking which angles of help Cortex should actually address -
+    // centred, same see-through/blurred-under-an-image-preset background
+    // as the feed's own boxes (see .pq-assist-card's own CSS, and its
+    // entry in the body.theme-bg-image blur rule). Reuses
+    // .sf-wizard-overlay's exact dim/centre treatment rather than a new
+    // one, so this reads as the same kind of moment as the subject-picker
+    // wizard, just a different card.
+    function openPqAssistOverlay(onConfirm) {
+        const selected = new Set();
+        const overlayEl = document.createElement('div');
+        overlayEl.className = 'sf-wizard-overlay';
+        overlayEl.innerHTML = `
+            <div class="pq-assist-card">
+                <h3 class="pq-assist-title">What would help?</h3>
+                <div class="pq-assist-options">
+                    ${PQ_ASSISTANCE_TYPES.map((t) => `<button type="button" class="pq-assist-option-btn" data-key="${t.key}">${escapeHtml(t.label)}</button>`).join('')}
+                </div>
+                <div class="pq-assist-actions">
+                    <button type="button" class="btn" id="pqAssistCancelBtn">Cancel</button>
+                    <button type="button" class="btn primary" id="pqAssistConfirmBtn" disabled>Confirm</button>
+                </div>
+            </div>`;
+        document.body.appendChild(overlayEl);
+        const confirmBtn = overlayEl.querySelector('#pqAssistConfirmBtn');
+        overlayEl.querySelectorAll('.pq-assist-option-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const key = btn.dataset.key;
+                if (selected.has(key)) { selected.delete(key); btn.classList.remove('selected'); }
+                else { selected.add(key); btn.classList.add('selected'); }
+                confirmBtn.disabled = selected.size === 0;
+            });
+        });
+        overlayEl.querySelector('#pqAssistCancelBtn').addEventListener('click', () => document.body.removeChild(overlayEl));
+        confirmBtn.addEventListener('click', () => {
+            document.body.removeChild(overlayEl);
+            onConfirm(Array.from(selected));
+        });
+    }
+
+    // Wires the two new buttons next to Submit for marking. Both are real,
+    // separately-metered Claude calls (see practiceQuestionService.ts's
+    // own comment on why Model answer is deliberately not a flat-rate
+    // feature) - refreshLocksChip() after each so the sidebar's balance
+    // reflects the real charge immediately, same as marking an answer
+    // already does.
+    function wirePracticeQuestionAssistance(q) {
+        const assistBtn = document.getElementById(`pq-assist-btn-${q.id}`);
+        const modelBtn = document.getElementById(`pq-modelanswer-btn-${q.id}`);
+        if (!assistBtn || !modelBtn) return;
+
+        assistBtn.addEventListener('click', () => {
+            openPqAssistOverlay(async (assistanceTypes) => {
+                assistBtn.disabled = true;
+                const label = assistBtn.textContent;
+                assistBtn.textContent = 'Asking Cortex…';
+                try {
+                    const { data: { session } } = await supabaseClient.auth.getSession();
+                    if (!session) throw new Error('not signed in');
+                    const resp = await fetch(`${COMPILE_BACKEND_URL}/practice-questions/${q.id}/assistance`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                        body: JSON.stringify({ assistanceTypes })
+                    });
+                    const body = await resp.json().catch(() => ({}));
+                    if (!resp.ok) throw new Error(body.error || 'Could not get assistance right now.');
+                    let resultEl = document.getElementById(`pq-assist-result-${q.id}`);
+                    if (!resultEl) {
+                        resultEl = document.createElement('div');
+                        resultEl.id = `pq-assist-result-${q.id}`;
+                        resultEl.className = 'pq-assist-result';
+                        assistBtn.closest('.bottom-action-row').insertAdjacentElement('afterend', resultEl);
+                    }
+                    resultEl.innerHTML = renderMathShorthand(body.assistance);
+                    refreshLocksChip();
+                } catch (err) {
+                    alert(err.message || 'Something went wrong.');
+                } finally {
+                    assistBtn.disabled = false;
+                    assistBtn.textContent = label;
+                }
+            });
+        });
+
+        modelBtn.addEventListener('click', async () => {
+            const panel = document.getElementById(`pq-model-answer-${q.id}`);
+            modelBtn.disabled = true;
+            const label = modelBtn.textContent;
+            modelBtn.textContent = 'Generating…';
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (!session) throw new Error('not signed in');
+                const resp = await fetch(`${COMPILE_BACKEND_URL}/practice-questions/${q.id}/model-answer`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${session.access_token}` }
+                });
+                const body = await resp.json().catch(() => ({}));
+                if (!resp.ok) throw new Error(body.error || 'Could not generate a model answer right now.');
+                // The toggle button is built as its OWN element here, never
+                // wiped by the show/hide it controls (that only ever
+                // touches label/body/score below it) - "this button should
+                // remain there" per explicit instruction.
+                panel.innerHTML = `
+                    <button type="button" class="pq-model-answer-toggle" id="pq-model-answer-toggle-${q.id}">Hide</button>
+                    <div class="pq-model-answer-label">Model answer</div>
+                    <div class="pq-model-answer-body">${renderMathShorthand(body.modelAnswerText)}</div>
+                    <div class="pq-model-answer-score">Self-checked: ${body.selfCheck.markAwarded} / ${body.selfCheck.markTariff} marks against the mark scheme.</div>
+                `;
+                panel.hidden = false;
+                document.getElementById(`pq-model-answer-toggle-${q.id}`).addEventListener('click', () => {
+                    const bodyEl = panel.querySelector('.pq-model-answer-body');
+                    const scoreEl = panel.querySelector('.pq-model-answer-score');
+                    const labelEl = panel.querySelector('.pq-model-answer-label');
+                    const toggleBtn = document.getElementById(`pq-model-answer-toggle-${q.id}`);
+                    const hiding = bodyEl.style.display !== 'none';
+                    bodyEl.style.display = hiding ? 'none' : '';
+                    scoreEl.style.display = hiding ? 'none' : '';
+                    labelEl.style.display = hiding ? 'none' : '';
+                    toggleBtn.textContent = hiding ? 'Show' : 'Hide';
+                });
+                refreshLocksChip();
+            } catch (err) {
+                alert(err.message || 'Something went wrong.');
+            } finally {
+                modelBtn.disabled = false;
+                modelBtn.textContent = label;
+            }
+        });
+    }
+
     // componentDefinitions (optional, 7th param): [{key,label}] from
     // exam_mark_scheme_styles - only ever passed by the spec-hierarchy Exam
     // Practice flow (see renderSpecPracticePickList), used to label an
@@ -8771,10 +8941,14 @@ SQIDAQAB
                 ${q.answerStructureAdvice ? `<div class="field-hint" style="margin-top:10px; margin-bottom:6px;"><strong>How to structure your answer:</strong> ${renderMathShorthand(q.answerStructureAdvice)}</div>` : ''}
                 <div class="bottom-action-row">
                     <button class="btn primary" type="button" id="pq-submit-${q.id}">Submit for marking</button>
+                    <button class="btn" type="button" id="pq-assist-btn-${q.id}">Cortex assistance</button>
+                    <button class="btn" type="button" id="pq-modelanswer-btn-${q.id}">Model answer</button>
                 </div>
                 <div id="pq-result-${q.id}" style="margin-top:12px; display:none;"></div>
+                <div id="pq-model-answer-${q.id}" class="pq-model-answer-panel" hidden></div>
             `;
             list.appendChild(card);
+            wirePracticeQuestionAssistance(q);
 
             if (q.requiresMathsKeyboard && !q.isMultipleChoice) {
                 const editor = createSmartAnswerEditor('Write your working here…');
