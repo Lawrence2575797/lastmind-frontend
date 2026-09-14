@@ -5667,6 +5667,18 @@
     // askNextDiagnostic) before launching to real students.
     const SHOW_DIAGNOSTIC_DEBUG_STAGE = true;
 
+    // TEMPORARY: every account gets the full paid UI (Practice Questions,
+    // Maths Tool, mini-Cortex, tours, etc.) while testers are active, per
+    // explicit instruction - no manual per-tester premium grant needed.
+    // Only affects gate()'s own isPaidUser decision below - the Locks
+    // balance/allotment shown in the sidebar is a completely separate
+    // fetch from the backend (fetchLockBalance -> /locks/balance ->
+    // lockService.ts's own isUserPaid check, untouched by this flag), so
+    // a free account still gets the free tier's own Locks amount exactly
+    // as asked. Flip back to false (or delete this + its one gate() call
+    // site) once premium gating should resume.
+    const TEMP_ALL_FEATURES_FREE = true;
+
     // Used ONLY to obtain the current session's access token, which the
     // backend verifies cryptographically before trusting anything — the
     // frontend never decides access on its own based on "a session exists."
@@ -23585,6 +23597,15 @@ SQIDAQAB
             // Not logged in at all — nothing to offer, send them to create an
             // account (still free at this point; paying is optional there too).
             window.location.href = '/subscribe';
+            return;
+        }
+
+        // TEMPORARY - see TEMP_ALL_FEATURES_FREE's own comment. Still
+        // requires a real logged-in session (the check just above) - only
+        // skips the JWT/subscription dance below, which is otherwise the
+        // sole source of isPaidUser.
+        if (TEMP_ALL_FEATURES_FREE) {
+            await enterApp(true);
             return;
         }
 
