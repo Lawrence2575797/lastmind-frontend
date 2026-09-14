@@ -1279,6 +1279,36 @@
     .sf-recall-nudge-text { flex: 1; }
     .sf-recall-nudge-btn { flex: none; }
 
+    /* Mini-Cortex Q&A panel — a slim always-present chat docked to the
+       right of the question feed (see sfMountFeedShell/sfWireMiniCortex).
+       Reserves space by insetting .sf-feed-viewport rather than switching
+       .sf-feed-root to flex layout, so the existing translateY-based
+       vertical slide track (.sf-feed-track) needs no changes at all - it
+       just renders into a narrower viewport, exactly like a narrower
+       window would produce. Desktop-only (see the max-width override
+       below) - there's no room for a docked panel on a phone screen, and
+       the feed's own swipe gestures already cover that case. */
+    .sf-feed-root.has-mini-cortex .sf-feed-viewport { right: 300px; }
+    .sf-feed-root.has-mini-cortex .sf-feed-exit-btn { right: 314px; }
+    .sf-feed-root.has-mini-cortex .sf-recall-nudge { right: 316px; }
+    .sf-mini-cortex-panel { position: absolute; top: 0; right: 0; bottom: 0; width: 300px; border-left: 1px solid rgba(230, 215, 176, 0.15); background: var(--bg); display: flex; flex-direction: column; z-index: 2; }
+    .sf-mini-cortex-header { flex: none; padding: 14px 16px 10px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.6; border-bottom: 1px solid rgba(230, 215, 176, 0.1); }
+    .sf-mini-cortex-thread { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+    .sf-mini-cortex-empty { font-size: 13px; line-height: 1.6; opacity: 0.55; }
+    .sf-mini-cortex-msg { font-size: 13.5px; line-height: 1.55; padding: 9px 11px; border-radius: 9px; max-width: 92%; }
+    .sf-mini-cortex-msg-user { align-self: flex-end; background: var(--accent); color: var(--bg); }
+    .sf-mini-cortex-msg-assistant { align-self: flex-start; background: rgba(0,0,0,0.18); }
+    .sf-mini-cortex-msg-pending { opacity: 0.55; }
+    .sf-mini-cortex-form { flex: none; display: flex; gap: 6px; padding: 10px; border-top: 1px solid rgba(230, 215, 176, 0.1); }
+    .sf-mini-cortex-input { flex: 1; min-width: 0; font: inherit; font-size: 13px; padding: 9px 10px; border-radius: 7px; border: 1px solid rgba(230, 215, 176, 0.25); background: var(--panel); color: var(--text); }
+    .sf-mini-cortex-send { flex: none; padding: 9px 12px; font-size: 13px; }
+    @media (max-width: 900px) {
+        .sf-mini-cortex-panel { display: none; }
+        .sf-feed-root.has-mini-cortex .sf-feed-viewport { right: 0; }
+        .sf-feed-root.has-mini-cortex .sf-feed-exit-btn { right: 14px; }
+        .sf-feed-root.has-mini-cortex .sf-recall-nudge { right: 16px; }
+    }
+
     /* ─── First-time subject-picker wizard (see sfShowSubjectPickerWizard)
        — reuses .tour-overlay's centered-overlay visual language but is a
        separate overlay/class so it can't collide with the existing
@@ -2851,6 +2881,17 @@
 
     .order-confirm-wrap {
         padding: 4px 12px 16px;
+    }
+
+    /* Sidebar per-subject completion bar (see buildFolderCompletionBar) -
+       reuses .plan-progress-track/-fill's exact look so it reads as the
+       same kind of bar as the subfolder plan-progress one, just sitting
+       between subject rows instead of inside one. */
+    .folder-completion-wrap {
+        padding: 0 12px 14px;
+    }
+    .folder-completion-loading .plan-progress-track {
+        opacity: 0.4;
     }
 
     .order-confirm-label {
@@ -6324,6 +6365,19 @@ SQIDAQAB
     let folders = [];
     let isPaidUser = false; // set by gate() — controls whether Compile shows in the editor
 
+    // Per-subject knowledge-map completion, for the sidebar's %-complete bar
+    // under each subject row (see buildFolderRow/buildFolderCompletionBar).
+    // Keyed by folder.id -> { done, total }. Populated lazily the first
+    // time each row renders (sfEnsureFolderCompletion), not eagerly for
+    // every folder up front — most sessions only ever look at 2-4
+    // subjects, and each entry costs a full /knowledge-map-v2 fetch (the
+    // same one renderKnowledgeMapForFolder already pays for the currently
+    // opened subject), so there's no reason to pay for subjects that never
+    // get looked at, or to redo it every time the sidebar re-renders
+    // (which happens on nearly every navigation - see refreshFolderList's
+    // own comment on how often it's called).
+    let sfFolderCompletionCache = {};
+
     let selectedFolderId = null;
     let selectedSubfolderId = null;
     let selectedPageId = null;
@@ -6686,6 +6740,69 @@ SQIDAQAB
         wrap.appendChild(track);
 
         return wrap;
+    }
+
+    // Builds the sidebar's per-subject %-complete bar (see
+    // sfFolderCompletionCache) - same visual language as
+    // buildPlanProgressBar above, just a different denominator (every node
+    // in the subject's knowledge map, not just a saved plan's concepts).
+    // `progress` of null (not yet fetched) renders a quiet placeholder
+    // rather than a 0%-filled bar, so a subject that hasn't loaded yet
+    // doesn't misreport as "just started".
+    function buildFolderCompletionBar(progress) {
+        const wrap = document.createElement('div');
+        wrap.className = 'folder-completion-wrap';
+        if (!progress) {
+            wrap.classList.add('folder-completion-loading');
+            const track = document.createElement('div');
+            track.className = 'plan-progress-track';
+            wrap.appendChild(track);
+            return wrap;
+        }
+        const label = document.createElement('div');
+        label.className = 'plan-progress-label';
+        const pct = progress.total ? Math.round((progress.done / progress.total) * 100) : 0;
+        label.textContent = `${pct}% complete (${progress.done}/${progress.total})`;
+        wrap.appendChild(label);
+
+        const track = document.createElement('div');
+        track.className = 'plan-progress-track';
+        const fill = document.createElement('div');
+        fill.className = 'plan-progress-fill';
+        fill.style.width = `${pct}%`;
+        track.appendChild(fill);
+        wrap.appendChild(track);
+
+        return wrap;
+    }
+
+    // Lazily fetches and caches subject-wide completion for one folder
+    // (done = nodes whose conceptId already has a schedule row, i.e. has
+    // been encoded at least once - same test as isNodeEncoded elsewhere;
+    // total = every node in that subject's knowledge map). Re-renders the
+    // sidebar once the real numbers land so the placeholder bar fills in
+    // without the student needing to navigate anywhere. A failed fetch
+    // (e.g. a genuinely custom "+Other" subject with no knowledge-map-v2
+    // data behind it at all) caches the string 'failed' rather than
+    // deleting the entry - deleting it would make buildFolderRow retry the
+    // fetch on every single sidebar re-render forever for a subject that
+    // will never succeed. buildFolderRow checks for this sentinel and
+    // skips rendering a bar at all for that row, rather than showing a
+    // permanently-loading placeholder or a misleading 0%.
+    async function sfEnsureFolderCompletion(f) {
+        if (Object.prototype.hasOwnProperty.call(sfFolderCompletionCache, f.id)) return;
+        sfFolderCompletionCache[f.id] = 'pending';
+        try {
+            const data = await fetchSubjectKnowledgeMap(f);
+            const schedule = new Set((cachedScheduleData || []).map((r) => r.concept_id));
+            const total = data.nodes.length;
+            const done = data.nodes.filter((n) => schedule.has(n.conceptId)).length;
+            sfFolderCompletionCache[f.id] = { done, total };
+        } catch (err) {
+            console.error(`LastMind: couldn't load completion for subject ${f.subject}.`, err);
+            sfFolderCompletionCache[f.id] = 'failed';
+        }
+        renderSidebarSelection();
     }
 
     // The next page a confirmed-order list should nudge the student
@@ -7486,6 +7603,18 @@ SQIDAQAB
         });
 
         item.appendChild(header);
+
+        // %-complete bar between this subject's title and the next one
+        // (see sfFolderCompletionCache/sfEnsureFolderCompletion) - the
+        // fetch is fire-and-forget: it's a no-op once cached, and the row
+        // just re-renders with real numbers once it resolves. 'failed'
+        // (a subject with no knowledge-map-v2 data at all) renders no bar
+        // at all rather than a stuck placeholder.
+        const completion = sfFolderCompletionCache[f.id];
+        if (completion !== 'failed') {
+            item.appendChild(buildFolderCompletionBar(completion === 'pending' ? null : completion));
+        }
+        sfEnsureFolderCompletion(f);
 
         // The selected subject's own Theme -> Subtopic -> Lesson tree,
         // inline in the sidebar right under its row - same visual
@@ -16805,13 +16934,27 @@ SQIDAQAB
     function sfMountFeedShell(exitTitle, onClose, scopeFolder) {
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
+        // The mini-Cortex panel calls the same Premium-gated /cortex/message
+        // endpoint as full Cortex (see requirePaidTier in routes/cortex.ts),
+        // so there's no point mounting it for a free account - it would
+        // just 402 on every message.
+        const miniCortexHtml = isPaidUser ? `
+                <aside class="sf-mini-cortex-panel">
+                    <div class="sf-mini-cortex-header">Cortex</div>
+                    <div class="sf-mini-cortex-thread"><div class="sf-mini-cortex-empty">Ask about the question you're on - Cortex can see what you're currently working on.</div></div>
+                    <form class="sf-mini-cortex-form">
+                        <input type="text" class="sf-mini-cortex-input" placeholder="Ask Cortex…" maxlength="500" autocomplete="off">
+                        <button type="submit" class="btn sf-mini-cortex-send">Send</button>
+                    </form>
+                </aside>` : '';
         contentInner.innerHTML = `
-            <div class="sf-feed-root">
+            <div class="sf-feed-root${isPaidUser ? ' has-mini-cortex' : ''}">
                 <button type="button" class="sf-feed-exit-btn" title="${escapeHtml(exitTitle)}">✕</button>
                 <div class="sf-feed-viewport">
                     <div class="sf-feed-track"></div>
                 </div>
                 <div class="sf-recall-nudge" hidden></div>
+                ${miniCortexHtml}
             </div>`;
         const viewportEl = contentInner.querySelector('.sf-feed-viewport');
         const trackEl = contentInner.querySelector('.sf-feed-track');
@@ -16819,10 +16962,92 @@ SQIDAQAB
         contentInner.querySelector('.sf-feed-exit-btn').addEventListener('click', sfCloseFeed);
         sfFeed = {
             slides: [], meta: [], currentIndex: 0, locked: false, trackEl, viewportEl, nudgeEl, appending: false, onClose, scopeFolder: scopeFolder || null,
-            recallTimers: [], trackedRecallIds: new Set(),
+            recallTimers: [], trackedRecallIds: new Set(), miniCortexHistory: [],
         };
         sfWireGestures(viewportEl);
+        const miniCortexEl = contentInner.querySelector('.sf-mini-cortex-panel');
+        if (miniCortexEl) sfWireMiniCortex(miniCortexEl);
         return { trackEl, viewportEl };
+    }
+
+    // Reads a short snippet of what's actually on screen right now (the
+    // current slide's subject label plus its question/explanation text)
+    // so Cortex answers "explain this" or "what does X mean here" without
+    // the student having to restate the question themselves. Sent to the
+    // backend as invisible context ahead of the student's own message,
+    // never shown in the thread itself. Best-effort: any slide shape this
+    // doesn't recognise just yields an empty snippet, which still works -
+    // Cortex falls back to a general answer.
+    function sfCurrentSlideContext() {
+        const slideEl = sfFeed && sfFeed.slides[sfFeed.currentIndex];
+        if (!slideEl) return '';
+        const subject = slideEl.querySelector('.sf-slide-subject')?.textContent?.trim() || '';
+        const body = (slideEl.querySelector('.sf-question-text')?.textContent
+            || slideEl.querySelector('.sf-slide-explanation')?.textContent
+            || '').trim().slice(0, 400);
+        if (!subject && !body) return '';
+        return [subject && `Subject: ${subject}`, body && `Currently on screen: ${body}`].filter(Boolean).join('\n');
+    }
+
+    function sfWireMiniCortex(panelEl) {
+        const threadEl = panelEl.querySelector('.sf-mini-cortex-thread');
+        const formEl = panelEl.querySelector('.sf-mini-cortex-form');
+        const inputEl = panelEl.querySelector('.sf-mini-cortex-input');
+        const sendBtn = panelEl.querySelector('.sf-mini-cortex-send');
+
+        function appendMsg(role, text) {
+            const emptyEl = threadEl.querySelector('.sf-mini-cortex-empty');
+            if (emptyEl) emptyEl.remove();
+            const el = document.createElement('div');
+            el.className = `sf-mini-cortex-msg sf-mini-cortex-msg-${role}`;
+            el.textContent = text;
+            threadEl.appendChild(el);
+            threadEl.scrollTop = threadEl.scrollHeight;
+            return el;
+        }
+
+        formEl.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const text = inputEl.value.trim();
+            if (!text || !sfFeed) return;
+            inputEl.value = '';
+            appendMsg('user', text);
+            sfFeed.miniCortexHistory.push({ role: 'user', content: text });
+            sendBtn.disabled = true;
+            const pendingEl = appendMsg('assistant', '…');
+            pendingEl.classList.add('sf-mini-cortex-msg-pending');
+
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (!session) throw new Error('Not logged in.');
+                const context = sfCurrentSlideContext();
+                const resp = await fetch(`${COMPILE_BACKEND_URL}/cortex/message`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                    body: JSON.stringify({
+                        message: context ? `${context}\n\nStudent's question: ${text}` : text,
+                        history: sfFeed.miniCortexHistory.slice(-10),
+                        folders: [],
+                        dueReviews: [],
+                    }),
+                });
+                if (!resp.ok) {
+                    const body = await resp.json().catch(() => ({}));
+                    throw new Error(body.error || `Server returned ${resp.status}`);
+                }
+                const result = await resp.json();
+                pendingEl.textContent = result.reply;
+                pendingEl.classList.remove('sf-mini-cortex-msg-pending');
+                sfFeed.miniCortexHistory.push({ role: 'assistant', content: result.reply });
+            } catch (err) {
+                console.error('LastMind: mini-Cortex message failed.', err);
+                pendingEl.textContent = "Couldn't reach Cortex just now - try again.";
+                pendingEl.classList.remove('sf-mini-cortex-msg-pending');
+            } finally {
+                sendBtn.disabled = false;
+                threadEl.scrollTop = threadEl.scrollHeight;
+            }
+        });
     }
 
     function sfAppendBuiltSlides(built) {
