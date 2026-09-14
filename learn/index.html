@@ -16338,15 +16338,34 @@ SQIDAQAB
         }
 
         const lesson = await fetchNodeLesson(rec.node.id);
-        if (!lesson || lesson.notFound || lesson.loadError || !lesson.explanation) {
+        if (!lesson || lesson.notFound || lesson.loadError || lesson.generationRateLimited || lesson.lockLimitReached || !lesson.explanation) {
+            // lockLimitReached/generationRateLimited are real, specific,
+            // actionable reasons (see renderLockLimitReachedCard/
+            // renderGenerationRateLimitCard's own use elsewhere in this
+            // file) - a real reported bug: this particular lesson-loading
+            // path fell straight through to the generic "couldn't load"
+            // message for both, which reads as a bug/outage rather than
+            // what actually happened (out of Locks, or today's brand-new-
+            // content generation cap). Checked and messaged explicitly
+            // here too rather than left to the generic fallback below.
+            let bodyText = `Couldn't load the next lesson right now - open ${escapeHtml(folderLabel(rec.folder))} directly instead.`;
+            let showBuyMoreBtn = false;
+            if (lesson && lesson.lockLimitReached) {
+                bodyText = "You've used up your Locks for now - open the subject directly to buy more, or wait for next month's refresh.";
+                showBuyMoreBtn = true;
+            } else if (lesson && lesson.generationRateLimited) {
+                bodyText = "You've reached today's limit on generating brand-new lesson content - this isn't about your Locks balance, and it resets automatically. Already-generated lessons still work normally.";
+            }
             const el = document.createElement('div');
             el.className = 'sf-feed-slide';
             el.innerHTML = `
                 <div class="sf-slide-inner sf-handoff">
                     <div class="sf-speaker-label">Cortex</div>
-                    <p class="sf-handoff-text">Couldn't load the next lesson right now - open ${escapeHtml(folderLabel(rec.folder))} directly instead.</p>
+                    <p class="sf-handoff-text">${bodyText}</p>
+                    ${showBuyMoreBtn ? '<button type="button" class="btn sf-handoff-buy-more-btn">Buy more tokens</button>' : ''}
                     <button type="button" class="btn primary sf-handoff-btn">Open ${escapeHtml(folderLabel(rec.folder))} →</button>
                 </div>`;
+            if (showBuyMoreBtn) el.querySelector('.sf-handoff-buy-more-btn').addEventListener('click', showBuyMoreLocksPrompt);
             el.querySelector('.sf-handoff-btn').addEventListener('click', () => {
                 sfCloseFeed();
                 selectFolder(rec.folder.id);
