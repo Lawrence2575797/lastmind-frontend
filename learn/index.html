@@ -3626,6 +3626,12 @@
     .pq-assist-option-btn.selected { border-color: var(--accent); background: var(--accent); color: var(--bg); font-weight: 700; }
     .pq-assist-actions { display: flex; justify-content: flex-end; gap: 10px; }
     .pq-assist-result { margin-top: 10px; padding: 12px 14px; border-radius: 8px; background: rgba(0,0,0,0.15); font-size: 14.5px; line-height: 1.6; }
+    /* Both render via notesTextToHtml (real <p>/<ul> tags, not raw text) -
+       explicit spacing since these sit inside custom containers with no
+       inherited paragraph rhythm of their own. */
+    .pq-assist-result p, .pq-model-answer-body p { margin: 0 0 10px; }
+    .pq-assist-result p:last-child, .pq-model-answer-body p:last-child { margin-bottom: 0; }
+    .pq-assist-result ul, .pq-model-answer-body ul { margin: 0 0 10px; padding-left: 22px; }
 
     /* Model answer panel - sits below a question's own answer box/result,
        above the pick-list for the next question (see
@@ -8988,7 +8994,17 @@ SQIDAQAB
                         resultEl.className = 'pq-assist-result';
                         assistBtn.closest('.bottom-action-row').insertAdjacentElement('afterend', resultEl);
                     }
-                    resultEl.innerHTML = renderMathShorthand(body.assistance);
+                    // notesTextToHtml, not renderMathShorthand - the prompt
+                    // now asks for real blank-line-separated paragraphs
+                    // and **bold** key terms (see
+                    // PRACTICE_QUESTION_ASSISTANCE_PROMPT's own rule 5),
+                    // same contract this function already handles for
+                    // AI-generated notes elsewhere in the app.
+                    // splitIntoParagraphs would be wrong here - it
+                    // ignores real newlines and regroups by sentence
+                    // count instead, which could blend the model's own
+                    // deliberate paragraph boundaries together.
+                    resultEl.innerHTML = notesTextToHtml(body.assistance);
                     refreshLocksChip();
                 } catch (err) {
                     alert(err.message || 'Something went wrong.');
@@ -9020,7 +9036,7 @@ SQIDAQAB
                 panel.innerHTML = `
                     <button type="button" class="pq-model-answer-toggle" id="pq-model-answer-toggle-${q.id}">Hide</button>
                     <div class="pq-model-answer-label">Model answer</div>
-                    <div class="pq-model-answer-body">${renderMathShorthand(body.modelAnswerText)}</div>
+                    <div class="pq-model-answer-body">${notesTextToHtml(body.modelAnswerText)}</div>
                     <div class="pq-model-answer-score">Self-checked: ${body.selfCheck.markAwarded} / ${body.selfCheck.markTariff} marks against the mark scheme.</div>
                 `;
                 panel.hidden = false;
