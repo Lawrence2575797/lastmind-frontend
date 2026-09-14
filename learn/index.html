@@ -3639,6 +3639,65 @@
     .pq-model-answer-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.6; margin-bottom: 8px; padding-right: 70px; }
     .pq-model-answer-score { font-size: 12.5px; opacity: 0.75; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(230, 215, 176, 0.15); }
 
+    /* Progress Report (see renderProgressReport) */
+    .pr-page { max-width: 880px; margin: 0 auto; padding: 32px 24px 60px; display: flex; flex-direction: column; gap: 30px; }
+    .pr-header-row { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+    .pr-week-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; opacity: 0.6; }
+    .pr-title { font-family: Georgia, serif; font-size: 30px; margin: 4px 0 6px; }
+    .pr-headline-sub { font-size: 14px; opacity: 0.8; }
+    .pr-headline-change { color: var(--accent); font-weight: 700; }
+    .pr-history-select { font: inherit; font-size: 12.5px; padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(230, 215, 176, 0.25); background: var(--panel); color: var(--text); }
+
+    .pr-glance-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .pr-glance-tile { background: var(--panel); border-radius: 10px; padding: 16px; text-align: center; }
+    .pr-glance-value { font-size: 22px; font-weight: 700; }
+    .pr-glance-label { font-size: 11.5px; opacity: 0.7; margin-top: 4px; }
+
+    .pr-section-title { font-family: Georgia, serif; font-size: 20px; margin-bottom: 4px; }
+    .pr-section-sub { font-size: 13px; opacity: 0.7; margin-bottom: 14px; }
+
+    .pr-subject-card { background: var(--panel); border-radius: 10px; padding: 16px 18px; margin-bottom: 10px; }
+    .pr-subject-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+    .pr-subject-name { font-weight: 700; }
+    .pr-subject-change { color: var(--accent); font-weight: 700; }
+    .pr-bar-track { height: 8px; border-radius: 4px; background: rgba(0,0,0,0.2); overflow: hidden; margin-bottom: 8px; }
+    .pr-bar-fill { height: 100%; background: var(--accent); border-radius: 4px; }
+    .pr-subject-detail { font-size: 12.5px; opacity: 0.75; }
+
+    .pr-concept-card { background: var(--panel); border-radius: 10px; padding: 14px 18px; margin-bottom: 10px; display: flex; align-items: flex-start; gap: 10px; }
+    .pr-concept-dot { flex: none; margin-top: 3px; }
+    .pr-concept-body { flex: 1; }
+    .pr-concept-name { font-weight: 700; margin-bottom: 2px; }
+    .pr-concept-meta { font-size: 12px; opacity: 0.65; margin-bottom: 4px; }
+    .pr-concept-note { font-size: 13px; opacity: 0.85; }
+    .pr-review-btn { font-size: 12px; padding: 5px 12px; }
+
+    .pr-win-card { background: var(--panel); border-radius: 12px; padding: 22px; text-align: center; }
+    .pr-win-trophy { font-size: 32px; }
+    .pr-win-title { font-family: Georgia, serif; font-size: 19px; margin: 8px 0 12px; }
+    .pr-win-detail { font-size: 14px; line-height: 1.7; }
+    .pr-win-swing { font-weight: 700; color: var(--accent); }
+
+    .pr-empty-hint { font-size: 13.5px; opacity: 0.65; padding: 10px 2px; }
+
+    .pr-momentum-row { display: flex; gap: 14px; flex-wrap: wrap; }
+    .pr-momentum-tile { flex: 1; min-width: 160px; background: var(--panel); border-radius: 10px; padding: 16px; }
+    .pr-momentum-value { font-size: 20px; font-weight: 700; }
+    .pr-momentum-label { font-size: 12px; opacity: 0.7; margin-top: 4px; }
+    .pr-bestday-name { font-weight: 700; margin-bottom: 2px; }
+
+    .pr-recommend-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+    .pr-recommend-item { display: flex; gap: 10px; align-items: baseline; font-size: 14.5px; }
+    .pr-recommend-rank { font-weight: 700; opacity: 0.6; width: 18px; flex: none; }
+    .pr-plan-card { background: var(--panel); border-radius: 10px; padding: 16px 18px; }
+    .pr-plan-row { display: flex; justify-content: space-between; font-size: 14px; padding: 4px 0; }
+    .pr-plan-total { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(230, 215, 176, 0.15); font-size: 12.5px; opacity: 0.75; }
+
+    .pr-lifetime-card { text-align: center; padding: 24px; }
+    .pr-lifetime-value { font-size: 26px; font-weight: 700; }
+    .pr-lifetime-sub { font-size: 14px; opacity: 0.75; margin-top: 8px; line-height: 1.6; }
+    .pr-cta-btn { margin-top: 18px; }
+
     .unlock-notes-link {
         display: block;
         background: none;
@@ -5301,6 +5360,7 @@
                          yet, see buyMoreTokensBtn's own click handler. -->
                     <button class="cortex-btn-topbar" id="buyMoreTokensBtn" type="button">Buy more tokens</button>
                     <button class="cortex-btn-topbar" id="practiceQuestionsTopbarBtn" type="button">Exam Preparation</button>
+                    <button class="cortex-btn-topbar" id="progressReportTopbarBtn" type="button">Progress Report</button>
                     <button class="cortex-btn-topbar" id="knowledgeMapTopbarBtn" type="button">Knowledge Map</button>
                     <button class="cortex-btn-topbar upgrade-topbar-btn" id="upgradeTopbarBtn" type="button" style="display:none;">Upgrade</button>
                     <button class="cortex-btn-topbar" id="peerTutoringHubBtn" type="button">Peer tutoring</button>
@@ -8410,6 +8470,174 @@ SQIDAQAB
 
     document.getElementById('practiceQuestionsTopbarBtn').addEventListener('click', renderExamPrepEntryScreen);
     document.getElementById('dashboardTopbarBtn').addEventListener('click', goToMainFeed);
+
+    async function prFetch(path) {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return null;
+        const resp = await fetch(`${COMPILE_BACKEND_URL}${path}`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+        if (!resp.ok) return null;
+        return await resp.json();
+    }
+
+    function prPct(n) { return n === null || n === undefined ? null : `${n > 0 ? '+' : ''}${n}%`; }
+
+    // rangeLabel (e.g. "62% → 78%") is monthly's own thing - its most
+    // distinctive figure, shown in place of the weekly view's %-change
+    // badge rather than dropped, which an earlier version of this did by
+    // reusing the weekly shape verbatim with nowhere for it to go.
+    function prSubjectRowsHtml(rows) {
+        if (!rows.length) return `<div class="pr-empty-hint">Nothing to show here yet — keep studying and this fills in.</div>`;
+        return rows.map((s) => `
+            <div class="pr-subject-card">
+                <div class="pr-subject-top">
+                    <span class="pr-subject-name">${escapeHtml(s.subject)}</span>
+                    ${s.rangeLabel ? `<span class="pr-subject-change">${escapeHtml(s.rangeLabel)}</span>` : (s.pctAccuracyChange !== null && s.pctAccuracyChange !== undefined ? `<span class="pr-subject-change">${escapeHtml(prPct(s.pctAccuracyChange))}</span>` : '')}
+                </div>
+                <div class="pr-bar-track"><div class="pr-bar-fill" style="width:${s.barPct}%;"></div></div>
+                <div class="pr-subject-detail">${s.conceptsStrengthened} concept${s.conceptsStrengthened === 1 ? '' : 's'} strengthened${s.newStabilityMilestones ? ` · ${s.newStabilityMilestones} reached a new stability level` : ''}</div>
+            </div>
+        `).join('');
+    }
+
+    async function renderProgressReport(weekStartOverride) {
+        selectedFolderId = null;
+        kmGraphMode = false;
+        specPracticeMode = false;
+        stopActiveDictation();
+        stopSpeaking();
+        document.getElementById('topbarTitle').textContent = 'Progress Report';
+        const contentInner = document.getElementById('contentInner');
+        contentInner.classList.add('content-inner-wide');
+        showLoadingWithColdStartHint(contentInner, 'Loading your progress report…');
+        refreshFolderList();
+
+        const report = weekStartOverride ? await prFetch(`/progress-report/${weekStartOverride}`) : await prFetch('/progress-report');
+        // Every other view-render function sets its own topbarTitle - if
+        // it's no longer 'Progress Report' by the time this resolves, the
+        // student navigated elsewhere while it was loading; don't clobber
+        // whatever's now on screen with a stale response.
+        if (document.getElementById('topbarTitle').textContent !== 'Progress Report') return;
+        if (!report) {
+            contentInner.innerHTML = `<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Couldn't load your progress report right now — check your connection and try again.</p></div>`;
+            return;
+        }
+
+        const history = await prFetch('/progress-report/history');
+        const historyOptionsHtml = (history && history.weeks && history.weeks.length)
+            ? history.weeks.map((w) => `<option value="${escapeHtml(w.weekStart)}" ${w.weekStart === report.weekStart ? 'selected' : ''}>${escapeHtml(w.weekLabel)}</option>`).join('')
+            : `<option value="${escapeHtml(report.weekStart)}" selected>${escapeHtml(report.weekLabel)}</option>`;
+
+        contentInner.innerHTML = `
+            <div class="pr-page">
+                <div>
+                    <div class="pr-header-row">
+                        <div>
+                            <div class="pr-week-label">${escapeHtml(report.weekLabel)}</div>
+                            <h1 class="pr-title">Your Week</h1>
+                        </div>
+                        ${history && history.weeks && history.weeks.length > 1 ? `<select class="pr-history-select" id="prHistorySelect">${historyOptionsHtml}</select>` : ''}
+                    </div>
+                    <p class="pr-headline-sub">You made <strong>${report.headline.conceptsStrengthened} concept${report.headline.conceptsStrengthened === 1 ? '' : 's'} stronger</strong> this week.${report.headline.pctChangeVsLastWeek !== null ? ` <span class="pr-headline-change">${escapeHtml(prPct(report.headline.pctChangeVsLastWeek))}</span> compared with last week.` : ''}</p>
+                </div>
+
+                <div>
+                    <h2 class="pr-section-title">Your Week at a Glance</h2>
+                    <div class="pr-glance-grid">
+                        <div class="pr-glance-tile"><div class="pr-glance-value">${report.glance.conceptsStrengthened}</div><div class="pr-glance-label">Concepts strengthened</div></div>
+                        <div class="pr-glance-tile"><div class="pr-glance-value">${report.glance.learningTimeMinutes}m</div><div class="pr-glance-label">Learning time (est.)</div></div>
+                        <div class="pr-glance-tile"><div class="pr-glance-value">${report.glance.averageAccuracyPct}%</div><div class="pr-glance-label">Average accuracy</div></div>
+                        <div class="pr-glance-tile"><div class="pr-glance-value">${report.glance.momentumDays}/7</div><div class="pr-glance-label">Days with momentum</div></div>
+                    </div>
+                </div>
+
+                <div>
+                    <h2 class="pr-section-title">Your Biggest Progress</h2>
+                    ${prSubjectRowsHtml(report.bySubject)}
+                </div>
+
+                <div>
+                    <h2 class="pr-section-title">What You Mastered</h2>
+                    <p class="pr-section-sub">Concepts you've made particularly strong this week.</p>
+                    ${report.mastered.length ? report.mastered.map((m) => `
+                        <div class="pr-concept-card">
+                            <span class="pr-concept-dot">🟢</span>
+                            <div class="pr-concept-body">
+                                <div class="pr-concept-name">${escapeHtml(m.label)}</div>
+                                <div class="pr-concept-meta">Stable for ${m.stabilityDays} days</div>
+                            </div>
+                        </div>
+                    `).join('') : `<div class="pr-empty-hint">Nothing newly mastered this week — keep at it.</div>`}
+                </div>
+
+                <div>
+                    <h2 class="pr-section-title">What Needs Attention</h2>
+                    <p class="pr-section-sub">A few concepts are starting to become less reliable.</p>
+                    ${report.needsAttention.length ? report.needsAttention.map((n) => `
+                        <div class="pr-concept-card">
+                            <span class="pr-concept-dot">⚠️</span>
+                            <div class="pr-concept-body">
+                                <div class="pr-concept-name">${escapeHtml(n.label)}</div>
+                                <div class="pr-concept-meta">${n.recallStrengthPct}% recall strength</div>
+                            </div>
+                        </div>
+                    `).join('') : `<div class="pr-empty-hint">Nothing urgent right now.</div>`}
+                </div>
+
+                ${report.biggestWin ? `
+                <div>
+                    <h2 class="pr-section-title">Your Biggest Win</h2>
+                    <div class="pr-win-card">
+                        <div class="pr-win-trophy">🏆</div>
+                        <div class="pr-win-title">You turned a weakness into a strength.</div>
+                        <div class="pr-win-detail">On <strong>${escapeHtml(report.biggestWin.label)}</strong>, you went from a ${report.biggestWin.startAccuracyPct}-point answer to a ${report.biggestWin.endAccuracyPct}-point answer this week — a <span class="pr-win-swing">${report.biggestWin.pointsImprovement}-point improvement</span>.</div>
+                    </div>
+                </div>` : ''}
+
+                <div>
+                    <h2 class="pr-section-title">Your Progress This Month</h2>
+                    ${prSubjectRowsHtml(report.monthly.map((m) => ({ subject: m.subject, rangeLabel: `${m.startAccuracyPct}% → ${m.endAccuracyPct}%`, barPct: m.barPct, conceptsStrengthened: m.conceptsStrengthened })))}
+                </div>
+
+                <div>
+                    <h2 class="pr-section-title">You're Building Momentum</h2>
+                    <div class="pr-momentum-row">
+                        <div class="pr-momentum-tile"><div class="pr-momentum-value">${report.momentum.daysStudied} of 7</div><div class="pr-momentum-label">Days studied this week</div></div>
+                        <div class="pr-momentum-tile"><div class="pr-momentum-value">${report.momentum.longestRun} day${report.momentum.longestRun === 1 ? '' : 's'}</div><div class="pr-momentum-label">Longest run this week</div></div>
+                        ${report.momentum.bestDay ? `<div class="pr-momentum-tile"><div class="pr-bestday-name">${escapeHtml(new Date(`${report.momentum.bestDay.date}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' }))}</div><div class="pr-momentum-label">${report.momentum.bestDay.minutes}m · ${report.momentum.bestDay.conceptsStrengthened} concept${report.momentum.bestDay.conceptsStrengthened === 1 ? '' : 's'} strengthened</div></div>` : ''}
+                    </div>
+                </div>
+
+                <div>
+                    <h2 class="pr-section-title">What LastMind Recommends</h2>
+                    ${report.recommendations.priority.length ? `
+                        <div class="pr-recommend-list">
+                            ${report.recommendations.priority.map((p, i) => `<div class="pr-recommend-item"><span class="pr-recommend-rank">${i + 1}.</span><span>${escapeHtml(p.label)}</span></div>`).join('')}
+                        </div>
+                        <div class="pr-plan-card">
+                            ${report.recommendations.plan.map((p) => `<div class="pr-plan-row"><span>${escapeHtml(p.subject)}</span><span>${p.sessions} session${p.sessions === 1 ? '' : 's'}</span></div>`).join('')}
+                            <div class="pr-plan-total">Estimated time: ${Math.round(report.recommendations.estimatedMinutes / 60 * 10) / 10}h</div>
+                        </div>
+                    ` : `<div class="pr-empty-hint">Nothing urgent flagged right now — nice work staying on top of things.</div>`}
+                </div>
+
+                <div class="pr-lifetime-card">
+                    <div class="pr-lifetime-value">${report.lifetimeConceptsStrengthened}</div>
+                    <div class="pr-lifetime-sub">concepts strengthened since joining LastMind.<br>You're not just doing more revision — you're making what you already know harder to forget.</div>
+                    <button type="button" class="btn primary pr-cta-btn" id="prStartPlanBtn">Start This Week's Plan →</button>
+                </div>
+            </div>
+        `;
+
+        const historySelect = document.getElementById('prHistorySelect');
+        if (historySelect) {
+            historySelect.addEventListener('change', () => renderProgressReport(historySelect.value));
+        }
+        document.getElementById('prStartPlanBtn').addEventListener('click', () => {
+            selectFolder(null);
+        });
+        sfOpenSidebarOnMobile();
+    }
+    document.getElementById('progressReportTopbarBtn').addEventListener('click', () => renderProgressReport());
 
     // Same pattern as renderExamPrepEntryScreen/exitSpecPracticeMode - the
     // full atomic knowledge-map graph is now its own explicit mode rather
