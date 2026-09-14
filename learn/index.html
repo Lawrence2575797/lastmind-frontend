@@ -1502,6 +1502,15 @@
     .diagram-curve-given { stroke-opacity: 0.45; stroke-dasharray: 5 3; }
     .diagram-curve-placed { cursor: grab; }
     .diagram-curve-tag { fill: var(--accent); font-size: 12px; font-weight: 700; font-family: Arial, sans-serif; }
+    /* Endpoint handles - the two draggable dots at each end of a placed
+       curve (see renderDiagramWidget's endpoint pointerdown wiring). Drawn
+       on top of the curve/tag, larger invisible hit ring plus a smaller
+       visible dot, same "grab a handle to extend, don't touch the middle
+       to translate" convention as ordinary vector-drawing tools. */
+    .diagram-curve-handle-hit { fill: transparent; cursor: ew-resize; }
+    .diagram-curve-handle-dot { fill: var(--bg); stroke: var(--accent); stroke-width: 2; pointer-events: none; }
+    .diagram-intersection-guide { stroke: var(--text); opacity: 0.35; stroke-width: 1; stroke-dasharray: 3 3; }
+    .diagram-intersection-label { fill: var(--text); font-size: 12px; font-weight: 700; font-family: Arial, sans-serif; opacity: 0.85; }
     .diagram-shade { fill: rgba(230, 215, 176, 0.28); stroke: rgba(230, 215, 176, 0.5); stroke-width: 1; }
     .diagram-shade-point { fill: var(--accent); }
     .diagram-shade-draft-line { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 3 3; }
@@ -15235,7 +15244,7 @@ SQIDAQAB
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
         contentInner.innerHTML = `
-            <div class="dashboard-view dashboard-locked" style="max-width:760px;">
+            <div class="dashboard-view dashboard-locked" style="max-width:760px; margin:0 auto;">
                 <h1 class="dashboard-locked-logo">Economics <span>Drawing Tool</span></h1>
                 <p class="dashboard-locked-quote">Build and save supply/demand-style diagrams for your course — everything here is yours to come back to any time.</p>
                 <button type="button" class="btn primary" id="econDiagramNewBtn" style="margin:16px auto 24px; display:block;">+ Create new diagram</button>
@@ -15290,9 +15299,9 @@ SQIDAQAB
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
         contentInner.innerHTML = `
-            <div class="dashboard-view dashboard-locked" style="max-width:900px;">
+            <div class="dashboard-view dashboard-locked" style="max-width:900px; margin:0 auto;">
                 <button type="button" class="btn btn-on-content" id="econDiagramBackBtn" style="margin-bottom:16px;">← Back to gallery</button>
-                <h2 style="margin-bottom:14px;">${escapeHtml(diagram.title)}</h2>
+                <h2 style="margin-bottom:14px; text-align:center;">${escapeHtml(diagram.title)}</h2>
                 <div id="econDiagramWidgetHost"></div>
             </div>
         `;
@@ -19694,6 +19703,48 @@ SQIDAQAB
     const DIAGRAM_GIVEN_ORIGIN = { x: 140, y: 90 };
 
     function diagramTranslate(local, x, y) { return local.map((p) => ({ x: p.x + x, y: p.y + y })); }
+    // Mirrors diagramGradingService.ts's scaleLocal exactly - scales a
+    // curve's local shape outward from its own first point (what the
+    // widget's far-end drag handle pulls away from) before translating
+    // into board space. renderDiagramWidget always keeps scaleX===scaleY
+    // (a uniform factor) so a drag only ever changes a curve's LENGTH,
+    // never its gradient/shape - see its endpoint-drag handling.
+    function diagramScaleLocal(local, sx, sy) {
+        const origin = local[0];
+        return local.map((p) => ({ x: origin.x + (p.x - origin.x) * sx, y: origin.y + (p.y - origin.y) * sy }));
+    }
+    function diagramPlacedPoly(local, inst) {
+        return diagramTranslate(diagramScaleLocal(local, inst.scaleX || 1, inst.scaleY || 1), inst.x, inst.y);
+    }
+    const DIAGRAM_MIN_CURVE_SCALE = 0.35;
+    const DIAGRAM_MAX_CURVE_SCALE = 2.5;
+    // Captures everything a subsequent pointermove needs to extend a
+    // curve from a FIXED opposite end: the anchor (the end NOT being
+    // dragged, in current canvas space - captured once at drag-start so
+    // it never itself drifts mid-drag), the direction ray from that
+    // anchor toward the handle being dragged, and the shape's own
+    // un-scaled endpoint separation (baseLen) so the projected drag
+    // distance converts into the same scale units diagramPlacedPoly/
+    // diagramGradingService.ts's scaleLocal both expect. Dragging the
+    // 'near' handle also has to move the curve's own placement origin
+    // (inst.x/y) - but poly[0] (canvas) is local[0]+inst.{x,y}, NOT
+    // inst.{x,y} directly, since CURVE_SHAPES' own first point isn't
+    // always (0,0) (e.g. "supply" starts at {x:0,y:160}) - nearLocal is
+    // carried along so the pointermove handler can undo that offset
+    // rather than silently assuming it's zero, which was the original
+    // bug here (every curve whose local[0].y != 0 had its OTHER,
+    // supposedly-fixed end drift on a near-handle drag).
+    function diagramBeginEndpointDrag(inst, local, end, poly) {
+        const near = poly[0], far = poly[poly.length - 1];
+        const dx = far.x - near.x, dy = far.y - near.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const dir = { x: dx / len, y: dy / len };
+        const nearLocal = local[0], farLocal = local[local.length - 1];
+        const baseLen = Math.hypot(farLocal.x - nearLocal.x, farLocal.y - nearLocal.y) || 1;
+        return end === 'far'
+            ? { type: 'endpoint', id: inst.instanceId, end, anchor: { x: near.x, y: near.y }, dir, baseLen, nearLocal }
+            : { type: 'endpoint', id: inst.instanceId, end, anchor: { x: far.x, y: far.y }, dir: { x: -dir.x, y: -dir.y }, baseLen, nearLocal };
+    }
     function diagramPolylinePoints(poly) { return poly.map((p) => `${p.x},${p.y}`).join(' '); }
     function diagramBaseType(type) { return (type || '').replace(/_shift_(left|right)$/, ''); }
     function svgElement(tag, attrs) {
@@ -19985,10 +20036,12 @@ SQIDAQAB
                 if (state.shadeDraft.length > 1) svg.appendChild(svgElement('polyline', { points: state.shadeDraft.map((p) => `${p.x},${p.y}`).join(' '), class: 'diagram-shade-draft-line' }));
             }
 
+            const placedPolys = [];
             state.placed.forEach((inst) => {
                 const local = DIAGRAM_CURVE_SHAPES[diagramBaseType(inst.curveTypeId)];
                 if (!local) return;
-                const poly = diagramTranslate(local, inst.x, inst.y);
+                const poly = diagramPlacedPoly(local, inst);
+                placedPolys.push(poly);
                 const el = svgElement('polyline', { points: diagramPolylinePoints(poly), class: 'diagram-curve diagram-curve-placed' });
                 el.addEventListener('pointerdown', (ev) => {
                     ev.preventDefault();
@@ -19999,7 +20052,50 @@ SQIDAQAB
                 const tag = svgElement('text', { x: poly[0].x, y: poly[0].y - 6, class: 'diagram-curve-tag' });
                 tag.textContent = DIAGRAM_PALETTE_LABELS[diagramBaseType(inst.curveTypeId)] || inst.curveTypeId;
                 svg.appendChild(tag);
+
+                // Endpoint handles - drag either dot to extend/shorten the
+                // curve along its own fixed direction (gradient never
+                // changes, only length: see diagramBeginEndpointDrag).
+                // A near-invisible larger hit-ring plus a small visible
+                // dot, one pair per end, drawn after the curve/tag so they
+                // sit on top and win the pointerdown.
+                [{ end: 'near', pt: poly[0] }, { end: 'far', pt: poly[poly.length - 1] }].forEach((h) => {
+                    const hit = svgElement('circle', { cx: h.pt.x, cy: h.pt.y, r: 11, class: 'diagram-curve-handle-hit' });
+                    hit.addEventListener('pointerdown', (ev) => {
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                        state.dragging = diagramBeginEndpointDrag(inst, local, h.end, poly);
+                    });
+                    svg.appendChild(hit);
+                    svg.appendChild(svgElement('circle', { cx: h.pt.x, cy: h.pt.y, r: 4.5, class: 'diagram-curve-handle-dot' }));
+                });
             });
+
+            // Auto price/quantity labelling wherever two placed curves
+            // cross - dashed guide lines dropped to each axis plus a
+            // Pn/Qn tag, the standard textbook equilibrium-point
+            // convention, using the same intersection math
+            // renderStaticDiagram/diagramGradingService.ts already rely
+            // on (never stored - recomputed from state.placed every
+            // render, so dragging a curve updates it live).
+            let intersectionSeq = 0;
+            for (let i = 0; i < placedPolys.length; i++) {
+                for (let j = i + 1; j < placedPolys.length; j++) {
+                    const hit = diagramPolylineIntersection(placedPolys[i], placedPolys[j]);
+                    if (!hit) continue;
+                    intersectionSeq++;
+                    const sub = String(intersectionSeq);
+                    svg.appendChild(svgElement('line', { x1: hit.x, y1: hit.y, x2: DIAGRAM_PRICE_AXIS[0].x, y2: hit.y, class: 'diagram-intersection-guide' }));
+                    svg.appendChild(svgElement('line', { x1: hit.x, y1: hit.y, x2: hit.x, y2: DIAGRAM_QUANTITY_AXIS[0].y, class: 'diagram-intersection-guide' }));
+                    svg.appendChild(svgElement('circle', { cx: hit.x, cy: hit.y, r: 2.5, class: 'diagram-curve-handle-dot' }));
+                    const pLabel = svgElement('text', { x: DIAGRAM_PRICE_AXIS[0].x - 6, y: hit.y + 4, class: 'diagram-intersection-label', 'text-anchor': 'end' });
+                    pLabel.textContent = `P${sub}`;
+                    svg.appendChild(pLabel);
+                    const qLabel = svgElement('text', { x: hit.x, y: DIAGRAM_QUANTITY_AXIS[0].y + 16, class: 'diagram-intersection-label', 'text-anchor': 'middle' });
+                    qLabel.textContent = `Q${sub}`;
+                    svg.appendChild(qLabel);
+                }
+            }
 
             state.arrows.forEach((a) => svg.appendChild(svgElement('line', { x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2, class: 'diagram-arrow', 'marker-end': `url(#${uid}-arrowhead)` })));
             if (state.arrowDraft) svg.appendChild(svgElement('line', { x1: state.arrowDraft.x1, y1: state.arrowDraft.y1, x2: state.arrowDraft.x2, y2: state.arrowDraft.y2, class: 'diagram-arrow' }));
@@ -20022,6 +20118,23 @@ SQIDAQAB
                 if (state.dragging.type === 'curve') {
                     const inst = state.placed.find((p) => p.instanceId === state.dragging.id);
                     if (inst) { inst.x = pt.x - state.dragging.offsetX; inst.y = pt.y - state.dragging.offsetY; render(); }
+                } else if (state.dragging.type === 'endpoint') {
+                    const inst = state.placed.find((p) => p.instanceId === state.dragging.id);
+                    if (inst) {
+                        const { anchor, dir, baseLen, end, nearLocal } = state.dragging;
+                        const t = (pt.x - anchor.x) * dir.x + (pt.y - anchor.y) * dir.y;
+                        const scale = Math.min(DIAGRAM_MAX_CURVE_SCALE, Math.max(DIAGRAM_MIN_CURVE_SCALE, t / baseLen));
+                        inst.scaleX = scale; inst.scaleY = scale;
+                        if (end === 'near') {
+                            // Desired near-point CANVAS position, then back
+                            // out inst.x/y from it (poly[0] = nearLocal + inst.{x,y} -
+                            // see diagramBeginEndpointDrag's own comment).
+                            const desiredNear = { x: anchor.x + dir.x * scale * baseLen, y: anchor.y + dir.y * scale * baseLen };
+                            inst.x = desiredNear.x - nearLocal.x;
+                            inst.y = desiredNear.y - nearLocal.y;
+                        }
+                        render();
+                    }
                 } else if (state.dragging.type === 'label') {
                     const l = state.labels[state.dragging.id];
                     if (l) { l.x = pt.x - state.dragging.offsetX; l.y = pt.y - state.dragging.offsetY; render(); }
@@ -20069,7 +20182,7 @@ SQIDAQAB
             labelSpan.textContent = DIAGRAM_PALETTE_LABELS[type] || type;
             btn.appendChild(labelSpan);
             btn.addEventListener('click', () => {
-                state.placed.push({ instanceId: `c${Math.random().toString(36).slice(2)}`, curveTypeId: type, x: 220, y: 160 });
+                state.placed.push({ instanceId: `c${Math.random().toString(36).slice(2)}`, curveTypeId: type, x: 220, y: 160, scaleX: 1, scaleY: 1 });
                 render();
             });
             paletteEl.appendChild(btn);
@@ -20112,7 +20225,7 @@ SQIDAQAB
             ev.target.disabled = true;
             ev.target.textContent = 'Checking…';
             const answer = {
-                curves: state.placed.map((p) => ({ instanceId: p.instanceId, curveTypeId: p.curveTypeId, x: p.x, y: p.y })),
+                curves: state.placed.map((p) => ({ instanceId: p.instanceId, curveTypeId: p.curveTypeId, x: p.x, y: p.y, scaleX: p.scaleX || 1, scaleY: p.scaleY || 1 })),
                 shades: state.shades.map((s) => ({ points: s.points, label: s.label })),
                 labels: state.labels.map((l) => ({ text: l.text, x: l.x, y: l.y })),
                 arrows: state.arrows.map((a) => ({ x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2 })),
