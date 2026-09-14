@@ -16556,9 +16556,25 @@ SQIDAQAB
     // afterward. Caller is responsible for having already set
     // sfFeed.locked = true and meta.answered/canAdvance before calling this.
     async function sfAdvanceAfterCorrectAnswer() {
+        const startIndex = sfFeed ? sfFeed.currentIndex : -1;
         try {
             await sfDelay(SF_AUTO_ADVANCE_DELAY_MS);
             if (!sfFeed) return;
+            // A same-session immediate recall (sfJumpToRecalls) can fire
+            // during this delay and jump the student onto its own
+            // inserted slide - sfFeed.currentIndex no longer being
+            // startIndex is how that shows up. Forcing this function's
+            // own move on top of that (now with sfForceMoveToIndex, which
+            // bypasses locking on purpose) would land on a stale,
+            // no-longer-meaningful index - a real, reported bug: it could
+            // move past the end of a slide list the recall had just
+            // spliced, landing on blank space with no real slide there
+            // ("a burgundy screen that didn't return"). Bail out instead
+            // and let the recall interrupt own the feed - its own
+            // onOneDone already returns to startIndex once every due
+            // recall is cleared (see sfJumpToRecalls), which is exactly
+            // where this function would have moved from anyway.
+            if (sfFeed.currentIndex !== startIndex) return;
             if (sfFeed.currentIndex >= sfFeed.slides.length - 1) {
                 await sfAppendNextRecommendation();
             } else {
