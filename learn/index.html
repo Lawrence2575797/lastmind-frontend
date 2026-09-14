@@ -1224,7 +1224,15 @@
        set its own colour (the explanation, the question, the speaker
        label, all of them) was invisible by construction, not a rendering
        fluke - confirmed from an actual screenshot of the live site. */
-    .sf-feed-root { position: relative; height: calc(100vh - 90px); min-height: 420px; border-radius: 12px; overflow: hidden; background: var(--panel); color: var(--text); }
+    /* max-width+margin:auto - without this the root fills the whole
+       1200px .content-inner-wide column while the actual text
+       (.sf-slide-inner) stays capped at 620px, leaving a wide band of
+       bare panel colour on either side of every slide's content. 760px
+       gives the 620px text column room to breathe (padding, the exit
+       button) without reopening that gap on a wide screen. The
+       mini-Cortex side panel (300px, has-mini-cortex) still gets its own
+       room since it's now INSIDE this narrower box - see its own CSS. */
+    .sf-feed-root { position: relative; height: calc(100vh - 90px); min-height: 420px; max-width: 760px; margin: 0 auto; border-radius: 12px; overflow: hidden; background: var(--panel); color: var(--text); }
     .sf-feed-exit-btn { position: absolute; top: 14px; right: 14px; z-index: 2; width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(0,0,0,0.25); color: var(--text); font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
     .sf-feed-viewport { position: absolute; inset: 0; overflow: hidden; outline: none; }
     .sf-feed-track { display: flex; flex-direction: column; height: 100%; transition: transform 400ms cubic-bezier(0.22, 1, 0.36, 1); will-change: transform; }
@@ -1288,6 +1296,13 @@
        window would produce. Desktop-only (see the max-width override
        below) - there's no room for a docked panel on a phone screen, and
        the feed's own swipe gestures already cover that case. */
+    /* .sf-feed-root's own max-width (760px, see its base rule) is sized
+       for the 620px text column alone - with the mini-Cortex panel docked
+       inside it, that would squeeze the text column down to ~460px. Widen
+       the box by exactly the panel's own width so the text column keeps
+       its normal room and the panel is genuinely additional space, not
+       stolen from it. */
+    .sf-feed-root.has-mini-cortex { max-width: 1060px; }
     .sf-feed-root.has-mini-cortex .sf-feed-viewport { right: 300px; }
     .sf-feed-root.has-mini-cortex .sf-feed-exit-btn { right: 314px; }
     .sf-feed-root.has-mini-cortex .sf-recall-nudge { right: 316px; }
@@ -3538,6 +3553,32 @@
     .theme-texture-btn { flex: 1; padding: 6px; font-size: 11px; font-family: Arial, sans-serif; text-align: center; border: 1px solid rgba(230, 215, 176, 0.25); border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; }
     .theme-texture-btn.active { border-color: var(--accent); color: var(--accent); font-weight: 600; }
 
+    /* One-click presets (see THEME_PRESETS) - sits above the three
+       individual colour fields, its own small section rather than a
+       fourth field, since a preset sets all three at once. */
+    .theme-preset-section { display: flex; flex-direction: column; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid rgba(230, 215, 176, 0.15); }
+    .theme-preset-label { font-size: 11px; font-family: Arial, sans-serif; opacity: 0.65; text-transform: uppercase; letter-spacing: 0.05em; }
+    .theme-preset-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .theme-preset-btn { padding: 6px 11px; font-size: 12px; font-family: Arial, sans-serif; border: 1px solid rgba(230, 215, 176, 0.3); border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; }
+    .theme-preset-btn:hover { background: rgba(230, 215, 176, 0.1); }
+
+    /* Image-backed background textures (see THEME_IMAGE_BACKGROUNDS) -
+       toggled on document.body by applyTheme. The sidebar deliberately
+       gets NO background-image of its own here: backdrop-filter blurs
+       whatever is actually behind the element, which - since the body's
+       own background is what's painted behind it - is the exact same
+       fixed image the rest of the page shows, just blurred in place,
+       rather than a flat colour block or a second, separately-cropped
+       copy of the picture. --panel-rgb (set alongside --panel in
+       applyTheme) keeps the tint on-theme with whatever panel colour the
+       active preset chose, instead of a hardcoded value that would look
+       wrong under some future second image preset. */
+    body.theme-bg-image .sidebar {
+        background: rgba(var(--panel-rgb), 0.45);
+        backdrop-filter: blur(26px);
+        -webkit-backdrop-filter: blur(26px);
+    }
+
     .unlock-notes-link {
         display: block;
         background: none;
@@ -5627,6 +5668,31 @@ SQIDAQAB
     const THEME_CACHE_KEY = 'lm-theme-settings';
     let currentTheme = { ...THEME_DEFAULTS };
 
+    // Named, one-click theme presets - a preset is just a full THEME_DEFAULTS-
+    // shaped object, applied and saved as all three fields at once (see
+    // applyPreset). Havnstad is the first: its background is a real
+    // generated scene (see THEME_IMAGE_BACKGROUNDS) rather than a
+    // procedural tint, and its text/panel colours are pulled from the
+    // Havnstad prototype's own dark-mode palette (viking-prototype/
+    // havnstad-bible.html's :root dark tokens) so the in-app theme
+    // actually matches the village it depicts, rather than an arbitrary
+    // pairing that happens to be legible.
+    const THEME_PRESETS = [
+        {
+            key: 'havnstad',
+            label: 'Havnstad',
+            theme: { textColor: '#E9E0CB', panelColor: '#1D262D', bgColor: '#D97A52', bgTexture: 'havnstad-village' },
+        },
+    ];
+
+    // bgTexture values backed by a real image rather than a procedural
+    // tint - the file itself lives in /assets/theme/ (served as a static
+    // asset by Cloudflare Pages, same origin both /learn/ and /cortex/
+    // load from) so one relative-to-root path works from either page.
+    const THEME_IMAGE_BACKGROUNDS = {
+        'havnstad-village': '/assets/theme/havnstad-village.jpg',
+    };
+
     function themeHexToRgb(hex) {
         hex = (hex || '').replace('#', '');
         if (hex.length === 3) hex = hex.split('').map((c) => c + c).join('');
@@ -5649,6 +5715,24 @@ SQIDAQAB
             `linear-gradient(100deg, ${light}, ${mid} 35%, ${light} 55%, ${dark} 85%, ${mid} 100%)`;
     }
 
+    // Builds the CSS `background` shorthand value for whichever texture is
+    // active. An image texture gets a fixed, dark scrim layered over it
+    // (not just the bare photo) so ANY text sitting directly on the page
+    // background - not inside a --panel box - stays legible regardless of
+    // which part of the picture happens to be behind it, the same problem
+    // a single fixed text colour can't reliably solve against a photo (see
+    // applyTheme's own --ink comment below). background-attachment:fixed
+    // keeps the image steady (not scrolling with page content) and lets
+    // the same fixed frame show through every panel's blur - see
+    // .theme-bg-image .sidebar's own CSS comment.
+    function themeBackgroundValue(theme) {
+        const imageUrl = THEME_IMAGE_BACKGROUNDS[theme.bgTexture];
+        if (imageUrl) {
+            return `linear-gradient(rgba(8,7,6,0.4), rgba(8,7,6,0.52)), center / cover no-repeat fixed url('${imageUrl}')`;
+        }
+        return theme.bgTexture === 'wood' ? themeWoodBackground(theme.bgColor) : theme.bgColor;
+    }
+
     // Also caches to localStorage on every call (cheap, synchronous) so
     // the NEXT page load can re-apply the last-known theme immediately,
     // before the account's real settings have even been fetched - without
@@ -5659,19 +5743,31 @@ SQIDAQAB
         root.setProperty('--text', theme.textColor);
         root.setProperty('--accent', theme.textColor);
         root.setProperty('--panel', theme.panelColor);
-        // --ink is deliberately NOT tied to the Text picker (reverted -
-        // this used to call root.setProperty('--ink', theme.textColor),
-        // same as --text/--accent, on the theory that "Text" should
-        // control every piece of text including birch-background text,
-        // with a poor-contrast choice being the user's own call). In
-        // practice the DEFAULT Text colour (cream, #E6D7B0) is exactly
-        // what --panel/--text are for, and reads as invisible on the
-        // light birch background every --ink consumer actually sits on -
-        // real, repeatedly reported illegible text, not a user's
-        // deliberate choice. --ink now stays whatever the static :root
-        // default says (see the CSS comment there) regardless of the Text
-        // picker, same as it did before this line existed.
-        document.body.style.background = theme.bgTexture === 'wood' ? themeWoodBackground(theme.bgColor) : theme.bgColor;
+        const panelRgb = themeHexToRgb(theme.panelColor);
+        root.setProperty('--panel-rgb', `${panelRgb.r}, ${panelRgb.g}, ${panelRgb.b}`);
+        const isImageBg = !!THEME_IMAGE_BACKGROUNDS[theme.bgTexture];
+        document.body.classList.toggle('theme-bg-image', isImageBg);
+        // --ink is deliberately NOT tied to the Text picker for the
+        // procedural (plain/wood) textures (reverted - this used to call
+        // root.setProperty('--ink', theme.textColor), same as
+        // --text/--accent, on the theory that "Text" should control every
+        // piece of text including birch-background text, with a poor-
+        // contrast choice being the user's own call). In practice the
+        // DEFAULT Text colour (cream, #E6D7B0) is exactly what
+        // --panel/--text are for, and reads as invisible on the light
+        // birch background every --ink consumer actually sits on - real,
+        // repeatedly reported illegible text, not a user's deliberate
+        // choice. --ink stays whatever the static :root default says (see
+        // the CSS comment there) for those two textures, same as before.
+        // An IMAGE texture is different: themeBackgroundValue's own dark
+        // scrim guarantees enough contrast for a LIGHT colour regardless
+        // of the photo underneath, so --ink safely follows the Text picker
+        // there instead - a static burgundy --ink would otherwise sit
+        // dark-on-dark against that same scrim and become the new
+        // illegible-text bug this whole paragraph exists to avoid.
+        if (isImageBg) root.setProperty('--ink', theme.textColor);
+        else root.removeProperty('--ink');
+        document.body.style.background = themeBackgroundValue(theme);
         try { localStorage.setItem(THEME_CACHE_KEY, JSON.stringify(theme)); } catch (e) {}
 
         // The Cortex chat is what "the background" actually means to most
@@ -5763,6 +5859,12 @@ SQIDAQAB
         panel.hidden = true;
         panel.innerHTML = `
             <div class="theme-palette-header"><span>Colours</span><button type="button" class="theme-palette-close-btn" aria-label="Close">✕</button></div>
+            <div class="theme-preset-section">
+                <div class="theme-preset-label">Presets</div>
+                <div class="theme-preset-row">
+                    ${THEME_PRESETS.map((p) => `<button type="button" class="theme-preset-btn" data-preset-key="${escapeHtml(p.key)}">${escapeHtml(p.label)}</button>`).join('')}
+                </div>
+            </div>
             <div class="theme-palette-field">
                 <div class="theme-palette-field-row"><span>Text</span><input type="color" id="themeTextColor"></div>
                 <div class="theme-field-actions">
@@ -5800,6 +5902,33 @@ SQIDAQAB
         document.getElementById('themeBgColor').addEventListener('input', (e) => { currentTheme.bgColor = e.target.value; preview(); });
         panel.querySelectorAll('.theme-texture-btn').forEach((b) => {
             b.addEventListener('click', () => { currentTheme.bgTexture = b.dataset.texture; syncThemePaletteInputs(); preview(); });
+        });
+
+        // A preset sets and saves all three fields in one action -
+        // unlike the granular per-field Save buttons below, there's no
+        // "preview only" state for a preset click; picking one is already
+        // a decisive choice, the same way Reset is.
+        panel.querySelectorAll('.theme-preset-btn').forEach((presetBtn) => {
+            presetBtn.addEventListener('click', () => {
+                const preset = THEME_PRESETS.find((p) => p.key === presetBtn.dataset.presetKey);
+                if (!preset) return;
+                currentTheme = { ...currentTheme, ...preset.theme };
+                syncThemePaletteInputs();
+                preview();
+                const label = presetBtn.textContent;
+                presetBtn.disabled = true;
+                presetBtn.textContent = 'Applying…';
+                saveThemeSettings(preset.theme)
+                    .then(() => { presetBtn.textContent = 'Applied ✓'; })
+                    .catch((err) => {
+                        console.error('LastMind: failed to save theme preset.', preset.key, err);
+                        presetBtn.textContent = "Couldn't save";
+                    })
+                    .finally(() => {
+                        presetBtn.disabled = false;
+                        setTimeout(() => { presetBtn.textContent = label; }, 1800);
+                    });
+            });
         });
 
         // One save button per field - sends ONLY that field's own key(s),

@@ -431,19 +431,44 @@ SQIDAQAB
             `repeating-linear-gradient(-1.2deg, rgba(0,0,0,0.05) 0px, rgba(0,0,0,0.05) 1px, transparent 1px, transparent 6px),` +
             `linear-gradient(100deg, ${light}, ${mid} 35%, ${light} 55%, ${dark} 85%, ${mid} 100%)`;
     }
+    // Image-backed background textures (see learn/index.html's own
+    // THEME_IMAGE_BACKGROUNDS - kept in sync here since this page applies
+    // its own independent copy of the theme rather than sharing code with
+    // it). Root-relative so it resolves the same from this page's own
+    // /cortex/ path as it does from /learn/.
+    const THEME_IMAGE_BACKGROUNDS = {
+        'havnstad-village': '/assets/theme/havnstad-village.jpg',
+    };
+    function themeBackgroundValue(theme) {
+        const imageUrl = THEME_IMAGE_BACKGROUNDS[theme.bgTexture];
+        if (imageUrl) {
+            return `linear-gradient(rgba(8,7,6,0.4), rgba(8,7,6,0.52)), center / cover no-repeat fixed url('${imageUrl}')`;
+        }
+        return theme.bgTexture === 'wood' ? themeWoodBackground(theme.bgColor) : theme.bgColor;
+    }
     function applyTheme(theme) {
         const root = document.documentElement.style;
         root.setProperty('--text', theme.textColor);
         root.setProperty('--accent', theme.textColor);
         root.setProperty('--panel', theme.panelColor);
-        // --ink deliberately left untouched here - see learn/index.html's
-        // own applyTheme comment: this used to be coupled to the Text
-        // picker the same way as --text/--accent, which made the default
-        // cream Text colour illegible against the birch background every
-        // --ink consumer (this page's own .chat-empty-logo included)
-        // actually sits on. --ink now always reads its static :root
-        // default (burgundy) regardless of the Text picker.
-        document.body.style.background = theme.bgTexture === 'wood' ? themeWoodBackground(theme.bgColor) : theme.bgColor;
+        const panelRgb = themeHexToRgb(theme.panelColor);
+        root.setProperty('--panel-rgb', `${panelRgb.r}, ${panelRgb.g}, ${panelRgb.b}`);
+        const isImageBg = !!THEME_IMAGE_BACKGROUNDS[theme.bgTexture];
+        document.body.classList.toggle('theme-bg-image', isImageBg);
+        // --ink deliberately left untouched here for plain/wood - see
+        // learn/index.html's own applyTheme comment: this used to be
+        // coupled to the Text picker the same way as --text/--accent,
+        // which made the default cream Text colour illegible against the
+        // birch background every --ink consumer (this page's own
+        // .chat-empty-logo included) actually sits on. --ink always reads
+        // its static :root default (burgundy) regardless of the Text
+        // picker for those two textures. An image texture's own dark
+        // scrim (see themeBackgroundValue) guarantees enough contrast for
+        // a light colour regardless of the photo underneath, so --ink
+        // safely follows the Text picker there instead.
+        if (isImageBg) root.setProperty('--ink', theme.textColor);
+        else root.removeProperty('--ink');
+        document.body.style.background = themeBackgroundValue(theme);
     }
     async function fetchThemeSettings() {
         try {
