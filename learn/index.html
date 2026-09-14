@@ -1258,7 +1258,7 @@
     .sf-question-submit { align-self: flex-start; }
     .sf-mcq-options { display: flex; flex-direction: column; gap: 8px; }
     .sf-mcq-option { text-align: left; width: 100%; padding: 12px 14px; border-radius: 8px; border: 1px solid rgba(230, 215, 176, 0.25); background: var(--bg); color: var(--text); font: inherit; font-size: 15px; cursor: pointer; }
-    .sf-mcq-option-selected { border-color: var(--text); background: rgba(230, 215, 176, 0.12); }
+    .sf-mcq-option-selected { border-color: var(--accent); background: var(--accent); color: var(--bg); font-weight: 700; }
     .sf-feedback-line { font-size: 14.5px; line-height: 1.6; padding: 10px 12px; border-radius: 8px; background: rgba(0,0,0,0.15); }
     .sf-feedback-correct { color: #6fcf97; }
     .sf-feedback-wrong { color: #eb9694; }
@@ -16324,7 +16324,13 @@ SQIDAQAB
     // the track (they're resolved, nothing left to revisit) and the
     // student is force-navigated back to returnIndex - the exact slide
     // they were on when interrupted, untouched the whole time.
-    async function sfJumpToRecalls(rows) {
+    // onAllCleared, when given, replaces the default "jump back to
+    // returnIndex" once every recall in this batch is answered correctly
+    // - see sfServeDueRecallOrAppendNext below for why: at the END of a
+    // lesson there's nothing to jump back TO (returnIndex is the just-
+    // finished last slide), the real next step is whatever would have
+    // come next anyway.
+    async function sfJumpToRecalls(rows, onAllCleared) {
         if (!sfFeed || !rows.length) return;
         const returnIndex = sfFeed.currentIndex;
         const insertAt = returnIndex + 1;
@@ -16350,12 +16356,39 @@ SQIDAQAB
                 sfFeed.meta.splice(insertAt, 1);
             }
             sfFeed.currentIndex = Math.min(sfFeed.currentIndex, sfFeed.slides.length - 1);
-            sfForceMoveToIndex(returnIndex);
+            if (onAllCleared) onAllCleared();
+            else sfForceMoveToIndex(returnIndex);
             return true;
         };
 
         sfInsertSlidesAt(insertAt, usable.map((row) => sfBuildImmediateRecallSlide(row, onOneDone)));
         sfForceMoveToIndex(insertAt);
+    }
+
+    // The "reached the end of the current lesson, what's next" decision
+    // point (see sfAdvanceAfterCorrectAnswer) - explicit product decision:
+    // a recall the student saw nudged but didn't click (or one that
+    // simply became due while they kept working) must be served here
+    // before a brand-new encoding lesson starts, not silently dropped.
+    // Previously this was a real reported gap - sfShowRecallNudge's own
+    // "if ignored, nothing else happens" design (by intent, for a
+    // mid-lesson nudge) meant an ignored recall never resurfaced anywhere
+    // else either, including right here where it should have taken
+    // priority. Re-checks fresh from the server rather than trusting this
+    // session's own nudge/timer bookkeeping, since an ignored nudge banner
+    // has already auto-hidden itself (SF_RECALL_GRACE_MS) by the time
+    // this runs - the row itself is still genuinely unresolved server-side
+    // regardless of whether the banner was seen.
+    async function sfServeDueRecallOrAppendNext() {
+        if (!sfFeed) return;
+        const result = await sfGetBackend('/immediate-recalls/due');
+        const rows = (result && result.recalls) ? result.recalls : [];
+        if (!sfFeed) return;
+        if (!rows.length) {
+            await sfAppendNextRecommendation();
+            return;
+        }
+        await sfJumpToRecalls(rows, () => { if (sfFeed) sfAppendNextRecommendation(); });
     }
 
     // Schedules a client-side timer for one due row (fires immediately if
@@ -16514,7 +16547,7 @@ SQIDAQAB
                 return;
             }
             if (sfFeed.currentIndex >= sfFeed.slides.length - 1) {
-                sfAppendNextRecommendation(); // fetches/builds new content - stays vertical even on mobile, not a simple swipe between already-built slides
+                sfServeDueRecallOrAppendNext(); // a still-due recall takes priority - see its own comment; falls through to fetching/building new content otherwise, stays vertical even on mobile
                 return;
             }
             move(sfFeed.currentIndex + 1);
@@ -16576,7 +16609,7 @@ SQIDAQAB
             // where this function would have moved from anyway.
             if (sfFeed.currentIndex !== startIndex) return;
             if (sfFeed.currentIndex >= sfFeed.slides.length - 1) {
-                await sfAppendNextRecommendation();
+                await sfServeDueRecallOrAppendNext();
             } else {
                 sfForceMoveToIndex(sfFeed.currentIndex + 1);
             }
