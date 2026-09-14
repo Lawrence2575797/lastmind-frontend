@@ -1250,7 +1250,7 @@
     .sf-slide-explanation p:last-child { margin-bottom: 0; }
     .sf-slide-explanation ul, .sf-slide-explanation ol { margin: 0 0 16px; padding-left: 26px; }
     .sf-slide-explanation ul:last-child, .sf-slide-explanation ol:last-child { margin-bottom: 0; }
-    .sf-slide-explanation li { margin-bottom: 8px; }
+    .sf-slide-explanation li { margin-bottom: 14px; }
     .sf-slide-explanation li:last-child { margin-bottom: 0; }
     .sf-speaker-label { font-size: 13px; font-weight: 700; opacity: 0.75; }
     .sf-question-text { font-size: 18px; line-height: 1.7; margin: 0; }
@@ -16011,7 +16011,7 @@ SQIDAQAB
     // other mobile-only rendering choice in this file.
     function sfAdvanceHintText(suffix) {
         const tail = suffix ? ` ${suffix}` : '';
-        return sfIsMobileViewport() ? `Swipe left${tail} ←` : `Scroll down${tail} ↓`;
+        return sfIsMobileViewport() ? `Swipe left once read${tail} ←` : `Scroll down once read${tail} ↓`;
     }
 
     // A purely VISUAL alternative to sfMoveToIndex, used only for a
