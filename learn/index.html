@@ -17611,7 +17611,12 @@ SQIDAQAB
                 // lesson the student left (see sfJumpToRecalls) - signal
                 // that with 'handled' so sfTryAdvance doesn't ALSO try to
                 // advance one more step past wherever that jump landed.
-                const wasLast = onDone();
+                // Awaited (onDone is async) so sfSubmitCurrentSlide's own
+                // "unlock once trySubmit resolves" doesn't release the
+                // feed while onDone's own cleanup/append work is still in
+                // flight - see sfJumpToRecalls' own comment on the bug
+                // that let go of the lock too early here.
+                const wasLast = await onDone();
                 return wasLast ? 'handled' : true;
             }
             if (inputEl) inputEl.disabled = false;
@@ -17647,8 +17652,21 @@ SQIDAQAB
         // Returns true only when THIS call was the one that cleared the
         // last remaining recall in the batch (see sfBuildImmediateRecallSlide's
         // use of this return value to report 'handled' back to sfTryAdvance).
+        // async, and AWAITED there before sfSubmitCurrentSlide releases
+        // sfFeed.locked - real, reported bug: onAllCleared's own real work
+        // (sfAppendNextRecommendation, a network fetch) used to fire here
+        // and then immediately be treated as "done" by the caller, which
+        // unlocked the feed while that fetch was still in flight. A swipe/
+        // scroll landing in that now-unlocked window could reach
+        // sfTryAdvance, which has its own "at the end? append next" check -
+        // sfAppendNextRecommendation's own re-entrancy guard then silently
+        // no-ops the second call, so the swipe just did nothing. Exactly
+        // the "queue where half the time it doesn't even load the next
+        // one" symptom, and exactly the same class of bug already fixed
+        // once for the plain single-question path (see
+        // sfAdvanceAfterCorrectAnswer's own comment) - never applied here.
         let remaining = usable.length;
-        const onOneDone = () => {
+        const onOneDone = async () => {
             remaining -= 1;
             if (remaining > 0 || !sfFeed) return false;
             // Whole batch cleared - remove these slides and jump back.
@@ -17659,7 +17677,7 @@ SQIDAQAB
                 sfFeed.meta.splice(insertAt, 1);
             }
             sfFeed.currentIndex = Math.min(sfFeed.currentIndex, sfFeed.slides.length - 1);
-            if (onAllCleared) onAllCleared();
+            if (onAllCleared) await onAllCleared();
             else sfForceMoveToIndex(returnIndex);
             return true;
         };
@@ -17691,7 +17709,7 @@ SQIDAQAB
             await sfAppendNextRecommendation();
             return;
         }
-        await sfJumpToRecalls(rows, () => { if (sfFeed) sfAppendNextRecommendation(); });
+        await sfJumpToRecalls(rows, async () => { if (sfFeed) await sfAppendNextRecommendation(); });
     }
 
     // Schedules a client-side timer for one due row (fires immediately if
