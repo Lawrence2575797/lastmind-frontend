@@ -14120,35 +14120,55 @@ SQIDAQAB
     // Enter moves Subject -> opens the Level dropdown; picking a level
     // (click, or Enter with a single match) focuses the first metafield
     // that becomes visible; that field's own Enter submits or advances.
-    document.getElementById('subjectInput').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            document.getElementById('folderLevelButton').click();
+    try {
+        const subjectInputEl = document.getElementById('subjectInput');
+        if (subjectInputEl) {
+            subjectInputEl.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    document.getElementById('folderLevelButton').click();
+                }
+            });
         }
-    });
-    document.getElementById('boardInput').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            document.getElementById('submitFolderBtn').click();
+        const boardInputEl = document.getElementById('boardInput');
+        if (boardInputEl) {
+            boardInputEl.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    document.getElementById('submitFolderBtn').click();
+                }
+            });
         }
-    });
-    document.getElementById('institutionInput').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            document.getElementById('moduleCodeInput').focus();
+        const institutionInputEl = document.getElementById('institutionInput');
+        if (institutionInputEl) {
+            institutionInputEl.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    document.getElementById('moduleCodeInput').focus();
+                }
+            });
         }
-    });
-    document.getElementById('moduleCodeInput').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            document.getElementById('submitFolderBtn').click();
+        const moduleCodeInputEl = document.getElementById('moduleCodeInput');
+        if (moduleCodeInputEl) {
+            moduleCodeInputEl.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    document.getElementById('submitFolderBtn').click();
+                }
+            });
         }
-    });
+    } catch (err) {
+        console.error('Error setting up form event listeners:', err);
+    }
 
-    document.getElementById('cancelFolderBtn').addEventListener('click', closeFolderModal);
-    document.getElementById('folderModalOverlay').addEventListener('click', (e) => {
-        if (e.target.id === 'folderModalOverlay') closeFolderModal();
-    });
+    try {
+        document.getElementById('cancelFolderBtn').addEventListener('click', closeFolderModal);
+        document.getElementById('folderModalOverlay').addEventListener('click', (e) => {
+            if (e.target.id === 'folderModalOverlay') closeFolderModal();
+        });
+    } catch (err) {
+        console.error('Error setting up modal listeners:', err);
+    }
 
     function readFolderFormFields() {
         const subject = document.getElementById('subjectInput').value.trim();
@@ -24865,7 +24885,9 @@ SQIDAQAB
         // TEMPORARY - see TEMP_ALL_FEATURES_FREE's own comment. Skip ALL
         // async checks if bypassing subscription verification entirely.
         if (TEMP_ALL_FEATURES_FREE) {
+            console.log('Gate: TEMP_ALL_FEATURES_FREE is true, calling enterApp...');
             await enterApp(true);
+            console.log('Gate: enterApp returned');
             return;
         }
 
