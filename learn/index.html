@@ -24752,8 +24752,7 @@ SQIDAQAB
         // to respond on a cold start, and the folder list shouldn't sit on
         // "No folders yet" the whole time it does. Server sync still runs,
         // just in the background, and re-renders once it lands.
-        const refreshTimeout = new Promise((r) => setTimeout(r, 8000));
-        await Promise.race([refreshFolderList(), refreshTimeout]).catch(() => {});
+        await refreshFolderList();
         reconcileFoldersWithServer()
             .then(refreshFolderList)
             .catch((err) => console.error('LastMind: folder reconcile failed.', err));
@@ -24863,6 +24862,13 @@ SQIDAQAB
             gateMessageEl.textContent = "Still checking — this is taking longer than usual, but hasn't failed. Hang tight.";
         }, 8000);
 
+        // TEMPORARY - see TEMP_ALL_FEATURES_FREE's own comment. Skip ALL
+        // async checks if bypassing subscription verification entirely.
+        if (TEMP_ALL_FEATURES_FREE) {
+            await enterApp(true);
+            return;
+        }
+
         const publicKey = await importPublicKey(PUBLIC_KEY_PEM);
 
         // SECURITY: the Supabase session is established FIRST, before any
@@ -24878,8 +24884,7 @@ SQIDAQAB
         // knowing the current user first any more.
         let supabaseSession = null;
         try {
-            const sessionTimeout = new Promise((r) => setTimeout(() => r({ data: { session: null } }), 5000));
-            const { data } = await Promise.race([supabaseClient.auth.getSession(), sessionTimeout]);
+            const { data } = await supabaseClient.auth.getSession();
             supabaseSession = data.session;
         } catch (err) {
             console.error('LastMind: could not read the current session.', err);
@@ -24889,15 +24894,6 @@ SQIDAQAB
             // Not logged in at all — nothing to offer, send them to create an
             // account (still free at this point; paying is optional there too).
             window.location.href = '/subscribe';
-            return;
-        }
-
-        // TEMPORARY - see TEMP_ALL_FEATURES_FREE's own comment. Still
-        // requires a real logged-in session (the check just above) - only
-        // skips the JWT/subscription dance below, which is otherwise the
-        // sole source of isPaidUser.
-        if (TEMP_ALL_FEATURES_FREE) {
-            await enterApp(true);
             return;
         }
 
