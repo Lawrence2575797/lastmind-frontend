@@ -1,0 +1,417 @@
+<title>Havnstad Session Demo</title>
+<meta name="description" content="A playable slice of the Havnstad grain-economy simulation — real production, pricing and utility-maximising market clearing, plus Leif's advice sourced from real LastMind lessons.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,900;1,9..144,600;1,9..144,900&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#ece4d0; --surface:#f8f2e4; --surface-2:#efe6d2;
+  --text:#241c14; --text-muted:#6b5c47; --accent:#a8452a; --accent-2:#4c5c46;
+  --good:#3f6b3f; --bad:#a8452a;
+  --border:rgba(36,28,20,0.16); --border-strong:rgba(36,28,20,0.28);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#141a20; --surface:#1d262d; --surface-2:#212b32;
+    --text:#e9e0cb; --text-muted:#9aa5a4; --accent:#d97a52; --accent-2:#8a9c7a;
+    --good:#7fbf7f; --bad:#e0836a;
+    --border:rgba(233,224,203,0.14); --border-strong:rgba(233,224,203,0.24);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#141a20; --surface:#1d262d; --surface-2:#212b32;
+  --text:#e9e0cb; --text-muted:#9aa5a4; --accent:#d97a52; --accent-2:#8a9c7a;
+  --good:#7fbf7f; --bad:#e0836a;
+  --border:rgba(233,224,203,0.14); --border-strong:rgba(233,224,203,0.24);
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Source Serif 4",Georgia,serif;padding-inline:20px;padding-block:32px 60px;}
+.wrap{max-width:660px;margin:0 auto;}
+.mono{font-family:"JetBrains Mono","SF Mono",Consolas,monospace;}
+
+.badge-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:8px;}
+.mockup-badge{
+  display:inline-flex;align-items:center;gap:7px;
+  font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;
+  color:var(--text-muted);border:1px solid var(--border-strong);border-radius:100px;padding:6px 12px;
+}
+.mockup-badge.live{color:var(--good);border-color:var(--good);}
+.mockup-badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;}
+
+.village-strip{width:100%;aspect-ratio:16/5;object-fit:cover;border-radius:8px;border:1px solid var(--border-strong);display:block;margin-bottom:18px;}
+
+.topbar{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;}
+.topbar h1{font-family:"Fraunces",serif;font-weight:900;font-style:italic;font-size:30px;margin:0;}
+.topbar .when{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--text-muted);}
+
+.stats{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;}
+.stat{font-family:"JetBrains Mono",monospace;font-size:12px;background:var(--surface);border:1px solid var(--border);border-radius:100px;padding:6px 12px;color:var(--text-muted);}
+.stat b{color:var(--text);}
+
+.granary-track{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:24px;}
+.granary-label{display:flex;justify-content:space-between;font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--text-muted);margin-bottom:8px;}
+.granary-bar{height:10px;border-radius:100px;background:var(--surface-2);border:1px solid var(--border);overflow:hidden;}
+.granary-fill{height:100%;background:var(--accent-2);border-radius:100px;transition:width 0.4s ease;}
+.granary-note{font-size:12px;color:var(--text-muted);margin-top:8px;}
+
+.leif{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px 20px;margin-bottom:16px;display:flex;gap:14px;}
+.leif-portrait{width:52px;height:52px;border-radius:50%;object-fit:cover;flex-shrink:0;border:1px solid var(--border-strong);}
+.leif-body{flex:1;min-width:0;}
+.leif-name{font-family:"Fraunces",serif;font-weight:700;font-style:italic;font-size:16px;color:var(--accent);margin-bottom:6px;}
+.leif-text{font-size:14.5px;line-height:1.65;}
+.leif-text + .leif-text{margin-top:8px;}
+
+.scenario{background:var(--surface-2);border-left:3px solid var(--accent-2);border-radius:4px;padding:15px 17px;margin:0 0 20px;font-size:14.5px;line-height:1.6;font-style:italic;}
+
+.advice-label{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px;}
+.advice{display:flex;flex-direction:column;gap:8px;margin-bottom:28px;}
+.advice-btn{text-align:left;width:100%;font:inherit;font-family:"Source Serif 4",serif;font-size:14px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:11px 15px;color:var(--text);cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;}
+.advice-btn:hover{border-color:var(--accent);}
+.advice-btn .chevron{font-family:"JetBrains Mono",monospace;color:var(--accent);transition:transform 0.15s;flex-shrink:0;}
+.advice-btn[aria-expanded="true"] .chevron{transform:rotate(90deg);}
+.advice-explain{display:none;background:var(--surface-2);border:1px solid var(--border);border-top:none;border-radius:0 0 6px 6px;margin-top:-9px;padding:14px 16px 16px;font-size:13.5px;line-height:1.65;}
+.advice-explain.open{display:block;}
+.advice-explain .node-tag{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent-2);display:block;margin-bottom:7px;}
+
+.action-panel{background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;padding:18px 20px;margin-bottom:22px;}
+.action-label{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:12px;}
+.action-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;}
+.action-tab{font:inherit;font-family:"JetBrains Mono",monospace;font-size:12px;padding:7px 12px;border-radius:100px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--text-muted);cursor:pointer;}
+.action-tab.active{background:var(--accent);border-color:var(--accent);color:var(--surface);}
+.action-fields{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;}
+.field-group{display:flex;flex-direction:column;gap:4px;}
+.field-group label{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;}
+.field-group input{font:inherit;font-size:14px;padding:9px 11px;border-radius:5px;border:1px solid var(--border-strong);background:var(--bg);color:var(--text);width:100px;}
+.act-btn{font:inherit;font-size:14px;font-weight:600;padding:10px 20px;border-radius:6px;border:none;background:var(--accent);color:var(--surface);cursor:pointer;}
+.act-btn:hover{opacity:0.9;}
+.action-hint{font-size:12px;color:var(--text-muted);margin-top:2px;}
+
+.log{display:flex;flex-direction:column-reverse;gap:10px;}
+.log-entry{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px 15px;}
+.log-week{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--accent);margin-bottom:6px;}
+.log-line{font-size:13px;line-height:1.55;color:var(--text-muted);}
+.log-line + .log-line{margin-top:2px;}
+.log-line.good{color:var(--good);}
+.log-line.bad{color:var(--bad);}
+
+.section-label{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin:28px 0 12px;}
+.sim-note{font-size:12.5px;color:var(--text-muted);line-height:1.6;margin-top:8px;}
+</style>
+
+<div class="wrap">
+  <div class="badge-row">
+    <div class="mockup-badge live">Live simulation — production/pricing/market rules from the Bible, running for real</div>
+  </div>
+
+  <img class="village-strip" src="portraits/havnstad_village.png" alt="Havnstad">
+
+  <div class="topbar">
+    <h1>Havnstad</h1>
+    <div class="when" id="whenLabel">Week 14 · Autumn</div>
+  </div>
+  <div class="stats" id="statsRow"></div>
+
+  <div class="granary-track">
+    <div class="granary-label">
+      <span>Village granary</span>
+      <span id="granaryText" class="mono"></span>
+    </div>
+    <div class="granary-bar"><div class="granary-fill" id="granaryFill"></div></div>
+    <div class="granary-note" id="granaryNote"></div>
+  </div>
+
+  <div class="leif">
+    <img class="leif-portrait" src="portraits/leif.png" alt="Leif">
+    <div class="leif-body">
+      <div class="leif-name">Leif</div>
+      <div id="leifText"></div>
+    </div>
+  </div>
+
+  <div class="scenario">
+    The granary keeper says Havnstad has 400 grain stored, but between the village and the animals we'll need closer to 500 before spring. Winter's six weeks out. Sten wants to know what you'd do — and why.
+  </div>
+
+  <div class="advice-label">Leif — before you answer, it might help to know…</div>
+  <div class="advice">
+    <button type="button" class="advice-btn" aria-expanded="false" data-target="a1">
+      <span>The problem of scarcity</span><span class="chevron">›</span>
+    </button>
+    <div class="advice-explain" id="a1">
+      <span class="node-tag">Economics · 1.1 Nature of economics — real LastMind lesson, explanation only</span>
+      Building on unlimited wants and finite resources, <b>scarcity</b> is the fundamental economic problem: because
+      resources are limited but human wants are infinite, there is never enough to satisfy everyone's wants fully.
+      <br><br>This creates a permanent gap between what people would like to have and what the available resources
+      can actually produce. Scarcity is universal — it affects every economy and every individual, regardless of
+      how rich or developed they are.
+      <br><br>Because of scarcity, choices must be made about what to produce, how to produce it, and who receives
+      it. These choices are unavoidable precisely because resources cannot stretch to cover every want
+      simultaneously.
+    </div>
+    <button type="button" class="advice-btn" aria-expanded="false" data-target="a2">
+      <span>Law of demand: inverse price–quantity relationship</span><span class="chevron">›</span>
+    </button>
+    <div class="advice-explain" id="a2">
+      <span class="node-tag">Economics · 1.2 How markets work — real LastMind lesson, explanation only</span>
+      Building on the definition of demand, the <b>law of demand</b> states that as the price of a good rises, the
+      quantity demanded of it falls, and as price falls, quantity demanded rises — holding all other factors
+      constant (<i>ceteris paribus</i>).
+      <br><br>This is an <b>inverse relationship</b>: price and quantity demanded move in opposite directions.
+      Plotted on a graph with price on the vertical axis and quantity demanded on the horizontal axis, this
+      relationship produces a downward-sloping demand curve.
+      <br><br>The 'ceteris paribus' condition matters: the law only holds when factors like income, tastes, and
+      prices of other goods stay fixed, isolating the effect of price alone on quantity demanded.
+    </div>
+    <button type="button" class="advice-btn" aria-expanded="false" data-target="a3">
+      <span>Equilibrium price and quantity</span><span class="chevron">›</span>
+    </button>
+    <div class="advice-explain" id="a3">
+      <span class="node-tag">Economics · 1.2 How markets work — real LastMind lesson, explanation only</span>
+      Building on drawing demand and supply curves, plotting both on the same diagram shows they cross at one
+      point.
+      <br><br><b>Equilibrium price</b> is the price at which the quantity demanded exactly equals the quantity
+      supplied — where the demand and supply curves intersect. <b>Equilibrium quantity</b> is the amount bought and
+      sold at that price.
+      <br><br>At this point, there is no tendency for price to change: buyers are willing to buy exactly what
+      sellers are willing to sell, so the market clears with nothing left over and no shortage.
+    </div>
+  </div>
+
+  <div class="action-panel">
+    <div class="action-label">Your move this week</div>
+    <div class="action-tabs" id="actionTabs"></div>
+    <div class="action-fields" id="actionFields"></div>
+    <button type="button" class="act-btn" id="actBtn">Act — resolve week</button>
+    <div class="action-hint" id="actionHint"></div>
+  </div>
+
+  <div class="section-label">What's happened</div>
+  <div class="log" id="log"></div>
+
+  <p class="sim-note">
+    Running: production (rule 1), Ingrid's adaptive pricing (rule 4), and utility-maximising market clearing (rule
+    5) exactly as defined in the Bible — undercut Ingrid on price×quality and the village buys from you first, same
+    as the worked example. Simplified for this first playable pass: quality is fixed per farmer rather than
+    fluctuating, and there's no natural-language interpreter yet — actions are picked from the controls above
+    rather than typed. Borrowing/repaying (Astrid) uses a flat rate rather than her full trust-threshold rule.
+  </p>
+</div>
+
+<script>
+const BASE_YIELD_PER_LAND = 5;
+const SEASON_MULT = 1.3; // autumn
+const VILLAGE_WEEKLY_NEED = 42;
+const PRICE_SENSITIVITY = 1.0;
+const WAGE_PER_WORKER = 3;
+const BORROW_CAP = 50;
+const BORROW_INTEREST = 0.08;
+
+let state = {
+  weekNum: 14,
+  weeksToWinter: 6,
+  player: { name: 'You', silver: 62, grain: 0, land: 4, labour: 2, quality: 6, price: 3.0, soldOutLastWeek: null, debt: 0 },
+  ingrid: { name: 'Ingrid', silver: 80, grain: 0, land: 5, labour: 5, quality: 5, price: 3.0, soldOutLastWeek: null },
+  villageGranary: 400,
+  granaryTarget: 500,
+  log: [],
+};
+
+function produce(agent) {
+  const labourNeeded = agent.land; // 1 labour fully works 1 land unit
+  const efficiency = Math.min(1, agent.labour / labourNeeded);
+  return BASE_YIELD_PER_LAND * agent.land * efficiency * SEASON_MULT;
+}
+function adaptPrice(agent) {
+  if (agent.soldOutLastWeek === true) agent.price = +(agent.price * 1.1).toFixed(2);
+  else if (agent.soldOutLastWeek === false) agent.price = +(agent.price * 0.9).toFixed(2);
+}
+
+const ACTIONS = {
+  SELL: { label: 'Sell grain', fields: [{ key: 'price', label: 'Price/unit', def: state.player.price }] },
+  HIRE: { label: 'Hire labour', fields: [{ key: 'quantity', label: 'Workers', def: 1 }] },
+  RELEASE: { label: 'Release labour', fields: [{ key: 'quantity', label: 'Workers', def: 1 }] },
+  BUY: { label: 'Buy from Ingrid', fields: [{ key: 'quantity', label: 'Quantity', def: 10 }] },
+  BORROW: { label: 'Borrow from Astrid', fields: [{ key: 'amount', label: 'Amount', def: 20 }] },
+  REPAY: { label: 'Repay Astrid', fields: [{ key: 'amount', label: 'Amount', def: 20 }] },
+};
+let currentAction = 'SELL';
+
+function renderActionTabs() {
+  const tabs = document.getElementById('actionTabs');
+  tabs.innerHTML = Object.entries(ACTIONS).map(([key, a]) =>
+    `<button type="button" class="action-tab${key === currentAction ? ' active' : ''}" data-action="${key}">${a.label}</button>`
+  ).join('');
+  tabs.querySelectorAll('.action-tab').forEach(btn => {
+    btn.addEventListener('click', () => { currentAction = btn.dataset.action; renderActionTabs(); renderActionFields(); });
+  });
+}
+function renderActionFields() {
+  const wrap = document.getElementById('actionFields');
+  const def = ACTIONS[currentAction];
+  wrap.innerHTML = def.fields.map(f =>
+    `<div class="field-group"><label>${f.label}</label><input type="number" id="field-${f.key}" value="${f.def}" step="0.1" min="0"></div>`
+  ).join('');
+  const hints = {
+    SELL: 'Sets your asking price for this week. Village buys from whichever of you/Ingrid offers better quality-for-price first.',
+    HIRE: `Costs ${WAGE_PER_WORKER} silver/worker this week. More labour raises production, up to what your land can use.`,
+    RELEASE: 'Frees up silver, lowers next production.',
+    BUY: `Buys directly from Ingrid at her current price (${state.ingrid.price.toFixed(2)}/unit), if she has stock.`,
+    BORROW: `Astrid will lend up to ${BORROW_CAP} silver total, ${(BORROW_INTEREST*100).toFixed(0)}% interest/week on the outstanding balance.`,
+    REPAY: 'Pays down what you owe Astrid.',
+  };
+  document.getElementById('actionHint').textContent = hints[currentAction];
+}
+
+function fmt(n) { return (Math.round(n * 10) / 10).toLocaleString(); }
+
+function render() {
+  document.getElementById('whenLabel').textContent = `Week ${state.weekNum} · Autumn · ${state.weeksToWinter} weeks to winter`;
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat">your silver <b>${fmt(state.player.silver)}</b></div>
+    <div class="stat">your grain <b>${fmt(state.player.grain)}</b></div>
+    <div class="stat">your price <b>${state.player.price.toFixed(2)}</b></div>
+    <div class="stat">your debt <b>${fmt(state.player.debt)}</b></div>
+    <div class="stat">Ingrid's price <b>${state.ingrid.price.toFixed(2)}</b></div>
+  `;
+  const pct = Math.max(0, Math.min(100, (state.villageGranary / state.granaryTarget) * 100));
+  document.getElementById('granaryFill').style.width = pct + '%';
+  document.getElementById('granaryText').textContent = `${fmt(state.villageGranary)} / ${state.granaryTarget}`;
+  document.getElementById('granaryNote').textContent = state.weeksToWinter > 0
+    ? `${state.weeksToWinter} week(s) left to close the gap.`
+    : (state.villageGranary >= state.granaryTarget ? 'Winter arrived — Havnstad has enough. You did it.' : 'Winter arrived — Havnstad came up short.');
+
+  document.getElementById('leifText').innerHTML = state.log.length
+    ? state.log[0].lines.map(l => `<p class="leif-text">${l.text}</p>`).join('')
+    : `<p class="leif-text">Good to see you. The granary keeper's worried — 400 stored, needs 500 by winter, six weeks out. What's the plan?</p>`;
+
+  document.getElementById('log').innerHTML = state.log.map(entry => `
+    <div class="log-entry">
+      <div class="log-week">Week ${entry.week}</div>
+      ${entry.lines.map(l => `<div class="log-line${l.cls ? ' ' + l.cls : ''}">${l.text}</div>`).join('')}
+    </div>
+  `).join('');
+
+  renderActionFields();
+}
+
+function resolveWeek() {
+  const def = ACTIONS[currentAction];
+  const values = {};
+  def.fields.forEach(f => { values[f.key] = parseFloat(document.getElementById(`field-${f.key}`).value) || 0; });
+
+  const lines = [];
+
+  // 1. Ingrid's adaptive pricing (rule 4)
+  const oldIngridPrice = state.ingrid.price;
+  adaptPrice(state.ingrid);
+  if (state.ingrid.price !== oldIngridPrice) {
+    lines.push({ text: `Ingrid ${state.ingrid.price > oldIngridPrice ? 'raised' : 'cut'} her price to ${state.ingrid.price.toFixed(2)}/unit (${state.ingrid.soldOutLastWeek ? 'sold out' : 'had leftover stock'} last week).` });
+  }
+
+  // 2. Player's action
+  if (currentAction === 'SELL') {
+    state.player.price = values.price;
+    lines.push({ text: `You set your asking price to ${values.price.toFixed(2)} silver/unit.` });
+  } else if (currentAction === 'HIRE') {
+    const cost = values.quantity * WAGE_PER_WORKER;
+    if (cost <= state.player.silver) {
+      state.player.silver -= cost;
+      state.player.labour += values.quantity;
+      lines.push({ text: `Hired ${values.quantity} worker(s) for ${cost} silver. Labour now ${state.player.labour}.`, cls: 'good' });
+    } else {
+      lines.push({ text: `Couldn't afford to hire ${values.quantity} worker(s) — needed ${cost} silver.`, cls: 'bad' });
+    }
+  } else if (currentAction === 'RELEASE') {
+    const qty = Math.min(values.quantity, state.player.labour);
+    state.player.labour -= qty;
+    lines.push({ text: `Released ${qty} worker(s). Labour now ${state.player.labour}.` });
+  } else if (currentAction === 'BUY') {
+    const affordable = Math.floor(state.player.silver / state.ingrid.price);
+    const qty = Math.min(values.quantity, state.ingrid.grain, affordable);
+    if (qty > 0) {
+      state.player.silver -= qty * state.ingrid.price;
+      state.player.grain += qty;
+      state.ingrid.grain -= qty;
+      lines.push({ text: `Bought ${fmt(qty)} grain from Ingrid at ${state.ingrid.price.toFixed(2)}/unit.` });
+    } else {
+      lines.push({ text: `Couldn't buy from Ingrid — no stock or not enough silver.`, cls: 'bad' });
+    }
+  } else if (currentAction === 'BORROW') {
+    const room = BORROW_CAP - state.player.debt;
+    const amount = Math.min(values.amount, Math.max(0, room));
+    if (amount > 0) {
+      state.player.silver += amount;
+      state.player.debt += amount;
+      lines.push({ text: `Astrid lent you ${amount} silver. Debt now ${fmt(state.player.debt)}.` });
+    } else {
+      lines.push({ text: `Astrid won't extend any more credit right now.`, cls: 'bad' });
+    }
+  } else if (currentAction === 'REPAY') {
+    const amount = Math.min(values.amount, state.player.silver, state.player.debt);
+    state.player.silver -= amount;
+    state.player.debt -= amount;
+    lines.push({ text: `Repaid Astrid ${fmt(amount)} silver. Debt now ${fmt(state.player.debt)}.`, cls: 'good' });
+  }
+
+  // interest on outstanding debt
+  if (state.player.debt > 0) {
+    const interest = +(state.player.debt * BORROW_INTEREST).toFixed(1);
+    state.player.debt += interest;
+    lines.push({ text: `${interest} silver interest accrued on your debt to Astrid.` });
+  }
+
+  // 3. Production (rule 1)
+  const playerProduced = produce(state.player);
+  const ingridProduced = produce(state.ingrid);
+  state.player.grain += playerProduced;
+  state.ingrid.grain += ingridProduced;
+  lines.push({ text: `Your farm produced ${fmt(playerProduced)} grain (labour ${state.player.labour}/${state.player.land} land).` });
+  lines.push({ text: `Ingrid's farm produced ${fmt(ingridProduced)} grain (labour ${state.ingrid.labour}/${state.ingrid.land} land).` });
+
+  // 4. Utility-maximising market clearing (rule 5) - village buys VILLAGE_WEEKLY_NEED
+  const sellers = [
+    { agent: state.player, utility: state.player.quality - PRICE_SENSITIVITY * state.player.price },
+    { agent: state.ingrid, utility: state.ingrid.quality - PRICE_SENSITIVITY * state.ingrid.price },
+  ].sort((a, b) => b.utility - a.utility);
+
+  let remaining = VILLAGE_WEEKLY_NEED;
+  let totalBought = 0;
+  sellers.forEach(s => {
+    const buyQty = remaining > 0 ? Math.min(s.agent.grain, remaining) : 0;
+    if (buyQty > 0) {
+      s.agent.grain -= buyQty;
+      s.agent.silver += buyQty * s.agent.price;
+      remaining -= buyQty;
+      totalBought += buyQty;
+      lines.push({ text: `The village bought ${fmt(buyQty)} grain from ${s.agent.name} at ${s.agent.price.toFixed(2)}/unit (ranked first: ${s.agent.quality} quality − ${s.agent.price.toFixed(2)} price = ${s.utility.toFixed(2)} utility).`, cls: 'good' });
+    }
+    s.agent.soldOutLastWeek = s.agent.grain <= 0.05;
+  });
+  if (remaining > 0) lines.push({ text: `The village still needed ${fmt(remaining)} more grain than anyone had to sell.`, cls: 'bad' });
+
+  const granaryDelta = totalBought - VILLAGE_WEEKLY_NEED;
+  state.villageGranary = Math.max(0, state.villageGranary + granaryDelta);
+  lines.push({ text: `Granary ${granaryDelta >= 0 ? 'gained' : 'lost'} ${fmt(Math.abs(granaryDelta))} — now ${fmt(state.villageGranary)}/${state.granaryTarget}.`, cls: granaryDelta >= 0 ? 'good' : 'bad' });
+
+  state.log.unshift({ week: state.weekNum, lines });
+  state.weekNum += 1;
+  state.weeksToWinter -= 1;
+
+  render();
+}
+
+document.querySelectorAll('.advice-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const target = document.getElementById(btn.dataset.target);
+    const open = target.classList.toggle('open');
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+});
+document.getElementById('actBtn').addEventListener('click', () => {
+  if (state.weeksToWinter <= 0) return;
+  resolveWeek();
+});
+
+renderActionTabs();
+render();
+</script>

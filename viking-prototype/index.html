@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>LastMind — Viking Village Prototype (local only)</title>
+<style>
+  html, body { margin: 0; padding: 0; overflow: hidden; background: #1a1410; font-family: Georgia, serif; }
+  #crosshair {
+    position: fixed; top: 50%; left: 50%; width: 6px; height: 6px;
+    margin: -3px 0 0 -3px; border-radius: 50%; background: rgba(255,255,255,0.8);
+    pointer-events: none; z-index: 10;
+  }
+  #hint {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    color: #f2e6d0; background: rgba(20,15,10,0.6); padding: 8px 16px;
+    border-radius: 6px; font-size: 15px; pointer-events: none; z-index: 10;
+    opacity: 0; transition: opacity 0.15s;
+  }
+  #hint.visible { opacity: 1; }
+  #startScreen {
+    position: fixed; inset: 0; background: #14100c; color: #f2e6d0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 100; text-align: center; padding: 24px; overflow-y: auto;
+  }
+  #startScreen h1 { font-size: 32px; margin-bottom: 8px; letter-spacing: 1px; }
+  #startScreen p { max-width: 480px; line-height: 1.5; color: #cbb99a; }
+  #startScreen button {
+    padding: 12px 28px; font-size: 16px; cursor: pointer;
+    background: #7a3b2e; color: #f2e6d0; border: none; border-radius: 4px;
+  }
+  #startScreen button:hover { background: #92483a; }
+  #startScreen button:disabled { opacity: 0.5; cursor: default; }
+  #controlsList { margin-top: 20px; font-size: 13px; color: #8f7d63; }
+
+  #loginBox { margin-top: 22px; display: flex; flex-direction: column; gap: 8px; width: 260px; }
+  #loginBox input {
+    padding: 9px 10px; font-size: 14px; border-radius: 4px; border: 1px solid #5a4632;
+    background: #241b14; color: #f2e6d0;
+  }
+  #loginStatus { min-height: 18px; font-size: 13px; color: #d97a6c; }
+  #loginStatus.ok { color: #7fbf7f; }
+  #enterBtnWrap { margin-top: 18px; display: none; }
+
+  /* ── the seam where the real LastMind backend gets called ── */
+  #challengeModal {
+    position: fixed; inset: 0; background: rgba(10,8,6,0.85);
+    display: none; align-items: center; justify-content: center; z-index: 50;
+  }
+  #challengeModal.visible { display: flex; }
+  #challengeCard {
+    background: #241b14; border: 1px solid #5a4632; border-radius: 8px;
+    padding: 28px; max-width: 520px; max-height: 80vh; overflow-y: auto; color: #f2e6d0;
+  }
+  #challengeCard h2 { margin-top: 0; color: #d9a441; font-size: 18px; }
+  #challengeCard .eyebrow { font-size: 12px; color: #8f7d63; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  #challengeCard .flavor { font-size: 13px; color: #cbb99a; margin-bottom: 14px; font-style: italic; }
+  #challengeCard .explanation p { line-height: 1.55; margin: 0 0 10px; font-size: 14.5px; }
+  #challengeCard .options button {
+    display: block; width: 100%; text-align: left; margin: 8px 0; padding: 10px 14px;
+    background: #33261a; color: #f2e6d0; border: 1px solid #5a4632; border-radius: 4px;
+    cursor: pointer; font-size: 14px;
+  }
+  #challengeCard .options button:hover { background: #43301f; }
+  #challengeCard textarea {
+    width: 100%; min-height: 90px; margin-top: 10px; padding: 10px; box-sizing: border-box;
+    background: #1a130d; color: #f2e6d0; border: 1px solid #5a4632; border-radius: 4px;
+    font-family: inherit; font-size: 14px; resize: vertical;
+  }
+  #challengeCard .primary-btn {
+    margin-top: 10px; padding: 10px 18px; background: #7a3b2e; color: #f2e6d0;
+    border: none; border-radius: 4px; cursor: pointer; font-size: 14px;
+  }
+  #challengeCard .primary-btn:hover { background: #92483a; }
+  #challengeCard .primary-btn:disabled { opacity: 0.5; cursor: default; }
+  #challengeFeedback { margin-top: 12px; font-size: 14px; }
+  #challengeFeedback.correct { color: #7fbf7f; }
+  #challengeFeedback.incorrect { color: #d97a6c; }
+  #challengeFeedback.neutral { color: #cbb99a; }
+
+  #escapedScreen {
+    position: fixed; inset: 0; background: rgba(10,8,6,0.92); color: #f2e6d0;
+    display: none; align-items: center; justify-content: center; z-index: 60;
+    flex-direction: column; text-align: center; padding: 24px;
+  }
+  #escapedScreen.visible { display: flex; }
+  #escapedScreen h1 { color: #d9a441; }
+  #escapedScreen p { max-width: 480px; line-height: 1.5; color: #cbb99a; }
+</style>
+</head>
+<body>
+
+<div id="startScreen">
+  <h1>The Longhouse Clearing</h1>
+  <p>Word has reached the chieftain that a raid is coming at nightfall. Walk down to the shore, help prepare the
+     village, and do what you can to help the chieftain win tomorrow's battle.</p>
+
+  <div id="loginBox">
+    <input type="email" id="loginEmail" placeholder="LastMind email" autocomplete="username">
+    <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password">
+    <button id="signInBtn" type="button">Sign in</button>
+    <div id="loginStatus"></div>
+  </div>
+
+  <div id="enterBtnWrap">
+    <button id="startBtn">Enter the village</button>
+  </div>
+
+  <div id="controlsList">WASD move · mouse look · E interact · Esc to release cursor</div>
+</div>
+
+<div id="crosshair"></div>
+<div id="hint"></div>
+
+<div id="challengeModal">
+  <div id="challengeCard">
+    <div class="eyebrow" id="challengeEyebrow"></div>
+    <h2 id="challengeTitle">Challenge</h2>
+    <div class="flavor" id="challengeFlavor"></div>
+    <div id="challengeBody"></div>
+    <div id="challengeFeedback"></div>
+  </div>
+</div>
+
+<div id="escapedScreen">
+  <h1>The chieftain nods.</h1>
+  <p>The village is ready. Because of what you did today, they stand a real chance when the raiders come.</p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+/*
+ * ── PROTOTYPE — local testing only, not linked from the live site ──
+ * Healer's hut and the Chieftain's Hall are still mock/placeholder
+ * challenges. The Shipyard challenge is the real thing: it signs in to
+ * the actual LastMind account, fetches a real Economics lesson via the
+ * same backend the main app uses, and grades the answer through the
+ * existing "LastMind Untracked" endpoint — same content, same grading,
+ * doesn't touch the student's real spaced-repetition schedule. See
+ * askShipyardChallenge() below for that integration; everything else in
+ * this file is scene/movement/UI plumbing.
+ */
+
+const SUPABASE_URL = 'https://evgdecewwmkupiadgfop.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_Bb-f61P1zqy_xW63D26nUw_VTOVXaub';
+// Relative/same-origin — the local dev server (dev-server.js) proxies
+// /knowledge-map-v2/* through to the real compile backend itself, so no
+// separate port and no CORS issue. See dev-server.js for why.
+const COMPILE_BACKEND_URL = '';
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// "The problem of scarcity" — Economics, A-Level, Edexcel, topic 1.1.
+// Fixed for this prototype rather than picked dynamically, both so
+// repeat playtests reuse the same cached lesson (no repeated generation
+// cost) and so the content reliably fits the battle-prep framing below.
+const SHIPYARD_NODE_ID = '5cc98c7e-1ad6-46f1-8c06-d9fa8a706071';
+
+// ─── Auth ───
+async function getSession() {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  return session;
+}
+
+async function refreshStartScreenForSession() {
+  const session = await getSession();
+  if (session) {
+    document.getElementById('loginBox').style.display = 'none';
+    document.getElementById('enterBtnWrap').style.display = 'block';
+    const status = document.getElementById('loginStatus');
+    status.textContent = `Signed in as ${session.user.email}`;
+    status.className = 'ok';
+    document.getElementById('startScreen').appendChild(document.getElementById('loginStatus'));
+  }
+}
+refreshStartScreenForSession();
+
+document.getElementById('signInBtn').addEventListener('click', async () => {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const status = document.getElementById('loginStatus');
+  const btn = document.getElementById('signInBtn');
+  if (!email || !password) { status.textContent = 'Enter your email and password.'; status.className = ''; return; }
+  btn.disabled = true;
+  status.textContent = 'Signing in…';
+  status.className = '';
+  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  btn.disabled = false;
+  if (error) {
+    status.textContent = error.message;
+    status.className = '';
+    return;
+  }
+  status.textContent = 'Signed in.';
+  status.className = 'ok';
+  document.getElementById('loginBox').style.display = 'none';
+  document.getElementById('enterBtnWrap').style.display = 'block';
+});
+
+// ─── Scene setup ───
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x8fa8c2);
+scene.fog = new THREE.Fog(0x8fa8c2, 15, 70);
+
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(0, 1.7, 20);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
+
+const hemi = new THREE.HemisphereLight(0xddeeff, 0x3a2f22, 0.9);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xfff1d0, 1.1);
+sun.position.set(20, 30, 10);
+sun.castShadow = true;
+scene.add(sun);
+
+// Ground: grass clearing (south) → sand (middle) → sea (north)
+const grass = new THREE.Mesh(new THREE.PlaneGeometry(70, 70), new THREE.MeshStandardMaterial({ color: 0x5c4a34 }));
+grass.rotation.x = -Math.PI / 2;
+grass.position.set(0, 0, 5);
+grass.receiveShadow = true;
+scene.add(grass);
+
+const sand = new THREE.Mesh(new THREE.PlaneGeometry(70, 34), new THREE.MeshStandardMaterial({ color: 0xC2A268 }));
+sand.rotation.x = -Math.PI / 2;
+sand.position.set(0, 0.01, -22);
+sand.receiveShadow = true;
+scene.add(sand);
+
+const sea = new THREE.Mesh(new THREE.PlaneGeometry(140, 60), new THREE.MeshStandardMaterial({ color: 0x2f6a8f }));
+sea.rotation.x = -Math.PI / 2;
+sea.position.set(0, -0.05, -68);
+scene.add(sea);
+
+// ─── Collision: simple AABB boxes for every solid structure ───
+const colliders = [];
+
+function addBox(w, h, d, x, y, z, color) {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color }));
+  mesh.position.set(x, y + h / 2, z);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+  colliders.push({ minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2 });
+  return mesh;
+}
+
+function addHut(x, z, w = 6, d = 5, roofColor = 0x7a3b2e) {
+  addBox(w, 3, d, x, 0, z, 0x6b5138);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(Math.max(w, d) * 0.75, 2.2, 4), new THREE.MeshStandardMaterial({ color: roofColor }));
+  roof.position.set(x, 3 + 1.1, z);
+  roof.rotation.y = Math.PI / 4;
+  roof.castShadow = true;
+  scene.add(roof);
+}
+
+// fence around the south clearing only — the north side opens onto the beach
+for (let i = -28; i <= 28; i += 4) {
+  addBox(0.4, 1.6, 0.4, i, 0, 28, 0x3d2f20);
+}
+for (let i = 0; i <= 28; i += 4) {
+  addBox(0.4, 1.6, 0.4, -28, 0, i, 0x3d2f20);
+  addBox(0.4, 1.6, 0.4, 28, 0, i, 0x3d2f20);
+}
+
+addHut(-14, 10);              // Healer's hut — clearing, near the entrance
+addHut(0, -38, 8, 6);         // Chieftain's Hall — on the shore
+
+// ─── Shipyard: a half-built longship + timber piles, on the beach ───
+function addShip(x, z, rotationY = 0) {
+  const group = new THREE.Group();
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(9, 1.1, 2.4), new THREE.MeshStandardMaterial({ color: 0x5a4028 }));
+  hull.position.y = 0.7;
+  group.add(hull);
+  const bow = new THREE.Mesh(new THREE.ConeGeometry(1.2, 2.5, 4), new THREE.MeshStandardMaterial({ color: 0x5a4028 }));
+  bow.rotation.z = Math.PI / 2;
+  bow.rotation.y = Math.PI / 4;
+  bow.position.set(5.2, 0.7, 0);
+  group.add(bow);
+  const stern = bow.clone();
+  stern.position.set(-5.2, 0.7, 0);
+  group.add(stern);
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 5, 8), new THREE.MeshStandardMaterial({ color: 0x3d2f1f }));
+  mast.position.set(0, 3.2, 0);
+  group.add(mast);
+  group.position.set(x, 0, z);
+  group.rotation.y = rotationY;
+  group.traverse(m => { if (m.isMesh) m.castShadow = true; });
+  scene.add(group);
+  colliders.push({ minX: x - 5, maxX: x + 5, minZ: z - 2, maxZ: z + 2 });
+}
+addShip(15, -30, 0.15);
+
+function addLogPile(x, z) {
+  for (let i = 0; i < 4; i++) {
+    const log = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 3, 8), new THREE.MeshStandardMaterial({ color: 0x6b4c2e }));
+    log.rotation.z = Math.PI / 2;
+    log.position.set(x, 0.25 + i * 0.42, z + (i % 2 === 0 ? 0.2 : -0.2));
+    log.castShadow = true;
+    scene.add(log);
+  }
+}
+addLogPile(9, -25);
+
+// ─── Simple Viking figures — visible, not interactive ───
+function addVillager(x, z, { bodyColor = 0x6b5138, helmet = false, scale = 1 } = {}) {
+  const group = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.4, 1.1, 8), new THREE.MeshStandardMaterial({ color: bodyColor }));
+  body.position.y = 0.95;
+  group.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 12), new THREE.MeshStandardMaterial({ color: 0xd9b38c }));
+  head.position.y = 1.75;
+  group.add(head);
+  if (helmet) {
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x8a8a8a }));
+    dome.position.y = 1.85;
+    group.add(dome);
+    const cloak = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.3, 8), new THREE.MeshStandardMaterial({ color: 0x7a1f1f }));
+    cloak.position.y = 0.9;
+    cloak.position.z = -0.1;
+    group.add(cloak);
+  }
+  group.scale.setScalar(scale);
+  group.position.set(x, 0, z);
+  group.traverse(m => { if (m.isMesh) m.castShadow = true; });
+  scene.add(group);
+  colliders.push({ minX: x - 0.4 * scale, maxX: x + 0.4 * scale, minZ: z - 0.4 * scale, maxZ: z + 0.4 * scale });
+}
+addVillager(1.5, -36, { helmet: true, scale: 1.15 });   // the chieftain, by the hall
+addVillager(-16, 9, {});                                 // villager near the healer's hut
+addVillager(11, -27, {});                                // villager near the shipyard
+
+// ─── Interactable challenge markers ───
+const challenges = [
+  { id: 'healer', kind: 'mock', position: new THREE.Vector3(-14, 1.2, 13), label: "Tend to the wounded before the battle", completed: false },
+  { id: 'shipyard', kind: 'real', position: new THREE.Vector3(15, 1.2, -26), label: "Help prepare the village's resources", completed: false },
+  { id: 'hall', kind: 'mock', position: new THREE.Vector3(0, 1.2, -34), label: "Report to the chieftain", completed: false, requiresAll: true },
+];
+
+const markerMeshes = {};
+challenges.forEach(ch => {
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.35, 16, 16), new THREE.MeshStandardMaterial({ color: 0xd9a441, emissive: 0x3a2400 }));
+  mesh.position.copy(ch.position);
+  scene.add(mesh);
+  markerMeshes[ch.id] = mesh;
+});
+
+function updateMarkerStates() {
+  const allDone = challenges.filter(c => !c.requiresAll).every(c => c.completed);
+  challenges.forEach(ch => {
+    const mesh = markerMeshes[ch.id];
+    const locked = ch.requiresAll && !allDone;
+    mesh.material.color.set(ch.completed ? 0x6fae6f : locked ? 0x555555 : 0xd9a441);
+    mesh.userData.locked = locked;
+  });
+}
+updateMarkerStates();
+
+// ─── Movement (WASD) + mouse look (manual pointer lock) ───
+let yaw = 0, pitch = 0;
+const controls = {
+  isLocked: false,
+  lock() { renderer.domElement.requestPointerLock(); },
+  unlock() { document.exitPointerLock(); },
+};
+
+document.addEventListener('pointerlockchange', () => {
+  controls.isLocked = document.pointerLockElement === renderer.domElement;
+  if (controls.isLocked) {
+    document.getElementById('startScreen').style.display = 'none';
+  } else if (!document.getElementById('challengeModal').classList.contains('visible')) {
+    document.getElementById('startScreen').style.display = 'flex';
+  }
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!controls.isLocked) return;
+  const sensitivity = 0.0022;
+  yaw -= e.movementX * sensitivity;
+  pitch -= e.movementY * sensitivity;
+  pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, pitch));
+  camera.rotation.order = 'YXZ';
+  camera.rotation.y = yaw;
+  camera.rotation.x = pitch;
+});
+
+document.getElementById('startBtn').addEventListener('click', () => {
+  controls.lock();
+});
+
+const move = { forward: false, back: false, left: false, right: false };
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'KeyW') move.forward = true;
+  if (e.code === 'KeyS') move.back = true;
+  if (e.code === 'KeyA') move.left = true;
+  if (e.code === 'KeyD') move.right = true;
+  if (e.code === 'KeyE') tryInteract();
+});
+document.addEventListener('keyup', (e) => {
+  if (e.code === 'KeyW') move.forward = false;
+  if (e.code === 'KeyS') move.back = false;
+  if (e.code === 'KeyA') move.left = false;
+  if (e.code === 'KeyD') move.right = false;
+});
+
+const PLAYER_RADIUS = 0.4;
+const SPEED = 5.5;
+const clock = new THREE.Clock();
+
+function collides(x, z) {
+  for (const c of colliders) {
+    if (x + PLAYER_RADIUS > c.minX && x - PLAYER_RADIUS < c.maxX &&
+        z + PLAYER_RADIUS > c.minZ && z - PLAYER_RADIUS < c.maxZ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function updateMovement(dt) {
+  const forward = new THREE.Vector3();
+  camera.getWorldDirection(forward);
+  forward.y = 0;
+  forward.normalize();
+  const right = new THREE.Vector3().crossVectors(forward, camera.up).normalize();
+
+  let dx = 0, dz = 0;
+  if (move.forward) { dx += forward.x; dz += forward.z; }
+  if (move.back)    { dx -= forward.x; dz -= forward.z; }
+  if (move.right)   { dx += right.x; dz += right.z; }
+  if (move.left)    { dx -= right.x; dz -= right.z; }
+
+  const len = Math.hypot(dx, dz);
+  if (len > 0) { dx = dx / len * SPEED * dt; dz = dz / len * SPEED * dt; }
+
+  const nextX = camera.position.x + dx;
+  const nextZ = camera.position.z + dz;
+  if (!collides(nextX, camera.position.z)) camera.position.x = nextX;
+  if (!collides(camera.position.x, nextZ)) camera.position.z = nextZ;
+
+  camera.position.x = Math.max(-27, Math.min(27, camera.position.x));
+  camera.position.z = Math.max(-38, Math.min(27, camera.position.z));
+}
+
+// ─── Interaction (raycast from camera center against challenge markers) ───
+const raycaster = new THREE.Raycaster();
+let nearestChallenge = null;
+
+function updateHint() {
+  raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+  const meshes = Object.values(markerMeshes);
+  const hits = raycaster.intersectObjects(meshes);
+  const hint = document.getElementById('hint');
+
+  if (hits.length && hits[0].distance < 4) {
+    const ch = challenges.find(c => markerMeshes[c.id] === hits[0].object);
+    nearestChallenge = ch;
+    if (ch.completed) hint.textContent = `${ch.label} — done`;
+    else if (markerMeshes[ch.id].userData.locked) hint.textContent = `${ch.label} — locked until the other huts are done`;
+    else hint.textContent = `[E] ${ch.label}`;
+    hint.classList.add('visible');
+  } else {
+    nearestChallenge = null;
+    hint.classList.remove('visible');
+  }
+}
+
+function tryInteract() {
+  if (!nearestChallenge || nearestChallenge.completed) return;
+  if (markerMeshes[nearestChallenge.id].userData.locked) return;
+  if (nearestChallenge.kind === 'real') openShipyardChallenge(nearestChallenge);
+  else openMockChallenge(nearestChallenge);
+}
+
+// ─── Mock challenges (Healer, Hall) — placeholder content ─────────────
+const MOCK_QUESTIONS = {
+  healer: {
+    title: "The Healer's Hut",
+    flavor: 'A warrior has been struck practising for tomorrow.',
+    body: 'Which of these is the correct first step?',
+    options: ['Apply pressure to stop the bleeding', 'Give them mead', 'Move them immediately', 'Wait and observe'],
+    correctIndex: 0,
+  },
+  hall: {
+    title: "The Chieftain's Hall",
+    flavor: 'The chieftain wants your report before the battle.',
+    body: 'What do you tell him?',
+    options: ['A reasoned account of what\'s ready', 'A guess', 'Silence', 'Flattery'],
+    correctIndex: 0,
+  },
+};
+
+function openMockChallenge(ch) {
+  controls.unlock();
+  const q = MOCK_QUESTIONS[ch.id];
+  document.getElementById('challengeEyebrow').textContent = 'Placeholder — mock content';
+  document.getElementById('challengeTitle').textContent = q.title;
+  document.getElementById('challengeFlavor').textContent = q.flavor;
+  const bodyEl = document.getElementById('challengeBody');
+  const feedbackEl = document.getElementById('challengeFeedback');
+  feedbackEl.textContent = '';
+  feedbackEl.className = '';
+  bodyEl.innerHTML = `<div style="margin-bottom:10px;">${q.body}</div><div class="options"></div>`;
+  const optionsEl = bodyEl.querySelector('.options');
+
+  q.options.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.textContent = opt;
+    btn.addEventListener('click', () => {
+      const correct = i === q.correctIndex;
+      feedbackEl.textContent = correct ? 'Correct.' : 'Not quite — try again.';
+      feedbackEl.className = correct ? 'correct' : 'incorrect';
+      if (correct) {
+        ch.completed = true;
+        updateMarkerStates();
+        setTimeout(() => {
+          document.getElementById('challengeModal').classList.remove('visible');
+          controls.lock();
+          checkWinCondition();
+        }, 700);
+      }
+    });
+    optionsEl.appendChild(btn);
+  });
+
+  document.getElementById('challengeModal').classList.add('visible');
+}
+
+// ─── Shipyard challenge — real LastMind Untracked integration ─────────
+// Fetches a real lesson + practice question from the compile backend
+// (same endpoint the main app's knowledge map uses) and grades the
+// answer through /untracked-submit — real content, real grading, no
+// effect on the student's actual spaced-repetition schedule.
+function simpleMarkdownToHtml(text) {
+  const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const bolded = escaped.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  return '<p>' + bolded.split(/\n\n+/).join('</p><p>') + '</p>';
+}
+
+async function openShipyardChallenge(ch) {
+  controls.unlock();
+  document.getElementById('challengeEyebrow').textContent = 'The Shipwright\'s Yard — real LastMind content';
+  document.getElementById('challengeTitle').textContent = 'Allocate the village\'s resources';
+  document.getElementById('challengeFlavor').textContent = "The chieftain needs the village's limited stores allocated wisely before tomorrow's battle. Prove you understand why.";
+  const bodyEl = document.getElementById('challengeBody');
+  const feedbackEl = document.getElementById('challengeFeedback');
+  feedbackEl.textContent = '';
+  feedbackEl.className = '';
+  bodyEl.innerHTML = '<div>Loading…</div>';
+  document.getElementById('challengeModal').classList.add('visible');
+
+  const session = await getSession();
+  if (!session) {
+    bodyEl.innerHTML = '<div>You need to sign in first — close this, go back to the start screen and sign in.</div>';
+    return;
+  }
+
+  let nodeLesson;
+  try {
+    const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/node/${SHIPYARD_NODE_ID}/lesson`, {
+      headers: { Authorization: `Bearer ${session.access_token}` }
+    });
+    if (resp.status === 429 || resp.status === 402) {
+      const errBody = await resp.json().catch(() => ({}));
+      bodyEl.innerHTML = `<div>${errBody.code === 'LOCK_LIMIT_REACHED' ? "Out of Locks for this month." : "Hit the generation limit for now."} Try again later.</div>`;
+      return;
+    }
+    if (!resp.ok) throw new Error('bad status ' + resp.status);
+    nodeLesson = await resp.json();
+  } catch (err) {
+    bodyEl.innerHTML = `<div>Couldn't reach LastMind (the backend can take up to a minute to wake up on a cold start — try again in a moment).</div>`;
+    return;
+  }
+
+  bodyEl.innerHTML = `
+    <div class="explanation">${simpleMarkdownToHtml(nodeLesson.explanation)}</div>
+    <button type="button" class="primary-btn" id="revealBtn">Reveal question</button>
+    <div id="questionBlock" style="display:none;">
+      <div style="margin-top:14px; font-weight:bold;">${nodeLesson.practiceQuestion.questionText}</div>
+      <textarea id="answerInput" placeholder="Write your answer here…"></textarea>
+      <button type="button" class="primary-btn" id="submitAnswerBtn">Submit answer</button>
+    </div>
+  `;
+
+  bodyEl.querySelector('#revealBtn').addEventListener('click', () => {
+    bodyEl.querySelector('.explanation').style.display = 'none';
+    bodyEl.querySelector('#revealBtn').style.display = 'none';
+    bodyEl.querySelector('#questionBlock').style.display = 'block';
+  });
+
+  bodyEl.querySelector('#submitAnswerBtn').addEventListener('click', async () => {
+    const answerEl = bodyEl.querySelector('#answerInput');
+    const answer = answerEl.value.trim();
+    if (!answer) return;
+    const submitBtn = bodyEl.querySelector('#submitAnswerBtn');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Checking…';
+    try {
+      const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/node/${SHIPYARD_NODE_ID}/untracked-submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ answer })
+      });
+      const result = await resp.json();
+      feedbackEl.textContent = result.feedback || (result.correct ? 'Correct.' : 'Not quite.');
+      feedbackEl.className = result.correct ? 'correct' : 'incorrect';
+      if (result.correct) {
+        ch.completed = true;
+        updateMarkerStates();
+        setTimeout(() => {
+          document.getElementById('challengeModal').classList.remove('visible');
+          controls.lock();
+          checkWinCondition();
+        }, 1400);
+      } else {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit answer';
+      }
+    } catch (err) {
+      feedbackEl.textContent = 'Something went wrong reaching LastMind — try again.';
+      feedbackEl.className = 'neutral';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Submit answer';
+    }
+  });
+}
+
+function checkWinCondition() {
+  if (challenges.every(c => c.completed)) {
+    setTimeout(() => document.getElementById('escapedScreen').classList.add('visible'), 400);
+  }
+}
+
+// ─── Render loop ───
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.1);
+  if (controls.isLocked) {
+    updateMovement(dt);
+    updateHint();
+  }
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>

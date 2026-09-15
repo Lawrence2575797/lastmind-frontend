@@ -20243,6 +20243,7 @@ SQIDAQAB
             labels: (initialState && initialState.labels) || [],
             arrows: (initialState && initialState.arrows) || [],
             shadeMode: false, edgeSelection: [], arrowMode: false, arrowDraft: null, dragging: null,
+            intersections: [], labelSelection: [], shadeLabel: null,
         };
         const initialNotes = (initialState && initialState.notes) || '';
 
@@ -20430,16 +20431,29 @@ SQIDAQAB
                     const hit = diagramPolylineIntersection(placedPolys[i], placedPolys[j]);
                     if (!hit) continue;
                     intersectionSeq++;
-                    const sub = String(intersectionSeq);
+                    if (intersectionSeq > 26) break;
+                    const label = String.fromCharCode(64 + intersectionSeq);
+                    state.intersections.push({ x: hit.x, y: hit.y, label });
                     svg.appendChild(svgElement('line', { x1: hit.x, y1: hit.y, x2: DIAGRAM_PRICE_AXIS[0].x, y2: hit.y, class: 'diagram-intersection-guide' }));
                     svg.appendChild(svgElement('line', { x1: hit.x, y1: hit.y, x2: hit.x, y2: DIAGRAM_QUANTITY_AXIS[0].y, class: 'diagram-intersection-guide' }));
                     svg.appendChild(svgElement('circle', { cx: hit.x, cy: hit.y, r: 2.5, class: 'diagram-curve-handle-dot' }));
-                    const pLabel = svgElement('text', { x: DIAGRAM_PRICE_AXIS[0].x - 6, y: hit.y + 4, class: 'diagram-intersection-label', 'text-anchor': 'end' });
-                    pLabel.textContent = `P${sub}`;
-                    svg.appendChild(pLabel);
-                    const qLabel = svgElement('text', { x: hit.x, y: DIAGRAM_QUANTITY_AXIS[0].y + 16, class: 'diagram-intersection-label', 'text-anchor': 'middle' });
-                    qLabel.textContent = `Q${sub}`;
-                    svg.appendChild(qLabel);
+                    const labelEl = svgElement('text', { x: hit.x - 8, y: hit.y - 8, class: 'diagram-intersection-label diagram-label-point', 'text-anchor': 'middle', 'data-label': label });
+                    labelEl.textContent = label;
+                    labelEl.style.cursor = 'pointer';
+                    labelEl.addEventListener('click', (ev) => {
+                        ev.stopPropagation();
+                        const idx = state.labelSelection.indexOf(label);
+                        if (idx === -1) {
+                            state.labelSelection.push(label);
+                            labelEl.style.fill = '#ff6b6b';
+                            labelEl.style.fontWeight = 'bold';
+                        } else {
+                            state.labelSelection.splice(idx, 1);
+                            labelEl.style.fill = 'currentColor';
+                            labelEl.style.fontWeight = 'normal';
+                        }
+                    });
+                    svg.appendChild(labelEl);
                 }
             }
 
@@ -20488,7 +20502,7 @@ SQIDAQAB
             });
 
             fillShadeBtn.hidden = !state.shadeMode;
-            fillShadeBtn.disabled = state.edgeSelection.length < 2;
+            fillShadeBtn.disabled = state.labelSelection.length < 2;
         }
 
         svg.addEventListener('pointermove', (ev) => {
@@ -20561,27 +20575,28 @@ SQIDAQAB
 
         shadeBtn.addEventListener('click', () => {
             state.shadeMode = !state.shadeMode;
+            state.labelSelection = [];
             state.edgeSelection = [];
             state.arrowMode = false; state.arrowDraft = null;
             shadeBtn.classList.toggle('active', state.shadeMode);
+            shadeBtn.textContent = state.shadeMode ? 'Shade a region (click labels A-Z)' : 'Shade a region (click each edge)';
             arrowBtn.classList.remove('active');
             render();
         });
-        // Fill: every pairwise crossing among the edges picked in shade
-        // mode (see diagramShadeFromEdges) becomes one shaded region -
-        // hidden/disabled outside shade mode / before 2 edges are chosen
-        // (kept in sync every render(), not just here, since toggling
-        // shadeMode or picking/unpicking an edge both go through render()
-        // too).
         fillShadeBtn.addEventListener('click', () => {
-            const shadePoints = diagramShadeFromEdges(state.edgeSelection, state);
-            if (shadePoints) {
+            if (state.labelSelection.length < 2) {
+                alert('Select at least 2 intersection points (labels) to define a shaded region');
+                return;
+            }
+            const selectedPoints = state.intersections.filter(p => state.labelSelection.includes(p.label));
+            if (selectedPoints.length >= 2) {
                 const label = window.prompt('Label this shaded area (optional):') || '';
-                state.shades.push({ points: shadePoints, label });
+                state.shades.push({ points: selectedPoints, label });
             }
             state.shadeMode = false;
-            state.edgeSelection = [];
+            state.labelSelection = [];
             shadeBtn.classList.remove('active');
+            shadeBtn.textContent = 'Shade a region (click each edge)';
             render();
         });
         arrowBtn.addEventListener('click', () => {

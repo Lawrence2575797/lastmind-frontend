@@ -1,0 +1,923 @@
+<title>Havnstad Bible</title>
+<meta name="description" content="World and character reference for the Havnstad prototype — village description, NPC states, and reusable image prompts.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,900;1,9..144,600;1,9..144,900&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#ece4d0;
+  --surface:#f8f2e4;
+  --surface-2:#efe6d2;
+  --text:#241c14;
+  --text-muted:#6b5c47;
+  --accent:#a8452a;
+  --accent-ink:#fbeee7;
+  --accent-2:#4c5c46;
+  --border:rgba(36,28,20,0.16);
+  --border-strong:rgba(36,28,20,0.28);
+  --rule-bg:#efe6d2;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#141a20;
+    --surface:#1d262d;
+    --surface-2:#212b32;
+    --text:#e9e0cb;
+    --text-muted:#9aa5a4;
+    --accent:#d97a52;
+    --accent-ink:#241108;
+    --accent-2:#8a9c7a;
+    --border:rgba(233,224,203,0.14);
+    --border-strong:rgba(233,224,203,0.24);
+    --rule-bg:#212b32;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#141a20;
+  --surface:#1d262d;
+  --surface-2:#212b32;
+  --text:#e9e0cb;
+  --text-muted:#9aa5a4;
+  --accent:#d97a52;
+  --accent-ink:#241108;
+  --accent-2:#8a9c7a;
+  --border:rgba(233,224,203,0.14);
+  --border-strong:rgba(233,224,203,0.24);
+  --rule-bg:#212b32;
+}
+
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:"Source Serif 4","Iowan Old Style",Georgia,serif;
+  padding-inline:20px;
+  padding-block:48px 80px;
+}
+.wrap{max-width:920px;margin:0 auto;}
+
+h1,h2,h3,.display{
+  font-family:"Fraunces","Iowan Old Style",Georgia,serif;
+  font-optical-sizing:auto;
+  text-wrap:balance;
+  margin:0;
+}
+.mono{
+  font-family:"JetBrains Mono","SF Mono",Consolas,monospace;
+}
+
+/* ---------- hero ---------- */
+.hero{
+  padding-block:8px 36px;
+  border-bottom:1px solid var(--border-strong);
+  margin-bottom:40px;
+}
+.hero-eyebrow{
+  font-family:"JetBrains Mono",monospace;
+  font-size:12px;
+  letter-spacing:0.14em;
+  text-transform:uppercase;
+  color:var(--accent);
+  margin-bottom:14px;
+}
+.hero h1{
+  font-size:clamp(44px,9vw,80px);
+  font-weight:900;
+  font-style:italic;
+  letter-spacing:-0.01em;
+  line-height:0.95;
+}
+.hero-sub{
+  margin-top:10px;
+  font-size:17px;
+  color:var(--text-muted);
+  max-width:52ch;
+}
+.hero-image{
+  margin-top:26px;
+  width:100%;
+  aspect-ratio:16/9;
+  object-fit:cover;
+  border-radius:8px;
+  border:1px solid var(--border-strong);
+  display:block;
+}
+.hero-image-caption{
+  font-family:"JetBrains Mono",monospace;
+  font-size:11px;
+  color:var(--text-muted);
+  margin-top:8px;
+}
+.setting{
+  margin-top:26px;
+  font-size:16.5px;
+  line-height:1.75;
+  max-width:66ch;
+}
+.setting strong{color:var(--accent);font-weight:600;}
+
+/* ---------- prompt block ---------- */
+.prompt{
+  margin-top:20px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-left:3px solid var(--accent);
+  border-radius:4px;
+  padding:16px 18px;
+}
+.prompt-label{
+  font-family:"JetBrains Mono",monospace;
+  font-size:10.5px;
+  letter-spacing:0.12em;
+  text-transform:uppercase;
+  color:var(--accent);
+  margin-bottom:8px;
+}
+.prompt-text{
+  font-family:"JetBrains Mono",monospace;
+  font-size:13px;
+  line-height:1.65;
+  color:var(--text);
+}
+
+/* ---------- locations strip ---------- */
+.section-label{
+  font-family:"JetBrains Mono",monospace;
+  font-size:12px;
+  letter-spacing:0.14em;
+  text-transform:uppercase;
+  color:var(--text-muted);
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin:52px 0 18px;
+}
+.section-label::after{
+  content:"";
+  flex:1;
+  height:1px;
+  background:var(--border-strong);
+}
+.locations{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.loc-tag{
+  font-family:"JetBrains Mono",monospace;
+  font-size:12.5px;
+  padding:7px 12px;
+  border:1px solid var(--border-strong);
+  border-radius:100px;
+  color:var(--text-muted);
+}
+
+/* ---------- roster grid ---------- */
+.roster{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
+  gap:18px;
+}
+.card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:6px;
+  padding:22px 22px 20px;
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+}
+.card-portrait{
+  width:100%;
+  aspect-ratio:4/3;
+  object-fit:cover;
+  border-radius:5px;
+  border:1px solid var(--border);
+  display:block;
+  margin-bottom:2px;
+}
+.card-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;}
+.card-name{font-size:23px;font-weight:700;font-style:italic;}
+.card-role{
+  font-family:"JetBrains Mono",monospace;
+  font-size:11px;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  color:var(--accent);
+  white-space:nowrap;
+}
+.card-hook{font-size:14.5px;color:var(--text-muted);line-height:1.55;margin-top:-6px;}
+
+.traits{display:flex;flex-wrap:wrap;gap:6px;}
+.trait{
+  font-family:"JetBrains Mono",monospace;
+  font-size:11.5px;
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  border-radius:3px;
+  padding:3px 7px;
+  color:var(--text);
+}
+.trait b{color:var(--accent-2);font-weight:700;}
+
+.field{font-size:14px;line-height:1.55;}
+.field-label{
+  font-family:"JetBrains Mono",monospace;
+  font-size:10.5px;
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  color:var(--text-muted);
+  display:block;
+  margin-bottom:3px;
+}
+
+.card-prompt{
+  margin-top:auto;
+  padding-top:14px;
+  border-top:1px dashed var(--border-strong);
+}
+.card-prompt .prompt-label{margin-bottom:6px;}
+.card-prompt .prompt-text{font-size:12px;line-height:1.6;color:var(--text-muted);}
+
+/* ---------- threat dossier ---------- */
+.threat{
+  background:var(--surface);
+  border:1px solid var(--border-strong);
+  border-radius:6px;
+  padding:26px 26px 22px;
+  position:relative;
+}
+.threat::before{
+  content:"OFF-PAGE — NOT A HAVNSTAD RESIDENT";
+  position:absolute;
+  top:-11px;
+  left:22px;
+  background:var(--bg);
+  padding:0 8px;
+  font-family:"JetBrains Mono",monospace;
+  font-size:10px;
+  letter-spacing:0.1em;
+  color:var(--accent);
+}
+.threat-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:4px;}
+.threat-name{font-size:26px;font-weight:700;font-style:italic;}
+.threat-role{
+  font-family:"JetBrains Mono",monospace;
+  font-size:11px;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  color:var(--accent);
+}
+.threat-body{font-size:14.5px;line-height:1.65;margin-top:12px;max-width:68ch;}
+.threat-grid{
+  margin-top:16px;
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:16px;
+}
+
+/* ---------- economy ---------- */
+.varlist{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(210px,1fr));
+  gap:10px;
+  margin-bottom:32px;
+}
+.var-item{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:5px;
+  padding:11px 13px;
+}
+.var-name{
+  font-family:"JetBrains Mono",monospace;
+  font-size:13px;
+  font-weight:700;
+  color:var(--accent-2);
+}
+.var-scope{
+  font-family:"JetBrains Mono",monospace;
+  font-size:10px;
+  letter-spacing:0.06em;
+  color:var(--text-muted);
+  text-transform:uppercase;
+  margin-left:6px;
+}
+.var-desc{font-size:12.5px;color:var(--text-muted);margin-top:3px;line-height:1.45;}
+
+.rule-block{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:6px;
+  padding:20px 22px;
+  margin-bottom:16px;
+}
+.rule-title{
+  font-family:"Fraunces",serif;
+  font-size:19px;
+  font-weight:700;
+  font-style:italic;
+  margin-bottom:4px;
+}
+.rule-sub{font-size:13.5px;color:var(--text-muted);margin-bottom:14px;line-height:1.5;}
+.formula{
+  font-family:"JetBrains Mono",monospace;
+  font-size:13px;
+  line-height:1.9;
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  border-radius:4px;
+  padding:12px 15px;
+  overflow-x:auto;
+  white-space:pre;
+}
+
+.tick{
+  counter-reset:tick;
+  display:flex;
+  flex-direction:column;
+  gap:0;
+  border:1px solid var(--border);
+  border-radius:6px;
+  overflow:hidden;
+  margin-bottom:32px;
+}
+.tick-step{
+  counter-increment:tick;
+  display:grid;
+  grid-template-columns:44px 1fr;
+  padding:13px 16px;
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  font-size:13.5px;
+  line-height:1.5;
+}
+.tick-step:last-child{border-bottom:none;}
+.tick-step::before{
+  content:counter(tick);
+  font-family:"JetBrains Mono",monospace;
+  font-size:13px;
+  font-weight:700;
+  color:var(--accent);
+}
+.tick-step b{color:var(--text);}
+.tick-step span.tick-muted{color:var(--text-muted);}
+
+.example{
+  background:var(--surface-2);
+  border-left:3px solid var(--accent-2);
+  border-radius:4px;
+  padding:18px 20px;
+  font-size:13.5px;
+  line-height:1.7;
+}
+.example-title{
+  font-family:"JetBrains Mono",monospace;
+  font-size:10.5px;
+  letter-spacing:0.12em;
+  text-transform:uppercase;
+  color:var(--accent-2);
+  margin-bottom:10px;
+}
+.example table{border-collapse:collapse;width:100%;margin-top:8px;font-family:"JetBrains Mono",monospace;font-size:12.5px;}
+.example td{padding:4px 10px 4px 0;font-variant-numeric:tabular-nums;}
+.example td:first-child{color:var(--text-muted);white-space:nowrap;}
+
+/* ---------- player actions ---------- */
+.actions{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+  gap:16px;
+  margin-bottom:16px;
+}
+.action-card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:6px;
+  padding:18px 20px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.action-name{
+  font-family:"JetBrains Mono",monospace;
+  font-size:14.5px;
+  font-weight:700;
+  color:var(--accent);
+}
+.action-params{
+  font-family:"JetBrains Mono",monospace;
+  font-size:11.5px;
+  color:var(--text-muted);
+}
+.action-row{font-size:13px;line-height:1.55;}
+.action-row .field-label{
+  font-family:"JetBrains Mono",monospace;
+  font-size:10px;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  color:var(--text-muted);
+  display:inline-block;
+  min-width:56px;
+}
+.action-card.wide{grid-column:1/-1;}
+.leif-flow{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  counter-reset:leif;
+}
+.leif-step{
+  display:grid;
+  grid-template-columns:22px 1fr;
+  font-size:13.5px;
+  line-height:1.55;
+}
+.leif-step::before{
+  counter-increment:leif;
+  content:counter(leif)".";
+  font-family:"JetBrains Mono",monospace;
+  color:var(--accent-2);
+  font-weight:700;
+}
+
+/* ---------- footer note ---------- */
+.note{
+  margin-top:56px;
+  padding-top:24px;
+  border-top:1px solid var(--border-strong);
+  font-size:14px;
+  color:var(--text-muted);
+  line-height:1.7;
+  max-width:66ch;
+}
+.note b{color:var(--text);}
+
+@media (max-width:520px){
+  .hero h1{font-size:clamp(36px,13vw,56px);}
+}
+</style>
+
+<div class="wrap">
+
+  <div class="hero">
+    <div class="hero-eyebrow">World &amp; Character Bible · v1</div>
+    <h1>Havnstad</h1>
+    <p class="hero-sub">A fjord village, its people, and the rules they act on.</p>
+    <p class="setting">
+      Havnstad sits on the shore of a narrow fjord in remote Norway, backed by steep, pine-dark mountains
+      that rise straight from the water. Turf-roofed longhouses cluster along the waterline, smoke rising from
+      cooking fires. <strong>Jarl Sten's hall</strong> stands on raised ground above the village, larger and more
+      carved than the huts around it. A wide harbour holds longships and fishing boats at wooden docks; a
+      <strong>shipyard</strong> stands nearby with a half-built hull. Near the harbour: a modest <strong>market</strong>,
+      a <strong>blacksmith's forge</strong>, and a <strong>granary</strong> raised on stilts against damp. A few
+      <strong>farms</strong> with fenced fields sit on the flatter ground inland. The <strong>forest edge</strong>
+      presses close behind everything, dark and dense. Overcast Nordic light, muted green and grey, mist over the
+      water.
+    </p>
+    <img class="hero-image" src="portraits/havnstad_village.png" alt="Havnstad, a Viking fjord village at dusk with longships in the harbour">
+    <div class="hero-image-caption">Generated — Flux schnell via fal.ai, from the reusable base prompt below</div>
+    <div class="prompt">
+      <div class="prompt-label">Reusable base prompt — prepend to every Havnstad scene</div>
+      <div class="prompt-text">Cinematic painterly digital art, Viking-age Norway, a fjord village called Havnstad on
+        the shore of a narrow fjord backed by steep pine-forested mountains, turf-roofed longhouses, longships
+        moored at wooden docks, overcast muted-green Nordic light, mist over the water, painterly texture, highly
+        detailed, atmospheric — [scene-specific detail here]</div>
+    </div>
+  </div>
+
+  <div class="section-label">Fixed locations</div>
+  <div class="locations">
+    <span class="loc-tag">Jarl's Hall</span>
+    <span class="loc-tag">Market</span>
+    <span class="loc-tag">Harbour</span>
+    <span class="loc-tag">Shipyard</span>
+    <span class="loc-tag">Granary</span>
+    <span class="loc-tag">Blacksmith's Forge</span>
+    <span class="loc-tag">Farms (×3)</span>
+    <span class="loc-tag">Fishing Shore</span>
+    <span class="loc-tag">Forest Edge</span>
+    <span class="loc-tag">Villager Huts</span>
+  </div>
+
+  <div class="section-label">Resident NPCs — 11</div>
+  <div class="roster">
+
+    <div class="card">
+      <img class="card-portrait" src="portraits/jarl_sten.png" alt="Jarl Sten portrait">
+      <div class="card-head"><span class="card-name">Jarl Sten</span><span class="card-role">Ruler</span></div>
+      <p class="card-hook">Ambitious warrior-king. Harsh, demands loyalty over cleverness — and knows economics isn't his gift.</p>
+      <div class="traits">
+        <span class="trait">ambition:<b>high</b></span>
+        <span class="trait">loyalty_demand:<b>high</b></span>
+        <span class="trait">economic_skill:<b>low</b></span>
+        <span class="trait">risk_tolerance:<b>high</b></span>
+      </div>
+      <div class="field"><span class="field-label">Goals</span>Grow Havnstad's strength · find someone he can actually trust with money matters</div>
+      <div class="field"><span class="field-label">Needs</span>Tax revenue · military readiness · loyal counsel</div>
+      <div class="field"><span class="field-label">Relationships</span>Distrusts outsiders by default · rewards proven loyalty visibly · watches Vidar warily</div>
+      <div class="field"><span class="field-label">Rules</span>Offers advisory roles only once trust + reputation + demonstrated competence clear a threshold · raises military spending as the Vidar threat rises · punishes disloyalty publicly</div>
+      <div class="card-prompt">
+        <div class="prompt-label">Portrait prompt</div>
+        <div class="prompt-text">Portrait of a Viking jarl in his forties, powerfully built, weathered scarred face, stern expression, iron circlet, fur-trimmed cloak over mail, resting hand on a battle-axe, three-quarter view, direct gaze, softly blurred hall interior behind him.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <img class="card-portrait" src="portraits/astrid.png" alt="Astrid portrait">
+      <div class="card-head"><span class="card-name">Astrid</span><span class="card-role">Moneylender</span></div>
+      <p class="card-hook">Sharp, composed, trusts numbers over people. Remembers every debt, forgets nothing.</p>
+      <div class="traits">
+        <span class="trait">trust_threshold:<b>high</b></span>
+        <span class="trait">risk_tolerance:<b>low</b></span>
+        <span class="trait">greed:<b>moderate</b></span>
+      </div>
+      <div class="field"><span class="field-label">Goals</span>Grow wealth safely · avoid bad debts</div>
+      <div class="field"><span class="field-label">Needs</span>Reliable borrowers · stable market prices</div>
+      <div class="field"><span class="field-label">Relationships</span>Neutral by default · rises with every loan repaid · drops sharply on a single default</div>
+      <div class="field"><span class="field-label">Rules</span>Lends only above her trust threshold · interest scales with perceived risk · calls in loans when her own cash runs low</div>
+      <div class="card-prompt">
+        <div class="prompt-label">Portrait prompt</div>
+        <div class="prompt-text">Portrait of a Viking woman in her late thirties, sharp intelligent eyes, composed expression, fine wool dress, silver arm-rings, a scale-weight pouch at her belt, three-quarter view, direct gaze, softly blurred market stalls behind her.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <img class="card-portrait" src="portraits/ragnvald.png" alt="Ragnvald portrait">
+      <div class="card-head"><span class="card-name">Ragnvald</span><span class="card-role">Blacksmith</span></div>
+      <p class="card-hook">Proud of his craft above all else. Slow to trust an outsider, loyal once he does.</p>
+      <div class="traits">
+        <span class="trait">pride:<b>high</b></span>
+        <span class="trait">trust_threshold:<b>moderate</b></span>
+        <span class="trait">work_ethic:<b>high</b></span>
+      </div>
+      <div class="field"><span class="field-label">Goals</span>Stay the finest smith in the fjord · secure steady ore and coal</div>
+      <div class="field"><span class="field-label">Needs</span>Raw materials · paying customers</div>
+      <div class="field"><span class="field-label">Relationships</span>Respects skill wherever he finds it · warms slowly to newcomers</div>
+      <div class="field"><span class="field-label">Rules</span>Prices rise when materials are scarce · trusted/loyal customers get priority · refuses rushed work that would mark his name</div>
+      <div class="card-prompt">
+        <div class="prompt-label">Portrait prompt</div>
+        <div class="prompt-text">Portrait of a broad-shouldered Viking blacksmith, soot-streaked leather apron over bare forearms, burn-scarred hands, thick beard, forge coals glowing behind him, intent expression, three-quarter view.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <img class="card-portrait" src="portraits/halla.png" alt="Halla portrait">
+      <div class="card-head"><span class="card-name">Halla</span><span class="card-role">Fisherman</span></div>
+      <p class="card-hook">Superstitious, weathered by salt and sun. Generous when the catch is good — hard when it isn't.</p>
+      <div class="traits">
+        <span class="trait">superstition:<b>high</b></span>
+        <span class="trait">generosity:<b>variable</b></span>
+      </div>
+      <div class="field"><span class="field-label">Goals</span>Provide for her household · keep the sea's favour</div>
+      <div class="field"><span class="field-label">Needs</span>Good weather and catch · fair prices at market</div>
+      <div class="field"><span class="field-label">Relationships</span>Warms quickly to anyone who shares in a hard season</div>
+      <div class="field"><span class="field-label">Rules</span>Sells cheap after a good catch, prices high and hoards after a poor one · generosity toward the player tracks her last catch</div>
+      <div class="card-prompt">
+        <div class="prompt-label">Portrait prompt</div>
+        <div class="prompt-text">Portrait of a weathered Viking fisherwoman, sun- and salt-worn skin, simple wool tunic, a fish-hook charm at her neck, wary watchful expression, fishing nets and the fjord blurred behind her.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <img class="card-portrait" src="portraits/bjorn.png" alt="Bjorn portrait">
+      <div class="card-head"><span class="card-name">Bjorn</span><span class="card-role">Shipbuilder</span></div>
+      <p class="card-hook">Lean, energetic, wants Havnstad's trade reaching further than anyone's dared yet.</p>
+      <div class="traits">
+        <span class="trait">ambition:<b>high</b></span>
+        <span class="trait">risk_tolerance:<b>high</b></span>
+      </div>
+      <div class="field"><span class="field-label">Goals</span>Build bigger ships · expand Havnstad's trade routes</div>
+      <div class="field"><span class="field-label">Needs</span>Timber · skilled labour · backers</div>
+      <div class="field"><span class="field-label">Relationships</span>Actively courts the wealthy and influential for investment</div>
+      <div class="field"><span class="field-label">Rules</span>Pitches ventures to high-wealth or high-trust NPCs, player included · build speed scales with labour and timber on hand</div>
+      <div class="card-prompt">
+        <div class="prompt-label">Portrait prompt</div>
+        <div class="prompt-text">Portrait of a lean energetic Viking shipbuilder, sleeves rolled, wood-shaving-dusted apron, a measuring tool in hand, ambitious half-smile, a half-built longship visible behind him.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <img class="card-portrait" src="portraits/ingrid.png" alt="Ingrid portrait">
+      <div class="card-head"><span class="card-name">Ingrid</span><span class="card-role">Farmer</span></div>
+      <p class="card-hook">Mischievous and relentless — will do whatever it takes to rise above her station.</p>
+      <div class="traits">
+        <span class="trait">ambition:<b>very high</b></span>
+        <span class="trait">honesty:<b>low</b></span>
+        <span class="trait">risk_tolerance:<b>high</b></span>
+      </div>
+      <div class="field"><span class="field-label">Goals</span>Climb above her station, by any means available</div>
+      <div class="field"><span class="field-label">Needs</span>Land · labour · Sten's favour</div>
+      <div class="field"><span class="field-label">Relationships</span>Treats rivals — possibly the player — as obstacles, not neighbours</div>
+      <div class="field"><span class="field-label">Rules</span>Exaggerates or lies to the Jarl to raise herself or lower others · allies opportunistically with whoever looks to be winning · reputation collapses fast if a scheme is exposed</div>
+      <div class="card-prompt">
+        <div class="prompt-label">Portrait prompt</div>
+        <div class="prompt-text">Portrait of a Viking farmwoman with sharp, calculating eyes, practical farm dress worn with one telling luxury — a fine borrowed brooch — a too-pleasant smile, farmland blurred behind her.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <img class="card-portrait" src="portraits/torvald.png" alt="Torvald portrait">
+      <div class="card-head"><span class="card-name">Torvald</span><span class="card-role">Jarl's Steward</span></div>
+      <p class="card-hook">Watchful, political, entirely devoted to protecting Sten's rule — and his own position.</p>
+      <div class="traits">
+        <span class="trait">political_savvy:<b>high</b></span>
+        <span class="trait">loyalty_to_sten:<b>very high</b></span>
+        <span class="trait">caution:<b>high</b></span>
+      </div>
+      <div class="field"><span class="field-label">Goals</span>Protect Sten's rule · keep the village running smoothly</div>
+      <div class="field"><span class="field-label">Needs</span>Accurate information · Sten's continued trust</div>
+      <div class="field"><span class="field-label">Relationships</span>Gatekeeps who gets an audience with the Jarl</div>
+      <div class="field"><span class="field-label">Rules</span>Filters access to Sten by reputation · reports notable player actions upward · wary of anyone who threatens his own standing</div>
+      <div class="card-prompt">
+        <div class="prompt-label">Portrait prompt</div>
+        <div class="prompt-text">Portrait of a narrow-faced Viking steward, watchful expression, fine but understated clothing marking status without excess, a tally-stick ledger in hand, the Jarl's hall blurred behind him.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <img class="card-portrait" src="portraits/leif.png" alt="Leif portrait">
+      <div class="card-head"><span class="card-name">Leif</span><span class="card-role">The Friend</span></div>
+      <p class="card-hook">The player's own confidant. Explains the village honestly — never decides for you.</p>
+      <div class="traits">
+        <span class="trait">loyalty_to_player:<b>fixed</b></span>
+        <span class="trait">honesty:<b>high</b></span>
+        <span class="trait">knowledge:<b>broad</b></span>
+      </div>
+      <div class="field"><span class="field-label">Goals</span>Help the player understand Havnstad and succeed in it</div>
+      <div class="field"><span class="field-label">Needs</span>— narrative role, not a simulated economic agent</div>
+      <div class="field"><span class="field-label">Relationships</span>Unconditionally friendly · reads the village's mood on the player's behalf</div>
+      <div class="field"><span class="field-label">Rules</span>Opens every session with a plain-language recap of what happened since last login, then frames the current decision as a few clickable advice options — see <span class="mono">Talk to Leif</span> in Player Actions below for exactly what those buttons show</div>
+      <div class="card-prompt">
+        <div class="prompt-label">Portrait prompt</div>
+        <div class="prompt-text">Portrait of a warm, open-faced young Viking man, plain practical dress, an easy approachable posture, a small carved token at his belt, harbour softly blurred behind him.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <img class="card-portrait" src="portraits/freydis.png" alt="Freydis portrait">
+      <div class="card-head"><span class="card-name">Freydis</span><span class="card-role">Elder &amp; Healer</span></div>
+      <p class="card-hook">Long memory, longer patience. Respected by everyone, from the Jarl down.</p>
+      <div class="traits">
+        <span class="trait">wisdom:<b>high</b></span>
+        <span class="trait">patience:<b>high</b></span>
+        <span class="trait">memory:<b>long</b></span>
+      </div>
+      <div class="field"><span class="field-label">Goals</span>Preserve the village's wellbeing and its old ways</div>
+      <div class="field"><span class="field-label">Needs</span>Respect · herbs and supplies</div>
+      <div class="field"><span class="field-label">Relationships</span>Respected at every rank — her opinion colours how others treat you</div>
+      <div class="field"><span class="field-label">Rules</span>Judges by long-run pattern, never a single act · a word from her shifts others' opinions faster than most</div>
+      <div class="card-prompt">
+        <div class="prompt-label">Portrait prompt</div>
+        <div class="prompt-text">Portrait of an elderly Viking woman, deeply lined face, long grey hair, dried herbs and small amulets at her belt, calm knowing expression, a hut interior blurred behind her.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <img class="card-portrait" src="portraits/erik.png" alt="Erik portrait">
+      <div class="card-head"><span class="card-name">Erik</span><span class="card-role">Guard Captain</span></div>
+      <p class="card-hook">Blunt, loyal to Sten without question. Trusts strength and reliability over cleverness.</p>
+      <div class="traits">
+        <span class="trait">loyalty_to_sten:<b>very high</b></span>
+        <span class="trait">bluntness:<b>high</b></span>
+        <span class="trait">values:<b>strength</b></span>
+      </div>
+      <div class="field"><span class="field-label">Goals</span>Keep Havnstad defended · earn Sten's trust</div>
+      <div class="field"><span class="field-label">Needs</span>Trained warriors · weapons and supplies</div>
+      <div class="field"><span class="field-label">Relationships</span>Respects courage and reliability, dismisses cleverness without backbone</div>
+      <div class="field"><span class="field-label">Rules</span>Recruits and drills harder as the Vidar threat rises · reports readiness to Sten · distrusts anyone seen dealing with Vidar's people</div>
+      <div class="card-prompt">
+        <div class="prompt-label">Portrait prompt</div>
+        <div class="prompt-text">Portrait of a scarred, powerfully built Viking guard captain, sword and round shield, a guard's cloak, alert stance, harbour palisade blurred behind him.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <img class="card-portrait" src="portraits/solveig.png" alt="Solveig portrait">
+      <div class="card-head"><span class="card-name">Solveig</span><span class="card-role">Weaver &amp; Trader</span></div>
+      <p class="card-hook">Knows everyone's business. Havnstad's word-of-mouth, for better or worse.</p>
+      <div class="traits">
+        <span class="trait">sociability:<b>very high</b></span>
+        <span class="trait">discretion:<b>low</b></span>
+        <span class="trait">curiosity:<b>high</b></span>
+      </div>
+      <div class="field"><span class="field-label">Goals</span>Stay informed · sell her goods · stay at the centre of things</div>
+      <div class="field"><span class="field-label">Needs</span>Market traffic · fresh gossip</div>
+      <div class="field"><span class="field-label">Relationships</span>Knows everyone's business — a little exaggerated in the telling</div>
+      <div class="field"><span class="field-label">Rules</span>Spreads a notable player action around the village faster than anyone — the reputation-propagation engine</div>
+      <div class="card-prompt">
+        <div class="prompt-label">Portrait prompt</div>
+        <div class="prompt-text">Portrait of an animated Viking woman mid-conversation, colourful woven textiles laid out around her, market stalls blurred behind her, bright curious expression.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="section-label">External threat</div>
+  <div class="threat">
+    <div class="threat-head">
+      <span class="threat-name">Jarl Vidar</span>
+      <span class="threat-role">Rival Ruler</span>
+    </div>
+    <p class="threat-body">
+      Rules a neighbouring settlement, not Havnstad — modelled as an offstage power whose own ambition, strength,
+      and standing army drive an <span class="mono">invasion_likelihood</span> value against Havnstad, rather than
+      a resident NPC with a portrait walking the village. Sten opposes him and maintains his own body of warriors,
+      led by Erik, specifically against this threat — both sides field a real, simulated force, not just intent.
+    </p>
+    <div class="threat-grid">
+      <div class="field"><span class="field-label">Traits</span>ambition: very high · aggression: high · opportunism: high</div>
+      <div class="field"><span class="field-label">Army</span>Maintains his own standing warband — <span class="mono">vidar_army_strength</span>, grown independently of Havnstad, sets the ceiling on how credible his invasion threat actually is</div>
+      <div class="field"><span class="field-label">Drives</span>Invasion likelihood rises as his own army strengthens relative to Erik's, and as Havnstad's visible wealth rises while its defence falls</div>
+      <div class="field"><span class="field-label">Sten's response</span>Increases Erik's warrior recruitment and readiness as the gap with Vidar's army closes</div>
+    </div>
+  </div>
+
+  <div class="section-label">Economy simulation — grain loop</div>
+
+  <p class="setting" style="max-width:70ch;margin-bottom:28px;">
+    The first working loop: <span class="mono">farm → grain → labour → production → market → prices → buying/selling
+    → wealth → reputation</span>. Every buyer — named NPC or the abstracted village population — chooses which
+    seller to buy from by <b style="color:var(--accent);">maximising utility</b>, not just chasing the lowest
+    price: a seller who raises price without raising quality gets shopped around, bought from only once every
+    better-value rival has sold out.
+  </p>
+
+  <div class="varlist">
+    <div class="var-item"><span class="var-name">silver</span><span class="var-scope">per agent</span><div class="var-desc">Liquid wealth. Every trade moves it buyer → seller.</div></div>
+    <div class="var-item"><span class="var-name">grain</span><span class="var-scope">per agent</span><div class="var-desc">Held inventory — what you actually have on hand, not what you can afford.</div></div>
+    <div class="var-item"><span class="var-name">land</span><span class="var-scope">farms only</span><div class="var-desc">Caps how much labour a farm can usefully absorb.</div></div>
+    <div class="var-item"><span class="var-name">labour</span><span class="var-scope">farms only</span><div class="var-desc">Workers actively farming — self, family, hired hands.</div></div>
+    <div class="var-item"><span class="var-name">farming_skill</span><span class="var-scope">farms only</span><div class="var-desc">Slow-moving. Drives quality, not raw yield.</div></div>
+    <div class="var-item"><span class="var-name">price</span><span class="var-scope">per seller</span><div class="var-desc">Self-set every week — manually by the player, by rule for NPCs.</div></div>
+    <div class="var-item"><span class="var-name">quality</span><span class="var-scope">per seller</span><div class="var-desc">Derived from farming_skill. What lets a pricier seller still win.</div></div>
+    <div class="var-item"><span class="var-name">price_sensitivity</span><span class="var-scope">per buyer</span><div class="var-desc">How heavily price outweighs quality in that buyer's choice.</div></div>
+  </div>
+
+  <div class="rule-block">
+    <div class="rule-title">1 · Production</div>
+    <div class="rule-sub">Weekly, per farm. Labour past what the land can absorb stops adding yield.</div>
+    <div class="formula">grain_produced = base_yield_per_land
+                × land
+                × min(1, labour / labour_needed(land))
+                × season_yield_multiplier
+
+season_yield_multiplier:  spring 0.6 · summer 1.0 · autumn 1.3 · winter 0</div>
+  </div>
+
+  <div class="rule-block">
+    <div class="rule-title">2 · Quality</div>
+    <div class="rule-sub">Slow-moving relative to price — this is what makes it a real trade-off, not just a second price.</div>
+    <div class="formula">quality = base_quality + skill_bonus(farming_skill) + small_seasonal_variance</div>
+  </div>
+
+  <div class="rule-block">
+    <div class="rule-title">3 · Consumption &amp; who becomes a buyer</div>
+    <div class="rule-sub">Every agent, including the abstracted village population — same formula, no special-casing.</div>
+    <div class="formula">consumption_needed = population × per_capita_grain_per_week × (winter ? winter_multiplier : 1)
+shortfall          = max(0, consumption_needed − own_grain_stock)
+
+shortfall > 0  →  this agent enters the market as a BUYER this week, needing `shortfall` units</div>
+  </div>
+
+  <div class="rule-block">
+    <div class="rule-title">4 · Seller pricing</div>
+    <div class="rule-sub">The player sets price by their own decision each week. NPC sellers price adaptively — the classic feedback rule: sold out means you could have charged more, leftover stock means you charged too much.</div>
+    <div class="formula">if sold_out_last_week:        price *= (1 + PRICE_UP_STEP)
+elif leftover_stock_last_week: price *= (1 − PRICE_DOWN_STEP)
+else:                          price unchanged</div>
+  </div>
+
+  <div class="rule-block">
+    <div class="rule-title">5 · Utility-maximising market clearing</div>
+    <div class="rule-sub">The core mechanic. Every buyer ranks every seller of the same good and buys down the list — not just the cheapest, and not just the closest.</div>
+    <div class="formula">utility[seller] = quality[seller] − price_sensitivity[buyer] × price[seller]
+
+for each buyer, each week:
+  rank sellers by utility, highest first
+  buy from the top-ranked seller up to their remaining stock
+  move to the next seller if still short
+  repeat until satisfied or every seller is exhausted</div>
+    <div class="rule-sub" style="margin-top:12px;margin-bottom:0;">
+      A seller who raises price without raising quality drops in the ranking — bought from last, only once every
+      better-value rival has already sold out. A seller with genuinely higher quality can still rank first despite
+      a higher price: quality just has to outweigh <span class="mono">price_sensitivity × the price gap</span>,
+      which is exactly "unless quality suffices," made concrete.
+    </div>
+  </div>
+
+  <div class="rule-block">
+    <div class="rule-title">6 · Settlement</div>
+    <div class="rule-sub">No single clearing price — sellers are differentiated, so each trade settles at that seller's own price.</div>
+    <div class="formula">on each matched trade:  buyer.silver −= qty × seller.price
+                        buyer.grain  += qty
+                        seller.silver += qty × seller.price
+                        seller.grain  −= qty</div>
+  </div>
+
+  <div class="section-label">Weekly tick order</div>
+  <div class="tick">
+    <div class="tick-step"><b>Season / week advance</b> — check for a season boundary.</div>
+    <div class="tick-step"><b>Production</b> — every farm produces grain (rule 1); quality updates (rule 2).</div>
+    <div class="tick-step"><b>Pricing</b> — every seller sets this week's asking price (rule 4; player acts manually).</div>
+    <div class="tick-step"><b>Consumption &amp; demand</b> — every agent computes its shortfall; anyone short becomes a buyer (rule 3).</div>
+    <div class="tick-step"><b>Market clearing</b> — every buyer ranks sellers by utility and buys down the list (rules 5-6).</div>
+    <div class="tick-step"><b>Other player actions resolve</b> — loans, hiring, political moves not already covered above.</div>
+    <div class="tick-step"><b>Social &amp; political phase</b> — Ingrid's scheming, Solveig's gossip, Torvald's reports, Sten's threshold checks, Erik's recruitment vs. Vidar.</div>
+    <div class="tick-step"><b>Reputation &amp; relationships</b> finalise for the week.</div>
+    <div class="tick-step"><span class="tick-muted">Learning-engine hook</span> — this week's reasoning + action logged against whichever knowledge nodes the week's scenario was tagged with.</div>
+    <div class="tick-step"><b>Leif's recap</b> is generated for the player's next login.</div>
+    <div class="tick-step">Week counter increments.</div>
+  </div>
+
+  <div class="example">
+    <div class="example-title">Worked example — week 14, autumn</div>
+    Player farm: land 4, labour 2 → efficiency 0.5, quality 6, prices manually at 3.0/unit (holding last week's rate).<br>
+    grain_produced = 5 × 4 × 0.5 × 1.3 = <b>13</b>
+    <br><br>
+    Ingrid's farm: land 5, labour 5 → efficiency 1.0, quality 5, sold out last week → price rises to 3.3/unit.<br>
+    grain_produced = 5 × 5 × 1.0 × 1.3 = <b>32.5</b>
+    <br><br>
+    Village demand: shortfall <b>40</b>, price_sensitivity 1.0.
+    <table>
+      <tr><td>utility[player]</td><td>6 − 1.0×3.0 = <b>3.0</b> ← ranks first (cheaper AND better this week)</td></tr>
+      <tr><td>utility[Ingrid]</td><td>5 − 1.0×3.3 = <b>1.7</b></td></tr>
+    </table>
+    Village buys the player's full 13 first — sold out, 39 silver earned. Still needs 27 → buys 27 from Ingrid
+    (89.1 silver earned), who's left with 5.5 unsold. Because Ingrid didn't sell out, rule 4 drops her price next
+    week — the market drifting back toward where it clears, one adaptive step at a time.
+  </div>
+
+  <div class="section-label">Player actions</div>
+
+  <p class="setting" style="max-width:70ch;margin-bottom:24px;">
+    Every action below is what the natural-language interpreter (step 6) has to resolve free text <i>down to</i> —
+    each one names exactly what state it reads, what it writes, and what makes it invalid. The interpreter's whole
+    job is turning "I'll sell 10 grain, winter's coming" into one of these; it never touches state itself.
+  </p>
+
+  <div class="actions">
+
+    <div class="action-card">
+      <div class="action-name">SELL_GRAIN</div>
+      <div class="action-params">resource, quantity, price</div>
+      <div class="action-row"><span class="field-label">Reads</span>own grain stock</div>
+      <div class="action-row"><span class="field-label">Writes</span>seller.price, stock offered this week (rule 4)</div>
+      <div class="action-row"><span class="field-label">Invalid if</span>quantity &gt; own grain stock</div>
+    </div>
+
+    <div class="action-card">
+      <div class="action-name">BUY_GRAIN</div>
+      <div class="action-params">resource, quantity, max_price?</div>
+      <div class="action-row"><span class="field-label">Reads</span>own silver</div>
+      <div class="action-row"><span class="field-label">Writes</span>a buy order for this week's market clearing (rule 5) — fulfilled up to affordability and seller stock, not guaranteed in full</div>
+      <div class="action-row"><span class="field-label">Invalid if</span>quantity × cheapest available price &gt; own silver</div>
+    </div>
+
+    <div class="action-card">
+      <div class="action-name">SET_LABOUR</div>
+      <div class="action-params">quantity <span class="mono">(signed — hire or release)</span></div>
+      <div class="action-row"><span class="field-label">Reads</span>own silver, own land</div>
+      <div class="action-row"><span class="field-label">Writes</span>own labour (feeds production, rule 1)</div>
+      <div class="action-row"><span class="field-label">Invalid if</span>hiring past own silver (wages), or releasing below 0</div>
+    </div>
+
+    <div class="action-card">
+      <div class="action-name">BORROW</div>
+      <div class="action-params">lender, amount</div>
+      <div class="action-row"><span class="field-label">Reads</span>lender's trust_threshold, lender's own silver reserve</div>
+      <div class="action-row"><span class="field-label">Writes</span>player.silver +, player.debt[lender] + (Astrid's own lending rule sets the interest)</div>
+      <div class="action-row"><span class="field-label">Invalid if</span>trust_with[lender] below their threshold, or lender can't spare the amount</div>
+    </div>
+
+    <div class="action-card">
+      <div class="action-name">REPAY</div>
+      <div class="action-params">lender, amount</div>
+      <div class="action-row"><span class="field-label">Reads</span>player.silver, player.debt[lender]</div>
+      <div class="action-row"><span class="field-label">Writes</span>player.silver −, debt −, trust_with[lender] + (on-time repayment is the main lever raising Astrid's trust)</div>
+      <div class="action-row"><span class="field-label">Invalid if</span>amount &gt; own silver or &gt; outstanding debt</div>
+    </div>
+
+    <div class="action-card wide">
+      <div class="action-name">TALK_TO_LEIF</div>
+      <div class="action-params">— no parameters; this is a conversation, not a trade</div>
+      <div class="leif-flow" style="margin-top:6px;">
+        <div class="leif-step">Leif opens with a plain-language recap of every notable event since the player's last login — prices that moved, deals made, what Solveig's been saying, whether the Vidar threat has shifted.</div>
+        <div class="leif-step">He frames the live decision the player's actually facing right now (the Jarl's short on grain, Astrid's called in a debt, whatever the current scenario is) as a short question, not an instruction.</div>
+        <div class="leif-step">Under it: a few clickable advice options, one per knowledge node the current scenario is tagged to. Each one is <b style="color:var(--text);">the real LastMind lesson's explanation text for that node — unchanged, no rewriting — with the practice question stripped off</b>. Clicking one just shows Leif "saying" that explanation in his own voice; nothing is graded here.</div>
+        <div class="leif-step">The player reads as many or as few as they like, then states their own action in their own words — same as any other action, resolved by the interpreter above.</div>
+        <div class="leif-step"><span class="tick-muted">Learning-engine note:</span> clicking an advice option logs as <i>exposure</i> to that node, not mastery — per the standing rule, seeing an explanation is never treated as evidence of understanding. Mastery is still assessed from what the player actually argues and does afterward.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <p class="note">
+    <b>Portraits:</b> generate one reference image per character using the prompt on their card, then feed that
+    same image back in as a reference on every later generation of them (e.g. Midjourney's <span class="mono">--cref</span>,
+    or a conversational tool where you upload the portrait and ask for "the same person, now at the harbour").
+    That one reference is what keeps each character recognisable scene to scene — no retraining, no extra tooling.
+  </p>
+
+</div>
