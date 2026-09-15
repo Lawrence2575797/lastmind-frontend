@@ -4786,7 +4786,8 @@
         display: none;
         position: fixed;
         border-radius: 6px;
-        box-shadow: 0 0 0 9999px rgba(10, 10, 11, 0.78);
+        box-shadow: 0 0 0 9999px rgba(10, 10, 11, 0.88), inset 0 0 0 3px #ffab00, 0 0 20px 2px rgba(255, 171, 0, 0.6);
+        border: 3px solid #ffab00;
         pointer-events: none;
         transition: top 0.25s, left 0.25s, width 0.25s, height 0.25s;
     }
@@ -13005,12 +13006,13 @@ SQIDAQAB
     // setup - see cortexPrompts.ts's own top comment on why that
     // capability was removed).
     const TOUR_INTRO_STEPS = [
-        { selector: '#createFolderBtn', title: 'Start with a subject', body: "This is where a subject lives. Create one for each subject you're studying — LastMind builds lessons inside it." },
-        { selector: null, title: 'Your feed', body: 'Click a subject in the sidebar and your next lesson opens as a scrolling feed. Scroll (or swipe left on mobile) as directed to reach the question — on completion you\'ll be moved on to the next lesson automatically.' },
-        { selector: null, title: 'How a lesson works', body: 'The first time you meet a concept, you actually learn it — not just get quizzed on it. After that, spaced repetition brings it back at increasing intervals so it actually sticks.' },
-        { selector: '#knowledgeMapTopbarBtn', title: 'See the whole picture', body: "Your feed always picks the single next best thing to do, but you can browse a subject's entire knowledge map any time here — every concept and how they connect." },
-        { selector: '#cortexTabBtn', title: 'Ask Cortex', body: "Cortex is here for general learning help — explaining a concept you're stuck on, talking through exam technique, or just thinking something through out loud. It won't set up subjects or pages for you though; that's done from the sidebar itself." },
-        { selector: '#themePaletteBtn', title: 'Make it yours', body: 'Not keen on the birch and burgundy? Click here any time to change the text, sidebar and background colours, or pick a ready-made scene like Havnstad or Wild West from the presets at the top — free on every plan.' }
+        { selector: '#createFolderBtn', title: 'Create a subject', body: "Click here to add each subject you're studying. LastMind builds your personalized learning path inside it, starting from your current knowledge level." },
+        { selector: null, title: 'Your learning feed', body: 'When you select a subject, lessons appear in a scrolling feed. Each lesson teaches you a concept, then tests your understanding. Work through them at your own pace.' },
+        { selector: null, title: 'Spaced repetition', body: 'After you learn something, LastMind brings it back periodically to cement it in memory. The schedule adapts based on how confident you feel, so harder topics come up more often.' },
+        { selector: '#knowledgeMapTopbarBtn', title: 'Explore the map', body: "See every concept in a subject and how they connect. This is your complete learning roadmap — you can jump to any topic, but your feed always suggests the best next step." },
+        { selector: '#cortexTabBtn', title: 'Get help anytime', body: "Stuck on something? Ask Cortex for explanations, exam tips, or just to talk through a tricky concept. It understands what you're learning and can help you think it through." },
+        { selector: '#examPrepTopbarBtn', title: 'Exam preparation', body: 'Switch to Exam Prep mode to practice under realistic conditions. Timed questions, mixed topics, and detailed feedback help you prepare for the real thing.' },
+        { selector: '#themePaletteBtn', title: 'Customize your space', body: 'Change colors, fonts, backgrounds, or pick a themed scene. Make LastMind yours — it\'s available on every plan.' }
     ];
 
     const FREE_TOUR_STEPS = [
@@ -13020,16 +13022,31 @@ SQIDAQAB
 
     const PREMIUM_TOUR_STEPS = [
         ...TOUR_INTRO_STEPS,
-        { selector: null, title: "You're on Premium", body: "Premium unlocks LastMind's personalised AI learning system — a diagnostics engine that finds the root cause of a misunderstanding, not just where you went wrong." },
-        { selector: null, title: 'Instant verification', body: 'Learning progress made inside LastMind is verified the moment it happens on Premium — no separate step.' },
-        // Premium-only real feature (mathHelp.ts's own requirePaidTier)
-        // with no tour step at all before this - a real gap, same class
-        // of bug as the tour itself skipping first-time signups entirely.
-        { selector: '#mathsToolTopbarBtn', title: 'Stuck on a maths question', body: "The Maths Tool is a separate, self-serve chat for working through any maths question on the spot — off the record, not a graded lesson, just help when you're stuck." }
-        // Used to end with a step pointing at the peer-tutoring booking
-        // flow (deposit Locks toward a lesson slot) - removed along with
-        // the feature itself (see enterApp's own comment on why).
+        { selector: null, title: "Welcome to Premium", body: "Premium unlocks diagnostic learning — LastMind finds the root cause of what you don't understand, not just where you went wrong. Your learning becomes smarter and faster." },
+        { selector: null, title: 'Instant learning verification', body: 'Each lesson you complete is verified immediately on Premium. No waiting, no separate step — progress is locked in the moment you demonstrate understanding.' },
+        { selector: '#mathsToolTopbarBtn', title: 'Maths Tool', body: "Stuck on a maths problem? Use the Maths Tool for instant help. Work through problems step-by-step with explanations — all off the record, just learning support when you need it." },
+        { selector: '#calendarTopbarBtn', title: 'Tutoring bookings', body: 'Schedule time with our founder for personalized 1:1 help. Browse available slots, pick what works for your schedule, and book directly.' }
     ];
+
+    const FEATURE_TUTORIALS = {
+        knowledgeMap: [
+            { selector: null, title: 'Knowledge Map', body: 'This shows every concept in the subject. Boxes are individual topics, lines connect related ideas. Colored boxes show your progress — blue for mastered, grey for still learning.' },
+            { selector: null, title: 'Navigate the map', body: 'Click any box to jump directly to that lesson. The map updates as you learn, so you can always see what\'s next and how concepts fit together.' },
+            { selector: null, title: 'Plan your study', body: 'See prerequisites before attempting harder topics. Your feed suggests the best order, but the map lets you explore and plan your own path through the material.' }
+        ],
+        examPrep: [
+            { selector: null, title: 'Exam Preparation', body: 'Practice under real exam conditions. Questions are timed, drawn from mixed topics across the subject, and presented in random order.' },
+            { selector: null, title: 'Track performance', body: 'Each quiz shows your score, time taken, and detailed feedback. See which topics need more work and focus your revision accordingly.' }
+        ],
+        mathsTool: [
+            { selector: null, title: 'Maths Tool', body: 'Stuck on a maths problem? Describe it here and get help. This is separate from graded lessons — pure learning support, no pressure.' },
+            { selector: null, title: 'Work through problems', body: 'The tool explains step-by-step, asks questions to check your understanding, and adapts to your level. Use it anytime you\'re stuck.' }
+        ],
+        calendar: [
+            { selector: null, title: 'Tutoring Bookings', body: 'Schedule 1:1 sessions with LastMind\'s founder. Browse available time slots and book what works for you.' },
+            { selector: null, title: 'Get personalized help', body: 'Use tutoring to work through tricky topics, prepare for exams, or just talk through your learning. Each session is tailored to your needs.' }
+        ]
+    };
 
     let tourSteps = [];
     let tourIndex = 0;
@@ -13070,6 +13087,16 @@ SQIDAQAB
         tourIndex = 0;
         document.getElementById('tourOverlay').classList.add('open');
         showTourStep();
+    }
+
+    function startFeatureTutorial(featureKey) {
+        tourTier = null;
+        tourSteps = FEATURE_TUTORIALS[featureKey] || [];
+        tourIndex = 0;
+        if (tourSteps.length > 0) {
+            document.getElementById('tourOverlay').classList.add('open');
+            showTourStep();
+        }
     }
 
     function endTour(markSeen) {
