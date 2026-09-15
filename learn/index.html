@@ -8406,6 +8406,12 @@ SQIDAQAB
         // what's shown before any folder is clicked) and is otherwise
         // unaffected by this. null folderId (e.g. after a delete) falls
         // back to Cortex, matching the prior behaviour for that case.
+        // Same auto-close-on-mobile convention as every other "pick
+        // something in the sidebar, see it full-screen" entry point (see
+        // sfCloseSidebarOnMobile's own comment) - a subject click didn't
+        // have this, so on mobile the sidebar stayed open covering the
+        // feed it had just opened underneath it.
+        if (f) sfCloseSidebarOnMobile();
         if (f && specPracticeMode) {
             renderSpecPracticeForFolder(f);
         } else if (f && kmGraphMode) {
