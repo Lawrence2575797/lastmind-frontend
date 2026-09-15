@@ -18524,10 +18524,12 @@ SQIDAQAB
 
     function sfWizardCardHtml() {
         const step = sfWizard.step;
+        const closeBtn = '<button type="button" class="sf-wizard-close-btn" id="sfWizardCloseBtn" style="position:absolute;top:12px;right:12px;background:none;border:none;font-size:24px;cursor:pointer;color:inherit;padding:0;width:24px;height:24px;display:flex;align-items:center;justify-content:center;">×</button>';
         if (step === 'subjects') {
             const examBlocks = SF_WIZARD_SUBJECTS.filter((s) => s.examLesson).map(sfWizardSubjectBlockHtml).join('');
             const nonExamBlocks = SF_WIZARD_SUBJECTS.filter((s) => !s.examLesson).map(sfWizardSubjectBlockHtml).join('');
             return `
+                ${closeBtn}
                 <p class="sf-wizard-greeting">Hi ${escapeHtml(sfWizardGreetingName())}, from Cortex</p>
                 <div class="sf-wizard-step-label">What are you studying?</div>
                 <div class="sf-wizard-section-label">Exam lessons</div>
@@ -18556,6 +18558,7 @@ SQIDAQAB
             </select>`;
         const ready = (s.qualifications.length === 1 || chosen.qualification) && chosen.examBoard;
         return `
+            ${closeBtn}
             <div class="sf-wizard-step-label">${escapeHtml(s.label)}</div>
             ${qualButtons}
             ${examBoardSelect}
@@ -18575,6 +18578,17 @@ SQIDAQAB
     function sfRenderWizardStep() {
         const cardEl = sfWizard.overlayEl.querySelector('.sf-wizard-card');
         cardEl.innerHTML = sfWizardCardHtml();
+
+        // Close button handler (works on all steps)
+        const closeBtn = cardEl.querySelector('#sfWizardCloseBtn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                if (sfWizard.overlayEl && sfWizard.overlayEl.parentNode) {
+                    document.body.removeChild(sfWizard.overlayEl);
+                    sfWizard = null;
+                }
+            });
+        }
 
         if (sfWizard.step === 'subjects') {
             cardEl.querySelectorAll('.sf-wizard-subject-block').forEach((el) => {
@@ -20298,8 +20312,8 @@ SQIDAQAB
             <div class="diagram-widget">
                 <div class="diagram-palette" id="${uid}-palette"></div>
                 <div class="diagram-toolbar">
-                    <button type="button" class="btn diagram-tool-btn" id="${uid}-shade-btn">Shade a region (click each edge)</button>
-                    <button type="button" class="btn primary diagram-tool-btn" id="${uid}-fill-shade-btn" hidden>Fill shaded region</button>
+                    <input type="text" class="diagram-label-input" id="${uid}-shade-input" placeholder="Shade: Enter labels (e.g. A,B,C)" style="display:none;">
+                    <button type="button" class="btn primary diagram-tool-btn" id="${uid}-shade-btn">Shade a region</button>
                     <button type="button" class="btn diagram-tool-btn" id="${uid}-arrow-btn">Add arrow (click start, then end)</button>
                     <input type="text" class="diagram-label-input" id="${uid}-label-input" placeholder="Label text, e.g. S1">
                     <button type="button" class="btn diagram-tool-btn" id="${uid}-label-btn">Add label</button>
@@ -20322,7 +20336,6 @@ SQIDAQAB
         const paletteEl = container.querySelector(`#${uid}-palette`);
         const resultEl = container.querySelector(`#${uid}-result`);
         const shadeBtn = container.querySelector(`#${uid}-shade-btn`);
-        const fillShadeBtn = container.querySelector(`#${uid}-fill-shade-btn`);
         const arrowBtn = container.querySelector(`#${uid}-arrow-btn`);
         const notesInput = showNotes ? container.querySelector(`#${uid}-notes`) : null;
 
@@ -20480,26 +20493,21 @@ SQIDAQAB
                     intersectionSeq++;
                     if (intersectionSeq > 26) break;
                     const label = String.fromCharCode(64 + intersectionSeq);
-                    state.intersections.push({ x: hit.x, y: hit.y, label });
+                    // Calculate approximate price and quantity values from coordinates
+                    const priceRange = Math.abs(DIAGRAM_PRICE_AXIS[1].y - DIAGRAM_PRICE_AXIS[0].y);
+                    const qtyRange = Math.abs(DIAGRAM_QUANTITY_AXIS[1].x - DIAGRAM_QUANTITY_AXIS[0].x);
+                    const priceFraction = (DIAGRAM_PRICE_AXIS[0].y - hit.y) / priceRange;
+                    const qtyFraction = (hit.x - DIAGRAM_QUANTITY_AXIS[0].x) / qtyRange;
+                    // Show as P and Q labels with fraction of range (0-100 scale)
+                    const priceValue = Math.round(priceFraction * 100);
+                    const qtyValue = Math.round(qtyFraction * 100);
+                    const coordLabel = `${label} (P=${priceValue}, Q=${qtyValue})`;
+                    state.intersections.push({ x: hit.x, y: hit.y, label, priceValue, qtyValue });
                     svg.appendChild(svgElement('line', { x1: hit.x, y1: hit.y, x2: DIAGRAM_PRICE_AXIS[0].x, y2: hit.y, class: 'diagram-intersection-guide' }));
                     svg.appendChild(svgElement('line', { x1: hit.x, y1: hit.y, x2: hit.x, y2: DIAGRAM_QUANTITY_AXIS[0].y, class: 'diagram-intersection-guide' }));
                     svg.appendChild(svgElement('circle', { cx: hit.x, cy: hit.y, r: 2.5, class: 'diagram-curve-handle-dot' }));
-                    const labelEl = svgElement('text', { x: hit.x - 8, y: hit.y - 8, class: 'diagram-intersection-label diagram-label-point', 'text-anchor': 'middle', 'data-label': label });
+                    const labelEl = svgElement('text', { x: hit.x - 8, y: hit.y - 8, class: 'diagram-intersection-label diagram-label-point', 'text-anchor': 'middle', 'data-label': label, title: coordLabel });
                     labelEl.textContent = label;
-                    labelEl.style.cursor = 'pointer';
-                    labelEl.addEventListener('click', (ev) => {
-                        ev.stopPropagation();
-                        const idx = state.labelSelection.indexOf(label);
-                        if (idx === -1) {
-                            state.labelSelection.push(label);
-                            labelEl.style.fill = '#ff6b6b';
-                            labelEl.style.fontWeight = 'bold';
-                        } else {
-                            state.labelSelection.splice(idx, 1);
-                            labelEl.style.fill = 'currentColor';
-                            labelEl.style.fontWeight = 'normal';
-                        }
-                    });
                     svg.appendChild(labelEl);
                 }
             }
@@ -20548,8 +20556,6 @@ SQIDAQAB
                 });
             });
 
-            fillShadeBtn.hidden = !state.shadeMode;
-            fillShadeBtn.disabled = state.labelSelection.length < 2;
         }
 
         svg.addEventListener('pointermove', (ev) => {
@@ -20620,31 +20626,44 @@ SQIDAQAB
             paletteEl.appendChild(btn);
         });
 
+        const shadeInput = container.querySelector(`#${uid}-shade-input`);
         shadeBtn.addEventListener('click', () => {
-            state.shadeMode = !state.shadeMode;
-            state.labelSelection = [];
-            state.edgeSelection = [];
-            state.arrowMode = false; state.arrowDraft = null;
-            shadeBtn.classList.toggle('active', state.shadeMode);
-            shadeBtn.textContent = state.shadeMode ? 'Shade a region (click labels A-Z)' : 'Shade a region (click each edge)';
-            arrowBtn.classList.remove('active');
-            render();
+            if (shadeInput.style.display === 'none') {
+                // Show input
+                shadeInput.style.display = 'block';
+                shadeInput.value = '';
+                shadeInput.focus();
+                shadeBtn.textContent = 'Shade';
+                shadeBtn.classList.add('active');
+            } else {
+                // Submit shade with entered labels
+                const labelsStr = shadeInput.value.trim();
+                if (!labelsStr) {
+                    alert('Enter labels separated by commas (e.g. A,B,C)');
+                    return;
+                }
+                const labels = labelsStr.split(',').map(l => l.trim().toUpperCase());
+                const selectedPoints = state.intersections.filter(p => labels.includes(p.label));
+                if (selectedPoints.length < 2) {
+                    alert('Enter at least 2 valid intersection labels (A-Z)');
+                    return;
+                }
+                const areaLabel = window.prompt('Label this shaded area (optional):') || '';
+                state.shades.push({ points: selectedPoints, label: areaLabel });
+                shadeInput.style.display = 'none';
+                shadeBtn.textContent = 'Shade a region';
+                shadeBtn.classList.remove('active');
+                render();
+            }
         });
-        fillShadeBtn.addEventListener('click', () => {
-            if (state.labelSelection.length < 2) {
-                alert('Select at least 2 intersection points (labels) to define a shaded region');
-                return;
+        shadeInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                shadeBtn.click();
+            } else if (e.key === 'Escape') {
+                shadeInput.style.display = 'none';
+                shadeBtn.textContent = 'Shade a region';
+                shadeBtn.classList.remove('active');
             }
-            const selectedPoints = state.intersections.filter(p => state.labelSelection.includes(p.label));
-            if (selectedPoints.length >= 2) {
-                const label = window.prompt('Label this shaded area (optional):') || '';
-                state.shades.push({ points: selectedPoints, label });
-            }
-            state.shadeMode = false;
-            state.labelSelection = [];
-            shadeBtn.classList.remove('active');
-            shadeBtn.textContent = 'Shade a region (click each edge)';
-            render();
         });
         arrowBtn.addEventListener('click', () => {
             state.arrowMode = !state.arrowMode;
