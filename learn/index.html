@@ -24752,7 +24752,8 @@ SQIDAQAB
         // to respond on a cold start, and the folder list shouldn't sit on
         // "No folders yet" the whole time it does. Server sync still runs,
         // just in the background, and re-renders once it lands.
-        await refreshFolderList();
+        const refreshTimeout = new Promise((r) => setTimeout(r, 8000));
+        await Promise.race([refreshFolderList(), refreshTimeout]).catch(() => {});
         reconcileFoldersWithServer()
             .then(refreshFolderList)
             .catch((err) => console.error('LastMind: folder reconcile failed.', err));
@@ -24877,7 +24878,8 @@ SQIDAQAB
         // knowing the current user first any more.
         let supabaseSession = null;
         try {
-            const { data } = await supabaseClient.auth.getSession();
+            const sessionTimeout = new Promise((r) => setTimeout(() => r({ data: { session: null } }), 5000));
+            const { data } = await Promise.race([supabaseClient.auth.getSession(), sessionTimeout]);
             supabaseSession = data.session;
         } catch (err) {
             console.error('LastMind: could not read the current session.', err);
@@ -24900,12 +24902,26 @@ SQIDAQAB
         }
 
         const userId = supabaseSession.user.id;
-        let token = await getStoredToken(userId).catch(() => null);
-        let payload = token ? await verifyJWT(token, publicKey) : null;
+        const tokenTimeout = 3000;
+
+        let token = await Promise.race([
+            getStoredToken(userId).catch(() => null),
+            new Promise((r) => setTimeout(() => r(null), tokenTimeout))
+        ]);
+        let payload = token ? await Promise.race([
+            verifyJWT(token, publicKey),
+            new Promise((r) => setTimeout(() => r(null), tokenTimeout))
+        ]) : null;
 
         if (!payload) {
-            token = await refreshTokenFromBackend(userId);
-            payload = token ? await verifyJWT(token, publicKey) : null;
+            token = await Promise.race([
+                refreshTokenFromBackend(userId),
+                new Promise((r) => setTimeout(() => r(null), tokenTimeout))
+            ]);
+            payload = token ? await Promise.race([
+                verifyJWT(token, publicKey),
+                new Promise((r) => setTimeout(() => r(null), tokenTimeout))
+            ]) : null;
         }
 
         if (payload) {
@@ -24920,13 +24936,19 @@ SQIDAQAB
         // against Supabase itself before it will ever look up or return
         // anything.
         try {
-            const resp = await fetch(`${BACKEND_URL}/api/token-for-user`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${supabaseSession.access_token}` }
-            });
-            if (resp.ok) {
+            const resp = await Promise.race([
+                fetch(`${BACKEND_URL}/api/token-for-user`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${supabaseSession.access_token}` }
+                }),
+                new Promise((r) => setTimeout(() => r(null), tokenTimeout))
+            ]);
+            if (resp && resp.ok) {
                 const { token: linkedToken, subscriptionId: linkedSubId } = await resp.json();
-                payload = await verifyJWT(linkedToken, publicKey);
+                payload = await Promise.race([
+                    verifyJWT(linkedToken, publicKey),
+                    new Promise((r) => setTimeout(() => r(null), tokenTimeout))
+                ]);
                 if (payload) {
                     await saveToken(userId, linkedToken);
                     if (linkedSubId) await putAuthRecord(scopedAuthKey('subscriptionId', userId), linkedSubId);
