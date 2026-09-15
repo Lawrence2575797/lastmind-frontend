@@ -20155,11 +20155,11 @@ SQIDAQAB
         const svg = svgElement('svg', { class: 'km-note-diagram-svg', viewBox: `0 0 ${DIAGRAM_CANVAS_WIDTH} ${DIAGRAM_CANVAS_HEIGHT}` });
         svg.appendChild(svgElement('line', { x1: DIAGRAM_PRICE_AXIS[0].x, y1: DIAGRAM_PRICE_AXIS[0].y, x2: DIAGRAM_PRICE_AXIS[1].x, y2: DIAGRAM_PRICE_AXIS[1].y, class: 'diagram-axis' }));
         svg.appendChild(svgElement('line', { x1: DIAGRAM_QUANTITY_AXIS[0].x, y1: DIAGRAM_QUANTITY_AXIS[0].y, x2: DIAGRAM_QUANTITY_AXIS[1].x, y2: DIAGRAM_QUANTITY_AXIS[1].y, class: 'diagram-axis' }));
-        const priceLabel = svgElement('text', { x: DIAGRAM_PRICE_AXIS[0].x - 8, y: DIAGRAM_PRICE_AXIS[0].y + 10, class: 'diagram-axis-label', 'text-anchor': 'end' });
-        priceLabel.textContent = 'Price';
+        const priceLabel = svgElement('text', { x: DIAGRAM_PRICE_AXIS[0].x - 16, y: DIAGRAM_PRICE_AXIS[0].y - 4, class: 'diagram-axis-label', 'text-anchor': 'end', 'font-weight': 'bold', 'font-size': '16' });
+        priceLabel.textContent = 'P';
         svg.appendChild(priceLabel);
-        const qtyLabel = svgElement('text', { x: DIAGRAM_QUANTITY_AXIS[1].x, y: DIAGRAM_QUANTITY_AXIS[1].y + 18, class: 'diagram-axis-label', 'text-anchor': 'end' });
-        qtyLabel.textContent = 'Quantity';
+        const qtyLabel = svgElement('text', { x: DIAGRAM_QUANTITY_AXIS[1].x + 6, y: DIAGRAM_QUANTITY_AXIS[1].y + 16, class: 'diagram-axis-label', 'text-anchor': 'start', 'font-weight': 'bold', 'font-size': '16' });
+        qtyLabel.textContent = 'Q';
         svg.appendChild(qtyLabel);
 
         // Shaded regions drawn before the curves so the fill sits behind
@@ -20371,11 +20371,11 @@ SQIDAQAB
             }
             svg.appendChild(priceAxisEl);
             svg.appendChild(qtyAxisEl);
-            const priceLabel = svgElement('text', { x: DIAGRAM_PRICE_AXIS[0].x - 8, y: DIAGRAM_PRICE_AXIS[0].y + 10, class: 'diagram-axis-label', 'text-anchor': 'end' });
-            priceLabel.textContent = 'Price';
+            const priceLabel = svgElement('text', { x: DIAGRAM_PRICE_AXIS[0].x - 16, y: DIAGRAM_PRICE_AXIS[0].y - 4, class: 'diagram-axis-label', 'text-anchor': 'end', 'font-weight': 'bold', 'font-size': '16' });
+            priceLabel.textContent = 'P';
             svg.appendChild(priceLabel);
-            const qtyLabel = svgElement('text', { x: DIAGRAM_QUANTITY_AXIS[1].x, y: DIAGRAM_QUANTITY_AXIS[1].y + 18, class: 'diagram-axis-label', 'text-anchor': 'end' });
-            qtyLabel.textContent = 'Quantity';
+            const qtyLabel = svgElement('text', { x: DIAGRAM_QUANTITY_AXIS[1].x + 6, y: DIAGRAM_QUANTITY_AXIS[1].y + 16, class: 'diagram-axis-label', 'text-anchor': 'start', 'font-weight': 'bold', 'font-size': '16' });
+            qtyLabel.textContent = 'Q';
             svg.appendChild(qtyLabel);
 
             (given || []).forEach((g) => {
