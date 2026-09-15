@@ -3049,7 +3049,7 @@
         display: flex;
         align-items: center;
         gap: 16px;
-        padding: 16px 26px;
+        padding: 16px 26px 24px 26px;
         border-bottom: 1px solid rgba(230, 215, 176, 0.1);
     }
 
@@ -3159,7 +3159,7 @@
         background: var(--panel);
         border: 1px solid rgba(230, 215, 176, 0.3);
         color: var(--text);
-        padding: 5px 8px;
+        padding: 8px 8px;
         border-radius: 6px;
         cursor: pointer;
         white-space: nowrap;
@@ -5501,24 +5501,6 @@
                 <option value="Foundation">Foundation</option>
                 <option value="Higher">Higher</option>
             </select>
-        </div>
-        <div class="field" id="folderBoardField" style="display:none;">
-            <label for="boardInput">Exam Board</label>
-            <select id="boardInput">
-                <option value="">Select exam board…</option>
-                <option value="AQA">AQA</option>
-                <option value="Edexcel">Edexcel</option>
-                <option value="OCR-A">OCR-A</option>
-                <option value="OCR-B">OCR-B</option>
-            </select>
-        </div>
-        <div class="field" id="folderInstitutionField" style="display:none;">
-            <label for="institutionInput">Institution</label>
-            <input type="text" id="institutionInput" placeholder="e.g. University of Manchester">
-        </div>
-        <div class="field" id="folderModuleCodeField" style="display:none;">
-            <label for="moduleCodeInput">Module Code</label>
-            <input type="text" id="moduleCodeInput" placeholder="e.g. ECON10021">
         </div>
 
         <div class="modal-actions">
@@ -8226,8 +8208,8 @@ SQIDAQAB
             actionLabel: '+ Add new subject',
             actionId: 'createFolderBtn',
             onAction: openFolderModal,
-            secondaryActionLabel: specPracticeMode ? null : '+ Other',
-            onSecondaryAction: specPracticeMode ? null : openCustomFolderModal
+            secondaryActionLabel: null,
+            onSecondaryAction: null
         }));
 
         // Practice Questions is the real-exam-spec feature (spec_lesson_plans
@@ -13884,7 +13866,7 @@ SQIDAQAB
         updateTierFieldVisibility(prefix, subjectInputId, level);
     }
 
-    const folderLevelWidget = setupLevelDropdown('folder', (level) => updateLevelMetafields('folder', level));
+    const folderLevelWidget = setupLevelDropdown('folder', () => {});
     const renameFolderLevelWidget = setupLevelDropdown('renameFolder', (level) => updateLevelMetafields('renameFolder', level));
 
     // Subject is free text, so the Tier field's visibility (see
