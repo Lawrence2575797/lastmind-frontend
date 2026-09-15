@@ -16475,6 +16475,34 @@ SQIDAQAB
     // showing an error for. feedbackEl.isConnected guards against
     // appending to a slide the student has already scrolled/advanced past
     // by the time the fetch resolves.
+    // Same escalating-reassurance technique gate() already uses for the
+    // subscription check (a Render backend can go cold after inactivity -
+    // the first request after that can genuinely take 30-60s+ to wake it,
+    // and a static "Checking…" for that whole time looks exactly like a
+    // frozen/broken app, not a slow-but-working one). Real reported bug:
+    // an immediate recall answered right after scrolling to it from the
+    // nudge (i.e. right after sitting idle for the 2-minute delay, plenty
+    // of time for the backend to go cold) "took forever" to grade and
+    // return to the feed - this can't make a cold backend wake up faster,
+    // but it stops the wait from looking broken while it does. Returns a
+    // stop() to call once the real result is in, before overwriting
+    // feedbackEl with it.
+    function sfShowEscalatingChecking(feedbackEl) {
+        const messages = ['Checking…', 'Still checking…', 'Almost there…'];
+        let step = 0;
+        feedbackEl.innerHTML = `<div class="sf-feedback-line">${messages[0]}</div>`;
+        const interval = setInterval(() => {
+            if (!feedbackEl.isConnected) { clearInterval(interval); return; }
+            step = (step + 1) % messages.length;
+            feedbackEl.innerHTML = `<div class="sf-feedback-line">${messages[step]}</div>`;
+        }, 3000);
+        const slowTimer = setTimeout(() => {
+            if (!feedbackEl.isConnected) return;
+            feedbackEl.innerHTML = `<div class="sf-feedback-line">Still checking - this is taking longer than usual, but hasn't failed. Hang tight.</div>`;
+        }, 8000);
+        return () => { clearInterval(interval); clearTimeout(slowTimer); };
+    }
+
     async function sfShowCorrectFeedback(feedbackEl, toughConcept) {
         feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-correct">✓ Correct</div>`;
         const studentName = await sfGetStudentName();
@@ -17564,8 +17592,9 @@ SQIDAQAB
                 body.answer = answer;
                 inputEl.disabled = true;
             }
-            feedbackEl.innerHTML = `<div class="sf-feedback-line">Checking…</div>`;
+            const stopChecking = sfShowEscalatingChecking(feedbackEl);
             const result = await sfPostBackend(`/immediate-recalls/${row.recallId}/submit`, body);
+            stopChecking();
             if (!result) {
                 if (inputEl) inputEl.disabled = false;
                 feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Something went wrong submitting that - try again.</div>`;
