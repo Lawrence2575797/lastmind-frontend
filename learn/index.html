@@ -15956,7 +15956,7 @@ SQIDAQAB
                 if (resp.status === 404) return { notFound: true };
                 if (resp.status === 429 || resp.status === 402) {
                     const body = await resp.json().catch(() => ({}));
-                    if (body.code === 'GENERATION_RATE_LIMIT') return { generationRateLimited: true };
+                    if (body.code === 'GENERATION_RATE_LIMIT') return { generationRateLimited: true, window: body.window, limit: body.limit };
                     if (body.code === 'LOCK_LIMIT_REACHED') return { lockLimitReached: true };
                 }
                 if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
@@ -17159,7 +17159,7 @@ SQIDAQAB
                 bodyText = "You've used up your Locks for now - open the subject directly to buy more, or wait for next month's refresh.";
                 showBuyMoreBtn = true;
             } else if (lesson && lesson.generationRateLimited) {
-                bodyText = "You've reached today's limit on generating brand-new lesson content - this isn't about your Locks balance, and it resets automatically. Already-generated lessons still work normally.";
+                bodyText = generationRateLimitMessage(lesson.window, lesson.limit);
             }
             const el = document.createElement('div');
             el.className = 'sf-feed-slide';
@@ -21499,7 +21499,7 @@ SQIDAQAB
             // now the rare case, kept as its own plain message rather than
             // offering a retry that can't possibly help.
             if (nodeLesson && nodeLesson.generationRateLimited) {
-                renderGenerationRateLimitCard(lessonEl);
+                renderGenerationRateLimitCard(lessonEl, nodeLesson.window, nodeLesson.limit);
                 return;
             }
             if (nodeLesson && nodeLesson.lockLimitReached) {
@@ -21671,7 +21671,7 @@ SQIDAQAB
             const nodeLesson = await fetchNodeLesson(d.id);
 
             if (nodeLesson && nodeLesson.generationRateLimited) {
-                renderGenerationRateLimitCard(lessonEl);
+                renderGenerationRateLimitCard(lessonEl, nodeLesson.window, nodeLesson.limit);
                 return;
             }
             if (nodeLesson && nodeLesson.lockLimitReached) {
@@ -24522,6 +24522,30 @@ SQIDAQAB
         container.querySelector('.lock-limit-buy-more-btn').addEventListener('click', showBuyMoreLocksPrompt);
     }
 
+    // Every window generationCapService.ts's assertFreshGenerationWithinCap
+    // can actually throw for - kept as a plain lookup rather than trying
+    // to derive English from the raw window string, since "2 hours" reads
+    // fine as-is but "hour"/"day"/"week" all need an article/plural.
+    const GENERATION_RATE_LIMIT_WINDOW_TEXT = { hour: 'the last hour', '2 hours': 'the last 2 hours', day: 'the last 24 hours', week: 'the last 7 days', month: 'this month' };
+    // Real, reported bug (this exact message, before this fix): the
+    // backend already returns exactly which window/limit tripped (see
+    // the route's own GenerationCapExceededError handling), but every
+    // caller here discarded both and showed a generic "today's limit"
+    // regardless of whether a day, week, month, or (as it usually is)
+    // the much shorter 2-hour/hour window was the one that actually
+    // fired - a student who'd only been generating for the last couple
+    // of hours had no way to tell this wasn't some open-ended daily
+    // block. Falls back to the old generic wording if window/limit are
+    // ever missing (a stale cached response, an older backend) rather
+    // than showing "undefined".
+    function generationRateLimitMessage(window, limit) {
+        const windowText = GENERATION_RATE_LIMIT_WINDOW_TEXT[window];
+        const detail = (windowText && typeof limit === 'number')
+            ? ` You've generated ${limit} new lesson${limit === 1 ? '' : 's'} ${window === 'month' ? windowText : `in ${windowText}`}, which is the cap for that window.`
+            : '';
+        return `You've reached the limit on generating brand-new lesson content for now.${detail} This isn't about your Locks balance, and it resets automatically as time passes. Already-generated lessons still work normally.`;
+    }
+
     // Distinct from renderLockLimitReachedCard above - a real, reported
     // bug: generating brand-new lesson content is throttled by its OWN
     // separate rate limit (generationCapService.ts's
@@ -24531,9 +24555,9 @@ SQIDAQAB
     // about why they were blocked at all, and offered an action that
     // genuinely cannot help - there's nothing to buy, this resets on its
     // own on a rolling window (see the backend's own window/limit fields).
-    function renderGenerationRateLimitCard(container) {
+    function renderGenerationRateLimitCard(container, window, limit) {
         container.innerHTML = `
-            <div class="km-inline-detail-item km-inline-detail-none">You've reached today's limit on generating brand-new lesson content — this isn't about your Locks balance, and it resets automatically. Already-generated lessons still work normally; try this one again shortly.</div>
+            <div class="km-inline-detail-item km-inline-detail-none">${escapeHtml(generationRateLimitMessage(window, limit))} Try this one again shortly.</div>
         `;
     }
 
