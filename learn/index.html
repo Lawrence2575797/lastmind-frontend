@@ -1283,6 +1283,16 @@
     .sf-mcq-options { display: flex; flex-direction: column; gap: 8px; }
     .sf-mcq-option { text-align: left; width: 100%; padding: 12px 14px; border-radius: 8px; border: 1px solid rgba(230, 215, 176, 0.25); background: var(--bg); color: var(--text); font: inherit; font-size: 15px; cursor: pointer; }
     .sf-mcq-option-selected { border-color: var(--accent); background: var(--accent); color: var(--bg); font-weight: 700; }
+    /* Practice Questions' own multiple-choice options - same strong
+       selected-state convention as .sf-mcq-option-selected above (a full
+       accent-filled background, not just the native radio dot, which was
+       the only indicator before and easy to miss at a glance). */
+    .pq-mc-option {
+        display: flex; align-items: center; gap: 8px; width: 100%; box-sizing: border-box;
+        padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(230, 215, 176, 0.25);
+        background: var(--bg); color: var(--text); cursor: pointer; margin-bottom: 6px;
+    }
+    .pq-mc-option-selected { border-color: var(--accent); background: var(--accent); color: var(--bg); font-weight: 700; }
     .sf-feedback-line { font-size: 14.5px; line-height: 1.6; padding: 10px 12px; border-radius: 8px; background: rgba(0,0,0,0.15); }
     .sf-feedback-correct { color: #6fcf97; }
     .sf-feedback-wrong { color: #eb9694; }
@@ -9247,8 +9257,15 @@ SQIDAQAB
         function lockPracticeAnswerInput(q, answerText) {
             if (q.isMultipleChoice) {
                 document.querySelectorAll(`input[name="pq-mc-${q.id}"]`).forEach((el) => {
-                    el.checked = el.value === String(answerText);
+                    const isChosen = el.value === String(answerText);
+                    el.checked = isChosen;
                     el.disabled = true;
+                    // Setting .checked directly (rather than a real click)
+                    // never fires 'change', so the same highlight the live
+                    // wiring above applies on selection has to be set here
+                    // too - otherwise a reloaded already-answered question
+                    // shows the radio dot but not the highlight.
+                    el.closest('.pq-mc-option').classList.toggle('pq-mc-option-selected', isChosen);
                 });
             } else if (mathEditors.has(q.id)) {
                 const editorEl = mathEditors.get(q.id).container.querySelector('.math-shortcut-editor');
@@ -9279,7 +9296,7 @@ SQIDAQAB
             } else if (q.isMultipleChoice && Array.isArray(q.options)) {
                 answerInputHtml = `<div class="pq-mc-options" id="pq-answer-${q.id}">
                     ${q.options.map((opt, idx) => `
-                        <label class="dont-know-label" style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                        <label class="pq-mc-option">
                             <input type="radio" name="pq-mc-${q.id}" value="${idx}">
                             ${renderMathShorthand(opt)}
                         </label>
@@ -9312,6 +9329,15 @@ SQIDAQAB
             `;
             list.appendChild(card);
             wirePracticeQuestionAssistance(q);
+
+            if (q.isMultipleChoice) {
+                card.querySelectorAll('.pq-mc-option').forEach((label) => {
+                    label.addEventListener('change', () => {
+                        card.querySelectorAll('.pq-mc-option').forEach((l) => l.classList.remove('pq-mc-option-selected'));
+                        label.classList.add('pq-mc-option-selected');
+                    });
+                });
+            }
 
             if (q.requiresMathsKeyboard && !q.isMultipleChoice) {
                 const editor = createSmartAnswerEditor('Write your working here…');
@@ -17347,7 +17373,14 @@ SQIDAQAB
                 <div class="sf-question-feedback"></div>
                 <div class="sf-advance-hint" hidden>Moving on…</div>
             </div>`;
-        const meta = { canAdvance: false, kind: 'day1', answered: false, noBack: true };
+        // nodeId (now returned by GET /day1-checks/due) makes this slide
+        // visible to sfCheckDueRecalls' own "don't interrupt the lesson
+        // I'm currently on" guard - real reported bug: without it, an
+        // immediate recall for the EXACT concept a student was mid-way
+        // through a Day-1 check on could still nudge over it, since the
+        // guard's nodeId comparison silently never matched a slide with
+        // no nodeId at all.
+        const meta = { canAdvance: false, kind: 'day1', answered: false, noBack: true, nodeId: check.nodeId };
         const inputEl = el.querySelector('.sf-question-input');
         const feedbackEl = el.querySelector('.sf-question-feedback');
         el.querySelector('.sf-question-submit').addEventListener('click', sfSubmitCurrentSlide);
