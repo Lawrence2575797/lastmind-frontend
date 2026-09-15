@@ -24898,26 +24898,12 @@ SQIDAQAB
         }
 
         const userId = supabaseSession.user.id;
-        const tokenTimeout = 3000;
-
-        let token = await Promise.race([
-            getStoredToken(userId).catch(() => null),
-            new Promise((r) => setTimeout(() => r(null), tokenTimeout))
-        ]);
-        let payload = token ? await Promise.race([
-            verifyJWT(token, publicKey),
-            new Promise((r) => setTimeout(() => r(null), tokenTimeout))
-        ]) : null;
+        let token = await getStoredToken(userId).catch(() => null);
+        let payload = token ? await verifyJWT(token, publicKey) : null;
 
         if (!payload) {
-            token = await Promise.race([
-                refreshTokenFromBackend(userId),
-                new Promise((r) => setTimeout(() => r(null), tokenTimeout))
-            ]);
-            payload = token ? await Promise.race([
-                verifyJWT(token, publicKey),
-                new Promise((r) => setTimeout(() => r(null), tokenTimeout))
-            ]) : null;
+            token = await refreshTokenFromBackend(userId);
+            payload = token ? await verifyJWT(token, publicKey) : null;
         }
 
         if (payload) {
@@ -24932,19 +24918,13 @@ SQIDAQAB
         // against Supabase itself before it will ever look up or return
         // anything.
         try {
-            const resp = await Promise.race([
-                fetch(`${BACKEND_URL}/api/token-for-user`, {
-                    method: 'POST',
-                    headers: { Authorization: `Bearer ${supabaseSession.access_token}` }
-                }),
-                new Promise((r) => setTimeout(() => r(null), tokenTimeout))
-            ]);
-            if (resp && resp.ok) {
+            const resp = await fetch(`${BACKEND_URL}/api/token-for-user`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${supabaseSession.access_token}` }
+            });
+            if (resp.ok) {
                 const { token: linkedToken, subscriptionId: linkedSubId } = await resp.json();
-                payload = await Promise.race([
-                    verifyJWT(linkedToken, publicKey),
-                    new Promise((r) => setTimeout(() => r(null), tokenTimeout))
-                ]);
+                payload = await verifyJWT(linkedToken, publicKey);
                 if (payload) {
                     await saveToken(userId, linkedToken);
                     if (linkedSubId) await putAuthRecord(scopedAuthKey('subscriptionId', userId), linkedSubId);
