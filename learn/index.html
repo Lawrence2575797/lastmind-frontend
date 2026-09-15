@@ -20450,15 +20450,11 @@ SQIDAQAB
                 }
             });
 
-            // Auto price/quantity labelling. Two passes, one shared
-            // sequence counter: first each individual placed curve
-            // against each axis (a single crossing only ever earns the
-            // one value that axis actually measures - Pn where it
-            // crosses the price axis, Qn where it crosses quantity -
-            // never both), then every pair of placed curves against each
-            // other (a full equilibrium point, so both). Both passes
-            // reuse diagramPolylineIntersection - a real BOUNDED segment
-            // test against the actual drawn axis segment, deliberately
+            // Auto price/quantity labelling. Three separate counters:
+            // P-labels for price axis crossings, Q-labels for quantity
+            // axis crossings, and A-Z for curve-curve intersections.
+            // Both passes reuse diagramPolylineIntersection - a real BOUNDED
+            // segment test against the actual drawn axis segment, deliberately
             // not diagramCurveAxisIntersection's infinite-line version
             // (that one's for renderStaticDiagram's spec-driven layout,
             // where a curve's local shape is trusted to be positioned
@@ -20467,22 +20463,22 @@ SQIDAQAB
             // a label it doesn't visually touch). Recomputed from
             // state.placed every render, never stored, so dragging a
             // curve updates the labels live.
-            let intersectionSeq = 0;
+            let priceSeq = 0, qtySeq = 0, letterSeq = 0;
             placedPolys.forEach((poly) => {
                 const priceHit = diagramPolylineIntersection(poly, DIAGRAM_PRICE_AXIS);
                 if (priceHit) {
-                    intersectionSeq++;
+                    priceSeq++;
                     svg.appendChild(svgElement('circle', { cx: priceHit.x, cy: priceHit.y, r: 2.5, class: 'diagram-curve-handle-dot' }));
                     const pLabel = svgElement('text', { x: DIAGRAM_PRICE_AXIS[0].x - 6, y: priceHit.y + 4, class: 'diagram-intersection-label', 'text-anchor': 'end' });
-                    pLabel.textContent = `P${intersectionSeq}`;
+                    pLabel.textContent = `P${priceSeq}`;
                     svg.appendChild(pLabel);
                 }
                 const qtyHit = diagramPolylineIntersection(poly, DIAGRAM_QUANTITY_AXIS);
                 if (qtyHit) {
-                    intersectionSeq++;
+                    qtySeq++;
                     svg.appendChild(svgElement('circle', { cx: qtyHit.x, cy: qtyHit.y, r: 2.5, class: 'diagram-curve-handle-dot' }));
                     const qLabel = svgElement('text', { x: qtyHit.x, y: DIAGRAM_QUANTITY_AXIS[0].y + 16, class: 'diagram-intersection-label', 'text-anchor': 'middle' });
-                    qLabel.textContent = `Q${intersectionSeq}`;
+                    qLabel.textContent = `Q${qtySeq}`;
                     svg.appendChild(qLabel);
                 }
             });
@@ -20490,9 +20486,9 @@ SQIDAQAB
                 for (let j = i + 1; j < placedPolys.length; j++) {
                     const hit = diagramPolylineIntersection(placedPolys[i], placedPolys[j]);
                     if (!hit) continue;
-                    intersectionSeq++;
-                    if (intersectionSeq > 26) break;
-                    const label = String.fromCharCode(64 + intersectionSeq);
+                    letterSeq++;
+                    if (letterSeq > 26) break;
+                    const label = String.fromCharCode(64 + letterSeq);
                     // Calculate approximate price and quantity values from coordinates
                     const priceRange = Math.abs(DIAGRAM_PRICE_AXIS[1].y - DIAGRAM_PRICE_AXIS[0].y);
                     const qtyRange = Math.abs(DIAGRAM_QUANTITY_AXIS[1].x - DIAGRAM_QUANTITY_AXIS[0].x);
