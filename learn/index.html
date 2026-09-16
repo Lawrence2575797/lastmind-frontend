@@ -16289,7 +16289,7 @@ SQIDAQAB
         try {
             data = await fetchSubjectKnowledgeMapWithRetry(folder);
         } catch (err) {
-            return null;
+            throw new Error(`Could not load ${folderLabel(folder)}. Please try again.`);
         }
         if (!data || !Array.isArray(data.nodes) || !data.nodes.length) return null;
         if (folder.objectiveScope && Array.isArray(folder.objectiveScope.nodeIds) && folder.objectiveScope.nodeIds.length) {
@@ -16413,7 +16413,9 @@ SQIDAQAB
     // first not-yet-started concept found, in sidebar folder order (an
     // arbitrary but stable, predictable tie-break).
     async function sfComputeGlobalNextLesson(pretendEncodedNodeId) {
-        const recs = (await Promise.all((folders || []).map((f) => sfComputeFolderRecommendation(f, pretendEncodedNodeId).catch(() => null)))).filter(Boolean);
+        const results = await Promise.allSettled((folders || []).map((f) => sfComputeFolderRecommendation(f, pretendEncodedNodeId)));
+        const recs = results.filter((r) => r.status === 'fulfilled').map((r) => r.value).filter(Boolean);
+        if (!recs.length && results.some((r) => r.status === 'rejected')) throw new Error('Could not load your lessons. Please try again.');
         const dueReviews = recs.filter((r) => r.type === 'review' || r.type === 'day1').sort((a, b) => a.due - b.due);
         if (dueReviews.length) return dueReviews[0];
         return recs.find((r) => r.type === 'lesson') || null;
@@ -17220,7 +17222,6 @@ SQIDAQAB
                 sfCloseFeed();
                 selectFolder(rec.folder.id);
             });
-            sfPrefetchNext();
             return [{ el, meta: { canAdvance: true, kind: 'handoff' } }];
         }
 
@@ -18331,25 +18332,27 @@ SQIDAQAB
     // global, cross-subject login-time feed; called with a folder (see
     // sfShowFolderFeed) to scope it to just that one subject instead.
     async function sfMaybeShowFeed(scopeFolder) {
-        // Real bug found: cachedScheduleData (what every isNodeEncoded/
-        // isNodeReviewDue check below is keyed against) was previously
-        // only ever populated as a side effect of visiting the Calendar or
-        // Revision Plan pages - never on login, never when opening the
-        // feed directly. Since the feed is now the default entry point,
-        // a student who never happened to open Calendar/Revision Plan
-        // first saw an empty schedule cache, which made every already-
-        // encoded concept look brand new and re-recommended lessons
-        // they'd already finished. Always refresh it here, before
-        // computing anything - a plain DB read, not an AI call.
-        cachedScheduleData = await fetchScheduleData();
-        const rec = scopeFolder ? await sfComputeFolderRecommendation(scopeFolder) : await sfComputeGlobalNextLesson();
-        if (!rec) return false;
-        const { viewportEl } = sfMountFeedShell('Back to Cortex', null, scopeFolder);
-        const built = await sfBuildSlidesForRecommendation(rec);
-        if (!sfFeed) return true; // closed while the first fetch was in flight
-        sfAppendBuiltSlides(built);
-        viewportEl.focus();
-        sfRefreshImmediateRecalls();
+        const { viewportEl, trackEl } = sfMountFeedShell('Back to Cortex', null, scopeFolder);
+        const activeFeed = sfFeed;
+        trackEl.innerHTML = '<div class="sf-feed-slide"><div class="sf-slide-inner"><p role="status">Loading your next lesson...</p></div></div>';
+        try {
+            cachedScheduleData = await fetchScheduleData();
+            const rec = scopeFolder ? await sfComputeFolderRecommendation(scopeFolder) : await sfComputeGlobalNextLesson();
+            if (sfFeed !== activeFeed || !trackEl.isConnected) return true;
+            if (!rec) { sfFeed = null; return false; }
+            trackEl.querySelector('[role="status"]').textContent = 'Preparing ' + (rec.node?.label || 'your lesson') + '...';
+            const built = await sfBuildSlidesForRecommendation(rec);
+            if (sfFeed !== activeFeed || !trackEl.isConnected) return true;
+            trackEl.innerHTML = '';
+            sfAppendBuiltSlides(built);
+            viewportEl.focus();
+            sfRefreshImmediateRecalls();
+        } catch (err) {
+            console.error('LastMind: lesson feed failed to open.', err);
+            if (sfFeed !== activeFeed || !trackEl.isConnected) return true;
+            trackEl.innerHTML = '<div class="sf-feed-slide"><div class="sf-slide-inner"><p>Could not load this lesson. Please try again.</p><button type="button" class="btn primary sf-retry-feed">Try again</button></div></div>';
+            trackEl.querySelector('.sf-retry-feed').addEventListener('click', () => sfMaybeShowFeed(scopeFolder));
+        }
         return true;
     }
 
@@ -18381,12 +18384,22 @@ SQIDAQAB
     // picking exactly that one. Closing the feed returns to the graph
     // (rather than Cortex/welcome) since that's where this was opened from.
     async function sfOpenNodeLessonInFeed(folder, node) {
-        const { viewportEl } = sfMountFeedShell('Back to Knowledge Map', () => renderKnowledgeMapForFolder(folder), folder);
-        const built = await sfBuildSlidesForRecommendation({ node, folder });
-        if (!sfFeed) return; // closed while the fetch was in flight
-        sfAppendBuiltSlides(built);
-        viewportEl.focus();
-        sfRefreshImmediateRecalls();
+        const { viewportEl, trackEl } = sfMountFeedShell('Back to Knowledge Map', () => renderKnowledgeMapForFolder(folder), folder);
+        const activeFeed = sfFeed;
+        trackEl.innerHTML = '<div class="sf-feed-slide"><div class="sf-slide-inner"><p role="status">Preparing your lesson...</p></div></div>';
+        try {
+            const built = await sfBuildSlidesForRecommendation({ node, folder });
+            if (sfFeed !== activeFeed || !trackEl.isConnected) return;
+            trackEl.innerHTML = '';
+            sfAppendBuiltSlides(built);
+            viewportEl.focus();
+            sfRefreshImmediateRecalls();
+        } catch (err) {
+            console.error('LastMind: could not open lesson.', err);
+            if (sfFeed !== activeFeed || !trackEl.isConnected) return;
+            trackEl.innerHTML = '<div class="sf-feed-slide"><div class="sf-slide-inner"><p>Could not load this lesson.</p><button type="button" class="btn primary sf-retry-feed">Try again</button></div></div>';
+            trackEl.querySelector('.sf-retry-feed').addEventListener('click', () => sfOpenNodeLessonInFeed(folder, node));
+        }
     }
 
     // ---- Exam Preparation's own Corrections feed ----

@@ -37,12 +37,9 @@ async function createUpgradeSession(tier) {
 
     if (!res.ok) {
       const text = await res.text();
-      try {
-        const data = JSON.parse(text);
-        throw new Error(data.error || `Server error: ${res.status}`);
-      } catch {
-        throw new Error(`Server error: ${res.status} ${res.statusText}`);
-      }
+      let message = `Server error: ${res.status} ${res.statusText}`;
+      try { message = JSON.parse(text).error || message; } catch {}
+      throw new Error(message);
     }
     const { url } = await res.json();
     window.location.href = url;
@@ -72,12 +69,9 @@ async function createExtraLocksSession(amountUsd) {
 
     if (!res.ok) {
       const text = await res.text();
-      try {
-        const data = JSON.parse(text);
-        throw new Error(data.error || `Server error: ${res.status}`);
-      } catch {
-        throw new Error(`Server error: ${res.status} ${res.statusText}`);
-      }
+      let message = `Server error: ${res.status} ${res.statusText}`;
+      try { message = JSON.parse(text).error || message; } catch {}
+      throw new Error(message);
     }
     const { url } = await res.json();
     window.location.href = url;
@@ -128,7 +122,7 @@ function showExtraLocksModal() {
   input.addEventListener('input', (e) => {
     const amount = Math.max(1, Math.min(10, parseInt(e.target.value) || 0));
     e.target.value = amount;
-    display.textContent = `${amount} Ã— 4,500 = ${(amount * 4_500).toLocaleString()} locks`;
+    display.textContent = `${amount} \u00d7 4,500 = ${(amount * 4_500).toLocaleString()} locks`;
   });
 
   // Close on overlay click (modal is the overlay div itself)
@@ -156,13 +150,13 @@ function createUpgradeModalHTML() {
   div.className = 'upgrade-overlay';
   div.innerHTML = `
     <div class="upgrade-modal">
-      <button class="upgrade-close">&times;</button>
+      <button class="upgrade-close" aria-label="Close">&times;</button>
       <h2>Upgrade LastMind</h2>
 
       <div class="upgrade-plans">
         <div class="upgrade-plan">
           <h3>Lastmind Light</h3>
-          <div class="price">£1.99<span>/month</span></div>
+          <div class="price">&pound;1.99<span>/month</span></div>
           <div class="feature">6&times; more locks than Free</div>
           <div class="locks-amount">15,000 locks</div>
           <button data-tier="light" class="upgrade-btn">Upgrade to Light</button>
@@ -171,7 +165,7 @@ function createUpgradeModalHTML() {
         <div class="upgrade-plan featured">
           <div class="badge">Most Popular</div>
           <h3>Lastmind Max</h3>
-          <div class="price">£4.99<span>/month</span></div>
+          <div class="price">&pound;4.99<span>/month</span></div>
           <div class="feature">2&times; more locks than Light</div>
           <div class="locks-amount">30,000 locks</div>
           <button data-tier="max" class="upgrade-btn featured-btn">Upgrade to Max</button>
@@ -353,7 +347,7 @@ function createExtraLocksModalHTML() {
   div.className = 'locks-overlay';
   div.innerHTML = `
     <div class="locks-modal">
-      <button class="locks-close">Ã—</button>
+      <button class="locks-close" aria-label="Close">&times;</button>
       <h2>Buy Extra Locks</h2>
       <p>Extra Locks expire at the next calendar-month reset.</p>
 
@@ -370,7 +364,7 @@ function createExtraLocksModalHTML() {
 
         <div class="locks-breakdown">
           <span>You'll receive:</span>
-          <span class="locks-display">5 Ã— 4,500 = 22,500 locks</span>
+          <span class="locks-display">5 &#215; 4,500 = 22,500 locks</span>
         </div>
 
         <button class="locks-purchase-btn">Purchase Locks</button>
