@@ -24614,7 +24614,8 @@ SQIDAQAB
     function showBuyMoreLocksPrompt() {
         window.LastMindPricing.openPurchaseOptions();
     }
-    document.getElementById('buyMoreTokensBtn').addEventListener('click', showBuyMoreLocksPrompt);
+    const buyMoreBtn = document.getElementById('buyMoreTokensBtn');
+    if (buyMoreBtn) buyMoreBtn.addEventListener('click', showBuyMoreLocksPrompt);
 
     // Shared "Lock limit reached" card - every place a request comes back
     // with { code: 'LOCK_LIMIT_REACHED' } (see generationCapService.ts/
