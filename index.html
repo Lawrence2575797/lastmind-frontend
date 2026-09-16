@@ -62,11 +62,22 @@
         }
 
         .nav-logo {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
             font-size: 1.35rem;
             font-weight: 700;
             letter-spacing: 0.06em;
             color: var(--accent);
             text-transform: uppercase;
+        }
+
+        .nav-logo-icon {
+            width: 32px;
+            height: 32px;
+            flex-shrink: 0;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.15));
         }
 
         .nav-left {
@@ -958,7 +969,31 @@
     <!-- ─── NAV ─── -->
     <nav>
         <div class="nav-left">
-            <div class="nav-logo">LastMind</div>
+            <div class="nav-logo">
+                <svg class="nav-logo-icon" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+                    <!-- L shape (sidebar color) -->
+                    <g id="logo-l">
+                        <!-- Vertical bar of L -->
+                        <rect x="180" y="200" width="100" height="550" rx="30" fill="var(--logo-l-color)" />
+                        <!-- Horizontal bar of L -->
+                        <rect x="180" y="700" width="280" height="100" rx="30" fill="var(--logo-l-color)" />
+                    </g>
+                    <!-- M shape (main background color) - two vertical bars with peak -->
+                    <g id="logo-m">
+                        <!-- Left vertical bar of M -->
+                        <rect x="420" y="200" width="100" height="550" rx="30" fill="var(--logo-m-color)" />
+                        <!-- Right vertical bar of M -->
+                        <rect x="620" y="200" width="100" height="550" rx="30" fill="var(--logo-m-color)" />
+                        <!-- Peak/diagonal connecting bar (left) -->
+                        <path d="M 470 240 L 550 380 L 470 380 Z" fill="var(--logo-m-color)" />
+                        <!-- Peak/diagonal connecting bar (right) -->
+                        <path d="M 620 240 L 540 380 L 620 380 Z" fill="var(--logo-m-color)" />
+                        <!-- Top connecting stroke for mountain peak effect -->
+                        <line x1="520" y1="200" x2="570" y2="200" stroke="var(--logo-m-color)" stroke-width="50" stroke-linecap="round" />
+                    </g>
+                </svg>
+                <span>LastMind</span>
+            </div>
             <button class="nav-account-btn" id="myAccountBtn" style="display:none;">My Account</button>
         </div>
         <div class="nav-right">
