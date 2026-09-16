@@ -5445,7 +5445,7 @@
                      here puts every topbar button in the one row that
                      actually handles overflow. -->
                 <div class="topbar-actions" id="topbarActions">
-                    <button class="credit-balance-chip" id="locksChip" type="button" title="Locks">Locks <span id="locksBalanceAmount">—</span></button>
+                    <button class="cortex-btn-topbar" id="buyMoreTokensBtn" type="button">Upgrade</button>
                     <button class="cortex-btn-topbar" id="practiceQuestionsTopbarBtn" type="button">Exam Preparation</button>
                     <button class="cortex-btn-topbar" id="progressReportTopbarBtn" type="button">Progress Report</button>
                     <button class="cortex-btn-topbar" id="knowledgeMapTopbarBtn" type="button">Knowledge Map</button>
@@ -24614,7 +24614,7 @@ SQIDAQAB
     function showBuyMoreLocksPrompt() {
         window.LastMindPricing.openPurchaseOptions();
     }
-    // Removed: Buy more tokens button no longer exists
+    document.getElementById('buyMoreTokensBtn').addEventListener('click', showBuyMoreLocksPrompt);
 
     // Shared "Lock limit reached" card - every place a request comes back
     // with { code: 'LOCK_LIMIT_REACHED' } (see generationCapService.ts/
