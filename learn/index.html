@@ -12987,8 +12987,13 @@ SQIDAQAB
     // Display remaining locks and usage percentage in the sidebar bar
     function refreshSidebarUsageBar(data) {
         const bar = document.getElementById('sidebarUsageBar');
-        if (!bar) return;
-        if (!data || !data.allotment) { bar.style.display = 'none'; return; }
+        if (!bar) { console.warn('sidebarUsageBar element not found'); return; }
+        if (!data || !data.allotment) {
+            console.log('No lock data or allotment:', data);
+            bar.style.display = 'none';
+            return;
+        }
+        console.log('Showing sidebar usage bar with data:', data);
         bar.style.display = 'flex';
         const remaining = Math.max(0, data.balance);
         const used = Math.max(0, data.allotment - data.balance);
