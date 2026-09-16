@@ -140,14 +140,14 @@ function createUpgradeModalHTML() {
   div.className = 'upgrade-overlay';
   div.innerHTML = `
     <div class="upgrade-modal">
-      <button class="upgrade-close">Ã—</button>
+      <button class="upgrade-close">&times;</button>
       <h2>Upgrade LastMind</h2>
 
       <div class="upgrade-plans">
         <div class="upgrade-plan">
           <h3>Lastmind Light</h3>
-          <div class="price">Â£1.99<span>/month</span></div>
-          <div class="feature">6Ã— more locks than Free</div>
+          <div class="price">£1.99<span>/month</span></div>
+          <div class="feature">6&times; more locks than Free</div>
           <div class="locks-amount">15,000 locks</div>
           <button data-tier="light" class="upgrade-btn">Upgrade to Light</button>
         </div>
@@ -155,8 +155,8 @@ function createUpgradeModalHTML() {
         <div class="upgrade-plan featured">
           <div class="badge">Most Popular</div>
           <h3>Lastmind Max</h3>
-          <div class="price">Â£4.99<span>/month</span></div>
-          <div class="feature">2Ã— more locks than Light</div>
+          <div class="price">£4.99<span>/month</span></div>
+          <div class="feature">2&times; more locks than Light</div>
           <div class="locks-amount">30,000 locks</div>
           <button data-tier="max" class="upgrade-btn featured-btn">Upgrade to Max</button>
           <div class="bonus">+ Buy extra locks anytime</div>
