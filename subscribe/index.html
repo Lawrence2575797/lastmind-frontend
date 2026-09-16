@@ -1828,12 +1828,12 @@
             await refreshNavState();
 
             // Arrived via /learn's Upgrade button (?action=upgrade) — if
-            // they're logged in, open straight to the payment step instead
-            // of making them navigate the modal manually.
+            // they're logged in, show the upgrade modal instead
+            // of making them navigate manually.
             const wantsUpgrade = new URLSearchParams(window.location.search).get('action') === 'upgrade';
-            if (wantsUpgrade && data.session) {
-                document.getElementById('modalOverlay').style.display = 'flex';
-                showPaymentStep(data.session);
+            if (wantsUpgrade && data.session && window.LastMindPricing) {
+                // Use the new pricing modal
+                window.LastMindPricing.showUpgradeModal();
             }
         }
     </script>
