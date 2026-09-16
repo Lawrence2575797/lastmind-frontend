@@ -5,21 +5,30 @@
 
 const PRICING_API = 'https://api.lastmind.co.uk'; // Update with your API URL
 
-// Get auth token from localStorage, sessionStorage, or Supabase session
+// Get auth token from localStorage or Supabase session
 async function getAuthToken() {
-  let token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+  let token = localStorage.getItem('auth_token');
   if (token) return token;
 
-  // Try to get from Supabase session if available
-  if (window.supabase) {
-    try {
-      const { data } = await window.supabase.auth.getSession();
-      if (data?.session?.access_token) {
-        return data.session.access_token;
-      }
-    } catch (err) {
-      console.error('Failed to get Supabase session:', err);
+  // Try to get from supabaseClient (defined on the page)
+  try {
+    // Wait for supabaseClient to be initialized (max 1 second)
+    let attempts = 0;
+    while (!window.supabaseClient && attempts < 10) {
+      await new Promise(r => setTimeout(r, 100));
+      attempts++;
     }
+
+    if (window.supabaseClient) {
+      const { data } = await window.supabaseClient.auth.getSession();
+      if (data?.session?.access_token) {
+        token = data.session.access_token;
+        setAuthToken(token);
+        return token;
+      }
+    }
+  } catch (err) {
+    // Silent fail - Supabase not available
   }
 
   return null;
