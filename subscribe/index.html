@@ -1406,7 +1406,7 @@
         const SUPABASE_URL = 'https://evgdecewwmkupiadgfop.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_Bb-f61P1zqy_xW63D26nUw_VTOVXaub';
 
-        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         // firstName/dateOfBirth are optional params (login/forgot never pass
         // them) - stored in Supabase Auth's own user_metadata (options.data),
