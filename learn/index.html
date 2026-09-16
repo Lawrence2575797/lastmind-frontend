@@ -14298,6 +14298,10 @@ SQIDAQAB
 
         await putFolder(folder);
         await refreshFolderList();
+        if (subject === 'Biology' && qualification === 'GCSE Higher' && examBoard === 'AQA') {
+            kmGraphMode = true;
+            specPracticeMode = false;
+        }
         selectFolder(id);
     }
 
@@ -18504,6 +18508,9 @@ SQIDAQAB
     // second board the moment one actually exists, rather than silently
     // hardcoding the only one.
     const SF_WIZARD_SUBJECTS = [
+        { key: 'biology', label: 'Biology (Triple Science)', subject: 'Biology', examLesson: true,
+          qualifications: [{ label: 'GCSE Higher', qualification: 'GCSE Higher' }],
+          examBoards: ['AQA'] },
         { key: 'economics', label: 'Economics', subject: 'Economics', examLesson: true,
           qualifications: [{ label: 'A-Level', qualification: 'A-Level' }],
           examBoards: ['Edexcel'] },
@@ -18564,13 +18571,13 @@ SQIDAQAB
             ? `<div class="sf-wizard-choice-row">${s.qualifications.map((q) => `
                 <button type="button" class="sf-wizard-choice-btn${chosen.qualification === q.qualification ? ' selected' : ''}" data-qualification="${escapeHtml(q.qualification)}">${escapeHtml(q.label)}</button>
               `).join('')}</div>`
-            : '';
+            : `<p>${escapeHtml(s.qualifications[0].label)}</p>`;
         const examBoardSelect = `
             <label class="sf-wizard-select-label" for="sfWizardExamBoardSelect">Exam board</label>
             <select id="sfWizardExamBoardSelect" class="sf-wizard-select">
                 ${s.examBoards.map((b) => `<option value="${escapeHtml(b)}"${chosen.examBoard === b ? ' selected' : ''}>${escapeHtml(b)}</option>`).join('')}
             </select>`;
-        const ready = (s.qualifications.length === 1 || chosen.qualification) && chosen.examBoard;
+        const ready = (s.qualifications.length === 1 || chosen.qualification) && (s.examBoards.length === 1 || chosen.examBoard);
         return `
             ${closeBtn}
             <div class="sf-wizard-step-label">${escapeHtml(s.label)}</div>
@@ -18668,6 +18675,7 @@ SQIDAQAB
 
     async function sfFinishWizard() {
         const cardEl = sfWizard.overlayEl.querySelector('.sf-wizard-card');
+        const openBiologyMap = sfWizard.selectedKeys.has('biology');
         cardEl.innerHTML = `<div class="sf-wizard-step-label">Setting things up…</div>`;
         for (const key of sfWizard.selectedKeys) {
             const s = SF_WIZARD_SUBJECTS.find((x) => x.key === key);
@@ -18685,8 +18693,15 @@ SQIDAQAB
         document.body.removeChild(sfWizard.overlayEl);
         sfWizard = null;
         await refreshFolderList();
-        const shown = await sfMaybeShowFeed();
-        if (!shown) renderWelcome();
+        const biologyFolder = openBiologyMap && folders.find((f) => f.subject === 'Biology' && f.qualification === 'GCSE Higher' && f.examBoard === 'AQA');
+        if (biologyFolder) {
+            kmGraphMode = true;
+            specPracticeMode = false;
+            selectFolder(biologyFolder.id);
+        } else {
+            const shown = await sfMaybeShowFeed();
+            if (!shown) renderWelcome();
+        }
 
         // A genuine first-time signup never reached enterApp's own tour
         // check (see its comment - the wizard branch there returns
