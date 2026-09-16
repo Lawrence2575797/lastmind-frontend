@@ -18197,6 +18197,7 @@ SQIDAQAB
         const miniCortexHtml = isPaidUser ? `
                 <aside class="sf-mini-cortex-panel">
                     <div class="sf-mini-cortex-header">Cortex</div>
+                    <button type="button" class="btn" id="seeExamPrepBtn" style="width:100%; margin-bottom:8px; font-size:12px;">See Practice Questions</button>
                     <div class="sf-mini-cortex-thread"><div class="sf-mini-cortex-empty">Ask about the question you're on - Cortex can see what you're currently working on.</div></div>
                     <form class="sf-mini-cortex-form">
                         <input type="text" class="sf-mini-cortex-input" placeholder="Ask Cortex…" maxlength="500" autocomplete="off">
@@ -18252,6 +18253,14 @@ SQIDAQAB
         const formEl = panelEl.querySelector('.sf-mini-cortex-form');
         const inputEl = panelEl.querySelector('.sf-mini-cortex-input');
         const sendBtn = panelEl.querySelector('.sf-mini-cortex-send');
+        const examPrepBtn = panelEl.querySelector('#seeExamPrepBtn');
+
+        // Wire up "See Practice Questions" button
+        if (examPrepBtn && sfFeed && sfFeed.scopeFolder) {
+            examPrepBtn.addEventListener('click', () => {
+                renderSpecPracticeForFolder(sfFeed.scopeFolder);
+            });
+        }
 
         function appendMsg(role, text) {
             const emptyEl = threadEl.querySelector('.sf-mini-cortex-empty');
