@@ -552,6 +552,15 @@ function initPricing(authToken) {
   if (authToken) {
     setAuthToken(authToken);
     displayLockBalance();
+
+    // Wire up upgrade button if it exists
+    const upgradeBtn = document.getElementById('navActionBtn');
+    if (upgradeBtn) {
+      upgradeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        showUpgradeModal();
+      });
+    }
   }
 }
 
