@@ -9,7 +9,7 @@ async function getAuthToken() {
 }
 // Tokens always come from the current session, never a stale shared storage key.
 function setAuthToken() {}
-function showLoginRequired() { window.location.href = '/subscribe'; }
+function showLoginRequired() { window.location.href = '/'; }
 async function fetchLockBalance() {
   const token = await getAuthToken();
   if (!token) return null;
