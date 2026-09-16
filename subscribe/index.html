@@ -1406,7 +1406,25 @@
         const SUPABASE_URL = 'https://evgdecewwmkupiadgfop.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_Bb-f61P1zqy_xW63D26nUw_VTOVXaub';
 
-        window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // Wait for Supabase library to load
+        (async function initSupabase() {
+            let attempts = 0;
+            while (!window.supabase && attempts < 50) {
+                await new Promise(r => setTimeout(r, 100));
+                attempts++;
+            }
+
+            if (!window.supabase) {
+                console.error('Supabase library failed to load');
+                return;
+            }
+
+            window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+            // Now that supabaseClient is ready, set up auth listeners
+            setupAuthListeners();
+            bootAccountFlow();
+        })();
 
         // firstName/dateOfBirth are optional params (login/forgot never pass
         // them) - stored in Supabase Auth's own user_metadata (options.data),
@@ -1789,19 +1807,22 @@
             refreshNavState();
         });
 
-        supabaseClient.auth.onAuthStateChange((event, session) => {
-            if (event === 'SIGNED_OUT') {
-                renderAccountSession(null);
-                refreshNavState();
-                return;
-            }
-            if (session) {
-                renderAccountSession(session);
-                refreshNavState();
-            }
-        });
+        function setupAuthListeners() {
+            if (!window.supabaseClient) return;
+            window.supabaseClient.auth.onAuthStateChange((event, session) => {
+                if (event === 'SIGNED_OUT') {
+                    renderAccountSession(null);
+                    refreshNavState();
+                    return;
+                }
+                if (session) {
+                    renderAccountSession(session);
+                    refreshNavState();
+                }
+            });
+        }
 
-        (async function bootAccount() {
+        async function bootAccountFlow() {
             const { data } = await getAccountSession();
             if (data.session) renderAccountSession(data.session);
             await refreshNavState();
@@ -1814,7 +1835,7 @@
                 document.getElementById('modalOverlay').style.display = 'flex';
                 showPaymentStep(data.session);
             }
-        })();
+        }
     </script>
 
     <script src="/cortex/pricing.js"></script>
