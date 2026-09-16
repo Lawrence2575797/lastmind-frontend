@@ -19258,7 +19258,7 @@ SQIDAQAB
                                     <button type="button" class="notes-tree-subtopic-toggle"><span class="notes-tree-arrow">▶</span><span>${escapeHtml(st.subtopic)}</span></button>
                                     <div class="notes-tree-subtopic-body" style="display:none;">
                                         ${st.nodes.map((n) => `
-                                            <button type="button" class="notes-tree-node-item${n.hasNotes ? ' has-notes' : ''}${n.encoded ? '' : ' not-encoded'}" data-node-id="${n.nodeId}">
+                                            <button type="button" class="notes-tree-node-item${n.hasNotes ? ' has-notes' : ''}${n.hasNotes ? '' : ' not-encoded'}" data-node-id="${n.nodeId}" title="${n.hasNotes ? 'Open lesson notes' : 'Open this lesson to generate notes'}">
                                                 <span class="notes-tree-node-dot"></span><span>${escapeHtml(n.label)}</span>
                                             </button>
                                         `).join('')}
