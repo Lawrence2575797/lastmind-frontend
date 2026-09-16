@@ -1,0 +1,18 @@
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- L shape (sidebar color) -->
+  <path d="M 200 250 L 350 250 Q 380 250 380 280 L 380 650 Q 380 680 350 680 L 200 680 Q 170 680 170 650 L 170 280 Q 170 250 200 250 M 230 310 L 230 620 L 350 620 L 350 310 Z" fill="var(--logo-l-color, #2B2120)" />
+
+  <!-- M shape (main background color) -->
+  <path d="M 500 250 L 650 250 Q 680 250 680 280 L 680 650 Q 680 680 650 680 L 620 680 Q 590 680 590 650 L 590 380 L 550 550 Q 540 600 500 600 Q 460 600 450 550 L 410 380 L 410 650 Q 410 680 380 680 L 350 680 Q 320 680 320 650 L 320 280 Q 320 250 350 250 L 500 250 M 550 310 L 500 550 L 450 310 L 410 310 L 410 620 L 550 620 L 550 310 Z" fill="var(--logo-m-color, #C9A876)" />
+
+  <!-- Simplified version for better rendering -->
+  <g id="logo-simple">
+    <!-- L -->
+    <rect x="180" y="220" width="120" height="480" rx="40" fill="var(--logo-l-color, #2B2120)" />
+    <rect x="180" y="620" width="240" height="100" rx="40" fill="var(--logo-l-color, #2B2120)" />
+
+    <!-- M -->
+    <rect x="520" y="220" width="100" height="500" rx="40" fill="var(--logo-m-color, #C9A876)" />
+    <path d="M 520 220 Q 490 220 490 250 L 490 700 Q 490 730 520 730 L 620 730 Q 650 730 650 700 L 650 250 Q 650 220 620 220 L 520 220 M 480 350 L 570 550 L 660 350" stroke="var(--logo-m-color, #C9A876)" stroke-width="40" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+</svg>
