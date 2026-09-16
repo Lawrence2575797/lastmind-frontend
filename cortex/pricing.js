@@ -122,7 +122,7 @@ function showExtraLocksModal() {
   input.addEventListener('input', (e) => {
     const amount = Math.max(1, Math.min(10, parseInt(e.target.value) || 0));
     e.target.value = amount;
-    display.textContent = `${amount} \u00d7 4,500 = ${(amount * 4_500).toLocaleString()} locks`;
+    display.textContent = `${amount} x 4,500 = ${(amount * 4_500).toLocaleString()} locks`;
   });
 
   // Close on overlay click (modal is the overlay div itself)
@@ -150,14 +150,14 @@ function createUpgradeModalHTML() {
   div.className = 'upgrade-overlay';
   div.innerHTML = `
     <div class="upgrade-modal">
-      <button class="upgrade-close" aria-label="Close">&times;</button>
+      <button class="upgrade-close" aria-label="Close">x</button>
       <h2>Upgrade LastMind</h2>
 
       <div class="upgrade-plans">
         <div class="upgrade-plan">
           <h3>Lastmind Light</h3>
           <div class="price">&pound;1.99<span>/month</span></div>
-          <div class="feature">6&times; more locks than Free</div>
+          <div class="feature">6x more locks than Free</div>
           <div class="locks-amount">15,000 locks</div>
           <button data-tier="light" class="upgrade-btn">Upgrade to Light</button>
         </div>
@@ -166,7 +166,7 @@ function createUpgradeModalHTML() {
           <div class="badge">Most Popular</div>
           <h3>Lastmind Max</h3>
           <div class="price">&pound;4.99<span>/month</span></div>
-          <div class="feature">2&times; more locks than Light</div>
+          <div class="feature">2x more locks than Light</div>
           <div class="locks-amount">30,000 locks</div>
           <button data-tier="max" class="upgrade-btn featured-btn">Upgrade to Max</button>
           <div class="bonus">+ Buy extra locks anytime</div>
@@ -347,7 +347,7 @@ function createExtraLocksModalHTML() {
   div.className = 'locks-overlay';
   div.innerHTML = `
     <div class="locks-modal">
-      <button class="locks-close" aria-label="Close">&times;</button>
+      <button class="locks-close" aria-label="Close">x</button>
       <h2>Buy Extra Locks</h2>
       <p>Extra Locks expire at the next calendar-month reset.</p>
 
@@ -364,7 +364,7 @@ function createExtraLocksModalHTML() {
 
         <div class="locks-breakdown">
           <span>You'll receive:</span>
-          <span class="locks-display">5 &#215; 4,500 = 22,500 locks</span>
+          <span class="locks-display">5 x 4,500 = 22,500 locks</span>
         </div>
 
         <button class="locks-purchase-btn">Purchase Locks</button>
