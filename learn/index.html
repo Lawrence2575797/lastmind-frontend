@@ -12978,7 +12978,8 @@ SQIDAQAB
 
     async function refreshLocksChip() {
         const data = await fetchLockBalance();
-        document.getElementById('locksBalanceAmount').textContent = data ? data.balance : '—';
+        const chip = document.getElementById('locksBalanceAmount');
+        if (chip) chip.textContent = data ? data.balance : '—';
         refreshSidebarUsageBar(data);
         if (window.LastMindPricing) window.LastMindPricing.displayLockBalance();
     }
