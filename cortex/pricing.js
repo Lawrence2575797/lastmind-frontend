@@ -117,9 +117,9 @@ function showUpgradeModal() {
   const modal = createUpgradeModalHTML();
   document.body.appendChild(modal);
 
-  // Close on overlay click
-  modal.querySelector('.upgrade-overlay').addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) {
+  // Close on overlay click (modal is the overlay div itself)
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
       modal.remove();
     }
   });
@@ -154,9 +154,9 @@ function showExtraLocksModal() {
     display.textContent = `${amount} × 4,500 = ${amount * 4_500}.toLocaleString()} locks`;
   });
 
-  // Close on overlay click
-  modal.querySelector('.locks-overlay').addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) {
+  // Close on overlay click (modal is the overlay div itself)
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
       modal.remove();
     }
   });
