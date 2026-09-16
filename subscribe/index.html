@@ -1580,6 +1580,11 @@
             }
             currentUserId = session.user ? session.user.id : null;
             acctSessionEmail.textContent = session.user ? `Signed in as ${session.user.email}` : 'Signed in';
+
+            // Initialize pricing system with the session token
+            if (window.LastMindPricing && session.access_token) {
+                window.LastMindPricing.initPricing(session.access_token);
+            }
         }
 
         // Used specifically for the optional "Upgrade" flow — shows Step 2
