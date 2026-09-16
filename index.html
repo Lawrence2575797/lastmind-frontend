@@ -1868,5 +1868,24 @@
         })();
     </script>
 
+    <script src="/cortex/pricing.js"></script>
+    <script>
+        // Wire up Upgrade button to show pricing modal
+        document.getElementById('navActionBtn')?.addEventListener('click', () => {
+            if (window.LastMindPricing) {
+                window.LastMindPricing.showUpgradeModal();
+            }
+        });
+
+        // Show upgrade button when logged in
+        const originalRenderAccountSession = renderAccountSession;
+        window.renderAccountSession = function(session) {
+            originalRenderAccountSession.call(this, session);
+            if (session && window.LastMindPricing) {
+                window.LastMindPricing.initPricing(session.access_token);
+            }
+        };
+    </script>
+
 </body>
 </html>

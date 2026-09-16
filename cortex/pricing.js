@@ -1,63 +1,22 @@
-/**
- * LastMind Pricing System
- * Handles lock balance display, upgrade modals, and extra locks purchases
- */
-
-const PRICING_API = 'https://api.lastmind.co.uk'; // Update with your API URL
-
-// Get auth token from localStorage or Supabase session
+(() => {
+const PRICING_API = 'https://lastmind-stripe-backend.onrender.com';
+const LOCKS_API = 'https://lastmind-compile-backend.onrender.com';
 async function getAuthToken() {
-  let token = localStorage.getItem('auth_token');
-  if (token) return token;
-
-  // Try to get from supabaseClient (defined on the page)
-  try {
-    // Wait for supabaseClient to be initialized (max 1 second)
-    let attempts = 0;
-    while (!window.supabaseClient && attempts < 10) {
-      await new Promise(r => setTimeout(r, 100));
-      attempts++;
-    }
-
-    if (window.supabaseClient) {
-      const { data } = await window.supabaseClient.auth.getSession();
-      if (data?.session?.access_token) {
-        token = data.session.access_token;
-        setAuthToken(token);
-        return token;
-      }
-    }
-  } catch (err) {
-    // Silent fail - Supabase not available
-  }
-
-  return null;
+  const client = window.supabaseClient;
+  if (!client) return null;
+  const { data } = await client.auth.getSession();
+  return data?.session?.access_token || null;
 }
-
-// Set auth token
-function setAuthToken(token) {
-  if (token) {
-    localStorage.setItem('auth_token', token);
-  }
-}
-
-// Fetch user's lock balance and subscription
+// Tokens always come from the current session, never a stale shared storage key.
+function setAuthToken() {}
+function showLoginRequired() { window.location.href = '/subscribe'; }
 async function fetchLockBalance() {
   const token = await getAuthToken();
   if (!token) return null;
-
-  try {
-    const res = await fetch(`${PRICING_API}/lock-balance`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (err) {
-    console.error('Failed to fetch lock balance:', err);
-    return null;
-  }
+  const res = await fetch(`${LOCKS_API}/locks/balance`, {headers:{Authorization:`Bearer ${token}`}});
+  if (!res.ok) return null;
+  return res.json();
 }
-
 // Create upgrade checkout session
 async function createUpgradeSession(tier) {
   const token = await getAuthToken();
@@ -76,12 +35,12 @@ async function createUpgradeSession(tier) {
       body: JSON.stringify({ tier }),
     });
 
-    if (!res.ok) throw new Error('Failed to create checkout');
+    if (!res.ok) { const data = await res.json(); throw new Error(data.error || 'Could not open checkout.'); }
     const { url } = await res.json();
     window.location.href = url;
   } catch (err) {
     console.error('Checkout error:', err);
-    alert('Failed to start upgrade. Please try again.');
+    alert(err.message);
   }
 }
 
@@ -103,17 +62,18 @@ async function createExtraLocksSession(amountUsd) {
       body: JSON.stringify({ amountUsd: Math.round(amountUsd) }),
     });
 
-    if (!res.ok) throw new Error('Failed to create checkout');
+    if (!res.ok) { const data = await res.json(); throw new Error(data.error || 'Could not open checkout.'); }
     const { url } = await res.json();
     window.location.href = url;
   } catch (err) {
     console.error('Extra locks checkout error:', err);
-    alert('Failed to purchase locks. Please try again.');
+    alert(err.message);
   }
 }
 
 // Show upgrade modal
 function showUpgradeModal() {
+  if (document.querySelector('.upgrade-overlay')) return;
   const modal = createUpgradeModalHTML();
   document.body.appendChild(modal);
 
@@ -141,6 +101,7 @@ function showUpgradeModal() {
 
 // Show extra locks purchase modal (Max tier only)
 function showExtraLocksModal() {
+  if (document.querySelector('.locks-overlay')) return;
   const modal = createExtraLocksModalHTML();
   document.body.appendChild(modal);
 
@@ -151,7 +112,7 @@ function showExtraLocksModal() {
   input.addEventListener('input', (e) => {
     const amount = Math.max(1, Math.min(10, parseInt(e.target.value) || 0));
     e.target.value = amount;
-    display.textContent = `${amount} × 4,500 = ${amount * 4_500}.toLocaleString()} locks`;
+    display.textContent = `${amount} Ã— 4,500 = ${(amount * 4_500).toLocaleString()} locks`;
   });
 
   // Close on overlay click (modal is the overlay div itself)
@@ -179,14 +140,14 @@ function createUpgradeModalHTML() {
   div.className = 'upgrade-overlay';
   div.innerHTML = `
     <div class="upgrade-modal">
-      <button class="upgrade-close">×</button>
+      <button class="upgrade-close">Ã—</button>
       <h2>Upgrade LastMind</h2>
 
       <div class="upgrade-plans">
         <div class="upgrade-plan">
           <h3>Lastmind Light</h3>
-          <div class="price">£1.99<span>/month</span></div>
-          <div class="feature">6× more locks than Free</div>
+          <div class="price">Â£1.99<span>/month</span></div>
+          <div class="feature">6Ã— more locks than Free</div>
           <div class="locks-amount">15,000 locks</div>
           <button data-tier="light" class="upgrade-btn">Upgrade to Light</button>
         </div>
@@ -194,8 +155,8 @@ function createUpgradeModalHTML() {
         <div class="upgrade-plan featured">
           <div class="badge">Most Popular</div>
           <h3>Lastmind Max</h3>
-          <div class="price">£4.99<span>/month</span></div>
-          <div class="feature">2× more locks than Light</div>
+          <div class="price">Â£4.99<span>/month</span></div>
+          <div class="feature">2Ã— more locks than Light</div>
           <div class="locks-amount">30,000 locks</div>
           <button data-tier="max" class="upgrade-btn featured-btn">Upgrade to Max</button>
           <div class="bonus">+ Buy extra locks anytime</div>
@@ -221,7 +182,7 @@ function createUpgradeModalHTML() {
     }
 
     .upgrade-modal {
-      background: var(--panel);
+      background: var(--panel, #25151b);
       border: 1px solid rgba(230, 215, 176, 0.15);
       border-radius: 12px;
       padding: 40px;
@@ -376,8 +337,9 @@ function createExtraLocksModalHTML() {
   div.className = 'locks-overlay';
   div.innerHTML = `
     <div class="locks-modal">
-      <button class="locks-close">×</button>
+      <button class="locks-close">Ã—</button>
       <h2>Buy Extra Locks</h2>
+      <p>Extra Locks expire at the next calendar-month reset.</p>
 
       <div class="locks-form">
         <label>Amount (USD)</label>
@@ -392,7 +354,7 @@ function createExtraLocksModalHTML() {
 
         <div class="locks-breakdown">
           <span>You'll receive:</span>
-          <span class="locks-display">5 × 4,500 = 22,500 locks</span>
+          <span class="locks-display">5 Ã— 4,500 = 22,500 locks</span>
         </div>
 
         <button class="locks-purchase-btn">Purchase Locks</button>
@@ -417,7 +379,7 @@ function createExtraLocksModalHTML() {
     }
 
     .locks-modal {
-      background: var(--panel);
+      background: var(--panel, #25151b);
       border: 1px solid rgba(230, 215, 176, 0.15);
       border-radius: 12px;
       padding: 40px;
@@ -512,66 +474,40 @@ function createExtraLocksModalHTML() {
   return div;
 }
 
-// Display lock balance in top bar
-async function displayLockBalance() {
+// Keep the existing app balance chip and usage bar in sync.
+let confirmation = null;
+async function confirmReturn() {
+  const sessionId = new URLSearchParams(location.search).get('billing_session');
+  if (!sessionId) return;
   const token = await getAuthToken();
   if (!token) return;
-
-  const balance = await fetchLockBalance();
-  if (!balance) return;
-
-  // Show upgrade button for logged-in users
-  const upgradeBtn = document.getElementById('navActionBtn');
-  if (upgradeBtn) {
-    upgradeBtn.style.display = 'block';
-    upgradeBtn.addEventListener('click', () => showUpgradeModal());
-  }
-
-  const balanceElement = document.getElementById('lock-balance-display');
-  if (!balanceElement) return;
-
-  const percentage = balance.percentageUsed;
-  balanceElement.textContent = `${balance.balance.toLocaleString()} / ${balance.monthlyAllotment.toLocaleString()}`;
-  balanceElement.className = 'lock-balance';
-
-  // Color coding based on usage
-  if (percentage > 80) {
-    balanceElement.classList.add('warning');
-  } else if (percentage > 50) {
-    balanceElement.classList.add('caution');
-  }
-
-  // If out of locks, show upgrade modal
-  if (balance.balance <= 0) {
-    setTimeout(showUpgradeModal, 500);
-  }
+  const res = await fetch(`${PRICING_API}/checkout/confirm`, {method:'POST',
+    headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({sessionId})});
+  if (!res.ok) throw new Error('Payment confirmation is pending. Please refresh shortly.');
+  const result = await res.json();
+  if (result.paid) { const url = new URL(location.href); url.searchParams.delete('billing_session'); history.replaceState(null,'',url); }
 }
-
-// Initialize pricing system with auth token
-function initPricing(authToken) {
-  if (authToken) {
-    setAuthToken(authToken);
-    displayLockBalance();
-
-    // Wire up upgrade button if it exists
-    const upgradeBtn = document.getElementById('navActionBtn');
-    if (upgradeBtn) {
-      upgradeBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        showUpgradeModal();
-      });
-    }
-  }
+async function displayLockBalance() {
+  if (!await getAuthToken()) return;
+  try {
+    if (!confirmation) confirmation = confirmReturn().catch(err => { console.warn(err.message); confirmation=null; });
+    await confirmation;
+    const balance = await fetchLockBalance();
+    if (!balance) return;
+    const chip = document.getElementById('locksBalanceAmount');
+    if (chip) chip.textContent = balance.balance.toLocaleString();
+    const upgrade = document.getElementById('upgradeTopbarBtn');
+    if (upgrade) { upgrade.style.display = balance.tier==='max'?'none':''; upgrade.onclick=showUpgradeModal; }
+    const extra = document.getElementById('buyMoreTokensBtn');
+    if (extra) { extra.style.display=balance.tier==='max'?'':'none'; extra.textContent='Buy Extra Locks'; }
+  } catch(err) { console.warn('Could not refresh pricing:',err.message); }
 }
-
-// Export for use
-window.LastMindPricing = {
-  showUpgradeModal,
-  showExtraLocksModal,
-  fetchLockBalance,
-  displayLockBalance,
-  createUpgradeSession,
-  createExtraLocksSession,
-  initPricing,
-  setAuthToken,
-};
+async function openPurchaseOptions() {
+  try { const balance = await fetchLockBalance();
+    if (balance?.tier === 'max') showExtraLocksModal(); else showUpgradeModal();
+  } catch { showUpgradeModal(); }
+}
+function initPricing() { displayLockBalance(); }
+window.LastMindPricing = {showUpgradeModal,showExtraLocksModal,fetchLockBalance,
+  displayLockBalance,createUpgradeSession,createExtraLocksSession,initPricing,setAuthToken,openPurchaseOptions};
+})();
