@@ -35,7 +35,15 @@ async function createUpgradeSession(tier) {
       body: JSON.stringify({ tier }),
     });
 
-    if (!res.ok) { const data = await res.json(); throw new Error(data.error || 'Could not open checkout.'); }
+    if (!res.ok) {
+      const text = await res.text();
+      try {
+        const data = JSON.parse(text);
+        throw new Error(data.error || `Server error: ${res.status}`);
+      } catch {
+        throw new Error(`Server error: ${res.status} ${res.statusText}`);
+      }
+    }
     const { url } = await res.json();
     window.location.href = url;
   } catch (err) {
@@ -62,7 +70,15 @@ async function createExtraLocksSession(amountUsd) {
       body: JSON.stringify({ amountUsd: Math.round(amountUsd) }),
     });
 
-    if (!res.ok) { const data = await res.json(); throw new Error(data.error || 'Could not open checkout.'); }
+    if (!res.ok) {
+      const text = await res.text();
+      try {
+        const data = JSON.parse(text);
+        throw new Error(data.error || `Server error: ${res.status}`);
+      } catch {
+        throw new Error(`Server error: ${res.status} ${res.statusText}`);
+      }
+    }
     const { url } = await res.json();
     window.location.href = url;
   } catch (err) {
