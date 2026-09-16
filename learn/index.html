@@ -24791,7 +24791,7 @@ SQIDAQAB
         }, 4000);
     }
 
-    async function enterApp(paid, session) {
+    async function enterApp(paid) {
         isPaidUser = paid;
         renderFeedLoadingScreen();
 
@@ -24802,11 +24802,6 @@ SQIDAQAB
         // fast local cache (already applied before login resolved, see
         // applyCachedThemeEarly) against this account's real saved colours.
         initThemePalette();
-
-        // Initialize pricing modal
-        if (session && window.LastMindPricing) {
-            window.LastMindPricing.initPricing(session.access_token);
-        }
 
         // Peer tutoring pulled from the live site entirely, both entry
         // points (Peer Tutoring hub + My Tutoring) - real legal exposure
@@ -24916,7 +24911,7 @@ SQIDAQAB
         // want the bypass reachable anymore.
         if (new URLSearchParams(window.location.search).has('preview')) {
             console.warn('LastMind: running in PREVIEW MODE — the subscription gate is bypassed. Remove the ?preview=1 block in learn.html before going live.');
-            await enterApp(true, supabaseSession); // preview mode shows the full paid experience
+            await enterApp(true); // preview mode shows the full paid experience
             return;
         }
 
@@ -24948,7 +24943,7 @@ SQIDAQAB
         // async checks if bypassing subscription verification entirely.
         if (TEMP_ALL_FEATURES_FREE) {
             console.log('Gate: TEMP_ALL_FEATURES_FREE is true, calling enterApp...');
-            await enterApp(true, supabaseSession);
+            await enterApp(true);
             console.log('Gate: enterApp returned');
             return;
         }
@@ -24991,7 +24986,7 @@ SQIDAQAB
         }
 
         if (payload) {
-            await enterApp(true, supabaseSession);
+            await enterApp(true);
             return;
         }
 
@@ -25019,7 +25014,7 @@ SQIDAQAB
         }
 
         if (payload) {
-            await enterApp(true, supabaseSession);
+            await enterApp(true);
             return;
         }
 
@@ -25027,7 +25022,7 @@ SQIDAQAB
         // least logged in, so let them in as free tier (framework + folders +
         // dictation/TTS, no Compile) rather than bouncing them out entirely.
         // Paying is optional here, not a requirement to use the app at all.
-        await enterApp(false, supabaseSession);
+        await enterApp(false);
     })();
 </script>
 
