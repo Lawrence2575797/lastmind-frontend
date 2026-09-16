@@ -1,26 +1,19 @@
 <svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <style>
-      .logo-l { fill: var(--logo-l-color, #2B2120); }
-      .logo-m { fill: var(--logo-m-color, #C9A876); }
-    </style>
-  </defs>
-
-  <!-- L: Bold rounded L shape -->
-  <g class="logo-l">
+  <!-- L: Bold rounded L shape (left) -->
+  <g id="logo-l">
     <!-- Vertical bar -->
-    <rect x="160" y="160" width="160" height="680" rx="60" />
+    <rect x="140" y="140" width="180" height="720" rx="70" fill="var(--logo-l-color, #2B2120)" />
     <!-- Horizontal bar -->
-    <rect x="160" y="740" width="400" height="160" rx="60" />
+    <rect x="140" y="740" width="420" height="180" rx="70" fill="var(--logo-l-color, #2B2120)" />
   </g>
 
-  <!-- M: 3D checkmark with vertical backing -->
-  <g class="logo-m">
-    <!-- Right vertical bar (backing) -->
-    <rect x="680" y="160" width="140" height="640" rx="60" />
-    <!-- Diagonal checkmark - lower left to middle -->
-    <line x1="520" y1="600" x2="680" y2="460" stroke="var(--logo-m-color, #C9A876)" stroke-width="100" stroke-linecap="round" />
-    <!-- Diagonal checkmark - middle to upper right -->
-    <line x1="680" y1="460" x2="840" y2="280" stroke="var(--logo-m-color, #C9A876)" stroke-width="100" stroke-linecap="round" />
+  <!-- M: Vertical bar with bold checkmark (right) -->
+  <g id="logo-m">
+    <!-- Vertical backing bar -->
+    <rect x="680" y="140" width="160" height="720" rx="70" fill="var(--logo-m-color, #C9A876)" />
+    <!-- Checkmark: Lower diagonal stroke -->
+    <line x1="480" y1="620" x2="700" y2="420" stroke="var(--logo-m-color, #C9A876)" stroke-width="120" stroke-linecap="round" stroke-linejoin="round" />
+    <!-- Checkmark: Upper diagonal stroke -->
+    <line x1="700" y1="420" x2="880" y2="200" stroke="var(--logo-m-color, #C9A876)" stroke-width="120" stroke-linecap="round" stroke-linejoin="round" />
   </g>
 </svg>
