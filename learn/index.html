@@ -100,7 +100,7 @@
     .sidebar {
         width: 280px;
         flex-shrink: 0;
-        background: var(--panel);
+        background: #121218;
         /* Explicit, not left to inherit from body - body's own text
            colour now matches its birch background (see --ink), which
            would be illegible against this panel's own dark background if
@@ -6131,36 +6131,10 @@ SQIDAQAB
         panel.className = 'theme-palette-panel';
         panel.hidden = true;
         panel.innerHTML = `
-            <div class="theme-palette-header"><span>Colours</span><button type="button" class="theme-palette-close-btn" aria-label="Close">✕</button></div>
+            <div class="theme-palette-header"><span>Colour Presets</span><button type="button" class="theme-palette-close-btn" aria-label="Close">✕</button></div>
             <div class="theme-preset-section">
-                <div class="theme-preset-label">Presets</div>
                 <div class="theme-preset-row">
                     ${THEME_PRESETS.map((p) => `<button type="button" class="theme-preset-btn" data-preset-key="${escapeHtml(p.key)}">${escapeHtml(p.label)}</button>`).join('')}
-                </div>
-            </div>
-            <div class="theme-palette-field">
-                <div class="theme-palette-field-row"><span>Text</span><input type="color" id="themeTextColor"></div>
-                <div class="theme-field-actions">
-                    <button type="button" class="theme-field-reset-btn" data-field="text">Reset</button>
-                    <button type="button" class="theme-field-save-btn" data-field="text">Save</button>
-                </div>
-            </div>
-            <div class="theme-palette-field">
-                <div class="theme-palette-field-row"><span>Sidebar</span><input type="color" id="themePanelColor"></div>
-                <div class="theme-field-actions">
-                    <button type="button" class="theme-field-reset-btn" data-field="panel">Reset</button>
-                    <button type="button" class="theme-field-save-btn" data-field="panel">Save</button>
-                </div>
-            </div>
-            <div class="theme-palette-field">
-                <div class="theme-palette-field-row"><span>Background (the Cortex chat)</span><input type="color" id="themeBgColor"></div>
-                <div class="theme-texture-toggle">
-                    <button type="button" class="theme-texture-btn" data-texture="plain">Plain</button>
-                    <button type="button" class="theme-texture-btn" data-texture="wood">Wood panels</button>
-                </div>
-                <div class="theme-field-actions">
-                    <button type="button" class="theme-field-reset-btn" data-field="background">Reset</button>
-                    <button type="button" class="theme-field-save-btn" data-field="background">Save</button>
                 </div>
             </div>
         `;
@@ -6169,25 +6143,13 @@ SQIDAQAB
         btn.addEventListener('click', () => { panel.hidden = !panel.hidden; });
         panel.querySelector('.theme-palette-close-btn').addEventListener('click', () => { panel.hidden = true; });
 
-        function preview() { applyTheme(currentTheme); }
-        document.getElementById('themeTextColor').addEventListener('input', (e) => { currentTheme.textColor = e.target.value; preview(); });
-        document.getElementById('themePanelColor').addEventListener('input', (e) => { currentTheme.panelColor = e.target.value; preview(); });
-        document.getElementById('themeBgColor').addEventListener('input', (e) => { currentTheme.bgColor = e.target.value; preview(); });
-        panel.querySelectorAll('.theme-texture-btn').forEach((b) => {
-            b.addEventListener('click', () => { currentTheme.bgTexture = b.dataset.texture; syncThemePaletteInputs(); preview(); });
-        });
-
-        // A preset sets and saves all three fields in one action -
-        // unlike the granular per-field Save buttons below, there's no
-        // "preview only" state for a preset click; picking one is already
-        // a decisive choice, the same way Reset is.
+        // Preset buttons apply the full theme and save it
         panel.querySelectorAll('.theme-preset-btn').forEach((presetBtn) => {
             presetBtn.addEventListener('click', () => {
                 const preset = THEME_PRESETS.find((p) => p.key === presetBtn.dataset.presetKey);
                 if (!preset) return;
                 currentTheme = { ...currentTheme, ...preset.theme };
-                syncThemePaletteInputs();
-                preview();
+                applyTheme(currentTheme);
                 const label = presetBtn.textContent;
                 presetBtn.disabled = true;
                 presetBtn.textContent = 'Applying…';
@@ -6203,47 +6165,6 @@ SQIDAQAB
                     });
             });
         });
-
-        // One save button per field - sends ONLY that field's own key(s),
-        // not the whole currentTheme, so a colour still being previewed
-        // on another field can't get persisted by accident.
-        function saveField(field, btn) {
-            btn.disabled = true;
-            const label = btn.textContent;
-            btn.textContent = 'Saving…';
-            const payload = {};
-            THEME_FIELDS[field].forEach((key) => { payload[key] = currentTheme[key]; });
-            saveThemeSettings(payload)
-                .then(() => { btn.textContent = 'Saved ✓'; })
-                .catch((err) => {
-                    console.error('LastMind: failed to save theme field.', field, err);
-                    btn.textContent = "Couldn't save";
-                })
-                .finally(() => {
-                    btn.disabled = false;
-                    setTimeout(() => { btn.textContent = label; }, 1800);
-                });
-        }
-        panel.querySelectorAll('.theme-field-save-btn').forEach((saveBtn) => {
-            saveBtn.addEventListener('click', () => saveField(saveBtn.dataset.field, saveBtn));
-        });
-
-        // Reset is a decisive action, not a preview, same as before - but
-        // now scoped to just the one field clicked, applying AND saving
-        // immediately while leaving the other two fields' own pending
-        // edits (if any) completely untouched.
-        panel.querySelectorAll('.theme-field-reset-btn').forEach((resetBtn) => {
-            resetBtn.addEventListener('click', () => {
-                const field = resetBtn.dataset.field;
-                THEME_FIELDS[field].forEach((key) => { currentTheme[key] = THEME_DEFAULTS[key]; });
-                syncThemePaletteInputs();
-                preview();
-                const saveBtn = panel.querySelector(`.theme-field-save-btn[data-field="${field}"]`);
-                if (saveBtn) saveBtn.click();
-            });
-        });
-
-        syncThemePaletteInputs();
     }
 
     // Called once from enterApp() - mounts the palette icon and reconciles
