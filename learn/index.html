@@ -5212,6 +5212,7 @@
                     </div>
                 </div>
                 <button class="manage-subscription-btn" id="seeTutorialBtn" type="button">See Tutorial</button>
+                <button class="manage-subscription-btn" id="upgradeBtn" style="display:none;">Upgrade</button>
                 <button class="manage-subscription-btn" id="myAccountBtn">My Account</button>
             </div>
         </aside>
@@ -24790,7 +24791,7 @@ SQIDAQAB
         }, 4000);
     }
 
-    async function enterApp(paid) {
+    async function enterApp(paid, session) {
         isPaidUser = paid;
         renderFeedLoadingScreen();
 
@@ -24801,6 +24802,11 @@ SQIDAQAB
         // fast local cache (already applied before login resolved, see
         // applyCachedThemeEarly) against this account's real saved colours.
         initThemePalette();
+
+        // Initialize pricing modal
+        if (session && window.LastMindPricing) {
+            window.LastMindPricing.initPricing(session.access_token);
+        }
 
         // Peer tutoring pulled from the live site entirely, both entry
         // points (Peer Tutoring hub + My Tutoring) - real legal exposure
@@ -24817,6 +24823,7 @@ SQIDAQAB
         document.getElementById('mathsToolTopbarBtn').style.display = paid ? '' : 'none';
         document.getElementById('econDiagramToolTopbarBtn').style.display = paid ? '' : 'none';
         document.getElementById('upgradeTopbarBtn').style.display = paid ? 'none' : '';
+        document.getElementById('upgradeBtn').style.display = paid ? 'none' : '';
         updateTopbarScrollHint();
 
         refreshLocksChip();
@@ -24909,7 +24916,7 @@ SQIDAQAB
         // want the bypass reachable anymore.
         if (new URLSearchParams(window.location.search).has('preview')) {
             console.warn('LastMind: running in PREVIEW MODE — the subscription gate is bypassed. Remove the ?preview=1 block in learn.html before going live.');
-            await enterApp(true); // preview mode shows the full paid experience
+            await enterApp(true, supabaseSession); // preview mode shows the full paid experience
             return;
         }
 
@@ -24941,7 +24948,7 @@ SQIDAQAB
         // async checks if bypassing subscription verification entirely.
         if (TEMP_ALL_FEATURES_FREE) {
             console.log('Gate: TEMP_ALL_FEATURES_FREE is true, calling enterApp...');
-            await enterApp(true);
+            await enterApp(true, supabaseSession);
             console.log('Gate: enterApp returned');
             return;
         }
@@ -24984,7 +24991,7 @@ SQIDAQAB
         }
 
         if (payload) {
-            await enterApp(true);
+            await enterApp(true, supabaseSession);
             return;
         }
 
@@ -25012,7 +25019,7 @@ SQIDAQAB
         }
 
         if (payload) {
-            await enterApp(true);
+            await enterApp(true, supabaseSession);
             return;
         }
 
@@ -25020,14 +25027,25 @@ SQIDAQAB
         // least logged in, so let them in as free tier (framework + folders +
         // dictation/TTS, no Compile) rather than bouncing them out entirely.
         // Paying is optional here, not a requirement to use the app at all.
-        await enterApp(false);
+        await enterApp(false, supabaseSession);
     })();
 </script>
 
     <script src="/cortex/pricing.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            LastMindPricing.displayLockBalance();
+            if (window.LastMindPricing) {
+                window.LastMindPricing.displayLockBalance();
+            }
+            // Wire up upgrade button to show pricing modal
+            const upgradeBtn = document.getElementById('upgradeBtn');
+            if (upgradeBtn) {
+                upgradeBtn.addEventListener('click', () => {
+                    if (window.LastMindPricing) {
+                        window.LastMindPricing.showUpgradeModal();
+                    }
+                });
+            }
         });
     </script>
 

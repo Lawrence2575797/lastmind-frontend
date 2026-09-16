@@ -978,7 +978,6 @@
         <div class="nav-right">
             <button class="nav-outline-btn" id="loginBtn">Log In</button>
             <button class="nav-signup-btn" id="signupBtn">Sign Up</button>
-            <button class="nav-signup-btn" id="navActionBtn" style="display:none;">Upgrade</button>
         </div>
     </nav>
 
@@ -1868,24 +1867,6 @@
         })();
     </script>
 
-    <script src="/cortex/pricing.js"></script>
-    <script>
-        // Wire up Upgrade button to show pricing modal
-        document.getElementById('navActionBtn')?.addEventListener('click', () => {
-            if (window.LastMindPricing) {
-                window.LastMindPricing.showUpgradeModal();
-            }
-        });
-
-        // Show upgrade button when logged in
-        const originalRenderAccountSession = renderAccountSession;
-        window.renderAccountSession = function(session) {
-            originalRenderAccountSession.call(this, session);
-            if (session && window.LastMindPricing) {
-                window.LastMindPricing.initPricing(session.access_token);
-            }
-        };
-    </script>
 
 </body>
 </html>
