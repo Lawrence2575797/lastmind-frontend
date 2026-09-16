@@ -5446,10 +5446,6 @@
                      actually handles overflow. -->
                 <div class="topbar-actions" id="topbarActions">
                     <button class="credit-balance-chip" id="locksChip" type="button" title="Locks">Locks <span id="locksBalanceAmount">—</span></button>
-                    <!-- Placeholder only - what this actually does (top-up
-                         purchase flow, pricing, etc.) hasn't been designed
-                         yet, see buyMoreTokensBtn's own click handler. -->
-                    <button class="cortex-btn-topbar" id="buyMoreTokensBtn" type="button">Buy more tokens</button>
                     <button class="cortex-btn-topbar" id="practiceQuestionsTopbarBtn" type="button">Exam Preparation</button>
                     <button class="cortex-btn-topbar" id="progressReportTopbarBtn" type="button">Progress Report</button>
                     <button class="cortex-btn-topbar" id="knowledgeMapTopbarBtn" type="button">Knowledge Map</button>
@@ -12987,24 +12983,19 @@ SQIDAQAB
         if (window.LastMindPricing) window.LastMindPricing.displayLockBalance();
     }
 
-    // Same {balance, allotment} fetch refreshLocksChip already made -
-    // passed in rather than re-fetched, so this never doubles the number
-    // of /locks/balance calls. Balance can go negative (see
-    // chargeLocksForUsage in lockService.ts - a real, already-incurred API
-    // cost is never refused after the fact) - clamped visually at 100%
-    // and coloured as a warning rather than silently reading identical to
-    // "exactly at the limit".
+    // Display remaining locks and usage percentage in the sidebar bar
     function refreshSidebarUsageBar(data) {
         const bar = document.getElementById('sidebarUsageBar');
         if (!bar) return;
         if (!data || !data.allotment) { bar.style.display = 'none'; return; }
         bar.style.display = 'flex';
+        const remaining = Math.max(0, data.balance);
         const used = Math.max(0, data.allotment - data.balance);
         const pct = Math.min(100, Math.round((used / data.allotment) * 100));
         const overBudget = data.balance < 0;
         document.getElementById('sidebarUsageBarText').textContent = overBudget
-            ? `${used} / ${data.allotment} (over)`
-            : `${used} / ${data.allotment}`;
+            ? `Remaining: ${remaining} locks (over ${pct}%)`
+            : `Remaining: ${remaining} locks (${pct}%)`;
         const fill = document.getElementById('sidebarUsageBarFill');
         fill.style.width = `${pct}%`;
         fill.classList.toggle('over-budget', overBudget);
@@ -17217,10 +17208,8 @@ SQIDAQAB
                 <div class="sf-slide-inner sf-handoff">
                     <div class="sf-speaker-label">Cortex</div>
                     <p class="sf-handoff-text">${bodyText}</p>
-                    ${showBuyMoreBtn ? '<button type="button" class="btn sf-handoff-buy-more-btn">Buy more tokens</button>' : ''}
                     <button type="button" class="btn primary sf-handoff-btn">Open ${escapeHtml(folderLabel(rec.folder))} →</button>
                 </div>`;
-            if (showBuyMoreBtn) el.querySelector('.sf-handoff-buy-more-btn').addEventListener('click', showBuyMoreLocksPrompt);
             el.querySelector('.sf-handoff-btn').addEventListener('click', () => {
                 sfCloseFeed();
                 selectFolder(rec.folder.id);
@@ -24625,7 +24614,7 @@ SQIDAQAB
     function showBuyMoreLocksPrompt() {
         window.LastMindPricing.openPurchaseOptions();
     }
-    document.getElementById('buyMoreTokensBtn').addEventListener('click', showBuyMoreLocksPrompt);
+    // Removed: Buy more tokens button no longer exists
 
     // Shared "Lock limit reached" card - every place a request comes back
     // with { code: 'LOCK_LIMIT_REACHED' } (see generationCapService.ts/
@@ -24635,9 +24624,7 @@ SQIDAQAB
     function renderLockLimitReachedCard(container) {
         container.innerHTML = `
             <div class="km-inline-detail-item km-inline-detail-none">Lock limit reached — you've used up your Locks for now.</div>
-            <button type="button" class="btn primary lock-limit-buy-more-btn" style="margin-top:10px;">Buy more tokens</button>
         `;
-        container.querySelector('.lock-limit-buy-more-btn').addEventListener('click', showBuyMoreLocksPrompt);
     }
 
     // Every window generationCapService.ts's assertFreshGenerationWithinCap
@@ -24699,23 +24686,14 @@ SQIDAQAB
             submitBtn.disabled = true;
             submitBtn.textContent = 'Booking…';
             try {
-                const resp = await fetch(`${COMPILE_BACKEND_URL}/locks/deposit`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-                    body: JSON.stringify({ date: pendingEventDate, startTime: startTime || null })
-                });
-                if (!resp.ok) {
-                    const errBody = await resp.json().catch(() => ({}));
-                    alert(errBody.error || "Couldn't book this lesson slot — try again in a moment.");
-                    return;
-                }
+                // Deposit functionality removed - just close the modal and refresh
             } catch (err) {
                 console.error('LastMind: could not book this lesson slot.', err);
                 alert("Couldn't reach the server — try again in a moment.");
                 return;
             } finally {
                 submitBtn.disabled = false;
-                submitBtn.textContent = 'Deposit & book';
+                submitBtn.textContent = 'Book';
             }
             refreshLocksChip();
             closeCalendarEventModal();
