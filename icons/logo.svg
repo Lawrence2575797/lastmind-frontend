@@ -1,23 +1,26 @@
 <svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
-  <!-- L shape (sidebar color) -->
-  <g id="logo-l">
-    <!-- Vertical bar of L -->
-    <rect x="180" y="200" width="100" height="550" rx="30" fill="var(--logo-l-color, #2B2120)" />
-    <!-- Horizontal bar of L -->
-    <rect x="180" y="700" width="280" height="100" rx="30" fill="var(--logo-l-color, #2B2120)" />
+  <defs>
+    <style>
+      .logo-l { fill: var(--logo-l-color, #2B2120); }
+      .logo-m { fill: var(--logo-m-color, #C9A876); }
+    </style>
+  </defs>
+
+  <!-- L: Bold rounded L shape -->
+  <g class="logo-l">
+    <!-- Vertical bar -->
+    <rect x="160" y="160" width="160" height="680" rx="60" />
+    <!-- Horizontal bar -->
+    <rect x="160" y="740" width="400" height="160" rx="60" />
   </g>
 
-  <!-- M shape (main background color) - two vertical bars with peak -->
-  <g id="logo-m">
-    <!-- Left vertical bar of M -->
-    <rect x="420" y="200" width="100" height="550" rx="30" fill="var(--logo-m-color, #C9A876)" />
-    <!-- Right vertical bar of M -->
-    <rect x="620" y="200" width="100" height="550" rx="30" fill="var(--logo-m-color, #C9A876)" />
-    <!-- Peak/diagonal connecting bar (left) -->
-    <path d="M 470 240 L 550 380 L 470 380 Z" fill="var(--logo-m-color, #C9A876)" />
-    <!-- Peak/diagonal connecting bar (right) -->
-    <path d="M 620 240 L 540 380 L 620 380 Z" fill="var(--logo-m-color, #C9A876)" />
-    <!-- Top connecting stroke for mountain peak effect -->
-    <line x1="520" y1="200" x2="570" y2="200" stroke="var(--logo-m-color, #C9A876)" stroke-width="50" stroke-linecap="round" />
+  <!-- M: 3D checkmark with vertical backing -->
+  <g class="logo-m">
+    <!-- Right vertical bar (backing) -->
+    <rect x="680" y="160" width="140" height="640" rx="60" />
+    <!-- Diagonal checkmark - lower left to middle -->
+    <line x1="520" y1="600" x2="680" y2="460" stroke="var(--logo-m-color, #C9A876)" stroke-width="100" stroke-linecap="round" />
+    <!-- Diagonal checkmark - middle to upper right -->
+    <line x1="680" y1="460" x2="840" y2="280" stroke="var(--logo-m-color, #C9A876)" stroke-width="100" stroke-linecap="round" />
   </g>
 </svg>
