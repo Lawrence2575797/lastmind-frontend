@@ -24598,11 +24598,7 @@ SQIDAQAB
         document.getElementById('lockDepositModalOverlay').classList.remove('open');
     }
 
-    document.getElementById('locksChip').addEventListener('click', openLockDepositModal);
-    document.getElementById('cancelLockDepositBtn').addEventListener('click', closeLockDepositModal);
-    document.getElementById('lockDepositModalOverlay').addEventListener('click', (e) => {
-        if (e.target.id === 'lockDepositModalOverlay') closeLockDepositModal();
-    });
+    // Lock deposit modal removed - Locks button no longer exists
 
     // Placeholder - no purchase flow exists yet, what this button actually
     // does hasn't been designed. Just confirms the button itself works
