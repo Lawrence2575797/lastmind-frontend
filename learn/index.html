@@ -5849,6 +5849,7 @@
     const SUPABASE_URL = 'https://evgdecewwmkupiadgfop.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_Bb-f61P1zqy_xW63D26nUw_VTOVXaub';
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    window.supabaseClient = supabaseClient;
     const PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsBbtuhv0MJecwgiEjwEr
 nKJovgVM7yh4QLvBJ5LUVuA4YaTy5VKNONWs+DVjfkqIEhVHHKmF9ZINJyyOGgiy
@@ -12982,6 +12983,7 @@ SQIDAQAB
         const data = await fetchLockBalance();
         document.getElementById('locksBalanceAmount').textContent = data ? data.balance : '—';
         refreshSidebarUsageBar(data);
+        if (window.LastMindPricing) window.LastMindPricing.displayLockBalance();
     }
 
     // Same {balance, allotment} fetch refreshLocksChip already made -
@@ -13031,7 +13033,7 @@ SQIDAQAB
 
     const FREE_TOUR_STEPS = [
         ...TOUR_INTRO_STEPS,
-        { selector: '#locksChip', title: 'Locks', body: 'Each lesson costs a Lock. You get a fresh batch every month.' },
+        { selector: '#locksChip', title: 'Locks', body: 'Locks cover AI usage. Your plan includes a fresh allowance each calendar month.' },
     ];
 
     const PREMIUM_TOUR_STEPS = [
@@ -17319,6 +17321,7 @@ SQIDAQAB
         sfFeed.locked = true;
         sfFeed.currentIndex = newIndex;
         sfFeed.trackEl.style.transform = `translateY(-${newIndex * 100}%)`;
+        sfLoadMiniQuestions(); // Reload questions for new slide
         setTimeout(() => { if (sfFeed) sfFeed.locked = false; }, 420);
     }
 
@@ -18194,12 +18197,8 @@ SQIDAQAB
         // just 402 on every message.
         const miniCortexHtml = isPaidUser ? `
                 <aside class="sf-mini-cortex-panel">
-                    <div class="sf-mini-cortex-header">Cortex</div>
-                    <div class="sf-mini-cortex-thread"><div class="sf-mini-cortex-empty">Ask about the question you're on - Cortex can see what you're currently working on.</div></div>
-                    <form class="sf-mini-cortex-form">
-                        <input type="text" class="sf-mini-cortex-input" placeholder="Ask Cortex…" maxlength="500" autocomplete="off">
-                        <button type="submit" class="btn sf-mini-cortex-send">Send</button>
-                    </form>
+                    <div class="sf-mini-cortex-header">Practice Questions</div>
+                    <div id="sf-mini-questions-list" style="flex:1; overflow-y:auto; padding:10px;"></div>
                 </aside>` : '';
         contentInner.innerHTML = `
             <div class="sf-greeting-banner${isPaidUser ? ' has-mini-cortex' : ''}"></div>
@@ -18222,7 +18221,10 @@ SQIDAQAB
         };
         sfWireGestures(viewportEl);
         const miniCortexEl = contentInner.querySelector('.sf-mini-cortex-panel');
-        if (miniCortexEl) sfWireMiniCortex(miniCortexEl);
+        if (miniCortexEl) {
+            sfFeed.miniQuestionsPanel = miniCortexEl;
+            sfLoadMiniQuestions(); // Load questions for current slide
+        }
         return { trackEl, viewportEl };
     }
 
@@ -18243,6 +18245,91 @@ SQIDAQAB
             || '').trim().slice(0, 400);
         if (!subject && !body) return '';
         return [subject && `Subject: ${subject}`, body && `Currently on screen: ${body}`].filter(Boolean).join('\n');
+    }
+
+    async function sfLoadMiniQuestions() {
+        if (!sfFeed || !sfFeed.miniQuestionsPanel) return;
+        const listEl = sfFeed.miniQuestionsPanel.querySelector('#sf-mini-questions-list');
+        if (!listEl) return;
+
+        const slide = sfFeed.slides[sfFeed.currentIndex];
+        if (!slide) return;
+
+        // Try to get concept ID from slide metadata
+        const meta = sfFeed.meta[sfFeed.currentIndex];
+        if (!meta || !meta.conceptId) {
+            listEl.innerHTML = '<p class="field-hint">No practice questions available for this slide.</p>';
+            return;
+        }
+
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return;
+
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/spec-lesson-practice/${encodeURIComponent(meta.conceptId)}/available-types`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) {
+                listEl.innerHTML = '<p class="field-hint">Could not load questions.</p>';
+                return;
+            }
+
+            const data = await resp.json();
+
+            if (data.picksRemaining === 0) {
+                listEl.innerHTML = '<p class="field-hint" style="margin-top:8px;">You\'ve used all 3 practice questions for this lesson.</p>';
+                return;
+            }
+
+            if (!data.availableTypes.length) {
+                listEl.innerHTML = '<p class="field-hint">No question types available.</p>';
+                return;
+            }
+
+            let html = `<p style="font-weight:600; font-size:12px; margin-bottom:8px;">Question ${data.picksUsed + 1} of 3</p>`;
+            data.availableTypes.forEach((t) => {
+                html += `<button class="btn btn-on-content" style="display:block; width:100%; text-align:left; margin-bottom:6px; font-size:12px;" data-type-key="${escapeHtml(t.typeKey)}" data-concept-id="${escapeHtml(meta.conceptId)}">${escapeHtml(t.displayLabel)} (${t.markTariff} mark${t.markTariff === 1 ? '' : 's'})</button>`;
+            });
+
+            listEl.innerHTML = html;
+
+            // Wire up buttons
+            listEl.querySelectorAll('button').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const typeKey = btn.dataset.typeKey;
+                    const conceptId = btn.dataset.conceptId;
+
+                    btn.disabled = true;
+                    const originalText = btn.textContent;
+                    btn.textContent = 'Generating…';
+
+                    try {
+                        const { data: { session } } = await supabaseClient.auth.getSession();
+                        if (!session) throw new Error('not signed in');
+
+                        const genResp = await fetch(`${COMPILE_BACKEND_URL}/spec-lesson-practice/${encodeURIComponent(conceptId)}/generate`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                            body: JSON.stringify({ typeKey })
+                        });
+
+                        const genBody = await genResp.json().catch(() => ({}));
+                        if (!genResp.ok) throw new Error(genBody.error || 'Could not generate this question.');
+
+                        refreshLocksChip();
+                        sfLoadMiniQuestions(); // Reload to show updated questions
+                    } catch (err) {
+                        console.error('LastMind: failed to generate question from mini panel.', err);
+                        alert(err.message || 'Could not generate this question — try again in a moment.');
+                        btn.disabled = false;
+                        btn.textContent = originalText;
+                    }
+                });
+            });
+        } catch (err) {
+            console.error('LastMind: failed to load practice questions for mini panel.', err);
+            listEl.innerHTML = '<p class="field-hint">Could not load questions.</p>';
+        }
     }
 
     function sfWireMiniCortex(panelEl) {
@@ -24452,7 +24539,7 @@ SQIDAQAB
         // ?action=upgrade is subscribe/index.html's own existing hook — a
         // logged-in visitor arriving with it skips straight to the payment
         // step instead of the login/signup modal (see its bootAccount IIFE).
-        window.location.href = '/subscribe?action=upgrade';
+        window.LastMindPricing.showUpgradeModal();
     });
 
     document.getElementById('peerTutoringHubBtn').addEventListener('click', openPeerTutoringHub);
@@ -24611,7 +24698,7 @@ SQIDAQAB
     // "Lock limit reached" card below, so both stay in sync once a real
     // flow replaces this.
     function showBuyMoreLocksPrompt() {
-        alert("Buying extra usage isn't set up yet - coming soon.");
+        window.LastMindPricing.openPurchaseOptions();
     }
     document.getElementById('buyMoreTokensBtn').addEventListener('click', showBuyMoreLocksPrompt);
 
