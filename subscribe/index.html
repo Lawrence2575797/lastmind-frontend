@@ -1362,8 +1362,12 @@
             myAccountBtn.style.display = 'inline-block';
             navActionBtn.style.display = 'inline-block';
 
-            navActionBtn.textContent = 'Enter LastMind';
-            navActionBtn.onclick = () => { window.location.href = '/learn'; };
+            navActionBtn.textContent = 'Upgrade';
+            navActionBtn.onclick = () => {
+                if (window.LastMindPricing) {
+                    window.LastMindPricing.showUpgradeModal();
+                }
+            };
             heroCta.textContent = 'Enter LastMind';
             heroCta.onclick = () => { window.location.href = '/learn'; };
         }
