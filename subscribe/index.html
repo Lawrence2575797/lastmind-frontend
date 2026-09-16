@@ -1812,5 +1812,15 @@
         })();
     </script>
 
+    <script src="/cortex/pricing.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            LastMindPricing.displayLockBalance();
+            document.getElementById('navActionBtn')?.addEventListener('click', () => {
+                LastMindPricing.showUpgradeModal();
+            });
+        });
+    </script>
+
 </body>
 </html>

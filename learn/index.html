@@ -19307,12 +19307,12 @@ SQIDAQAB
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
 
-        if (!node.encoded) {
+        if (!node.hasNotes) {
             removeQuickNotesWidget();
             contentInner.innerHTML = `
                 <div class="km-notes-body">
                     <div class="km-inline-detail-label" style="margin-bottom:14px;">${escapeHtml(node.label)}</div>
-                    <div class="km-inline-detail-item km-inline-detail-none">Not encoded yet — head to this subject's knowledge map to start its lesson.</div>
+                    <div class="km-inline-detail-item km-inline-detail-none">No lesson notes yet — open this lesson from the subject's knowledge map to generate them.</div>
                 </div>
             `;
             return;
@@ -24997,6 +24997,13 @@ SQIDAQAB
         await enterApp(false);
     })();
 </script>
+
+    <script src="/cortex/pricing.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            LastMindPricing.displayLockBalance();
+        });
+    </script>
 
 </body>
 </html>
