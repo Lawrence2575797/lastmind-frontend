@@ -142,6 +142,11 @@
         flex-shrink: 0;
         filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
     }
+    .sidebar-header-upgrade { margin-left: auto; padding: 6px 9px; font-size: 0.68rem; width: auto; }
+    .specialist-tools-wrap { position: relative; flex: none; }
+    .specialist-tools-menu { position: fixed; z-index: 140; min-width: 190px; padding: 6px; border-radius: 8px; background: #12121E; border: 1px solid rgba(230,215,176,0.28); box-shadow: 0 10px 28px rgba(0,0,0,0.32); display: none; }
+    .specialist-tools-menu.open { display: flex; flex-direction: column; gap: 5px; }
+    .specialist-tools-menu .cortex-btn-topbar { width: 100%; text-align: left; white-space: nowrap; }
 
     .sidebar-tabs {
         display: flex;
@@ -1629,7 +1634,7 @@
     .diagram-shade-vertex-hit { fill: transparent; cursor: move; }
     .diagram-intersection-guide { stroke: var(--text); opacity: 0.35; stroke-width: 1; stroke-dasharray: 3 3; }
     .diagram-intersection-label { fill: var(--text); font-size: 12px; font-weight: 700; font-family: Arial, sans-serif; opacity: 0.85; }
-    .diagram-shade { fill: rgba(230, 215, 176, 0.28); stroke: rgba(230, 215, 176, 0.5); stroke-width: 1; }
+    .diagram-shade { fill: var(--shade-fill, rgba(230, 215, 176, 0.28)); stroke: rgba(230, 215, 176, 0.5); stroke-width: 1; }
     .diagram-arrow { stroke: #c98a4b; stroke-width: 2; }
     .diagram-arrowhead-path { fill: #c98a4b; }
     .diagram-label { fill: var(--text); font-size: 13px; font-weight: 600; cursor: grab; font-family: Arial, sans-serif; }
@@ -1662,6 +1667,7 @@
         padding: 12px; display: flex; flex-direction: column; gap: 9px; cursor: pointer; text-align: left;
         box-shadow: 0 8px 22px rgba(0,0,0,0.2); transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
     }
+    .diagram-shade-colour { min-width: 126px; background: #12121E; color: var(--text); border: 1px solid rgba(230,215,176,0.3); border-radius: 4px; padding: 7px 9px; font: 12px Arial, sans-serif; }
     .econ-diagram-gallery-card:hover { border-color: var(--accent); transform: translateY(-3px); box-shadow: 0 12px 28px rgba(0,0,0,0.28); }
     .econ-diagram-gallery-preview { width: 100%; aspect-ratio: 640 / 440; background: #12121E; border: 1px solid rgba(230,215,176,0.12); border-radius: 8px; overflow: hidden; }
     .econ-diagram-gallery-preview svg { width: 100%; height: 100%; display: block; }
@@ -5326,6 +5332,7 @@
                     <img class="sidebar-logo-icon" src="/icons/lastmind-logo.png" alt="LastMind" width="24" height="24" />
                     <span>LastMind</span>
                 </div>
+                <button class="manage-subscription-btn sidebar-header-upgrade" id="upgradeTopbarBtn" type="button" style="display:none;">Upgrade</button>
             </div>
 
             <div class="sidebar-tabs">
@@ -5369,8 +5376,9 @@
                         <div class="sidebar-usage-bar-fill" id="sidebarUsageBarFill" style="width:0%;"></div>
                     </div>
                 </div>
+                <button class="manage-subscription-btn" id="progressReportTopbarBtn" type="button">Progress Reports</button>
+                <button class="manage-subscription-btn" id="calendarTopbarBtn" type="button">Calendar</button>
                 <button class="manage-subscription-btn" id="seeTutorialBtn" type="button">See Tutorial</button>
-                <button class="manage-subscription-btn" id="upgradeBtn" style="display:none;">Upgrade</button>
                 <button class="manage-subscription-btn" id="myAccountBtn">My Account</button>
             </div>
         </aside>
@@ -5606,16 +5614,18 @@
                      actually handles overflow. -->
                 <div class="topbar-actions" id="topbarActions">
                     <button class="cortex-btn-topbar" id="rewardsTopbarBtn" type="button">Rewards</button>
-                    <button class="cortex-btn-topbar upgrade-topbar-btn" id="upgradeTopbarBtn" type="button" style="display:none;">Upgrade</button>
                     <button class="cortex-btn-topbar" id="buyMoreTokensBtn" type="button" style="display:none;">Buy Extra Locks</button>
                     <button class="cortex-btn-topbar" id="practiceQuestionsTopbarBtn" type="button">Exam Preparation</button>
-                    <button class="cortex-btn-topbar" id="progressReportTopbarBtn" type="button">Progress Report</button>
                     <button class="cortex-btn-topbar" id="knowledgeMapTopbarBtn" type="button">Knowledge Map</button>
                     <button class="cortex-btn-topbar" id="peerTutoringHubBtn" type="button">Peer tutoring</button>
                     <button class="cortex-btn-topbar" id="myTutoringTopbarBtn" type="button">My Tutoring<span class="mt-badge" id="mtBadge" style="display:none;"></span></button>
-                    <button class="cortex-btn-topbar" id="calendarTopbarBtn" type="button">Calendar</button>
-                    <button class="cortex-btn-topbar" id="mathsToolTopbarBtn" type="button" style="display:none;">Maths Tool</button>
-                    <button class="cortex-btn-topbar" id="econDiagramToolTopbarBtn" type="button" style="display:none;">Economics Drawing Tool</button>
+                    <div class="specialist-tools-wrap" id="specialistToolsWrap" style="display:none;">
+                        <button class="cortex-btn-topbar" id="specialistToolsBtn" type="button" aria-expanded="false">Specialist Tools ▾</button>
+                        <div class="specialist-tools-menu" id="specialistToolsMenu">
+                            <button class="cortex-btn-topbar" id="mathsToolTopbarBtn" type="button">Maths Tool</button>
+                            <button class="cortex-btn-topbar" id="econDiagramToolTopbarBtn" type="button">Economics Drawing Tool</button>
+                        </div>
+                    </div>
                     <button class="cortex-btn-topbar" id="adminQueueTopbarBtn" type="button" style="display:none;">Overdue Requests<span class="mt-badge" id="aqBadge" style="display:none;"></span></button>
                     <button class="cortex-btn-topbar" id="founderTutoringTopbarBtn" type="button">Tutoring</button>
                 </div>
@@ -8858,6 +8868,19 @@ SQIDAQAB
         document.getElementById('topbarTitle').textContent = 'Progress Report';
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
+
+        // The current week's report is a weekly release, not a live partial
+        // dashboard. Until Sunday, show only the exact release date rather
+        // than zero/unfinished statistics that look like a completed report.
+        if (!weekStartOverride && new Date().getDay() !== 0) {
+            const releaseDate = new Date();
+            releaseDate.setHours(12, 0, 0, 0);
+            releaseDate.setDate(releaseDate.getDate() + ((7 - releaseDate.getDay()) % 7));
+            contentInner.innerHTML = `<div class="dashboard-view dashboard-locked"><p class="dashboard-locked-quote">Your next progress report will be released on <strong>${escapeHtml(releaseDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }))}</strong>.</p></div>`;
+            refreshFolderList();
+            sfOpenSidebarOnMobile();
+            return;
+        }
         showLoadingWithColdStartHint(contentInner, 'Loading your progress report…');
         refreshFolderList();
 
@@ -13275,7 +13298,7 @@ SQIDAQAB
         ...TOUR_INTRO_STEPS,
         { selector: null, title: "Welcome to Premium", body: "Premium unlocks diagnostic learning — LastMind finds the root cause of what you don't understand, not just where you went wrong. Your learning becomes smarter and faster." },
         { selector: null, title: 'Instant learning verification', body: 'Each lesson you complete is verified immediately on Premium. No waiting, no separate step — progress is locked in the moment you demonstrate understanding.' },
-        { selector: '#mathsToolTopbarBtn', title: 'Maths Tool', body: "Stuck on a maths problem? Use the Maths Tool for instant help. Work through problems step-by-step with explanations — all off the record, just learning support when you need it." },
+        { selector: '#specialistToolsBtn', title: 'Specialist Tools', body: "Open Specialist Tools for the Maths Tool and Economics Drawing Tool — focused help without crowding the main navigation." },
         { selector: '#calendarTopbarBtn', title: 'Tutoring bookings', body: 'Schedule time with our founder for personalized 1:1 help. Browse available slots, pick what works for your schedule, and book directly.' }
     ];
 
@@ -13423,6 +13446,29 @@ SQIDAQAB
     // tab below).
     document.getElementById('calendarTopbarBtn').addEventListener('click', () => {
         openFullPageCalendar();
+    });
+
+    const specialistToolsBtn = document.getElementById('specialistToolsBtn');
+    const specialistToolsMenu = document.getElementById('specialistToolsMenu');
+    specialistToolsBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const open = specialistToolsMenu.classList.toggle('open');
+        specialistToolsBtn.setAttribute('aria-expanded', String(open));
+        if (open) {
+            const rect = specialistToolsBtn.getBoundingClientRect();
+            specialistToolsMenu.style.top = `${rect.bottom + 7}px`;
+            specialistToolsMenu.style.left = `${Math.max(8, rect.right - 190)}px`;
+        }
+    });
+    specialistToolsMenu.addEventListener('click', () => {
+        specialistToolsMenu.classList.remove('open');
+        specialistToolsBtn.setAttribute('aria-expanded', 'false');
+    });
+    document.addEventListener('click', (event) => {
+        if (!document.getElementById('specialistToolsWrap').contains(event.target)) {
+            specialistToolsMenu.classList.remove('open');
+            specialistToolsBtn.setAttribute('aria-expanded', 'false');
+        }
     });
 
     document.getElementById('mathsToolTopbarBtn').addEventListener('click', () => {
@@ -20717,7 +20763,7 @@ SQIDAQAB
         svg.appendChild(svgElement('line', { x1: DIAGRAM_QUANTITY_AXIS[0].x, y1: DIAGRAM_QUANTITY_AXIS[0].y, x2: DIAGRAM_QUANTITY_AXIS[1].x, y2: DIAGRAM_QUANTITY_AXIS[1].y, class: 'diagram-axis' }));
 
         ((diagramState && diagramState.shades) || []).forEach((s) => {
-            svg.appendChild(svgElement('polygon', { points: (s.points || []).map((p) => `${p.x},${p.y}`).join(' '), class: 'diagram-shade' }));
+            svg.appendChild(svgElement('polygon', { points: (s.points || []).map((p) => `${p.x},${p.y}`).join(' '), class: 'diagram-shade', style: `--shade-fill:${s.color || 'rgba(230, 215, 176, 0.28)'}` }));
         });
         ((diagramState && diagramState.curves) || []).forEach((inst) => {
             const local = DIAGRAM_CURVE_SHAPES[diagramBaseType(inst.curveTypeId)];
@@ -20783,6 +20829,13 @@ SQIDAQAB
                 <div class="diagram-palette" id="${uid}-palette"></div>
                 <div class="diagram-toolbar">
                     <input type="text" class="diagram-label-input" id="${uid}-shade-input" placeholder="Shade: Enter labels (e.g. A,B,C)" style="display:none;">
+                    <select class="diagram-shade-colour" id="${uid}-shade-colour" aria-label="Shading colour">
+                        <option value="rgba(230,215,176,0.38)">Cream shade</option>
+                        <option value="rgba(79,195,247,0.38)">Blue shade</option>
+                        <option value="rgba(239,108,108,0.38)">Red shade</option>
+                        <option value="rgba(104,211,145,0.38)">Green shade</option>
+                        <option value="rgba(246,190,72,0.42)">Gold shade</option>
+                    </select>
                     <button type="button" class="btn primary diagram-tool-btn" id="${uid}-shade-btn">Shade a region</button>
                     <button type="button" class="btn diagram-tool-btn" id="${uid}-arrow-btn">Add arrow (click start, then end)</button>
                     <input type="text" class="diagram-label-input" id="${uid}-label-input" placeholder="Label text, e.g. S1">
@@ -20864,7 +20917,7 @@ SQIDAQAB
             });
 
             state.shades.forEach((s, shadeIdx) => {
-                svg.appendChild(svgElement('polygon', { points: s.points.map((p) => `${p.x},${p.y}`).join(' '), class: 'diagram-shade' }));
+                svg.appendChild(svgElement('polygon', { points: s.points.map((p) => `${p.x},${p.y}`).join(' '), class: 'diagram-shade', style: `--shade-fill:${s.color || 'rgba(230, 215, 176, 0.28)'}` }));
                 const cx = s.points.reduce((sum, p) => sum + p.x, 0) / s.points.length;
                 const cy = s.points.reduce((sum, p) => sum + p.y, 0) / s.points.length;
                 svg.appendChild(diagramDeleteGlyph(cx, cy, () => { state.shades.splice(shadeIdx, 1); render(); }));
@@ -21085,6 +21138,7 @@ SQIDAQAB
         });
 
         const shadeInput = container.querySelector(`#${uid}-shade-input`);
+        const shadeColour = container.querySelector(`#${uid}-shade-colour`);
         shadeBtn.addEventListener('click', () => {
             if (shadeInput.style.display === 'none') {
                 // Show input
@@ -21119,7 +21173,7 @@ SQIDAQAB
                 const cy = selectedPoints.reduce((sum, point) => sum + point.y, 0) / selectedPoints.length;
                 selectedPoints.sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));
                 const areaLabel = mode === 'grade' ? (window.prompt('Label this shaded area (optional):') || '') : '';
-                state.shades.push({ points: selectedPoints.map(({ x, y }) => ({ x, y })), label: areaLabel, vertexLabels: labels });
+                state.shades.push({ points: selectedPoints.map(({ x, y }) => ({ x, y })), label: areaLabel, vertexLabels: labels, color: shadeColour.value });
                 shadeInput.style.display = 'none';
                 shadeBtn.textContent = 'Shade a region';
                 shadeBtn.classList.remove('active');
@@ -21168,7 +21222,7 @@ SQIDAQAB
             ev.target.textContent = mode === 'save' ? 'Saving…' : 'Checking…';
             const answer = {
                 curves: state.placed.map((p) => ({ instanceId: p.instanceId, curveTypeId: p.curveTypeId, x: p.x, y: p.y, scaleX: p.scaleX || 1, scaleY: p.scaleY || 1 })),
-                shades: state.shades.map((s) => ({ points: s.points, label: s.label, vertexLabels: s.vertexLabels || [] })),
+                shades: state.shades.map((s) => ({ points: s.points, label: s.label, vertexLabels: s.vertexLabels || [], color: s.color || 'rgba(230, 215, 176, 0.28)' })),
                 labels: state.labels.map((l) => ({ text: l.text, x: l.x, y: l.y })),
                 arrows: state.arrows.map((a) => ({ x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2 })),
                 ...(notesInput ? { notes: notesInput.value } : {}),
@@ -25325,10 +25379,8 @@ SQIDAQAB
         document.getElementById('myTutoringTopbarBtn').style.display = 'none';
         document.getElementById('practiceQuestionsTopbarBtn').style.display = paid ? '' : 'none';
         document.getElementById('knowledgeMapTopbarBtn').style.display = '';
-        document.getElementById('mathsToolTopbarBtn').style.display = paid ? '' : 'none';
-        document.getElementById('econDiagramToolTopbarBtn').style.display = paid ? '' : 'none';
+        document.getElementById('specialistToolsWrap').style.display = paid ? '' : 'none';
         document.getElementById('upgradeTopbarBtn').style.display = paid ? 'none' : '';
-        document.getElementById('upgradeBtn').style.display = paid ? 'none' : '';
         updateTopbarScrollHint();
 
         refreshLocksChip();
