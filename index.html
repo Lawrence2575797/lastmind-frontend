@@ -860,7 +860,7 @@
         <div class="nav-right">
             <button class="nav-outline-btn" id="loginBtn">Log In</button>
             <button class="nav-signup-btn" id="signupBtn">Sign Up</button>
-            <button class="nav-signup-btn" id="navActionBtn" style="display:none;">Enter LastMind</button>
+            <button class="nav-signup-btn" id="navActionBtn" style="display:none;">Get started for free</button>
         </div>
     </nav>
 
@@ -886,7 +886,7 @@
 
             <p class="hero-tagline">LastMind provides rewards for genuine learning progress.</p>
 
-            <button class="hero-cta" id="heroCta">Start learning for free!</button>
+            <button class="hero-cta" id="heroCta">Get started for free</button>
 
             <p class="hero-no-card">No card required</p>
 
@@ -1182,7 +1182,7 @@
 
         // Drives the nav/hero button state. Three states: logged out (Log In
         // + Sign Up), logged in without an active subscription (My Account +
-        // Upgrade), logged in with one (My Account + Enter LastMind).
+        // Upgrade), logged in with one (My Account + the same free-start CTA).
         async function refreshNavState() {
             const loginBtn = document.getElementById('loginBtn');
             const signupBtn = document.getElementById('signupBtn');
@@ -1200,7 +1200,7 @@
 
                 loginBtn.onclick = () => openModal('login');
                 signupBtn.onclick = () => openModal('signup');
-                heroCta.textContent = 'Start learning for free!';
+                heroCta.textContent = 'Get started for free';
                 heroCta.onclick = () => openModal('login');
                 return;
             }
@@ -1214,10 +1214,10 @@
             myAccountBtn.style.display = 'inline-block';
             navActionBtn.style.display = 'inline-block';
 
-            navActionBtn.textContent = 'Enter LastMind';
-            navActionBtn.onclick = () => { window.location.href = '/learn'; };
-            heroCta.textContent = 'Enter LastMind';
-            heroCta.onclick = () => { window.location.href = '/learn'; };
+            navActionBtn.textContent = 'Get started for free';
+            navActionBtn.onclick = () => openModal('login');
+            heroCta.textContent = 'Get started for free';
+            heroCta.onclick = () => openModal('login');
         }
 
         document.getElementById('modalClose').addEventListener('click', closeModal);
