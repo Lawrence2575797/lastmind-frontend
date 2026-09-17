@@ -41,7 +41,7 @@
            rgba(43,33,24,...) chip/border derived from this same colour)
            now reads in the app's own default burgundy instead of the old
            near-black. */
-        --ink: #4E1B26;
+        --ink: #1A1A1C;
         --logo-l-color: var(--ink);
         --logo-m-color: #D9C398;
     }
@@ -3153,7 +3153,7 @@
 
     .sidebar-toggle {
         background: none;
-        border: 1px solid rgba(78, 27, 38, 0.3);
+        border: 1px solid rgba(26, 26, 28, 0.3);
         /* Sits transparently on the topbar, i.e. directly on body's own
            birch background - --ink, not --accent, is the readable choice
            there (see body's own comment on why --accent stays unchanged
@@ -3758,7 +3758,7 @@
     .rewards-eyebrow { margin: 0 0 8px; font: 700 0.68rem/1 Arial, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.58; }
     .rewards-title { margin: 0; font: 700 clamp(2.1rem, 5vw, 3.7rem)/0.95 Georgia, serif; letter-spacing: -0.035em; }
     .rewards-intro { max-width: 520px; margin: 12px 0 0; font: 0.92rem/1.65 Arial, sans-serif; opacity: 0.72; }
-    .keys-balance { flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 11px 15px; border: 1px solid rgba(78,27,38,0.24); border-radius: 999px; background: rgba(255,255,255,0.16); box-shadow: 0 4px 14px rgba(78,27,38,0.08); }
+    .keys-balance { flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 11px 15px; border: 1px solid rgba(26,26,28,0.24); border-radius: 999px; background: rgba(255,255,255,0.16); box-shadow: 0 4px 14px rgba(26,26,28,0.08); }
     .keys-balance-icon, .reward-key-icon { display: inline-flex; align-items: center; justify-content: center; color: var(--ink); }
     .keys-balance-icon svg, .reward-key-icon svg { display: block; }
     .keys-balance-copy { display: flex; flex-direction: column; gap: 2px; font-family: Arial, sans-serif; }
@@ -3768,7 +3768,7 @@
     .rewards-section-heading h2 { margin: 0; font: 700 1.2rem Georgia, serif; }
     .rewards-section-heading span { font: 0.7rem Arial, sans-serif; opacity: 0.52; }
     .reward-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-    .reward-card { position: relative; overflow: hidden; min-width: 0; border-radius: 12px; background: var(--panel); color: var(--text); border: 1px solid rgba(78,27,38,0.24); box-shadow: 0 8px 24px rgba(78,27,38,0.12); transition: transform 0.18s, box-shadow 0.18s; }
+    .reward-card { position: relative; overflow: hidden; min-width: 0; border-radius: 12px; background: var(--panel); color: var(--text); border: 1px solid rgba(26,26,28,0.24); box-shadow: 0 8px 24px rgba(26,26,28,0.12); transition: transform 0.18s, box-shadow 0.18s; }
     .reward-preview { position: relative; aspect-ratio: 16 / 10; background-position: center; background-size: cover; overflow: hidden; }
     .reward-preview::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(15,12,10,0.04), rgba(15,12,10,0.25)); }
     .reward-lock { position: absolute; inset: 0; z-index: 1; display: flex; align-items: center; justify-content: center; background: rgba(18,16,14,0.22); backdrop-filter: grayscale(0.35); }
@@ -3778,10 +3778,10 @@
     .reward-price { flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; font: 700 0.76rem Arial, sans-serif; opacity: 0.88; }
     .reward-card.is-unlocked { cursor: pointer; }
     .reward-card.is-purchasable { cursor: pointer; }
-    .reward-card.is-purchasable:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(78,27,38,0.18); }
+    .reward-card.is-purchasable:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(26,26,28,0.18); }
     .reward-card.is-purchasable:hover .reward-lock-badge { transform: scale(1.08); border-color: rgba(230,215,176,0.72); }
     .reward-card.is-unlocked .reward-lock { display: none; }
-    .reward-card.is-unlocked:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(78,27,38,0.18); }
+    .reward-card.is-unlocked:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(26,26,28,0.18); }
     @media (max-width: 760px) {
         .rewards-hero { align-items: stretch; flex-direction: column; }
         .keys-balance { align-self: flex-end; }
@@ -5239,10 +5239,32 @@
        reasoning as body's own color: var(--ink). */
     .btn-on-content {
         color: var(--ink);
-        border-color: rgba(78, 27, 38, 0.3);
+        border-color: rgba(26, 26, 28, 0.3);
     }
     .btn-on-content:hover {
-        background: rgba(78, 27, 38, 0.06);
+        background: rgba(26, 26, 28, 0.06);
+    }
+
+    /* Dark-surface colour contract. --ink is deliberately charcoal on the
+       birch page, but any component that paints its own charcoal surface
+       must locally resolve both inherited text AND older var(--ink) rules
+       to cream. This prevents nested headings, hints and buttons from
+       reverting to dark text simply because they were originally authored
+       for a light page. */
+    :where(
+        .sidebar, .sf-feed-root, .sf-mini-cortex-panel, .sf-wizard-card,
+        .km-inline-canvas-wrap, .km-inline-detail, .km-lesson-fullpage-body,
+        .diagram-widget, .diagram-canvas, .diagram-notes-box,
+        .econ-diagram-gallery-page, .econ-diagram-gallery-card,
+        .maths-tool-sidebar, .maths-tool-main-wrap, .ask-panel,
+        .theme-palette-panel, .reward-card, .pq-assist-card,
+        .pq-model-answer-panel, .question-card, .correction-card,
+        .pr-glance-tile, .pr-subject-card, .pr-concept-card,
+        .pr-win-card, .pr-momentum-tile, .pr-plan-card,
+        .sidebar-calendar.fullscreen, .modal-content
+    ) {
+        --ink: var(--text);
+        color: var(--text);
     }
     /* A disabled <button> otherwise renders identically to an active one
        (no browser default touches color/background here) — a disabled
@@ -5285,7 +5307,7 @@
 </head>
 <body>
 
-<div id="gate-message" style="background:#D9C398; color:#4E1B26;">Checking your subscription…</div>
+<div id="gate-message" style="background:#D9C398; color:#1A1A1C;">Checking your subscription…</div>
 
 <div id="app">
     <div class="layout">
@@ -25229,7 +25251,7 @@ SQIDAQAB
         // invisible. Explicit birch background + burgundy text per direct
         // instruction, using the same literal hex values as this app's
         // own default palette (birch #D9C398, burgundy #4E1B26).
-        contentInner.innerHTML = `<div class="dashboard-view dashboard-locked"><p id="sfLoadingMessage" style="font-style:italic; text-align:center; max-width:420px; margin:0 auto; line-height:1.7; font-size:0.95rem; background:#D9C398; color:#4E1B26; padding:14px 20px; border-radius:8px;">${escapeHtml(messages[0])}</p></div>`;
+        contentInner.innerHTML = `<div class="dashboard-view dashboard-locked"><p id="sfLoadingMessage" style="font-style:italic; text-align:center; max-width:420px; margin:0 auto; line-height:1.7; font-size:0.95rem; background:#D9C398; color:#1A1A1C; padding:14px 20px; border-radius:8px;">${escapeHtml(messages[0])}</p></div>`;
         let i = 0;
         const intervalId = setInterval(() => {
             const el = document.getElementById('sfLoadingMessage');
