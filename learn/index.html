@@ -18598,7 +18598,7 @@ SQIDAQAB
         const targetNormal = sfPracticeMatchTokens(lessonLabel).join(' ');
         const targetTokens = new Set(sfPracticeMatchTokens(lessonLabel));
         let best = null;
-        let bestScore = 0;
+        let bestScore = -Infinity;
         candidates.forEach((candidate) => {
             const conceptNormal = sfPracticeMatchTokens(candidate.concept).join(' ');
             const conceptTokens = new Set(sfPracticeMatchTokens(candidate.concept));
@@ -18616,7 +18616,13 @@ SQIDAQAB
             score += (intersection / union) * 20;
             if (score > bestScore) { bestScore = score; best = candidate; }
         });
-        const match = bestScore >= 7 ? best : null;
+        // Every formal exam-board lesson should offer Practice Questions.
+        // A weak semantic match is still more useful than an empty panel,
+        // so always use the highest-scoring lesson in the same subject,
+        // qualification and exam-board tree. `null` now means that tree
+        // genuinely contained no lessons at all, not merely that no title
+        // happened to clear an arbitrary similarity threshold.
+        const match = best;
         sfSpecLessonMatchCache.set(cacheKey, match);
         return match;
     }
