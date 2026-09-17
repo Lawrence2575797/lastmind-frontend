@@ -1475,6 +1475,19 @@
     .sf-wizard-choice-btn.selected { border-color: var(--accent); background: rgba(230, 215, 176, 0.12); }
     .sf-wizard-select { width: 100%; box-sizing: border-box; font: inherit; font-size: 15px; padding: 12px 14px; border-radius: 8px; border: 1px solid rgba(230, 215, 176, 0.25); background: var(--bg); color: var(--text); }
     .sf-wizard-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+    .sf-onboarding-chat { align-items: stretch; justify-content: flex-start; padding: 56px max(20px, 8vw); overflow-y: auto; }
+    .sf-onboarding-chat .sf-wizard-card { margin: 0 auto; max-width: 980px; max-height: none; overflow: visible; background: transparent; padding: 0; }
+    .sf-onboarding-message { max-width: 720px; padding: 16px 18px; border-radius: 4px 18px 18px 18px; background: var(--panel); border: 1px solid rgba(230,215,176,.2); font-size: 17px; line-height: 1.55; }
+    .sf-onboarding-message + .sf-onboarding-message { margin-top: 10px; }
+    .sf-onboarding-controls { margin-top: 16px; padding: 18px; border-radius: 14px; background: rgba(18,18,30,.94); }
+    .sf-coverage-themes { display: flex; gap: 14px; overflow-x: auto; padding: 4px 2px 14px; align-items: flex-start; }
+    .sf-coverage-column { flex: 0 0 280px; border: 1px solid rgba(230,215,176,.2); border-radius: 12px; padding: 14px; background: var(--bg); }
+    .sf-coverage-title { font-weight: 700; margin-bottom: 10px; }
+    .sf-coverage-status { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .sf-coverage-status button { padding: 8px 5px; font-size: 11px; }
+    .sf-coverage-status button.selected { border-color: var(--accent); background: rgba(230,215,176,.15); }
+    .sf-coverage-children { margin-top: 12px; display: grid; gap: 10px; }
+    .sf-coverage-child { padding-top: 10px; border-top: 1px solid rgba(230,215,176,.12); }
 
     /* ─── Notes content (see selectNotesNode) — rendered straight into
        #contentInner, same as every other dashboard view; the node/theme/
@@ -8521,6 +8534,11 @@ SQIDAQAB
     }
 
     function selectFolder(folderId) {
+        const pendingFolder = folders.find((x) => x.id === folderId);
+        if (pendingFolder?.onboardingPending) {
+            sfShowSubjectPickerWizard({ focusFolder: pendingFolder });
+            return;
+        }
         if (selectedFolderId !== folderId) {
             selectedSidebarLessonNodeId = null;
             selectedSidebarPracticeConceptId = null;
@@ -14622,7 +14640,7 @@ SQIDAQAB
         }
     }
 
-    async function createFolder(subject, qualification, examBoard, institution, moduleCode, customTitle, customDescription, objectiveScope) {
+    async function createFolder(subject, qualification, examBoard, institution, moduleCode, customTitle, customDescription, objectiveScope, suppressSelect = false) {
         // Generated up front (matching subfolder/page ids) rather than left
         // to IndexedDB's own autoIncrement — sync needs an id that's
         // actually unique across devices, not just within this browser.
@@ -14672,7 +14690,8 @@ SQIDAQAB
             kmGraphMode = true;
             specPracticeMode = false;
         }
-        selectFolder(id);
+        if (!suppressSelect) selectFolder(id);
+        return folder;
     }
 
     document.getElementById('cancelMultiLessonBtn').addEventListener('click', closeMultiLessonModal);
@@ -16679,6 +16698,7 @@ SQIDAQAB
         }
         const schedule = new Map((cachedScheduleData || []).map((r) => [r.concept_id, r]));
         const nodeById = new Map(data.nodes.map((n) => [n.id, n]));
+        const externallyCoveredNodeIds = new Set(data.externallyCoveredNodeIds || []);
         const predecessorAdjacency = new Map(data.nodes.map((n) => [n.id, []]));
         const successorAdjacency = new Map(data.nodes.map((n) => [n.id, []]));
         data.edges.forEach((e) => {
@@ -16689,7 +16709,7 @@ SQIDAQAB
         function isNodeEncoded(nodeId) {
             if (nodeId === pretendEncodedNodeId) return true;
             const n = nodeById.get(nodeId);
-            return !!n && schedule.has(n.conceptId);
+            return !!n && (schedule.has(n.conceptId) || externallyCoveredNodeIds.has(nodeId));
         }
         const visited = new Set();
         function firstReadyUnencoded(nodeId) {
@@ -16728,17 +16748,23 @@ SQIDAQAB
         let bestDue = null;
         let bestIntegration = null;
         for (const n of data.nodes) {
-            if (!schedule.has(n.conceptId)) continue;
+            const learnedHere = schedule.has(n.conceptId);
+            const learnedElsewhere = externallyCoveredNodeIds.has(n.id);
+            if (!learnedHere && !learnedElsewhere) continue;
             const nodeAo1Gated = pendingDay1ConceptIds.has(n.conceptId);
             const qualifyingLinks = (successorAdjacency.get(n.id) || [])
                 .map((id) => nodeById.get(id))
                 // First-time integration requires both endpoint concepts'
                 // Day-1 checks to be complete.
-                .filter((ln) => ln && completedDay1ConceptIds.has(n.conceptId) && completedDay1ConceptIds.has(ln.conceptId))
+                .filter((ln) => ln &&
+                    (completedDay1ConceptIds.has(n.conceptId) || externallyCoveredNodeIds.has(n.id)) &&
+                    (completedDay1ConceptIds.has(ln.conceptId) || externallyCoveredNodeIds.has(ln.id)) &&
+                    (completedDay1ConceptIds.has(n.conceptId) || completedDay1ConceptIds.has(ln.conceptId)))
                 .filter((ln) => !pendingDay1ConceptIds.has(sfReviewLinkKey(n, ln) + '::integration'));
             const newIntegrationLinks = qualifyingLinks.filter((ln) => !schedule.has(`${n.conceptId}->${ln.conceptId}::integration`));
             if (!bestIntegration && newIntegrationLinks.length) bestIntegration = { node: n, qualifyingLinks: newIntegrationLinks };
             const scheduledLinks = qualifyingLinks.filter((ln) => schedule.has(`${n.conceptId}->${ln.conceptId}::integration`));
+            if (!learnedHere) continue; // external coverage never creates an AO1/FSRS review
             if (nodeAo1Gated && !qualifyingLinks.length) continue; // nothing left to test yet
 
             // Same due-check sfIsNodeReviewDue/sfNextNodeReviewDueDate do,
@@ -19320,7 +19346,7 @@ SQIDAQAB
         }
     }
 
-    async function sfShowSubjectPickerWizard() {
+    async function sfShowSubjectPickerWizardLegacy() {
         const { data: { session } } = await supabaseClient.auth.getSession();
         const overlayEl = document.createElement('div');
         overlayEl.className = 'sf-wizard-overlay';
@@ -19337,6 +19363,207 @@ SQIDAQAB
             firstName: (session?.user?.user_metadata?.first_name || '').trim(),
         };
         sfRenderWizardStep();
+    }
+
+    function sfOnboardingClose() {
+        if (sfWizard?.overlayEl?.parentNode) sfWizard.overlayEl.parentNode.removeChild(sfWizard.overlayEl);
+        sfWizard = null;
+    }
+
+    function sfCoverageStatusButtons(scope, value) {
+        return `<div class="sf-coverage-status" data-coverage-scope="${escapeHtml(scope)}">
+            ${[['completed','Completed'],['partway','Part way'],['not_started','Not started']].map(([key, label]) =>
+                `<button type="button" class="sf-wizard-choice-btn${value === key ? ' selected' : ''}" data-coverage-value="${key}">${label}</button>`
+            ).join('')}
+        </div>`;
+    }
+
+    function sfCoverageHtml() {
+        const nodes = sfWizard.mapData.nodes || [];
+        const byTheme = new Map();
+        nodes.forEach((node) => {
+            const theme = node.theme || 'Course content';
+            if (!byTheme.has(theme)) byTheme.set(theme, new Map());
+            const subtopics = byTheme.get(theme);
+            if (!subtopics.has(node.subtopic)) subtopics.set(node.subtopic, []);
+            subtopics.get(node.subtopic).push(node);
+        });
+        return `<div class="sf-coverage-themes">${Array.from(byTheme.entries()).map(([theme, subtopics], ti) => {
+            const themeScope = `theme:${ti}`;
+            const themeValue = sfWizard.coverage[themeScope];
+            const children = themeValue === 'partway' ? `<div class="sf-coverage-children">${Array.from(subtopics.entries()).map(([subtopic, lessonNodes], si) => {
+                const subScope = `${themeScope}:sub:${si}`;
+                const subValue = sfWizard.coverage[subScope];
+                const lessons = subValue === 'partway' ? `<div class="sf-coverage-children">${lessonNodes.map((node) => {
+                    const lessonScope = `lesson:${node.id}`;
+                    return `<div class="sf-coverage-child"><div>${escapeHtml(node.label)}</div>${sfCoverageStatusButtons(lessonScope, sfWizard.coverage[lessonScope])}</div>`;
+                }).join('')}</div>` : '';
+                return `<div class="sf-coverage-child"><div>${escapeHtml(subtopic)}</div>${sfCoverageStatusButtons(subScope, subValue)}${lessons}</div>`;
+            }).join('')}</div>` : '';
+            return `<div class="sf-coverage-column"><div class="sf-coverage-title">${escapeHtml(theme)}</div>${sfCoverageStatusButtons(themeScope, themeValue)}${children}</div>`;
+        }).join('')}</div>`;
+    }
+
+    function sfCoverageIsComplete() {
+        const themeScopes = [...new Set((sfWizard.mapData.nodes || []).map((n) => n.theme || 'Course content'))]
+            .map((_, i) => `theme:${i}`);
+        for (const themeScope of themeScopes) {
+            const themeValue = sfWizard.coverage[themeScope];
+            if (!themeValue) return false;
+            if (themeValue !== 'partway') continue;
+            const themeIndex = Number(themeScope.split(':')[1]);
+            const theme = [...new Set(sfWizard.mapData.nodes.map((n) => n.theme || 'Course content'))][themeIndex];
+            const subs = [...new Set(sfWizard.mapData.nodes.filter((n) => (n.theme || 'Course content') === theme).map((n) => n.subtopic))];
+            for (let si = 0; si < subs.length; si++) {
+                const subScope = `${themeScope}:sub:${si}`;
+                const subValue = sfWizard.coverage[subScope];
+                if (!subValue) return false;
+                if (subValue === 'partway') {
+                    const lessonNodes = sfWizard.mapData.nodes.filter((n) => (n.theme || 'Course content') === theme && n.subtopic === subs[si]);
+                    if (lessonNodes.some((n) => !sfWizard.coverage[`lesson:${n.id}`])) return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    function sfCoveredConceptIds() {
+        const covered = new Set();
+        const themes = [...new Set(sfWizard.mapData.nodes.map((n) => n.theme || 'Course content'))];
+        themes.forEach((theme, ti) => {
+            const themeValue = sfWizard.coverage[`theme:${ti}`];
+            const themeNodes = sfWizard.mapData.nodes.filter((n) => (n.theme || 'Course content') === theme);
+            if (themeValue === 'completed') themeNodes.forEach((n) => covered.add(n.conceptId));
+            if (themeValue !== 'partway') return;
+            const subs = [...new Set(themeNodes.map((n) => n.subtopic))];
+            subs.forEach((subtopic, si) => {
+                const subValue = sfWizard.coverage[`theme:${ti}:sub:${si}`];
+                const subNodes = themeNodes.filter((n) => n.subtopic === subtopic);
+                if (subValue === 'completed') subNodes.forEach((n) => covered.add(n.conceptId));
+                if (subValue === 'partway') subNodes.forEach((n) => {
+                    if (sfWizard.coverage[`lesson:${n.id}`] === 'completed') covered.add(n.conceptId);
+                });
+            });
+        });
+        return [...covered];
+    }
+
+    async function sfCreateOnboardingFolders() {
+        if (sfWizard.focusFolder) return sfWizard.focusFolder;
+        if (sfWizard.createdFolders) return sfWizard.createdFolders.get(sfWizard.focusKey);
+        sfWizard.createdFolders = new Map();
+        for (const key of sfWizard.selectedKeys) {
+            const subject = SF_WIZARD_SUBJECTS.find((item) => item.key === key);
+            if (!subject) continue;
+            const chosen = key === sfWizard.focusKey ? sfWizard.levelChoices[key] || {} : {};
+            const qualification = chosen.qualification || subject.qualifications[0].qualification;
+            const examBoard = chosen.examBoard || subject.examBoards?.[0] || '';
+            const folder = await createFolder(subject.subject, qualification, examBoard, '', '', '', '', null, true);
+            folder.onboardingPending = key !== sfWizard.focusKey && subject.examLesson;
+            await putFolder(folder);
+            sfWizard.createdFolders.set(key, folder);
+        }
+        return sfWizard.createdFolders.get(sfWizard.focusKey);
+    }
+
+    async function sfPrepareCoverage() {
+        const subject = SF_WIZARD_SUBJECTS.find((item) => item.key === sfWizard.focusKey);
+        const chosen = sfWizard.levelChoices[sfWizard.focusKey] || {};
+        if (sfWizard.focusFolder) {
+            sfWizard.focusFolder.qualification = chosen.qualification || subject.qualifications[0].qualification;
+            sfWizard.focusFolder.examBoard = chosen.examBoard || subject.examBoards?.[0] || '';
+            const subtopics = await fetchStoredLessonPlan(sfWizard.focusFolder.subject, sfWizard.focusFolder.qualification, sfWizard.focusFolder.examBoard);
+            if (subtopics?.length) sfWizard.focusFolder.subfolders = subtopics.map((st) => ({ id: crypto.randomUUID(), name: st.subtopic, orderConfirmed: true, pages: st.concepts.map((concept) => ({ id: crypto.randomUUID(), title: concept, content: '', createdAt: Date.now() })) }));
+            await putFolder(sfWizard.focusFolder);
+        }
+        const folder = await sfCreateOnboardingFolders();
+        sfWizard.focusFolder = folder;
+        sfWizard.step = 'coverage_loading';
+        sfRenderCortexOnboarding();
+        sfWizard.mapData = await fetchSubjectKnowledgeMapWithRetry(folder);
+        sfWizard.coverage = {};
+        sfWizard.step = 'coverage';
+        sfRenderCortexOnboarding();
+    }
+
+    async function sfFinishCortexOnboarding() {
+        if (!sfCoverageIsComplete()) {
+            alert('Choose Completed, Part way, or Not started for every visible item first.');
+            return;
+        }
+        const folder = sfWizard.focusFolder;
+        folder.externalCoveredConceptIds = sfCoveredConceptIds();
+        folder.onboardingPending = false;
+        await putFolder(folder);
+        // The backend reads prior-learning coverage from this synced folder
+        // when it chooses prerequisites/integrations. Wait for this one
+        // important write before asking it to build the first schedule.
+        await syncFolderToServer(folder);
+        sfWizard.step = 'personalising';
+        sfRenderCortexOnboarding();
+        await sfPostBackend('/onboarding/subject-picker-seen', {});
+        await refreshFolderList();
+        cachedScheduleData = await fetchScheduleData();
+        const recommendation = await sfComputeFolderRecommendation(folder).catch(() => null);
+        if (recommendation?.node?.id) await fetchNodeLesson(recommendation.node.id);
+        sfWizard.step = 'ready';
+        sfRenderCortexOnboarding();
+        setTimeout(() => {
+            sfOnboardingClose();
+            selectFolder(folder.id);
+        }, 900);
+    }
+
+    function sfRenderCortexOnboarding() {
+        const card = sfWizard.overlayEl.querySelector('.sf-wizard-card');
+        const close = '<button type="button" class="sf-wizard-close-btn" data-onboarding-close aria-label="Close onboarding">×</button>';
+        let controls = '';
+        let messages = `<div class="sf-onboarding-message">Hi ${escapeHtml(sfWizardGreetingName())}, I'm Cortex, your LastMind personal assistant. Shall we start with choosing some lessons?</div>`;
+        if (sfWizard.step === 'subjects') {
+            controls = `<div class="sf-onboarding-controls"><div class="sf-wizard-subject-grid">${SF_WIZARD_SUBJECTS.map(sfWizardSubjectBlockHtml).join('')}</div><div class="sf-wizard-actions"><span></span><button class="btn primary" data-next>Continue →</button></div></div>`;
+        } else if (sfWizard.step === 'study_now') {
+            messages += `<div class="sf-onboarding-message">What lesson would you like to study right now?</div>`;
+            controls = `<div class="sf-onboarding-controls"><div class="sf-wizard-subject-grid">${[...sfWizard.selectedKeys].map((key) => { const s=SF_WIZARD_SUBJECTS.find((x)=>x.key===key); return `<button class="sf-wizard-subject-block" data-focus-key="${key}">${escapeHtml(s.label)}</button>`; }).join('')}</div><button class="sf-wizard-choice-btn" data-none-now>None right now, just setting things up</button></div>`;
+        } else if (sfWizard.step === 'level') {
+            const s = SF_WIZARD_SUBJECTS.find((x) => x.key === sfWizard.focusKey);
+            const chosen = sfWizard.levelChoices[s.key] || {};
+            messages += `<div class="sf-onboarding-message">Great — what level and exam board are you studying for ${escapeHtml(s.label)}?</div>`;
+            controls = `<div class="sf-onboarding-controls"><div class="sf-wizard-choice-row">${s.qualifications.map((q)=>`<button class="sf-wizard-choice-btn${chosen.qualification===q.qualification?' selected':''}" data-qualification="${escapeHtml(q.qualification)}">${escapeHtml(q.label)}</button>`).join('')}</div><select class="sf-wizard-select" data-board>${(s.examBoards||['']).map((b)=>`<option${chosen.examBoard===b?' selected':''}>${escapeHtml(b)}</option>`).join('')}</select><div class="sf-wizard-actions"><button class="btn" data-back>← Back</button><button class="btn primary" data-next-level>Continue →</button></div></div>`;
+        } else if (sfWizard.step === 'coverage_loading') {
+            messages += `<div class="sf-onboarding-message">I'm loading your course so you can tell me where you've got to.</div>`;
+        } else if (sfWizard.step === 'coverage') {
+            messages += `<div class="sf-onboarding-message">Final question, have you already started studying this course? Select which themes you have covered.</div>`;
+            controls = `<div class="sf-onboarding-controls">${sfCoverageHtml()}<div class="sf-wizard-actions"><span></span><button class="btn primary" data-finish>Personalise my schedule →</button></div></div>`;
+        } else if (sfWizard.step === 'personalising') {
+            messages += `<div class="sf-onboarding-message">Perfect, I am currently personalising your revision schedule.</div><div class="sf-onboarding-message">If you ever need any help navigating LastMind or any subject specific help I'm happy to help.</div>`;
+        } else if (sfWizard.step === 'ready') {
+            messages += `<div class="sf-onboarding-message">Your lessons are ready, redirecting you now, enjoy!</div>`;
+        }
+        card.innerHTML = `${close}${messages}${controls}`;
+        card.querySelector('[data-onboarding-close]')?.addEventListener('click', sfOnboardingClose);
+        card.querySelectorAll('[data-subject-key]').forEach((el) => el.addEventListener('click', () => { const key=el.dataset.subjectKey; sfWizard.selectedKeys.has(key)?sfWizard.selectedKeys.delete(key):sfWizard.selectedKeys.add(key); sfRenderCortexOnboarding(); }));
+        card.querySelector('[data-next]')?.addEventListener('click', () => { if (!sfWizard.selectedKeys.size) return; sfWizard.step='study_now'; sfRenderCortexOnboarding(); });
+        card.querySelectorAll('[data-focus-key]').forEach((el)=>el.addEventListener('click',()=>{ sfWizard.focusKey=el.dataset.focusKey; const s=SF_WIZARD_SUBJECTS.find((x)=>x.key===sfWizard.focusKey); if(!s.examLesson){ sfCreateOnboardingFolders().then(async(folder)=>{ await sfPostBackend('/onboarding/subject-picker-seen', {}); await refreshFolderList(); sfOnboardingClose(); if(folder) selectFolder(folder.id); }); return; } sfWizard.step='level'; sfRenderCortexOnboarding(); }));
+        card.querySelector('[data-none-now]')?.addEventListener('click', async()=>{ await sfCreateOnboardingFolders(); await sfPostBackend('/onboarding/subject-picker-seen', {}); await refreshFolderList(); sfOnboardingClose(); renderWelcome(); });
+        card.querySelectorAll('[data-qualification]').forEach((el)=>el.addEventListener('click',()=>{ const c=sfWizard.levelChoices[sfWizard.focusKey]||(sfWizard.levelChoices[sfWizard.focusKey]={}); c.qualification=el.dataset.qualification; sfRenderCortexOnboarding(); }));
+        card.querySelector('[data-board]')?.addEventListener('change',(e)=>{ const c=sfWizard.levelChoices[sfWizard.focusKey]||(sfWizard.levelChoices[sfWizard.focusKey]={}); c.examBoard=e.target.value; });
+        card.querySelector('[data-back]')?.addEventListener('click',()=>{ sfWizard.step=sfWizard.focusFolder?'subjects':'study_now'; sfRenderCortexOnboarding(); });
+        card.querySelector('[data-next-level]')?.addEventListener('click',()=>{ const s=SF_WIZARD_SUBJECTS.find((x)=>x.key===sfWizard.focusKey); const c=sfWizard.levelChoices[s.key]||(sfWizard.levelChoices[s.key]={}); c.qualification=c.qualification||s.qualifications[0].qualification; c.examBoard=c.examBoard||s.examBoards[0]; sfPrepareCoverage().catch((e)=>{ console.error(e); alert('Could not load this course. Please try again.'); }); });
+        card.querySelectorAll('[data-coverage-scope] button').forEach((button)=>button.addEventListener('click',()=>{ sfWizard.coverage[button.parentElement.dataset.coverageScope]=button.dataset.coverageValue; sfRenderCortexOnboarding(); }));
+        card.querySelector('[data-finish]')?.addEventListener('click',()=>sfFinishCortexOnboarding().catch((e)=>{ console.error(e); alert('Could not finish setting up. Please try again.'); }));
+    }
+
+    async function sfShowSubjectPickerWizard(options = {}) {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const overlayEl = document.createElement('div');
+        overlayEl.className = 'sf-wizard-overlay sf-onboarding-chat';
+        overlayEl.innerHTML = '<div class="sf-wizard-card"></div>';
+        document.body.appendChild(overlayEl);
+        const focusFolder = options.focusFolder || null;
+        const focusSubject = focusFolder && SF_WIZARD_SUBJECTS.find((s) => s.subject === focusFolder.subject);
+        sfWizard = { overlayEl, step: focusFolder ? 'level' : 'subjects', selectedKeys: new Set(focusSubject ? [focusSubject.key] : []), focusKey: focusSubject?.key || null, focusFolder, levelChoices: {}, email: session?.user?.email || '', firstName: (session?.user?.user_metadata?.first_name || '').trim() };
+        if (focusSubject) sfWizard.levelChoices[focusSubject.key] = { qualification: focusFolder.qualification, examBoard: focusFolder.examBoard };
+        sfRenderCortexOnboarding();
     }
 
     async function renderKnowledgeMapForFolder(folder) {
@@ -21460,11 +21687,13 @@ SQIDAQAB
         const visibleEdges = fullData.edges;
 
         const masteryDetail = fullData.masteryDetail || {};
+        const externalCoveredIds = new Set(fullData.externallyCoveredNodeIds || []);
 
         const nodes = visibleNodes.map((n) => ({
             ...n,
-            state: masteryProgressTier(masteryDetail[n.id]),
+            state: externalCoveredIds.has(n.id) ? 1 : masteryProgressTier(masteryDetail[n.id]),
             detail: masteryDetail[n.id] || null,
+            externallyCovered: externalCoveredIds.has(n.id),
         }));
         const nodeById = new Map(nodes.map((n) => [n.id, n]));
         // Keyed by the same raw `${source}->${target}` node-id pair the
@@ -21996,9 +22225,10 @@ SQIDAQAB
         // due, nothing new left to unlock.
         function computeNextRecommendation(fromNodeId) {
             const schedule = fullData.scheduleByConceptId || new Map();
+            const externallyCoveredNodeIds = new Set(fullData.externallyCoveredNodeIds || []);
             function isNodeEncoded(nodeId) {
                 const n = nodeById.get(nodeId);
-                return !!n && schedule.has(n.conceptId);
+                return !!n && (schedule.has(n.conceptId) || externallyCoveredNodeIds.has(nodeId));
             }
 
             const visited = new Set();
@@ -22155,6 +22385,7 @@ SQIDAQAB
             const upstream = fullData.edges.filter((e) => e.target === d.id).map((e) => nodeById.get(e.source)).filter(Boolean);
             const downstream = fullData.edges.filter((e) => e.source === d.id).map((e) => nodeById.get(e.target)).filter(Boolean);
             const schedule = fullData.scheduleByConceptId || new Map();
+            const externallyCoveredNodeIds = new Set(fullData.externallyCoveredNodeIds || []);
             const ownEntry = schedule.get(d.conceptId);
 
             // Concept cards and arrows are deliberately separate learning
@@ -22193,7 +22424,7 @@ SQIDAQAB
                         // encoding it (see the chain-diagnostic gate on the
                         // Start lesson handler, which only intervenes on a
                         // genuinely unmet prerequisite).
-                        const prereqEncoded = schedule.has(n.conceptId);
+                        const prereqEncoded = schedule.has(n.conceptId) || externallyCoveredNodeIds.has(n.id);
                         return prereqEncoded
                             ? `<div class="km-inline-detail-item km-inline-detail-item-action">
                                     <span>${escapeHtml(n.label)}</span>
@@ -22218,7 +22449,7 @@ SQIDAQAB
                 ? '<div class="km-inline-detail-item km-inline-detail-none">Nothing yet builds on this</div>'
                 : downstream.map((n) => {
                     if (!ownEntry) return `<div class="km-inline-detail-item">${escapeHtml(n.label)}</div>`;
-                    const otherEncoded = schedule.has(n.conceptId);
+                    const otherEncoded = schedule.has(n.conceptId) || externallyCoveredNodeIds.has(n.id);
                     return `
                         <div class="km-inline-detail-item km-inline-detail-item-action">
                             <span>${escapeHtml(n.label)}</span>
@@ -22254,7 +22485,9 @@ SQIDAQAB
             // attribute values, so a label containing a quote (plenty of
             // concept names do) would otherwise truncate the attribute.
             const reviewDue = !ownEntry || isScheduleEntryDue(ownEntry);
-            const startBtnHtml = !ownEntry
+            const startBtnHtml = d.externallyCovered
+                ? `<button class="btn primary km-inline-start-lesson-btn" disabled>Covered already</button>`
+                : !ownEntry
                 ? `<button class="btn primary km-inline-start-lesson-btn">Start lesson</button>`
                 : blockedByUnencodedLink
                     ? `<button class="btn primary km-inline-start-lesson-btn" disabled>Start review</button>`
@@ -22272,7 +22505,7 @@ SQIDAQAB
             detailEl.innerHTML = `
                 <div class="km-inline-detail-eyebrow">${escapeHtml(d.subtopic || '')}</div>
                 <div class="km-inline-detail-label">${escapeHtml(d.label)}</div>
-                <div class="km-inline-detail-meta">${stateLabel[d.state]}</div>
+                <div class="km-inline-detail-meta">${d.externallyCovered ? 'Covered before LastMind · no FSRS score yet' : stateLabel[d.state]}</div>
                 ${progressHtml}
                 <div class="km-inline-detail-section"><h4>Needs first</h4>${upItems}</div>
                 <div class="km-inline-detail-section"><h4>Builds on this</h4>${downItems}</div>
@@ -22319,7 +22552,7 @@ SQIDAQAB
             }
             if (ownEntry && !blockedByUnencodedLink && reviewDue) {
                 startBtn.addEventListener('click', () => startNodeReview(d, qualifyingLinks));
-            } else if (!ownEntry) {
+            } else if (!ownEntry && !d.externallyCovered) {
                 // The lesson takes over the whole page the moment it starts
                 // — the graph/detail panel this button lives in stays
                 // exactly as it is underneath, ready for "← Back to map" to

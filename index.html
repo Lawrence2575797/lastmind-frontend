@@ -1707,7 +1707,7 @@
                     const { data, error } = await signUp(email, password, firstName, dateOfBirth);
                     if (error) { setAcctStatus(error.message, true); return; }
                     if (data.session) {
-                        window.location.href = '/learn';
+                        window.location.href = '/learn?onboarding=1';
                     } else {
                         setAcctStatus('Check your email to confirm your account before logging in.');
                     }
