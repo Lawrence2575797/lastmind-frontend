@@ -21573,11 +21573,22 @@ SQIDAQAB
         function columnKeyOf(n) { return rankByNodeId.get(n.id) ?? 0; }
         const columnOrder = Array.from(new Set(nodes.map(columnKeyOf))).sort((a, b) => a - b);
 
-        const CARD_W = 190, CARD_LINE_H = 14, CARD_MIN_H = 34, COL_GAP = 46, ROW_GAP = 14, PAD = 26;
-        function estimateCardHeight(label) {
+        const CARD_W = 190, CARD_LINE_H = 14, CARD_MIN_H = 34, COL_GAP = 62, ROW_GAP = 14, PAD = 26;
+        const connectionCount = new Map(nodes.map((n) => [n.id, { incoming: 0, outgoing: 0 }]));
+        links.forEach((link) => {
+            connectionCount.get(link.source.id).outgoing += 1;
+            connectionCount.get(link.target.id).incoming += 1;
+        });
+        function estimateCardHeight(label, nodeId) {
             const charsPerLine = 24;
             const lines = Math.max(1, Math.min(3, Math.ceil((label || '').length / charsPerLine)));
-            return Math.max(CARD_MIN_H, lines * CARD_LINE_H + 16);
+            // Dense fan-in/fan-out nodes need enough vertical edge for a
+            // distinct connection port per integration lesson. Without
+            // this, transparent hit paths overlap and whichever SVG path
+            // was painted last steals clicks intended for its neighbour.
+            const degree = connectionCount.get(nodeId) || { incoming: 0, outgoing: 0 };
+            const portsHeight = Math.max(degree.incoming, degree.outgoing) * 10 + 14;
+            return Math.max(CARD_MIN_H, lines * CARD_LINE_H + 16, portsHeight);
         }
 
         const byColumn = new Map(columnOrder.map((key) => [key, []]));
@@ -21588,7 +21599,7 @@ SQIDAQAB
             const colCenterX = PAD + colIdx * (CARD_W + COL_GAP) + CARD_W / 2;
             let cursorY = PAD;
             byColumn.get(key).forEach((n) => {
-                const h = estimateCardHeight(n.label);
+                const h = estimateCardHeight(n.label, n.id);
                 n.halfW = CARD_W / 2;
                 n.halfH = h / 2;
                 n.x = colCenterX;
@@ -21617,6 +21628,21 @@ SQIDAQAB
             svg.transition().duration(400).call(zoomBehavior.transform, d3.zoomIdentity.translate(tx, ty).scale(fitScale));
         }
 
+        const outgoingLinks = new Map(nodes.map((n) => [n.id, []]));
+        const incomingLinks = new Map(nodes.map((n) => [n.id, []]));
+        links.forEach((link) => {
+            outgoingLinks.get(link.source.id).push(link);
+            incomingLinks.get(link.target.id).push(link);
+        });
+        outgoingLinks.forEach((list) => list.sort((a, b) => a.target.y - b.target.y));
+        incomingLinks.forEach((list) => list.sort((a, b) => a.source.y - b.source.y));
+        function connectionPortY(node, link, side) {
+            const list = side === 'out' ? outgoingLinks.get(node.id) : incomingLinks.get(node.id);
+            if (!list || list.length <= 1) return node.y;
+            const index = list.indexOf(link);
+            const usable = Math.max(0, node.halfH - 7);
+            return node.y - usable + (index * usable * 2) / (list.length - 1);
+        }
         function linkPath(d) {
             const s = d.source, t = d.target;
             if (typeof s !== 'object' || typeof t !== 'object' || typeof s.x !== 'number' || typeof t.x !== 'number') return '';
@@ -21626,8 +21652,9 @@ SQIDAQAB
                 return `M${s.x},${y1} C${s.x},${midY} ${t.x},${midY} ${t.x},${y2}`;
             }
             const x1 = s.x + s.halfW, x2 = t.x - t.halfW;
+            const y1 = connectionPortY(s, d, 'out'), y2 = connectionPortY(t, d, 'in');
             const midX = (x1 + x2) / 2;
-            return `M${x1},${s.y} C${midX},${s.y} ${midX},${t.y} ${x2},${t.y}`;
+            return `M${x1},${y1} C${midX},${y1} ${midX},${y2} ${x2},${y2}`;
         }
 
         const graphSchedule = fullData.scheduleByConceptId || new Map();
@@ -21683,6 +21710,10 @@ SQIDAQAB
             .data(links).join('path')
             .attr('class', 'km-link-hit')
             .attr('d', linkPath)
+            .style('stroke-width', (d) => {
+                const crowding = Math.max(outgoingLinks.get(d.source.id).length, incomingLinks.get(d.target.id).length);
+                return `${Math.max(5, Math.min(12, 24 / Math.max(1, crowding)))}px`;
+            })
             .attr('role', 'button')
             .attr('tabindex', 0)
             .attr('aria-label', (d) => `${d.source.label} to ${d.target.label}. ${integrationAccessForLink(d).label}`)
@@ -25597,7 +25628,7 @@ SQIDAQAB
             ['.pq-cortex-assist-btn', 'Ask Cortex for a hint without revealing the full model answer.'],
             ['.pq-model-answer-btn', 'Show the model answer for this practice question.'],
             ['.pq-submit-btn', 'Submit your answer for exam-board-style marking and feedback.'],
-            ['.km-edge-hit', 'Open the integration lesson connecting these two concepts.'],
+            ['.km-link-hit', 'Open the integration lesson connecting these two concepts.'],
             ['.notes-tree-node-item', 'Open this lesson and keep it selected across LastMind.'],
         ]);
         function annotate(root) {
