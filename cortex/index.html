@@ -494,10 +494,6 @@ SQIDAQAB
             return null;
         }
     }
-    async function initThemeFromServer() {
-        const saved = await fetchThemeSettings();
-        if (saved) applyTheme(saved);
-    }
     // Live preview while embedded - the parent posts its current theme on
     // every colour-picker input event (see learn/index.html's applyTheme).
     // Origin-checked since this only ever makes sense from the dashboard
@@ -507,17 +503,9 @@ SQIDAQAB
         if (!event.data || event.data.type !== 'lm-theme-update') return;
         applyTheme(event.data.theme);
     });
-    // Applied immediately with whatever's cached from the LAST time this
-    // page's own initThemeFromServer ran (localStorage, same key
-    // learn/index.html writes to, so a student who customised colours
-    // from the dashboard sees them here too on the very next load, before
-    // the network round-trip below even starts).
-    (function applyCachedThemeEarly() {
-        try {
-            const cached = localStorage.getItem('lm-theme-settings');
-            if (cached) applyTheme(JSON.parse(cached));
-        } catch (e) {}
-    })();
+    // The dashboard now owns reward-background access. Cortex begins on the
+    // fixed default palette and only accepts an applied unlocked preset from
+    // its same-origin parent via the message listener above.
 
     /* ───────────────────────── IndexedDB (same DB as /learn) ───────────────────────── */
 
@@ -2000,7 +1988,6 @@ SQIDAQAB
 
         // Reconciles the fast local cache (already applied above, before
         // login even resolved) against this account's real saved colours.
-        initThemeFromServer();
 
         // Iframed into learn/index.html's own dashboard (see
         // renderWelcome()) — hides this page's own back-link/title header,

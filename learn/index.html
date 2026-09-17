@@ -3665,6 +3665,40 @@
     .theme-preset-btn { padding: 6px 11px; font-size: 12px; font-family: Arial, sans-serif; border: 1px solid rgba(230, 215, 176, 0.3); border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; }
     .theme-preset-btn:hover { background: rgba(230, 215, 176, 0.1); }
 
+    /* Rewards replaces the old floating Aa/custom-colour control. */
+    .rewards-view { width: 100%; padding-bottom: 44px; color: var(--ink); }
+    .rewards-hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 30px; }
+    .rewards-eyebrow { margin: 0 0 8px; font: 700 0.68rem/1 Arial, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.58; }
+    .rewards-title { margin: 0; font: 700 clamp(2.1rem, 5vw, 3.7rem)/0.95 Georgia, serif; letter-spacing: -0.035em; }
+    .rewards-intro { max-width: 520px; margin: 12px 0 0; font: 0.92rem/1.65 Arial, sans-serif; opacity: 0.72; }
+    .keys-balance { flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 11px 15px; border: 1px solid rgba(78,27,38,0.24); border-radius: 999px; background: rgba(255,255,255,0.16); box-shadow: 0 4px 14px rgba(78,27,38,0.08); }
+    .keys-balance-icon, .reward-key-icon { display: inline-flex; align-items: center; justify-content: center; color: var(--ink); }
+    .keys-balance-icon svg, .reward-key-icon svg { display: block; }
+    .keys-balance-copy { display: flex; flex-direction: column; gap: 2px; font-family: Arial, sans-serif; }
+    .keys-balance-label { font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.55; }
+    .keys-balance-value { font-size: 0.94rem; font-weight: 700; }
+    .rewards-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+    .rewards-section-heading h2 { margin: 0; font: 700 1.2rem Georgia, serif; }
+    .rewards-section-heading span { font: 0.7rem Arial, sans-serif; opacity: 0.52; }
+    .reward-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+    .reward-card { position: relative; overflow: hidden; min-width: 0; border-radius: 12px; background: var(--panel); color: var(--text); border: 1px solid rgba(78,27,38,0.24); box-shadow: 0 8px 24px rgba(78,27,38,0.12); transition: transform 0.18s, box-shadow 0.18s; }
+    .reward-preview { position: relative; aspect-ratio: 16 / 10; background-position: center; background-size: cover; overflow: hidden; }
+    .reward-preview::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(15,12,10,0.04), rgba(15,12,10,0.25)); }
+    .reward-lock { position: absolute; inset: 0; z-index: 1; display: flex; align-items: center; justify-content: center; background: rgba(18,16,14,0.22); backdrop-filter: grayscale(0.35); }
+    .reward-lock-badge { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(24,21,19,0.82); color: #E6D7B0; border: 1px solid rgba(230,215,176,0.35); box-shadow: 0 4px 16px rgba(0,0,0,0.28); }
+    .reward-card-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 14px 14px; }
+    .reward-name { min-width: 0; font: 700 0.82rem Arial, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .reward-price { flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; font: 700 0.76rem Arial, sans-serif; opacity: 0.88; }
+    .reward-card.is-unlocked { cursor: pointer; }
+    .reward-card.is-unlocked .reward-lock { display: none; }
+    .reward-card.is-unlocked:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(78,27,38,0.18); }
+    @media (max-width: 760px) {
+        .rewards-hero { align-items: stretch; flex-direction: column; }
+        .keys-balance { align-self: flex-end; }
+        .reward-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 430px) { .reward-grid { grid-template-columns: 1fr; } }
+
     /* Image-backed background textures (see THEME_IMAGE_BACKGROUNDS) -
        toggled on document.body by applyTheme. The sidebar AND the feed's
        own box deliberately get NO background-image of their own here:
@@ -5446,6 +5480,7 @@
                      actually handles overflow. -->
                 <div class="topbar-actions" id="topbarActions">
                     <button class="cortex-btn-topbar" id="buyMoreTokensBtn" type="button">Upgrade</button>
+                    <button class="cortex-btn-topbar" id="rewardsTopbarBtn" type="button">Rewards</button>
                     <button class="cortex-btn-topbar" id="practiceQuestionsTopbarBtn" type="button">Exam Preparation</button>
                     <button class="cortex-btn-topbar" id="progressReportTopbarBtn" type="button">Progress Report</button>
                     <button class="cortex-btn-topbar" id="knowledgeMapTopbarBtn" type="button">Knowledge Map</button>
@@ -6192,19 +6227,10 @@ SQIDAQAB
         syncThemePaletteInputs();
     }
 
-    // Applied immediately, synchronously, before the async login/gate flow
-    // even starts - a returning user's browser already has their last-
-    // applied theme cached (see applyTheme), so there's no flash of the
-    // default birch/burgundy while the account's real settings are still
-    // in flight. initThemePalette (called from enterApp once login
-    // resolves) reconciles this against the server's copy shortly after.
-    (function applyCachedThemeEarly() {
-        try {
-            const cached = localStorage.getItem(THEME_CACHE_KEY);
-            if (cached) currentTheme = { ...THEME_DEFAULTS, ...JSON.parse(cached) };
-        } catch (e) {}
-        applyTheme(currentTheme);
-    })();
+    // Custom colours are intentionally unavailable now. Everyone starts on
+    // LastMind's fixed default palette; an unlocked Rewards preset is the
+    // only code path that can replace it.
+    applyTheme(THEME_DEFAULTS);
 
     /* ───────────────────────── IndexedDB ───────────────────────── */
 
@@ -8438,6 +8464,10 @@ SQIDAQAB
         `;
         const params = isNew ? 'embed=1&new=1' : (chatId ? `embed=1&chatId=${encodeURIComponent(chatId)}` : 'embed=1');
         document.getElementById('cortexEmbedFrame').src = `/cortex?${params}`;
+        document.getElementById('cortexEmbedFrame').addEventListener('load', (event) => {
+            if (!THEME_IMAGE_BACKGROUNDS[currentTheme.bgTexture]) return;
+            event.currentTarget.contentWindow.postMessage({ type: 'lm-theme-update', theme: currentTheme }, window.location.origin);
+        }, { once: true });
     }
 
     // ─── PRACTICE QUESTIONS ───
@@ -8464,6 +8494,75 @@ SQIDAQAB
         kmGraphMode = false;
         selectedFolderSpecTree = null;
         selectFolder(selectedFolderId);
+    }
+
+    // Empty until reward ownership is wired to the backend. This is the
+    // single access gate: once a key is present, its card uses the same
+    // applyTheme + /theme-settings save path the old preset UI used.
+    const REWARD_UNLOCKED_THEME_KEYS = new Set();
+    const REWARD_KEY_PRICE = 75;
+    const rewardKeyIcon = (size = 18) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="8" cy="12" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M12 12h9m-3 0v3m-3-3v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
+
+    async function applyRewardPreset(preset, card) {
+        if (!preset || !REWARD_UNLOCKED_THEME_KEYS.has(preset.key)) return;
+        currentTheme = { ...currentTheme, ...preset.theme };
+        applyTheme(currentTheme);
+        card.setAttribute('aria-busy', 'true');
+        try {
+            await saveThemeSettings(preset.theme);
+        } catch (err) {
+            console.error('LastMind: failed to save reward background.', preset.key, err);
+        } finally {
+            card.removeAttribute('aria-busy');
+        }
+    }
+
+    function renderRewardsPage() {
+        specPracticeMode = false;
+        kmGraphMode = false;
+        stopActiveDictation();
+        stopSpeaking();
+        selectedPageId = null;
+        document.getElementById('topbarTitle').textContent = 'Rewards';
+        const contentInner = document.getElementById('contentInner');
+        contentInner.classList.add('content-inner-wide');
+        contentInner.innerHTML = `
+            <section class="rewards-view" aria-labelledby="rewardsTitle">
+                <div class="rewards-hero">
+                    <div>
+                        <p class="rewards-eyebrow">The LastMind shop</p>
+                        <h1 class="rewards-title" id="rewardsTitle">Rewards</h1>
+                        <p class="rewards-intro">Turn genuine learning progress into a space that feels like yours. New backgrounds will become available to unlock with Keys.</p>
+                    </div>
+                    <div class="keys-balance" aria-label="Keys balance">
+                        <span class="keys-balance-icon">${rewardKeyIcon(21)}</span>
+                        <span class="keys-balance-copy"><span class="keys-balance-label">Balance</span><span class="keys-balance-value"><span id="rewardKeysBalance">0</span> Keys</span></span>
+                    </div>
+                </div>
+                <div class="rewards-section-heading"><h2>Backgrounds</h2><span>${THEME_PRESETS.length} available</span></div>
+                <div class="reward-grid">
+                    ${THEME_PRESETS.map((preset) => {
+                        const unlocked = REWARD_UNLOCKED_THEME_KEYS.has(preset.key);
+                        const image = THEME_IMAGE_BACKGROUNDS[preset.theme.bgTexture];
+                        return `<article class="reward-card${unlocked ? ' is-unlocked' : ''}" data-reward-key="${escapeHtml(preset.key)}" ${unlocked ? 'role="button" tabindex="0"' : 'aria-disabled="true"'}>
+                            <div class="reward-preview" style="background-image:url('${image}')">
+                                <div class="reward-lock" aria-label="Locked"><span class="reward-lock-badge"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.8"/></svg></span></div>
+                            </div>
+                            <div class="reward-card-meta"><span class="reward-name">${escapeHtml(preset.label)}</span><span class="reward-price"><span class="reward-key-icon">${rewardKeyIcon(15)}</span>${REWARD_KEY_PRICE}</span></div>
+                        </article>`;
+                    }).join('')}
+                </div>
+            </section>`;
+        contentInner.querySelectorAll('.reward-card.is-unlocked').forEach((card) => {
+            const preset = THEME_PRESETS.find((item) => item.key === card.dataset.rewardKey);
+            card.addEventListener('click', () => applyRewardPreset(preset, card));
+            card.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    applyRewardPreset(preset, card);
+                }
+            });
+        });
     }
     function exitSpecPracticeMode() {
         goToMainFeed();
@@ -8503,6 +8602,7 @@ SQIDAQAB
     }
 
     document.getElementById('practiceQuestionsTopbarBtn').addEventListener('click', renderExamPrepEntryScreen);
+    document.getElementById('rewardsTopbarBtn').addEventListener('click', renderRewardsPage);
     document.getElementById('dashboardTopbarBtn').addEventListener('click', goToMainFeed);
 
     async function prFetch(path) {
@@ -12947,7 +13047,7 @@ SQIDAQAB
         { selector: '#knowledgeMapTopbarBtn', title: 'Explore the map', body: "See every concept in a subject and how they connect. This is your complete learning roadmap — you can jump to any topic, but your feed always suggests the best next step." },
         { selector: '#cortexTabBtn', title: 'Get help anytime', body: "Stuck on something? Ask Cortex for explanations, exam tips, or just to talk through a tricky concept. It understands what you're learning and can help you think it through." },
         { selector: '#examPrepTopbarBtn', title: 'Exam preparation', body: 'Switch to Exam Prep mode to practice under realistic conditions. Timed questions, mixed topics, and detailed feedback help you prepare for the real thing.' },
-        { selector: '#themePaletteBtn', title: 'Customize your space', body: 'Change colors, fonts, backgrounds, or pick a themed scene. Make LastMind yours — it\'s available on every plan.' }
+        { selector: '#rewardsTopbarBtn', title: 'Earn rewards', body: 'Visit Rewards to see your Keys and discover backgrounds you can unlock through genuine learning progress.' }
     ];
 
     const FREE_TOUR_STEPS = [
@@ -24712,11 +24812,6 @@ SQIDAQAB
 
         document.getElementById('gate-message').style.display = 'none';
         document.getElementById('app').style.display = 'block';
-
-        // Free for every tier - mounts the palette icon and reconciles the
-        // fast local cache (already applied before login resolved, see
-        // applyCachedThemeEarly) against this account's real saved colours.
-        initThemePalette();
 
         // Peer tutoring pulled from the live site entirely, both entry
         // points (Peer Tutoring hub + My Tutoring) - real legal exposure
