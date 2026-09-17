@@ -1652,17 +1652,27 @@
        text row. auto-fill/minmax picks however many columns actually fit
        the available width, rather than a column count that would break
        on a narrow screen. ─── */
-    .econ-diagram-gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+    .econ-diagram-gallery-page { max-width: 1120px; width: 100%; margin: 0 auto; padding: 26px 28px 44px; background: rgba(18,18,30,0.96); color: var(--text); border: 1px solid rgba(230,215,176,0.16); border-radius: 14px; }
+    .econ-diagram-gallery-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 24px; }
+    .econ-diagram-gallery-copy h1 { font-family: Georgia, serif; font-size: 28px; color: var(--text); margin-bottom: 6px; }
+    .econ-diagram-gallery-copy p { font: 13px/1.55 Arial, sans-serif; opacity: 0.72; max-width: 620px; }
+    .econ-diagram-gallery-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; align-items: stretch; }
     .econ-diagram-gallery-card {
-        background: var(--panel); border: 1px solid rgba(230, 215, 176, 0.16); border-radius: 10px;
-        padding: 12px; display: flex; flex-direction: column; gap: 8px; cursor: pointer; text-align: left;
+        min-width: 0; background: #1A1A1C; border: 1px solid rgba(230, 215, 176, 0.2); border-radius: 12px;
+        padding: 12px; display: flex; flex-direction: column; gap: 9px; cursor: pointer; text-align: left;
+        box-shadow: 0 8px 22px rgba(0,0,0,0.2); transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
     }
-    .econ-diagram-gallery-card:hover { border-color: var(--accent); }
-    .econ-diagram-gallery-preview { width: 100%; aspect-ratio: 640 / 440; background: var(--bg); border-radius: 6px; overflow: hidden; }
+    .econ-diagram-gallery-card:hover { border-color: var(--accent); transform: translateY(-3px); box-shadow: 0 12px 28px rgba(0,0,0,0.28); }
+    .econ-diagram-gallery-preview { width: 100%; aspect-ratio: 640 / 440; background: #12121E; border: 1px solid rgba(230,215,176,0.12); border-radius: 8px; overflow: hidden; }
     .econ-diagram-gallery-preview svg { width: 100%; height: 100%; display: block; }
-    .econ-diagram-gallery-title { font-weight: 700; font-size: 13.5px; color: var(--text); }
+    .econ-diagram-gallery-title { font-weight: 800; font-size: 14px; line-height: 1.35; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .econ-diagram-gallery-date { font-size: 11px; opacity: 0.6; }
-    .econ-diagram-gallery-actions { display: flex; justify-content: flex-end; gap: 8px; }
+    .econ-diagram-gallery-actions { display: flex; justify-content: space-between; gap: 8px; margin-top: auto; }
+    @media (max-width: 900px) { .econ-diagram-gallery-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 580px) { .econ-diagram-gallery-heading { align-items: stretch; flex-direction: column; } .econ-diagram-gallery-grid { grid-template-columns: 1fr; } }
+
+    .key-award-toast { position: fixed; top: 82px; right: 24px; z-index: 12000; display: flex; align-items: center; gap: 8px; padding: 12px 17px; border-radius: 999px; background: #12121E; color: var(--text); border: 1px solid var(--accent); box-shadow: 0 10px 30px rgba(0,0,0,0.3); font: 800 15px Arial, sans-serif; pointer-events: none; animation: keyAwardToast 2.4s ease forwards; }
+    @keyframes keyAwardToast { 0% { opacity:0; transform:translateY(-10px) scale(.94); } 12%,72% { opacity:1; transform:translateY(0) scale(1); } 100% { opacity:0; transform:translateY(-8px) scale(.98); } }
 
     /* ─── Math shortcut answer editor (ported from the Shortcut Practice
        Pad prototype — Greek Shift+letter mapping, integral/limit-box
@@ -15594,10 +15604,11 @@ SQIDAQAB
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
         contentInner.innerHTML = `
-            <div class="dashboard-view dashboard-locked" style="max-width:960px; margin:0 auto;">
-                <h1 class="dashboard-locked-logo">Economics <span>Drawing Tool</span></h1>
-                <p class="dashboard-locked-quote">Build and save supply/demand-style diagrams for your course — everything here is yours to come back to any time.</p>
-                <button type="button" class="btn primary" id="econDiagramNewBtn" style="margin:16px auto 24px; display:block;">+ Create new diagram</button>
+            <div class="econ-diagram-gallery-page">
+                <div class="econ-diagram-gallery-heading">
+                    <div class="econ-diagram-gallery-copy"><h1>Economics Drawing Tool</h1><p>Build and save supply-and-demand diagrams, then reopen any card to continue editing it.</p></div>
+                    <button type="button" class="btn primary" id="econDiagramNewBtn">+ Create new diagram</button>
+                </div>
                 <div class="econ-diagram-gallery-grid" id="econDiagramGalleryList"><div class="km-inline-detail-item km-inline-detail-none">Loading…</div></div>
             </div>
         `;
@@ -15673,6 +15684,7 @@ SQIDAQAB
             : undefined;
         renderDiagramWidget(document.getElementById('econDiagramWidgetHost'), null, async (answer) => {
             const saved = await econFetch(`/economics-diagrams/${diagram.id}`, { method: 'PUT', body: JSON.stringify({ diagramState: answer }) });
+            if (saved) await renderEconDiagramGallery();
             return { correct: !!saved, feedback: saved ? 'Saved to your gallery.' : "Couldn't save — try again." };
         }, null, initialState, { mode: 'save', notes: true });
     }
@@ -16627,6 +16639,19 @@ SQIDAQAB
     // ever happens through the button.
     let sfFeed = null; // { slides: [], meta: [], currentIndex, locked, trackEl, viewportEl }
 
+    function showKeyAwardToast(amount, balance) {
+        const awarded = Number(amount) || 0;
+        if (awarded <= 0) return;
+        document.querySelectorAll('.key-award-toast').forEach((el) => el.remove());
+        if (balance !== null && balance !== undefined) rewardKeyBalance = Number(balance) || 0;
+        const toast = document.createElement('div');
+        toast.className = 'key-award-toast';
+        toast.setAttribute('role', 'status');
+        toast.innerHTML = `${rewardKeyIcon(20)}<span>+${awarded} Keys</span>`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2500);
+    }
+
     async function sfPostBackend(path, body) {
         try {
             const { data: { session } } = await supabaseClient.auth.getSession();
@@ -16637,7 +16662,9 @@ SQIDAQAB
                 body: JSON.stringify(body)
             });
             if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
-            return await resp.json();
+            const result = await resp.json();
+            showKeyAwardToast(result.keysAwarded, result.keyBalance);
+            return result;
         } catch (err) {
             console.error('LastMind: short-form feed request failed.', err);
             return null;
