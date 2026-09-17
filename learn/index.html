@@ -20847,41 +20847,48 @@ SQIDAQAB
                 }
             });
 
-            // Every curve/curve intersection is A, B, C... Its horizontal
-            // and vertical guides meet the axes at the matching P1/Q1,
-            // P2/Q2... values. These are the named corners used by the
-            // region input below, so what the learner types is visible on
-            // the diagram itself rather than inferred from curve endpoints.
-            let letterSeq = 0;
-            for (let i = 0; i < placedPolys.length; i++) {
-                for (let j = i + 1; j < placedPolys.length; j++) {
-                    const hit = diagramPolylineIntersection(placedPolys[i], placedPolys[j]);
-                    if (!hit) continue;
-                    letterSeq++;
-                    if (letterSeq > 26) break;
-                    const label = String.fromCharCode(64 + letterSeq);
-                    // Calculate approximate price and quantity values from coordinates
-                    const priceRange = Math.abs(DIAGRAM_PRICE_AXIS[1].y - DIAGRAM_PRICE_AXIS[0].y);
-                    const qtyRange = Math.abs(DIAGRAM_QUANTITY_AXIS[1].x - DIAGRAM_QUANTITY_AXIS[0].x);
-                    const priceFraction = (DIAGRAM_PRICE_AXIS[0].y - hit.y) / priceRange;
-                    const qtyFraction = (hit.x - DIAGRAM_QUANTITY_AXIS[0].x) / qtyRange;
-                    // Show as P and Q labels with fraction of range (0-100 scale)
-                    const priceValue = Math.round(priceFraction * 100);
-                    const qtyValue = Math.round(qtyFraction * 100);
-                    const coordLabel = `${label} (P=${priceValue}, Q=${qtyValue})`;
-                    state.intersections.push({ x: hit.x, y: hit.y, label, priceValue, qtyValue });
+            // Every intersection is A, B, C... This includes a curve meeting
+            // either axis as well as one curve meeting another, so axis-
+            // bounded regions have named corners too. Curve/curve crossings
+            // additionally project to matching P1/Q1, P2/Q2... axis values.
+            let letterSeq = 0, guideSeq = 0;
+            function addNamedIntersection(hit, showGuides) {
+                if (!hit || letterSeq >= 26) return;
+                // Three lines can occasionally meet at the same coordinate;
+                // that is one visible corner and should receive one letter.
+                if (state.intersections.some((point) => Math.hypot(point.x - hit.x, point.y - hit.y) < 2)) return;
+                letterSeq++;
+                const label = String.fromCharCode(64 + letterSeq);
+                const priceRange = Math.abs(DIAGRAM_PRICE_AXIS[1].y - DIAGRAM_PRICE_AXIS[0].y);
+                const qtyRange = Math.abs(DIAGRAM_QUANTITY_AXIS[1].x - DIAGRAM_QUANTITY_AXIS[0].x);
+                const priceValue = Math.round(((DIAGRAM_PRICE_AXIS[0].y - hit.y) / priceRange) * 100);
+                const qtyValue = Math.round(((hit.x - DIAGRAM_QUANTITY_AXIS[0].x) / qtyRange) * 100);
+                const coordLabel = `${label} (P=${priceValue}, Q=${qtyValue})`;
+                state.intersections.push({ x: hit.x, y: hit.y, label, priceValue, qtyValue });
+                if (showGuides) {
+                    guideSeq++;
                     svg.appendChild(svgElement('line', { x1: hit.x, y1: hit.y, x2: DIAGRAM_PRICE_AXIS[0].x, y2: hit.y, class: 'diagram-intersection-guide' }));
                     svg.appendChild(svgElement('line', { x1: hit.x, y1: hit.y, x2: hit.x, y2: DIAGRAM_QUANTITY_AXIS[0].y, class: 'diagram-intersection-guide' }));
                     const pLabel = svgElement('text', { x: DIAGRAM_PRICE_AXIS[0].x - 6, y: hit.y + 4, class: 'diagram-intersection-label', 'text-anchor': 'end' });
-                    pLabel.textContent = `P${letterSeq}`;
+                    pLabel.textContent = `P${guideSeq}`;
                     svg.appendChild(pLabel);
                     const qLabel = svgElement('text', { x: hit.x, y: DIAGRAM_QUANTITY_AXIS[0].y + 16, class: 'diagram-intersection-label', 'text-anchor': 'middle' });
-                    qLabel.textContent = `Q${letterSeq}`;
+                    qLabel.textContent = `Q${guideSeq}`;
                     svg.appendChild(qLabel);
-                    svg.appendChild(svgElement('circle', { cx: hit.x, cy: hit.y, r: 2.5, class: 'diagram-curve-handle-dot' }));
-                    const labelEl = svgElement('text', { x: hit.x - 8, y: hit.y - 8, class: 'diagram-intersection-label diagram-label-point', 'text-anchor': 'middle', 'data-label': label, title: coordLabel });
-                    labelEl.textContent = label;
-                    svg.appendChild(labelEl);
+                }
+                svg.appendChild(svgElement('circle', { cx: hit.x, cy: hit.y, r: 2.5, class: 'diagram-curve-handle-dot' }));
+                const labelEl = svgElement('text', { x: hit.x - 8, y: hit.y - 8, class: 'diagram-intersection-label diagram-label-point', 'text-anchor': 'middle', 'data-label': label, title: coordLabel });
+                labelEl.textContent = label;
+                svg.appendChild(labelEl);
+            }
+            placedPolys.forEach((poly) => {
+                addNamedIntersection(diagramPolylineIntersection(poly, DIAGRAM_PRICE_AXIS), false);
+                addNamedIntersection(diagramPolylineIntersection(poly, DIAGRAM_QUANTITY_AXIS), false);
+            });
+            for (let i = 0; i < placedPolys.length; i++) {
+                for (let j = i + 1; j < placedPolys.length; j++) {
+                    const hit = diagramPolylineIntersection(placedPolys[i], placedPolys[j]);
+                    addNamedIntersection(hit, true);
                 }
             }
 
