@@ -1467,7 +1467,7 @@
        own knowledge, then every direct link - reusing .km-kd-* from the
        knowledge map's own node sidebar (see renderKnowledgeDropdownItem)
        so both places share one visual language and one implementation. */
-    .km-notes-body { max-width: 640px; }
+    .km-notes-body { max-width: 1080px; width: 100%; }
     /* .km-inline-detail-label defaults to color:var(--accent) (cream) -
        correct everywhere else it's used (always nested inside the graph
        view's own .km-inline-detail, a --panel/burgundy surface), but the
@@ -1485,6 +1485,11 @@
        AI-generated, never shared. See renderPersonalNoteEditor. */
     .km-notes-header-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
     .km-notes-template-btn { flex: none; font-size: 11.5px; padding: 6px 12px; }
+    .km-notes-columns { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr); gap: 22px; align-items: start; margin-top: 16px; }
+    .km-notes-generated-column, .km-notes-personal-column { min-width: 0; }
+    .km-notes-column-label { font: 700 11px Arial, sans-serif; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.58; margin-bottom: 9px; }
+    .km-notes-links-panel { margin-top: 20px; }
+    @media (max-width: 880px) { .km-notes-columns { grid-template-columns: 1fr; } }
     .km-personal-note { margin-bottom: 18px; }
     .km-personal-note-heading-input {
         /* color:var(--ink), not var(--text) (cream) - this and the
@@ -1508,7 +1513,7 @@
     /* Template mode needs more than .km-notes-body's usual 640px reading
        width once the extras column sits alongside the main one - applied
        only while template mode is active (see renderPersonalNoteEditor). */
-    .km-notes-body.km-notes-body-wide { max-width: 900px; }
+    .km-notes-body.km-notes-body-wide { max-width: 1180px; }
 
     .km-personal-note-guidance {
         font-size: 11.5px; line-height: 1.65; opacity: 0.8; background: rgba(230, 215, 176, 0.05);
@@ -5299,11 +5304,6 @@
                  so it never gets wiped by a reload — see
                  applyNotesTreeSearch. -->
             <div class="notes-tree-list" id="notesTreeList">
-                <!-- General notes - not tied to any lesson/subject, see
-                     renderGeneralNotesSection - a static sibling of the
-                     subject tree itself so search (applyNotesTreeSearch,
-                     scoped to .notes-tree-subject) never touches it. -->
-                <div class="notes-general-section" id="notesGeneralSection"></div>
                 <input type="text" class="notes-tree-search-input" id="notesTreeSearchInput" placeholder="Search lessons…">
                 <div class="notes-tree-content" id="notesTreeContent"></div>
             </div>
@@ -5554,7 +5554,7 @@
                      here puts every topbar button in the one row that
                      actually handles overflow. -->
                 <div class="topbar-actions" id="topbarActions">
-                    <button class="cortex-btn-topbar" id="buyMoreTokensBtn" type="button">Upgrade</button>
+                    <button class="cortex-btn-topbar" id="buyMoreTokensBtn" type="button" style="display:none;">Buy Extra Locks</button>
                     <button class="cortex-btn-topbar" id="rewardsTopbarBtn" type="button">Rewards</button>
                     <button class="cortex-btn-topbar" id="practiceQuestionsTopbarBtn" type="button">Exam Preparation</button>
                     <button class="cortex-btn-topbar" id="progressReportTopbarBtn" type="button">Progress Report</button>
@@ -19390,7 +19390,7 @@ SQIDAQAB
         const contentEl = document.getElementById('notesTreeContent');
         contentEl.innerHTML = '<div class="empty-hint">Loading…</div>';
         showNotesEmptyState();
-        const [index] = await Promise.all([fetchNotesIndex(), refreshGeneralNotesSection()]);
+        const index = await fetchNotesIndex();
         renderNotesTree(contentEl, index);
     }
 
@@ -19614,17 +19614,25 @@ SQIDAQAB
                     <div class="km-inline-detail-label" style="margin-bottom:0;">${escapeHtml(node.label)}</div>
                     <button type="button" class="btn km-notes-template-btn">+ Add template</button>
                 </div>
-                <div id="km-kd-own" style="margin-bottom:14px;"></div>
-                <div id="km-personal-note"></div>
-                <div class="km-kd-panel">
+                <div class="km-notes-columns">
+                    <section class="km-notes-generated-column">
+                        <div class="km-notes-column-label">Lesson notes</div>
+                        <div id="km-kd-own"></div>
+                    </section>
+                    <section class="km-notes-personal-column">
+                        <div class="km-notes-column-label">Your notes</div>
+                        <div id="km-personal-note"></div>
+                    </section>
+                </div>
+                ${node.links.length ? `<div class="km-kd-panel km-notes-links-panel">
                     ${node.links.length ? node.links.map((l, i) => l.unlocked
                         ? `<div class="km-kd-item" data-kd-idx="${i}"></div>`
                         : `<div class="km-kd-item km-kd-item-locked">
                                <span>→ ${escapeHtml(l.toLabel)}</span>
                                <div class="km-notes-link-locked-hint">Start this link's review to unlock its notes - you'll see it as soon as you reach its explanation, no need to answer the question first.</div>
                            </div>`
-                    ).join('') : '<div class="km-inline-detail-item km-inline-detail-none">No links tested yet for this concept.</div>'}
-                </div>
+                    ).join('') : ''}
+                </div>` : ''}
             </div>
         `;
         renderPersonalNoteEditor(contentInner.querySelector('#km-personal-note'), contentInner.querySelector('.km-notes-template-btn'), nodeNoteStore(node.nodeId));
