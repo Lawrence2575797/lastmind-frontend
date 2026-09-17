@@ -5268,6 +5268,12 @@
     .btn-on-content:hover {
         background: rgba(26, 26, 28, 0.06);
     }
+    .modal > .sf-wizard-close-btn {
+        position: absolute; top: 12px; right: 12px; width: 32px; height: 32px;
+        display: grid; place-items: center; border: 1px solid rgba(230,215,176,.3);
+        border-radius: 50%; background: transparent; color: var(--text); font-size: 22px;
+        line-height: 1; cursor: pointer;
+    }
 
     /* Dark-surface colour contract. --ink is deliberately charcoal on the
        birch page, but any component that paints its own charcoal surface
@@ -5664,6 +5670,7 @@
 <!-- ─── NEW FOLDER MODAL ─── -->
 <div class="modal-overlay" id="folderModalOverlay">
     <div class="modal">
+        <button type="button" class="sf-wizard-close-btn" id="closeFolderModalBtn" aria-label="Close add subject">×</button>
         <h3>New Subject</h3>
 
         <div class="match-suggestion" id="matchSuggestion">
@@ -5712,6 +5719,7 @@
      just asks for Title + Description directly. -->
 <div class="modal-overlay" id="customFolderModalOverlay">
     <div class="modal">
+        <button type="button" class="sf-wizard-close-btn" id="closeCustomFolderModalBtn" aria-label="Close add custom subject">×</button>
         <h3>New Custom Subject</h3>
         <div class="field">
             <label for="customFolderTitleInput">Title</label>
@@ -14337,6 +14345,7 @@ SQIDAQAB
     }
 
     document.getElementById('cancelCustomFolderBtn').addEventListener('click', closeCustomFolderModal);
+    document.getElementById('closeCustomFolderModalBtn').addEventListener('click', closeCustomFolderModal);
     document.getElementById('customFolderModalOverlay').addEventListener('click', (e) => {
         if (e.target.id === 'customFolderModalOverlay') closeCustomFolderModal();
     });
@@ -14537,6 +14546,7 @@ SQIDAQAB
 
     try {
         document.getElementById('cancelFolderBtn').addEventListener('click', closeFolderModal);
+        document.getElementById('closeFolderModalBtn').addEventListener('click', closeFolderModal);
         document.getElementById('folderModalOverlay').addEventListener('click', (e) => {
             if (e.target.id === 'folderModalOverlay') closeFolderModal();
         });
@@ -19097,6 +19107,9 @@ SQIDAQAB
     // hardcoding the only one.
     const SF_WIZARD_SUBJECTS = [
         { key: 'biology', label: 'Biology (Triple Science)', subject: 'Biology', examLesson: true,
+          qualifications: [{ label: 'GCSE Higher', qualification: 'GCSE Higher' }],
+          examBoards: ['AQA'] },
+        { key: 'chemistry', label: 'Chemistry (Triple Science)', subject: 'Chemistry', examLesson: true,
           qualifications: [{ label: 'GCSE Higher', qualification: 'GCSE Higher' }],
           examBoards: ['AQA'] },
         { key: 'economics', label: 'Economics', subject: 'Economics', examLesson: true,
