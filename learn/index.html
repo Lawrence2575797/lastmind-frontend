@@ -8560,6 +8560,22 @@ SQIDAQAB
     const REWARD_KEY_PRICE = 75;
     const rewardKeyIcon = (size = 18) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="8" cy="12" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M12 12h9m-3 0v3m-3-3v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
 
+    async function fetchKeyBalance() {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return null;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/keys/balance`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) return null;
+            const data = await resp.json();
+            return Number(data.balance) || 0;
+        } catch (err) {
+            console.error('LastMind: failed to load Keys balance.', err);
+            return null;
+        }
+    }
+
     async function applyRewardPreset(preset, card) {
         if (!preset || !REWARD_UNLOCKED_THEME_KEYS.has(preset.key)) return;
         currentTheme = { ...currentTheme, ...preset.theme };
@@ -8619,6 +8635,10 @@ SQIDAQAB
                     applyRewardPreset(preset, card);
                 }
             });
+        });
+        fetchKeyBalance().then((balance) => {
+            const balanceEl = document.getElementById('rewardKeysBalance');
+            if (balanceEl && balance !== null) balanceEl.textContent = String(balance);
         });
     }
     function exitSpecPracticeMode() {
