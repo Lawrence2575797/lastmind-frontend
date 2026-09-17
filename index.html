@@ -401,6 +401,96 @@
             .how-lane::after { top: calc(66.666% + 4px); }
         }
 
+        /* ─── HOW TO LEARN ─── */
+        .learn-showcase {
+            padding: 30px 48px 130px;
+        }
+
+        .learn-showcase-heading {
+            margin: 0;
+            text-align: center;
+            color: var(--text);
+            font-size: clamp(1.9rem, 4vw, 2.8rem);
+            line-height: 1.15;
+        }
+
+        .learn-showcase-heading span { color: var(--accent); }
+
+        .learn-showcase-rule {
+            width: 56px;
+            height: 2px;
+            margin: 28px auto 64px;
+            background: var(--accent);
+            opacity: 0.55;
+        }
+
+        .learn-showcase-flow {
+            width: min(1480px, 100%);
+            margin: 0 auto;
+        }
+
+        .learn-showcase-stage {
+            display: grid;
+            grid-template-columns: minmax(180px, 0.75fr) minmax(420px, 2fr) minmax(210px, 0.9fr);
+            align-items: center;
+            gap: clamp(24px, 4vw, 64px);
+        }
+
+        .learn-showcase-title {
+            color: var(--accent);
+            font-size: clamp(1.25rem, 2vw, 1.75rem);
+            line-height: 1.35;
+            text-align: right;
+        }
+
+        .learn-showcase-image-wrap {
+            overflow: hidden;
+            border: 1px solid rgba(230, 215, 176, 0.28);
+            border-radius: 12px;
+            background: var(--panel);
+            box-shadow: 0 18px 48px rgba(0,0,0,0.3);
+        }
+
+        .learn-showcase-image {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+
+        .learn-showcase-desc {
+            color: var(--text);
+            font-family: 'Arial', sans-serif;
+            font-size: clamp(0.95rem, 1.25vw, 1.08rem);
+            line-height: 1.75;
+            opacity: 0.76;
+        }
+
+        .learn-showcase-arrow {
+            display: grid;
+            grid-template-columns: minmax(180px, 0.75fr) minmax(420px, 2fr) minmax(210px, 0.9fr);
+            gap: clamp(24px, 4vw, 64px);
+            padding: 22px 0;
+            color: var(--accent);
+            font-size: 2.4rem;
+            line-height: 1;
+            text-align: center;
+            opacity: 0.72;
+        }
+
+        .learn-showcase-arrow span { grid-column: 2; }
+
+        @media (max-width: 900px) {
+            .learn-showcase { padding: 20px 22px 90px; }
+            .learn-showcase-rule { margin-bottom: 42px; }
+            .learn-showcase-stage { grid-template-columns: 1fr; gap: 15px; }
+            .learn-showcase-title { text-align: center; }
+            .learn-showcase-desc { text-align: center; max-width: 620px; margin: 0 auto; }
+            .learn-showcase-image-wrap { order: 2; }
+            .learn-showcase-title { order: 1; }
+            .learn-showcase-desc { order: 3; }
+            .learn-showcase-arrow { display: block; padding: 24px 0; }
+        }
+
         /* ─── FOOTER ─── */
         footer {
             border-top: 1px solid rgba(230, 215, 176, 0.1);
@@ -938,6 +1028,72 @@
             </div>
         </div>
 
+    </section>
+
+    <!-- ─── HOW TO LEARN ON LASTMIND ─── -->
+    <section class="learn-showcase" aria-labelledby="learnShowcaseHeading">
+        <h2 class="learn-showcase-heading" id="learnShowcaseHeading">How to learn on <span>LastMind</span></h2>
+        <div class="learn-showcase-rule"></div>
+
+        <div class="learn-showcase-flow">
+            <article class="learn-showcase-stage">
+                <h3 class="learn-showcase-title">See our LastMind knowledge maps</h3>
+                <div class="learn-showcase-image-wrap">
+                    <img class="learn-showcase-image" src="/assets/homepage-learning/knowledge-maps.png" alt="A LastMind knowledge map showing interconnected economics lessons" loading="lazy">
+                </div>
+                <p class="learn-showcase-desc">These show your courses divided into many bite-sized, interconnected lessons.</p>
+            </article>
+
+            <div class="learn-showcase-arrow" aria-hidden="true"><span>↓</span></div>
+
+            <article class="learn-showcase-stage">
+                <h3 class="learn-showcase-title">Take lessons</h3>
+                <div class="learn-showcase-image-wrap">
+                    <img class="learn-showcase-image" src="/assets/homepage-learning/take-lessons.png" alt="A short-form LastMind lesson with practice questions beside it" loading="lazy">
+                </div>
+                <p class="learn-showcase-desc">Scroll through your short-form lessons, answering questions as you go.</p>
+            </article>
+
+            <div class="learn-showcase-arrow" aria-hidden="true"><span>↓</span></div>
+
+            <article class="learn-showcase-stage">
+                <h3 class="learn-showcase-title">Revisit lessons as scheduled by LastMind</h3>
+                <div class="learn-showcase-image-wrap">
+                    <img class="learn-showcase-image" src="/assets/homepage-learning/scheduled-reviews.png" alt="A personalised day-one review scheduled by LastMind" loading="lazy">
+                </div>
+                <p class="learn-showcase-desc">Our scheduler determines the best time to review concepts, personalised to you.</p>
+            </article>
+
+            <div class="learn-showcase-arrow" aria-hidden="true"><span>↓</span></div>
+
+            <article class="learn-showcase-stage">
+                <h3 class="learn-showcase-title">Take exam questions</h3>
+                <div class="learn-showcase-image-wrap">
+                    <img class="learn-showcase-image" src="/assets/homepage-learning/exam-questions.png" alt="A replica economics exam question in LastMind" loading="lazy">
+                </div>
+                <p class="learn-showcase-desc">Apply your knowledge by answering replica exam questions and correcting your errors.</p>
+            </article>
+
+            <div class="learn-showcase-arrow" aria-hidden="true"><span>↓</span></div>
+
+            <article class="learn-showcase-stage">
+                <h3 class="learn-showcase-title">Enjoy exclusive tools in our Maths Tool and Economics Diagram Tool</h3>
+                <div class="learn-showcase-image-wrap">
+                    <img class="learn-showcase-image" src="/assets/homepage-learning/specialist-tools.png" alt="The LastMind Economics Diagram Tool" loading="lazy">
+                </div>
+                <p class="learn-showcase-desc">Work through maths questions using a custom keyboard designed to make typing efficient, and build a gallery of economics diagrams to work through.</p>
+            </article>
+
+            <div class="learn-showcase-arrow" aria-hidden="true"><span>↓</span></div>
+
+            <article class="learn-showcase-stage">
+                <h3 class="learn-showcase-title">Earn cosmetic rewards</h3>
+                <div class="learn-showcase-image-wrap">
+                    <img class="learn-showcase-image" src="/assets/homepage-learning/cosmetic-rewards.png" alt="LastMind cosmetic background rewards" loading="lazy">
+                </div>
+                <p class="learn-showcase-desc">Keys are earned from long-term learning progress. Redeem them for cosmetic rewards!</p>
+            </article>
+        </div>
     </section>
 
     <!-- ─── FOOTER ─── -->
