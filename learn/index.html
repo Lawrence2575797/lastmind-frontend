@@ -3773,9 +3773,13 @@
     .keys-balance-copy { display: flex; flex-direction: column; gap: 2px; font-family: Arial, sans-serif; }
     .keys-balance-label { font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.55; }
     .keys-balance-value { font-size: 0.94rem; font-weight: 700; }
-    .rewards-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+    .rewards-section-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 14px; }
     .rewards-section-heading h2 { margin: 0; font: 700 1.2rem Georgia, serif; }
     .rewards-section-heading span { font: 0.7rem Arial, sans-serif; opacity: 0.52; }
+    .rewards-section-actions { display: flex; align-items: center; gap: 12px; }
+    .reward-default-btn { padding: 7px 11px; border: 1px solid rgba(26,26,28,0.32); border-radius: 7px; background: #12121E; color: #E6D7B0; font: 700 0.72rem Arial, sans-serif; cursor: pointer; }
+    .reward-default-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 14px rgba(26,26,28,0.16); }
+    .reward-default-btn:disabled { cursor: wait; opacity: 0.62; transform: none; }
     .reward-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
     .reward-card { position: relative; overflow: hidden; min-width: 0; border-radius: 12px; background: var(--panel); color: var(--text); border: 1px solid rgba(26,26,28,0.24); box-shadow: 0 8px 24px rgba(26,26,28,0.12); transition: transform 0.18s, box-shadow 0.18s; }
     .reward-preview { position: relative; aspect-ratio: 16 / 10; background-position: center; background-size: cover; overflow: hidden; }
@@ -8729,6 +8733,26 @@ SQIDAQAB
         }
     }
 
+    async function restoreDefaultTheme(button) {
+        const previousTheme = { ...currentTheme };
+        currentTheme = { ...THEME_DEFAULTS };
+        applyTheme(currentTheme);
+        button.disabled = true;
+        const originalLabel = button.textContent;
+        button.textContent = 'Original colours applied ✓';
+        try {
+            await saveThemeSettings(THEME_DEFAULTS);
+        } catch (err) {
+            console.error('LastMind: failed to restore the original theme.', err);
+            currentTheme = previousTheme;
+            applyTheme(currentTheme);
+            button.textContent = "Couldn't save — try again";
+        } finally {
+            button.disabled = false;
+            setTimeout(() => { button.textContent = originalLabel; }, 1800);
+        }
+    }
+
     function renderRewardsPage(loadLatest = true) {
         specPracticeMode = false;
         kmGraphMode = false;
@@ -8742,16 +8766,15 @@ SQIDAQAB
             <section class="rewards-view" aria-labelledby="rewardsTitle">
                 <div class="rewards-hero">
                     <div>
-                        <p class="rewards-eyebrow">The LastMind shop</p>
                         <h1 class="rewards-title" id="rewardsTitle">Rewards</h1>
-                        <p class="rewards-intro">Turn genuine learning progress into a space that feels like yours. New backgrounds will become available to unlock with Keys.</p>
+                        <p class="rewards-intro">Make LastMind yours. Earn Keys through verified learning and unlock new worlds to study in.</p>
                     </div>
                     <div class="keys-balance" aria-label="Keys balance">
                         <span class="keys-balance-icon">${rewardKeyIcon(21)}</span>
                         <span class="keys-balance-copy"><span class="keys-balance-label">Balance</span><span class="keys-balance-value"><span id="rewardKeysBalance">${rewardKeyBalance}</span> Keys</span></span>
                     </div>
                 </div>
-                <div class="rewards-section-heading"><h2>Backgrounds</h2><span>${THEME_PRESETS.length} available</span></div>
+                <div class="rewards-section-heading"><h2>Backgrounds</h2><div class="rewards-section-actions"><span>${THEME_PRESETS.length} available</span><button type="button" class="reward-default-btn" id="rewardDefaultThemeBtn">Use original colours</button></div></div>
                 <div class="reward-grid">
                     ${[...THEME_PRESETS].sort((a, b) => {
                         if (a.key === 'cosycafe') return -1;
@@ -8785,6 +8808,7 @@ SQIDAQAB
                 }
             });
         });
+        document.getElementById('rewardDefaultThemeBtn').addEventListener('click', (event) => restoreDefaultTheme(event.currentTarget));
         if (loadLatest) fetchBackgroundRewards().then((rewards) => {
             if (!rewards) return;
             rewardKeyBalance = Number(rewards.balance) || 0;
