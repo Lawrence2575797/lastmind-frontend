@@ -25295,14 +25295,14 @@ SQIDAQAB
 
         refreshLocksChip();
 
-        // Render whatever's already cached in IndexedDB immediately rather
-        // than blocking the first paint on reconcileFoldersWithServer's
-        // network round trip — the compile backend can take up to a minute
-        // to respond on a cold start, and the folder list shouldn't sit on
-        // "No folders yet" the whole time it does. Server sync still runs,
-        // just in the background, and re-renders once it lands.
+        // Paint the local subject cache immediately, then sync the account's
+        // server-side subjects. A populated local cache can continue without
+        // waiting; an empty cache MUST wait for sync before deciding whether
+        // this is a first-time user. Otherwise a returning student logging in
+        // on a new/cleared browser is incorrectly shown "What are you
+        // studying?" while their existing subjects are still downloading.
         await refreshFolderList();
-        reconcileFoldersWithServer()
+        const folderSyncPromise = reconcileFoldersWithServer()
             .then(refreshFolderList)
             .catch((err) => console.error('LastMind: folder reconcile failed.', err));
 
@@ -25339,28 +25339,16 @@ SQIDAQAB
         // Skipped when a deep link just opened a specific page — showing
         // the tour on top of that would just be in the way.
         //
-        // The subject-picker wizard is a genuine one-time-ever, first-
-        // signup gate (completedSubjectPicker false) - or, separately, a
-        // real empty-state fallback for an account with literally zero
-        // subjects (for whatever reason, e.g. having deleted them all),
-        // since there's nothing else useful this screen could show them
-        // either way. It must NOT re-show just because today's feed
-        // happens to have nothing due/new right now - a real, reported
-        // bug: a student who'd already completed onboarding and has real
-        // subjects got asked "what are you studying?" again on every
-        // login once they'd caught up on that day's lessons, since
-        // sfMaybeShowFeed legitimately returns false whenever there's
-        // simply nothing due yet. That case now falls through to the
-        // normal Cortex welcome screen instead, same as any other
-        // caught-up return visit. Deliberately does NOT let a failed
-        // tourStatus fetch (e.g. a migration that hasn't been run yet)
-        // block the feed from ever showing - that silently broke the whole
-        // feature for every account until the fix below: a null tourStatus
-        // just means "skip the tour-specific checks", not "show nothing".
+        // The subject picker is governed solely by whether the account has
+        // any subjects. It is not a login prompt and it is not tied to the
+        // onboarding-status flag: an existing subject means Cortex must not
+        // ask what the student is studying again. If the local cache was
+        // empty, wait for account sync first so this test reflects the
+        // Subjects section in the sidebar rather than one device's cache.
         if (!openedViaDeepLink) {
+            if (!folders.length) await folderSyncPromise;
             const tourStatus = await fetchOnboardingStatus();
-            const isFirstTime = tourStatus ? !tourStatus.completedSubjectPicker : false;
-            if (isFirstTime || !folders.length) {
+            if (!folders.length) {
                 sfShowSubjectPickerWizard();
             } else {
                 if (tourStatus) {
