@@ -3137,7 +3137,7 @@
         display: flex;
         align-items: center;
         gap: 16px;
-        padding: 16px 26px 24px 26px;
+        padding: 20px 26px 28px 26px;
         border-bottom: 1px solid rgba(230, 215, 176, 0.1);
     }
 
@@ -3181,7 +3181,7 @@
     .topbar-actions {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 8px;
         min-width: 0;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
@@ -3236,7 +3236,7 @@
     .cortex-btn-topbar {
         flex-shrink: 0;
         font-family: 'Arial', sans-serif;
-        font-size: 0.64rem;
+        font-size: 0.72rem;
         font-weight: 600;
         letter-spacing: 0.01em;
         /* Same background/text pair as .sidebar itself (var(--panel)/
@@ -3247,7 +3247,7 @@
         background: var(--panel);
         border: 1px solid rgba(230, 215, 176, 0.3);
         color: var(--text);
-        padding: 8px 8px;
+        padding: 10px 12px;
         border-radius: 6px;
         cursor: pointer;
         white-space: nowrap;
@@ -3777,6 +3777,16 @@
         .keys-balance { align-self: flex-end; }
         .reward-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
+
+    /* Primary destinations bookend the larger action bar. Upgrade remains
+       filled; Rewards and Tutoring use a brighter framed treatment so all
+       three are easier to find without making every utility button loud. */
+    #rewardsTopbarBtn, #founderTutoringTopbarBtn {
+        border: 2px solid var(--accent);
+        font-weight: 800;
+        box-shadow: 0 2px 10px rgba(18,18,30,0.24);
+    }
+    #rewardsTopbarBtn:hover, #founderTutoringTopbarBtn:hover { transform: translateY(-1px); }
     @media (max-width: 430px) { .reward-grid { grid-template-columns: 1fr; } }
 
     /* Image-backed background textures (see THEME_IMAGE_BACKGROUNDS) -
@@ -5556,19 +5566,19 @@
                      here puts every topbar button in the one row that
                      actually handles overflow. -->
                 <div class="topbar-actions" id="topbarActions">
-                    <button class="cortex-btn-topbar" id="buyMoreTokensBtn" type="button" style="display:none;">Buy Extra Locks</button>
                     <button class="cortex-btn-topbar" id="rewardsTopbarBtn" type="button">Rewards</button>
+                    <button class="cortex-btn-topbar upgrade-topbar-btn" id="upgradeTopbarBtn" type="button" style="display:none;">Upgrade</button>
+                    <button class="cortex-btn-topbar" id="buyMoreTokensBtn" type="button" style="display:none;">Buy Extra Locks</button>
                     <button class="cortex-btn-topbar" id="practiceQuestionsTopbarBtn" type="button">Exam Preparation</button>
                     <button class="cortex-btn-topbar" id="progressReportTopbarBtn" type="button">Progress Report</button>
                     <button class="cortex-btn-topbar" id="knowledgeMapTopbarBtn" type="button">Knowledge Map</button>
-                    <button class="cortex-btn-topbar upgrade-topbar-btn" id="upgradeTopbarBtn" type="button" style="display:none;">Upgrade</button>
                     <button class="cortex-btn-topbar" id="peerTutoringHubBtn" type="button">Peer tutoring</button>
                     <button class="cortex-btn-topbar" id="myTutoringTopbarBtn" type="button">My Tutoring<span class="mt-badge" id="mtBadge" style="display:none;"></span></button>
                     <button class="cortex-btn-topbar" id="calendarTopbarBtn" type="button">Calendar</button>
                     <button class="cortex-btn-topbar" id="mathsToolTopbarBtn" type="button" style="display:none;">Maths Tool</button>
                     <button class="cortex-btn-topbar" id="econDiagramToolTopbarBtn" type="button" style="display:none;">Economics Drawing Tool</button>
-                    <button class="cortex-btn-topbar" id="founderTutoringTopbarBtn" type="button">Tutoring</button>
                     <button class="cortex-btn-topbar" id="adminQueueTopbarBtn" type="button" style="display:none;">Overdue Requests<span class="mt-badge" id="aqBadge" style="display:none;"></span></button>
+                    <button class="cortex-btn-topbar" id="founderTutoringTopbarBtn" type="button">Tutoring</button>
                 </div>
                 <!-- Mobile-only "there's more here" hint — a fade plus a
                      tap-to-scroll button, shown only when topbarActions
@@ -18458,7 +18468,7 @@ SQIDAQAB
     async function sfLoadSidePracticePanel(folder, conceptId, concept) {
         const host = document.querySelector('.sf-side-practice-body');
         if (!host) return;
-        if (!folder || !conceptId) {
+        if (!folder || !concept) {
             host.innerHTML = '<p class="sf-side-practice-status">Practice questions are not available for this lesson yet.</p>';
             return;
         }
@@ -18661,7 +18671,9 @@ SQIDAQAB
             const rec = scopeFolder ? await sfComputeFolderRecommendation(scopeFolder) : await sfComputeGlobalNextLesson();
             if (sfFeed !== activeFeed || !trackEl.isConnected) return true;
             if (!rec) { sfFeed = null; return false; }
-            sfLoadSidePracticePanel(rec.folder || scopeFolder, rec.node?.conceptId, rec.node?.label);
+            const practiceLabel = rec.node?.label || rec.check?.label;
+            const practiceConceptId = rec.node?.conceptId || rec.check?.conceptId;
+            sfLoadSidePracticePanel(rec.folder || scopeFolder, practiceConceptId, practiceLabel);
             trackEl.querySelector('[role="status"]').textContent = 'Preparing ' + (rec.node?.label || 'your lesson') + '...';
             const built = await sfBuildSlidesForRecommendation(rec);
             if (sfFeed !== activeFeed || !trackEl.isConnected) return true;
