@@ -744,6 +744,61 @@
         stroke-opacity: 0.05;
     }
 
+    /* Graph arrows are integration lessons, not just decoration. The
+       visible line keeps its mastery colour while a wider transparent
+       hit-path makes the relationship practical to click. */
+    .km-link-hit {
+        fill: none;
+        stroke: transparent;
+        stroke-width: 16px;
+        pointer-events: stroke;
+        cursor: pointer;
+    }
+    .km-link.km-integration-ready {
+        stroke-width: 2.2px;
+        stroke-opacity: 0.88;
+        cursor: pointer;
+    }
+    .km-link.km-integration-ready.km-link-hovered {
+        stroke: var(--accent);
+        stroke-width: 3.5px;
+        stroke-opacity: 1;
+        filter: drop-shadow(0 0 3px rgba(230, 215, 176, 0.45));
+    }
+    .km-link.km-integration-waiting { stroke-dasharray: 6 4; }
+    .km-link.km-integration-locked { stroke-opacity: 0.2; }
+
+    .km-integration-landing {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 14px;
+    }
+    .km-integration-route {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+        align-items: center;
+        gap: 12px;
+        width: 100%;
+        margin: 8px 0;
+    }
+    .km-integration-concept {
+        padding: 13px 14px;
+        border: 1px solid rgba(230, 215, 176, 0.22);
+        border-radius: 7px;
+        background: rgba(230, 215, 176, 0.06);
+        font: 600 0.84rem/1.35 Arial, sans-serif;
+        text-align: center;
+    }
+    .km-integration-route-arrow { color: var(--accent); font-size: 1.3rem; }
+    .km-kind-key { margin-left: auto; padding-left: 12px; border-left: 1px solid rgba(230,215,176,0.16); }
+    .km-kind-card { width: 18px; height: 11px; border: 1px solid var(--accent); border-radius: 3px; }
+    .km-kind-arrow { font-size: 17px; line-height: 1; color: var(--accent); }
+    @media (max-width: 560px) {
+        .km-integration-route { grid-template-columns: 1fr; }
+        .km-integration-route-arrow { transform: rotate(90deg); justify-self: center; }
+    }
+
     /* Soft subfolder groupings — deliberately neutral (not topic-coloured)
        since node fill is already reserved for mastery state. A background
        region to read as "these belong together", not a hard partition —
@@ -5319,6 +5374,8 @@
                     <span class="km-inline-legend-item"><span class="km-legend-dot km-dot-2"></span>1 spaced review</span>
                     <span class="km-inline-legend-item"><span class="km-legend-dot km-dot-1"></span>Learning</span>
                     <span class="km-inline-legend-item"><span class="km-legend-dot km-dot-0"></span>Not started</span>
+                    <span class="km-inline-legend-item km-kind-key"><span class="km-kind-card"></span>Concept</span>
+                    <span class="km-inline-legend-item"><span class="km-kind-arrow">→</span>Integration lesson</span>
                 </div>
                 <div class="km-inline-empty" style="display:none;"></div>
                 <div class="km-inline-workspace">
@@ -21062,10 +21119,61 @@ SQIDAQAB
             return `M${x1},${s.y} C${midX},${s.y} ${midX},${t.y} ${x2},${t.y}`;
         }
 
+        const graphSchedule = fullData.scheduleByConceptId || new Map();
+        function integrationAccessForLink(link) {
+            const source = link.source;
+            const target = link.target;
+            const sourceEntry = graphSchedule.get(source.conceptId);
+            const targetEntry = graphSchedule.get(target.conceptId);
+            const integrationEntry = graphSchedule.get(`${source.conceptId}->${target.conceptId}::integration`);
+            if (!sourceEntry || !targetEntry) {
+                return { status: 'locked', label: 'Encode both concepts first' };
+            }
+            if ((targetEntry.reps || 0) < 3) {
+                return { status: 'locked', label: `Locked until “${target.label}” completes its first spaced review` };
+            }
+            if (integrationEntry && daysBetweenLocalDays(new Date(), new Date(integrationEntry.due)) > 0) {
+                return { status: 'waiting', label: `Integration review ${formatDueIn(integrationEntry.due)}` };
+            }
+            return {
+                status: 'ready',
+                label: integrationEntry ? 'Integration review ready' : 'Integration lesson unlocked',
+            };
+        }
+
+        function linkClass(d) {
+            return `km-link state-${d.state} km-integration-${integrationAccessForLink(d).status}`;
+        }
+
         const linkSelection = zoomLayer.append('g').selectAll('path')
-            .data(links).join('path').attr('class', (d) => `km-link state-${d.state}`)
+            .data(links).join('path').attr('class', linkClass)
             .attr('marker-end', 'url(#km-link-arrowhead)')
             .attr('d', linkPath);
+
+        // A separate wide transparent path sits over each fine arrow so the
+        // integration is easy to select without making the visual line
+        // itself heavy. Locked and not-yet-due links still open their own
+        // explanation screen; only the Start button is withheld.
+        const linkHitSelection = zoomLayer.append('g').selectAll('path')
+            .data(links).join('path')
+            .attr('class', 'km-link-hit')
+            .attr('d', linkPath)
+            .attr('role', 'button')
+            .attr('tabindex', 0)
+            .attr('aria-label', (d) => `${d.source.label} to ${d.target.label}. ${integrationAccessForLink(d).label}`)
+            .on('mouseenter', (_, d) => linkSelection.filter((link) => link === d).classed('km-link-hovered', true))
+            .on('mouseleave', (_, d) => linkSelection.filter((link) => link === d).classed('km-link-hovered', false))
+            .on('click', (event, d) => {
+                event.stopPropagation();
+                openIntegrationLink(d);
+            })
+            .on('keydown', (event, d) => {
+                if (event.key !== 'Enter' && event.key !== ' ') return;
+                event.preventDefault();
+                event.stopPropagation();
+                openIntegrationLink(d);
+            });
+        linkHitSelection.append('title').text((d) => integrationAccessForLink(d).label);
 
         const nodeGroup = zoomLayer.append('g').selectAll('g')
             .data(nodes, (d) => d.id).join('g')
@@ -21143,7 +21251,10 @@ SQIDAQAB
                 (l.source.id || l.source) === fromNodeId && (l.target.id || l.target) === toNodeId);
             if (!linkDatum) return;
             linkDatum.state = masteryProgressTier(detail);
-            linkSelection.filter((l) => l === linkDatum).attr('class', `km-link state-${linkDatum.state}`);
+            linkSelection.filter((l) => l === linkDatum).attr('class', linkClass);
+            linkHitSelection.filter((l) => l === linkDatum)
+                .attr('aria-label', `${linkDatum.source.label} to ${linkDatum.target.label}. ${integrationAccessForLink(linkDatum).label}`)
+                .select('title').text(integrationAccessForLink(linkDatum).label);
             if (detailEl.dataset.nodeId === fromNodeId) {
                 const fromNodeDatum = (nodeGroup.data() || []).find((n) => n.id === fromNodeId);
                 if (fromNodeDatum) selectKmInlineNode(fromNodeDatum);
@@ -21395,6 +21506,47 @@ SQIDAQAB
         function startNodeReview(d, qualifyingLinks) {
             showLessonFullpage(contentInner, d.id);
             resumeOrStartNodeReview(lessonFullpageBodyEl, d, qualifyingLinks);
+        }
+
+        // An arrow represents its own integration lesson. Opening it never
+        // changes the existing unlock/scheduling rules: both concepts must
+        // be encoded, the downstream concept must have completed its first
+        // real spaced review (reps >= 3), and an existing integration can
+        // only be reviewed once its own schedule says it is due.
+        function openIntegrationLink(link) {
+            const access = integrationAccessForLink(link);
+            const source = link.source;
+            const target = link.target;
+            const integrationEntry = graphSchedule.get(`${source.conceptId}->${target.conceptId}::integration`);
+            showLessonFullpage(contentInner, source.id);
+
+            const statusCopy = access.status === 'locked'
+                ? access.label
+                : access.status === 'waiting'
+                    ? `This integration is in spaced repetition and ${access.label.toLowerCase()}.`
+                    : integrationEntry
+                        ? 'This integration review is ready.'
+                        : 'You have unlocked this integration lesson by completing the first spaced review for the second concept.';
+            lessonFullpageBodyEl.innerHTML = `
+                <div class="km-inline-detail-section km-integration-landing">
+                    <div class="km-inline-detail-eyebrow">Integration lesson</div>
+                    <div class="km-inline-detail-label">Connect two concepts</div>
+                    <div class="km-integration-route">
+                        <div class="km-integration-concept">${escapeHtml(source.label)}</div>
+                        <div class="km-integration-route-arrow" aria-hidden="true">→</div>
+                        <div class="km-integration-concept">${escapeHtml(target.label)}</div>
+                    </div>
+                    <div class="km-inline-detail-item${access.status === 'ready' ? '' : ' km-inline-detail-none'}">${escapeHtml(statusCopy)}</div>
+                    <button type="button" class="btn primary km-start-integration-btn" ${access.status === 'ready' ? '' : 'disabled'}>${integrationEntry ? 'Start integration review' : 'Start integration lesson'}</button>
+                </div>`;
+            const startBtn = lessonFullpageBodyEl.querySelector('.km-start-integration-btn');
+            if (access.status === 'ready') {
+                startBtn.addEventListener('click', () => {
+                    renderNodeReviewIntegrationStart(lessonFullpageBodyEl, source, [target], 0, []);
+                });
+            } else {
+                startBtn.title = access.label;
+            }
         }
 
         function upstreamOf(nodeId) {
