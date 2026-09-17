@@ -1304,8 +1304,9 @@
     /* max-width+margin:auto - without this the root fills the whole
        1200px .content-inner-wide column while the actual text
        (.sf-slide-inner) stays capped at 620px, leaving a wide band of
-       bare panel colour on either side of every slide's content. 760px
-       gives the 620px text column room to breathe (padding, the exit
+       bare panel colour on either side of every slide's content. 900px
+       gives non-exam lessons an 820px question column while leaving room
+       for padding and the exit
        button) without reopening that gap on a wide screen. The
        mini-Cortex side panel (300px, has-mini-cortex) still gets its own
        room since it's now INSIDE this narrower box - see its own CSS. */
@@ -1315,7 +1316,7 @@
        of the feed would run past the viewport. */
     /* The default lesson surface matches the charcoal sidebar. Image-backed
        reward themes still replace this through the theme-bg-image rule. */
-    .sf-feed-root { position: relative; height: calc(100vh - 128px); min-height: 420px; max-width: 760px; margin: 0 auto; border-radius: 12px; overflow: hidden; background: #12121E; color: var(--text); }
+    .sf-feed-root { position: relative; height: calc(100vh - 128px); min-height: 420px; max-width: 900px; margin: 0 auto; border-radius: 12px; overflow: hidden; background: #12121E; color: var(--text); }
     .sf-feed-exit-btn { position: absolute; top: 14px; right: 14px; z-index: 2; width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(0,0,0,0.25); color: var(--text); font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
     /* Persistent greeting above the feed (see sfMountGreetingBanner) - a
        genuine sibling of .sf-feed-root, not part of any one slide, so it
@@ -1323,7 +1324,7 @@
        feed - it "stays", the way it was asked for. Same max-width/margin
        as the feed root itself so it lines up with the box underneath
        rather than spanning the full wide column. */
-    .sf-greeting-banner { max-width: 760px; margin: 0 auto 12px; padding: 0 4px; font-size: 14px; font-style: italic; opacity: 0.75; min-height: 1.2em; }
+    .sf-greeting-banner { max-width: 900px; margin: 0 auto 12px; padding: 0 4px; font-size: 14px; font-style: italic; opacity: 0.75; min-height: 1.2em; }
     /* Matches .sf-feed-root.has-mini-cortex's own widened max-width (see
        its CSS comment) - can't reach that with a CSS sibling selector
        since the banner comes BEFORE the feed root in the DOM, so
@@ -1347,6 +1348,8 @@
        a cut-off" unambiguous once scrolled all the way down. */
     .sf-feed-slide { flex: none; height: 100%; display: flex; align-items: center; align-items: safe center; justify-content: center; padding: 40px 32px 140px; box-sizing: border-box; overflow-y: auto; -webkit-overflow-scrolling: touch; }
     .sf-slide-inner { max-width: 620px; width: 100%; display: flex; flex-direction: column; gap: 14px; }
+    .sf-feed-root:not(.has-mini-cortex) .sf-slide-inner { max-width: 820px; }
+    .sf-feed-root:not(.has-mini-cortex) .sf-question-text { font-size: 20px; }
     .sf-slide-subject { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.6; }
     .sf-slide-explanation { font-size: 17px; line-height: 1.85; }
     .sf-slide-explanation p { margin: 0 0 16px; }
@@ -1409,8 +1412,8 @@
        window would produce. Desktop-only (see the max-width override
        below) - there's no room for a docked panel on a phone screen, and
        the feed's own swipe gestures already cover that case. */
-    /* .sf-feed-root's own max-width (760px, see its base rule) is sized
-       for the 620px text column alone - with the mini-Cortex panel docked
+    /* .sf-feed-root's own max-width (900px, see its base rule) is sized
+       for the expanded question column - with the mini-Cortex panel docked
        inside it, that would squeeze the text column down to ~460px. Widen
        the box by exactly the panel's own width so the text column keeps
        its normal room and the panel is genuinely additional space, not
@@ -18493,7 +18496,8 @@ SQIDAQAB
     function sfMountFeedShell(exitTitle, onClose, scopeFolder, showPracticePanel = false) {
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
-        const hasPracticePanel = isPaidUser && showPracticePanel;
+        const folderCanHavePractice = !scopeFolder || (!!scopeFolder.examBoard && !isCustomLevel(scopeFolder.qualification));
+        const hasPracticePanel = isPaidUser && showPracticePanel && folderCanHavePractice;
         const practicePanelHtml = hasPracticePanel ? `
                 <aside class="sf-mini-cortex-panel sf-side-practice-panel">
                     <div class="sf-mini-cortex-header">Practice Questions</div>
@@ -18526,6 +18530,15 @@ SQIDAQAB
     }
 
     const sfSpecLessonMatchCache = new Map();
+
+    function sfSetPracticePanelVisible(visible) {
+        const panel = document.querySelector('.sf-side-practice-panel');
+        const mobileButton = document.querySelector('.sf-mobile-practice-btn');
+        if (panel) panel.style.display = visible ? '' : 'none';
+        if (mobileButton) mobileButton.style.display = visible ? '' : 'none';
+        document.querySelector('.sf-feed-root')?.classList.toggle('has-mini-cortex', visible);
+        document.querySelector('.sf-greeting-banner')?.classList.toggle('has-mini-cortex', visible);
+    }
 
     function sfPracticeMatchTokens(value) {
         const stopWords = new Set(['a', 'an', 'and', 'the', 'of', 'to', 'in', 'for', 'with', 'on', 'how', 'why', 'introduction']);
@@ -18590,6 +18603,11 @@ SQIDAQAB
     async function sfLoadSidePracticePanel(folder, conceptId, concept) {
         const host = document.querySelector('.sf-side-practice-body');
         if (!host) return;
+        if (!folder || !folder.examBoard || isCustomLevel(folder.qualification)) {
+            sfSetPracticePanelVisible(false);
+            return;
+        }
+        sfSetPracticePanelVisible(true);
         if (!folder || !concept) {
             host.innerHTML = '<p class="sf-side-practice-status">Practice questions are not available for this lesson yet.</p>';
             return;
@@ -18600,7 +18618,7 @@ SQIDAQAB
             if (!session) throw new Error('not signed in');
             const matchedLesson = await sfResolveSpecPracticeLesson(folder, concept, session.access_token);
             if (!matchedLesson) {
-                host.innerHTML = '<p class="sf-side-practice-status">No matching Practice Questions lesson has been set up yet.</p>';
+                sfSetPracticePanelVisible(false);
                 return;
             }
             const practiceConceptId = matchedLesson.conceptId;
