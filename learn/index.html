@@ -345,8 +345,9 @@
         padding: 4px 6px; border-radius: 4px; cursor: pointer; font-family: Arial, sans-serif;
     }
     .notes-tree-node-item:hover { background: rgba(230, 215, 176, 0.08); }
-    .notes-tree-node-item.active { background: rgba(230, 215, 176, 0.14); color: var(--accent); }
-    .folder-item-tree .notes-tree-node-item.active { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; background: rgba(230, 215, 176, 0.1); }
+    .notes-tree-node-item.active { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; background: rgba(230, 215, 176, 0.1); color: var(--accent); }
+    .folder-tree-collapse-toggle { width: 100%; display: flex; align-items: center; gap: 6px; border: 0; background: transparent; color: var(--text); padding: 5px 7px; font: 700 11px Arial, sans-serif; cursor: pointer; opacity: 0.7; }
+    .folder-tree-collapse-toggle:hover { opacity: 1; }
     .notes-tree-node-item.not-encoded { opacity: 0.45; }
     .notes-tree-node-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); opacity: 0; }
     .notes-tree-node-item.has-notes .notes-tree-node-dot { opacity: 1; }
@@ -1174,7 +1175,6 @@
     .km-inline-untracked-btn { flex: 1; padding: 10px 0; font-size: 12px; }
     .km-inline-start-lesson-btn { flex: 2; padding: 10px 0; font-size: 13px; }
     .km-inline-dashboard-btn { flex: none; font-size: 12px; padding: 7px 14px; }
-    .km-close-topic-list-btn { flex: none; font-size: 12px; padding: 7px 14px; }
     .content-inner > .km-loading-hint,
     .content-inner > .km-inline-detail-empty { color: #12121E; }
     .km-loading-hint { background: #D9C398 !important; color: #12121E !important; border-color: rgba(18,18,30,0.24) !important; opacity: 1 !important; }
@@ -5438,7 +5438,6 @@
             <div class="km-inline-view">
                 <div class="km-inline-topbar">
                     <button type="button" class="btn km-inline-dashboard-btn">← Dashboard</button>
-                    <button type="button" class="btn km-close-topic-list-btn">Show lesson list</button>
                     <div>
                         <h1 class="km-inline-title"></h1>
                         <div class="km-inline-sub"></div>
@@ -6917,7 +6916,7 @@ SQIDAQAB
     let selectedSubfolderId = null;
     let selectedPageId = null;
     let selectedSidebarLessonNodeId = null;
-    let kmSidebarLessonsOnly = false;
+    let selectedSidebarPracticeConceptId = null;
     // The currently-selected subject's own knowledge-map data, once
     // fetched - lets buildFolderRow render that subject's Theme ->
     // Subtopic -> Lesson tree inline in the sidebar (see
@@ -8171,19 +8170,37 @@ SQIDAQAB
         } else if (f.id === selectedFolderId && kmGraphMode) {
             const treeWrap = document.createElement('div');
             treeWrap.className = 'folder-item-tree';
-            treeWrap.innerHTML = selectedFolderKmData
-                ? buildSubjectTreeHtml(selectedFolderKmData, kmSidebarLessonsOnly)
+            const treeHtml = selectedFolderKmData
+                ? buildSubjectTreeHtml(selectedFolderKmData)
                 : '<div class="empty-hint" style="padding:6px 4px;">Loading…</div>';
+            treeWrap.innerHTML = `<button type="button" class="folder-tree-collapse-toggle"><span class="notes-tree-arrow">▶</span><span>Themes</span></button><div class="folder-tree-collapsible" style="display:none;">${treeHtml}</div>`;
             item.appendChild(treeWrap);
-            if (selectedFolderKmData) wireSubjectTree(treeWrap, f, selectedFolderKmData);
+            const collapseBtn = treeWrap.querySelector('.folder-tree-collapse-toggle');
+            collapseBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                const body = treeWrap.querySelector('.folder-tree-collapsible');
+                const open = body.style.display !== 'none';
+                body.style.display = open ? 'none' : '';
+                collapseBtn.querySelector('.notes-tree-arrow').classList.toggle('open', !open);
+            });
+            if (selectedFolderKmData) wireSubjectTree(treeWrap.querySelector('.folder-tree-collapsible'), f, selectedFolderKmData);
         } else if (f.id === selectedFolderId && !specPracticeMode) {
             const treeWrap = document.createElement('div');
             treeWrap.className = 'folder-item-tree';
-            treeWrap.innerHTML = selectedFolderKmData
-                ? buildSubjectTreeHtml(selectedFolderKmData, true)
+            const treeHtml = selectedFolderKmData
+                ? buildSubjectTreeHtml(selectedFolderKmData)
                 : '<div class="empty-hint" style="padding:6px 4px;">Loading lessons…</div>';
+            treeWrap.innerHTML = `<button type="button" class="folder-tree-collapse-toggle"><span class="notes-tree-arrow">▶</span><span>Themes</span></button><div class="folder-tree-collapsible" style="display:none;">${treeHtml}</div>`;
             item.appendChild(treeWrap);
-            if (selectedFolderKmData) wireSubjectTree(treeWrap, f, selectedFolderKmData);
+            const collapseBtn = treeWrap.querySelector('.folder-tree-collapse-toggle');
+            collapseBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                const body = treeWrap.querySelector('.folder-tree-collapsible');
+                const open = body.style.display !== 'none';
+                body.style.display = open ? 'none' : '';
+                collapseBtn.querySelector('.notes-tree-arrow').classList.toggle('open', !open);
+            });
+            if (selectedFolderKmData) wireSubjectTree(treeWrap.querySelector('.folder-tree-collapsible'), f, selectedFolderKmData);
         }
 
         return item;
@@ -8196,14 +8213,7 @@ SQIDAQAB
     // returned it in (no separate teaching-order lookup here, unlike the
     // Notes tree's getOrComputeSubtopicOrder) - a reasonable default,
     // not something this sidebar view needs to solve on its own.
-    function buildSubjectTreeHtml(data, lessonsOnly = false) {
-        if (lessonsOnly) {
-            return `<div class="notes-tree-flat-lessons">${data.nodes.map((n) => `
-                <button type="button" class="notes-tree-node-item${n.id === selectedSidebarLessonNodeId ? ' active' : ''}" data-node-id="${escapeHtml(n.id)}">
-                    <span>${escapeHtml(n.label)}</span>
-                </button>
-            `).join('')}</div>`;
-        }
+    function buildSubjectTreeHtml(data) {
         const byTheme = new Map();
         data.nodes.forEach((n) => {
             const theme = n.theme || 'General';
@@ -8504,7 +8514,7 @@ SQIDAQAB
     function selectFolder(folderId) {
         if (selectedFolderId !== folderId) {
             selectedSidebarLessonNodeId = null;
-            kmSidebarLessonsOnly = false;
+            selectedSidebarPracticeConceptId = null;
         }
         selectedFolderId = folderId;
         selectedSubfolderId = null;
@@ -9162,7 +9172,7 @@ SQIDAQAB
                             <button type="button" class="notes-tree-subtopic-toggle"><span class="notes-tree-arrow">▶</span><span>${escapeHtml(s.subtopic)}</span></button>
                             <div class="notes-tree-subtopic-body" style="display:none;">
                                 ${s.lessons.map((l) => `
-                                    <button type="button" class="notes-tree-node-item" data-concept-id="${escapeHtml(l.conceptId)}" data-concept="${escapeHtml(l.concept)}" data-subtopic="${escapeHtml(s.subtopic)}">
+                                    <button type="button" class="notes-tree-node-item${l.conceptId === selectedSidebarPracticeConceptId ? ' active' : ''}" data-concept-id="${escapeHtml(l.conceptId)}" data-concept="${escapeHtml(l.concept)}" data-subtopic="${escapeHtml(s.subtopic)}">
                                         <span>${escapeHtml(l.concept)}</span>
                                     </button>
                                 `).join('')}
@@ -9189,6 +9199,8 @@ SQIDAQAB
         treeWrap.querySelectorAll('.notes-tree-node-item[data-concept-id]').forEach((btn) => {
             btn.addEventListener('click', (ev) => {
                 ev.stopPropagation();
+                selectedSidebarPracticeConceptId = btn.dataset.conceptId;
+                treeWrap.querySelectorAll('.notes-tree-node-item').forEach((item) => item.classList.toggle('active', item === btn));
                 sfCloseSidebarOnMobile();
                 renderSpecPracticePickList(folder, btn.dataset.conceptId, btn.dataset.concept);
             });
@@ -9207,6 +9219,10 @@ SQIDAQAB
     // disappearing, which is the whole point of persisting picks server-
     // side (see specLessonPracticeService.ts's getPickedQuestions).
     async function renderSpecPracticePickList(folder, conceptId, concept) {
+        selectedSidebarPracticeConceptId = conceptId;
+        document.querySelectorAll('.folder-item-tree .notes-tree-node-item[data-concept-id]').forEach((item) => {
+            item.classList.toggle('active', item.dataset.conceptId === String(conceptId));
+        });
         document.getElementById('topbarTitle').textContent = `${folderLabel(folder)} · ${concept} · Exam Preparation`;
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
@@ -19443,17 +19459,6 @@ SQIDAQAB
         const backBtn = contentInner.querySelector('.km-inline-dashboard-btn');
         backBtn.textContent = `← ${folderLabel(folder)}`;
         backBtn.addEventListener('click', () => renderKnowledgeMapForFolder(folder));
-        const lessonListBtn = contentInner.querySelector('.km-close-topic-list-btn');
-        if (kmSidebarLessonsOnly) {
-            lessonListBtn.textContent = 'Lesson list shown';
-            lessonListBtn.disabled = true;
-        }
-        lessonListBtn.addEventListener('click', () => {
-            kmSidebarLessonsOnly = true;
-            lessonListBtn.textContent = 'Lesson list shown';
-            lessonListBtn.disabled = true;
-            refreshFolderList();
-        });
         contentInner.querySelector('.km-lesson-back-btn').addEventListener('click', () => showKmWorkspace(contentInner));
 
         contentInner.querySelector('.km-inline-empty').style.display = 'none';
@@ -19886,6 +19891,7 @@ SQIDAQAB
         treeEl.querySelectorAll('.notes-tree-subtopic-toggle').forEach(wireToggle);
         treeEl.querySelectorAll('.notes-tree-node-item[data-node-id]').forEach((btn) => {
             btn.addEventListener('click', () => {
+                selectedSidebarLessonNodeId = btn.dataset.nodeId;
                 treeEl.querySelectorAll('.notes-tree-node-item').forEach((b) => b.classList.remove('active'));
                 btn.classList.add('active');
                 selectNotesNode(nodeById.get(btn.dataset.nodeId));
