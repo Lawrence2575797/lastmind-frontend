@@ -23,7 +23,7 @@
 
     :root {
         --bg: #1A1A1C;
-        --panel: #4E1B26;
+        --panel: #12121E;
         --text: #E6D7B0;
         --accent: #E6D7B0;
         /* Only used for text sitting directly on the page's own birch
@@ -5979,7 +5979,7 @@ SQIDAQAB
        Maths Tool, same as it always has), and Background (where the
        birch-wood texture lives - a Plain/Wood toggle plus a base tint,
        same procedural-gradient mechanism as the original birch default). */
-    const THEME_DEFAULTS = { textColor: '#E6D7B0', panelColor: '#4E1B26', bgColor: '#D9C398', bgTexture: 'wood' };
+    const THEME_DEFAULTS = { textColor: '#E6D7B0', panelColor: '#12121E', bgColor: '#D9C398', bgTexture: 'wood' };
     const THEME_CACHE_KEY = 'lm-theme-settings';
     let currentTheme = { ...THEME_DEFAULTS };
 
@@ -18393,6 +18393,65 @@ SQIDAQAB
         return { trackEl, viewportEl };
     }
 
+    const sfSpecLessonMatchCache = new Map();
+
+    function sfPracticeMatchTokens(value) {
+        const stopWords = new Set(['a', 'an', 'and', 'the', 'of', 'to', 'in', 'for', 'with', 'on', 'how', 'why', 'introduction']);
+        return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/)
+            .filter((token) => token && !stopWords.has(token))
+            .map((token) => token.length > 4 && token.endsWith('s') ? token.slice(0, -1) : token);
+    }
+
+    // Atomic Knowledge Map nodes and exam-spec lessons intentionally use
+    // different IDs and granularity. Resolve the current node to the closest
+    // lesson in the same subject/qualification/board tree before loading the
+    // shared Practice Questions state.
+    async function sfResolveSpecPracticeLesson(folder, lessonLabel, accessToken) {
+        const cacheKey = [folder.subject, folder.qualification, folder.examBoard, lessonLabel].join('::').toLowerCase();
+        if (sfSpecLessonMatchCache.has(cacheKey)) return sfSpecLessonMatchCache.get(cacheKey);
+        const params = new URLSearchParams({
+            subject: folder.subject || '',
+            qualification: folder.qualification || '',
+            examBoard: folder.examBoard || '',
+        });
+        const resp = await fetch(`${COMPILE_BACKEND_URL}/spec-lesson-tree?${params.toString()}`, {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        if (!resp.ok) throw new Error(`Spec tree returned ${resp.status}`);
+        const { themes } = await resp.json();
+        const candidates = [];
+        (themes || []).forEach((theme) => (theme.subtopics || []).forEach((subtopic) =>
+            (subtopic.lessons || []).forEach((lesson) => candidates.push({
+                ...lesson,
+                theme: theme.theme || '',
+                subtopic: subtopic.subtopic || '',
+            }))));
+        const targetNormal = sfPracticeMatchTokens(lessonLabel).join(' ');
+        const targetTokens = new Set(sfPracticeMatchTokens(lessonLabel));
+        let best = null;
+        let bestScore = 0;
+        candidates.forEach((candidate) => {
+            const conceptNormal = sfPracticeMatchTokens(candidate.concept).join(' ');
+            const conceptTokens = new Set(sfPracticeMatchTokens(candidate.concept));
+            const contextTokens = new Set(sfPracticeMatchTokens(`${candidate.subtopic} ${candidate.theme}`));
+            let score = 0;
+            if (conceptNormal === targetNormal) score += 100;
+            else if (conceptNormal.includes(targetNormal) || targetNormal.includes(conceptNormal)) score += 45;
+            targetTokens.forEach((token) => {
+                if (conceptTokens.has(token)) score += 14;
+                else if (contextTokens.has(token)) score += 4;
+                else if ([...conceptTokens].some((other) => other.startsWith(token) || token.startsWith(other))) score += 7;
+            });
+            const union = new Set([...targetTokens, ...conceptTokens]).size || 1;
+            const intersection = [...targetTokens].filter((token) => conceptTokens.has(token)).length;
+            score += (intersection / union) * 20;
+            if (score > bestScore) { bestScore = score; best = candidate; }
+        });
+        const match = bestScore >= 7 ? best : null;
+        sfSpecLessonMatchCache.set(cacheKey, match);
+        return match;
+    }
+
     // The lesson feed reuses the exact persistent Practice Questions data,
     // cards and submission handlers as the standalone tab. Answers therefore
     // appear in that tab and in Corrections without any syncing layer.
@@ -18407,21 +18466,28 @@ SQIDAQAB
         try {
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (!session) throw new Error('not signed in');
-            const resp = await fetch(`${COMPILE_BACKEND_URL}/spec-lesson-practice/${encodeURIComponent(conceptId)}/available-types`, {
+            const matchedLesson = await sfResolveSpecPracticeLesson(folder, concept, session.access_token);
+            if (!matchedLesson) {
+                host.innerHTML = '<p class="sf-side-practice-status">No matching Practice Questions lesson has been set up yet.</p>';
+                return;
+            }
+            const practiceConceptId = matchedLesson.conceptId;
+            const practiceConcept = matchedLesson.concept;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/spec-lesson-practice/${encodeURIComponent(practiceConceptId)}/available-types`, {
                 headers: { Authorization: `Bearer ${session.access_token}` }
             });
             if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
             const data = await resp.json();
             if (!host.isConnected) return;
             host.innerHTML = `
-                <p class="sf-side-practice-concept">${escapeHtml(concept || 'This lesson')}</p>
+                <p class="sf-side-practice-concept">${escapeHtml(practiceConcept || concept || 'This lesson')}</p>
                 <div class="sf-side-questions-host"></div>
                 <div class="sf-side-type-host"></div>`;
 
             if (data.pickedQuestions.length) {
                 const questionsHost = host.querySelector('.sf-side-questions-host');
                 renderPracticeQuestionList(
-                    questionsHost, data.pickedQuestions, concept,
+                    questionsHost, data.pickedQuestions, practiceConcept,
                     folder.subject || '', folder.qualification || '', folder.examBoard || '',
                     data.componentDefinitions
                 );
@@ -18458,7 +18524,7 @@ SQIDAQAB
                     btn.disabled = true;
                     btn.textContent = 'Generating…';
                     try {
-                        const response = await fetch(`${COMPILE_BACKEND_URL}/spec-lesson-practice/${encodeURIComponent(conceptId)}/generate`, {
+                        const response = await fetch(`${COMPILE_BACKEND_URL}/spec-lesson-practice/${encodeURIComponent(practiceConceptId)}/generate`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
                             body: JSON.stringify({ typeKey: type.typeKey })
