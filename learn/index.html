@@ -1272,10 +1272,10 @@
 
     /* ─── Prerequisite check (see renderPrereqCheckAnswering) — one
        vertical column per prerequisite chain, side by side when the
-       target has more than one. column-reverse (not a reversed array)
-       is what puts the earliest prerequisite at the BOTTOM of each
-       column and the step closest to the target at the top, per
-       explicit instruction to work bottom-to-top. */
+       target has more than one. The service returns each chain in true
+       teaching order, so ordinary column flow keeps the furthest
+       prerequisite first, followed by its integration and the next
+       concept knowledge check. */
     .km-prereq-columns { display: flex; gap: 20px; overflow-x: auto; padding: 4px 2px 16px; margin-top: 10px; }
     .km-prereq-column { display: flex; flex-direction: column; gap: 12px; min-width: 250px; flex: 1 0 250px; }
     .km-map-open-prompt { font-size: clamp(1.25rem, 2vw, 1.65rem); font-weight: 800; line-height: 1.35; }
