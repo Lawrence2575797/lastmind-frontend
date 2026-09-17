@@ -1277,7 +1277,8 @@
        column and the step closest to the target at the top, per
        explicit instruction to work bottom-to-top. */
     .km-prereq-columns { display: flex; gap: 20px; overflow-x: auto; padding: 4px 2px 16px; margin-top: 10px; }
-    .km-prereq-column { display: flex; flex-direction: column-reverse; gap: 12px; min-width: 250px; flex: 1 0 250px; }
+    .km-prereq-column { display: flex; flex-direction: column; gap: 12px; min-width: 250px; flex: 1 0 250px; }
+    .km-map-open-prompt { font-size: clamp(1.25rem, 2vw, 1.65rem); font-weight: 800; line-height: 1.35; }
     .km-prereq-step { background: rgba(230, 215, 176, 0.05); border: 1px solid rgba(230, 215, 176, 0.16); border-radius: 6px; padding: 12px; }
     .km-prereq-step.km-prereq-step-correct { border-color: rgba(120, 200, 140, 0.5); background: rgba(120, 200, 140, 0.07); }
     .km-prereq-step.km-prereq-step-wrong { border-color: rgba(224, 128, 128, 0.45); background: rgba(224, 128, 128, 0.06); }
@@ -13360,8 +13361,9 @@ SQIDAQAB
         { selector: null, title: 'Spaced repetition', body: 'After you learn something, LastMind brings it back periodically to cement it in memory. The schedule adapts based on how confident you feel, so harder topics come up more often.' },
         { selector: '#knowledgeMapTopbarBtn', title: 'Explore the map', body: "See every concept in a subject and how they connect. This is your complete learning roadmap — you can jump to any topic, but your feed always suggests the best next step." },
         { selector: '#cortexTabBtn', title: 'Get help anytime', body: "Stuck on something? Ask Cortex for explanations, exam tips, or just to talk through a tricky concept. It understands what you're learning and can help you think it through." },
-        { selector: '#examPrepTopbarBtn', title: 'Exam preparation', body: 'Switch to Exam Prep mode to practice under realistic conditions. Timed questions, mixed topics, and detailed feedback help you prepare for the real thing.' },
-        { selector: '#rewardsTopbarBtn', title: 'Earn rewards', body: 'Visit Rewards to see your Keys and discover backgrounds you can unlock through genuine learning progress.' }
+        { selector: '#practiceQuestionsTopbarBtn', title: 'Exam preparation', body: 'Choose a lesson, generate up to three exam-style questions, submit your answers for marking, and revisit mistakes through Corrections.' },
+        { selector: '#rewardsTopbarBtn', title: 'Earn rewards', body: 'Visit Rewards to see your Keys and discover backgrounds you can unlock through genuine learning progress.' },
+        { selector: null, title: 'Help is always nearby', body: 'Hover over or keyboard-focus buttons and controls throughout LastMind for a short explanation of what they do before you use them.' }
     ];
 
     const FREE_TOUR_STEPS = [
@@ -15268,7 +15270,10 @@ SQIDAQAB
         wrap.appendChild(editor);
         const hint = document.createElement('div');
         hint.className = 'math-shortcut-hint';
-        hint.textContent = 'Maths keyboard is on by default: ^ power, _ subscript, / fraction (after a number), ] evaluate-between-limits, * ×, ~ √, Shift+letter Greek, f function, Shift+I integral. Type # to switch to plain writing, # again to switch back.';
+        hint.innerHTML = `<strong>Maths keyboard shortcuts</strong><br>
+            <span><kbd>^</kbd> power · <kbd>_</kbd> subscript · <kbd>/</kbd> fraction after a number · <kbd>]</kbd> evaluate between limits</span><br>
+            <span><kbd>*</kbd> × · <kbd>~</kbd> √ · <kbd>Shift</kbd> + letter Greek · <kbd>f</kbd> function · <kbd>Shift</kbd> + <kbd>I</kbd> integral</span><br>
+            <span><kbd>#</kbd> switches to normal writing; press <kbd>#</kbd> again to return to maths.</span>`;
         wrap.appendChild(hint);
         const modeBadge = document.createElement('div');
         modeBadge.className = 'math-shortcut-mode-badge';
@@ -19327,9 +19332,10 @@ SQIDAQAB
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
 
-        function showCenterMessage(message, retryable) {
+        function showCenterMessage(message, retryable, extraClass) {
             contentInner.innerHTML = `<div class="km-inline-detail-empty"></div>`;
             const el = contentInner.querySelector('.km-inline-detail-empty');
+            if (extraClass) el.classList.add(extraClass);
             el.appendChild(document.createTextNode(message));
             if (retryable) {
                 const retryBtn = document.createElement('button');
@@ -19396,7 +19402,7 @@ SQIDAQAB
         if (selectedFolderId !== folder.id) return;
         selectedFolderKmData = data;
         refreshFolderList();
-        showCenterMessage('Click a lesson in the sidebar to open it.');
+        showCenterMessage('Click a lesson in the sidebar to open it.', false, 'km-map-open-prompt');
         sfOpenSidebarOnMobile();
     }
 
@@ -23799,7 +23805,7 @@ SQIDAQAB
             lessonEl.innerHTML = `
                 <div class="km-inline-detail-section">
                     <h4>Before you jump ahead</h4>
-                    <div class="km-inline-lesson-explanation">These build up to "${escapeHtml(targetLabel)}" — work from the bottom of each column upward.</div>
+                    <div class="km-inline-lesson-explanation">These build up to "${escapeHtml(targetLabel)}" — work from the top of each column downward, starting with the furthest prerequisite.</div>
                     <div class="km-prereq-columns">${columnsHtml}</div>
                     <div class="km-prereq-submit-row">
                         <button class="btn primary km-prereq-submit-btn" disabled>Submit all</button>
@@ -25561,6 +25567,54 @@ SQIDAQAB
             }
         }
     }
+
+    // Plain-language hover help for persistent and dynamically-rendered
+    // controls. Native title bubbles keep this usable in every browser;
+    // MutationObserver covers lesson/map buttons that are created later.
+    (function installFeatureHoverHelp() {
+        const selectorHelp = new Map([
+            ['#dashboardTopbarBtn', 'Return to your recommended learning feed.'],
+            ['#rewardsTopbarBtn', 'View your Keys, redeem backgrounds, and equip rewards you own.'],
+            ['#buyMoreTokensBtn', 'Buy extra Locks for AI-powered learning features.'],
+            ['#practiceQuestionsTopbarBtn', 'Choose a lesson and generate up to three exam-style questions for it.'],
+            ['#knowledgeMapTopbarBtn', 'See how lessons connect, inspect prerequisites, and open concept or integration lessons.'],
+            ['#specialistToolsBtn', 'Open the Maths Tool or Economics Drawing Tool.'],
+            ['#mathsToolTopbarBtn', 'Work through maths using LastMind’s shortcut keyboard and guided help.'],
+            ['#econDiagramToolTopbarBtn', 'Build, label, shade, save, and revisit economics diagrams.'],
+            ['#founderTutoringTopbarBtn', 'View and book one-to-one tutoring.'],
+            ['#progressReportTopbarBtn', 'Open your weekly learning progress report.'],
+            ['#calendarTopbarBtn', 'See scheduled reviews, study events, exams, and bookings.'],
+            ['#seeTutorialBtn', 'Replay the guided tour of LastMind.'],
+            ['#cortexTabBtn', 'Ask Cortex for learning help and explanations.'],
+            ['#notesTabBtn', 'Read generated lesson notes and add your own notes.'],
+            ['#foldersTabBtn', 'Browse your subjects, themes, and lessons.'],
+            ['#createFolderBtn', 'Add another subject to your LastMind account.'],
+            ['.km-inline-see-notes-btn', 'Open the notes saved for this specific lesson.'],
+            ['.km-inline-untracked-btn', 'Try this lesson without changing its progress or review schedule.'],
+            ['.km-inline-start-lesson-btn', 'Start this lesson or its currently due review.'],
+            ['.sf-mobile-practice-btn', 'Open this subject’s exam practice questions on a smaller screen.'],
+            ['.sf-side-practice-type-btn', 'Generate this exam-style question for the current lesson.'],
+            ['.pq-cortex-assist-btn', 'Ask Cortex for a hint without revealing the full model answer.'],
+            ['.pq-model-answer-btn', 'Show the model answer for this practice question.'],
+            ['.pq-submit-btn', 'Submit your answer for exam-board-style marking and feedback.'],
+            ['.km-edge-hit', 'Open the integration lesson connecting these two concepts.'],
+            ['.notes-tree-node-item', 'Open this lesson and keep it selected across LastMind.'],
+        ]);
+        function annotate(root) {
+            selectorHelp.forEach((help, selector) => {
+                const matches = [];
+                if (root.nodeType === 1 && root.matches?.(selector)) matches.push(root);
+                root.querySelectorAll?.(selector).forEach((el) => matches.push(el));
+                matches.forEach((el) => {
+                    if (!el.title) el.title = help;
+                    if (!el.getAttribute('aria-label') && !el.textContent.trim()) el.setAttribute('aria-label', help);
+                });
+            });
+        }
+        annotate(document);
+        new MutationObserver((records) => records.forEach((record) => record.addedNodes.forEach((node) => annotate(node))))
+            .observe(document.body, { childList: true, subtree: true });
+    })();
 
     (async function gate() {
         // ── TEMPORARY: lets you view /learn before hosting/backend exist. ──
