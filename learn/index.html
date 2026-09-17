@@ -676,7 +676,7 @@
 
     .km-link {
         stroke: rgba(230, 215, 176, 0.14);
-        stroke-width: 1.3px;
+        stroke-width: 2px;
         fill: none;
         transition: stroke 0.15s ease, stroke-opacity 0.15s ease, stroke-width 0.15s ease;
     }
@@ -738,7 +738,13 @@
     .km-link.km-highlighted {
         stroke: var(--accent);
         stroke-opacity: 0.9;
-        stroke-width: 2px;
+        stroke-width: 3px;
+    }
+    .km-link.km-direct-highlighted {
+        stroke: var(--accent);
+        stroke-opacity: 1;
+        stroke-width: 5px;
+        filter: drop-shadow(0 0 4px rgba(230, 215, 176, 0.55));
     }
     .km-link.km-dimmed {
         stroke-opacity: 0.05;
@@ -1315,7 +1321,7 @@
        its CSS comment) - can't reach that with a CSS sibling selector
        since the banner comes BEFORE the feed root in the DOM, so
        sfMountFeedShell sets this class directly instead. */
-    .sf-greeting-banner.has-mini-cortex { max-width: 1060px; }
+    .sf-greeting-banner.has-mini-cortex { max-width: 1140px; }
     .sf-feed-viewport { position: absolute; inset: 0; overflow: hidden; outline: none; }
     .sf-feed-track { display: flex; flex-direction: column; height: 100%; transition: transform 400ms cubic-bezier(0.22, 1, 0.36, 1); will-change: transform; }
     /* overflow-y:auto + a generous bottom padding is what makes a slide
@@ -1402,14 +1408,14 @@
        the box by exactly the panel's own width so the text column keeps
        its normal room and the panel is genuinely additional space, not
        stolen from it. */
-    .sf-feed-root.has-mini-cortex { max-width: 1060px; }
-    .sf-feed-root.has-mini-cortex .sf-feed-viewport { right: 300px; }
-    .sf-feed-root.has-mini-cortex .sf-feed-exit-btn { right: 314px; }
-    .sf-feed-root.has-mini-cortex .sf-recall-nudge { right: 316px; }
+    .sf-feed-root.has-mini-cortex { max-width: 1140px; }
+    .sf-feed-root.has-mini-cortex .sf-feed-viewport { right: 380px; }
+    .sf-feed-root.has-mini-cortex .sf-feed-exit-btn { right: 394px; }
+    .sf-feed-root.has-mini-cortex .sf-recall-nudge { right: 396px; }
     /* var(--panel), not --bg - matches .sf-feed-root's own background
        exactly (same variable), so the panel reads as part of the same
        box rather than a mismatched second surface bolted on next to it. */
-    .sf-mini-cortex-panel { position: absolute; top: 0; right: 0; bottom: 0; width: 300px; border-left: 1px solid rgba(230, 215, 176, 0.15); background: var(--panel); display: flex; flex-direction: column; z-index: 2; }
+    .sf-mini-cortex-panel { position: absolute; top: 0; right: 0; bottom: 0; width: 380px; border-left: 1px solid rgba(230, 215, 176, 0.15); background: var(--panel); display: flex; flex-direction: column; z-index: 2; }
     .sf-mini-cortex-header { flex: none; padding: 14px 16px 10px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.6; border-bottom: 1px solid rgba(230, 215, 176, 0.1); }
     .sf-mini-cortex-thread { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
     .sf-mini-cortex-empty { font-size: 13px; line-height: 1.6; opacity: 0.55; }
@@ -1420,6 +1426,15 @@
     .sf-mini-cortex-form { flex: none; display: flex; gap: 6px; padding: 10px; border-top: 1px solid rgba(230, 215, 176, 0.1); }
     .sf-mini-cortex-input { flex: 1; min-width: 0; font: inherit; font-size: 13px; padding: 9px 10px; border-radius: 7px; border: 1px solid rgba(230, 215, 176, 0.25); background: var(--panel); color: var(--text); }
     .sf-mini-cortex-send { flex: none; padding: 9px 12px; font-size: 13px; }
+    .sf-side-practice-body { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; }
+    .sf-side-practice-status { padding: 18px 8px; font: 13px/1.55 Arial, sans-serif; opacity: 0.65; }
+    .sf-side-practice-progress { padding: 0 4px 10px; font: 700 12px Arial, sans-serif; opacity: 0.7; }
+    .sf-side-practice-body .practice-question-sidebar { display: none !important; }
+    .sf-side-practice-body .practice-question-list { width: 100%; }
+    .sf-side-practice-body .practice-question-card { margin-bottom: 14px; }
+    .sf-side-practice-body textarea { min-height: 92px; }
+    .sf-side-practice-types { padding-top: 8px; border-top: 1px solid rgba(230,215,176,0.12); }
+    .sf-side-practice-type-btn { width: 100%; text-align: left; margin-top: 7px; font-size: 12px; }
     @media (max-width: 900px) {
         .sf-mini-cortex-panel { display: none; }
         .sf-feed-root.has-mini-cortex .sf-feed-viewport { right: 0; }
@@ -3745,6 +3760,9 @@
     .reward-name { min-width: 0; font: 700 0.82rem Arial, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .reward-price { flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; font: 700 0.76rem Arial, sans-serif; opacity: 0.88; }
     .reward-card.is-unlocked { cursor: pointer; }
+    .reward-card.is-purchasable { cursor: pointer; }
+    .reward-card.is-purchasable:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(78,27,38,0.18); }
+    .reward-card.is-purchasable:hover .reward-lock-badge { transform: scale(1.08); border-color: rgba(230,215,176,0.72); }
     .reward-card.is-unlocked .reward-lock { display: none; }
     .reward-card.is-unlocked:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(78,27,38,0.18); }
     @media (max-width: 760px) {
@@ -8557,6 +8575,7 @@ SQIDAQAB
     // single access gate: once a key is present, its card uses the same
     // applyTheme + /theme-settings save path the old preset UI used.
     const REWARD_UNLOCKED_THEME_KEYS = new Set();
+    let rewardKeyBalance = 0;
     const REWARD_KEY_PRICE = 75;
     const rewardKeyIcon = (size = 18) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="8" cy="12" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M12 12h9m-3 0v3m-3-3v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
 
@@ -8576,6 +8595,57 @@ SQIDAQAB
         }
     }
 
+    async function fetchBackgroundRewards() {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return null;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/keys/background-rewards`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) return null;
+            return await resp.json();
+        } catch (err) {
+            console.error('LastMind: failed to load background rewards.', err);
+            return null;
+        }
+    }
+
+    async function redeemBackgroundReward(preset) {
+        if (rewardKeyBalance < REWARD_KEY_PRICE) return;
+        const confirmed = window.confirm(`Redeem ${preset.label} for ${REWARD_KEY_PRICE} Keys?\n\nThis will leave you with ${rewardKeyBalance - REWARD_KEY_PRICE} Keys.`);
+        if (!confirmed) return;
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+        const resp = await fetch(`${COMPILE_BACKEND_URL}/keys/redeem-background`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify({ rewardKey: preset.key })
+        });
+        const result = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+            window.alert(result.code === 'INSUFFICIENT_KEYS' ? 'You no longer have enough Keys for this background.' : 'This background could not be redeemed. Please try again.');
+            return;
+        }
+        REWARD_UNLOCKED_THEME_KEYS.add(preset.key);
+        rewardKeyBalance = Number(result.balance) || 0;
+        renderRewardsPage(false);
+    }
+
+    async function initOwnedRewardTheme() {
+        const rewards = await fetchBackgroundRewards();
+        if (!rewards) return;
+        rewardKeyBalance = Number(rewards.balance) || 0;
+        (rewards.owned || []).forEach((key) => REWARD_UNLOCKED_THEME_KEYS.add(key));
+        const saved = await fetchThemeSettings();
+        if (!saved) return;
+        const ownedPreset = THEME_PRESETS.find((preset) =>
+            REWARD_UNLOCKED_THEME_KEYS.has(preset.key) && preset.theme.bgTexture === saved.bgTexture);
+        if (ownedPreset) {
+            currentTheme = { ...THEME_DEFAULTS, ...ownedPreset.theme };
+            applyTheme(currentTheme);
+        }
+    }
+
     async function applyRewardPreset(preset, card) {
         if (!preset || !REWARD_UNLOCKED_THEME_KEYS.has(preset.key)) return;
         currentTheme = { ...currentTheme, ...preset.theme };
@@ -8590,7 +8660,7 @@ SQIDAQAB
         }
     }
 
-    function renderRewardsPage() {
+    function renderRewardsPage(loadLatest = true) {
         specPracticeMode = false;
         kmGraphMode = false;
         stopActiveDictation();
@@ -8609,15 +8679,16 @@ SQIDAQAB
                     </div>
                     <div class="keys-balance" aria-label="Keys balance">
                         <span class="keys-balance-icon">${rewardKeyIcon(21)}</span>
-                        <span class="keys-balance-copy"><span class="keys-balance-label">Balance</span><span class="keys-balance-value"><span id="rewardKeysBalance">0</span> Keys</span></span>
+                        <span class="keys-balance-copy"><span class="keys-balance-label">Balance</span><span class="keys-balance-value"><span id="rewardKeysBalance">${rewardKeyBalance}</span> Keys</span></span>
                     </div>
                 </div>
                 <div class="rewards-section-heading"><h2>Backgrounds</h2><span>${THEME_PRESETS.length} available</span></div>
                 <div class="reward-grid">
                     ${THEME_PRESETS.map((preset) => {
                         const unlocked = REWARD_UNLOCKED_THEME_KEYS.has(preset.key);
+                        const purchasable = !unlocked && rewardKeyBalance >= REWARD_KEY_PRICE;
                         const image = THEME_IMAGE_BACKGROUNDS[preset.theme.bgTexture];
-                        return `<article class="reward-card${unlocked ? ' is-unlocked' : ''}" data-reward-key="${escapeHtml(preset.key)}" ${unlocked ? 'role="button" tabindex="0"' : 'aria-disabled="true"'}>
+                        return `<article class="reward-card${unlocked ? ' is-unlocked' : ''}${purchasable ? ' is-purchasable' : ''}" data-reward-key="${escapeHtml(preset.key)}" ${(unlocked || purchasable) ? 'role="button" tabindex="0"' : 'aria-disabled="true"'}>
                             <div class="reward-preview" style="background-image:url('${image}')">
                                 <div class="reward-lock" aria-label="Locked"><span class="reward-lock-badge"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.8"/></svg></span></div>
                             </div>
@@ -8626,19 +8697,25 @@ SQIDAQAB
                     }).join('')}
                 </div>
             </section>`;
-        contentInner.querySelectorAll('.reward-card.is-unlocked').forEach((card) => {
+        contentInner.querySelectorAll('.reward-card.is-unlocked, .reward-card.is-purchasable').forEach((card) => {
             const preset = THEME_PRESETS.find((item) => item.key === card.dataset.rewardKey);
-            card.addEventListener('click', () => applyRewardPreset(preset, card));
+            const activate = () => REWARD_UNLOCKED_THEME_KEYS.has(preset.key)
+                ? applyRewardPreset(preset, card)
+                : redeemBackgroundReward(preset);
+            card.addEventListener('click', activate);
             card.addEventListener('keydown', (event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
-                    applyRewardPreset(preset, card);
+                    activate();
                 }
             });
         });
-        fetchKeyBalance().then((balance) => {
-            const balanceEl = document.getElementById('rewardKeysBalance');
-            if (balanceEl && balance !== null) balanceEl.textContent = String(balance);
+        if (loadLatest) fetchBackgroundRewards().then((rewards) => {
+            if (!rewards) return;
+            rewardKeyBalance = Number(rewards.balance) || 0;
+            REWARD_UNLOCKED_THEME_KEYS.clear();
+            (rewards.owned || []).forEach((key) => REWARD_UNLOCKED_THEME_KEYS.add(key));
+            if (document.getElementById('rewardsTitle')) renderRewardsPage(false);
         });
     }
     function exitSpecPracticeMode() {
@@ -18282,32 +18359,24 @@ SQIDAQAB
     // sfNextRecommendationForCurrentFeed) - omitted for the global,
     // cross-subject login-time feed and for the corrections feed (which
     // isn't lesson-recommendation-based at all).
-    function sfMountFeedShell(exitTitle, onClose, scopeFolder) {
+    function sfMountFeedShell(exitTitle, onClose, scopeFolder, showPracticePanel = false) {
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
-        // The mini-Cortex panel calls the same Premium-gated /cortex/message
-        // endpoint as full Cortex (see requirePaidTier in routes/cortex.ts),
-        // so there's no point mounting it for a free account - it would
-        // just 402 on every message.
-        const miniCortexHtml = isPaidUser ? `
-                <aside class="sf-mini-cortex-panel">
-                    <div class="sf-mini-cortex-header">Cortex</div>
-                    <button type="button" class="btn" id="seeExamPrepBtn" style="width:100%; margin-bottom:8px; font-size:12px;">See Practice Questions</button>
-                    <div class="sf-mini-cortex-thread"><div class="sf-mini-cortex-empty">Ask about the question you're on - Cortex can see what you're currently working on.</div></div>
-                    <form class="sf-mini-cortex-form">
-                        <input type="text" class="sf-mini-cortex-input" placeholder="Ask Cortex…" maxlength="500" autocomplete="off">
-                        <button type="submit" class="btn sf-mini-cortex-send">Send</button>
-                    </form>
+        const hasPracticePanel = isPaidUser && showPracticePanel;
+        const practicePanelHtml = hasPracticePanel ? `
+                <aside class="sf-mini-cortex-panel sf-side-practice-panel">
+                    <div class="sf-mini-cortex-header">Practice Questions</div>
+                    <div class="sf-side-practice-body"><p class="sf-side-practice-status">Loading questions…</p></div>
                 </aside>` : '';
         contentInner.innerHTML = `
-            <div class="sf-greeting-banner${isPaidUser ? ' has-mini-cortex' : ''}"></div>
-            <div class="sf-feed-root${isPaidUser ? ' has-mini-cortex' : ''}">
+            <div class="sf-greeting-banner${hasPracticePanel ? ' has-mini-cortex' : ''}"></div>
+            <div class="sf-feed-root${hasPracticePanel ? ' has-mini-cortex' : ''}">
                 <button type="button" class="sf-feed-exit-btn" title="${escapeHtml(exitTitle)}">✕</button>
                 <div class="sf-feed-viewport">
                     <div class="sf-feed-track"></div>
                 </div>
                 <div class="sf-recall-nudge" hidden></div>
-                ${miniCortexHtml}
+                ${practicePanelHtml}
             </div>`;
         const viewportEl = contentInner.querySelector('.sf-feed-viewport');
         const trackEl = contentInner.querySelector('.sf-feed-track');
@@ -18316,12 +18385,98 @@ SQIDAQAB
         sfMountGreetingBanner(contentInner.querySelector('.sf-greeting-banner'));
         sfFeed = {
             slides: [], meta: [], currentIndex: 0, locked: false, trackEl, viewportEl, nudgeEl, appending: false, onClose, scopeFolder: scopeFolder || null,
-            recallTimers: [], trackedRecallIds: new Set(), miniCortexHistory: [],
+            recallTimers: [], trackedRecallIds: new Set(),
         };
         sfWireGestures(viewportEl);
-        const miniCortexEl = contentInner.querySelector('.sf-mini-cortex-panel');
-        if (miniCortexEl) sfWireMiniCortex(miniCortexEl);
         return { trackEl, viewportEl };
+    }
+
+    // The lesson feed reuses the exact persistent Practice Questions data,
+    // cards and submission handlers as the standalone tab. Answers therefore
+    // appear in that tab and in Corrections without any syncing layer.
+    async function sfLoadSidePracticePanel(folder, conceptId, concept) {
+        const host = document.querySelector('.sf-side-practice-body');
+        if (!host) return;
+        if (!folder || !conceptId) {
+            host.innerHTML = '<p class="sf-side-practice-status">Practice questions are not available for this lesson yet.</p>';
+            return;
+        }
+        host.innerHTML = '<p class="sf-side-practice-status">Loading questions…</p>';
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) throw new Error('not signed in');
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/spec-lesson-practice/${encodeURIComponent(conceptId)}/available-types`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            const data = await resp.json();
+            if (!host.isConnected) return;
+            host.innerHTML = `
+                <p class="sf-side-practice-concept">${escapeHtml(concept || 'This lesson')}</p>
+                <div class="sf-side-questions-host"></div>
+                <div class="sf-side-type-host"></div>`;
+
+            if (data.pickedQuestions.length) {
+                const questionsHost = host.querySelector('.sf-side-questions-host');
+                renderPracticeQuestionList(
+                    questionsHost, data.pickedQuestions, concept,
+                    folder.subject || '', folder.qualification || '', folder.examBoard || '',
+                    data.componentDefinitions
+                );
+                const layout = questionsHost.firstElementChild;
+                if (layout) {
+                    layout.style.setProperty('display', 'block', 'important');
+                    layout.style.setProperty('padding', '0', 'important');
+                    layout.style.setProperty('max-width', 'none', 'important');
+                }
+                questionsHost.querySelector('.practice-question-sidebar')?.remove();
+            }
+
+            const typeHost = host.querySelector('.sf-side-type-host');
+            if (data.picksRemaining === 0) {
+                typeHost.innerHTML = '<p class="field-hint sf-side-practice-complete">You\'ve used all 3 practice questions for this lesson.</p>';
+                return;
+            }
+            typeHost.innerHTML = `
+                <p class="sf-side-practice-progress">Question ${data.picksUsed + 1} of 3</p>
+                <p class="field-hint">Pick a question type to generate it.</p>
+                <div class="sf-side-practice-types"></div>`;
+            const listEl = typeHost.querySelector('.sf-side-practice-types');
+            if (!data.availableTypes.length) {
+                listEl.innerHTML = '<div class="empty-hint">No question types are set up for this subject yet.</div>';
+                return;
+            }
+            data.availableTypes.forEach((type) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn btn-on-content sf-side-practice-type-btn';
+                btn.textContent = `${type.displayLabel} (${type.markTariff} mark${type.markTariff === 1 ? '' : 's'})`;
+                btn.addEventListener('click', async () => {
+                    const originalLabel = btn.textContent;
+                    btn.disabled = true;
+                    btn.textContent = 'Generating…';
+                    try {
+                        const response = await fetch(`${COMPILE_BACKEND_URL}/spec-lesson-practice/${encodeURIComponent(conceptId)}/generate`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                            body: JSON.stringify({ typeKey: type.typeKey })
+                        });
+                        const body = await response.json().catch(() => ({}));
+                        if (!response.ok) throw new Error(body.error || 'Could not generate this question.');
+                        refreshLocksChip();
+                        await sfLoadSidePracticePanel(folder, conceptId, concept);
+                    } catch (err) {
+                        alert(err.message || 'Could not generate this question — try again in a moment.');
+                        btn.disabled = false;
+                        btn.textContent = originalLabel;
+                    }
+                });
+                listEl.appendChild(btn);
+            });
+        } catch (err) {
+            console.error('LastMind: failed to load side Practice Questions.', err);
+            if (host.isConnected) host.innerHTML = '<p class="sf-side-practice-status">Couldn\'t load Practice Questions — try again in a moment.</p>';
+        }
     }
 
     // Reads a short snippet of what's actually on screen right now (the
@@ -18430,7 +18585,7 @@ SQIDAQAB
     // global, cross-subject login-time feed; called with a folder (see
     // sfShowFolderFeed) to scope it to just that one subject instead.
     async function sfMaybeShowFeed(scopeFolder) {
-        const { viewportEl, trackEl } = sfMountFeedShell('Back to Cortex', null, scopeFolder);
+        const { viewportEl, trackEl } = sfMountFeedShell('Back to Cortex', null, scopeFolder, true);
         const activeFeed = sfFeed;
         trackEl.innerHTML = '<div class="sf-feed-slide"><div class="sf-slide-inner"><p role="status">Loading your next lesson...</p></div></div>';
         try {
@@ -18438,6 +18593,7 @@ SQIDAQAB
             const rec = scopeFolder ? await sfComputeFolderRecommendation(scopeFolder) : await sfComputeGlobalNextLesson();
             if (sfFeed !== activeFeed || !trackEl.isConnected) return true;
             if (!rec) { sfFeed = null; return false; }
+            sfLoadSidePracticePanel(rec.folder || scopeFolder, rec.node?.conceptId, rec.node?.label);
             trackEl.querySelector('[role="status"]').textContent = 'Preparing ' + (rec.node?.label || 'your lesson') + '...';
             const built = await sfBuildSlidesForRecommendation(rec);
             if (sfFeed !== activeFeed || !trackEl.isConnected) return true;
@@ -18482,10 +18638,11 @@ SQIDAQAB
     // picking exactly that one. Closing the feed returns to the graph
     // (rather than Cortex/welcome) since that's where this was opened from.
     async function sfOpenNodeLessonInFeed(folder, node) {
-        const { viewportEl, trackEl } = sfMountFeedShell('Back to Knowledge Map', () => renderKnowledgeMapForFolder(folder), folder);
+        const { viewportEl, trackEl } = sfMountFeedShell('Back to Knowledge Map', () => renderKnowledgeMapForFolder(folder), folder, true);
         const activeFeed = sfFeed;
         trackEl.innerHTML = '<div class="sf-feed-slide"><div class="sf-slide-inner"><p role="status">Preparing your lesson...</p></div></div>';
         try {
+            sfLoadSidePracticePanel(folder, node.conceptId, node.label);
             const built = await sfBuildSlidesForRecommendation({ node, folder });
             if (sfFeed !== activeFeed || !trackEl.isConnected) return;
             trackEl.innerHTML = '';
@@ -21009,7 +21166,7 @@ SQIDAQAB
             .attr('id', 'km-link-arrowhead')
             .attr('viewBox', '0 0 8 8')
             .attr('refX', 7).attr('refY', 4)
-            .attr('markerWidth', 6).attr('markerHeight', 6)
+            .attr('markerWidth', 8).attr('markerHeight', 8)
             .attr('orient', 'auto-start-reverse')
             .append('path')
             .attr('d', 'M0,0 L8,4 L0,8 Z')
@@ -21352,6 +21509,7 @@ SQIDAQAB
             nodeGroup.classed('km-neighbor', (n) => n.id !== d.id && reached.has(n.id));
             nodeGroup.classed('km-dimmed', (n) => !reached.has(n.id));
             linkSelection.classed('km-highlighted', (e) => reached.has(e.source.id) && reached.has(e.target.id));
+            linkSelection.classed('km-direct-highlighted', (e) => e.source.id === d.id || e.target.id === d.id);
             linkSelection.classed('km-dimmed', (e) => !(reached.has(e.source.id) && reached.has(e.target.id)));
         }
 
@@ -21363,6 +21521,7 @@ SQIDAQAB
         function clearKmHighlight() {
             nodeGroup.classed('km-selected', false).classed('km-neighbor', false).classed('km-dimmed', false);
             linkSelection.classed('km-highlighted', false).classed('km-dimmed', false);
+            linkSelection.classed('km-direct-highlighted', false);
         }
         svg.on('click', clearKmHighlight);
 
@@ -21604,22 +21763,18 @@ SQIDAQAB
             const schedule = fullData.scheduleByConceptId || new Map();
             const ownEntry = schedule.get(d.conceptId);
 
-            // Only nodes are ever launchable, never a link on its own — a
-            // downstream concept that's ALSO been encoded is one of THIS
-            // node's own qualifying links (tested together, as part of
-            // ITS review, once due — see renderNodeReviewStart below), so
-            // there's nothing to click here beyond that; one that hasn't
-            // been encoded yet still needs its own "Encode this first"
-            // jump, since reviewing a connection to something never
-            // taught yet tests nothing real.
-            const qualifyingLinks = ownEntry ? downstream.filter((n) => schedule.has(n.conceptId)) : [];
+            // Concept cards and arrows are deliberately separate learning
+            // objects. A concept card launches AO1 only; every integration
+            // lesson/review is launched from its arrow, never bundled into
+            // the concept's own spaced-review session.
+            const qualifyingLinks = [];
             // Only actually blocks review when there's a real link still
             // untested — a node with no downstream at all has no link to
             // test in the first place, so its review is AO1-only and
             // should never be held hostage waiting for a link that will
             // never exist.
             const unencodedDownstream = ownEntry ? downstream.filter((n) => !schedule.has(n.conceptId)) : [];
-            const blockedByUnencodedLink = ownEntry && downstream.length > 0 && qualifyingLinks.length === 0;
+            const blockedByUnencodedLink = false;
             const missingLinkTitle = unencodedDownstream.length === 1
                 ? `Encode "${unencodedDownstream[0].label}" first — this concept's review tests the link between them.`
                 : `Encode "${unencodedDownstream[0]?.label}" and ${unencodedDownstream.length - 1} other linked concept${unencodedDownstream.length > 2 ? 's' : ''} first — this concept's review tests those links too.`;
@@ -21673,7 +21828,7 @@ SQIDAQAB
                     return `
                         <div class="km-inline-detail-item km-inline-detail-item-action">
                             <span>${escapeHtml(n.label)}</span>
-                            <span class="km-inline-detail-meta">${otherEncoded ? "Tested in this concept's own review" : 'Needs encoding first — see "Needs first" above'}</span>
+                            <span class="km-inline-detail-meta">${otherEncoded ? 'Open the arrow between these concepts for the integration lesson' : 'Encode this concept before its integration can unlock'}</span>
                         </div>
                     `;
                 }).join('');
@@ -21704,7 +21859,7 @@ SQIDAQAB
             // string — escapeHtml only escapes for text-node context, not
             // attribute values, so a label containing a quote (plenty of
             // concept names do) would otherwise truncate the attribute.
-            const reviewDue = !ownEntry || blockedByUnencodedLink || isNodeReviewDue(d, qualifyingLinks, schedule);
+            const reviewDue = !ownEntry || isScheduleEntryDue(ownEntry);
             const startBtnHtml = !ownEntry
                 ? `<button class="btn primary km-inline-start-lesson-btn">Start lesson</button>`
                 : blockedByUnencodedLink
@@ -23508,7 +23663,8 @@ SQIDAQAB
                 return true;
             }
 
-            const { viewportEl } = sfMountFeedShell('Back to Knowledge Map', () => renderKnowledgeMapForFolder(folder), folder);
+            const { viewportEl } = sfMountFeedShell('Back to Knowledge Map', () => renderKnowledgeMapForFolder(folder), folder, true);
+            sfLoadSidePracticePanel(folder, d.conceptId, d.label);
             for (const item of items) {
                 if (!sfFeed) return true; // closed while a fetch was in flight - not a failure
                 let built = [];
@@ -24984,6 +25140,8 @@ SQIDAQAB
 
         document.getElementById('gate-message').style.display = 'none';
         document.getElementById('app').style.display = 'block';
+
+        initOwnedRewardTheme();
 
         // Peer tutoring pulled from the live site entirely, both entry
         // points (Peer Tutoring hub + My Tutoring) - real legal exposure
