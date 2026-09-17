@@ -3801,6 +3801,9 @@
         box-shadow: 0 2px 10px rgba(18,18,30,0.24);
     }
     #rewardsTopbarBtn:hover, #founderTutoringTopbarBtn:hover { transform: translateY(-1px); }
+    #dashboardTopbarBtn { color: #12121E; border-color: rgba(18,18,30,0.38); }
+    #dashboardTopbarBtn:hover { background: rgba(18,18,30,0.08); border-color: #12121E; }
+    .reward-action { margin-left: 8px; padding: 5px 9px; border-radius: 5px; border: 1px solid currentColor; background: transparent; color: inherit; font: 700 0.68rem Arial, sans-serif; cursor: pointer; }
     @media (max-width: 430px) { .reward-grid { grid-template-columns: 1fr; } }
 
     /* Image-backed background textures (see THEME_IMAGE_BACKGROUNDS) -
@@ -8737,7 +8740,11 @@ SQIDAQAB
                 </div>
                 <div class="rewards-section-heading"><h2>Backgrounds</h2><span>${THEME_PRESETS.length} available</span></div>
                 <div class="reward-grid">
-                    ${[...THEME_PRESETS].sort((a, b) => Number(REWARD_UNLOCKED_THEME_KEYS.has(b.key)) - Number(REWARD_UNLOCKED_THEME_KEYS.has(a.key))).map((preset) => {
+                    ${[...THEME_PRESETS].sort((a, b) => {
+                        if (a.key === 'cosycafe') return -1;
+                        if (b.key === 'cosycafe') return 1;
+                        return Number(REWARD_UNLOCKED_THEME_KEYS.has(b.key)) - Number(REWARD_UNLOCKED_THEME_KEYS.has(a.key));
+                    }).map((preset) => {
                         const unlocked = REWARD_UNLOCKED_THEME_KEYS.has(preset.key);
                         const price = rewardPrice(preset);
                         const freeReward = !unlocked && price === 0;
@@ -8747,7 +8754,7 @@ SQIDAQAB
                             <div class="reward-preview" style="background-image:url('${image}')">
                                 <div class="reward-lock" aria-label="Locked"><span class="reward-lock-badge"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.8"/></svg></span></div>
                             </div>
-                            <div class="reward-card-meta"><span class="reward-name">${escapeHtml(preset.label)}</span><span class="reward-price"><span class="reward-key-icon">${rewardKeyIcon(15)}</span>${price}</span></div>
+                            <div class="reward-card-meta"><span class="reward-name">${escapeHtml(preset.label)}</span><span class="reward-price"><span class="reward-key-icon">${rewardKeyIcon(15)}</span>${price}<button type="button" class="reward-action">${unlocked ? 'Equip' : (purchasable ? 'Redeem' : 'Locked')}</button></span></div>
                         </article>`;
                     }).join('')}
                 </div>
@@ -16516,6 +16523,11 @@ SQIDAQAB
         return new Set((result && result.conceptIds) || []);
     }
 
+    async function sfFetchCompletedDay1ConceptIds() {
+        const result = await sfGetBackend('/day1-checks/completed');
+        return new Set((result && result.conceptIds) || []);
+    }
+
     async function sfComputeFolderRecommendation(folder, pretendEncodedNodeId) {
         let data;
         try {
@@ -16561,7 +16573,10 @@ SQIDAQAB
         // (node OR a specific qualifying link) that hasn't cleared its
         // own Day-1 check yet is never offered by the real spaced-review
         // system below, even if its Day-1 isn't due until tomorrow.
-        const pendingDay1ConceptIds = await sfFetchPendingDay1ConceptIds();
+        const [pendingDay1ConceptIds, completedDay1ConceptIds] = await Promise.all([
+            sfFetchPendingDay1ConceptIds(),
+            sfFetchCompletedDay1ConceptIds(),
+        ]);
 
         // Picks the FIRST due review found while walking data.nodes in its
         // own order, rather than the earliest-due-date one - data.nodes
@@ -16575,24 +16590,19 @@ SQIDAQAB
         // overdue - the same reasoning already applied to Day-1 checks
         // below, generalised to real spaced reviews too.
         let bestDue = null;
+        let bestIntegration = null;
         for (const n of data.nodes) {
             if (!schedule.has(n.conceptId)) continue;
             const nodeAo1Gated = pendingDay1ConceptIds.has(n.conceptId);
             const qualifyingLinks = (successorAdjacency.get(n.id) || [])
                 .map((id) => nodeById.get(id))
-                // Explicit new rule: a link's FIRST-EVER integration
-                // opportunity is introduced right after its to-node's own
-                // FIRST REAL spaced-repetition session, not merely once
-                // that node has been encoded at all (the old rule) - "not
-                // the day1 check" specifically, since the day1 grade only
-                // sets the real interval (see the day1-check FSRS commit),
-                // it isn't itself a spaced session. reps counts every real
-                // FSRS grade on this concept (1 = initial encoding, 2 =
-                // day1's own grade, 3 = the genuine first spaced review
-                // once that interval elapses) - reps>=3 is "that first
-                // spaced session has now actually happened".
-                .filter((ln) => ln && (schedule.get(ln.conceptId)?.reps || 0) >= 3)
+                // First-time integration requires both endpoint concepts'
+                // Day-1 checks to be complete.
+                .filter((ln) => ln && completedDay1ConceptIds.has(n.conceptId) && completedDay1ConceptIds.has(ln.conceptId))
                 .filter((ln) => !pendingDay1ConceptIds.has(sfReviewLinkKey(n, ln) + '::integration'));
+            const newIntegrationLinks = qualifyingLinks.filter((ln) => !schedule.has(`${n.conceptId}->${ln.conceptId}::integration`));
+            if (!bestIntegration && newIntegrationLinks.length) bestIntegration = { node: n, qualifyingLinks: newIntegrationLinks };
+            const scheduledLinks = qualifyingLinks.filter((ln) => schedule.has(`${n.conceptId}->${ln.conceptId}::integration`));
             if (nodeAo1Gated && !qualifyingLinks.length) continue; // nothing left to test yet
 
             // Same due-check sfIsNodeReviewDue/sfNextNodeReviewDueDate do,
@@ -16600,16 +16610,16 @@ SQIDAQAB
             // - qualifyingLinks is already pre-filtered above, so this
             // only needs to skip the node's OWN concept_id lookup, not
             // reimplement the link-side logic.
-            const linkDueDates = qualifyingLinks
+            const linkDueDates = scheduledLinks
                 .map((link) => schedule.get(`${n.conceptId}->${link.conceptId}::integration`))
                 .filter(Boolean);
             const isDue = nodeAo1Gated
                 ? linkDueDates.some((entry) => sfIsScheduleEntryDue(entry))
-                : sfIsNodeReviewDue(n, qualifyingLinks, schedule);
+                : sfIsNodeReviewDue(n, scheduledLinks, schedule);
             if (!isDue) continue;
             const relevantDates = nodeAo1Gated ? linkDueDates : [schedule.get(n.conceptId), ...linkDueDates].filter(Boolean);
             const due = relevantDates.length ? new Date(Math.min(...relevantDates.map((entry) => new Date(entry.due).getTime()))) : new Date(0);
-            bestDue = { node: n, qualifyingLinks, due };
+            bestDue = { node: n, qualifyingLinks: scheduledLinks, due };
             break;
         }
 
@@ -16630,6 +16640,7 @@ SQIDAQAB
         }
         if (bestDay1) return { type: 'day1', check: bestDay1, folder, due: new Date(bestDay1.dueDate) };
         if (bestDue) return { type: 'review', node: bestDue.node, qualifyingLinks: bestDue.qualifyingLinks, folder, due: bestDue.due };
+        if (bestIntegration) return { type: 'integration', node: bestIntegration.node, qualifyingLinks: bestIntegration.qualifyingLinks, folder, due: null };
 
         for (const n of data.nodes) {
             const found = firstReadyUnencoded(n.id);
@@ -16650,7 +16661,9 @@ SQIDAQAB
         if (!recs.length && results.some((r) => r.status === 'rejected')) throw new Error('Could not load your lessons. Please try again.');
         const dueReviews = recs.filter((r) => r.type === 'review' || r.type === 'day1').sort((a, b) => a.due - b.due);
         if (dueReviews.length) return dueReviews[0];
-        return recs.find((r) => r.type === 'lesson') || null;
+        // A newly unlocked integration outranks fresh encoding, but never
+        // a due Day-1 check or scheduled spaced review above.
+        return recs.find((r) => r.type === 'integration') || recs.find((r) => r.type === 'lesson') || null;
     }
 
     // ---- Short-form feed: the scrolling feed itself ----
@@ -17409,7 +17422,7 @@ SQIDAQAB
             // the same question appearing twice in a row.
             return [sfBuildDay1CheckSlide(rec.check)];
         }
-        if (rec.type === 'review') {
+        if (rec.type === 'review' || rec.type === 'integration') {
             const slides = await sfBuildReviewSlides(rec);
             if (slides.length) {
                 // Same reasoning as the day1 branch above - AO1/integration
@@ -19181,9 +19194,13 @@ SQIDAQAB
         // whole time it's in flight.
         showLoadingWithColdStartHint(contentInner, `Loading ${folderLabel(folder)}…`);
 
-        let data, scheduleRows;
+        let data, scheduleRows, completedDay1ConceptIds;
         try {
-            [data, scheduleRows] = await Promise.all([fetchSubjectKnowledgeMapWithRetry(folder), fetchScheduleData()]);
+            [data, scheduleRows, completedDay1ConceptIds] = await Promise.all([
+                fetchSubjectKnowledgeMapWithRetry(folder),
+                fetchScheduleData(),
+                sfFetchCompletedDay1ConceptIds(),
+            ]);
         } catch (err) {
             // A real failure (network/timeout/server error) - NOT the same
             // as this subject genuinely having no map yet, and shouldn't
@@ -19216,6 +19233,7 @@ SQIDAQAB
         // display, just looked up by this graph's own node/edge concept
         // ids instead of a page's.
         data.scheduleByConceptId = new Map(scheduleRows.map((r) => [r.concept_id, r]));
+        data.completedDay1ConceptIds = completedDay1ConceptIds;
 
         // A different folder may have been clicked while this fetch was
         // in flight - don't clobber whatever's now selected/shown with a
@@ -21083,9 +21101,18 @@ SQIDAQAB
                     return;
                 }
                 const labels = [...new Set(labelsStr.split(',').map(l => l.trim().toUpperCase()).filter(Boolean))];
-                const selectedPoints = labels.map((label) => state.intersections.find((point) => point.label === label));
+                // Auto-generated A/B/C intersections and labels the user
+                // placed themselves are both valid shading vertices. This
+                // lets a student name a bespoke corner (for example Q2)
+                // and use it in the same A,B,Q2 shading instruction.
+                const selectedPoints = labels.map((label) => {
+                    const automatic = state.intersections.find((point) => point.label === label);
+                    if (automatic) return { ...automatic };
+                    const manual = state.labels.find((point) => String(point.text || '').trim().toUpperCase() === label);
+                    return manual ? { x: manual.x, y: manual.y, label } : null;
+                });
                 if (labels.length < 3 || selectedPoints.some((point) => !point)) {
-                    alert('Enter at least 3 valid corner labels shown on the diagram (for example A,B,D).');
+                    alert('Enter at least 3 valid corner labels shown on the diagram, including labels you added yourself (for example A,B,Q2).');
                     return;
                 }
                 const cx = selectedPoints.reduce((sum, point) => sum + point.x, 0) / selectedPoints.length;
@@ -21440,6 +21467,7 @@ SQIDAQAB
         }
 
         const graphSchedule = fullData.scheduleByConceptId || new Map();
+        const graphCompletedDay1 = fullData.completedDay1ConceptIds || new Set();
         function integrationAccessForLink(link) {
             const source = link.source;
             const target = link.target;
@@ -21449,8 +21477,8 @@ SQIDAQAB
             if (!sourceEntry || !targetEntry) {
                 return { status: 'locked', label: 'Encode both concepts first' };
             }
-            if ((targetEntry.reps || 0) < 3) {
-                return { status: 'locked', label: `Locked until “${target.label}” completes its first spaced review` };
+            if (!graphCompletedDay1.has(source.conceptId) || !graphCompletedDay1.has(target.conceptId)) {
+                return { status: 'locked', label: 'Complete both concepts’ Day 1 checks first' };
             }
             if (integrationEntry && daysBetweenLocalDays(new Date(), new Date(integrationEntry.due)) > 0) {
                 return { status: 'waiting', label: `Integration review ${formatDueIn(integrationEntry.due)}` };
@@ -21832,8 +21860,7 @@ SQIDAQAB
 
         // An arrow represents its own integration lesson. Opening it never
         // changes the existing unlock/scheduling rules: both concepts must
-        // be encoded, the downstream concept must have completed its first
-        // real spaced review (reps >= 3), and an existing integration can
+        // be encoded, both Day-1 checks must be complete, and an existing integration can
         // only be reviewed once its own schedule says it is due.
         function openIntegrationLink(link) {
             const access = integrationAccessForLink(link);
@@ -21848,7 +21875,7 @@ SQIDAQAB
                     ? `This integration is in spaced repetition and ${access.label.toLowerCase()}.`
                     : integrationEntry
                         ? 'This integration review is ready.'
-                        : 'You have unlocked this integration lesson by completing the first spaced review for the second concept.';
+                        : 'You have unlocked this integration lesson by completing both concepts’ Day 1 checks.';
             lessonFullpageBodyEl.innerHTML = `
                 <div class="km-inline-detail-section km-integration-landing">
                     <div class="km-inline-detail-eyebrow">Integration lesson</div>
