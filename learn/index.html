@@ -3778,6 +3778,10 @@
     .reward-price { flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; font: 700 0.76rem Arial, sans-serif; opacity: 0.88; }
     .reward-card.is-unlocked { cursor: pointer; }
     .reward-card.is-purchasable { cursor: pointer; }
+    .reward-card.is-free-reward { cursor: pointer; border-color: rgba(230,215,176,0.7); box-shadow: 0 10px 28px rgba(26,26,28,0.2), 0 0 0 1px rgba(230,215,176,0.2); }
+    .reward-card.is-free-reward .reward-preview { filter: brightness(1.16) saturate(1.06); }
+    .reward-card.is-free-reward .reward-preview::after { background: linear-gradient(to bottom, rgba(255,245,220,0.02), rgba(15,12,10,0.08)); }
+    .reward-card.is-free-reward .reward-lock { display: none; }
     .reward-card.is-purchasable:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(26,26,28,0.18); }
     .reward-card.is-purchasable:hover .reward-lock-badge { transform: scale(1.08); border-color: rgba(230,215,176,0.72); }
     .reward-card.is-unlocked .reward-lock { display: none; }
@@ -8621,6 +8625,8 @@ SQIDAQAB
     const REWARD_UNLOCKED_THEME_KEYS = new Set();
     let rewardKeyBalance = 0;
     const REWARD_KEY_PRICE = 75;
+    const FREE_REWARD_THEME_KEYS = new Set(['cosycafe']);
+    const rewardPrice = (preset) => FREE_REWARD_THEME_KEYS.has(preset.key) ? 0 : REWARD_KEY_PRICE;
     const rewardKeyIcon = (size = 18) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="8" cy="12" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M12 12h9m-3 0v3m-3-3v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
 
     async function fetchKeyBalance() {
@@ -8655,8 +8661,11 @@ SQIDAQAB
     }
 
     async function redeemBackgroundReward(preset) {
-        if (rewardKeyBalance < REWARD_KEY_PRICE) return;
-        const confirmed = window.confirm(`Redeem ${preset.label} for ${REWARD_KEY_PRICE} Keys?\n\nThis will leave you with ${rewardKeyBalance - REWARD_KEY_PRICE} Keys.`);
+        const price = rewardPrice(preset);
+        if (rewardKeyBalance < price) return;
+        const confirmed = window.confirm(price === 0
+            ? `Redeem ${preset.label}?\n\nThis reward costs 0 Keys and your balance will not change.`
+            : `Redeem ${preset.label} for ${price} Keys?\n\nThis will leave you with ${rewardKeyBalance - price} Keys.`);
         if (!confirmed) return;
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) return;
@@ -8728,15 +8737,17 @@ SQIDAQAB
                 </div>
                 <div class="rewards-section-heading"><h2>Backgrounds</h2><span>${THEME_PRESETS.length} available</span></div>
                 <div class="reward-grid">
-                    ${THEME_PRESETS.map((preset) => {
+                    ${[...THEME_PRESETS].sort((a, b) => Number(REWARD_UNLOCKED_THEME_KEYS.has(b.key)) - Number(REWARD_UNLOCKED_THEME_KEYS.has(a.key))).map((preset) => {
                         const unlocked = REWARD_UNLOCKED_THEME_KEYS.has(preset.key);
-                        const purchasable = !unlocked && rewardKeyBalance >= REWARD_KEY_PRICE;
+                        const price = rewardPrice(preset);
+                        const freeReward = !unlocked && price === 0;
+                        const purchasable = !unlocked && rewardKeyBalance >= price;
                         const image = THEME_IMAGE_BACKGROUNDS[preset.theme.bgTexture];
-                        return `<article class="reward-card${unlocked ? ' is-unlocked' : ''}${purchasable ? ' is-purchasable' : ''}" data-reward-key="${escapeHtml(preset.key)}" ${(unlocked || purchasable) ? 'role="button" tabindex="0"' : 'aria-disabled="true"'}>
+                        return `<article class="reward-card${unlocked ? ' is-unlocked' : ''}${purchasable ? ' is-purchasable' : ''}${freeReward ? ' is-free-reward' : ''}" data-reward-key="${escapeHtml(preset.key)}" ${(unlocked || purchasable) ? 'role="button" tabindex="0"' : 'aria-disabled="true"'}>
                             <div class="reward-preview" style="background-image:url('${image}')">
                                 <div class="reward-lock" aria-label="Locked"><span class="reward-lock-badge"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.8"/></svg></span></div>
                             </div>
-                            <div class="reward-card-meta"><span class="reward-name">${escapeHtml(preset.label)}</span><span class="reward-price"><span class="reward-key-icon">${rewardKeyIcon(15)}</span>${REWARD_KEY_PRICE}</span></div>
+                            <div class="reward-card-meta"><span class="reward-name">${escapeHtml(preset.label)}</span><span class="reward-price"><span class="reward-key-icon">${rewardKeyIcon(15)}</span>${price}</span></div>
                         </article>`;
                     }).join('')}
                 </div>
