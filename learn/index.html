@@ -14853,6 +14853,17 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         return getAuthRecord(scopedAuthKey('subscriptionId', userId));
     }
 
+    // The Stripe backend is a separate Render service that goes cold
+    // independently (a cold start took 23s when measured). A bare fetch to
+    // it has no timeout, so a stalled request left the page on "Checking
+    // your subscription…" forever - bound it, and let the callers' existing
+    // error paths (no token / free tier) take over instead of hanging.
+    function fetchWithTimeout(url, options = {}, ms = 45000) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), ms);
+        return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
+    }
+
     async function refreshTokenFromBackend(userId) {
         // Called when there's no usable token yet — re-fetches using whatever
         // subscription ID was stored at signup time, if any. Scoped to the
@@ -14868,7 +14879,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             const { data } = await supabaseClient.auth.getSession();
             if (!data.session) return null;
 
-            const resp = await fetch(`${BACKEND_URL}/api/token?subscriptionId=${encodeURIComponent(subId)}`, {
+            const resp = await fetchWithTimeout(`${BACKEND_URL}/api/token?subscriptionId=${encodeURIComponent(subId)}`, {
                 headers: { Authorization: `Bearer ${data.session.access_token}` }
             });
             if (!resp.ok) return null;
@@ -26014,6 +26025,14 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             clearInterval(gateMessageInterval);
             gateMessageEl.textContent = "Still checking — this is taking longer than usual, but hasn't failed. Hang tight.";
         }, 8000);
+        setTimeout(() => {
+            if (!gateMessageEl || gateMessageEl.style.display === 'none') return;
+            gateMessageEl.innerHTML = 'Still not through. <button type="button" style="margin-left:10px;padding:6px 14px;cursor:pointer;" onclick="location.reload()">Reload</button>';
+        }, 60000);
+
+        // Wake the Stripe backend NOW, in parallel with the local checks
+        // below, so its cold start overlaps them instead of adding to them.
+        try { fetch(`${BACKEND_URL}/`, { mode: 'no-cors' }).catch(() => {}); } catch (_) {}
 
         // TEMPORARY - see TEMP_ALL_FEATURES_FREE's own comment. Skip ALL
         // async checks if bypassing subscription verification entirely.
@@ -26073,7 +26092,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         // against Supabase itself before it will ever look up or return
         // anything.
         try {
-            const resp = await fetch(`${BACKEND_URL}/api/token-for-user`, {
+            const resp = await fetchWithTimeout(`${BACKEND_URL}/api/token-for-user`, {
                 method: 'POST',
                 headers: { Authorization: `Bearer ${supabaseSession.access_token}` }
             });
