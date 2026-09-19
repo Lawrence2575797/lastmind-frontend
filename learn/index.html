@@ -7294,7 +7294,11 @@ SQIDAQAB
                 listBuffer.items.push(numberedMatch[1]);
             } else {
                 flushList();
+                // Each line the lesson was written on is its own paragraph (the
+                // generator writes one sentence per line); only a line that runs on
+                // for several sentences is re-grouped below.
                 proseBuffer.push(line);
+                flushProse();
             }
         });
         flushList();
