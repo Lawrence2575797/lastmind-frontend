@@ -26407,6 +26407,25 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             gateMessageEl.innerHTML = 'Still not through. <button type="button" style="margin-left:10px;padding:6px 14px;cursor:pointer;" onclick="location.reload()">Reload</button>';
         }, 60000);
 
+        // The free plan must always load. However the checks below go (slow
+        // or offline network, a stalled session refresh, a cold backend),
+        // if the app hasn't opened after a few seconds, open it on the free
+        // plan; it flips to paid in place if/when verification completes.
+        let entered = null;
+        const enterOnce = (paid) => {
+            if (!entered) {
+                entered = enterApp(paid).catch((err) => console.error('LastMind: app entry failed.', err));
+                return entered;
+            }
+            if (paid) entered.then(() => upgradeToPaid());
+            return entered;
+        };
+        setTimeout(() => {
+            if (entered) return;
+            console.warn('LastMind: subscription check is slow - opening on the free plan meanwhile.');
+            enterOnce(false);
+        }, 5000);
+
         // Wake the Stripe backend NOW, in parallel with the local checks
         // below, so its cold start overlaps them instead of adding to them.
         try { fetch(`${BACKEND_URL}/`, { mode: 'no-cors' }).catch(() => {}); } catch (_) {}
@@ -26434,11 +26453,20 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         // ever made by the new account. There is no fast path that skips
         // knowing the current user first any more.
         let supabaseSession = null;
+        let sessionReadFailed = false;
         try {
             const { data } = await supabaseClient.auth.getSession();
             supabaseSession = data.session;
         } catch (err) {
+            sessionReadFailed = true;
             console.error('LastMind: could not read the current session.', err);
+        }
+
+        // A failed READ (offline, storage blocked) is not "logged out" - don't
+        // bounce a signed-in student to the homepage; just open the free plan.
+        if (!supabaseSession && sessionReadFailed) {
+            await enterOnce(false);
+            return;
         }
 
         if (!supabaseSession) {
@@ -26454,7 +26482,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
 
         // Fast path: a valid token already on this device - straight in as paid.
         if (payload) {
-            await enterApp(true);
+            await enterOnce(true);
             return;
         }
 
@@ -26465,7 +26493,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         // switch them to paid in place (upgradeToPaid) if the check confirms
         // a subscription. Free is the safe default, so nothing is unlocked
         // before it is verified.
-        const enteredFree = enterApp(false).catch((err) => console.error('LastMind: free-plan entry failed.', err));
+        const enteredFree = enterOnce(false);
 
         token = await refreshTokenFromBackend(userId);
         payload = token ? await verifyJWT(token, publicKey) : null;
