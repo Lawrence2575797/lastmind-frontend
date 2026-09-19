@@ -17192,6 +17192,8 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     }
 
     async function sfComputeFolderRecommendation(folder, pretendEncodedNodeId) {
+        // A subject whose Cortex setup was never finished offers nothing until it is.
+        if (folder && folder.onboardingPending) return null;
         let data;
         try {
             data = await fetchSubjectKnowledgeMapWithRetry(folder);
@@ -17330,7 +17332,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     // first not-yet-started concept found, in sidebar folder order (an
     // arbitrary but stable, predictable tie-break).
     async function sfComputeGlobalNextLesson(pretendEncodedNodeId) {
-        const results = await Promise.allSettled((folders || []).map((f) => sfComputeFolderRecommendation(f, pretendEncodedNodeId)));
+        const results = await Promise.allSettled((folders || []).filter((f) => !f.onboardingPending).map((f) => sfComputeFolderRecommendation(f, pretendEncodedNodeId)));
         const recs = results.filter((r) => r.status === 'fulfilled').map((r) => r.value).filter(Boolean);
         if (!recs.length && results.some((r) => r.status === 'rejected')) throw new Error('Could not load your lessons. Please try again.');
         const dueReviews = recs.filter((r) => r.type === 'review' || r.type === 'day1').sort((a, b) => a.due - b.due);
@@ -19538,6 +19540,12 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     // nothing encoded and no map generated yet, or a subject that's fully
     // caught up).
     async function sfShowFolderFeed(folder) {
+        // Finishing Cortex's setup for a subject is not skippable: any way of
+        // opening it before then goes back to the setup conversation.
+        if (folder.onboardingPending) {
+            sfShowSubjectPickerWizard({ focusFolder: folder });
+            return;
+        }
         const shown = await sfMaybeShowFeed(folder);
         if (!shown) {
             const contentInner = document.getElementById('contentInner');
@@ -20020,7 +20028,10 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             const qualification = chosen.qualification || subject.qualifications[0].qualification;
             const examBoard = chosen.examBoard || subject.examBoards?.[0] || '';
             const folder = await createFolder(subject.subject, qualification, examBoard, '', '', '', '', null, true);
-            folder.onboardingPending = key !== sfWizard.focusKey && subject.examLesson;
+            // Pending until Cortex's setup for it is FINISHED - including the subject
+            // being set up right now, so leaving mid-conversation brings the student
+            // back to it rather than into lessons that were never set up.
+            folder.onboardingPending = !!subject.examLesson;
             await putFolder(folder);
             sfWizard.createdFolders.set(key, folder);
         }
