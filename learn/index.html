@@ -13639,7 +13639,19 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         }
     }
 
-    function startTour(tier) {
+    function startTour(tier, replay = false) {
+        // The main tour is shown once, ever: mark it seen as it OPENS (not when
+        // it is finished) and remember that on this device too, so closing the
+        // tab, reloading mid-tour or a failed status lookup can't bring it back.
+        // "See Tutorial" replays it on purpose (replay = true).
+        const localKey = `lm-tour-seen:${tier}`;
+        if (!replay) {
+            try {
+                if (localStorage.getItem(localKey) === '1') return;
+                localStorage.setItem(localKey, '1');
+            } catch (_) { /* storage unavailable - the server flag below still applies */ }
+            markOnboardingTourSeen(tier);
+        }
         tourTier = tier;
         tourSteps = tier === 'premium' ? PREMIUM_TOUR_STEPS : FREE_TOUR_STEPS;
         tourIndex = 0;
@@ -15076,7 +15088,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     // touching the seen_free_tour/seen_premium_tour flags (it's already
     // been marked seen; replaying it again shouldn't need those to change).
     document.getElementById('seeTutorialBtn').addEventListener('click', () => {
-        startTour(isPaidUser ? 'premium' : 'free');
+        startTour(isPaidUser ? 'premium' : 'free', true);
     });
 
     document.getElementById('myAccountOverlay').addEventListener('click', (e) => {
