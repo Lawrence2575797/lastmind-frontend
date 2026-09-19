@@ -8775,8 +8775,15 @@ SQIDAQAB
         if (badge) badge.textContent = rewardKeyBalance;
     }
     const REWARD_KEY_PRICE = 75;
-    const FREE_REWARD_THEME_KEYS = new Set(['cosycafe']);
-    const rewardPrice = (preset) => FREE_REWARD_THEME_KEYS.has(preset.key) ? 0 : REWARD_KEY_PRICE;
+    const DIAGRAM_REWARD_PRICE = 25;
+    const DIAGRAM_REWARD_PRESETS = [
+        { key: 'diagram-seventies', diagramKey: 'seventies', label: '1970s Tech', price: DIAGRAM_REWARD_PRICE },
+        { key: 'diagram-countryside', diagramKey: 'countryside', label: 'English Countryside', price: DIAGRAM_REWARD_PRICE },
+        { key: 'diagram-futuristic', diagramKey: 'futuristic', label: 'Futuristic Glass', price: DIAGRAM_REWARD_PRICE },
+        { key: 'diagram-football', diagramKey: 'football', label: 'Football Tactics', price: DIAGRAM_REWARD_PRICE },
+    ];
+    const FREE_REWARD_THEME_KEYS = new Set(['cosycafe', 'diagram-seventies']);
+    const rewardPrice = (preset) => FREE_REWARD_THEME_KEYS.has(preset.key) ? 0 : (preset.price != null ? preset.price : REWARD_KEY_PRICE);
     const rewardKeyIcon = (size = 18) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="8" cy="12" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M12 12h9m-3 0v3m-3-3v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
 
     async function fetchKeyBalance() {
@@ -8836,6 +8843,7 @@ SQIDAQAB
     }
 
     async function initOwnedRewardTheme() {
+        loadEquippedDiagramBackground();
         const rewards = await fetchBackgroundRewards();
         if (!rewards) return;
         rewardKeyBalance = Number(rewards.balance) || 0;
@@ -8863,6 +8871,7 @@ SQIDAQAB
         } finally {
             card.removeAttribute('aria-busy');
         }
+        if (document.getElementById('rewardsTitle')) renderRewardsPage(false);
     }
 
     async function restoreDefaultTheme(button) {
@@ -8922,12 +8931,36 @@ SQIDAQAB
                             <div class="reward-preview" style="background-image:url('${image}')">
                                 <div class="reward-lock" aria-label="Locked"><span class="reward-lock-badge"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.8"/></svg></span></div>
                             </div>
-                            <div class="reward-card-meta"><span class="reward-name">${escapeHtml(preset.label)}</span><span class="reward-price"><span class="reward-key-icon">${rewardKeyIcon(15)}</span>${price}<button type="button" class="reward-action">${unlocked ? 'Equip' : (purchasable ? 'Redeem' : 'Locked')}</button></span></div>
+                            <div class="reward-card-meta"><span class="reward-name">${escapeHtml(preset.label)}</span><span class="reward-price"><span class="reward-key-icon">${rewardKeyIcon(15)}</span>${price}<button type="button" class="reward-action">${unlocked ? (currentTheme.bgTexture === preset.theme.bgTexture ? '✓ Equipped' : 'Equip') : (purchasable ? 'Redeem' : 'Locked')}</button></span></div>
+                        </article>`;
+                    }).join('')}
+                </div>
+                <div class="rewards-section-heading" style="margin-top:34px;"><h2>Economics Drawing Tool backgrounds</h2><div class="rewards-section-actions"><span>${DIAGRAM_REWARD_PRESETS.length} available</span>${equippedDiagramBackground ? '<button type="button" class="reward-default-btn" id="rewardDiagramPlainBtn">Use plain canvas</button>' : ''}</div></div>
+                <div class="reward-grid">
+                    ${DIAGRAM_REWARD_PRESETS.map((preset) => {
+                        const unlocked = REWARD_UNLOCKED_THEME_KEYS.has(preset.key);
+                        const price = rewardPrice(preset);
+                        const freeReward = !unlocked && price === 0;
+                        const purchasable = !unlocked && rewardKeyBalance >= price;
+                        const equipped = unlocked && equippedDiagramBackground === preset.diagramKey;
+                        return `<article class="reward-card${unlocked ? ' is-unlocked' : ''}${purchasable ? ' is-purchasable' : ''}${freeReward ? ' is-free-reward' : ''}" data-diagram-reward="${escapeHtml(preset.key)}" ${(unlocked || purchasable) ? 'role="button" tabindex="0"' : 'aria-disabled="true"'}>
+                            <div class="reward-preview" style="background-image:url('/assets/econ-backgrounds/${preset.diagramKey}.jpg')">
+                                <div class="reward-lock" aria-label="Locked"><span class="reward-lock-badge"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.8"/></svg></span></div>
+                            </div>
+                            <div class="reward-card-meta"><span class="reward-name">${escapeHtml(preset.label)}</span><span class="reward-price"><span class="reward-key-icon">${rewardKeyIcon(15)}</span>${price}<button type="button" class="reward-action">${unlocked ? (equipped ? '✓ Equipped' : 'Equip') : (purchasable ? 'Redeem' : 'Locked')}</button></span></div>
                         </article>`;
                     }).join('')}
                 </div>
             </section>`;
-        contentInner.querySelectorAll('.reward-card.is-unlocked, .reward-card.is-purchasable').forEach((card) => {
+        contentInner.querySelectorAll('[data-diagram-reward]').forEach((card) => {
+            const preset = DIAGRAM_REWARD_PRESETS.find((item) => item.key === card.dataset.diagramReward);
+            if (!preset || card.getAttribute('aria-disabled') === 'true') return;
+            const activate = () => REWARD_UNLOCKED_THEME_KEYS.has(preset.key) ? equipDiagramBackground(preset.diagramKey) : redeemBackgroundReward(preset);
+            card.addEventListener('click', activate);
+            card.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(); } });
+        });
+        document.getElementById('rewardDiagramPlainBtn')?.addEventListener('click', () => equipDiagramBackground(''));
+        contentInner.querySelectorAll('.reward-card.is-unlocked:not([data-diagram-reward]), .reward-card.is-purchasable:not([data-diagram-reward])').forEach((card) => {
             const preset = THEME_PRESETS.find((item) => item.key === card.dataset.rewardKey);
             const activate = () => REWARD_UNLOCKED_THEME_KEYS.has(preset.key)
                 ? applyRewardPreset(preset, card)
@@ -16144,7 +16177,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         document.getElementById('econDiagramBackBtn').addEventListener('click', renderEconDiagramGallery);
 
         const initialState = diagram.diagramState && Object.keys(diagram.diagramState).length
-            ? { placed: diagram.diagramState.curves || [], shades: diagram.diagramState.shades || [], labels: diagram.diagramState.labels || [], arrows: diagram.diagramState.arrows || [], notes: diagram.diagramState.notes || '', background: diagram.diagramState.background || '' }
+            ? { placed: diagram.diagramState.curves || [], shades: diagram.diagramState.shades || [], labels: diagram.diagramState.labels || [], arrows: diagram.diagramState.arrows || [], notes: diagram.diagramState.notes || '', ...(diagram.diagramState.background !== undefined ? { background: diagram.diagramState.background } : {}) }
             : undefined;
         renderDiagramWidget(document.getElementById('econDiagramWidgetHost'), null, async (answer) => {
             const saved = await econFetch(`/economics-diagrams/${diagram.id}`, { method: 'PUT', body: JSON.stringify({ diagramState: answer }) });
@@ -21505,10 +21538,33 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     const DIAGRAM_BACKGROUNDS = [
         { key: '', label: 'Plain (default)' },
         { key: 'countryside', label: 'English countryside', scrim: 0.55 },
-        { key: 'seventies', label: '1970s tech', scrim: 0.55 },
-        { key: 'futuristic', label: 'Futuristic glass', scrim: 0.72 },
+        { key: 'seventies', label: '1970s tech', scrim: 0.3 },
+        { key: 'futuristic', label: 'Futuristic glass', scrim: 0.45 },
         { key: 'football', label: 'Football tactics', scrim: 0.4 },
     ];
+    // Unlocked in Rewards (reward key "diagram-<key>"); the one the student has
+    // equipped becomes the default for a new diagram.
+    let equippedDiagramBackground = '';
+    const diagramBackgroundOwned = (key) => !key || REWARD_UNLOCKED_THEME_KEYS.has(`diagram-${key}`);
+    async function loadEquippedDiagramBackground() {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return;
+            equippedDiagramBackground = (await getAuthRecord(`econDiagramBackground:${session.user.id}`)) || '';
+        } catch (err) {
+            console.error('LastMind: could not read the equipped drawing-tool background.', err);
+        }
+    }
+    async function equipDiagramBackground(key) {
+        equippedDiagramBackground = key;
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session) await putAuthRecord(`econDiagramBackground:${session.user.id}`, key);
+        } catch (err) {
+            console.error('LastMind: could not save the equipped drawing-tool background.', err);
+        }
+        renderRewardsPage(false);
+    }
     function diagramBackgroundCss(key) {
         const bg = DIAGRAM_BACKGROUNDS.find((b) => b.key && b.key === key);
         if (!bg) return '';
@@ -21599,7 +21655,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             shades: (initialState && initialState.shades) || [],
             labels: (initialState && initialState.labels) || [],
             arrows: (initialState && initialState.arrows) || [],
-            background: (initialState && initialState.background) || '',
+            background: (initialState && initialState.background !== undefined) ? initialState.background : ((options && options.backgrounds && equippedDiagramBackground) || ''),
             shadeMode: false, edgeSelection: [], arrowMode: false, arrowDraft: null, dragging: null,
             intersections: [], labelSelection: [], shadeLabel: null,
         };
@@ -21610,7 +21666,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 <div class="diagram-palette" id="${uid}-palette"></div>
                 <div class="diagram-toolbar">
                     ${showBackgrounds ? `<select class="diagram-shade-colour" id="${uid}-bg-select" aria-label="Background">
-                        ${DIAGRAM_BACKGROUNDS.map((b) => `<option value="${b.key}"${b.key === ((initialState && initialState.background) || '') ? ' selected' : ''}>${b.key ? 'Background: ' : ''}${escapeHtml(b.label)}</option>`).join('')}
+                        ${DIAGRAM_BACKGROUNDS.filter((b) => diagramBackgroundOwned(b.key) || b.key === ((initialState && initialState.background) || '')).map((b) => `<option value="${b.key}"${b.key === state.background ? ' selected' : ''}>${b.key ? 'Background: ' : ''}${escapeHtml(b.label)}</option>`).join('')}
                     </select>` : ''}
                     <input type="text" class="diagram-label-input" id="${uid}-shade-input" placeholder="Shade: Enter labels (e.g. A,B,C)" style="display:none;">
                     <select class="diagram-shade-colour" id="${uid}-shade-colour" aria-label="Shading colour">
