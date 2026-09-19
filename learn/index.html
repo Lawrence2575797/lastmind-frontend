@@ -21402,10 +21402,10 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             // additionally project to matching P1/Q1, P2/Q2... axis values.
             let letterSeq = 0, guideSeq = 0;
             function addNamedIntersection(hit, showGuides) {
-                if (!hit || letterSeq >= 26) return;
+                if (!hit || letterSeq >= 26) return false;
                 // Three lines can occasionally meet at the same coordinate;
                 // that is one visible corner and should receive one letter.
-                if (state.intersections.some((point) => Math.hypot(point.x - hit.x, point.y - hit.y) < 2)) return;
+                if (state.intersections.some((point) => Math.hypot(point.x - hit.x, point.y - hit.y) < 2)) return false;
                 letterSeq++;
                 const label = String.fromCharCode(64 + letterSeq);
                 const priceRange = Math.abs(DIAGRAM_PRICE_AXIS[1].y - DIAGRAM_PRICE_AXIS[0].y);
@@ -21429,17 +21429,29 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 const labelEl = svgElement('text', { x: hit.x - 8, y: hit.y - 8, class: 'diagram-intersection-label diagram-label-point', 'text-anchor': 'middle', 'data-label': label, title: coordLabel });
                 labelEl.textContent = label;
                 svg.appendChild(labelEl);
+                return true;
             }
             placedPolys.forEach((poly) => {
                 addNamedIntersection(diagramPolylineIntersection(poly, DIAGRAM_PRICE_AXIS), false);
                 addNamedIntersection(diagramPolylineIntersection(poly, DIAGRAM_QUANTITY_AXIS), false);
             });
+            // The dashed P/Q guide lines dropped from each curve/curve
+            // crossing can themselves cross other placed lines (e.g. the
+            // vertical from B down to Q2 meets the world-price line) - those
+            // crossings get the next letters too, after all the curve ones.
+            const guideSegments = [];
             for (let i = 0; i < placedPolys.length; i++) {
                 for (let j = i + 1; j < placedPolys.length; j++) {
                     const hit = diagramPolylineIntersection(placedPolys[i], placedPolys[j]);
-                    addNamedIntersection(hit, true);
+                    if (addNamedIntersection(hit, true)) {
+                        guideSegments.push([hit, { x: DIAGRAM_PRICE_AXIS[0].x, y: hit.y }]);
+                        guideSegments.push([hit, { x: hit.x, y: DIAGRAM_QUANTITY_AXIS[0].y }]);
+                    }
                 }
             }
+            guideSegments.forEach((seg) => placedPolys.forEach((poly) => {
+                addNamedIntersection(diagramPolylineIntersection(poly, seg), false);
+            }));
 
             state.arrows.forEach((a, arrowIdx) => {
                 svg.appendChild(svgElement('line', { x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2, class: 'diagram-arrow', 'marker-end': `url(#${uid}-arrowhead)` }));
