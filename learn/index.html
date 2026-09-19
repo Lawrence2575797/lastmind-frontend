@@ -18158,6 +18158,8 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         sfFeed.currentIndex = newIndex;
         sfFeed.trackEl.style.transform = `translateY(-${newIndex * 100}%)`;
         setTimeout(() => { if (sfFeed) sfFeed.locked = false; }, 420);
+        // Landing on a different lesson may release a held-back recall nudge.
+        setTimeout(() => sfCheckDueRecalls(), 450);
     }
 
     // Same breakpoint this app already uses elsewhere for its one-time
@@ -18229,6 +18231,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 if (!sfFeed) return;
                 sfFeed.locked = false;
                 track.style.transition = ''; // back to the stylesheet's own vertical-only transition for every later move
+                sfCheckDueRecalls();
             }, 320);
         }, 300);
     }
@@ -18638,13 +18641,10 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         const currentNodeId = sfFeed.meta[sfFeed.currentIndex] && sfFeed.meta[sfFeed.currentIndex].nodeId;
         const dueRows = sfFeed.pendingRecallRows.filter((r) => new Date(r.dueAt).getTime() <= now);
         const due = dueRows.filter((r) => r.nodeId !== currentNodeId);
-        // A recall for the concept still on screen is held back (see above) -
-        // but it must be retried shortly, or its short window closes with the
-        // student never having been nudged at all.
-        if (dueRows.length > due.length) {
-            const retry = setTimeout(() => sfCheckDueRecalls(), 5000);
-            sfFeed.recallTimers.push(retry);
-        }
+        // A recall for the concept still on screen is held back (see above).
+        // It stays pending and is re-checked every time the feed moves to
+        // another slide (see sfMoveToIndex), so the pop-up shows the moment the
+        // student is in a different lesson - at any point during it.
         if (!due.length) return;
         const dueIds = new Set(due.map((r) => r.recallId));
         sfFeed.pendingRecallRows = sfFeed.pendingRecallRows.filter((r) => !dueIds.has(r.recallId));
