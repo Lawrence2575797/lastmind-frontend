@@ -710,6 +710,12 @@
     .km-node-group.km-dimmed {
         opacity: 0.22;
     }
+    /* "Hide pre-covered lessons": darkens (never removes) everything the
+       student said they'd already covered before LastMind. Reversible. */
+    .km-node-group.km-covered-hidden { opacity: 0.35; filter: brightness(0.4) saturate(0.5); }
+    .km-link.km-covered-hidden { stroke-opacity: 0.08; }
+    .km-hide-covered-btn { margin-left: auto; white-space: nowrap; }
+    .km-hide-covered-btn[aria-pressed="true"] { border-color: var(--accent); background: rgba(230, 215, 176, 0.18); }
 
     /* Link-level mastery — same five-step ramp as node mastery
        (.km-dot-0..4) so a link's own review progress reads as the same
@@ -5491,6 +5497,7 @@
                         <div class="km-inline-sub"></div>
                     </div>
                     <div class="km-inline-search"><input type="text" class="km-inline-search-input" placeholder="Search concepts…"></div>
+                    <button type="button" class="btn km-hide-covered-btn" hidden aria-pressed="false">Hide pre-covered lessons</button>
                 </div>
                 <div class="km-inline-themetabs"></div>
                 <!-- Progress key — one swatch per masteryProgressTier step
@@ -6993,6 +7000,8 @@ SQIDAQAB
     // pattern as specPracticeMode above. Set/cleared by the Knowledge Map
     // topbar button and its own "Exit" button.
     let kmGraphMode = false;
+    // "Hide pre-covered lessons" toggle on the knowledge map (darkens, never removes).
+    let kmHideCovered = false;
     // Cache for the currently-selected subject's spec-lesson tree fetch -
     // same role as selectedFolderKmData plays for the atomic tree. null
     // while loading, before a subject is selected, or (a real, distinct
@@ -16799,8 +16808,12 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             const newIntegrationLinks = qualifyingLinks.filter((ln) => !schedule.has(`${n.conceptId}->${ln.conceptId}::integration`));
             if (!bestIntegration && newIntegrationLinks.length) bestIntegration = { node: n, qualifyingLinks: newIntegrationLinks };
             const scheduledLinks = qualifyingLinks.filter((ln) => schedule.has(`${n.conceptId}->${ln.conceptId}::integration`));
-            if (!learnedHere) continue; // external coverage never creates an AO1/FSRS review
-            if (nodeAo1Gated && !qualifyingLinks.length) continue; // nothing left to test yet
+            // External coverage never creates an AO1/FSRS review of its own,
+            // but its integration links with newly learned concepts DO get
+            // spaced reviews - so a pre-covered node is treated like an
+            // AO1-gated one: only its links are ever due.
+            const skipOwnAo1 = nodeAo1Gated || !learnedHere;
+            if (skipOwnAo1 && !qualifyingLinks.length) continue; // nothing left to test yet
 
             // Same due-check sfIsNodeReviewDue/sfNextNodeReviewDueDate do,
             // but with AO1 itself left out of both when it's Day-1-gated
@@ -16810,11 +16823,11 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             const linkDueDates = scheduledLinks
                 .map((link) => schedule.get(`${n.conceptId}->${link.conceptId}::integration`))
                 .filter(Boolean);
-            const isDue = nodeAo1Gated
+            const isDue = skipOwnAo1
                 ? linkDueDates.some((entry) => sfIsScheduleEntryDue(entry))
                 : sfIsNodeReviewDue(n, scheduledLinks, schedule);
             if (!isDue) continue;
-            const relevantDates = nodeAo1Gated ? linkDueDates : [schedule.get(n.conceptId), ...linkDueDates].filter(Boolean);
+            const relevantDates = skipOwnAo1 ? linkDueDates : [schedule.get(n.conceptId), ...linkDueDates].filter(Boolean);
             const due = relevantDates.length ? new Date(Math.min(...relevantDates.map((entry) => new Date(entry.due).getTime()))) : new Date(0);
             bestDue = { node: n, qualifyingLinks: scheduledLinks, due };
             break;
@@ -17586,7 +17599,10 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         // check here too - this function doesn't otherwise know whether
         // the node's OWN concept cleared its Day-1 check yet.
         const pendingDay1ConceptIds = await sfFetchPendingDay1ConceptIds();
-        const ao1Due = !pendingDay1ConceptIds.has(rec.node.conceptId) && sfIsScheduleEntryDue(schedule.get(rec.node.conceptId));
+        // A concept covered before LastMind has no FSRS card, so it has no
+        // AO1 of its own to ask - only its integration links with newly
+        // learned concepts get tested.
+        const ao1Due = schedule.has(rec.node.conceptId) && !pendingDay1ConceptIds.has(rec.node.conceptId) && sfIsScheduleEntryDue(schedule.get(rec.node.conceptId));
         if (ao1Due) {
             const ao1Slide = await sfBuildAo1Slide(rec);
             if (ao1Slide) return [ao1Slide];
@@ -19530,6 +19546,11 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         sfRenderCortexOnboarding();
         setTimeout(() => {
             sfOnboardingClose();
+            // Straight into the first lesson: a previously-open Knowledge
+            // Map / Practice mode would otherwise swallow this and show
+            // "click a lesson in the sidebar" instead.
+            kmGraphMode = false;
+            specPracticeMode = false;
             selectFolder(folder.id);
         }, 900);
     }
@@ -21958,7 +21979,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         }
 
         function linkClass(d) {
-            return `km-link state-${d.state} km-integration-${integrationAccessForLink(d).status}`;
+            return `km-link state-${d.state} km-integration-${integrationAccessForLink(d).status}${kmHideCovered && d.source.externallyCovered && d.target.externallyCovered ? ' km-covered-hidden' : ''}`;
         }
 
         const linkSelection = zoomLayer.append('g').selectAll('path')
@@ -22010,7 +22031,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
 
         const nodeGroup = zoomLayer.append('g').selectAll('g')
             .data(nodes, (d) => d.id).join('g')
-            .attr('class', (d) => `km-node-group state-${d.state}`)
+            .attr('class', (d) => `km-node-group state-${d.state}${kmHideCovered && d.externallyCovered ? ' km-covered-hidden' : ''}`)
             .attr('data-node-id', (d) => d.id)
             .attr('transform', (d) => `translate(${d.x},${d.y})`);
 
@@ -22033,6 +22054,20 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         nodeLabelFo.append('xhtml:div').attr('class', 'km-node-label')
             .style('height', '100%').style('display', '-webkit-box').style('align-items', 'center')
             .text((d) => d.label);
+
+        // Only offered when the student actually has pre-covered lessons.
+        const hideCoveredBtn = contentInner.querySelector('.km-hide-covered-btn');
+        if (hideCoveredBtn) {
+            const paintCoveredToggle = () => {
+                nodeGroup.classed('km-covered-hidden', (d) => kmHideCovered && d.externallyCovered);
+                linkSelection.classed('km-covered-hidden', (d) => kmHideCovered && d.source.externallyCovered && d.target.externallyCovered);
+                hideCoveredBtn.setAttribute('aria-pressed', String(kmHideCovered));
+                hideCoveredBtn.textContent = kmHideCovered ? 'Show pre-covered lessons' : 'Hide pre-covered lessons';
+            };
+            hideCoveredBtn.hidden = !externalCoveredIds.size;
+            hideCoveredBtn.onclick = () => { kmHideCovered = !kmHideCovered; paintCoveredToggle(); };
+            paintCoveredToggle();
+        }
 
         // Patches this node's own colour/tier in place the instant a
         // lesson or review actually completes (see each submit handler's
@@ -22066,7 +22101,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             nodeDatum.state = masteryProgressTier(detail);
             nodeDatum.detail = detail;
             const g = nodeGroup.filter((n) => n.id === nodeDatum.id);
-            g.attr('class', `km-node-group state-${nodeDatum.state}`);
+            g.attr('class', `km-node-group state-${nodeDatum.state}${kmHideCovered && nodeDatum.externallyCovered ? ' km-covered-hidden' : ''}`);
             g.select('.km-node-shape').attr('fill-opacity', nodeDatum.state === 0 ? 0.08 : 0.15);
             if (detailEl.dataset.nodeId === nodeDatum.id) selectKmInlineNode(nodeDatum);
         }
