@@ -142,7 +142,9 @@
         flex-shrink: 0;
         filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
     }
-    .sidebar-header-upgrade { margin-left: auto; padding: 6px 9px; font-size: 0.68rem; width: auto; }
+    .sidebar-header-upgrade { margin-left: auto; padding: 6px 10px; font-size: 0.68rem; width: auto; flex: none; white-space: nowrap; }
+    .sidebar-header { gap: 16px; }
+    .sidebar-header .sidebar-logo { min-width: 0; }
     .specialist-tools-wrap { position: relative; flex: none; }
     .specialist-tools-menu { position: fixed; z-index: 140; min-width: 190px; padding: 6px; border-radius: 8px; background: #12121E; border: 1px solid rgba(230,215,176,0.28); box-shadow: 0 10px 28px rgba(0,0,0,0.32); display: none; }
     .specialist-tools-menu.open { display: flex; flex-direction: column; gap: 5px; }
@@ -16142,7 +16144,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         document.getElementById('econDiagramBackBtn').addEventListener('click', renderEconDiagramGallery);
 
         const initialState = diagram.diagramState && Object.keys(diagram.diagramState).length
-            ? { placed: diagram.diagramState.curves || [], shades: diagram.diagramState.shades || [], labels: diagram.diagramState.labels || [], arrows: diagram.diagramState.arrows || [], notes: diagram.diagramState.notes || '' }
+            ? { placed: diagram.diagramState.curves || [], shades: diagram.diagramState.shades || [], labels: diagram.diagramState.labels || [], arrows: diagram.diagramState.arrows || [], notes: diagram.diagramState.notes || '', background: diagram.diagramState.background || '' }
             : undefined;
         renderDiagramWidget(document.getElementById('econDiagramWidgetHost'), null, async (answer) => {
             const saved = await econFetch(`/economics-diagrams/${diagram.id}`, { method: 'PUT', body: JSON.stringify({ diagramState: answer }) });
@@ -16151,7 +16153,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 setTimeout(() => { if (document.getElementById('econDiagramWidgetHost')) renderEconDiagramGallery(); }, 1400);
             }
             return { correct: !!saved, savedLabel: '✓ Saved to gallery', feedback: saved ? 'Saved to your gallery.' : "Couldn't save — try again." };
-        }, null, initialState, { mode: 'save', notes: true });
+        }, null, initialState, { mode: 'save', notes: true, backgrounds: true });
     }
 
     // Per-user daily study-time budget (see studySettingsService.ts) — the
@@ -17930,9 +17932,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         // answering it - see sfPrefetchNext's own comment on why
         // rec.node.id is passed through as the pretend-already-encoded
         // override that keeps this safe to do this early.
-        // (Next-lesson prefetch used to fire here, spending Locks generating a
-        // lesson before the student had even read this one. It now starts only
-        // once they answer - see the sfPrefetchNext() calls on answer.)
+        sfPrefetchNext(rec.node.id);
 
         const explEl = document.createElement('div');
         explEl.className = 'sf-feed-slide';
@@ -21499,9 +21499,27 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     // editor shows - axes and their P/Q labels, curves with their names,
     // shading, the lettered intersections and dashed P/Q guides, arrows and
     // any text labels - just without the editing handles.
+    // Photographic backgrounds for the Economics Drawing Tool. The image sits
+    // behind the SVG (CSS background) under a dark scrim so the cream lines and
+    // labels stay readable; nothing about the diagram itself changes.
+    const DIAGRAM_BACKGROUNDS = [
+        { key: '', label: 'Plain (default)' },
+        { key: 'countryside', label: 'English countryside', scrim: 0.55 },
+        { key: 'seventies', label: '1970s tech', scrim: 0.55 },
+        { key: 'futuristic', label: 'Futuristic glass', scrim: 0.72 },
+        { key: 'football', label: 'Football tactics', scrim: 0.4 },
+    ];
+    function diagramBackgroundCss(key) {
+        const bg = DIAGRAM_BACKGROUNDS.find((b) => b.key && b.key === key);
+        if (!bg) return '';
+        return `linear-gradient(rgba(18,18,30,${bg.scrim}), rgba(18,18,30,${bg.scrim})), url(/assets/econ-backgrounds/${bg.key}.jpg) center / cover no-repeat`;
+    }
+
     let diagramPreviewSeq = 0;
     function renderMiniDiagramPreview(container, diagramState) {
         const svg = svgElement('svg', { viewBox: `0 0 ${DIAGRAM_CANVAS_WIDTH} ${DIAGRAM_CANVAS_HEIGHT}` });
+        const previewBg = diagramBackgroundCss(diagramState && diagramState.background);
+        if (previewBg) svg.style.background = previewBg;
         const arrowId = `dpv${diagramPreviewSeq++}-arrowhead`;
         const defs = svgElement('defs', {});
         const marker = svgElement('marker', { id: arrowId, markerWidth: 8, markerHeight: 8, refX: 6, refY: 3, orient: 'auto' });
@@ -21575,11 +21593,13 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         const uid = `dw${diagramWidgetSeq++}`;
         const mode = (options && options.mode) || 'grade';
         const showNotes = !!(options && options.notes);
+        const showBackgrounds = !!(options && options.backgrounds);
         const state = {
             placed: (initialState && initialState.placed) || [],
             shades: (initialState && initialState.shades) || [],
             labels: (initialState && initialState.labels) || [],
             arrows: (initialState && initialState.arrows) || [],
+            background: (initialState && initialState.background) || '',
             shadeMode: false, edgeSelection: [], arrowMode: false, arrowDraft: null, dragging: null,
             intersections: [], labelSelection: [], shadeLabel: null,
         };
@@ -21589,6 +21609,9 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             <div class="diagram-widget">
                 <div class="diagram-palette" id="${uid}-palette"></div>
                 <div class="diagram-toolbar">
+                    ${showBackgrounds ? `<select class="diagram-shade-colour" id="${uid}-bg-select" aria-label="Background">
+                        ${DIAGRAM_BACKGROUNDS.map((b) => `<option value="${b.key}"${b.key === ((initialState && initialState.background) || '') ? ' selected' : ''}>${b.key ? 'Background: ' : ''}${escapeHtml(b.label)}</option>`).join('')}
+                    </select>` : ''}
                     <input type="text" class="diagram-label-input" id="${uid}-shade-input" placeholder="Shade: Enter labels (e.g. A,B,C)" style="display:none;">
                     <select class="diagram-shade-colour" id="${uid}-shade-colour" aria-label="Shading colour">
                         <option value="rgba(230,215,176,0.38)">Cream shade</option>
@@ -21622,6 +21645,13 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         const shadeBtn = container.querySelector(`#${uid}-shade-btn`);
         const arrowBtn = container.querySelector(`#${uid}-arrow-btn`);
         const notesInput = showNotes ? container.querySelector(`#${uid}-notes`) : null;
+        if (showBackgrounds) {
+            svg.style.background = diagramBackgroundCss(state.background);
+            container.querySelector(`#${uid}-bg-select`).addEventListener('change', (ev) => {
+                state.background = ev.target.value;
+                svg.style.background = diagramBackgroundCss(state.background);
+            });
+        }
 
         function svgPointFromEvent(ev) {
             const rect = svg.getBoundingClientRect();
@@ -21948,6 +21978,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 labels: state.labels.map((l) => ({ text: l.text, x: l.x, y: l.y })),
                 arrows: state.arrows.map((a) => ({ x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2 })),
                 ...(notesInput ? { notes: notesInput.value } : {}),
+                ...(showBackgrounds ? { background: state.background } : {}),
             };
             const result = await onSubmit(answer, retryCount);
             if (mode === 'save') {
