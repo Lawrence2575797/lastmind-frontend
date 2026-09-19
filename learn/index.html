@@ -15944,8 +15944,11 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             : undefined;
         renderDiagramWidget(document.getElementById('econDiagramWidgetHost'), null, async (answer) => {
             const saved = await econFetch(`/economics-diagrams/${diagram.id}`, { method: 'PUT', body: JSON.stringify({ diagramState: answer }) });
-            if (saved) await renderEconDiagramGallery();
-            return { correct: !!saved, feedback: saved ? 'Saved to your gallery.' : "Couldn't save — try again." };
+            if (saved) {
+                // Show the confirmation on the button itself, then head to the gallery.
+                setTimeout(() => { if (document.getElementById('econDiagramWidgetHost')) renderEconDiagramGallery(); }, 1400);
+            }
+            return { correct: !!saved, savedLabel: '✓ Saved to gallery', feedback: saved ? 'Saved to your gallery.' : "Couldn't save — try again." };
         }, null, initialState, { mode: 'save', notes: true });
     }
 
@@ -21715,7 +21718,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 // keep editing and save again, rather than being locked
                 // out the way a graded submission's button is.
                 ev.target.disabled = false;
-                ev.target.textContent = 'Save';
+                ev.target.textContent = (result && result.correct && result.savedLabel) || 'Save';
                 resultEl.innerHTML = result && result.correct
                     ? `<div class="km-inline-detail-item">${escapeHtml(result.feedback || 'Saved.')}</div>`
                     : `<div class="km-inline-detail-item km-inline-detail-none">${escapeHtml((result && result.feedback) || "Couldn't save — try again.")}</div>`;
