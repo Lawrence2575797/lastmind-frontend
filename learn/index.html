@@ -1714,6 +1714,7 @@
     .econ-diagram-gallery-card:hover { border-color: var(--accent); transform: translateY(-3px); box-shadow: 0 12px 28px rgba(0,0,0,0.28); }
     .econ-diagram-gallery-preview { width: 100%; aspect-ratio: 640 / 440; background: #12121E; border: 1px solid rgba(230,215,176,0.12); border-radius: 8px; overflow: hidden; }
     .econ-diagram-gallery-preview svg { width: 100%; height: 100%; display: block; }
+    .econ-diagram-gallery-preview .diagram-axis-label, .econ-diagram-gallery-preview .diagram-curve-tag, .econ-diagram-gallery-preview .diagram-intersection-label, .econ-diagram-gallery-preview .diagram-label { opacity: 1; font-size: 16px; }
     .econ-diagram-gallery-title { font-weight: 800; font-size: 14px; line-height: 1.35; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .econ-diagram-gallery-date { font-size: 11px; opacity: 0.6; }
     .econ-diagram-gallery-actions { display: flex; justify-content: space-between; gap: 8px; margin-top: auto; }
@@ -21427,22 +21428,105 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     // thumbnails (see renderEconDiagramGallery). No interactivity, no
     // auto P/Q labelling, no delete buttons - just what's actually drawn,
     // at whatever size the caller's own CSS scales the SVG to.
+    // Draws every intersection of the placed lines - letters A, B, C..., the
+    // dashed P/Q guides from curve/curve crossings, and the extra points where
+    // those guides cross other lines. Shared by the editor and the gallery
+    // preview so both show exactly the same diagram. `intersections` is filled
+    // with the points found (the editor keeps it on its state).
+    function diagramDrawIntersections(svg, placedPolys, intersections) {
+    let letterSeq = 0, guideSeq = 0;
+    function addNamedIntersection(hit, showGuides) {
+        if (!hit || letterSeq >= 26) return false;
+        // Three lines can occasionally meet at the same coordinate;
+        // that is one visible corner and should receive one letter.
+        if (intersections.some((point) => Math.hypot(point.x - hit.x, point.y - hit.y) < 2)) return false;
+        letterSeq++;
+        const label = String.fromCharCode(64 + letterSeq);
+        const priceRange = Math.abs(DIAGRAM_PRICE_AXIS[1].y - DIAGRAM_PRICE_AXIS[0].y);
+        const qtyRange = Math.abs(DIAGRAM_QUANTITY_AXIS[1].x - DIAGRAM_QUANTITY_AXIS[0].x);
+        const priceValue = Math.round(((DIAGRAM_PRICE_AXIS[0].y - hit.y) / priceRange) * 100);
+        const qtyValue = Math.round(((hit.x - DIAGRAM_QUANTITY_AXIS[0].x) / qtyRange) * 100);
+        const coordLabel = `${label} (P=${priceValue}, Q=${qtyValue})`;
+        intersections.push({ x: hit.x, y: hit.y, label, priceValue, qtyValue });
+        if (showGuides) {
+            guideSeq++;
+            svg.appendChild(svgElement('line', { x1: hit.x, y1: hit.y, x2: DIAGRAM_PRICE_AXIS[0].x, y2: hit.y, class: 'diagram-intersection-guide' }));
+            svg.appendChild(svgElement('line', { x1: hit.x, y1: hit.y, x2: hit.x, y2: DIAGRAM_QUANTITY_AXIS[0].y, class: 'diagram-intersection-guide' }));
+            const pLabel = svgElement('text', { x: DIAGRAM_PRICE_AXIS[0].x - 6, y: hit.y + 4, class: 'diagram-intersection-label', 'text-anchor': 'end' });
+            pLabel.textContent = `P${guideSeq}`;
+            svg.appendChild(pLabel);
+            const qLabel = svgElement('text', { x: hit.x, y: DIAGRAM_QUANTITY_AXIS[0].y + 16, class: 'diagram-intersection-label', 'text-anchor': 'middle' });
+            qLabel.textContent = `Q${guideSeq}`;
+            svg.appendChild(qLabel);
+        }
+        svg.appendChild(svgElement('circle', { cx: hit.x, cy: hit.y, r: 2.5, class: 'diagram-curve-handle-dot' }));
+        const labelEl = svgElement('text', { x: hit.x - 8, y: hit.y - 8, class: 'diagram-intersection-label diagram-label-point', 'text-anchor': 'middle', 'data-label': label, title: coordLabel });
+        labelEl.textContent = label;
+        svg.appendChild(labelEl);
+        return true;
+    }
+    placedPolys.forEach((poly) => {
+        addNamedIntersection(diagramPolylineIntersection(poly, DIAGRAM_PRICE_AXIS), false);
+        addNamedIntersection(diagramPolylineIntersection(poly, DIAGRAM_QUANTITY_AXIS), false);
+    });
+    // The dashed P/Q guide lines dropped from each curve/curve
+    // crossing can themselves cross other placed lines (e.g. the
+    // vertical from B down to Q2 meets the world-price line) - those
+    // crossings get the next letters too, after all the curve ones.
+    const guideSegments = [];
+    for (let i = 0; i < placedPolys.length; i++) {
+        for (let j = i + 1; j < placedPolys.length; j++) {
+            const hit = diagramPolylineIntersection(placedPolys[i], placedPolys[j]);
+            if (addNamedIntersection(hit, true)) {
+                guideSegments.push([hit, { x: DIAGRAM_PRICE_AXIS[0].x, y: hit.y }]);
+                guideSegments.push([hit, { x: hit.x, y: DIAGRAM_QUANTITY_AXIS[0].y }]);
+            }
+        }
+    }
+    guideSegments.forEach((seg) => placedPolys.forEach((poly) => {
+        addNamedIntersection(diagramPolylineIntersection(poly, seg), false);
+    }));
+    }
+
+    // Read-only snapshot of a saved diagram (gallery cards): everything the
+    // editor shows - axes and their P/Q labels, curves with their names,
+    // shading, the lettered intersections and dashed P/Q guides, arrows and
+    // any text labels - just without the editing handles.
+    let diagramPreviewSeq = 0;
     function renderMiniDiagramPreview(container, diagramState) {
         const svg = svgElement('svg', { viewBox: `0 0 ${DIAGRAM_CANVAS_WIDTH} ${DIAGRAM_CANVAS_HEIGHT}` });
+        const arrowId = `dpv${diagramPreviewSeq++}-arrowhead`;
+        const defs = svgElement('defs', {});
+        const marker = svgElement('marker', { id: arrowId, markerWidth: 8, markerHeight: 8, refX: 6, refY: 3, orient: 'auto' });
+        marker.appendChild(svgElement('path', { d: 'M0,0 L6,3 L0,6 Z', class: 'diagram-arrowhead-path' }));
+        defs.appendChild(marker);
+        svg.appendChild(defs);
         svg.appendChild(svgElement('line', { x1: DIAGRAM_PRICE_AXIS[0].x, y1: DIAGRAM_PRICE_AXIS[0].y, x2: DIAGRAM_PRICE_AXIS[1].x, y2: DIAGRAM_PRICE_AXIS[1].y, class: 'diagram-axis' }));
         svg.appendChild(svgElement('line', { x1: DIAGRAM_QUANTITY_AXIS[0].x, y1: DIAGRAM_QUANTITY_AXIS[0].y, x2: DIAGRAM_QUANTITY_AXIS[1].x, y2: DIAGRAM_QUANTITY_AXIS[1].y, class: 'diagram-axis' }));
+        const priceLabel = svgElement('text', { x: DIAGRAM_PRICE_AXIS[0].x - 16, y: DIAGRAM_PRICE_AXIS[0].y - 4, class: 'diagram-axis-label', 'text-anchor': 'end', 'font-weight': 'bold', 'font-size': '16' });
+        priceLabel.textContent = 'P';
+        svg.appendChild(priceLabel);
+        const qtyLabel = svgElement('text', { x: DIAGRAM_QUANTITY_AXIS[1].x + 6, y: DIAGRAM_QUANTITY_AXIS[1].y + 16, class: 'diagram-axis-label', 'text-anchor': 'start', 'font-weight': 'bold', 'font-size': '16' });
+        qtyLabel.textContent = 'Q';
+        svg.appendChild(qtyLabel);
 
         ((diagramState && diagramState.shades) || []).forEach((s) => {
             svg.appendChild(svgElement('polygon', { points: (s.points || []).map((p) => `${p.x},${p.y}`).join(' '), class: 'diagram-shade', style: `--shade-fill:${s.color || 'rgba(230, 215, 176, 0.28)'}` }));
         });
+        const polys = [];
         ((diagramState && diagramState.curves) || []).forEach((inst) => {
             const local = DIAGRAM_CURVE_SHAPES[diagramBaseType(inst.curveTypeId)];
             if (!local) return;
             const poly = diagramPlacedPoly(local, inst);
+            polys.push(poly);
             svg.appendChild(svgElement('polyline', { points: diagramPolylinePoints(poly), class: 'diagram-curve diagram-curve-placed' }));
+            const tag = svgElement('text', { x: poly[0].x, y: poly[0].y - 6, class: 'diagram-curve-tag' });
+            tag.textContent = DIAGRAM_PALETTE_LABELS[diagramBaseType(inst.curveTypeId)] || inst.curveTypeId;
+            svg.appendChild(tag);
         });
+        diagramDrawIntersections(svg, polys, []);
         ((diagramState && diagramState.arrows) || []).forEach((a) => {
-            svg.appendChild(svgElement('line', { x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2, class: 'diagram-arrow' }));
+            svg.appendChild(svgElement('line', { x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2, class: 'diagram-arrow', 'marker-end': `url(#${arrowId})` }));
         });
         ((diagramState && diagramState.labels) || []).forEach((l) => {
             const el = svgElement('text', { x: l.x, y: l.y, class: 'diagram-label' });
@@ -21652,58 +21736,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             // either axis as well as one curve meeting another, so axis-
             // bounded regions have named corners too. Curve/curve crossings
             // additionally project to matching P1/Q1, P2/Q2... axis values.
-            let letterSeq = 0, guideSeq = 0;
-            function addNamedIntersection(hit, showGuides) {
-                if (!hit || letterSeq >= 26) return false;
-                // Three lines can occasionally meet at the same coordinate;
-                // that is one visible corner and should receive one letter.
-                if (state.intersections.some((point) => Math.hypot(point.x - hit.x, point.y - hit.y) < 2)) return false;
-                letterSeq++;
-                const label = String.fromCharCode(64 + letterSeq);
-                const priceRange = Math.abs(DIAGRAM_PRICE_AXIS[1].y - DIAGRAM_PRICE_AXIS[0].y);
-                const qtyRange = Math.abs(DIAGRAM_QUANTITY_AXIS[1].x - DIAGRAM_QUANTITY_AXIS[0].x);
-                const priceValue = Math.round(((DIAGRAM_PRICE_AXIS[0].y - hit.y) / priceRange) * 100);
-                const qtyValue = Math.round(((hit.x - DIAGRAM_QUANTITY_AXIS[0].x) / qtyRange) * 100);
-                const coordLabel = `${label} (P=${priceValue}, Q=${qtyValue})`;
-                state.intersections.push({ x: hit.x, y: hit.y, label, priceValue, qtyValue });
-                if (showGuides) {
-                    guideSeq++;
-                    svg.appendChild(svgElement('line', { x1: hit.x, y1: hit.y, x2: DIAGRAM_PRICE_AXIS[0].x, y2: hit.y, class: 'diagram-intersection-guide' }));
-                    svg.appendChild(svgElement('line', { x1: hit.x, y1: hit.y, x2: hit.x, y2: DIAGRAM_QUANTITY_AXIS[0].y, class: 'diagram-intersection-guide' }));
-                    const pLabel = svgElement('text', { x: DIAGRAM_PRICE_AXIS[0].x - 6, y: hit.y + 4, class: 'diagram-intersection-label', 'text-anchor': 'end' });
-                    pLabel.textContent = `P${guideSeq}`;
-                    svg.appendChild(pLabel);
-                    const qLabel = svgElement('text', { x: hit.x, y: DIAGRAM_QUANTITY_AXIS[0].y + 16, class: 'diagram-intersection-label', 'text-anchor': 'middle' });
-                    qLabel.textContent = `Q${guideSeq}`;
-                    svg.appendChild(qLabel);
-                }
-                svg.appendChild(svgElement('circle', { cx: hit.x, cy: hit.y, r: 2.5, class: 'diagram-curve-handle-dot' }));
-                const labelEl = svgElement('text', { x: hit.x - 8, y: hit.y - 8, class: 'diagram-intersection-label diagram-label-point', 'text-anchor': 'middle', 'data-label': label, title: coordLabel });
-                labelEl.textContent = label;
-                svg.appendChild(labelEl);
-                return true;
-            }
-            placedPolys.forEach((poly) => {
-                addNamedIntersection(diagramPolylineIntersection(poly, DIAGRAM_PRICE_AXIS), false);
-                addNamedIntersection(diagramPolylineIntersection(poly, DIAGRAM_QUANTITY_AXIS), false);
-            });
-            // The dashed P/Q guide lines dropped from each curve/curve
-            // crossing can themselves cross other placed lines (e.g. the
-            // vertical from B down to Q2 meets the world-price line) - those
-            // crossings get the next letters too, after all the curve ones.
-            const guideSegments = [];
-            for (let i = 0; i < placedPolys.length; i++) {
-                for (let j = i + 1; j < placedPolys.length; j++) {
-                    const hit = diagramPolylineIntersection(placedPolys[i], placedPolys[j]);
-                    if (addNamedIntersection(hit, true)) {
-                        guideSegments.push([hit, { x: DIAGRAM_PRICE_AXIS[0].x, y: hit.y }]);
-                        guideSegments.push([hit, { x: hit.x, y: DIAGRAM_QUANTITY_AXIS[0].y }]);
-                    }
-                }
-            }
-            guideSegments.forEach((seg) => placedPolys.forEach((poly) => {
-                addNamedIntersection(diagramPolylineIntersection(poly, seg), false);
-            }));
+            diagramDrawIntersections(svg, placedPolys, state.intersections);
 
             state.arrows.forEach((a, arrowIdx) => {
                 svg.appendChild(svgElement('line', { x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2, class: 'diagram-arrow', 'marker-end': `url(#${uid}-arrowhead)` }));
