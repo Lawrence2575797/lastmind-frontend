@@ -1767,6 +1767,9 @@
     .math-shortcut-editor .int-limits { display: inline-flex; flex-direction: column; align-items: flex-start; vertical-align: middle; margin-left: 0.1em; font-size: 0.65em; line-height: 1.1; }
     .math-shortcut-editor .int-upper, .math-shortcut-editor .int-lower { padding: 0 0.15em; min-width: 0.6em; color: var(--accent); }
     .math-shortcut-hint { font-size: 11.5px; color: var(--text); margin-top: 8px; padding: 10px 12px; border: 1px solid rgba(230, 215, 176, 0.22); border-radius: 8px; background: rgba(230, 215, 176, 0.05); }
+    .math-shortcut-toggle { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; background: none; border: 0; padding: 0; color: inherit; cursor: pointer; font: 800 11px Arial, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
+    .math-shortcut-toggle:hover { opacity: 0.8; }
+    .math-shortcut-toggle[aria-expanded="true"] { margin-bottom: 8px; }
     .math-shortcut-hint-title { font-weight: 800; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; opacity: 0.85; }
     .math-shortcut-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
     .math-shortcut-list li { display: grid; grid-template-columns: 12em 1fr; column-gap: 12px; align-items: baseline; line-height: 1.4; }
@@ -2370,8 +2373,7 @@
     .pt-write-answer-host { flex: 1 1 auto; min-width: 0; }
     .pt-write-answer-host .math-shortcut-editor { min-height: clamp(220px, 34vh, 480px); background: #12121E; color: var(--text); }
     .pt-write-answer-host .math-shortcut-mode-badge { display: none; }
-    .pt-write-answer-host .math-shortcut-hint { display: none; margin-top: 8px; }
-    .pt-write-answer-host.show-hints .math-shortcut-hint { display: block; }
+    .pt-write-answer-host .math-shortcut-hint { margin-top: 8px; }
     .pt-quicknotes { flex: 0 0 230px; display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 8px; border: 1px solid rgba(230,215,176,0.25); background: rgba(230,215,176,0.06); }
     .pt-quicknotes[hidden] { display: none; }
     .pt-quicknotes textarea { flex: 1; min-height: 150px; font: 13px/1.45 Arial, sans-serif; padding: 8px; border-radius: 6px; border: 1px solid rgba(230,215,176,0.2); background: #12121E; color: var(--text); resize: vertical; }
@@ -15506,8 +15508,8 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         wrap.appendChild(editor);
         const hint = document.createElement('div');
         hint.className = 'math-shortcut-hint';
-        hint.innerHTML = `<div class="math-shortcut-hint-title">Keyboard shortcuts</div>
-            <ul class="math-shortcut-list">
+        hint.innerHTML = `<button type="button" class="math-shortcut-toggle" aria-expanded="false">Keyboard shortcuts <span class="math-shortcut-caret">▸</span></button>
+            <ul class="math-shortcut-list" hidden>
                 <li><span class="sc-keys"><kbd>^</kbd></span><span>Power (press <kbd>Space</kbd> or <kbd>→</kbd> to leave it)</span></li>
                 <li><span class="sc-keys"><kbd>_</kbd></span><span>Subscript</span></li>
                 <li><span class="sc-keys"><kbd>/</kbd></span><span>Fraction, after a number (e.g. 3/ )</span></li>
@@ -15522,6 +15524,23 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 <li><span class="sc-keys"><kbd>#</kbd></span><span>Switch between maths and normal writing</span></li>
             </ul>`;
         wrap.appendChild(hint);
+        // Collapsible: the list is long, so it opens and closes on demand (and
+        // remembers which the student last chose).
+        (function wireShortcutToggle() {
+            const toggle = hint.querySelector('.math-shortcut-toggle');
+            const list = hint.querySelector('.math-shortcut-list');
+            const caret = hint.querySelector('.math-shortcut-caret');
+            const set = (open) => {
+                list.hidden = !open;
+                toggle.setAttribute('aria-expanded', String(open));
+                caret.textContent = open ? '▾' : '▸';
+                try { localStorage.setItem('lm-shortcuts-open', open ? '1' : '0'); } catch (_) {}
+            };
+            let startOpen = false;
+            try { startOpen = localStorage.getItem('lm-shortcuts-open') === '1'; } catch (_) {}
+            set(startOpen);
+            toggle.addEventListener('click', () => set(list.hidden));
+        })();
         const modeBadge = document.createElement('div');
         modeBadge.className = 'math-shortcut-mode-badge';
         wrap.appendChild(modeBadge);
@@ -26190,7 +26209,6 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                     <span class="pt-write-label">${isMark ? 'Your answer' : 'Your working'}</span>
                     <div class="pt-write-tools">
                         <button type="button" class="btn" id="ptKbToggle">Keyboard: English</button>
-                        <button type="button" class="btn" id="ptHintsToggle">Shortcuts</button>
                         <button type="button" class="btn" id="ptNotesToggle" aria-expanded="false">Quick notes ▸</button>
                     </div>
                 </div>
@@ -26224,7 +26242,6 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             kb.textContent = editor.isWritingMode() ? 'Keyboard: English' : 'Keyboard: Maths';
             editor.focus();
         });
-        panel.querySelector('#ptHintsToggle').addEventListener('click', () => host.classList.toggle('show-hints'));
         const notes = panel.querySelector('#ptQuickNotes');
         const notesBtn = panel.querySelector('#ptNotesToggle');
         notesBtn.addEventListener('click', () => {
