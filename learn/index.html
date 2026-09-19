@@ -8365,14 +8365,19 @@ SQIDAQAB
             if (!bySubtopic.has(subtopic)) bySubtopic.set(subtopic, []);
             bySubtopic.get(subtopic).push(n);
         });
-        return Array.from(byTheme.entries()).map(([theme, bySubtopic]) => `
+        // The branch holding the selected lesson starts open, so its boxed
+        // button is actually visible.
+        const holdsSelected = (nodes) => nodes.some((n) => n.id === selectedSidebarLessonNodeId);
+        return Array.from(byTheme.entries()).map(([theme, bySubtopic]) => {
+            const themeOpen = Array.from(bySubtopic.values()).some(holdsSelected);
+            return `
             <div class="notes-tree-theme">
-                <button type="button" class="notes-tree-theme-toggle"><span class="notes-tree-arrow">▶</span><span>${escapeHtml(theme)}</span></button>
-                <div class="notes-tree-theme-body" style="display:none;">
+                <button type="button" class="notes-tree-theme-toggle"><span class="notes-tree-arrow${themeOpen ? ' open' : ''}">▶</span><span>${escapeHtml(theme)}</span></button>
+                <div class="notes-tree-theme-body" style="display:${themeOpen ? 'block' : 'none'};">
                     ${Array.from(bySubtopic.entries()).sort((a, b) => compareSubtopicStrings(a[0], b[0])).map(([subtopic, nodes]) => `
                         <div class="notes-tree-subtopic">
-                            <button type="button" class="notes-tree-subtopic-toggle"><span class="notes-tree-arrow">▶</span><span>${escapeHtml(subtopic)}</span></button>
-                            <div class="notes-tree-subtopic-body" style="display:none;">
+                            <button type="button" class="notes-tree-subtopic-toggle"><span class="notes-tree-arrow${holdsSelected(nodes) ? ' open' : ''}">▶</span><span>${escapeHtml(subtopic)}</span></button>
+                            <div class="notes-tree-subtopic-body" style="display:${holdsSelected(nodes) ? 'block' : 'none'};">
                                 ${nodes.map((n) => `
                                     <button type="button" class="notes-tree-node-item${n.id === selectedSidebarLessonNodeId ? ' active' : ''}" data-node-id="${escapeHtml(n.id)}" data-subtopic="${escapeHtml(subtopic)}">
                                         <span>${escapeHtml(n.label)}</span>
@@ -8383,10 +8388,12 @@ SQIDAQAB
                     `).join('')}
                 </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
     }
 
     function wireSubjectTree(treeWrap, folder, data) {
+        requestAnimationFrame(() => treeWrap.querySelector('.notes-tree-node-item.active')?.scrollIntoView({ block: 'nearest' }));
         const wireToggle = (btn) => {
             btn.addEventListener('click', (ev) => {
                 ev.stopPropagation();
@@ -9281,6 +9288,16 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         stopActiveDictation();
         stopSpeaking();
         selectedPageId = null;
+        // Open a map straight away: the subject already selected, else the
+        // first one. renderKnowledgeMapForFolder then focuses a lesson and the
+        // sidebar boxes it.
+        const mapFolder = (folders || []).find((f) => f.id === selectedFolderId && !f.deletedAt && !f.onboardingPending)
+            || (folders || []).find((f) => !f.deletedAt && !f.onboardingPending);
+        if (mapFolder) {
+            setSidebarTab('folders');
+            selectFolder(mapFolder.id);
+            return;
+        }
         document.getElementById('topbarTitle').textContent = 'Knowledge Map';
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
@@ -20174,10 +20191,13 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         // stale response for the one that was current when this started.
         if (selectedFolderId !== folder.id) return;
         selectedFolderKmData = data;
+        // Always open on a lesson (the one already selected in the sidebar, else
+        // the first) so the map is focused and that lesson's sidebar button is
+        // boxed; picking another lesson moves the box.
+        const focusId = data.nodes.some((n) => n.id === selectedSidebarLessonNodeId) ? selectedSidebarLessonNodeId : data.nodes[0].id;
+        selectedSidebarLessonNodeId = focusId;
         refreshFolderList();
-        // Opens on the whole subject map; the student then picks a theme /
-        // lesson from the map itself (or the sidebar) to zoom in.
-        renderSubjectGraphView(folder, data, null);
+        renderSubjectGraphView(folder, data, focusId);
         sfOpenSidebarOnMobile();
     }
 
@@ -21787,6 +21807,12 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         const end = last.x >= first.x ? last : first;
         return { x: end.x - 4, y: end.y - 8, 'text-anchor': 'end', class: 'diagram-curve-tag' };
     }
+    // Long names such as "Demand (relatively inelastic)" shrink so they don't
+    // dominate the diagram.
+    function diagramTagFontSize(text) {
+        const n = String(text || '').length;
+        return n <= 10 ? 12 : n <= 16 ? 10 : n <= 24 ? 8.5 : 7.5;
+    }
     let diagramPreviewSeq = 0;
     function renderMiniDiagramPreview(container, diagramState) {
         const svg = svgElement('svg', { viewBox: `0 0 ${DIAGRAM_CANVAS_WIDTH} ${DIAGRAM_CANVAS_HEIGHT}` });
@@ -21819,6 +21845,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             svg.appendChild(svgElement('polyline', { points: diagramPolylinePoints(poly), class: 'diagram-curve diagram-curve-placed' }));
             const tag = svgElement('text', diagramTagPosition(poly));
             tag.textContent = DIAGRAM_PALETTE_LABELS[diagramBaseType(inst.curveTypeId)] || inst.curveTypeId;
+            tag.style.fontSize = `${diagramTagFontSize(tag.textContent)}px`;
             svg.appendChild(tag);
         });
         diagramDrawIntersections(svg, polys, []);
@@ -21996,6 +22023,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 svg.appendChild(svgElement('polyline', { points: diagramPolylinePoints(poly), class: 'diagram-curve diagram-curve-given' }));
                 const tag = svgElement('text', diagramTagPosition(poly));
                 tag.textContent = DIAGRAM_PALETTE_LABELS[diagramBaseType(g.type)] || g.type;
+                tag.style.fontSize = `${diagramTagFontSize(tag.textContent)}px`;
                 svg.appendChild(tag);
             });
 
@@ -22032,6 +22060,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 svg.appendChild(el);
                 const tag = svgElement('text', diagramTagPosition(poly));
                 tag.textContent = DIAGRAM_PALETTE_LABELS[diagramBaseType(inst.curveTypeId)] || inst.curveTypeId;
+                tag.style.fontSize = `${diagramTagFontSize(tag.textContent)}px`;
                 svg.appendChild(tag);
                 svg.appendChild(diagramDeleteGlyph(poly[0].x, poly[0].y - 20, () => {
                     state.placed = state.placed.filter((p) => p.instanceId !== inst.instanceId);
