@@ -345,7 +345,8 @@
         padding: 4px 6px; border-radius: 4px; cursor: pointer; font-family: Arial, sans-serif;
     }
     .notes-tree-node-item:hover { background: rgba(230, 215, 176, 0.08); }
-    .notes-tree-node-item.active { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; background: rgba(230, 215, 176, 0.1); color: var(--accent); }
+    /* Selected lesson: a cream box round its button - the same in Subjects, Notes, Practice Questions and the Knowledge Map. */
+    .notes-tree-node-item.active { outline: 2px solid #E6D7B0; outline-offset: -2px; border-radius: 6px; background: rgba(230, 215, 176, 0.16); color: #E6D7B0; font-weight: 700; }
     .folder-tree-collapse-toggle { width: 100%; display: flex; align-items: center; gap: 6px; border: 0; background: transparent; color: var(--text); padding: 5px 7px; font: 700 11px Arial, sans-serif; cursor: pointer; opacity: 0.7; }
     .folder-tree-collapse-toggle:hover { opacity: 1; }
     .notes-tree-node-item.not-encoded { opacity: 0.45; }
@@ -714,8 +715,8 @@
        student said they'd already covered before LastMind. Reversible. */
     .km-node-group.km-covered-hidden { opacity: 0.35; filter: brightness(0.4) saturate(0.5); }
     .km-link.km-covered-hidden { stroke-opacity: 0.08; }
-    .km-hide-covered-btn { margin-left: auto; white-space: nowrap; }
-    .km-hide-covered-btn[aria-pressed="true"] { border-color: var(--accent); background: rgba(230, 215, 176, 0.18); }
+    .km-inline-topbar .km-hide-covered-btn { margin-left: auto; white-space: nowrap; color: #12121E; }
+    .km-inline-topbar .km-hide-covered-btn[aria-pressed="true"] { border-color: #12121E; background: rgba(18, 18, 30, 0.12); color: #12121E; }
 
     /* Link-level mastery — same five-step ramp as node mastery
        (.km-dot-0..4) so a link's own review progress reads as the same
@@ -19743,7 +19744,9 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         if (selectedFolderId !== folder.id) return;
         selectedFolderKmData = data;
         refreshFolderList();
-        showCenterMessage('Click a lesson in the sidebar to open it.', false, 'km-map-open-prompt');
+        // Opens on the whole subject map; the student then picks a theme /
+        // lesson from the map itself (or the sidebar) to zoom in.
+        renderSubjectGraphView(folder, data, null);
         sfOpenSidebarOnMobile();
     }
 
@@ -24448,7 +24451,8 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         // initialFocusNode (above) already selected the clicked lesson -
         // only fall back to the first node in the list when nothing
         // specific was asked for, so it doesn't get overwritten here.
-        if (!initialFocusNode && nodes.length) selectKmInlineNode(nodes[0]);
+        // No focus asked for: leave the whole map showing with the detail
+        // panel's own "click any concept" hint, rather than auto-selecting one.
 
         // Search box. Case-insensitive, substring match (a student's exact
         // spelling/capitalisation shouldn't have to match the stored label)
