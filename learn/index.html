@@ -718,10 +718,19 @@
     }
     /* "Hide pre-covered lessons": darkens (never removes) everything the
        student said they'd already covered before LastMind. Reversible. */
-    .km-node-group.km-covered-hidden { opacity: 0.35; filter: brightness(0.4) saturate(0.5); }
-    .km-link.km-covered-hidden { stroke-opacity: 0.08; }
-    .km-inline-topbar .km-hide-covered-btn { margin-left: auto; white-space: nowrap; color: #12121E; }
-    .km-inline-topbar .km-hide-covered-btn[aria-pressed="true"] { border-color: #12121E; background: rgba(18, 18, 30, 0.12); color: #12121E; }
+    .km-node-group.km-covered-hidden { opacity: 0.3; filter: brightness(0.28) saturate(0.35); }
+    .km-link.km-covered-hidden { stroke-opacity: 0.06 !important; }
+    /* While the toggle is on, what still needs covering is made vivid so the
+       two groups are unmistakable. */
+    .km-covered-mode .km-node-group:not(.km-covered-hidden) { filter: brightness(1.45) saturate(1.35) drop-shadow(0 0 6px rgba(230, 215, 176, 0.45)); }
+    .km-covered-mode .km-node-group:not(.km-covered-hidden) .km-node-shape { fill-opacity: 0.65 !important; stroke: #E6D7B0; stroke-width: 1.5px; }
+    .km-covered-mode .km-node-group:not(.km-covered-hidden) .km-node-label { color: #FFF6DA; font-weight: 700; }
+    .km-covered-mode .km-link:not(.km-covered-hidden) { stroke-opacity: 0.95 !important; }
+    /* A real button: solid cream with navy text (readable on the dark bar);
+       navy with a cream outline once switched on. */
+    .km-inline-topbar .km-hide-covered-btn { margin-left: auto; white-space: nowrap; padding: 9px 16px; border-radius: 8px; border: 2px solid #E6D7B0; background: #E6D7B0; color: #12121E; font: 700 13px Arial, sans-serif; cursor: pointer; opacity: 1; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); }
+    .km-inline-topbar .km-hide-covered-btn:hover { background: #F3E7C4; }
+    .km-inline-topbar .km-hide-covered-btn[aria-pressed="true"] { background: #12121E; color: #E6D7B0; border-color: #E6D7B0; }
 
     /* Link-level mastery — same five-step ramp as node mastery
        (.km-dot-0..4) so a link's own review progress reads as the same
@@ -22599,6 +22608,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         const hideCoveredBtn = contentInner.querySelector('.km-hide-covered-btn');
         if (hideCoveredBtn) {
             const paintCoveredToggle = () => {
+                svg.classed('km-covered-mode', kmHideCovered);
                 nodeGroup.classed('km-covered-hidden', (d) => kmHideCovered && d.externallyCovered);
                 linkSelection.classed('km-covered-hidden', (d) => kmHideCovered && d.source.externallyCovered && d.target.externallyCovered);
                 hideCoveredBtn.setAttribute('aria-pressed', String(kmHideCovered));
