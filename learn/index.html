@@ -13545,11 +13545,15 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             const promise = nativeFetch(input, init);
             try {
                 const url = typeof input === 'string' ? input : ((input && input.url) || '');
-                if (url.startsWith(COMPILE_BACKEND_URL) && !url.includes('/locks')) promise.then(soon, () => {});
+                // Only calls that can charge Locks (anything that writes, or generates a lesson)
+                // trigger a refresh - refreshing after every read made a lot of extra requests.
+                const method = String((init && init.method) || (input && input.method) || 'GET').toUpperCase();
+                const mayCharge = method !== 'GET' || /\/(lesson|notes)/.test(url);
+                if (url.startsWith(COMPILE_BACKEND_URL) && !url.includes('/locks') && mayCharge) promise.then(soon, () => {});
             } catch (_) { /* never let bookkeeping break a request */ }
             return promise;
         };
-        setInterval(() => { if (document.visibilityState === 'visible') soon(); }, 30000);
+        setInterval(() => { if (document.visibilityState === 'visible') soon(); }, 90000);
         document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') soon(); });
     })();
 
