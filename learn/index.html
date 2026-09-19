@@ -20298,18 +20298,28 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     // authored ground truth, never re-derived here — see the compile-
     // backend's knowledgeMapNotesService.ts.
     async function fetchNotesIndex() {
-        try {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) return { subjects: [] };
-            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/notes-index`, {
-                headers: { Authorization: `Bearer ${session.access_token}` }
-            });
-            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
-            return await resp.json();
-        } catch (err) {
-            console.error('LastMind: failed to load the notes index.', err);
-            return { subjects: [] };
+        // A failed load used to look exactly like "nothing encoded yet". It is now
+        // retried (a cold-starting backend answers 502-504 for a few seconds) and,
+        // if it still fails, reported as an error the student can retry.
+        let lastError = 'could not reach the server';
+        for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (!session) return { subjects: [] };
+                const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/notes-index`, {
+                    headers: { Authorization: `Bearer ${session.access_token}` }
+                });
+                if (resp.ok) return await resp.json();
+                lastError = `server said ${resp.status}`;
+                console.error('LastMind: notes index request failed.', resp.status);
+                if (![500, 502, 503, 504].includes(resp.status)) break;
+            } catch (err) {
+                lastError = 'could not reach the server';
+                console.error('LastMind: failed to load the notes index.', err);
+            }
+            await new Promise((resolve) => setTimeout(resolve, 2000 * (attempt + 1)));
         }
+        return { subjects: [], loadError: lastError };
     }
 
     async function compileNodeNotesRequest(nodeId) {
@@ -20669,6 +20679,11 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     // nextElementSibling rather than an id/index lookup, so nothing here
     // needs a globally-unique key across subjects/themes/subtopics.
     function renderNotesTree(treeEl, index) {
+        if (index.loadError) {
+            treeEl.innerHTML = `<div class="empty-hint">Couldn't load your notes (${escapeHtml(index.loadError)}).</div><button type="button" class="btn notes-retry-btn" style="margin-top:8px;">Try again</button>`;
+            treeEl.querySelector('.notes-retry-btn').addEventListener('click', () => openNotesTree());
+            return;
+        }
         if (!index.subjects.length) {
             treeEl.innerHTML = '<div class="empty-hint">Encode a concept on any subject\'s knowledge map to start building notes here.</div>';
             return;
