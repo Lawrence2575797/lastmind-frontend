@@ -8315,7 +8315,7 @@ SQIDAQAB
             const treeHtml = selectedFolderKmData
                 ? buildSubjectTreeHtml(selectedFolderKmData)
                 : '<div class="empty-hint" style="padding:6px 4px;">Loading…</div>';
-            treeWrap.innerHTML = `<button type="button" class="folder-tree-collapse-toggle"><span class="notes-tree-arrow">▶</span><span>Themes</span></button><div class="folder-tree-collapsible" style="display:none;">${treeHtml}</div>`;
+            treeWrap.innerHTML = `<button type="button" class="folder-tree-collapse-toggle"><span class="notes-tree-arrow${sidebarTreeHasSelected() ? ' open' : ''}">▶</span><span>Themes</span></button><div class="folder-tree-collapsible" style="display:${sidebarTreeHasSelected() ? '' : 'none'};">${treeHtml}</div>`;
             item.appendChild(treeWrap);
             const collapseBtn = treeWrap.querySelector('.folder-tree-collapse-toggle');
             collapseBtn.addEventListener('click', (event) => {
@@ -8332,7 +8332,7 @@ SQIDAQAB
             const treeHtml = selectedFolderKmData
                 ? buildSubjectTreeHtml(selectedFolderKmData)
                 : '<div class="empty-hint" style="padding:6px 4px;">Loading lessons…</div>';
-            treeWrap.innerHTML = `<button type="button" class="folder-tree-collapse-toggle"><span class="notes-tree-arrow">▶</span><span>Themes</span></button><div class="folder-tree-collapsible" style="display:none;">${treeHtml}</div>`;
+            treeWrap.innerHTML = `<button type="button" class="folder-tree-collapse-toggle"><span class="notes-tree-arrow${sidebarTreeHasSelected() ? ' open' : ''}">▶</span><span>Themes</span></button><div class="folder-tree-collapsible" style="display:${sidebarTreeHasSelected() ? '' : 'none'};">${treeHtml}</div>`;
             item.appendChild(treeWrap);
             const collapseBtn = treeWrap.querySelector('.folder-tree-collapse-toggle');
             collapseBtn.addEventListener('click', (event) => {
@@ -8355,6 +8355,12 @@ SQIDAQAB
     // returned it in (no separate teaching-order lookup here, unlike the
     // Notes tree's getOrComputeSubtopicOrder) - a reasonable default,
     // not something this sidebar view needs to solve on its own.
+    // The lesson tree sits under a collapsed "Themes" toggle; when a lesson is
+    // selected it starts open, otherwise the boxed (selected) lesson is hidden.
+    function sidebarTreeHasSelected() {
+        return !!(selectedFolderKmData && selectedSidebarLessonNodeId && selectedFolderKmData.nodes.some((n) => n.id === selectedSidebarLessonNodeId));
+    }
+
     function buildSubjectTreeHtml(data) {
         const byTheme = new Map();
         data.nodes.forEach((n) => {
@@ -19452,6 +19458,19 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 document.querySelectorAll('.folder-item-tree .notes-tree-node-item[data-node-id]').forEach((item) => {
                     item.classList.toggle('active', item.dataset.nodeId === rec.node.id);
                 });
+                // The cross-subject feed has no subject selected, so there was no
+                // sidebar tree to box the lesson in. Open the lesson's subject there.
+                const recFolder = rec.folder || scopeFolder;
+                if (recFolder && selectedFolderId !== recFolder.id) {
+                    selectedFolderId = recFolder.id;
+                    selectedFolderKmData = null;
+                    refreshFolderList();
+                    fetchSubjectKnowledgeMapWithRetry(recFolder).then((mapData) => {
+                        if (selectedFolderId !== recFolder.id) return;
+                        selectedFolderKmData = mapData;
+                        refreshFolderList();
+                    }).catch((err) => console.error('LastMind: could not load the sidebar lesson list.', err));
+                }
             }
             const practiceLabel = rec.node?.label || rec.check?.label;
             const practiceConceptId = rec.node?.conceptId || rec.check?.conceptId;
