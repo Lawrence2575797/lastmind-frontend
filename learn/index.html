@@ -1475,10 +1475,22 @@
     .sf-wizard-choice-btn.selected { border-color: var(--accent); background: rgba(230, 215, 176, 0.12); }
     .sf-wizard-select { width: 100%; box-sizing: border-box; font: inherit; font-size: 15px; padding: 12px 14px; border-radius: 8px; border: 1px solid rgba(230, 215, 176, 0.25); background: var(--bg); color: var(--text); }
     .sf-wizard-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+    /* Onboarding now lives INSIDE the Cortex page (#contentInner), not as a
+       fixed overlay - same message/controls look, but on the page background. */
+    .sf-onboarding-page { position: relative; width: 100%; padding: 8px 0 56px; color: var(--ink); }
+    .sf-onboarding-page .sf-wizard-card { margin: 0 auto; max-width: 980px; max-height: none; overflow: visible; background: transparent; color: var(--ink); padding: 0; }
+    .sf-onboarding-page .sf-wizard-close-btn { position: absolute; top: 4px; right: 4px; width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid currentColor; border-radius: 50%; background: transparent; color: var(--ink); font-size: 22px; line-height: 1; cursor: pointer; opacity: .6; }
+    .sf-onboarding-page .sf-wizard-close-btn:hover { opacity: 1; }
+    .sf-onboarding-page .sf-onboarding-message, .sf-onboarding-page .sf-onboarding-controls { color: var(--text); }
+    .sf-onboarding-page .sf-onboarding-message { animation: sfOnbIn .35s ease both; }
+    @keyframes sfOnbIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
     .sf-onboarding-chat { align-items: stretch; justify-content: flex-start; padding: 56px max(20px, 8vw); overflow-y: auto; }
     .sf-onboarding-chat .sf-wizard-card { margin: 0 auto; max-width: 980px; max-height: none; overflow: visible; background: transparent; padding: 0; }
     .sf-onboarding-message { max-width: 720px; padding: 16px 18px; border-radius: 4px 18px 18px 18px; background: var(--panel); border: 1px solid rgba(230,215,176,.2); font-size: 17px; line-height: 1.55; }
     .sf-onboarding-message + .sf-onboarding-message { margin-top: 10px; }
+    .sf-onboarding-none-btn { display: block; width: 100%; flex: none; margin-top: 26px; }
+    .sf-coverage-status-binary { grid-template-columns: repeat(2, 1fr); }
+    .sf-coverage-child-title { margin-bottom: 8px; font-size: 13.5px; line-height: 1.35; }
     .sf-onboarding-controls { margin-top: 16px; padding: 18px; border-radius: 14px; background: rgba(18,18,30,.94); }
     .sf-coverage-themes { display: flex; gap: 14px; overflow-x: auto; padding: 4px 2px 14px; align-items: flex-start; }
     .sf-coverage-column { flex: 0 0 280px; border: 1px solid rgba(230,215,176,.2); border-radius: 12px; padding: 14px; background: var(--bg); }
@@ -19388,84 +19400,69 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         sfRenderWizardStep();
     }
 
+    // Removes the onboarding view only; each caller then navigates
+    // somewhere (selectFolder / renderWelcome).
     function sfOnboardingClose() {
         if (sfWizard?.overlayEl?.parentNode) sfWizard.overlayEl.parentNode.removeChild(sfWizard.overlayEl);
         sfWizard = null;
     }
 
-    function sfCoverageStatusButtons(scope, value) {
-        return `<div class="sf-coverage-status" data-coverage-scope="${escapeHtml(scope)}">
-            ${[['completed','Completed'],['partway','Part way'],['not_started','Not started']].map(([key, label]) =>
+    function sfCoverageStatusButtons(scope, value, binary = false) {
+        const options = binary
+            ? [['completed', 'Yes, done'], ['not_started', 'Not yet']]
+            : [['completed', 'Completed'], ['partway', 'Part way'], ['not_started', 'Not started']];
+        return `<div class="sf-coverage-status${binary ? ' sf-coverage-status-binary' : ''}" data-coverage-scope="${escapeHtml(scope)}">
+            ${options.map(([key, label]) =>
                 `<button type="button" class="sf-wizard-choice-btn${value === key ? ' selected' : ''}" data-coverage-value="${key}">${label}</button>`
             ).join('')}
         </div>`;
     }
 
-    function sfCoverageHtml() {
-        const nodes = sfWizard.mapData.nodes || [];
+    // Themes -> main lessons (the spec subtopics). "Part way" on a theme
+    // lists its main lessons with one Yes/No each - never the individual
+    // atomic LastMind lessons underneath, which would be a wall of
+    // questions before the student has even started.
+    function sfCoverageThemes() {
         const byTheme = new Map();
-        nodes.forEach((node) => {
+        (sfWizard.mapData.nodes || []).forEach((node) => {
             const theme = node.theme || 'Course content';
             if (!byTheme.has(theme)) byTheme.set(theme, new Map());
             const subtopics = byTheme.get(theme);
             if (!subtopics.has(node.subtopic)) subtopics.set(node.subtopic, []);
             subtopics.get(node.subtopic).push(node);
         });
-        return `<div class="sf-coverage-themes">${Array.from(byTheme.entries()).map(([theme, subtopics], ti) => {
+        return Array.from(byTheme.entries()).map(([theme, subtopics]) => ({ theme, subtopics: Array.from(subtopics.entries()) }));
+    }
+
+    function sfCoverageHtml() {
+        return `<div class="sf-coverage-themes">${sfCoverageThemes().map(({ theme, subtopics }, ti) => {
             const themeScope = `theme:${ti}`;
             const themeValue = sfWizard.coverage[themeScope];
-            const children = themeValue === 'partway' ? `<div class="sf-coverage-children">${Array.from(subtopics.entries()).map(([subtopic, lessonNodes], si) => {
+            const children = themeValue === 'partway' ? `<div class="sf-coverage-children">${subtopics.map(([subtopic], si) => {
                 const subScope = `${themeScope}:sub:${si}`;
-                const subValue = sfWizard.coverage[subScope];
-                const lessons = subValue === 'partway' ? `<div class="sf-coverage-children">${lessonNodes.map((node) => {
-                    const lessonScope = `lesson:${node.id}`;
-                    return `<div class="sf-coverage-child"><div>${escapeHtml(node.label)}</div>${sfCoverageStatusButtons(lessonScope, sfWizard.coverage[lessonScope])}</div>`;
-                }).join('')}</div>` : '';
-                return `<div class="sf-coverage-child"><div>${escapeHtml(subtopic)}</div>${sfCoverageStatusButtons(subScope, subValue)}${lessons}</div>`;
+                return `<div class="sf-coverage-child"><div class="sf-coverage-child-title">${escapeHtml(subtopic)}</div>${sfCoverageStatusButtons(subScope, sfWizard.coverage[subScope], true)}</div>`;
             }).join('')}</div>` : '';
             return `<div class="sf-coverage-column"><div class="sf-coverage-title">${escapeHtml(theme)}</div>${sfCoverageStatusButtons(themeScope, themeValue)}${children}</div>`;
         }).join('')}</div>`;
     }
 
     function sfCoverageIsComplete() {
-        const themeScopes = [...new Set((sfWizard.mapData.nodes || []).map((n) => n.theme || 'Course content'))]
-            .map((_, i) => `theme:${i}`);
-        for (const themeScope of themeScopes) {
-            const themeValue = sfWizard.coverage[themeScope];
+        return sfCoverageThemes().every(({ subtopics }, ti) => {
+            const themeValue = sfWizard.coverage[`theme:${ti}`];
             if (!themeValue) return false;
-            if (themeValue !== 'partway') continue;
-            const themeIndex = Number(themeScope.split(':')[1]);
-            const theme = [...new Set(sfWizard.mapData.nodes.map((n) => n.theme || 'Course content'))][themeIndex];
-            const subs = [...new Set(sfWizard.mapData.nodes.filter((n) => (n.theme || 'Course content') === theme).map((n) => n.subtopic))];
-            for (let si = 0; si < subs.length; si++) {
-                const subScope = `${themeScope}:sub:${si}`;
-                const subValue = sfWizard.coverage[subScope];
-                if (!subValue) return false;
-                if (subValue === 'partway') {
-                    const lessonNodes = sfWizard.mapData.nodes.filter((n) => (n.theme || 'Course content') === theme && n.subtopic === subs[si]);
-                    if (lessonNodes.some((n) => !sfWizard.coverage[`lesson:${n.id}`])) return false;
-                }
-            }
-        }
-        return true;
+            if (themeValue !== 'partway') return true;
+            return subtopics.every((_, si) => !!sfWizard.coverage[`theme:${ti}:sub:${si}`]);
+        });
     }
 
     function sfCoveredConceptIds() {
         const covered = new Set();
-        const themes = [...new Set(sfWizard.mapData.nodes.map((n) => n.theme || 'Course content'))];
-        themes.forEach((theme, ti) => {
+        sfCoverageThemes().forEach(({ subtopics }, ti) => {
             const themeValue = sfWizard.coverage[`theme:${ti}`];
-            const themeNodes = sfWizard.mapData.nodes.filter((n) => (n.theme || 'Course content') === theme);
-            if (themeValue === 'completed') themeNodes.forEach((n) => covered.add(n.conceptId));
-            if (themeValue !== 'partway') return;
-            const subs = [...new Set(themeNodes.map((n) => n.subtopic))];
-            subs.forEach((subtopic, si) => {
-                const subValue = sfWizard.coverage[`theme:${ti}:sub:${si}`];
-                const subNodes = themeNodes.filter((n) => n.subtopic === subtopic);
-                if (subValue === 'completed') subNodes.forEach((n) => covered.add(n.conceptId));
-                if (subValue === 'partway') subNodes.forEach((n) => {
-                    if (sfWizard.coverage[`lesson:${n.id}`] === 'completed') covered.add(n.conceptId);
-                });
+            subtopics.forEach(([, subNodes], si) => {
+                if (themeValue === 'completed' || (themeValue === 'partway' && sfWizard.coverage[`theme:${ti}:sub:${si}`] === 'completed')) {
+                    subNodes.forEach((n) => covered.add(n.conceptId));
+                }
             });
         });
         return [...covered];
@@ -19541,29 +19538,29 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         const card = sfWizard.overlayEl.querySelector('.sf-wizard-card');
         const close = '<button type="button" class="sf-wizard-close-btn" data-onboarding-close aria-label="Close onboarding">×</button>';
         let controls = '';
-        let messages = `<div class="sf-onboarding-message">Hi ${escapeHtml(sfWizardGreetingName())}, I'm Cortex, your LastMind personal assistant. Shall we start with choosing some lessons?</div>`;
+        let messages = `<div class="sf-onboarding-message">Hi ${escapeHtml(sfWizardGreetingName())}! 👋 I'm Cortex, your LastMind study buddy, and I'm so excited you're here! Let's get you set up — first, which subjects are you working on?</div>`;
         if (sfWizard.step === 'subjects') {
             controls = `<div class="sf-onboarding-controls"><div class="sf-wizard-subject-grid">${SF_WIZARD_SUBJECTS.map(sfWizardSubjectBlockHtml).join('')}</div><div class="sf-wizard-actions"><span></span><button class="btn primary" data-next>Continue →</button></div></div>`;
         } else if (sfWizard.step === 'study_now') {
-            messages += `<div class="sf-onboarding-message">What lesson would you like to study right now?</div>`;
-            controls = `<div class="sf-onboarding-controls"><div class="sf-wizard-subject-grid">${[...sfWizard.selectedKeys].map((key) => { const s=SF_WIZARD_SUBJECTS.find((x)=>x.key===key); return `<button class="sf-wizard-subject-block" data-focus-key="${key}">${escapeHtml(s.label)}</button>`; }).join('')}</div><button class="sf-wizard-choice-btn" data-none-now>None right now, just setting things up</button></div>`;
+            messages += `<div class="sf-onboarding-message">Ooh, brilliant choices! 🎉 Which one do you want to dive into right now? Pick one and we'll get you learning straight away.</div>`;
+            controls = `<div class="sf-onboarding-controls"><div class="sf-wizard-subject-grid">${[...sfWizard.selectedKeys].map((key) => { const s=SF_WIZARD_SUBJECTS.find((x)=>x.key===key); return `<button class="sf-wizard-subject-block" data-focus-key="${key}">${escapeHtml(s.label)}</button>`; }).join('')}</div><button class="sf-wizard-choice-btn sf-onboarding-none-btn" data-none-now>None right now, just setting things up</button></div>`;
         } else if (sfWizard.step === 'level') {
             const s = SF_WIZARD_SUBJECTS.find((x) => x.key === sfWizard.focusKey);
             const chosen = sfWizard.levelChoices[s.key] || {};
-            messages += `<div class="sf-onboarding-message">Great — what level and exam board are you studying for ${escapeHtml(s.label)}?</div>`;
+            messages += `<div class="sf-onboarding-message">Love it — ${escapeHtml(s.label)} is a great one to start with! ✨ Just so I get everything right, what level and exam board are you studying?</div>`;
             controls = `<div class="sf-onboarding-controls"><div class="sf-wizard-choice-row">${s.qualifications.map((q)=>`<button class="sf-wizard-choice-btn${chosen.qualification===q.qualification?' selected':''}" data-qualification="${escapeHtml(q.qualification)}">${escapeHtml(q.label)}</button>`).join('')}</div><select class="sf-wizard-select" data-board>${(s.examBoards||['']).map((b)=>`<option${chosen.examBoard===b?' selected':''}>${escapeHtml(b)}</option>`).join('')}</select><div class="sf-wizard-actions"><button class="btn" data-back>← Back</button><button class="btn primary" data-next-level>Continue →</button></div></div>`;
         } else if (sfWizard.step === 'coverage_loading') {
-            messages += `<div class="sf-onboarding-message">I'm loading your course so you can tell me where you've got to.</div>`;
+            messages += `<div class="sf-onboarding-message">Perfect, thank you! 😊 Give me a second while I pull up your whole course…</div>`;
         } else if (sfWizard.step === 'coverage') {
-            messages += `<div class="sf-onboarding-message">Final question, have you already started studying this course? Select which themes you have covered.</div>`;
+            messages += `<div class="sf-onboarding-message">Last question, I promise! 🙌 Have you already covered any of this course? Mark each theme as done, part way, or not started. If it's part way, just tell me which main lessons you've finished with a quick yes or no.</div>`;
             controls = `<div class="sf-onboarding-controls">${sfCoverageHtml()}<div class="sf-wizard-actions"><span></span><button class="btn primary" data-finish>Personalise my schedule →</button></div></div>`;
         } else if (sfWizard.step === 'personalising') {
-            messages += `<div class="sf-onboarding-message">Perfect, I am currently personalising your revision schedule.</div><div class="sf-onboarding-message">If you ever need any help navigating LastMind or any subject specific help I'm happy to help.</div>`;
+            messages += `<div class="sf-onboarding-message">Amazing, thank you! 🎯 I'm personalising your revision schedule right now.</div><div class="sf-onboarding-message">And whenever you need help finding your way around LastMind, or you're stuck on anything in your subjects, just ask me. I'm always happy to help! 💛</div>`;
         } else if (sfWizard.step === 'ready') {
-            messages += `<div class="sf-onboarding-message">Your lessons are ready, redirecting you now, enjoy!</div>`;
+            messages += `<div class="sf-onboarding-message">All done, your first lesson is ready! 🚀 Taking you there now. You're going to do great!</div>`;
         }
         card.innerHTML = `${close}${messages}${controls}`;
-        card.querySelector('[data-onboarding-close]')?.addEventListener('click', sfOnboardingClose);
+        card.querySelector('[data-onboarding-close]')?.addEventListener('click', () => { sfOnboardingClose(); renderWelcome(); });
         card.querySelectorAll('[data-subject-key]').forEach((el) => el.addEventListener('click', () => { const key=el.dataset.subjectKey; sfWizard.selectedKeys.has(key)?sfWizard.selectedKeys.delete(key):sfWizard.selectedKeys.add(key); sfRenderCortexOnboarding(); }));
         card.querySelector('[data-next]')?.addEventListener('click', () => { if (!sfWizard.selectedKeys.size) return; sfWizard.step='study_now'; sfRenderCortexOnboarding(); });
         card.querySelectorAll('[data-focus-key]').forEach((el)=>el.addEventListener('click',()=>{ sfWizard.focusKey=el.dataset.focusKey; const s=SF_WIZARD_SUBJECTS.find((x)=>x.key===sfWizard.focusKey); if(!s.examLesson){ sfCreateOnboardingFolders().then(async(folder)=>{ await sfPostBackend('/onboarding/subject-picker-seen', {}); await refreshFolderList(); sfOnboardingClose(); if(folder) selectFolder(folder.id); }); return; } sfWizard.step='level'; sfRenderCortexOnboarding(); }));
@@ -19578,10 +19575,25 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
 
     async function sfShowSubjectPickerWizard(options = {}) {
         const { data: { session } } = await supabaseClient.auth.getSession();
+        // Runs on the Cortex page itself: switch the sidebar to Cortex and
+        // replace the main content area with the onboarding conversation.
+        stopActiveDictation();
+        stopSpeaking();
+        selectedFolderId = null;
+        selectedSubfolderId = null;
+        selectedPageId = null;
+        specPracticeMode = false;
+        kmGraphMode = false;
+        setSidebarTab('cortex');
+        sfCloseSidebarOnMobile();
+        document.getElementById('topbarTitle').textContent = 'Cortex';
+        const contentInner = document.getElementById('contentInner');
+        contentInner.classList.add('content-inner-wide');
         const overlayEl = document.createElement('div');
-        overlayEl.className = 'sf-wizard-overlay sf-onboarding-chat';
+        overlayEl.className = 'sf-onboarding-page';
         overlayEl.innerHTML = '<div class="sf-wizard-card"></div>';
-        document.body.appendChild(overlayEl);
+        contentInner.innerHTML = '';
+        contentInner.appendChild(overlayEl);
         const focusFolder = options.focusFolder || null;
         const focusSubject = focusFolder && SF_WIZARD_SUBJECTS.find((s) => s.subject === focusFolder.subject);
         sfWizard = { overlayEl, step: focusFolder ? 'level' : 'subjects', selectedKeys: new Set(focusSubject ? [focusSubject.key] : []), focusKey: focusSubject?.key || null, focusFolder, levelChoices: {}, email: session?.user?.email || '', firstName: (session?.user?.user_metadata?.first_name || '').trim() };
