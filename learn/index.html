@@ -18791,10 +18791,17 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     function sfPrefetchNext(currentNodeId) {
         if (!sfFeed || sfFeed.prefetchPromise) return;
         sfFeed.prefetchPromise = (async () => {
-            const rec = await sfNextRecommendationForCurrentFeed(currentNodeId);
-            if (!rec) return { rec: null, built: null };
-            const built = await sfBuildSlidesForRecommendation(rec);
-            return { rec, built };
+            try {
+                const rec = await sfNextRecommendationForCurrentFeed(currentNodeId);
+                if (!rec) return { rec: null, built: null };
+                const built = await sfBuildSlidesForRecommendation(rec);
+                return { rec, built };
+            } catch (err) {
+                // Never leave a rejected promise behind: the append step would
+                // wait on it forever and the feed would stop scrolling on.
+                console.error('LastMind: prefetching the next lesson failed.', err);
+                return { rec: null, built: null, failed: true };
+            }
         })();
     }
 
@@ -18814,12 +18821,43 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         sfFeed.appending = true;
         const pending = sfFeed.prefetchPromise;
         sfFeed.prefetchPromise = null;
-        const result = pending ? await pending : await (async () => {
-            const rec = await sfNextRecommendationForCurrentFeed();
-            return rec ? { rec, built: await sfBuildSlidesForRecommendation(rec) } : { rec: null, built: null };
-        })();
-        sfFeed.appending = false;
+        const computeFresh = async () => {
+            try {
+                const rec = await sfNextRecommendationForCurrentFeed();
+                return rec ? { rec, built: await sfBuildSlidesForRecommendation(rec) } : { rec: null, built: null };
+            } catch (err) {
+                console.error('LastMind: could not work out the next lesson.', err);
+                return { rec: null, built: null, failed: true };
+            }
+        };
+        let result = pending ? await pending : await computeFresh();
+        // A failed prefetch gets one fresh attempt before the feed gives up.
+        if (result.failed) result = await computeFresh();
+        if (sfFeed) sfFeed.appending = false;
         if (!sfFeed) return; // feed closed while this was in flight
+        if (result.failed) {
+            const el = document.createElement('div');
+            el.className = 'sf-feed-slide';
+            el.innerHTML = `
+                <div class="sf-slide-inner sf-handoff">
+                    <div class="sf-speaker-label">Cortex</div>
+                    <p class="sf-handoff-text">Couldn't load your next item just now.</p>
+                    <button type="button" class="btn primary sf-handoff-btn">Try again</button>
+                </div>`;
+            el.querySelector('.sf-handoff-btn').addEventListener('click', () => {
+                el.remove();
+                sfFeed.slides = sfFeed.slides.filter((slide) => slide !== el);
+                sfFeed.meta = sfFeed.meta.filter((m) => m.kind !== 'retry');
+                sfFeed.currentIndex = Math.max(0, sfFeed.slides.length - 1);
+                sfFeed.trackEl.style.transform = `translateY(-${sfFeed.currentIndex * 100}%)`;
+                sfAppendNextRecommendation();
+            });
+            sfFeed.trackEl.appendChild(el);
+            sfFeed.slides.push(el);
+            sfFeed.meta.push({ canAdvance: false, kind: 'retry' });
+            sfForceMoveToIndex(sfFeed.currentIndex + 1);
+            return;
+        }
         if (!result.rec) {
             const el = document.createElement('div');
             el.className = 'sf-feed-slide';
