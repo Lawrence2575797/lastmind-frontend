@@ -1655,9 +1655,9 @@
     .diagram-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
     /* Every button in the drawing tool: navy with cream text (readable over any
        background); a switched-on tool inverts to cream with navy text. */
-    .diagram-widget .btn, .diagram-tool-btn, .diagram-submit-btn, .diagram-palette-btn { background: #12121E; color: #E6D7B0; border: 1px solid #E6D7B0; }
-    .diagram-widget .btn:hover, .diagram-tool-btn:hover, .diagram-submit-btn:hover, .diagram-palette-btn:hover { background: #1c1c30; color: #F3E7C4; }
-    .diagram-tool-btn.active, .diagram-widget .btn.diagram-tool-btn.active { background: #E6D7B0; color: #12121E; border-color: #E6D7B0; }
+    .diagram-widget .btn, .diagram-widget .diagram-toolbar .btn, .diagram-widget .diagram-tool-btn, .diagram-widget .diagram-submit-btn, .diagram-widget .diagram-palette-btn { background: #12121E; color: #E6D7B0; border: 1px solid #E6D7B0; }
+    .diagram-widget .btn:hover, .diagram-widget .diagram-toolbar .btn:hover, .diagram-widget .diagram-tool-btn:hover, .diagram-widget .diagram-submit-btn:hover, .diagram-widget .diagram-palette-btn:hover { background: #1c1c30; color: #F3E7C4; }
+    .diagram-widget .diagram-toolbar .btn.diagram-tool-btn.active { background: #E6D7B0; color: #12121E; border-color: #E6D7B0; }
     .diagram-label-input {
         background: var(--panel); border: 1px solid rgba(230, 215, 176, 0.2); border-radius: 3px;
         padding: 6px 8px; font-size: 12px; color: var(--text); font-family: Arial, sans-serif; width: 140px;
