@@ -100,7 +100,7 @@
     .sidebar {
         width: 280px;
         flex-shrink: 0;
-        background: #12121E;
+        background: var(--panel);
         /* Explicit, not left to inherit from body - body's own text
            colour now matches its birch background (see --ink), which
            would be illegible against this panel's own dark background if
@@ -1349,7 +1349,7 @@
        of the feed would run past the viewport. */
     /* The default lesson surface matches the charcoal sidebar. Image-backed
        reward themes still replace this through the theme-bg-image rule. */
-    .sf-feed-root { position: relative; height: calc(100vh - 128px); min-height: 420px; max-width: 900px; margin: 0 auto; border-radius: 12px; overflow: hidden; background: #12121E; color: var(--text); }
+    .sf-feed-root { position: relative; height: calc(100vh - 128px); min-height: 420px; max-width: 900px; margin: 0 auto; border-radius: 12px; overflow: hidden; background: var(--panel); color: var(--text); }
     .sf-feed-exit-btn { position: absolute; top: 14px; right: 14px; z-index: 2; width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(0,0,0,0.25); color: var(--text); font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
     /* Persistent greeting above the feed (see sfMountGreetingBanner) - a
        genuine sibling of .sf-feed-root, not part of any one slide, so it
@@ -1459,7 +1459,7 @@
     /* var(--panel), not --bg - matches .sf-feed-root's own background
        exactly (same variable), so the panel reads as part of the same
        box rather than a mismatched second surface bolted on next to it. */
-    .sf-mini-cortex-panel { position: absolute; top: 0; right: 0; bottom: 0; width: 380px; border-left: 1px solid rgba(230, 215, 176, 0.15); background: #12121E; display: flex; flex-direction: column; z-index: 2; }
+    .sf-mini-cortex-panel { position: absolute; top: 0; right: 0; bottom: 0; width: 380px; border-left: 1px solid rgba(230, 215, 176, 0.15); background: var(--panel); display: flex; flex-direction: column; z-index: 2; }
     .sf-mini-cortex-header { flex: none; padding: 14px 16px 10px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.6; border-bottom: 1px solid rgba(230, 215, 176, 0.1); }
     .sf-mini-cortex-thread { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
     .sf-mini-cortex-empty { font-size: 13px; line-height: 1.6; opacity: 0.55; }
@@ -1748,7 +1748,7 @@
     @media (max-width: 900px) { .econ-diagram-gallery-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 580px) { .econ-diagram-gallery-heading { align-items: stretch; flex-direction: column; } .econ-diagram-gallery-grid { grid-template-columns: 1fr; } }
 
-    .key-award-toast { position: fixed; top: 82px; right: 24px; z-index: 12000; display: flex; align-items: center; gap: 8px; padding: 12px 17px; border-radius: 999px; background: #12121E; color: var(--text); border: 1px solid var(--accent); box-shadow: 0 10px 30px rgba(0,0,0,0.3); font: 800 15px Arial, sans-serif; pointer-events: none; animation: keyAwardToast 2.4s ease forwards; }
+    .key-award-toast { position: fixed; top: 82px; right: 24px; z-index: 12000; display: flex; align-items: center; gap: 8px; padding: 12px 17px; border-radius: 999px; background: var(--panel); color: var(--text); border: 1px solid var(--accent); box-shadow: 0 10px 30px rgba(0,0,0,0.3); font: 800 15px Arial, sans-serif; pointer-events: none; animation: keyAwardToast 2.4s ease forwards; }
     @keyframes keyAwardToast { 0% { opacity:0; transform:translateY(-10px) scale(.94); } 12%,72% { opacity:1; transform:translateY(0) scale(1); } 100% { opacity:0; transform:translateY(-8px) scale(.98); } }
 
     /* ─── Math shortcut answer editor (ported from the Shortcut Practice
@@ -3402,15 +3402,16 @@
     }
 
     .upgrade-topbar-btn {
-        background: #12121E;
-        color: #E6D7B0;
-        border-color: #E6D7B0;
+        background: var(--panel);
+        color: var(--text);
+        border-color: var(--text);
         font-weight: 700;
     }
 
     button.upgrade-topbar-btn:hover {
-        background: #1c1c30;
-        color: #F3E7C4;
+        background: var(--panel);
+        color: var(--text);
+        filter: brightness(1.25);
         opacity: 1;
     }
 
@@ -17499,6 +17500,22 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         return () => { clearInterval(interval); clearTimeout(slowTimer); };
     }
 
+    // A wrong answer comes back with a follow-up question from the marker
+    // (result.followUp) - rather than editing the same answer, the student is
+    // asked a fresh question on exactly what they missed. Swaps it in for the
+    // question on screen, empties the answer box and remembers its token, which
+    // the next submit sends back so it is graded against the follow-up (see
+    // services/followUp.ts on the backend). Returns true when applied; without a
+    // follow-up the old edit-and-retry behaviour stands.
+    function sfApplyFollowUp(slideEl, result, state, clearInput) {
+        if (!result || !result.followUp || !result.followUp.token) return false;
+        state.token = result.followUp.token;
+        const qEl = slideEl.querySelector('.sf-question-text');
+        if (qEl) qEl.textContent = result.followUp.questionText;
+        if (clearInput) clearInput();
+        return true;
+    }
+
     async function sfShowCorrectFeedback(feedbackEl, toughConcept) {
         feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-correct">✓ Correct</div>`;
         const studentName = await sfGetStudentName();
@@ -17654,6 +17671,9 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 isEmpty() {
                     return mathFields.every((mq) => !mq.latex().trim());
                 },
+                clear() {
+                    mathFields.forEach((mq) => mq.latex(''));
+                },
                 // MathQuill has no first-class disable API — visually
                 // dims and stops new lines (via the button OR Enter, see
                 // addLine's handler), which is all "I don't know" actually
@@ -17711,6 +17731,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         const setDisabled = (v) => { if (useMathEditor) mathInput.setDisabled(v); else inputEl.disabled = v; };
         slideEl.querySelector('.sf-question-submit').addEventListener('click', sfSubmitCurrentSlide);
         let retryCount = 0;
+        const fu = { token: null };
         meta.noBack = true;
         const draftKey = `sf-practice:${node.id}`;
         if (!useMathEditor) {
@@ -17727,7 +17748,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             setDisabled(true);
             feedbackEl.innerHTML = `<div class="sf-feedback-line">Checking…</div>`;
             const result = await sfPostBackend('/knowledge-map-v2/text-question/submit', {
-                nodeId: node.id, questionType: 'practice', answer, retryCount
+                nodeId: node.id, questionType: 'practice', answer, retryCount, followUpToken: fu.token
             });
             if (!result) {
                 setDisabled(false);
@@ -17747,7 +17768,10 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             }
             setDisabled(false);
             retryCount += 1;
-            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || "Not quite - check the specific wording and try again.")}</div>`;
+            const followed = sfApplyFollowUp(slideEl, result, fu, () => {
+                if (useMathEditor) mathInput.clear(); else { inputEl.value = ''; clearAnswerDraft(draftKey); }
+            });
+            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || "Not quite - check the specific wording and try again.")}${followed ? ' Try this new question on that point.' : ''}</div>`;
             return false;
         };
     }
@@ -17876,6 +17900,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         el.querySelector('.sf-question-submit').addEventListener('click', sfSubmitCurrentSlide);
         let retryCount = 0;
         const draftKey = `sf-ao1:${rec.node.id}`;
+        const fu = { token: null };
         const restoredDraft = loadAnswerDraft(draftKey);
         if (restoredDraft && !inputEl.value) inputEl.value = restoredDraft;
         inputEl.addEventListener('input', () => saveAnswerDraft(draftKey, inputEl.value));
@@ -17948,7 +17973,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             }
             inputEl.disabled = true;
             feedbackEl.innerHTML = `<div class="sf-feedback-line">Checking…</div>`;
-            const result = await sfPostBackend('/knowledge-map-v2/node-review/ao1/submit', { nodeId: rec.node.id, questionText: data.questionText, answer, retryCount });
+            const result = await sfPostBackend('/knowledge-map-v2/node-review/ao1/submit', { nodeId: rec.node.id, questionText: data.questionText, answer, retryCount, followUpToken: fu.token });
             if (!result) {
                 inputEl.disabled = false;
                 feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Something went wrong submitting that - try again.</div>`;
@@ -17965,7 +17990,8 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             }
             retryCount += 1;
             inputEl.disabled = false;
-            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || "Not quite - try again.")}</div>`;
+            const followed = sfApplyFollowUp(el, result, fu, () => { inputEl.value = ''; clearAnswerDraft(draftKey); });
+            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || "Not quite - try again.")}${followed ? ' Try this new question on that point.' : ''}</div>`;
             return false;
         };
         return { el, meta };
@@ -18022,6 +18048,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         qEl.querySelector('.sf-question-submit').addEventListener('click', sfSubmitCurrentSlide);
         let retryCount = 0;
         const draftKey = `sf-integration:${rec.node.id}:${link.id}`;
+        const fu = { token: null };
         const restoredDraft = loadAnswerDraft(draftKey);
         if (restoredDraft && !inputEl.value) inputEl.value = restoredDraft;
         inputEl.addEventListener('input', () => saveAnswerDraft(draftKey, inputEl.value));
@@ -18034,7 +18061,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             inputEl.disabled = true;
             feedbackEl.innerHTML = `<div class="sf-feedback-line">Checking…</div>`;
             const result = await sfPostBackend('/knowledge-map-v2/node-review/integration/submit', {
-                fromNodeId: rec.node.id, toNodeId: link.id, questionText: data.questionText, answer, retryCount
+                fromNodeId: rec.node.id, toNodeId: link.id, questionText: data.questionText, answer, retryCount, followUpToken: fu.token
             });
             if (!result) {
                 inputEl.disabled = false;
@@ -18057,7 +18084,8 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             }
             retryCount += 1;
             inputEl.disabled = false;
-            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || "Not quite - try again.")}</div>`;
+            const followed = sfApplyFollowUp(qEl, result, fu, () => { inputEl.value = ''; clearAnswerDraft(draftKey); });
+            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || "Not quite - try again.")}${followed ? ' Try this new question on that point.' : ''}</div>`;
             return false;
         };
         slides.push({ el: qEl, meta });
@@ -18574,8 +18602,9 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             if (restoredDraft && !inputEl.value) inputEl.value = restoredDraft;
             inputEl.addEventListener('input', () => saveAnswerDraft(draftKey, inputEl.value));
         }
+        const fu = { token: null };
         meta.trySubmit = async () => {
-            const body = { recallCheckIndex: row.recallCheckIndex };
+            const body = { recallCheckIndex: row.recallCheckIndex, followUpToken: fu.token };
             if (isMcq) {
                 if (selectedOptionIndex === null) {
                     feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Pick an option before continuing.</div>`;
@@ -18619,7 +18648,8 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 return wasLast ? 'handled' : true;
             }
             if (inputEl) inputEl.disabled = false;
-            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || "Not quite - try again.")}</div>`;
+            const followed = !isMcq && sfApplyFollowUp(el, result, fu, () => { inputEl.value = ''; clearAnswerDraft(draftKey); });
+            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || "Not quite - try again.")}${followed ? ' Try this new question on that point.' : ''}</div>`;
             return false;
         };
         return { el, meta };
@@ -19650,6 +19680,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         const inputEl = el.querySelector('.sf-question-input');
         const feedbackEl = el.querySelector('.sf-question-feedback');
         el.querySelector('.sf-question-submit').addEventListener('click', sfSubmitCurrentSlide);
+        const fu = { token: null };
         meta.trySubmit = async () => {
             const answer = (inputEl.value || '').trim();
             if (!answer) {
@@ -19658,7 +19689,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             }
             inputEl.disabled = true;
             feedbackEl.innerHTML = `<div class="sf-feedback-line">Checking…</div>`;
-            const result = await sfPostBackend(`/exam-prep-corrections/${correction.id}/submit`, { answerText: answer });
+            const result = await sfPostBackend(`/exam-prep-corrections/${correction.id}/submit`, { answerText: answer, followUpToken: fu.token });
             if (!result) {
                 inputEl.disabled = false;
                 feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Something went wrong submitting that - try again.</div>`;
@@ -19673,7 +19704,8 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 return true;
             }
             inputEl.disabled = false;
-            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || 'Not quite - try again.')}</div>`;
+            const followed = sfApplyFollowUp(el, result, fu, () => { inputEl.value = ''; });
+            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || 'Not quite - try again.')}${followed ? ' Try this new question on that point.' : ''}</div>`;
             return false;
         };
         return { el, meta };
@@ -23501,13 +23533,13 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 // grouped fill-in-the-gaps question - see
                 // renderBlanksQuestionWidget and the backend's own
                 // isBlanksSubmission branch in text-question/submit.
-                const submit = async (answerOrAnswers, retryCount) => {
+                const submit = async (answerOrAnswers, retryCount, followUpToken) => {
                     const isBlanks = Array.isArray(answerOrAnswers);
                     const result = await postChainDiagnostic(
                         nodeLesson.practiceQuestion.diagramSpec ? '/knowledge-map-v2/diagram-question/submit' : '/knowledge-map-v2/text-question/submit',
                         isBlanks
                             ? { nodeId: d.id, questionType: 'practice', answers: answerOrAnswers, retryCount }
-                            : { nodeId: d.id, questionType: 'practice', answer: answerOrAnswers, retryCount }
+                            : { nodeId: d.id, questionType: 'practice', answer: answerOrAnswers, retryCount, followUpToken }
                     );
                     if (result && result.schedule) {
                         fullData.scheduleByConceptId.set(result.schedule.conceptId, result.schedule);
@@ -23609,11 +23641,11 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             // The explanation stays on screen beside the question, so the text can
             // be read while answering.
             const el = lessonEl.querySelector('#km-untracked-question');
-            const submit = async (answerOrAnswers) => {
+            const submit = async (answerOrAnswers, retryCount, followUpToken) => {
                 const isBlanks = Array.isArray(answerOrAnswers);
                 const result = await postChainDiagnostic(
                     `/knowledge-map-v2/node/${d.id}/untracked-submit`,
-                    isBlanks ? { answers: answerOrAnswers } : { answer: answerOrAnswers }
+                    isBlanks ? { answers: answerOrAnswers } : { answer: answerOrAnswers, followUpToken }
                 );
                 if (result && result.correct) {
                     setTimeout(() => { if (contentInner.isConnected) showKmWorkspace(contentInner); }, UNTRACKED_AUTO_CLOSE_DELAY_MS);
@@ -23823,7 +23855,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         // that state across the loop; the SAME reworded question is reused
         // on every retry rather than generating a new one, so retrying
         // costs nothing extra.
-        function renderNodeReviewAo1(lessonEl, d, qualifyingLinks, questionText, retryCount = 0, retryFeedback = '', modality, audioText) {
+        function renderNodeReviewAo1(lessonEl, d, qualifyingLinks, questionText, retryCount = 0, retryFeedback = '', modality, audioText, followUpToken = null) {
             const draftKey = `node-review-ao1:${d.id}`;
             const locale = localeForSubject(folder.subject);
             const useSpeechEditor = modality === 'speaking';
@@ -23876,7 +23908,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 if (!hasTrustedInput()) { showPasteBlockWarning(inputEl); return; }
                 ev.target.disabled = true;
                 ev.target.textContent = 'Checking…';
-                const result = await postChainDiagnostic('/knowledge-map-v2/node-review/ao1/submit', { nodeId: d.id, questionText, answer, retryCount });
+                const result = await postChainDiagnostic('/knowledge-map-v2/node-review/ao1/submit', { nodeId: d.id, questionText, answer, retryCount, followUpToken });
                 if (!result) {
                     ev.target.disabled = false;
                     ev.target.textContent = 'Submit';
@@ -23888,7 +23920,9 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                     return;
                 }
                 if (!result.correct) {
-                    renderNodeReviewAo1(lessonEl, d, qualifyingLinks, questionText, retryCount + 1, result.feedback || '', modality, audioText);
+                    // With a follow-up, the re-rendered step asks that question instead.
+                    const fu = result.followUp && result.followUp.token ? result.followUp : null;
+                    renderNodeReviewAo1(lessonEl, d, qualifyingLinks, fu ? fu.questionText : questionText, retryCount + 1, (result.feedback || '') + (fu ? ' Try this new question on that point.' : ''), modality, audioText, fu ? fu.token : null);
                     return;
                 }
                 ev.target.remove();
@@ -23939,7 +23973,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         // student - a wrong answer just retries in place with the grading
         // call's own feedback shown as a hint, same contract AO1's
         // slip-check already has.
-        function renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, questionText, linkTeaching, answerInputType, notes, retryCount, retryFeedback, modality, audioText) {
+        function renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, questionText, linkTeaching, answerInputType, notes, retryCount, retryFeedback, modality, audioText, followUpToken = null) {
             const link = qualifyingLinks[index];
             saveNodeReviewCheckpoint(d.id, { linkToNodeId: link.id, stage: 'integration', resultsSoFar });
             const draftKey = `node-review-integration:${d.id}:${link.id}`;
@@ -24013,7 +24047,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 ev.target.disabled = true;
                 ev.target.textContent = 'Checking…';
                 const result = await postChainDiagnostic('/knowledge-map-v2/node-review/integration/submit', {
-                    fromNodeId: d.id, toNodeId: link.id, questionText, answer, retryCount
+                    fromNodeId: d.id, toNodeId: link.id, questionText, answer, retryCount, followUpToken
                 });
                 if (!result) {
                     ev.target.disabled = false;
@@ -24022,7 +24056,8 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 }
                 clearAnswerDraft(draftKey);
                 if (!result.correct) {
-                    renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, questionText, linkTeaching, answerInputType, notes, retryCount + 1, result.feedback || '', modality, audioText);
+                    const fu = result.followUp && result.followUp.token ? result.followUp : null;
+                    renderNodeReviewIntegration(lessonEl, d, qualifyingLinks, index, resultsSoFar, fu ? fu.questionText : questionText, linkTeaching, answerInputType, notes, retryCount + 1, (result.feedback || '') + (fu ? ' Try this new question on that point.' : ''), modality, audioText, fu ? fu.token : null);
                     return;
                 }
                 if (result.schedule) {
@@ -24669,12 +24704,13 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             // eventual correct one grades 'hard', two or more grade
             // 'again' outright (see reviewService.ts's deriveCorrectRating).
             let retryCount = 0;
+            let followUpToken = null;
             submitBtn.addEventListener('click', async () => {
                 if (editor.isEmpty()) return;
                 if (!editor.hasTrustedInput()) { showPasteBlockWarning(editor.container); return; }
                 submitBtn.disabled = true;
                 submitBtn.textContent = 'Checking…';
-                const result = await onSubmit(editor.getValue(), retryCount);
+                const result = await onSubmit(editor.getValue(), retryCount, followUpToken);
                 if (!result) {
                     // The request itself failed — the draft is already
                     // checkpointed, so just let them retry rather than
@@ -24690,6 +24726,16 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                     submitBtn.disabled = false;
                     submitBtn.textContent = 'Try again';
                     renderQuestionResult(resultEl, result, onRequiresEncoding);
+                    // The marker's follow-up question replaces this one (see
+                    // sfApplyFollowUp) - the student answers that instead of
+                    // editing the same answer.
+                    if (result.followUp && result.followUp.token) {
+                        followUpToken = result.followUp.token;
+                        q.textContent = result.followUp.questionText;
+                        if (inputEl.tagName === 'TEXTAREA') inputEl.value = ''; else inputEl.textContent = '';
+                        submitBtn.textContent = 'Submit answer';
+                        resultEl.insertAdjacentHTML('beforeend', '<div class="km-inline-detail-item km-inline-detail-none" style="margin-top:6px;">Try this new question on that point.</div>');
+                    }
                     return;
                 }
                 submitBtn.remove();
