@@ -18693,7 +18693,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         const result = await sfGetBackend('/immediate-recalls/due');
         // The server also returns recalls due in the next few minutes (so the
         // feed can time a nudge for them); only ones already due are served here.
-        const rows = ((result && result.recalls) ? result.recalls : []).filter((r) => new Date(r.dueAt).getTime() <= Date.now());
+        const rows = ((result && result.recalls) ? result.recalls : []).filter((r) => { const t = new Date(r.dueAt).getTime(); return t <= Date.now() && Date.now() <= t + SF_RECALL_GRACE_MS; });
         if (!sfFeed) return;
         if (!rows.length) {
             await sfAppendNextRecommendation();
@@ -18739,12 +18739,14 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         if (!sfFeed || !sfFeed.pendingRecallRows) return;
         const now = Date.now();
         const currentNodeId = sfFeed.meta[sfFeed.currentIndex] && sfFeed.meta[sfFeed.currentIndex].nodeId;
+        // A recall can only be taken in the 30 seconds after it falls due (the
+        // window the pop-up stays up); once that has passed it is gone.
+        sfFeed.pendingRecallRows = sfFeed.pendingRecallRows.filter((r) => now <= new Date(r.dueAt).getTime() + SF_RECALL_GRACE_MS);
         const dueRows = sfFeed.pendingRecallRows.filter((r) => new Date(r.dueAt).getTime() <= now);
         const due = dueRows.filter((r) => r.nodeId !== currentNodeId);
-        // A recall for the concept still on screen is held back (see above).
-        // It stays pending and is re-checked every time the feed moves to
-        // another slide (see sfMoveToIndex), so the pop-up shows the moment the
-        // student is in a different lesson - at any point during it.
+        // A recall for the concept still on screen is held back (see above) and is
+        // re-checked whenever the feed moves to another slide - but only while its
+        // 30-second window is still open.
         if (!due.length) return;
         const dueIds = new Set(due.map((r) => r.recallId));
         sfFeed.pendingRecallRows = sfFeed.pendingRecallRows.filter((r) => !dueIds.has(r.recallId));
