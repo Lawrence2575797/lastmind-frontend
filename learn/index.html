@@ -5324,6 +5324,21 @@
         color: rgba(230, 215, 176, 0.5);
     }
     /* ─── MOBILE ─── */
+    /* iOS Safari's 100vh is taller than the visible area, so the sidebar's
+       bottom (footer buttons) sat under the browser toolbar, and the
+       overflow:hidden sidebar couldn't be scrolled to reach it. Use the
+       dynamic viewport height and let the whole sidebar scroll. */
+    @media (max-width: 768px) {
+        #app, .layout { height: 100vh; height: 100dvh; }
+        .sidebar {
+            height: 100vh; height: 100dvh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+        }
+        .sidebar > * { flex-shrink: 0; }
+        .sidebar-footer { padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px)); }
+    }
     @media (max-width: 768px) {
         .scratch-notes-dropdown {
             width: 92%;
