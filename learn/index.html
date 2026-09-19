@@ -15840,6 +15840,11 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     });
 
     async function renderEconDiagramGallery() {
+        // The editor renames the topbar to "Economics Drawing Tool · <title>";
+        // reset it here, otherwise the "navigated away while loading" check
+        // below mistook coming back from a save/Back for navigating away and
+        // left the gallery stuck on "Loading…".
+        document.getElementById('topbarTitle').textContent = 'Economics Drawing Tool';
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
         contentInner.innerHTML = `
