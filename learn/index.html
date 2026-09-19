@@ -1508,14 +1508,14 @@
     .sf-coverage-child-title { margin-bottom: 8px; font-size: 13.5px; line-height: 1.35; }
     .sf-onboarding-controls { margin-top: 16px; padding: 18px; border-radius: 14px; background: rgba(18,18,30,.94); }
     .sf-coverage-themes { display: flex; flex-direction: column; gap: 14px; padding: 4px 2px 14px; }
-    .sf-coverage-row { display: grid; grid-template-columns: minmax(240px, 340px) minmax(0, 1fr); gap: 14px; align-items: start; }
+    .sf-coverage-row { display: grid; grid-template-columns: minmax(340px, 460px) minmax(0, 1fr); gap: 14px; align-items: start; }
     .sf-coverage-lessons { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
     .sf-coverage-lessons .sf-coverage-child { border: 1px solid rgba(230,215,176,.2); border-radius: 12px; padding: 12px; background: var(--bg); }
     @media (max-width: 760px) { .sf-coverage-row { grid-template-columns: 1fr; } }
     .sf-coverage-column { flex: none; border: 1px solid rgba(230,215,176,.2); border-radius: 12px; padding: 14px; background: var(--bg); }
     .sf-coverage-title { font-weight: 700; margin-bottom: 10px; }
     .sf-coverage-status { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-    .sf-coverage-status button { padding: 8px 5px; font-size: 11px; }
+    .sf-coverage-status button { padding: 8px 4px; font-size: 11px; min-width: 0; white-space: nowrap; }
     .sf-coverage-status button.selected { border-color: var(--accent); background: rgba(230,215,176,.15); }
     .sf-coverage-children { margin-top: 12px; display: grid; gap: 10px; }
     .sf-coverage-child { padding-top: 10px; border-top: 1px solid rgba(230,215,176,.12); }
@@ -3379,14 +3379,16 @@
     }
 
     .upgrade-topbar-btn {
-        background: var(--accent);
-        color: var(--bg);
-        border-color: var(--accent);
+        background: #12121E;
+        color: #E6D7B0;
+        border-color: #E6D7B0;
+        font-weight: 700;
     }
 
     button.upgrade-topbar-btn:hover {
-        background: var(--accent);
-        opacity: 0.85;
+        background: #1c1c30;
+        color: #F3E7C4;
+        opacity: 1;
     }
 
     #myTutoringTopbarBtn {
@@ -19966,14 +19968,12 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         } else if (sfWizard.step === 'ready') {
             messages += `<div class="sf-onboarding-message">All done, your first lesson is ready! 🚀 Taking you there now. You're going to do great!</div>`;
         }
-        // Chat log: each step adds its message once; going back to an earlier
-        // step drops the messages that came after it.
-        const chatLog = sfWizard.chatLog || (sfWizard.chatLog = []);
-        const seenAt = chatLog.findIndex((entry) => entry.step === sfWizard.step);
-        if (seenAt >= 0) chatLog.length = seenAt + 1;
-        chatLog[seenAt >= 0 ? seenAt : chatLog.length] = { step: sfWizard.step, html: messages };
+        // Only the current step's message is shown (no scrolling back through
+        // earlier ones); the greeting leads the first step, and any flow that
+        // starts part-way (a pending subject) still opens with it.
+        const showGreeting = sfWizard.step === 'subjects' || sfWizard.step === 'level' && !!sfWizard.focusFolder;
         const scrollers = sfCaptureScroll(card);
-        card.innerHTML = `${close}${greeting}${chatLog.map((entry) => entry.html).join('')}${controls}`;
+        card.innerHTML = `${close}${showGreeting ? greeting : ''}${messages}${controls}`;
         sfRestoreScroll(scrollers);
         card.querySelector('[data-onboarding-close]')?.addEventListener('click', () => { sfOnboardingClose(); renderWelcome(); });
         card.querySelectorAll('[data-subject-key]').forEach((el) => el.addEventListener('click', () => { const key=el.dataset.subjectKey; sfWizard.selectedKeys.has(key)?sfWizard.selectedKeys.delete(key):sfWizard.selectedKeys.add(key); sfRenderCortexOnboarding(); }));
