@@ -21768,6 +21768,13 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         return `linear-gradient(rgba(18,18,30,${bg.scrim}), rgba(18,18,30,${bg.scrim})), url(/assets/econ-backgrounds/${bg.key}.jpg) center / cover no-repeat`;
     }
 
+    // Curve names always sit at the RIGHT-hand end of their line (the end with
+    // the larger x), right-aligned so the text never runs off the canvas.
+    function diagramTagPosition(poly) {
+        const first = poly[0], last = poly[poly.length - 1];
+        const end = last.x >= first.x ? last : first;
+        return { x: end.x - 4, y: end.y - 8, 'text-anchor': 'end', class: 'diagram-curve-tag' };
+    }
     let diagramPreviewSeq = 0;
     function renderMiniDiagramPreview(container, diagramState) {
         const svg = svgElement('svg', { viewBox: `0 0 ${DIAGRAM_CANVAS_WIDTH} ${DIAGRAM_CANVAS_HEIGHT}` });
@@ -21798,7 +21805,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             const poly = diagramPlacedPoly(local, inst);
             polys.push(poly);
             svg.appendChild(svgElement('polyline', { points: diagramPolylinePoints(poly), class: 'diagram-curve diagram-curve-placed' }));
-            const tag = svgElement('text', { x: poly[0].x, y: poly[0].y - 6, class: 'diagram-curve-tag' });
+            const tag = svgElement('text', diagramTagPosition(poly));
             tag.textContent = DIAGRAM_PALETTE_LABELS[diagramBaseType(inst.curveTypeId)] || inst.curveTypeId;
             svg.appendChild(tag);
         });
@@ -21975,7 +21982,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 if (!local) return;
                 const poly = diagramTranslate(local, DIAGRAM_GIVEN_ORIGIN.x, DIAGRAM_GIVEN_ORIGIN.y);
                 svg.appendChild(svgElement('polyline', { points: diagramPolylinePoints(poly), class: 'diagram-curve diagram-curve-given' }));
-                const tag = svgElement('text', { x: poly[0].x, y: poly[0].y - 6, class: 'diagram-curve-tag' });
+                const tag = svgElement('text', diagramTagPosition(poly));
                 tag.textContent = DIAGRAM_PALETTE_LABELS[diagramBaseType(g.type)] || g.type;
                 svg.appendChild(tag);
             });
@@ -22011,7 +22018,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                     state.dragging = { type: 'curve', id: inst.instanceId, offsetX: pt.x - inst.x, offsetY: pt.y - inst.y };
                 });
                 svg.appendChild(el);
-                const tag = svgElement('text', { x: poly[0].x, y: poly[0].y - 6, class: 'diagram-curve-tag' });
+                const tag = svgElement('text', diagramTagPosition(poly));
                 tag.textContent = DIAGRAM_PALETTE_LABELS[diagramBaseType(inst.curveTypeId)] || inst.curveTypeId;
                 svg.appendChild(tag);
                 svg.appendChild(diagramDeleteGlyph(poly[0].x, poly[0].y - 20, () => {
