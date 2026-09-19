@@ -16102,13 +16102,27 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     async function econFetch(path, options) {
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) return null;
-        const resp = await fetch(`${COMPILE_BACKEND_URL}${path}`, {
-            ...options,
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}`, ...(options && options.headers) },
-        });
-        if (!resp.ok) return null;
-        return await resp.json();
+        // A Render redeploy/cold start answers with 502-504 or drops the
+        // connection for a few seconds - retry those instead of failing a save.
+        for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+                const resp = await fetch(`${COMPILE_BACKEND_URL}${path}`, {
+                    ...options,
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}`, ...(options && options.headers) },
+                });
+                if (resp.ok) { econFetch.lastError = ''; return await resp.json(); }
+                econFetch.lastError = `server said ${resp.status}`;
+                console.error('LastMind: Economics diagram request failed.', path, resp.status);
+                if (![502, 503, 504].includes(resp.status)) return null;
+            } catch (err) {
+                econFetch.lastError = 'could not reach the server';
+                console.error('LastMind: Economics diagram request failed.', path, err);
+            }
+            await new Promise((resolve) => setTimeout(resolve, 2500));
+        }
+        return null;
     }
+    econFetch.lastError = '';
 
     async function openEconDiagramTool() {
         stopActiveDictation();
@@ -16205,17 +16219,32 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         `;
         document.getElementById('econDiagramBackBtn').addEventListener('click', renderEconDiagramGallery);
 
+        // Unsaved-changes safety net: the drawing is mirrored to this browser as
+        // you work, and restored if it is newer than what the server holds
+        // (e.g. a save that didn't go through).
+        const draftKey = `econDiagramDraft:${diagram.id}`;
+        let draft = null;
+        try { draft = JSON.parse(localStorage.getItem(draftKey) || 'null'); } catch (_) { draft = null; }
+        if (draft && draft.state && draft.at > new Date(diagram.updatedAt || 0).getTime()) {
+            diagram = { ...diagram, diagramState: draft.state };
+        } else {
+            draft = null;
+        }
         const initialState = diagram.diagramState && Object.keys(diagram.diagramState).length
             ? { placed: diagram.diagramState.curves || [], shades: diagram.diagramState.shades || [], labels: diagram.diagramState.labels || [], arrows: diagram.diagramState.arrows || [], notes: diagram.diagramState.notes || '', ...(diagram.diagramState.background !== undefined ? { background: diagram.diagramState.background } : {}) }
             : undefined;
         renderDiagramWidget(document.getElementById('econDiagramWidgetHost'), null, async (answer) => {
             const saved = await econFetch(`/economics-diagrams/${diagram.id}`, { method: 'PUT', body: JSON.stringify({ diagramState: answer }) });
             if (saved) {
+                try { localStorage.removeItem(draftKey); } catch (_) {}
                 // Show the confirmation on the button itself, then head to the gallery.
                 setTimeout(() => { if (document.getElementById('econDiagramWidgetHost')) renderEconDiagramGallery(); }, 1400);
             }
-            return { correct: !!saved, savedLabel: '✓ Saved to gallery', feedback: saved ? 'Saved to your gallery.' : "Couldn't save — try again." };
-        }, null, initialState, { mode: 'save', notes: true, backgrounds: true });
+            return { correct: !!saved, savedLabel: '✓ Saved to gallery', feedback: saved ? 'Saved to your gallery.' : `Couldn't save (${econFetch.lastError || 'unknown error'}) — your drawing is kept on this device, try again.` };
+        }, null, initialState, {
+            mode: 'save', notes: true, backgrounds: true,
+            onChange: (state) => { try { localStorage.setItem(draftKey, JSON.stringify({ at: Date.now(), state })); } catch (_) {} },
+        });
     }
 
     // Per-user daily study-time budget (see studySettingsService.ts) — the
@@ -21281,6 +21310,16 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         if (t < -0.01 || t > 1.01 || u < -0.01 || u > 1.01) return null;
         return { x: a1.x + t * d1x, y: a1.y + t * d1y };
     }
+    function diagramPolylineAllIntersections(a, b) {
+        const hits = [];
+        for (let i = 0; i < a.length - 1; i++) {
+            for (let j = 0; j < b.length - 1; j++) {
+                const hit = diagramSegmentIntersection(a[i], a[i + 1], b[j], b[j + 1]);
+                if (hit) hits.push(hit);
+            }
+        }
+        return hits;
+    }
     function diagramPolylineIntersection(a, b) {
         for (let i = 0; i < a.length - 1; i++) {
             for (let j = 0; j < b.length - 1; j++) {
@@ -21542,19 +21581,32 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     // crossing can themselves cross other placed lines (e.g. the
     // vertical from B down to Q2 meets the world-price line) - those
     // crossings get the next letters too, after all the curve ones.
-    const guideSegments = [];
+    // The guides are also EXTENDED across the whole canvas: the horizontal
+    // price line carries on to the right and the vertical quantity line up
+    // through the top, so a shifted curve that they cross gets its own
+    // lettered point too (dashed up to the last line they meet).
+    const guideLines = [];
     for (let i = 0; i < placedPolys.length; i++) {
         for (let j = i + 1; j < placedPolys.length; j++) {
             const hit = diagramPolylineIntersection(placedPolys[i], placedPolys[j]);
             if (addNamedIntersection(hit, true)) {
-                guideSegments.push([hit, { x: DIAGRAM_PRICE_AXIS[0].x, y: hit.y }]);
-                guideSegments.push([hit, { x: hit.x, y: DIAGRAM_QUANTITY_AXIS[0].y }]);
+                guideLines.push({ hit, horizontal: true, seg: [{ x: DIAGRAM_PRICE_AXIS[0].x, y: hit.y }, { x: DIAGRAM_CANVAS_WIDTH, y: hit.y }] });
+                guideLines.push({ hit, horizontal: false, seg: [{ x: hit.x, y: 0 }, { x: hit.x, y: DIAGRAM_QUANTITY_AXIS[0].y }] });
             }
         }
     }
-    guideSegments.forEach((seg) => placedPolys.forEach((poly) => {
-        addNamedIntersection(diagramPolylineIntersection(poly, seg), false);
-    }));
+    guideLines.forEach(({ hit, horizontal, seg }) => {
+        let farthest = null;
+        placedPolys.forEach((poly) => {
+            diagramPolylineAllIntersections(poly, seg).forEach((point) => {
+                addNamedIntersection(point, false);
+                // Extension beyond the crossing that started this guide.
+                const beyond = horizontal ? point.x > hit.x + 2 : point.y < hit.y - 2;
+                if (beyond && (!farthest || (horizontal ? point.x > farthest.x : point.y < farthest.y))) farthest = point;
+            });
+        });
+        if (farthest) svg.appendChild(svgElement('line', { x1: hit.x, y1: hit.y, x2: farthest.x, y2: farthest.y, class: 'diagram-intersection-guide' }));
+    });
     }
 
     // Read-only snapshot of a saved diagram (gallery cards): everything the
@@ -21735,7 +21787,26 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             container.querySelector(`#${uid}-bg-select`).addEventListener('change', (ev) => {
                 state.background = ev.target.value;
                 svg.style.background = diagramBackgroundCss(state.background);
+                notifyChange();
             });
+        }
+
+        function buildAnswer() {
+            return {
+                curves: state.placed.map((p) => ({ instanceId: p.instanceId, curveTypeId: p.curveTypeId, x: p.x, y: p.y, scaleX: p.scaleX || 1, scaleY: p.scaleY || 1 })),
+                shades: state.shades.map((s) => ({ points: s.points, label: s.label, vertexLabels: s.vertexLabels || [], color: s.color || 'rgba(230, 215, 176, 0.28)' })),
+                labels: state.labels.map((l) => ({ text: l.text, x: l.x, y: l.y })),
+                arrows: state.arrows.map((a) => ({ x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2 })),
+                ...(notesInput ? { notes: notesInput.value } : {}),
+                ...(showBackgrounds ? { background: state.background } : {}),
+            };
+        }
+        // Lets the caller keep an unsaved draft (see openEconDiagramEditor).
+        let changeTimer = null;
+        function notifyChange() {
+            if (!(options && options.onChange)) return;
+            clearTimeout(changeTimer);
+            changeTimer = setTimeout(() => { try { options.onChange(buildAnswer()); } catch (_) {} }, 300);
         }
 
         function svgPointFromEvent(ev) {
@@ -21747,6 +21818,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         }
 
         function render() {
+            notifyChange();
             svg.innerHTML = '';
             // Derived fresh from the current curve positions. Keeping old
             // entries here made A/B/C accumulate duplicates after dragging
@@ -22057,14 +22129,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         container.querySelector(`#${uid}-submit-btn`).addEventListener('click', async (ev) => {
             ev.target.disabled = true;
             ev.target.textContent = mode === 'save' ? 'Saving…' : 'Checking…';
-            const answer = {
-                curves: state.placed.map((p) => ({ instanceId: p.instanceId, curveTypeId: p.curveTypeId, x: p.x, y: p.y, scaleX: p.scaleX || 1, scaleY: p.scaleY || 1 })),
-                shades: state.shades.map((s) => ({ points: s.points, label: s.label, vertexLabels: s.vertexLabels || [], color: s.color || 'rgba(230, 215, 176, 0.28)' })),
-                labels: state.labels.map((l) => ({ text: l.text, x: l.x, y: l.y })),
-                arrows: state.arrows.map((a) => ({ x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2 })),
-                ...(notesInput ? { notes: notesInput.value } : {}),
-                ...(showBackgrounds ? { background: state.background } : {}),
-            };
+            const answer = buildAnswer();
             const result = await onSubmit(answer, retryCount);
             if (mode === 'save') {
                 // No marking here - a free-draw reference diagram has
