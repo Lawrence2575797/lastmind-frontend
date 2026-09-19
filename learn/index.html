@@ -3920,15 +3920,13 @@
     /* Primary destinations bookend the larger action bar. Upgrade remains
        filled; Rewards and Tutoring use a brighter framed treatment so all
        three are easier to find without making every utility button loud. */
-    #rewardsTopbarBtn, #founderTutoringTopbarBtn {
+    #rewardsTopbarBtn, #founderTutoringTopbarBtn, #dashboardTopbarBtn, #upgradeTopbarBtn {
         border: 2px solid var(--accent);
         font-weight: 800;
         box-shadow: 0 2px 10px rgba(18,18,30,0.24);
     }
-    #rewardsTopbarBtn:hover, #founderTutoringTopbarBtn:hover { transform: translateY(-1px); }
+    #rewardsTopbarBtn:hover, #founderTutoringTopbarBtn:hover, #dashboardTopbarBtn:hover, #upgradeTopbarBtn:hover { transform: translateY(-1px); }
     .rewards-topbar-keys { margin-left: 6px; padding-left: 8px; border-left: 1px solid currentColor; font-variant-numeric: tabular-nums; }
-    #dashboardTopbarBtn { color: #12121E; border-color: rgba(18,18,30,0.38); }
-    #dashboardTopbarBtn:hover { background: rgba(18,18,30,0.08); border-color: #12121E; }
     .reward-action { margin-left: 8px; padding: 5px 9px; border-radius: 5px; border: 1px solid currentColor; background: transparent; color: inherit; font: 700 0.68rem Arial, sans-serif; cursor: pointer; }
     @media (max-width: 430px) { .reward-grid { grid-template-columns: 1fr; } }
 
@@ -5736,8 +5734,8 @@
                      Preparation, or any other subpage) - one consistent way
                      back to the main feed, not scoped to any one mode's own
                      exit button. See goToMainFeed. -->
-                <button class="btn" id="dashboardTopbarBtn" type="button" title="Back to feed">Dashboard</button>
-                <button class="btn upgrade-topbar-btn" id="upgradeTopbarBtn" type="button" style="display:none;">Upgrade</button>
+                <button class="cortex-btn-topbar" id="dashboardTopbarBtn" type="button" title="Back to feed">Dashboard</button>
+                <button class="cortex-btn-topbar" id="upgradeTopbarBtn" type="button" style="display:none;">Upgrade</button>
                 <span class="topbar-title" id="topbarTitle"></span>
                 <!-- Locks used to sit outside this scrollable row, in
                      the outer (non-scrolling) topbar flex line — on a
@@ -13491,6 +13489,29 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         }
     }
 
+    // The chip/bar used to update only on a few explicit refreshes, so usage
+    // looked stale until a reload. Any call to the LastMind backend may have
+    // charged Locks, so refresh shortly after each one (debounced) and also on
+    // a slow timer and whenever the tab comes back into view.
+    (function keepLocksFresh() {
+        const nativeFetch = window.fetch.bind(window);
+        let timer = null;
+        const soon = () => {
+            clearTimeout(timer);
+            timer = setTimeout(() => { if (document.visibilityState === 'visible' && document.getElementById('app').style.display !== 'none') refreshLocksChip(); }, 1200);
+        };
+        window.fetch = function (input, init) {
+            const promise = nativeFetch(input, init);
+            try {
+                const url = typeof input === 'string' ? input : ((input && input.url) || '');
+                if (url.startsWith(COMPILE_BACKEND_URL) && !url.includes('/locks')) promise.then(soon, () => {});
+            } catch (_) { /* never let bookkeeping break a request */ }
+            return promise;
+        };
+        setInterval(() => { if (document.visibilityState === 'visible') soon(); }, 30000);
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') soon(); });
+    })();
+
     async function refreshLocksChip() {
         const data = await fetchLockBalance();
         const chip = document.getElementById('locksBalanceAmount');
@@ -13504,11 +13525,9 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         const bar = document.getElementById('sidebarUsageBar');
         if (!bar) { console.warn('sidebarUsageBar element not found'); return; }
         if (!data || !data.allotment) {
-            console.log('No lock data or allotment:', data);
             bar.style.display = 'none';
             return;
         }
-        console.log('Showing sidebar usage bar with data:', data);
         bar.style.display = 'flex';
         const remaining = Math.max(0, data.balance);
         const used = Math.max(0, data.allotment - data.balance);
