@@ -20144,7 +20144,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         card.querySelector('[data-back]')?.addEventListener('click',()=>{ sfWizard.step=sfWizard.focusFolder?'subjects':'study_now'; sfRenderCortexOnboarding(); });
         card.querySelector('[data-next-level]')?.addEventListener('click',()=>{ const s=SF_WIZARD_SUBJECTS.find((x)=>x.key===sfWizard.focusKey); const c=sfWizard.levelChoices[s.key]||(sfWizard.levelChoices[s.key]={}); c.qualification=c.qualification||s.qualifications[0].qualification; c.examBoard=c.examBoard||s.examBoards[0]; sfPrepareCoverage().catch((e)=>{ console.error(e); alert('Could not load this course. Please try again.'); }); });
         card.querySelectorAll('[data-coverage-scope] button').forEach((button)=>button.addEventListener('click',()=>{ sfWizard.coverage[button.parentElement.dataset.coverageScope]=button.dataset.coverageValue; sfRenderCortexOnboarding(); }));
-        card.querySelector('[data-finish]')?.addEventListener('click',()=>sfFinishCortexOnboarding().catch((e)=>{ console.error(e); alert('Could not finish setting up. Please try again.'); }));
+        card.querySelector('[data-finish]')?.addEventListener('click',()=>sfFinishCortexOnboarding().catch((e)=>{ console.error(e); alert(`Could not finish setting up (${(e && e.message) || 'unknown error'}). Please try again.`); }));
     }
 
     async function sfShowSubjectPickerWizard(options = {}) {
