@@ -3,11 +3,10 @@
 // deliberately doesn't try to be an offline-first cache; it precaches the
 // app shell (the HTML entry points + icons) and falls back to cache only
 // when the network is actually unreachable.
-const CACHE_NAME = 'lastmind-shell-v2';
+const CACHE_NAME = 'lastmind-shell-v3';
 const SHELL_URLS = [
     '/',
     '/learn',
-    '/subscribe',
     '/account',
     '/cortex',
     '/icons/icon-192.png',

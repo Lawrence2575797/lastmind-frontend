@@ -15010,7 +15010,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         try {
             await clearLocalData();
             await supabaseClient.auth.signOut();
-            window.location.href = '/subscribe';
+            window.location.href = '/';
         } catch (err) {
             console.error('LastMind: sign out failed.', err);
             statusEl.textContent = "Couldn't sign out — try again.";
@@ -15054,7 +15054,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             if (!resp.ok) throw new Error(result.error || `Server returned ${resp.status}`);
             await clearLocalData();
             await supabaseClient.auth.signOut();
-            window.location.href = '/subscribe';
+            window.location.href = '/';
         } catch (err) {
             console.error('LastMind: account deletion failed.', err);
             statusEl.textContent = err.message || "Couldn't delete your account — try again.";
@@ -26067,7 +26067,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         if (!supabaseSession) {
             // Not logged in at all — nothing to offer, send them to create an
             // account (still free at this point; paying is optional there too).
-            window.location.href = '/subscribe';
+            window.location.href = '/';
             return;
         }
 
