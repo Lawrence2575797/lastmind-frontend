@@ -3831,6 +3831,7 @@
         box-shadow: 0 2px 10px rgba(18,18,30,0.24);
     }
     #rewardsTopbarBtn:hover, #founderTutoringTopbarBtn:hover { transform: translateY(-1px); }
+    .rewards-topbar-keys { margin-left: 6px; padding-left: 8px; border-left: 1px solid currentColor; font-variant-numeric: tabular-nums; }
     #dashboardTopbarBtn { color: #12121E; border-color: rgba(18,18,30,0.38); }
     #dashboardTopbarBtn:hover { background: rgba(18,18,30,0.08); border-color: #12121E; }
     .reward-action { margin-left: 8px; padding: 5px 9px; border-radius: 5px; border: 1px solid currentColor; background: transparent; color: inherit; font: 700 0.68rem Arial, sans-serif; cursor: pointer; }
@@ -5643,7 +5644,7 @@
                      here puts every topbar button in the one row that
                      actually handles overflow. -->
                 <div class="topbar-actions" id="topbarActions">
-                    <button class="cortex-btn-topbar" id="rewardsTopbarBtn" type="button">Rewards</button>
+                    <button class="cortex-btn-topbar" id="rewardsTopbarBtn" type="button">Rewards <span class="rewards-topbar-keys" title="Your Keys"><span id="rewardsTopbarKeys">0</span> 🔑</span></button>
                     <button class="cortex-btn-topbar" id="buyMoreTokensBtn" type="button" style="display:none;">Buy Extra Locks</button>
                     <button class="cortex-btn-topbar" id="practiceQuestionsTopbarBtn" type="button">Exam Preparation</button>
                     <button class="cortex-btn-topbar" id="knowledgeMapTopbarBtn" type="button">Knowledge Map</button>
@@ -8713,6 +8714,10 @@ SQIDAQAB
     // applyTheme + /theme-settings save path the old preset UI used.
     const REWARD_UNLOCKED_THEME_KEYS = new Set();
     let rewardKeyBalance = 0;
+    function updateRewardsTopbarBadge() {
+        const badge = document.getElementById('rewardsTopbarKeys');
+        if (badge) badge.textContent = rewardKeyBalance;
+    }
     const REWARD_KEY_PRICE = 75;
     const FREE_REWARD_THEME_KEYS = new Set(['cosycafe']);
     const rewardPrice = (preset) => FREE_REWARD_THEME_KEYS.has(preset.key) ? 0 : REWARD_KEY_PRICE;
@@ -8770,6 +8775,7 @@ SQIDAQAB
         }
         REWARD_UNLOCKED_THEME_KEYS.add(preset.key);
         rewardKeyBalance = Number(result.balance) || 0;
+        updateRewardsTopbarBadge();
         renderRewardsPage(false);
     }
 
@@ -8777,6 +8783,7 @@ SQIDAQAB
         const rewards = await fetchBackgroundRewards();
         if (!rewards) return;
         rewardKeyBalance = Number(rewards.balance) || 0;
+        updateRewardsTopbarBadge();
         (rewards.owned || []).forEach((key) => REWARD_UNLOCKED_THEME_KEYS.add(key));
         const saved = await fetchThemeSettings();
         if (!saved) return;
@@ -8881,7 +8888,8 @@ SQIDAQAB
         if (loadLatest) fetchBackgroundRewards().then((rewards) => {
             if (!rewards) return;
             rewardKeyBalance = Number(rewards.balance) || 0;
-            REWARD_UNLOCKED_THEME_KEYS.clear();
+            updateRewardsTopbarBadge();
+REWARD_UNLOCKED_THEME_KEYS.clear();
             (rewards.owned || []).forEach((key) => REWARD_UNLOCKED_THEME_KEYS.add(key));
             if (document.getElementById('rewardsTitle')) renderRewardsPage(false);
         });
@@ -16851,7 +16859,7 @@ SQIDAQAB
         const awarded = Number(amount) || 0;
         if (awarded <= 0) return;
         document.querySelectorAll('.key-award-toast').forEach((el) => el.remove());
-        if (balance !== null && balance !== undefined) rewardKeyBalance = Number(balance) || 0;
+        if (balance !== null && balance !== undefined) { rewardKeyBalance = Number(balance) || 0; updateRewardsTopbarBadge(); }
         const toast = document.createElement('div');
         toast.className = 'key-award-toast';
         toast.setAttribute('role', 'status');
