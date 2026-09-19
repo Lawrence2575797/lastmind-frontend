@@ -18636,7 +18636,15 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         if (!sfFeed || !sfFeed.pendingRecallRows) return;
         const now = Date.now();
         const currentNodeId = sfFeed.meta[sfFeed.currentIndex] && sfFeed.meta[sfFeed.currentIndex].nodeId;
-        const due = sfFeed.pendingRecallRows.filter((r) => new Date(r.dueAt).getTime() <= now && r.nodeId !== currentNodeId);
+        const dueRows = sfFeed.pendingRecallRows.filter((r) => new Date(r.dueAt).getTime() <= now);
+        const due = dueRows.filter((r) => r.nodeId !== currentNodeId);
+        // A recall for the concept still on screen is held back (see above) -
+        // but it must be retried shortly, or its short window closes with the
+        // student never having been nudged at all.
+        if (dueRows.length > due.length) {
+            const retry = setTimeout(() => sfCheckDueRecalls(), 5000);
+            sfFeed.recallTimers.push(retry);
+        }
         if (!due.length) return;
         const dueIds = new Set(due.map((r) => r.recallId));
         sfFeed.pendingRecallRows = sfFeed.pendingRecallRows.filter((r) => !dueIds.has(r.recallId));
