@@ -1498,8 +1498,12 @@
     .sf-coverage-status-binary { grid-template-columns: repeat(2, 1fr); }
     .sf-coverage-child-title { margin-bottom: 8px; font-size: 13.5px; line-height: 1.35; }
     .sf-onboarding-controls { margin-top: 16px; padding: 18px; border-radius: 14px; background: rgba(18,18,30,.94); }
-    .sf-coverage-themes { display: flex; gap: 14px; overflow-x: auto; padding: 4px 2px 14px; align-items: flex-start; }
-    .sf-coverage-column { flex: 0 0 280px; border: 1px solid rgba(230,215,176,.2); border-radius: 12px; padding: 14px; background: var(--bg); }
+    .sf-coverage-themes { display: flex; flex-direction: column; gap: 14px; padding: 4px 2px 14px; }
+    .sf-coverage-row { display: grid; grid-template-columns: minmax(240px, 340px) minmax(0, 1fr); gap: 14px; align-items: start; }
+    .sf-coverage-lessons { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+    .sf-coverage-lessons .sf-coverage-child { border: 1px solid rgba(230,215,176,.2); border-radius: 12px; padding: 12px; background: var(--bg); }
+    @media (max-width: 760px) { .sf-coverage-row { grid-template-columns: 1fr; } }
+    .sf-coverage-column { flex: none; border: 1px solid rgba(230,215,176,.2); border-radius: 12px; padding: 14px; background: var(--bg); }
     .sf-coverage-title { font-weight: 700; margin-bottom: 10px; }
     .sf-coverage-status { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
     .sf-coverage-status button { padding: 8px 5px; font-size: 11px; }
@@ -19470,11 +19474,11 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         return `<div class="sf-coverage-themes">${sfCoverageThemes().map(({ theme, subtopics }, ti) => {
             const themeScope = `theme:${ti}`;
             const themeValue = sfWizard.coverage[themeScope];
-            const children = themeValue === 'partway' ? `<div class="sf-coverage-children">${subtopics.map(([subtopic], si) => {
+            const lessons = themeValue === 'partway' ? `<div class="sf-coverage-lessons">${subtopics.map(([subtopic], si) => {
                 const subScope = `${themeScope}:sub:${si}`;
                 return `<div class="sf-coverage-child"><div class="sf-coverage-child-title">${escapeHtml(subtopic)}</div>${sfCoverageStatusButtons(subScope, sfWizard.coverage[subScope], true)}</div>`;
             }).join('')}</div>` : '';
-            return `<div class="sf-coverage-column"><div class="sf-coverage-title">${escapeHtml(theme)}</div>${sfCoverageStatusButtons(themeScope, themeValue)}${children}</div>`;
+            return `<div class="sf-coverage-row"><div class="sf-coverage-column"><div class="sf-coverage-title">${escapeHtml(theme)}</div>${sfCoverageStatusButtons(themeScope, themeValue)}</div>${lessons}</div>`;
         }).join('')}</div>`;
     }
 
@@ -19571,12 +19575,29 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         }, 900);
     }
 
+    // Re-rendering the onboarding card replaces its DOM, which used to throw
+    // the page (and any horizontally scrolled list) back to the start.
+    function sfCaptureScroll(el) {
+        const saved = [{ el: window, x: window.scrollX, y: window.scrollY }];
+        for (let node = el.parentElement; node; node = node.parentElement) {
+            if (node.scrollTop || node.scrollLeft) saved.push({ el: node, x: node.scrollLeft, y: node.scrollTop });
+        }
+        return saved;
+    }
+    function sfRestoreScroll(saved) {
+        saved.forEach(({ el, x, y }) => { if (el === window) window.scrollTo(x, y); else { el.scrollLeft = x; el.scrollTop = y; } });
+    }
+
     function sfRenderCortexOnboarding() {
         const card = sfWizard.overlayEl.querySelector('.sf-wizard-card');
         const close = '<button type="button" class="sf-wizard-close-btn" data-onboarding-close aria-label="Close onboarding">×</button>';
         let controls = '';
-        let messages = `<div class="sf-onboarding-message">Hi ${escapeHtml(sfWizardGreetingName())}! 👋 I'm Cortex, your LastMind study buddy, and I'm so excited you're here! Let's get you set up — first, which subjects are you working on?</div>`;
+        // Every step's message stays on screen for the rest of the chat (see
+        // the chat log below) - starting with this greeting, which never goes.
+        const greeting = `<div class="sf-onboarding-message">Hi ${escapeHtml(sfWizardGreetingName())}! 👋 I'm Cortex, your LastMind study buddy, and I'm so excited you're here!</div>`;
+        let messages = '';
         if (sfWizard.step === 'subjects') {
+            messages += `<div class="sf-onboarding-message">Let's get you set up — first, which subjects are you working on?</div>`;
             controls = `<div class="sf-onboarding-controls"><div class="sf-wizard-subject-grid">${SF_WIZARD_SUBJECTS.map(sfWizardSubjectBlockHtml).join('')}</div><div class="sf-wizard-actions"><span></span><button class="btn primary" data-next>Continue →</button></div></div>`;
         } else if (sfWizard.step === 'study_now') {
             messages += `<div class="sf-onboarding-message">Ooh, brilliant choices! 🎉 Which one do you want to dive into right now? Pick one and we'll get you learning straight away.</div>`;
@@ -19596,7 +19617,15 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         } else if (sfWizard.step === 'ready') {
             messages += `<div class="sf-onboarding-message">All done, your first lesson is ready! 🚀 Taking you there now. You're going to do great!</div>`;
         }
-        card.innerHTML = `${close}${messages}${controls}`;
+        // Chat log: each step adds its message once; going back to an earlier
+        // step drops the messages that came after it.
+        const chatLog = sfWizard.chatLog || (sfWizard.chatLog = []);
+        const seenAt = chatLog.findIndex((entry) => entry.step === sfWizard.step);
+        if (seenAt >= 0) chatLog.length = seenAt + 1;
+        chatLog[seenAt >= 0 ? seenAt : chatLog.length] = { step: sfWizard.step, html: messages };
+        const scrollers = sfCaptureScroll(card);
+        card.innerHTML = `${close}${greeting}${chatLog.map((entry) => entry.html).join('')}${controls}`;
+        sfRestoreScroll(scrollers);
         card.querySelector('[data-onboarding-close]')?.addEventListener('click', () => { sfOnboardingClose(); renderWelcome(); });
         card.querySelectorAll('[data-subject-key]').forEach((el) => el.addEventListener('click', () => { const key=el.dataset.subjectKey; sfWizard.selectedKeys.has(key)?sfWizard.selectedKeys.delete(key):sfWizard.selectedKeys.add(key); sfRenderCortexOnboarding(); }));
         card.querySelector('[data-next]')?.addEventListener('click', () => { if (!sfWizard.selectedKeys.size) return; sfWizard.step='study_now'; sfRenderCortexOnboarding(); });
