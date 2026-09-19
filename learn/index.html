@@ -13750,7 +13750,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     });
 
     document.getElementById('mathsToolTopbarBtn').addEventListener('click', () => {
-        if (lessonInProgress) return;
+        leaveKmLesson();
         openMathsTool();
     });
 
@@ -16209,7 +16209,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         renderEconDiagramGallery();
     }
     document.getElementById('econDiagramToolTopbarBtn').addEventListener('click', () => {
-        if (lessonInProgress) return;
+        leaveKmLesson();
         openEconDiagramTool();
     });
 
@@ -16892,11 +16892,18 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     }
 
     let lessonInProgress = false;
+    // The specialist tools are always available on every plan. They used to be
+    // switched off while a knowledge-map lesson was "in progress", but that flag
+    // could stay set after leaving the lesson by another route, leaving both
+    // tool buttons silently dead - so opening a tool now simply leaves the lesson.
     function updateMathsToolAvailability() {
         const btn = document.getElementById('mathsToolTopbarBtn');
-        if (!btn) return;
-        btn.disabled = lessonInProgress;
-        btn.title = lessonInProgress ? 'Finish or leave your current lesson first' : '';
+        if (btn) { btn.disabled = false; btn.title = ''; }
+    }
+    function leaveKmLesson() {
+        lessonInProgress = false;
+        updateMathsToolAvailability();
+        try { hideKmAskPanel(); } catch (_) { /* panel may not exist */ }
     }
     function showLessonFullpage(contentInner, nodeId) {
         contentInner.querySelector('.km-inline-workspace').style.display = 'none';
