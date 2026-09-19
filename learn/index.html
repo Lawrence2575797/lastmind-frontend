@@ -5705,8 +5705,6 @@
                     <button class="cortex-btn-topbar" id="buyMoreTokensBtn" type="button" style="display:none;">Buy Extra Locks</button>
                     <button class="cortex-btn-topbar" id="practiceQuestionsTopbarBtn" type="button">Exam Preparation</button>
                     <button class="cortex-btn-topbar" id="knowledgeMapTopbarBtn" type="button">Knowledge Map</button>
-                    <button class="cortex-btn-topbar" id="peerTutoringHubBtn" type="button">Peer tutoring</button>
-                    <button class="cortex-btn-topbar" id="myTutoringTopbarBtn" type="button">My Tutoring<span class="mt-badge" id="mtBadge" style="display:none;"></span></button>
                     <div class="specialist-tools-wrap" id="specialistToolsWrap" style="display:none;">
                         <button class="cortex-btn-topbar" id="specialistToolsBtn" type="button" aria-expanded="false">Specialist Tools ▾</button>
                         <div class="specialist-tools-menu" id="specialistToolsMenu">
@@ -5715,7 +5713,14 @@
                         </div>
                     </div>
                     <button class="cortex-btn-topbar" id="adminQueueTopbarBtn" type="button" style="display:none;">Overdue Requests<span class="mt-badge" id="aqBadge" style="display:none;"></span></button>
-                    <button class="cortex-btn-topbar" id="founderTutoringTopbarBtn" type="button">Tutoring</button>
+                    <div class="specialist-tools-wrap" id="tutoringMenuWrap">
+                        <button class="cortex-btn-topbar" id="founderTutoringTopbarBtn" type="button" aria-expanded="false">Tutoring ▾</button>
+                        <div class="specialist-tools-menu" id="tutoringMenu">
+                            <button class="cortex-btn-topbar" id="liveTutoringMenuBtn" type="button">Live tutoring</button>
+                            <button class="cortex-btn-topbar" id="myTutoringTopbarBtn" type="button">Give help<span class="mt-badge" id="mtBadge" style="display:none;"></span></button>
+                            <button class="cortex-btn-topbar" id="peerTutoringHubBtn" type="button">Ask for help</button>
+                        </div>
+                    </div>
                 </div>
                 <!-- Mobile-only "there's more here" hint — a fade plus a
                      tap-to-scroll button, shown only when topbarActions
@@ -14110,7 +14115,31 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         });
     }
 
-    document.getElementById('founderTutoringTopbarBtn').addEventListener('click', renderFounderTutoringPage);
+    // Tutoring is a dropdown: Live tutoring (the one-to-one booking page),
+    // Give help (My Tutoring - the peer tutoring tasks you've taken on) and
+    // Ask for help (the peer tutoring hub). Give/Ask are wired further down.
+    (function wireTutoringMenu() {
+        const btn = document.getElementById('founderTutoringTopbarBtn');
+        const menu = document.getElementById('tutoringMenu');
+        btn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const open = menu.classList.toggle('open');
+            btn.setAttribute('aria-expanded', String(open));
+            if (open) {
+                const rect = btn.getBoundingClientRect();
+                menu.style.top = `${rect.bottom + 7}px`;
+                menu.style.left = `${Math.max(8, rect.right - 190)}px`;
+            }
+        });
+        menu.addEventListener('click', () => { menu.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); });
+        document.addEventListener('click', (event) => {
+            if (!document.getElementById('tutoringMenuWrap').contains(event.target)) {
+                menu.classList.remove('open');
+                btn.setAttribute('aria-expanded', 'false');
+            }
+        });
+        document.getElementById('liveTutoringMenuBtn').addEventListener('click', renderFounderTutoringPage);
+    })();
 
     let sidebarTab = 'folders'; // 'folders' | 'cortex' | 'notes'
 
@@ -14955,13 +14984,10 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         document.getElementById('accountSettingsStatus').textContent = '';
         document.getElementById('accountSettingsStatus').classList.remove('error');
         document.getElementById('ptOptInStatus').textContent = '';
-        // Peer tutoring is pulled from the live site entirely (see the
-        // topbar buttons' own hidden-on-login comment) - its backend
-        // routes are unmounted, so this opt-in control would just 404 if
-        // shown. Hidden unconditionally now rather than gated on paid
-        // tier, same "UI toggle, not a rebuild" reasoning.
-        document.getElementById('ptOptInSection').style.display = 'none';
-        document.getElementById('ptOptInDivider').style.display = 'none';
+        // Tutoring opt-in (matchable as a tutor) - on for every plan.
+        document.getElementById('ptOptInSection').style.display = '';
+        document.getElementById('ptOptInDivider').style.display = '';
+        if (session) loadTutoringOptInStatus(session);
         document.getElementById('myAccountOverlay').classList.add('open');
     });
 
@@ -25357,14 +25383,25 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     // and getNotificationCounts's own comment on why there's no "seen"
     // state. Checked on load and on window focus (e.g. tabbing back in
     // after being away), not polled continuously.
-    // Peer tutoring pulled from the live site (see enterApp's own
-    // comment) - its topbar entry point is permanently hidden now, so this
-    // used to be a live API call on every load/focus, for every paid
-    // user, updating a badge nobody can ever see. Short-circuited rather
-    // than deleted - the original body (a real GET /peer-tutoring/notifications
-    // call) is still exactly what re-enabling the feature would need back.
     async function refreshTutoringBadge() {
-        document.getElementById('mtBadge').style.display = 'none';
+        const badge = document.getElementById('mtBadge');
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) { badge.style.display = 'none'; return; }
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/peer-tutoring/notifications`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            const counts = await resp.json();
+            if (counts.total > 0) {
+                badge.textContent = counts.total > 9 ? '9+' : String(counts.total);
+                badge.style.display = 'flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        } catch (err) {
+            console.error('LastMind: failed to load tutoring notification counts.', err);
+        }
     }
 
     refreshTutoringBadge();
@@ -25447,35 +25484,26 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     document.getElementById('adminQueueTopbarBtn').addEventListener('click', openAdminQueue);
     document.getElementById('aqCloseBtn').addEventListener('click', () => setAdminQueueFullscreen(false));
 
-    // Peer tutoring pulled from the live site (see enterApp's own
-    // comment) - nothing can generate a new overdue request while it's
-    // hidden, so this used to be a live API call on every load and window
-    // focus, for every single user (not just the owner), just to decide
-    // whether to show a queue that could never have anything real in it.
-    // Original body (the real admin-only probe) left below in a comment
-    // for whenever peer tutoring comes back.
     async function checkAdminAccess() {
-        document.getElementById('adminQueueTopbarBtn').style.display = 'none';
-        document.getElementById('aqBadge').style.display = 'none';
-        // try {
-        //     const { data: { session } } = await supabaseClient.auth.getSession();
-        //     if (!session) return;
-        //     const resp = await fetch(`${COMPILE_BACKEND_URL}/admin/overdue-requests`, {
-        //         headers: { Authorization: `Bearer ${session.access_token}` }
-        //     });
-        //     if (!resp.ok) return;
-        //     const requests = await resp.json();
-        //     document.getElementById('adminQueueTopbarBtn').style.display = '';
-        //     const badge = document.getElementById('aqBadge');
-        //     if (requests.length > 0) {
-        //         badge.textContent = requests.length > 9 ? '9+' : String(requests.length);
-        //         badge.style.display = 'flex';
-        //     } else {
-        //         badge.style.display = 'none';
-        //     }
-        // } catch (err) {
-        //     console.error('LastMind: admin access check failed.', err);
-        // }
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/admin/overdue-requests`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) return;
+            const requests = await resp.json();
+            document.getElementById('adminQueueTopbarBtn').style.display = '';
+            const badge = document.getElementById('aqBadge');
+            if (requests.length > 0) {
+                badge.textContent = requests.length > 9 ? '9+' : String(requests.length);
+                badge.style.display = 'flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        } catch (err) {
+            console.error('LastMind: admin access check failed.', err);
+        }
     }
 
     checkAdminAccess();
@@ -26243,16 +26271,6 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
 
         initOwnedRewardTheme();
 
-        // Peer tutoring pulled from the live site entirely, both entry
-        // points (Peer Tutoring hub + My Tutoring) - real legal exposure
-        // (matching students with tutors, payment, safeguarding) with no
-        // way to actually work yet at current user numbers (no supply-side
-        // liquidity to match against). Backend routes/data untouched, only
-        // hidden here, so this is a UI toggle to re-enable later, not a
-        // rebuild - see the peer-tutoring project memory for the fuller
-        // feature plan this pauses.
-        document.getElementById('peerTutoringHubBtn').style.display = 'none';
-        document.getElementById('myTutoringTopbarBtn').style.display = 'none';
         document.getElementById('knowledgeMapTopbarBtn').style.display = '';
         applyPlanChrome(paid);
 
