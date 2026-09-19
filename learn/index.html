@@ -17930,7 +17930,9 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         // answering it - see sfPrefetchNext's own comment on why
         // rec.node.id is passed through as the pretend-already-encoded
         // override that keeps this safe to do this early.
-        sfPrefetchNext(rec.node.id);
+        // (Next-lesson prefetch used to fire here, spending Locks generating a
+        // lesson before the student had even read this one. It now starts only
+        // once they answer - see the sfPrefetchNext() calls on answer.)
 
         const explEl = document.createElement('div');
         explEl.className = 'sf-feed-slide';
@@ -19800,26 +19802,31 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         let controls = '';
         // Every step's message stays on screen for the rest of the chat (see
         // the chat log below) - starting with this greeting, which never goes.
-        const greeting = `<div class="sf-onboarding-message">Hi ${escapeHtml(sfWizardGreetingName())}! 👋 I'm Cortex, your LastMind study buddy, and I'm so excited you're here!</div>`;
+        // An existing student adding another subject isn't a new user - same
+        // steps, different words.
+        const returning = !!sfWizard.returning;
+        const greeting = returning
+            ? `<div class="sf-onboarding-message">Welcome back, ${escapeHtml(sfWizardGreetingName())}! 😊 Let's add another subject to your LastMind.</div>`
+            : `<div class="sf-onboarding-message">Hi ${escapeHtml(sfWizardGreetingName())}! 👋 I'm Cortex, your LastMind personal assistant, and I'm so excited you're here!</div>`;
         let messages = '';
         if (sfWizard.step === 'subjects') {
-            messages += `<div class="sf-onboarding-message">Let's get you set up — first, which subjects are you working on?</div>`;
+            messages += `<div class="sf-onboarding-message">${returning ? 'Which subject would you like to add?' : "Let's get you set up — first, which subjects are you working on?"}</div>`;
             controls = `<div class="sf-onboarding-controls"><div class="sf-wizard-subject-grid">${SF_WIZARD_SUBJECTS.map(sfWizardSubjectBlockHtml).join('')}</div><div class="sf-wizard-actions"><span></span><button class="btn primary" data-next>Continue →</button></div></div>`;
         } else if (sfWizard.step === 'study_now') {
-            messages += `<div class="sf-onboarding-message">Ooh, brilliant choices! 🎉 Which one do you want to dive into right now? Pick one and we'll get you learning straight away.</div>`;
+            messages += `<div class="sf-onboarding-message">${returning ? "Great pick! 🎉 Which one shall we start on first? Choose one and we'll get you learning straight away." : "Ooh, brilliant choices! 🎉 Which one do you want to dive into right now? Pick one and we'll get you learning straight away."}</div>`;
             controls = `<div class="sf-onboarding-controls"><div class="sf-wizard-subject-grid">${[...sfWizard.selectedKeys].map((key) => { const s=SF_WIZARD_SUBJECTS.find((x)=>x.key===key); return `<button class="sf-wizard-subject-block" data-focus-key="${key}">${escapeHtml(s.label)}</button>`; }).join('')}</div><button class="sf-wizard-choice-btn sf-onboarding-none-btn" data-none-now>None right now, just setting things up</button></div>`;
         } else if (sfWizard.step === 'level') {
             const s = SF_WIZARD_SUBJECTS.find((x) => x.key === sfWizard.focusKey);
             const chosen = sfWizard.levelChoices[s.key] || {};
-            messages += `<div class="sf-onboarding-message">Love it — ${escapeHtml(s.label)} is a great one to start with! ✨ Just so I get everything right, what level and exam board are you studying?</div>`;
+            messages += `<div class="sf-onboarding-message">${returning ? `${escapeHtml(s.label)}, nice! ✨ What level and exam board are you studying it at?` : `Love it — ${escapeHtml(s.label)} is a great one to start with! ✨ Just so I get everything right, what level and exam board are you studying?`}</div>`;
             controls = `<div class="sf-onboarding-controls"><div class="sf-wizard-choice-row">${s.qualifications.map((q)=>`<button class="sf-wizard-choice-btn${chosen.qualification===q.qualification?' selected':''}" data-qualification="${escapeHtml(q.qualification)}">${escapeHtml(q.label)}</button>`).join('')}</div><select class="sf-wizard-select" data-board>${(s.examBoards||['']).map((b)=>`<option${chosen.examBoard===b?' selected':''}>${escapeHtml(b)}</option>`).join('')}</select><div class="sf-wizard-actions"><button class="btn" data-back>← Back</button><button class="btn primary" data-next-level>Continue →</button></div></div>`;
         } else if (sfWizard.step === 'coverage_loading') {
-            messages += `<div class="sf-onboarding-message">Perfect, thank you! 😊 Give me a second while I pull up your whole course…</div>`;
+            messages += `<div class="sf-onboarding-message">${returning ? 'Thanks! 😊 Pulling up the course now…' : 'Perfect, thank you! 😊 Give me a second while I pull up your whole course…'}</div>`;
         } else if (sfWizard.step === 'coverage') {
             messages += `<div class="sf-onboarding-message">Last question, I promise! 🙌 Have you already covered any of this course? Mark each theme as done, part way, or not started. If it's part way, just tell me which main lessons you've finished with a quick yes or no.</div>`;
             controls = `<div class="sf-onboarding-controls">${sfCoverageHtml()}<div class="sf-wizard-actions"><span></span><button class="btn primary" data-finish>Personalise my schedule →</button></div></div>`;
         } else if (sfWizard.step === 'personalising') {
-            messages += `<div class="sf-onboarding-message">Amazing, thank you! 🎯 I'm personalising your revision schedule right now.</div><div class="sf-onboarding-message">And whenever you need help finding your way around LastMind, or you're stuck on anything in your subjects, just ask me. I'm always happy to help! 💛</div>`;
+            messages += returning ? `<div class="sf-onboarding-message">Lovely, thank you! 🎯 I'm adding it to your revision schedule now.</div>` : `<div class="sf-onboarding-message">Amazing, thank you! 🎯 I'm personalising your revision schedule right now.</div><div class="sf-onboarding-message">And whenever you need help finding your way around LastMind, or you're stuck on anything in your subjects, just ask me. I'm always happy to help! 💛</div>`;
         } else if (sfWizard.step === 'ready') {
             messages += `<div class="sf-onboarding-message">All done, your first lesson is ready! 🚀 Taking you there now. You're going to do great!</div>`;
         }
@@ -19868,7 +19875,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         contentInner.appendChild(overlayEl);
         const focusFolder = options.focusFolder || null;
         const focusSubject = focusFolder && SF_WIZARD_SUBJECTS.find((s) => s.subject === focusFolder.subject);
-        sfWizard = { overlayEl, step: focusFolder ? 'level' : 'subjects', selectedKeys: new Set(focusSubject ? [focusSubject.key] : []), focusKey: focusSubject?.key || null, focusFolder, levelChoices: {}, email: session?.user?.email || '', firstName: (session?.user?.user_metadata?.first_name || '').trim() };
+        sfWizard = { overlayEl, step: focusFolder ? 'level' : 'subjects', selectedKeys: new Set(focusSubject ? [focusSubject.key] : []), focusKey: focusSubject?.key || null, focusFolder, levelChoices: {}, returning: (folders || []).length > 0, email: session?.user?.email || '', firstName: (session?.user?.user_metadata?.first_name || '').trim() };
         if (focusSubject) sfWizard.levelChoices[focusSubject.key] = { qualification: focusFolder.qualification, examBoard: focusFolder.examBoard };
         sfRenderCortexOnboarding();
     }
