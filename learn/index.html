@@ -1184,6 +1184,9 @@
     }
     .km-inline-lesson-question { font-size: 12.5px; line-height: 1.5; padding: 10px; background: rgba(230, 215, 176, 0.05); border-radius: 3px; }
     .km-inline-detail-actions { margin-top: auto; display: flex; gap: 8px; }
+    .km-jump-btn { background: none; border: 0; padding: 0; margin: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; text-decoration: underline; text-decoration-color: rgba(230,215,176,0.35); text-underline-offset: 3px; }
+    .km-jump-btn:hover { text-decoration-color: currentColor; }
+    .km-list-more summary { cursor: pointer; font-size: 12px; opacity: 0.7; padding: 4px 0; }
     .km-inline-untracked-btn { flex: 1; padding: 10px 0; font-size: 12px; }
     .km-inline-start-lesson-btn { flex: 2; padding: 10px 0; font-size: 13px; }
     .km-inline-dashboard-btn { flex: none; font-size: 12px; padding: 7px 14px; }
@@ -22976,8 +22979,11 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
 
         function selectKmInlineNode(d) {
             const nodeById = new Map(fullData.nodes.map((n) => [n.id, n]));
-            const upstream = fullData.edges.filter((e) => e.target === d.id).map((e) => nodeById.get(e.source)).filter(Boolean);
-            const downstream = fullData.edges.filter((e) => e.source === d.id).map((e) => nodeById.get(e.target)).filter(Boolean);
+            // De-duplicated by node: the same concept listed twice (two edges
+            // between the same pair) only ever confused the list.
+            const uniqueNodes = (list) => list.filter((n, i) => list.findIndex((m) => m.id === n.id) === i);
+            const upstream = uniqueNodes(fullData.edges.filter((e) => e.target === d.id).map((e) => nodeById.get(e.source)).filter(Boolean));
+            const downstream = uniqueNodes(fullData.edges.filter((e) => e.source === d.id).map((e) => nodeById.get(e.target)).filter(Boolean));
             const schedule = fullData.scheduleByConceptId || new Map();
             const externallyCoveredNodeIds = new Set(fullData.externallyCoveredNodeIds || []);
             const ownEntry = schedule.get(d.conceptId);
@@ -23007,50 +23013,45 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             // "Encode this first" jump lives now, not in "Builds on this"
             // below, since it's a prerequisite for the review, exactly
             // like an upstream concept is for the encoding.
-            const upItems = !ownEntry
-                ? (upstream.length
-                    ? upstream.map((n, idx) => {
-                        // An upstream prerequisite already encoded is done —
-                        // shown as a plain fact (tick + label), not an
-                        // action, since there's nothing left to click here;
-                        // starting the lesson below already proceeds
-                        // straight in rather than being redirected into
-                        // encoding it (see the chain-diagnostic gate on the
-                        // Start lesson handler, which only intervenes on a
-                        // genuinely unmet prerequisite).
-                        const prereqEncoded = schedule.has(n.conceptId) || externallyCoveredNodeIds.has(n.id);
-                        return prereqEncoded
-                            ? `<div class="km-inline-detail-item km-inline-detail-item-action">
-                                    <span>${escapeHtml(n.label)}</span>
-                                    <span class="km-inline-detail-meta">✓ Encoded</span>
-                               </div>`
-                            : `<div class="km-inline-detail-item km-inline-detail-item-action">
-                                    <span>${escapeHtml(n.label)}</span>
-                                    <button class="btn km-encode-prereq-btn" data-idx="${idx}">Encode this first</button>
-                               </div>`;
-                    }).join('')
-                    : '<div class="km-inline-detail-item km-inline-detail-none">Nothing — this is a starting point</div>')
-                : (blockedByUnencodedLink
-                    ? unencodedDownstream.map((n) => `
-                        <div class="km-inline-detail-item km-inline-detail-item-action">
-                            <span>${escapeHtml(n.label)}</span>
-                            <button class="btn km-encode-first-btn" data-idx="${downstream.indexOf(n)}">Encode this first</button>
-                        </div>
-                    `).join('')
-                    : '<div class="km-inline-detail-item km-inline-detail-none">Nothing — ready for review</div>');
+            // Every entry names the concept as a jump button (opens that
+            // concept on the map) and says where the student stands on it, so
+            // "Needs first" / "Builds on this" read as real state, not a bare
+            // list of names. High fan-in concepts can have dozens of
+            // prerequisites, so long lists show the first few and fold the rest.
+            const statusOf = (n) => externallyCoveredNodeIds.has(n.id)
+                ? { text: 'Covered before LastMind', encoded: true }
+                : schedule.has(n.conceptId)
+                    ? { text: '✓ Encoded', encoded: true }
+                    : { text: 'Not started', encoded: false };
+            const jump = (n) => `<button type="button" class="km-jump-btn" data-node-id="${escapeHtml(n.id)}">${escapeHtml(n.label)}</button>`;
+            const foldList = (rows) => rows.length <= 8
+                ? rows.join('')
+                : `${rows.slice(0, 8).join('')}<details class="km-list-more"><summary>Show ${rows.length - 8} more</summary>${rows.slice(8).join('')}</details>`;
+
+            const upItems = d.externallyCovered
+                ? '<div class="km-inline-detail-item km-inline-detail-none">Nothing — you covered this before LastMind</div>'
+                : !ownEntry
+                    ? (upstream.length
+                        ? foldList(upstream.map((n, idx) => {
+                            const st = statusOf(n);
+                            return st.encoded
+                                ? `<div class="km-inline-detail-item km-inline-detail-item-action">${jump(n)}<span class="km-inline-detail-meta">${st.text}</span></div>`
+                                : `<div class="km-inline-detail-item km-inline-detail-item-action">${jump(n)}<button class="btn km-encode-prereq-btn" data-idx="${idx}">Encode this first</button></div>`;
+                        }))
+                        : '<div class="km-inline-detail-item km-inline-detail-none">Nothing — this is a starting point</div>')
+                    : '<div class="km-inline-detail-item km-inline-detail-none">Nothing — ready for review</div>';
 
             const downItems = !downstream.length
                 ? '<div class="km-inline-detail-item km-inline-detail-none">Nothing yet builds on this</div>'
-                : downstream.map((n) => {
-                    if (!ownEntry) return `<div class="km-inline-detail-item">${escapeHtml(n.label)}</div>`;
-                    const otherEncoded = schedule.has(n.conceptId) || externallyCoveredNodeIds.has(n.id);
-                    return `
-                        <div class="km-inline-detail-item km-inline-detail-item-action">
-                            <span>${escapeHtml(n.label)}</span>
-                            <span class="km-inline-detail-meta">${otherEncoded ? 'Open the arrow between these concepts for the integration lesson' : 'Encode this concept before its integration can unlock'}</span>
-                        </div>
-                    `;
-                }).join('');
+                : foldList(downstream.map((n) => {
+                    const st = statusOf(n);
+                    const note = !ownEntry && !d.externallyCovered
+                        ? st.text
+                        : st.encoded
+                            ? 'Open the arrow between these concepts for the integration lesson'
+                            : 'Encode this concept before its integration can unlock';
+                    return `<div class="km-inline-detail-item km-inline-detail-item-action">${jump(n)}<span class="km-inline-detail-meta">${note}</span></div>`;
+                }));
 
             // "Your progress" — the actual FSRS numbers plus the same
             // plain-language explanation already used elsewhere in the
@@ -23110,6 +23111,14 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                     ${startBtnHtml}
                 </div>
             `;
+            detailEl.querySelectorAll('.km-jump-btn').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const graphNode = findGraphNodeById(btn.dataset.nodeId);
+                    if (!graphNode) return;
+                    zoomToNode(graphNode);
+                    selectKmInlineNode(graphNode);
+                });
+            });
             detailEl.querySelector('.km-inline-see-notes-btn').addEventListener('click', () => {
                 setSidebarTab('notes', d.id);
                 sfOpenSidebarOnMobile();
