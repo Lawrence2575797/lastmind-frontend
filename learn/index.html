@@ -18588,7 +18588,9 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     async function sfServeDueRecallOrAppendNext() {
         if (!sfFeed) return;
         const result = await sfGetBackend('/immediate-recalls/due');
-        const rows = (result && result.recalls) ? result.recalls : [];
+        // The server also returns recalls due in the next few minutes (so the
+        // feed can time a nudge for them); only ones already due are served here.
+        const rows = ((result && result.recalls) ? result.recalls : []).filter((r) => new Date(r.dueAt).getTime() <= Date.now());
         if (!sfFeed) return;
         if (!rows.length) {
             await sfAppendNextRecommendation();
