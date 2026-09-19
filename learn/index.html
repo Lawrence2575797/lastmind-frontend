@@ -3024,6 +3024,8 @@
     .folder-item-header:hover {
         background: rgba(230, 215, 176, 0.06);
     }
+    /* Selected subject: the same cream box as the selected lesson. */
+    .folder-item-header.selected { outline: 2px solid #E6D7B0; outline-offset: -2px; background: rgba(230, 215, 176, 0.16); color: #E6D7B0; font-weight: 700; opacity: 1; }
 
     .folder-meta-row {
         display: flex;
@@ -8233,7 +8235,7 @@ SQIDAQAB
         item.draggable = true;
 
         const header = document.createElement('div');
-        header.className = 'folder-item-header';
+        header.className = 'folder-item-header' + (f.id === selectedFolderId ? ' selected' : '');
 
         const labelWrap = document.createElement('div');
         labelWrap.className = 'folder-item-label';
