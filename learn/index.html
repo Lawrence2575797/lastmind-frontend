@@ -26084,6 +26084,24 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         }, 4000);
     }
 
+    // The paid-only parts of the chrome. Split out so a student who was let
+    // in on the free plan while their subscription was still being checked
+    // can be flipped to paid in place, without re-running enterApp.
+    function applyPlanChrome(paid) {
+        document.getElementById('practiceQuestionsTopbarBtn').style.display = paid ? '' : 'none';
+        document.getElementById('specialistToolsWrap').style.display = paid ? '' : 'none';
+        document.getElementById('upgradeTopbarBtn').style.display = paid ? 'none' : '';
+        updateTopbarScrollHint();
+        refreshLocksChip();
+    }
+    function upgradeToPaid() {
+        if (isPaidUser) return;
+        isPaidUser = true;
+        applyPlanChrome(true);
+        // If the (free) locked Cortex landing is what's on screen, swap in the real chat.
+        if (document.querySelector('.dashboard-locked-logo')) renderWelcome();
+    }
+
     async function enterApp(paid) {
         isPaidUser = paid;
         renderFeedLoadingScreen();
@@ -26103,13 +26121,8 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         // feature plan this pauses.
         document.getElementById('peerTutoringHubBtn').style.display = 'none';
         document.getElementById('myTutoringTopbarBtn').style.display = 'none';
-        document.getElementById('practiceQuestionsTopbarBtn').style.display = paid ? '' : 'none';
         document.getElementById('knowledgeMapTopbarBtn').style.display = '';
-        document.getElementById('specialistToolsWrap').style.display = paid ? '' : 'none';
-        document.getElementById('upgradeTopbarBtn').style.display = paid ? 'none' : '';
-        updateTopbarScrollHint();
-
-        refreshLocksChip();
+        applyPlanChrome(paid);
 
         // Paint the local subject cache immediately, then sync the account's
         // server-side subjects. A populated local cache can continue without
@@ -26312,15 +26325,23 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         let token = await getStoredToken(userId).catch(() => null);
         let payload = token ? await verifyJWT(token, publicKey) : null;
 
-        if (!payload) {
-            token = await refreshTokenFromBackend(userId);
-            payload = token ? await verifyJWT(token, publicKey) : null;
-        }
-
+        // Fast path: a valid token already on this device - straight in as paid.
         if (payload) {
             await enterApp(true);
             return;
         }
+
+        // Slow path (no usable local token): the checks below go over the
+        // network to the Stripe backend, which can take a long time when it
+        // is cold. Don't make the student stare at "Checking your
+        // subscription…" - let them in on the free plan straight away and
+        // switch them to paid in place (upgradeToPaid) if the check confirms
+        // a subscription. Free is the safe default, so nothing is unlocked
+        // before it is verified.
+        const enteredFree = enterApp(false).catch((err) => console.error('LastMind: free-plan entry failed.', err));
+
+        token = await refreshTokenFromBackend(userId);
+        payload = token ? await verifyJWT(token, publicKey) : null;
 
         // No usable device-local JWT for THIS user — try the login-anywhere
         // path instead. This is NOT "a Supabase session exists, so let them
@@ -26328,33 +26349,27 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         // backend independently verifies this session's access token
         // against Supabase itself before it will ever look up or return
         // anything.
-        try {
-            const resp = await fetchWithTimeout(`${BACKEND_URL}/api/token-for-user`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${supabaseSession.access_token}` }
-            });
-            if (resp.ok) {
-                const { token: linkedToken, subscriptionId: linkedSubId } = await resp.json();
-                payload = await verifyJWT(linkedToken, publicKey);
-                if (payload) {
-                    await saveToken(userId, linkedToken);
-                    if (linkedSubId) await putAuthRecord(scopedAuthKey('subscriptionId', userId), linkedSubId);
+        if (!payload) {
+            try {
+                const resp = await fetchWithTimeout(`${BACKEND_URL}/api/token-for-user`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${supabaseSession.access_token}` }
+                });
+                if (resp.ok) {
+                    const { token: linkedToken, subscriptionId: linkedSubId } = await resp.json();
+                    payload = await verifyJWT(linkedToken, publicKey);
+                    if (payload) {
+                        await saveToken(userId, linkedToken);
+                        if (linkedSubId) await putAuthRecord(scopedAuthKey('subscriptionId', userId), linkedSubId);
+                    }
                 }
+            } catch (err) {
+                console.error('LastMind: login-anywhere check failed.', err);
             }
-        } catch (err) {
-            console.error('LastMind: login-anywhere check failed.', err);
         }
 
-        if (payload) {
-            await enterApp(true);
-            return;
-        }
-
-        // No active paid subscription found either way — but they're at
-        // least logged in, so let them in as free tier (framework + folders +
-        // dictation/TTS, no Compile) rather than bouncing them out entirely.
-        // Paying is optional here, not a requirement to use the app at all.
-        await enterApp(false);
+        await enteredFree;
+        if (payload) upgradeToPaid();
     })();
 </script>
 
