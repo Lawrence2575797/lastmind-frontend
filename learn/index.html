@@ -1745,7 +1745,19 @@
     .math-shortcut-editor .func-primes { color: var(--text); }
     .math-shortcut-editor .int-limits { display: inline-flex; flex-direction: column; align-items: flex-start; vertical-align: middle; margin-left: 0.1em; font-size: 0.65em; line-height: 1.1; }
     .math-shortcut-editor .int-upper, .math-shortcut-editor .int-lower { padding: 0 0.15em; min-width: 0.6em; color: var(--accent); }
-    .math-shortcut-hint { font-size: 11px; color: var(--text); opacity: 0.5; }
+    .math-shortcut-hint { font-size: 11.5px; color: var(--text); margin-top: 8px; padding: 10px 12px; border: 1px solid rgba(230, 215, 176, 0.22); border-radius: 8px; background: rgba(230, 215, 176, 0.05); }
+    .math-shortcut-hint-title { font-weight: 800; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; opacity: 0.85; }
+    .math-shortcut-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+    .math-shortcut-list li { display: grid; grid-template-columns: 12em 1fr; column-gap: 12px; align-items: baseline; line-height: 1.4; }
+    .math-shortcut-list li > span:last-child { opacity: 0.8; }
+    .math-shortcut-list kbd { display: inline-block; min-width: 1.5em; text-align: center; padding: 1px 6px; border: 1px solid rgba(230, 215, 176, 0.4); border-bottom-width: 2px; border-radius: 4px; background: rgba(230, 215, 176, 0.1); font: 700 11px Arial, sans-serif; }
+    /* nth-root with an index box, and matrices (Maths Tool editor) */
+    .math-shortcut-editor .root-n { display: inline-flex; align-items: flex-start; }
+    .math-shortcut-editor .root-index { font-size: 0.6em; min-width: 0.8em; padding: 0 0.15em; margin-right: -0.1em; line-height: 1.15; border: 1px dashed var(--accent); border-radius: 3px; color: var(--accent); }
+    .math-shortcut-editor .matrix-spec { color: var(--accent); font-weight: 700; }
+    .math-shortcut-editor .mx { display: inline-flex; align-items: center; vertical-align: middle; margin: 0 0.2em; padding: 0 0.4em; border-left: 2px solid var(--text); border-right: 2px solid var(--text); border-radius: 8px; }
+    .math-shortcut-editor .mx-grid { display: inline-grid; gap: 0.25em 1em; padding: 0.15em 0; }
+    .math-shortcut-editor .mx-cell { min-width: 1.2em; min-height: 1.25em; text-align: center; border-bottom: 1px dashed rgba(230, 215, 176, 0.3); }
     .math-shortcut-mode-badge {
         display: inline-block;
         margin-top: 4px;
@@ -15359,10 +15371,21 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         wrap.appendChild(editor);
         const hint = document.createElement('div');
         hint.className = 'math-shortcut-hint';
-        hint.innerHTML = `<strong>Maths keyboard shortcuts</strong><br>
-            <span><kbd>^</kbd> power · <kbd>_</kbd> subscript · <kbd>/</kbd> fraction after a number · <kbd>]</kbd> evaluate between limits</span><br>
-            <span><kbd>*</kbd> × · <kbd>~</kbd> √ · <kbd>Shift</kbd> + letter Greek · <kbd>f</kbd> function · <kbd>Shift</kbd> + <kbd>I</kbd> integral</span><br>
-            <span><kbd>#</kbd> switches to normal writing; press <kbd>#</kbd> again to return to maths.</span>`;
+        hint.innerHTML = `<div class="math-shortcut-hint-title">Keyboard shortcuts</div>
+            <ul class="math-shortcut-list">
+                <li><span class="sc-keys"><kbd>^</kbd></span><span>Power (press <kbd>Space</kbd> or <kbd>→</kbd> to leave it)</span></li>
+                <li><span class="sc-keys"><kbd>_</kbd></span><span>Subscript</span></li>
+                <li><span class="sc-keys"><kbd>/</kbd></span><span>Fraction, after a number (e.g. 3/ )</span></li>
+                <li><span class="sc-keys"><kbd>]</kbd></span><span>Evaluate between limits</span></li>
+                <li><span class="sc-keys"><kbd>*</kbd></span><span>Multiply sign ×</span></li>
+                <li><span class="sc-keys"><kbd>~</kbd></span><span>Square root √</span></li>
+                <li><span class="sc-keys"><kbd>Caps Lock</kbd> + <kbd>~</kbd></span><span>Root with a small box for the index, e.g. cube root (<kbd>Space</kbd> to leave the box)</span></li>
+                <li><span class="sc-keys"><kbd>Shift</kbd> + letter</span><span>Greek letter (with Caps Lock on, a capital)</span></li>
+                <li><span class="sc-keys"><kbd>f</kbd></span><span>Function f(x); press <kbd>'</kbd> for primes</span></li>
+                <li><span class="sc-keys"><kbd>Shift</kbd> + <kbd>I</kbd></span><span>Integral (then <kbd>d</kbd> for limits)</span></li>
+                <li><span class="sc-keys"><kbd>Shift</kbd> + <kbd>M</kbd></span><span>Matrix: type the size as (rows*columns), e.g. (3*3), then <kbd>)</kbd> or <kbd>Enter</kbd>. Move with <kbd>Tab</kbd> or the arrow keys; <kbd>→</kbd> from the last cell leaves it, then <kbd>^</kbd> for a power such as -1</span></li>
+                <li><span class="sc-keys"><kbd>#</kbd></span><span>Switch between maths and normal writing</span></li>
+            </ul>`;
         wrap.appendChild(hint);
         const modeBadge = document.createElement('div');
         modeBadge.className = 'math-shortcut-mode-badge';
@@ -15563,6 +15586,153 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             range.collapse(true);
             sel.removeAllRanges(); sel.addRange(range);
         }
+        // nth root: Caps Lock + ~
+        function insertRootWithIndex() {
+            const sel = window.getSelection();
+            if (!sel.rangeCount) return;
+            const range = sel.getRangeAt(0);
+            range.deleteContents();
+            const wrapEl = document.createElement('span'); wrapEl.className = 'root-n';
+            const idx = document.createElement('span'); idx.className = 'root-index';
+            idx.appendChild(document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL));
+            const sym = document.createElement('i'); sym.className = 'math-symbol'; sym.textContent = '√';
+            wrapEl.appendChild(idx); wrapEl.appendChild(sym);
+            const landing = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL);
+            const frag = document.createDocumentFragment();
+            frag.appendChild(wrapEl); frag.appendChild(landing);
+            range.insertNode(frag);
+            const inner = document.createRange();
+            inner.setStart(idx.firstChild, 1); inner.collapse(true);
+            sel.removeAllRanges(); sel.addRange(inner);
+        }
+        function closestClass(cls) {
+            const sel = window.getSelection();
+            if (!sel.rangeCount) return null;
+            let node = sel.getRangeAt(0).startContainer;
+            while (node && node !== editor) {
+                if (node.nodeType === 1 && node.classList && node.classList.contains(cls)) return node;
+                node = node.parentNode;
+            }
+            return null;
+        }
+        function caretAfterNode(el) {
+            let landing = el.nextSibling;
+            if (!landing || landing.nodeType !== 3) { landing = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL); el.parentNode.insertBefore(landing, el.nextSibling); }
+            const sel = window.getSelection();
+            const r = document.createRange();
+            r.setStart(landing, Math.min(1, landing.textContent.length)); r.collapse(true);
+            sel.removeAllRanges(); sel.addRange(r);
+        }
+        // matrix: Shift + M, then (rows*columns)
+        function insertMatrixSpec() {
+            const sel = window.getSelection();
+            if (!sel.rangeCount) return;
+            const range = sel.getRangeAt(0);
+            range.deleteContents();
+            const spec = document.createElement('span'); spec.className = 'matrix-spec';
+            const text = document.createTextNode('(*)');
+            spec.appendChild(text);
+            range.insertNode(spec);
+            const inner = document.createRange();
+            inner.setStart(text, 1); inner.collapse(true);
+            sel.removeAllRanges(); sel.addRange(inner);
+        }
+        function buildMatrix(rows, cols) {
+            const mx = document.createElement('span'); mx.className = 'mx';
+            mx.dataset.rows = rows; mx.dataset.cols = cols;
+            const grid = document.createElement('span'); grid.className = 'mx-grid';
+            grid.style.gridTemplateColumns = `repeat(${cols}, auto)`;
+            for (let i = 0; i < rows * cols; i++) {
+                const cell = document.createElement('span'); cell.className = 'mx-cell';
+                cell.appendChild(document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL));
+                grid.appendChild(cell);
+            }
+            mx.appendChild(grid);
+            return mx;
+        }
+        // Turns "(3*3)" into a 3 by 3 grid; anything else is left as plain text.
+        function convertMatrixSpec(spec) {
+            const sel = window.getSelection();
+            const m = /^\((\d{1,2})\*(\d{1,2})\)$/.exec(spec.textContent.replace(/\u200b/g, ''));
+            const rows = m ? Number(m[1]) : 0, cols = m ? Number(m[2]) : 0;
+            if (!m || rows < 1 || cols < 1 || rows > 8 || cols > 8) {
+                const plain = document.createTextNode(spec.textContent.replace('*', '×'));
+                spec.replaceWith(plain);
+                const r = document.createRange(); r.setStart(plain, plain.textContent.length); r.collapse(true);
+                sel.removeAllRanges(); sel.addRange(r);
+                return;
+            }
+            const mx = buildMatrix(rows, cols);
+            const landing = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL);
+            spec.replaceWith(mx);
+            mx.parentNode.insertBefore(landing, mx.nextSibling);
+            const first = mx.querySelector('.mx-cell').firstChild;
+            const r = document.createRange(); r.setStart(first, 1); r.collapse(true);
+            sel.removeAllRanges(); sel.addRange(r);
+        }
+        function caretEdgeInCell(cell, atEnd) {
+            const sel = window.getSelection();
+            if (!sel.rangeCount || !sel.isCollapsed) return false;
+            const r = document.createRange();
+            r.selectNodeContents(cell);
+            const caret = sel.getRangeAt(0);
+            if (atEnd) r.setStart(caret.startContainer, caret.startOffset); else r.setEnd(caret.startContainer, caret.startOffset);
+            return r.toString().replace(/\u200b/g, '') === '';
+        }
+        function focusCell(cell, atEnd) {
+            cell.normalize && cell.normalize();
+            let t = cell.firstChild;
+            if (!t) { t = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL); cell.appendChild(t); }
+            const sel = window.getSelection();
+            const r = document.createRange();
+            if (t.nodeType === 3) r.setStart(t, atEnd ? t.textContent.length : Math.min(1, t.textContent.length));
+            else r.setStart(cell, atEnd ? cell.childNodes.length : 0);
+            r.collapse(true);
+            sel.removeAllRanges(); sel.addRange(r);
+        }
+        // Returns true when the key was handled as matrix navigation.
+        function handleMatrixCellKey(ev) {
+            const cell = closestClass('mx-cell');
+            if (!cell || ev.ctrlKey || ev.metaKey || ev.altKey) return false;
+            const mx = cell.closest('.mx');
+            const cells = Array.from(mx.querySelectorAll('.mx-cell'));
+            const i = cells.indexOf(cell);
+            const cols = Number(mx.dataset.cols) || 1;
+            const go = (target, atEnd) => { ev.preventDefault(); focusCell(target, atEnd); return true; };
+            const leave = () => { ev.preventDefault(); caretAfterNode(mx); return true; };
+            if (ev.key === 'Tab') {
+                if (ev.shiftKey) return i > 0 ? go(cells[i - 1], true) : false;
+                return i < cells.length - 1 ? go(cells[i + 1], false) : leave();
+            }
+            if (ev.key === 'ArrowRight' && caretEdgeInCell(cell, true)) return i < cells.length - 1 ? go(cells[i + 1], false) : leave();
+            if (ev.key === 'ArrowLeft' && caretEdgeInCell(cell, false) && i > 0) return go(cells[i - 1], true);
+            if (ev.key === 'ArrowDown' && i + cols < cells.length) return go(cells[i + cols], true);
+            if (ev.key === 'ArrowUp' && i - cols >= 0) return go(cells[i - cols], true);
+            if (ev.key === 'Enter') return i < cells.length - 1 ? go(cells[i + 1], false) : leave();
+            return false;
+        }
+        // Keys typed inside the "(*)" size prompt.
+        function handleMatrixSpecKey(ev) {
+            const spec = closestClass('matrix-spec');
+            if (!spec) return false;
+            if (ev.ctrlKey || ev.metaKey || ev.altKey) return false;
+            const allowed = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
+            if (allowed.includes(ev.key)) return false;
+            if (/^[0-9]$/.test(ev.key)) return false;
+            ev.preventDefault();
+            if (ev.key === '*') {
+                const node = spec.firstChild;
+                const at = node.textContent.indexOf('*');
+                const sel = window.getSelection();
+                if (at >= 0 && node.nodeType === 3) {
+                    const r = document.createRange(); r.setStart(node, at + 1); r.collapse(true);
+                    sel.removeAllRanges(); sel.addRange(r);
+                }
+                return true;
+            }
+            if (ev.key === ')' || ev.key === 'Enter' || ev.key === ' ' || ev.key === 'Tab') { convertMatrixSpec(spec); return true; }
+            return true; // swallow any other key inside the size prompt
+        }
         function maybeConvertTwoChar() {
             const sel = window.getSelection();
             if (!sel.rangeCount || !sel.isCollapsed) return;
@@ -15592,6 +15762,9 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             }
 
             if (writingMode) return; // plain typing — every key behaves like an ordinary textarea.
+
+            // Inside the matrix size prompt "(*)", only digits / * / ) are meaningful.
+            if (handleMatrixSpecKey(ev)) return;
 
             const extendingPrimes = funcPrimeLanding && ev.key === "'" && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && isCaretAt(funcPrimeLanding, 1);
             if (extendingPrimes) {
@@ -15624,7 +15797,13 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             }
             if (ev.key === 'f' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !precedingCharIsLetter()) { ev.preventDefault(); insertFuncF(); return; }
             if (ev.key === '*') { ev.preventDefault(); insertStyledSymbol('×'); return; }
-            if (ev.key === '~') { ev.preventDefault(); insertStyledSymbol('√'); return; }
+            if (ev.key === '~') {
+                ev.preventDefault();
+                const capsOn = ev.getModifierState && ev.getModifierState('CapsLock');
+                if (capsOn) insertRootWithIndex(); else insertStyledSymbol('√');
+                return;
+            }
+            if (ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && ev.key.length === 1 && ev.key.toLowerCase() === 'm') { ev.preventDefault(); insertMatrixSpec(); return; }
             if (ev.key === '^') { ev.preventDefault(); startZone('sup'); return; }
             if (ev.key === '_') { ev.preventDefault(); startZone('sub'); return; }
             if (ev.key === '/') {
@@ -15643,10 +15822,20 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 } else { makeFraction(null); }
                 return;
             }
+            const rootIndex = closestClass('root-index');
+            if (rootIndex && (ev.key === 'ArrowRight' || ev.key === ' ' || ev.key === 'Tab')) {
+                ev.preventDefault();
+                rootIndex.normalize && rootIndex.normalize();
+                const zw = rootIndex.firstChild;
+                if (zw && zw.nodeType === 3 && zw.textContent.length > 1 && zw.textContent.charAt(0) === MATH_SHORTCUT_ZWS_GLOBAL) zw.textContent = zw.textContent.slice(1);
+                caretAfterNode(rootIndex.parentNode);
+                return;
+            }
             const zone = currentZone();
             if (zone && (ev.key === 'ArrowRight' || ev.key === ' ')) { ev.preventDefault(); exitZoneAfter(zone); return; }
             const denPart = currentFracPart();
             if (denPart && denPart.className === 'frac-den' && (ev.key === 'ArrowRight' || ev.key === ' ')) { ev.preventDefault(); exitZoneAfter(denPart.parentNode); return; }
+            if (!zone && !denPart && handleMatrixCellKey(ev)) return;
             const intZone = currentIntLimitZone();
             if (intZone && intZone.className === 'int-upper' && ev.key === 'ArrowDown') {
                 ev.preventDefault();
@@ -15679,6 +15868,18 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             }
             if (node.tagName === 'SUP') { const inner = serializeChildren(node); return inner ? `^(${inner})` : ''; }
             if (node.tagName === 'SUB') { const inner = serializeChildren(node); return inner ? `_(${inner})` : ''; }
+            if (node.classList && node.classList.contains('root-n')) {
+                const index = serializeChildren(node.querySelector('.root-index'));
+                return index ? `^(${index})√` : '√';
+            }
+            if (node.classList && node.classList.contains('mx')) {
+                const cols = Number(node.dataset.cols) || 1;
+                const values = Array.from(node.querySelectorAll('.mx-cell')).map((cell) => serializeChildren(cell).trim());
+                if (values.every((v) => !v)) return '';
+                const rowsOut = [];
+                for (let i = 0; i < values.length; i += cols) rowsOut.push(`[${values.slice(i, i + cols).join(', ')}]`);
+                return `matrix(${rowsOut.join(', ')})`;
+            }
             return serializeChildren(node);
         }
         function serializeChildren(node) {
