@@ -31,7 +31,8 @@
   const COMPILE_BACKEND_URL = 'https://lastmind-compile-backend.onrender.com';
   const SUPABASE_URL = 'https://evgdecewwmkupiadgfop.supabase.co';
   const SUPABASE_ANON_KEY = 'sb_publishable_Bb-f61P1zqy_xW63D26nUw_VTOVXaub';
-  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);   // same origin as the app, so the same sign-in
+  let supabaseClient = null;
+  try { supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); } catch (err) { /* reported by boot() */ }   // same origin as the app, so the same sign-in
   const CREATE_SPEND_KEY = 'lastmind-create-spent';
   const CHN_CONFIG_KEY = 'lastmind-chancellor-config', CHN_GAME_KEY = 'lastmind-chancellor-game';
 
@@ -82,16 +83,20 @@
     else if (hint) { hint.remove(); el.removeAttribute('aria-invalid'); }
   }, true);
 
-  function load(src) { return new Promise((resolve, reject) => { const s = document.createElement('script'); s.src = src + '?v=' + Date.now();   // always the latest simulation files, never a cached older copy s.onload = resolve; s.onerror = () => reject(new Error('Could not load ' + src)); document.head.appendChild(s); }); }
+  // Always the latest simulation files, never a cached older copy (the version tag changes on every load).
+  function load(src) { return new Promise((resolve, reject) => { const s = document.createElement('script'); s.src = src + '?v=' + Date.now(); s.onload = resolve; s.onerror = () => reject(new Error('Could not load ' + src)); document.head.appendChild(s); }); }
   function gate(title, text, link) {
     document.getElementById('app').innerHTML = `<div class="gate"><h1>${escapeHtml(title)}</h1><p>${escapeHtml(text)}</p>${link ? `<a class="btn" href="${link[0]}">${escapeHtml(link[1])}</a>` : ''}</div>`;
   }
 
   (async function boot() {
+   try {
+    if (!supabaseClient) { gate('LastMind could not load', 'A required file did not load. Check your connection and reload the page.'); return; }
     let session = null;
-    try { ({ data: { session } } = await supabaseClient.auth.getSession()); } catch (err) { /* handled below */ }
+    try { ({ data: { session } } = await Promise.race([supabaseClient.auth.getSession(), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000))])); } catch (err) { /* handled below */ }
     if (!session) { gate('Sign in to continue', 'Be the Chancellor is part of LastMind Create. Sign in to LastMind first, then come back to this page.', ['/learn/', 'Go to LastMind']); return; }
-    try { const r = await createAuthedFetch('/create/spend'); if (r.resp.ok) createNoteSpend(r.body); } catch (err) { /* the counter just starts from what this browser remembers */ }
+    // Not awaited: the server can take a minute to wake up, and the game must not wait for a counter.
+    createAuthedFetch('/create/spend').then((r) => { if (r.resp.ok) createNoteSpend(r.body); }).catch(() => { /* the counter just starts from what this browser remembers */ });
     const params = new URLSearchParams(location.search);
     let cfg = null, saved = null;
     try { cfg = JSON.parse(localStorage.getItem(CHN_CONFIG_KEY) || 'null'); } catch (err) { /* none */ }
@@ -104,6 +109,7 @@
     document.getElementById('app').innerHTML = '';
     window.LMChancellorUI.launch(document.getElementById('app'), cfg || {}, { resume: !fresh && !!saved, exitLabel: 'Back to LastMind', onExit: () => { window.location.href = '/learn/'; } });
     if (fresh) history.replaceState(null, '', '/chancellor/');
+   } catch (err) { console.error(err); gate('Something went wrong', 'The simulation could not start: ' + (err && err.message ? err.message : 'unknown error') + '. Reload the page to try again.', ['/chancellor/', 'Reload']); }
   })();
 </script>
 </body>
