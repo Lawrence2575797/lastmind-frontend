@@ -3984,6 +3984,96 @@
     .km-node-group.create-picked .km-node-shape { stroke: var(--text); stroke-width: 3.5px; fill-opacity: 0.5; }
     .km-node-group.create-picked .km-node-halo { stroke: var(--accent); stroke-width: 3px; opacity: 1; fill: none; }
     .notes-tree-node-item.create-picked-item { font-weight: 700; }
+
+    /* Design Your Case */
+    .create-idea, .create-detail-field textarea, .create-edit textarea, .create-edit input, .create-edit select { width: 100%; box-sizing: border-box; padding: 12px 14px; border: 1px solid rgba(26,26,28,0.32); border-radius: 10px; background: var(--panel); color: var(--text); font: 0.92rem/1.55 Arial, sans-serif; resize: vertical; }
+    .create-idea { min-height: 130px; }
+    .create-idea::placeholder, .create-detail-field textarea::placeholder, .create-edit textarea::placeholder, .create-edit input::placeholder { color: var(--text); opacity: 0.45; }
+    .create-secondary { padding: 9px 14px; border: 1px solid rgba(26,26,28,0.36); border-radius: 8px; background: var(--panel); color: var(--text); font: 700 0.8rem Arial, sans-serif; cursor: pointer; }
+    .create-secondary:hover { transform: translateY(-1px); box-shadow: 0 5px 14px rgba(26,26,28,0.16); }
+    .create-detail-row { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 14px 0; }
+    .create-detail-panel { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 16px; margin-bottom: 8px; border: 1px dashed rgba(26,26,28,0.32); border-radius: 12px; }
+    .create-detail-field label { display: block; margin-bottom: 6px; font: 700 0.72rem Arial, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.75; }
+    .create-detail-field textarea { min-height: 78px; }
+    .create-detail-actions { grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+    .create-chip { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px; background: var(--panel); color: var(--text); font: 700 0.75rem Arial, sans-serif; }
+    .create-chip button { border: 0; background: transparent; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; }
+    .create-warn { margin: 12px 0 0; font: 0.82rem/1.5 Arial, sans-serif; opacity: 0.85; }
+    .create-warn button { border: 0; background: transparent; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; font-weight: 700; }
+    .create-build-row { display: flex; justify-content: center; margin: 34px 0 6px; }
+    .create-build-btn { position: relative; overflow: hidden; padding: 22px 54px; border: 2px solid var(--accent); border-radius: 16px; background: var(--panel); color: var(--text); font: 800 1.35rem Georgia, serif; letter-spacing: 0.02em; cursor: pointer; box-shadow: 0 10px 30px rgba(26,26,28,0.28); transition: transform 0.2s, box-shadow 0.2s; }
+    .create-build-btn::after { content: ''; position: absolute; top: 0; left: -60%; width: 40%; height: 100%; background: linear-gradient(100deg, transparent, rgba(255,255,255,0.28), transparent); transform: skewX(-18deg); animation: createShine 3.4s ease-in-out infinite; }
+    .create-build-btn:hover { transform: translateY(-3px) scale(1.02); box-shadow: 0 16px 38px rgba(26,26,28,0.34); }
+    @keyframes createShine { 0% { left: -60%; } 55%, 100% { left: 130%; } }
+
+    /* The build animation */
+    .create-building { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 34px 16px 20px; }
+    .create-orb { position: relative; width: 132px; height: 132px; margin-bottom: 22px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--panel); color: var(--text); box-shadow: 0 10px 34px rgba(26,26,28,0.3); }
+    .create-orb::before, .create-orb::after { content: ''; position: absolute; inset: -10px; border-radius: 50%; border: 2px solid var(--accent); opacity: 0.6; animation: createRing 2.4s ease-out infinite; }
+    .create-orb::after { animation-delay: 1.2s; }
+    .create-orb svg { width: 62px; height: 62px; animation: createSway 3s ease-in-out infinite; transform-origin: 50% 20%; }
+    .create-building.ready .create-orb::before, .create-building.ready .create-orb::after { animation: none; opacity: 0.9; }
+    .create-building.ready .create-orb svg { animation: none; }
+    @keyframes createRing { 0% { transform: scale(0.85); opacity: 0.7; } 100% { transform: scale(1.35); opacity: 0; } }
+    @keyframes createSway { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg); } }
+    .create-building-title { margin: 0 0 22px; font: 700 clamp(1.5rem, 3.4vw, 2.1rem) Georgia, serif; }
+    .create-building-title .dots::after { content: ''; animation: createDots 1.4s steps(4, end) infinite; }
+    @keyframes createDots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75%, 100% { content: '...'; } }
+    .create-build-steps { list-style: none; margin: 0 0 24px; padding: 0; width: min(420px, 100%); display: flex; flex-direction: column; gap: 10px; text-align: left; }
+    .create-build-steps li { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 10px; background: var(--panel); color: var(--text); font: 700 0.95rem Arial, sans-serif; opacity: 0; transform: translateY(8px); transition: opacity 0.4s, transform 0.4s; }
+    .create-build-steps li.shown { opacity: 1; transform: none; }
+    .create-build-steps li .mark { flex: none; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 2px solid currentColor; border-top-color: transparent; animation: createSpin 0.9s linear infinite; }
+    .create-build-steps li.done .mark { border-color: var(--accent); background: var(--accent); color: var(--panel); animation: createPop 0.35s ease-out; font-size: 0.8rem; }
+    .create-build-steps li.done .mark::before { content: '✓'; }
+    @keyframes createSpin { to { transform: rotate(360deg); } }
+    @keyframes createPop { 0% { transform: scale(0.4); } 70% { transform: scale(1.25); } 100% { transform: scale(1); } }
+    .create-progress { width: min(420px, 100%); height: 6px; border-radius: 99px; background: rgba(26,26,28,0.16); overflow: hidden; margin-bottom: 26px; }
+    .create-progress-bar { height: 100%; width: 0; border-radius: 99px; background: var(--panel); transition: width 0.5s ease; }
+    .create-ready-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+    .create-error { margin: 0 0 18px; max-width: 460px; font: 0.9rem/1.6 Arial, sans-serif; }
+
+    /* Your Case */
+    .create-case-layout { display: grid; grid-template-columns: 150px minmax(0, 1fr) 250px; gap: 16px; align-items: start; }
+    .create-case-nav { display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 12px; background: var(--panel); color: var(--text); border: 1px solid rgba(26,26,28,0.24); position: sticky; top: 8px; }
+    .create-case-tab { padding: 10px 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: inherit; font: 700 0.82rem Arial, sans-serif; text-align: left; cursor: pointer; }
+    .create-case-tab:hover { background: rgba(255,255,255,0.07); }
+    .create-case-tab.active { border-color: var(--text); background: rgba(255,255,255,0.1); }
+    .create-case-main { min-width: 0; }
+    .create-case-main > h2 { margin: 0 0 4px; font: 700 1.3rem Georgia, serif; }
+    .create-edit-note { margin: 0 0 14px; font: 0.8rem Arial, sans-serif; opacity: 0.65; }
+    .create-edit label { display: block; margin: 14px 0 6px; font: 700 0.7rem Arial, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.72; }
+    .create-edit textarea { min-height: 60px; overflow: hidden; }
+    .create-edit .create-title-input { font: 700 1.05rem Georgia, serif; }
+    .create-edit-card { position: relative; padding: 4px 16px 16px; margin-bottom: 14px; border: 1px solid rgba(26,26,28,0.22); border-radius: 12px; background: rgba(255,255,255,0.14); }
+    .create-edit-row { display: grid; grid-template-columns: 150px minmax(0, 1fr) 30px; gap: 10px; align-items: start; margin-bottom: 10px; }
+    .create-edit-row input { min-width: 0; }
+    .create-edit-row .create-remove { align-self: center; }
+    .create-edit-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .create-remove { border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 1rem; opacity: 0.55; }
+    .create-remove:hover { opacity: 1; }
+    .create-edit-card .create-remove { position: absolute; top: 8px; right: 10px; }
+    .create-add { margin-top: 4px; }
+    .create-coverage { position: sticky; top: 8px; padding: 16px; border-radius: 12px; background: var(--panel); color: var(--text); border: 1px solid rgba(26,26,28,0.24); box-shadow: 0 8px 24px rgba(26,26,28,0.12); }
+    .create-coverage h3 { margin: 0 0 8px; font: 700 0.95rem Georgia, serif; }
+    .create-stars { font-size: 1.5rem; letter-spacing: 3px; color: var(--accent); line-height: 1; }
+    .create-stars-num { margin: 6px 0 8px; font: 700 0.8rem Arial, sans-serif; opacity: 0.85; }
+    .create-coverage p { margin: 0 0 12px; font: 0.78rem/1.5 Arial, sans-serif; opacity: 0.8; }
+    .create-coverage ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+    .create-coverage li { padding: 8px 9px; border-radius: 8px; background: rgba(255,255,255,0.07); font: 0.76rem/1.4 Arial, sans-serif; }
+    .create-coverage li b { display: block; margin-bottom: 3px; }
+    .create-coverage li span { display: block; opacity: 0.7; font-size: 0.7rem; }
+    .create-validate-bar { display: flex; justify-content: flex-end; margin-top: 22px; }
+    .create-validate-panel { margin-top: 22px; padding: 22px; border-radius: 14px; background: var(--panel); color: var(--text); border: 1px solid rgba(26,26,28,0.24); box-shadow: 0 8px 24px rgba(26,26,28,0.14); }
+    .create-validate-panel h3 { margin: 0 0 14px; font: 700 1.15rem Georgia, serif; }
+    .create-validate-panel .create-build-steps { width: 100%; margin-bottom: 4px; }
+    .create-validate-panel .create-build-steps li { background: rgba(255,255,255,0.08); }
+    .create-issue { padding: 12px 14px; margin-bottom: 10px; border-radius: 10px; background: rgba(255,255,255,0.08); font: 0.85rem/1.5 Arial, sans-serif; }
+    .create-issue .badge { display: inline-block; margin-right: 8px; padding: 2px 8px; border-radius: 99px; font: 800 0.65rem Arial, sans-serif; letter-spacing: 0.06em; text-transform: uppercase; border: 1px solid currentColor; }
+    .create-issue .badge.blocker { background: var(--text); color: var(--panel); }
+    .create-issue .fix { display: block; margin-top: 6px; opacity: 0.75; }
+    .create-play { padding: 18px 60px; border: 2px solid var(--accent); border-radius: 14px; background: var(--text); color: var(--panel); font: 800 1.3rem Georgia, serif; cursor: pointer; box-shadow: 0 10px 28px rgba(0,0,0,0.3); }
+    @media (max-width: 1100px) { .create-case-layout { grid-template-columns: 150px minmax(0, 1fr); } .create-coverage { grid-column: 1 / -1; position: static; } }
+    @media (max-width: 720px) { .create-case-layout { grid-template-columns: 1fr; } .create-case-nav { position: static; flex-direction: row; overflow-x: auto; } .create-detail-panel, .create-edit-grid2 { grid-template-columns: 1fr; } .create-edit-row { grid-template-columns: 1fr 30px; } .create-edit-row input:first-child { grid-column: 1 / -1; } }
     @media (max-width: 1100px) { .create-curriculum { grid-template-columns: 1fr; } .create-selected { position: static; max-height: none; } }
     @media (max-width: 820px) { .create-builder-layout { grid-template-columns: 1fr; } .create-steps { position: static; flex-direction: row; overflow-x: auto; } .create-step { width: auto; flex: none; } .create-options-time { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 900px) { .create-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -9121,31 +9211,97 @@ SQIDAQAB
     }
 
     // ─── Create > Law > Criminal trial builder ───
-    // Steps down the left: 1 Experience, 2 Curriculum, 3 Design Your Case. The draft is kept in the
-    // browser so leaving the page does not lose it.
+    // Steps down the left: 1 Experience, 2 Curriculum, 3 Design Your Case, 4 Your Case. The draft (including
+    // the built case) is kept in the browser so leaving the page does not lose it.
     const CREATE_TRIAL_KEY = 'lastmind-create-criminal-trial';
     const CREATE_TRIAL_MINUTES = [{ value: 15, label: '15 minutes' }, { value: 25, label: '25 minutes' }, { value: 45, label: '45 minutes' }, { value: 60, label: '1 hour' }];
     const CREATE_LAW_FOLDER = { id: 'create-law', subject: 'Law', qualification: 'A-Level', examBoard: 'OCR' };
+    const CREATE_IDEA_PLACEHOLDER = "e.g. A nightclub stabbing where the defendant claims self-defence. The victim later receives questionable medical treatment. Include an unreliable eyewitness and make the defendant's intention ambiguous.";
+    const CREATE_DETAIL_FIELDS = [
+        { key: 'characters', label: 'Desired characters', placeholder: 'e.g. A nervous barman, a doorman with a grudge, an off-duty paramedic' },
+        { key: 'setting', label: 'Setting', placeholder: 'e.g. A busy city-centre nightclub on a Saturday in June' },
+        { key: 'tone', label: 'Tone', placeholder: 'e.g. Gritty and realistic, or a lighter classroom-friendly case' },
+        { key: 'evidence', label: 'Specific evidence', placeholder: 'e.g. Blurred CCTV, a witness statement that changes, a knife never found' },
+        { key: 'twists', label: 'Twists', placeholder: 'e.g. A key witness was drinking with the victim; the timeline has a missing ten minutes' },
+    ];
+    const CREATE_BUILD_STEPS = ['Creating timeline', 'Creating characters', 'Constructing evidence', 'Mapping legal issues', 'Building prosecution case', 'Building defence case', 'Checking curriculum coverage'];
+    const CREATE_VALIDATE_STEPS = ['Checking the timeline holds together', "Checking every character's account", 'Checking the evidence', 'Testing that both sides have a fair case', 'Checking the law', 'Checking curriculum coverage'];
+    const CREATE_CASE_TABS = [
+        { key: 'overview', label: 'Overview' }, { key: 'timeline', label: 'Timeline' }, { key: 'characters', label: 'Characters' },
+        { key: 'evidence', label: 'Evidence' }, { key: 'legal', label: 'Legal issues' },
+    ];
     let createTrial = null;
+    let createBuild = null;      // the Cortex build in progress / just finished (not saved)
+    let createValidation = null; // the validation in progress / result (not saved)
+    let createLawMapCache = null;
+    const createScalesSvg = '<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M32 8v44M18 52h28M32 14l-18 6M32 14l18 6"/><path d="M14 20l-8 16c0 4 4 6 8 6s8-2 8-6l-8-16zM50 20l-8 16c0 4 4 6 8 6s8-2 8-6l-8-16z"/></svg>';
+
     function loadCreateTrial() {
         if (createTrial) return createTrial;
         let saved = null;
         try { saved = JSON.parse(localStorage.getItem(CREATE_TRIAL_KEY) || 'null'); } catch (err) { /* private mode etc. */ }
-        createTrial = { step: 'experience', role: '', minutes: 0, picked: [], ...(saved || {}) };
+        createTrial = { step: 'experience', role: '', minutes: 0, picked: [], idea: '', details: {}, cortexDecides: false, showDetails: false, case: null, caseTab: 'overview', ...(saved || {}) };
         if (!Array.isArray(createTrial.picked)) createTrial.picked = [];
+        if (!createTrial.details || typeof createTrial.details !== 'object') createTrial.details = {};
         return createTrial;
     }
     function saveCreateTrial() {
         try { localStorage.setItem(CREATE_TRIAL_KEY, JSON.stringify(createTrial)); } catch (err) { /* draft just isn't kept */ }
     }
-    let createLawMapCache = null;
+    const createStars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n);
+    const createId = () => Math.random().toString(36).slice(2, 10);
+
+    // Starts a Cortex job (build or validate) and waits for it: the server does the long Claude call in the
+    // background and this polls until it is done, so no request is held open.
+    async function createRunJob(path, payload) {
+        const authHeaders = async () => {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) throw new Error('Please sign in again.');
+            return { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` };
+        };
+        const start = await fetch(`${COMPILE_BACKEND_URL}${path}`, { method: 'POST', headers: await authHeaders(), body: JSON.stringify(payload) });
+        const startBody = await start.json().catch(() => ({}));
+        if (!start.ok) {
+            const e = new Error(startBody.code === 'LOCK_LIMIT_REACHED' ? "You're out of Locks for now." : (startBody.error || 'Cortex could not start this.'));
+            e.code = startBody.code;
+            throw e;
+        }
+        const deadline = Date.now() + 6 * 60 * 1000;
+        while (Date.now() < deadline) {
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            let body = null;
+            try {
+                const poll = await fetch(`${COMPILE_BACKEND_URL}/create/jobs/${startBody.jobId}`, { headers: await authHeaders() });
+                if (poll.status === 404) throw new Error('Cortex lost track of this one - please try again.');
+                body = await poll.json().catch(() => null);
+            } catch (err) {
+                if (String(err.message).includes('lost track')) throw err;
+                continue; // a dropped connection while polling - just ask again
+            }
+            if (!body) continue;
+            if (body.status === 'done') { refreshLocksChip(); return body.result; }
+            if (body.status === 'error') { const e = new Error(body.error || 'Cortex could not finish this - please try again.'); e.code = body.code; throw e; }
+        }
+        throw new Error('This is taking longer than expected - please try again.');
+    }
+
+    // Sets one field of the case from its data-path ("overview.summary", "timeline.<id>.event", "title").
+    function createSetCaseField(trial, path, value) {
+        const parts = path.split('.');
+        const c = trial.case;
+        if (!c) return;
+        if (parts.length === 1) c[parts[0]] = value;
+        else if (parts.length === 2) c[parts[0]][parts[1]] = value;
+        else { const item = (c[parts[0]] || []).find((x) => x.id === parts[1]); if (item) item[parts[2]] = value; }
+    }
 
     function renderCreateTrialBuilder(contentInner) {
         const trial = loadCreateTrial();
         const steps = [
             { key: 'experience', label: 'Experience', done: () => !!(trial.role && trial.minutes) },
             { key: 'curriculum', label: 'Curriculum', done: () => trial.picked.length > 0 },
-            { key: 'design', label: 'Design Your Case', done: () => false },
+            { key: 'design', label: 'Design Your Case', done: () => !!trial.case },
+            { key: 'case', label: 'Your Case', done: () => !!(createValidation && createValidation.status === 'done' && createValidation.result.workable) },
         ];
         contentInner.innerHTML = `
             <section class="create-view" aria-labelledby="createTrialTitle">
@@ -9165,82 +9321,395 @@ SQIDAQAB
         contentInner.querySelector('#createTrialBack').addEventListener('click', () => renderCreatePage('law'));
         contentInner.querySelectorAll('.create-step').forEach((b) => b.addEventListener('click', () => goTo(b.dataset.step)));
 
-        if (trial.step === 'experience') {
-            body.innerHTML = `
-                <h2>Experience</h2>
-                <p class="create-step-help">Decide who the student plays and roughly how long the simulation should take.</p>
-                <div class="create-field-label">Student role</div>
-                <div class="create-options" role="radiogroup" aria-label="Student role">
-                    <button type="button" class="create-option${trial.role === 'defence' ? ' selected' : ''}" role="radio" aria-checked="${trial.role === 'defence'}" data-role="defence"><strong>Defence</strong><span>The student represents the defendant.</span></button>
-                    <button type="button" class="create-option${trial.role === 'prosecution' ? ' selected' : ''}" role="radio" aria-checked="${trial.role === 'prosecution'}" data-role="prosecution"><strong>Prosecution</strong><span>The student represents the Crown.</span></button>
-                </div>
-                <div class="create-field-label">Approximate time</div>
-                <div class="create-options create-options-time" role="radiogroup" aria-label="Approximate time">
-                    ${CREATE_TRIAL_MINUTES.map((m) => `<button type="button" class="create-option create-option-time${trial.minutes === m.value ? ' selected' : ''}" role="radio" aria-checked="${trial.minutes === m.value}" data-minutes="${m.value}"><strong>${m.label}</strong></button>`).join('')}
-                </div>
-                <div class="create-next-row"><button type="button" class="create-cta" id="createTrialNext1">Next: Curriculum →</button></div>`;
-            body.querySelectorAll('[data-role]').forEach((b) => b.addEventListener('click', () => { trial.role = b.dataset.role; saveCreateTrial(); renderCreateTrialBuilder(contentInner); }));
-            body.querySelectorAll('[data-minutes]').forEach((b) => b.addEventListener('click', () => { trial.minutes = Number(b.dataset.minutes); saveCreateTrial(); renderCreateTrialBuilder(contentInner); }));
-            body.querySelector('#createTrialNext1').addEventListener('click', () => goTo('curriculum'));
-        } else if (trial.step === 'curriculum') {
-            body.innerHTML = `
-                <h2>What should students learn from this simulation?</h2>
-                <p class="create-step-help">Click concepts on the knowledge map to select them. Your selection appears on the right.</p>
-                <div class="create-curriculum">
-                    <div id="createMapHost"><div class="mt-empty">Loading the knowledge map…</div></div>
-                    <aside class="create-selected" aria-label="Selected concepts"><h3 id="createSelectedTitle"></h3><div id="createSelectedList"></div></aside>
-                </div>
-                <div class="create-next-row"><button type="button" class="create-cta" id="createTrialNext2">Next: Design Your Case →</button></div>`;
-            const listEl = body.querySelector('#createSelectedList');
-            const titleEl = body.querySelector('#createSelectedTitle');
-            const subscribers = [];
-            const picker = {
-                has: (id) => trial.picked.some((n) => n.id === id),
-                toggle: (n) => {
-                    const i = trial.picked.findIndex((x) => x.id === n.id);
-                    if (i === -1) trial.picked.push({ id: n.id, label: n.label, subtopic: n.subtopic || '' }); else trial.picked.splice(i, 1);
-                    saveCreateTrial(); paintSelected(); subscribers.forEach((fn) => fn());
-                },
-                subscribe: (fn) => subscribers.push(fn),
-            };
-            function paintSelected() {
-                titleEl.textContent = `Selected concepts (${trial.picked.length})`;
-                if (!trial.picked.length) { listEl.innerHTML = '<p class="create-selected-empty">Nothing selected yet.</p>'; }
-                else {
-                    listEl.innerHTML = `<ul>${trial.picked.map((n) => `<li><span>${escapeHtml(n.label)}<small>${escapeHtml(n.subtopic)}</small></span><button type="button" data-remove="${escapeHtml(n.id)}" aria-label="Remove ${escapeHtml(n.label)}">✕</button></li>`).join('')}</ul>`;
-                    listEl.querySelectorAll('[data-remove]').forEach((b) => b.addEventListener('click', () => {
-                        const i = trial.picked.findIndex((x) => x.id === b.dataset.remove);
-                        if (i !== -1) { trial.picked.splice(i, 1); saveCreateTrial(); paintSelected(); subscribers.forEach((fn) => fn()); const g = body.querySelector('.pt-map-graph'); if (g && g._createPaint) g._createPaint(); }
-                    }));
-                }
-            }
-            paintSelected();
-            body.querySelector('#createTrialNext2').addEventListener('click', () => goTo('design'));
-            const host = body.querySelector('#createMapHost');
-            (async () => {
-                try {
-                    if (!createLawMapCache) {
-                        const data = await fetchSubjectKnowledgeMapWithRetry(CREATE_LAW_FOLDER);
-                        if (data && Array.isArray(data.nodes) && data.nodes.length) {
-                            data.scheduleByConceptId = new Map();
-                            data.completedDay1ConceptIds = new Set();
-                            createLawMapCache = data;
-                        }
-                    }
-                    if (!host.isConnected) return;
-                    if (!createLawMapCache) { host.innerHTML = '<div class="mt-empty">No Law knowledge map is available yet.</div>'; return; }
-                    ptRenderMap(host, CREATE_LAW_FOLDER, createLawMapCache, picker);
-                } catch (err) {
-                    console.error('LastMind: could not load the Law map for Create.', err);
-                    if (host.isConnected) host.innerHTML = '<div class="mt-empty">Couldn\'t load the knowledge map - try again.</div>';
-                }
-            })();
-        } else {
-            body.innerHTML = `
-                <h2>Design Your Case</h2>
-                <p class="create-step-help">Build the case students will work through.</p>
-                <div class="create-soon">This step is coming soon.</div>`;
+        if (trial.step === 'experience') renderCreateExperience(body, trial, goTo, () => renderCreateTrialBuilder(contentInner));
+        else if (trial.step === 'curriculum') renderCreateCurriculum(body, trial, goTo);
+        else if (trial.step === 'design') renderCreateDesign(body, trial, goTo, contentInner);
+        else renderCreateCase(body, trial, goTo);
+    }
+
+    function renderCreateExperience(body, trial, goTo, rerender) {
+        body.innerHTML = `
+            <h2>Experience</h2>
+            <p class="create-step-help">Decide who the student plays and roughly how long the simulation should take.</p>
+            <div class="create-field-label">Student role</div>
+            <div class="create-options" role="radiogroup" aria-label="Student role">
+                <button type="button" class="create-option${trial.role === 'defence' ? ' selected' : ''}" role="radio" aria-checked="${trial.role === 'defence'}" data-role="defence"><strong>Defence</strong><span>The student represents the defendant.</span></button>
+                <button type="button" class="create-option${trial.role === 'prosecution' ? ' selected' : ''}" role="radio" aria-checked="${trial.role === 'prosecution'}" data-role="prosecution"><strong>Prosecution</strong><span>The student represents the Crown.</span></button>
+            </div>
+            <div class="create-field-label">Approximate time</div>
+            <div class="create-options create-options-time" role="radiogroup" aria-label="Approximate time">
+                ${CREATE_TRIAL_MINUTES.map((m) => `<button type="button" class="create-option create-option-time${trial.minutes === m.value ? ' selected' : ''}" role="radio" aria-checked="${trial.minutes === m.value}" data-minutes="${m.value}"><strong>${m.label}</strong></button>`).join('')}
+            </div>
+            <div class="create-next-row"><button type="button" class="create-cta" id="createTrialNext1">Next: Curriculum →</button></div>`;
+        body.querySelectorAll('[data-role]').forEach((b) => b.addEventListener('click', () => { trial.role = b.dataset.role; saveCreateTrial(); rerender(); }));
+        body.querySelectorAll('[data-minutes]').forEach((b) => b.addEventListener('click', () => { trial.minutes = Number(b.dataset.minutes); saveCreateTrial(); rerender(); }));
+        body.querySelector('#createTrialNext1').addEventListener('click', () => goTo('curriculum'));
+    }
+
+    function renderCreateCurriculum(body, trial, goTo) {
+        body.innerHTML = `
+            <h2>What should students learn from this simulation?</h2>
+            <p class="create-step-help">Click concepts on the knowledge map to select them. Your selection appears on the right.</p>
+            <div class="create-curriculum">
+                <div id="createMapHost"><div class="mt-empty">Loading the knowledge map…</div></div>
+                <aside class="create-selected" aria-label="Selected concepts"><h3 id="createSelectedTitle"></h3><div id="createSelectedList"></div></aside>
+            </div>
+            <div class="create-next-row"><button type="button" class="create-cta" id="createTrialNext2">Next: Design Your Case →</button></div>`;
+        const listEl = body.querySelector('#createSelectedList');
+        const titleEl = body.querySelector('#createSelectedTitle');
+        const subscribers = [];
+        const picker = {
+            has: (id) => trial.picked.some((n) => n.id === id),
+            toggle: (n) => {
+                const i = trial.picked.findIndex((x) => x.id === n.id);
+                if (i === -1) trial.picked.push({ id: n.id, label: n.label, subtopic: n.subtopic || '' }); else trial.picked.splice(i, 1);
+                saveCreateTrial(); paintSelected(); subscribers.forEach((fn) => fn());
+            },
+            subscribe: (fn) => subscribers.push(fn),
+        };
+        function paintSelected() {
+            titleEl.textContent = `Selected concepts (${trial.picked.length})`;
+            if (!trial.picked.length) { listEl.innerHTML = '<p class="create-selected-empty">Nothing selected yet.</p>'; return; }
+            listEl.innerHTML = `<ul>${trial.picked.map((n) => `<li><span>${escapeHtml(n.label)}<small>${escapeHtml(n.subtopic)}</small></span><button type="button" data-remove="${escapeHtml(n.id)}" aria-label="Remove ${escapeHtml(n.label)}">✕</button></li>`).join('')}</ul>`;
+            listEl.querySelectorAll('[data-remove]').forEach((b) => b.addEventListener('click', () => {
+                const i = trial.picked.findIndex((x) => x.id === b.dataset.remove);
+                if (i === -1) return;
+                trial.picked.splice(i, 1); saveCreateTrial(); paintSelected(); subscribers.forEach((fn) => fn());
+                const g = body.querySelector('.pt-map-graph'); if (g && g._createPaint) g._createPaint();
+            }));
         }
+        paintSelected();
+        body.querySelector('#createTrialNext2').addEventListener('click', () => goTo('design'));
+        const host = body.querySelector('#createMapHost');
+        (async () => {
+            try {
+                if (!createLawMapCache) {
+                    const data = await fetchSubjectKnowledgeMapWithRetry(CREATE_LAW_FOLDER);
+                    if (data && Array.isArray(data.nodes) && data.nodes.length) {
+                        data.scheduleByConceptId = new Map();
+                        data.completedDay1ConceptIds = new Set();
+                        createLawMapCache = data;
+                    }
+                }
+                if (!host.isConnected) return;
+                if (!createLawMapCache) { host.innerHTML = '<div class="mt-empty">No Law knowledge map is available yet.</div>'; return; }
+                ptRenderMap(host, CREATE_LAW_FOLDER, createLawMapCache, picker);
+            } catch (err) {
+                console.error('LastMind: could not load the Law map for Create.', err);
+                if (host.isConnected) host.innerHTML = "<div class=\"mt-empty\">Couldn't load the knowledge map - try again.</div>";
+            }
+        })();
+    }
+
+    // ---- Step 3: Design Your Case (idea, optional detail, Build my Case, the build animation) ----
+    function renderCreateDesign(body, trial, goTo, contentInner) {
+        if (createBuild) { renderCreateBuilding(body, trial, goTo, contentInner); return; }
+        const detailsHtml = trial.showDetails ? `
+            <div class="create-detail-panel">
+                ${CREATE_DETAIL_FIELDS.map((f) => `<div class="create-detail-field"><label for="createDetail-${f.key}">${f.label}</label><textarea id="createDetail-${f.key}" data-detail="${f.key}" rows="3" placeholder="${escapeHtml(f.placeholder)}">${escapeHtml(trial.details[f.key] || '')}</textarea></div>`).join('')}
+                <div class="create-detail-actions">
+                    <button type="button" class="create-secondary" id="createCortexHandles">Let Cortex handle it</button>
+                    <span class="create-warn" style="margin:0;">Leave any box empty and Cortex will choose for you.</span>
+                </div>
+            </div>` : '';
+        body.innerHTML = `
+            <h2>What's your idea?</h2>
+            <p class="create-step-help">Describe the case you want students to work through. A sentence or two is plenty.</p>
+            <textarea class="create-idea" id="createIdea" rows="5" placeholder="${escapeHtml(CREATE_IDEA_PLACEHOLDER)}" aria-label="What's your idea?">${escapeHtml(trial.idea || '')}</textarea>
+            <div class="create-detail-row">
+                <button type="button" class="create-secondary" id="createMoreDetail">${trial.showDetails ? '− Hide detail' : '+ Add more detail'}</button>
+                ${trial.cortexDecides ? '<span class="create-chip">Cortex will decide the details <button type="button" id="createUndoCortex">change</button></span>' : ''}
+            </div>
+            ${detailsHtml}
+            <div class="create-build-row"><button type="button" class="create-build-btn" id="createBuildBtn">Build my Case</button></div>
+            <div id="createBuildWarn"></div>`;
+        const idea = body.querySelector('#createIdea');
+        idea.addEventListener('input', () => { trial.idea = idea.value; saveCreateTrial(); });
+        body.querySelector('#createMoreDetail').addEventListener('click', () => { trial.showDetails = !trial.showDetails; if (trial.showDetails) trial.cortexDecides = false; saveCreateTrial(); renderCreateDesign(body, trial, goTo, contentInner); });
+        body.querySelector('#createUndoCortex')?.addEventListener('click', () => { trial.cortexDecides = false; trial.showDetails = true; saveCreateTrial(); renderCreateDesign(body, trial, goTo, contentInner); });
+        body.querySelectorAll('[data-detail]').forEach((el) => el.addEventListener('input', () => { trial.details[el.dataset.detail] = el.value; saveCreateTrial(); }));
+        body.querySelector('#createCortexHandles')?.addEventListener('click', () => { trial.cortexDecides = true; trial.showDetails = false; trial.details = {}; saveCreateTrial(); renderCreateDesign(body, trial, goTo, contentInner); });
+        body.querySelector('#createBuildBtn').addEventListener('click', () => {
+            const warn = body.querySelector('#createBuildWarn');
+            const missing = [];
+            if (!trial.role || !trial.minutes) missing.push('<button type="button" data-goto="experience">choose a student role and time</button>');
+            if (!trial.picked.length) missing.push('<button type="button" data-goto="curriculum">select at least one concept</button>');
+            if (missing.length) {
+                warn.innerHTML = `<p class="create-warn" style="text-align:center;">Before Cortex can build, ${missing.join(' and ')}.</p>`;
+                warn.querySelectorAll('[data-goto]').forEach((b) => b.addEventListener('click', () => goTo(b.dataset.goto)));
+                return;
+            }
+            if (trial.case && !confirm('Building again will replace your current case and any edits you made. Continue?')) return;
+            startCreateBuild(body, trial, goTo, contentInner);
+        });
+    }
+
+    function startCreateBuild(body, trial, goTo, contentInner) {
+        createValidation = null;
+        const state = { status: 'running', startedAt: Date.now(), shown: 1, completed: 0 };
+        createBuild = state;
+        const payload = {
+            role: trial.role, minutes: trial.minutes, idea: trial.idea, cortexDecides: !!trial.cortexDecides,
+            details: trial.details, concepts: trial.picked.map((n) => ({ label: n.label, subtopic: n.subtopic })),
+        };
+        createRunJob('/create/criminal-trial/build', payload).then((result) => {
+            trial.case = result; trial.caseTab = 'overview'; saveCreateTrial();
+            state.status = 'done';
+        }).catch((err) => { state.status = 'error'; state.error = err.message || 'Cortex could not build this case.'; });
+        renderCreateBuilding(body, trial, goTo, contentInner);
+    }
+
+    // The build screen: Cortex's steps appear one by one and tick off, then "Your case is ready."
+    function renderCreateBuilding(body, trial, goTo, contentInner) {
+        const state = createBuild;
+        const ready = () => state.status === 'done' && state.completed >= CREATE_BUILD_STEPS.length;
+        body.innerHTML = `
+            <div class="create-building">
+                <div class="create-orb">${createScalesSvg}</div>
+                <h2 class="create-building-title" id="createBuildTitle"></h2>
+                <ul class="create-build-steps" id="createBuildList">${CREATE_BUILD_STEPS.map((label) => `<li><span class="mark"></span><span>${label}</span></li>`).join('')}</ul>
+                <div class="create-progress" aria-hidden="true"><div class="create-progress-bar" id="createProgressBar"></div></div>
+                <div id="createBuildTail"></div>
+            </div>`;
+        const wrap = body.querySelector('.create-building');
+        const title = body.querySelector('#createBuildTitle');
+        const items = [...body.querySelectorAll('#createBuildList li')];
+        const bar = body.querySelector('#createProgressBar');
+        const tail = body.querySelector('#createBuildTail');
+        let tailFor = '';
+        const paint = () => {
+            items.forEach((li, i) => {
+                li.classList.toggle('shown', i < state.shown && state.status !== 'error' || i < state.completed);
+                li.classList.toggle('done', i < state.completed);
+            });
+            bar.style.width = `${Math.round((state.completed / CREATE_BUILD_STEPS.length) * 100)}%`;
+            const key = state.status === 'error' ? 'error' : ready() ? 'ready' : 'working';
+            if (key === tailFor) return;
+            tailFor = key;
+            wrap.classList.toggle('ready', key === 'ready');
+            if (key === 'working') { title.innerHTML = 'Building your case<span class="dots"></span>'; tail.innerHTML = ''; }
+            else if (key === 'ready') {
+                title.textContent = 'Your case is ready.';
+                tail.innerHTML = '<div class="create-ready-actions"><button type="button" class="create-cta" id="createReview">Review case →</button></div>';
+                tail.querySelector('#createReview').addEventListener('click', () => { createBuild = null; goTo('case'); });
+            } else {
+                title.textContent = "Cortex couldn't build that";
+                tail.innerHTML = `<p class="create-error">${escapeHtml(state.error || 'Something went wrong.')}</p><div class="create-ready-actions"><button type="button" class="create-cta" id="createRetryBuild">Try again</button><button type="button" class="create-secondary" id="createBackToIdea">Back to my idea</button></div>`;
+                tail.querySelector('#createRetryBuild').addEventListener('click', () => startCreateBuild(body, trial, goTo, contentInner));
+                tail.querySelector('#createBackToIdea').addEventListener('click', () => { createBuild = null; renderCreateTrialBuilder(contentInner); });
+            }
+        };
+        paint();
+        const timer = setInterval(() => {
+            if (!body.isConnected || createBuild !== state) { clearInterval(timer); return; }
+            if (state.status === 'running') {
+                // A new step every ~7s while Cortex works; the last one waits for the real result.
+                state.shown = Math.min(CREATE_BUILD_STEPS.length, 1 + Math.floor((Date.now() - state.startedAt) / 7000));
+                state.completed = Math.min(state.shown - 1, CREATE_BUILD_STEPS.length - 1);
+            } else if (state.status === 'done') {
+                state.shown = CREATE_BUILD_STEPS.length;
+                state.completed = Math.min(CREATE_BUILD_STEPS.length, state.completed + 1);
+                if (state.completed >= CREATE_BUILD_STEPS.length) { paint(); clearInterval(timer); return; }
+            } else { paint(); clearInterval(timer); return; }
+            paint();
+        }, 500);
+    }
+
+    // ---- Step 4: Your Case (editable), coverage stars, validation ----
+    function createFieldHtml(label, path, value, rows) {
+        return `<label>${escapeHtml(label)}</label><textarea data-path="${path}" rows="${rows || 3}">${escapeHtml(value || '')}</textarea>`;
+    }
+    function createCoverageHtml(cov) {
+        if (!cov) return '';
+        const mark = { fully: '✓ Covered', partly: '◐ Partly covered', not: '✗ Not covered' };
+        return `
+            <h3>Curriculum coverage</h3>
+            <div class="create-stars" aria-label="${cov.stars} out of 5 stars">${createStars(cov.stars)}</div>
+            <div class="create-stars-num">${cov.stars} out of 5</div>
+            ${cov.summary ? `<p>${escapeHtml(cov.summary)}</p>` : ''}
+            <ul>${(cov.concepts || []).map((c) => `<li><b>${escapeHtml(c.label)}</b><span>${mark[c.covered] || ''}${c.how ? ` - ${escapeHtml(c.how)}` : ''}</span></li>`).join('')}</ul>`;
+    }
+
+    function renderCreateCase(body, trial, goTo) {
+        const c = trial.case;
+        if (!c) {
+            body.innerHTML = `<h2>Your Case</h2><p class="create-step-help">Nothing to show yet - Cortex builds your case from your idea.</p><div class="create-next-row" style="justify-content:flex-start;"><button type="button" class="create-cta" id="createGoDesign">Go to Design Your Case</button></div>`;
+            body.querySelector('#createGoDesign').addEventListener('click', () => goTo('design'));
+            return;
+        }
+        const tab = CREATE_CASE_TABS.some((t) => t.key === trial.caseTab) ? trial.caseTab : 'overview';
+        const rowsFor = (list, cfg) => list.map((it) => cfg(it)).join('');
+        let main = '';
+        if (tab === 'overview') {
+            const o = c.overview;
+            main = `
+                <h2>Overview</h2>
+                <p class="create-edit-note">The facts the case is built on. Everything here can be edited.</p>
+                <div class="create-edit">
+                    <label>Case title</label><input class="create-title-input" data-path="title" value="${escapeHtml(c.title)}">
+                    ${createFieldHtml('Summary', 'overview.summary', o.summary, 3)}
+                    ${createFieldHtml('What actually happened', 'overview.whatHappened', o.whatHappened, 8)}
+                    ${createFieldHtml('Charge', 'overview.charge', o.charge, 2)}
+                    ${createFieldHtml('The prosecution case', 'overview.prosecutionCase', o.prosecutionCase, 4)}
+                    ${createFieldHtml('The defence case', 'overview.defenceCase', o.defenceCase, 4)}
+                    ${createFieldHtml("The student's briefing", 'overview.studentBriefing', o.studentBriefing, 3)}
+                </div>`;
+        } else if (tab === 'timeline') {
+            main = `
+                <h2>Timeline</h2>
+                <p class="create-edit-note">What happened, in order. Click anything to edit.</p>
+                <div class="create-edit">
+                    ${rowsFor(c.timeline, (t) => `<div class="create-edit-row" data-item="timeline.${t.id}"><input data-path="timeline.${t.id}.time" value="${escapeHtml(t.time)}" placeholder="When" aria-label="When"><div><textarea data-path="timeline.${t.id}.event" rows="2" placeholder="What happened" aria-label="What happened">${escapeHtml(t.event)}</textarea><input data-path="timeline.${t.id}.knownTo" value="${escapeHtml(t.knownTo)}" placeholder="Who knows or can prove it" aria-label="Who knows" style="margin-top:6px;"></div><button type="button" class="create-remove" data-remove="timeline.${t.id}" aria-label="Remove event">✕</button></div>`)}
+                    <button type="button" class="create-secondary create-add" data-add="timeline">+ Add event</button>
+                </div>`;
+        } else if (tab === 'characters') {
+            main = `
+                <h2>Characters</h2>
+                <p class="create-edit-note">What each person saw, where they stand, and whether they are telling the truth.</p>
+                <div class="create-edit">
+                    ${rowsFor(c.characters, (ch) => `<div class="create-edit-card"><button type="button" class="create-remove" data-remove="characters.${ch.id}" aria-label="Remove character">✕</button>
+                        <div class="create-edit-grid2"><div><label>Name</label><input data-path="characters.${ch.id}.name" value="${escapeHtml(ch.name)}"></div><div><label>Role</label><input data-path="characters.${ch.id}.role" value="${escapeHtml(ch.role)}"></div></div>
+                        ${createFieldHtml('Who they are', `characters.${ch.id}.description`, ch.description, 2)}
+                        ${createFieldHtml('What they saw', `characters.${ch.id}.whatTheySaw`, ch.whatTheySaw, 3)}
+                        ${createFieldHtml('Their stance in court', `characters.${ch.id}.stance`, ch.stance, 3)}
+                        <div class="create-edit-grid2"><div><label>Are they honest?</label><select data-path="characters.${ch.id}.honesty">${['truthful', 'mistaken', 'lying'].map((h) => `<option value="${h}"${ch.honesty === h ? ' selected' : ''}>${{ truthful: 'Truthful', mistaken: 'Mistaken (sincere but wrong)', lying: 'Lying' }[h]}</option>`).join('')}</select></div><div><label>Why</label><input data-path="characters.${ch.id}.honestyNote" value="${escapeHtml(ch.honestyNote)}"></div></div></div>`)}
+                    <button type="button" class="create-secondary create-add" data-add="characters">+ Add character</button>
+                </div>`;
+        } else if (tab === 'evidence') {
+            main = `
+                <h2>Evidence</h2>
+                <p class="create-edit-note">What each piece shows, and how the other side can challenge it.</p>
+                <div class="create-edit">
+                    ${rowsFor(c.evidence, (e) => `<div class="create-edit-card"><button type="button" class="create-remove" data-remove="evidence.${e.id}" aria-label="Remove evidence">✕</button>
+                        <div class="create-edit-grid2"><div><label>Name</label><input data-path="evidence.${e.id}.name" value="${escapeHtml(e.name)}"></div><div><label>Type</label><input data-path="evidence.${e.id}.type" value="${escapeHtml(e.type)}"></div></div>
+                        ${createFieldHtml('Description', `evidence.${e.id}.description`, e.description, 2)}
+                        ${createFieldHtml('What it shows', `evidence.${e.id}.whatItShows`, e.whatItShows, 2)}
+                        ${createFieldHtml('Weakness', `evidence.${e.id}.weakness`, e.weakness, 2)}
+                        <label>Favours</label><select data-path="evidence.${e.id}.favours">${['prosecution', 'defence', 'neutral'].map((f) => `<option value="${f}"${e.favours === f ? ' selected' : ''}>${f[0].toUpperCase() + f.slice(1)}</option>`).join('')}</select></div>`)}
+                    <button type="button" class="create-secondary create-add" data-add="evidence">+ Add evidence</button>
+                </div>`;
+        } else {
+            main = `
+                <h2>Legal issues</h2>
+                <p class="create-edit-note">The questions of law the court has to decide.</p>
+                <div class="create-edit">
+                    ${rowsFor(c.legalIssues, (l) => `<div class="create-edit-card"><button type="button" class="create-remove" data-remove="legalIssues.${l.id}" aria-label="Remove issue">✕</button>
+                        <label>Issue</label><input data-path="legalIssues.${l.id}.issue" value="${escapeHtml(l.issue)}">
+                        ${createFieldHtml('The law', `legalIssues.${l.id}.law`, l.law, 3)}
+                        ${createFieldHtml('How it arises in this case', `legalIssues.${l.id}.howItArises`, l.howItArises, 3)}
+                        ${createFieldHtml('The key question', `legalIssues.${l.id}.keyQuestion`, l.keyQuestion, 2)}</div>`)}
+                    <button type="button" class="create-secondary create-add" data-add="legalIssues">+ Add legal issue</button>
+                </div>`;
+        }
+        body.innerHTML = `
+            <h2 style="font-size:1.5rem;margin-bottom:14px;">Your Case: ${escapeHtml(c.title)}</h2>
+            <div class="create-case-layout">
+                <nav class="create-case-nav" aria-label="Case sections">${CREATE_CASE_TABS.map((t) => `<button type="button" class="create-case-tab${t.key === tab ? ' active' : ''}" data-tab="${t.key}">${t.label}</button>`).join('')}</nav>
+                <div class="create-case-main">${main}</div>
+                <aside class="create-coverage" id="createCoverage" aria-label="Curriculum coverage">${createCoverageHtml(c.coverage)}</aside>
+            </div>
+            <div class="create-validate-bar"><button type="button" class="create-cta" id="createValidateBtn">Validate</button></div>
+            <div id="createValidatePanel"></div>`;
+
+        const autosize = (el) => { if (el.tagName === 'TEXTAREA') { el.style.height = 'auto'; el.style.height = `${el.scrollHeight + 2}px`; } };
+        body.querySelectorAll('.create-edit textarea').forEach(autosize);
+        body.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => { trial.caseTab = b.dataset.tab; saveCreateTrial(); renderCreateCase(body, trial, goTo); }));
+        const clearStaleValidation = () => {
+            if (!createValidation) return;
+            createValidation = null;
+            const panel = body.querySelector('#createValidatePanel');
+            if (panel) panel.innerHTML = '';
+        };
+        body.querySelectorAll('[data-path]').forEach((el) => {
+            el.addEventListener('input', () => { createSetCaseField(trial, el.dataset.path, el.value); autosize(el); saveCreateTrial(); clearStaleValidation(); });
+            el.addEventListener('change', () => { createSetCaseField(trial, el.dataset.path, el.value); saveCreateTrial(); clearStaleValidation(); });
+        });
+        body.querySelectorAll('[data-remove]').forEach((btn) => btn.addEventListener('click', () => {
+            const [list, id] = btn.dataset.remove.split('.');
+            trial.case[list] = trial.case[list].filter((x) => x.id !== id);
+            saveCreateTrial(); clearStaleValidation(); renderCreateCase(body, trial, goTo);
+        }));
+        body.querySelectorAll('[data-add]').forEach((btn) => btn.addEventListener('click', () => {
+            const blank = {
+                timeline: { time: '', event: '', knownTo: '' },
+                characters: { name: '', role: '', description: '', whatTheySaw: '', stance: '', honesty: 'truthful', honestyNote: '' },
+                evidence: { name: '', type: '', description: '', whatItShows: '', weakness: '', favours: 'neutral' },
+                legalIssues: { issue: '', law: '', howItArises: '', keyQuestion: '' },
+            }[btn.dataset.add];
+            trial.case[btn.dataset.add].push({ id: createId(), ...blank });
+            saveCreateTrial(); clearStaleValidation(); renderCreateCase(body, trial, goTo);
+        }));
+        const validateBtn = body.querySelector('#createValidateBtn');
+        validateBtn.addEventListener('click', () => startCreateValidation(body, trial));
+        if (createValidation) renderCreateValidation(body, trial);
+    }
+
+    function startCreateValidation(body, trial) {
+        const state = { status: 'running', startedAt: Date.now(), shown: 1, completed: 0 };
+        createValidation = state;
+        const payload = { case: trial.case, role: trial.role, minutes: trial.minutes, concepts: trial.picked.map((n) => ({ label: n.label, subtopic: n.subtopic })) };
+        createRunJob('/create/criminal-trial/validate', payload).then((result) => {
+            state.status = 'done'; state.result = result;
+            trial.case.coverage = result.coverage; saveCreateTrial();
+        }).catch((err) => { state.status = 'error'; state.error = err.message || 'Cortex could not check this case.'; });
+        renderCreateValidation(body, trial);
+        body.querySelector('#createValidatePanel')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function renderCreateValidation(body, trial) {
+        const panel = body.querySelector('#createValidatePanel');
+        const state = createValidation;
+        if (!panel || !state) return;
+        const steps = CREATE_VALIDATE_STEPS;
+        const btn = body.querySelector('#createValidateBtn');
+        panel.innerHTML = `
+            <div class="create-validate-panel">
+                <h3 id="createValTitle"></h3>
+                <ul class="create-build-steps" id="createValList">${steps.map((label) => `<li><span class="mark"></span><span>${label}</span></li>`).join('')}</ul>
+                <div id="createValTail"></div>
+            </div>`;
+        const title = panel.querySelector('#createValTitle');
+        const items = [...panel.querySelectorAll('#createValList li')];
+        const tail = panel.querySelector('#createValTail');
+        let phase = '';
+        const paint = () => {
+            items.forEach((li, i) => {
+                li.classList.toggle('shown', (i < state.shown && state.status !== 'error') || i < state.completed);
+                li.classList.toggle('done', i < state.completed);
+            });
+            const finished = state.status === 'done' && state.completed >= steps.length;
+            const key = state.status === 'error' ? 'error' : finished ? 'done' : 'working';
+            if (btn) btn.disabled = key === 'working';
+            if (key === phase) return;
+            phase = key;
+            if (key === 'working') { title.innerHTML = 'Cortex is checking your case<span class="dots"></span>'; tail.innerHTML = ''; return; }
+            if (key === 'error') {
+                title.textContent = "Cortex couldn't finish the check";
+                tail.innerHTML = `<p class="create-error">${escapeHtml(state.error || '')}</p>`;
+                return;
+            }
+            const r = state.result;
+            title.textContent = r.workable ? 'Your case is workable.' : 'Your case needs a few fixes.';
+            const coverageEl = body.querySelector('#createCoverage');
+            if (coverageEl && trial.case) coverageEl.innerHTML = createCoverageHtml(trial.case.coverage);
+            tail.innerHTML = `
+                ${r.summary ? `<p class="create-error" style="max-width:none;">${escapeHtml(r.summary)}</p>` : ''}
+                ${(r.issues || []).map((i) => `<div class="create-issue"><span class="badge ${i.severity}">${i.severity === 'blocker' ? 'Must fix' : 'Suggestion'}</span><b>${escapeHtml(i.area)}</b> - ${escapeHtml(i.message)}${i.suggestion ? `<span class="fix">${escapeHtml(i.suggestion)}</span>` : ''}</div>`).join('')}
+                ${r.workable ? '<div class="create-ready-actions" style="margin-top:18px;"><button type="button" class="create-play" id="createPlayBtn">Play</button></div>' : '<p class="create-error" style="max-width:none;">Fix the items marked "Must fix", then press Validate again.</p>'}`;
+        };
+        paint();
+        const timer = setInterval(() => {
+            if (!panel.isConnected || createValidation !== state) { clearInterval(timer); return; }
+            if (state.status === 'running') {
+                state.shown = Math.min(steps.length, 1 + Math.floor((Date.now() - state.startedAt) / 5000));
+                state.completed = Math.min(state.shown - 1, steps.length - 1);
+            } else if (state.status === 'done') {
+                state.shown = steps.length;
+                state.completed = Math.min(steps.length, state.completed + 1);
+                if (state.completed >= steps.length) { paint(); clearInterval(timer); return; }
+            } else { paint(); clearInterval(timer); return; }
+            paint();
+        }, 500);
     }
 
     function renderRewardsPage(loadLatest = true) {
