@@ -9331,6 +9331,13 @@ SQIDAQAB
                 { key: 'criminal-trial', title: 'Criminal trial', image: '/assets/create/criminal-trial.jpg', description: 'Take a case from preparation through trial', alt: 'A person in handcuffs in the dock of an imagined courtroom' },
             ],
         },
+        {
+            key: 'economics', title: 'Economics', image: '/assets/create/economics.jpg', description: 'Run an economy and live with the consequences',
+            alt: 'An imagined treasury boardroom with a long table and a city skyline at dusk',
+            simulations: [
+                { key: 'chancellor', title: 'Be the Chancellor', image: '/assets/create/chancellor.jpg', description: 'Steer a whole economy through the decisions that shape it', alt: 'A finance minister seen from behind at a desk, looking over a city skyline at dusk' },
+            ],
+        },
     ];
     function renderCreatePage(view = 'projects') {
         if (view === true) view = 'gallery';
@@ -9350,7 +9357,7 @@ SQIDAQAB
                             <img class="create-card-image" src="${t.image}" alt="${escapeHtml(t.alt)}" loading="lazy">
                             <p>${escapeHtml(t.description)}</p>
                         </article>`;
-        const law = CREATE_TEMPLATES.find((t) => t.key === 'law');
+        const subject = CREATE_TEMPLATES.find((t) => t.key === view);
         let heading = 'Your projects';
         let backBtn = '';
         let body;
@@ -9358,10 +9365,15 @@ SQIDAQAB
             heading = 'Choose a starting point';
             backBtn = '<button type="button" class="create-back" id="createBackBtn" data-view="projects">← Your projects</button>';
             body = `<div class="create-gallery">${CREATE_TEMPLATES.map((t) => card(t, `role="button" tabindex="0" data-template="${t.key}"`)).join('')}</div>`;
-        } else if (view === 'law') {
-            heading = law.title;
+        } else if (view === 'chancellor') {
+            const sim = CREATE_TEMPLATES.find((t) => t.key === 'economics').simulations[0];
+            heading = sim.title;
+            backBtn = '<button type="button" class="create-back" id="createBackBtn" data-view="economics">← Economics</button>';
+            body = `<div class="create-card"><img class="create-card-image" src="${sim.image}" alt="${escapeHtml(sim.alt)}"><p>The Chancellor builder is being set up. It will run on LastMind's shared economic model, so every economy behaves consistently.</p></div>`;
+        } else if (subject) {
+            heading = subject.title;
             backBtn = '<button type="button" class="create-back" id="createBackBtn" data-view="gallery">← Starting points</button>';
-            body = `<div class="create-gallery">${law.simulations.map((t) => card(t, `role="button" tabindex="0" data-simulation="${t.key}"`)).join('')}</div>`;
+            body = `<div class="create-gallery">${subject.simulations.map((t) => card(t, `role="button" tabindex="0" data-simulation="${t.key}"`)).join('')}</div>`;
         } else {
             body = '<div id="createProjectsHost"></div>';
         }
