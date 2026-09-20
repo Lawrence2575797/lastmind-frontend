@@ -4074,6 +4074,150 @@
     .create-play { padding: 18px 60px; border: 2px solid var(--accent); border-radius: 14px; background: var(--text); color: var(--panel); font: 800 1.3rem Georgia, serif; cursor: pointer; box-shadow: 0 10px 28px rgba(0,0,0,0.3); }
     @media (max-width: 1100px) { .create-case-layout { grid-template-columns: 150px minmax(0, 1fr); } .create-coverage { grid-column: 1 / -1; position: static; } }
     @media (max-width: 720px) { .create-case-layout { grid-template-columns: 1fr; } .create-case-nav { position: static; flex-direction: row; overflow-x: auto; } .create-detail-panel, .create-edit-grid2 { grid-template-columns: 1fr; } .create-edit-row { grid-template-columns: 1fr 30px; } .create-edit-row input:first-child { grid-column: 1 / -1; } }
+
+    /* ─── LastMind Create > Playtest: the scene is the world, the UI floats over it ─── */
+    body.pl-open { overflow: hidden; }
+    #ptRoot { position: fixed; inset: 0; z-index: 30000; background: #05050a; color: var(--text, #E6D7B0); font-family: Georgia, serif; overflow: hidden; }
+    .pl-bg { position: absolute; inset: 0; background-size: cover; background-position: center; opacity: 0; transition: opacity 0.9s ease; }
+    .pl-bg.on { opacity: 1; }
+    .pl-shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to top, rgba(5,5,10,0.94) 0%, rgba(5,5,10,0.62) 30%, rgba(5,5,10,0.12) 58%, rgba(5,5,10,0.4) 100%); }
+    .pl-shade.clear { background: radial-gradient(ellipse at center, rgba(5,5,10,0) 30%, rgba(5,5,10,0.72) 100%); }
+    .pl-hud { position: absolute; top: 0; left: 0; right: 0; z-index: 6; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; font: 700 0.68rem Arial, sans-serif; letter-spacing: 0.12em; text-transform: uppercase; }
+    .pl-hud > * { opacity: 0.8; }
+    .pl-hud button { padding: 7px 12px; border: 1px solid rgba(230,215,176,0.4); border-radius: 999px; background: rgba(5,5,10,0.55); color: inherit; font: inherit; cursor: pointer; }
+    .pl-hud button:hover { opacity: 1; }
+    .pl-stage-label { text-align: center; flex: 1; }
+    .pl-spend { padding: 6px 11px; border-radius: 999px; background: rgba(5,5,10,0.55); border: 1px solid rgba(230,215,176,0.25); }
+    .pl-spend.warn { border-color: #d98a6a; color: #f0b8a0; }
+    .pl-stage { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; justify-content: flex-end; padding: 60px clamp(14px, 4vw, 70px) 26px; }
+    .pl-stage.centre { justify-content: center; align-items: center; text-align: center; }
+    .pl-dialog { width: 100%; max-width: 1000px; margin: 0 auto; padding: 18px 24px 20px; border: 1px solid rgba(230,215,176,0.3); border-radius: 14px; background: rgba(var(--panel-rgb, 18, 18, 30), 0.84); backdrop-filter: blur(7px); box-shadow: 0 16px 50px rgba(0,0,0,0.5); }
+    .pl-speaker { margin-bottom: 8px; font: 700 0.74rem Arial, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent, #E6D7B0); }
+    .pl-speaker small { margin-left: 8px; opacity: 0.6; letter-spacing: 0.06em; text-transform: none; font-weight: 400; }
+    .pl-text { margin: 0; font: 1.18rem/1.7 Georgia, serif; white-space: pre-wrap; }
+    .pl-text.muted { opacity: 0.72; font-size: 1rem; }
+    .pl-note { margin: 10px 0 0; font: italic 0.9rem/1.5 Georgia, serif; opacity: 0.78; }
+    .pl-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 16px; }
+    .pl-btn { padding: 10px 18px; border: 1px solid rgba(230,215,176,0.45); border-radius: 9px; background: rgba(230,215,176,0.08); color: var(--text, #E6D7B0); font: 700 0.82rem Arial, sans-serif; cursor: pointer; transition: background 0.15s, transform 0.15s; }
+    .pl-btn:hover:not(:disabled) { background: rgba(230,215,176,0.2); transform: translateY(-1px); }
+    .pl-btn:disabled { opacity: 0.4; cursor: default; }
+    .pl-btn.primary { background: var(--text, #E6D7B0); color: #12121E; border-color: var(--text, #E6D7B0); }
+    .pl-btn.primary:hover:not(:disabled) { background: #f3e7c4; }
+    .pl-spacer { flex: 1; }
+    .pl-portrait { position: absolute; right: clamp(20px, 8vw, 150px); bottom: 190px; z-index: 2; width: clamp(150px, 19vw, 270px); text-align: center; }
+    .pl-portrait.left { right: auto; left: clamp(20px, 8vw, 150px); }
+    .pl-portrait-img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 16px; border: 2px solid rgba(230,215,176,0.55); box-shadow: 0 14px 40px rgba(0,0,0,0.6); background: #12121E; }
+    .pl-silhouette { position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; background: linear-gradient(160deg, hsl(var(--h, 40), 30%, 22%), #12121E); }
+    .pl-silhouette svg { width: 78%; fill: rgba(230,215,176,0.28); }
+    .pl-silhouette span { position: absolute; bottom: 8px; font: 700 0.9rem Arial, sans-serif; letter-spacing: 0.1em; opacity: 0.8; }
+    .pl-portrait-name { margin-top: 10px; padding: 6px 10px; border-radius: 8px; background: rgba(5,5,10,0.7); font: 700 0.85rem Georgia, serif; }
+    .pl-portrait-name small { display: block; margin-top: 2px; font: 0.68rem Arial, sans-serif; opacity: 0.65; letter-spacing: 0.06em; text-transform: uppercase; }
+    .pl-ask { display: flex; gap: 10px; margin-top: 14px; }
+    .pl-ask textarea { flex: 1; min-height: 52px; max-height: 120px; resize: none; padding: 12px 14px; border: 1px solid rgba(230,215,176,0.4); border-radius: 10px; background: rgba(5,5,10,0.55); color: var(--text, #E6D7B0); font: 1rem/1.5 Georgia, serif; }
+    .pl-ask textarea::placeholder { color: var(--text, #E6D7B0); opacity: 0.4; }
+    .pl-chip { display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; padding: 6px 10px; border-radius: 999px; background: rgba(230,215,176,0.14); font: 700 0.75rem Arial, sans-serif; }
+    .pl-chip button { border: 0; background: transparent; color: inherit; cursor: pointer; }
+    .pl-title-block { max-width: 760px; margin: 0 auto 22px; width: 100%; }
+    .pl-eyebrow { font: 700 0.72rem Arial, sans-serif; letter-spacing: 0.18em; text-transform: uppercase; opacity: 0.7; }
+    .pl-case-title { margin: 6px 0 12px; font: 700 clamp(2rem, 5vw, 3.6rem)/1 Georgia, serif; letter-spacing: -0.03em; text-shadow: 0 3px 22px rgba(0,0,0,0.7); }
+    .pl-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px 26px; margin: 14px 0 0; font: 0.95rem/1.5 Georgia, serif; }
+    .pl-facts b { display: block; font: 700 0.66rem Arial, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.65; margin-bottom: 2px; }
+    .pl-tools { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; max-width: 1000px; margin: 0 auto; width: 100%; }
+    .pl-tools .pl-btn { padding: 14px 22px; font-size: 0.9rem; background: rgba(var(--panel-rgb, 18, 18, 30), 0.82); backdrop-filter: blur(6px); }
+    .pl-tools .pl-btn.primary { background: var(--text, #E6D7B0); }
+    .pl-overlay { position: absolute; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; padding: 22px; background: rgba(3,3,8,0.7); backdrop-filter: blur(5px); }
+    .pl-panel { width: 100%; max-width: 1040px; max-height: 88vh; overflow: auto; padding: 22px 26px; border: 1px solid rgba(230,215,176,0.35); border-radius: 16px; background: rgba(var(--panel-rgb, 18, 18, 30), 0.96); box-shadow: 0 20px 70px rgba(0,0,0,0.6); }
+    .pl-panel h2 { margin: 0 0 4px; font: 700 1.5rem Georgia, serif; }
+    .pl-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    .pl-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+    .pl-tab { padding: 7px 14px; border-radius: 999px; border: 1px solid rgba(230,215,176,0.3); background: transparent; color: inherit; font: 700 0.75rem Arial, sans-serif; cursor: pointer; }
+    .pl-tab.on { background: rgba(230,215,176,0.18); border-color: var(--text, #E6D7B0); }
+    .pl-p { margin: 0 0 12px; font: 1rem/1.7 Georgia, serif; }
+    .pl-h { margin: 18px 0 6px; font: 700 0.7rem Arial, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.65; }
+    .pl-list { margin: 0; padding-left: 20px; font: 1rem/1.7 Georgia, serif; }
+    .pl-ev-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
+    .pl-ev-card { display: flex; flex-direction: column; gap: 6px; padding: 14px; border: 1px solid rgba(230,215,176,0.3); border-radius: 12px; background: rgba(230,215,176,0.06); color: inherit; text-align: left; cursor: pointer; font: inherit; }
+    .pl-ev-card:hover { background: rgba(230,215,176,0.14); transform: translateY(-2px); }
+    .pl-ev-card .k { font: 700 0.62rem Arial, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.6; }
+    .pl-ev-card .t { font: 700 0.95rem/1.3 Georgia, serif; }
+    .pl-ev-card .c { font: 0.78rem/1.4 Arial, sans-serif; opacity: 0.7; }
+    .pl-ev-card .in { font: 700 0.62rem Arial, sans-serif; color: #b7d8a8; letter-spacing: 0.08em; text-transform: uppercase; }
+    .pl-notes { width: 100%; min-height: 320px; box-sizing: border-box; padding: 14px; border: 1px solid rgba(230,215,176,0.3); border-radius: 10px; background: rgba(5,5,10,0.4); color: inherit; font: 1rem/1.7 Georgia, serif; resize: vertical; }
+    .pl-log { display: flex; flex-direction: column; gap: 10px; }
+    .pl-log div { padding: 10px 12px; border-radius: 10px; background: rgba(230,215,176,0.07); font: 0.95rem/1.55 Georgia, serif; }
+    .pl-log .me { background: rgba(230,215,176,0.16); }
+    .pl-log b { display: block; margin-bottom: 3px; font: 700 0.62rem Arial, sans-serif; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.65; }
+    .pl-closing-area { width: 100%; min-height: 34vh; box-sizing: border-box; margin-top: 8px; padding: 16px 18px; border: 1px solid rgba(230,215,176,0.4); border-radius: 12px; background: rgba(5,5,10,0.5); color: var(--text, #E6D7B0); font: 1.08rem/1.7 Georgia, serif; resize: vertical; }
+    .pl-count { font: 0.75rem Arial, sans-serif; opacity: 0.6; }
+
+    /* Evidence as objects */
+    .pl-artifact { display: flex; justify-content: center; padding: 8px 0 4px; }
+    .pl-paper { width: min(560px, 100%); padding: 34px 38px 40px; background: #f3ecdc; color: #23201a; border-radius: 3px; box-shadow: 0 10px 40px rgba(0,0,0,0.55); font: 0.95rem/1.7 Georgia, serif; }
+    .pl-paper h3 { margin: 0 0 4px; font: 700 0.75rem Arial, sans-serif; letter-spacing: 0.2em; text-transform: uppercase; color: #6a5a3a; }
+    .pl-paper .sub { margin: 0 0 18px; padding-bottom: 12px; border-bottom: 2px solid #23201a; font: 700 1.15rem Georgia, serif; }
+    .pl-paper p { margin: 0 0 12px; }
+    .pl-paper .meta { margin: 0 0 14px; font: 0.8rem Arial, sans-serif; color: #5a5040; }
+    .pl-paper .sign { margin-top: 24px; padding-top: 10px; border-top: 1px dashed #8a7a5a; font: italic 0.8rem Georgia, serif; color: #6a5a3a; }
+    .pl-paper .sec { margin: 14px 0 4px; font: 700 0.68rem Arial, sans-serif; letter-spacing: 0.16em; text-transform: uppercase; color: #6a5a3a; }
+    .pl-phone { width: 300px; max-width: 100%; padding: 16px 12px 22px; border-radius: 34px; background: #0d0d12; border: 3px solid #2a2a33; box-shadow: 0 10px 40px rgba(0,0,0,0.6); }
+    .pl-phone .bar { margin: 0 0 12px; text-align: center; font: 700 0.8rem Arial, sans-serif; color: #cfd0d8; }
+    .pl-bubble { max-width: 82%; margin: 0 0 10px; padding: 9px 12px; border-radius: 16px; font: 0.86rem/1.4 Arial, sans-serif; }
+    .pl-bubble.them { background: #26262f; color: #e8e8ee; border-bottom-left-radius: 4px; }
+    .pl-bubble.us { margin-left: auto; background: #2f6fed; color: #fff; border-bottom-right-radius: 4px; }
+    .pl-bubble small { display: block; margin-top: 3px; opacity: 0.55; font-size: 0.66rem; }
+    .pl-cctv { position: relative; width: min(600px, 100%); aspect-ratio: 16 / 9; overflow: hidden; border-radius: 4px; background: radial-gradient(ellipse at 50% 60%, #33382f, #0c0e0b 75%); box-shadow: 0 10px 40px rgba(0,0,0,0.6); font-family: 'Courier New', monospace; color: #cfe8c8; }
+    .pl-cctv::before { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(0,0,0,0.22) 0 2px, transparent 2px 4px); }
+    .pl-cctv .top { position: absolute; top: 10px; left: 14px; right: 14px; display: flex; justify-content: space-between; font-size: 0.78rem; letter-spacing: 0.06em; }
+    .pl-cctv .rec::before { content: '● '; color: #e04a3a; }
+    .pl-cctv .desc { position: absolute; left: 14px; right: 14px; bottom: 12px; padding: 8px 10px; background: rgba(0,0,0,0.55); font-size: 0.8rem; line-height: 1.45; }
+    .pl-medical { width: min(560px, 100%); padding: 26px 30px; background: #eef2f4; color: #17232b; border-radius: 3px; border-top: 8px solid #2a7f9e; box-shadow: 0 10px 40px rgba(0,0,0,0.55); font: 0.9rem/1.6 Arial, sans-serif; }
+    .pl-medical h3 { margin: 0 0 12px; font: 700 1.05rem Arial, sans-serif; color: #2a7f9e; }
+    .pl-polaroid { width: min(430px, 100%); padding: 14px 14px 24px; background: #f6f2ea; border-radius: 3px; transform: rotate(-1.4deg); box-shadow: 0 10px 40px rgba(0,0,0,0.6); color: #23201a; }
+    .pl-polaroid .pic { display: flex; align-items: flex-end; aspect-ratio: 4 / 3; padding: 12px; background: linear-gradient(160deg, #6b6e64, #2c2f2a); color: #eee; font: 0.8rem/1.45 Arial, sans-serif; }
+    .pl-polaroid .cap { margin-top: 12px; text-align: center; font: italic 0.9rem Georgia, serif; }
+    .pl-map { width: min(600px, 100%); padding: 20px; background: #163a5c; border: 2px solid #8fb8de; border-radius: 4px; color: #d6e8f7; box-shadow: 0 10px 40px rgba(0,0,0,0.55); font: 0.78rem/1.4 Arial, sans-serif; }
+    .pl-map h3 { margin: 0 0 12px; font: 700 0.85rem Arial, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; }
+    .pl-map .rooms { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+    .pl-map .room { min-height: 74px; padding: 9px; border: 1.5px solid #8fb8de; background: rgba(143,184,222,0.08); }
+    .pl-map .room b { display: block; margin-bottom: 4px; letter-spacing: 0.06em; }
+    .pl-bag { position: relative; width: min(380px, 100%); padding: 34px 26px 24px; border: 2px solid rgba(230,230,240,0.55); border-radius: 6px; background: linear-gradient(160deg, rgba(220,225,235,0.22), rgba(220,225,235,0.07)); box-shadow: 0 10px 40px rgba(0,0,0,0.55); color: #f3f3f8; font: 0.92rem/1.6 Georgia, serif; }
+    .pl-bag::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 14px; background: repeating-linear-gradient(90deg, #d33 0 8px, #fff 8px 16px); opacity: 0.7; }
+    .pl-bag .tag { display: inline-block; margin-bottom: 10px; padding: 5px 10px; background: #f6f0d8; color: #33301f; font: 700 0.72rem 'Courier New', monospace; letter-spacing: 0.06em; transform: rotate(-2deg); }
+
+    /* Verdict, analysis, build screens */
+    .pl-verdict-line { max-width: 900px; margin: 0 auto; font: 700 clamp(1.5rem, 3.6vw, 2.5rem)/1.3 Georgia, serif; text-shadow: 0 3px 30px #000; }
+    .pl-verdict-line.big { font-size: clamp(3rem, 9vw, 6rem); letter-spacing: 0.04em; text-transform: uppercase; }
+    .pl-verdict-line.guilty { color: #e8a08a; }
+    .pl-verdict-line.notguilty { color: #cfe8c8; }
+    .pl-verdict-who { margin: 0 0 12px; font: 700 0.75rem Arial, sans-serif; letter-spacing: 0.18em; text-transform: uppercase; opacity: 0.7; }
+    .pl-fade { animation: plFade 0.9s ease both; }
+    @keyframes plFade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    .pl-analysis { position: absolute; inset: 0; z-index: 8; overflow: auto; padding: 70px clamp(14px, 5vw, 80px) 50px; background: rgba(5,5,10,0.86); backdrop-filter: blur(8px); }
+    .pl-analysis-inner { max-width: 900px; margin: 0 auto; }
+    .pl-analysis h1 { margin: 0 0 6px; font: 700 clamp(1.8rem, 4vw, 2.6rem) Georgia, serif; }
+    .pl-verdict-chip { display: inline-block; margin: 8px 0 4px; padding: 6px 14px; border-radius: 999px; font: 800 0.8rem Arial, sans-serif; letter-spacing: 0.12em; text-transform: uppercase; border: 1px solid currentColor; }
+    .pl-node { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 14px; padding: 14px 0; border-bottom: 1px solid rgba(230,215,176,0.16); }
+    .pl-node .l { font: 700 1rem/1.4 Georgia, serif; }
+    .pl-node .c { margin-top: 4px; font: 0.88rem/1.55 Arial, sans-serif; opacity: 0.8; }
+    .pl-node .q { margin-top: 4px; font: italic 0.85rem/1.5 Georgia, serif; opacity: 0.65; }
+    .pl-rate { align-self: start; justify-self: end; padding: 5px 10px; border-radius: 999px; font: 800 0.66rem Arial, sans-serif; letter-spacing: 0.1em; text-transform: uppercase; border: 1px solid currentColor; text-align: center; }
+    .pl-rate.strong { color: #b7e0a3; }
+    .pl-rate.developing { color: #e8d48a; }
+    .pl-rate.needs_work { color: #e8a08a; }
+    .pl-rate.not_shown { color: #a9aab8; }
+    .pl-prep { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 30px; text-align: center; }
+    @media (max-width: 760px) { .pl-portrait { position: static; width: 140px; margin: 0 auto 10px; } .pl-portrait.left { margin: 0 auto 10px; } .pl-stage { padding-top: 56px; overflow-y: auto; } .pl-node { grid-template-columns: 1fr; } .pl-rate { justify-self: start; } .pl-ask { flex-direction: column; } .pl-text { font-size: 1.05rem; } }
+
+    /* Saved projects on the Create page */
+    .create-projects-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
+    .create-proj { display: flex; flex-direction: column; gap: 6px; padding: 16px; border-radius: 12px; background: var(--panel); color: var(--text); border: 1px solid rgba(26,26,28,0.24); box-shadow: 0 8px 24px rgba(26,26,28,0.12); }
+    .create-proj h3 { margin: 0; font: 700 1.05rem Georgia, serif; }
+    .create-proj .meta { font: 0.75rem Arial, sans-serif; opacity: 0.7; }
+    .create-proj .badge { align-self: flex-start; padding: 2px 9px; border-radius: 999px; border: 1px solid currentColor; font: 800 0.62rem Arial, sans-serif; letter-spacing: 0.1em; text-transform: uppercase; }
+    .create-proj .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .create-budget { margin-left: auto; padding: 6px 12px; border-radius: 999px; background: var(--panel); color: var(--text); font: 700 0.7rem Arial, sans-serif; letter-spacing: 0.04em; }
+    .create-budget.warn { outline: 2px solid #c8664a; }
+    .create-savebar { display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap; margin-top: 22px; }
     @media (max-width: 1100px) { .create-curriculum { grid-template-columns: 1fr; } .create-selected { position: static; max-height: none; } }
     @media (max-width: 820px) { .create-builder-layout { grid-template-columns: 1fr; } .create-steps { position: static; flex-direction: row; overflow-x: auto; } .create-step { width: auto; flex: none; } .create-options-time { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 900px) { .create-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -9180,11 +9324,7 @@ SQIDAQAB
             backBtn = '<button type="button" class="create-back" id="createBackBtn" data-view="gallery">← Starting points</button>';
             body = `<div class="create-gallery">${law.simulations.map((t) => card(t, `role="button" tabindex="0" data-simulation="${t.key}"`)).join('')}</div>`;
         } else {
-            body = `
-                <div class="create-empty">
-                    <p>You have no projects yet.</p>
-                    <button type="button" class="create-cta" id="createProjectBtn">Create project</button>
-                </div>`;
+            body = '<div id="createProjectsHost"></div>';
         }
         contentInner.innerHTML = `
             <section class="create-view" aria-labelledby="createTitle">
@@ -9199,8 +9339,8 @@ SQIDAQAB
                 </div>
                 ${body}
             </section>`;
-        const createBtn = document.getElementById('createProjectBtn');
-        if (createBtn) createBtn.addEventListener('click', () => renderCreatePage('gallery'));
+        const projectsHost = document.getElementById('createProjectsHost');
+        if (projectsHost) renderCreateProjects(projectsHost);
         const back = document.getElementById('createBackBtn');
         if (back) back.addEventListener('click', () => renderCreatePage(back.dataset.view));
         contentInner.querySelectorAll('[data-template], [data-simulation]').forEach((el) => {
@@ -9259,8 +9399,15 @@ SQIDAQAB
             if (!session) throw new Error('Please sign in again.');
             return { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` };
         };
-        const start = await fetch(`${COMPILE_BACKEND_URL}${path}`, { method: 'POST', headers: await authHeaders(), body: JSON.stringify(payload) });
+        // A hard stop: once the testing budget is gone nothing more is started (the server enforces it too).
+        if (createBudgetLeft() <= 0.005) {
+            const e = new Error(`The $${createSpend.capUsd.toFixed(2)} LastMind Create testing budget is used up.`);
+            e.code = 'CREATE_SPEND_CAP';
+            throw e;
+        }
+        const start = await fetch(`${COMPILE_BACKEND_URL}${path}`, { method: 'POST', headers: await authHeaders(), body: JSON.stringify({ ...payload, clientUsedUsd: createSpend.usedUsd }) });
         const startBody = await start.json().catch(() => ({}));
+        if (startBody.spend) createNoteSpend(startBody.spend);
         if (!start.ok) {
             const e = new Error(startBody.code === 'LOCK_LIMIT_REACHED' ? "You're out of Locks for now." : (startBody.error || 'Cortex could not start this.'));
             e.code = startBody.code;
@@ -9279,6 +9426,7 @@ SQIDAQAB
                 continue; // a dropped connection while polling - just ask again
             }
             if (!body) continue;
+            if (body.spend) createNoteSpend(body.spend);
             if (body.status === 'done') { refreshLocksChip(); return body.result; }
             if (body.status === 'error') { const e = new Error(body.error || 'Cortex could not finish this - please try again.'); e.code = body.code; throw e; }
         }
@@ -9308,6 +9456,7 @@ SQIDAQAB
                 <div class="create-builder-head">
                     <button type="button" class="create-back" id="createTrialBack">← Law</button>
                     <h1 class="create-builder-title" id="createTrialTitle">Criminal trial</h1>
+                    <span class="create-budget" title="Everything Cortex does in LastMind Create counts towards a hard testing budget"></span>
                 </div>
                 <div class="create-builder-layout">
                     <nav class="create-steps" aria-label="Simulation steps">
@@ -9316,6 +9465,7 @@ SQIDAQAB
                     <div class="create-step-body" id="createTrialBody"></div>
                 </div>
             </section>`;
+        createPaintBudget();
         const body = contentInner.querySelector('#createTrialBody');
         const goTo = (key) => { trial.step = key; saveCreateTrial(); renderCreateTrialBuilder(contentInner); };
         contentInner.querySelector('#createTrialBack').addEventListener('click', () => renderCreatePage('law'));
@@ -9608,7 +9758,7 @@ SQIDAQAB
                 <div class="create-case-main">${main}</div>
                 <aside class="create-coverage" id="createCoverage" aria-label="Curriculum coverage">${createCoverageHtml(c.coverage)}</aside>
             </div>
-            <div class="create-validate-bar"><button type="button" class="create-cta" id="createValidateBtn">Validate</button></div>
+            <div class="create-validate-bar" style="gap:12px;align-items:center;flex-wrap:wrap;"><span class="create-edit-note" id="createSaveNote" style="margin:0 auto 0 0;"></span><button type="button" class="create-secondary" id="createSaveBtn">Save case</button><button type="button" class="create-cta" id="createValidateBtn">Validate</button></div>
             <div id="createValidatePanel"></div>`;
 
         const autosize = (el) => { if (el.tagName === 'TEXTAREA') { el.style.height = 'auto'; el.style.height = `${el.scrollHeight + 2}px`; } };
@@ -9641,6 +9791,12 @@ SQIDAQAB
         }));
         const validateBtn = body.querySelector('#createValidateBtn');
         validateBtn.addEventListener('click', () => startCreateValidation(body, trial));
+        body.querySelector('#createSaveBtn').addEventListener('click', async () => {
+            const note = body.querySelector('#createSaveNote');
+            note.textContent = 'Saving…';
+            const r = await createSaveProject({});
+            note.textContent = r.note;
+        });
         if (createValidation) renderCreateValidation(body, trial);
     }
 
@@ -9696,6 +9852,7 @@ SQIDAQAB
                 ${r.summary ? `<p class="create-error" style="max-width:none;">${escapeHtml(r.summary)}</p>` : ''}
                 ${(r.issues || []).map((i) => `<div class="create-issue"><span class="badge ${i.severity}">${i.severity === 'blocker' ? 'Must fix' : 'Suggestion'}</span><b>${escapeHtml(i.area)}</b> - ${escapeHtml(i.message)}${i.suggestion ? `<span class="fix">${escapeHtml(i.suggestion)}</span>` : ''}</div>`).join('')}
                 ${r.workable ? '<div class="create-ready-actions" style="margin-top:18px;"><button type="button" class="create-play" id="createPlayBtn">Play</button></div>' : '<p class="create-error" style="max-width:none;">Fix the items marked "Must fix", then press Validate again.</p>'}`;
+            tail.querySelector('#createPlayBtn')?.addEventListener('click', () => ptStart(trial));
         };
         paint();
         const timer = setInterval(() => {
@@ -9710,6 +9867,829 @@ SQIDAQAB
             } else { paint(); clearInterval(timer); return; }
             paint();
         }, 500);
+    }
+
+    // ─── LastMind Create: testing budget (a hard cap - the server refuses anything past it) ───
+    const CREATE_SPEND_KEY = 'lastmind-create-spent';
+    let createSpend = { usedUsd: 0, capUsd: 2 };
+    try { const v = Number(localStorage.getItem(CREATE_SPEND_KEY)); if (v > 0) createSpend.usedUsd = v; } catch (err) { /* fine */ }
+    const createBudgetLeft = () => createSpend.capUsd - createSpend.usedUsd;
+    const createBudgetLabel = () => `Testing budget $${createSpend.usedUsd.toFixed(2)} of $${createSpend.capUsd.toFixed(2)}`;
+    function createPaintBudget() {
+        document.querySelectorAll('.create-budget, .pl-spend').forEach((el) => {
+            el.textContent = createBudgetLabel();
+            el.classList.toggle('warn', createBudgetLeft() < 0.35);
+        });
+    }
+    function createNoteSpend(s) {
+        if (!s || typeof s.usedUsd !== 'number') return;
+        createSpend.usedUsd = Math.max(createSpend.usedUsd, s.usedUsd);
+        if (typeof s.capUsd === 'number') createSpend.capUsd = s.capUsd;
+        try { localStorage.setItem(CREATE_SPEND_KEY, String(createSpend.usedUsd)); } catch (err) { /* fine */ }
+        createPaintBudget();
+    }
+    const createHash = (text) => { let h = 5381; for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
+
+    // ─── Saved projects (server table when it exists, otherwise this browser) ───
+    const CREATE_LOCAL_PROJECTS_KEY = 'lastmind-create-projects';
+    const CREATE_GRAPH_KEY = 'lastmind-create-graph';
+    let createGraphCache = null; // { hash, graph } - the compiled Case Graph for the case as it currently stands
+    function createLoadGraphCache() {
+        if (createGraphCache) return createGraphCache;
+        try { createGraphCache = JSON.parse(localStorage.getItem(CREATE_GRAPH_KEY) || 'null'); } catch (err) { createGraphCache = null; }
+        return createGraphCache;
+    }
+    function createStoreGraphCache() {
+        try { localStorage.setItem(CREATE_GRAPH_KEY, JSON.stringify(createGraphCache)); } catch (err) { /* too big for this browser: it will simply be rebuilt next time */ }
+    }
+    const createLocalProjects = () => { try { return JSON.parse(localStorage.getItem(CREATE_LOCAL_PROJECTS_KEY) || '[]'); } catch (err) { return []; } };
+    const createSetLocalProjects = (list) => { try { localStorage.setItem(CREATE_LOCAL_PROJECTS_KEY, JSON.stringify(list)); return true; } catch (err) { return false; } };
+    async function createAuthedFetch(path, options = {}) {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) throw new Error('Please sign in again.');
+        const resp = await fetch(`${COMPILE_BACKEND_URL}${path}`, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}`, ...(options.headers || {}) } });
+        const body = await resp.json().catch(() => ({}));
+        return { resp, body };
+    }
+    function createProjectData(result) {
+        const trial = loadCreateTrial();
+        const cache = createLoadGraphCache();
+        return {
+            trial: { role: trial.role, minutes: trial.minutes, picked: trial.picked, idea: trial.idea, details: trial.details, cortexDecides: trial.cortexDecides, case: trial.case },
+            graph: cache ? cache.graph : null,
+            graphHash: cache ? cache.hash : null,
+            result: result || trial.lastResult || null,
+        };
+    }
+    // Saves the current case. Returns { where: 'account' | 'browser', note }.
+    async function createSaveProject(opts = {}) {
+        const trial = loadCreateTrial();
+        if (!trial.case) return { where: null, note: 'There is no case to save yet.' };
+        const title = trial.case.title || 'Untitled case';
+        const data = createProjectData(opts.result);
+        if (opts.result) trial.lastResult = opts.result;
+        let note = '';
+        try {
+            let { body, resp } = await createAuthedFetch('/create/projects', { method: 'POST', body: JSON.stringify({ id: trial.projectId && !String(trial.projectId).startsWith('local-') ? trial.projectId : undefined, title, kind: 'criminal-trial', data, asReference: opts.asReference ? true : undefined }) });
+            if (resp.status === 403 && opts.asReference) {
+                note = 'Saved to your projects. Publishing a reference example needs an admin account.';
+                ({ body, resp } = await createAuthedFetch('/create/projects', { method: 'POST', body: JSON.stringify({ id: trial.projectId && !String(trial.projectId).startsWith('local-') ? trial.projectId : undefined, title, kind: 'criminal-trial', data }) }));
+            }
+            if (resp.ok && body.id) { trial.projectId = body.id; saveCreateTrial(); return { where: 'account', note: note || (opts.asReference ? 'Saved and published as a reference example.' : 'Saved to your projects.') }; }
+            if (!body.unavailable) throw new Error(body.error || 'save failed');
+        } catch (err) {
+            if (String(err.message || '').includes('sign in')) return { where: null, note: err.message };
+            console.error('LastMind: could not save the project to the account, keeping it in this browser.', err);
+        }
+        // The projects table is not set up yet (or the server could not be reached): keep it in this browser.
+        const list = createLocalProjects();
+        const id = trial.projectId && String(trial.projectId).startsWith('local-') ? trial.projectId : `local-${Date.now().toString(36)}`;
+        const entry = { id, title, kind: 'criminal-trial', updatedAt: new Date().toISOString(), data, isReference: false };
+        const i = list.findIndex((p) => p.id === id);
+        if (i === -1) list.unshift(entry); else list[i] = entry;
+        trial.projectId = id; saveCreateTrial();
+        return createSetLocalProjects(list)
+            ? { where: 'browser', note: 'Saved in this browser (the shared projects table has not been set up yet).' }
+            : { where: null, note: 'Could not save: this browser has no space left.' };
+    }
+    async function createLoadProjects() {
+        try {
+            const { resp, body } = await createAuthedFetch('/create/projects');
+            if (resp.ok && !body.unavailable) {
+                const local = createLocalProjects().map((p) => ({ id: p.id, title: p.title, kind: p.kind, isReference: false, updatedAt: p.updatedAt, role: p.data && p.data.trial && p.data.trial.role, minutes: p.data && p.data.trial && p.data.trial.minutes, local: true }));
+                return { projects: [...(body.projects || []), ...local], references: body.references || [] };
+            }
+        } catch (err) { console.error('LastMind: could not load projects from the account.', err); }
+        return { projects: createLocalProjects().map((p) => ({ id: p.id, title: p.title, kind: p.kind, isReference: false, updatedAt: p.updatedAt, role: p.data && p.data.trial && p.data.trial.role, minutes: p.data && p.data.trial && p.data.trial.minutes, local: true })), references: [] };
+    }
+    async function createOpenProject(id, { playtest } = {}) {
+        let data = null; let mine = true;
+        if (String(id).startsWith('local-')) { const p = createLocalProjects().find((x) => x.id === id); data = p && p.data; }
+        else {
+            const { resp, body } = await createAuthedFetch(`/create/projects/${encodeURIComponent(id)}`);
+            if (!resp.ok || body.unavailable) { alert("Couldn't open that project."); return; }
+            data = body.data; mine = !!body.mine;
+        }
+        if (!data || !data.trial) { alert("Couldn't open that project."); return; }
+        createTrial = { step: 'case', role: '', minutes: 0, picked: [], idea: '', details: {}, cortexDecides: false, showDetails: false, case: null, caseTab: 'overview', ...data.trial, projectId: mine ? id : undefined, lastResult: data.result || null };
+        createBuild = null; createValidation = null;
+        createGraphCache = data.graph ? { hash: data.graphHash || '', graph: data.graph } : null;
+        if (createGraphCache) createStoreGraphCache();
+        saveCreateTrial();
+        renderCreatePage('criminal-trial');
+        if (playtest) ptStart(createTrial);
+    }
+    async function createDeleteProject(id) {
+        if (String(id).startsWith('local-')) { createSetLocalProjects(createLocalProjects().filter((p) => p.id !== id)); return; }
+        await createAuthedFetch(`/create/projects/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    }
+    // The Create page's "Your projects" list.
+    async function renderCreateProjects(host) {
+        host.innerHTML = '<div class="mt-empty">Loading your projects…</div>';
+        const { projects, references } = await createLoadProjects();
+        if (!host.isConnected) return;
+        if (!projects.length && !references.length) {
+            host.innerHTML = `<div class="create-empty"><p>You have no projects yet.</p><button type="button" class="create-cta" id="createProjectBtn">Create project</button></div>`;
+            host.querySelector('#createProjectBtn').addEventListener('click', () => renderCreatePage('gallery'));
+            return;
+        }
+        const card = (p, isRef) => `<article class="create-proj"><h3>${escapeHtml(p.title)}</h3>${p.isReference ? '<span class="badge">Reference example</span>' : ''}<div class="meta">Criminal trial${p.role ? ` · ${p.role === 'prosecution' ? 'Prosecution' : 'Defence'}` : ''}${p.minutes ? ` · ${p.minutes} min` : ''}${p.local ? ' · saved in this browser' : ''}</div><div class="row"><button type="button" class="create-secondary" data-open="${escapeHtml(p.id)}">${isRef ? 'Open a copy' : 'Open'}</button><button type="button" class="create-secondary" data-play="${escapeHtml(p.id)}">Playtest</button>${isRef ? '' : `<button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button>`}</div></article>`;
+        host.innerHTML = `
+            <div class="create-projects-head"><span></span><button type="button" class="create-cta" id="createProjectBtn" style="padding:10px 22px;font-size:0.9rem;">+ Create project</button></div>
+            ${projects.length ? `<div class="create-gallery">${projects.map((p) => card(p, false)).join('')}</div>` : ''}
+            ${references.length ? `<div class="create-section-heading" style="margin-top:30px;"><h2>Reference examples</h2></div><p class="create-step-help" style="margin-top:-8px;">Finished cases to learn from. Open one to see how a complete case is put together.</p><div class="create-gallery">${references.map((p) => card(p, true)).join('')}</div>` : ''}`;
+        host.querySelector('#createProjectBtn').addEventListener('click', () => renderCreatePage('gallery'));
+        host.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => createOpenProject(b.dataset.open)));
+        host.querySelectorAll('[data-play]').forEach((b) => b.addEventListener('click', () => createOpenProject(b.dataset.play, { playtest: true })));
+        host.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
+            if (!confirm('Delete this project?')) return;
+            await createDeleteProject(b.dataset.del);
+            renderCreateProjects(host);
+        }));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // LastMind Create > Playtest
+    //
+    //   CASE GRAPH   (pt.graph)  what is true in this fictional case - compiled once by Cortex, never changed while playing
+    //   CROWN COURT  (PtCourt)   the procedure: stages, who speaks, what counts as heard, the verdict - plain code, no AI
+    //   CORTEX       (server)    natural language only: a character's replies, and the after-trial assessment
+    //   KNOWLEDGE MAP            the selected concepts (graph.curriculum) - only these are ever assessed
+    //   PLAYTEST UI  (pt* fns)   how the learner experiences all of it
+    // ═══════════════════════════════════════════════════════════════════════════
+    const PT_SCENE = (key) => `/assets/playtest/${key}.jpg`;
+    const PT_SCENES = ['chambers', 'interview', 'arrival', 'courtroom_wide', 'prosecution_opening', 'witness_box', 'defence_case', 'closing_speech', 'summing_up', 'jury_deliberation', 'verdict', 'sentencing'];
+    const PT_MAX_QUESTIONS = { interview: 15, exam: 10 };
+    const PT_COMPILE_STEPS = ['Establishing the facts', 'Briefing the witnesses', 'Preparing the exhibits', 'Drafting the court scripts', 'Setting the verdict rules'];
+    const PT_RATING_LABEL = { strong: 'Strong evidence', developing: 'Developing', needs_work: 'Needs work', not_shown: 'Not shown' };
+    let pt = null;
+    let ptBgFront = 'A';
+    const ptE = (s) => escapeHtml(s);
+    const ptById = (id) => pt.graph.characters.find((c) => c.id === id);
+    const ptEv = (id) => pt.graph.evidence.find((e) => e.id === id);
+    const ptCounsel = (side) => (side === 'prosecution' ? pt.graph.meta.prosecutionCounsel : pt.graph.meta.defenceCounsel);
+    const ptSideLabel = (side) => (side === 'prosecution' ? 'Prosecution' : 'Defence');
+    const ptDelay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    // ---- the reusable Crown Court engine (deterministic; nothing here is generated per case) ----
+    const PtCourt = {
+        witnesses(graph, side) { return graph.characters.filter((c) => c.calledBy === side).sort((a, b) => a.order - b.order); },
+        // The order of a Crown Court trial. Witness slots are filled from the case; everything else is fixed procedure.
+        plan(graph) {
+            const plan = [{ t: 'chambers' }, { t: 'arrival' }, { t: 'arraignment' }, { t: 'opening', by: 'prosecution' }];
+            this.witnesses(graph, 'prosecution').forEach((w) => plan.push({ t: 'witness', id: w.id, by: 'prosecution' }));
+            plan.push({ t: 'opening', by: 'defence' });
+            this.witnesses(graph, 'defence').forEach((w) => plan.push({ t: 'witness', id: w.id, by: 'defence' }));
+            plan.push({ t: 'closing', by: 'prosecution' }, { t: 'closing', by: 'defence' }, { t: 'summing_up' }, { t: 'deliberation' }, { t: 'verdict' }, { t: 'sentencing' }, { t: 'analysis' });
+            return plan;
+        },
+        // What the jury heard decides the verdict. Advocacy can tip a close case a little, never decide a clear one:
+        // the persuasion adjustment is capped at 15% of the average total weight.
+        verdict(graph, establishedIds, persuasion, side) {
+            const heard = new Set(establishedIds);
+            let p = 0; let d = 0; let totalP = 0; let totalD = 0;
+            graph.facts.forEach((f) => {
+                if (f.favours === 'prosecution') { totalP += f.weight; if (heard.has(f.id)) p += f.weight; }
+                if (f.favours === 'defence') { totalD += f.weight; if (heard.has(f.id)) d += f.weight; }
+            });
+            const cap = 0.15 * ((totalP + totalD) / 2);
+            const adj = Math.max(-1, Math.min(1, persuasion || 0)) * cap * (side === 'prosecution' ? 1 : -1);
+            const margin = p - d + adj - graph.verdict.convictionThreshold;
+            return { guilty: margin > 0, margin, prosecutionWeight: p, defenceWeight: d, adjustment: adj };
+        },
+        sentence(graph, margin) {
+            const options = graph.verdict.sentences;
+            if (!options.length) return 'The court will now pass sentence in accordance with the guidelines.';
+            let chosen = options[0];
+            options.forEach((o) => { if (margin >= o.minScore) chosen = o; });
+            return chosen.text;
+        },
+    };
+
+    // ---- portraits: generated pictures when the server can make them, a clean silhouette otherwise ----
+    function ptPortraitImg(ch) {
+        if (ch && ch.portrait) return `<img class="pl-portrait-img" src="${ch.portrait}" alt="${ptE(ch.name)}">`;
+        const initials = ch ? ch.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase() : '?';
+        const hue = ch ? (ch.side === 'prosecution' ? 8 : ch.side === 'defence' ? 212 : 40) : 40;
+        return `<div class="pl-portrait-img pl-silhouette" style="--h:${hue}"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="36" r="17"/><path d="M14 96c0-22 16-34 36-34s36 12 36 34z"/></svg><span>${ptE(initials)}</span></div>`;
+    }
+    const ptPortraitBlock = (ch, left) => `<div class="pl-portrait${left ? ' left' : ''}" id="plPortrait">${ptPortraitImg(ch)}<div class="pl-portrait-name">${ptE(ch.name)}<small>${ptE(ch.role)}</small></div></div>`;
+    async function ptLoadPortraits(token) {
+        const missing = pt.graph.characters.filter((c) => !c.portrait && c.portraitPrompt);
+        let unavailable = false;
+        const worker = async () => {
+            while (missing.length && !unavailable && pt && pt.token === token) {
+                const ch = missing.shift();
+                if (createBudgetLeft() < 0.02) return;
+                try {
+                    const { resp, body } = await createAuthedFetch('/playtest/portrait', { method: 'POST', body: JSON.stringify({ description: ch.portraitPrompt, clientUsedUsd: createSpend.usedUsd }) });
+                    if (resp.status === 501) { unavailable = true; return; }
+                    if (body.spend) createNoteSpend(body.spend);
+                    if (resp.ok && body.image) {
+                        ch.portrait = body.image;
+                        const cache = createLoadGraphCache();
+                        if (cache && cache.graph !== pt.graph) { const c = cache.graph.characters.find((x) => x.id === ch.id); if (c) c.portrait = ch.portrait; }
+                        const box = document.getElementById('plPortrait');
+                        if (box && box.querySelector('.pl-portrait-name') && box.querySelector('.pl-portrait-name').textContent.startsWith(ch.name)) box.querySelector('.pl-portrait-img').outerHTML = ptPortraitImg(ch);
+                    }
+                } catch (err) { console.error('LastMind: a portrait could not be generated.', err); }
+            }
+        };
+        await Promise.all([worker(), worker()]);
+        if (pt && pt.token === token) createStoreGraphCache();
+    }
+
+    // ---- shell: the scene, the (nearly invisible) HUD, and the stage the UI is layered on ----
+    function ptMount() {
+        ptUnmount();
+        const root = document.createElement('div');
+        root.id = 'ptRoot';
+        root.innerHTML = `
+            <div class="pl-bg" id="plBgA"></div><div class="pl-bg" id="plBgB"></div><div class="pl-shade" id="plShade"></div>
+            <div class="pl-hud" id="plHud"><button type="button" id="plLeave">✕ Leave</button><span class="pl-stage-label" id="plStageLabel"></span><span style="display:flex;gap:8px;align-items:center;"><span id="plToolPills" style="display:none;gap:8px;"><button type="button" data-tool="casefile">Case file</button><button type="button" data-tool="evidence">Evidence</button><button type="button" data-tool="notes">Notes</button></span><span class="pl-spend" id="plSpend"></span></span></div>
+            <div class="pl-stage" id="plStage"></div><div id="plOverlayHost"></div>`;
+        document.body.appendChild(root);
+        document.body.classList.add('pl-open');
+        ptBgFront = 'A';
+        createPaintBudget();
+        root.querySelector('#plLeave').addEventListener('click', () => {
+            if (pt && pt.graph && !confirm('Leave the simulation? Your progress is saved and you can resume it.')) return;
+            ptExit();
+        });
+        root.addEventListener('click', (event) => {
+            const t = event.target.closest('[data-tool]');
+            if (!t) return;
+            if (t.dataset.tool === 'casefile') ptShowCaseFile();
+            else if (t.dataset.tool === 'evidence') ptShowEvidence();
+            else if (t.dataset.tool === 'notes') ptShowNotes();
+        });
+        document.addEventListener('keydown', ptEscHandler);
+    }
+    function ptEscHandler(event) {
+        if (event.key !== 'Escape') return;
+        const host = document.getElementById('plOverlayHost');
+        if (host && host.lastElementChild) host.lastElementChild.remove();
+    }
+    function ptUnmount() {
+        document.getElementById('ptRoot')?.remove();
+        document.body.classList.remove('pl-open');
+        document.removeEventListener('keydown', ptEscHandler);
+    }
+    function ptExit() {
+        const trial = loadCreateTrial();
+        pt = null;
+        ptUnmount();
+        trial.step = 'case';
+        if (document.getElementById('contentInner')) renderCreatePage('criminal-trial');
+    }
+    function ptScene(key, clear) {
+        const shade = document.getElementById('plShade');
+        if (shade) shade.classList.toggle('clear', !!clear);
+        if (!key || (pt && pt.sceneKey === key)) return;
+        if (pt) pt.sceneKey = key;
+        const front = document.getElementById(ptBgFront === 'A' ? 'plBgA' : 'plBgB');
+        const back = document.getElementById(ptBgFront === 'A' ? 'plBgB' : 'plBgA');
+        if (!front || !back) return;
+        back.style.backgroundImage = `url(${PT_SCENE(key)})`;
+        const img = new Image();
+        img.onload = img.onerror = () => { back.classList.add('on'); front.classList.remove('on'); ptBgFront = ptBgFront === 'A' ? 'B' : 'A'; };
+        img.src = PT_SCENE(key);
+    }
+    const ptLabel = (text) => { const el = document.getElementById('plStageLabel'); if (el) el.textContent = text || ''; };
+    const ptHud = (on, tools) => {
+        const hud = document.getElementById('plHud');
+        if (hud) hud.style.display = on ? '' : 'none';
+        const pills = document.getElementById('plToolPills');
+        if (pills) pills.style.display = tools === false ? 'none' : 'flex';
+    };
+    function ptStage(html, cls) {
+        const el = document.getElementById('plStage');
+        el.className = `pl-stage${cls ? ` ${cls}` : ''}`;
+        el.innerHTML = html;
+        return el;
+    }
+    function ptOverlay(html, opts = {}) {
+        const host = document.getElementById('plOverlayHost');
+        const wrap = document.createElement('div');
+        wrap.className = 'pl-overlay';
+        wrap.innerHTML = `<div class="pl-panel">${html}</div>`;
+        wrap.addEventListener('click', (event) => { if (event.target === wrap) wrap.remove(); });
+        host.appendChild(wrap);
+        wrap.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => wrap.remove()));
+        return wrap;
+    }
+    const ptCloseBtn = '<button type="button" class="pl-btn" data-close>Close ✕</button>';
+
+    // ---- saving progress so a playtest can be left and resumed ----
+    const ptStateKey = () => `lastmind-playtest:${pt.hash}`;
+    function ptSave() {
+        if (!pt) return;
+        try {
+            localStorage.setItem(ptStateKey(), JSON.stringify({
+                idx: pt.idx, established: [...pt.established], inCourt: pt.inCourt, exchanges: pt.exchanges, notes: pt.notes, openingText: pt.openingText,
+                closingText: pt.closingText, assessment: pt.assessment, verdict: pt.verdict, interviewHist: pt.interviewHist, shownInterview: pt.shownInterview, w: pt.w,
+            }));
+        } catch (err) { /* progress just is not kept */ }
+    }
+    function ptLoadSaved(hash) {
+        try { return JSON.parse(localStorage.getItem(`lastmind-playtest:${hash}`) || 'null'); } catch (err) { return null; }
+    }
+    function ptEstablish(ids) { (ids || []).forEach((id) => pt.established.add(id)); }
+    function ptIntroduceEvidence(ids) {
+        (ids || []).forEach((id) => {
+            const ev = ptEv(id);
+            if (!ev || pt.inCourt.includes(id)) return;
+            pt.inCourt.push(id);
+            ptEstablish(ev.factIds);
+        });
+    }
+
+    // ---- starting: compile the case into a Case Graph (once per version of the case), then play ----
+    async function ptStart(trial) {
+        if (!trial.case) return;
+        const content = { ...trial.case }; delete content.coverage;
+        const hash = createHash(JSON.stringify({ c: content, r: trial.role, m: trial.minutes }));
+        ptMount();
+        ptHud(true, false);
+        ptScene('chambers', true);
+        const token = Math.random().toString(36).slice(2);
+        pt = { token, hash, graph: null };
+        let cache = createLoadGraphCache();
+        let graph = cache && cache.hash === hash ? cache.graph : null;
+        let sessionId = null;
+        if (!graph) {
+            if (createBudgetLeft() < 0.2) { ptShowBlocked('The testing budget is used up, so Cortex cannot prepare this case. Nothing more can be spent.'); return; }
+            let shown = 1; const started = Date.now();
+            const stage = ptStage(`<div class="pl-prep"><div class="create-orb">${createScalesSvg}</div><h2 class="create-building-title" style="color:#E6D7B0" id="plPrepTitle">Cortex is preparing your case<span class="dots"></span></h2><ul class="create-build-steps" id="plPrepList">${PT_COMPILE_STEPS.map((s) => `<li><span class="mark"></span><span>${s}</span></li>`).join('')}</ul></div>`, '');
+            const items = [...stage.querySelectorAll('#plPrepList li')];
+            const timer = setInterval(() => {
+                if (!pt || pt.token !== token) { clearInterval(timer); return; }
+                shown = Math.min(PT_COMPILE_STEPS.length, 1 + Math.floor((Date.now() - started) / 15000));
+                items.forEach((li, i) => { li.classList.toggle('shown', i < shown); li.classList.toggle('done', i < shown - 1); });
+            }, 600);
+            items[0].classList.add('shown');
+            try {
+                const result = await createRunJob('/playtest/compile', { case: content, role: trial.role, minutes: trial.minutes, concepts: trial.picked.map((n) => ({ label: n.label, subtopic: n.subtopic })) });
+                clearInterval(timer);
+                if (!pt || pt.token !== token) return;
+                graph = result.graph; sessionId = result.sessionId;
+                createGraphCache = { hash, graph }; createStoreGraphCache();
+            } catch (err) {
+                clearInterval(timer);
+                if (!pt || pt.token !== token) return;
+                ptShowBlocked(err.code === 'CREATE_SPEND_CAP' ? `${err.message} Nothing more can be spent.` : (err.message || 'Cortex could not prepare this case.'));
+                return;
+            }
+        }
+        const defendant = graph.characters.find((c) => c.id === graph.meta.defendantId) || graph.characters[0];
+        pt = {
+            token, hash, graph, sessionId, side: trial.role === 'prosecution' ? 'prosecution' : 'defence',
+            title: (trial.case && trial.case.title) || 'The case', charge: (trial.case && trial.case.overview && trial.case.overview.charge) || graph.caseFile.chargeSheet,
+            briefing: (trial.case && trial.case.overview && trial.case.overview.studentBriefing) || graph.caseFile.summary,
+            roleText: trial.role === 'prosecution' ? 'Counsel for the Crown' : `Defence counsel for ${defendant ? defendant.name : 'the defendant'}`,
+            plan: PtCourt.plan(graph), idx: 0, established: new Set(), inCourt: [], exchanges: [], notes: '', openingText: '', closingText: '',
+            assessment: null, assessmentError: null, assessPromise: null, verdict: null, interviewHist: [], shownInterview: [], w: null, sceneKey: null,
+        };
+        PT_SCENES.forEach((k) => { const i = new Image(); i.src = PT_SCENE(k); });
+        const saved = ptLoadSaved(hash);
+        if (saved && saved.idx > 0 && confirm('Resume your earlier playtest of this case? (Cancel starts it again.)')) {
+            Object.assign(pt, { idx: saved.idx, established: new Set(saved.established || []), inCourt: saved.inCourt || [], exchanges: saved.exchanges || [], notes: saved.notes || '', openingText: saved.openingText || '', closingText: saved.closingText || '', assessment: saved.assessment || null, verdict: saved.verdict || null, interviewHist: saved.interviewHist || [], shownInterview: saved.shownInterview || [], w: saved.w || null });
+        } else if (saved) { try { localStorage.removeItem(`lastmind-playtest:${hash}`); } catch (err) { /* fine */ } }
+        // A restored (or saved) case needs a live session on the server so Cortex reads the same immutable graph.
+        if (!pt.sessionId) { try { await ptRestoreSession(); } catch (err) { console.error('LastMind: could not start the playtest session.', err); } }
+        ptLoadPortraits(pt.token);
+        ptRender();
+    }
+    async function ptRestoreSession() {
+        const plain = JSON.parse(JSON.stringify(pt.graph, (k, v) => (k === 'portrait' ? undefined : v)));
+        const { resp, body } = await createAuthedFetch('/playtest/session', { method: 'POST', body: JSON.stringify({ graph: plain }) });
+        if (!resp.ok || !body.sessionId) throw new Error(body.error || 'session failed');
+        pt.sessionId = body.sessionId;
+    }
+    function ptShowBlocked(message) {
+        ptHud(true, false);
+        ptStage(`<div class="pl-prep"><div class="pl-dialog"><div class="pl-speaker">Cortex</div><p class="pl-text">${ptE(message)}</p><div class="pl-actions"><span class="pl-spacer"></span><button type="button" class="pl-btn primary" id="plBlockedExit">Back to Create</button></div></div></div>`);
+        document.getElementById('plBlockedExit').addEventListener('click', ptExit);
+    }
+
+    // ---- moving through the trial ----
+    function ptGo(idx) {
+        pt.idx = idx;
+        pt.w = null;
+        ptSave();
+        ptRender();
+    }
+    const ptNext = () => ptGo(pt.idx + 1);
+    function ptRender() {
+        const s = pt.plan[pt.idx];
+        ptHud(true, true);
+        createPaintBudget();
+        if (s.t === 'chambers') return ptRenderChambers();
+        if (s.t === 'arrival') return ptRenderArrival();
+        if (s.t === 'arraignment') return ptRenderArraignment();
+        if (s.t === 'opening') return ptRenderSpeech('opening', s.by);
+        if (s.t === 'witness') return ptRenderWitness();
+        if (s.t === 'closing') return ptRenderSpeech('closing', s.by);
+        if (s.t === 'summing_up') return ptRenderSummingUp();
+        if (s.t === 'deliberation') return ptRenderDeliberation();
+        if (s.t === 'verdict') return ptRenderVerdict();
+        if (s.t === 'sentencing') return ptRenderSentencing();
+        return ptRenderAnalysis();
+    }
+    // Shows a run of spoken lines one at a time, then calls done().
+    function ptSpeak(lines, done, lastLabel) {
+        let i = 0;
+        const show = () => {
+            if (i >= lines.length) { done(); return; }
+            const l = lines[i];
+            const stage = ptStage(`${l.portrait ? ptPortraitBlock(l.portrait) : ''}<div class="pl-dialog pl-fade"><div class="pl-speaker">${ptE(l.speaker)}${l.role ? `<small>${ptE(l.role)}</small>` : ''}</div><p class="pl-text">${ptE(l.text)}</p><div class="pl-actions"><span class="pl-spacer"></span><button type="button" class="pl-btn primary" id="plNext">${i === lines.length - 1 ? (lastLabel || 'Continue') : 'Continue'} ▸</button></div></div>`);
+            if (l.onShow) l.onShow();
+            stage.querySelector('#plNext').addEventListener('click', () => { i += 1; show(); });
+        };
+        show();
+    }
+
+    // Stage 1: the barrister's chambers
+    function ptRenderChambers() {
+        ptScene('chambers'); ptLabel('Chambers'); ptHud(true, false);
+        const g = pt.graph;
+        const interviewee = ptById(g.meta.interviewCharacterId);
+        const stage = ptStage(`
+            <div class="pl-title-block pl-fade">
+                <div class="pl-eyebrow">${ptE(g.meta.court)}</div>
+                <h1 class="pl-case-title">${ptE(pt.title)}</h1>
+                <div class="pl-facts"><div><b>Charge</b>${ptE(pt.charge)}</div><div><b>You are</b>${ptE(pt.roleText)}</div><div><b>Time until trial</b>${ptE(g.meta.timeUntilTrial)}</div></div>
+                <p class="pl-text muted" style="margin-top:18px;">${ptE(pt.briefing)}</p>
+            </div>
+            <div class="pl-tools">
+                <button type="button" class="pl-btn" data-tool="casefile">Case file</button>
+                <button type="button" class="pl-btn" data-tool="evidence">Evidence</button>
+                <button type="button" class="pl-btn" data-tool="notes">Notes</button>
+                <button type="button" class="pl-btn" id="plInterview">${pt.side === 'defence' ? 'Client interview' : 'Case conference'}${interviewee ? ` · ${ptE(interviewee.name)}` : ''}</button>
+                <button type="button" class="pl-btn primary" id="plProceed">Proceed to court ▸</button>
+            </div>`);
+        stage.querySelector('#plInterview').addEventListener('click', ptRenderInterview);
+        stage.querySelector('#plProceed').addEventListener('click', ptNext);
+    }
+
+    // Stage 2: the interview room (private: nothing said here is evidence)
+    function ptRenderInterview() {
+        const ch = ptById(pt.graph.meta.interviewCharacterId);
+        if (!ch) { ptRenderChambers(); return; }
+        ptScene('interview'); ptLabel(pt.side === 'defence' ? 'Client interview' : 'Case conference');
+        ptExam({
+            ch, setting: 'interview', asking: pt.side, hist: pt.interviewHist, establish: false, cap: PT_MAX_QUESTIONS.interview,
+            intro: pt.side === 'defence' ? `${ch.name} is waiting for you. This conversation is private. Ask what you need to know.` : `${ch.name} is ready to go through the case with you.`,
+            placeholder: 'Ask your question in your own words…', finishLabel: 'Back to chambers', onFinish: ptRenderChambers,
+            shown: () => pt.shownInterview, markShown: (id) => { if (!pt.shownInterview.includes(id)) pt.shownInterview.push(id); },
+            capNote: 'You have covered a lot of ground. That is all the time you have for this conference.',
+        });
+    }
+
+    // Stage 3 onwards: Crown Court
+    function ptRenderArrival() {
+        ptScene('arrival'); ptLabel('Crown Court');
+        ptSpeak([{ speaker: 'Narrator', text: `${pt.graph.meta.court}. The court is about to sit. You take your place at the bar.` }], ptNext);
+    }
+    function ptRenderArraignment() {
+        ptScene('courtroom_wide'); ptLabel('Trial opens');
+        const g = pt.graph;
+        const lines = (g.scripts.arraignment.length ? g.scripts.arraignment : [`Members of the jury, the defendant is charged as follows: ${pt.charge}. To this charge the defendant has pleaded not guilty.`])
+            .map((t) => ({ speaker: g.meta.clerk, role: 'Court clerk', text: t }));
+        lines.push({ speaker: g.meta.judge, role: 'The judge', text: 'Thank you. Counsel for the Crown, please open the case.' });
+        ptSpeak(lines, ptNext);
+    }
+    function ptRenderSpeech(kind, by) {
+        const g = pt.graph;
+        ptScene(kind === 'opening' ? (by === 'prosecution' ? 'prosecution_opening' : 'defence_case') : 'closing_speech');
+        ptLabel(`${ptSideLabel(by)} ${kind}`);
+        if (pt.side !== by) {
+            const paras = g.scripts[`${by}${kind === 'opening' ? 'Opening' : 'Closing'}`];
+            const text = paras.length ? paras : [`${ptCounsel(by)} addresses the jury.`];
+            ptSpeak(text.map((t) => ({ speaker: ptCounsel(by), role: ptSideLabel(by), text: t })), ptNext, kind === 'opening' ? 'Continue' : 'Continue');
+            return;
+        }
+        const minWords = kind === 'opening' ? 20 : 70;
+        const stage = ptStage(`<div class="pl-dialog pl-fade">
+            <div class="pl-speaker">Your ${kind} speech<small>${ptE(pt.roleText)}</small></div>
+            <p class="pl-text muted">${kind === 'opening' ? 'Address the jury. Tell them what this case is about and what you say the evidence will show.' : 'Members of the jury are listening. Make your closing speech in your own words.'}</p>
+            <textarea class="pl-closing-area" id="plSpeech" placeholder="${kind === 'opening' ? 'Members of the jury…' : 'Members of the jury, you have heard the evidence…'}" style="min-height:${kind === 'opening' ? '18vh' : '32vh'}"></textarea>
+            <div class="pl-actions"><span class="pl-count" id="plWords">0 words</span><span class="pl-spacer"></span><button type="button" class="pl-btn" id="plTranscriptAll">What the court has heard</button><button type="button" class="pl-btn primary" id="plDeliver" disabled>Deliver ${kind} ▸</button></div></div>`);
+        const ta = stage.querySelector('#plSpeech');
+        const words = () => (ta.value.trim() ? ta.value.trim().split(/\s+/).length : 0);
+        ta.value = kind === 'opening' ? pt.openingText : pt.closingText;
+        const refresh = () => { const n = words(); stage.querySelector('#plWords').textContent = `${n} words`; stage.querySelector('#plDeliver').disabled = n < minWords; };
+        ta.addEventListener('input', refresh); refresh(); ta.focus();
+        stage.querySelector('#plTranscriptAll').addEventListener('click', ptShowHeard);
+        stage.querySelector('#plDeliver').addEventListener('click', () => {
+            if (kind === 'opening') pt.openingText = ta.value.trim();
+            else { pt.closingText = ta.value.trim(); pt.assessPromise = ptRunAssessment(); }
+            ptSave();
+            ptNext();
+        });
+    }
+    function ptRenderSummingUp() {
+        const g = pt.graph;
+        ptScene('summing_up'); ptLabel("Judge's directions");
+        const paras = g.scripts.summingUp.length ? g.scripts.summingUp : ['Members of the jury, you must decide this case only on the evidence you have heard, and you may convict only if you are sure of guilt.'];
+        ptSpeak(paras.map((t) => ({ speaker: g.meta.judge, role: 'Summing up', text: t })), ptNext);
+    }
+    async function ptRenderDeliberation() {
+        const token = pt.token;
+        ptScene('jury_deliberation'); ptLabel('Jury deliberation'); ptHud(true, false);
+        ptStage(`<div class="pl-dialog pl-fade" style="text-align:center;"><p class="pl-text">The jury retires to consider its verdict.</p><p class="pl-text muted" style="margin-top:8px;">Please wait…</p></div>`);
+        const started = Date.now();
+        const res = pt.assessPromise ? await pt.assessPromise : { ok: false, error: 'You did not deliver a closing speech.' };
+        if (!pt || pt.token !== token) return;
+        pt.assessment = res.ok ? res.r : null;
+        pt.assessmentError = res.ok ? null : (res.error || 'The assessment could not be completed.');
+        pt.verdict = PtCourt.verdict(pt.graph, [...pt.established], pt.assessment ? pt.assessment.persuasion : 0, pt.side);
+        ptSave();
+        await ptDelay(Math.max(0, 5000 - (Date.now() - started)));
+        if (!pt || pt.token !== token) return;
+        ptNext();
+    }
+    // The verdict: everything else falls away.
+    function ptRenderVerdict() {
+        const token = pt.token;
+        const g = pt.graph; const v = pt.verdict || PtCourt.verdict(g, [...pt.established], 0, pt.side);
+        pt.verdict = v;
+        ptHud(false); ptScene('verdict', true); ptLabel('');
+        const steps = [
+            { who: g.meta.clerk, text: 'Will the defendant please stand.', hold: 3400 },
+            { who: g.meta.clerk, text: 'Members of the jury, have you reached a verdict on which you are all agreed?', hold: 3600 },
+            { who: 'The foreperson of the jury', text: 'We have.', hold: 2400 },
+            { who: g.meta.clerk, text: 'On the charge, do you find the defendant guilty or not guilty?', hold: 3800 },
+            { who: 'The foreperson of the jury', text: v.guilty ? 'Guilty.' : 'Not guilty.', big: true, hold: 0 },
+        ];
+        let i = 0; let timer = null;
+        const show = () => {
+            if (!pt || pt.token !== token) return;
+            const s = steps[i];
+            const stage = ptStage(`<div class="pl-fade" style="max-width:1000px;padding:0 20px;"><p class="pl-verdict-who">${ptE(s.who)}</p><p class="pl-verdict-line${s.big ? ` big ${v.guilty ? 'guilty' : 'notguilty'}` : ''}">${ptE(s.text)}</p>${s.big ? '<div class="pl-actions" style="justify-content:center;margin-top:34px;"><button type="button" class="pl-btn primary" id="plVerdictContinue" style="opacity:0;transition:opacity 1s;">Continue ▸</button></div>' : ''}</div>`, 'centre');
+            if (s.big) {
+                setTimeout(() => { const b = document.getElementById('plVerdictContinue'); if (b) b.style.opacity = '1'; }, 2200);
+                stage.querySelector('#plVerdictContinue').addEventListener('click', () => { ptHud(true, false); ptNext(); });
+                return;
+            }
+            timer = setTimeout(advance, s.hold);
+        };
+        const advance = () => { clearTimeout(timer); if (i < steps.length - 1) { i += 1; show(); } };
+        document.getElementById('plStage').onclick = (event) => { if (!event.target.closest('button')) advance(); };
+        show();
+    }
+    function ptRenderSentencing() {
+        const g = pt.graph; const v = pt.verdict;
+        document.getElementById('plStage').onclick = null;
+        ptHud(true, false);
+        if (v.guilty) { ptScene('sentencing'); ptLabel('Sentencing'); }
+        else { ptScene('courtroom_wide'); ptLabel('Verdict'); }
+        const text = v.guilty ? PtCourt.sentence(g, v.margin) : g.verdict.notGuiltyText;
+        ptSpeak([{ speaker: g.meta.judge, role: v.guilty ? 'Sentencing' : 'Discharge', text }], ptNext, 'See how you did');
+    }
+
+    // ---- witnesses: examination-in-chief, cross-examination ----
+    function ptRenderWitness() {
+        const s = pt.plan[pt.idx];
+        const ch = ptById(s.id); const by = s.by; const g = pt.graph;
+        const other = by === 'prosecution' ? 'defence' : 'prosecution';
+        ptScene('witness_box'); ptLabel(`${ptSideLabel(by)} witness`);
+        if (!pt.w || pt.w.id !== ch.id) pt.w = { id: ch.id, phase: 'intro', chiefHist: [], crossHist: [], shown: [] };
+        const w = pt.w;
+        const scripted = (list, questioner, onDone) => {
+            if (!list.length) { onDone(); return; }
+            const lines = [];
+            list.forEach((l) => {
+                lines.push({ speaker: ptCounsel(questioner), role: ptSideLabel(questioner), text: l.q });
+                lines.push({ speaker: ch.name, role: ch.role, text: l.a, portrait: ch, onShow: () => ptEstablish(l.factIds) });
+            });
+            ptSpeak(lines, onDone);
+        };
+        if (w.phase === 'intro') {
+            ptSpeak([
+                { speaker: ptCounsel(by), role: ptSideLabel(by), text: `My Lord, the ${by === 'prosecution' ? 'Crown' : 'defence'} calls ${ch.name}.` },
+                { speaker: g.meta.clerk, role: 'Court clerk', text: `${ch.name}, please take the oath and tell the court your name.`, portrait: ch },
+            ], () => { w.phase = 'chief'; ptIntroduceEvidence(ch.introducesEvidence); ptSave(); ptRenderWitness(); });
+            return;
+        }
+        if (w.phase === 'chief') {
+            if (pt.side === by) {
+                ptExam({ ch, setting: 'court', asking: by, hist: w.chiefHist, establish: true, cap: PT_MAX_QUESTIONS.exam,
+                    intro: `${ch.name} is in the witness box. You may begin your examination-in-chief.`, placeholder: 'Ask your first question…', finishLabel: 'No further questions',
+                    onFinish: () => { w.phase = 'cross'; ptRenderWitness(); }, shown: () => [...pt.inCourt, ...w.shown], markShown: (id) => { if (!w.shown.includes(id)) w.shown.push(id); ptIntroduceEvidence([id]); },
+                    capNote: 'The judge indicates that this witness has been examined for long enough.' });
+            } else {
+                scripted(ch.inChief, by, () => { w.phase = 'cross'; ptSave(); ptRenderWitness(); });
+            }
+            return;
+        }
+        if (pt.side !== by) {
+            ptExam({ ch, setting: 'court', asking: other, hist: w.crossHist, establish: true, cap: PT_MAX_QUESTIONS.exam,
+                intro: `${ch.name} has given evidence. You may now cross-examine.`, placeholder: 'Put your first question to the witness…', finishLabel: 'No further questions',
+                onFinish: ptNext, shown: () => [...pt.inCourt, ...w.shown], markShown: (id) => { if (!w.shown.includes(id)) w.shown.push(id); ptIntroduceEvidence([id]); },
+                capNote: 'The judge indicates that the cross-examination has gone on long enough.' });
+        } else {
+            scripted(ch.underCross, other, ptNext);
+        }
+    }
+
+    // The free-text conversation with a character (client, or witness in the box). Cortex answers; the deterministic
+    // guard on the server decides which facts a reply may reveal.
+    function ptExam(o) {
+        const ch = o.ch;
+        let busy = false; let pending = null; let draft = ''; let judgeNote = ''; let errorText = '';
+        const asked = () => o.hist.filter((h) => h.from === 'me').length;
+        const draw = () => {
+            const lastThem = [...o.hist].reverse().find((h) => h.from === 'them');
+            const capped = asked() >= o.cap;
+            const stage = ptStage(`${ptPortraitBlock(ch)}<div class="pl-dialog pl-fade">
+                <div class="pl-speaker">${ptE(ch.name)}<small>${ptE(ch.role)}</small></div>
+                <p class="pl-text" id="plReply">${ptE(lastThem ? lastThem.text : o.intro)}</p>
+                ${judgeNote ? `<p class="pl-note">${ptE(judgeNote)}</p>` : ''}${errorText ? `<p class="pl-note">${ptE(errorText)}</p>` : ''}
+                ${pending ? `<span class="pl-chip">Presenting: ${ptE(ptEv(pending).title)} <button type="button" id="plUnpresent" aria-label="Stop presenting">✕</button></span>` : ''}
+                ${capped ? `<p class="pl-note">${ptE(o.capNote)}</p>` : `<div class="pl-ask"><textarea id="plQ" rows="2" placeholder="${ptE(o.placeholder)}"></textarea><button type="button" class="pl-btn primary" id="plAsk">Ask</button></div>`}
+                <div class="pl-actions"><button type="button" class="pl-btn" id="plPresent">Present evidence</button><button type="button" class="pl-btn" id="plTranscript">Transcript</button><span class="pl-spacer"></span><button type="button" class="pl-btn${capped ? ' primary' : ''}" id="plFinish">${ptE(o.finishLabel)} ▸</button></div></div>`);
+            const ta = stage.querySelector('#plQ');
+            if (ta) {
+                ta.value = draft; if (!busy) ta.focus();
+                ta.addEventListener('input', () => { draft = ta.value; });
+                ta.addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); ask(); } });
+                stage.querySelector('#plAsk').addEventListener('click', ask);
+            }
+            stage.querySelector('#plUnpresent')?.addEventListener('click', () => { pending = null; draw(); });
+            stage.querySelector('#plPresent').addEventListener('click', () => ptShowEvidence({ chName: ch.name, onPresent: (id) => { pending = id; draw(); } }));
+            stage.querySelector('#plTranscript').addEventListener('click', () => ptShowLog(ch, o.hist));
+            stage.querySelector('#plFinish').addEventListener('click', () => { ptSave(); o.onFinish(); });
+        };
+        const ask = async () => {
+            if (busy) return;
+            let q = draft.trim();
+            if (!q && pending) q = 'Could you look at this, please?';
+            if (!q) return;
+            busy = true; errorText = ''; judgeNote = '';
+            const replyEl = document.getElementById('plReply');
+            if (replyEl) replyEl.textContent = '…';
+            const askBtn = document.getElementById('plAsk'); if (askBtn) askBtn.disabled = true;
+            try {
+                const shownIds = o.shown();
+                const r = await ptCharacterTurn({ ch, message: q, setting: o.setting, asking: o.asking, evId: pending, hist: o.hist, shownIds });
+                o.hist.push({ from: 'me', text: q, ev: pending });
+                o.hist.push({ from: 'them', text: r.reply });
+                pt.exchanges.push({ character: ch.name, question: q, evidence: pending ? ptEv(pending).title : '' });
+                if (pending) o.markShown(pending);
+                if (o.establish) ptEstablish(r.revealedFactIds);
+                judgeNote = r.judgeNote || '';
+                pending = null; draft = '';
+                ptSave();
+            } catch (err) {
+                errorText = err.code === 'CREATE_SPEND_CAP'
+                    ? `${err.message} Live conversation is paused; you can carry on with the trial.`
+                    : (err.message && err.message !== 'failed' ? err.message : 'Something interrupted that answer. Please ask again.');
+            }
+            busy = false;
+            draw();
+        };
+        draw();
+    }
+    async function ptCharacterTurn({ ch, message, setting, asking, evId, hist, shownIds }) {
+        const send = () => createAuthedFetch('/playtest/character-turn', { method: 'POST', body: JSON.stringify({
+            sessionId: pt.sessionId, characterId: ch.id, message, setting, asking, presentedEvidenceId: evId || undefined, presentedEvidenceIds: shownIds,
+            history: hist.slice(-10).map((h) => ({ from: h.from, text: h.text })), clientUsedUsd: createSpend.usedUsd,
+        }) });
+        let { resp, body } = await send();
+        if (resp.status === 409 && body.code === 'SESSION_EXPIRED') { await ptRestoreSession(); ({ resp, body } = await send()); }
+        if (body.spend) createNoteSpend(body.spend);
+        if (!resp.ok) { const e = new Error(body.error || 'failed'); e.code = body.code; throw e; }
+        return body;
+    }
+    async function ptRunAssessment() {
+        const payload = () => ({ sessionId: pt.sessionId, side: pt.side, opening: pt.openingText, closing: pt.closingText, exchanges: pt.exchanges, establishedFactIds: [...pt.established], clientUsedUsd: createSpend.usedUsd });
+        try {
+            let r;
+            try { r = await createRunJob('/playtest/assess', payload()); }
+            catch (err) { if (err.code === 'SESSION_EXPIRED') { await ptRestoreSession(); r = await createRunJob('/playtest/assess', payload()); } else throw err; }
+            return { ok: true, r };
+        } catch (err) {
+            return { ok: false, error: err.code === 'CREATE_SPEND_CAP' ? `${err.message} The learning analysis could not be produced.` : (err.message || 'The assessment could not be completed.') };
+        }
+    }
+
+    // ---- overlays: case file, evidence, notes, transcripts ----
+    function ptShowCaseFile() {
+        const g = pt.graph;
+        const docs = pt.graph.evidence.filter((e) => ['statement', 'document', 'medical'].includes(e.kind));
+        const wrap = ptOverlay(`
+            <div class="pl-panel-head"><h2>Case file: ${ptE(pt.title)}</h2>${ptCloseBtn}</div>
+            <div class="pl-h">Charge</div><p class="pl-p">${ptE(g.caseFile.chargeSheet || pt.charge)}</p>
+            <div class="pl-h">You are</div><p class="pl-p">${ptE(pt.roleText)}</p>
+            <div class="pl-h">Briefing</div><p class="pl-p">${ptE(pt.briefing)}</p>
+            <div class="pl-h">Summary of the case</div><p class="pl-p">${ptE(g.caseFile.summary)}</p>
+            ${g.caseFile.agreedFacts.length ? `<div class="pl-h">Agreed facts</div><ul class="pl-list">${g.caseFile.agreedFacts.map((f) => `<li>${ptE(f)}</li>`).join('')}</ul>` : ''}
+            ${docs.length ? `<div class="pl-h">Documents in the bundle</div><div class="pl-ev-grid">${docs.map((e) => `<button type="button" class="pl-ev-card" data-ev="${ptE(e.id)}"><span class="k">${ptE(e.kind)}</span><span class="t">${ptE(e.title)}</span><span class="c">${ptE(e.caption)}</span></button>`).join('')}</div>` : ''}`);
+        wrap.querySelectorAll('[data-ev]').forEach((b) => b.addEventListener('click', () => ptInspect(b.dataset.ev)));
+    }
+    function ptShowEvidence(ctx) {
+        const wrap = ptOverlay(`
+            <div class="pl-panel-head"><h2>${ctx ? `Present evidence to ${ptE(ctx.chName)}` : 'Evidence'}</h2>${ptCloseBtn}</div>
+            <div class="pl-ev-grid">${pt.graph.evidence.map((e) => `<button type="button" class="pl-ev-card" data-ev="${ptE(e.id)}"><span class="k">${ptE(e.kind)}</span><span class="t">${ptE(e.title)}</span><span class="c">${ptE(e.caption)}</span>${pt.inCourt.includes(e.id) ? '<span class="in">In evidence</span>' : ''}</button>`).join('')}</div>`);
+        wrap.querySelectorAll('[data-ev]').forEach((b) => b.addEventListener('click', () => ptInspect(b.dataset.ev, ctx ? { ...ctx, close: () => wrap.remove() } : null)));
+    }
+    function ptInspect(id, ctx) {
+        const ev = ptEv(id);
+        if (!ev) return;
+        const wrap = ptOverlay(`
+            <div class="pl-panel-head"><h2>${ptE(ev.title)}</h2>${ptCloseBtn}</div>
+            <p class="pl-p" style="opacity:0.75;">${ptE(ev.caption)}</p>
+            <div class="pl-artifact">${ptArtifactHtml(ev)}</div>
+            ${ctx ? `<div class="pl-actions" style="justify-content:center;margin-top:18px;"><button type="button" class="pl-btn primary" id="plPutEv">Present this to ${ptE(ctx.chName)} ▸</button></div>` : ''}`);
+        wrap.querySelector('#plPutEv')?.addEventListener('click', () => { wrap.remove(); if (ctx.close) ctx.close(); ctx.onPresent(id); });
+    }
+    function ptShowNotes() {
+        const wrap = ptOverlay(`<div class="pl-panel-head"><h2>Your notes</h2>${ptCloseBtn}</div><textarea class="pl-notes" id="plNotesArea" placeholder="Jot down what matters: who said what, what the evidence shows, the points you want to make…"></textarea>`);
+        const ta = wrap.querySelector('#plNotesArea');
+        ta.value = pt.notes;
+        ta.addEventListener('input', () => { pt.notes = ta.value; ptSave(); });
+        ta.focus();
+    }
+    function ptShowLog(ch, hist) {
+        ptOverlay(`<div class="pl-panel-head"><h2>Transcript: ${ptE(ch.name)}</h2>${ptCloseBtn}</div><div class="pl-log">${hist.length ? hist.map((h) => `<div class="${h.from === 'me' ? 'me' : ''}"><b>${h.from === 'me' ? 'You' : ptE(ch.name)}${h.ev ? ` · presenting ${ptE(ptEv(h.ev).title)}` : ''}</b>${ptE(h.text)}</div>`).join('') : '<div>Nothing has been said yet.</div>'}</div>`);
+    }
+    // What the court has heard so far - the facts the jury has, in plain words, for writing a speech from.
+    function ptShowHeard() {
+        const facts = pt.graph.facts.filter((f) => pt.established.has(f.id));
+        ptOverlay(`<div class="pl-panel-head"><h2>What the court has heard</h2>${ptCloseBtn}</div>${facts.length ? `<ul class="pl-list">${facts.map((f) => `<li>${ptE(f.text)}</li>`).join('')}</ul>` : '<p class="pl-p">Nothing has been established yet.</p>'}<p class="pl-p" style="opacity:0.6;font-size:0.85rem;">This is only what came out in court. Anything you learned privately is not evidence.</p>`);
+    }
+
+    // ---- evidence as objects ----
+    function ptArtifactHtml(ev) {
+        const c = ev.content || {};
+        const paras = (v) => (Array.isArray(v) ? v : (typeof v === 'string' && v ? [v] : [])).map((p) => `<p>${ptE(typeof p === 'string' ? p : JSON.stringify(p))}</p>`).join('');
+        if (ev.kind === 'statement') return `<div class="pl-paper"><h3>Witness statement</h3><div class="sub">${ptE(ev.title)}</div><div class="meta">${ptE(c.witness || '')}${c.date ? ` · ${ptE(c.date)}` : ''}</div>${paras(c.paragraphs || c.text)}<div class="sign">Signed: ${ptE(c.witness || '')}</div></div>`;
+        if (ev.kind === 'messages') {
+            const msgs = Array.isArray(c.messages) ? c.messages : [];
+            const first = msgs[0] ? msgs[0].from : '';
+            return `<div class="pl-phone"><div class="bar">${ptE((c.participants || []).join(' & ') || ev.title)}</div>${msgs.map((m) => `<div class="pl-bubble ${m.from === first ? 'them' : 'us'}">${ptE(m.text)}<small>${ptE(m.from || '')}${m.time ? ` · ${ptE(m.time)}` : ''}</small></div>`).join('')}</div>`;
+        }
+        if (ev.kind === 'cctv') return `<div class="pl-cctv"><div class="top"><span class="rec">REC ${ptE(c.location || '')}</span><span>${ptE(c.timestamp || '')}</span></div><div class="desc">${ptE(c.description || ev.caption)}</div></div>`;
+        if (ev.kind === 'medical') return `<div class="pl-medical"><h3>${ptE(ev.title)}</h3><div class="meta" style="margin-bottom:10px;">${ptE(c.patient || '')}${c.author ? ` · ${ptE(c.author)}` : ''}${c.date ? ` · ${ptE(c.date)}` : ''}</div>${(Array.isArray(c.sections) ? c.sections : []).map((s) => `<div class="sec">${ptE(s.heading || '')}</div><p>${ptE(s.text || '')}</p>`).join('') || paras(c.text)}</div>`;
+        if (ev.kind === 'photo') return `<div class="pl-polaroid"><div class="pic">${ptE(c.description || ev.caption)}</div><div class="cap">${ptE(c.location || ev.title)}</div></div>`;
+        if (ev.kind === 'map') return `<div class="pl-map"><h3>${ptE(c.title || ev.title)}</h3><div class="rooms">${(Array.isArray(c.areas) ? c.areas : []).map((a) => `<div class="room"><b>${ptE(a.label || '')}</b>${ptE(a.note || '')}</div>`).join('')}</div></div>`;
+        if (ev.kind === 'physical') return `<div class="pl-bag"><span class="tag">EXHIBIT ${ptE(c.label || ev.name)}</span><div><b>${ptE(c.item || ev.title)}</b></div><div>${ptE(c.description || ev.caption)}</div></div>`;
+        return `<div class="pl-paper"><h3>Document</h3><div class="sub">${ptE(c.title || ev.title)}</div>${paras(c.paragraphs || c.text) || `<p>${ptE(ev.caption)}</p>`}</div>`;
+    }
+
+    // ---- after the case: the learning analysis (revealed only now) ----
+    function ptRenderAnalysis() {
+        const g = pt.graph; const v = pt.verdict; const a = pt.assessment;
+        ptScene('verdict'); ptHud(false);
+        const learnerWon = (pt.side === 'defence' && !v.guilty) || (pt.side === 'prosecution' && v.guilty);
+        const strong = a ? a.nodes.filter((n) => n.rating === 'strong').length : 0;
+        const weak = a ? a.nodes.filter((n) => n.rating === 'needs_work' || n.rating === 'developing').length : 0;
+        let outcomeNote = '';
+        if (a) {
+            if (!learnerWon && strong >= Math.ceil(a.nodes.length / 2)) outcomeNote = 'You argued the law well, but the evidence the jury heard supported the other side. Winning a case and showing legal knowledge are different things, and this analysis is about the second.';
+            else if (learnerWon && weak > strong) outcomeNote = 'The evidence carried this case for you. The analysis below is about your legal reasoning, which is worth strengthening even though you won.';
+            else outcomeNote = learnerWon ? 'The jury found for your side, and your legal work was part of that.' : 'The jury found against your side. Look at how your legal reasoning held up below, separately from the result.';
+        }
+        const root = document.getElementById('ptRoot');
+        root.querySelector('.pl-analysis')?.remove();
+        const panel = document.createElement('div');
+        panel.className = 'pl-analysis';
+        panel.innerHTML = `<div class="pl-analysis-inner pl-fade">
+            <div class="pl-eyebrow">${ptE(pt.title)}</div>
+            <h1>Trial complete</h1>
+            <span class="pl-verdict-chip" style="color:${v.guilty ? '#e8a08a' : '#cfe8c8'};">Verdict: ${v.guilty ? 'Guilty' : 'Not guilty'}</span>
+            ${outcomeNote ? `<p class="pl-p" style="margin-top:10px;">${ptE(outcomeNote)}</p>` : ''}
+            <div class="pl-h" style="margin-top:26px;">What you showed on the curriculum</div>
+            ${a ? a.nodes.map((n) => `<div class="pl-node"><div><div class="l">${ptE(n.label)}</div>${n.comment ? `<div class="c">${ptE(n.comment)}</div>` : ''}${n.quote ? `<div class="q">“${ptE(n.quote)}”</div>` : ''}</div><span class="pl-rate ${n.rating}">${PT_RATING_LABEL[n.rating]}</span></div>`).join('') : `<p class="pl-p">The learning analysis is not available for this playthrough${pt.assessmentError ? `: ${ptE(pt.assessmentError)}` : '.'}</p>`}
+            ${a && a.summary ? `<div class="pl-h">As an advocate</div><p class="pl-p">${ptE(a.summary)}</p>` : ''}
+            ${a && a.strengths.length ? `<div class="pl-h">Strengths</div><ul class="pl-list">${a.strengths.map((s) => `<li>${ptE(s)}</li>`).join('')}</ul>` : ''}
+            ${a && a.improvements.length ? `<div class="pl-h">To work on</div><ul class="pl-list">${a.improvements.map((s) => `<li>${ptE(s)}</li>`).join('')}</ul>` : ''}
+            <div class="pl-actions" style="margin-top:30px;"><button type="button" class="pl-btn primary" id="plSave">Save this case</button><button type="button" class="pl-btn" id="plSaveRef">Save as reference example</button><button type="button" class="pl-btn" id="plAgain">Play again</button><button type="button" class="pl-btn" id="plDone">Back to Create</button></div>
+            <p class="pl-note" id="plSaveNote"></p>
+        </div>`;
+        root.appendChild(panel);
+        ptRecordSignals(a);
+        const note = panel.querySelector('#plSaveNote');
+        const result = () => ({ at: new Date().toISOString(), verdict: v.guilty ? 'guilty' : 'not_guilty', side: pt.side, assessment: a, outcomeNote });
+        const doSave = async (asReference) => {
+            note.textContent = 'Saving…';
+            const r = await createSaveProject({ result: result(), asReference });
+            note.textContent = r.note;
+        };
+        panel.querySelector('#plSave').addEventListener('click', () => doSave(false));
+        panel.querySelector('#plSaveRef').addEventListener('click', () => doSave(true));
+        panel.querySelector('#plAgain').addEventListener('click', () => { try { localStorage.removeItem(ptStateKey()); } catch (err) { /* fine */ } const trial = loadCreateTrial(); ptStart(trial); });
+        panel.querySelector('#plDone').addEventListener('click', ptExit);
+    }
+    // The shape LastMind's learner model can read later: one signal per selected concept.
+    function ptRecordSignals(a) {
+        if (!a) return;
+        try {
+            const all = JSON.parse(localStorage.getItem('lastmind-create-learner-signals') || '[]');
+            all.unshift({ at: new Date().toISOString(), case: pt.title, signals: a.nodes.map((n) => ({ concept: n.label, rating: n.rating })) });
+            localStorage.setItem('lastmind-create-learner-signals', JSON.stringify(all.slice(0, 50)));
+        } catch (err) { /* fine */ }
     }
 
     function renderRewardsPage(loadLatest = true) {
