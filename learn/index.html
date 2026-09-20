@@ -4216,6 +4216,19 @@
     .pl-prep { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 30px; text-align: center; }
     @media (max-width: 760px) { .pl-portrait { position: static; width: 140px; margin: 0 auto 10px; } .pl-portrait.left { margin: 0 auto 10px; } .pl-stage { padding-top: 56px; overflow-y: auto; } .pl-node { grid-template-columns: 1fr; } .pl-rate { justify-self: start; } .pl-ask { flex-direction: column; } .pl-text { font-size: 1.05rem; } }
 
+    /* Legal guidance: the LastMind lesson for a concept the case calls on, beside the scene (closable) */
+    .pl-guidance { position: absolute; top: 0; right: 0; bottom: 0; z-index: 15; width: min(480px, 94vw); overflow: auto; padding: 22px 24px 40px; border-left: 1px solid rgba(230,215,176,0.35); background: rgba(var(--panel-rgb, 18, 18, 30), 0.97); box-shadow: -24px 0 70px rgba(0,0,0,0.55); animation: plSlideIn 0.35s ease both; }
+    @keyframes plSlideIn { from { transform: translateX(30px); opacity: 0; } to { transform: none; opacity: 1; } }
+    .pl-guid-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    .pl-guid-sub { margin-top: 4px; font: 0.8rem Arial, sans-serif; opacity: 0.6; }
+    .pl-guid-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    .pl-guid-tab { max-width: 100%; padding: 7px 12px; border: 1px solid rgba(230,215,176,0.3); border-radius: 10px; background: transparent; color: inherit; font: 700 0.74rem/1.3 Arial, sans-serif; text-align: left; cursor: pointer; }
+    .pl-guid-tab.on { background: rgba(230,215,176,0.18); border-color: var(--text, #E6D7B0); }
+    .pl-guid-body h3 { margin: 0 0 4px; font: 700 1.2rem/1.35 Georgia, serif; }
+    .pl-guid-body .eyebrow { margin-bottom: 14px; font: 700 0.66rem Arial, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.6; }
+    .pl-guid-body p { margin: 0 0 14px; font: 1rem/1.75 Georgia, serif; }
+    .pl-guid-body .hint { margin-top: 18px; font: italic 0.85rem/1.5 Georgia, serif; opacity: 0.6; }
+
     /* Saved projects on the Create page */
     .create-projects-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
     .create-proj { display: flex; flex-direction: column; gap: 6px; padding: 16px; border-radius: 12px; background: var(--panel); color: var(--text); border: 1px solid rgba(26,26,28,0.24); box-shadow: 0 8px 24px rgba(26,26,28,0.12); }
@@ -10028,6 +10041,8 @@ SQIDAQAB
     const PT_SCENE = (key) => `/assets/playtest/${key}.jpg`;
     const PT_SCENES = ['chambers', 'interview', 'arrival', 'courtroom_wide', 'prosecution_opening', 'witness_box', 'defence_case', 'closing_speech', 'summing_up', 'jury_deliberation', 'verdict', 'sentencing'];
     const PT_MAX_QUESTIONS = { interview: 15, exam: 10 };
+    const PT_GRAPH_VERSION = 2; // bump when the Case Graph gains fields the courtroom relies on
+    const PT_LESSON_HINT = 'This is the lesson from your LastMind knowledge map, opened to help you. Nothing here is tested or recorded.';
     const PT_COMPILE_STEPS = ['Establishing the facts', 'Briefing the witnesses', 'Preparing the exhibits', 'Drafting the court scripts', 'Setting the verdict rules'];
     const PT_RATING_LABEL = { strong: 'Strong evidence', developing: 'Developing', needs_work: 'Needs work', not_shown: 'Not shown' };
     let pt = null;
@@ -10178,7 +10193,7 @@ SQIDAQAB
         root.id = 'ptRoot';
         root.innerHTML = `
             <div class="pl-frame" id="plFrame"><div class="pl-bg" id="plBgA"></div><div class="pl-bg" id="plBgB"></div><div class="pl-cast" id="plCast"></div></div><div class="pl-shade" id="plShade"></div>
-            <div class="pl-hud" id="plHud"><button type="button" id="plLeave">✕ Leave</button><span class="pl-stage-label" id="plStageLabel"></span><span style="display:flex;gap:8px;align-items:center;"><span id="plToolPills" style="display:none;gap:8px;"><button type="button" data-tool="casefile">Case file</button><button type="button" data-tool="evidence">Evidence</button><button type="button" data-tool="notes">Notes</button></span><span class="pl-spend" id="plSpend"></span></span></div>
+            <div class="pl-hud" id="plHud"><button type="button" id="plLeave">✕ Leave</button><span class="pl-stage-label" id="plStageLabel"></span><span style="display:flex;gap:8px;align-items:center;"><span id="plToolPills" style="display:none;gap:8px;"><button type="button" data-tool="casefile">Case file</button><button type="button" data-tool="evidence">Evidence</button><button type="button" data-tool="notes">Notes</button><button type="button" id="plGuidancePill" data-tool="guidance" style="display:none;">Guidance</button></span><span class="pl-spend" id="plSpend"></span></span></div>
             <div class="pl-stage" id="plStage"></div><div id="plOverlayHost"></div>`;
         document.body.appendChild(root);
         document.body.classList.add('pl-open');
@@ -10194,13 +10209,15 @@ SQIDAQAB
             if (t.dataset.tool === 'casefile') ptShowCaseFile();
             else if (t.dataset.tool === 'evidence') ptShowEvidence();
             else if (t.dataset.tool === 'notes') ptShowNotes();
+            else if (t.dataset.tool === 'guidance') ptShowGuidance();
         });
         document.addEventListener('keydown', ptEscHandler);
     }
     function ptEscHandler(event) {
         if (event.key !== 'Escape') return;
         const host = document.getElementById('plOverlayHost');
-        if (host && host.lastElementChild) host.lastElementChild.remove();
+        if (host && host.lastElementChild) { host.lastElementChild.remove(); return; }
+        document.getElementById('plGuidance')?.remove();
     }
     function ptUnmount() {
         document.getElementById('ptRoot')?.remove();
@@ -10260,7 +10277,7 @@ SQIDAQAB
         try {
             localStorage.setItem(ptStateKey(), JSON.stringify({
                 idx: pt.idx, established: [...pt.established], inCourt: pt.inCourt, exchanges: pt.exchanges, notes: pt.notes, openingText: pt.openingText,
-                closingText: pt.closingText, assessment: pt.assessment, verdict: pt.verdict, interviewHist: pt.interviewHist, shownInterview: pt.shownInterview, w: pt.w,
+                closingText: pt.closingText, triggered: pt.triggered, assessment: pt.assessment, verdict: pt.verdict, interviewHist: pt.interviewHist, shownInterview: pt.shownInterview, w: pt.w,
             }));
         } catch (err) { /* progress just is not kept */ }
     }
@@ -10281,7 +10298,7 @@ SQIDAQAB
     async function ptStart(trial) {
         if (!trial.case) return;
         const content = { ...trial.case }; delete content.coverage;
-        const hash = createHash(JSON.stringify({ c: content, r: trial.role, m: trial.minutes }));
+        const hash = createHash(JSON.stringify({ c: content, r: trial.role, m: trial.minutes, v: PT_GRAPH_VERSION }));
         ptMount();
         ptHud(true, false);
         ptScene('chambers', true);
@@ -10322,11 +10339,12 @@ SQIDAQAB
             roleText: trial.role === 'prosecution' ? 'Counsel for the Crown' : `Defence counsel for ${defendant ? defendant.name : 'the defendant'}`,
             plan: PtCourt.plan(graph), idx: 0, established: new Set(), inCourt: [], exchanges: [], notes: '', openingText: '', closingText: '',
             assessment: null, assessmentError: null, assessPromise: null, verdict: null, interviewHist: [], shownInterview: [], w: null, sceneKey: null,
+            concepts: trial.picked.map((n) => ({ id: n.id, label: n.label, subtopic: n.subtopic })), triggered: [], lessons: {},
         };
         PT_SCENES.forEach((k) => { const i = new Image(); i.src = PT_SCENE(k); });
         const saved = ptLoadSaved(hash);
         if (saved && saved.idx > 0 && confirm('Resume your earlier playtest of this case? (Cancel starts it again.)')) {
-            Object.assign(pt, { idx: saved.idx, established: new Set(saved.established || []), inCourt: saved.inCourt || [], exchanges: saved.exchanges || [], notes: saved.notes || '', openingText: saved.openingText || '', closingText: saved.closingText || '', assessment: saved.assessment || null, verdict: saved.verdict || null, interviewHist: saved.interviewHist || [], shownInterview: saved.shownInterview || [], w: saved.w || null });
+            Object.assign(pt, { idx: saved.idx, established: new Set(saved.established || []), inCourt: saved.inCourt || [], exchanges: saved.exchanges || [], notes: saved.notes || '', openingText: saved.openingText || '', closingText: saved.closingText || '', triggered: saved.triggered || [], assessment: saved.assessment || null, verdict: saved.verdict || null, interviewHist: saved.interviewHist || [], shownInterview: saved.shownInterview || [], w: saved.w || null });
         } else if (saved) { try { localStorage.removeItem(`lastmind-playtest:${hash}`); } catch (err) { /* fine */ } }
         // A restored (or saved) case needs a live session on the server so Cortex reads the same immutable graph.
         if (!pt.sessionId) { try { await ptRestoreSession(); } catch (err) { console.error('LastMind: could not start the playtest session.', err); } }
@@ -10411,6 +10429,7 @@ SQIDAQAB
         if (!ch) { ptRenderChambers(); return; }
         ptScene('interview'); ptLabel(pt.side === 'defence' ? 'Client interview' : 'Case conference');
         ptCastIn(ch);
+        ptCallUpon(ptConceptsFor('interview', ch.id));
         ptExam({
             ch, setting: 'interview', asking: pt.side, hist: pt.interviewHist, establish: false, cap: PT_MAX_QUESTIONS.interview,
             intro: pt.side === 'defence' ? `${ch.name} is waiting for you. This conversation is private. Ask what you need to know.` : `${ch.name} is ready to go through the case with you.`,
@@ -10444,6 +10463,7 @@ SQIDAQAB
             return;
         }
         const minWords = kind === 'opening' ? 20 : 70;
+        ptCallUpon(ptConceptsFor(kind === 'opening' ? 'opening' : 'closing'));
         const stage = ptStage(`<div class="pl-dialog pl-fade">
             <div class="pl-speaker">Your ${kind} speech<small>${ptE(pt.roleText)}</small></div>
             <p class="pl-text muted">${kind === 'opening' ? 'Address the jury. Tell them what this case is about and what you say the evidence will show.' : 'Members of the jury are listening. Make your closing speech in your own words.'}</p>
@@ -10551,6 +10571,7 @@ SQIDAQAB
         }
         if (w.phase === 'chief') {
             if (pt.side === by) {
+                ptCallUpon(ptConceptsFor('witness', ch.id));
                 ptExam({ ch, setting: 'court', asking: by, hist: w.chiefHist, establish: true, cap: PT_MAX_QUESTIONS.exam,
                     intro: `${ch.name} is in the witness box. You may begin your examination-in-chief.`, placeholder: 'Ask your first question…', finishLabel: 'No further questions',
                     onFinish: () => { w.phase = 'cross'; ptRenderWitness(); }, shown: () => [...pt.inCourt, ...w.shown], markShown: (id) => { if (!w.shown.includes(id)) w.shown.push(id); ptIntroduceEvidence([id]); },
@@ -10561,6 +10582,7 @@ SQIDAQAB
             return;
         }
         if (pt.side !== by) {
+            ptCallUpon(ptConceptsFor('witness', ch.id));
             ptExam({ ch, setting: 'court', asking: other, hist: w.crossHist, establish: true, cap: PT_MAX_QUESTIONS.exam,
                 intro: `${ch.name} has given evidence. You may now cross-examine.`, placeholder: 'Put your first question to the witness…', finishLabel: 'No further questions',
                 onFinish: ptNext, shown: () => [...pt.inCourt, ...w.shown], markShown: (id) => { if (!w.shown.includes(id)) w.shown.push(id); ptIntroduceEvidence([id]); },
@@ -10649,6 +10671,72 @@ SQIDAQAB
         } catch (err) {
             return { ok: false, error: err.code === 'CREATE_SPEND_CAP' ? `${err.message} The learning analysis could not be produced.` : (err.message || 'The assessment could not be completed.') };
         }
+    }
+
+    // ---- legal guidance: the LastMind lesson for a concept the case calls on ----
+    // Only concepts the creator selected can ever be raised. The lesson is the same content Untracked shows (no question, nothing
+    // recorded); it opens beside the scene the first time the case genuinely needs that knowledge and can be closed at any time.
+    function ptConceptsFor(stage, charId) {
+        return pt.graph.curriculum.filter((c) => {
+            const at = c.calledUponAt || { stage: 'closing', characterId: '' };
+            if (stage === 'closing') return true; // at the closing speech everything not yet raised is offered
+            if (stage === 'witness') return at.stage === 'witness' && at.characterId === charId;
+            if (stage === 'interview') return at.stage === 'interview' && (!at.characterId || at.characterId === charId);
+            return at.stage === stage;
+        });
+    }
+    function ptUpdateGuidancePill() {
+        const b = document.getElementById('plGuidancePill');
+        if (b) b.style.display = pt && pt.triggered.length ? '' : 'none';
+    }
+    function ptCallUpon(concepts) {
+        const fresh = concepts.filter((c) => !pt.triggered.includes(c.label));
+        if (!fresh.length) { ptUpdateGuidancePill(); return; }
+        fresh.forEach((c) => pt.triggered.push(c.label));
+        ptUpdateGuidancePill();
+        ptSave();
+        ptShowGuidance(fresh[0].label);
+    }
+    async function ptLoadLesson(label) {
+        if (pt.lessons[label]) return pt.lessons[label];
+        const concept = pt.concepts.find((c) => c.label === label);
+        if (!concept || !concept.id || String(concept.id).startsWith('n')) return { message: 'This lesson is not linked to your knowledge map.' };
+        const lesson = await fetchNodeLesson(concept.id);
+        let result;
+        if (lesson && lesson.explanation) result = { html: splitIntoParagraphs(lesson.explanation), subtopic: concept.subtopic };
+        else if (lesson && lesson.lockLimitReached) result = { message: "You're out of Locks for now, so this lesson cannot be opened." };
+        else if (lesson && lesson.generationRateLimited) result = { message: 'This lesson cannot be prepared right now. Try again in a little while.' };
+        else result = { message: "The lesson couldn't be loaded just now.", retry: true };
+        if (result.html) pt.lessons[label] = result;
+        return result;
+    }
+    function ptShowGuidance(activeLabel) {
+        const labels = pt.triggered.slice();
+        if (!labels.length) return;
+        document.getElementById('plGuidance')?.remove();
+        const panel = document.createElement('aside');
+        panel.id = 'plGuidance';
+        panel.className = 'pl-guidance';
+        panel.setAttribute('aria-label', 'Legal guidance');
+        panel.innerHTML = `<div class="pl-guid-head"><div><div class="pl-eyebrow">Legal guidance</div><div class="pl-guid-sub">From your LastMind lessons</div></div><button type="button" class="pl-btn" id="plGuidClose">Close ✕</button></div><div class="pl-guid-tabs" id="plGuidTabs"></div><div class="pl-guid-body" id="plGuidBody"></div>`;
+        document.getElementById('ptRoot').appendChild(panel);
+        panel.querySelector('#plGuidClose').addEventListener('click', () => panel.remove());
+        const tabs = panel.querySelector('#plGuidTabs');
+        const body = panel.querySelector('#plGuidBody');
+        let current = labels.includes(activeLabel) ? activeLabel : labels[labels.length - 1];
+        const draw = async () => {
+            tabs.innerHTML = labels.map((l) => `<button type="button" class="pl-guid-tab${l === current ? ' on' : ''}" data-label="${ptE(l)}">${ptE(l.length > 70 ? `${l.slice(0, 68)}…` : l)}</button>`).join('');
+            tabs.querySelectorAll('.pl-guid-tab').forEach((b) => b.addEventListener('click', () => { current = b.dataset.label; draw(); }));
+            body.innerHTML = '<p class="pl-p" style="opacity:0.6;">Opening your lesson…</p>';
+            const shownFor = current;
+            const r = await ptLoadLesson(current);
+            if (!panel.isConnected || shownFor !== current) return;
+            body.innerHTML = r.html
+                ? `<h3>${ptE(current)}</h3><div class="eyebrow">${ptE(r.subtopic || 'LastMind lesson')}</div>${r.html}<p class="hint">${ptE(PT_LESSON_HINT)}</p>`
+                : `<p class="pl-p">${ptE(r.message)}</p>${r.retry ? '<div class="pl-actions"><button type="button" class="pl-btn" id="plGuidRetry">Try again</button></div>' : ''}`;
+            body.querySelector('#plGuidRetry')?.addEventListener('click', draw);
+        };
+        draw();
     }
 
     // ---- overlays: case file, evidence, notes, transcripts ----
