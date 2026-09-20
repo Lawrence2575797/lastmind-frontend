@@ -588,10 +588,17 @@
 
   /* ---------- news and log ---------- */
   var SLANT = { left: 'Left-leaning', right: 'Right-leaning', business: 'Business paper' };
+  var KIND_TAG = { background: 'Background: how we got here' };
+  function causesCard() {
+    var cs = S.causes(ui.g);
+    if (!cs.length) return '<div class="chn-card" style="margin-bottom:12px"><div class="chn-sec" style="margin-top:0">Why we are here</div><p class="neutral" style="margin:0;font-size:.9rem">' + esc(S.SITUATIONS[ui.g.sit].diagnosis || '') + '</p></div>';
+    return '<div class="chn-card" style="margin-bottom:12px"><div class="chn-sec" style="margin-top:0">Why we are here: the lasting causes</div><p class="neutral" style="margin:0 0 6px;font-size:.84rem">' + esc(S.SITUATIONS[ui.g.sit].diagnosis || '') + '</p>' +
+      cs.map(function (c) { var pct = Math.round(Math.max(0, Math.min(1, c.level)) * 100); return '<div class="chn-item" style="display:block"><div style="display:flex;justify-content:space-between;gap:10px"><b>' + esc(c.label) + '</b><span class="neutral">' + pct + '% as bad as at the start</span></div><div class="chn-bar" style="margin:4px 0"><i style="width:' + pct + '%;background:' + (pct > 55 ? 'var(--chn-bad)' : 'var(--accent)') + '"></i></div><div style="font-size:.85rem">' + esc(c.text) + '</div><div style="font-size:.85rem"><span class="good">To address it:</span> ' + esc(c.fix) + '</div></div>'; }).join('') + '</div>';
+  }
   function newsTab() {
     var g = ui.g, a = g.news.slice(0, 40);
-    return '<div class="chn-actions" style="margin-bottom:10px"><button class="chn-btn" id="chnNewsBtn">Write this quarter\'s front pages (AI)</button><span class="neutral" style="font-size:.8rem">Three papers, three angles, written from what has really happened. Passive news also appears every month.</span></div>' +
-      '<div class="chn-news">' + (a.map(function (x) { return '<article class="chn-card chn-article"><div class="meta"><b>' + esc(x.outlet) + '</b><span class="chn-tag">' + esc(SLANT[x.slant] || 'Interview') + '</span><span>' + esc(S.nice(x.date)) + '</span></div><h4>' + esc(x.headline) + '</h4>' + (x.standfirst ? '<p><i>' + esc(x.standfirst) + '</i></p>' : '') + '<p>' + esc(x.body) + '</p></article>'; }).join('') || '<div class="neutral">No stories yet. Advance the calendar.</div>') + '</div>' + (setTimeout(function () { var b = ui.host.querySelector('#chnNewsBtn'); if (b) b.onclick = function () { fetchNews(true); }; }, 0) && '');
+    return causesCard() + '<div class="chn-actions" style="margin-bottom:10px"><button class="chn-btn" id="chnNewsBtn">Write this quarter\'s front pages (AI)</button><span class="neutral" style="font-size:.8rem">Three papers, three angles, written from what has really happened. Passive news also appears every month.</span></div>' +
+      '<div class="chn-news">' + (a.map(function (x) { return '<article class="chn-card chn-article"><div class="meta"><b>' + esc(x.outlet) + '</b><span class="chn-tag">' + esc(SLANT[x.slant] || 'Interview') + '</span>' + (KIND_TAG[x.kind] ? '<span class="chn-tag" style="background:rgba(180,83,9,.18)">' + esc(KIND_TAG[x.kind]) + '</span>' : '') + '<span>' + esc(S.nice(x.date)) + '</span></div><h4>' + esc(x.headline) + '</h4>' + (x.standfirst ? '<p><i>' + esc(x.standfirst) + '</i></p>' : '') + '<p>' + esc(x.body) + '</p></article>'; }).join('') || '<div class="neutral">No stories yet. Advance the calendar.</div>') + '</div>' + (setTimeout(function () { var b = ui.host.querySelector('#chnNewsBtn'); if (b) b.onclick = function () { fetchNews(true); }; }, 0) && '');
   }
   function logTab() {
     var g = ui.g, items = [];
