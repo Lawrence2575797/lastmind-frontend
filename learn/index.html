@@ -3941,6 +3941,8 @@
     .create-gallery { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
     .create-card { min-width: 0; overflow: hidden; border-radius: 12px; background: var(--panel); color: var(--text); border: 1px solid rgba(26,26,28,0.24); box-shadow: 0 8px 24px rgba(26,26,28,0.12); transition: transform 0.18s, box-shadow 0.18s; }
     .create-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(26,26,28,0.18); }
+    .create-card-link { cursor: pointer; }
+    .create-card-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
     .create-card h3 { margin: 0; padding: 14px 16px 12px; font: 700 1.05rem Georgia, serif; }
     .create-card-image { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }
     .create-card p { margin: 0; padding: 12px 16px 16px; font: 0.86rem/1.5 Arial, sans-serif; opacity: 0.85; }
@@ -9005,12 +9007,21 @@ SQIDAQAB
         }
     }
 
-    // LastMind Create: build interactive simulations and sell them. For now the project list is
-    // empty and "Create project" opens a gallery of starting points (just Law so far).
+    // LastMind Create: build interactive simulations and sell them. Three views: the (empty)
+    // project list, the gallery of starting points that "Create project" opens, and one
+    // subject's own page of simulations (only Law so far, with one simulation).
     const CREATE_TEMPLATES = [
-        { title: 'Law', image: '/assets/create/law-courtroom.jpg', description: 'Simulate real legal scenarios', alt: 'An imagined courtroom with a judge\'s bench, witness stand and jury box' },
+        {
+            key: 'law', title: 'Law', image: '/assets/create/law-courtroom.jpg', description: 'Simulate real legal scenarios',
+            alt: 'An imagined courtroom with a judge\'s bench, witness stand and jury box',
+            simulations: [
+                { title: 'Criminal trial', image: '/assets/create/criminal-trial.jpg', description: 'Take a case from preparation through trial', alt: 'A person in handcuffs in the dock of an imagined courtroom' },
+            ],
+        },
     ];
-    function renderCreatePage(showGallery = false) {
+    function renderCreatePage(view = 'projects') {
+        if (view === true) view = 'gallery';
+        if (view === false) view = 'projects';
         specPracticeMode = false;
         kmGraphMode = false;
         stopActiveDictation();
@@ -9019,19 +9030,31 @@ SQIDAQAB
         document.getElementById('topbarTitle').textContent = 'Create';
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
-        const projectsBody = showGallery ? `
-                <div class="create-gallery">
-                    ${CREATE_TEMPLATES.map((t) => `
-                        <article class="create-card">
+        const card = (t, attrs = '') => `
+                        <article class="create-card${attrs ? ' create-card-link' : ''}" ${attrs}>
                             <h3>${escapeHtml(t.title)}</h3>
                             <img class="create-card-image" src="${t.image}" alt="${escapeHtml(t.alt)}" loading="lazy">
                             <p>${escapeHtml(t.description)}</p>
-                        </article>`).join('')}
-                </div>` : `
+                        </article>`;
+        const law = CREATE_TEMPLATES.find((t) => t.key === 'law');
+        let heading = 'Your projects';
+        let backBtn = '';
+        let body;
+        if (view === 'gallery') {
+            heading = 'Choose a starting point';
+            backBtn = '<button type="button" class="create-back" id="createBackBtn" data-view="projects">← Your projects</button>';
+            body = `<div class="create-gallery">${CREATE_TEMPLATES.map((t) => card(t, `role="button" tabindex="0" data-template="${t.key}"`)).join('')}</div>`;
+        } else if (view === 'law') {
+            heading = law.title;
+            backBtn = '<button type="button" class="create-back" id="createBackBtn" data-view="gallery">← Starting points</button>';
+            body = `<div class="create-gallery">${law.simulations.map((t) => card(t)).join('')}</div>`;
+        } else {
+            body = `
                 <div class="create-empty">
                     <p>You have no projects yet.</p>
                     <button type="button" class="create-cta" id="createProjectBtn">Create project</button>
                 </div>`;
+        }
         contentInner.innerHTML = `
             <section class="create-view" aria-labelledby="createTitle">
                 <div class="create-hero">
@@ -9040,15 +9063,20 @@ SQIDAQAB
                     <p class="create-intro">Build interactive simulations, and sell them to an audience.</p>
                 </div>
                 <div class="create-section-heading">
-                    <h2>${showGallery ? 'Choose a starting point' : 'Your projects'}</h2>
-                    ${showGallery ? '<button type="button" class="create-back" id="createBackBtn">← Your projects</button>' : ''}
+                    <h2>${escapeHtml(heading)}</h2>
+                    ${backBtn}
                 </div>
-                ${projectsBody}
+                ${body}
             </section>`;
         const createBtn = document.getElementById('createProjectBtn');
-        if (createBtn) createBtn.addEventListener('click', () => renderCreatePage(true));
-        const backBtn = document.getElementById('createBackBtn');
-        if (backBtn) backBtn.addEventListener('click', () => renderCreatePage(false));
+        if (createBtn) createBtn.addEventListener('click', () => renderCreatePage('gallery'));
+        const back = document.getElementById('createBackBtn');
+        if (back) back.addEventListener('click', () => renderCreatePage(back.dataset.view));
+        contentInner.querySelectorAll('[data-template]').forEach((el) => {
+            const open = () => renderCreatePage(el.dataset.template);
+            el.addEventListener('click', open);
+            el.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
+        });
     }
 
     function renderRewardsPage(loadLatest = true) {
