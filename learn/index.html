@@ -3923,6 +3923,29 @@
     .reward-card.is-free-reward .reward-preview::after { background: linear-gradient(to bottom, rgba(255,245,220,0.02), rgba(15,12,10,0.08)); }
     .reward-card.is-free-reward .reward-lock { display: none; }
     .reward-card.is-purchasable:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(26,26,28,0.18); }
+
+    /* LastMind Create - same look as Rewards: ink text on the page, panel-coloured cards and buttons. */
+    .create-view { width: 100%; padding-bottom: 44px; color: var(--ink); }
+    .create-hero { margin-bottom: 44px; }
+    .create-title { margin: 0; font: 700 clamp(2.1rem, 5vw, 3.7rem)/0.95 Georgia, serif; letter-spacing: -0.035em; }
+    .create-slogan { margin: 14px 0 0; font: italic 700 clamp(1.15rem, 2.6vw, 1.55rem)/1.2 Georgia, serif; opacity: 0.85; }
+    .create-intro { max-width: 520px; margin: 10px 0 0; font: 0.92rem/1.65 Arial, sans-serif; opacity: 0.72; }
+    .create-section-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 16px; }
+    .create-section-heading h2 { margin: 0; font: 700 1.2rem Georgia, serif; }
+    .create-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 56px 20px; border: 2px dashed rgba(26,26,28,0.28); border-radius: 14px; text-align: center; }
+    .create-empty p { margin: 0; font: 0.9rem Arial, sans-serif; opacity: 0.66; }
+    .create-cta { padding: 16px 38px; border: 2px solid var(--accent); border-radius: 12px; background: var(--panel); color: var(--text); font: 800 1.05rem Arial, sans-serif; cursor: pointer; box-shadow: 0 6px 20px rgba(26,26,28,0.2); transition: transform 0.18s, box-shadow 0.18s; }
+    .create-cta:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(26,26,28,0.26); }
+    .create-back { padding: 7px 11px; border: 1px solid rgba(26,26,28,0.32); border-radius: 7px; background: var(--panel); color: var(--text); font: 700 0.72rem Arial, sans-serif; cursor: pointer; }
+    .create-back:hover { transform: translateY(-1px); box-shadow: 0 5px 14px rgba(26,26,28,0.16); }
+    .create-gallery { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+    .create-card { min-width: 0; overflow: hidden; border-radius: 12px; background: var(--panel); color: var(--text); border: 1px solid rgba(26,26,28,0.24); box-shadow: 0 8px 24px rgba(26,26,28,0.12); transition: transform 0.18s, box-shadow 0.18s; }
+    .create-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(26,26,28,0.18); }
+    .create-card h3 { margin: 0; padding: 14px 16px 12px; font: 700 1.05rem Georgia, serif; }
+    .create-card-image { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }
+    .create-card p { margin: 0; padding: 12px 16px 16px; font: 0.86rem/1.5 Arial, sans-serif; opacity: 0.85; }
+    @media (max-width: 900px) { .create-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 560px) { .create-gallery { grid-template-columns: 1fr; } .create-empty { padding: 40px 16px; } }
     .reward-card.is-purchasable:hover .reward-lock-badge { transform: scale(1.08); border-color: rgba(230,215,176,0.72); }
     .reward-card.is-unlocked .reward-lock { display: none; }
     .reward-card.is-unlocked:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(26,26,28,0.18); }
@@ -3935,12 +3958,12 @@
     /* Primary destinations bookend the larger action bar. Upgrade remains
        filled; Rewards and Tutoring use a brighter framed treatment so all
        three are easier to find without making every utility button loud. */
-    #rewardsTopbarBtn, #founderTutoringTopbarBtn, #dashboardTopbarBtn, #upgradeTopbarBtn {
+    #createTopbarBtn, #rewardsTopbarBtn, #founderTutoringTopbarBtn, #dashboardTopbarBtn, #upgradeTopbarBtn {
         border: 2px solid var(--accent);
         font-weight: 800;
         box-shadow: 0 2px 10px rgba(18,18,30,0.24);
     }
-    #rewardsTopbarBtn:hover, #founderTutoringTopbarBtn:hover, #dashboardTopbarBtn:hover, #upgradeTopbarBtn:hover { transform: translateY(-1px); }
+    #createTopbarBtn:hover, #rewardsTopbarBtn:hover, #founderTutoringTopbarBtn:hover, #dashboardTopbarBtn:hover, #upgradeTopbarBtn:hover { transform: translateY(-1px); }
     .rewards-topbar-keys { margin-left: 6px; padding-left: 8px; border-left: 1px solid currentColor; font-variant-numeric: tabular-nums; }
     .reward-action { margin-left: 8px; padding: 5px 9px; border-radius: 5px; border: 1px solid currentColor; background: transparent; color: inherit; font: 700 0.68rem Arial, sans-serif; cursor: pointer; }
     @media (max-width: 430px) { .reward-grid { grid-template-columns: 1fr; } }
@@ -5762,6 +5785,7 @@
                      here puts every topbar button in the one row that
                      actually handles overflow. -->
                 <div class="topbar-actions" id="topbarActions">
+                    <button class="cortex-btn-topbar" id="createTopbarBtn" type="button">Create</button>
                     <button class="cortex-btn-topbar" id="rewardsTopbarBtn" type="button">Rewards <span class="rewards-topbar-keys" title="Your Keys"><span id="rewardsTopbarKeys">0</span> 🔑</span></button>
                     <button class="cortex-btn-topbar" id="buyMoreTokensBtn" type="button" style="display:none;">Buy Extra Locks</button>
                     <button class="cortex-btn-topbar" id="practiceQuestionsTopbarBtn" type="button">Exam Preparation</button>
@@ -8981,6 +9005,52 @@ SQIDAQAB
         }
     }
 
+    // LastMind Create: build interactive simulations and sell them. For now the project list is
+    // empty and "Create project" opens a gallery of starting points (just Law so far).
+    const CREATE_TEMPLATES = [
+        { title: 'Law', image: '/assets/create/law-courtroom.jpg', description: 'Simulate real legal scenarios', alt: 'An imagined courtroom with a judge\'s bench, witness stand and jury box' },
+    ];
+    function renderCreatePage(showGallery = false) {
+        specPracticeMode = false;
+        kmGraphMode = false;
+        stopActiveDictation();
+        stopSpeaking();
+        selectedPageId = null;
+        document.getElementById('topbarTitle').textContent = 'Create';
+        const contentInner = document.getElementById('contentInner');
+        contentInner.classList.add('content-inner-wide');
+        const projectsBody = showGallery ? `
+                <div class="create-gallery">
+                    ${CREATE_TEMPLATES.map((t) => `
+                        <article class="create-card">
+                            <h3>${escapeHtml(t.title)}</h3>
+                            <img class="create-card-image" src="${t.image}" alt="${escapeHtml(t.alt)}" loading="lazy">
+                            <p>${escapeHtml(t.description)}</p>
+                        </article>`).join('')}
+                </div>` : `
+                <div class="create-empty">
+                    <p>You have no projects yet.</p>
+                    <button type="button" class="create-cta" id="createProjectBtn">Create project</button>
+                </div>`;
+        contentInner.innerHTML = `
+            <section class="create-view" aria-labelledby="createTitle">
+                <div class="create-hero">
+                    <h1 class="create-title" id="createTitle">LastMind Create</h1>
+                    <p class="create-slogan">Learn by doing.</p>
+                    <p class="create-intro">Build interactive simulations, and sell them to an audience.</p>
+                </div>
+                <div class="create-section-heading">
+                    <h2>${showGallery ? 'Choose a starting point' : 'Your projects'}</h2>
+                    ${showGallery ? '<button type="button" class="create-back" id="createBackBtn">← Your projects</button>' : ''}
+                </div>
+                ${projectsBody}
+            </section>`;
+        const createBtn = document.getElementById('createProjectBtn');
+        if (createBtn) createBtn.addEventListener('click', () => renderCreatePage(true));
+        const backBtn = document.getElementById('createBackBtn');
+        if (backBtn) backBtn.addEventListener('click', () => renderCreatePage(false));
+    }
+
     function renderRewardsPage(loadLatest = true) {
         specPracticeMode = false;
         kmGraphMode = false;
@@ -9108,6 +9178,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     }
 
     document.getElementById('practiceQuestionsTopbarBtn').addEventListener('click', renderExamPrepEntryScreen);
+    document.getElementById('createTopbarBtn').addEventListener('click', () => renderCreatePage(false));
     document.getElementById('rewardsTopbarBtn').addEventListener('click', renderRewardsPage);
     document.getElementById('dashboardTopbarBtn').addEventListener('click', goToMainFeed);
 
