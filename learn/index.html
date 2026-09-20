@@ -4071,6 +4071,9 @@
     .create-issue .badge { display: inline-block; margin-right: 8px; padding: 2px 8px; border-radius: 99px; font: 800 0.65rem Arial, sans-serif; letter-spacing: 0.06em; text-transform: uppercase; border: 1px solid currentColor; }
     .create-issue .badge.blocker { background: var(--text); color: var(--panel); }
     .create-issue .fix { display: block; margin-top: 6px; opacity: 0.75; }
+    .create-issue .create-apply { margin-top: 10px; display: block; }
+    .create-issue .applied { display: block; margin-top: 8px; font: 700 0.75rem Arial, sans-serif; color: #b7e0a3; }
+    .create-apply-note { margin: 8px 0 0; font: 0.82rem Arial, sans-serif; opacity: 0.8; }
     .create-play { padding: 18px 60px; border: 2px solid var(--accent); border-radius: 14px; background: var(--text); color: var(--panel); font: 800 1.3rem Georgia, serif; cursor: pointer; box-shadow: 0 10px 28px rgba(0,0,0,0.3); }
     @media (max-width: 1100px) { .create-case-layout { grid-template-columns: 150px minmax(0, 1fr); } .create-coverage { grid-column: 1 / -1; position: static; } }
     @media (max-width: 720px) { .create-case-layout { grid-template-columns: 1fr; } .create-case-nav { position: static; flex-direction: row; overflow-x: auto; } .create-detail-panel, .create-edit-grid2 { grid-template-columns: 1fr; } .create-edit-row { grid-template-columns: 1fr 30px; } .create-edit-row input:first-child { grid-column: 1 / -1; } }
@@ -4146,6 +4149,11 @@
     .pl-ev-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
     .pl-ev-card { display: flex; flex-direction: column; gap: 6px; padding: 14px; border: 1px solid rgba(230,215,176,0.3); border-radius: 12px; background: rgba(230,215,176,0.06); color: inherit; text-align: left; cursor: pointer; font: inherit; }
     .pl-ev-card:hover { background: rgba(230,215,176,0.14); transform: translateY(-2px); }
+    .pl-ev-card.picked { border-color: var(--text, #E6D7B0); background: rgba(230,215,176,0.22); box-shadow: 0 0 0 2px var(--accent, #E6D7B0); }
+    .pl-ev-wrap { position: relative; display: flex; }
+    .pl-ev-wrap .pl-ev-card { flex: 1; }
+    .pl-ev-inspect { position: absolute; top: 8px; right: 8px; padding: 4px 9px; border: 1px solid rgba(230,215,176,0.4); border-radius: 999px; background: rgba(5,5,10,0.7); color: inherit; font: 700 0.62rem Arial, sans-serif; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; }
+    .pl-ev-thumb { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 8px; margin-bottom: 4px; }
     .pl-ev-card .k { font: 700 0.62rem Arial, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.6; }
     .pl-ev-card .t { font: 700 0.95rem/1.3 Georgia, serif; }
     .pl-ev-card .c { font: 0.78rem/1.4 Arial, sans-serif; opacity: 0.7; }
@@ -4178,6 +4186,14 @@
     .pl-cctv .top { position: absolute; top: 10px; left: 14px; right: 14px; display: flex; justify-content: space-between; font-size: 0.78rem; letter-spacing: 0.06em; }
     .pl-cctv .rec::before { content: '● '; color: #e04a3a; }
     .pl-cctv .desc { position: absolute; left: 14px; right: 14px; bottom: 12px; padding: 8px 10px; background: rgba(0,0,0,0.55); font-size: 0.8rem; line-height: 1.45; }
+    .pl-cctv-wrap { width: min(620px, 100%); }
+    .pl-cctv.has-img { background: #0c0e0b; }
+    .pl-cctv-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) contrast(1.1) brightness(0.9); }
+    .pl-cctv.has-img::before { z-index: 1; }
+    .pl-cctv.has-img .top { z-index: 2; text-shadow: 0 1px 4px #000; }
+    .pl-cctv-cap { margin: 10px 2px 0; font: 0.85rem/1.55 Arial, sans-serif; opacity: 0.75; }
+    .pl-photo-desc { margin: 8px 4px 0; font: 0.78rem/1.5 Arial, sans-serif; color: #4a4232; text-align: center; }
+    .pl-bag-img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 4px; margin-bottom: 12px; }
     .pl-medical { width: min(560px, 100%); padding: 26px 30px; background: #eef2f4; color: #17232b; border-radius: 3px; border-top: 8px solid #2a7f9e; box-shadow: 0 10px 40px rgba(0,0,0,0.55); font: 0.9rem/1.6 Arial, sans-serif; }
     .pl-medical h3 { margin: 0 0 12px; font: 700 1.05rem Arial, sans-serif; color: #2a7f9e; }
     .pl-polaroid { width: min(430px, 100%); padding: 14px 14px 24px; background: #f6f2ea; border-radius: 3px; transform: rotate(-1.4deg); box-shadow: 0 10px 40px rgba(0,0,0,0.6); color: #23201a; }
@@ -4219,6 +4235,8 @@
     /* Legal guidance: the LastMind lesson for a concept the case calls on, beside the scene (closable) */
     .pl-guidance { position: absolute; top: 0; right: 0; bottom: 0; z-index: 15; width: min(480px, 94vw); overflow: auto; padding: 22px 24px 40px; border-left: 1px solid rgba(230,215,176,0.35); background: rgba(var(--panel-rgb, 18, 18, 30), 0.97); box-shadow: -24px 0 70px rgba(0,0,0,0.55); animation: plSlideIn 0.35s ease both; }
     @keyframes plSlideIn { from { transform: translateX(30px); opacity: 0; } to { transform: none; opacity: 1; } }
+    .pl-guid-edge { position: absolute; right: 0; top: 42%; z-index: 14; padding: 16px 9px; writing-mode: vertical-rl; border: 1px solid rgba(230,215,176,0.5); border-right: 0; border-radius: 12px 0 0 12px; background: rgba(var(--panel-rgb, 18, 18, 30), 0.92); color: var(--text, #E6D7B0); font: 700 0.78rem Arial, sans-serif; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; box-shadow: -6px 0 24px rgba(0,0,0,0.4); }
+    .pl-guid-edge:hover { background: rgba(230,215,176,0.22); }
     .pl-guid-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
     .pl-guid-sub { margin-top: 4px; font: 0.8rem Arial, sans-serif; opacity: 0.6; }
     .pl-guid-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
@@ -9577,10 +9595,10 @@ SQIDAQAB
         if (createBuild) { renderCreateBuilding(body, trial, goTo, contentInner); return; }
         const detailsHtml = trial.showDetails ? `
             <div class="create-detail-panel">
-                ${CREATE_DETAIL_FIELDS.map((f) => `<div class="create-detail-field"><label for="createDetail-${f.key}">${f.label}</label><textarea id="createDetail-${f.key}" data-detail="${f.key}" rows="3" placeholder="${escapeHtml(f.placeholder)}">${escapeHtml(trial.details[f.key] || '')}</textarea></div>`).join('')}
+                ${CREATE_DETAIL_FIELDS.map((f) => `<div class="create-detail-field"><label for="createDetail-${f.key}">${f.label}</label><textarea id="createDetail-${f.key}" data-detail="${f.key}" rows="3" placeholder="${escapeHtml(trial.cortexDecides ? 'Cortex will choose this' : f.placeholder)}">${escapeHtml(trial.details[f.key] || '')}</textarea></div>`).join('')}
                 <div class="create-detail-actions">
-                    <button type="button" class="create-secondary" id="createCortexHandles">Let Cortex handle it</button>
-                    <span class="create-warn" style="margin:0;">Leave any box empty and Cortex will choose for you.</span>
+                    <button type="button" class="create-secondary" id="createCortexHandles" aria-pressed="${!!trial.cortexDecides}">${trial.cortexDecides ? '✓ Cortex will fill in anything left empty' : 'Let Cortex handle the rest'}</button>
+                    <span class="create-warn" style="margin:0;">${trial.cortexDecides ? 'Boxes you have filled in are kept exactly as written; Cortex only fills in the empty ones.' : 'Leave any box empty and Cortex will choose for you.'}</span>
                 </div>
             </div>` : '';
         body.innerHTML = `
@@ -9589,17 +9607,17 @@ SQIDAQAB
             <textarea class="create-idea" id="createIdea" rows="5" placeholder="${escapeHtml(CREATE_IDEA_PLACEHOLDER)}" aria-label="What's your idea?">${escapeHtml(trial.idea || '')}</textarea>
             <div class="create-detail-row">
                 <button type="button" class="create-secondary" id="createMoreDetail">${trial.showDetails ? '− Hide detail' : '+ Add more detail'}</button>
-                ${trial.cortexDecides ? '<span class="create-chip">Cortex will decide the details <button type="button" id="createUndoCortex">change</button></span>' : ''}
+                ${trial.cortexDecides && !trial.showDetails ? '<span class="create-chip">Cortex will fill in anything you leave empty <button type="button" id="createUndoCortex">change</button></span>' : ''}
             </div>
             ${detailsHtml}
             <div class="create-build-row"><button type="button" class="create-build-btn" id="createBuildBtn">Build my Case</button></div>
             <div id="createBuildWarn"></div>`;
         const idea = body.querySelector('#createIdea');
         idea.addEventListener('input', () => { trial.idea = idea.value; saveCreateTrial(); });
-        body.querySelector('#createMoreDetail').addEventListener('click', () => { trial.showDetails = !trial.showDetails; if (trial.showDetails) trial.cortexDecides = false; saveCreateTrial(); renderCreateDesign(body, trial, goTo, contentInner); });
+        body.querySelector('#createMoreDetail').addEventListener('click', () => { trial.showDetails = !trial.showDetails; saveCreateTrial(); renderCreateDesign(body, trial, goTo, contentInner); });
         body.querySelector('#createUndoCortex')?.addEventListener('click', () => { trial.cortexDecides = false; trial.showDetails = true; saveCreateTrial(); renderCreateDesign(body, trial, goTo, contentInner); });
         body.querySelectorAll('[data-detail]').forEach((el) => el.addEventListener('input', () => { trial.details[el.dataset.detail] = el.value; saveCreateTrial(); }));
-        body.querySelector('#createCortexHandles')?.addEventListener('click', () => { trial.cortexDecides = true; trial.showDetails = false; trial.details = {}; saveCreateTrial(); renderCreateDesign(body, trial, goTo, contentInner); });
+        body.querySelector('#createCortexHandles')?.addEventListener('click', () => { trial.cortexDecides = !trial.cortexDecides; trial.showDetails = true; saveCreateTrial(); renderCreateDesign(body, trial, goTo, contentInner); });
         body.querySelector('#createBuildBtn').addEventListener('click', () => {
             const warn = body.querySelector('#createBuildWarn');
             const missing = [];
@@ -9822,7 +9840,7 @@ SQIDAQAB
     }
 
     function startCreateValidation(body, trial) {
-        const state = { status: 'running', startedAt: Date.now(), shown: 1, completed: 0 };
+        const state = { status: 'running', startedAt: Date.now(), shown: 1, completed: 0, applied: new Set(), changes: [], stale: false };
         createValidation = state;
         const payload = { case: trial.case, role: trial.role, minutes: trial.minutes, concepts: trial.picked.map((n) => ({ label: n.label, subtopic: n.subtopic })) };
         createRunJob('/create/criminal-trial/validate', payload).then((result) => {
@@ -9871,9 +9889,35 @@ SQIDAQAB
             if (coverageEl && trial.case) coverageEl.innerHTML = createCoverageHtml(trial.case.coverage);
             tail.innerHTML = `
                 ${r.summary ? `<p class="create-error" style="max-width:none;">${escapeHtml(r.summary)}</p>` : ''}
-                ${(r.issues || []).map((i) => `<div class="create-issue"><span class="badge ${i.severity}">${i.severity === 'blocker' ? 'Must fix' : 'Suggestion'}</span><b>${escapeHtml(i.area)}</b> - ${escapeHtml(i.message)}${i.suggestion ? `<span class="fix">${escapeHtml(i.suggestion)}</span>` : ''}</div>`).join('')}
-                ${r.workable ? '<div class="create-ready-actions" style="margin-top:18px;"><button type="button" class="create-play" id="createPlayBtn">Play</button></div>' : '<p class="create-error" style="max-width:none;">Fix the items marked "Must fix", then press Validate again.</p>'}`;
+                ${(r.issues || []).map((i, idx) => `<div class="create-issue"><span class="badge ${i.severity}">${i.severity === 'blocker' ? 'Must fix' : 'Suggestion'}</span><b>${escapeHtml(i.area)}</b> - ${escapeHtml(i.message)}${i.suggestion ? `<span class="fix">${escapeHtml(i.suggestion)}</span>` : ''}${state.applied.has(idx) ? '<span class="applied">✓ Applied</span>' : `<button type="button" class="create-secondary create-apply" data-apply="${idx}">Apply this fix</button>`}</div>`).join('')}
+                ${(r.issues || []).filter((i, idx) => !state.applied.has(idx)).length > 1 ? '<div class="create-ready-actions" style="margin:6px 0 4px;"><button type="button" class="create-cta" id="createApplyAll" style="padding:10px 22px;font-size:0.9rem;">Apply all fixes</button></div>' : ''}
+                ${state.changes.length ? `<div class="create-issue"><b>Changes made</b><ul style="margin:6px 0 0 18px;padding:0;">${state.changes.map((c) => `<li>${escapeHtml(c)}</li>`).join('')}</ul></div>` : ''}
+                <p class="create-apply-note" id="createApplyNote"></p>
+                ${state.stale ? '<p class="create-error" style="max-width:none;">You have changed the case with these fixes, so press Validate again to make sure it now works before you play.</p>' : (r.workable ? '<div class="create-ready-actions" style="margin-top:18px;"><button type="button" class="create-play" id="createPlayBtn">Play</button></div>' : '<p class="create-error" style="max-width:none;">Fix the items marked "Must fix", then press Validate again.</p>')}`;
             tail.querySelector('#createPlayBtn')?.addEventListener('click', () => ptStart(trial));
+            const applyFixes = async (indexes) => {
+                const note = tail.querySelector('#createApplyNote');
+                tail.querySelectorAll('.create-apply, #createApplyAll').forEach((b) => { b.disabled = true; });
+                note.textContent = 'Cortex is applying the fix…';
+                try {
+                    const result = await createRunJob('/create/criminal-trial/apply-fixes', {
+                        case: trial.case, role: trial.role, minutes: trial.minutes,
+                        concepts: trial.picked.map((n) => ({ label: n.label, subtopic: n.subtopic })),
+                        issues: indexes.map((i) => r.issues[i]),
+                    });
+                    Object.entries(result.sections || {}).forEach(([key, value]) => { trial.case[key] = value; });
+                    indexes.forEach((i) => state.applied.add(i));
+                    (result.changes || []).forEach((c) => state.changes.push(c));
+                    state.stale = true;
+                    saveCreateTrial();
+                    renderCreateTrialBuilder(document.getElementById('contentInner'));
+                } catch (err) {
+                    note.textContent = err.message || 'Cortex could not apply that fix.';
+                    tail.querySelectorAll('.create-apply, #createApplyAll').forEach((b) => { b.disabled = false; });
+                }
+            };
+            tail.querySelectorAll('[data-apply]').forEach((b) => b.addEventListener('click', () => applyFixes([Number(b.dataset.apply)])));
+            tail.querySelector('#createApplyAll')?.addEventListener('click', () => applyFixes((r.issues || []).map((i, idx) => idx).filter((idx) => !state.applied.has(idx))));
         };
         paint();
         const timer = setInterval(() => {
@@ -10041,6 +10085,7 @@ SQIDAQAB
     const PT_SCENE = (key) => `/assets/playtest/${key}.jpg`;
     const PT_SCENES = ['chambers', 'interview', 'arrival', 'courtroom_wide', 'prosecution_opening', 'witness_box', 'defence_case', 'closing_speech', 'summing_up', 'jury_deliberation', 'verdict', 'sentencing'];
     const PT_MAX_QUESTIONS = { interview: 15, exam: 10 };
+    const PT_PORTRAIT_VERSION = 2; // 2 = pictures checked to face the camera; older ones are regenerated
     const PT_GRAPH_VERSION = 2; // bump when the Case Graph gains fields the courtroom relies on
     const PT_LESSON_HINT = 'This is the lesson from your LastMind knowledge map, opened to help you. Nothing here is tested or recorded.';
     const PT_COMPILE_STEPS = ['Establishing the facts', 'Briefing the witnesses', 'Preparing the exhibits', 'Drafting the court scripts', 'Setting the verdict rules'];
@@ -10124,7 +10169,7 @@ SQIDAQAB
         if (!ch || !a || !ch.portrait || !ch.portraitTransparent) return false;
         pt.cast = { id: ch.id, scene: key };
         layer.innerHTML = `<img class="pl-fig${a.slow ? ' slow' : ''}${a.fade ? ' fade' : ''}" src="${ch.portrait}" alt="${ptE(ch.name)}" style="left:${a.x}%;top:${a.top}%;height:${a.h}%;filter:${a.filter}">${a.floor ? `<div class="pl-fg" style="background-image:url(${PT_SCENE(key)});clip-path:inset(${a.floor}% 0 0 0)"></div>` : ''}`;
-        requestAnimationFrame(() => { const f = layer.querySelector('.pl-fig'); if (f) f.classList.add('on'); });
+        setTimeout(() => { const f = layer.querySelector('.pl-fig'); if (f) f.classList.add('on'); }, 40);
         return true;
     }
     // The judge is a character too: one generated figure, kept with the graph like everyone else.
@@ -10156,6 +10201,24 @@ SQIDAQAB
             img.onerror = () => resolve(dataUrl);
             img.src = dataUrl;
         });
+    }
+    // Pictures for visual evidence (CCTV, photographs, physical exhibits), made once from what the exhibit is described as
+    // showing and kept with the case. They are checked on the server against that description.
+    async function ptLoadEvidenceImages(token) {
+        const targets = pt.graph.evidence.filter((e) => ['cctv', 'photo', 'physical'].includes(e.kind) && !e.image);
+        for (const ev of targets) {
+            if (!pt || pt.token !== token || createBudgetLeft() < 0.06) return;
+            const c = ev.content || {};
+            const description = ev.kind === 'physical' ? `${c.item || ev.title}. ${c.description || ev.caption}` : `${c.location || ''}. ${c.description || ev.caption}`;
+            try {
+                const { resp, body } = await createAuthedFetch('/playtest/evidence-image', { method: 'POST', body: JSON.stringify({ kind: ev.kind, description, clientUsedUsd: createSpend.usedUsd }) });
+                if (resp.status === 501) return;
+                if (body.spend) createNoteSpend(body.spend);
+                if (!(resp.ok && body.image) || !pt || pt.token !== token) continue;
+                ev.image = await ptShrink(body.image, 720);
+                createStoreGraphCache();
+            } catch (err) { console.error('LastMind: an evidence picture could not be generated.', err); }
+        }
     }
     async function ptLoadPortraits(token) {
         const targets = ptPortraitTargets();
@@ -10194,7 +10257,7 @@ SQIDAQAB
         root.innerHTML = `
             <div class="pl-frame" id="plFrame"><div class="pl-bg" id="plBgA"></div><div class="pl-bg" id="plBgB"></div><div class="pl-cast" id="plCast"></div></div><div class="pl-shade" id="plShade"></div>
             <div class="pl-hud" id="plHud"><button type="button" id="plLeave">✕ Leave</button><span class="pl-stage-label" id="plStageLabel"></span><span style="display:flex;gap:8px;align-items:center;"><span id="plToolPills" style="display:none;gap:8px;"><button type="button" data-tool="casefile">Case file</button><button type="button" data-tool="evidence">Evidence</button><button type="button" data-tool="notes">Notes</button><button type="button" id="plGuidancePill" data-tool="guidance" style="display:none;">Guidance</button></span><span class="pl-spend" id="plSpend"></span></span></div>
-            <div class="pl-stage" id="plStage"></div><div id="plOverlayHost"></div>`;
+            <div class="pl-stage" id="plStage"></div><div id="plOverlayHost"></div><button type="button" id="plGuidTab" class="pl-guid-edge" data-tool="guidance" style="display:none;" aria-label="Open the lessons panel">Lessons</button>`;
         document.body.appendChild(root);
         document.body.classList.add('pl-open');
         ptBgFront = 'A';
@@ -10218,6 +10281,7 @@ SQIDAQAB
         const host = document.getElementById('plOverlayHost');
         if (host && host.lastElementChild) { host.lastElementChild.remove(); return; }
         document.getElementById('plGuidance')?.remove();
+        ptUpdateGuidancePill();
     }
     function ptUnmount() {
         document.getElementById('ptRoot')?.remove();
@@ -10251,6 +10315,7 @@ SQIDAQAB
         if (hud) hud.style.display = on ? '' : 'none';
         const pills = document.getElementById('plToolPills');
         if (pills) pills.style.display = tools === false ? 'none' : 'flex';
+        if (pt) { pt.hudOn = !!on; if (pt.triggered) ptUpdateGuidancePill(); }
     };
     function ptStage(html, cls) {
         const el = document.getElementById('plStage');
@@ -10348,7 +10413,15 @@ SQIDAQAB
         } else if (saved) { try { localStorage.removeItem(`lastmind-playtest:${hash}`); } catch (err) { /* fine */ } }
         // A restored (or saved) case needs a live session on the server so Cortex reads the same immutable graph.
         if (!pt.sessionId) { try { await ptRestoreSession(); } catch (err) { console.error('LastMind: could not start the playtest session.', err); } }
+        // Portraits made before the front-facing check are regenerated once; then evidence pictures are made for anything visual.
+        if (graph.characters.some((c) => c.portrait) && (graph.meta.portraitVersion || 1) < PT_PORTRAIT_VERSION) {
+            graph.characters.forEach((c) => { delete c.portrait; delete c.portraitTransparent; });
+            delete graph.meta.judgePortrait; delete graph.meta.judgePortraitTransparent;
+        }
+        graph.meta.portraitVersion = PT_PORTRAIT_VERSION;
+        createStoreGraphCache();
         ptLoadPortraits(pt.token);
+        ptLoadEvidenceImages(pt.token);
         ptRender();
     }
     async function ptRestoreSession() {
@@ -10596,7 +10669,7 @@ SQIDAQAB
     // guard on the server decides which facts a reply may reveal.
     function ptExam(o) {
         const ch = o.ch;
-        let busy = false; let pending = null; let draft = ''; let judgeNote = ''; let errorText = '';
+        let busy = false; let pending = []; let draft = ''; let judgeNote = ''; let errorText = '';
         const asked = () => o.hist.filter((h) => h.from === 'me').length;
         const draw = () => {
             const lastThem = [...o.hist].reverse().find((h) => h.from === 'them');
@@ -10605,7 +10678,7 @@ SQIDAQAB
                 <div class="pl-speaker">${ptE(ch.name)}<small>${ptE(ch.role)}</small></div>
                 <p class="pl-text" id="plReply">${ptE(lastThem ? lastThem.text : o.intro)}</p>
                 ${judgeNote ? `<p class="pl-note">${ptE(judgeNote)}</p>` : ''}${errorText ? `<p class="pl-note">${ptE(errorText)}</p>` : ''}
-                ${pending ? `<span class="pl-chip">Presenting: ${ptE(ptEv(pending).title)} <button type="button" id="plUnpresent" aria-label="Stop presenting">✕</button></span>` : ''}
+                ${pending.length ? `<div>${pending.map((id) => `<span class="pl-chip" style="margin-right:8px;">Presenting: ${ptE(ptEv(id).title)} <button type="button" data-unpresent="${ptE(id)}" aria-label="Stop presenting this">✕</button></span>`).join('')}</div>` : ''}
                 ${capped ? `<p class="pl-note">${ptE(o.capNote)}</p>` : `<div class="pl-ask"><textarea id="plQ" rows="2" placeholder="${ptE(o.placeholder)}"></textarea><button type="button" class="pl-btn primary" id="plAsk">Ask</button></div>`}
                 <div class="pl-actions"><button type="button" class="pl-btn" id="plPresent">Present evidence</button><button type="button" class="pl-btn" id="plTranscript">Transcript</button><span class="pl-spacer"></span><button type="button" class="pl-btn${capped ? ' primary' : ''}" id="plFinish">${ptE(o.finishLabel)} ▸</button></div></div>`);
             const ta = stage.querySelector('#plQ');
@@ -10615,15 +10688,15 @@ SQIDAQAB
                 ta.addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); ask(); } });
                 stage.querySelector('#plAsk').addEventListener('click', ask);
             }
-            stage.querySelector('#plUnpresent')?.addEventListener('click', () => { pending = null; draw(); });
-            stage.querySelector('#plPresent').addEventListener('click', () => ptShowEvidence({ chName: ch.name, onPresent: (id) => { pending = id; draw(); } }));
+            stage.querySelectorAll('[data-unpresent]').forEach((b) => b.addEventListener('click', () => { pending = pending.filter((id) => id !== b.dataset.unpresent); draw(); }));
+            stage.querySelector('#plPresent').addEventListener('click', () => ptShowEvidence({ chName: ch.name, selected: pending.slice(), onPresent: (ids) => { pending = ids; draw(); } }));
             stage.querySelector('#plTranscript').addEventListener('click', () => ptShowLog(ch, o.hist));
             stage.querySelector('#plFinish').addEventListener('click', () => { ptSave(); o.onFinish(); });
         };
         const ask = async () => {
             if (busy) return;
             let q = draft.trim();
-            if (!q && pending) q = 'Could you look at this, please?';
+            if (!q && pending.length) q = pending.length > 1 ? 'Could you look at these, please?' : 'Could you look at this, please?';
             if (!q) return;
             busy = true; errorText = ''; judgeNote = '';
             const replyEl = document.getElementById('plReply');
@@ -10631,14 +10704,15 @@ SQIDAQAB
             const askBtn = document.getElementById('plAsk'); if (askBtn) askBtn.disabled = true;
             try {
                 const shownIds = o.shown();
-                const r = await ptCharacterTurn({ ch, message: q, setting: o.setting, asking: o.asking, evId: pending, hist: o.hist, shownIds });
-                o.hist.push({ from: 'me', text: q, ev: pending });
+                const evIds = pending.slice();
+                const r = await ptCharacterTurn({ ch, message: q, setting: o.setting, asking: o.asking, evIds, hist: o.hist, shownIds });
+                o.hist.push({ from: 'me', text: q, ev: evIds });
                 o.hist.push({ from: 'them', text: r.reply });
-                pt.exchanges.push({ character: ch.name, question: q, evidence: pending ? ptEv(pending).title : '' });
-                if (pending) o.markShown(pending);
+                pt.exchanges.push({ character: ch.name, question: q, evidence: evIds.map((id) => ptEv(id).title).join(' + ') });
+                evIds.forEach((id) => o.markShown(id));
                 if (o.establish) ptEstablish(r.revealedFactIds);
                 judgeNote = r.judgeNote || '';
-                pending = null; draft = '';
+                pending = []; draft = '';
                 ptSave();
             } catch (err) {
                 errorText = err.code === 'CREATE_SPEND_CAP'
@@ -10650,9 +10724,9 @@ SQIDAQAB
         };
         draw();
     }
-    async function ptCharacterTurn({ ch, message, setting, asking, evId, hist, shownIds }) {
+    async function ptCharacterTurn({ ch, message, setting, asking, evIds, hist, shownIds }) {
         const send = () => createAuthedFetch('/playtest/character-turn', { method: 'POST', body: JSON.stringify({
-            sessionId: pt.sessionId, characterId: ch.id, message, setting, asking, presentedEvidenceId: evId || undefined, presentedEvidenceIds: shownIds,
+            sessionId: pt.sessionId, characterId: ch.id, message, setting, asking, presentedEvidenceIdsNow: evIds && evIds.length ? evIds : undefined, presentedEvidenceIds: shownIds,
             history: hist.slice(-10).map((h) => ({ from: h.from, text: h.text })), clientUsedUsd: createSpend.usedUsd,
         }) });
         let { resp, body } = await send();
@@ -10685,9 +10759,14 @@ SQIDAQAB
             return at.stage === stage;
         });
     }
+    // Once the case has called on any concept, its lessons can always be reopened: from the Guidance button up top and from a
+    // tab on the right edge whenever the panel is closed.
     function ptUpdateGuidancePill() {
+        const has = !!(pt && pt.triggered && pt.triggered.length);
         const b = document.getElementById('plGuidancePill');
-        if (b) b.style.display = pt && pt.triggered.length ? '' : 'none';
+        if (b) b.style.display = has ? '' : 'none';
+        const tab = document.getElementById('plGuidTab');
+        if (tab) tab.style.display = has && pt.hudOn !== false && !document.getElementById('plGuidance') ? '' : 'none';
     }
     function ptCallUpon(concepts) {
         const fresh = concepts.filter((c) => !pt.triggered.includes(c.label));
@@ -10720,7 +10799,8 @@ SQIDAQAB
         panel.setAttribute('aria-label', 'Legal guidance');
         panel.innerHTML = `<div class="pl-guid-head"><div><div class="pl-eyebrow">Legal guidance</div><div class="pl-guid-sub">From your LastMind lessons</div></div><button type="button" class="pl-btn" id="plGuidClose">Close ✕</button></div><div class="pl-guid-tabs" id="plGuidTabs"></div><div class="pl-guid-body" id="plGuidBody"></div>`;
         document.getElementById('ptRoot').appendChild(panel);
-        panel.querySelector('#plGuidClose').addEventListener('click', () => panel.remove());
+        panel.querySelector('#plGuidClose').addEventListener('click', () => { panel.remove(); ptUpdateGuidancePill(); });
+        ptUpdateGuidancePill();
         const tabs = panel.querySelector('#plGuidTabs');
         const body = panel.querySelector('#plGuidBody');
         let current = labels.includes(activeLabel) ? activeLabel : labels[labels.length - 1];
@@ -10754,10 +10834,29 @@ SQIDAQAB
         wrap.querySelectorAll('[data-ev]').forEach((b) => b.addEventListener('click', () => ptInspect(b.dataset.ev)));
     }
     function ptShowEvidence(ctx) {
+        const present = !!(ctx && ctx.onPresent);
+        const selected = new Set(present && ctx.selected ? ctx.selected : []);
+        const card = (e) => `<div class="pl-ev-wrap"><button type="button" class="pl-ev-card${present && selected.has(e.id) ? ' picked' : ''}" data-ev="${ptE(e.id)}"${present ? ` aria-pressed="${selected.has(e.id)}"` : ''}>${e.image ? `<img class="pl-ev-thumb" src="${e.image}" alt="">` : ''}<span class="k">${ptE(e.kind)}</span><span class="t">${ptE(e.title)}</span><span class="c">${ptE(e.caption)}</span>${pt.inCourt.includes(e.id) ? '<span class="in">In evidence</span>' : ''}${present && selected.has(e.id) ? '<span class="in" style="color:#f3e7c4;">✓ Selected</span>' : ''}</button>${present ? `<button type="button" class="pl-ev-inspect" data-inspect="${ptE(e.id)}">Inspect</button>` : ''}</div>`;
         const wrap = ptOverlay(`
-            <div class="pl-panel-head"><h2>${ctx ? `Present evidence to ${ptE(ctx.chName)}` : 'Evidence'}</h2>${ptCloseBtn}</div>
-            <div class="pl-ev-grid">${pt.graph.evidence.map((e) => `<button type="button" class="pl-ev-card" data-ev="${ptE(e.id)}"><span class="k">${ptE(e.kind)}</span><span class="t">${ptE(e.title)}</span><span class="c">${ptE(e.caption)}</span>${pt.inCourt.includes(e.id) ? '<span class="in">In evidence</span>' : ''}</button>`).join('')}</div>`);
-        wrap.querySelectorAll('[data-ev]').forEach((b) => b.addEventListener('click', () => ptInspect(b.dataset.ev, ctx ? { ...ctx, close: () => wrap.remove() } : null)));
+            <div class="pl-panel-head"><h2>${present ? `Present evidence to ${ptE(ctx.chName)}` : 'Evidence'}</h2><span style="display:flex;gap:10px;align-items:center;">${present ? '<button type="button" class="pl-btn primary" id="plPresentSel" disabled>Present ▸</button>' : ''}${ptCloseBtn}</span></div>
+            ${present ? '<p class="pl-p" style="opacity:0.7;font-size:0.9rem;">Choose one or more items to put to the witness together.</p>' : ''}
+            <div class="pl-ev-grid" id="plEvGrid">${pt.graph.evidence.map(card).join('')}</div>`);
+        const btn = wrap.querySelector('#plPresentSel');
+        const refresh = () => { if (btn) { btn.disabled = !selected.size; btn.textContent = selected.size > 1 ? `Present ${selected.size} items ▸` : 'Present ▸'; } };
+        refresh();
+        wrap.querySelectorAll('.pl-ev-card').forEach((b) => b.addEventListener('click', () => {
+            const id = b.dataset.ev;
+            if (!present) { ptInspect(id); return; }
+            if (selected.has(id)) selected.delete(id); else selected.add(id);
+            b.classList.toggle('picked', selected.has(id));
+            b.setAttribute('aria-pressed', String(selected.has(id)));
+            const mark = b.querySelector('.in[data-sel]');
+            b.querySelectorAll('.in').forEach((n) => { if (n.textContent.includes('Selected')) n.remove(); });
+            if (selected.has(id)) b.insertAdjacentHTML('beforeend', '<span class="in" style="color:#f3e7c4;">✓ Selected</span>');
+            refresh();
+        }));
+        wrap.querySelectorAll('[data-inspect]').forEach((b) => b.addEventListener('click', () => ptInspect(b.dataset.inspect)));
+        btn?.addEventListener('click', () => { const ids = [...selected]; wrap.remove(); ctx.onPresent(ids); });
     }
     function ptInspect(id, ctx) {
         const ev = ptEv(id);
@@ -10777,7 +10876,7 @@ SQIDAQAB
         ta.focus();
     }
     function ptShowLog(ch, hist) {
-        ptOverlay(`<div class="pl-panel-head"><h2>Transcript: ${ptE(ch.name)}</h2>${ptCloseBtn}</div><div class="pl-log">${hist.length ? hist.map((h) => `<div class="${h.from === 'me' ? 'me' : ''}"><b>${h.from === 'me' ? 'You' : ptE(ch.name)}${h.ev ? ` · presenting ${ptE(ptEv(h.ev).title)}` : ''}</b>${ptE(h.text)}</div>`).join('') : '<div>Nothing has been said yet.</div>'}</div>`);
+        ptOverlay(`<div class="pl-panel-head"><h2>Transcript: ${ptE(ch.name)}</h2>${ptCloseBtn}</div><div class="pl-log">${hist.length ? hist.map((h) => `<div class="${h.from === 'me' ? 'me' : ''}"><b>${h.from === 'me' ? 'You' : ptE(ch.name)}${h.ev && [].concat(h.ev).length ? ` · presenting ${[].concat(h.ev).map((id) => ptE((ptEv(id) || {}).title || '')).join(' + ')}` : ''}</b>${ptE(h.text)}</div>`).join('') : '<div>Nothing has been said yet.</div>'}</div>`);
     }
     // What the court has heard so far - the facts the jury has, in plain words, for writing a speech from.
     function ptShowHeard() {
@@ -10795,11 +10894,14 @@ SQIDAQAB
             const first = msgs[0] ? msgs[0].from : '';
             return `<div class="pl-phone"><div class="bar">${ptE((c.participants || []).join(' & ') || ev.title)}</div>${msgs.map((m) => `<div class="pl-bubble ${m.from === first ? 'them' : 'us'}">${ptE(m.text)}<small>${ptE(m.from || '')}${m.time ? ` · ${ptE(m.time)}` : ''}</small></div>`).join('')}</div>`;
         }
-        if (ev.kind === 'cctv') return `<div class="pl-cctv"><div class="top"><span class="rec">REC ${ptE(c.location || '')}</span><span>${ptE(c.timestamp || '')}</span></div><div class="desc">${ptE(c.description || ev.caption)}</div></div>`;
+        if (ev.kind === 'cctv') {
+            if (ev.image) return `<div class="pl-cctv-wrap"><div class="pl-cctv has-img"><img class="pl-cctv-img" src="${ev.image}" alt="CCTV still"><div class="top"><span class="rec">REC ${ptE(c.location || '')}</span><span>${ptE(c.timestamp || '')}</span></div></div><p class="pl-cctv-cap">${ptE(c.description || ev.caption)}</p></div>`;
+            return `<div class="pl-cctv"><div class="top"><span class="rec">REC ${ptE(c.location || '')}</span><span>${ptE(c.timestamp || '')}</span></div><div class="desc">${ptE(c.description || ev.caption)}</div></div>`;
+        }
         if (ev.kind === 'medical') return `<div class="pl-medical"><h3>${ptE(ev.title)}</h3><div class="meta" style="margin-bottom:10px;">${ptE(c.patient || '')}${c.author ? ` · ${ptE(c.author)}` : ''}${c.date ? ` · ${ptE(c.date)}` : ''}</div>${(Array.isArray(c.sections) ? c.sections : []).map((s) => `<div class="sec">${ptE(s.heading || '')}</div><p>${ptE(s.text || '')}</p>`).join('') || paras(c.text)}</div>`;
-        if (ev.kind === 'photo') return `<div class="pl-polaroid"><div class="pic">${ptE(c.description || ev.caption)}</div><div class="cap">${ptE(c.location || ev.title)}</div></div>`;
+        if (ev.kind === 'photo') return `<div class="pl-polaroid"><div class="pic"${ev.image ? ` style="background-image:url(${ev.image});background-size:cover;background-position:center;"` : ''}>${ev.image ? '' : ptE(c.description || ev.caption)}</div><div class="cap">${ptE(c.location || ev.title)}</div>${ev.image ? `<p class="pl-photo-desc">${ptE(c.description || ev.caption)}</p>` : ''}</div>`;
         if (ev.kind === 'map') return `<div class="pl-map"><h3>${ptE(c.title || ev.title)}</h3><div class="rooms">${(Array.isArray(c.areas) ? c.areas : []).map((a) => `<div class="room"><b>${ptE(a.label || '')}</b>${ptE(a.note || '')}</div>`).join('')}</div></div>`;
-        if (ev.kind === 'physical') return `<div class="pl-bag"><span class="tag">EXHIBIT ${ptE(c.label || ev.name)}</span><div><b>${ptE(c.item || ev.title)}</b></div><div>${ptE(c.description || ev.caption)}</div></div>`;
+        if (ev.kind === 'physical') return `<div class="pl-bag"><span class="tag">EXHIBIT ${ptE(c.label || ev.name)}</span>${ev.image ? `<img class="pl-bag-img" src="${ev.image}" alt="${ptE(c.item || ev.title)}">` : ''}<div><b>${ptE(c.item || ev.title)}</b></div><div>${ptE(c.description || ev.caption)}</div></div>`;
         return `<div class="pl-paper"><h3>Document</h3><div class="sub">${ptE(c.title || ev.title)}</div>${paras(c.paragraphs || c.text) || `<p>${ptE(ev.caption)}</p>`}</div>`;
     }
 
