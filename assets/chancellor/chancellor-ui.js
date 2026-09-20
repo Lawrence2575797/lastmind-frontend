@@ -77,7 +77,21 @@
       '.chn-guid { position: fixed; top: 56px; right: 12px; bottom: 12px; width: min(420px, 92vw); z-index: 2500; background: var(--panel); color: var(--text); border: 1px solid var(--chn-line); border-radius: 14px; box-shadow: 0 16px 50px rgba(0,0,0,0.3); display: flex; flex-direction: column; } .chn-guid .hd { padding: 14px 16px 10px; display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; border-bottom: 1px solid var(--chn-line); } .chn-guid .tabs { display: flex; gap: 6px; padding: 10px 12px 0; overflow-x: auto; } .chn-guid .bd { padding: 12px 16px 18px; overflow-y: auto; font-size: 0.9rem; line-height: 1.6; } .chn-guid .bd p { margin: 0 0 10px; }',
       '.chn-budget.warn { border-color: var(--chn-warn); color: var(--chn-warn); }',
       '.chn-lesson { border-top: 1px solid var(--chn-line); padding-top: 6px; } .chn-lesson .lbody { font-size: 0.86rem; line-height: 1.6; padding: 4px 0 6px; } .chn-lesson .lbody p { margin: 0 0 8px; }',
-      '.chn-fc { position: fixed; left: 50%; transform: translateX(-50%); bottom: 10px; width: min(1180px, 96vw); max-height: 48vh; overflow-y: auto; z-index: 2400; background: var(--panel); color: var(--text); border: 1px solid var(--chn-line); border-radius: 14px; box-shadow: 0 -8px 40px rgba(0,0,0,0.28); padding: 12px 16px 10px; } .chn-fc .hd { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 6px; } .chn-fc .grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); } .chn-fc h4 { font: 700 0.8rem Arial, sans-serif; margin: 0 0 2px; } .chn-fc .legend2 { font-size: 0.76rem; display: inline-flex; align-items: center; gap: 6px; } .chn-fc .legend2 i { display: inline-block; width: 16px; height: 3px; border-radius: 2px; } .chn-fc .legend { display: none !important; }',
+      '.chn-fc { position: fixed; top: 60px; right: 10px; bottom: 10px; width: min(500px, 94vw); overflow-y: auto; z-index: 2400; background: var(--panel); color: var(--text); border: 1px solid var(--chn-line); border-radius: 16px; box-shadow: -10px 0 40px rgba(0,0,0,0.35); padding: 14px 16px 16px; } .chn-fc .hd { position: sticky; top: -14px; background: var(--panel); z-index: 2; padding: 4px 0 8px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--chn-line); margin-bottom: 8px; } .chn-fc .col { display: grid; gap: 14px; } .chn-fc h4 { font: 700 0.92rem Arial, sans-serif; margin: 0 0 4px; } .chn-fc .legend2 { font-size: 0.78rem; display: inline-flex; align-items: center; gap: 6px; } .chn-fc .legend2 i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; } .chn-fc .legend { display: none !important; }',
+      '.chn-fctab { position: fixed; right: 0; top: 46%; z-index: 2400; border: 0; border-radius: 12px 0 0 12px; background: #f4b400; color: #1a1206; font: 700 0.85rem Arial, sans-serif; padding: 12px 10px; cursor: pointer; writing-mode: vertical-rl; box-shadow: -4px 0 16px rgba(0,0,0,0.3); }',
+      '@media (min-width: 1100px) { body.chn-fc-open #app { padding-right: 520px; } }',
+      '.chn-head { background: rgba(8,18,35,0.68); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.16); border-radius: 18px; padding: 16px 20px; margin: 10px 0 10px; color: #f7f0dc; }',
+      '.chn-head .chn-title { font: 700 2rem Georgia, \'Times New Roman\', serif; letter-spacing: 0.01em; color: #fff6dc; text-shadow: 0 2px 12px rgba(0,0,0,0.5); } .chn-head .chn-date { color: #f7f0dc; opacity: 0.92; }',
+      '.chn-head .mood { color: #fff; padding: 2px 9px; border-radius: 999px; font: 700 0.74rem Arial, sans-serif; letter-spacing: 0.03em; }',
+      '.chn-head .chn-pill { background: rgba(255,255,255,0.12); color: #f7f0dc; border-color: rgba(255,255,255,0.3); } .chn-head .chn-pill.warn { color: #ffd27a; border-color: #ffd27a; }',
+      '.chn-head .chn-btn { background: rgba(255,255,255,0.1); color: #f7f0dc; border-color: rgba(255,255,255,0.35); } .chn-head .chn-btn:hover:not(:disabled) { background: rgba(255,255,255,0.2); border-color: #ffd27a; }',
+      '.chn-head .chn-btn.primary { background: linear-gradient(135deg, #ffcf4d, #f59e0b); color: #1a1206; border-color: #ffcf4d; box-shadow: 0 4px 16px rgba(245,158,11,0.45); } .chn-head .chn-btn.primary:hover:not(:disabled) { transform: translateY(-1px); }',
+      '.chn-term { display: flex; align-items: center; gap: 12px; margin: 0 4px 10px; color: #f7f0dc; font-size: 0.76rem; text-shadow: 0 1px 6px rgba(0,0,0,0.6); } .chn-term .bar { position: relative; flex: 1; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.22); } .chn-term .bar i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #ffcf4d, #f59e0b); } .chn-term .bar em { position: absolute; top: -4px; width: 4px; height: 16px; border-radius: 2px; background: #fff; box-shadow: 0 0 8px rgba(255,255,255,0.8); transform: translateX(-2px); }',
+      '.chn-ticker { display: flex; align-items: stretch; margin: 0 0 10px; border-radius: 12px; overflow: hidden; background: rgba(8,18,35,0.78); border: 1px solid rgba(255,255,255,0.14); } .chn-ticker .lab { background: #c2410c; color: #fff; font: 800 0.72rem Arial, sans-serif; letter-spacing: 0.1em; padding: 9px 12px; white-space: nowrap; } .chn-ticker .win { overflow: hidden; flex: 1; display: flex; align-items: center; } .chn-ticker .track { display: inline-flex; gap: 42px; white-space: nowrap; padding-left: 20px; color: #f7f0dc; font-size: 0.82rem; animation: chnTick 90s linear infinite; } .chn-ticker .track b { color: #ffd27a; margin-right: 6px; } @keyframes chnTick { from { transform: translateX(0); } to { transform: translateX(-50%); } } @media (prefers-reduced-motion: reduce) { .chn-ticker .track { animation: none; } }',
+      '.chn-toptabs { padding: 6px; border-radius: 999px; background: rgba(8,18,35,0.6); backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,0.14); margin-bottom: 12px; } .chn-toptabs .chn-tab { background: transparent; color: #f7f0dc; border-color: transparent; padding: 8px 16px; } .chn-toptabs .chn-tab:hover { background: rgba(255,255,255,0.14); } .chn-toptabs .chn-tab[aria-selected="true"] { background: #fff6dc; color: #14213d; border-color: #fff6dc; box-shadow: 0 2px 10px rgba(0,0,0,0.35); }',
+      '.chn-shell { background: rgba(238,246,253,0.95); color: #000; border-radius: 20px; padding: 18px; box-shadow: 0 12px 50px rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.5); }',
+      '.chn-kpi { transition: transform 0.15s, box-shadow 0.15s; } .chn-kpi:hover { transform: translateY(-3px); box-shadow: 0 10px 24px rgba(0,0,0,0.18); }',
+      '.chn-overlay .chn-modal { animation: chnPop 0.22s ease-out; } @keyframes chnPop { from { transform: translateY(14px) scale(0.98); opacity: 0; } to { transform: none; opacity: 1; } } @media (prefers-reduced-motion: reduce) { .chn-overlay .chn-modal { animation: none; } }',
       '.chn-mtx { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; } .chn-mtx div { border: 1px solid var(--chn-line); border-radius: 10px; padding: 8px 10px; font-size: 0.82rem; } .chn-mtx b { display: block; font-size: 1.1rem; }',
     ].join('\n');
     document.head.appendChild(st);
@@ -209,21 +223,30 @@
   }
   function renderHeaderOnly() { var el = ui.host.querySelector('#chnHeadActions'); if (el) el.innerHTML = headerActions(); }
   window.chnPaintBudget = function () { document.querySelectorAll('.chn-budget').forEach(function (el) { el.textContent = budgetLabel(); el.classList.toggle('warn', createBudgetLeft() < 0.35); }); };
+  function moodOf(a) { return a >= 65 ? ['Riding high', '#1f7a4d'] : a >= 50 ? ['Steady', '#0a5f8f'] : a >= 35 ? ['Under pressure', '#b45309'] : ['In trouble', '#b42318']; }
+  function tickerHtml() {
+    var items = ui.g.news.slice(0, 6).map(function (a) { return '<span><b>' + esc(a.outlet) + '</b> ' + esc(a.headline) + '</span>'; }).join('');
+    return items ? '<div class="chn-ticker"><span class="lab">BREAKING</span><div class="win"><div class="track">' + items + items + '</div></div></div>' : '';
+  }
+  function termHtml() {
+    var g = ui.g, a = TS(g.termStart), b = TS(g.electionDate), now = TS(g.date), pct = Math.max(0, Math.min(100, (now - a) / Math.max(1, b - a) * 100));
+    return '<div class="chn-term" title="How far through this term"><span>' + esc(S.nice(g.termStart)) + '</span><div class="bar"><i style="width:' + pct.toFixed(1) + '%"></i><em style="left:' + pct.toFixed(1) + '%"></em></div><span>Election ' + esc(S.nice(g.electionDate)) + '</span></div>';
+  }
   function renderAll() {
     var g = ui.g; if (!g) return;
-    var gov = g.parties.gov.name;
+    var gov = g.parties.gov.name, md = moodOf(g.pop.groups.public);
     var daysToElection = Math.round((TS(g.electionDate) - TS(g.date)) / 864e5);
     ui.host.innerHTML = '<div class="chn">' +
-      '<div class="chn-head"><div><div class="chn-title">' + esc(g.cfg.country) + ' · Chancellor</div><div class="chn-date">' + esc(S.nice(g.date)) + ' · ' + esc(gov) + ' government · election in ' + (daysToElection > 90 ? Math.round(daysToElection / 30.4) + ' months' : daysToElection + ' days') + '</div></div>' +
-      '<div class="chn-actions" id="chnHeadActions">' + headerActions() + '</div></div>' +
-      '<div class="chn-tabs" role="tablist">' + TABS.map(function (t) { return '<button class="chn-tab" role="tab" data-tab="' + t[0] + '" aria-selected="' + (ui.tab === t[0]) + '">' + t[1] + '</button>'; }).join('') + '</div>' +
-      '<div id="chnBody"></div></div>';
+      '<div class="chn-head"><div><div class="chn-title">' + esc(g.cfg.country) + ' Treasury</div><div class="chn-date">' + esc(S.nice(g.date)) + ' · ' + esc(gov) + ' government · <span class="mood" style="background:' + md[1] + '">' + md[0] + '</span> · election in ' + (daysToElection > 90 ? Math.round(daysToElection / 30.4) + ' months' : daysToElection + ' days') + '</div></div>' +
+      '<div class="chn-actions" id="chnHeadActions">' + headerActions() + '</div></div>' + termHtml() + tickerHtml() +
+      '<div class="chn-tabs chn-toptabs" role="tablist">' + TABS.map(function (t) { return '<button class="chn-tab" role="tab" data-tab="' + t[0] + '" aria-selected="' + (ui.tab === t[0]) + '">' + t[1] + '</button>'; }).join('') + '</div>' +
+      '<div id="chnBody" class="chn-shell"></div></div>';
     renderTab();
     bindShell();
   }
   function renderTab() {
     var b = ui.host.querySelector('#chnBody'); if (!b) return;
-    if (ui.tab !== 'policy') hideForecast();
+    if (ui.tab !== 'policy') hideForecast(false);
     var fn = { overview: overview, economy: economyTab, policy: policyTab, budget: budgetTab, people: peopleTab, news: newsTab, log: logTab }[ui.tab] || overview;
     b.innerHTML = ui.g.over ? overHtml() : fn();
     if (ui.tab === 'policy' && !ui.g.over) bindPolicy();
@@ -256,6 +279,7 @@
     ['growth', 'GDP growth', '%', 1, function (m) { return 1; }], ['inflation', 'Inflation', '%', 0, null], ['unemployment', 'Unemployment', '%', -1, null], ['policyRate', 'Policy rate', '%', 0, null],
     ['debtGDP', 'Public debt', '% of GDP', -1, null], ['deficit', 'Budget deficit', '% of GDP', -1, null], ['exchangeVsStart', 'Currency', '% vs start', 1, null], ['realWages', 'Real wages', '% a year', 1, null],
   ];
+  var KPI_COLOURS = { growth: '#0b7285', inflation: '#c2410c', unemployment: '#7c3aed', policyRate: '#0369a1', debtGDP: '#b45309', deficit: '#b42318', exchangeVsStart: '#0f766e', realWages: '#4d7c0f' };
   function kpiHtml() {
     var g = ui.g, m = metricsNow(), hist = g.mhist, prev = hist[Math.max(0, hist.length - 4)] || m, target = g.pf.target;
     return KPIS.map(function (k) {
@@ -264,7 +288,7 @@
       else if (k[3] !== 0 && Math.abs(d) > 0.02) cls = (d * k[3] > 0) ? 'good' : 'bad';
       var vals = hist.slice(-12).map(function (x) { return x[key]; });
       var unit = k[2] === '%' ? '<small>%</small>' : '<small> ' + esc(k[2]) + '</small>';
-      return '<div class="chn-card chn-kpi"><div class="lab">' + esc(k[1]) + (key === 'inflation' ? ' (target ' + target + '%)' : '') + '</div><div class="val">' + (key === 'exchangeVsStart' ? sign(v) : f1(v)) + unit + '</div><div class="delta ' + cls + '">' + sign(d) + ' vs 3 months ago</div>' + spark(vals, 'var(--accent)') + '</div>';
+      return '<div class="chn-card chn-kpi" style="border-top:4px solid ' + (KPI_COLOURS[key] || '#0a5f8f') + '"><div class="lab">' + esc(k[1]) + (key === 'inflation' ? ' (target ' + target + '%)' : '') + '</div><div class="val">' + (key === 'exchangeVsStart' ? sign(v) : f1(v)) + unit + '</div><div class="delta ' + cls + '">' + sign(d) + ' vs 3 months ago</div>' + spark(vals, 'var(--accent)') + '</div>';
     }).join('');
   }
   function chartCard(title, defs, o) {
@@ -473,12 +497,18 @@
 
   /* ---------- forecast pop-up: what the draft would do, as graphs ---------- */
   var FC_CHARTS = [['GDP growth (% a year)', 'g'], ['Inflation (% a year)', 'pi'], ['Unemployment (%)', 'u'], ['Budget deficit (% of GDP)', 'deficit'], ['Public debt (% of GDP)', 'debtGDP'], ['Policy rate (%)', 'i']];
-  function hideForecast() { var el = document.getElementById('chnFc'); if (el) el.remove(); }
+  function hideForecast(showTab) {
+    var el = document.getElementById('chnFc'); if (el) el.remove();
+    document.body.classList.remove('chn-fc-open');
+    var tab = document.getElementById('chnFcTab');
+    if (showTab && !tab && ui.tab === 'policy') { tab = document.createElement('button'); tab.id = 'chnFcTab'; tab.className = 'chn-fctab'; tab.textContent = 'Forecast ◂'; tab.onclick = function () { ui.fcClosed = false; updateForecast(true); }; document.body.appendChild(tab); }
+    else if (!showTab && tab) tab.remove();
+  }
   function updateForecast(force) {
-    if (ui.tab !== 'policy') { hideForecast(); return; }
+    if (ui.tab !== 'policy') { hideForecast(false); return; }
     var ch = pendingChanges().filter(function (e) { return gateOk(e).ok; });
-    if (!ch.length && !force) { hideForecast(); return; }
-    if (ui.fcClosed && !force) return;
+    if (!ch.length && !force) { hideForecast(false); return; }
+    if (ui.fcClosed && !force) { if (ch.length) hideForecast(true); return; }
     var g = ui.g, n = 12;
     var extra = ch.map(function (e) { var p = D()[e.id]; return { id: e.id, v: e.ctl.t === 'select' ? p.v : +p.v, opt: p.opt, dur: p.dur }; });
     var base = S.forecast(g, n, []), withP = S.forecast(g, n, extra), last = g.qhist[g.qhist.length - 1];
@@ -486,9 +516,11 @@
     var band = function (arr, k) { return arr.map(function (sn, i) { var c = sn[k] + fcBias(k, i + 1), w = fcSpread(k, i + 1, sn[k]); return [TS(last.date) + (i + 1) * 91.3125 * 864e5, c - w, c + w]; }); };
     var el = document.getElementById('chnFc');
     if (!el) { el = document.createElement('aside'); el.id = 'chnFc'; el.className = 'chn-fc'; el.setAttribute('aria-label', 'Forecast of your draft'); document.body.appendChild(el); }
-    el.innerHTML = '<div class="hd"><div><b>Forecast: what your draft might do</b><div class="neutral" style="font-size:.76rem">' + (ch.length ? ch.length + ' drafted change' + (ch.length === 1 ? '' : 's') + '. ' : 'Nothing is drafted yet, so both lines match. Slide a policy. ') + 'A forecast, not a promise: the shaded range widens with time, forecasters can be wrong in one direction, and shocks and delays will change the real path.</div></div><div class="chn-actions"><span class="legend2"><i style="background:#6b7280"></i>As things stand</span><span class="legend2"><i style="background:var(--accent)"></i>With your draft (shaded: likely range)</span><button class="chn-btn small" id="chnFcClose">Close ✕</button></div></div><div class="grid">' +
-      FC_CHARTS.map(function (c) { return '<div class="chn-chart"><h4>' + esc(c[0]) + '</h4>' + svgChart({ h: 150, label: c[0], bands: [{ pts: band(withP, c[1]), color: 'var(--accent)', opacity: 0.16 }], series: [{ name: '', color: '#6b7280', pts: pts(base, c[1]), dashed: true, w: 1.8 }, { name: '', color: 'var(--accent)', pts: pts(withP, c[1]), w: 2.6 }] }) + '</div>'; }).join('') + '</div>';
-    el.querySelector('#chnFcClose').onclick = function () { ui.fcClosed = true; hideForecast(); };
+    el.innerHTML = '<div class="hd"><div><b>Forecast: what your draft might do</b><div class="neutral" style="font-size:.76rem">' + (ch.length ? ch.length + ' drafted change' + (ch.length === 1 ? '' : 's') + '. ' : 'Nothing is drafted yet, so both lines match. Slide a policy. ') + 'A forecast, not a promise: the shaded range widens with time, forecasters can be wrong in one direction, and shocks and delays will change the real path.</div></div><div class="chn-actions"><span class="legend2"><i style="background:#6b7280"></i>As things stand</span><span class="legend2"><i style="background:var(--accent)"></i>With your draft (shaded: likely range)</span><button class="chn-btn small" id="chnFcClose">Close ✕</button></div></div><div class="col">' +
+      FC_CHARTS.map(function (c) { return '<div class="chn-chart"><h4>' + esc(c[0]) + '</h4>' + svgChart({ h: 250, label: c[0], bands: [{ pts: band(withP, c[1]), color: 'var(--accent)', opacity: 0.16 }], series: [{ name: '', color: '#6b7280', pts: pts(base, c[1]), dashed: true, w: 1.8 }, { name: '', color: 'var(--accent)', pts: pts(withP, c[1]), w: 2.6 }] }) + '</div>'; }).join('') + '</div>';
+    document.body.classList.add('chn-fc-open');
+    var tab = document.getElementById('chnFcTab'); if (tab) tab.remove();
+    el.querySelector('#chnFcClose').onclick = function () { ui.fcClosed = true; hideForecast(true); };
   }
 
   /* ---------- LastMind lessons behind each policy (untracked, closable) ---------- */
@@ -714,39 +746,65 @@
   var AUD = { public: 'The public', workers: 'Working households', business: 'Business', pensioners: 'Pensioners', young: 'Young people', markets: 'Markets', cabinet: 'Your cabinet', party: 'Your party' };
   async function runInterview(ev) {
     var g = ui.g, key = 'j:' + ev.journalist; requestPortrait(key, 'a television news interviewer');
-    var q = null, err = '';
-    var cancelled = false;
-    // 1. the question
-    var shell = function (inner) { return '<div style="display:flex;gap:14px;align-items:center;margin:4px 0 10px">' + avatar(key, ev.journalist, true) + '<div><h2 style="margin:0">' + (ev.goals ? 'First interview: your goals' : 'Interview: ' + esc(ev.outlet)) + '</h2><div class="neutral">with ' + esc(ev.journalist) + '</div></div></div>' + inner; };
-    var res = await modal(shell('<p id="chnQ" class="chn-quote neutral">The interviewer is finding a question…</p><div id="chnQArea"></div><div class="btns"><button class="chn-btn" data-m="skip">Skip the interview</button></div>'), {
+    var MAX_FOLLOWUPS = 3;
+    var ex = [], cur = null, busy = false;
+    var head = '<div style="display:flex;gap:14px;align-items:center;margin:4px 0 10px">' + avatar(key, ev.journalist, true) + '<div><h2 style="margin:0">' + (ev.goals ? 'First interview: your goals' : 'Interview: ' + esc(ev.outlet)) + '</h2><div class="neutral">with ' + esc(ev.journalist) + '</div></div></div>';
+    var res = await modal(head + '<div id="chnConv"></div><div id="chnQ" class="chn-quote neutral">The interviewer is finding a question…</div><div id="chnQArea"></div><div class="btns" id="chnIvBtns"><button class="chn-btn" data-m="skip">Skip the interview</button></div>', {
       img: '/assets/chancellor/interview-studio.jpg',
       onOpen: function (ov, close) {
+        var qEl = function () { return ov.querySelector('#chnQ'); };
+        var say = function (t) { var e = qEl(); if (e) { e.className = 'chn-quote neutral'; e.textContent = t; } };
+        var paint = function () {
+          var conv = ov.querySelector('#chnConv'); if (!conv) return;
+          conv.innerHTML = ex.map(function (x) { return '<div class="chn-quote neutral" style="margin:6px 0">“' + esc(x.question) + '”</div><div style="margin:2px 0 10px 16px;font-size:.88rem"><b>You:</b> ' + esc(x.answer) + '</div>'; }).join('');
+          var q = qEl(); if (q && cur) { q.className = 'chn-quote'; q.textContent = '“' + cur + '”'; }
+          var n = ex.length;   // 0 = opening question, then follow-ups 1..3
+          var label = n === 0 ? 'Answer' : 'Answer follow-up (' + n + ' of ' + MAX_FOLLOWUPS + ')';
+          ov.querySelector('#chnQArea').innerHTML = '<textarea class="chn-ans" id="chnAnswer" maxlength="2500" placeholder="' + (ev.goals && n === 0 ? 'Set out your goals in your own words: what you want for jobs, prices, growth, public finances and fairness, and how you will judge success. You will be held to this.' : 'Answer in your own words. Be honest about the figures, and say what you will do.') + '"></textarea><div class="neutral" style="font-size:.78rem;margin-top:4px">' + (n === 0 ? 'The interviewer may ask up to ' + MAX_FOLLOWUPS + ' follow-up questions. ' : '') + 'Judged on accuracy against the real figures, directness, empathy and consistency. Keep it civil: offensive language is blocked.</div>';
+          ov.querySelector('#chnIvBtns').innerHTML = '<button class="chn-btn primary" data-go="answer">' + label + '</button>' + (n >= 1 ? '<button class="chn-btn" data-go="end">End the interview here</button>' : '<button class="chn-btn" data-m="skip">Skip</button>');
+        };
+        var finish = function () {
+          busy = true; say('The interview is being judged…'); ov.querySelector('#chnQArea').innerHTML = ''; ov.querySelector('#chnIvBtns').innerHTML = '';
+          createAuthedFetch('/chancellor/interview/assess', { method: 'POST', body: JSON.stringify({ context: aiContext({ journalist: ev.journalist, outlet: ev.outlet }), exchanges: ex, mode: ev.goals ? 'goals' : undefined, clientUsedUsd: createSpend.usedUsd }) }).then(function (r) {
+            if (r.body && r.body.spend) createNoteSpend(r.body.spend);
+            if (!r.resp.ok) { busy = false; toast(r.body.error || 'The interview could not be judged.'); ex.pop(); cur = ex.length ? cur : cur; paint(); return; }
+            close({ assessment: r.body, exchanges: ex });
+          }).catch(function () { busy = false; toast('Something went wrong. Try again.'); paint(); });
+        };
+        var followUp = function () {
+          busy = true; say('The interviewer is thinking of a follow-up…'); ov.querySelector('#chnQArea').innerHTML = ''; ov.querySelector('#chnIvBtns').innerHTML = '';
+          createAuthedFetch('/chancellor/interview/question', { method: 'POST', body: JSON.stringify({ context: aiContext({ journalist: ev.journalist, outlet: ev.outlet }), previousAngles: g.interviewAngles.slice(-6), transcript: ex, clientUsedUsd: createSpend.usedUsd }) }).then(function (r) {
+            if (r.body && r.body.spend) createNoteSpend(r.body.spend);
+            busy = false;
+            if (!r.resp.ok) { toast(r.body.error || 'No follow-up.'); finish(); return; }
+            if (r.body.done || !r.body.question) { finish(); return; }
+            cur = r.body.question; paint();
+          }).catch(function () { busy = false; finish(); });
+        };
+        // the opening question
         (ev.goals ? Promise.resolve({ resp: { ok: true }, body: { question: 'Congratulations on taking office, Chancellor. Before we get into the detail: what are your goals for the economy over this term, and what would count as success?', angle: 'Your goals' } }) : createAuthedFetch('/chancellor/interview/question', { method: 'POST', body: JSON.stringify({ context: aiContext({ journalist: ev.journalist, outlet: ev.outlet }), previousAngles: g.interviewAngles.slice(-6), clientUsedUsd: createSpend.usedUsd }) })).then(function (r) {
           if (r.body && r.body.spend) createNoteSpend(r.body.spend);
-          var qEl = ov.querySelector('#chnQ'); if (!qEl) return;
-          if (!r.resp.ok) { qEl.textContent = r.body.error || 'The interviewer could not be reached.'; return; }
-          q = r.body; g.interviewAngles.push(q.angle || '');
-          qEl.className = 'chn-quote'; qEl.textContent = '“' + q.question + '”';
-          ov.querySelector('#chnQArea').innerHTML = '<textarea class="chn-ans" id="chnAnswer" maxlength="2500" placeholder="' + (ev.goals ? 'Set out your goals in your own words: what you want for jobs, prices, growth, public finances and fairness, and how you will judge success. You will be held to this.' : 'Answer in your own words. Be honest about the figures, and say what you will do.') + '"></textarea><div class="neutral" style="font-size:.78rem;margin-top:4px">Judged on accuracy against the real figures, directness, empathy and consistency with what you have done. Keep it civil: offensive language is blocked.</div><div class="btns"><button class="chn-btn primary" data-m="answer">Answer</button><button class="chn-btn" data-m="skip">Skip</button></div>';
-        }).catch(function () { var qEl = ov.querySelector('#chnQ'); if (qEl) qEl.textContent = 'The interviewer could not be reached.'; });
+          if (!qEl()) return;
+          if (!r.resp.ok) { say(r.body.error || 'The interviewer could not be reached.'); return; }
+          g.interviewAngles.push(r.body.angle || ''); cur = r.body.question; paint();
+        }).catch(function () { say('The interviewer could not be reached.'); });
         ov.addEventListener('click', function (e) {
-          var t = e.target.closest('[data-m="answer"]'); if (!t) return;
+          var t = e.target.closest('[data-go]'); if (!t) return;
           e.stopPropagation();
-          var ta = ov.querySelector('#chnAnswer'), text = ta.value.trim();
+          if (busy) return;
+          if (t.dataset.go === 'end') { if (ex.length) finish(); return; }
+          var ta = ov.querySelector('#chnAnswer'), text = ta ? ta.value.trim() : '';
           if (!text) { toast('Write an answer first.'); return; }
           if (typeof lmScreenText === 'function' && lmScreenText(text).vulgar) { toast('Please keep it civil: offensive language cannot be sent.'); return; }
-          t.disabled = true; t.textContent = 'Judging…';
-          createAuthedFetch('/chancellor/interview/assess', { method: 'POST', body: JSON.stringify({ context: aiContext({ journalist: ev.journalist, outlet: ev.outlet }), question: q.question, answer: text, mode: ev.goals ? 'goals' : undefined, clientUsedUsd: createSpend.usedUsd }) }).then(function (r) {
-            if (r.body && r.body.spend) createNoteSpend(r.body.spend);
-            if (!r.resp.ok) { t.disabled = false; t.textContent = 'Answer'; toast(r.body.error || 'The interview could not be judged.'); return; }
-            close({ assessment: r.body, answerText: text });
-          }).catch(function () { t.disabled = false; t.textContent = 'Answer'; toast('Something went wrong. Try again.'); });
+          ex.push({ question: cur, answer: text });
+          if (ex.length >= 1 + MAX_FOLLOWUPS) { finish(); return; }
+          paint(); followUp();
         }, true);
       },
     });
     if (res && res.assessment) {
       var a = res.assessment;
-      if (ev.goals && res.answerText) g.goals = res.answerText.slice(0, 600);
+      if (ev.goals && res.exchanges && res.exchanges[0]) g.goals = res.exchanges[0].answer.slice(0, 600);
       var rows = Object.keys(AUD).map(function (k) { var v = (a.scores || {})[k] || 0; return '<div class="chn-row" style="grid-template-columns:140px 1fr 46px"><span>' + AUD[k] + '</span><div class="chn-bar"><i style="width:' + Math.round((v + 6) / 12 * 100) + '%;background:' + (v < 0 ? 'var(--chn-bad)' : 'var(--chn-good)') + '"></i></div><b class="' + (v < 0 ? 'bad' : v > 0 ? 'good' : 'neutral') + '">' + (v > 0 ? '+' : '') + v + '</b></div>'; }).join('');
       S.resolveEvent(g, ev.id, 0, { assessment: a }); save(); renderAll();
       await modal('<h2>' + (a.gaffe ? 'A serious blunder' : 'How it landed') + '</h2><div class="chn-quote"><b>' + esc(a.headline) + '</b><br>' + esc(a.reaction) + '</div><div class="chn-actions"><span class="chn-tag">Accuracy: ' + esc(a.accuracy) + '</span><span class="chn-tag">Directness: ' + esc(a.directness) + '</span><span class="chn-tag">Empathy: ' + esc(a.empathy) + '</span></div><div class="chn-sec">Audience reaction</div>' + rows + '<div class="chn-sec">Coaching</div><p>' + esc(a.coaching) + '</p><div class="btns"><button class="chn-btn primary" data-m="ok">Continue</button></div>', { img: '/assets/chancellor/interview-studio.jpg' });
