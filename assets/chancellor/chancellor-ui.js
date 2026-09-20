@@ -76,6 +76,7 @@
       '.chn-area { border: 1px solid var(--chn-line); border-radius: 12px; padding: 10px 14px; margin-bottom: 10px; background: var(--panel); } .chn-area > summary { cursor: pointer; list-style: none; font-size: 0.98rem; display: flex; gap: 10px; align-items: baseline; } .chn-area > summary::-webkit-details-marker { display: none; } .chn-area > summary::before { content: "▸"; } .chn-area[open] > summary::before { content: "▾"; }',
       '.chn-guid { position: fixed; top: 56px; right: 12px; bottom: 12px; width: min(420px, 92vw); z-index: 2500; background: var(--panel); color: var(--text); border: 1px solid var(--chn-line); border-radius: 14px; box-shadow: 0 16px 50px rgba(0,0,0,0.3); display: flex; flex-direction: column; } .chn-guid .hd { padding: 14px 16px 10px; display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; border-bottom: 1px solid var(--chn-line); } .chn-guid .tabs { display: flex; gap: 6px; padding: 10px 12px 0; overflow-x: auto; } .chn-guid .bd { padding: 12px 16px 18px; overflow-y: auto; font-size: 0.9rem; line-height: 1.6; } .chn-guid .bd p { margin: 0 0 10px; }',
       '.chn-budget.warn { border-color: var(--chn-warn); color: var(--chn-warn); }',
+      '.chn-lesson { border-top: 1px solid var(--chn-line); padding-top: 6px; } .chn-lesson .lbody { font-size: 0.86rem; line-height: 1.6; padding: 4px 0 6px; } .chn-lesson .lbody p { margin: 0 0 8px; }',
       '.chn-mtx { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; } .chn-mtx div { border: 1px solid var(--chn-line); border-radius: 10px; padding: 8px 10px; font-size: 0.82rem; } .chn-mtx b { display: block; font-size: 1.1rem; }',
     ].join('\n');
     document.head.appendChild(st);
@@ -302,19 +303,29 @@
   /* ---------- economy tab ---------- */
   var ECON_GROUPS = [
     ['Output and jobs', [['growth', 'GDP growth', '% yoy'], ['gdpIndex', 'Real GDP', 'index'], ['potentialGdp', 'Potential GDP', 'index'], ['gap', 'Output gap', '%'], ['potGrowth', 'Potential growth', '% yoy'], ['unemployment', 'Unemployment', '%'], ['ustar', 'Structural unemployment', '%'], ['employment', 'Employment', 'index'], ['participation', 'Participation', '%'], ['productivity', 'Productivity', 'index']]],
-    ['Prices and wages', [['inflation', 'CPI inflation', '%'], ['core', 'Domestic inflation', '%'], ['importInflation', 'Imported inflation', '%'], ['importPrices', 'Import prices vs trend', '%'], ['commodityPrices', 'World commodity prices vs trend', '%'], ['nominalWages', 'Wage growth (money)', '% yoy'], ['realWages', 'Real wage growth', '% yoy'], ['anchor', 'Inflation expectations anchored', '0 to 1']]],
+    ['Prices and wages', [['inflation', 'CPI inflation', '%'], ['expectedInflation', 'Expected inflation', '%'], ['moneyFinancing', 'Inflation from printing money', 'pp'], ['core', 'Domestic inflation', '%'], ['importInflation', 'Imported inflation', '%'], ['importPrices', 'Import prices vs trend', '%'], ['commodityPrices', 'World commodity prices vs trend', '%'], ['nominalWages', 'Wage growth (money)', '% yoy'], ['realWages', 'Real wage growth', '% yoy'], ['anchor', 'Inflation expectations anchored', '0 to 1']]],
     ['Demand and trade', [['consumption', 'Household spending vs trend', '%'], ['investment', 'Business investment vs trend', '%'], ['exports', 'Exports vs trend', '%'], ['imports', 'Imports vs trend', '%'], ['currentAccount', 'Current account', '% GDP'], ['exchangeVsStart', 'Currency vs start', '%'], ['reserves', 'Reserves', 'months of imports'], ['savingRate', 'Saving rate', '%']]],
     ['Households and living standards', [['povertyRate', 'Poverty rate', '% of people'], ['giniLevel', 'Inequality (Gini)', '0 to 100'], ['confH', 'Household confidence', 's.d.'], ['confB', 'Business confidence', 's.d.'], ['housePrices', 'House and asset prices', '% vs trend']]],
     ['Government', [['deficit', 'Budget deficit', '% GDP'], ['debtGDP', 'Public debt', '% GDP'], ['interest', 'Debt interest', '% GDP'], ['taxRevenue', 'Tax revenue', '% GDP']]],
     ['Money and finance', [['policyRate', 'Policy rate', '%'], ['realRate', 'Real interest rate', '%'], ['riskPremium', 'Risk premium', 'pp'], ['sovereignStress', 'Sovereign stress score', 'index']]],
     ['Environment', [['emissions', 'Emissions index', 'start = 100']]],
   ];
+  function inflationDiagnosis() {
+    var g = ui.g, m = metricsNow(), t = g.pf.target, rows = [];
+    if (m.anchor < 0.5 || m.expectedInflation - t > 3) rows.push(['Expectations', 'People expect ' + f1(m.expectedInflation) + '% inflation, so wages and prices are set to match. Credibility is ' + f1(m.anchor * 100) + '% of what it should be.', 'Raise interest rates above inflation, keep a fiscal rule, and make the central bank independent. Credibility comes back slowly.']);
+    if ((m.moneyFinancing || 0) > 0.5) rows.push(['Printing money for the deficit', 'The central bank is financing the deficit, adding about ' + f1(m.moneyFinancing) + ' points to inflation.', 'Cut the deficit, and end the practice with Monetary: Central bank independence.']);
+    if (m.importInflation - t > 2) rows.push(['Imported inflation', 'Import prices are rising ' + f1(m.importInflation) + '% a year, from a weak currency or dear world prices.', 'Stabilise the currency (higher rates, reserves, a peg or capital controls) and cushion energy and food prices.']);
+    if (m.gap > 1) rows.push(['Demand above capacity', 'The economy is running ' + f1(m.gap) + '% above what it can supply.', 'Tighten fiscal policy (taxes up, spending down) and, if you can set them, interest rates.']);
+    if (m.realWages < -3 && m.inflation > t + 3) rows.push(['Wages chasing prices', 'Real wages are falling ' + f1(-m.realWages) + '% a year, so unions push for catch-up pay.', 'Restore confidence that inflation is falling; be careful with pay and minimum-wage rises.']);
+    if (!rows.length) return '<div class="chn-card"><div class="chn-sec" style="margin-top:0">What is driving inflation</div><p class="neutral" style="margin:0;font-size:.88rem">Inflation is ' + f1(m.inflation) + '%, near the ' + t + '% target. No single cause stands out.</p></div>';
+    return '<div class="chn-card"><div class="chn-sec" style="margin-top:0">What is driving inflation (' + f1(m.inflation) + '%, target ' + t + '%)</div>' + rows.map(function (x) { return '<div class="chn-item" style="display:block"><b>' + esc(x[0]) + '.</b> ' + esc(x[1]) + '<br><span class="good">To address it:</span> ' + esc(x[2]) + '</div>'; }).join('') + '</div>';
+  }
   function economyTab() {
     var g = ui.g, m = metricsNow(), hist = g.mhist, m3 = hist[Math.max(0, hist.length - 4)], m12 = hist[Math.max(0, hist.length - 13)] || m3;
     var rows = ECON_GROUPS.map(function (grp) { return '<tr class="grp"><td colspan="5">' + esc(grp[0]) + '</td></tr>' + grp[1].map(function (r) { var k = r[0]; return '<tr data-var="' + k + '" style="cursor:pointer"><td>' + esc(r[1]) + '</td><td class="n"><b>' + f1(m[k]) + '</b></td><td class="n">' + f1(m3[k]) + '</td><td class="n">' + f1(m12[k]) + '</td><td class="neutral">' + esc(r[2]) + '</td></tr>'; }).join(''); }).join('');
     var opts = ECON_GROUPS.reduce(function (a, grp) { return a.concat(grp[1]); }, []).map(function (r) { return '<option value="' + r[0] + '"' + (ui.econVar === r[0] ? ' selected' : '') + '>' + esc(r[1]) + '</option>'; }).join('');
     setTimeout(function () { var sel = ui.host.querySelector('#chnVar'); if (sel && !sel._b) { sel._b = 1; sel.addEventListener('change', function () { ui.econVar = sel.value; renderTab(); }); } ui.host.querySelectorAll('tr[data-var]').forEach(function (tr) { tr.addEventListener('click', function () { ui.econVar = tr.dataset.var; renderTab(); }); }); }, 0);
-    return '<div class="chn-two"><div class="chn-card"><div class="chn-scroll"><table class="chn-table"><tr><th>Variable</th><th class="n">Now</th><th class="n">3 months ago</th><th class="n">A year ago</th><th>Unit</th></tr>' + rows + '</table></div><p class="neutral" style="font-size:.78rem;margin:10px 0 0">Monthly figures between quarters are estimates that firm up when the quarter is published. Click a row to chart it.</p></div>' +
+    return '<div style="margin-bottom:12px">' + inflationDiagnosis() + '</div><div class="chn-two"><div class="chn-card"><div class="chn-scroll"><table class="chn-table"><tr><th>Variable</th><th class="n">Now</th><th class="n">3 months ago</th><th class="n">A year ago</th><th>Unit</th></tr>' + rows + '</table></div><p class="neutral" style="font-size:.78rem;margin:10px 0 0">Monthly figures between quarters are estimates that firm up when the quarter is published. Click a row to chart it.</p></div>' +
       '<div class="chn-card chn-chart"><label class="neutral" style="font-size:.78rem">Chart <select id="chnVar" style="margin-left:6px;padding:5px 8px;border-radius:8px">' + opts + '</select></label><h4 style="margin-top:10px">' + esc((ECON_GROUPS.reduce(function (a, grp) { return a.concat(grp[1]); }, []).filter(function (r) { return r[0] === ui.econVar; })[0] || ['', ''])[1]) + '</h4>' + svgChart({ series: [{ name: 'Monthly', color: 'var(--accent)', pts: monthlySeries(ui.econVar, 48) }, { name: 'Quarterly', color: '#c2410c', pts: quarterlySeries(ui.econVar, 16), w: 1.4 }], today: TS(g.date), label: ui.econVar }) + '</div></div>';
   }
 
@@ -361,10 +372,10 @@
     var en = enacted(e.id), avail = gateOk(e), lock = !avail.ok, drafted = differs(e);
     var chips = (drafted ? '<span class="chn-tag" style="background:rgba(11,114,133,.18)">Drafted</span> ' : '') + (en ? '<span class="chn-tag">In force: ' + esc(S.describe(e, en.v, en.opt, en.dur)) + '</span>' : '');
     var wait = drafted && !S.canDecide(ui.g, e.id).ok && S.canDecide(ui.g, e.id).reason ? '<div class="unit">' + esc(areaWaitText(e)) + '</div>' : '';
-    return '<article class="chn-pol' + (drafted ? ' changed' : '') + (lock ? ' lock' : '') + '" data-card="' + e.id + '"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:flex-start"><span class="nm">' + esc(e.name) + '</span><button class="chn-btn small" data-lesson="' + e.id + '" title="Open the LastMind lesson behind this policy">Lesson</button></div><div class="ch">You choose: ' + esc(e.choice) + '</div>' +
+    return '<article class="chn-pol' + (drafted ? ' changed' : '') + (lock ? ' lock' : '') + '" data-card="' + e.id + '"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:flex-start"><span class="nm">' + esc(e.name) + '</span></div><div class="ch">You choose: ' + esc(e.choice) + '</div>' +
       (lock ? '<div class="reason">' + esc(avail.reason) + '</div>' : '') + ctlHtml(e) +
       '<div class="unit">' + (e.lag ? 'Takes effect ' + e.lag + ' quarter' + (e.lag > 1 ? 's' : '') + ' after it is enacted · ' + esc(e.lagWhy) : 'Takes effect straight away') + '</div>' + (chips ? '<div>' + chips + '</div>' : '') + wait +
-      '<details><summary class="unit" style="cursor:pointer">How it works in the model</summary><p class="unit" style="margin:6px 0 0">' + esc(e.enters) + '</p></details></article>';
+      '<details class="chn-lesson" data-lesson-id="' + e.id + '"><summary class="unit" style="cursor:pointer">LastMind lesson (untracked: no questions, nothing recorded)</summary><div class="lbody"></div></details></article>';
   }
   function areaWaitText(e) { return BIG_ONLY_UI.indexOf(e.area) > -1 ? 'Held in your draft until the main Budget.' : 'Held in your draft until a budget.'; }
   var BIG_ONLY_UI = ['Labour market', 'Business and supply side', 'Trade', 'Foreign investment', 'Industrial policy', 'Environment', 'Regional', 'Migration and labour supply', 'Banking and finance', 'Fiscal framework', 'Innovation'];
@@ -417,7 +428,7 @@
         saveSoon(); refreshSide();
       };
       list.addEventListener('input', onInput); list.addEventListener('change', onInput);
-      list.addEventListener('toggle', function (ev) { var d = ev.target; if (d && d.dataset && d.dataset.areaname) ui.openAreas[d.dataset.areaname] = d.open; }, true);
+      list.addEventListener('toggle', function (ev) { var d = ev.target; if (d && d.dataset && d.dataset.areaname) ui.openAreas[d.dataset.areaname] = d.open; if (d && d.dataset && d.dataset.lessonId && d.open) fillLesson(d); }, true);
     }
     host.querySelectorAll('[data-pol]').forEach(function (b) { b.onclick = function () { if (b.dataset.pol === 'clear') { ui.g.draft = {}; save(); renderTab(); } else { save(); toast('Draft saved. Nothing is enacted until you submit it on budget day.'); } }; });
   }
@@ -503,6 +514,29 @@
     };
     draw();
   }
+  // The lesson sits on the policy card itself: open it to read, close it to tuck it away.
+  async function fillLesson(d) {
+    var e = catalogue().filter(function (x) { return x.id === d.dataset.lessonId; })[0], box = d.querySelector('.lbody'); if (!e || !box || box.dataset.ready) return;
+    box.innerHTML = '<p class="neutral" style="font-size:.85rem">Finding the right lesson…</p>';
+    var nodes = await loadLessonMap();
+    var found = topicNodes(e, nodes);
+    if (!found.length) { box.innerHTML = '<p class="neutral" style="font-size:.85rem">No matching lesson was found in your Economics knowledge map.</p>'; return; }
+    box.dataset.ready = '1';
+    var cur = found[0].id;
+    var draw = async function () {
+      var node = found.filter(function (n) { return n.id === cur; })[0];
+      var tabs = '<div class="chn-tabs" style="margin:6px 0">' + found.map(function (n) { return '<button class="chn-tab" data-node="' + esc(n.id) + '" aria-selected="' + (n.id === cur) + '" style="padding:4px 10px;font-size:.76rem">' + esc(n.label.length > 44 ? n.label.slice(0, 42) + '…' : n.label) + '</button>'; }).join('') + '</div>';
+      var wire = function () { box.querySelectorAll('[data-node]').forEach(function (b) { b.onclick = function () { cur = b.dataset.node; draw(); }; }); };
+      if (lessonCache[cur]) { box.innerHTML = tabs + '<div class="lesson-text"><h4 style="font:700 .95rem Arial;margin:4px 0">' + esc(node.label) + '</h4>' + lessonCache[cur] + '</div>'; wire(); return; }
+      box.innerHTML = tabs + '<p class="neutral" style="font-size:.85rem">Opening your lesson…</p>'; wire();
+      var r = await createAuthedFetch('/knowledge-map-v2/node/' + encodeURIComponent(cur) + '/lesson').catch(function () { return { resp: { ok: false }, body: {} }; });
+      if (cur !== node.id) return;
+      if (r.resp.ok && r.body && r.body.explanation) { lessonCache[cur] = paragraphs(r.body.explanation); }
+      else { box.innerHTML = tabs + '<p style="font-size:.85rem">' + esc(r.body && r.body.code === 'LOCK_LIMIT_REACHED' ? "You're out of Locks for now, so this lesson cannot be opened." : "The lesson couldn't be loaded just now.") + '</p><button class="chn-btn small" id="chnLessonRetry">Try again</button>'; wire(); var rt = box.querySelector('#chnLessonRetry'); if (rt) rt.onclick = draw; return; }
+      draw();
+    };
+    draw();
+  }
   function closeLesson() { var p = document.getElementById('chnGuid'); if (p) p.remove(); }
 
   /* ---------- budget tab ---------- */
@@ -583,7 +617,7 @@
     var g = ui.g, m = metricsNow(), sit = S.SITUATIONS[g.sit].name, stage = S.STAGES[g.stage].label;
     return modal('<h2>Welcome, Chancellor</h2><p>' + esc(g.cfg.country) + ' is an ' + esc(stage.toLowerCase()) + '. Starting situation: <b>' + esc(sit) + '</b>.</p>' +
       '<div class="chn-mtx"><div>GDP growth<b>' + f1(m.growth) + '%</b></div><div>Inflation<b>' + f1(m.inflation) + '%</b></div><div>Unemployment<b>' + f1(m.unemployment) + '%</b></div><div>Public debt<b>' + f0(m.debtGDP) + '% of GDP</b></div><div>Deficit<b>' + f1(m.deficit) + '%</b></div><div>Your approval<b>' + f0(ui.g.pop.groups.public) + '%</b></div></div>' +
-      '<p style="margin-top:12px">Time moves when you press Advance and stops whenever something needs you: budgets, shocks, political rows and interviews. Your first Budget is on ' + esc(S.nice(g.bigBudget.date)) + '. Until then, prepare policies in the Policy tab, see their forecasts and save them as a draft: nothing takes effect until you submit it on budget day. Policy can only be changed at budgets and in emergency sessions, and everything takes time to work. A general election is due on ' + esc(S.nice(g.electionDate)) + '.</p>' + (g.cfg.history ? '<p class="neutral"><i>' + esc(g.cfg.history.slice(0, 300)) + '</i></p>' : '') + '<div class="btns"><button class="chn-btn primary" data-m="ok">Take office</button></div>', { img: '/assets/chancellor/cabinet-room.jpg' });
+      '<div class="chn-quote"><b>What is behind it.</b> ' + esc(S.SITUATIONS[g.sit].diagnosis || '') + '</div><p style="margin-top:12px">Time moves when you press Advance and stops whenever something needs you: budgets, shocks, political rows and interviews. Your first Budget is on ' + esc(S.nice(g.bigBudget.date)) + '. Until then, prepare policies in the Policy tab, see their forecasts and save them as a draft: nothing takes effect until you submit it on budget day. Policy can only be changed at budgets and in emergency sessions, and everything takes time to work. A general election is due on ' + esc(S.nice(g.electionDate)) + '.</p>' + (g.cfg.history ? '<p class="neutral"><i>' + esc(g.cfg.history.slice(0, 300)) + '</i></p>' : '') + '<div class="btns"><button class="chn-btn primary" data-m="ok">Take office</button></div>', { img: '/assets/chancellor/cabinet-room.jpg' });
   }
   function showBudgetReaction(ev) {
     var g = ui.g, P = g.pop;
