@@ -11,7 +11,7 @@
   var f0 = function (x) { return String(Math.round(isFinite(x) ? x : 0)); };
   var sign = function (x) { return (x > 0 ? '+' : '') + f1(x); };
   var money = function (x) { var a = Math.abs(x), s = x < 0 ? '-' : ''; if (a >= 1e12) return s + (a / 1e12).toFixed(2) + ' tn'; if (a >= 1e9) return s + (a / 1e9).toFixed(1) + ' bn'; if (a >= 1e6) return s + (a / 1e6).toFixed(1) + ' m'; return s + Math.round(a).toLocaleString(); };
-  var ui = { g: null, host: null, tab: 'overview', group: 'Taxes', openAreas: {}, lessonCtx: null, exitLabel: 'Save and exit', launchOpts: null, chart: 'monthly', portraits: {}, busy: false, onExit: null, notices: [], cat: null, previewTimer: null, econVar: 'inflation', modal: null };
+  var ui = { locks: { balance: null }, balTimer: null, g: null, host: null, tab: 'overview', group: 'Taxes', openAreas: {}, lessonCtx: null, exitLabel: 'Save and exit', launchOpts: null, chart: 'monthly', portraits: {}, busy: false, onExit: null, notices: [], cat: null, previewTimer: null, econVar: 'inflation', modal: null };
 
   /* ---------- styles ---------- */
   function injectStyle() {
@@ -92,6 +92,11 @@
       '.chn-shell { background: rgba(238,246,253,0.95); color: #000; border-radius: 20px; padding: 18px; box-shadow: 0 12px 50px rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.5); }',
       '.chn-kpi { transition: transform 0.15s, box-shadow 0.15s; } .chn-kpi:hover { transform: translateY(-3px); box-shadow: 0 10px 24px rgba(0,0,0,0.18); }',
       '.chn-overlay .chn-modal { animation: chnPop 0.22s ease-out; } @keyframes chnPop { from { transform: translateY(14px) scale(0.98); opacity: 0; } to { transform: none; opacity: 1; } } @media (prefers-reduced-motion: reduce) { .chn-overlay .chn-modal { animation: none; } }',
+      '.chn-pol { border-top: 5px solid var(--gc, var(--accent)); transition: transform 0.15s, box-shadow 0.15s; } .chn-pol:hover { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(0,0,0,0.14); } .chn-pol .badge { background: var(--gc, var(--accent)); color: #fff; padding: 3px 11px; border-radius: 999px; font: 800 0.8rem Arial, sans-serif; letter-spacing: 0.02em; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,0.2); } .chn-pol .badge.pop { animation: chnBadge 0.28s ease-out; } @keyframes chnBadge { 0% { transform: scale(1); } 45% { transform: scale(1.28) rotate(-3deg); } 100% { transform: scale(1); } }',
+      '.chn-pol input[type=range] { -webkit-appearance: none; appearance: none; height: 14px; border-radius: 999px; outline: none; cursor: pointer; background: linear-gradient(90deg, var(--gc, var(--accent)) 0, var(--gc, var(--accent)) var(--fill, 50%), rgba(0,0,0,0.16) var(--fill, 50%), rgba(0,0,0,0.16) 100%); box-shadow: inset 0 1px 3px rgba(0,0,0,0.25); } .chn-pol input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 30px; height: 30px; border-radius: 50%; background: #fff; border: 5px solid var(--gc, var(--accent)); box-shadow: 0 3px 10px rgba(0,0,0,0.35); transition: transform 0.12s; } .chn-pol input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 5px solid var(--gc, var(--accent)); box-shadow: 0 3px 10px rgba(0,0,0,0.35); } .chn-pol input[type=range]:hover::-webkit-slider-thumb { transform: scale(1.12); } .chn-pol input[type=range]:active::-webkit-slider-thumb { transform: scale(1.25); } .chn-pol input[type=range]:focus-visible { box-shadow: 0 0 0 3px rgba(10,95,143,0.5); }',
+      '.chn-line { stroke-dasharray: 1; stroke-dashoffset: 1; animation: chnDraw 1.2s ease-out forwards; } @keyframes chnDraw { to { stroke-dashoffset: 0; } } @media (prefers-reduced-motion: reduce) { .chn-line { animation: none; stroke-dasharray: none; stroke-dashoffset: 0; } .chn-pol .badge.pop { animation: none; } }',
+      '.chn-tip { position: fixed; z-index: 4000; pointer-events: none; display: none; background: rgba(8,18,35,0.95); color: #f7f0dc; border-radius: 10px; padding: 8px 11px; font: 0.78rem Arial, sans-serif; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }',
+      '.chn-chart { transition: transform 0.15s, box-shadow 0.15s; } .chn-chart.chn-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,0.14); }',
       '.chn-mtx { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; } .chn-mtx div { border: 1px solid var(--chn-line); border-radius: 10px; padding: 8px 10px; font-size: 0.82rem; } .chn-mtx b { display: block; font-size: 1.1rem; }',
     ].join('\n');
     document.head.appendChild(st);
@@ -105,7 +110,7 @@
 
   /* ---------- launch ---------- */
   function launch(host, cfg, opts) {
-    injectStyle(); loadPortraits();
+    injectStyle(); loadPortraits(); refreshBalance();
     ui.host = host; ui.onExit = opts.onExit; ui.tab = 'overview'; ui.notices = []; ui.cat = null; ui.exitLabel = opts.exitLabel || 'Save and exit'; ui.launchOpts = opts; ui.lessonCtx = null; ui.openAreas = {};
     var saved = opts.resume ? loadSaved() : null;
     if (saved) { ui.g = saved; ui.g.draft = ui.g.draft || {}; renderAll(); ensurePortraits(); return; }
@@ -118,29 +123,58 @@
     setTimeout(function () {
       try { ui.g = S.newGame(cfg); } catch (err) { console.error(err); host.innerHTML = '<div class="chn"><p>The simulation could not start. ' + esc(err.message) + '</p><button class="chn-btn" id="chnBack">Back</button></div>'; var b = host.querySelector('#chnBack'); if (b) b.onclick = function () { ui.onExit && ui.onExit(); }; return; }
       save(); renderAll(); ensurePortraits();
-      showBriefing().then(function () { var ev = ui.g.events.filter(function (e) { return !e.done && e.goals; })[0]; if (ev) return runInterview(ev).then(function () { save(); renderAll(); }); });
+      showBriefing().then(function () { var ev = ui.g.events.filter(function (e) { return !e.done && e.goals; })[0]; if (ev) return interviewFlow(ev).then(function () { save(); renderAll(); }); });
     }, 2600);
   }
 
   /* ---------- tiny charts ---------- */
   function scale(vals, pad) { var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals); if (!isFinite(lo)) { lo = 0; hi = 1; } if (lo === hi) { lo -= 1; hi += 1; } var p = (hi - lo) * (pad == null ? 0.1 : pad); return [lo - p, hi + p]; }
   function niceTicks(lo, hi, n) { var step = (hi - lo) / n, mag = Math.pow(10, Math.floor(Math.log10(step))), r = step / mag, s = r < 1.5 ? 1 : r < 3 ? 2 : r < 7 ? 5 : 10; step = s * mag; var t = [], v = Math.ceil(lo / step) * step; while (v <= hi + 1e-9) { t.push(v); v += step; } return t; }
+  var chartSeq = 0;
   function svgChart(o) {
-    var W = 560, H = o.h || 200, m = { l: 40, r: 10, t: 8, b: 22 }, ser = o.series.filter(function (s) { return s.pts.length; });
+    var W = 560, H = o.h || 200, m = { l: 40, r: 12, t: 10, b: 22 }, ser = o.series.filter(function (s) { return s.pts.length; });
     if (!ser.length) return '<div class="neutral" style="padding:20px 0">No data yet.</div>';
     var xs = [], ys = []; ser.forEach(function (s) { s.pts.forEach(function (p) { xs.push(p[0]); ys.push(p[1]); }); });
     (o.bands || []).forEach(function (b) { b.pts.forEach(function (p) { xs.push(p[0]); ys.push(p[1]); ys.push(p[2]); }); });
-    var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), yr = scale(ys, 0.12), y0 = yr[0], y1 = yr[1];
+    var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), yr = scale(ys, 0.12), y0 = yr[0], y1 = yr[1], id = 'cg' + (++chartSeq);
     var X = function (t) { return m.l + (t - x0) / Math.max(1, x1 - x0) * (W - m.l - m.r); }, Y = function (v) { return H - m.b - (v - y0) / (y1 - y0) * (H - m.t - m.b); };
-    var g = '', ticks = niceTicks(y0, y1, 4);
-    ticks.forEach(function (v) { g += '<line x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + Y(v) + '" y2="' + Y(v) + '" stroke="currentColor" stroke-opacity="' + (Math.abs(v) < 1e-9 ? 0.4 : 0.12) + '"/><text x="' + (m.l - 6) + '" y="' + (Y(v) + 3) + '" text-anchor="end" font-size="10" fill="currentColor" fill-opacity="0.7">' + (Math.abs(v) >= 100 ? f0(v) : f1(v)) + '</text>'; });
+    var g = '<defs>' + ser.map(function (s, i) { return s.dashed ? '' : '<linearGradient id="' + id + i + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + s.color + '" stop-opacity="0.32"/><stop offset="1" stop-color="' + s.color + '" stop-opacity="0"/></linearGradient>'; }).join('') + '</defs>';
+    niceTicks(y0, y1, 4).forEach(function (v) { g += '<line x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + Y(v) + '" y2="' + Y(v) + '" stroke="currentColor" stroke-opacity="' + (Math.abs(v) < 1e-9 ? 0.5 : 0.1) + '"' + (Math.abs(v) < 1e-9 ? ' stroke-dasharray="4 3"' : '') + '/><text x="' + (m.l - 6) + '" y="' + (Y(v) + 3) + '" text-anchor="end" font-size="10" fill="currentColor" fill-opacity="0.7">' + (Math.abs(v) >= 100 ? f0(v) : f1(v)) + '</text>'; });
     for (var k = 0; k <= 4; k++) { var tt = x0 + (x1 - x0) * k / 4, d = new Date(tt); g += '<text x="' + X(tt) + '" y="' + (H - 6) + '" text-anchor="' + (k === 0 ? 'start' : k === 4 ? 'end' : 'middle') + '" font-size="10" fill="currentColor" fill-opacity="0.7">' + ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getUTCMonth()] + " '" + String(d.getUTCFullYear()).slice(2) + '</text>'; }
     if (o.today != null && o.today > x0 && o.today < x1) g += '<line x1="' + X(o.today) + '" x2="' + X(o.today) + '" y1="' + m.t + '" y2="' + (H - m.b) + '" stroke="currentColor" stroke-opacity="0.35" stroke-dasharray="3 3"/><text x="' + (X(o.today) + 4) + '" y="' + (m.t + 9) + '" font-size="9" fill="currentColor" fill-opacity="0.6">today</text>';
     (o.bands || []).forEach(function (b) { if (!b.pts.length) return; var up = b.pts.map(function (p) { return X(p[0]).toFixed(1) + ' ' + Y(p[2]).toFixed(1); }), dn = b.pts.slice().reverse().map(function (p) { return X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1); }); g += '<path d="M' + up.join(' L') + ' L' + dn.join(' L') + ' Z" fill="' + b.color + '" fill-opacity="' + (b.opacity || 0.15) + '" stroke="none"/>'; });
-    ser.forEach(function (s) { var d = s.pts.map(function (p, i) { return (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1); }).join(' '); g += '<path d="' + d + '" fill="none" stroke="' + s.color + '" stroke-width="' + (s.w || 2.2) + '"' + (s.dashed ? ' stroke-dasharray="5 4"' : '') + ' stroke-linejoin="round"/>'; var last = s.pts[s.pts.length - 1]; if (!s.dashed) g += '<circle cx="' + X(last[0]) + '" cy="' + Y(last[1]) + '" r="3" fill="' + s.color + '"/>'; });
+    var floor = H - m.b;
+    ser.forEach(function (s, i) {
+      var pts = s.pts.map(function (p) { return X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1); }), line = 'M' + pts.join(' L');
+      if (!s.dashed) g += '<path d="' + line + ' L' + X(s.pts[s.pts.length - 1][0]).toFixed(1) + ' ' + floor + ' L' + X(s.pts[0][0]).toFixed(1) + ' ' + floor + ' Z" fill="url(#' + id + i + ')" stroke="none"/>';
+      g += '<path d="' + line + '" pathLength="1" fill="none" stroke="' + s.color + '" stroke-width="' + (s.w || 2.6) + '"' + (s.dashed ? ' stroke-dasharray="5 4"' : '') + ' stroke-linecap="round" stroke-linejoin="round"' + (s.dashed || o.noAnim ? '' : ' class="chn-line"') + '/>';
+      var last = s.pts[s.pts.length - 1];
+      if (!s.dashed) g += '<circle cx="' + X(last[0]).toFixed(1) + '" cy="' + Y(last[1]).toFixed(1) + '" r="4" fill="' + s.color + '" stroke="#fff" stroke-width="1.5"/>' + (o.noAnim ? '' : '<circle cx="' + X(last[0]).toFixed(1) + '" cy="' + Y(last[1]).toFixed(1) + '" r="4" fill="none" stroke="' + s.color + '" stroke-width="2"><animate attributeName="r" values="4;11;4" dur="2.4s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.7;0;0.7" dur="2.4s" repeatCount="indefinite"/></circle>');
+    });
+    g += '<line class="xh" x1="0" x2="0" y1="' + m.t + '" y2="' + floor + '" stroke="currentColor" stroke-opacity="0.45" visibility="hidden"/>';
+    var data = { x0: x0, x1: x1, W: W, ml: m.l, mr: m.r, s: ser.map(function (s) { return { n: s.name || '', c: s.color, d: !!s.dashed, p: s.pts.map(function (p) { return [Math.round(p[0] / 1000), Math.round(p[1] * 100) / 100]; }) }; }) };
     var legend = ser.filter(function (s) { return s.name; }).map(function (s) { return '<span><i style="background:' + s.color + '"></i>' + esc(s.name) + '</span>'; }).join('');
-    return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(o.label || 'chart') + '">' + g + '</svg><div class="legend">' + legend + '</div>';
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(o.label || 'chart') + '" data-c="' + esc(JSON.stringify(data)) + '">' + g + '</svg><div class="legend">' + legend + '</div>';
   }
+  // hover read-out: a crosshair and the values at that date
+  (function () {
+    if (window.__chnTip) return; window.__chnTip = true;
+    var tip = null;
+    document.addEventListener('mousemove', function (ev) {
+      var svg = ev.target && ev.target.closest ? ev.target.closest('svg[data-c]') : null;
+      if (!svg) { if (tip) tip.style.display = 'none'; return; }
+      var d; try { d = JSON.parse(svg.getAttribute('data-c')); } catch (e) { return; }
+      var r = svg.getBoundingClientRect(), vx = (ev.clientX - r.left) / r.width * d.W;
+      if (vx < d.ml || vx > d.W - d.mr) { if (tip) tip.style.display = 'none'; return; }
+      var t = d.x0 + (vx - d.ml) / (d.W - d.ml - d.mr) * (d.x1 - d.x0), rows = '';
+      d.s.forEach(function (s) { var best = null; s.p.forEach(function (p) { if (!best || Math.abs(p[0] * 1000 - t) < Math.abs(best[0] * 1000 - t)) best = p; }); if (best) rows += '<div><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + s.c + ';margin-right:6px"></i>' + (s.n ? s.n + ': ' : '') + '<b>' + (Math.abs(best[1]) >= 100 ? Math.round(best[1]) : Math.round(best[1] * 10) / 10) + '</b>' + (s.d ? ' (forecast)' : '') + '</div>'; });
+      var xh = svg.querySelector('.xh'); if (xh) { xh.setAttribute('x1', vx); xh.setAttribute('x2', vx); xh.setAttribute('visibility', 'visible'); }
+      if (!tip) { tip = document.createElement('div'); tip.className = 'chn-tip'; document.body.appendChild(tip); }
+      var dt = new Date(t); tip.innerHTML = '<div style="opacity:.7;margin-bottom:3px">' + ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][dt.getUTCMonth()] + ' ' + dt.getUTCFullYear() + '</div>' + rows;
+      tip.style.display = 'block'; tip.style.left = Math.min(window.innerWidth - 190, ev.clientX + 14) + 'px'; tip.style.top = Math.max(8, ev.clientY - 60) + 'px';
+    });
+    document.addEventListener('mouseleave', function () { if (tip) tip.style.display = 'none'; });
+  })();
   function spark(vals, color) {
     if (vals.length < 2) return '';
     var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals); if (lo === hi) { lo -= 1; hi += 1; }
@@ -185,10 +219,9 @@
     while (portraitRunning < 2 && portraitQueue.length) {
       var job = portraitQueue.shift(); portraitRunning++;
       (function (job) {
-        if (createBudgetLeft() < 0.03) { portraitRunning--; return; }
-        createAuthedFetch('/playtest/portrait', { method: 'POST', body: JSON.stringify({ description: look(job.key) + ' in formal business attire, ' + job.role + ', calm confident expression, facing the camera', clientUsedUsd: createSpend.usedUsd }) })
+        createAuthedFetch('/chancellor/portrait', { method: 'POST', body: JSON.stringify({ description: look(job.key) + ' in formal business attire, ' + job.role + ', calm confident expression, facing the camera' }) })
           .then(function (r) {
-            if (r.body && r.body.spend) createNoteSpend(r.body.spend);
+            if (r.body && r.body.locks) noteLocks(r.body.locks);
             if (r.resp.status === 501) { portraitQueue.length = 0; return; }
             if (!(r.resp.ok && r.body.image)) return;
             return ptShrink(r.body.image, 200).then(function (img) {
@@ -210,7 +243,9 @@
     if (w.kind === 'bigBudget') return '<span class="chn-pill open">The Budget is open</span>';
     return '<span class="chn-pill">Policy changes closed</span>';
   }
-  function budgetLabel() { return 'Testing budget $' + createSpend.usedUsd.toFixed(2) + ' of $' + createSpend.capUsd.toFixed(2); }
+  function budgetLabel() { var used = (ui.g && ui.g.locksUsed) || 0, bal = ui.locks && ui.locks.balance; return 'Locks used: ' + used.toLocaleString() + (bal != null ? ' · ' + bal.toLocaleString() + ' left' : ''); }
+  function noteLocks(n) { if (!n || !ui.g) return; ui.g.locksUsed = (ui.g.locksUsed || 0) + n; if (window.chnPaintBudget) window.chnPaintBudget(); clearTimeout(ui.balTimer); ui.balTimer = setTimeout(refreshBalance, 1500); }
+  function refreshBalance() { createAuthedFetch('/locks/balance').then(function (r) { if (r.resp.ok && typeof r.body.balance === 'number') { ui.locks = { balance: r.body.balance }; if (window.chnPaintBudget) window.chnPaintBudget(); } }).catch(function () { /* the chip just shows what was used */ }); }
   function headerActions() {
     var g = ui.g, st = nextStop(), P = g.pop;
     return windowPill() + '<span class="chn-pill" title="Your approval with the public">Approval ' + f0(P.groups.public) + '%</span>' +
@@ -219,10 +254,10 @@
       (ui.lessonCtx && !document.getElementById('chnGuid') ? '<button class="chn-btn" data-act="lessons" title="Reopen the lesson panel">Lessons</button>' : '') +
       '<button class="chn-btn" data-act="restart" title="Start this scenario again from the beginning">Restart</button>' +
       '<button class="chn-btn" data-act="exit">' + esc(ui.exitLabel) + '</button>' +
-      '<span class="chn-pill chn-budget" title="Everything Cortex does in LastMind Create counts towards a hard testing budget">' + esc(budgetLabel()) + '</span>';
+      '<span class="chn-pill chn-budget" title="Everything Cortex does here (interview questions, marking, newspapers and portraits) is charged to your Locks">' + esc(budgetLabel()) + '</span>';
   }
   function renderHeaderOnly() { var el = ui.host.querySelector('#chnHeadActions'); if (el) el.innerHTML = headerActions(); }
-  window.chnPaintBudget = function () { document.querySelectorAll('.chn-budget').forEach(function (el) { el.textContent = budgetLabel(); el.classList.toggle('warn', createBudgetLeft() < 0.35); }); };
+  window.chnPaintBudget = function () { document.querySelectorAll('.chn-budget').forEach(function (el) { el.textContent = budgetLabel(); el.classList.toggle('warn', ui.locks && ui.locks.balance != null && ui.locks.balance < 2000); }); };
   function moodOf(a) { return a >= 65 ? ['Riding high', '#1f7a4d'] : a >= 50 ? ['Steady', '#0a5f8f'] : a >= 35 ? ['Under pressure', '#b45309'] : ['In trouble', '#b42318']; }
   function tickerHtml() {
     var items = ui.g.news.slice(0, 6).map(function (a) { return '<span><b>' + esc(a.outlet) + '</b> ' + esc(a.headline) + '</span>'; }).join('');
@@ -313,6 +348,7 @@
         '<div class="chn-card"><div class="chn-sec" style="margin-top:0">Where you stand</div>' +
           '<div class="chn-row"><span>Approval (public)</span><div class="chn-bar"><i style="width:' + f0(P.groups.public) + '%"></i></div><b>' + f0(P.groups.public) + '%</b></div>' +
           '<div class="chn-row"><span>Cabinet confidence</span><div class="chn-bar"><i style="width:' + f0(S.cabinetAverage(g)) + '%"></i></div><b>' + f0(S.cabinetAverage(g)) + '%</b></div>' +
+          '<div class="chn-row"><span>Investment confidence</span><div class="chn-bar"><i style="width:' + f0(g.investConf) + '%;background:#7c3aed"></i></div><b>' + f0(g.investConf) + '%</b></div>' +
           '<div class="chn-row"><span>Pressure for an early election</span><div class="chn-bar"><i style="width:' + f0(P.pressure.level) + '%;background:' + (P.pressure.level > 60 ? 'var(--chn-bad)' : 'var(--accent)') + '"></i></div><b>' + f0(P.pressure.level) + '</b></div>' +
           '<div class="chn-sec">Latest poll</div><div class="chn-stack"><span style="width:' + pl.gov + '%;background:' + gov.color + '">' + f0(pl.gov) + '</span><span style="width:' + pl.opp + '%;background:' + opp.color + '">' + f0(pl.opp) + '</span><span style="width:' + pl.rising + '%;background:' + ris.color + '">' + f0(pl.rising) + '</span><span style="width:' + pl.other + '%;background:#777"></span></div>' +
           '<div class="legend" style="display:flex;gap:12px;flex-wrap:wrap;font-size:.76rem;margin-top:6px"><span><b style="color:' + gov.color + '">■</b> ' + esc(gov.name) + '</span><span><b style="color:' + opp.color + '">■</b> ' + esc(opp.name) + '</span><span><b style="color:' + ris.color + '">■</b> ' + esc(ris.name) + '</span></div>' +
@@ -392,16 +428,27 @@
     if (c.t === 'select') return '<div class="ctl" style="grid-template-columns:1fr"><select data-pid="' + id + '" data-k="v">' + c.options.map(function (o) { return '<option value="' + o.v + '"' + (String(p.v) === String(o.v) ? ' selected' : '') + '>' + esc(o.l) + '</option>'; }).join('') + '</select></div>';
     var pick = c.pickOpts ? '<select data-pid="' + id + '" data-k="opt">' + c.pickOpts.map(function (o) { return '<option value="' + o.v + '"' + (p.opt === o.v ? ' selected' : '') + '>' + esc(o.l) + '</option>'; }).join('') + '</select>' : '';
     var v = clampV(e, p.v);
-    h = '<div class="ctl' + (pick ? ' pick' : '') + '">' + pick + '<input type="range" data-pid="' + id + '" data-k="v" min="' + c.min + '" max="' + c.max + '" step="' + c.step + '" value="' + v + '" aria-label="' + esc(e.name) + '"><input type="number" data-pid="' + id + '" data-k="v" min="' + c.min + '" max="' + c.max + '" step="' + c.step + '" value="' + v + '" aria-label="' + esc(e.name) + ' exact value"></div>';
+    h = '<div class="ctl' + (pick ? ' pick' : '') + '">' + pick + '<input type="range" data-pid="' + id + '" data-k="v" min="' + c.min + '" max="' + c.max + '" step="' + c.step + '" value="' + v + '" style="--fill:' + fillPct(e, v) + '%" aria-label="' + esc(e.name) + '"><input type="number" data-pid="' + id + '" data-k="v" min="' + c.min + '" max="' + c.max + '" step="' + c.step + '" value="' + v + '" aria-label="' + esc(e.name) + ' exact value"></div>';
     h += '<div class="unit">' + esc(c.unit) + ' · range ' + c.min + ' to ' + c.max + (e.now ? ' · today ' + esc(e.now) : '') + (c.base ? ' · today\'s budget ' + f1(c.base) + '% of GDP' : '') + '</div>';
     if (c.duration) h += '<div class="ctl" style="grid-template-columns:auto 90px;justify-content:start"><span class="unit">Lasts (quarters)</span><input type="number" data-pid="' + id + '" data-k="dur" min="' + c.duration[0] + '" max="' + c.duration[1] + '" value="' + (p.dur || c.duration[2]) + '"></div>';
     return h;
+  }
+  var AREA_COLOURS = null;
+  function areaColour(area) {
+    if (!AREA_COLOURS) { AREA_COLOURS = {}; var cs = ['#f59e0b', '#0d9488', '#16a34a', '#7c3aed', '#2563eb', '#1e3a8a', '#e11d48']; POLICY_GROUPS.forEach(function (gp, i) { gp.areas.forEach(function (a) { AREA_COLOURS[a] = cs[i % cs.length]; }); }); }
+    return AREA_COLOURS[area] || '#0a5f8f';
+  }
+  function fillPct(e, v) { var c = e.ctl; return c.max > c.min ? Math.max(0, Math.min(100, (v - c.min) / (c.max - c.min) * 100)) : 0; }
+  function badgeText(e, p) {
+    if (e.ctl.t === 'select') { var o = e.ctl.options.filter(function (x) { return String(x.v) === String(p.v); })[0]; return o ? o.l.replace(/ \(.*$/, '').slice(0, 22) : String(p.v); }
+    var v = +p.v, u = String(e.ctl.unit || '').replace(/^%.*/, '%').replace(/^pp.*/, 'pp').split(' ')[0];
+    return (v > 0 && e.ctl.min < 0 ? '+' : '') + (Math.abs(v) >= 100 ? Math.round(v) : Math.round(v * 100) / 100) + (u.length <= 3 ? ' ' + u : '');
   }
   function policyCard(e) {
     var en = enacted(e.id), avail = gateOk(e), lock = !avail.ok, drafted = differs(e);
     var chips = (drafted ? '<span class="chn-tag" style="background:rgba(11,114,133,.18)">Drafted</span> ' : '') + (en ? '<span class="chn-tag">In force: ' + esc(S.describe(e, en.v, en.opt, en.dur)) + '</span>' : '');
     var wait = drafted && !S.canDecide(ui.g, e.id).ok && S.canDecide(ui.g, e.id).reason ? '<div class="unit">' + esc(areaWaitText(e)) + '</div>' : '';
-    return '<article class="chn-pol' + (drafted ? ' changed' : '') + (lock ? ' lock' : '') + '" data-card="' + e.id + '"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:flex-start"><span class="nm">' + esc(e.name) + '</span></div><div class="ch">You choose: ' + esc(e.choice) + '</div>' +
+    return '<article class="chn-pol' + (drafted ? ' changed' : '') + (lock ? ' lock' : '') + '" data-card="' + e.id + '" style="--gc:' + areaColour(e.area) + '"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><span class="nm">' + esc(e.name) + '</span><span class="badge" data-badge="' + e.id + '">' + esc(badgeText(e, pendingValue(e))) + '</span></div><div class="ch">You choose: ' + esc(e.choice) + '</div>' +
       (lock ? '<div class="reason">' + esc(avail.reason) + '</div>' : '') + ctlHtml(e) +
       '<div class="unit">' + (e.lag ? 'Takes effect ' + e.lag + ' quarter' + (e.lag > 1 ? 's' : '') + ' after it is enacted · ' + esc(e.lagWhy) : 'Takes effect straight away') + '</div>' + (chips ? '<div>' + chips + '</div>' : '') + wait +
       '<details class="chn-lesson" data-lesson-id="' + e.id + '"><summary class="unit" style="cursor:pointer">LastMind lesson (untracked: no questions, nothing recorded)</summary><div class="lbody"></div></details></article>';
@@ -453,7 +500,7 @@
         else if (e.ctl.t === 'select') p.v = t.value;
         else { p.v = clampV(e, t.value); var card = t.closest('.chn-pol'); card.querySelectorAll('input[data-k="v"]').forEach(function (x) { if (x !== t) x.value = p.v; }); }
         if (!differs(e)) delete D()[e.id];
-        var card2 = t.closest('.chn-pol'); if (card2) card2.classList.toggle('changed', differs(e));
+        var card2 = t.closest('.chn-pol'); if (card2) { card2.classList.toggle('changed', differs(e)); var rg = card2.querySelector('input[type=range]'); if (rg && e.ctl.t !== 'select') rg.style.setProperty('--fill', fillPct(e, p.v) + '%'); var bd = card2.querySelector('[data-badge]'); if (bd) { bd.textContent = badgeText(e, p); bd.classList.remove('pop'); void bd.offsetWidth; bd.classList.add('pop'); } }
         ui.fcClosed = false; saveSoon(); refreshSide();
       };
       list.addEventListener('input', onInput); list.addEventListener('change', onInput);
@@ -486,7 +533,8 @@
     var g = ui.g, ev = g.events.filter(function (e) { return !e.done && e.needsAction && e.date <= g.date && e.kind === 'budget'; })[0];
     if (!ev) { toast('There is no budget to submit right now.'); return; }
     S.submitDraft(g); ui.cat = null;
-    S.resolveEvent(g, ev.id, 0); save(); renderAll(); showBudgetReaction(ev);
+    var judged = S.evaluateStatements(g);
+    S.resolveEvent(g, ev.id, 0); save(); renderAll(); showBudgetReaction(ev, judged);
   }
 
   /* ---------- forecasts are estimates, not the truth ---------- */
@@ -517,7 +565,7 @@
     var el = document.getElementById('chnFc');
     if (!el) { el = document.createElement('aside'); el.id = 'chnFc'; el.className = 'chn-fc'; el.setAttribute('aria-label', 'Forecast of your draft'); document.body.appendChild(el); }
     el.innerHTML = '<div class="hd"><div><b>Forecast: what your draft might do</b><div class="neutral" style="font-size:.76rem">' + (ch.length ? ch.length + ' drafted change' + (ch.length === 1 ? '' : 's') + '. ' : 'Nothing is drafted yet, so both lines match. Slide a policy. ') + 'A forecast, not a promise: the shaded range widens with time, forecasters can be wrong in one direction, and shocks and delays will change the real path.</div></div><div class="chn-actions"><span class="legend2"><i style="background:#6b7280"></i>As things stand</span><span class="legend2"><i style="background:var(--accent)"></i>With your draft (shaded: likely range)</span><button class="chn-btn small" id="chnFcClose">Close ✕</button></div></div><div class="col">' +
-      FC_CHARTS.map(function (c) { return '<div class="chn-chart"><h4>' + esc(c[0]) + '</h4>' + svgChart({ h: 250, label: c[0], bands: [{ pts: band(withP, c[1]), color: 'var(--accent)', opacity: 0.16 }], series: [{ name: '', color: '#6b7280', pts: pts(base, c[1]), dashed: true, w: 1.8 }, { name: '', color: 'var(--accent)', pts: pts(withP, c[1]), w: 2.6 }] }) + '</div>'; }).join('') + '</div>';
+      FC_CHARTS.map(function (c) { return '<div class="chn-chart"><h4>' + esc(c[0]) + '</h4>' + svgChart({ h: 250, noAnim: true, label: c[0], bands: [{ pts: band(withP, c[1]), color: 'var(--accent)', opacity: 0.16 }], series: [{ name: '', color: '#6b7280', pts: pts(base, c[1]), dashed: true, w: 1.8 }, { name: '', color: 'var(--accent)', pts: pts(withP, c[1]), w: 2.6 }] }) + '</div>'; }).join('') + '</div>';
     document.body.classList.add('chn-fc-open');
     var tab = document.getElementById('chnFcTab'); if (tab) tab.remove();
     el.querySelector('#chnFcClose').onclick = function () { ui.fcClosed = true; hideForecast(true); };
@@ -642,9 +690,10 @@
     }).join('');
     var opp = g.people.filter(function (p) { return p.party === 'opp'; }).map(function (p) { return personCard(p, '<div class="neutral" style="font-size:.78rem;margin-top:6px">' + esc(gov.opp.name) + ' · polling ' + P.polls.opp + '%</div>'); }).join('');
     var ris = g.people.filter(function (p) { return p.party === 'rising'; }).map(function (p) { return personCard(p, '<div class="neutral" style="font-size:.78rem;margin-top:6px">' + esc(gov.rising.name) + ' · polling ' + P.polls.rising + '%</div>'); }).join('');
-    return '<div class="chn-two"><div class="chn-card"><div class="chn-sec" style="margin-top:0">How each audience sees you</div>' + groups + '<p class="neutral" style="font-size:.78rem;margin:8px 0 0">Prices, jobs, growth and the deficit move these slowly. Policies and interviews move them quickly, then fade.</p></div>' +
+    return '<div class="chn-two"><div class="chn-card"><div class="chn-sec" style="margin-top:0">How each audience sees you</div>' + groups + '<div class="chn-row"><span>Investment confidence</span><div class="chn-bar"><i style="width:' + f0(g.investConf) + '%;background:#7c3aed"></i></div><b>' + f0(g.investConf) + '%</b></div><p class="neutral" style="font-size:.78rem;margin:8px 0 0">Prices, jobs, growth and the deficit move these slowly. Policies and interviews move them quickly, then fade.</p></div>' +
       '<div class="chn-card chn-chart"><h4>Polls</h4>' + svgChart({ series: [{ name: gov.gov.name, color: gov.gov.color, pts: P.history.map(function (h) { return [TS(h.date), h.gov]; }) }, { name: gov.opp.name, color: gov.opp.color, pts: P.history.map(function (h) { return [TS(h.date), h.opp]; }) }, { name: gov.rising.name, color: gov.rising.color, pts: P.history.map(function (h) { return [TS(h.date), h.rising]; }) }], today: TS(g.date), label: 'polls' }) + '<div class="chn-row" style="grid-template-columns:170px 1fr 40px;margin-top:8px"><span>Pressure for an early election</span><div class="chn-bar"><i style="width:' + f0(P.pressure.level) + '%;background:' + (P.pressure.level > 60 ? 'var(--chn-bad)' : 'var(--accent)') + '"></i></div><b>' + f0(P.pressure.level) + '</b></div></div></div>' +
       '<div class="chn-sec">Your government (' + esc(gov.gov.name) + ')</div><div class="chn-people">' + cabinet + '</div>' +
+      '<div class="chn-sec">Your team</div><div class="chn-people">' + g.people.filter(function (p) { return p.party === 'staff'; }).map(function (p) { return personCard(p, '<div class="neutral" style="font-size:.78rem;margin-top:6px">Briefs you before every interview.</div>'); }).join('') + '</div>' +
       '<div class="chn-sec">The opposition (' + esc(gov.opp.name) + ')</div><div class="chn-people">' + opp + '</div>' +
       '<div class="chn-sec">The rising party (' + esc(gov.rising.name) + ')</div><div class="chn-people">' + ris + '</div>';
   }
@@ -689,9 +738,9 @@
       '<div class="chn-mtx"><div>GDP growth<b>' + f1(m.growth) + '%</b></div><div>Inflation<b>' + f1(m.inflation) + '%</b></div><div>Unemployment<b>' + f1(m.unemployment) + '%</b></div><div>Public debt<b>' + f0(m.debtGDP) + '% of GDP</b></div><div>Deficit<b>' + f1(m.deficit) + '%</b></div><div>Your approval<b>' + f0(ui.g.pop.groups.public) + '%</b></div></div>' +
       '<div class="chn-quote"><b>What is behind it.</b> ' + esc(S.SITUATIONS[g.sit].diagnosis || '') + '</div><p style="margin-top:12px">Time moves when you press Advance and stops whenever something needs you: budgets, shocks, political rows and interviews. Your first Budget is on ' + esc(S.nice(g.bigBudget.date)) + '. Until then, prepare policies in the Policy tab, see their forecasts and save them as a draft: nothing takes effect until you submit it on budget day. Policy can only be changed at budgets and in emergency sessions, and everything takes time to work. A general election is due on ' + esc(S.nice(g.electionDate)) + '.</p>' + (g.cfg.history ? '<p class="neutral"><i>' + esc(g.cfg.history.slice(0, 300)) + '</i></p>' : '') + '<div class="btns"><button class="chn-btn primary" data-m="ok">Take office</button></div>', { img: '/assets/chancellor/cabinet-room.jpg' });
   }
-  function showBudgetReaction(ev) {
+  function showBudgetReaction(ev, judged) {
     var g = ui.g, P = g.pop;
-    return modal('<h2>The Budget lands</h2><p>Markets and voters react over the coming weeks. Watch the approval figures, the polls and the bond market.</p><div class="chn-mtx"><div>Approval<b>' + f0(P.groups.public) + '%</b></div><div>Markets<b>' + f0(P.groups.markets) + '%</b></div><div>Business<b>' + f0(P.groups.business) + '%</b></div></div><div class="btns"><button class="chn-btn primary" data-m="ok">Continue</button></div>', { img: '/assets/chancellor/budget-day.jpg' });
+    return modal('<h2>The Budget lands</h2><p>Markets and voters react over the coming weeks. Watch the approval figures, the polls and the bond market.</p><div class="chn-mtx"><div>Approval<b>' + f0(P.groups.public) + '%</b></div><div>Investment confidence<b>' + f0(g.investConf) + '%</b></div><div>Business<b>' + f0(P.groups.business) + '%</b></div></div>' + (judged && judged.length ? '<div class="chn-sec">Held to your word</div>' + judged.map(function (j) { return '<div class="chn-item" style="display:block"><span class="' + (j.delta < 0 ? 'bad' : 'good') + '"><b>' + (j.delta > 0 ? '+' : '') + j.delta + '</b></span> ' + esc(j.text) + '</div>'; }).join('') : '') + '<div class="btns"><button class="chn-btn primary" data-m="ok">Continue</button></div>', { img: '/assets/chancellor/budget-day.jpg' });
   }
   function lobbyAsks(g) {
     var asks = [{ key: 'health', id: 'health', v: 8, text: 'more for the NHS-style health service' }, { key: 'education', id: 'education', v: 8, text: 'more for schools' }, { key: 'defence', id: 'defence', v: 10, text: 'a bigger defence budget' }, { key: 'work', id: 'pensions', v: 5, text: 'a higher pension' }, { key: 'business', id: 'corp', v: -2, text: 'a cut in corporation tax' }, { key: 'home', id: 'policing', v: 8, text: 'more for policing' }];
@@ -726,7 +775,7 @@
       var go = await modal('<h2>' + esc(ev.title) + '</h2><p>' + esc(ev.text) + '</p><div class="btns"><button class="chn-btn primary" data-m="go">Open the Policy tab and submit your draft</button></div>', { img: '/assets/chancellor/budget-day.jpg' });
       ui.tab = 'policy'; renderAll(); return;
     }
-    if (kind === 'interview') { await runInterview(ev); return; }
+    if (kind === 'interview') { await interviewFlow(ev); return; }
     if (kind === 'election') { await runElectionEvent(ev); return; }
   }
   async function runElectionEvent(ev) {
@@ -744,6 +793,63 @@
       goals: g.goals || '', recentPolicies: g.recent.slice(0, 8), news: g.news.slice(0, 4).map(function (a) { return a.headline; }), popularityPublic: g.pop.groups.public, popularityCabinet: S.cabinetAverage(g), pollGovernment: g.pop.polls.gov, pollOpposition: g.pop.polls.opp }, extra || {});
   }
   var AUD = { public: 'The public', workers: 'Working households', business: 'Business', pensioners: 'Pensioners', young: 'Young people', markets: 'Markets', cabinet: 'Your cabinet', party: 'Your party' };
+
+  /* ---------- the adviser's briefing, and speculation before budgets ---------- */
+  function trendClass(key, d, v, pv) {
+    var t = ui.g.pf.target;
+    if (key === 'inflation') { var dd = Math.abs(v - t) - Math.abs(pv - t); return Math.abs(dd) < 0.05 ? 'neutral' : (dd < 0 ? 'good' : 'bad'); }
+    var dir = { growth: 1, unemployment: -1, debtGDP: -1, deficit: -1, exchangeVsStart: 1, realWages: 1 }[key] || 0;
+    return !dir || Math.abs(d_(d)) < 0.02 ? 'neutral' : (d * dir > 0 ? 'good' : 'bad');
+    function d_(x) { return x; }
+  }
+  function briefingPoints(ev) {
+    var g = ui.g, m = metricsNow(), t = g.pf.target, q = [], pl = g.pop.polls, opp = g.parties.opp.name, first = g.startSnap;
+    if (m.inflation > t + 2) q.push(['Prices', 'Inflation is ' + f1(m.inflation) + '%, ' + f1(m.inflation - t) + ' points over the ' + t + '% target. Expect to be asked what you are doing about the cost of living.']);
+    if (m.unemployment > first.u + 0.8) q.push(['Jobs', 'Unemployment is ' + f1(m.unemployment) + '%, up from ' + f1(first.u) + '% when you took over. Expect a hard question about lost jobs.']);
+    if (m.deficit > 5) q.push(['Borrowing', 'The deficit is ' + f1(m.deficit) + '% of GDP and debt is ' + f0(m.debtGDP) + '%. They will ask who pays.']);
+    if (m.exchangeVsStart < -8) q.push(['The currency', 'The ' + (g.cfg.currency || 'currency') + ' is down ' + f0(-m.exchangeVsStart) + '% since you started. Careful what you say: markets are listening.']);
+    if (pl.opp > pl.gov + 3) q.push(['The polls', 'You trail ' + opp + ' by ' + f0(pl.opp - pl.gov) + ' points. Expect questions about your future and an early election.']);
+    if (g.recent[0]) q.push(['Your record', 'You recently: ' + g.recent[0] + '. Expect to be asked why.']);
+    if (g.goals) q.push(['Your promises', 'You told the country: "' + g.goals.slice(0, 140) + (g.goals.length > 140 ? '…' : '') + '". Expect to be held to it.']);
+    if (!q.length) q.push(['A calm brief', 'Nothing stands out on the numbers. Expect a broad question about your priorities.']);
+    return q.slice(0, 4);
+  }
+  function advisorBriefing(ev) {
+    var g = ui.g, adv = S.person(g, 'adviser'), m = metricsNow(), hist = g.mhist, prev = hist[Math.max(0, hist.length - 4)] || m;
+    var row = function (lab, key, unit) { var v = m[key], d = v - prev[key]; return '<tr><td>' + lab + '</td><td class="n"><b>' + (key === 'exchangeVsStart' ? sign(v) : f1(v)) + unit + '</b></td><td class="n ' + trendClass(key, d, v, prev[key]) + '">' + sign(d) + '</td></tr>'; };
+    var draft = ev.speculation ? Object.keys(D()).map(function (id) { var e = catalogue().filter(function (x) { return x.id === id; })[0]; return e && differs(e) ? '<li>' + esc(e.name) + '</li>' : ''; }).join('') : '';
+    var html = '<div style="display:flex;gap:14px;align-items:center;margin:2px 0 8px">' + avatar('adviser', adv.name, true) + '<div><h2 style="margin:0">Briefing from ' + esc(adv.name) + '</h2><div class="neutral">' + esc(adv.role) + '</div></div></div>' +
+      '<p>Chancellor, you are on air with <b>' + esc(ev.journalist) + '</b> of ' + esc(ev.outlet) + ' shortly. Here is where the numbers stand.</p>' +
+      '<div class="chn-scroll"><table class="chn-table"><tr><th>Figure</th><th class="n">Now</th><th class="n">vs 3 months ago</th></tr>' + row('GDP growth', 'growth', '%') + row('Inflation', 'inflation', '%') + row('Unemployment', 'unemployment', '%') + row('Real wages', 'realWages', '%') + row('Budget deficit', 'deficit', '% GDP') + row('Public debt', 'debtGDP', '% GDP') + row('Currency vs start', 'exchangeVsStart', '%') + '</table></div>' +
+      '<div class="chn-sec">What they are likely to press you on</div>' + briefingPoints(ev).map(function (x) { return '<div class="chn-item" style="display:block"><b>' + esc(x[0]) + '.</b> ' + esc(x[1]) + '</div>'; }).join('') +
+      (ev.speculation ? '<div class="chn-quote"><b>The budget is close.</b> The press are chasing rumours about your plans' + (draft ? '. Your draft currently holds:<ul style="margin:6px 0 0 18px">' + draft + '</ul>' : '.') + ' Whatever you confirm or deny will be checked against what you actually do on budget day. Breaking your word costs more than an honest "no comment".</div>' : '') +
+      '<div class="btns"><button class="chn-btn primary" data-m="go">Thanks, let\'s go on air</button></div>';
+    return modal(html, { img: '/assets/chancellor/cabinet-room.jpg' });
+  }
+  async function runSpeculation(ev) {
+    var g = ui.g, key = 'j:' + ev.journalist, rum = S.speculation(g), claims = {}; requestPortrait(key, 'a television news interviewer');
+    var CL = { confirm: 'Confirm', deny: 'Deny', nocomment: 'No comment' };
+    var head = '<div style="display:flex;gap:14px;align-items:center;margin:4px 0 8px">' + avatar(key, ev.journalist, true) + '<div><h2 style="margin:0">Budget speculation: ' + esc(ev.outlet) + '</h2><div class="neutral">with ' + esc(ev.journalist) + '</div></div></div>';
+    var rows = rum.map(function (x, i) { return '<div class="chn-card" style="margin:8px 0"><div style="margin-bottom:8px">' + esc(x.text) + '</div><div class="chn-actions" data-rum="' + i + '">' + Object.keys(CL).map(function (c) { return '<button class="chn-btn small" data-cl="' + c + '" aria-pressed="false">' + CL[c] + '</button>'; }).join('') + '</div></div>'; }).join('');
+    var res = await modal(head + '<p>The papers are full of speculation about your budget. Do you confirm each rumour, deny it, or refuse to comment?</p>' + rows + '<p class="neutral" style="font-size:.82rem">Clear answers calm investors. Silence unsettles them. But you will be held to whatever you say when the budget is delivered.</p><div class="btns"><button class="chn-btn primary" data-go="submit" disabled>Take the questions</button></div>', {
+      img: '/assets/chancellor/interview-studio.jpg',
+      onOpen: function (ov, close) {
+        ov.addEventListener('click', function (e) {
+          var b = e.target.closest('[data-cl]');
+          if (b) { var i = b.parentElement.dataset.rum; claims[i] = b.dataset.cl; b.parentElement.querySelectorAll('[data-cl]').forEach(function (x) { var on = x === b; x.setAttribute('aria-pressed', String(on)); x.style.background = on ? 'var(--accent)' : ''; x.style.color = on ? '#fff' : ''; }); var sub = ov.querySelector('[data-go="submit"]'); if (sub) sub.disabled = rum.some(function (_, k) { return !claims[k]; }); return; }
+          var go = e.target.closest('[data-go="submit"]');
+          if (go && !go.disabled) { e.stopPropagation(); close({ claims: rum.map(function (x, k) { return { policyId: x.policyId, dir: x.dir, real: x.real, claim: claims[k] }; }) }); }
+        }, true);
+      },
+    });
+    var claimsOut = (res && res.claims) || rum.map(function (x) { return { policyId: x.policyId, dir: x.dir, real: x.real, claim: 'nocomment' }; });
+    var out = S.resolveSpeculation(g, ev, claimsOut); save(); renderAll();
+    var d = out.after - out.before;
+    await modal('<h2>How the markets took it</h2><div class="chn-row" style="grid-template-columns:150px 1fr 70px"><span>Investment confidence</span><div class="chn-bar"><i style="width:' + f0(out.after) + '%"></i></div><b class="' + (d < 0 ? 'bad' : d > 0 ? 'good' : 'neutral') + '">' + f0(out.before) + ' to ' + f0(out.after) + '</b></div>' +
+      '<div class="chn-sec">What you have committed to</div>' + claimsOut.map(function (c, i) { var e = catalogue().filter(function (x) { return x.id === c.policyId; })[0]; var name = e ? e.name.toLowerCase() : c.policyId; return '<div class="chn-item" style="display:block"><b>' + CL[c.claim] + ':</b> ' + esc(rum[i].text) + '<br><span class="neutral">' + (c.claim === 'confirm' ? 'You are expected to change ' + esc(name) + ' on budget day.' : c.claim === 'deny' ? 'You are on record saying you will not. Doing it anyway will hurt.' : 'Investors are left guessing.') + '</span></div>'; }).join('') + '<div class="btns"><button class="chn-btn primary" data-m="ok">Continue</button></div>', { img: '/assets/chancellor/interview-studio.jpg' });
+  }
+  async function interviewFlow(ev) { await advisorBriefing(ev); if (ev.speculation) await runSpeculation(ev); else await runInterview(ev); }
+
   async function runInterview(ev) {
     var g = ui.g, key = 'j:' + ev.journalist; requestPortrait(key, 'a television news interviewer');
     var MAX_FOLLOWUPS = 3;
@@ -766,7 +872,7 @@
         var finish = function () {
           busy = true; say('The interview is being judged…'); ov.querySelector('#chnQArea').innerHTML = ''; ov.querySelector('#chnIvBtns').innerHTML = '';
           createAuthedFetch('/chancellor/interview/assess', { method: 'POST', body: JSON.stringify({ context: aiContext({ journalist: ev.journalist, outlet: ev.outlet }), exchanges: ex, mode: ev.goals ? 'goals' : undefined, clientUsedUsd: createSpend.usedUsd }) }).then(function (r) {
-            if (r.body && r.body.spend) createNoteSpend(r.body.spend);
+            if (r.body && r.body.locks) noteLocks(r.body.locks);
             if (!r.resp.ok) { busy = false; toast(r.body.error || 'The interview could not be judged.'); ex.pop(); cur = ex.length ? cur : cur; paint(); return; }
             close({ assessment: r.body, exchanges: ex });
           }).catch(function () { busy = false; toast('Something went wrong. Try again.'); paint(); });
@@ -774,7 +880,7 @@
         var followUp = function () {
           busy = true; say('The interviewer is thinking of a follow-up…'); ov.querySelector('#chnQArea').innerHTML = ''; ov.querySelector('#chnIvBtns').innerHTML = '';
           createAuthedFetch('/chancellor/interview/question', { method: 'POST', body: JSON.stringify({ context: aiContext({ journalist: ev.journalist, outlet: ev.outlet }), previousAngles: g.interviewAngles.slice(-6), transcript: ex, clientUsedUsd: createSpend.usedUsd }) }).then(function (r) {
-            if (r.body && r.body.spend) createNoteSpend(r.body.spend);
+            if (r.body && r.body.locks) noteLocks(r.body.locks);
             busy = false;
             if (!r.resp.ok) { toast(r.body.error || 'No follow-up.'); finish(); return; }
             if (r.body.done || !r.body.question) { finish(); return; }
@@ -783,7 +889,7 @@
         };
         // the opening question
         (ev.goals ? Promise.resolve({ resp: { ok: true }, body: { question: 'Congratulations on taking office, Chancellor. Before we get into the detail: what are your goals for the economy over this term, and what would count as success?', angle: 'Your goals' } }) : createAuthedFetch('/chancellor/interview/question', { method: 'POST', body: JSON.stringify({ context: aiContext({ journalist: ev.journalist, outlet: ev.outlet }), previousAngles: g.interviewAngles.slice(-6), clientUsedUsd: createSpend.usedUsd }) })).then(function (r) {
-          if (r.body && r.body.spend) createNoteSpend(r.body.spend);
+          if (r.body && r.body.locks) noteLocks(r.body.locks);
           if (!qEl()) return;
           if (!r.resp.ok) { say(r.body.error || 'The interviewer could not be reached.'); return; }
           g.interviewAngles.push(r.body.angle || ''); cur = r.body.question; paint();
@@ -825,12 +931,11 @@
   var newsBusy = false;
   async function fetchNews(manual) {
     if (newsBusy) return; var g = ui.g;
-    if (!manual && createBudgetLeft() < 0.35) return;
     newsBusy = true; if (manual) toast('The papers are being written…');
     try {
       var events = g.log.slice(-5).map(function (l) { return l.title + (l.choice ? ': ' + l.choice : ''); }).concat(g.recent.slice(0, 4));
       var r = await createAuthedFetch('/chancellor/news', { method: 'POST', body: JSON.stringify({ context: aiContext(), outlets: g.outlets, events: events, clientUsedUsd: createSpend.usedUsd }) });
-      if (r.body && r.body.spend) createNoteSpend(r.body.spend);
+      if (r.body && r.body.locks) noteLocks(r.body.locks);
       if (r.resp.ok && r.body.articles) { r.body.articles.forEach(function (a) { g.news.unshift({ date: g.date, outlet: a.outlet, slant: a.slant, headline: a.headline, standfirst: a.standfirst, body: a.body, kind: 'ai' }); }); g.news = g.news.slice(0, 80); save(); if (ui.tab === 'news' || ui.tab === 'overview') renderTab(); if (manual) toast('Front pages ready.'); }
       else if (manual) toast(r.body.error || 'The papers could not be written.');
     } catch (err) { if (manual) toast('The papers could not be written.'); }

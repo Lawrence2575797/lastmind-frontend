@@ -9476,14 +9476,14 @@ SQIDAQAB
         ['productivity', 'Productivity breakthrough', 'A technology boom lifts productivity.'], ['naturalDisaster', 'Natural disaster', 'A flood or earthquake destroys capital.'], ['bankingCrisis', 'Banking crisis', 'A large bank fails and lending freezes.'],
         ['capitalFlight', 'Capital flight', 'Investors pull out and the currency falls.'], ['tradeWar', 'Trade war', 'Trading partners raise tariffs.'], ['globalRate', 'Global interest-rate shock', 'Rates rise sharply in the big economies.'], ['politicalCrisis', 'Political or institutional crisis', 'A scandal or constitutional row rattles investors.'],
     ];
-    const CHANCELLOR_GOV_ROLES = [['pm', 'Prime Minister'], ['chancellor', 'Chancellor of the Exchequer (you)'], ['foreign', 'Foreign Secretary'], ['home', 'Home Secretary'], ['health', 'Health Secretary'], ['education', 'Education Secretary'], ['defence', 'Defence Secretary'], ['business', 'Business and Trade Secretary'], ['work', 'Work and Pensions Secretary']];
+    const CHANCELLOR_GOV_ROLES = [['pm', 'Prime Minister'], ['chancellor', 'Chancellor of the Exchequer (you)'], ['adviser', 'Special Adviser (briefs you before interviews)'], ['foreign', 'Foreign Secretary'], ['home', 'Home Secretary'], ['health', 'Health Secretary'], ['education', 'Education Secretary'], ['defence', 'Defence Secretary'], ['business', 'Business and Trade Secretary'], ['work', 'Work and Pensions Secretary']];
     const CHANCELLOR_OPP_ROLES = [['oppLeader', 'Leader of the Opposition'], ['shadowChancellor', 'Shadow Chancellor'], ['shadowHome', 'Shadow Home Secretary'], ['shadowHealth', 'Shadow Health Secretary']];
     const CHANCELLOR_RISING_ROLES = [['risingLeader', 'Leader'], ['risingEconomy', 'Economy spokesperson']];
     const CHANCELLOR_FIRST = ['Amara', 'Tomas', 'Leila', 'Daniel', 'Priya', 'Marcus', 'Ingrid', 'Kwame', 'Sofia', 'Hiro', 'Elena', 'Omar', 'Nadia', 'Felix', 'Rosa', 'Idris', 'Mei', 'Callum', 'Zainab', 'Lucas', 'Yara', 'Viktor', 'Anika', 'Jonas'];
     const CHANCELLOR_LAST = ['Okafor', 'Lindqvist', 'Haddad', 'Moreau', 'Anand', 'Reyes', 'Sol', 'Adeyemi', 'Novak', 'Tanaka', 'Duarte', 'Farah', 'Voss', 'Baptiste', 'Kowalski', 'Sandhu', 'Ferreira', 'Mbeki', 'Ivanova', 'Hale', 'Castillo', 'Ng', 'Bergström', 'Rahman'];
     function chancellorGovComplete(ch) {
         const has = (o, keys) => keys.every(([k]) => ((o.people || {})[k] || '').trim());
-        return !!((ch.government.party || '').trim() && (ch.opposition.party || '').trim() && (ch.rising.party || '').trim() && has(ch.government, CHANCELLOR_GOV_ROLES) && has(ch.opposition, CHANCELLOR_OPP_ROLES) && has(ch.rising, CHANCELLOR_RISING_ROLES));
+        return !!((ch.government.party || '').trim() && (ch.opposition.party || '').trim() && (ch.rising.party || '').trim() && has(ch.government, CHANCELLOR_GOV_ROLES.filter(([k]) => k !== 'adviser')) && has(ch.opposition, CHANCELLOR_OPP_ROLES) && has(ch.rising, CHANCELLOR_RISING_ROLES));
     }
     function chancellorParseNumber(text) {
         const t = String(text || '').toLowerCase().replace(/,/g, '').trim();
@@ -9522,7 +9522,7 @@ SQIDAQAB
                 <h3>${escapeHtml(title)}</h3>
                 <p class="create-step-help" style="margin-top:0;">${escapeHtml(sub)}</p>
                 <div class="create-detail-field"><label for="chP-${prefix}-party">Party name</label><input class="create-line" id="chP-${prefix}-party" type="text" maxlength="50" placeholder="${escapeHtml(key === 'government' ? 'e.g. National Unity Party' : key === 'opposition' ? 'e.g. Progress Alliance' : 'e.g. Green Dawn')}" value="${escapeHtml(ch[key].party || '')}"></div>
-                <div class="chn-people-grid">${roles.map(([k, label]) => `<div class="create-detail-field"><label for="chP-${prefix}-${k}">${escapeHtml(label)}</label><input class="create-line" id="chP-${prefix}-${k}" data-key="${key}" data-role="${k}" type="text" maxlength="50" placeholder="${k === 'chancellor' ? 'Your name' : 'Full name'}" value="${escapeHtml((ch[key].people || {})[k] || '')}"></div>`).join('')}</div>
+                <div class="chn-people-grid">${roles.map(([k, label]) => `<div class="create-detail-field"><label for="chP-${prefix}-${k}">${escapeHtml(label)}</label><input class="create-line" id="chP-${prefix}-${k}" data-key="${key}" data-role="${k}" type="text" maxlength="50" placeholder="${k === 'chancellor' ? 'Your name' : k === 'adviser' ? 'Full name (optional: one is named for you if blank)' : 'Full name'}" value="${escapeHtml((ch[key].people || {})[k] || '')}"></div>`).join('')}</div>
             </section>`;
         const ready = chancellorGovComplete(ch), scenarioDone = !!(ch.country.trim() && ch.currency.trim() && ch.population.trim() && ch.stage && ch.situation);
         body.innerHTML = `
