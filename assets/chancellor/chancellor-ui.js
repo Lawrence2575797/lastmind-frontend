@@ -102,7 +102,7 @@
     setTimeout(function () {
       try { ui.g = S.newGame(cfg); } catch (err) { console.error(err); host.innerHTML = '<div class="chn"><p>The simulation could not start. ' + esc(err.message) + '</p><button class="chn-btn" id="chnBack">Back</button></div>'; var b = host.querySelector('#chnBack'); if (b) b.onclick = function () { ui.onExit && ui.onExit(); }; return; }
       save(); renderAll(); ensurePortraits();
-      showBriefing();
+      showBriefing().then(function () { var ev = ui.g.events.filter(function (e) { return !e.done && e.goals; })[0]; if (ev) return runInterview(ev).then(function () { save(); renderAll(); }); });
     }, 2600);
   }
 
@@ -637,7 +637,7 @@
     var g = ui.g, m = metricsNow();
     return Object.assign({ country: g.cfg.country, currency: g.cfg.currency, stage: g.stage, date: g.date, situation: S.SITUATIONS[g.sit].name,
       metrics: { growth: m.growth, inflation: m.inflation, unemployment: m.unemployment, policyRate: m.policyRate, debtGDP: m.debtGDP, deficit: m.deficit, currency: m.exchangeVsStart, realWages: m.realWages },
-      recentPolicies: g.recent.slice(0, 8), news: g.news.slice(0, 4).map(function (a) { return a.headline; }), popularityPublic: g.pop.groups.public, popularityCabinet: S.cabinetAverage(g), pollGovernment: g.pop.polls.gov, pollOpposition: g.pop.polls.opp }, extra || {});
+      goals: g.goals || '', recentPolicies: g.recent.slice(0, 8), news: g.news.slice(0, 4).map(function (a) { return a.headline; }), popularityPublic: g.pop.groups.public, popularityCabinet: S.cabinetAverage(g), pollGovernment: g.pop.polls.gov, pollOpposition: g.pop.polls.opp }, extra || {});
   }
   var AUD = { public: 'The public', workers: 'Working households', business: 'Business', pensioners: 'Pensioners', young: 'Young people', markets: 'Markets', cabinet: 'Your cabinet', party: 'Your party' };
   async function runInterview(ev) {
@@ -645,17 +645,17 @@
     var q = null, err = '';
     var cancelled = false;
     // 1. the question
-    var shell = function (inner) { return '<div style="display:flex;gap:14px;align-items:center;margin:4px 0 10px">' + avatar(key, ev.journalist, true) + '<div><h2 style="margin:0">Interview: ' + esc(ev.outlet) + '</h2><div class="neutral">with ' + esc(ev.journalist) + '</div></div></div>' + inner; };
+    var shell = function (inner) { return '<div style="display:flex;gap:14px;align-items:center;margin:4px 0 10px">' + avatar(key, ev.journalist, true) + '<div><h2 style="margin:0">' + (ev.goals ? 'First interview: your goals' : 'Interview: ' + esc(ev.outlet)) + '</h2><div class="neutral">with ' + esc(ev.journalist) + '</div></div></div>' + inner; };
     var res = await modal(shell('<p id="chnQ" class="chn-quote neutral">The interviewer is finding a question…</p><div id="chnQArea"></div><div class="btns"><button class="chn-btn" data-m="skip">Skip the interview</button></div>'), {
       img: '/assets/chancellor/interview-studio.jpg',
       onOpen: function (ov, close) {
-        createAuthedFetch('/chancellor/interview/question', { method: 'POST', body: JSON.stringify({ context: aiContext({ journalist: ev.journalist, outlet: ev.outlet }), previousAngles: g.interviewAngles.slice(-6), clientUsedUsd: createSpend.usedUsd }) }).then(function (r) {
+        (ev.goals ? Promise.resolve({ resp: { ok: true }, body: { question: 'Congratulations on taking office, Chancellor. Before we get into the detail: what are your goals for the economy over this term, and what would count as success?', angle: 'Your goals' } }) : createAuthedFetch('/chancellor/interview/question', { method: 'POST', body: JSON.stringify({ context: aiContext({ journalist: ev.journalist, outlet: ev.outlet }), previousAngles: g.interviewAngles.slice(-6), clientUsedUsd: createSpend.usedUsd }) })).then(function (r) {
           if (r.body && r.body.spend) createNoteSpend(r.body.spend);
           var qEl = ov.querySelector('#chnQ'); if (!qEl) return;
           if (!r.resp.ok) { qEl.textContent = r.body.error || 'The interviewer could not be reached.'; return; }
           q = r.body; g.interviewAngles.push(q.angle || '');
           qEl.className = 'chn-quote'; qEl.textContent = '“' + q.question + '”';
-          ov.querySelector('#chnQArea').innerHTML = '<textarea class="chn-ans" id="chnAnswer" maxlength="2500" placeholder="Answer in your own words. Be honest about the figures, and say what you will do."></textarea><div class="neutral" style="font-size:.78rem;margin-top:4px">Judged on accuracy against the real figures, directness, empathy and consistency with what you have done. Keep it civil: offensive language is blocked.</div><div class="btns"><button class="chn-btn primary" data-m="answer">Answer</button><button class="chn-btn" data-m="skip">Skip</button></div>';
+          ov.querySelector('#chnQArea').innerHTML = '<textarea class="chn-ans" id="chnAnswer" maxlength="2500" placeholder="' + (ev.goals ? 'Set out your goals in your own words: what you want for jobs, prices, growth, public finances and fairness, and how you will judge success. You will be held to this.' : 'Answer in your own words. Be honest about the figures, and say what you will do.') + '"></textarea><div class="neutral" style="font-size:.78rem;margin-top:4px">Judged on accuracy against the real figures, directness, empathy and consistency with what you have done. Keep it civil: offensive language is blocked.</div><div class="btns"><button class="chn-btn primary" data-m="answer">Answer</button><button class="chn-btn" data-m="skip">Skip</button></div>';
         }).catch(function () { var qEl = ov.querySelector('#chnQ'); if (qEl) qEl.textContent = 'The interviewer could not be reached.'; });
         ov.addEventListener('click', function (e) {
           var t = e.target.closest('[data-m="answer"]'); if (!t) return;
@@ -664,16 +664,17 @@
           if (!text) { toast('Write an answer first.'); return; }
           if (typeof lmScreenText === 'function' && lmScreenText(text).vulgar) { toast('Please keep it civil: offensive language cannot be sent.'); return; }
           t.disabled = true; t.textContent = 'Judging…';
-          createAuthedFetch('/chancellor/interview/assess', { method: 'POST', body: JSON.stringify({ context: aiContext({ journalist: ev.journalist, outlet: ev.outlet }), question: q.question, answer: text, clientUsedUsd: createSpend.usedUsd }) }).then(function (r) {
+          createAuthedFetch('/chancellor/interview/assess', { method: 'POST', body: JSON.stringify({ context: aiContext({ journalist: ev.journalist, outlet: ev.outlet }), question: q.question, answer: text, mode: ev.goals ? 'goals' : undefined, clientUsedUsd: createSpend.usedUsd }) }).then(function (r) {
             if (r.body && r.body.spend) createNoteSpend(r.body.spend);
             if (!r.resp.ok) { t.disabled = false; t.textContent = 'Answer'; toast(r.body.error || 'The interview could not be judged.'); return; }
-            close({ assessment: r.body });
+            close({ assessment: r.body, answerText: text });
           }).catch(function () { t.disabled = false; t.textContent = 'Answer'; toast('Something went wrong. Try again.'); });
         }, true);
       },
     });
     if (res && res.assessment) {
       var a = res.assessment;
+      if (ev.goals && res.answerText) g.goals = res.answerText.slice(0, 600);
       var rows = Object.keys(AUD).map(function (k) { var v = (a.scores || {})[k] || 0; return '<div class="chn-row" style="grid-template-columns:140px 1fr 46px"><span>' + AUD[k] + '</span><div class="chn-bar"><i style="width:' + Math.round((v + 6) / 12 * 100) + '%;background:' + (v < 0 ? 'var(--chn-bad)' : 'var(--chn-good)') + '"></i></div><b class="' + (v < 0 ? 'bad' : v > 0 ? 'good' : 'neutral') + '">' + (v > 0 ? '+' : '') + v + '</b></div>'; }).join('');
       S.resolveEvent(g, ev.id, 0, { assessment: a }); save(); renderAll();
       await modal('<h2>' + (a.gaffe ? 'A serious blunder' : 'How it landed') + '</h2><div class="chn-quote"><b>' + esc(a.headline) + '</b><br>' + esc(a.reaction) + '</div><div class="chn-actions"><span class="chn-tag">Accuracy: ' + esc(a.accuracy) + '</span><span class="chn-tag">Directness: ' + esc(a.directness) + '</span><span class="chn-tag">Empathy: ' + esc(a.empathy) + '</span></div><div class="chn-sec">Audience reaction</div>' + rows + '<div class="chn-sec">Coaching</div><p>' + esc(a.coaching) + '</p><div class="btns"><button class="chn-btn primary" data-m="ok">Continue</button></div>', { img: '/assets/chancellor/interview-studio.jpg' });
@@ -713,6 +714,7 @@
     try {
       for (var guard = 0; guard < 500; guard++) {
         var r = S.advance(g);
+        if (r.blocked && r.events.some(function (e) { return e.kind !== 'budget' && e.kind !== 'shock'; })) { for (var bi = 0; bi < r.events.length; bi++) { if (r.events[bi].kind !== 'budget' && r.events[bi].kind !== 'shock') await handleEvent(r.events[bi]); } save(); renderAll(); continue; }
         if (r.blocked) { ui.tab = 'policy'; renderAll(); toast('Finish the open session first: use the button at the top of the Policy tab.'); break; }
         save();
         if (g.over) { renderAll(); showOver(); break; }
