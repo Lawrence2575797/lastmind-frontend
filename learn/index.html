@@ -3946,6 +3946,46 @@
     .create-card h3 { margin: 0; padding: 14px 16px 12px; font: 700 1.05rem Georgia, serif; }
     .create-card-image { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }
     .create-card p { margin: 0; padding: 12px 16px 16px; font: 0.86rem/1.5 Arial, sans-serif; opacity: 0.85; }
+    .create-builder-head { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 26px; }
+    .create-builder-title { margin: 0; font: 700 clamp(1.7rem, 4vw, 2.6rem)/1 Georgia, serif; letter-spacing: -0.03em; }
+    .create-builder-layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 22px; align-items: start; }
+    .create-steps { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 12px; background: var(--panel); color: var(--text); border: 1px solid rgba(26,26,28,0.24); box-shadow: 0 8px 24px rgba(26,26,28,0.12); position: sticky; top: 8px; }
+    .create-step { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: inherit; font: 700 0.9rem Arial, sans-serif; text-align: left; cursor: pointer; }
+    .create-step:hover { background: rgba(255,255,255,0.07); }
+    .create-step.active { border-color: var(--text); background: rgba(255,255,255,0.1); }
+    .create-step-num { flex: none; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid currentColor; font-size: 0.75rem; }
+    .create-step-label { flex: 1; min-width: 0; }
+    .create-step-check { flex: none; opacity: 0; font-size: 0.85rem; }
+    .create-step.done .create-step-check { opacity: 1; }
+    .create-step-body { min-width: 0; }
+    .create-step-body h2 { margin: 0 0 6px; font: 700 1.35rem Georgia, serif; }
+    .create-step-help { margin: 0 0 18px; font: 0.88rem/1.6 Arial, sans-serif; opacity: 0.72; }
+    .create-field-label { margin: 22px 0 10px; font: 700 0.72rem Arial, sans-serif; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.7; }
+    .create-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .create-options-time { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .create-option { padding: 18px 16px; border: 2px solid rgba(26,26,28,0.24); border-radius: 12px; background: var(--panel); color: var(--text); text-align: left; cursor: pointer; font: inherit; box-shadow: 0 6px 18px rgba(26,26,28,0.1); transition: transform 0.15s, box-shadow 0.15s; }
+    .create-option:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(26,26,28,0.18); }
+    .create-option strong { display: block; font: 700 1.05rem Georgia, serif; }
+    .create-option span { display: block; margin-top: 6px; font: 0.8rem/1.45 Arial, sans-serif; opacity: 0.78; }
+    .create-option.selected { border-color: var(--text); box-shadow: 0 0 0 3px var(--accent), 0 10px 24px rgba(26,26,28,0.2); }
+    .create-option-time { text-align: center; padding: 16px 8px; }
+    .create-option-time strong { font: 800 1.1rem Arial, sans-serif; }
+    .create-next-row { display: flex; justify-content: flex-end; margin-top: 28px; }
+    .create-curriculum { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 14px; align-items: start; }
+    .create-selected { position: sticky; top: 8px; padding: 14px; border-radius: 12px; background: var(--panel); color: var(--text); border: 1px solid rgba(26,26,28,0.24); box-shadow: 0 8px 24px rgba(26,26,28,0.12); max-height: 72vh; overflow-y: auto; }
+    .create-selected h3 { margin: 0 0 10px; font: 700 0.95rem Georgia, serif; }
+    .create-selected-empty { margin: 0; font: 0.8rem/1.5 Arial, sans-serif; opacity: 0.65; }
+    .create-selected ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+    .create-selected li { display: flex; align-items: flex-start; gap: 8px; padding: 8px 9px; border-radius: 8px; background: rgba(255,255,255,0.07); font: 0.8rem/1.4 Arial, sans-serif; }
+    .create-selected li small { display: block; opacity: 0.6; font-size: 0.68rem; margin-top: 2px; }
+    .create-selected li button { flex: none; margin-left: auto; border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 0.9rem; opacity: 0.7; }
+    .create-selected li button:hover { opacity: 1; }
+    .create-soon { padding: 40px 20px; border: 2px dashed rgba(26,26,28,0.28); border-radius: 14px; text-align: center; font: 0.9rem Arial, sans-serif; opacity: 0.7; }
+    .km-node-group.create-picked .km-node-shape { stroke: var(--text); stroke-width: 3.5px; fill-opacity: 0.5; }
+    .km-node-group.create-picked .km-node-halo { stroke: var(--accent); stroke-width: 3px; opacity: 1; fill: none; }
+    .notes-tree-node-item.create-picked-item { font-weight: 700; }
+    @media (max-width: 1100px) { .create-curriculum { grid-template-columns: 1fr; } .create-selected { position: static; max-height: none; } }
+    @media (max-width: 820px) { .create-builder-layout { grid-template-columns: 1fr; } .create-steps { position: static; flex-direction: row; overflow-x: auto; } .create-step { width: auto; flex: none; } .create-options-time { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 900px) { .create-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 560px) { .create-gallery { grid-template-columns: 1fr; } .create-empty { padding: 40px 16px; } }
     .reward-card.is-purchasable:hover .reward-lock-badge { transform: scale(1.08); border-color: rgba(230,215,176,0.72); }
@@ -9015,7 +9055,7 @@ SQIDAQAB
             key: 'law', title: 'Law', image: '/assets/create/law-courtroom.jpg', description: 'Simulate real legal scenarios',
             alt: 'An imagined courtroom with a judge\'s bench, witness stand and jury box',
             simulations: [
-                { title: 'Criminal trial', image: '/assets/create/criminal-trial.jpg', description: 'Take a case from preparation through trial', alt: 'A person in handcuffs in the dock of an imagined courtroom' },
+                { key: 'criminal-trial', title: 'Criminal trial', image: '/assets/create/criminal-trial.jpg', description: 'Take a case from preparation through trial', alt: 'A person in handcuffs in the dock of an imagined courtroom' },
             ],
         },
     ];
@@ -9030,6 +9070,7 @@ SQIDAQAB
         document.getElementById('topbarTitle').textContent = 'Create';
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
+        if (view === 'criminal-trial') { renderCreateTrialBuilder(contentInner); return; }
         const card = (t, attrs = '') => `
                         <article class="create-card${attrs ? ' create-card-link' : ''}" ${attrs}>
                             <h3>${escapeHtml(t.title)}</h3>
@@ -9047,7 +9088,7 @@ SQIDAQAB
         } else if (view === 'law') {
             heading = law.title;
             backBtn = '<button type="button" class="create-back" id="createBackBtn" data-view="gallery">← Starting points</button>';
-            body = `<div class="create-gallery">${law.simulations.map((t) => card(t)).join('')}</div>`;
+            body = `<div class="create-gallery">${law.simulations.map((t) => card(t, `role="button" tabindex="0" data-simulation="${t.key}"`)).join('')}</div>`;
         } else {
             body = `
                 <div class="create-empty">
@@ -9072,11 +9113,134 @@ SQIDAQAB
         if (createBtn) createBtn.addEventListener('click', () => renderCreatePage('gallery'));
         const back = document.getElementById('createBackBtn');
         if (back) back.addEventListener('click', () => renderCreatePage(back.dataset.view));
-        contentInner.querySelectorAll('[data-template]').forEach((el) => {
-            const open = () => renderCreatePage(el.dataset.template);
+        contentInner.querySelectorAll('[data-template], [data-simulation]').forEach((el) => {
+            const open = () => renderCreatePage(el.dataset.template || el.dataset.simulation);
             el.addEventListener('click', open);
             el.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
         });
+    }
+
+    // ─── Create > Law > Criminal trial builder ───
+    // Steps down the left: 1 Experience, 2 Curriculum, 3 Design Your Case. The draft is kept in the
+    // browser so leaving the page does not lose it.
+    const CREATE_TRIAL_KEY = 'lastmind-create-criminal-trial';
+    const CREATE_TRIAL_MINUTES = [{ value: 15, label: '15 minutes' }, { value: 25, label: '25 minutes' }, { value: 45, label: '45 minutes' }, { value: 60, label: '1 hour' }];
+    const CREATE_LAW_FOLDER = { id: 'create-law', subject: 'Law', qualification: 'A-Level', examBoard: 'OCR' };
+    let createTrial = null;
+    function loadCreateTrial() {
+        if (createTrial) return createTrial;
+        let saved = null;
+        try { saved = JSON.parse(localStorage.getItem(CREATE_TRIAL_KEY) || 'null'); } catch (err) { /* private mode etc. */ }
+        createTrial = { step: 'experience', role: '', minutes: 0, picked: [], ...(saved || {}) };
+        if (!Array.isArray(createTrial.picked)) createTrial.picked = [];
+        return createTrial;
+    }
+    function saveCreateTrial() {
+        try { localStorage.setItem(CREATE_TRIAL_KEY, JSON.stringify(createTrial)); } catch (err) { /* draft just isn't kept */ }
+    }
+    let createLawMapCache = null;
+
+    function renderCreateTrialBuilder(contentInner) {
+        const trial = loadCreateTrial();
+        const steps = [
+            { key: 'experience', label: 'Experience', done: () => !!(trial.role && trial.minutes) },
+            { key: 'curriculum', label: 'Curriculum', done: () => trial.picked.length > 0 },
+            { key: 'design', label: 'Design Your Case', done: () => false },
+        ];
+        contentInner.innerHTML = `
+            <section class="create-view" aria-labelledby="createTrialTitle">
+                <div class="create-builder-head">
+                    <button type="button" class="create-back" id="createTrialBack">← Law</button>
+                    <h1 class="create-builder-title" id="createTrialTitle">Criminal trial</h1>
+                </div>
+                <div class="create-builder-layout">
+                    <nav class="create-steps" aria-label="Simulation steps">
+                        ${steps.map((st, i) => `<button type="button" class="create-step${trial.step === st.key ? ' active' : ''}${st.done() ? ' done' : ''}" data-step="${st.key}"><span class="create-step-num">${i + 1}</span><span class="create-step-label">${st.label}</span><span class="create-step-check" aria-hidden="true">✓</span></button>`).join('')}
+                    </nav>
+                    <div class="create-step-body" id="createTrialBody"></div>
+                </div>
+            </section>`;
+        const body = contentInner.querySelector('#createTrialBody');
+        const goTo = (key) => { trial.step = key; saveCreateTrial(); renderCreateTrialBuilder(contentInner); };
+        contentInner.querySelector('#createTrialBack').addEventListener('click', () => renderCreatePage('law'));
+        contentInner.querySelectorAll('.create-step').forEach((b) => b.addEventListener('click', () => goTo(b.dataset.step)));
+
+        if (trial.step === 'experience') {
+            body.innerHTML = `
+                <h2>Experience</h2>
+                <p class="create-step-help">Decide who the student plays and roughly how long the simulation should take.</p>
+                <div class="create-field-label">Student role</div>
+                <div class="create-options" role="radiogroup" aria-label="Student role">
+                    <button type="button" class="create-option${trial.role === 'defence' ? ' selected' : ''}" role="radio" aria-checked="${trial.role === 'defence'}" data-role="defence"><strong>Defence</strong><span>The student represents the defendant.</span></button>
+                    <button type="button" class="create-option${trial.role === 'prosecution' ? ' selected' : ''}" role="radio" aria-checked="${trial.role === 'prosecution'}" data-role="prosecution"><strong>Prosecution</strong><span>The student represents the Crown.</span></button>
+                </div>
+                <div class="create-field-label">Approximate time</div>
+                <div class="create-options create-options-time" role="radiogroup" aria-label="Approximate time">
+                    ${CREATE_TRIAL_MINUTES.map((m) => `<button type="button" class="create-option create-option-time${trial.minutes === m.value ? ' selected' : ''}" role="radio" aria-checked="${trial.minutes === m.value}" data-minutes="${m.value}"><strong>${m.label}</strong></button>`).join('')}
+                </div>
+                <div class="create-next-row"><button type="button" class="create-cta" id="createTrialNext1">Next: Curriculum →</button></div>`;
+            body.querySelectorAll('[data-role]').forEach((b) => b.addEventListener('click', () => { trial.role = b.dataset.role; saveCreateTrial(); renderCreateTrialBuilder(contentInner); }));
+            body.querySelectorAll('[data-minutes]').forEach((b) => b.addEventListener('click', () => { trial.minutes = Number(b.dataset.minutes); saveCreateTrial(); renderCreateTrialBuilder(contentInner); }));
+            body.querySelector('#createTrialNext1').addEventListener('click', () => goTo('curriculum'));
+        } else if (trial.step === 'curriculum') {
+            body.innerHTML = `
+                <h2>What should students learn from this simulation?</h2>
+                <p class="create-step-help">Click concepts on the knowledge map to select them. Your selection appears on the right.</p>
+                <div class="create-curriculum">
+                    <div id="createMapHost"><div class="mt-empty">Loading the knowledge map…</div></div>
+                    <aside class="create-selected" aria-label="Selected concepts"><h3 id="createSelectedTitle"></h3><div id="createSelectedList"></div></aside>
+                </div>
+                <div class="create-next-row"><button type="button" class="create-cta" id="createTrialNext2">Next: Design Your Case →</button></div>`;
+            const listEl = body.querySelector('#createSelectedList');
+            const titleEl = body.querySelector('#createSelectedTitle');
+            const subscribers = [];
+            const picker = {
+                has: (id) => trial.picked.some((n) => n.id === id),
+                toggle: (n) => {
+                    const i = trial.picked.findIndex((x) => x.id === n.id);
+                    if (i === -1) trial.picked.push({ id: n.id, label: n.label, subtopic: n.subtopic || '' }); else trial.picked.splice(i, 1);
+                    saveCreateTrial(); paintSelected(); subscribers.forEach((fn) => fn());
+                },
+                subscribe: (fn) => subscribers.push(fn),
+            };
+            function paintSelected() {
+                titleEl.textContent = `Selected concepts (${trial.picked.length})`;
+                if (!trial.picked.length) { listEl.innerHTML = '<p class="create-selected-empty">Nothing selected yet.</p>'; }
+                else {
+                    listEl.innerHTML = `<ul>${trial.picked.map((n) => `<li><span>${escapeHtml(n.label)}<small>${escapeHtml(n.subtopic)}</small></span><button type="button" data-remove="${escapeHtml(n.id)}" aria-label="Remove ${escapeHtml(n.label)}">✕</button></li>`).join('')}</ul>`;
+                    listEl.querySelectorAll('[data-remove]').forEach((b) => b.addEventListener('click', () => {
+                        const i = trial.picked.findIndex((x) => x.id === b.dataset.remove);
+                        if (i !== -1) { trial.picked.splice(i, 1); saveCreateTrial(); paintSelected(); subscribers.forEach((fn) => fn()); const g = body.querySelector('.pt-map-graph'); if (g && g._createPaint) g._createPaint(); }
+                    }));
+                }
+            }
+            paintSelected();
+            body.querySelector('#createTrialNext2').addEventListener('click', () => goTo('design'));
+            const host = body.querySelector('#createMapHost');
+            (async () => {
+                try {
+                    if (!createLawMapCache) {
+                        const data = await fetchSubjectKnowledgeMapWithRetry(CREATE_LAW_FOLDER);
+                        if (data && Array.isArray(data.nodes) && data.nodes.length) {
+                            data.scheduleByConceptId = new Map();
+                            data.completedDay1ConceptIds = new Set();
+                            createLawMapCache = data;
+                        }
+                    }
+                    if (!host.isConnected) return;
+                    if (!createLawMapCache) { host.innerHTML = '<div class="mt-empty">No Law knowledge map is available yet.</div>'; return; }
+                    ptRenderMap(host, CREATE_LAW_FOLDER, createLawMapCache, picker);
+                } catch (err) {
+                    console.error('LastMind: could not load the Law map for Create.', err);
+                    if (host.isConnected) host.innerHTML = '<div class="mt-empty">Couldn\'t load the knowledge map - try again.</div>';
+                }
+            })();
+        } else {
+            body.innerHTML = `
+                <h2>Design Your Case</h2>
+                <p class="create-step-help">Build the case students will work through.</p>
+                <div class="create-soon">This step is coming soon.</div>`;
+        }
     }
 
     function renderRewardsPage(loadLatest = true) {
@@ -22935,6 +23099,11 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             .attr('data-node-id', (d) => d.id)
             .attr('transform', (d) => `translate(${d.x},${d.y})`);
 
+        // Create's Curriculum step: nodes the creator has picked get a cream frame.
+        const paintPicked = () => nodeGroup.classed('create-picked', (n) => !!contentInner._createPicker && contentInner._createPicker.has(n.id));
+        contentInner._createPaint = paintPicked;
+        paintPicked();
+
         nodeGroup.append('rect').attr('class', 'km-node-halo')
             .attr('x', (d) => -d.halfW - 5).attr('y', (d) => -d.halfH - 5)
             .attr('width', (d) => d.halfW * 2 + 10).attr('height', (d) => d.halfH * 2 + 10)
@@ -23483,6 +23652,18 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                     ${startBtnHtml}
                 </div>
             `;
+            if (contentInner._createPicker) {
+                // Nothing here is a lesson to start - the card just offers select / unselect.
+                const picker = contentInner._createPicker;
+                detailEl.querySelectorAll('.km-inline-detail-actions .btn').forEach((b) => { b.style.display = 'none'; });
+                const pickBtn = document.createElement('button');
+                pickBtn.type = 'button';
+                pickBtn.className = 'btn primary km-inline-pick-btn';
+                const label = () => { pickBtn.textContent = picker.has(d.id) ? 'Remove from simulation' : 'Add to simulation'; };
+                label();
+                pickBtn.addEventListener('click', () => { picker.toggle(d); label(); paintPicked(); });
+                detailEl.querySelector('.km-inline-detail-actions').appendChild(pickBtn);
+            }
             detailEl.querySelectorAll('.km-jump-btn').forEach((btn) => {
                 btn.addEventListener('click', () => {
                     const graphNode = findGraphNodeById(btn.dataset.nodeId);
@@ -25301,6 +25482,8 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
 
         nodeGroup.on('click', (event, d) => {
             event.stopPropagation();
+            // Picker mode: a click selects / unselects the concept (its card still opens).
+            if (contentInner._createPicker) { contentInner._createPicker.toggle(d); paintPicked(); }
             selectedSidebarLessonNodeId = d.id;
             document.querySelectorAll('.folder-item-tree .notes-tree-node-item[data-node-id]').forEach((item) => {
                 item.classList.toggle('active', item.dataset.nodeId === d.id);
@@ -26463,7 +26646,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         load();
     }
 
-    function ptRenderMap(host, folder, data) {
+    function ptRenderMap(host, folder, data, picker) {
         host.innerHTML = `<div class="pt-map-layout">
             <aside class="pt-map-tree"><input type="search" id="ptMapSearch" placeholder="Search lessons…" aria-label="Search lessons"><div class="pt-map-tree-list" id="ptMapTreeList"></div></aside>
             <div class="pt-map-graph" id="ptMapGraph"></div>
@@ -26476,7 +26659,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         function showGraph(focusId) {
             activeId = focusId || null;
             graph.innerHTML = '';
-            graph.dataset.askForHelp = '1';
+            if (picker) { delete graph.dataset.askForHelp; graph._createPicker = picker; } else graph.dataset.askForHelp = '1';
             graph.appendChild(document.getElementById('kmInlineTemplate').content.cloneNode(true));
             graph.querySelector('.km-inline-title').textContent = folderLabel(folder);
             graph.querySelector('.km-inline-themetabs').style.display = 'none';
@@ -26500,14 +26683,15 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 const h = document.createElement('h5'); h.textContent = key; listEl.appendChild(h);
                 nodes.forEach((n) => {
                     const b = document.createElement('button');
-                    b.type = 'button'; b.className = 'notes-tree-node-item' + (n.id === activeId ? ' active' : '');
-                    b.dataset.nodeId = n.id; b.textContent = n.label;
+                    b.type = 'button'; b.className = 'notes-tree-node-item' + (n.id === activeId ? ' active' : '') + (picker && picker.has(n.id) ? ' create-picked-item' : '');
+                    b.dataset.nodeId = n.id; b.textContent = (picker && picker.has(n.id) ? '✓ ' : '') + n.label;
                     b.addEventListener('click', () => showGraph(n.id));
                     listEl.appendChild(b);
                 });
             });
         }
         searchEl.addEventListener('input', renderTree);
+        if (picker) picker.subscribe(renderTree);
         renderTree();
         showGraph(null);
     }
