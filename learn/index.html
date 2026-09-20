@@ -3992,8 +3992,8 @@
     .create-line { width: 100%; box-sizing: border-box; padding: 11px 13px; border: 1px solid rgba(26,26,28,0.32); border-radius: 10px; background: var(--panel); color: var(--text); font: 0.92rem Arial, sans-serif; }
     .create-line::placeholder { color: var(--text); opacity: 0.45; }
     .create-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; min-height: 30px; }
-    .create-tag { display: inline-flex; align-items: center; gap: 6px; padding: 6px 6px 6px 12px; border: 1px solid rgba(26,26,28,0.32); border-radius: 999px; background: var(--panel); font: 0.85rem Arial, sans-serif; }
-    .create-tag button { border: 0; background: transparent; color: var(--text); opacity: 0.6; font-size: 1.05rem; line-height: 1; cursor: pointer; padding: 0 6px; border-radius: 999px; }
+    .create-tag { display: inline-flex; align-items: center; gap: 6px; padding: 6px 6px 6px 12px; border: 1px solid rgba(26,26,28,0.32); border-radius: 999px; background: var(--panel); color: #f6efdc; font: 0.85rem Arial, sans-serif; }
+    .create-tag button { border: 0; background: transparent; color: #f6efdc; opacity: 0.6; font-size: 1.05rem; line-height: 1; cursor: pointer; padding: 0 6px; border-radius: 999px; }
     .create-tag button:hover { opacity: 1; }
     .create-tags-empty { font: 0.85rem Arial, sans-serif; opacity: 0.55; align-self: center; }
     .create-tag-add { display: flex; gap: 10px; max-width: 520px; margin-bottom: 8px; }
@@ -9493,23 +9493,28 @@ SQIDAQAB
         const mult = { billion: 1e9, bn: 1e9, b: 1e9, million: 1e6, m: 1e6, thousand: 1e3, k: 1e3 }[m[2]] || (n < 5000 ? 1e6 : 1);
         return Math.max(1e5, Math.min(2e9, n * mult));
     }
-    const chnModuleFiles = ['/assets/econ/econModel.js', '/assets/econ/econPolicy.js', '/assets/econ/econSim.js', '/assets/chancellor/chancellor-ui.js'];
-    let chnModulePromise = null;
-    function chnLoadModule() {
-        if (chnModulePromise) return chnModulePromise;
-        const v = '20260920-1';
-        chnModulePromise = chnModuleFiles.reduce((p, src) => p.then(() => new Promise((resolve, reject) => {
-            const s = document.createElement('script'); s.src = src + '?v=' + v; s.onload = resolve; s.onerror = () => reject(new Error('Could not load ' + src)); document.head.appendChild(s);
-        })), Promise.resolve()).catch((err) => { chnModulePromise = null; throw err; });
-        return chnModulePromise;
+    const CHN_CONFIG_KEY = 'lastmind-chancellor-config', CHN_GAME_KEY = 'lastmind-chancellor-game';
+    function chnBuildConfig(ch) {
+        return { country: ch.country.trim(), currency: ch.currency.trim(), population: ch.population.trim(), populationNumber: chancellorParseNumber(ch.population), stage: ch.stage, sectors: ch.sectors, exports: ch.exports, imports: ch.imports, situation: ch.situation, history: ch.history, shocks: ch.shocks, government: ch.government, opposition: ch.opposition, rising: ch.rising };
     }
-    async function chnStartSimulation(contentInner, ch, resume) {
-        const body = contentInner.querySelector('#createChBody');
-        try { await chnLoadModule(); } catch (err) { if (body) body.insertAdjacentHTML('beforeend', '<p class="create-warn">The simulation could not load. Check your connection and try again.</p>'); return; }
-        const cfg = { country: ch.country.trim(), currency: ch.currency.trim(), population: ch.population.trim(), populationNumber: chancellorParseNumber(ch.population), stage: ch.stage, sectors: ch.sectors, exports: ch.exports, imports: ch.imports, situation: ch.situation, history: ch.history, shocks: ch.shocks, government: ch.government, opposition: ch.opposition, rising: ch.rising };
-        window.LMChancellorUI.launch(contentInner, cfg, { resume: !!resume, onExit: () => renderChancellorBuilder(contentInner) });
+    // The simulation runs on its own page (/chancellor/) so it has the whole window. This hands it the scenario.
+    function chnStartSimulation(contentInner, ch, resume) {
+        try {
+            if (!resume) { localStorage.setItem(CHN_CONFIG_KEY, JSON.stringify(chnBuildConfig(ch))); localStorage.removeItem(CHN_GAME_KEY); }
+        } catch (err) { /* private mode: the page will say it has no scenario */ }
+        window.location.href = resume ? '/chancellor/' : '/chancellor/?new=1';
     }
-    function chnSavedGameExists() { try { return !!localStorage.getItem('lastmind-chancellor-game'); } catch (err) { return false; } }
+    // Reset the saved game to its very beginning: same country, same starting date and the same random seed, so it opens exactly as it first did.
+    function chnResetSavedGame() {
+        let saved = null;
+        try { saved = JSON.parse(localStorage.getItem(CHN_GAME_KEY) || 'null'); } catch (err) { /* nothing to reset */ }
+        const g = saved && saved.g;
+        if (!g || !g.cfg) return;
+        if (!window.confirm('Reset your saved Chancellor game to the very start? Its progress will be lost.')) return;
+        try { localStorage.setItem(CHN_CONFIG_KEY, JSON.stringify({ ...g.cfg, seed: g.seed0, startDate: g.startDate })); localStorage.removeItem(CHN_GAME_KEY); } catch (err) { /* fine */ }
+        window.location.href = '/chancellor/?new=1';
+    }
+    function chnSavedGameExists() { try { return !!localStorage.getItem(CHN_GAME_KEY); } catch (err) { return false; } }
 
     function renderChancellorGovernment(body, ch, goTo, rerender, contentInner) {
         const block = (title, sub, key, roles, prefix) => `
@@ -9530,7 +9535,7 @@ SQIDAQAB
             <div class="create-next-row" style="gap:12px;flex-wrap:wrap;">
                 <button type="button" class="create-secondary" id="chPrev">← Back to your scenario</button>
                 <button type="button" class="create-cta" id="chStart" ${ready && scenarioDone ? '' : 'disabled'}>Start the simulation →</button>
-                ${chnSavedGameExists() ? '<button type="button" class="create-secondary" id="chResume">Continue your saved game</button>' : ''}
+                ${chnSavedGameExists() ? '<button type="button" class="create-secondary" id="chResume">Continue your saved game</button><button type="button" class="create-secondary" id="chReset">Reset the saved game to its start</button>' : ''}
             </div>
             ${ready && scenarioDone ? '' : `<p class="create-step-help" id="chStartHelp">${scenarioDone ? 'Fill in every name and party to start.' : 'Finish the scenario step first.'}</p>`}`;
         const setName = (el) => {
@@ -9558,6 +9563,7 @@ SQIDAQAB
         body.querySelector('#chPrev').addEventListener('click', () => goTo('scenario'));
         body.querySelector('#chStart').addEventListener('click', () => chnStartSimulation(contentInner, ch, false));
         const resume = body.querySelector('#chResume'); if (resume) resume.addEventListener('click', () => chnStartSimulation(contentInner, ch, true));
+        const reset = body.querySelector('#chReset'); if (reset) reset.addEventListener('click', chnResetSavedGame);
     }
 
     // ─── Create > Economics > Be the Chancellor builder ───

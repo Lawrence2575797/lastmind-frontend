@@ -11,7 +11,7 @@
   var f0 = function (x) { return String(Math.round(isFinite(x) ? x : 0)); };
   var sign = function (x) { return (x > 0 ? '+' : '') + f1(x); };
   var money = function (x) { var a = Math.abs(x), s = x < 0 ? '-' : ''; if (a >= 1e12) return s + (a / 1e12).toFixed(2) + ' tn'; if (a >= 1e9) return s + (a / 1e9).toFixed(1) + ' bn'; if (a >= 1e6) return s + (a / 1e6).toFixed(1) + ' m'; return s + Math.round(a).toLocaleString(); };
-  var ui = { g: null, host: null, tab: 'overview', area: 'Income tax', pending: {}, chart: 'monthly', portraits: {}, busy: false, onExit: null, notices: [], cat: null, previewTimer: null, econVar: 'inflation', modal: null };
+  var ui = { g: null, host: null, tab: 'overview', group: 'Taxes', openAreas: {}, lessonCtx: null, exitLabel: 'Save and exit', launchOpts: null, chart: 'monthly', portraits: {}, busy: false, onExit: null, notices: [], cat: null, previewTimer: null, econVar: 'inflation', modal: null };
 
   /* ---------- styles ---------- */
   function injectStyle() {
@@ -73,6 +73,9 @@
       '.chn-load { min-height: 70vh; display: flex; align-items: flex-end; border-radius: 16px; background: #0b1016 center/cover no-repeat; position: relative; overflow: hidden; } .chn-load::before { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(6,10,15,0.94) 8%, rgba(6,10,15,0.35) 70%); }',
       '.chn-load .in { position: relative; padding: 28px; color: #fff; width: 100%; } .chn-load h2 { font: 700 2rem Arial, sans-serif; } .chn-load ul { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 6px; font-size: 0.95rem; } .chn-load li { opacity: 0.35; transition: opacity 0.3s; } .chn-load li.on { opacity: 1; } .chn-load li::before { content: "○  "; } .chn-load li.on::before { content: "✓  "; color: #5fd6a0; }',
       '.chn-toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 3100; background: #111; color: #fff; padding: 10px 16px; border-radius: 10px; font: 0.88rem Arial, sans-serif; max-width: 90vw; }',
+      '.chn-area { border: 1px solid var(--chn-line); border-radius: 12px; padding: 10px 14px; margin-bottom: 10px; background: var(--panel); } .chn-area > summary { cursor: pointer; list-style: none; font-size: 0.98rem; display: flex; gap: 10px; align-items: baseline; } .chn-area > summary::-webkit-details-marker { display: none; } .chn-area > summary::before { content: "▸"; } .chn-area[open] > summary::before { content: "▾"; }',
+      '.chn-guid { position: fixed; top: 56px; right: 12px; bottom: 12px; width: min(420px, 92vw); z-index: 2500; background: var(--panel); color: var(--text); border: 1px solid var(--chn-line); border-radius: 14px; box-shadow: 0 16px 50px rgba(0,0,0,0.3); display: flex; flex-direction: column; } .chn-guid .hd { padding: 14px 16px 10px; display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; border-bottom: 1px solid var(--chn-line); } .chn-guid .tabs { display: flex; gap: 6px; padding: 10px 12px 0; overflow-x: auto; } .chn-guid .bd { padding: 12px 16px 18px; overflow-y: auto; font-size: 0.9rem; line-height: 1.6; } .chn-guid .bd p { margin: 0 0 10px; }',
+      '.chn-budget.warn { border-color: var(--chn-warn); color: var(--chn-warn); }',
       '.chn-mtx { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; } .chn-mtx div { border: 1px solid var(--chn-line); border-radius: 10px; padding: 8px 10px; font-size: 0.82rem; } .chn-mtx b { display: block; font-size: 1.1rem; }',
     ].join('\n');
     document.head.appendChild(st);
@@ -87,9 +90,9 @@
   /* ---------- launch ---------- */
   function launch(host, cfg, opts) {
     injectStyle(); loadPortraits();
-    ui.host = host; ui.onExit = opts.onExit; ui.tab = 'overview'; ui.pending = {}; ui.notices = []; ui.cat = null;
+    ui.host = host; ui.onExit = opts.onExit; ui.tab = 'overview'; ui.notices = []; ui.cat = null; ui.exitLabel = opts.exitLabel || 'Save and exit'; ui.launchOpts = opts; ui.lessonCtx = null; ui.openAreas = {};
     var saved = opts.resume ? loadSaved() : null;
-    if (saved) { ui.g = saved; renderAll(); ensurePortraits(); return; }
+    if (saved) { ui.g = saved; ui.g.draft = ui.g.draft || {}; renderAll(); ensurePortraits(); return; }
     try { localStorage.removeItem(STORE); } catch (e) { /* fine */ }
     ui.portraits = {}; savePortraits();
     var steps = ['Building the economy of ' + cfg.country, 'Simulating the last three years', 'Appointing the cabinet and the opposition', 'Printing the newspapers', 'Preparing your first briefing'];
@@ -181,7 +184,7 @@
   function ensurePortraits() { ui.g.people.forEach(function (p) { if (!p.resigned) requestPortrait(p.key, p.role); }); }
 
   /* ---------- the shell ---------- */
-  var TABS = [['overview', 'Overview'], ['economy', 'Economy'], ['policy', 'Policy'], ['budget', 'Budget and spending'], ['people', 'People and polls'], ['news', 'News'], ['log', 'Record']];
+  var TABS = [['overview', 'Overview'], ['economy', 'Economic performance'], ['policy', 'Policy'], ['budget', 'Budget'], ['people', 'People and polls'], ['news', 'News'], ['log', 'Record']];
   function windowPill() {
     var w = ui.g.window || { kind: 'none' };
     if (w.kind === 'shock') return '<span class="chn-pill shock">Emergency session open</span>';
@@ -189,16 +192,26 @@
     if (w.kind === 'bigBudget') return '<span class="chn-pill open">The Budget is open</span>';
     return '<span class="chn-pill">Policy changes closed</span>';
   }
+  function budgetLabel() { return 'Testing budget $' + createSpend.usedUsd.toFixed(2) + ' of $' + createSpend.capUsd.toFixed(2); }
+  function headerActions() {
+    var g = ui.g, st = nextStop(), P = g.pop;
+    return windowPill() + '<span class="chn-pill" title="Your approval with the public">Approval ' + f0(P.groups.public) + '%</span>' +
+      '<button class="chn-btn primary" data-act="advance" ' + (g.over ? 'disabled' : '') + ' title="Move on to the next event or the next month-end">Advance to ' + esc(S.nice(st.date).replace(/ \d{4}$/, '')) + ' ▸</button>' +
+      '<button class="chn-btn" data-act="ff" ' + (g.over ? 'disabled' : '') + ' title="Skip quiet stretches. Stops when something needs a decision.">Fast forward ▸▸</button>' +
+      (ui.lessonCtx && !document.getElementById('chnGuid') ? '<button class="chn-btn" data-act="lessons" title="Reopen the lesson panel">Lessons</button>' : '') +
+      '<button class="chn-btn" data-act="restart" title="Start this scenario again from the beginning">Restart</button>' +
+      '<button class="chn-btn" data-act="exit">' + esc(ui.exitLabel) + '</button>' +
+      '<span class="chn-pill chn-budget" title="Everything Cortex does in LastMind Create counts towards a hard testing budget">' + esc(budgetLabel()) + '</span>';
+  }
+  function renderHeaderOnly() { var el = ui.host.querySelector('#chnHeadActions'); if (el) el.innerHTML = headerActions(); }
+  window.chnPaintBudget = function () { document.querySelectorAll('.chn-budget').forEach(function (el) { el.textContent = budgetLabel(); el.classList.toggle('warn', createBudgetLeft() < 0.35); }); };
   function renderAll() {
     var g = ui.g; if (!g) return;
-    var st = nextStop(), P = g.pop, gov = g.parties.gov.name;
+    var gov = g.parties.gov.name;
     var daysToElection = Math.round((TS(g.electionDate) - TS(g.date)) / 864e5);
     ui.host.innerHTML = '<div class="chn">' +
       '<div class="chn-head"><div><div class="chn-title">' + esc(g.cfg.country) + ' · Chancellor</div><div class="chn-date">' + esc(S.nice(g.date)) + ' · ' + esc(gov) + ' government · election in ' + (daysToElection > 90 ? Math.round(daysToElection / 30.4) + ' months' : daysToElection + ' days') + '</div></div>' +
-      '<div class="chn-actions">' + windowPill() + '<span class="chn-pill" title="Your approval with the public">Approval ' + f0(P.groups.public) + '%</span>' +
-      '<button class="chn-btn primary" data-act="advance" ' + (g.over ? 'disabled' : '') + ' title="Move on to the next event or the next month-end">Advance to ' + esc(S.nice(st.date).replace(/ \d{4}$/, '')) + ' ▸</button>' +
-      '<button class="chn-btn" data-act="ff" ' + (g.over ? 'disabled' : '') + ' title="Skip quiet stretches. Stops when something needs a decision.">Fast forward ▸▸</button>' +
-      '<button class="chn-btn" data-act="exit">Save and exit</button></div></div>' +
+      '<div class="chn-actions" id="chnHeadActions">' + headerActions() + '</div></div>' +
       '<div class="chn-tabs" role="tablist">' + TABS.map(function (t) { return '<button class="chn-tab" role="tab" data-tab="' + t[0] + '" aria-selected="' + (ui.tab === t[0]) + '">' + t[1] + '</button>'; }).join('') + '</div>' +
       '<div id="chnBody"></div></div>';
     renderTab();
@@ -215,7 +228,8 @@
   function bindShell() {
     if (shellBound === ui.host) return; shellBound = ui.host;
     ui.host.addEventListener('click', function (e) {
-      var t = e.target.closest('[data-act],[data-tab],[data-chart],[data-dismiss]'); if (!t) return;
+      var t = e.target.closest('[data-act],[data-tab],[data-chart],[data-dismiss],[data-lesson]'); if (!t) return;
+      if (t.dataset.lesson) { openLesson(t.dataset.lesson); return; }
       if (t.dataset.tab) { ui.tab = t.dataset.tab; renderAll(); return; }
       if (t.dataset.chart) { ui.chart = t.dataset.chart; renderTab(); return; }
       if (t.dataset.dismiss != null) { ui.notices.splice(+t.dataset.dismiss, 1); renderTab(); return; }
@@ -224,6 +238,10 @@
       else if (a === 'exit') { save(); ui.onExit && ui.onExit(); }
       else if (a === 'newgame') { try { localStorage.removeItem(STORE); } catch (x) { /* fine */ } ui.onExit && ui.onExit(); }
       else if (a === 'endsession') endSession();
+      else if (a === 'submitbudget') submitBudget();
+      else if (a === 'enactnow') enactChanges();
+      else if (a === 'lessons' && ui.lessonCtx) openLesson(ui.lessonCtx.id);
+      else if (a === 'restart') restartGame();
     });
   }
 
@@ -283,13 +301,13 @@
 
   /* ---------- economy tab ---------- */
   var ECON_GROUPS = [
-    ['Output and jobs', [['growth', 'GDP growth', '% yoy'], ['gap', 'Output gap', '%'], ['potGrowth', 'Potential growth', '% yoy'], ['unemployment', 'Unemployment', '%'], ['ustar', 'Structural unemployment', '%'], ['participation', 'Participation', '%']]],
-    ['Prices and wages', [['inflation', 'CPI inflation', '%'], ['core', 'Domestic inflation', '%'], ['realWages', 'Real wage growth', '%'], ['anchor', 'Inflation expectations anchored', '0 to 1']]],
-    ['Households and firms', [['confH', 'Household confidence', 's.d.'], ['confB', 'Business confidence', 's.d.'], ['savingRate', 'Saving rate', '%'], ['housePrices', 'House and asset prices', '% vs trend']]],
+    ['Output and jobs', [['growth', 'GDP growth', '% yoy'], ['gdpIndex', 'Real GDP', 'index'], ['potentialGdp', 'Potential GDP', 'index'], ['gap', 'Output gap', '%'], ['potGrowth', 'Potential growth', '% yoy'], ['unemployment', 'Unemployment', '%'], ['ustar', 'Structural unemployment', '%'], ['employment', 'Employment', 'index'], ['participation', 'Participation', '%'], ['productivity', 'Productivity', 'index']]],
+    ['Prices and wages', [['inflation', 'CPI inflation', '%'], ['core', 'Domestic inflation', '%'], ['importInflation', 'Imported inflation', '%'], ['importPrices', 'Import prices vs trend', '%'], ['commodityPrices', 'World commodity prices vs trend', '%'], ['nominalWages', 'Wage growth (money)', '% yoy'], ['realWages', 'Real wage growth', '% yoy'], ['anchor', 'Inflation expectations anchored', '0 to 1']]],
+    ['Demand and trade', [['consumption', 'Household spending vs trend', '%'], ['investment', 'Business investment vs trend', '%'], ['exports', 'Exports vs trend', '%'], ['imports', 'Imports vs trend', '%'], ['currentAccount', 'Current account', '% GDP'], ['exchangeVsStart', 'Currency vs start', '%'], ['reserves', 'Reserves', 'months of imports'], ['savingRate', 'Saving rate', '%']]],
+    ['Households and living standards', [['povertyRate', 'Poverty rate', '% of people'], ['giniLevel', 'Inequality (Gini)', '0 to 100'], ['confH', 'Household confidence', 's.d.'], ['confB', 'Business confidence', 's.d.'], ['housePrices', 'House and asset prices', '% vs trend']]],
     ['Government', [['deficit', 'Budget deficit', '% GDP'], ['debtGDP', 'Public debt', '% GDP'], ['interest', 'Debt interest', '% GDP'], ['taxRevenue', 'Tax revenue', '% GDP']]],
     ['Money and finance', [['policyRate', 'Policy rate', '%'], ['realRate', 'Real interest rate', '%'], ['riskPremium', 'Risk premium', 'pp'], ['sovereignStress', 'Sovereign stress score', 'index']]],
-    ['External', [['exchangeVsStart', 'Currency vs start', '%'], ['currentAccount', 'Current account', '% GDP'], ['reserves', 'Reserves', 'months of imports']]],
-    ['Living standards', [['gini', 'Inequality (indicative)', 'Gini pts vs start'], ['poverty', 'Poverty (indicative)', 'pp vs start'], ['emissions', 'Emissions index', 'start = 100']]],
+    ['Environment', [['emissions', 'Emissions index', 'start = 100']]],
   ];
   function economyTab() {
     var g = ui.g, m = metricsNow(), hist = g.mhist, m3 = hist[Math.max(0, hist.length - 4)], m12 = hist[Math.max(0, hist.length - 13)] || m3;
@@ -300,21 +318,34 @@
       '<div class="chn-card chn-chart"><label class="neutral" style="font-size:.78rem">Chart <select id="chnVar" style="margin-left:6px;padding:5px 8px;border-radius:8px">' + opts + '</select></label><h4 style="margin-top:10px">' + esc((ECON_GROUPS.reduce(function (a, grp) { return a.concat(grp[1]); }, []).filter(function (r) { return r[0] === ui.econVar; })[0] || ['', ''])[1]) + '</h4>' + svgChart({ series: [{ name: 'Monthly', color: 'var(--accent)', pts: monthlySeries(ui.econVar, 48) }, { name: 'Quarterly', color: '#c2410c', pts: quarterlySeries(ui.econVar, 16), w: 1.4 }], today: TS(g.date), label: ui.econVar }) + '</div></div>';
   }
 
-  /* ---------- policy tab ---------- */
+  /* ---------- policy tab: groups, drafts and lessons ---------- */
+  var POLICY_GROUPS = [
+    { name: 'Taxes', text: 'Income, business, consumption and wealth taxes.', areas: ['Income tax', 'Business tax', 'Consumption tax', 'Wealth and property'] },
+    { name: 'Public services and welfare', text: 'What the state spends on people.', areas: ['Government spending', 'Welfare', 'Human capital'] },
+    { name: 'Infrastructure, energy and environment', text: 'Building, powering and protecting.', areas: ['Infrastructure', 'Energy', 'Environment', 'Housing'] },
+    { name: 'Jobs and people', text: 'Work, migration and regions.', areas: ['Labour market', 'Migration and labour supply', 'Regional'] },
+    { name: 'Business, trade and industry', text: 'Firms, innovation, trade and foreign investment.', areas: ['Business and supply side', 'Innovation', 'Trade', 'Foreign investment', 'Industrial policy'] },
+    { name: 'Money, banking and debt', text: 'Interest rates, the currency, banks and government borrowing.', areas: ['Monetary', 'Exchange rate', 'Banking and finance', 'Fiscal framework', 'Debt management'] },
+    { name: 'Development, food and crisis', text: 'Poorer-country programmes, food, and emergency measures.', areas: ['Development', 'Agriculture and food', 'Crisis controls'] },
+  ];
   function catalogue() { if (!ui.cat) ui.cat = L.catalogue(ui.g.pf); return ui.cat; }
+  function D() { ui.g.draft = ui.g.draft || {}; return ui.g.draft; }
   function enacted(id) { var last = ui.g.decisions.filter(function (d) { return d.id === id; }).pop(); return last || null; }
-  function pendingValue(e) { var p = ui.pending[e.id]; if (p) return p; var en = enacted(e.id); return en ? { v: en.v, opt: en.opt, dur: en.dur } : { v: e.ctl.t === 'select' ? e.ctl.def : (e.ctl.optional ? e.ctl.min : e.ctl.def), opt: e.ctl.pickOpts ? e.ctl.pickOpts[0].v : null, dur: e.ctl.duration ? e.ctl.duration[2] : null }; }
-  function differs(e) { var p = ui.pending[e.id]; if (!p) return false; var en = enacted(e.id), cur = en ? en.v : (e.ctl.t === 'select' ? e.ctl.def : 0); if (String(p.v) !== String(cur)) return true; return !!(en && e.ctl.pickOpts && (p.opt || null) !== (en.opt || null)); }
+  function pendingValue(e) { var p = D()[e.id]; if (p) return p; var en = enacted(e.id); return en ? { v: en.v, opt: en.opt, dur: en.dur } : { v: e.ctl.t === 'select' ? e.ctl.def : (e.ctl.optional ? e.ctl.min : e.ctl.def), opt: e.ctl.pickOpts ? e.ctl.pickOpts[0].v : null, dur: e.ctl.duration ? e.ctl.duration[2] : null }; }
+  function differs(e) { var p = D()[e.id]; if (!p) return false; var en = enacted(e.id), cur = en ? en.v : (e.ctl.t === 'select' ? e.ctl.def : 0); if (String(p.v) !== String(cur)) return true; return !!(en && e.ctl.pickOpts && (p.opt || null) !== (en.opt || null)); }
   function gateFlags() { var g = ui.g, m = metricsNow(); return { crisis: m.sovereignStress >= 1.2 || m.debtGDP > 120, emergency: g.window && g.window.kind === 'shock' }; }
   function gateOk(e) { return L.available(e, ui.g.pf, gateFlags()); }
-  function pendingChanges() { return catalogue().filter(function (e) { return !e.preset && ui.pending[e.id] && differs(e); }); }
+  function pendingChanges() { return catalogue().filter(function (e) { return !e.preset && D()[e.id] && differs(e); }); }
   function clampV(e, x) { x = +x; if (isNaN(x)) x = 0; return Math.max(e.ctl.min, Math.min(e.ctl.max, x)); }
+  var saveTimer = null;
+  function saveSoon() { clearTimeout(saveTimer); saveTimer = setTimeout(save, 300); }
+
   function policyBanner() {
-    var g = ui.g, w = g.window || { kind: 'none' }, ev = g.events.filter(function (e) { return !e.done && e.needsAction && e.date <= g.date && (e.kind === 'budget' || e.kind === 'shock'); })[0];
-    if (w.kind === 'shock') return '<div class="chn-banner shock"><span><b>Emergency session.</b> Taxes, spending, crisis measures, banking, money and debt can be changed now. Structural reforms wait for the Budget.</span><button class="chn-btn" data-act="endsession">End the session</button></div>';
-    if (w.kind === 'budget' || w.kind === 'bigBudget') return '<div class="chn-banner open"><span><b>' + (w.kind === 'bigBudget' ? 'The Budget.' : 'Budget statement.') + '</b> Enact your changes below, then deliver the ' + (w.kind === 'bigBudget' ? 'Budget' : 'statement') + '.</span><button class="chn-btn primary" data-act="endsession">Deliver the ' + (w.kind === 'bigBudget' ? 'Budget' : 'statement') + '</button></div>';
+    var g = ui.g, w = g.window || { kind: 'none' }, n = pendingChanges().length;
+    if (w.kind === 'shock') return '<div class="chn-banner shock"><span><b>Emergency session.</b> Taxes, spending, crisis measures, banking, money and debt can be enacted now. Structural reforms wait for the Budget.</span><span class="chn-actions"><button class="chn-btn" data-act="enactnow" ' + (n ? '' : 'disabled') + '>Enact ' + n + ' drafted change' + (n === 1 ? '' : 's') + ' now</button><button class="chn-btn" data-act="endsession">End the session</button></span></div>';
+    if (w.kind === 'budget' || w.kind === 'bigBudget') { var big = w.kind === 'bigBudget'; return '<div class="chn-banner open"><span><b>' + (big ? 'Budget day.' : 'Budget statement day.') + '</b> Your saved draft is ready. Adjust it, then submit: ' + n + ' change' + (n === 1 ? '' : 's') + ' will be enacted.' + (big ? '' : ' Structural reforms stay in your draft for the main Budget.') + '</span><button class="chn-btn primary" data-act="submitbudget">Submit the ' + (big ? 'Budget' : 'statement') + '</button></div>'; }
     var nb = g.events.filter(function (e) { return !e.done && e.kind === 'budget'; })[0];
-    return '<div class="chn-banner info"><span><b>Policy is closed.</b> Changes can only be made at budgets and in emergency sessions' + (nb ? '. Next: ' + esc(nb.title) + ' on ' + esc(S.nice(nb.date)) : '') + '. You can still explore any lever and see its forecast effect.</span></div>';
+    return '<div class="chn-banner info"><span><b>Preparing.</b> Choose policies, see their forecast and save them as a draft. Nothing takes effect until you submit them on budget day' + (nb ? ': <b>' + esc(nb.title) + ', ' + esc(S.nice(nb.date)) + '</b>' : '') + '.</span></div>';
   }
   function ctlHtml(e) {
     var p = pendingValue(e), c = e.ctl, id = e.id, h = '';
@@ -323,91 +354,156 @@
     var v = clampV(e, p.v);
     h = '<div class="ctl' + (pick ? ' pick' : '') + '">' + pick + '<input type="range" data-pid="' + id + '" data-k="v" min="' + c.min + '" max="' + c.max + '" step="' + c.step + '" value="' + v + '" aria-label="' + esc(e.name) + '"><input type="number" data-pid="' + id + '" data-k="v" min="' + c.min + '" max="' + c.max + '" step="' + c.step + '" value="' + v + '" aria-label="' + esc(e.name) + ' exact value"></div>';
     h += '<div class="unit">' + esc(c.unit) + ' · range ' + c.min + ' to ' + c.max + (e.now ? ' · today ' + esc(e.now) : '') + (c.base ? ' · today\'s budget ' + f1(c.base) + '% of GDP' : '') + '</div>';
-    if (c.optional) h = '<label class="unit"><input type="checkbox" data-pid="' + id + '" data-k="on" ' + (p.on !== false ? 'checked' : '') + '> Set this</label>' + h;
     if (c.duration) h += '<div class="ctl" style="grid-template-columns:auto 90px;justify-content:start"><span class="unit">Lasts (quarters)</span><input type="number" data-pid="' + id + '" data-k="dur" min="' + c.duration[0] + '" max="' + c.duration[1] + '" value="' + (p.dur || c.duration[2]) + '"></div>';
     return h;
   }
   function policyCard(e) {
-    var en = enacted(e.id), avail = gateOk(e), lock = !avail.ok;
-    var enTxt = en ? '<span class="chn-tag">In force: ' + esc(S.describe(e, en.v, en.opt, en.dur)) + '</span>' : '';
-    return '<article class="chn-pol' + (differs(e) ? ' changed' : '') + (lock ? ' lock' : '') + '" data-card="' + e.id + '"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><span class="nm">' + esc(e.name) + '</span><span class="ch">' + esc(e.choice) + '</span></div>' +
+    var en = enacted(e.id), avail = gateOk(e), lock = !avail.ok, drafted = differs(e);
+    var chips = (drafted ? '<span class="chn-tag" style="background:rgba(11,114,133,.18)">Drafted</span> ' : '') + (en ? '<span class="chn-tag">In force: ' + esc(S.describe(e, en.v, en.opt, en.dur)) + '</span>' : '');
+    var wait = drafted && !S.canDecide(ui.g, e.id).ok && S.canDecide(ui.g, e.id).reason ? '<div class="unit">' + esc(areaWaitText(e)) + '</div>' : '';
+    return '<article class="chn-pol' + (drafted ? ' changed' : '') + (lock ? ' lock' : '') + '" data-card="' + e.id + '"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:flex-start"><span class="nm">' + esc(e.name) + '</span><button class="chn-btn small" data-lesson="' + e.id + '" title="Open the LastMind lesson behind this policy">Lesson</button></div><div class="ch">You choose: ' + esc(e.choice) + '</div>' +
       (lock ? '<div class="reason">' + esc(avail.reason) + '</div>' : '') + ctlHtml(e) +
-      '<div class="unit">' + (e.lag ? 'Takes effect ' + e.lag + ' quarter' + (e.lag > 1 ? 's' : '') + ' after you decide · ' + esc(e.lagWhy) : 'Takes effect straight away') + '</div>' + enTxt +
-      '<details><summary class="unit" style="cursor:pointer">How it works</summary><p class="unit" style="margin:6px 0 0">' + esc(e.enters) + '</p></details></article>';
+      '<div class="unit">' + (e.lag ? 'Takes effect ' + e.lag + ' quarter' + (e.lag > 1 ? 's' : '') + ' after it is enacted · ' + esc(e.lagWhy) : 'Takes effect straight away') + '</div>' + (chips ? '<div>' + chips + '</div>' : '') + wait +
+      '<details><summary class="unit" style="cursor:pointer">How it works in the model</summary><p class="unit" style="margin:6px 0 0">' + esc(e.enters) + '</p></details></article>';
   }
+  function areaWaitText(e) { return BIG_ONLY_UI.indexOf(e.area) > -1 ? 'Held in your draft until the main Budget.' : 'Held in your draft until a budget.'; }
+  var BIG_ONLY_UI = ['Labour market', 'Business and supply side', 'Trade', 'Foreign investment', 'Industrial policy', 'Environment', 'Regional', 'Migration and labour supply', 'Banking and finance', 'Fiscal framework', 'Innovation'];
   function previewHtml() {
-    var ch = pendingChanges();
+    var ch = pendingChanges().filter(function (e) { return gateOk(e).ok; });
     if (!ch.length) return '<p class="neutral" style="margin:0;font-size:.85rem">Move any slider to see what it would do to the economy over the next two years.</p>';
-    var extra = ch.filter(function (e) { return gateOk(e).ok; }).map(function (e) { var p = ui.pending[e.id]; return { id: e.id, v: e.ctl.t === 'select' ? p.v : +p.v, opt: p.opt, dur: p.dur }; });
+    var extra = ch.map(function (e) { var p = D()[e.id]; return { id: e.id, v: e.ctl.t === 'select' ? p.v : +p.v, opt: p.opt, dur: p.dur }; });
     var base = S.forecast(ui.g, 8, []), withP = S.forecast(ui.g, 8, extra);
-    var row = function (lab, k, unit) { var a = base[3][k], b = withP[3][k], c2 = base[7][k], d = withP[7][k]; return '<tr><td>' + lab + '</td><td class="n">' + f1(a) + '</td><td class="n"><b>' + f1(b) + '</b></td><td class="n">' + f1(c2) + '</td><td class="n"><b>' + f1(d) + '</b></td></tr>'; };
-    return '<div class="chn-scroll"><table class="chn-table"><tr><th></th><th class="n">1 yr as is</th><th class="n">1 yr with</th><th class="n">2 yrs as is</th><th class="n">2 yrs with</th></tr>' + row('GDP growth %', 'g') + row('Inflation %', 'pi') + row('Unemployment %', 'u') + row('Deficit % GDP', 'deficit') + row('Debt % GDP', 'debtGDP') + '</table></div><p class="neutral" style="font-size:.74rem;margin:6px 0 0">Forecast with no further shocks. Real events will differ.</p>';
-  }
-  function policyTab() {
-    var g = ui.g, cat = catalogue(), areas = L.AREAS, cnt = {};
-    cat.forEach(function (e) { if (g.decisions.some(function (d) { return d.id === e.id; })) cnt[e.area] = (cnt[e.area] || 0) + 1; });
-    var tabs = '<div class="chn-tabs">' + areas.map(function (a) { return '<button class="chn-tab" data-area="' + esc(a) + '" aria-selected="' + (ui.area === a) + '">' + esc(a) + (cnt[a] ? ' · ' + cnt[a] : '') + '</button>'; }).join('') + '</div>';
-    var list = cat.filter(function (e) { return e.area === ui.area && !e.preset; }).map(policyCard).join('');
-    var n = pendingChanges().length, w = g.window && g.window.kind !== 'none';
-    return policyBanner() + '<div class="chn-polwrap"><div>' + tabs + '<div class="chn-grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))" id="chnPolList">' + list + '</div></div>' +
-      '<aside class="chn-side"><div class="chn-card"><h3 style="font:700 .95rem Arial">Your package</h3><div id="chnPkg" style="font-size:.85rem;margin:6px 0">' + pkgHtml() + '</div><div class="chn-actions"><button class="chn-btn primary" data-pol="enact" ' + (n && w ? '' : 'disabled') + '>Enact ' + n + ' change' + (n === 1 ? '' : 's') + '</button><button class="chn-btn" data-pol="clear" ' + (n ? '' : 'disabled') + '>Clear</button></div>' + (n && !w ? '<p class="neutral" style="font-size:.76rem;margin:6px 0 0">Policy is closed. These are previews only.</p>' : '') + '</div>' +
-      '<div class="chn-card"><h3 style="font:700 .95rem Arial;margin-bottom:6px">Forecast effect</h3><div id="chnPrev">' + previewHtml() + '</div></div></aside></div>';
+    var row = function (lab, k) { var a = base[3][k], b = withP[3][k], c2 = base[7][k], d = withP[7][k]; return '<tr><td>' + lab + '</td><td class="n">' + f1(a) + '</td><td class="n"><b>' + f1(b) + '</b></td><td class="n">' + f1(c2) + '</td><td class="n"><b>' + f1(d) + '</b></td></tr>'; };
+    return '<div class="chn-scroll"><table class="chn-table"><tr><th></th><th class="n">1 yr as is</th><th class="n">1 yr with</th><th class="n">2 yrs as is</th><th class="n">2 yrs with</th></tr>' + row('GDP growth %', 'g') + row('Inflation %', 'pi') + row('Unemployment %', 'u') + row('Deficit % GDP', 'deficit') + row('Debt % GDP', 'debtGDP') + '</table></div><p class="neutral" style="font-size:.74rem;margin:6px 0 0">Forecast with no further shocks; real events will differ. Includes the delay before each policy takes effect.</p>';
   }
   function pkgHtml() {
     var ch = pendingChanges();
-    if (!ch.length) return '<span class="neutral">No changes chosen.</span>';
-    return ch.map(function (e) { var p = ui.pending[e.id], c = S.canDecide(ui.g, e.id); return '<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0"><span>' + esc(e.name) + '</span><b>' + esc(e.ctl.t === 'select' ? p.v : (+p.v > 0 ? '+' : '') + p.v) + '</b></div>' + (c.ok ? '' : '<div class="reason" style="font-size:.74rem">' + esc(c.reason) + '</div>'); }).join('');
+    if (!ch.length) return '<span class="neutral">No changes drafted.</span>';
+    return ch.map(function (e) { var p = D()[e.id], c = S.canDecide(ui.g, e.id); return '<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0"><span>' + esc(e.name) + '</span><b>' + esc(e.ctl.t === 'select' ? p.v : (+p.v > 0 ? '+' : '') + p.v) + '</b></div>'; }).join('');
+  }
+  function policyTab() {
+    var g = ui.g, cat = catalogue(), pg = POLICY_GROUPS.filter(function (x) { return x.name === ui.group; })[0] || POLICY_GROUPS[0];
+    var count = function (areas) { return cat.filter(function (e) { return areas.indexOf(e.area) > -1 && (D()[e.id] && differs(e) || g.decisions.some(function (d) { return d.id === e.id; })); }).length; };
+    var tabs = '<div class="chn-tabs">' + POLICY_GROUPS.map(function (x) { var c = count(x.areas); return '<button class="chn-tab" data-group="' + esc(x.name) + '" aria-selected="' + (pg.name === x.name) + '">' + esc(x.name) + (c ? ' · ' + c : '') + '</button>'; }).join('') + '</div>';
+    var sections = pg.areas.map(function (area, i) {
+      var list = cat.filter(function (e) { return e.area === area && !e.preset; });
+      var any = list.some(function (e) { return differs(e) || enacted(e.id); });
+      var open = ui.openAreas[area] === undefined ? (i === 0 || any) : ui.openAreas[area];
+      return '<details class="chn-area" data-areaname="' + esc(area) + '" ' + (open ? 'open' : '') + '><summary><b>' + esc(area) + '</b> <span class="neutral">' + list.length + ' polic' + (list.length === 1 ? 'y' : 'ies') + '</span></summary><div class="chn-grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr));margin-top:10px">' + list.map(policyCard).join('') + '</div></details>';
+    }).join('');
+    var n = pendingChanges().length, w = g.window && g.window.kind !== 'none';
+    var packs = Object.keys(L.PRESETS).map(function (k) { return '<button class="chn-btn small" data-pack="' + k + '">' + esc(L.PRESETS[k].name) + '</button>'; }).join(' ');
+    return policyBanner() + '<div class="chn-polwrap"><div><p class="neutral" style="margin:0 0 8px;font-size:.86rem">' + esc(pg.text) + '</p>' + tabs + '<div id="chnPolList">' + sections + '</div></div>' +
+      '<aside class="chn-side"><div class="chn-card"><h3 style="font:700 .95rem Arial">Your draft</h3><div id="chnPkg" style="font-size:.85rem;margin:6px 0">' + pkgHtml() + '</div><div class="chn-actions"><button class="chn-btn primary" data-pol="save">Save draft</button><button class="chn-btn" data-pol="clear" ' + (n ? '' : 'disabled') + '>Clear draft</button></div><p class="neutral" style="font-size:.76rem;margin:8px 0 0">Saved drafts are not enacted. ' + (w ? 'The session is open: submit them with the button above.' : 'You submit them on budget day.') + '</p></div>' +
+      '<div class="chn-card"><h3 style="font:700 .95rem Arial;margin-bottom:6px">Forecast effect</h3><div id="chnPrev">' + previewHtml() + '</div></div>' +
+      '<div class="chn-card"><h3 style="font:700 .95rem Arial;margin-bottom:6px">Emergency budget packages</h3><div class="chn-actions">' + packs + '</div><p class="neutral" style="font-size:.74rem;margin:6px 0 0">Adds a ready-made set of changes to your draft. Edit them afterwards.</p></div></aside></div>';
   }
   function bindPolicy() {
     var host = ui.host;
-    host.querySelectorAll('[data-area]').forEach(function (b) { b.onclick = function () { ui.area = b.dataset.area; renderTab(); }; });
+    host.querySelectorAll('[data-group]').forEach(function (b) { b.onclick = function () { ui.group = b.dataset.group; renderTab(); }; });
+    host.querySelectorAll('[data-pack]').forEach(function (b) { b.onclick = function () { var p = L.PRESETS[b.dataset.pack]; if (!p) return; Object.keys(p.set).forEach(function (id) { var e = catalogue().filter(function (x) { return x.id === id; })[0]; if (!e) return; var base = enacted(id) ? enacted(id).v : 0; D()[id] = { v: clampV(e, e.ctl.pickOpts ? p.set[id] : p.set[id]), opt: e.ctl.pickOpts ? e.ctl.pickOpts[0].v : null, dur: null }; }); save(); toast(p.name + ' added to your draft.'); renderTab(); }; });
     var list = host.querySelector('#chnPolList');
     if (list) {
       var onInput = function (ev) {
         var t = ev.target; if (!t.dataset || !t.dataset.pid) return;
         var e = catalogue().filter(function (x) { return x.id === t.dataset.pid; })[0]; if (!e) return;
-        var p = ui.pending[e.id] || (ui.pending[e.id] = Object.assign({}, pendingValue(e)));
+        var p = D()[e.id] || (D()[e.id] = Object.assign({}, pendingValue(e)));
         var k = t.dataset.k;
-        if (k === 'opt') p.opt = t.value; else if (k === 'dur') p.dur = +t.value; else if (k === 'on') p.on = t.checked;
+        if (k === 'opt') p.opt = t.value; else if (k === 'dur') p.dur = +t.value;
         else if (e.ctl.t === 'select') p.v = t.value;
         else { p.v = clampV(e, t.value); var card = t.closest('.chn-pol'); card.querySelectorAll('input[data-k="v"]').forEach(function (x) { if (x !== t) x.value = p.v; }); }
+        if (!differs(e)) delete D()[e.id];
         var card2 = t.closest('.chn-pol'); if (card2) card2.classList.toggle('changed', differs(e));
-        refreshSide();
+        saveSoon(); refreshSide();
       };
       list.addEventListener('input', onInput); list.addEventListener('change', onInput);
+      list.addEventListener('toggle', function (ev) { var d = ev.target; if (d && d.dataset && d.dataset.areaname) ui.openAreas[d.dataset.areaname] = d.open; }, true);
     }
-    host.querySelectorAll('[data-pol]').forEach(function (b) { b.onclick = function () { if (b.dataset.pol === 'clear') { ui.pending = {}; renderTab(); } else enactChanges(); }; });
+    host.querySelectorAll('[data-pol]').forEach(function (b) { b.onclick = function () { if (b.dataset.pol === 'clear') { ui.g.draft = {}; save(); renderTab(); } else { save(); toast('Draft saved. Nothing is enacted until you submit it on budget day.'); } }; });
   }
   function refreshSide() {
     clearTimeout(ui.previewTimer);
     ui.previewTimer = setTimeout(function () {
       var pk = ui.host.querySelector('#chnPkg'), pv = ui.host.querySelector('#chnPrev'); if (!pk || !pv) return;
       pk.innerHTML = pkgHtml(); pv.innerHTML = previewHtml();
-      var n = pendingChanges().length, w = ui.g.window && ui.g.window.kind !== 'none';
-      var en = ui.host.querySelector('[data-pol="enact"]'), cl = ui.host.querySelector('[data-pol="clear"]');
-      if (en) { en.disabled = !(n && w); en.textContent = 'Enact ' + n + ' change' + (n === 1 ? '' : 's'); } if (cl) cl.disabled = !n;
+      var n = pendingChanges().length, cl = ui.host.querySelector('[data-pol="clear"]'), en = ui.host.querySelector('[data-act="enactnow"]');
+      if (cl) cl.disabled = !n; if (en) { en.disabled = !n; en.textContent = 'Enact ' + n + ' drafted change' + (n === 1 ? '' : 's') + ' now'; }
     }, 160);
   }
   function enactChanges() {
-    var g = ui.g, done = 0, blocked = [];
-    pendingChanges().forEach(function (e) {
-      var p = ui.pending[e.id], v = e.ctl.t === 'select' ? p.v : +p.v;
-      if (e.ctl.optional && p.on === false) return;
-      var r = S.decide(g, e.id, v, p.opt || null, p.dur ? +p.dur : (e.dur ? 4 : null));
-      if (r.ok) { done++; delete ui.pending[e.id]; } else blocked.push(e.name + ': ' + r.reason);
-    });
+    var g = ui.g, r = S.submitDraft(g);
     save(); ui.cat = null;
-    toast(done ? done + ' change' + (done === 1 ? '' : 's') + ' enacted.' + (blocked.length ? ' ' + blocked.length + ' blocked.' : '') : (blocked[0] || 'Nothing to enact.'));
-    renderAll();
+    var msg = r.done.length ? r.done.length + ' change' + (r.done.length === 1 ? '' : 's') + ' enacted.' : 'Nothing was enacted.';
+    if (r.blocked.length) msg += ' ' + r.blocked.length + ' held in your draft (' + r.blocked[0].reason + ')';
+    toast(msg); renderAll(); return r;
   }
   function endSession() {
     var g = ui.g, ev = g.events.filter(function (e) { return !e.done && e.needsAction && e.date <= g.date && (e.kind === 'budget' || e.kind === 'shock'); })[0];
     if (!ev) { g.window = { kind: 'none' }; renderAll(); return; }
-    if (pendingChanges().length && !window.confirm('You have changes you have not enacted. End the session without them?')) return;
-    ui.pending = {}; var wasBudget = ev.kind === 'budget';
     S.resolveEvent(g, ev.id, 0); save(); renderAll();
-    if (wasBudget) showBudgetReaction(ev);
   }
+  function submitBudget() {
+    var g = ui.g, ev = g.events.filter(function (e) { return !e.done && e.needsAction && e.date <= g.date && e.kind === 'budget'; })[0];
+    if (!ev) { toast('There is no budget to submit right now.'); return; }
+    S.submitDraft(g); ui.cat = null;
+    S.resolveEvent(g, ev.id, 0); save(); renderAll(); showBudgetReaction(ev);
+  }
+
+  /* ---------- LastMind lessons behind each policy (untracked, closable) ---------- */
+  var AREA_TOPICS = {
+    'Income tax': ['direct tax', 'progressive', 'fiscal policy', 'tax'], 'Business tax': ['corporation', 'supply-side', 'tax', 'investment'], 'Consumption tax': ['indirect tax', 'value added|VAT', 'regressive', 'tax'], 'Wealth and property': ['wealth', 'inequality', 'redistribution', 'tax'],
+    'Government spending': ['government spending', 'fiscal policy', 'multiplier', 'public goods'], 'Welfare': ['benefit', 'redistribution', 'poverty', 'inequality'], 'Infrastructure': ['infrastructure', 'supply-side', 'public goods', 'LRAS'], 'Energy': ['energy', 'externalit', 'supply-side', 'environment'],
+    'Human capital': ['human capital', 'education', 'skills', 'LRAS'], 'Labour market': ['minimum wage', 'trade union', 'labour market', 'unemployment'], 'Business and supply side': ['supply-side', 'privatis', 'competition', 'deregulation'], 'Innovation': ['innovation', 'R&D', 'productivity', 'supply-side'],
+    'Housing': ['housing', 'supply-side', 'market failure', 'maximum price'], 'Trade': ['tariff', 'quota', 'protectionism', 'trade'], 'Foreign investment': ['foreign direct|FDI', 'globalisation', 'multinational', 'investment'], 'Industrial policy': ['industrial', 'infant industry', 'protectionism', 'supply-side'],
+    'Environment': ['externalit', 'environment', 'carbon|pollution', 'regulation'], 'Regional': ['regional', 'geographical', 'unemployment', 'inequality'], 'Migration and labour supply': ['migration', 'labour force', 'LRAS', 'unemployment'], 'Monetary': ['monetary policy', 'interest rate', 'quantitative', 'central bank'],
+    'Exchange rate': ['exchange rate', 'devaluation', 'floating', 'fixed'], 'Banking and finance': ['bank', 'financial', 'regulation', 'credit'], 'Fiscal framework': ['fiscal policy', 'deficit', 'national debt', 'austerity'], 'Debt management': ['national debt', 'deficit', 'fiscal', 'interest'],
+    'Development': ['development', 'aid', 'poverty', 'human development'], 'Agriculture and food': ['agricultur', 'subsid', 'price', 'food'], 'Crisis controls': ['maximum price', 'subsid', 'fiscal policy', 'stimulus|austerity'],
+  };
+  var ID_TOPICS = { min_wage: ['minimum wage'], tariff: ['tariff'], tariff_cut: ['tariff', 'trade liberali'], quota: ['quota'], qe: ['quantitative'], qt: ['quantitative', 'monetary'], rate: ['interest rates', 'monetary policy'], carbon: ['carbon', 'externalit', 'indirect tax'], ets: ['externalit', 'tradable|permit', 'carbon'], privatise: ['privatis'], nationalise: ['nationalis|public ownership', 'privatis'],
+    rent_reg: ['maximum price', 'rent'], price_cap: ['maximum price'], food_sub: ['subsid'], agri_sub: ['subsid'], vat: ['indirect tax', 'value added|VAT'], fiscal_rule: ['fiscal policy', 'deficit'], retire: ['labour force', 'demographic'], devalue: ['devaluation'], fixed_fx: ['fixed'], dev_aid: ['aid'], fta: ['trade agreement', 'trade bloc|customs'], customs: ['customs union'] };
+  var lessonMap = null, lessonMapPromise = null;
+  function loadLessonMap() {
+    if (lessonMap) return Promise.resolve(lessonMap);
+    if (!lessonMapPromise) lessonMapPromise = createAuthedFetch('/knowledge-map-v2?subject=Economics&qualification=A-Level&examBoard=Edexcel').then(function (r) { lessonMap = (r.body && r.body.nodes) || []; return lessonMap; }).catch(function () { lessonMapPromise = null; return []; });
+    return lessonMapPromise;
+  }
+  function topicNodes(e, nodes) {
+    var pats = (ID_TOPICS[e.id] || []).concat(AREA_TOPICS[e.area] || []).map(function (p) { return new RegExp(p, 'i'); }), scored = [];
+    nodes.forEach(function (n) { var sc = 0; pats.forEach(function (re, i) { if (re.test(n.label)) sc += (pats.length - i) * (i < (ID_TOPICS[e.id] || []).length ? 3 : 1); }); if (sc > 0) scored.push({ n: n, sc: sc + (/^definition|:\s*definition/i.test(n.label) ? 0 : 0.5) }); });
+    scored.sort(function (a, b) { return b.sc - a.sc; });
+    return scored.slice(0, 4).map(function (x) { return x.n; });
+  }
+  function paragraphs(text) { return String(text || '').split(/\n{2,}|\r\n{2,}/).map(function (p) { return p.trim(); }).filter(Boolean).map(function (p) { return '<p>' + esc(p).replace(/\n/g, '<br>') + '</p>'; }).join(''); }
+  var lessonCache = {};
+  async function openLesson(id) {
+    var e = catalogue().filter(function (x) { return x.id === id; })[0]; if (!e) return;
+    ui.lessonCtx = { id: id, name: e.name };
+    var old = document.getElementById('chnGuid'); if (old) old.remove();
+    var panel = document.createElement('aside'); panel.id = 'chnGuid'; panel.className = 'chn-guid'; panel.setAttribute('aria-label', 'LastMind lesson');
+    panel.innerHTML = '<div class="hd"><div><div class="chn-tag">LastMind lesson</div><div style="font:700 .95rem Arial;margin-top:4px">' + esc(e.name) + '</div><div class="neutral" style="font-size:.74rem">Untracked: no questions, nothing recorded.</div></div><button class="chn-btn small" id="chnGuidClose">Close ✕</button></div><div class="tabs" id="chnGuidTabs"></div><div class="bd" id="chnGuidBody"><p class="neutral">Finding the right lesson…</p></div>';
+    document.body.appendChild(panel);
+    panel.querySelector('#chnGuidClose').onclick = function () { panel.remove(); renderHeaderOnly(); };
+    renderHeaderOnly();
+    var nodes = await loadLessonMap();
+    if (!panel.isConnected) return;
+    var found = topicNodes(e, nodes), tabs = panel.querySelector('#chnGuidTabs'), body = panel.querySelector('#chnGuidBody');
+    if (!found.length) { body.innerHTML = '<p>No matching lesson was found in your Economics knowledge map.</p>'; return; }
+    var cur = found[0].id;
+    var draw = async function () {
+      tabs.innerHTML = found.map(function (n) { return '<button class="chn-tab' + '" data-node="' + esc(n.id) + '" aria-selected="' + (n.id === cur) + '">' + esc(n.label.length > 48 ? n.label.slice(0, 46) + '…' : n.label) + '</button>'; }).join('');
+      tabs.querySelectorAll('[data-node]').forEach(function (b) { b.onclick = function () { cur = b.dataset.node; draw(); }; });
+      var shown = cur, node = found.filter(function (n) { return n.id === cur; })[0];
+      if (lessonCache[cur]) { body.innerHTML = '<h3 style="font:700 1rem Arial">' + esc(node.label) + '</h3>' + lessonCache[cur]; return; }
+      body.innerHTML = '<p class="neutral">Opening your lesson…</p>';
+      var r = await createAuthedFetch('/knowledge-map-v2/node/' + encodeURIComponent(cur) + '/lesson').catch(function () { return { resp: { ok: false }, body: {} }; });
+      if (!panel.isConnected || shown !== cur) return;
+      if (r.resp.ok && r.body && r.body.explanation) { lessonCache[cur] = paragraphs(r.body.explanation); body.innerHTML = '<h3 style="font:700 1rem Arial">' + esc(node.label) + '</h3>' + lessonCache[cur]; }
+      else body.innerHTML = '<p>' + esc(r.body && r.body.code === 'LOCK_LIMIT_REACHED' ? "You're out of Locks for now, so this lesson cannot be opened." : "The lesson couldn't be loaded just now.") + '</p><button class="chn-btn small" id="chnGuidRetry">Try again</button>';
+      var rt = body.querySelector('#chnGuidRetry'); if (rt) rt.onclick = draw;
+    };
+    draw();
+  }
+  function closeLesson() { var p = document.getElementById('chnGuid'); if (p) p.remove(); }
 
   /* ---------- budget tab ---------- */
   function budgetTab() {
@@ -487,7 +583,7 @@
     var g = ui.g, m = metricsNow(), sit = S.SITUATIONS[g.sit].name, stage = S.STAGES[g.stage].label;
     return modal('<h2>Welcome, Chancellor</h2><p>' + esc(g.cfg.country) + ' is an ' + esc(stage.toLowerCase()) + '. Starting situation: <b>' + esc(sit) + '</b>.</p>' +
       '<div class="chn-mtx"><div>GDP growth<b>' + f1(m.growth) + '%</b></div><div>Inflation<b>' + f1(m.inflation) + '%</b></div><div>Unemployment<b>' + f1(m.unemployment) + '%</b></div><div>Public debt<b>' + f0(m.debtGDP) + '% of GDP</b></div><div>Deficit<b>' + f1(m.deficit) + '%</b></div><div>Your approval<b>' + f0(ui.g.pop.groups.public) + '%</b></div></div>' +
-      '<p style="margin-top:12px">Time moves when you press Advance and stops whenever something needs you: budgets, shocks, political rows and interviews. Policy can only be changed at budgets and in emergency sessions, and everything takes time to work. A general election is due on ' + esc(S.nice(g.electionDate)) + '.</p>' + (g.cfg.history ? '<p class="neutral"><i>' + esc(g.cfg.history.slice(0, 300)) + '</i></p>' : '') + '<div class="btns"><button class="chn-btn primary" data-m="ok">Take office</button></div>', { img: '/assets/chancellor/cabinet-room.jpg' });
+      '<p style="margin-top:12px">Time moves when you press Advance and stops whenever something needs you: budgets, shocks, political rows and interviews. Your first Budget is on ' + esc(S.nice(g.bigBudget.date)) + '. Until then, prepare policies in the Policy tab, see their forecasts and save them as a draft: nothing takes effect until you submit it on budget day. Policy can only be changed at budgets and in emergency sessions, and everything takes time to work. A general election is due on ' + esc(S.nice(g.electionDate)) + '.</p>' + (g.cfg.history ? '<p class="neutral"><i>' + esc(g.cfg.history.slice(0, 300)) + '</i></p>' : '') + '<div class="btns"><button class="chn-btn primary" data-m="ok">Take office</button></div>', { img: '/assets/chancellor/cabinet-room.jpg' });
   }
   function showBudgetReaction(ev) {
     var g = ui.g, P = g.pop;
@@ -515,15 +611,15 @@
       var asks = lobbyAsks(g), fc = S.forecast(g, 4, []), m = metricsNow();
       var html = '<h2>' + esc(ev.title) + '</h2><p>' + esc(ev.text) + '</p><div class="chn-mtx"><div>Growth in a year<b>' + f1(fc[3].g) + '%</b></div><div>Inflation in a year<b>' + f1(fc[3].pi) + '%</b></div><div>Unemployment in a year<b>' + f1(fc[3].u) + '%</b></div><div>Deficit in a year<b>' + f1(fc[3].deficit) + '% of GDP</b></div></div><div class="chn-sec">Colleagues are lobbying</div>' +
         asks.map(function (a, i) { var p = S.person(g, a.key); return '<label class="chn-item" style="align-items:center;cursor:pointer"><span><b>' + esc(p.name) + '</b> (' + esc(p.role) + ') wants ' + esc(a.text) + '.</span><input type="checkbox" data-ask="' + i + '"></label>'; }).join('') +
-        '<p class="neutral" style="font-size:.8rem">Ticking a request adds it to your package to consider, and pleases that colleague. Ignoring it disappoints them a little.</p><div class="btns"><button class="chn-btn primary" data-m="ok">Continue to the ' + (ev.big ? 'Budget' : 'statement') + '</button></div>';
+        '<p class="neutral" style="font-size:.8rem">Ticking a request adds it to your draft and pleases that colleague. Ignoring it disappoints them a little. You can shape your whole draft in the Policy tab before budget day.</p><div class="btns"><button class="chn-btn primary" data-m="ok">Continue to the ' + (ev.big ? 'Budget' : 'statement') + '</button></div>';
       var checked = {};
       await modal(html, { img: '/assets/chancellor/budget-day.jpg', onOpen: function (ov) { ov.querySelectorAll('[data-ask]').forEach(function (cb) { cb.addEventListener('change', function () { checked[cb.dataset.ask] = cb.checked; }); }); } });
-      var lobby = {}; asks.forEach(function (a, i) { lobby[a.key] = !!checked[i]; if (checked[i]) { var e = catalogue().filter(function (x) { return x.id === a.id; })[0]; if (e) ui.pending[a.id] = { v: clampV(e, (enacted(a.id) ? enacted(a.id).v : 0) + a.v), opt: null, dur: null }; } });
+      var lobby = {}; asks.forEach(function (a, i) { lobby[a.key] = !!checked[i]; if (checked[i]) { var e = catalogue().filter(function (x) { return x.id === a.id; })[0]; if (e) D()[a.id] = { v: clampV(e, (enacted(a.id) ? enacted(a.id).v : 0) + a.v), opt: null, dur: null }; } });
       S.resolveEvent(g, ev.id, 0, { lobby: lobby });
       return;
     }
     if (kind === 'budget') {
-      var go = await modal('<h2>' + esc(ev.title) + '</h2><p>' + esc(ev.text) + '</p><div class="btns"><button class="chn-btn primary" data-m="go">Open the Policy tab</button></div>', { img: '/assets/chancellor/budget-day.jpg' });
+      var go = await modal('<h2>' + esc(ev.title) + '</h2><p>' + esc(ev.text) + '</p><div class="btns"><button class="chn-btn primary" data-m="go">Open the Policy tab and submit your draft</button></div>', { img: '/assets/chancellor/budget-day.jpg' });
       ui.tab = 'policy'; renderAll(); return;
     }
     if (kind === 'interview') { await runInterview(ev); return; }
@@ -587,6 +683,14 @@
   }
 
   /* ---------- news from the papers (AI) ---------- */
+  function restartGame() {
+    if (!window.confirm('Restart this scenario from the very beginning? Your progress, decisions and drafts will be lost.')) return;
+    var g = ui.g, opts = ui.launchOpts || {};
+    var cfg = Object.assign({}, g.cfg, { seed: g.seed0, startDate: g.startDate });
+    try { localStorage.removeItem(STORE); } catch (e) { /* fine */ }
+    closeLesson();
+    launch(ui.host, cfg, Object.assign({}, opts, { resume: false }));
+  }
   var newsBusy = false;
   async function fetchNews(manual) {
     if (newsBusy) return; var g = ui.g;
