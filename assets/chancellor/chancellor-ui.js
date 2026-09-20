@@ -77,6 +77,7 @@
       '.chn-guid { position: fixed; top: 56px; right: 12px; bottom: 12px; width: min(420px, 92vw); z-index: 2500; background: var(--panel); color: var(--text); border: 1px solid var(--chn-line); border-radius: 14px; box-shadow: 0 16px 50px rgba(0,0,0,0.3); display: flex; flex-direction: column; } .chn-guid .hd { padding: 14px 16px 10px; display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; border-bottom: 1px solid var(--chn-line); } .chn-guid .tabs { display: flex; gap: 6px; padding: 10px 12px 0; overflow-x: auto; } .chn-guid .bd { padding: 12px 16px 18px; overflow-y: auto; font-size: 0.9rem; line-height: 1.6; } .chn-guid .bd p { margin: 0 0 10px; }',
       '.chn-budget.warn { border-color: var(--chn-warn); color: var(--chn-warn); }',
       '.chn-lesson { border-top: 1px solid var(--chn-line); padding-top: 6px; } .chn-lesson .lbody { font-size: 0.86rem; line-height: 1.6; padding: 4px 0 6px; } .chn-lesson .lbody p { margin: 0 0 8px; }',
+      '.chn-fc { position: fixed; left: 50%; transform: translateX(-50%); bottom: 10px; width: min(1180px, 96vw); max-height: 48vh; overflow-y: auto; z-index: 2400; background: var(--panel); color: var(--text); border: 1px solid var(--chn-line); border-radius: 14px; box-shadow: 0 -8px 40px rgba(0,0,0,0.28); padding: 12px 16px 10px; } .chn-fc .hd { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 6px; } .chn-fc .grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); } .chn-fc h4 { font: 700 0.8rem Arial, sans-serif; margin: 0 0 2px; } .chn-fc .legend2 { font-size: 0.76rem; display: inline-flex; align-items: center; gap: 6px; } .chn-fc .legend2 i { display: inline-block; width: 16px; height: 3px; border-radius: 2px; } .chn-fc .legend { display: none !important; }',
       '.chn-mtx { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; } .chn-mtx div { border: 1px solid var(--chn-line); border-radius: 10px; padding: 8px 10px; font-size: 0.82rem; } .chn-mtx b { display: block; font-size: 1.1rem; }',
     ].join('\n');
     document.head.appendChild(st);
@@ -114,12 +115,14 @@
     var W = 560, H = o.h || 200, m = { l: 40, r: 10, t: 8, b: 22 }, ser = o.series.filter(function (s) { return s.pts.length; });
     if (!ser.length) return '<div class="neutral" style="padding:20px 0">No data yet.</div>';
     var xs = [], ys = []; ser.forEach(function (s) { s.pts.forEach(function (p) { xs.push(p[0]); ys.push(p[1]); }); });
+    (o.bands || []).forEach(function (b) { b.pts.forEach(function (p) { xs.push(p[0]); ys.push(p[1]); ys.push(p[2]); }); });
     var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), yr = scale(ys, 0.12), y0 = yr[0], y1 = yr[1];
     var X = function (t) { return m.l + (t - x0) / Math.max(1, x1 - x0) * (W - m.l - m.r); }, Y = function (v) { return H - m.b - (v - y0) / (y1 - y0) * (H - m.t - m.b); };
     var g = '', ticks = niceTicks(y0, y1, 4);
     ticks.forEach(function (v) { g += '<line x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + Y(v) + '" y2="' + Y(v) + '" stroke="currentColor" stroke-opacity="' + (Math.abs(v) < 1e-9 ? 0.4 : 0.12) + '"/><text x="' + (m.l - 6) + '" y="' + (Y(v) + 3) + '" text-anchor="end" font-size="10" fill="currentColor" fill-opacity="0.7">' + (Math.abs(v) >= 100 ? f0(v) : f1(v)) + '</text>'; });
     for (var k = 0; k <= 4; k++) { var tt = x0 + (x1 - x0) * k / 4, d = new Date(tt); g += '<text x="' + X(tt) + '" y="' + (H - 6) + '" text-anchor="' + (k === 0 ? 'start' : k === 4 ? 'end' : 'middle') + '" font-size="10" fill="currentColor" fill-opacity="0.7">' + ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getUTCMonth()] + " '" + String(d.getUTCFullYear()).slice(2) + '</text>'; }
     if (o.today != null && o.today > x0 && o.today < x1) g += '<line x1="' + X(o.today) + '" x2="' + X(o.today) + '" y1="' + m.t + '" y2="' + (H - m.b) + '" stroke="currentColor" stroke-opacity="0.35" stroke-dasharray="3 3"/><text x="' + (X(o.today) + 4) + '" y="' + (m.t + 9) + '" font-size="9" fill="currentColor" fill-opacity="0.6">today</text>';
+    (o.bands || []).forEach(function (b) { if (!b.pts.length) return; var up = b.pts.map(function (p) { return X(p[0]).toFixed(1) + ' ' + Y(p[2]).toFixed(1); }), dn = b.pts.slice().reverse().map(function (p) { return X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1); }); g += '<path d="M' + up.join(' L') + ' L' + dn.join(' L') + ' Z" fill="' + b.color + '" fill-opacity="' + (b.opacity || 0.15) + '" stroke="none"/>'; });
     ser.forEach(function (s) { var d = s.pts.map(function (p, i) { return (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1); }).join(' '); g += '<path d="' + d + '" fill="none" stroke="' + s.color + '" stroke-width="' + (s.w || 2.2) + '"' + (s.dashed ? ' stroke-dasharray="5 4"' : '') + ' stroke-linejoin="round"/>'; var last = s.pts[s.pts.length - 1]; if (!s.dashed) g += '<circle cx="' + X(last[0]) + '" cy="' + Y(last[1]) + '" r="3" fill="' + s.color + '"/>'; });
     var legend = ser.filter(function (s) { return s.name; }).map(function (s) { return '<span><i style="background:' + s.color + '"></i>' + esc(s.name) + '</span>'; }).join('');
     return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(o.label || 'chart') + '">' + g + '</svg><div class="legend">' + legend + '</div>';
@@ -142,7 +145,7 @@
   function series(key, n) { return ui.chart === 'monthly' ? monthlySeries(key, n || 36) : quarterlySeries(key, n || 16); }
   function forecastSeries(key, n) {
     var g = ui.g, k = QMAP[key] || key, fs = S.forecast(g, n || 6, []), last = g.qhist[g.qhist.length - 1], out = [[TS(last.date), key === 'exchangeVsStart' ? (last.snap.E / g.startE - 1) * 100 : last.snap[k]]];
-    fs.forEach(function (sn, i) { var d = S.iso(TS(last.date) + (i + 1) * 91.3125 * 864e5); out.push([TS(d), key === 'exchangeVsStart' ? (sn.E / g.startE - 1) * 100 : sn[k]]); });
+    fs.forEach(function (sn, i) { var d = S.iso(TS(last.date) + (i + 1) * 91.3125 * 864e5); out.push([TS(d), (key === 'exchangeVsStart' ? (sn.E / g.startE - 1) * 100 : sn[k]) + (FC_SPREAD[k] ? fcBias(k, i + 1) : 0)]); });
     return out;
   }
   function metricsNow() { return S.currentMetrics(ui.g); }
@@ -220,6 +223,7 @@
   }
   function renderTab() {
     var b = ui.host.querySelector('#chnBody'); if (!b) return;
+    if (ui.tab !== 'policy') hideForecast();
     var fn = { overview: overview, economy: economyTab, policy: policyTab, budget: budgetTab, people: peopleTab, news: newsTab, log: logTab }[ui.tab] || overview;
     b.innerHTML = ui.g.over ? overHtml() : fn();
     if (ui.tab === 'policy' && !ui.g.over) bindPolicy();
@@ -243,6 +247,7 @@
       else if (a === 'enactnow') enactChanges();
       else if (a === 'lessons' && ui.lessonCtx) openLesson(ui.lessonCtx.id);
       else if (a === 'restart') restartGame();
+      else if (a === 'fc') { ui.fcClosed = false; updateForecast(true); }
     });
   }
 
@@ -406,7 +411,7 @@
     var packs = Object.keys(L.PRESETS).map(function (k) { return '<button class="chn-btn small" data-pack="' + k + '">' + esc(L.PRESETS[k].name) + '</button>'; }).join(' ');
     return policyBanner() + '<div class="chn-polwrap"><div><p class="neutral" style="margin:0 0 8px;font-size:.86rem">' + esc(pg.text) + '</p>' + tabs + '<div id="chnPolList">' + sections + '</div></div>' +
       '<aside class="chn-side"><div class="chn-card"><h3 style="font:700 .95rem Arial">Your draft</h3><div id="chnPkg" style="font-size:.85rem;margin:6px 0">' + pkgHtml() + '</div><div class="chn-actions"><button class="chn-btn primary" data-pol="save">Save draft</button><button class="chn-btn" data-pol="clear" ' + (n ? '' : 'disabled') + '>Clear draft</button></div><p class="neutral" style="font-size:.76rem;margin:8px 0 0">Saved drafts are not enacted. ' + (w ? 'The session is open: submit them with the button above.' : 'You submit them on budget day.') + '</p></div>' +
-      '<div class="chn-card"><h3 style="font:700 .95rem Arial;margin-bottom:6px">Forecast effect</h3><div id="chnPrev">' + previewHtml() + '</div></div>' +
+      '<div class="chn-card"><h3 style="font:700 .95rem Arial;margin-bottom:6px">Forecast</h3><p class="neutral" style="font-size:.85rem;margin:0 0 8px">Slide any policy and a forecast of growth, inflation, jobs and the public finances pops up at the bottom of the screen.</p><button class="chn-btn small" data-act="fc">Show the forecast</button></div>' +
       '<div class="chn-card"><h3 style="font:700 .95rem Arial;margin-bottom:6px">Emergency budget packages</h3><div class="chn-actions">' + packs + '</div><p class="neutral" style="font-size:.74rem;margin:6px 0 0">Adds a ready-made set of changes to your draft. Edit them afterwards.</p></div></aside></div>';
   }
   function bindPolicy() {
@@ -425,7 +430,7 @@
         else { p.v = clampV(e, t.value); var card = t.closest('.chn-pol'); card.querySelectorAll('input[data-k="v"]').forEach(function (x) { if (x !== t) x.value = p.v; }); }
         if (!differs(e)) delete D()[e.id];
         var card2 = t.closest('.chn-pol'); if (card2) card2.classList.toggle('changed', differs(e));
-        saveSoon(); refreshSide();
+        ui.fcClosed = false; saveSoon(); refreshSide();
       };
       list.addEventListener('input', onInput); list.addEventListener('change', onInput);
       list.addEventListener('toggle', function (ev) { var d = ev.target; if (d && d.dataset && d.dataset.areaname) ui.openAreas[d.dataset.areaname] = d.open; if (d && d.dataset && d.dataset.lessonId && d.open) fillLesson(d); }, true);
@@ -435,8 +440,8 @@
   function refreshSide() {
     clearTimeout(ui.previewTimer);
     ui.previewTimer = setTimeout(function () {
-      var pk = ui.host.querySelector('#chnPkg'), pv = ui.host.querySelector('#chnPrev'); if (!pk || !pv) return;
-      pk.innerHTML = pkgHtml(); pv.innerHTML = previewHtml();
+      var pk = ui.host.querySelector('#chnPkg'); if (!pk) return;
+      pk.innerHTML = pkgHtml(); updateForecast();
       var n = pendingChanges().length, cl = ui.host.querySelector('[data-pol="clear"]'), en = ui.host.querySelector('[data-act="enactnow"]');
       if (cl) cl.disabled = !n; if (en) { en.disabled = !n; en.textContent = 'Enact ' + n + ' drafted change' + (n === 1 ? '' : 's') + ' now'; }
     }, 160);
@@ -458,6 +463,32 @@
     if (!ev) { toast('There is no budget to submit right now.'); return; }
     S.submitDraft(g); ui.cat = null;
     S.resolveEvent(g, ev.id, 0); save(); renderAll(); showBudgetReaction(ev);
+  }
+
+  /* ---------- forecasts are estimates, not the truth ---------- */
+  // Forecasters get the direction roughly right but miss the size: a range that widens with the horizon, plus a miss in one direction that is fixed for the game.
+  var FC_SPREAD = { g: [0.5, 1.7], pi: [0.4, 1.5], u: [0.3, 1.0], deficit: [0.7, 2.3], debtGDP: [2, 8], i: [0.4, 1.3], E: [1.5, 6] };
+  function fcSpread(k, h, val) { var b = FC_SPREAD[k] || [0.5, 1.5], w = b[0] + (b[1] - b[0]) * Math.min(1, h / 12); if (k === 'pi') w *= 1 + Math.abs(val) / 15; if (k === 'debtGDP') w *= 1 + Math.max(0, val) / 120; return w; }
+  function fcBias(k, h) { var u = hashKey(k + ':' + (ui.g.seed0 || 1)) % 2001 / 1000 - 1, b = FC_SPREAD[k] || [0.5, 1.5]; return u * 0.45 * b[1] * Math.min(1, h / 12); }
+
+  /* ---------- forecast pop-up: what the draft would do, as graphs ---------- */
+  var FC_CHARTS = [['GDP growth (% a year)', 'g'], ['Inflation (% a year)', 'pi'], ['Unemployment (%)', 'u'], ['Budget deficit (% of GDP)', 'deficit'], ['Public debt (% of GDP)', 'debtGDP'], ['Policy rate (%)', 'i']];
+  function hideForecast() { var el = document.getElementById('chnFc'); if (el) el.remove(); }
+  function updateForecast(force) {
+    if (ui.tab !== 'policy') { hideForecast(); return; }
+    var ch = pendingChanges().filter(function (e) { return gateOk(e).ok; });
+    if (!ch.length && !force) { hideForecast(); return; }
+    if (ui.fcClosed && !force) return;
+    var g = ui.g, n = 12;
+    var extra = ch.map(function (e) { var p = D()[e.id]; return { id: e.id, v: e.ctl.t === 'select' ? p.v : +p.v, opt: p.opt, dur: p.dur }; });
+    var base = S.forecast(g, n, []), withP = S.forecast(g, n, extra), last = g.qhist[g.qhist.length - 1];
+    var pts = function (arr, k) { return arr.map(function (sn, i) { return [TS(last.date) + (i + 1) * 91.3125 * 864e5, sn[k] + fcBias(k, i + 1)]; }); };
+    var band = function (arr, k) { return arr.map(function (sn, i) { var c = sn[k] + fcBias(k, i + 1), w = fcSpread(k, i + 1, sn[k]); return [TS(last.date) + (i + 1) * 91.3125 * 864e5, c - w, c + w]; }); };
+    var el = document.getElementById('chnFc');
+    if (!el) { el = document.createElement('aside'); el.id = 'chnFc'; el.className = 'chn-fc'; el.setAttribute('aria-label', 'Forecast of your draft'); document.body.appendChild(el); }
+    el.innerHTML = '<div class="hd"><div><b>Forecast: what your draft might do</b><div class="neutral" style="font-size:.76rem">' + (ch.length ? ch.length + ' drafted change' + (ch.length === 1 ? '' : 's') + '. ' : 'Nothing is drafted yet, so both lines match. Slide a policy. ') + 'A forecast, not a promise: the shaded range widens with time, forecasters can be wrong in one direction, and shocks and delays will change the real path.</div></div><div class="chn-actions"><span class="legend2"><i style="background:#6b7280"></i>As things stand</span><span class="legend2"><i style="background:var(--accent)"></i>With your draft (shaded: likely range)</span><button class="chn-btn small" id="chnFcClose">Close ✕</button></div></div><div class="grid">' +
+      FC_CHARTS.map(function (c) { return '<div class="chn-chart"><h4>' + esc(c[0]) + '</h4>' + svgChart({ h: 150, label: c[0], bands: [{ pts: band(withP, c[1]), color: 'var(--accent)', opacity: 0.16 }], series: [{ name: '', color: '#6b7280', pts: pts(base, c[1]), dashed: true, w: 1.8 }, { name: '', color: 'var(--accent)', pts: pts(withP, c[1]), w: 2.6 }] }) + '</div>'; }).join('') + '</div>';
+    el.querySelector('#chnFcClose').onclick = function () { ui.fcClosed = true; hideForecast(); };
   }
 
   /* ---------- LastMind lessons behind each policy (untracked, closable) ---------- */
