@@ -3988,6 +3988,19 @@
     /* Design Your Case */
     .create-idea, .create-detail-field textarea, .create-edit textarea, .create-edit input, .create-edit select { width: 100%; box-sizing: border-box; padding: 12px 14px; border: 1px solid rgba(26,26,28,0.32); border-radius: 10px; background: var(--panel); color: var(--text); font: 0.92rem/1.55 Arial, sans-serif; resize: vertical; }
     .create-idea { min-height: 130px; }
+    .create-ch-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 8px; }
+    .create-line { width: 100%; box-sizing: border-box; padding: 11px 13px; border: 1px solid rgba(26,26,28,0.32); border-radius: 10px; background: var(--panel); color: var(--text); font: 0.92rem Arial, sans-serif; }
+    .create-line::placeholder { color: var(--text); opacity: 0.45; }
+    .create-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; min-height: 30px; }
+    .create-tag { display: inline-flex; align-items: center; gap: 6px; padding: 6px 6px 6px 12px; border: 1px solid rgba(26,26,28,0.32); border-radius: 999px; background: var(--panel); font: 0.85rem Arial, sans-serif; }
+    .create-tag button { border: 0; background: transparent; color: var(--text); opacity: 0.6; font-size: 1.05rem; line-height: 1; cursor: pointer; padding: 0 6px; border-radius: 999px; }
+    .create-tag button:hover { opacity: 1; }
+    .create-tags-empty { font: 0.85rem Arial, sans-serif; opacity: 0.55; align-self: center; }
+    .create-tag-add { display: flex; gap: 10px; max-width: 520px; margin-bottom: 8px; }
+    .create-tag-add input { flex: 1; min-width: 0; padding: 10px 13px; border: 1px solid rgba(26,26,28,0.32); border-radius: 10px; background: var(--panel); color: var(--text); font: 0.9rem Arial, sans-serif; }
+    .create-options-situations { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+    .create-optional { font: 400 0.72rem Arial, sans-serif; text-transform: none; letter-spacing: 0; opacity: 0.6; margin-left: 6px; }
+    @media (max-width: 720px) { .create-ch-grid { grid-template-columns: 1fr; } }
     .create-idea::placeholder, .create-detail-field textarea::placeholder, .create-edit textarea::placeholder, .create-edit input::placeholder { color: var(--text); opacity: 0.45; }
     .create-secondary { padding: 9px 14px; border: 1px solid rgba(26,26,28,0.36); border-radius: 8px; background: var(--panel); color: var(--text); font: 700 0.8rem Arial, sans-serif; cursor: pointer; }
     .create-secondary:hover { transform: translateY(-1px); box-shadow: 0 5px 14px rgba(26,26,28,0.16); }
@@ -9351,6 +9364,7 @@ SQIDAQAB
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
         if (view === 'criminal-trial') { renderCreateTrialBuilder(contentInner); return; }
+        if (view === 'chancellor') { renderChancellorBuilder(contentInner); return; }
         const card = (t, attrs = '') => `
                         <article class="create-card${attrs ? ' create-card-link' : ''}" ${attrs}>
                             <h3>${escapeHtml(t.title)}</h3>
@@ -9365,11 +9379,6 @@ SQIDAQAB
             heading = 'Choose a starting point';
             backBtn = '<button type="button" class="create-back" id="createBackBtn" data-view="projects">← Your projects</button>';
             body = `<div class="create-gallery">${CREATE_TEMPLATES.map((t) => card(t, `role="button" tabindex="0" data-template="${t.key}"`)).join('')}</div>`;
-        } else if (view === 'chancellor') {
-            const sim = CREATE_TEMPLATES.find((t) => t.key === 'economics').simulations[0];
-            heading = sim.title;
-            backBtn = '<button type="button" class="create-back" id="createBackBtn" data-view="economics">← Economics</button>';
-            body = `<div class="create-card"><img class="create-card-image" src="${sim.image}" alt="${escapeHtml(sim.alt)}"><p>The Chancellor builder is being set up. It will run on LastMind's shared economic model, so every economy behaves consistently.</p></div>`;
         } else if (subject) {
             heading = subject.title;
             backBtn = '<button type="button" class="create-back" id="createBackBtn" data-view="gallery">← Starting points</button>';
@@ -9399,6 +9408,142 @@ SQIDAQAB
             el.addEventListener('click', open);
             el.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
         });
+    }
+
+    // ─── Create > Economics > Be the Chancellor builder ───
+    // Steps down the left: 1 Create your scenario, 2 Government and politics. The draft is kept in the browser.
+    const CREATE_CHANCELLOR_KEY = 'lastmind-create-chancellor';
+    const CHANCELLOR_STAGES = [
+        { key: 'low', label: 'Low-income economy', help: 'Mostly agricultural, small tax base, limited credit and infrastructure.' },
+        { key: 'emerging', label: 'Emerging economy', help: 'Industrialising and open to trade, growing middle class, still exposed to shocks.' },
+        { key: 'advanced', label: 'Advanced economy', help: 'Services-led, deep finance, high household debt and a large public sector.' },
+    ];
+    const CHANCELLOR_SECTORS = {
+        low: ['Subsistence and smallholder farming', 'Cash-crop agriculture', 'Mining and extraction', 'Informal trade and services', 'Basic manufacturing and processing', 'Construction', 'Public administration'],
+        emerging: ['Manufacturing', 'Agriculture and food processing', 'Energy and mining', 'Retail and wholesale', 'Construction and property', 'Financial services', 'Tourism', 'Telecoms and IT', 'Transport and logistics'],
+        advanced: ['Financial and professional services', 'Advanced manufacturing', 'Healthcare', 'Retail and hospitality', 'Technology and digital', 'Construction and real estate', 'Energy and utilities', 'Education', 'Transport and logistics', 'Agriculture'],
+    };
+    const CHANCELLOR_SITUATIONS = [
+        { key: 'stable', title: 'A well-run economy', text: 'Steady growth, low inflation, manageable debt. Your job is to keep it that way, and to make it better.' },
+        { key: 'debt-crisis', title: 'External debt crisis', text: 'Large foreign-currency debts, thin reserves and a weak currency. Lenders are nervous and refinancing is getting expensive.' },
+        { key: 'hyperinflation', title: 'Hyperinflation', text: 'Prices are rising by the month, savings are being wiped out and nobody trusts the currency.' },
+        { key: 'slump', title: 'Deep slump', text: 'Output has fallen sharply after a shock. Unemployment is high and firms are not investing.' },
+        { key: 'overheating', title: 'Overheating boom', text: 'Rapid growth, a housing and credit boom, tight labour markets and inflation starting to build.' },
+        { key: 'commodity-bust', title: 'Commodity bust', text: 'The price of the main export has collapsed, cutting incomes, tax revenue and the currency.' },
+        { key: 'banking-crisis', title: 'Banking crisis', text: 'Bad loans are piling up, banks are cutting lending and depositors are getting nervous.' },
+    ];
+    let createChancellor = null;
+    function loadCreateChancellor() {
+        if (createChancellor) return createChancellor;
+        let saved = null;
+        try { saved = JSON.parse(localStorage.getItem(CREATE_CHANCELLOR_KEY) || 'null'); } catch (err) { /* private mode etc. */ }
+        createChancellor = { step: 'scenario', country: '', currency: '', population: '', stage: '', sectors: [], sectorsEdited: false, exports: [], imports: [], situation: '', history: '', ...(saved || {}) };
+        ['sectors', 'exports', 'imports'].forEach((k) => { if (!Array.isArray(createChancellor[k])) createChancellor[k] = []; });
+        return createChancellor;
+    }
+    function saveCreateChancellor() {
+        try { localStorage.setItem(CREATE_CHANCELLOR_KEY, JSON.stringify(createChancellor)); } catch (err) { /* draft just isn't kept */ }
+    }
+
+    function renderChancellorBuilder(contentInner) {
+        const ch = loadCreateChancellor();
+        const steps = [
+            { key: 'scenario', label: 'Create your scenario', done: () => !!(ch.country.trim() && ch.currency.trim() && ch.population.trim() && ch.stage && ch.situation) },
+            { key: 'government', label: 'Government and politics', done: () => false },
+        ];
+        contentInner.innerHTML = `
+            <section class="create-view" aria-labelledby="createChTitle">
+                <div class="create-builder-head">
+                    <button type="button" class="create-back" id="createChBack">← Economics</button>
+                    <h1 class="create-builder-title" id="createChTitle">Be the Chancellor</h1>
+                </div>
+                <div class="create-builder-layout">
+                    <nav class="create-steps" aria-label="Simulation steps">
+                        ${steps.map((st, i) => `<button type="button" class="create-step${ch.step === st.key ? ' active' : ''}${st.done() ? ' done' : ''}" data-step="${st.key}"><span class="create-step-num">${i + 1}</span><span class="create-step-label">${st.label}</span><span class="create-step-check" aria-hidden="true">✓</span></button>`).join('')}
+                    </nav>
+                    <div class="create-step-body" id="createChBody"></div>
+                </div>
+            </section>`;
+        const body = contentInner.querySelector('#createChBody');
+        const goTo = (key) => { ch.step = key; saveCreateChancellor(); renderChancellorBuilder(contentInner); };
+        contentInner.querySelector('#createChBack').addEventListener('click', () => renderCreatePage('economics'));
+        contentInner.querySelectorAll('.create-step').forEach((b) => b.addEventListener('click', () => goTo(b.dataset.step)));
+        if (ch.step === 'government') renderChancellorGovernment(body, ch, goTo);
+        else renderChancellorScenario(body, ch, goTo, () => renderChancellorBuilder(contentInner));
+    }
+
+    function renderChancellorScenario(body, ch, goTo, rerender) {
+        const tagField = (key, label, help, placeholder) => `
+            <div class="create-field-label">${label}</div>
+            <p class="create-step-help" style="margin-top:0;">${help}</p>
+            <div class="create-tags" id="tags-${key}"></div>
+            <div class="create-tag-add"><input type="text" id="tagIn-${key}" maxlength="60" placeholder="${escapeHtml(placeholder)}" aria-label="Add to ${label}"><button type="button" class="create-secondary" data-add="${key}">Add</button></div>`;
+        body.innerHTML = `
+            <h2>Create your scenario</h2>
+            <p class="create-step-help">Describe the country the student will run.</p>
+            <div class="create-ch-grid">
+                <div class="create-detail-field"><label for="chCountry">Name of country</label><input class="create-line" id="chCountry" type="text" maxlength="60" placeholder="e.g. Varuna" value="${escapeHtml(ch.country)}"></div>
+                <div class="create-detail-field"><label for="chCurrency">Currency</label><input class="create-line" id="chCurrency" type="text" maxlength="60" placeholder="e.g. Varunan dollar (VRD)" value="${escapeHtml(ch.currency)}"></div>
+                <div class="create-detail-field"><label for="chPop">Population</label><input class="create-line" id="chPop" type="text" maxlength="40" placeholder="e.g. 24 million" value="${escapeHtml(ch.population)}"></div>
+            </div>
+            <div class="create-field-label">Stage of development</div>
+            <div class="create-options" role="radiogroup" aria-label="Stage of development">
+                ${CHANCELLOR_STAGES.map((s) => `<button type="button" class="create-option${ch.stage === s.key ? ' selected' : ''}" role="radio" aria-checked="${ch.stage === s.key}" data-stage="${s.key}"><strong>${s.label}</strong><span>${s.help}</span></button>`).join('')}
+            </div>
+            <div id="chSectorsHost">${ch.stage ? tagField('sectors', 'Sectors the economy operates in', 'Suggested for this stage. Remove any that do not fit and add your own.', 'Add a sector') : '<p class="create-step-help">Choose a stage of development to see the sectors this kind of economy usually has.</p>'}</div>
+            ${tagField('exports', 'Key exports', 'What the country sells abroad.', 'e.g. Coffee, copper, garments')}
+            ${tagField('imports', 'Key imports', 'What the country depends on buying from abroad.', 'e.g. Oil, machinery, wheat')}
+            <div class="create-field-label">What situation is the economy in?</div>
+            <div class="create-options create-options-situations" role="radiogroup" aria-label="Starting situation">
+                ${CHANCELLOR_SITUATIONS.map((s) => `<button type="button" class="create-option${ch.situation === s.key ? ' selected' : ''}" role="radio" aria-checked="${ch.situation === s.key}" data-situation="${s.key}"><strong>${s.title}</strong><span>${s.text}</span></button>`).join('')}
+            </div>
+            <div class="create-field-label">Add your own history <span class="create-optional">optional</span></div>
+            <textarea class="create-idea" id="chHistory" rows="5" maxlength="2000" placeholder="e.g. Independence in 1974, a decade of military rule that ended in 2003, a currency reform in 2011, and a large loan from a neighbouring country that falls due in two years." aria-label="Your own history">${escapeHtml(ch.history)}</textarea>
+            <div class="create-next-row"><button type="button" class="create-cta" id="chNext">Next: Government and politics →</button></div>`;
+        const paintTags = (key) => {
+            const host = body.querySelector('#tags-' + key);
+            if (!host) return;
+            host.innerHTML = ch[key].length
+                ? ch[key].map((t, i) => `<span class="create-tag">${escapeHtml(t)}<button type="button" data-remove="${key}:${i}" aria-label="Remove ${escapeHtml(t)}">×</button></span>`).join('')
+                : '<span class="create-tags-empty">None yet</span>';
+        };
+        const addTag = (key) => {
+            const input = body.querySelector('#tagIn-' + key);
+            const value = (input.value || '').trim();
+            if (!value) return;
+            if (!ch[key].some((t) => t.toLowerCase() === value.toLowerCase())) ch[key].push(value);
+            if (key === 'sectors') ch.sectorsEdited = true;
+            input.value = ''; saveCreateChancellor(); paintTags(key); input.focus();
+        };
+        ['sectors', 'exports', 'imports'].forEach(paintTags);
+        body.querySelector('#chCountry').addEventListener('input', (e) => { ch.country = e.target.value; saveCreateChancellor(); });
+        body.querySelector('#chCurrency').addEventListener('input', (e) => { ch.currency = e.target.value; saveCreateChancellor(); });
+        body.querySelector('#chPop').addEventListener('input', (e) => { ch.population = e.target.value; saveCreateChancellor(); });
+        body.querySelector('#chHistory').addEventListener('input', (e) => { ch.history = e.target.value; saveCreateChancellor(); });
+        body.querySelectorAll('[data-stage]').forEach((b) => b.addEventListener('click', () => {
+            const changed = ch.stage !== b.dataset.stage;
+            ch.stage = b.dataset.stage;
+            if (changed && (!ch.sectorsEdited || !ch.sectors.length)) { ch.sectors = CHANCELLOR_SECTORS[ch.stage].slice(); ch.sectorsEdited = false; }
+            else if (changed && ch.sectorsEdited && window.confirm('Replace your edited sectors with the suggestions for this stage?')) { ch.sectors = CHANCELLOR_SECTORS[ch.stage].slice(); ch.sectorsEdited = false; }
+            saveCreateChancellor(); rerender();
+        }));
+        body.querySelectorAll('[data-situation]').forEach((b) => b.addEventListener('click', () => { ch.situation = b.dataset.situation; saveCreateChancellor(); rerender(); }));
+        body.addEventListener('click', (e) => {
+            const add = e.target.closest('[data-add]');
+            if (add) { addTag(add.dataset.add); return; }
+            const rm = e.target.closest('[data-remove]');
+            if (rm) { const [key, idx] = rm.dataset.remove.split(':'); ch[key].splice(Number(idx), 1); if (key === 'sectors') ch.sectorsEdited = true; saveCreateChancellor(); paintTags(key); }
+        });
+        body.querySelectorAll('.create-tag-add input').forEach((input) => input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(input.id.replace('tagIn-', '')); } }));
+        body.querySelector('#chNext').addEventListener('click', () => goTo('government'));
+    }
+
+    function renderChancellorGovernment(body, ch, goTo) {
+        body.innerHTML = `
+            <h2>Government and politics</h2>
+            <p class="create-step-help">This step is coming next. Your scenario so far is saved.</p>
+            <div class="create-next-row"><button type="button" class="create-secondary" id="chPrev">← Back to your scenario</button></div>`;
+        body.querySelector('#chPrev').addEventListener('click', () => goTo('scenario'));
     }
 
     // ─── Create > Law > Criminal trial builder ───
