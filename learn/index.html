@@ -4001,6 +4001,18 @@
     .create-options-situations { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
     .create-optional { font: 400 0.72rem Arial, sans-serif; text-transform: none; letter-spacing: 0; opacity: 0.6; margin-left: 6px; }
     @media (max-width: 720px) { .create-ch-grid { grid-template-columns: 1fr; } }
+    .chn-party-block { padding: 16px; margin-bottom: 16px; border: 1px solid rgba(26,26,28,0.32); border-radius: 12px; }
+    .chn-party-block h3 { margin: 0 0 4px; font: 700 1.05rem Arial, sans-serif; }
+    .chn-people-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+    .chn-shock-panel { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin-top: 12px; padding: 14px; border: 1px dashed rgba(26,26,28,0.32); border-radius: 12px; }
+    .chn-shock-panel[hidden] { display: none; }
+    .chn-shock-item { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; font: 0.88rem Arial, sans-serif; }
+    .chn-shock-item small { display: block; opacity: 0.65; margin-top: 2px; }
+    .chn-shock-item input { margin-top: 3px; }
+    .lm-screen-hint { margin: 6px 0 0; padding: 6px 10px; border-radius: 8px; font: 0.8rem Arial, sans-serif; background: rgba(180,35,24,0.12); color: #b42318; }
+    .lm-screen-hint.ok { background: rgba(31,122,77,0.14); color: #1f7a4d; }
+    [aria-invalid="true"] { outline: 2px solid #b42318; }
+    @media (max-width: 720px) { .chn-people-grid { grid-template-columns: 1fr; } }
     .create-idea::placeholder, .create-detail-field textarea::placeholder, .create-edit textarea::placeholder, .create-edit input::placeholder { color: var(--text); opacity: 0.45; }
     .create-secondary { padding: 9px 14px; border: 1px solid rgba(26,26,28,0.36); border-radius: 8px; background: var(--panel); color: var(--text); font: 700 0.8rem Arial, sans-serif; cursor: pointer; }
     .create-secondary:hover { transform: translateY(-1px); box-shadow: 0 5px 14px rgba(26,26,28,0.16); }
@@ -9410,6 +9422,144 @@ SQIDAQAB
         });
     }
 
+    // ─── Text screening (mirrors the server: services/contentFilter.ts) ───
+    // Vulgar language is refused and personal information is masked before anything a student types can reach the AI.
+    const LM_BAD_LEET = { a: '[a4@*]', b: '[b8]', c: '[c(]', e: '[e3*]', g: '[g9]', i: '[i1!|*]', l: '[l1|]', o: '[o0*]', s: '[s5$]', t: '[t7+]', u: '[uv*]' };
+    const lmLoose = (w) => w.split('').map((ch) => (LM_BAD_LEET[ch] || ch) + '[\\W_]{0,2}').join('').replace(/\[\\W_\]\{0,2\}$/, '');
+    const LM_BAD_RE = ['fuck', 'fucking', 'fucker', 'motherfucker', 'shit', 'shitty', 'bullshit', 'bitch', 'bastard', 'cunt', 'dick', 'dickhead', 'prick', 'twat', 'wanker', 'bollocks', 'piss', 'arsehole', 'asshole', 'slut', 'whore', 'cock', 'tosser', 'bellend', 'douchebag', 'jackass', 'dipshit', 'shithead', 'crap', 'nigger', 'nigga', 'faggot', 'fag', 'retard', 'retarded', 'spastic', 'paki', 'chink', 'kike', 'tranny', 'coon', 'gook', 'wetback', 'raghead']
+        .map((w) => new RegExp('(?<![A-Za-z])' + lmLoose(w) + '(?![A-Za-z])', 'i'));
+    const LM_PII = [
+        ['email', /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/g],
+        ['card', /\b\d(?:[ -]?\d){12,18}\b/g, (m) => { const d = m.replace(/\D/g, ''); let s = 0, alt = false; for (let i = d.length - 1; i >= 0; i--) { let n = +d[i]; if (alt) { n *= 2; if (n > 9) n -= 9; } s += n; alt = !alt; } return d.length >= 13 && s % 10 === 0; }],
+        ['id number', /\b[A-CEGHJ-PR-TW-Z][A-CEGHJ-NPR-TW-Z]\s?\d{2}\s?\d{2}\s?\d{2}\s?[A-D]\b/g],
+        ['id number', /\b\d{3}-\d{2}-\d{4}\b/g],
+        ['phone number', /(?<![\w.])(?:\+\d{1,3}[ -]?)?\(?0?7\d{3}\)?[ -]?\d{3}[ -]?\d{3}(?!\d)/g],
+        ['phone number', /(?<![\w.])\+\d{1,3}[ -]?\(?\d{1,4}\)?[ -]?\d{3,4}[ -]?\d{3,4}(?!\d)/g],
+        ['phone number', /(?<![\w.])\(?\d{3}\)?[ .-]\d{3}[ .-]\d{4}(?!\d)/g],
+        ['postcode', /\b[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}\b/g],
+        ['address', /\b\d{1,4}[A-Za-z]?\s+(?:[A-Z][a-z]+\s+){1,3}(?:Street|St|Road|Rd|Avenue|Ave|Lane|Ln|Drive|Dr|Close|Court|Way|Crescent|Terrace|Place|Gardens|Grove)\b/g],
+        ['date of birth', /\b(?:born(?: on)?|dob|d\.o\.b\.?|date of birth)[:\s]+\d{1,2}[\/.\- ]\d{1,2}[\/.\- ]\d{2,4}\b/gi],
+    ];
+    function lmScreenText(text) {
+        const found = new Set();
+        let masked = String(text || '');
+        for (const [kind, re, check] of LM_PII) masked = masked.replace(re, (m) => { if (check && !check(m)) return m; found.add(kind); return `[${kind} removed]`; });
+        return { vulgar: LM_BAD_RE.some((re) => re.test(String(text || ''))), masked, pii: [...found] };
+    }
+    const LM_SCREEN_IDS = /^(createIdea|createDetail-|plSpeech$|plQ$|chCountry$|chCurrency$|chPop$|chHistory$|tagIn-|chP-|chnAnswer)/;
+    document.addEventListener('input', (e) => {
+        const el = e.target;
+        if (!el || !el.id || !LM_SCREEN_IDS.test(el.id)) return;
+        const r = lmScreenText(el.value);
+        let hint = el.parentElement && el.parentElement.querySelector('.lm-screen-hint[data-for="' + el.id + '"]');
+        if (r.vulgar) {
+            if (!hint) { hint = document.createElement('div'); hint.className = 'lm-screen-hint'; hint.dataset.for = el.id; el.insertAdjacentElement('afterend', hint); }
+            hint.textContent = 'Please keep it civil: offensive language cannot be sent. Reword this to continue.'; el.setAttribute('aria-invalid', 'true');
+        } else if (hint) { hint.remove(); el.removeAttribute('aria-invalid'); }
+    }, true);
+    document.addEventListener('focusout', (e) => {
+        const el = e.target;
+        if (!el || !el.id || !LM_SCREEN_IDS.test(el.id) || typeof el.value !== 'string') return;
+        const r = lmScreenText(el.value);
+        if (r.pii.length && r.masked !== el.value) {
+            el.value = r.masked; el.dispatchEvent(new Event('input', { bubbles: true }));
+            let hint = document.createElement('div'); hint.className = 'lm-screen-hint ok'; hint.textContent = 'Removed personal details (' + r.pii.join(', ') + ') to keep you safe.';
+            el.insertAdjacentElement('afterend', hint); setTimeout(() => hint.remove(), 5000);
+        }
+    }, true);
+    const lmIsVulgar = (s) => lmScreenText(s).vulgar;
+
+    // ─── Chancellor: government and politics, and starting the simulation ───
+    const CHANCELLOR_SHOCKS = [
+        ['oil', 'Oil and energy price spike', 'World energy prices jump.'], ['foreignRecession', 'Foreign recession', 'Major trading partners fall into recession.'], ['hhConfidence', 'Consumer confidence crash', 'Households suddenly stop spending.'],
+        ['investmentBoom', 'Investment boom', 'Business confidence surges.'], ['drought', 'Drought or harvest failure', 'Crops fail and food prices rise.'], ['pandemic', 'Pandemic', 'A disease outbreak hits work, trade and confidence.'],
+        ['productivity', 'Productivity breakthrough', 'A technology boom lifts productivity.'], ['naturalDisaster', 'Natural disaster', 'A flood or earthquake destroys capital.'], ['bankingCrisis', 'Banking crisis', 'A large bank fails and lending freezes.'],
+        ['capitalFlight', 'Capital flight', 'Investors pull out and the currency falls.'], ['tradeWar', 'Trade war', 'Trading partners raise tariffs.'], ['globalRate', 'Global interest-rate shock', 'Rates rise sharply in the big economies.'], ['politicalCrisis', 'Political or institutional crisis', 'A scandal or constitutional row rattles investors.'],
+    ];
+    const CHANCELLOR_GOV_ROLES = [['pm', 'Prime Minister'], ['chancellor', 'Chancellor of the Exchequer (you)'], ['foreign', 'Foreign Secretary'], ['home', 'Home Secretary'], ['health', 'Health Secretary'], ['education', 'Education Secretary'], ['defence', 'Defence Secretary'], ['business', 'Business and Trade Secretary'], ['work', 'Work and Pensions Secretary']];
+    const CHANCELLOR_OPP_ROLES = [['oppLeader', 'Leader of the Opposition'], ['shadowChancellor', 'Shadow Chancellor'], ['shadowHome', 'Shadow Home Secretary'], ['shadowHealth', 'Shadow Health Secretary']];
+    const CHANCELLOR_RISING_ROLES = [['risingLeader', 'Leader'], ['risingEconomy', 'Economy spokesperson']];
+    const CHANCELLOR_FIRST = ['Amara', 'Tomas', 'Leila', 'Daniel', 'Priya', 'Marcus', 'Ingrid', 'Kwame', 'Sofia', 'Hiro', 'Elena', 'Omar', 'Nadia', 'Felix', 'Rosa', 'Idris', 'Mei', 'Callum', 'Zainab', 'Lucas', 'Yara', 'Viktor', 'Anika', 'Jonas'];
+    const CHANCELLOR_LAST = ['Okafor', 'Lindqvist', 'Haddad', 'Moreau', 'Anand', 'Reyes', 'Sol', 'Adeyemi', 'Novak', 'Tanaka', 'Duarte', 'Farah', 'Voss', 'Baptiste', 'Kowalski', 'Sandhu', 'Ferreira', 'Mbeki', 'Ivanova', 'Hale', 'Castillo', 'Ng', 'Bergström', 'Rahman'];
+    function chancellorGovComplete(ch) {
+        const has = (o, keys) => keys.every(([k]) => ((o.people || {})[k] || '').trim());
+        return !!((ch.government.party || '').trim() && (ch.opposition.party || '').trim() && (ch.rising.party || '').trim() && has(ch.government, CHANCELLOR_GOV_ROLES) && has(ch.opposition, CHANCELLOR_OPP_ROLES) && has(ch.rising, CHANCELLOR_RISING_ROLES));
+    }
+    function chancellorParseNumber(text) {
+        const t = String(text || '').toLowerCase().replace(/,/g, '').trim();
+        const m = t.match(/([\d.]+)\s*(billion|bn|b|million|m|thousand|k)?/);
+        if (!m) return 10e6;
+        const n = parseFloat(m[1]); if (!isFinite(n)) return 10e6;
+        const mult = { billion: 1e9, bn: 1e9, b: 1e9, million: 1e6, m: 1e6, thousand: 1e3, k: 1e3 }[m[2]] || (n < 5000 ? 1e6 : 1);
+        return Math.max(1e5, Math.min(2e9, n * mult));
+    }
+    const chnModuleFiles = ['/assets/econ/econModel.js', '/assets/econ/econPolicy.js', '/assets/econ/econSim.js', '/assets/chancellor/chancellor-ui.js'];
+    let chnModulePromise = null;
+    function chnLoadModule() {
+        if (chnModulePromise) return chnModulePromise;
+        const v = '20260920-1';
+        chnModulePromise = chnModuleFiles.reduce((p, src) => p.then(() => new Promise((resolve, reject) => {
+            const s = document.createElement('script'); s.src = src + '?v=' + v; s.onload = resolve; s.onerror = () => reject(new Error('Could not load ' + src)); document.head.appendChild(s);
+        })), Promise.resolve()).catch((err) => { chnModulePromise = null; throw err; });
+        return chnModulePromise;
+    }
+    async function chnStartSimulation(contentInner, ch, resume) {
+        const body = contentInner.querySelector('#createChBody');
+        try { await chnLoadModule(); } catch (err) { if (body) body.insertAdjacentHTML('beforeend', '<p class="create-warn">The simulation could not load. Check your connection and try again.</p>'); return; }
+        const cfg = { country: ch.country.trim(), currency: ch.currency.trim(), population: ch.population.trim(), populationNumber: chancellorParseNumber(ch.population), stage: ch.stage, sectors: ch.sectors, exports: ch.exports, imports: ch.imports, situation: ch.situation, history: ch.history, shocks: ch.shocks, government: ch.government, opposition: ch.opposition, rising: ch.rising };
+        window.LMChancellorUI.launch(contentInner, cfg, { resume: !!resume, onExit: () => renderChancellorBuilder(contentInner) });
+    }
+    function chnSavedGameExists() { try { return !!localStorage.getItem('lastmind-chancellor-game'); } catch (err) { return false; } }
+
+    function renderChancellorGovernment(body, ch, goTo, rerender, contentInner) {
+        const block = (title, sub, key, roles, prefix) => `
+            <section class="chn-party-block" aria-label="${escapeHtml(title)}">
+                <h3>${escapeHtml(title)}</h3>
+                <p class="create-step-help" style="margin-top:0;">${escapeHtml(sub)}</p>
+                <div class="create-detail-field"><label for="chP-${prefix}-party">Party name</label><input class="create-line" id="chP-${prefix}-party" type="text" maxlength="50" placeholder="${escapeHtml(key === 'government' ? 'e.g. National Unity Party' : key === 'opposition' ? 'e.g. Progress Alliance' : 'e.g. Green Dawn')}" value="${escapeHtml(ch[key].party || '')}"></div>
+                <div class="chn-people-grid">${roles.map(([k, label]) => `<div class="create-detail-field"><label for="chP-${prefix}-${k}">${escapeHtml(label)}</label><input class="create-line" id="chP-${prefix}-${k}" data-key="${key}" data-role="${k}" type="text" maxlength="50" placeholder="${k === 'chancellor' ? 'Your name' : 'Full name'}" value="${escapeHtml((ch[key].people || {})[k] || '')}"></div>`).join('')}</div>
+            </section>`;
+        const ready = chancellorGovComplete(ch), scenarioDone = !!(ch.country.trim() && ch.currency.trim() && ch.population.trim() && ch.stage && ch.situation);
+        body.innerHTML = `
+            <h2>Government and politics</h2>
+            <p class="create-step-help">Name the parties and the people the student will work with, and against. Everyone here will appear in the simulation with their own portrait and their own opinion of the Chancellor.</p>
+            ${block('Your government', 'The governing party and its cabinet. You are the Chancellor.', 'government', CHANCELLOR_GOV_ROLES, 'g')}
+            ${block('The opposition', 'The main opposition party and its front bench.', 'opposition', CHANCELLOR_OPP_ROLES, 'o')}
+            ${block('The rising party', 'A newer party gaining ground. It grows when voters are unhappy with both of the others.', 'rising', CHANCELLOR_RISING_ROLES, 'r')}
+            <div class="create-detail-actions" style="margin-top:6px;"><button type="button" class="create-secondary" id="chSuggest">Suggest names for anyone left blank</button><span class="create-warn" style="margin:0;">Names are fictional. Please do not use the names of real people.</span></div>
+            <div class="create-next-row" style="gap:12px;flex-wrap:wrap;">
+                <button type="button" class="create-secondary" id="chPrev">← Back to your scenario</button>
+                <button type="button" class="create-cta" id="chStart" ${ready && scenarioDone ? '' : 'disabled'}>Start the simulation →</button>
+                ${chnSavedGameExists() ? '<button type="button" class="create-secondary" id="chResume">Continue your saved game</button>' : ''}
+            </div>
+            ${ready && scenarioDone ? '' : `<p class="create-step-help" id="chStartHelp">${scenarioDone ? 'Fill in every name and party to start.' : 'Finish the scenario step first.'}</p>`}`;
+        const setName = (el) => {
+            const key = el.dataset.key, role = el.dataset.role;
+            if (!key) return;
+            ch[key].people = ch[key].people || {}; ch[key].people[role] = el.value;
+        };
+        body.querySelectorAll('input[data-role]').forEach((el) => el.addEventListener('input', () => { setName(el); saveCreateChancellor(); refresh(); }));
+        [['g', 'government'], ['o', 'opposition'], ['r', 'rising']].forEach(([p, key]) => body.querySelector('#chP-' + p + '-party').addEventListener('input', (e) => { ch[key].party = e.target.value; saveCreateChancellor(); refresh(); }));
+        const refresh = () => {
+            const ok = chancellorGovComplete(ch) && scenarioDone && ![...body.querySelectorAll('input.create-line')].some((i) => lmIsVulgar(i.value));
+            const btn = body.querySelector('#chStart'); if (btn) btn.disabled = !ok;
+            const help = body.querySelector('#chStartHelp'); if (help) help.hidden = ok;
+        };
+        body.querySelector('#chSuggest').addEventListener('click', () => {
+            const used = new Set(); let n = Math.floor(Math.random() * 20);
+            const name = () => { let s; do { s = CHANCELLOR_FIRST[(n++) % CHANCELLOR_FIRST.length] + ' ' + CHANCELLOR_LAST[(n * 7 + 3) % CHANCELLOR_LAST.length]; } while (used.has(s)); used.add(s); return s; };
+            [['government', CHANCELLOR_GOV_ROLES], ['opposition', CHANCELLOR_OPP_ROLES], ['rising', CHANCELLOR_RISING_ROLES]].forEach(([key, roles]) => {
+                ch[key].people = ch[key].people || {};
+                if (!(ch[key].party || '').trim()) ch[key].party = { government: 'National Unity Party', opposition: 'Progress Alliance', rising: 'Green Dawn' }[key];
+                roles.forEach(([k]) => { if (!(ch[key].people[k] || '').trim()) ch[key].people[k] = name(); });
+            });
+            saveCreateChancellor(); rerender();
+        });
+        body.querySelector('#chPrev').addEventListener('click', () => goTo('scenario'));
+        body.querySelector('#chStart').addEventListener('click', () => chnStartSimulation(contentInner, ch, false));
+        const resume = body.querySelector('#chResume'); if (resume) resume.addEventListener('click', () => chnStartSimulation(contentInner, ch, true));
+    }
+
     // ─── Create > Economics > Be the Chancellor builder ───
     // Steps down the left: 1 Create your scenario, 2 Government and politics. The draft is kept in the browser.
     const CREATE_CHANCELLOR_KEY = 'lastmind-create-chancellor';
@@ -9437,8 +9587,9 @@ SQIDAQAB
         if (createChancellor) return createChancellor;
         let saved = null;
         try { saved = JSON.parse(localStorage.getItem(CREATE_CHANCELLOR_KEY) || 'null'); } catch (err) { /* private mode etc. */ }
-        createChancellor = { step: 'scenario', country: '', currency: '', population: '', stage: '', sectors: [], sectorsEdited: false, exports: [], imports: [], situation: '', history: '', ...(saved || {}) };
-        ['sectors', 'exports', 'imports'].forEach((k) => { if (!Array.isArray(createChancellor[k])) createChancellor[k] = []; });
+        createChancellor = { step: 'scenario', country: '', currency: '', population: '', stage: '', sectors: [], sectorsEdited: false, exports: [], imports: [], situation: '', history: '', shocks: [], government: { party: '', people: {} }, opposition: { party: '', people: {} }, rising: { party: '', people: {} }, ...(saved || {}) };
+        ['sectors', 'exports', 'imports', 'shocks'].forEach((k) => { if (!Array.isArray(createChancellor[k])) createChancellor[k] = []; });
+        ['government', 'opposition', 'rising'].forEach((k) => { if (!createChancellor[k] || typeof createChancellor[k] !== 'object') createChancellor[k] = { party: '', people: {} }; if (!createChancellor[k].people) createChancellor[k].people = {}; });
         return createChancellor;
     }
     function saveCreateChancellor() {
@@ -9449,7 +9600,7 @@ SQIDAQAB
         const ch = loadCreateChancellor();
         const steps = [
             { key: 'scenario', label: 'Create your scenario', done: () => !!(ch.country.trim() && ch.currency.trim() && ch.population.trim() && ch.stage && ch.situation) },
-            { key: 'government', label: 'Government and politics', done: () => false },
+            { key: 'government', label: 'Government and politics', done: () => chancellorGovComplete(ch) },
         ];
         contentInner.innerHTML = `
             <section class="create-view" aria-labelledby="createChTitle">
@@ -9468,7 +9619,7 @@ SQIDAQAB
         const goTo = (key) => { ch.step = key; saveCreateChancellor(); renderChancellorBuilder(contentInner); };
         contentInner.querySelector('#createChBack').addEventListener('click', () => renderCreatePage('economics'));
         contentInner.querySelectorAll('.create-step').forEach((b) => b.addEventListener('click', () => goTo(b.dataset.step)));
-        if (ch.step === 'government') renderChancellorGovernment(body, ch, goTo);
+        if (ch.step === 'government') renderChancellorGovernment(body, ch, goTo, () => renderChancellorBuilder(contentInner), contentInner);
         else renderChancellorScenario(body, ch, goTo, () => renderChancellorBuilder(contentInner));
     }
 
@@ -9496,6 +9647,12 @@ SQIDAQAB
             <div class="create-field-label">What situation is the economy in?</div>
             <div class="create-options create-options-situations" role="radiogroup" aria-label="Starting situation">
                 ${CHANCELLOR_SITUATIONS.map((s) => `<button type="button" class="create-option${ch.situation === s.key ? ' selected' : ''}" role="radio" aria-checked="${ch.situation === s.key}" data-situation="${s.key}"><strong>${s.title}</strong><span>${s.text}</span></button>`).join('')}
+            </div>
+            <div class="create-field-label">Shocks <span class="create-optional">optional</span></div>
+            <p class="create-step-help" style="margin-top:0;">Choose events that may hit the economy during the simulation. They arrive at random times, so the student cannot plan for them.</p>
+            <button type="button" class="create-secondary" id="chShockBtn" aria-expanded="${ch.shocks.length ? 'true' : 'false'}">Shocks (${ch.shocks.length} selected) ${ch.shocks.length ? '▴' : '▾'}</button>
+            <div class="chn-shock-panel" id="chShockPanel" ${ch.shocks.length ? '' : 'hidden'}>
+                ${CHANCELLOR_SHOCKS.map(([k, label, text]) => `<label class="chn-shock-item"><input type="checkbox" data-shock="${k}" ${ch.shocks.includes(k) ? 'checked' : ''}><span><strong>${escapeHtml(label)}</strong><small>${escapeHtml(text)}</small></span></label>`).join('')}
             </div>
             <div class="create-field-label">Add your own history <span class="create-optional">optional</span></div>
             <textarea class="create-idea" id="chHistory" rows="5" maxlength="2000" placeholder="e.g. Independence in 1974, a decade of military rule that ended in 2003, a currency reform in 2011, and a large loan from a neighbouring country that falls due in two years." aria-label="Your own history">${escapeHtml(ch.history)}</textarea>
@@ -9536,14 +9693,13 @@ SQIDAQAB
         });
         body.querySelectorAll('.create-tag-add input').forEach((input) => input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(input.id.replace('tagIn-', '')); } }));
         body.querySelector('#chNext').addEventListener('click', () => goTo('government'));
-    }
-
-    function renderChancellorGovernment(body, ch, goTo) {
-        body.innerHTML = `
-            <h2>Government and politics</h2>
-            <p class="create-step-help">This step is coming next. Your scenario so far is saved.</p>
-            <div class="create-next-row"><button type="button" class="create-secondary" id="chPrev">← Back to your scenario</button></div>`;
-        body.querySelector('#chPrev').addEventListener('click', () => goTo('scenario'));
+        const shockBtn = body.querySelector('#chShockBtn'), shockPanel = body.querySelector('#chShockPanel');
+        shockBtn.addEventListener('click', () => { shockPanel.hidden = !shockPanel.hidden; shockBtn.setAttribute('aria-expanded', String(!shockPanel.hidden)); });
+        body.querySelectorAll('[data-shock]').forEach((cb) => cb.addEventListener('change', () => {
+            const k = cb.dataset.shock, i = ch.shocks.indexOf(k);
+            if (cb.checked && i === -1) ch.shocks.push(k); else if (!cb.checked && i > -1) ch.shocks.splice(i, 1);
+            shockBtn.textContent = `Shocks (${ch.shocks.length} selected) ${shockPanel.hidden ? '▾' : '▴'}`; saveCreateChancellor();
+        }));
     }
 
     // ─── Create > Law > Criminal trial builder ───
