@@ -22209,7 +22209,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             return [{ el, meta: { canAdvance: true, kind: 'handoff' } }];
         }
         // the version in the address makes a browser fetch the current player after each change instead of reusing an old copy
-        const DERIVE_PLAYER_VERSION = '20260921e';
+        const DERIVE_PLAYER_VERSION = '20260921f';
         el.innerHTML = `<iframe class="sf-derive-frame" src="/learn/derive/player.html?v=${DERIVE_PLAYER_VERSION}" title="Lesson"></iframe>`;
         const frame = el.querySelector('iframe');
         const meta = { canAdvance: false, kind: 'question', answered: false, nodeId: rec.node.id, derive: true };
@@ -23632,9 +23632,11 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         Object.keys(g.nodes).forEach((k) => {
             const n = g.nodes[k], t = stage.terms[k] || { t: k, c: '#cfd9e8' }, given = g.given.indexOf(k) > -1;
             mk('rect', { x: n[0], y: n[1], width: n[2], height: n[3], rx: 12, fill: t.c, stroke: '#3B4753', 'stroke-dasharray': given ? '5 4' : '0', 'stroke-width': 1.5, opacity: given ? 0.65 : 1 });
-            let lines = [t.t];
-            if (t.t.length > 16) { const cut = t.t.lastIndexOf(' ', 15); lines = cut > 0 ? [t.t.slice(0, cut), t.t.slice(cut + 1)] : [t.t]; }
-            const text = mk('text', { x: n[0] + n[2] / 2, y: n[1] + n[3] / 2 + (lines.length > 1 ? -2 : 6), 'text-anchor': 'middle', 'font-size': 15, 'font-family': 'Arial, sans-serif', fill: '#1B232C' });
+            const maxChars = Math.max(10, Math.floor((n[2] - 16) / 8));
+            const lines = []; let cur = '';
+            t.t.split(' ').forEach((w) => { if (cur && (cur + ' ' + w).length > maxChars) { lines.push(cur); cur = w; } else cur = cur ? cur + ' ' + w : w; });
+            if (cur) lines.push(cur);
+            const text = mk('text', { x: n[0] + n[2] / 2, y: n[1] + n[3] / 2 + 5 - ((lines.length - 1) * 17) / 2, 'text-anchor': 'middle', 'font-size': lines.length > 3 ? 12 : 15, 'font-family': 'Arial, sans-serif', fill: '#1B232C' });
             lines.forEach((ln, idx) => { const ts = mk('tspan', { x: n[0] + n[2] / 2, dy: idx ? 17 : 0 }, text); ts.textContent = ln; });
         });
         return svg;
