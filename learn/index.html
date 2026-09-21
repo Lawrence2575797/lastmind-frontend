@@ -1385,7 +1385,24 @@
     .sf-feed-root:not(.has-mini-cortex) .sf-slide-inner { max-width: 820px; }
     .sf-feed-root:not(.has-mini-cortex) .sf-question-text { font-size: 20px; }
     .sf-slide-subject { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.6; }
-    .sf-slide-explanation { font-size: 17px; line-height: 1.85; }
+    .sf-slide-explanation { font-size: 17px; line-height: 1.7; padding: 20px 24px; border-radius: 18px; background: rgba(0,0,0,0.24); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+    .sf-stepchip { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; padding: 3px 10px; border-radius: 999px; background: var(--accent); color: var(--bg); opacity: 0.95; }
+    /* Lessons, laid out for reading: key-idea cards, highlighted terms, a takeaway, and blocks that appear one after another. Text is untouched. */
+    .lm-dots { display: flex; gap: 6px; margin: 0 0 14px; } .lm-dots i { width: 22px; height: 4px; border-radius: 3px; background: rgba(255,255,255,0.18); position: relative; overflow: hidden; }
+    .lm-dots i::after { content: ''; position: absolute; inset: 0; background: var(--accent); transform: scaleX(0); transform-origin: left; animation: lmFill .5s ease both; animation-delay: calc(var(--i) * 0.28s); }
+    .lm-step, .lm-card, .lm-list li { animation: lmIn .55s ease both; animation-delay: calc(var(--i) * 0.28s); }
+    .lm-intro { font-size: 0.9em; opacity: 0.78; font-style: italic; }
+    .lm-cards { display: grid; gap: 10px; margin: 0 0 16px; }
+    .lm-card { display: grid; gap: 3px; padding: 12px 16px; border-left: 4px solid var(--accent); border-radius: 10px; background: rgba(255,255,255,0.08); }
+    .lm-term { font-size: 12px; font-weight: 800; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); }
+    .lm-def { font-size: 1.02em; line-height: 1.55; }
+    .lm-key { background: linear-gradient(transparent 58%, rgba(255,214,102,0.42) 0); font-weight: 600; color: inherit; padding: 0 1px; }
+    .lm-takeaway { padding: 12px 16px; border-radius: 12px; background: rgba(76,195,138,0.16); border: 1px solid rgba(76,195,138,0.35); }
+    .lm-takeaway::before { content: 'Why it matters'; display: block; font-size: 11px; font-weight: 800; letter-spacing: 0.09em; text-transform: uppercase; color: #6fd6a4; margin-bottom: 3px; }
+    .lm-list { margin: 0 0 16px; padding-left: 22px; } .lm-list li { margin-bottom: 10px; }
+    @keyframes lmIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    @keyframes lmFill { to { transform: scaleX(1); } }
+    @media (prefers-reduced-motion: reduce) { .lm-step, .lm-card, .lm-list li, .lm-dots i::after { animation: none !important; } .lm-dots i::after { transform: scaleX(1); } }
     .sf-slide-explanation p { margin: 0 0 16px; }
     .sf-slide-explanation p:last-child { margin-bottom: 0; }
     .sf-slide-explanation ul, .sf-slide-explanation ol { margin: 0 0 16px; padding-left: 26px; }
@@ -7645,6 +7662,44 @@ SQIDAQAB
     // much harder to skim-and-miss-a-word than the same facts buried
     // mid-sentence in a paragraph. Old content with no line breaks at
     // all still works exactly as before (one big line, all prose).
+    // The same lesson text, laid out to be read: "term = definition" lines become key-idea cards, those terms are highlighted where they
+    // appear again, the closing line becomes a "why it matters" callout, and the blocks appear one after another. Works on the text as it
+    // is stored (no rewriting, no model call), so every cached lesson in every subject gets it.
+    function lmStyledLessonHtml(text) {
+        if (!text) return '';
+        const lines = String(text).split(/\n+/).map((l) => l.trim()).filter(Boolean);
+        const blocks = [];   // { kind: 'def'|'prose'|'ul'|'ol', ... }
+        const defMatch = (t) => { const m = t.match(/^(.{2,90}?)\s=\s(.+)$/); return m && m[1].split(/\s+/).length <= 10 ? { term: m[1].replace(/\*\*/g, '').trim(), def: m[2].trim() } : null; };
+        lines.forEach((line) => {
+            const bullet = line.match(/^[*-]\s+(.*)/); const numbered = line.match(/^\d+[.)]\s+(.*)/);
+            const body = bullet ? bullet[1] : numbered ? numbered[1] : line;
+            const def = defMatch(body);
+            if (def) { const last = blocks[blocks.length - 1]; if (last && last.kind === 'def') last.items.push(def); else blocks.push({ kind: 'def', items: [def] }); return; }
+            if (bullet || numbered) { const kind = bullet ? 'ul' : 'ol'; const last = blocks[blocks.length - 1]; if (last && last.kind === kind) last.items.push(body); else blocks.push({ kind, items: [body] }); return; }
+            const sentences = line.split(/(?<=[.!?])\s+(?=[A-Z0-9])/).map((x) => x.trim()).filter(Boolean);
+            for (let i = 0; i < sentences.length; i += 2) blocks.push({ kind: 'prose', text: sentences.slice(i, i + 2).join(' ') });
+        });
+        const terms = blocks.filter((b) => b.kind === 'def').flatMap((b) => b.items.map((d) => d.term)).filter((t) => t.length >= 4);
+        const reEscape = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const emphasise = (html) => html.split(/(<[^>]+>)/).map((part) => {
+            if (part.startsWith('<')) return part;
+            let out = part;
+            terms.forEach((t) => { out = out.replace(new RegExp('(?<![A-Za-z])(' + reEscape(escapeHtml(t)) + ')(?![A-Za-z])', 'i'), '<mark class="lm-key">$1</mark>'); });
+            return out;
+        }).join('');
+        let i = 0;
+        const proseIdx = blocks.map((b, k) => (b.kind === 'prose' ? k : -1)).filter((k) => k >= 0);
+        const lastProse = proseIdx.length ? proseIdx[proseIdx.length - 1] : -1;
+        const out = blocks.map((b, k) => {
+            if (b.kind === 'def') return `<div class="lm-cards">${b.items.map((d) => `<div class="lm-card" style="--i:${i++}"><span class="lm-term">${boldMarkdownToHtml(d.term)}</span><span class="lm-def">${boldMarkdownToHtml(d.def)}</span></div>`).join('')}</div>`;
+            if (b.kind === 'ul' || b.kind === 'ol') return `<${b.kind} class="lm-list">${b.items.map((it) => `<li style="--i:${i++}">${emphasise(boldMarkdownToHtml(it))}</li>`).join('')}</${b.kind}>`;
+            const intro = k === 0 && /^building on\b/i.test(b.text);
+            const takeaway = k === lastProse && k === blocks.length - 1 && blocks.length >= 3 && !intro;
+            return `<p class="lm-step${intro ? ' lm-intro' : ''}${takeaway ? ' lm-takeaway' : ''}" style="--i:${i++}">${emphasise(boldMarkdownToHtml(b.text))}</p>`;
+        });
+        const n = Math.min(8, i);
+        return `<div class="lm-dots" aria-hidden="true">${Array.from({ length: n }, (_, k) => `<i style="--i:${k}"></i>`).join('')}</div>${out.join('')}`;
+    }
     function splitIntoParagraphs(text, sentencesPerParagraph = 2) {
         if (!text) return '';
         const html = [];
@@ -20752,7 +20807,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             explEl.innerHTML = `
                 <div class="sf-slide-inner">
                     <div class="sf-slide-subject">Review link · ${escapeHtml(rec.node.label)} → ${escapeHtml(link.label)}</div>
-                    <div class="sf-slide-explanation">${splitIntoParagraphs(teachingText)}</div>
+                    <div class="sf-slide-explanation">${lmStyledLessonHtml(teachingText)}</div>
                     <div class="sf-advance-hint">${sfAdvanceHintText()}</div>
                 </div>`;
             slides.push({ el: explEl, meta: { canAdvance: true, kind: 'review-link-explanation' } });
@@ -20952,7 +21007,8 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         explEl.innerHTML = `
             <div class="sf-slide-inner">
                 <div class="sf-slide-subject">${escapeHtml(folderLabel(rec.folder))}</div>
-                <div class="sf-slide-explanation">${splitIntoParagraphs(lesson.explanation)}</div>
+                ${lesson.practiceQuestion ? '<div><span class="sf-stepchip">Step 1 of 2 · Read</span></div>' : ''}
+                <div class="sf-slide-explanation">${lmStyledLessonHtml(lesson.explanation)}</div>
                 <div class="sf-diagram-explanation-host"></div>
                 <div class="sf-advance-hint">${sfAdvanceHintText()}</div>
             </div>`;
@@ -20982,6 +21038,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             qEl.className = 'sf-feed-slide';
             qEl.innerHTML = `
                 <div class="sf-slide-inner">
+                    <div><span class="sf-stepchip">Step 2 of 2 · Check</span></div>
                     <div class="sf-speaker-label">Cortex asks</div>
                     <p class="sf-question-text">${escapeHtml(lesson.practiceQuestion.questionText)}</p>
                     <div class="sf-diagram-question-host"></div>
@@ -20990,7 +21047,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             sfWireDiagramQuestionSlide(qEl.querySelector('.sf-diagram-question-host'), rec.node, qMeta);
             slides.push({ el: qEl, meta: qMeta });
         } else if (qzIsInteractive(lesson.practiceQuestion)) {
-            const qEl = sfInteractiveSlideEl('', lesson.practiceQuestion);
+            const qEl = sfInteractiveSlideEl('<span class="sf-stepchip">Step 2 of 2 · Check</span>', lesson.practiceQuestion);
             const qMeta = { canAdvance: false, kind: 'question', answered: false, nodeId: rec.node.id };
             sfWireInteractiveSlide(qEl, qMeta, lesson.practiceQuestion,
                 (answer, retryCount) => sfPostBackend('/knowledge-map-v2/text-question/submit', { nodeId: rec.node.id, questionType: 'practice', structured: answer, retryCount }),
@@ -21016,6 +21073,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             qEl.className = 'sf-feed-slide';
             qEl.innerHTML = `
                 <div class="sf-slide-inner">
+                    <div><span class="sf-stepchip">Step 2 of 2 · Check</span></div>
                     <div class="sf-speaker-label">Cortex asks</div>
                     <p class="sf-question-text">${escapeHtml(lesson.practiceQuestion.questionText)}</p>
                     ${useMathEditor
@@ -26261,7 +26319,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             lessonEl.innerHTML = (!nodeLesson || nodeLesson.notFound)
                 ? `<div class="km-inline-detail-item km-inline-detail-none">No lesson generated for this concept yet.</div>`
                 : `
-                    <div class="km-inline-lesson-explanation" id="km-node-lesson-explanation">${splitIntoParagraphs(nodeLesson.explanation)}</div>
+                    <div class="km-inline-lesson-explanation" id="km-node-lesson-explanation">${lmStyledLessonHtml(nodeLesson.explanation)}</div>
                     ${nodeLesson.practiceQuestion ? `<button type="button" class="btn primary km-reveal-question-btn" id="km-reveal-question-btn" style="margin-top:14px;">Reveal question</button>` : ''}
                     <div id="km-node-practice-block" style="${nodeLesson.practiceQuestion ? 'display:none;' : ''}">${nodeLesson.practiceQuestion ? `<strong class="km-inline-lesson-question" style="display:block;">Practice</strong><div id="km-question-node-practice"></div>` : ''}</div>
                     <div id="km-node-finish-cta"></div>
@@ -26441,7 +26499,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                     <div class="km-inline-detail-label">${escapeHtml(d.label)}</div>
                     <div class="km-inline-detail-item km-inline-detail-none">Not tracked — this won't be scheduled or counted as encoded. Your real lesson for this concept still starts fresh later.</div>
                     <div class="km-untracked-split">
-                        <div class="km-inline-lesson-explanation" id="km-untracked-explanation">${splitIntoParagraphs(nodeLesson.explanation)}</div>
+                        <div class="km-inline-lesson-explanation" id="km-untracked-explanation">${lmStyledLessonHtml(nodeLesson.explanation)}</div>
                         <div id="km-untracked-practice-block">${nodeLesson.practiceQuestion ? `<strong class="km-inline-lesson-question" style="display:block;">Practice</strong><div id="km-untracked-question"></div>` : ''}</div>
                     </div>
                 `;
