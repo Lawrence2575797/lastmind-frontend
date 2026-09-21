@@ -457,6 +457,8 @@ SQIDAQAB
         return theme.bgTexture === 'wood' ? themeWoodBackground(theme.bgColor) : theme.bgColor;
     }
     function applyTheme(theme) {
+        // Minimalist: always the light grey-blue ground with white panels and dark ink, whatever colours were saved earlier.
+        if (theme && theme.bgTexture === 'minimalist') theme = { ...theme, textColor: '#1B232C', panelColor: '#FFFFFF', bgColor: '#EEF0F3' };
         const root = document.documentElement.style;
         root.setProperty('--text', theme.textColor);
         root.setProperty('--accent', theme.textColor);
@@ -476,7 +478,7 @@ SQIDAQAB
         // scrim (see themeBackgroundValue) guarantees enough contrast for
         // a light colour regardless of the photo underneath, so --ink
         // safely follows the Text picker there instead.
-        if (isImageBg) root.setProperty('--ink', theme.textColor);
+        if (isImageBg || theme.bgTexture === 'minimalist') root.setProperty('--ink', theme.textColor);
         else root.removeProperty('--ink');
         document.body.style.background = themeBackgroundValue(theme);
     }
