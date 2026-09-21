@@ -737,9 +737,9 @@
     /* the student's own key-term map: one card per completed lesson, growing as lessons are finished */
     .km-kt { padding: 20px 24px 40px; overflow-y: auto; height: 100%; box-sizing: border-box; color: var(--text); }
     .km-kt h2 { margin: 0 0 4px; font: 700 20px Georgia, serif; } .km-kt-sub { opacity: 0.7; font: 14px Arial, sans-serif; margin-bottom: 18px; }
-    .km-kt-card { background: #EEF0F3; color: #1B232C; border-radius: 12px; padding: 14px 16px 10px; margin-bottom: 16px; }
-    .km-kt-card h3 { margin: 0; font: 600 16px Georgia, serif; } .km-kt-card p { margin: 2px 0 8px; font: 13px Arial, sans-serif; color: #5D6A75; }
-    .km-kt-card svg { width: 100%; height: auto; display: block; }
+    .km-kt-scroll { background: #EEF0F3; border-radius: 12px; overflow: auto; max-height: calc(100vh - 300px); padding: 6px; }
+    .km-kt-scroll svg { display: block; } .km-kt-scroll .kt-node { cursor: default; } .km-kt-scroll svg.kt-dim .kt-node { opacity: 0.28; } .km-kt-scroll svg.kt-dim .kt-edge { opacity: 0.12; }
+    .km-kt-scroll svg.kt-dim .kt-node.kt-hl { opacity: 1; } .km-kt-scroll svg.kt-dim .kt-edge.kt-hl { opacity: 1; stroke-width: 2.6; }
     .km-kt-empty { padding: 40px 24px; text-align: center; opacity: 0.75; font: 15px Arial, sans-serif; }
     .km-hide-covered-btn { margin-left: auto; }
     .km-inline-topbar .km-hide-covered-btn { margin-left: auto; white-space: nowrap; padding: 9px 16px; border-radius: 8px; border: 2px solid var(--text); background: var(--text); color: var(--panel); font: 700 13px Arial, sans-serif; cursor: pointer; opacity: 1; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); }
@@ -23602,45 +23602,92 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     // whole sprawling thing at once.
     // ---- The student's own key-term map ----
     // Every finished Economics lesson leaves its key-term graph behind; this shows them all, in lesson order, and grows by one card per lesson.
-    function kmKeyTermSvg(stage) {
+    function kmKeyTermGraphSvg(graph) {
         const NS = 'http://www.w3.org/2000/svg';
-        const g = stage.graph, svg = document.createElementNS(NS, 'svg');
-        svg.setAttribute('viewBox', `0 0 1040 ${g.h}`);
+        const ids = Object.keys(graph.terms);
+        const out = {}, inn = {};
+        ids.forEach((k) => { out[k] = []; inn[k] = []; });
+        graph.edges.forEach(([a, b]) => { out[a].push(b); inn[b].push(a); });
+        // layers: a term sits one column after the furthest term that leads to it
+        const rank = {};
+        const rankOf = (k, trail) => {
+            if (rank[k] != null) return rank[k];
+            if (trail.has(k)) return 0;
+            trail.add(k);
+            rank[k] = inn[k].length ? 1 + Math.max(...inn[k].map((p) => rankOf(p, trail))) : 0;
+            trail.delete(k);
+            return rank[k];
+        };
+        ids.forEach((k) => rankOf(k, new Set()));
+        const cols = [];
+        ids.forEach((k) => { (cols[rank[k]] = cols[rank[k]] || []).push(k); });
+        cols.forEach((c) => c.sort((x, y) => graph.terms[x].lesson - graph.terms[y].lesson || graph.terms[x].t.localeCompare(graph.terms[y].t)));
+        // a couple of sweeps to line terms up beside the ones they connect to
+        const pos = {};
+        const place = () => cols.forEach((c) => c.forEach((k, i) => { pos[k] = i; }));
+        place();
+        for (let pass = 0; pass < 4; pass++) {
+            for (let c = pass % 2 ? cols.length - 2 : 1; pass % 2 ? c >= 0 : c < cols.length; c += pass % 2 ? -1 : 1) {
+                const nb = pass % 2 ? out : inn;
+                const score = (k) => (nb[k].length ? nb[k].reduce((s2, n) => s2 + pos[n], 0) / nb[k].length : pos[k]);
+                cols[c].sort((x, y) => score(x) - score(y));
+                cols[c].forEach((k, i) => { pos[k] = i; });
+            }
+        }
+        const W = 168, H = 38, GX = 84, GY = 22;
+        const maxRows = Math.max(1, ...cols.map((c) => c.length));
+        const xy = (k) => ({ x: 24 + rank[k] * (W + GX), y: 24 + pos[k] * (H + GY) });
+        const svg = document.createElementNS(NS, 'svg');
+        const vw = 48 + cols.length * (W + GX) - GX, vh = 48 + maxRows * (H + GY) - GY;
+        svg.setAttribute('viewBox', `0 0 ${vw} ${vh}`); svg.setAttribute('width', vw); svg.setAttribute('height', vh);
         const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); Object.keys(attrs).forEach((k) => e.setAttribute(k, attrs[k])); (parent || svg).appendChild(e); return e; };
-        const defs = mk('defs', {}), m = mk('marker', { id: `kt${stage.i}`, viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' }, defs);
+        const defs = mk('defs', {}), m = mk('marker', { id: 'ktArrow', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse' }, defs);
         mk('path', { d: 'M0,0 L10,5 L0,10 z', fill: '#3B4753' }, m);
-        g.edges.forEach((pts) => mk('polyline', { points: pts.map((p) => p.join(',')).join(' '), fill: 'none', stroke: '#3B4753', 'stroke-width': 2, 'marker-end': `url(#kt${stage.i})` }));
-        Object.keys(g.nodes).forEach((k) => {
-            const n = g.nodes[k], t = stage.terms[k] || { t: k, c: '#cfd9e8' }, given = g.given.indexOf(k) > -1;
-            mk('rect', { x: n[0], y: n[1], width: n[2], height: n[3], rx: 12, fill: t.c, stroke: given ? '#7A8791' : '#3B4753', 'stroke-dasharray': given ? '5 4' : '0', 'stroke-width': 1.5, opacity: given ? 0.65 : 1 });
-            const words = t.t.split(' '); let lines = [t.t];
-            if (t.t.length > 16) { const cut = t.t.lastIndexOf(' ', 15); lines = cut > 0 ? [t.t.slice(0, cut), t.t.slice(cut + 1)] : [t.t]; }
-            const text = mk('text', { x: n[0] + n[2] / 2, y: n[1] + n[3] / 2 + (lines.length > 1 ? -2 : 6), 'text-anchor': 'middle', 'font-size': 15, 'font-family': 'Arial, sans-serif', fill: '#1B232C' });
-            lines.forEach((ln, i) => { const ts = mk('tspan', { x: n[0] + n[2] / 2, dy: i ? 17 : 0 }, text); ts.textContent = ln; });
+        const edgeEls = graph.edges.map(([a, b]) => {
+            const p = xy(a), q = xy(b), x1 = p.x + W, y1 = p.y + H / 2, x2 = q.x, y2 = q.y + H / 2, dx = Math.max(30, (x2 - x1) / 2);
+            const el = mk('path', { d: `M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}`, fill: 'none', stroke: '#3B4753', 'stroke-width': 1.6, 'marker-end': 'url(#ktArrow)', opacity: 0.75, class: 'kt-edge' });
+            el.dataset.a = a; el.dataset.b = b; return el;
+        });
+        const nodeEls = {};
+        ids.forEach((k) => {
+            const t = graph.terms[k], p = xy(k);
+            const g = mk('g', { class: 'kt-node', tabindex: 0 });
+            mk('rect', { x: p.x, y: p.y, width: W, height: H, rx: 10, fill: t.c, stroke: '#3B4753', 'stroke-width': 1.3 }, g);
+            const label = t.t.length > 24 ? t.t.slice(0, 23) + '…' : t.t;
+            const tx = mk('text', { x: p.x + W / 2, y: p.y + H / 2 + 5, 'text-anchor': 'middle', 'font-size': 13, 'font-family': 'Arial, sans-serif', fill: '#1B232C' }, g);
+            tx.textContent = label;
+            const tip = document.createElementNS(NS, 'title'); tip.textContent = t.t; g.appendChild(tip);
+            nodeEls[k] = g;
+            const light = (on) => {
+                svg.classList.toggle('kt-dim', on);
+                g.classList.toggle('kt-hl', on);
+                edgeEls.forEach((e) => { const hit = e.dataset.a === k || e.dataset.b === k; e.classList.toggle('kt-hl', on && hit); if (on && hit) { nodeEls[e.dataset.a].classList.add('kt-hl'); nodeEls[e.dataset.b].classList.add('kt-hl'); } });
+                if (!on) Object.values(nodeEls).forEach((n) => n.classList.remove('kt-hl'));
+            };
+            g.addEventListener('mouseenter', () => light(true)); g.addEventListener('mouseleave', () => light(false));
+            g.addEventListener('focus', () => light(true)); g.addEventListener('blur', () => light(false));
         });
         return svg;
     }
 
     async function kmShowKeyTermMap(workspaceEl) {
         workspaceEl.innerHTML = '<div class="km-kt"><div class="km-kt-empty">Loading your key-term map…</div></div>';
-        let stages = null;
+        let graph = null;
         try {
             const { data: { session } } = await supabaseClient.auth.getSession();
             const resp = await fetch(`${COMPILE_BACKEND_URL}/derivation/my-map`, { headers: { Authorization: `Bearer ${session.access_token}` } });
-            if (resp.ok) stages = (await resp.json()).stages;
+            if (resp.ok) graph = (await resp.json()).graph;
         } catch (err) { console.error('LastMind: could not load the key-term map.', err); }
         const box = workspaceEl.querySelector('.km-kt');
         if (!box) return;
-        if (!stages) { box.innerHTML = '<div class="km-kt-empty">Couldn\'t load your key-term map right now. Try again in a moment.</div>'; return; }
-        if (!stages.length) { box.innerHTML = '<div class="km-kt-empty">Nothing here yet. Finish a lesson and its key terms are added to your map.</div>'; return; }
-        box.innerHTML = `<h2>Your key-term map</h2><div class="km-kt-sub">${stages.length} lesson${stages.length === 1 ? '' : 's'} completed. Each finished lesson adds its key terms, joined as you derived them; dashed boxes are terms carried in from earlier lessons.</div>`;
-        stages.forEach((st) => {
-            const card = document.createElement('div');
-            card.className = 'km-kt-card';
-            card.innerHTML = `<h3>${escapeHtml(st.title)}</h3><p>${escapeHtml(st.sub || '')}</p>`;
-            card.appendChild(kmKeyTermSvg(st));
-            box.appendChild(card);
-        });
+        if (!graph) { box.innerHTML = '<div class="km-kt-empty">Couldn\'t load your key-term map right now. Try again in a moment.</div>'; return; }
+        const n = Object.keys(graph.terms).length;
+        if (!n) { box.innerHTML = '<div class="km-kt-empty">Nothing here yet. Finish a lesson and its key terms are added to your map.</div>'; return; }
+        box.innerHTML = `<h2>Your key-term map</h2><div class="km-kt-sub">${n} key term${n === 1 ? '' : 's'} from the lessons you have finished, all in one map. Terms that lessons share are joined, and every arrow points from an idea to what it leads to. Hover a term to see what it connects to.</div>`;
+        const scroller = document.createElement('div');
+        scroller.className = 'km-kt-scroll';
+        scroller.appendChild(kmKeyTermGraphSvg(graph));
+        box.appendChild(scroller);
     }
 
     function renderSubjectGraphView(folder, data, focusNodeId) {
