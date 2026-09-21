@@ -2045,20 +2045,21 @@
        the derivation artifacts. The topbar's buttons fold away behind one
        toggle (body.topbar-folded) and a fixed Locks counter always stays. */
     body.theme-minimal { font-family: 'Newsreader', Georgia, 'Times New Roman', serif; }
-    body.theme-minimal .sidebar { background: var(--panel); border-right: 1px solid rgba(27,35,44,0.16); }
+    body.theme-minimal .sidebar { background: #161e27; border-right: 1px solid rgba(241,234,214,0.12); }
     body.theme-minimal .topbar { border-bottom: 0; padding: 12px 20px; }
     body.theme-minimal .sf-feed-root { background: transparent; border-radius: 0; max-width: 1000px; }
     body.theme-minimal .sf-slide-explanation { background: transparent; padding: 0; font-size: 21px; line-height: 1.6; -webkit-backdrop-filter: none; backdrop-filter: none; }
     body.theme-minimal .sf-question-text { font-size: 26px; line-height: 1.3; font-weight: 400; }
     body.theme-minimal .sf-slide-subject, body.theme-minimal .sf-stepchip { font-family: 'IBM Plex Sans', system-ui, sans-serif; }
-    body.theme-minimal .lm-card, body.theme-minimal .sf-recap-row, body.theme-minimal .sf-followup { background: rgba(27,35,44,0.05); border-radius: 12px; }
-    body.theme-minimal .lm-dots i { background: rgba(27,35,44,0.16); }
+    body.theme-minimal .lm-card, body.theme-minimal .sf-recap-row, body.theme-minimal .sf-followup { background: rgba(241,234,214,0.05); border-radius: 12px; }
     .topbar-fold-btn, .min-locks { display: none; }
-    body.theme-minimal .topbar-fold-btn { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 4px; border: 1px solid rgba(27,35,44,0.3); background: none; color: var(--ink); cursor: pointer; font-size: 1rem; flex-shrink: 0; }
+    body.theme-minimal .topbar-fold-btn { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 4px; border: 1px solid rgba(241,234,214,0.3); background: none; color: var(--ink); cursor: pointer; font-size: 1rem; flex-shrink: 0; }
     body.theme-minimal.topbar-folded .topbar > :not(.sidebar-toggle):not(.topbar-fold-btn) { display: none !important; }
-    body.theme-minimal .min-locks { display: flex; position: fixed; left: 16px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); z-index: 30; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(27,35,44,0.25); background: var(--panel); color: var(--text); font: 600 12px 'IBM Plex Sans', system-ui, sans-serif; font-variant-numeric: tabular-nums; cursor: pointer; }
+    body.theme-minimal .min-locks { display: flex; position: fixed; left: 16px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); z-index: 30; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(241,234,214,0.25); background: #1A232D; color: var(--text); font: 600 12px 'IBM Plex Sans', system-ui, sans-serif; font-variant-numeric: tabular-nums; cursor: pointer; }
     /* The "Show/Hide practice questions" button is removed. */
     .sf-side-toggle { display: none !important; }
+    /* Rewards preview: the navy page with the light grey-blue lesson panel inside it. */
+    .reward-min-swatch { position: absolute; inset: 22% 20%; border-radius: 8px; background: #EEF0F3; box-shadow: 0 2px 10px rgba(0,0,0,0.25); z-index: 0; }
 
     /* ─── CREDIT BALANCE ───
        Chip sits right after #sidebarToggle, deliberately not given any
@@ -6675,9 +6676,9 @@ SQIDAQAB
     // from that scene's own palette (cool stone grey for the castle, soft
     // plum/blush for the flowering riverside city, deep space navy/cyan
     // for the station).
-    // The light grey-blue ground, white panels and dark ink of the derivation lessons. applyTheme forces these values whenever the
-    // minimalist texture is on, so a copy saved earlier with other colours is corrected too.
-    const MINIMALIST_THEME = { textColor: '#1B232C', panelColor: '#FFFFFF', bgColor: '#EEF0F3', bgTexture: 'minimalist' };
+    // Navy around the page; the lesson feed itself is the light grey-blue (see derive/player.html). applyTheme forces these values whenever
+    // the minimalist texture is on, so a copy saved earlier with other colours is corrected too.
+    const MINIMALIST_THEME = { textColor: '#F1EAD6', panelColor: '#1A232D', bgColor: '#12181F', bgTexture: 'minimalist' };
     const THEME_PRESETS = [
         {
             key: 'havnstad',
@@ -11682,7 +11683,7 @@ SQIDAQAB
                         const purchasable = !unlocked && rewardKeyBalance >= price;
                         const image = THEME_IMAGE_BACKGROUNDS[preset.theme.bgTexture];
                         return `<article class="reward-card${unlocked ? ' is-unlocked' : ''}${purchasable ? ' is-purchasable' : ''}${freeReward ? ' is-free-reward' : ''}" data-reward-key="${escapeHtml(preset.key)}" ${(unlocked || purchasable) ? 'role="button" tabindex="0"' : 'aria-disabled="true"'}>
-                            <div class="reward-preview" style="${image ? `background-image:url('${image}')` : `background:${preset.theme.bgColor}`}">
+                            <div class="reward-preview" style="${image ? `background-image:url('${image}')` : `background:${preset.theme.bgColor}`}">${preset.key === 'minimalist' ? '<span class="reward-min-swatch"></span>' : ''}
                                 <div class="reward-lock" aria-label="Locked"><span class="reward-lock-badge"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.8"/></svg></span></div>
                             </div>
                             <div class="reward-card-meta"><span class="reward-name">${escapeHtml(preset.label)}</span><span class="reward-price"><span class="reward-key-icon">${rewardKeyIcon(15)}</span>${price}<button type="button" class="reward-action">${unlocked ? (currentTheme.bgTexture === preset.theme.bgTexture ? '✓ Equipped' : 'Equip') : (purchasable ? 'Redeem' : 'Locked')}</button></span></div>

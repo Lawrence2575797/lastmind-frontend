@@ -457,8 +457,8 @@ SQIDAQAB
         return theme.bgTexture === 'wood' ? themeWoodBackground(theme.bgColor) : theme.bgColor;
     }
     function applyTheme(theme) {
-        // Minimalist: always the light grey-blue ground with white panels and dark ink, whatever colours were saved earlier.
-        if (theme && theme.bgTexture === 'minimalist') theme = { ...theme, textColor: '#1B232C', panelColor: '#FFFFFF', bgColor: '#EEF0F3' };
+        // Minimalist: always the navy ground, whatever colours were saved earlier (the lesson feed itself is the light grey-blue).
+        if (theme && theme.bgTexture === 'minimalist') theme = { ...theme, textColor: '#F1EAD6', panelColor: '#1A232D', bgColor: '#12181F' };
         const root = document.documentElement.style;
         root.setProperty('--text', theme.textColor);
         root.setProperty('--accent', theme.textColor);
