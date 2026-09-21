@@ -1504,6 +1504,8 @@
        floats above the feed rather than replacing the current slide, so
        the student can finish reading/typing before choosing to jump. */
     .sf-recall-nudge { position: absolute; left: 16px; right: 16px; bottom: 16px; z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-radius: 10px; background: rgba(0,0,0,0.55); backdrop-filter: blur(4px); font-size: 14px; }
+    /* the nudge exists in every feed with the hidden attribute; its display:flex used to override that, leaving an empty dark bar across the bottom */
+    .sf-recall-nudge[hidden] { display: none !important; }
     .sf-recall-nudge-text { flex: 1; }
     .sf-recall-nudge-btn { flex: none; }
 
