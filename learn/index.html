@@ -1379,6 +1379,7 @@
        an obvious visible gap after the last element (the submit button,
        or the advance hint) that makes "you've reached the real end, not
        a cut-off" unambiguous once scrolled all the way down. */
+    .sf-feed-slide.sf-derive-slide { padding: 0; overflow: hidden; } .sf-derive-frame { width: 100%; height: 100%; border: 0; display: block; background: transparent; }
     .sf-feed-slide { flex: none; height: 100%; display: flex; align-items: center; align-items: safe center; justify-content: center; padding: 40px 32px 140px; box-sizing: border-box; overflow-y: auto; -webkit-overflow-scrolling: touch; }
     .sf-slide-inner { max-width: 620px; width: 100%; display: flex; flex-direction: column; gap: 14px; }
     .sf-feed-slide [role="status"] { align-self: center; padding: 12px 18px; border-radius: 8px; background: #D9C398; color: #12121E; font-weight: 700; text-align: center; }
@@ -21214,6 +21215,10 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             return [{ el, meta: { canAdvance: true, kind: 'handoff' } }];
         }
 
+        // Economics is taught by derivation lessons: the lesson is a small game played inside the feed, and finishing it teaches every
+        // concept of its stage at once (see sfBuildDerivationSlides).
+        if (lesson.derivation && Number.isInteger(lesson.derivation.stage)) return sfBuildDerivationSlides(rec, lesson.derivation.stage);
+
         // "Starting one lesson should trigger generation of the next" -
         // fires here, the moment THIS lesson's own content has loaded and
         // is about to be shown, not gated on the student actually
@@ -22107,6 +22112,58 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     // question is) but still needs to land in the exact same feed position
     // afterward. Caller is responsible for having already set
     // sfFeed.locked = true and meta.answered/canAdvance before calling this.
+
+    // ---- Derivation lessons (Economics) ----
+    // The lesson runs in /learn/derive/player.html inside the slide. This page fetches the compiled lesson (authenticated) and posts it in;
+    // the player reports back when the student has rebuilt the whole derivation, and only then is every concept of the stage recorded as
+    // taught (one schedule entry each) and the feed allowed to move on. Nothing is prefetched before that, because the next concept
+    // depends on which concepts this lesson has just covered.
+    async function sfBuildDerivationSlides(rec, stage) {
+        let payload = null;
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session) {
+                const resp = await fetch(`${COMPILE_BACKEND_URL}/derivation/stage/${stage}`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+                if (resp.ok) payload = await resp.json();
+            }
+        } catch (err) { console.error('LastMind: could not load the derivation lesson.', err); }
+        const el = document.createElement('div');
+        el.className = 'sf-feed-slide sf-derive-slide';
+        if (!payload) {
+            el.innerHTML = `
+                <div class="sf-slide-inner sf-handoff">
+                    <div class="sf-speaker-label">Cortex</div>
+                    <p class="sf-handoff-text">Couldn't load the next lesson right now - open ${escapeHtml(folderLabel(rec.folder))} directly instead.</p>
+                    <button type="button" class="btn primary sf-handoff-btn">Open ${escapeHtml(folderLabel(rec.folder))} →</button>
+                </div>`;
+            el.querySelector('.sf-handoff-btn').addEventListener('click', () => { sfCloseFeed(); selectFolder(rec.folder.id); });
+            return [{ el, meta: { canAdvance: true, kind: 'handoff' } }];
+        }
+        el.innerHTML = '<iframe class="sf-derive-frame" src="/learn/derive/player.html" title="Lesson"></iframe>';
+        const frame = el.querySelector('iframe');
+        const meta = { canAdvance: false, kind: 'question', answered: false, nodeId: rec.node.id };
+        let connected = false;
+        const onMessage = async (e) => {
+            if (connected && !el.isConnected) { window.removeEventListener('message', onMessage); return; }
+            if (e.origin !== window.location.origin || e.source !== frame.contentWindow || !e.data) return;
+            if (e.data.type === 'lm-derive-ready') {
+                connected = true;
+                frame.contentWindow.postMessage({ type: 'lm-derive-init', data: payload }, window.location.origin);
+            } else if (e.data.type === 'lm-derive-complete' && !meta.answered) {
+                meta.answered = true;
+                const result = await sfPostBackend('/knowledge-map-v2/derivation/complete', { stage });
+                if (!result) { meta.answered = false; return; }
+                (result.schedules || []).forEach((sch) => sfUpsertScheduleCache(sch));
+                meta.canAdvance = true;
+                sfPrefetchNext(); sfRefreshImmediateRecalls(); sfRecapMaybeInsert();
+            } else if (e.data.type === 'lm-derive-continue' && meta.answered) {
+                sfAdvanceAfterCorrectAnswer();
+            }
+        };
+        window.addEventListener('message', onMessage);
+        return [{ el, meta }];
+    }
+
     async function sfAdvanceAfterCorrectAnswer() {
         const startIndex = sfFeed ? sfFeed.currentIndex : -1;
         try {
