@@ -4188,6 +4188,8 @@
     .pl-log div { padding: 10px 12px; border-radius: 10px; background: rgba(230,215,176,0.07); font: 0.95rem/1.55 Georgia, serif; }
     .pl-log .me { background: rgba(230,215,176,0.16); }
     .pl-log b { display: block; margin-bottom: 3px; font: 700 0.62rem Arial, sans-serif; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.65; }
+    .pl-speech-grid { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 18px; align-items: start; margin-top: 8px; } @media (max-width: 900px) { .pl-speech-grid { grid-template-columns: 1fr; } }
+    .pl-notes-area { width: 100%; min-height: 26vh; box-sizing: border-box; padding: 14px 16px; border: 1px dashed rgba(230,215,176,0.5); border-radius: 12px; background: rgba(5,5,10,0.4); color: var(--text, #E6D7B0); font: 0.95rem/1.6 Arial, sans-serif; resize: vertical; }
     .pl-closing-area { width: 100%; min-height: 34vh; box-sizing: border-box; margin-top: 8px; padding: 16px 18px; border: 1px solid rgba(230,215,176,0.4); border-radius: 12px; background: rgba(5,5,10,0.5); color: var(--text, #E6D7B0); font: 1.08rem/1.7 Georgia, serif; resize: vertical; }
     .pl-count { font: 0.75rem Arial, sans-serif; opacity: 0.6; }
 
@@ -9446,7 +9448,7 @@ SQIDAQAB
         for (const [kind, re, check] of LM_PII) masked = masked.replace(re, (m) => { if (check && !check(m)) return m; found.add(kind); return `[${kind} removed]`; });
         return { vulgar: LM_BAD_RE.some((re) => re.test(String(text || ''))), masked, pii: [...found] };
     }
-    const LM_SCREEN_IDS = /^(createIdea|createDetail-|plSpeech$|plQ$|chCountry$|chCurrency$|chPop$|chHistory$|tagIn-|chP-|chnAnswer)/;
+    const LM_SCREEN_IDS = /^(createIdea|createDetail-|plSpeech$|plSpeechNotes$|plQ$|chCountry$|chCurrency$|chPop$|chHistory$|tagIn-|chP-|chnAnswer)/;
     document.addEventListener('input', (e) => {
         const el = e.target;
         if (!el || !el.id || !LM_SCREEN_IDS.test(el.id)) return;
@@ -9961,7 +9963,7 @@ SQIDAQAB
             details: trial.details, concepts: trial.picked.map((n) => ({ label: n.label, subtopic: n.subtopic })),
         };
         createRunJob('/create/criminal-trial/build', payload).then((result) => {
-            trial.case = result; trial.caseTab = 'overview'; saveCreateTrial();
+            trial.case = result; trial.caseTab = 'overview'; trial.validated = false; trial.lastValidation = null; trial.validationApplied = []; trial.validationChanges = []; createValidation = null; saveCreateTrial();
             state.status = 'done';
         }).catch((err) => { state.status = 'error'; state.error = err.message || 'Cortex could not build this case.'; });
         renderCreateBuilding(body, trial, goTo, contentInner);
@@ -10155,16 +10157,20 @@ SQIDAQAB
             const r = await createSaveProject({});
             note.textContent = r.note;
         });
+        if (!createValidation && trial.validated && trial.lastValidation) {
+            createValidation = { status: 'done', startedAt: Date.now(), shown: CREATE_VALIDATE_STEPS.length, completed: CREATE_VALIDATE_STEPS.length, applied: new Set(trial.validationApplied || []), changes: trial.validationChanges || [], stale: false, result: trial.lastValidation };
+        }
         if (createValidation) renderCreateValidation(body, trial);
     }
 
     function startCreateValidation(body, trial) {
+        if (trial.validated) return;   // one validation only
         const state = { status: 'running', startedAt: Date.now(), shown: 1, completed: 0, applied: new Set(), changes: [], stale: false };
         createValidation = state;
         const payload = { case: trial.case, role: trial.role, minutes: trial.minutes, concepts: trial.picked.map((n) => ({ label: n.label, subtopic: n.subtopic })) };
         createRunJob('/create/criminal-trial/validate', payload).then((result) => {
             state.status = 'done'; state.result = result;
-            trial.case.coverage = result.coverage; saveCreateTrial();
+            trial.case.coverage = result.coverage; trial.validated = true; trial.lastValidation = result; trial.validationApplied = []; trial.validationChanges = []; saveCreateTrial();
         }).catch((err) => { state.status = 'error'; state.error = err.message || 'Cortex could not check this case.'; });
         renderCreateValidation(body, trial);
         body.querySelector('#createValidatePanel')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -10193,7 +10199,7 @@ SQIDAQAB
             });
             const finished = state.status === 'done' && state.completed >= steps.length;
             const key = state.status === 'error' ? 'error' : finished ? 'done' : 'working';
-            if (btn) btn.disabled = key === 'working';
+            if (btn) { btn.disabled = key === 'working' || key === 'done'; if (key === 'done') btn.textContent = 'Validated ✓'; }
             if (key === phase) return;
             phase = key;
             if (key === 'working') { title.innerHTML = 'Cortex is checking your case<span class="dots"></span>'; tail.innerHTML = ''; return; }
@@ -10212,7 +10218,7 @@ SQIDAQAB
                 ${(r.issues || []).filter((i, idx) => !state.applied.has(idx)).length > 1 ? '<div class="create-ready-actions" style="margin:6px 0 4px;"><button type="button" class="create-cta" id="createApplyAll" style="padding:10px 22px;font-size:0.9rem;">Apply all fixes</button></div>' : ''}
                 ${state.changes.length ? `<div class="create-issue"><b>Changes made</b><ul style="margin:6px 0 0 18px;padding:0;">${state.changes.map((c) => `<li>${escapeHtml(c)}</li>`).join('')}</ul></div>` : ''}
                 <p class="create-apply-note" id="createApplyNote"></p>
-                ${state.stale ? '<p class="create-error" style="max-width:none;">You have changed the case with these fixes, so press Validate again to make sure it now works before you play.</p>' : (r.workable ? '<div class="create-ready-actions" style="margin-top:18px;"><button type="button" class="create-play" id="createPlayBtn">Play</button></div>' : '<p class="create-error" style="max-width:none;">Fix the items marked "Must fix", then press Validate again.</p>')}`;
+                ${(() => { const open = (r.issues || []).map((i, idx) => ({ i, idx })).filter((x) => x.i.severity === 'blocker' && !state.applied.has(x.idx)); return (r.workable || !open.length) ? `${state.changes.length ? '<p class="create-apply-note" style="max-width:none;">Your fixes are in. There is no need to validate again.</p>' : ''}<div class="create-ready-actions" style="margin-top:18px;"><button type="button" class="create-play" id="createPlayBtn">Play</button></div>` : '<p class="create-error" style="max-width:none;">Apply the fixes marked "Must fix" to continue. A case is only validated once.</p>'; })()}`;
             tail.querySelector('#createPlayBtn')?.addEventListener('click', () => ptStart(trial));
             const applyFixes = async (indexes) => {
                 const note = tail.querySelector('#createApplyNote');
@@ -10228,6 +10234,7 @@ SQIDAQAB
                     indexes.forEach((i) => state.applied.add(i));
                     (result.changes || []).forEach((c) => state.changes.push(c));
                     state.stale = true;
+                    trial.validationApplied = [...state.applied]; trial.validationChanges = state.changes.slice();
                     saveCreateTrial();
                     renderCreateTrialBuilder(document.getElementById('contentInner'));
                 } catch (err) {
@@ -10859,13 +10866,46 @@ SQIDAQAB
         const stage = ptStage(`<div class="pl-dialog pl-fade">
             <div class="pl-speaker">Your ${kind} speech<small>${ptE(pt.roleText)}</small></div>
             <p class="pl-text muted">${kind === 'opening' ? 'Address the jury. Tell them what this case is about and what you say the evidence will show.' : 'Members of the jury are listening. Make your closing speech in your own words.'}</p>
-            <textarea class="pl-closing-area" id="plSpeech" placeholder="${kind === 'opening' ? 'Members of the jury…' : 'Members of the jury, you have heard the evidence…'}" style="min-height:${kind === 'opening' ? '18vh' : '32vh'}"></textarea>
+            <div class="pl-speech-grid">
+                <div class="pl-notes-col">
+                    <div class="pl-h" style="margin-top:0;">Quick notes</div>
+                    <p class="pl-p muted" style="font-size:0.85rem;margin:2px 0 6px;">Jot down the points you want to make. Cortex can turn them into a proper courtroom speech, and you can edit it afterwards.</p>
+                    <textarea class="pl-notes-area" id="plSpeechNotes" placeholder="${kind === 'opening' ? 'e.g. defendant acted in self-defence; the only eyewitness had been drinking; the knife was never proved to be his…' : 'e.g. prosecution has not proved intention; CCTV shows the victim swung first; witness changed her story under cross-examination; ask for not guilty…'}"></textarea>
+                    <div class="pl-actions" style="margin-top:8px;"><button type="button" class="pl-btn primary" id="plCompile">Compile into a speech ▸</button></div>
+                    <p class="pl-note" id="plCompileNote" style="display:none;"></p>
+                </div>
+                <div class="pl-speech-col">
+                    <div class="pl-h" style="margin-top:0;">Your speech</div>
+                    <textarea class="pl-closing-area" id="plSpeech" placeholder="${kind === 'opening' ? 'Members of the jury…' : 'Members of the jury, you have heard the evidence…'}" style="min-height:${kind === 'opening' ? '18vh' : '32vh'}"></textarea>
+                </div>
+            </div>
             <div class="pl-actions"><span class="pl-count" id="plWords">0 words</span><span class="pl-spacer"></span><button type="button" class="pl-btn" id="plTranscriptAll">What the court has heard</button><button type="button" class="pl-btn primary" id="plDeliver" disabled>Deliver ${kind} ▸</button></div></div>`);
         const ta = stage.querySelector('#plSpeech');
         const words = () => (ta.value.trim() ? ta.value.trim().split(/\s+/).length : 0);
         ta.value = kind === 'opening' ? pt.openingText : pt.closingText;
         const refresh = () => { const n = words(); stage.querySelector('#plWords').textContent = `${n} words`; stage.querySelector('#plDeliver').disabled = n < minWords; };
         ta.addEventListener('input', refresh); refresh(); ta.focus();
+        const notesEl = stage.querySelector('#plSpeechNotes');
+        pt.speechNotes = pt.speechNotes || {};
+        notesEl.value = pt.speechNotes[kind] || '';
+        notesEl.addEventListener('input', () => { pt.speechNotes[kind] = notesEl.value; });
+        stage.querySelector('#plCompile').addEventListener('click', async () => {
+            const btn = stage.querySelector('#plCompile'), note = stage.querySelector('#plCompileNote');
+            const notes = notesEl.value.trim();
+            if (notes.split(/\s+/).filter(Boolean).length < 5) { note.style.display = ''; note.textContent = 'Jot down at least a few points first.'; return; }
+            if (ta.value.trim() && !window.confirm('Replace what is in your speech box with a new version written from your notes?')) return;
+            btn.disabled = true; btn.textContent = 'Cortex is writing it up…'; note.style.display = 'none';
+            try {
+                const send = () => createAuthedFetch('/playtest/compile-speech', { method: 'POST', body: JSON.stringify({ sessionId: pt.sessionId, kind, side: pt.side, notes, establishedFactIds: [...pt.established], clientUsedUsd: createSpend.usedUsd }) });
+                let { resp, body: out } = await send();
+                if (resp.status === 409 && out.code === 'SESSION_EXPIRED') { await ptRestoreSession(); ({ resp, body: out } = await send()); }
+                if (out.spend) createNoteSpend(out.spend);
+                if (!resp.ok) throw new Error(out.error || 'Cortex could not write that up.');
+                ta.value = out.speech; refresh();
+                note.style.display = ''; note.textContent = out.tips && out.tips.length ? 'Written up from your notes. To make it stronger, think about: ' + out.tips.join(' ') : 'Written up from your notes. Edit it however you like.';
+            } catch (err) { note.style.display = ''; note.textContent = err.message || 'Cortex could not write that up.'; }
+            btn.disabled = false; btn.textContent = 'Compile into a speech ▸';
+        });
         stage.querySelector('#plTranscriptAll').addEventListener('click', ptShowHeard);
         stage.querySelector('#plDeliver').addEventListener('click', () => {
             if (kind === 'opening') pt.openingText = ta.value.trim();
@@ -10990,6 +11030,8 @@ SQIDAQAB
         const ch = o.ch;
         let busy = false; let pending = []; let draft = ''; let judgeNote = ''; let errorText = '';
         const asked = () => o.hist.filter((h) => h.from === 'me').length;
+        const ORD = ['second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth'];
+        const placeholderNow = () => { const n = asked(); if (n === 0) return o.placeholder; const w = o.placeholder.includes('witness') ? ' to the witness' : ''; return `Put your ${ORD[n - 1] || 'next'} question${w}…`; };
         const draw = () => {
             const lastThem = [...o.hist].reverse().find((h) => h.from === 'them');
             const capped = asked() >= o.cap;
@@ -10998,7 +11040,7 @@ SQIDAQAB
                 <p class="pl-text" id="plReply">${ptE(lastThem ? lastThem.text : o.intro)}</p>
                 ${judgeNote ? `<p class="pl-note">${ptE(judgeNote)}</p>` : ''}${errorText ? `<p class="pl-note">${ptE(errorText)}</p>` : ''}
                 ${pending.length ? `<div>${pending.map((id) => `<span class="pl-chip" style="margin-right:8px;">Presenting: ${ptE(ptEv(id).title)} <button type="button" data-unpresent="${ptE(id)}" aria-label="Stop presenting this">✕</button></span>`).join('')}</div>` : ''}
-                ${capped ? `<p class="pl-note">${ptE(o.capNote)}</p>` : `<div class="pl-ask"><textarea id="plQ" rows="2" placeholder="${ptE(o.placeholder)}"></textarea><button type="button" class="pl-btn primary" id="plAsk">Ask</button></div>`}
+                ${capped ? `<p class="pl-note">${ptE(o.capNote)}</p>` : `<div class="pl-ask"><textarea id="plQ" rows="2" placeholder="${ptE(placeholderNow())}"></textarea><button type="button" class="pl-btn primary" id="plAsk">Ask</button></div>`}
                 <div class="pl-actions"><button type="button" class="pl-btn" id="plPresent">Present evidence</button><button type="button" class="pl-btn" id="plTranscript">Transcript</button><span class="pl-spacer"></span><button type="button" class="pl-btn${capped ? ' primary' : ''}" id="plFinish">${ptE(o.finishLabel)} ▸</button></div></div>`);
             const ta = stage.querySelector('#plQ');
             if (ta) {
@@ -11045,7 +11087,7 @@ SQIDAQAB
     }
     async function ptCharacterTurn({ ch, message, setting, asking, evIds, hist, shownIds }) {
         const send = () => createAuthedFetch('/playtest/character-turn', { method: 'POST', body: JSON.stringify({
-            sessionId: pt.sessionId, characterId: ch.id, message, setting, asking, presentedEvidenceIdsNow: evIds && evIds.length ? evIds : undefined, presentedEvidenceIds: shownIds,
+            sessionId: pt.sessionId, characterId: ch.id, message, setting, asking, counselName: ptCounsel(setting === 'interview' ? pt.side : asking), presentedEvidenceIdsNow: evIds && evIds.length ? evIds : undefined, presentedEvidenceIds: shownIds,
             history: hist.slice(-10).map((h) => ({ from: h.from, text: h.text })), clientUsedUsd: createSpend.usedUsd,
         }) });
         let { resp, body } = await send();
