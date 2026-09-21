@@ -20482,9 +20482,10 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             const result = await submit(answer, retryCount);
             if (!result) { widget.setDisabled(false); feedbackEl.innerHTML = '<div class="sf-feedback-line sf-feedback-wrong">Something went wrong submitting that - try again.</div>'; return false; }
             widget.showResult(result);
+            qzShowResultInView(slideEl, feedbackEl);
             if (result.correct) {
                 sfShowCorrectFeedback(feedbackEl, retryCount > 0);
-                if (result.reveal) meta.holdMs = 3800;   // long enough to read why
+                if (result.reveal) meta.holdMs = 3800;   // long enough to read why, then the feed moves on by itself
                 const out = await onCorrect(result);
                 return out === 'handled' ? 'handled' : true;
             }
@@ -20495,6 +20496,13 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || 'Not quite - try again.')}</div>`;
             return false;
         };
+    }
+    // After Check, bring the result (and the correction, once found) into view: a tall puzzle can push it below the fold.
+    function qzShowResultInView(slideEl, feedbackEl) {
+        setTimeout(() => {
+            const target = slideEl.querySelector('.qz-reveal:not([hidden])') || feedbackEl;
+            try { target.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (err) { /* older browsers just stay put */ }
+        }, 120);
     }
     function sfInteractiveSlideEl(subjectLabel, question, buttonText) {
         const el = document.createElement('div');
@@ -20517,8 +20525,9 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             const result = await submit(answer, retry);
             if (!result) { btn.disabled = false; widget.setDisabled(false); out.textContent = 'Something went wrong - try again.'; return; }
             widget.showResult(result);
-            if (result.correct) { out.textContent = result.feedback || 'Correct.'; return; }
-            retry += 1; out.textContent = result.feedback || 'Not quite - try again.';
+            const inView = () => setTimeout(() => { try { (wrap.querySelector('.qz-reveal:not([hidden])') || out).scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (err) { /* stays put */ } }, 120);
+            if (result.correct) { out.textContent = result.feedback || 'Correct.'; inView(); return; }
+            retry += 1; out.textContent = result.feedback || 'Not quite - try again.'; inView();
             setTimeout(() => { btn.disabled = false; widget.setDisabled(false); }, 700);
         });
     }
