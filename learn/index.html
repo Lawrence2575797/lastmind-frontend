@@ -20047,6 +20047,11 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         const results = await Promise.allSettled((folders || []).filter((f) => !f.onboardingPending).map((f) => sfComputeFolderRecommendation(f, pretendEncodedNodeId)));
         const recs = results.filter((r) => r.status === 'fulfilled').map((r) => r.value).filter(Boolean);
         if (!recs.length && results.some((r) => r.status === 'rejected')) throw new Error('Could not load your lessons. Please try again.');
+        // Economics always comes first, whatever else is due: its due checks, then its next lesson, before any other subject's.
+        const econ = recs.filter((r) => r.folder && r.folder.subject === 'Economics');
+        const econDue = econ.filter((r) => r.type === 'review' || r.type === 'day1').sort((a, b) => a.due - b.due);
+        if (econDue.length) return econDue[0];
+        if (econ.length) return econ.find((r) => r.type === 'integration') || econ.find((r) => r.type === 'lesson') || econ[0];
         const dueReviews = recs.filter((r) => r.type === 'review' || r.type === 'day1').sort((a, b) => a.due - b.due);
         if (dueReviews.length) return dueReviews[0];
         // A newly unlocked integration outranks fresh encoding, but never
