@@ -139,6 +139,7 @@ button { font: inherit; color: inherit; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 
 [hidden] { display: none !important; }
+.nextbtn { justify-self: start; border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 999px; padding: 8px 16px; font: 600 13px var(--sans); cursor: pointer; } .nextbtn:hover { border-color: var(--accent); color: var(--ink); } .tray { display: none !important; } .feed { padding-bottom: 0; }
 </style>
 
 <header class="hud">
@@ -224,12 +225,14 @@ window.__runDerive = function (D) {
   }
 
   function buildRead(step) {
-    var wrap = stack('<div class="eyebrow">Read</div><p class="big">' + step.text + termHtml(step.term, 'pop') + '.</p><div class="down">Scroll ↓</div>');
+    var wrap = stack('<div class="eyebrow">Read</div><p class="big">' + step.text + termHtml(step.term, 'pop') + '.</p><button type="button" class="nextbtn">Next ↓</button>');
     var s = slide(wrap), done = false;
+    var advance = function () { if (done) return; done = true; io.disconnect(); chunk(step.term); next(false); };
     var io = new IntersectionObserver(function (es) {
-      es.forEach(function (e) { if (e.isIntersecting && e.intersectionRatio > 0.6 && !done) { done = true; io.disconnect(); chunk(step.term); next(false); } });
-    }, { root: feed, threshold: [0.6] });
+      es.forEach(function (e) { if (e.isIntersecting && e.intersectionRatio > 0.4) advance(); });
+    }, { root: feed, threshold: [0.4] });
     io.observe(s);
+    s.querySelector('.nextbtn').addEventListener('click', function () { advance(); setTimeout(scrollToLast, 60); });
   }
 
   function buildAsk(step) {
@@ -403,10 +406,12 @@ window.__runDerive = function (D) {
     var st = STAGES[stageIdx], count = Object.keys(st.graph.nodes).length - st.graph.given.length;
     var builds = st.builds.length ? st.builds.map(function (k) { return termHtml(k); }).join(' ') : '<span class="hint">nothing: this is where the course starts</span>';
     var wrap = stack('<span class="milestone">Lesson' + '</span><h2 class="title">' + st.title + '</h2><p class="big sub">' + st.sub + '</p>' +
-      '<div class="facts"><div><span class="eyebrow">Builds on</span><div class="chips">' + builds + '</div></div><div><span class="eyebrow">You will derive</span><div class="hint">' + count + ' key terms, in chunks of no more than four</div></div></div><div class="down">Scroll ↓</div>');
+      '<div class="facts"><div><span class="eyebrow">Builds on</span><div class="chips">' + builds + '</div></div><div><span class="eyebrow">You will derive</span><div class="hint">' + count + ' key terms, in chunks of no more than four</div></div></div><button type="button" class="nextbtn">Start ↓</button>');
     var s = slide(wrap), done = false;
-    var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting && e.intersectionRatio > 0.6 && !done) { done = true; io.disconnect(); next(false); } }); }, { root: feed, threshold: [0.6] });
+    var advance = function () { if (done) return; done = true; io.disconnect(); next(false); };
+    var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting && e.intersectionRatio > 0.4) advance(); }); }, { root: feed, threshold: [0.4] });
     io.observe(s);
+    s.querySelector('.nextbtn').addEventListener('click', function () { advance(); setTimeout(scrollToLast, 60); });
   }
   /* ---- a small economics diagram, drawn from data: labelled axes, up to three curves through given points, labelled points, dashed guides.
      Coordinates are 0 to 1 on both axes. Used by any question that carries a "diagram". ---- */

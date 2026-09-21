@@ -1379,6 +1379,8 @@
        an obvious visible gap after the last element (the submit button,
        or the advance hint) that makes "you've reached the real end, not
        a cut-off" unambiguous once scrolled all the way down. */
+    /* the feed box is sized for a page without the greeting line, so a lesson taking the whole slide would run off the bottom */
+    .sf-feed-root:has(.sf-derive-frame) { height: calc(100vh - 176px); }
     .sf-feed-slide.sf-derive-slide { padding: 0; overflow: hidden; } .sf-derive-frame { width: 100%; height: 100%; border: 0; display: block; background: transparent; }
     .sf-feed-slide { flex: none; height: 100%; display: flex; align-items: center; align-items: safe center; justify-content: center; padding: 40px 32px 140px; box-sizing: border-box; overflow-y: auto; -webkit-overflow-scrolling: touch; }
     .sf-slide-inner { max-width: 620px; width: 100%; display: flex; flex-direction: column; gap: 14px; }
