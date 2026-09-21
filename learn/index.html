@@ -9379,7 +9379,7 @@ SQIDAQAB
     // Empty until reward ownership is wired to the backend. This is the
     // single access gate: once a key is present, its card uses the same
     // applyTheme + /theme-settings save path the old preset UI used.
-    const REWARD_UNLOCKED_THEME_KEYS = new Set(['minimalist']);
+    const REWARD_UNLOCKED_THEME_KEYS = new Set();
     let rewardKeyBalance = 0;
     function updateRewardsTopbarBadge() {
         const badge = document.getElementById('rewardsTopbarKeys');
@@ -9393,7 +9393,7 @@ SQIDAQAB
         { key: 'diagram-futuristic', diagramKey: 'futuristic', label: 'Futuristic Glass', price: DIAGRAM_REWARD_PRICE },
         { key: 'diagram-football', diagramKey: 'football', label: 'Football Tactics', price: DIAGRAM_REWARD_PRICE },
     ];
-    const FREE_REWARD_THEME_KEYS = new Set(['cosycafe', 'diagram-seventies']);
+    const FREE_REWARD_THEME_KEYS = new Set(['minimalist', 'cosycafe', 'diagram-seventies']);
     const rewardPrice = (preset) => FREE_REWARD_THEME_KEYS.has(preset.key) ? 0 : (preset.price != null ? preset.price : REWARD_KEY_PRICE);
     const rewardKeyIcon = (size = 18) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="8" cy="12" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M12 12h9m-3 0v3m-3-3v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
 
@@ -11663,6 +11663,8 @@ SQIDAQAB
                 <div class="rewards-section-heading"><h2>Backgrounds</h2><div class="rewards-section-actions"><span>${THEME_PRESETS.length} available</span><button type="button" class="reward-default-btn" id="rewardDefaultThemeBtn">Use original colours</button></div></div>
                 <div class="reward-grid">
                     ${[...THEME_PRESETS].sort((a, b) => {
+                        if (a.key === 'minimalist') return -1;
+                        if (b.key === 'minimalist') return 1;
                         if (a.key === 'cosycafe') return -1;
                         if (b.key === 'cosycafe') return 1;
                         return Number(REWARD_UNLOCKED_THEME_KEYS.has(b.key)) - Number(REWARD_UNLOCKED_THEME_KEYS.has(a.key));
