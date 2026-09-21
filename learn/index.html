@@ -731,6 +731,17 @@
     /* Back buttons on the knowledge map: the theme's panel colour with its text colour, so they follow whichever background is equipped. */
     .km-inline-view .km-inline-dashboard-btn, .km-inline-view .km-lesson-back-btn, .km-inline-topbar .km-inline-dashboard-btn { background: var(--panel); color: var(--text); border: 1px solid var(--text); font-weight: 700; opacity: 1; }
     .km-inline-view .km-inline-dashboard-btn:hover, .km-inline-view .km-lesson-back-btn:hover { background: var(--panel); color: var(--text); filter: brightness(1.25); }
+    .km-inline-topbar .km-keyterms-btn { margin-left: auto; white-space: nowrap; padding: 9px 16px; border-radius: 8px; border: 2px solid var(--text); background: var(--panel); color: var(--text); font: 700 13px Arial, sans-serif; cursor: pointer; }
+    .km-inline-topbar .km-keyterms-btn[aria-pressed="true"] { background: var(--text); color: var(--panel); }
+    .km-inline-topbar .km-keyterms-btn + .km-hide-covered-btn { margin-left: 8px; }
+    /* the student's own key-term map: one card per completed lesson, growing as lessons are finished */
+    .km-kt { padding: 20px 24px 40px; overflow-y: auto; height: 100%; box-sizing: border-box; color: var(--text); }
+    .km-kt h2 { margin: 0 0 4px; font: 700 20px Georgia, serif; } .km-kt-sub { opacity: 0.7; font: 14px Arial, sans-serif; margin-bottom: 18px; }
+    .km-kt-card { background: #EEF0F3; color: #1B232C; border-radius: 12px; padding: 14px 16px 10px; margin-bottom: 16px; }
+    .km-kt-card h3 { margin: 0; font: 600 16px Georgia, serif; } .km-kt-card p { margin: 2px 0 8px; font: 13px Arial, sans-serif; color: #5D6A75; }
+    .km-kt-card svg { width: 100%; height: auto; display: block; }
+    .km-kt-empty { padding: 40px 24px; text-align: center; opacity: 0.75; font: 15px Arial, sans-serif; }
+    .km-hide-covered-btn { margin-left: auto; }
     .km-inline-topbar .km-hide-covered-btn { margin-left: auto; white-space: nowrap; padding: 9px 16px; border-radius: 8px; border: 2px solid var(--text); background: var(--text); color: var(--panel); font: 700 13px Arial, sans-serif; cursor: pointer; opacity: 1; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); }
     .km-inline-topbar .km-hide-covered-btn:hover { background: var(--text); filter: brightness(1.08); }
     .km-inline-topbar .km-hide-covered-btn[aria-pressed="true"] { background: var(--panel); color: var(--text); border-color: var(--text); }
@@ -6047,6 +6058,7 @@
                         <div class="km-inline-sub"></div>
                     </div>
                     <div class="km-inline-search"><input type="text" class="km-inline-search-input" placeholder="Search concepts…"></div>
+                    <button type="button" class="btn km-keyterms-btn" hidden aria-pressed="false">My key-term map</button>
                     <button type="button" class="btn km-hide-covered-btn" hidden aria-pressed="false">Hide pre-covered lessons</button>
                 </div>
                 <div class="km-inline-themetabs"></div>
@@ -22210,6 +22222,11 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 sfPrefetchNext(); sfRefreshImmediateRecalls(); sfRecapMaybeInsert();
             } else if (e.data.type === 'lm-derive-continue' && meta.answered) {
                 sfAdvanceAfterCorrectAnswer();
+            } else if (e.data.type === 'lm-derive-open-map') {
+                sfCloseFeed();
+                selectedFolderId = rec.folder.id;
+                window.__kmOpenKeyTerms = true;
+                renderKnowledgeMapForFolder(rec.folder);
             } else if (e.data.type === 'lm-derive-toggle-size') {
                 // Expand: the whole feed box fills the screen; again: back to the middle.
                 const root = el.closest('.sf-feed-root');
@@ -23581,6 +23598,49 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     // zoomToNode) instead of fit-to-everything - that's what keeps a
     // several-hundred-node subject legible without ever showing the
     // whole sprawling thing at once.
+    // ---- The student's own key-term map ----
+    // Every finished Economics lesson leaves its key-term graph behind; this shows them all, in lesson order, and grows by one card per lesson.
+    function kmKeyTermSvg(stage) {
+        const NS = 'http://www.w3.org/2000/svg';
+        const g = stage.graph, svg = document.createElementNS(NS, 'svg');
+        svg.setAttribute('viewBox', `0 0 1040 ${g.h}`);
+        const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); Object.keys(attrs).forEach((k) => e.setAttribute(k, attrs[k])); (parent || svg).appendChild(e); return e; };
+        const defs = mk('defs', {}), m = mk('marker', { id: `kt${stage.i}`, viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' }, defs);
+        mk('path', { d: 'M0,0 L10,5 L0,10 z', fill: '#3B4753' }, m);
+        g.edges.forEach((pts) => mk('polyline', { points: pts.map((p) => p.join(',')).join(' '), fill: 'none', stroke: '#3B4753', 'stroke-width': 2, 'marker-end': `url(#kt${stage.i})` }));
+        Object.keys(g.nodes).forEach((k) => {
+            const n = g.nodes[k], t = stage.terms[k] || { t: k, c: '#cfd9e8' }, given = g.given.indexOf(k) > -1;
+            mk('rect', { x: n[0], y: n[1], width: n[2], height: n[3], rx: 12, fill: t.c, stroke: given ? '#7A8791' : '#3B4753', 'stroke-dasharray': given ? '5 4' : '0', 'stroke-width': 1.5, opacity: given ? 0.65 : 1 });
+            const words = t.t.split(' '); let lines = [t.t];
+            if (t.t.length > 16) { const cut = t.t.lastIndexOf(' ', 15); lines = cut > 0 ? [t.t.slice(0, cut), t.t.slice(cut + 1)] : [t.t]; }
+            const text = mk('text', { x: n[0] + n[2] / 2, y: n[1] + n[3] / 2 + (lines.length > 1 ? -2 : 6), 'text-anchor': 'middle', 'font-size': 15, 'font-family': 'Arial, sans-serif', fill: '#1B232C' });
+            lines.forEach((ln, i) => { const ts = mk('tspan', { x: n[0] + n[2] / 2, dy: i ? 17 : 0 }, text); ts.textContent = ln; });
+        });
+        return svg;
+    }
+
+    async function kmShowKeyTermMap(workspaceEl) {
+        workspaceEl.innerHTML = '<div class="km-kt"><div class="km-kt-empty">Loading your key-term map…</div></div>';
+        let stages = null;
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/derivation/my-map`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+            if (resp.ok) stages = (await resp.json()).stages;
+        } catch (err) { console.error('LastMind: could not load the key-term map.', err); }
+        const box = workspaceEl.querySelector('.km-kt');
+        if (!box) return;
+        if (!stages) { box.innerHTML = '<div class="km-kt-empty">Couldn\'t load your key-term map right now. Try again in a moment.</div>'; return; }
+        if (!stages.length) { box.innerHTML = '<div class="km-kt-empty">Nothing here yet. Finish a lesson and its key terms are added to your map.</div>'; return; }
+        box.innerHTML = `<h2>Your key-term map</h2><div class="km-kt-sub">${stages.length} lesson${stages.length === 1 ? '' : 's'} completed. Each finished lesson adds its key terms, joined as you derived them; dashed boxes are terms carried in from earlier lessons.</div>`;
+        stages.forEach((st) => {
+            const card = document.createElement('div');
+            card.className = 'km-kt-card';
+            card.innerHTML = `<h3>${escapeHtml(st.title)}</h3><p>${escapeHtml(st.sub || '')}</p>`;
+            card.appendChild(kmKeyTermSvg(st));
+            box.appendChild(card);
+        });
+    }
+
     function renderSubjectGraphView(folder, data, focusNodeId) {
         if (focusNodeId) selectedSidebarLessonNodeId = focusNodeId;
         const contentInner = document.getElementById('contentInner');
@@ -23592,6 +23652,16 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         contentInner.querySelector('.km-inline-title').textContent = folderLabel(folder);
         contentInner.querySelector('.km-inline-sub').textContent = [folder.qualification, folder.examBoard].filter(Boolean).join(' · ');
         contentInner.querySelector('.km-inline-themetabs').style.display = 'none';
+        if (folder.subject === 'Economics') {
+            const ktBtn = contentInner.querySelector('.km-keyterms-btn');
+            ktBtn.hidden = false;
+            ktBtn.addEventListener('click', () => {
+                if (ktBtn.getAttribute('aria-pressed') === 'true') { renderKnowledgeMapForFolder(folder); return; }
+                ktBtn.setAttribute('aria-pressed', 'true');
+                kmShowKeyTermMap(contentInner.querySelector('.km-inline-workspace'));
+            });
+            if (window.__kmOpenKeyTerms) { window.__kmOpenKeyTerms = false; ktBtn.click(); }
+        }
 
         // Crash-course folders only (folder.objectiveScope) - clears the
         // scope and re-renders, revealing the rest of this subject's graph
