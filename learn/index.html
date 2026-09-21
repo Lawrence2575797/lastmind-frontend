@@ -20680,7 +20680,8 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             }
             retryCount += 1;
             // A host can decide a wrong answer ends the question (the Day-1 check does, after its one re-ask).
-            if (onWrong && (await onWrong(result)) === true) { feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || 'Not quite - this one will come back around.')}</div>`; return true; }
+            const ended = onWrong ? await onWrong(result) : false;
+            if (ended) { if (ended !== 'handled') feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || 'Not quite - this one will come back around.')}</div>`; return ended === 'handled' ? 'handled' : true; }
             setTimeout(() => { widget.setDisabled(false); busy = false; refreshCheck(); }, 700);
             feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || 'Not quite - try again.')}</div>`;
             return false;
@@ -21573,19 +21574,35 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         const pq = lesson && lesson.practiceQuestion;
         if (!pq || !pq.questionText || pq.diagramSpec || qzIsInteractive(pq)) return -1;
         if (pq.answerInputType === 'math' || (pq.blanks && pq.blanks.length)) return -1;
-        return (lesson.recallChecks || []).findIndex((c) => c && c.format && c.format !== 'free_text' && c.questionText);
+        const checks = lesson.recallChecks || [];
+        const puzzle = checks.findIndex((c) => c && qzIsInteractive(c) && c.questionText);
+        return puzzle >= 0 ? puzzle : checks.findIndex((c) => c && c.format && c.format !== 'free_text' && c.questionText);
+    }
+    // Two wrong attempts at a recall: the concept has not been encoded yet, so it goes back in the queue to be taught again.
+    async function sfRecallGiveUp(row, feedbackEl, meta, onDone) {
+        const res = await sfPostBackend(`/immediate-recalls/${row.recallId}/give-up`, {});
+        if (res && res.conceptId && Array.isArray(cachedScheduleData)) cachedScheduleData = cachedScheduleData.filter((r) => r.concept_id !== res.conceptId);
+        feedbackEl.innerHTML = '<div class="sf-feedback-line">That one has not stuck yet, so it goes back in your queue: you will meet its lesson again next.</div>';
+        meta.answered = true; meta.canAdvance = true;
+        if (sfFeed) sfFeed.prefetchPromise = null;
+        await sfDelay(2600);
+        const wasLast = await onDone();
+        if (sfFeed) sfPrefetchNext();
+        return wasLast ? 'handled' : true;
     }
     function sfBuildImmediateRecallSlide(row, onDone) {
         if (qzIsInteractive(row)) {
             const iEl = sfInteractiveSlideEl(`Quick recall · ${escapeHtml(row.subject)}`, row);
             const iMeta = { canAdvance: false, kind: 'recall', answered: false, noBack: true };
+            let misses = 0;
             sfWireInteractiveSlide(iEl, iMeta, row,
                 (answer, retryCount) => sfPostBackend(`/immediate-recalls/${row.recallId}/submit`, { recallCheckIndex: row.recallCheckIndex, structured: answer, retryCount }),
                 async () => {
                     iMeta.answered = true; iMeta.canAdvance = true; sfShowAdvanceHint(iEl);
                     const wasLast = await onDone();
                     return wasLast ? 'handled' : true;
-                });
+                },
+                async () => (++misses >= 2 ? sfRecallGiveUp(row, iEl.querySelector('.sf-question-feedback'), iMeta, onDone) : false));
             return { el: iEl, meta: iMeta };
         }
         const el = document.createElement('div');
@@ -21635,6 +21652,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             inputEl.addEventListener('input', () => saveAnswerDraft(draftKey, inputEl.value));
         }
         const fu = { token: null };
+        let wrongCount = 0;
         meta.trySubmit = async () => {
             const body = { recallCheckIndex: row.recallCheckIndex, followUpToken: fu.token };
             if (isMcq) {
@@ -21679,6 +21697,8 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 const wasLast = await onDone();
                 return wasLast ? 'handled' : true;
             }
+            wrongCount += 1;
+            if (wrongCount >= 2) { clearAnswerDraft(draftKey); return sfRecallGiveUp(row, feedbackEl, meta, onDone); }
             if (inputEl) inputEl.disabled = false;
             const followed = !isMcq && sfApplyFollowUp(el, result, fu, () => { inputEl.value = ''; clearAnswerDraft(draftKey); });
             feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || "Not quite - try again.")}${followed ? ' Try this new question on that point.' : ''}</div>`;
