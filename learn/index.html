@@ -730,6 +730,7 @@
     /* "Hide pre-covered lessons": darkens (never removes) everything the
        student said they'd already covered before LastMind. Reversible. */
     .km-node-group.km-covered-hidden { opacity: 0.3; filter: brightness(0.28) saturate(0.35); }
+    .km-node-group.km-lm-dark { opacity: 0.16; filter: brightness(0.22) saturate(0.2); } .km-link.km-lm-dark { stroke-opacity: 0.04 !important; }
     .km-link.km-covered-hidden { stroke-opacity: 0.06 !important; }
     /* While the toggle is on, what still needs covering is made vivid so the
        two groups are unmistakable. */
@@ -7541,9 +7542,9 @@ SQIDAQAB
     let kmHideCovered = false;
 
     // ---- Revise and Explore ----
-    // Explore is learning new content, on from what the student said they had covered in school: that covered part is locked off.
-    // Revise is the opposite side: only what they said they had covered, plus whatever they have learned on Explore, and nothing beyond.
-    // Scheduling (reviews, recalls, Day-1 checks) works the same way in both.
+    // The two modes split the knowledge map. Explore is the frontier: lessons the student has neither covered in school nor learned yet, and
+    // the 2-minute recalls that follow them. The moment a lesson is learned (or was covered in school) it goes dark in Explore and lives in
+    // Revise, where the Day-1 checks, spaced reviews and link reviews happen. Revise never goes beyond what is covered or learned.
     const LM_MODE_KEY = 'lastmind-mode';
     let lmMode = 'explore';
     try { lmMode = localStorage.getItem(LM_MODE_KEY) === 'revise' ? 'revise' : 'explore'; } catch (err) { /* explore */ }
@@ -7565,7 +7566,7 @@ SQIDAQAB
     }
     // Why a lesson cannot be opened in the current mode ('' when it can).
     function lmBlockedReason(coveredHere, encodedHere) {
-        if (lmMode === 'explore') return coveredHere ? 'You covered this in school, so it is locked here. Switch to Revise to go over it.' : '';
+        if (lmMode === 'explore') return coveredHere || encodedHere ? 'You have already covered or learned this, so it lives in Revise. Switch to Revise to go over it.' : '';
         return coveredHere || encodedHere ? '' : 'Revise only covers what you have done in school or already learned on Explore. Switch to Explore to learn this.';
     }
     function lmNodeBlockedReason(folder, node) {
@@ -19946,19 +19947,18 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         // below, generalised to real spaced reviews too.
         let bestDue = null;
         let bestIntegration = null;
-        // Reviews stay on their own side: Revise reviews the covered part once it has been taken through LastMind; Explore reviews everything else.
-        const dayOneOwn = revise ? new Set() : externallyCoveredNodeIds;
-        for (const n of data.nodes) {
+        // Explore only ever offers new lessons (and the 2-minute recalls that follow them): every Day-1 check and review is a Revise thing.
+        const dayOneOwn = externallyCoveredNodeIds;
+        for (const n of (revise ? data.nodes : [])) {
             const learnedHere = schedule.has(n.conceptId);
-            const learnedElsewhere = !revise && externallyCoveredNodeIds.has(n.id);
+            const learnedElsewhere = externallyCoveredNodeIds.has(n.id);
             if (!learnedHere && !learnedElsewhere) continue;
-            if (revise ? !externallyCoveredNodeIds.has(n.id) : (learnedHere && externallyCoveredNodeIds.has(n.id))) continue;
             const nodeAo1Gated = pendingDay1ConceptIds.has(n.conceptId);
             const qualifyingLinks = (successorAdjacency.get(n.id) || [])
                 .map((id) => nodeById.get(id))
                 // First-time integration requires both endpoint concepts'
                 // Day-1 checks to be complete.
-                .filter((ln) => ln && (!revise || externallyCoveredNodeIds.has(ln.id)) &&
+                .filter((ln) => ln &&
                     (completedDay1ConceptIds.has(n.conceptId) || dayOneOwn.has(n.id)) &&
                     (completedDay1ConceptIds.has(ln.conceptId) || dayOneOwn.has(ln.id)) &&
                     (completedDay1ConceptIds.has(n.conceptId) || completedDay1ConceptIds.has(ln.conceptId)))
@@ -19998,7 +19998,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         // (near-meaningless here - everything overdue shares "today") and
         // never by recall/FSRS priority, so the first one for this
         // folder's subject is simply taken as-is.
-        const day1Checks = (await sfFetchDueDay1Checks()).filter((c) => c.subject === folder.subject && (revise ? externallyCoveredNodeIds.has(c.nodeId) : !externallyCoveredNodeIds.has(c.nodeId)));
+        const day1Checks = revise ? (await sfFetchDueDay1Checks()).filter((c) => c.subject === folder.subject) : [];
         const bestDay1 = day1Checks.length ? day1Checks[0] : null;
 
         if (bestDue && bestDay1) {
@@ -21871,7 +21871,13 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     // A feed opened for one subject only ever raises that subject's recalls; a cross-subject feed keeps them all.
     function sfRecallsInScope(rows) {
         const scope = sfFeed && sfFeed.scopeFolder;
-        return scope ? rows.filter((r) => r.subject === scope.subject) : rows;
+        const inSubject = scope ? rows.filter((r) => r.subject === scope.subject) : rows;
+        // A recall follows the lesson that started it: a new lesson (not covered in school) is an Explore lesson, a covered one is Revise.
+        return inSubject.filter((r) => {
+            const folder = (folders || []).find((f) => f.subject === r.subject);
+            const covered = !!(folder && r.conceptId && (folder.externalCoveredConceptIds || []).includes(r.conceptId));
+            return lmMode === 'revise' ? covered : !covered;
+        });
     }
     async function sfServeDueRecallOrAppendNext() {
         if (!sfFeed) return;
@@ -25684,6 +25690,8 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
 
         const masteryDetail = fullData.masteryDetail || {};
         const externalCoveredIds = new Set(fullData.externallyCoveredNodeIds || []);
+        // In Revise everything not covered or learned is very dark; in Explore it is the other way round.
+        const kmModeDark = (d) => !!lmBlockedReason(externalCoveredIds.has(d.id), !!(fullData.scheduleByConceptId && fullData.scheduleByConceptId.has(d.conceptId)));
 
         const nodes = visibleNodes.map((n) => ({
             ...n,
@@ -25919,7 +25927,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         }
 
         function linkClass(d) {
-            return `km-link state-${d.state} km-integration-${integrationAccessForLink(d).status}${kmHideCovered && d.source.externallyCovered && d.target.externallyCovered ? ' km-covered-hidden' : ''}`;
+            return `km-link state-${d.state} km-integration-${integrationAccessForLink(d).status}${kmHideCovered && d.source.externallyCovered && d.target.externallyCovered ? ' km-covered-hidden' : ''}${kmModeDark(d.source) || kmModeDark(d.target) ? ' km-lm-dark' : ''}`;
         }
 
         const linkSelection = zoomLayer.append('g').selectAll('path')
@@ -25971,7 +25979,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
 
         const nodeGroup = zoomLayer.append('g').selectAll('g')
             .data(nodes, (d) => d.id).join('g')
-            .attr('class', (d) => `km-node-group state-${d.state}${kmHideCovered && d.externallyCovered ? ' km-covered-hidden' : ''}`)
+            .attr('class', (d) => `km-node-group state-${d.state}${kmHideCovered && d.externallyCovered ? ' km-covered-hidden' : ''}${kmModeDark(d) ? ' km-lm-dark' : ''}`)
             .attr('data-node-id', (d) => d.id)
             .attr('transform', (d) => `translate(${d.x},${d.y})`);
 
@@ -26047,7 +26055,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             nodeDatum.state = masteryProgressTier(detail);
             nodeDatum.detail = detail;
             const g = nodeGroup.filter((n) => n.id === nodeDatum.id);
-            g.attr('class', `km-node-group state-${nodeDatum.state}${kmHideCovered && nodeDatum.externallyCovered ? ' km-covered-hidden' : ''}`);
+            g.attr('class', `km-node-group state-${nodeDatum.state}${kmHideCovered && nodeDatum.externallyCovered ? ' km-covered-hidden' : ''}${kmModeDark(nodeDatum) ? ' km-lm-dark' : ''}`);
             g.select('.km-node-shape').attr('fill-opacity', nodeDatum.state === 0 ? 0.08 : 0.15);
             if (detailEl.dataset.nodeId === nodeDatum.id) selectKmInlineNode(nodeDatum);
         }
@@ -26505,7 +26513,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             const reviewDue = !ownEntry || isScheduleEntryDue(ownEntry);
             const modeBlock = lmBlockedReason(d.externallyCovered, !!ownEntry);
             const startBtnHtml = modeBlock
-                ? `<button class="btn primary km-inline-start-lesson-btn" disabled title="${escapeHtml(modeBlock)}">${lmMode === 'explore' ? 'Covered in school: use Revise' : 'Beyond your revision: use Explore'}</button>`
+                ? `<button class="btn primary km-inline-start-lesson-btn" disabled title="${escapeHtml(modeBlock)}">${lmMode === 'explore' ? 'Already covered or learned: use Revise' : 'Beyond your revision: use Explore'}</button>`
                 : !ownEntry
                 ? `<button class="btn primary km-inline-start-lesson-btn">Start lesson</button>`
                 : blockedByUnencodedLink
