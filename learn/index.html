@@ -8423,12 +8423,29 @@ SQIDAQAB
         }
     }
 
+    // A subject built on a knowledge map keeps its progress under the map's own concepts, not under folder pages, so deleting it also asks the
+    // server to clear every concept of that subject (schedule, Day-1 checks, recalls, notes).
+    async function resetProgressForSubject(folder) {
+        try {
+            const accessToken = await getSyncAccessToken();
+            if (!accessToken) return;
+            await fetch(`${COMPILE_BACKEND_URL}/sync/reset-subject-progress`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                body: JSON.stringify({ subject: folder.subject, qualification: folder.qualification || '', examBoard: folder.examBoard || '' })
+            });
+        } catch (err) {
+            console.error('LastMind: could not reset progress for the deleted subject.', err);
+        }
+    }
+
     async function deleteFolder(folderId) {
         if (!confirm('Delete this subject and everything inside it, including your progress and any notes you\'ve written or compiled for it? This cannot be undone.')) return;
         const folder = folders.find((f) => f.id === folderId);
         const conceptKeys = folder ? collectConceptKeysForFolder(folder) : [];
         await deleteFolderRecord(folderId);
         await resetProgressForConcepts(conceptKeys);
+        if (folder && folder.subject) await resetProgressForSubject(folder);
         if (selectedFolderId === folderId) {
             selectedFolderId = null;
             selectedSubfolderId = null;
