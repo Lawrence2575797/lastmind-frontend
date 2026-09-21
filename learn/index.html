@@ -10218,8 +10218,9 @@ SQIDAQAB
                 ${(r.issues || []).filter((i, idx) => !state.applied.has(idx)).length > 1 ? '<div class="create-ready-actions" style="margin:6px 0 4px;"><button type="button" class="create-cta" id="createApplyAll" style="padding:10px 22px;font-size:0.9rem;">Apply all fixes</button></div>' : ''}
                 ${state.changes.length ? `<div class="create-issue"><b>Changes made</b><ul style="margin:6px 0 0 18px;padding:0;">${state.changes.map((c) => `<li>${escapeHtml(c)}</li>`).join('')}</ul></div>` : ''}
                 <p class="create-apply-note" id="createApplyNote"></p>
-                ${(() => { const open = (r.issues || []).map((i, idx) => ({ i, idx })).filter((x) => x.i.severity === 'blocker' && !state.applied.has(x.idx)); return (r.workable || !open.length) ? `${state.changes.length ? '<p class="create-apply-note" style="max-width:none;">Your fixes are in. There is no need to validate again.</p>' : ''}<div class="create-ready-actions" style="margin-top:18px;"><button type="button" class="create-play" id="createPlayBtn">Play</button></div>` : '<p class="create-error" style="max-width:none;">Apply the fixes marked "Must fix" to continue. A case is only validated once.</p>'; })()}`;
+                ${(() => { const open = (r.issues || []).map((i, idx) => ({ i, idx })).filter((x) => x.i.severity === 'blocker' && !state.applied.has(x.idx)); return (r.workable || !open.length) ? `${state.changes.length ? '<p class="create-apply-note" style="max-width:none;">Your fixes are in. There is no need to validate again.</p>' : ''}<div class="create-ready-actions" style="margin-top:18px;"><button type="button" class="create-play" id="createPlayBtn">Play</button><button type="button" class="create-secondary" id="createDuelBtn" title="Play one side while a friend plays the other">Two-player duel</button></div>` : '<p class="create-error" style="max-width:none;">Apply the fixes marked "Must fix" to continue. A case is only validated once.</p>'; })()}`;
             tail.querySelector('#createPlayBtn')?.addEventListener('click', () => ptStart(trial));
+            tail.querySelector('#createDuelBtn')?.addEventListener('click', () => createStartDuel(trial));
             const applyFixes = async (indexes) => {
                 const note = tail.querySelector('#createApplyNote');
                 tail.querySelectorAll('.create-apply, #createApplyAll').forEach((b) => { b.disabled = true; });
@@ -10353,7 +10354,7 @@ SQIDAQAB
         } catch (err) { console.error('LastMind: could not load projects from the account.', err); }
         return { projects: createLocalProjects().map((p) => ({ id: p.id, title: p.title, kind: p.kind, isReference: false, updatedAt: p.updatedAt, role: p.data && p.data.trial && p.data.trial.role, minutes: p.data && p.data.trial && p.data.trial.minutes, local: true })), references: [] };
     }
-    async function createOpenProject(id, { playtest } = {}) {
+    async function createOpenProject(id, { playtest, duel } = {}) {
         let data = null; let mine = true;
         if (String(id).startsWith('local-')) { const p = createLocalProjects().find((x) => x.id === id); data = p && p.data; }
         else {
@@ -10369,6 +10370,21 @@ SQIDAQAB
         saveCreateTrial();
         renderCreatePage('criminal-trial');
         if (playtest) ptStart(createTrial);
+        if (duel) createStartDuel(createTrial);
+    }
+    const createDuelBoxHtml = () => `<div class="create-proj" style="margin:0 0 18px;"><h3 style="margin-bottom:6px;">Two-player duels</h3><p class="meta" style="margin:0 0 10px;">Play one side of a case while a friend plays the other, each on your own time. Start one from a project below, or enter a code a friend sent you.</p><div class="row"><input type="text" id="createDuelCode" maxlength="6" placeholder="Duel code" autocomplete="off" style="text-transform:uppercase;letter-spacing:.2em;max-width:150px;padding:8px 10px;border-radius:8px;border:1px solid rgba(128,128,128,.4);"><button type="button" class="create-secondary" id="createDuelJoin">Join a duel</button></div><div id="createDuels" style="margin-top:12px;"></div></div>`;
+    async function createBindDuelBox(host) {
+        const join = host.querySelector('#createDuelJoin');
+        if (join) join.addEventListener('click', () => createJoinDuel(host.querySelector('#createDuelCode').value));
+        const list = host.querySelector('#createDuels');
+        if (!list) return;
+        try {
+            const { resp, body } = await createAuthedFetch('/playtest/duels');
+            if (!resp.ok || body.unavailable || !(body.duels || []).length || !list.isConnected) return;
+            const status = (d) => (!d.myDone ? 'Your turn to play' : !d.opponentJoined ? 'Waiting for an opponent to join' : !d.opponentDone ? 'Waiting for your opponent to finish' : 'Finished: see the result');
+            list.innerHTML = body.duels.map((d) => `<div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:8px 0;border-top:1px solid rgba(128,128,128,.25);"><div><b>${escapeHtml(d.title)}</b><div class="meta">${d.mySide === 'prosecution' ? 'Prosecution' : 'Defence'} · ${status(d)} · code <span style="font-family:monospace;letter-spacing:.1em;">${escapeHtml(d.code)}</span></div></div><button type="button" class="create-secondary" data-duel-open="${escapeHtml(d.code)}">${d.myDone ? 'View' : 'Play'}</button></div>`).join('');
+            list.querySelectorAll('[data-duel-open]').forEach((b) => b.addEventListener('click', () => createJoinDuel(b.dataset.duelOpen)));
+        } catch (err) { /* the list is optional */ }
     }
     async function createDeleteProject(id) {
         if (String(id).startsWith('local-')) { createSetLocalProjects(createLocalProjects().filter((p) => p.id !== id)); return; }
@@ -10380,18 +10396,22 @@ SQIDAQAB
         const { projects, references } = await createLoadProjects();
         if (!host.isConnected) return;
         if (!projects.length && !references.length) {
-            host.innerHTML = `<div class="create-empty"><p>You have no projects yet.</p><button type="button" class="create-cta" id="createProjectBtn">Create project</button></div>`;
+            host.innerHTML = `${createDuelBoxHtml()}<div class="create-empty"><p>You have no projects yet.</p><button type="button" class="create-cta" id="createProjectBtn">Create project</button></div>`;
             host.querySelector('#createProjectBtn').addEventListener('click', () => renderCreatePage('gallery'));
+            createBindDuelBox(host);
             return;
         }
-        const card = (p, isRef) => `<article class="create-proj"><h3>${escapeHtml(p.title)}</h3>${p.isReference ? '<span class="badge">Reference example</span>' : ''}<div class="meta">Criminal trial${p.role ? ` · ${p.role === 'prosecution' ? 'Prosecution' : 'Defence'}` : ''}${p.minutes ? ` · ${p.minutes} min` : ''}${p.local ? ' · saved in this browser' : ''}</div><div class="row"><button type="button" class="create-secondary" data-open="${escapeHtml(p.id)}">${isRef ? 'Open a copy' : 'Open'}</button><button type="button" class="create-secondary" data-play="${escapeHtml(p.id)}">Playtest</button>${isRef ? '' : `<button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button>`}</div></article>`;
+        const card = (p, isRef) => `<article class="create-proj"><h3>${escapeHtml(p.title)}</h3>${p.isReference ? '<span class="badge">Reference example</span>' : ''}<div class="meta">Criminal trial${p.role ? ` · ${p.role === 'prosecution' ? 'Prosecution' : 'Defence'}` : ''}${p.minutes ? ` · ${p.minutes} min` : ''}${p.local ? ' · saved in this browser' : ''}</div><div class="row"><button type="button" class="create-secondary" data-open="${escapeHtml(p.id)}">${isRef ? 'Open a copy' : 'Open'}</button><button type="button" class="create-secondary" data-play="${escapeHtml(p.id)}">Playtest</button><button type="button" class="create-secondary" data-duel="${escapeHtml(p.id)}" title="Play one side while a friend plays the other">Two-player</button>${isRef ? '' : `<button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button>`}</div></article>`;
         host.innerHTML = `
+            ${createDuelBoxHtml()}
             <div class="create-projects-head"><span></span><button type="button" class="create-cta" id="createProjectBtn" style="padding:10px 22px;font-size:0.9rem;">+ Create project</button></div>
             ${projects.length ? `<div class="create-gallery">${projects.map((p) => card(p, false)).join('')}</div>` : ''}
             ${references.length ? `<div class="create-section-heading" style="margin-top:30px;"><h2>Reference examples</h2></div><p class="create-step-help" style="margin-top:-8px;">Finished cases to learn from. Open one to see how a complete case is put together.</p><div class="create-gallery">${references.map((p) => card(p, true)).join('')}</div>` : ''}`;
         host.querySelector('#createProjectBtn').addEventListener('click', () => renderCreatePage('gallery'));
         host.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => createOpenProject(b.dataset.open)));
         host.querySelectorAll('[data-play]').forEach((b) => b.addEventListener('click', () => createOpenProject(b.dataset.play, { playtest: true })));
+        host.querySelectorAll('[data-duel]').forEach((b) => b.addEventListener('click', () => createOpenProject(b.dataset.duel, { duel: true })));
+        createBindDuelBox(host);
         host.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
             if (!confirm('Delete this project?')) return;
             await createDeleteProject(b.dataset.del);
@@ -10450,6 +10470,21 @@ SQIDAQAB
             const adj = Math.max(-1, Math.min(1, persuasion || 0)) * cap * (side === 'prosecution' ? 1 : -1);
             const margin = p - d + adj - graph.verdict.convictionThreshold;
             return { guilty: margin > 0, margin, prosecutionWeight: p, defenceWeight: d, adjustment: adj };
+        },
+        // Two-player duel: the jury hears what BOTH players drew out, and each player's persuasion nudges the result their way (same 15% cap).
+        duelVerdict(graph, defence, prosecution) {
+            const heard = new Set([...(defence.established || []), ...(prosecution.established || [])]);
+            const base = this.verdict(graph, [...heard], 0, 'prosecution');
+            const totalWeight = graph.facts.reduce((t, f) => t + (f.favours === 'prosecution' || f.favours === 'defence' ? f.weight : 0), 0);
+            const cap = 0.15 * (totalWeight / 2);
+            const adj = Math.max(-1, Math.min(1, ((prosecution.persuasion || 0) - (defence.persuasion || 0)) / 2)) * cap;
+            const margin = base.prosecutionWeight - base.defenceWeight + adj - graph.verdict.convictionThreshold;
+            const share = (side, set) => {
+                let total = 0; let got = 0;
+                graph.facts.forEach((f) => { if (f.favours === side) { total += f.weight; if (set.includes(f.id)) got += f.weight; } });
+                return total ? Math.round((got / total) * 100) : 0;
+            };
+            return { guilty: margin > 0, margin, drew: { defence: share('defence', defence.established || []), prosecution: share('prosecution', prosecution.established || []) } };
         },
         sentence(graph, margin) {
             const options = graph.verdict.sentences;
@@ -10686,7 +10721,7 @@ SQIDAQAB
     }
 
     // ---- starting: compile the case into a Case Graph (once per version of the case), then play ----
-    async function ptStart(trial) {
+    async function ptStart(trial, opts = {}) {
         if (!trial.case) return;
         const content = { ...trial.case }; delete content.coverage;
         const hash = createHash(JSON.stringify({ c: content, r: trial.role, m: trial.minutes, v: PT_GRAPH_VERSION }));
@@ -10722,8 +10757,12 @@ SQIDAQAB
                 return;
             }
         }
+        await ptBoot({ token, hash, graph, sessionId, trial, duelCreate: !!opts.duelCreate });
+    }
+    async function ptBoot({ token, hash, graph, sessionId, trial, duelCreate, duel }) {
         const defendant = graph.characters.find((c) => c.id === graph.meta.defendantId) || graph.characters[0];
         pt = {
+            duel: duel || null,
             token, hash, graph, sessionId, side: trial.role === 'prosecution' ? 'prosecution' : 'defence',
             title: (trial.case && trial.case.title) || 'The case', charge: (trial.case && trial.case.overview && trial.case.overview.charge) || graph.caseFile.chargeSheet,
             briefing: (trial.case && trial.case.overview && trial.case.overview.studentBriefing) || graph.caseFile.summary,
@@ -10734,11 +10773,12 @@ SQIDAQAB
         };
         PT_SCENES.forEach((k) => { const i = new Image(); i.src = PT_SCENE(k); });
         const saved = ptLoadSaved(hash);
-        if (saved && saved.idx > 0 && confirm('Resume your earlier playtest of this case? (Cancel starts it again.)')) {
+        if (saved && saved.idx > 0 && !duelCreate && confirm(duel ? 'Resume your earlier progress in this duel? (Cancel starts your side again.)' : 'Resume your earlier playtest of this case? (Cancel starts it again.)')) {
             Object.assign(pt, { idx: saved.idx, established: new Set(saved.established || []), inCourt: saved.inCourt || [], exchanges: saved.exchanges || [], notes: saved.notes || '', openingText: saved.openingText || '', closingText: saved.closingText || '', triggered: saved.triggered || [], assessment: saved.assessment || null, verdict: saved.verdict || null, interviewHist: saved.interviewHist || [], shownInterview: saved.shownInterview || [], w: saved.w || null });
         } else if (saved) { try { localStorage.removeItem(`lastmind-playtest:${hash}`); } catch (err) { /* fine */ } }
         // A restored (or saved) case needs a live session on the server so Cortex reads the same immutable graph.
         if (!pt.sessionId) { try { await ptRestoreSession(); } catch (err) { console.error('LastMind: could not start the playtest session.', err); } }
+        if (duelCreate && !(await ptDuelCreate(trial))) return;
         // Portraits made before the front-facing check are regenerated once; then evidence pictures are made for anything visual.
         if (graph.characters.some((c) => c.portrait) && (graph.meta.portraitVersion || 1) < PT_PORTRAIT_VERSION) {
             graph.characters.forEach((c) => { delete c.portrait; delete c.portraitTransparent; });
@@ -10749,6 +10789,103 @@ SQIDAQAB
         ptLoadPortraits(pt.token);
         ptLoadEvidenceImages(pt.token);
         ptRender();
+    }
+    // ---- two-player duels ----
+    // One player takes each side of the SAME compiled case and plays it separately; the verdict weighs both performances.
+    // Only which facts each side drew out and the AI's persuasion score are ever shared: never anything a player typed.
+    async function ptDuelCreate(trial) {
+        const plain = JSON.parse(JSON.stringify(pt.graph, (k, v) => (k === 'portrait' ? undefined : v)));
+        const meta = { charge: pt.charge, briefing: (trial.case && trial.case.overview && trial.case.overview.studentBriefing) || '', concepts: (trial.picked || []).map((n) => ({ id: n.id, label: n.label, subtopic: n.subtopic })) };
+        let body; let resp;
+        try { ({ resp, body } = await createAuthedFetch('/playtest/duel/create', { method: 'POST', body: JSON.stringify({ graph: plain, side: pt.side, title: pt.title, meta }) })); }
+        catch (err) { ptShowBlocked(err.message || 'Could not create the duel.'); return false; }
+        if (!resp.ok || !body.code) { ptShowBlocked(body.error || 'Could not create the duel.'); return false; }
+        pt.duel = { code: body.code, side: pt.side }; pt.hash = `duel-${body.code}`;
+        await new Promise((resolve) => {
+            const wrap = ptOverlay(`<div class="pl-panel-head"><h2>Your duel is ready</h2></div>
+                <p class="pl-p">Send this code to your opponent. They will play the ${pt.side === 'defence' ? 'prosecution' : 'defence'} side of this same case, on their own time. You never see each other's answers: the jury weighs what each of you achieved.</p>
+                <div style="font:700 2.4rem monospace;letter-spacing:.35em;text-align:center;margin:18px 0;">${ptE(body.code)}</div>
+                <div class="pl-actions"><button type="button" class="pl-btn" id="plDuelCopy">Copy code</button><span class="pl-spacer"></span><button type="button" class="pl-btn primary" id="plDuelGo">Start my side ▸</button></div>
+                <p class="pl-note">You can find this duel and its result later under Create, Your duels.</p>`);
+            wrap.querySelector('#plDuelCopy').addEventListener('click', (e) => { try { navigator.clipboard.writeText(body.code); e.target.textContent = 'Copied ✓'; } catch (err) { e.target.textContent = body.code; } });
+            wrap.querySelector('#plDuelGo').addEventListener('click', () => { wrap.remove(); resolve(); });
+        });
+        return true;
+    }
+    async function ptStartDuel(info) {
+        const { duel, graph, sessionId } = info;
+        ptMount(); ptHud(true, false); ptScene('chambers', true);
+        const meta = duel.meta || {};
+        const trial = { role: duel.mySide, case: { title: duel.title, overview: { charge: meta.charge || graph.caseFile.chargeSheet, studentBriefing: meta.creatorSide === duel.mySide ? (meta.briefing || '') : '' } }, picked: (meta.concepts || []).map((c) => ({ id: c.id, label: c.label, subtopic: c.subtopic })) };
+        const token = Math.random().toString(36).slice(2);
+        pt = { token, hash: `duel-${duel.code}`, graph: null };
+        await ptBoot({ token, hash: `duel-${duel.code}`, graph, sessionId, trial, duel: { code: duel.code, side: duel.mySide } });
+    }
+    const PT_PERSUASION = (v) => (v >= 0.4 ? 'Very persuasive' : v >= 0.1 ? 'Persuasive' : v > -0.1 ? 'Balanced' : v > -0.4 ? 'Unconvincing in places' : 'Unconvincing');
+    function ptDuelResultHtml(graph, mySide, view) {
+        const other = mySide === 'defence' ? 'prosecution' : 'defence';
+        const res = view.result;
+        if (!res) {
+            return `<p class="pl-p">${view.myDone ? 'Your side is saved.' : 'Play your side to the end to add your result.'} ${!view.opponentJoined ? 'Your opponent has not joined yet: send them the code below.' : !view.opponentDone ? 'Your opponent has not finished yet. Come back to Create, Your duels, to see the verdict once they have.' : ''}</p>
+                <div style="font:700 1.6rem monospace;letter-spacing:.3em;margin:8px 0;">${ptE(view.code)}</div>
+                <div class="pl-actions"><button type="button" class="pl-btn" data-duel-copy>Copy code</button><button type="button" class="pl-btn" data-duel-refresh>Check again</button></div>`;
+        }
+        const v = PtCourt.duelVerdict(graph, res.defence, res.prosecution);
+        const winner = v.guilty ? 'prosecution' : 'defence';
+        const row = (side, who) => `<div class="pl-node"><div><div class="l">${who} (${ptSideLabel(side)})</div><div class="c">Drew out ${v.drew[side]}% of the facts that favour their side. The judge found their advocacy: ${PT_PERSUASION(res[side].persuasion)}.</div></div><span class="pl-rate ${winner === side ? 'strong' : 'needs_work'}">${winner === side ? 'Won' : 'Lost'}</span></div>`;
+        return `<span class="pl-verdict-chip" style="color:${v.guilty ? '#e8a08a' : '#cfe8c8'};">Duel verdict: ${v.guilty ? 'Guilty' : 'Not guilty'}. ${winner === mySide ? 'You won.' : 'Your opponent won.'}</span>
+            <p class="pl-p" style="margin-top:8px;">The jury weighed everything both of you brought out. Winning a duel depends on the case as well as on you, so use your own analysis above to judge your legal work.</p>
+            ${row(mySide, 'You')}${row(other, 'Your opponent')}`;
+    }
+    async function ptDuelPanel(host, code, mySide, graph, submit) {
+        host.innerHTML = '<p class="pl-p" style="opacity:.7;">Checking your duel…</p>';
+        const draw = async (payload) => {
+            let out;
+            try { out = payload ? await createAuthedFetch(`/playtest/duel/${code}/submit`, { method: 'POST', body: JSON.stringify(payload) }) : await createAuthedFetch(`/playtest/duel/${code}`); }
+            catch (err) { host.innerHTML = `<p class="pl-p">${ptE(err.message || 'Could not reach the duel.')}</p>`; return; }
+            if (!out.resp.ok) { host.innerHTML = `<p class="pl-p">${ptE(out.body.error || 'Could not reach the duel.')}</p>`; return; }
+            const view = out.body.duel;
+            host.innerHTML = `<div class="pl-h" style="margin-top:26px;">Your duel</div>${ptDuelResultHtml(graph, mySide, view)}`;
+            host.querySelector('[data-duel-copy]')?.addEventListener('click', (e) => { try { navigator.clipboard.writeText(code); e.target.textContent = 'Copied ✓'; } catch (err) { e.target.textContent = code; } });
+            host.querySelector('[data-duel-refresh]')?.addEventListener('click', () => draw(null));
+        };
+        await draw(submit);
+    }
+    // Reopen a finished duel from the list: just the result, no trial.
+    async function createShowDuelResult(code) {
+        const { resp, body } = await createAuthedFetch('/playtest/duel/join', { method: 'POST', body: JSON.stringify({ code }) });
+        if (!resp.ok) { alert(body.error || 'Could not open that duel.'); return; }
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'position:fixed;inset:0;z-index:5000;background:rgba(10,14,20,.7);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto;';
+        wrap.innerHTML = `<div style="background:#14202c;color:#f3ecd8;border-radius:14px;max-width:640px;width:100%;padding:22px;"><h2 style="margin:0 0 4px;">${escapeHtml(body.duel.title)}</h2><div id="createDuelBody" class="pl-analysis-inner"></div><div style="margin-top:14px;"><button type="button" class="create-secondary" id="createDuelClose">Close</button></div></div>`;
+        document.body.appendChild(wrap);
+        wrap.querySelector('#createDuelClose').addEventListener('click', () => wrap.remove());
+        ptDuelPanel(wrap.querySelector('#createDuelBody'), code, body.duel.mySide, body.graph, null);
+    }
+    async function createJoinDuel(rawCode) {
+        const code = String(rawCode || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (code.length !== 6) { alert('A duel code has six letters and numbers.'); return; }
+        let out;
+        try { out = await createAuthedFetch('/playtest/duel/join', { method: 'POST', body: JSON.stringify({ code }) }); }
+        catch (err) { alert(err.message || 'Could not reach the duel.'); return; }
+        if (!out.resp.ok) { alert(out.body.error || 'Could not open that duel.'); return; }
+        if (out.body.duel.myDone) { createShowDuelResult(code); return; }
+        ptStartDuel({ duel: out.body.duel, graph: out.body.graph, sessionId: out.body.sessionId });
+    }
+    function createAskDuelSide(current) {
+        return new Promise((resolve) => {
+            const wrap = document.createElement('div');
+            wrap.style.cssText = 'position:fixed;inset:0;z-index:5000;background:rgba(10,14,20,.7);display:flex;align-items:center;justify-content:center;padding:16px;';
+            wrap.innerHTML = `<div style="background:#14202c;color:#f3ecd8;border-radius:14px;max-width:460px;width:100%;padding:22px;"><h2 style="margin:0 0 8px;">Two-player duel</h2><p style="margin:0 0 14px;">Which side will you play? Your opponent gets the other one. You each play your side of the same case separately, and the jury weighs both.</p><div style="display:flex;gap:10px;flex-wrap:wrap;"><button type="button" class="create-cta" data-side="defence" style="padding:10px 22px;font-size:.9rem;">${current === 'defence' ? 'Defence ✓' : 'Defence'}</button><button type="button" class="create-cta" data-side="prosecution" style="padding:10px 22px;font-size:.9rem;">${current === 'prosecution' ? 'Prosecution ✓' : 'Prosecution'}</button><button type="button" class="create-secondary" data-side="">Cancel</button></div></div>`;
+            document.body.appendChild(wrap);
+            wrap.addEventListener('click', (e) => { const b = e.target.closest('[data-side]'); if (!b && e.target !== wrap) return; wrap.remove(); resolve(b ? (b.dataset.side || null) : null); });
+        });
+    }
+    async function createStartDuel(trial) {
+        const side = await createAskDuelSide(trial.role);
+        if (!side) return;
+        trial.role = side; saveCreateTrial();
+        ptStart(trial, { duelCreate: true });
     }
     async function ptRestoreSession() {
         const plain = JSON.parse(JSON.stringify(pt.graph, (k, v) => (k === 'portrait' ? undefined : v)));
@@ -10800,10 +10937,18 @@ SQIDAQAB
     }
 
     // Stage 1: the barrister's chambers
+    // Who you confer with in chambers: your own client for the defence; the officer in the case (or the lead prosecution witness) for the Crown.
+    function ptInterviewId() {
+        const g = pt.graph; const set = ptById(g.meta.interviewCharacterId);
+        if (set && (!set.side || set.side === pt.side || set.side === 'neutral')) return set.id;
+        const mine = g.characters.filter((c) => c.side === pt.side || c.calledBy === pt.side);
+        const officer = mine.find((c) => /officer|detective|investigat|police|constable/i.test(c.role || ''));
+        return (officer || mine[0] || set || {}).id;
+    }
     function ptRenderChambers() {
         ptScene('chambers'); ptLabel('Chambers'); ptHud(true, false);
         const g = pt.graph;
-        const interviewee = ptById(g.meta.interviewCharacterId);
+        const interviewee = ptById(ptInterviewId());
         const stage = ptStage(`
             <div class="pl-title-block pl-fade">
                 <div class="pl-eyebrow">${ptE(g.meta.court)}</div>
@@ -10824,7 +10969,7 @@ SQIDAQAB
 
     // Stage 2: the interview room (private: nothing said here is evidence)
     function ptRenderInterview() {
-        const ch = ptById(pt.graph.meta.interviewCharacterId);
+        const ch = ptById(ptInterviewId());
         if (!ch) { ptRenderChambers(); return; }
         ptScene('interview'); ptLabel(pt.side === 'defence' ? 'Client interview' : 'Case conference');
         ptCastIn(ch);
@@ -11293,7 +11438,7 @@ SQIDAQAB
             ${a && a.summary ? `<div class="pl-h">As an advocate</div><p class="pl-p">${ptE(a.summary)}</p>` : ''}
             ${a && a.strengths.length ? `<div class="pl-h">Strengths</div><ul class="pl-list">${a.strengths.map((s) => `<li>${ptE(s)}</li>`).join('')}</ul>` : ''}
             ${a && a.improvements.length ? `<div class="pl-h">To work on</div><ul class="pl-list">${a.improvements.map((s) => `<li>${ptE(s)}</li>`).join('')}</ul>` : ''}
-            <div class="pl-actions" style="margin-top:30px;"><button type="button" class="pl-btn primary" id="plSave">Save this case</button><button type="button" class="pl-btn" id="plSaveRef">Save as reference example</button><button type="button" class="pl-btn" id="plAgain">Play again</button><button type="button" class="pl-btn" id="plDone">Back to Create</button></div>
+            ${pt.duel ? '<div id="plDuel"></div><div class="pl-actions" style="margin-top:30px;"><button type="button" class="pl-btn primary" id="plDone">Back to Create</button></div>' : '<div class="pl-actions" style="margin-top:30px;"><button type="button" class="pl-btn primary" id="plSave">Save this case</button><button type="button" class="pl-btn" id="plSaveRef">Save as reference example</button><button type="button" class="pl-btn" id="plAgain">Play again</button><button type="button" class="pl-btn" id="plDone">Back to Create</button></div>'}
             <p class="pl-note" id="plSaveNote"></p>
         </div>`;
         root.appendChild(panel);
@@ -11305,9 +11450,10 @@ SQIDAQAB
             const r = await createSaveProject({ result: result(), asReference });
             note.textContent = r.note;
         };
-        panel.querySelector('#plSave').addEventListener('click', () => doSave(false));
-        panel.querySelector('#plSaveRef').addEventListener('click', () => doSave(true));
-        panel.querySelector('#plAgain').addEventListener('click', () => { try { localStorage.removeItem(ptStateKey()); } catch (err) { /* fine */ } const trial = loadCreateTrial(); ptStart(trial); });
+        if (pt.duel) ptDuelPanel(panel.querySelector('#plDuel'), pt.duel.code, pt.duel.side, pt.graph, { establishedFactIds: [...pt.established], persuasion: a ? a.persuasion : 0 });
+        panel.querySelector('#plSave')?.addEventListener('click', () => doSave(false));
+        panel.querySelector('#plSaveRef')?.addEventListener('click', () => doSave(true));
+        panel.querySelector('#plAgain')?.addEventListener('click', () => { try { localStorage.removeItem(ptStateKey()); } catch (err) { /* fine */ } const trial = loadCreateTrial(); ptStart(trial); });
         panel.querySelector('#plDone').addEventListener('click', ptExit);
     }
     // The shape LastMind's learner model can read later: one signal per selected concept.
