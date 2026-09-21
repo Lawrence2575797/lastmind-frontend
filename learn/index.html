@@ -22209,7 +22209,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             return [{ el, meta: { canAdvance: true, kind: 'handoff' } }];
         }
         // the version in the address makes a browser fetch the current player after each change instead of reusing an old copy
-        const DERIVE_PLAYER_VERSION = '20260921f';
+        const DERIVE_PLAYER_VERSION = '20260921g';
         el.innerHTML = `<iframe class="sf-derive-frame" src="/learn/derive/player.html?v=${DERIVE_PLAYER_VERSION}" title="Lesson"></iframe>`;
         const frame = el.querySelector('iframe');
         const meta = { canAdvance: false, kind: 'question', answered: false, nodeId: rec.node.id, derive: true };
