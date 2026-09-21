@@ -9446,7 +9446,7 @@ SQIDAQAB
         const back = document.getElementById('createBackBtn');
         if (back) back.addEventListener('click', () => renderCreatePage(back.dataset.view));
         contentInner.querySelectorAll('[data-template], [data-simulation]').forEach((el) => {
-            const open = () => renderCreatePage(el.dataset.template || el.dataset.simulation);
+            const open = () => { if (el.dataset.simulation === 'criminal-trial') createStartNewTrial(); renderCreatePage(el.dataset.template || el.dataset.simulation); };
             el.addEventListener('click', open);
             el.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
         });
@@ -9764,6 +9764,12 @@ SQIDAQAB
     let createLawMapCache = null;
     const createScalesSvg = '<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M32 8v44M18 52h28M32 14l-18 6M32 14l18 6"/><path d="M14 20l-8 16c0 4 4 6 8 6s8-2 8-6l-8-16zM50 20l-8 16c0 4 4 6 8 6s8-2 8-6l-8-16z"/></svg>';
 
+    // "Create project" starts a genuinely blank case: nothing from the last one comes back, and its budget starts again.
+    function createStartNewTrial() {
+        createTrial = null; createBuild = null; createValidation = null; createGraphCache = null;
+        try { localStorage.removeItem(CREATE_TRIAL_KEY); localStorage.removeItem(CREATE_GRAPH_KEY); } catch (err) { /* fine */ }
+        createSwitchCase(0);
+    }
     function loadCreateTrial() {
         if (createTrial) return createTrial;
         let saved = null;
@@ -10295,6 +10301,13 @@ SQIDAQAB
     try { const v = Number(localStorage.getItem(CREATE_SPEND_KEY)); if (v > 0) createSpend.usedUsd = v; } catch (err) { /* fine */ }
     const createBudgetLeft = () => createSpend.capUsd - createSpend.usedUsd;
     const createBudgetLabel = () => `Testing budget $${createSpend.usedUsd.toFixed(2)} of $${createSpend.capUsd.toFixed(2)}`;
+    // Each case has its own testing budget: opening a case restores what it has spent, starting a new one begins at zero.
+    function createSwitchCase(spentUsd) {
+        createSpend.usedUsd = Math.max(0, Number(spentUsd) || 0);
+        try { localStorage.setItem(CREATE_SPEND_KEY, String(createSpend.usedUsd)); } catch (err) { /* fine */ }
+        createPaintBudget();
+        try { createAuthedFetch('/create/spend/set', { method: 'POST', body: JSON.stringify({ usedUsd: createSpend.usedUsd }) }).catch(() => {}); } catch (err) { /* the server total catches up on the next call */ }
+    }
     function createPaintBudget() {
         document.querySelectorAll('.create-budget, .pl-spend').forEach((el) => {
             el.textContent = createBudgetLabel();
@@ -10339,6 +10352,7 @@ SQIDAQAB
             graph: cache ? cache.graph : null,
             graphHash: cache ? cache.hash : null,
             result: result || trial.lastResult || null,
+            spentUsd: createSpend.usedUsd,
         };
     }
     // Saves the current case. Returns { where: 'account' | 'browser', note }.
@@ -10393,6 +10407,7 @@ SQIDAQAB
         if (!data || !data.trial) { alert("Couldn't open that project."); return; }
         createTrial = { step: 'case', role: '', minutes: 0, picked: [], idea: '', details: {}, cortexDecides: false, showDetails: false, case: null, caseTab: 'overview', ...data.trial, projectId: mine ? id : undefined, lastResult: data.result || null };
         createBuild = null; createValidation = null;
+        createSwitchCase(data.spentUsd || 0);
         createGraphCache = data.graph ? { hash: data.graphHash || '', graph: data.graph } : null;
         if (createGraphCache) createStoreGraphCache();
         saveCreateTrial();
