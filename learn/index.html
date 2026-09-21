@@ -1388,7 +1388,7 @@
     .sf-slide-explanation { font-size: 17px; line-height: 1.7; padding: 20px 24px; border-radius: 18px; background: rgba(0,0,0,0.24); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
     .sf-stepchip { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; padding: 3px 10px; border-radius: 999px; background: var(--accent); color: var(--bg); opacity: 0.95; }
     /* Lessons, laid out for reading: key-idea cards, highlighted terms, a takeaway, and blocks that appear one after another. Text is untouched. */
-    .lm-dots { display: flex; gap: 6px; margin: 0 0 14px; } .lm-dots i { width: 22px; height: 4px; border-radius: 3px; background: rgba(255,255,255,0.18); position: relative; overflow: hidden; }
+    .lm-dots { display: flex; align-items: center; gap: 6px; margin: 0 0 14px; } .lm-dots i { width: 22px; height: 4px; border-radius: 3px; background: rgba(255,255,255,0.18); position: relative; overflow: hidden; }
     .lm-dots i::after { content: ''; position: absolute; inset: 0; background: var(--accent); transform: scaleX(0); transform-origin: left; animation: lmFill .5s ease both; animation-delay: calc(var(--i) * 0.28s); }
     .lm-step, .lm-card, .lm-list li { animation: lmIn .55s ease both; animation-delay: calc(var(--i) * 0.28s); }
     .lm-intro { font-size: 0.9em; opacity: 0.78; font-style: italic; }
@@ -1416,8 +1416,27 @@
     /* Interactive questions: spot the mistake, jigsaw match, drag to order */
     .qz { margin: 12px 0 8px; } .qz-hint { font-size: 13px; opacity: 0.78; margin-bottom: 10px; }
     .qz-doc { padding: 16px 18px; border-radius: 14px; background: rgba(255,255,255,0.06); border: 1px dashed rgba(230,215,176,0.4); line-height: 2.15; font-size: 15.5px; }
-    .qz-seg { all: unset; cursor: pointer; padding: 2px 5px; border-radius: 7px; transition: background .15s, transform .15s; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
-    .qz-seg:hover { background: rgba(255,214,102,0.2); } .qz-seg:focus-visible { outline: 2px solid var(--accent); }
+    .qz-doc.qz-cards { padding: 0; border: 0; background: none; display: grid; gap: 10px; line-height: 1.5; }
+    .qz-n { flex: 0 0 28px; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--bg); font-weight: 800; font-size: 13px; display: grid; place-items: center; }
+    .qz-cloze-doc { padding: 16px 18px; border-radius: 14px; background: rgba(255,255,255,0.07); line-height: 2.5; font-size: 16px; }
+    .qz-blank, .qz-stepinput { font: inherit; color: var(--text); background: rgba(0,0,0,0.25); border: 0; border-bottom: 2px solid var(--accent); border-radius: 6px 6px 0 0; padding: 3px 8px; min-width: 110px; text-align: center; }
+    .qz-blank:focus, .qz-stepinput:focus { outline: none; background: rgba(0,0,0,0.4); }
+    .qz-blank.good, .qz-stepinput.good { border-bottom-color: #4cc38a; background: rgba(76,195,138,0.2); } .qz-blank.bad, .qz-stepinput.bad { border-bottom-color: #eb6b6b; background: rgba(235,107,107,0.18); animation: qzShake .4s; }
+    .qz-steprows { display: grid; gap: 10px; } .qz-steprow { display: flex; gap: 12px; align-items: center; } .qz-stepinput { flex: 1; text-align: left; padding: 9px 12px; border-radius: 10px; border-bottom-width: 3px; }
+    .sf-question-submit.qz-check { padding: 13px 34px; font-size: 16px; font-weight: 700; border-radius: 12px; align-self: flex-start; }
+    .sf-question-submit.qz-check:disabled { opacity: 0.4; cursor: not-allowed; }
+    .lm-count { position: relative; margin-left: 8px; min-width: 44px; height: 14px; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; opacity: 0.85; } .lm-count b { position: absolute; left: 0; top: 0; opacity: 0; animation: lmSlot .28s linear; animation-delay: calc(var(--i) * 0.28s); } .lm-count b:last-child { animation-fill-mode: forwards; }
+    @keyframes lmSlot { from { opacity: 1; } to { opacity: 1; } }
+    .sf-side-toggle { position: absolute; top: 14px; right: 58px; z-index: 2; border: 0; border-radius: 999px; padding: 8px 14px; font: 700 12px Arial, sans-serif; background: rgba(0,0,0,0.3); color: var(--text); cursor: pointer; }
+    .sf-feed-root.has-mini-cortex.side-collapsed { max-width: 1000px; } .sf-greeting-banner.has-mini-cortex.side-collapsed { max-width: 1000px; }
+    .sf-feed-root.has-mini-cortex.side-collapsed .sf-mini-cortex-panel { display: none; }
+    .sf-feed-root.has-mini-cortex.side-collapsed .sf-feed-viewport { right: 0; } .sf-feed-root.has-mini-cortex.side-collapsed .sf-feed-exit-btn { right: 14px; } .sf-feed-root.has-mini-cortex.side-collapsed .sf-recall-nudge { right: 16px; }
+    .sf-feed-root.has-mini-cortex.side-collapsed .sf-slide-inner { max-width: 860px; }
+    .sf-recap-list { display: grid; gap: 6px; margin-top: 8px; } .sf-recap-row { display: flex; gap: 10px; align-items: flex-start; padding: 8px 12px; border-radius: 10px; background: rgba(255,255,255,0.07); font-size: 14.5px; line-height: 1.5; }
+    .sf-recap-row.hit { border-left: 4px solid #4cc38a; } .sf-recap-row.miss { border-left: 4px solid #eb6b6b; }
+    .sf-recap-lesson { font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.7; margin-top: 10px; }
+    .qz-seg { display: flex; gap: 12px; align-items: flex-start; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.07); transition: background .15s, transform .15s; }
+    .qz-seg:hover { background: rgba(255,214,102,0.18); transform: translateX(2px); } .qz-seg:focus-visible { outline: 2px solid var(--accent); }
     .qz-seg.picked { background: #ffd666; color: #1b1400; box-shadow: 0 0 0 3px rgba(255,214,102,0.35); }
     .qz-seg.wrong { background: #eb6b6b; color: #fff; animation: qzShake .4s; } .qz-seg.tried { opacity: 0.5; text-decoration: line-through; }
     .qz-seg.right { background: #4cc38a; color: #04240f; } .qz-seg.dim { opacity: 0.45; }
@@ -7700,7 +7719,7 @@ SQIDAQAB
             return `<p class="lm-step${intro ? ' lm-intro' : ''}${takeaway ? ' lm-takeaway' : ''}" style="--i:${i++}">${emphasise(boldMarkdownToHtml(b.text))}</p>`;
         });
         const n = Math.min(8, i);
-        return `<div class="lm-dots" aria-hidden="true">${Array.from({ length: n }, (_, k) => `<i style="--i:${k}"></i>`).join('')}</div>${out.join('')}`;
+        return `<div class="lm-dots" aria-hidden="true">${Array.from({ length: n }, (_, k) => `<i style="--i:${k}"></i>`).join('')}<span class="lm-count">${Array.from({ length: n }, (_, k) => `<b style="--i:${k}">${k + 1} / ${n}</b>`).join('')}</span></div>${out.join('')}`;
     }
     function splitIntoParagraphs(text, sentencesPerParagraph = 2) {
         if (!text) return '';
@@ -20380,6 +20399,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 sfShowAdvanceHint(slideEl);
                 sfPrefetchNext();
                 sfRefreshImmediateRecalls();
+                sfRecapMaybeInsert();
                 return true;
             }
             setDisabled(false);
@@ -20438,20 +20458,27 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     // ---- interactive questions: spot the mistake, jigsaw match, drag-to-order ----
     // qzBuild(host, question) draws the puzzle and returns { getAnswer(), setDisabled(bool), showResult(result), incompleteText }.
     // The answer key is never on the page: the server grades, and sends back per-piece results for a wrong attempt.
-    const QZ_FORMATS = ['spot_mistake', 'match', 'order'];
+    const QZ_FORMATS = ['spot_mistake', 'match', 'order', 'cloze', 'steps'];
     const qzIsInteractive = (q) => !!q && QZ_FORMATS.includes(q.format);
     function qzBuild(host, q, onChange) {
         host.classList.add('qz');
         const hint = document.createElement('div'); hint.className = 'qz-hint';
-        hint.textContent = q.format === 'spot_mistake' ? 'Tap the sentence you think is wrong.' : q.format === 'match' ? 'Tap a piece, then tap where it fits. Or drag it across.' : 'Tap the cards in the right order, or drag them into the boxes. Tap a placed card to take it back.';
-        host.appendChild(hint);
-        return q.format === 'spot_mistake' ? qzSpot(host, q, onChange) : qzPlacement(host, q, onChange);
+        const decoyNote = q.format === 'order' && (q.items || []).length > (q.slots || 0) ? ' Some cards do not belong: leave them out.' : q.format === 'match' && (q.rights || []).length > (q.lefts || []).length ? ' Some pieces do not fit anywhere: leave them out.' : '';
+        hint.textContent = q.format === 'match' ? 'Tap a piece, then tap where it fits. Or drag it across.' + decoyNote : q.format === 'order' ? 'Tap the cards in the right order, or drag them into the boxes. Tap a placed card to take it back.' + decoyNote : q.format === 'cloze' ? 'Type the missing terms from memory.' : q.format === 'steps' ? 'Type the steps in order, one in each box, from memory.' : '';
+        if (hint.textContent) host.appendChild(hint);
+        if (q.format === 'spot_mistake') return qzSpot(host, q, onChange);
+        if (q.format === 'cloze') return qzCloze(host, q, onChange);
+        if (q.format === 'steps') return qzSteps(host, q, onChange);
+        return qzPlacement(host, q, onChange);
     }
     function qzSpot(host, q, onChange) {
-        const doc = document.createElement('div'); doc.className = 'qz-doc';
+        const doc = document.createElement('div'); doc.className = 'qz-doc qz-cards';
         let picked = -1; let disabled = false;
         const segs = (q.segments || []).map((t, i) => {
-            const b = document.createElement('button'); b.type = 'button'; b.className = 'qz-seg'; b.textContent = t;
+            const b = document.createElement('button'); b.type = 'button'; b.className = 'qz-seg';
+            const badge = document.createElement('span'); badge.className = 'qz-n'; badge.textContent = i + 1;
+            const label = document.createElement('span'); label.textContent = t;
+            b.appendChild(badge); b.appendChild(label);
             b.addEventListener('click', () => { if (disabled) return; picked = i; segs.forEach((x, j) => x.classList.toggle('picked', j === i)); if (onChange) onChange(); });
             doc.appendChild(b); doc.appendChild(document.createTextNode(' '));
             return b;
@@ -20466,14 +20493,14 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 const seg = segs[picked]; if (!seg) return;
                 seg.classList.remove('picked');
                 if (res.correct) { seg.classList.add('right'); segs.forEach((x) => { if (x !== seg) x.classList.add('dim'); }); doc.classList.add('qz-done'); if (res.reveal) { reveal.hidden = false; reveal.textContent = res.reveal; } }
-                else { seg.classList.add('wrong', 'tried'); picked = -1; setTimeout(() => seg.classList.remove('wrong'), 900); }
+                else { seg.classList.add('wrong', 'tried'); picked = -1; setTimeout(() => seg.classList.remove('wrong'), 900); if (onChange) onChange(); }
             },
         };
     }
     function qzPlacement(host, q, onChange) {
         const isMatch = q.format === 'match';
         const pieces = isMatch ? (q.rights || []) : (q.items || []);
-        const n = isMatch ? (q.lefts || []).length : (q.items || []).length;
+        const n = isMatch ? (q.lefts || []).length : (q.slots || (q.items || []).length);
         const placed = new Array(n).fill(null); const locked = new Array(n).fill(false);
         let selected = null; let disabled = false;
         const hue = (i) => (i * 67 + 200) % 360;
@@ -20543,20 +20570,81 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             },
         };
     }
+    // Typed recall: fill the missing terms into a passage, or list the steps of a process in order. Nothing to pick from.
+    function qzTypedRows(host, onChange, inputs, locked) {
+        return {
+            getAnswer: null,
+            setDisabled: (v) => { inputs.forEach((el, i) => { el.disabled = v || locked[i]; }); },
+            mark: (detail, correct) => {
+                inputs.forEach((el, i) => {
+                    if (correct || (detail && detail[i])) { locked[i] = true; el.disabled = true; el.classList.add('good'); el.classList.remove('bad'); }
+                    else { el.classList.add('bad'); setTimeout(() => el.classList.remove('bad'), 700); }
+                });
+                if (correct) host.classList.add('qz-done');
+            },
+        };
+    }
+    function qzCloze(host, q, onChange) {
+        const doc = document.createElement('div'); doc.className = 'qz-cloze-doc';
+        const inputs = []; const locked = [];
+        String(q.text || '').split(/_{2,}/).forEach((part, i, all) => {
+            doc.appendChild(document.createTextNode(part));
+            if (i < all.length - 1) {
+                const el = document.createElement('input'); el.type = 'text'; el.className = 'qz-blank'; el.autocomplete = 'off'; el.spellcheck = false; el.setAttribute('aria-label', 'Blank ' + (i + 1));
+                el.addEventListener('input', () => { el.classList.remove('bad'); if (onChange) onChange(); });
+                inputs.push(el); locked.push(false); doc.appendChild(el);
+            }
+        });
+        host.appendChild(doc);
+        const rows = qzTypedRows(host, onChange, inputs, locked);
+        return {
+            incompleteText: 'Fill in every blank first.',
+            getAnswer: () => (inputs.some((el) => !el.value.trim()) ? null : { answers: inputs.map((el) => el.value.trim()) }),
+            setDisabled: rows.setDisabled,
+            showResult(res) { rows.mark(res.detail, res.correct); if (onChange) onChange(); },
+        };
+    }
+    function qzSteps(host, q, onChange) {
+        const wrap = document.createElement('div'); wrap.className = 'qz-steprows';
+        const inputs = []; const locked = [];
+        for (let i = 0; i < (q.count || 0); i++) {
+            const row = document.createElement('div'); row.className = 'qz-steprow';
+            const badge = document.createElement('span'); badge.className = 'qz-n'; badge.textContent = i + 1;
+            const el = document.createElement('input'); el.type = 'text'; el.className = 'qz-stepinput'; el.autocomplete = 'off'; el.placeholder = 'Step ' + (i + 1); el.setAttribute('aria-label', 'Step ' + (i + 1));
+            el.addEventListener('input', () => { el.classList.remove('bad'); if (onChange) onChange(); });
+            row.appendChild(badge); row.appendChild(el); wrap.appendChild(row); inputs.push(el); locked.push(false);
+        }
+        host.appendChild(wrap);
+        const reveal = document.createElement('div'); reveal.className = 'qz-reveal'; reveal.hidden = true; host.appendChild(reveal);
+        const rows = qzTypedRows(host, onChange, inputs, locked);
+        return {
+            incompleteText: 'Write every step first.',
+            getAnswer: () => (inputs.some((el) => !el.value.trim()) ? null : { lines: inputs.map((el) => el.value.trim()) }),
+            setDisabled: rows.setDisabled,
+            showResult(res) { rows.mark(res.detail, res.correct); if (res.correct && res.reveal) { reveal.hidden = false; reveal.textContent = 'The steps: ' + res.reveal; } if (onChange) onChange(); },
+        };
+    }
+
     // Wires one interactive question into a feed slide: Check button, feedback line, deterministic grading via `submit`.
     function sfWireInteractiveSlide(slideEl, meta, question, submit, onCorrect, onWrong) {
         const feedbackEl = slideEl.querySelector('.sf-question-feedback');
-        const widget = qzBuild(slideEl.querySelector('.sf-q-host'), question);
-        slideEl.querySelector('.sf-question-submit').addEventListener('click', sfSubmitCurrentSlide);
+        const checkBtn = slideEl.querySelector('.sf-question-submit');
+        checkBtn.classList.add('qz-check');
+        let busy = false;
+        let widget = null;   // assigned below; the puzzle reports changes while it is still being built
+        const refreshCheck = () => { checkBtn.disabled = busy || !widget || widget.getAnswer() === null; };
+        widget = qzBuild(slideEl.querySelector('.sf-q-host'), question, refreshCheck);
+        checkBtn.addEventListener('click', sfSubmitCurrentSlide);
+        refreshCheck();
         meta.noBack = true;
         let retryCount = 0;
         meta.trySubmit = async () => {
             const answer = widget.getAnswer();
             if (!answer) { feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">${widget.incompleteText}</div>`; return false; }
-            widget.setDisabled(true);
+            widget.setDisabled(true); busy = true; refreshCheck();
             feedbackEl.innerHTML = '<div class="sf-feedback-line">Checking…</div>';
             const result = await submit(answer, retryCount);
-            if (!result) { widget.setDisabled(false); feedbackEl.innerHTML = '<div class="sf-feedback-line sf-feedback-wrong">Something went wrong submitting that - try again.</div>'; return false; }
+            if (!result) { widget.setDisabled(false); busy = false; refreshCheck(); feedbackEl.innerHTML = '<div class="sf-feedback-line sf-feedback-wrong">Something went wrong submitting that - try again.</div>'; return false; }
             widget.showResult(result);
             qzShowResultInView(slideEl, feedbackEl);
             if (result.correct) {
@@ -20568,7 +20656,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             retryCount += 1;
             // A host can decide a wrong answer ends the question (the Day-1 check does, after its one re-ask).
             if (onWrong && (await onWrong(result)) === true) { feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || 'Not quite - this one will come back around.')}</div>`; return true; }
-            setTimeout(() => widget.setDisabled(false), 700);
+            setTimeout(() => { widget.setDisabled(false); busy = false; refreshCheck(); }, 700);
             feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || 'Not quite - try again.')}</div>`;
             return false;
         };
@@ -20606,6 +20694,46 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             retry += 1; out.textContent = result.feedback || 'Not quite - try again.'; inView();
             setTimeout(() => { btn.disabled = false; widget.setDisabled(false); }, 700);
         });
+    }
+
+    // ---- recap ("brain dump"): after every few lessons, write down the terms from memory; the page marks what was missed ----
+    // Entirely on the page: the terms are the "term = definition" lines of the lessons just read, so it costs nothing and needs no model.
+    function lmExtractTerms(text) {
+        return String(text || '').split(/\n+/).map((l) => l.trim().replace(/^([*-]|\d+[.)])\s+/, '')).map((l) => { const m = l.match(/^(.{2,90}?)\s=\s(.+)$/); return m && m[1].split(/\s+/).length <= 10 ? { term: m[1].replace(/\*\*/g, '').trim(), def: m[2].trim() } : null; }).filter(Boolean);
+    }
+    const SF_RECAP_EVERY = 4;
+    function sfRecapNote(label, explanation) {
+        if (!sfFeed) return;
+        const terms = lmExtractTerms(explanation);
+        sfFeed.recap = sfFeed.recap || { lessons: [], done: 0 };
+        if (terms.length && !sfFeed.recap.lessons.some((l) => l.label === label)) sfFeed.recap.lessons.push({ label, terms });
+    }
+    function sfRecapMaybeInsert() {
+        if (!sfFeed || !sfFeed.recap) return;
+        sfFeed.recap.done += 1;
+        if (sfFeed.recap.done % SF_RECAP_EVERY !== 0 || !sfFeed.recap.lessons.length) return;
+        const lessons = sfFeed.recap.lessons.splice(0);
+        sfInsertSlidesAt(sfFeed.currentIndex + 1, [sfBuildRecapSlide(lessons)]);
+    }
+    function sfBuildRecapSlide(lessons) {
+        const norm = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\b(the|a|an)\b/g, ' ').replace(/\s+/g, ' ').trim();
+        const count = lessons.reduce((n, l) => n + l.terms.length, 0);
+        const el = document.createElement('div');
+        el.className = 'sf-feed-slide';
+        el.innerHTML = `<div class="sf-slide-inner"><div><span class="sf-stepchip">Brain dump</span></div><p class="sf-question-text">Without looking back: write down every term you have met in the last ${lessons.length} lesson${lessons.length === 1 ? '' : 's'} (${count} in all), in the order you would use them.</p><textarea class="sf-question-input" rows="6" placeholder="One term per line, or a running list" autocomplete="off"></textarea><div style="display:flex;gap:10px;flex-wrap:wrap;"><button type="button" class="btn primary sf-recap-check">Check my list</button><span class="sf-advance-hint" style="align-self:center;">Or scroll on to skip</span></div><div class="sf-recap-out"></div></div>`;
+        const meta = { canAdvance: true, kind: 'recap', noBack: false };
+        const input = el.querySelector('textarea'); const out = el.querySelector('.sf-recap-out'); const btn = el.querySelector('.sf-recap-check');
+        btn.addEventListener('click', () => {
+            const typed = norm(input.value);
+            if (!typed) { out.innerHTML = '<div class="sf-feedback-line sf-feedback-wrong">Write what you remember first, even if it is only a few terms.</div>'; return; }
+            const found = (t) => { const nt = norm(t); if (!nt) return -1; const at = typed.indexOf(nt); if (at >= 0) return at; const words = nt.split(' ').filter((w) => w.length > 3); if (words.length < 2) return -1; const hits = words.map((w) => typed.indexOf(w)); return hits.every((h) => h >= 0) ? Math.min(...hits) : -1; };
+            let hit = 0; const positions = [];
+            const html = lessons.map((l) => `<div class="sf-recap-lesson">${escapeHtml(l.label)}</div><div class="sf-recap-list">${l.terms.map((t) => { const at = found(t.term); if (at >= 0) { hit++; positions.push(at); } return `<div class="sf-recap-row ${at >= 0 ? 'hit' : 'miss'}"><b>${at >= 0 ? '✓' : '✗'}</b><span><b>${escapeHtml(t.term)}</b>${at >= 0 ? '' : ` = ${escapeHtml(t.def)}`}</span></div>`; }).join('')}</div>`).join('');
+            const inOrder = positions.every((p, k) => k === 0 || p >= positions[k - 1]);
+            out.innerHTML = `<div class="sf-feedback-line ${hit === count ? 'sf-feedback-correct' : ''}">You remembered ${hit} of ${count} terms. ${hit > 1 ? (inOrder ? 'The ones you found are in the same order as the lessons.' : 'Your order differs from the order the lessons used them in.') : ''}</div>${html}`;
+            btn.disabled = true; input.disabled = true;
+        });
+        return { el, meta };
     }
 
     function sfShowAdvanceHint(slideEl) {
@@ -21023,6 +21151,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         // override that keeps this safe to do this early.
         sfPrefetchNext(rec.node.id);
 
+        sfRecapNote(rec.node.label, lesson.explanation);
         const explEl = document.createElement('div');
         explEl.className = 'sf-feed-slide';
         explEl.innerHTML = `
@@ -21076,6 +21205,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                     if (result.schedule) sfUpsertScheduleCache(result.schedule);
                     qMeta.answered = true; qMeta.canAdvance = true; sfShowAdvanceHint(qEl);
                     sfPrefetchNext(); sfRefreshImmediateRecalls();
+                    sfRecapMaybeInsert();
                 });
             slides.push({ el: qEl, meta: qMeta });
         } else if (lesson.practiceQuestion && lesson.practiceQuestion.questionText) {
@@ -22081,6 +22211,8 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     // sfNextRecommendationForCurrentFeed) - omitted for the global,
     // cross-subject login-time feed and for the corrections feed (which
     // isn't lesson-recommendation-based at all).
+    // The practice-questions panel starts folded away while you are in a lesson (the student can open it, and the choice is kept).
+    function sfSidePanelCollapsed() { try { return localStorage.getItem('lastmind-side-practice-open') !== '1'; } catch (err) { return true; } }
     function sfMountFeedShell(exitTitle, onClose, scopeFolder, showPracticePanel = false) {
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
@@ -22092,9 +22224,10 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                     <div class="sf-side-practice-body"><p class="sf-side-practice-status">Loading questions…</p></div>
                 </aside>` : '';
         contentInner.innerHTML = `
-            <div class="sf-greeting-banner${hasPracticePanel ? ' has-mini-cortex' : ''}"></div>
-            <div class="sf-feed-root${hasPracticePanel ? ' has-mini-cortex' : ''}">
+            <div class="sf-greeting-banner${hasPracticePanel ? ' has-mini-cortex' + (sfSidePanelCollapsed() ? ' side-collapsed' : '') : ''}"></div>
+            <div class="sf-feed-root${hasPracticePanel ? ' has-mini-cortex' + (sfSidePanelCollapsed() ? ' side-collapsed' : '') : ''}">
                 <button type="button" class="sf-feed-exit-btn" title="${escapeHtml(exitTitle)}">✕</button>
+                ${hasPracticePanel ? `<button type="button" class="sf-side-toggle" aria-expanded="${sfSidePanelCollapsed() ? 'false' : 'true'}">${sfSidePanelCollapsed() ? 'Show practice questions' : 'Hide practice questions'}</button>` : ''}
                 ${hasPracticePanel ? '<button type="button" class="btn sf-mobile-practice-btn">See practice questions</button>' : ''}
                 <div class="sf-feed-viewport">
                     <div class="sf-feed-track"></div>
@@ -22106,6 +22239,14 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         const trackEl = contentInner.querySelector('.sf-feed-track');
         const nudgeEl = contentInner.querySelector('.sf-recall-nudge');
         contentInner.querySelector('.sf-feed-exit-btn').addEventListener('click', sfCloseFeed);
+        const sideToggle = contentInner.querySelector('.sf-side-toggle');
+        if (sideToggle) sideToggle.addEventListener('click', () => {
+            const collapsed = !contentInner.querySelector('.sf-feed-root').classList.contains('side-collapsed');
+            contentInner.querySelectorAll('.sf-feed-root, .sf-greeting-banner').forEach((el) => el.classList.toggle('side-collapsed', collapsed));
+            sideToggle.textContent = collapsed ? 'Show practice questions' : 'Hide practice questions';
+            sideToggle.setAttribute('aria-expanded', String(!collapsed));
+            try { localStorage.setItem('lastmind-side-practice-open', collapsed ? '0' : '1'); } catch (err) { /* fine */ }
+        });
         const mobilePracticeBtn = contentInner.querySelector('.sf-mobile-practice-btn');
         if (mobilePracticeBtn && scopeFolder) mobilePracticeBtn.addEventListener('click', () => renderSpecPracticeForFolder(scopeFolder));
         sfMountGreetingBanner(contentInner.querySelector('.sf-greeting-banner'));
