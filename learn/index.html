@@ -20364,19 +20364,19 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     // The answer key is never on the page: the server grades, and sends back per-piece results for a wrong attempt.
     const QZ_FORMATS = ['spot_mistake', 'match', 'order'];
     const qzIsInteractive = (q) => !!q && QZ_FORMATS.includes(q.format);
-    function qzBuild(host, q) {
+    function qzBuild(host, q, onChange) {
         host.classList.add('qz');
         const hint = document.createElement('div'); hint.className = 'qz-hint';
         hint.textContent = q.format === 'spot_mistake' ? 'Tap the sentence you think is wrong.' : q.format === 'match' ? 'Tap a piece, then tap where it fits. Or drag it across.' : 'Tap the cards in the right order, or drag them into the boxes. Tap a placed card to take it back.';
         host.appendChild(hint);
-        return q.format === 'spot_mistake' ? qzSpot(host, q) : qzPlacement(host, q);
+        return q.format === 'spot_mistake' ? qzSpot(host, q, onChange) : qzPlacement(host, q, onChange);
     }
-    function qzSpot(host, q) {
+    function qzSpot(host, q, onChange) {
         const doc = document.createElement('div'); doc.className = 'qz-doc';
         let picked = -1; let disabled = false;
         const segs = (q.segments || []).map((t, i) => {
             const b = document.createElement('button'); b.type = 'button'; b.className = 'qz-seg'; b.textContent = t;
-            b.addEventListener('click', () => { if (disabled) return; picked = i; segs.forEach((x, j) => x.classList.toggle('picked', j === i)); });
+            b.addEventListener('click', () => { if (disabled) return; picked = i; segs.forEach((x, j) => x.classList.toggle('picked', j === i)); if (onChange) onChange(); });
             doc.appendChild(b); doc.appendChild(document.createTextNode(' '));
             return b;
         });
@@ -20394,7 +20394,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             },
         };
     }
-    function qzPlacement(host, q) {
+    function qzPlacement(host, q, onChange) {
         const isMatch = q.format === 'match';
         const pieces = isMatch ? (q.rights || []) : (q.items || []);
         const n = isMatch ? (q.lefts || []).length : (q.items || []).length;
@@ -20421,6 +20421,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 if (placed[i] !== null) slot.appendChild(els.get(placed[i])); else slot.innerHTML = `<span class="qz-ph">${isMatch ? 'fits here' : 'drop here'}</span>`;
             });
             pieces.forEach((t) => { const el = els.get(t); el.classList.toggle('sel', selected === t); if (where(t) < 0) pool.appendChild(el); });
+            if (onChange) onChange();
         }
         function putIn(t, i) {
             if (disabled || locked[i]) return;
@@ -21473,7 +21474,13 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             }
             sfFeed.currentIndex = Math.min(sfFeed.currentIndex, sfFeed.slides.length - 1);
             if (onAllCleared) await onAllCleared();
-            else sfForceMoveToIndex(returnIndex);
+            else {
+                // Snap straight back to the lesson the student left. (sfForceMoveToIndex would do nothing here when that lesson was
+                // the last slide: the index already equals the target, so the track stayed scrolled to a slide that no longer exists.)
+                sfFeed.currentIndex = returnIndex;
+                sfFeed.trackEl.style.transform = `translateY(-${returnIndex * 100}%)`;
+                sfFeed.locked = false;
+            }
             return true;
         };
 
@@ -27731,7 +27738,15 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         // column read bottom-to-top (earliest prerequisite at the
         // bottom, working up to the target). One submit button grades
         // every box at once (see PER_STEP_GRADE_PROMPT).
+        // An interactive step (spot the mistake, match, order) answers with its puzzle, not a text box.
+        const prereqWidgets = new Map();
+        function kmInteractiveEditor(step, onChange) {
+            const container = document.createElement('div');
+            const widget = qzBuild(container, step, onChange);
+            return { container, widget, isEmpty: () => widget.getAnswer() === null, getValue: () => widget.getAnswer(), hasTrustedInput: () => true, markTrusted() {} };
+        }
         function renderPrereqCheckAnswering(lessonEl, d, state, chains, targetLabel) {
+            prereqWidgets.clear();
             const flatSteps = chains.flat();
             const columnsHtml = chains.map((chain, ci) => `
                 <div class="km-prereq-column" data-chain-index="${ci}">
@@ -27759,13 +27774,16 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             `;
 
             const editors = new Map();
-            const updateSubmitEnabled = () => { submitBtn.disabled = [...editors.values()].some((e) => e.isEmpty()); };
+            let submitReady = false;   // the puzzles report changes while they are being built, before the button exists
+            const updateSubmitEnabled = () => { if (!submitReady) return; submitBtn.disabled = [...editors.values()].some((e) => e.isEmpty()); };
             lessonEl.querySelectorAll('.km-prereq-step').forEach((stepEl) => {
                 const componentId = stepEl.dataset.componentId;
                 const step = flatSteps.find((s) => s.componentId === componentId);
-                const editor = looksLikeCalculationQuestion(step.questionText) ? createMathShortcutEditor('Write your answer here…') : createPlainAnswerEditor('Write your answer here…');
+                const interactive = qzIsInteractive(step);
+                const editor = interactive ? kmInteractiveEditor(step, () => updateSubmitEnabled()) : looksLikeCalculationQuestion(step.questionText) ? createMathShortcutEditor('Write your answer here…') : createPlainAnswerEditor('Write your answer here…');
                 stepEl.querySelector('.km-prereq-step-input').appendChild(editor.container);
                 editors.set(componentId, editor);
+                if (interactive) { prereqWidgets.set(componentId, editor.widget); return; }
                 const inputEl = editor.container.querySelector('.math-shortcut-editor');
                 const draftKey = `prereq-check:${d.id}:${componentId}`;
                 const restored = loadAnswerDraft(draftKey);
@@ -27777,6 +27795,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             });
 
             const submitBtn = lessonEl.querySelector('.km-prereq-submit-btn');
+            submitReady = true;
             updateSubmitEnabled();
 
             submitBtn.addEventListener('click', async () => {
@@ -27794,7 +27813,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                     renderPrereqCheckError(lessonEl);
                     return;
                 }
-                editors.forEach((editor, componentId) => clearAnswerDraft(`prereq-check:${d.id}:${componentId}`));
+                editors.forEach((editor, componentId) => { if (!editor.widget) clearAnswerDraft(`prereq-check:${d.id}:${componentId}`); });
                 renderPrereqCheckResults(lessonEl, d, state, chains, answers, result.results);
             });
         }
@@ -27814,7 +27833,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             lessonEl.querySelector('.km-prereq-status').hidden = false;
             lessonEl.querySelector('.km-prereq-status').textContent = 'Anything still marked wrong will be added to your feed as its own fresh lesson.';
 
-            function renderStepRetryBox(stepEl, componentId, retryQuestionText) {
+            function renderStepRetryBox(stepEl, componentId, retryQuestionText, retryPuzzle) {
                 const existing = stepEl.querySelector('.km-prereq-retry-box');
                 if (existing) existing.remove();
                 const box = document.createElement('div');
@@ -27826,7 +27845,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                     <button type="button" class="btn primary km-prereq-retry-submit-btn" style="margin-top:8px;">Submit retry</button>
                 `;
                 stepEl.appendChild(box);
-                const editor = looksLikeCalculationQuestion(retryQuestionText) ? createMathShortcutEditor('Write your answer here…') : createPlainAnswerEditor('Write your answer here…');
+                const editor = retryPuzzle ? kmInteractiveEditor(retryPuzzle, () => {}) : looksLikeCalculationQuestion(retryQuestionText) ? createMathShortcutEditor('Write your answer here…') : createPlainAnswerEditor('Write your answer here…');
                 box.querySelector('.km-prereq-retry-input').appendChild(editor.container);
                 box.querySelector('.km-prereq-retry-submit-btn').addEventListener('click', async (ev) => {
                     if (editor.isEmpty()) return;
@@ -27859,9 +27878,11 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 stepEl.classList.add(r.correct ? 'km-prereq-step-correct' : 'km-prereq-step-wrong');
                 const inputHost = stepEl.querySelector('.km-prereq-step-input');
                 inputHost.querySelectorAll('textarea, [contenteditable]').forEach((el) => { el.setAttribute('disabled', 'true'); el.contentEditable = false; });
+                const stepWidget = prereqWidgets.get(componentId);
+                if (stepWidget) { stepWidget.setDisabled(true); stepWidget.showResult({ correct: r.correct, detail: r.detail, reveal: r.reveal }); }
                 const feedbackEl = stepEl.querySelector('.km-prereq-step-feedback');
                 feedbackEl.hidden = false;
-                feedbackEl.innerHTML = `<div>${escapeHtml(r.feedback || '')}</div>`;
+                feedbackEl.innerHTML = `<div>${escapeHtml(r.feedback || '')}</div>${r.correct && r.reveal ? `<div>${escapeHtml(r.reveal)}</div>` : ''}`;
 
                 if (!r.correct && r.sillyMistake) {
                     const retryRow = document.createElement('div');
@@ -27889,7 +27910,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                             return;
                         }
                         retryRow.remove();
-                        renderStepRetryBox(stepEl, componentId, retryItem.questionText);
+                        renderStepRetryBox(stepEl, componentId, retryItem.questionText, retryItem.structured || null);
                     });
                 }
             });
