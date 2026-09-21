@@ -21494,11 +21494,11 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             const finish = () => { iMeta.answered = true; iMeta.canAdvance = true; sfShowAdvanceHint(iEl); if (isLastInBatch) sfPrefetchNext(); };
             sfWireInteractiveSlide(iEl, iMeta, check,
                 (answer) => sfPostBackend(`/day1-checks/${check.checkId}/submit`, { structured: answer, retryAfterSillyMistake: retried }),
-                async (result) => { if (result.schedule) sfUpsertScheduleCache(result.schedule); finish(); },
+                async (result) => { if (result.schedule) sfUpsertScheduleCache(result.schedule); (result.schedules || []).forEach((sch) => sfUpsertScheduleCache(sch)); finish(); },
                 async (result) => {
                     // The first miss is treated as a slip and gets one more go; the second ends the check, as a free-text one does.
                     if (result.sillyMistake && !retried) { retried = true; return false; }
-                    if (result.schedule) sfUpsertScheduleCache(result.schedule);
+                    if (result.schedule) sfUpsertScheduleCache(result.schedule); (result.schedules || []).forEach((sch) => sfUpsertScheduleCache(sch));
                     finish();
                     return true;
                 });
