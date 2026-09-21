@@ -76,6 +76,8 @@
       '.chn-area { border: 1px solid var(--chn-line); border-radius: 12px; padding: 10px 14px; margin-bottom: 10px; background: var(--panel); } .chn-area > summary { cursor: pointer; list-style: none; font-size: 0.98rem; display: flex; gap: 10px; align-items: baseline; } .chn-area > summary::-webkit-details-marker { display: none; } .chn-area > summary::before { content: "▸"; } .chn-area[open] > summary::before { content: "▾"; }',
       '.chn-guid { position: fixed; top: 56px; right: 12px; bottom: 12px; width: min(420px, 92vw); z-index: 2500; background: var(--panel); color: var(--text); border: 1px solid var(--chn-line); border-radius: 14px; box-shadow: 0 16px 50px rgba(0,0,0,0.3); display: flex; flex-direction: column; } .chn-guid .hd { padding: 14px 16px 10px; display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; border-bottom: 1px solid var(--chn-line); } .chn-guid .tabs { display: flex; gap: 6px; padding: 10px 12px 0; overflow-x: auto; } .chn-guid .bd { padding: 12px 16px 18px; overflow-y: auto; font-size: 0.9rem; line-height: 1.6; } .chn-guid .bd p { margin: 0 0 10px; }',
       '.chn-budget.warn { border-color: var(--chn-warn); color: var(--chn-warn); }',
+      '.chn-modal.wide { width: min(1080px, 100%); } .chn-iv { display: grid; gap: 16px; grid-template-columns: 1fr; } @media (min-width: 940px) { .chn-iv { grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); align-items: start; } .chn-iv .chn-ref { position: sticky; top: 8px; max-height: calc(100vh - 80px); overflow-y: auto; } }',
+      '.chn-ref { border: 1px solid var(--chn-line); border-radius: 12px; padding: 10px 12px; background: rgba(255,255,255,0.35); font-size: 0.86rem; } .chn-ref h3 { font: 700 0.95rem Arial, sans-serif; margin: 0 0 6px; } .chn-ref .chn-sec { margin-top: 10px; } .chn-ref ul { margin: 4px 0 0 18px; padding: 0; }',
       '.chn-lesson { border-top: 1px solid var(--chn-line); padding-top: 6px; } .chn-lesson .lbody { font-size: 0.86rem; line-height: 1.6; padding: 4px 0 6px; } .chn-lesson .lbody p { margin: 0 0 8px; }',
       '.chn-fc { position: fixed; top: 60px; right: 10px; bottom: 10px; width: min(500px, 94vw); overflow-y: auto; z-index: 2400; background: var(--panel); color: var(--text); border: 1px solid var(--chn-line); border-radius: 16px; box-shadow: -10px 0 40px rgba(0,0,0,0.35); padding: 14px 16px 16px; } .chn-fc .hd { position: sticky; top: -14px; background: var(--panel); z-index: 2; padding: 4px 0 8px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--chn-line); margin-bottom: 8px; } .chn-fc .col { display: grid; gap: 14px; } .chn-fc h4 { font: 700 0.92rem Arial, sans-serif; margin: 0 0 4px; } .chn-fc .legend2 { font-size: 0.78rem; display: inline-flex; align-items: center; gap: 6px; } .chn-fc .legend2 i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; } .chn-fc .legend { display: none !important; }',
       '.chn-fctab { position: fixed; right: 0; top: 46%; z-index: 2400; border: 0; border-radius: 12px 0 0 12px; background: #f4b400; color: #1a1206; font: 700 0.85rem Arial, sans-serif; padding: 12px 10px; cursor: pointer; writing-mode: vertical-rl; box-shadow: -4px 0 16px rgba(0,0,0,0.3); }',
@@ -305,7 +307,7 @@
       else if (a === 'enactnow') enactChanges();
       else if (a === 'lessons' && ui.lessonCtx) openLesson(ui.lessonCtx.id);
       else if (a === 'restart') restartGame();
-      else if (a === 'fc') { ui.fcClosed = false; updateForecast(true); }
+      else if (a === 'fc') { ui.fcClosed = false; ui.fcMode = 'all'; updateForecast(true); }
     });
   }
 
@@ -466,7 +468,7 @@
   function pkgHtml() {
     var ch = pendingChanges();
     if (!ch.length) return '<span class="neutral">No changes drafted.</span>';
-    return ch.map(function (e) { var p = D()[e.id], c = S.canDecide(ui.g, e.id); return '<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0"><span>' + esc(e.name) + '</span><b>' + esc(e.ctl.t === 'select' ? p.v : (+p.v > 0 ? '+' : '') + p.v) + '</b></div>'; }).join('');
+    return ch.map(function (e) { var p = D()[e.id], c = S.canDecide(ui.g, e.id); return '<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0;align-items:center"><span>' + esc(e.name) + '</span><span><b>' + esc(e.ctl.t === 'select' ? p.v : (+p.v > 0 ? '+' : '') + p.v) + '</b> <button class="chn-btn small" data-fcpol="' + e.id + '" title="Forecast this policy on its own">Forecast</button></span></div>'; }).join('') + '<div style="padding-top:6px"><button class="chn-btn small" data-fcall="1">Forecast the whole budget</button></div>';
   }
   function policyTab() {
     var g = ui.g, cat = catalogue(), pg = POLICY_GROUPS.filter(function (x) { return x.name === ui.group; })[0] || POLICY_GROUPS[0];
@@ -482,7 +484,7 @@
     var packs = Object.keys(L.PRESETS).map(function (k) { return '<button class="chn-btn small" data-pack="' + k + '">' + esc(L.PRESETS[k].name) + '</button>'; }).join(' ');
     return policyBanner() + '<div class="chn-polwrap"><div><p class="neutral" style="margin:0 0 8px;font-size:.86rem">' + esc(pg.text) + '</p>' + tabs + '<div id="chnPolList">' + sections + '</div></div>' +
       '<aside class="chn-side"><div class="chn-card"><h3 style="font:700 .95rem Arial">Your draft</h3><div id="chnPkg" style="font-size:.85rem;margin:6px 0">' + pkgHtml() + '</div><div class="chn-actions"><button class="chn-btn primary" data-pol="save">Save draft</button><button class="chn-btn" data-pol="clear" ' + (n ? '' : 'disabled') + '>Clear draft</button></div><p class="neutral" style="font-size:.76rem;margin:8px 0 0">Saved drafts are not enacted. ' + (w ? 'The session is open: submit them with the button above.' : 'You submit them on budget day.') + '</p></div>' +
-      '<div class="chn-card"><h3 style="font:700 .95rem Arial;margin-bottom:6px">Forecast</h3><p class="neutral" style="font-size:.85rem;margin:0 0 8px">Slide any policy and a forecast of growth, inflation, jobs and the public finances pops up at the bottom of the screen.</p><button class="chn-btn small" data-act="fc">Show the forecast</button></div>' +
+      '<div class="chn-card"><h3 style="font:700 .95rem Arial;margin-bottom:6px">Forecast</h3><p class="neutral" style="font-size:.85rem;margin:0 0 8px">Slide any policy and a forecast of growth, inflation, jobs and the public finances opens on the right. See it for your whole draft budget together, or for one policy on its own.</p><button class="chn-btn small" data-act="fc">Forecast my whole budget</button></div>' +
       '<div class="chn-card"><h3 style="font:700 .95rem Arial;margin-bottom:6px">Emergency budget packages</h3><div class="chn-actions">' + packs + '</div><p class="neutral" style="font-size:.74rem;margin:6px 0 0">Adds a ready-made set of changes to your draft. Edit them afterwards.</p></div></aside></div>';
   }
   function bindPolicy() {
@@ -501,11 +503,13 @@
         else { p.v = clampV(e, t.value); var card = t.closest('.chn-pol'); card.querySelectorAll('input[data-k="v"]').forEach(function (x) { if (x !== t) x.value = p.v; }); }
         if (!differs(e)) delete D()[e.id];
         var card2 = t.closest('.chn-pol'); if (card2) { card2.classList.toggle('changed', differs(e)); var rg = card2.querySelector('input[type=range]'); if (rg && e.ctl.t !== 'select') rg.style.setProperty('--fill', fillPct(e, p.v) + '%'); var bd = card2.querySelector('[data-badge]'); if (bd) { bd.textContent = badgeText(e, p); bd.classList.remove('pop'); void bd.offsetWidth; bd.classList.add('pop'); } }
-        ui.fcClosed = false; saveSoon(); refreshSide();
+        ui.fcFocus = e.id; ui.fcClosed = false; saveSoon(); refreshSide();
       };
       list.addEventListener('input', onInput); list.addEventListener('change', onInput);
       list.addEventListener('toggle', function (ev) { var d = ev.target; if (d && d.dataset && d.dataset.areaname) ui.openAreas[d.dataset.areaname] = d.open; if (d && d.dataset && d.dataset.lessonId && d.open) fillLesson(d); }, true);
     }
+    var pkg = host.querySelector('#chnPkg');
+    if (pkg) pkg.addEventListener('click', function (ev) { var b = ev.target.closest('[data-fcpol],[data-fcall]'); if (!b) return; if (b.dataset.fcpol) { ui.fcFocus = b.dataset.fcpol; ui.fcMode = 'one'; } else ui.fcMode = 'all'; ui.fcClosed = false; updateForecast(true); });
     host.querySelectorAll('[data-pol]').forEach(function (b) { b.onclick = function () { if (b.dataset.pol === 'clear') { ui.g.draft = {}; save(); renderTab(); } else { save(); toast('Draft saved. Nothing is enacted until you submit it on budget day.'); } }; });
   }
   function refreshSide() {
@@ -554,9 +558,12 @@
   }
   function updateForecast(force) {
     if (ui.tab !== 'policy') { hideForecast(false); return; }
-    var ch = pendingChanges().filter(function (e) { return gateOk(e).ok; });
-    if (!ch.length && !force) { hideForecast(false); return; }
-    if (ui.fcClosed && !force) { if (ch.length) hideForecast(true); return; }
+    var all = pendingChanges().filter(function (e) { return gateOk(e).ok; });
+    if (!all.length && !force) { hideForecast(false); return; }
+    if (ui.fcClosed && !force) { if (all.length) hideForecast(true); return; }
+    var focus = all.filter(function (e) { return e.id === ui.fcFocus; })[0];
+    if (ui.fcMode === 'one' && !focus) ui.fcMode = 'all';
+    var ch = ui.fcMode === 'one' ? [focus] : all;
     var g = ui.g, n = 12;
     var extra = ch.map(function (e) { var p = D()[e.id]; return { id: e.id, v: e.ctl.t === 'select' ? p.v : +p.v, opt: p.opt, dur: p.dur }; });
     var base = S.forecast(g, n, []), withP = S.forecast(g, n, extra), last = g.qhist[g.qhist.length - 1];
@@ -564,11 +571,14 @@
     var band = function (arr, k) { return arr.map(function (sn, i) { var c = sn[k] + fcBias(k, i + 1), w = fcSpread(k, i + 1, sn[k]); return [TS(last.date) + (i + 1) * 91.3125 * 864e5, c - w, c + w]; }); };
     var el = document.getElementById('chnFc');
     if (!el) { el = document.createElement('aside'); el.id = 'chnFc'; el.className = 'chn-fc'; el.setAttribute('aria-label', 'Forecast of your draft'); document.body.appendChild(el); }
-    el.innerHTML = '<div class="hd"><div><b>Forecast: what your draft might do</b><div class="neutral" style="font-size:.76rem">' + (ch.length ? ch.length + ' drafted change' + (ch.length === 1 ? '' : 's') + '. ' : 'Nothing is drafted yet, so both lines match. Slide a policy. ') + 'A forecast, not a promise: the shaded range widens with time, forecasters can be wrong in one direction, and shocks and delays will change the real path.</div></div><div class="chn-actions"><span class="legend2"><i style="background:#6b7280"></i>As things stand</span><span class="legend2"><i style="background:var(--accent)"></i>With your draft (shaded: likely range)</span><button class="chn-btn small" id="chnFcClose">Close ✕</button></div></div><div class="col">' +
+    var toggle = '<div class="chn-actions"><button class="chn-btn small' + (ui.fcMode !== 'one' ? ' primary' : '') + '" data-fcmode="all">Whole budget (' + all.length + ')</button>' + (focus || all.length ? '<select id="chnFcPick" aria-label="Forecast a single policy" style="max-width:190px"><option value="">Just one policy…</option>' + all.map(function (e) { return '<option value="' + e.id + '"' + (ui.fcMode === 'one' && focus && focus.id === e.id ? ' selected' : '') + '>' + esc(e.name) + '</option>'; }).join('') + '</select>' : '') + '</div>';
+    el.innerHTML = '<div class="hd"><div><b>' + (ui.fcMode === 'one' ? 'Forecast: ' + esc(ch[0].name) + ' on its own' : 'Forecast: your whole draft budget') + '</b><div class="neutral" style="font-size:.76rem">' + (ch.length ? (ui.fcMode === 'one' ? 'Only this policy, with nothing else changed. ' : ch.length + ' drafted change' + (ch.length === 1 ? '' : 's') + ' together. ') : 'Nothing is drafted yet, so both lines match. Slide a policy. ') + 'A forecast, not a promise: the shaded range widens with time, forecasters can be wrong in one direction, and shocks and delays will change the real path.</div></div><div class="chn-actions"><span class="legend2"><i style="background:#6b7280"></i>As things stand</span><span class="legend2"><i style="background:var(--accent)"></i>With your draft (shaded: likely range)</span><button class="chn-btn small" id="chnFcClose">Close ✕</button></div>' + toggle + '</div><div class="col">' +
       FC_CHARTS.map(function (c) { return '<div class="chn-chart"><h4>' + esc(c[0]) + '</h4>' + svgChart({ h: 250, noAnim: true, label: c[0], bands: [{ pts: band(withP, c[1]), color: 'var(--accent)', opacity: 0.16 }], series: [{ name: '', color: '#6b7280', pts: pts(base, c[1]), dashed: true, w: 1.8 }, { name: '', color: 'var(--accent)', pts: pts(withP, c[1]), w: 2.6 }] }) + '</div>'; }).join('') + '</div>';
     document.body.classList.add('chn-fc-open');
     var tab = document.getElementById('chnFcTab'); if (tab) tab.remove();
     el.querySelector('#chnFcClose').onclick = function () { ui.fcClosed = true; hideForecast(true); };
+    var allBtn = el.querySelector('[data-fcmode="all"]'); if (allBtn) allBtn.onclick = function () { ui.fcMode = 'all'; updateForecast(true); };
+    var pick = el.querySelector('#chnFcPick'); if (pick) pick.onchange = function () { if (pick.value) { ui.fcFocus = pick.value; ui.fcMode = 'one'; } else ui.fcMode = 'all'; updateForecast(true); };
   }
 
   /* ---------- LastMind lessons behind each policy (untracked, closable) ---------- */
@@ -725,7 +735,7 @@
   function modal(html, o) {
     return new Promise(function (resolve) {
       var ov = document.createElement('div'); ov.className = 'chn-overlay'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true');
-      ov.innerHTML = '<div class="chn-modal">' + (o && o.img ? '<div class="hero" style="background-image:url(' + o.img + ')"></div>' : '') + '<div class="body">' + html + '</div></div>';
+      ov.innerHTML = '<div class="chn-modal' + (o && o.wide ? ' wide' : '') + '">' + (o && o.img ? '<div class="hero" style="background-image:url(' + o.img + ')"></div>' : '') + '<div class="body">' + html + '</div></div>';
       document.body.appendChild(ov);
       var close = function (v) { ov.remove(); resolve(v); };
       ov.addEventListener('click', function (e) { var t = e.target.closest('[data-m]'); if (t) close(t.dataset.m); });
@@ -814,13 +824,39 @@
     if (!q.length) q.push(['A calm brief', 'Nothing stands out on the numbers. Expect a broad question about your priorities.']);
     return q.slice(0, 4);
   }
+  function numbersTable() {
+    var m = metricsNow(), hist = ui.g.mhist, prev = hist[Math.max(0, hist.length - 4)] || m;
+    var row = function (lab, key, unit) { var v = m[key], d = v - prev[key]; return '<tr><td>' + lab + '</td><td class="n"><b>' + (key === 'exchangeVsStart' ? sign(v) : f1(v)) + unit + '</b></td><td class="n ' + trendClass(key, d, v, prev[key]) + '">' + sign(d) + '</td></tr>'; };
+    return '<div class="chn-scroll"><table class="chn-table"><tr><th>Figure</th><th class="n">Now</th><th class="n">vs 3 months ago</th></tr>' + row('GDP growth', 'growth', '%') + row('Inflation', 'inflation', '%') + row('Unemployment', 'unemployment', '%') + row('Real wages', 'realWages', '%') + row('Budget deficit', 'deficit', '% GDP') + row('Public debt', 'debtGDP', '% GDP') + row('Currency vs start', 'exchangeVsStart', '%') + '</table></div>';
+  }
+  function savedBudgetHtml() {
+    var ch = pendingChanges();
+    if (!ch.length) return '<p class="neutral" style="margin:0">You have no saved budget yet. Draft some policies in the Policy tab and they will show here.</p>';
+    return '<ul>' + ch.map(function (e) { var p = D()[e.id]; return '<li><b>' + esc(e.name) + '</b>: ' + esc(S.describe(e, p.v, p.opt, p.dur)) + '</li>'; }).join('') + '</ul>';
+  }
+  function budgetSummaryTable() {
+    var ch = pendingChanges().filter(function (e) { return gateOk(e).ok; });
+    if (!ch.length) return '';
+    var extra = ch.map(function (e) { var p = D()[e.id]; return { id: e.id, v: e.ctl.t === 'select' ? p.v : +p.v, opt: p.opt, dur: p.dur }; });
+    var base = S.forecast(ui.g, 8, []), withP = S.forecast(ui.g, 8, extra);
+    var val = function (arr, i, k) { return arr[i][k] + fcBias(k, i + 1); };
+    var row = function (lab, k) { return '<tr><td>' + lab + '</td><td class="n">' + f1(val(base, 3, k)) + '</td><td class="n"><b>' + f1(val(withP, 3, k)) + '</b></td><td class="n">' + f1(val(base, 7, k)) + '</td><td class="n"><b>' + f1(val(withP, 7, k)) + '</b></td></tr>'; };
+    return '<div class="chn-scroll"><table class="chn-table"><tr><th></th><th class="n">1 yr as is</th><th class="n">1 yr with budget</th><th class="n">2 yrs as is</th><th class="n">2 yrs with budget</th></tr>' + row('GDP growth %', 'g') + row('Inflation %', 'pi') + row('Unemployment %', 'u') + row('Deficit % GDP', 'deficit') + row('Debt % GDP', 'debtGDP') + '</table></div><p class="neutral" style="font-size:.74rem;margin:4px 0 0">An estimate, not a promise.</p>';
+  }
+  // Kept beside every interview so the numbers and the saved budget are in front of you while you answer.
+  function refPanel(ev) {
+    return '<aside class="chn-ref" aria-label="Your briefing and saved budget"><h3>Your notes</h3><div class="chn-sec" style="margin-top:0">The numbers</div>' + numbersTable() +
+      '<div class="chn-sec">Likely lines of questioning</div>' + briefingPoints(ev).map(function (x) { return '<div style="margin:3px 0"><b>' + esc(x[0]) + '.</b> ' + esc(x[1]) + '</div>'; }).join('') +
+      '<div class="chn-sec">Your saved budget</div>' + savedBudgetHtml() + budgetSummaryTable() + '</aside>';
+  }
   function advisorBriefing(ev) {
     var g = ui.g, adv = S.person(g, 'adviser'), m = metricsNow(), hist = g.mhist, prev = hist[Math.max(0, hist.length - 4)] || m;
     var row = function (lab, key, unit) { var v = m[key], d = v - prev[key]; return '<tr><td>' + lab + '</td><td class="n"><b>' + (key === 'exchangeVsStart' ? sign(v) : f1(v)) + unit + '</b></td><td class="n ' + trendClass(key, d, v, prev[key]) + '">' + sign(d) + '</td></tr>'; };
     var draft = ev.speculation ? Object.keys(D()).map(function (id) { var e = catalogue().filter(function (x) { return x.id === id; })[0]; return e && differs(e) ? '<li>' + esc(e.name) + '</li>' : ''; }).join('') : '';
     var html = '<div style="display:flex;gap:14px;align-items:center;margin:2px 0 8px">' + avatar('adviser', adv.name, true) + '<div><h2 style="margin:0">Briefing from ' + esc(adv.name) + '</h2><div class="neutral">' + esc(adv.role) + '</div></div></div>' +
       '<p>Chancellor, you are on air with <b>' + esc(ev.journalist) + '</b> of ' + esc(ev.outlet) + ' shortly. Here is where the numbers stand.</p>' +
-      '<div class="chn-scroll"><table class="chn-table"><tr><th>Figure</th><th class="n">Now</th><th class="n">vs 3 months ago</th></tr>' + row('GDP growth', 'growth', '%') + row('Inflation', 'inflation', '%') + row('Unemployment', 'unemployment', '%') + row('Real wages', 'realWages', '%') + row('Budget deficit', 'deficit', '% GDP') + row('Public debt', 'debtGDP', '% GDP') + row('Currency vs start', 'exchangeVsStart', '%') + '</table></div>' +
+      numbersTable() +
+      '<div class="chn-sec">Your saved budget</div>' + savedBudgetHtml() + budgetSummaryTable() +
       '<div class="chn-sec">What they are likely to press you on</div>' + briefingPoints(ev).map(function (x) { return '<div class="chn-item" style="display:block"><b>' + esc(x[0]) + '.</b> ' + esc(x[1]) + '</div>'; }).join('') +
       (ev.speculation ? '<div class="chn-quote"><b>The budget is close.</b> The press are chasing rumours about your plans' + (draft ? '. Your draft currently holds:<ul style="margin:6px 0 0 18px">' + draft + '</ul>' : '.') + ' Whatever you confirm or deny will be checked against what you actually do on budget day. Breaking your word costs more than an honest "no comment".</div>' : '') +
       '<div class="btns"><button class="chn-btn primary" data-m="go">Thanks, let\'s go on air</button></div>';
@@ -831,8 +867,8 @@
     var CL = { confirm: 'Confirm', deny: 'Deny', nocomment: 'No comment' };
     var head = '<div style="display:flex;gap:14px;align-items:center;margin:4px 0 8px">' + avatar(key, ev.journalist, true) + '<div><h2 style="margin:0">Budget speculation: ' + esc(ev.outlet) + '</h2><div class="neutral">with ' + esc(ev.journalist) + '</div></div></div>';
     var rows = rum.map(function (x, i) { return '<div class="chn-card" style="margin:8px 0"><div style="margin-bottom:8px">' + esc(x.text) + '</div><div class="chn-actions" data-rum="' + i + '">' + Object.keys(CL).map(function (c) { return '<button class="chn-btn small" data-cl="' + c + '" aria-pressed="false">' + CL[c] + '</button>'; }).join('') + '</div></div>'; }).join('');
-    var res = await modal(head + '<p>The papers are full of speculation about your budget. Do you confirm each rumour, deny it, or refuse to comment?</p>' + rows + '<p class="neutral" style="font-size:.82rem">Clear answers calm investors. Silence unsettles them. But you will be held to whatever you say when the budget is delivered.</p><div class="btns"><button class="chn-btn primary" data-go="submit" disabled>Take the questions</button></div>', {
-      img: '/assets/chancellor/interview-studio.jpg',
+    var res = await modal(head + '<div class="chn-iv"><div class="chn-iv-main"><p>The papers are full of speculation about your budget. Do you confirm each rumour, deny it, or refuse to comment?</p>' + rows + '<p class="neutral" style="font-size:.82rem">Clear answers calm investors. Silence unsettles them. But you will be held to whatever you say when the budget is delivered.</p><div class="btns"><button class="chn-btn primary" data-go="submit" disabled>Take the questions</button></div></div>' + refPanel(ev) + '</div>', {
+      wide: true, img: '/assets/chancellor/interview-studio.jpg',
       onOpen: function (ov, close) {
         ov.addEventListener('click', function (e) {
           var b = e.target.closest('[data-cl]');
@@ -855,8 +891,8 @@
     var MAX_FOLLOWUPS = 3;
     var ex = [], cur = null, busy = false;
     var head = '<div style="display:flex;gap:14px;align-items:center;margin:4px 0 10px">' + avatar(key, ev.journalist, true) + '<div><h2 style="margin:0">' + (ev.goals ? 'First interview: your goals' : 'Interview: ' + esc(ev.outlet)) + '</h2><div class="neutral">with ' + esc(ev.journalist) + '</div></div></div>';
-    var res = await modal(head + '<div id="chnConv"></div><div id="chnQ" class="chn-quote neutral">The interviewer is finding a question…</div><div id="chnQArea"></div><div class="btns" id="chnIvBtns"><button class="chn-btn" data-m="skip">Skip the interview</button></div>', {
-      img: '/assets/chancellor/interview-studio.jpg',
+    var res = await modal(head + '<div class="chn-iv"><div class="chn-iv-main"><div id="chnConv"></div><div id="chnQ" class="chn-quote neutral">The interviewer is finding a question…</div><div id="chnQArea"></div><div class="btns" id="chnIvBtns"><button class="chn-btn" data-m="skip">Skip the interview</button></div></div>' + refPanel(ev) + '</div>', {
+      wide: true, img: '/assets/chancellor/interview-studio.jpg',
       onOpen: function (ov, close) {
         var qEl = function () { return ov.querySelector('#chnQ'); };
         var say = function (t) { var e = qEl(); if (e) { e.className = 'chn-quote neutral'; e.textContent = t; } };
