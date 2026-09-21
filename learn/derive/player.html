@@ -139,7 +139,7 @@ button { font: inherit; color: inherit; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 
 [hidden] { display: none !important; }
-.nextbtn { justify-self: start; border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 999px; padding: 8px 16px; font: 600 13px var(--sans); cursor: pointer; } .nextbtn:hover { border-color: var(--accent); color: var(--ink); } .tray { display: none !important; } .feed { padding-bottom: 0; overflow-x: hidden; } html, body { overflow: hidden; height: 100%; } .svgwrap, .bank, .slots, .lanes { scrollbar-width: none; } .svgwrap::-webkit-scrollbar, .bank::-webkit-scrollbar, .slots::-webkit-scrollbar, .lanes::-webkit-scrollbar { display: none; }
+.nextbtn { justify-self: start; border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 999px; padding: 8px 16px; font: 600 13px var(--sans); cursor: pointer; } .nextbtn:hover { border-color: var(--accent); color: var(--ink); } .tray { display: none !important; } .feed { padding-bottom: 0; overflow-x: hidden; scroll-snap-type: y proximity; } html, body { overflow: hidden; height: 100%; } .svgwrap, .bank, .slots, .lanes { scrollbar-width: none; } .svgwrap::-webkit-scrollbar, .bank::-webkit-scrollbar, .slots::-webkit-scrollbar, .lanes::-webkit-scrollbar { display: none; }
 </style>
 
 <header class="hud">
@@ -184,6 +184,19 @@ window.__runDerive = function (D) {
   var stageIdx = 0, idx = -1, held = 0, collected = [], completed = 0;
 
   function el(tag, cls, html) { var e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
+  function singularWord(w) {
+    if (w.length < 4 || /[0-9]/.test(w) || w === w.toUpperCase()) return w;
+    if (/(ss|us|is|ics|ness)$/i.test(w)) return w;
+    if (/ies$/i.test(w)) return w.slice(0, -3) + 'y';
+    if (/(sses|xes|ches|shes)$/i.test(w)) return w.slice(0, -2);
+    if (/s$/i.test(w)) return w.slice(0, -1);
+    return w;
+  }
+  function labelAfter(before, label) {
+    if (!/\b(a|an)\s*$/i.test(before)) return label;
+    var parts = label.split(' '); parts[parts.length - 1] = singularWord(parts[parts.length - 1]); return parts.join(' ');
+  }
+  function termHtmlAs(k, text, extra) { return '<span class="term ' + (extra || '') + '" style="--tc:' + TERMS[k].c + '">' + text + '</span>'; }
   function termHtml(k, extra) { return '<span class="term ' + (extra || '') + '" style="--tc:' + TERMS[k].c + '">' + TERMS[k].t + '</span>'; }
   function shuffle(a) { var b = a.slice(); for (var i = b.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = b[i]; b[i] = b[j]; b[j] = t; } if (b.join() === a.join() && b.length > 2) b.push(b.shift()); return b; }
   function script() { return STAGES[stageIdx].script; }
@@ -226,7 +239,7 @@ window.__runDerive = function (D) {
   }
 
   function buildRead(step) {
-    var wrap = stack('<div class="eyebrow">Read</div><p class="big">' + step.text + termHtml(step.term, 'pop') + '.</p><button type="button" class="nextbtn">Next ↓</button>');
+    var wrap = stack('<div class="eyebrow">Read</div><p class="big">' + step.text + termHtmlAs(step.term, labelAfter(step.text, TERMS[step.term].t), 'pop') + '.</p><button type="button" class="nextbtn">Next ↓</button>');
     var s = slide(wrap), done = false;
     var advance = function () { if (done) return; done = true; io.disconnect(); chunk(step.term); next(false); };
     var io = new IntersectionObserver(function (es) {
@@ -247,7 +260,7 @@ window.__runDerive = function (D) {
         if (i !== step.ok) { b.classList.add('wrong'); note.textContent = step.hint; setTimeout(function () { b.classList.remove('wrong'); }, 500); return; }
         b.classList.add('right'); note.textContent = '';
         Array.prototype.forEach.call(opts.children, function (o) { o.disabled = true; });
-        out.hidden = false; out.innerHTML = '<span>' + step.pre + '</span>' + termHtml(step.term, 'pop');
+        out.hidden = false; out.innerHTML = '<span>' + step.pre + '</span>' + termHtmlAs(step.term, labelAfter(step.pre, TERMS[step.term].t), 'pop');
         chunk(step.term);
         setTimeout(function () { next(true); }, 1500);
       });
@@ -682,6 +695,38 @@ window.__runDerive = function (D) {
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') rules.hidden = true; });
   document.getElementById('againBtn').addEventListener('click', restart);
 
+
+  (function slightScroll() {
+    var lock = false, startY = null;
+    function topOf(s) { return s.getBoundingClientRect().top - feed.getBoundingClientRect().top + feed.scrollTop; }
+    function slidesNow() { return [].slice.call(feed.querySelectorAll('.slide')); }
+    function current() {
+      var a = slidesNow(), top = feed.scrollTop, best = 0, dist = 1e9;
+      a.forEach(function (s, i) { var d = Math.abs(topOf(s) - top); if (d < dist) { dist = d; best = i; } });
+      return best;
+    }
+    function go(dir) {
+      var a = slidesNow(), i = current(), s = a[i];
+      if (!s) return false;
+      if (dir > 0) {
+        if (topOf(s) + s.offsetHeight - feed.clientHeight > feed.scrollTop + 4) return false; /* a tall slide scrolls first */
+        if (i === a.length - 1) { var nb = s.querySelector('.nextbtn'); if (nb) { nb.click(); setTimeout(function () { var b = slidesNow(); b[b.length - 1].scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80); return true; } return false; }
+        a[i + 1].scrollIntoView({ behavior: 'smooth', block: 'start' }); return true;
+      }
+      if (feed.scrollTop > topOf(s) + 4) return false;
+      if (i > 0) { a[i - 1].scrollIntoView({ behavior: 'smooth', block: 'start' }); return true; }
+      return false;
+    }
+    function throttled(dir) { if (lock) return true; if (!go(dir)) return false; lock = true; setTimeout(function () { lock = false; }, 450); return true; }
+    feed.addEventListener('wheel', function (e) { if (Math.abs(e.deltaY) < 4) return; if (throttled(e.deltaY > 0 ? 1 : -1)) e.preventDefault(); }, { passive: false });
+    feed.addEventListener('touchstart', function (e) { startY = e.touches[0].clientY; }, { passive: true });
+    feed.addEventListener('touchend', function (e) { if (startY == null) return; var dy = startY - e.changedTouches[0].clientY; startY = null; if (Math.abs(dy) > 24) throttled(dy > 0 ? 1 : -1); });
+    document.addEventListener('keydown', function (e) {
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test((e.target || {}).tagName || '')) return;
+      if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ') { if (throttled(1)) e.preventDefault(); }
+      else if (e.key === 'ArrowUp' || e.key === 'PageUp') { if (throttled(-1)) e.preventDefault(); }
+    });
+  })();
   stageTitle.textContent = STAGES[0].hud;
   setHeld(0); next(false);
 };
