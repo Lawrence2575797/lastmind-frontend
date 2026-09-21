@@ -1394,6 +1394,34 @@
     .sf-slide-explanation li:last-child { margin-bottom: 0; }
     .sf-speaker-label { font-size: 13px; font-weight: 700; opacity: 0.75; }
     .sf-question-text { font-size: 18px; line-height: 1.7; margin: 0; }
+    /* Interactive questions: spot the mistake, jigsaw match, drag to order */
+    .qz { margin: 12px 0 8px; } .qz-hint { font-size: 13px; opacity: 0.78; margin-bottom: 10px; }
+    .qz-doc { padding: 16px 18px; border-radius: 14px; background: rgba(255,255,255,0.06); border: 1px dashed rgba(230,215,176,0.4); line-height: 2.15; font-size: 15.5px; }
+    .qz-seg { all: unset; cursor: pointer; padding: 2px 5px; border-radius: 7px; transition: background .15s, transform .15s; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+    .qz-seg:hover { background: rgba(255,214,102,0.2); } .qz-seg:focus-visible { outline: 2px solid var(--accent); }
+    .qz-seg.picked { background: #ffd666; color: #1b1400; box-shadow: 0 0 0 3px rgba(255,214,102,0.35); }
+    .qz-seg.wrong { background: #eb6b6b; color: #fff; animation: qzShake .4s; } .qz-seg.tried { opacity: 0.5; text-decoration: line-through; }
+    .qz-seg.right { background: #4cc38a; color: #04240f; } .qz-seg.dim { opacity: 0.45; }
+    .qz-reveal { margin-top: 12px; padding: 10px 14px; border-left: 4px solid #4cc38a; background: rgba(76,195,138,0.14); border-radius: 8px; font-size: 14.5px; line-height: 1.55; }
+    .qz-slots { display: flex; flex-direction: column; gap: 10px; } .qz-row { display: flex; align-items: stretch; }
+    .qz-left { flex: 0 0 38%; position: relative; padding: 10px 16px 10px 14px; border-radius: 12px 0 0 12px; background: hsl(var(--h) 62% 42%); color: #fff; font-weight: 600; font-size: 14.5px; display: flex; align-items: center; }
+    .qz-left::after { content: ''; position: absolute; right: -10px; top: 50%; width: 20px; height: 20px; margin-top: -10px; border-radius: 50%; background: hsl(var(--h) 62% 42%); z-index: 2; }
+    .qz-slot { flex: 1; min-height: 48px; display: flex; align-items: center; padding: 4px 6px 4px 18px; border: 2px dashed rgba(230,215,176,0.45); border-radius: 12px; transition: background .15s, border-color .15s; cursor: pointer; }
+    .qz-match .qz-slot { border-radius: 0 12px 12px 0; border-color: hsl(var(--h) 60% 62% / 0.75); }
+    .qz-slot.over { background: rgba(255,255,255,0.1); } .qz-ph { opacity: 0.55; font-size: 13px; }
+    .qz-num { flex: 0 0 34px; width: 34px; height: 34px; margin: auto 10px auto 0; border-radius: 50%; background: var(--accent); color: var(--bg); font-weight: 800; display: flex; align-items: center; justify-content: center; }
+    .qz-pool { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 14px; padding: 12px; border-radius: 12px; background: rgba(0,0,0,0.14); min-height: 56px; }
+    .qz-right { cursor: grab; user-select: none; padding: 9px 13px; border-radius: 11px; background: #f3e6c4; color: #231a00; font-size: 14.5px; line-height: 1.35; box-shadow: 0 2px 0 rgba(0,0,0,0.28); transition: transform .15s, box-shadow .15s; }
+    .qz-right:hover { transform: translateY(-2px) rotate(-0.6deg); } .qz-right.sel { outline: 3px solid var(--accent); transform: translateY(-3px); } .qz-right.drag { opacity: 0.4; }
+    .qz-slot .qz-right { width: 100%; box-shadow: none; background: hsl(var(--h) 70% 92%); animation: qzSnap .28s ease-out; } .qz-order .qz-slot .qz-right { background: #f3e6c4; }
+    .qz-slot.good { border-style: solid; border-color: #4cc38a; } .qz-slot.good .qz-right { background: #c9f0dc; color: #04240f; cursor: default; }
+    .qz-slot.bad { border-color: #eb6b6b; animation: qzShake .4s; }
+    .qz-done { animation: qzPulse .9s ease-out; }
+    @keyframes qzShake { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-6px); } 60% { transform: translateX(6px); } }
+    @keyframes qzSnap { from { transform: scale(0.85); opacity: 0.4; } to { transform: none; opacity: 1; } }
+    @keyframes qzPulse { 0% { box-shadow: 0 0 0 0 rgba(76,195,138,0.6); } 100% { box-shadow: 0 0 0 26px rgba(76,195,138,0); } }
+    @media (max-width: 560px) { .qz-left { flex-basis: 44%; font-size: 13.5px; } }
+    @media (prefers-reduced-motion: reduce) { .qz, .qz * { animation: none !important; transition: none !important; } }
     .sf-question-input { width: 100%; box-sizing: border-box; font: inherit; font-size: 15px; padding: 12px 14px; border-radius: 8px; border: 1px solid rgba(230, 215, 176, 0.25); background: var(--bg); color: var(--text); resize: vertical; }
     .sf-question-submit { align-self: flex-start; }
     .sf-mcq-options { display: flex; flex-direction: column; gap: 8px; }
@@ -20316,6 +20344,167 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         });
     }
 
+    // ---- interactive questions: spot the mistake, jigsaw match, drag-to-order ----
+    // qzBuild(host, question) draws the puzzle and returns { getAnswer(), setDisabled(bool), showResult(result), incompleteText }.
+    // The answer key is never on the page: the server grades, and sends back per-piece results for a wrong attempt.
+    const QZ_FORMATS = ['spot_mistake', 'match', 'order'];
+    const qzIsInteractive = (q) => !!q && QZ_FORMATS.includes(q.format);
+    function qzBuild(host, q) {
+        host.classList.add('qz');
+        const hint = document.createElement('div'); hint.className = 'qz-hint';
+        hint.textContent = q.format === 'spot_mistake' ? 'Tap the sentence you think is wrong.' : q.format === 'match' ? 'Tap a piece, then tap where it fits. Or drag it across.' : 'Tap the cards in the right order, or drag them into the boxes. Tap a placed card to take it back.';
+        host.appendChild(hint);
+        return q.format === 'spot_mistake' ? qzSpot(host, q) : qzPlacement(host, q);
+    }
+    function qzSpot(host, q) {
+        const doc = document.createElement('div'); doc.className = 'qz-doc';
+        let picked = -1; let disabled = false;
+        const segs = (q.segments || []).map((t, i) => {
+            const b = document.createElement('button'); b.type = 'button'; b.className = 'qz-seg'; b.textContent = t;
+            b.addEventListener('click', () => { if (disabled) return; picked = i; segs.forEach((x, j) => x.classList.toggle('picked', j === i)); });
+            doc.appendChild(b); doc.appendChild(document.createTextNode(' '));
+            return b;
+        });
+        host.appendChild(doc);
+        const reveal = document.createElement('div'); reveal.className = 'qz-reveal'; reveal.hidden = true; host.appendChild(reveal);
+        return {
+            incompleteText: 'Tap the sentence you think is wrong first.',
+            getAnswer: () => (picked < 0 ? null : { picked }),
+            setDisabled: (v) => { disabled = v; },
+            showResult(res) {
+                const seg = segs[picked]; if (!seg) return;
+                seg.classList.remove('picked');
+                if (res.correct) { seg.classList.add('right'); segs.forEach((x) => { if (x !== seg) x.classList.add('dim'); }); doc.classList.add('qz-done'); if (res.reveal) { reveal.hidden = false; reveal.textContent = res.reveal; } }
+                else { seg.classList.add('wrong', 'tried'); picked = -1; setTimeout(() => seg.classList.remove('wrong'), 900); }
+            },
+        };
+    }
+    function qzPlacement(host, q) {
+        const isMatch = q.format === 'match';
+        const pieces = isMatch ? (q.rights || []) : (q.items || []);
+        const n = isMatch ? (q.lefts || []).length : (q.items || []).length;
+        const placed = new Array(n).fill(null); const locked = new Array(n).fill(false);
+        let selected = null; let disabled = false;
+        const hue = (i) => (i * 67 + 200) % 360;
+        const board = document.createElement('div'); board.className = `qz-board qz-${q.format}`;
+        const slotsEl = document.createElement('div'); slotsEl.className = 'qz-slots';
+        const pool = document.createElement('div'); pool.className = 'qz-pool';
+        const slotEls = [];
+        for (let i = 0; i < n; i++) {
+            const row = document.createElement('div'); row.className = 'qz-row';
+            if (isMatch) { const l = document.createElement('div'); l.className = 'qz-left'; l.style.setProperty('--h', hue(i)); l.textContent = q.lefts[i]; row.appendChild(l); }
+            else { const num = document.createElement('div'); num.className = 'qz-num'; num.textContent = i + 1; row.appendChild(num); }
+            const slot = document.createElement('div'); slot.className = 'qz-slot'; slot.style.setProperty('--h', hue(i));
+            row.appendChild(slot); slotsEl.appendChild(row); slotEls.push(slot);
+        }
+        board.appendChild(slotsEl); board.appendChild(pool); host.appendChild(board);
+        const els = new Map();
+        const where = (t) => placed.indexOf(t);
+        function render() {
+            slotEls.forEach((slot, i) => {
+                slot.innerHTML = '';
+                if (placed[i] !== null) slot.appendChild(els.get(placed[i])); else slot.innerHTML = `<span class="qz-ph">${isMatch ? 'fits here' : 'drop here'}</span>`;
+            });
+            pieces.forEach((t) => { const el = els.get(t); el.classList.toggle('sel', selected === t); if (where(t) < 0) pool.appendChild(el); });
+        }
+        function putIn(t, i) {
+            if (disabled || locked[i]) return;
+            const from = where(t); const occupant = placed[i];
+            if (from >= 0 && locked[from]) return;
+            if (from >= 0) placed[from] = occupant && occupant !== t ? occupant : null;
+            placed[i] = t; selected = null; render();
+        }
+        function toPool(t) { const i = where(t); if (i >= 0 && !locked[i] && !disabled) { placed[i] = null; render(); } }
+        pieces.forEach((t) => {
+            const el = document.createElement('div'); el.className = 'qz-right'; el.textContent = t; el.draggable = true; el.tabIndex = 0; el.setAttribute('role', 'button');
+            el.addEventListener('dragstart', (e) => { if (disabled || locked[where(t)]) { e.preventDefault(); return; } e.dataTransfer.setData('text/plain', t); el.classList.add('drag'); });
+            el.addEventListener('dragend', () => el.classList.remove('drag'));
+            const tap = () => {
+                if (disabled) return;
+                if (where(t) >= 0) { toPool(t); return; }
+                if (!isMatch) { const free = placed.indexOf(null); if (free >= 0) putIn(t, free); return; }   // ordering: tap cards in order
+                selected = selected === t ? null : t; render();
+            };
+            el.addEventListener('click', tap);
+            el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tap(); } });
+            els.set(t, el);
+        });
+        slotEls.forEach((slot, i) => {
+            slot.addEventListener('click', (e) => { if (e.target.closest('.qz-right')) return; if (selected) putIn(selected, i); });
+            slot.addEventListener('dragover', (e) => { e.preventDefault(); slot.classList.add('over'); });
+            slot.addEventListener('dragleave', () => slot.classList.remove('over'));
+            slot.addEventListener('drop', (e) => { e.preventDefault(); slot.classList.remove('over'); const t = e.dataTransfer.getData('text/plain'); if (els.has(t)) putIn(t, i); });
+        });
+        pool.addEventListener('dragover', (e) => e.preventDefault());
+        pool.addEventListener('drop', (e) => { e.preventDefault(); const t = e.dataTransfer.getData('text/plain'); if (els.has(t)) toPool(t); });
+        render();
+        return {
+            incompleteText: isMatch ? 'Fit every piece into a slot first.' : 'Put every card into a box first.',
+            getAnswer: () => (placed.some((t) => t === null) ? null : (isMatch ? { matches: q.lefts.map((l, i) => ({ left: l, right: placed[i] })) } : { order: placed.slice() })),
+            setDisabled: (v) => { disabled = v; },
+            showResult(res) {
+                if (res.correct) { slotEls.forEach((sl, i) => { locked[i] = true; sl.classList.add('good'); }); board.classList.add('qz-done'); els.forEach((el) => { el.draggable = false; }); return; }
+                (res.detail || []).forEach((ok, i) => {
+                    if (ok) { locked[i] = true; slotEls[i].classList.add('good'); els.get(placed[i]).draggable = false; }
+                    else { slotEls[i].classList.add('bad'); setTimeout(() => { slotEls[i].classList.remove('bad'); if (!locked[i]) { placed[i] = null; render(); } }, 650); }
+                });
+            },
+        };
+    }
+    // Wires one interactive question into a feed slide: Check button, feedback line, deterministic grading via `submit`.
+    function sfWireInteractiveSlide(slideEl, meta, question, submit, onCorrect) {
+        const feedbackEl = slideEl.querySelector('.sf-question-feedback');
+        const widget = qzBuild(slideEl.querySelector('.sf-q-host'), question);
+        slideEl.querySelector('.sf-question-submit').addEventListener('click', sfSubmitCurrentSlide);
+        meta.noBack = true;
+        let retryCount = 0;
+        meta.trySubmit = async () => {
+            const answer = widget.getAnswer();
+            if (!answer) { feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">${widget.incompleteText}</div>`; return false; }
+            widget.setDisabled(true);
+            feedbackEl.innerHTML = '<div class="sf-feedback-line">Checking…</div>';
+            const result = await submit(answer, retryCount);
+            if (!result) { widget.setDisabled(false); feedbackEl.innerHTML = '<div class="sf-feedback-line sf-feedback-wrong">Something went wrong submitting that - try again.</div>'; return false; }
+            widget.showResult(result);
+            if (result.correct) {
+                sfShowCorrectFeedback(feedbackEl, retryCount > 0);
+                if (result.reveal) meta.holdMs = 3800;   // long enough to read why
+                const out = await onCorrect(result);
+                return out === 'handled' ? 'handled' : true;
+            }
+            retryCount += 1;
+            setTimeout(() => widget.setDisabled(false), 700);
+            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || 'Not quite - try again.')}</div>`;
+            return false;
+        };
+    }
+    function sfInteractiveSlideEl(subjectLabel, question, buttonText) {
+        const el = document.createElement('div');
+        el.className = 'sf-feed-slide';
+        el.innerHTML = `<div class="sf-slide-inner">${subjectLabel ? `<div class="sf-slide-subject">${subjectLabel}</div>` : ''}<div class="sf-speaker-label">Cortex asks</div><p class="sf-question-text">${escapeHtml(question.questionText)}</p><div class="sf-q-host"></div><button type="button" class="btn primary sf-question-submit">${buttonText || 'Check'}</button><div class="sf-question-feedback"></div><div class="sf-advance-hint" hidden>Moving on…</div></div>`;
+        return el;
+    }
+    // Graph-view counterpart (the Knowledge Map's own inline lesson): question, puzzle, Check button, result line.
+    function kmRenderInteractiveQuestion(container, q, submit) {
+        const wrap = document.createElement('div');
+        wrap.innerHTML = `<p style="margin:0 0 6px;">${escapeHtml(q.questionText)}</p><div class="km-qz-host"></div><button type="button" class="btn primary km-qz-btn" style="margin-top:6px;">Check</button><div class="km-qz-result" style="margin-top:8px;"></div>`;
+        container.appendChild(wrap);
+        const widget = qzBuild(wrap.querySelector('.km-qz-host'), q);
+        const btn = wrap.querySelector('.km-qz-btn'); const out = wrap.querySelector('.km-qz-result');
+        let retry = 0;
+        btn.addEventListener('click', async () => {
+            const answer = widget.getAnswer();
+            if (!answer) { out.textContent = widget.incompleteText; return; }
+            btn.disabled = true; widget.setDisabled(true); out.textContent = 'Checking…';
+            const result = await submit(answer, retry);
+            if (!result) { btn.disabled = false; widget.setDisabled(false); out.textContent = 'Something went wrong - try again.'; return; }
+            widget.showResult(result);
+            if (result.correct) { out.textContent = result.feedback || 'Correct.'; return; }
+            retry += 1; out.textContent = result.feedback || 'Not quite - try again.';
+            setTimeout(() => { btn.disabled = false; widget.setDisabled(false); }, 700);
+        });
+    }
+
     function sfShowAdvanceHint(slideEl) {
         const hint = slideEl.querySelector('.sf-advance-hint');
         if (hint) hint.hidden = false;
@@ -20378,6 +20567,21 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     async function sfBuildAo1Slide(rec) {
         const data = await sfPostBackend('/knowledge-map-v2/node-review/ao1/start', { nodeId: rec.node.id });
         if (!data || data.notFound || !data.questionText) return null;
+        if (qzIsInteractive(data)) {
+            const iEl = sfInteractiveSlideEl(`Review · ${escapeHtml(folderLabel(rec.folder))}`, data);
+            const iMeta = { canAdvance: false, kind: 'review-ao1', answered: false, noBack: true };
+            sfWireInteractiveSlide(iEl, iMeta, data,
+                (answer, retryCount) => sfPostBackend('/knowledge-map-v2/node-review/ao1/submit', { nodeId: rec.node.id, structured: answer, poolRef: data.poolRef, retryCount }),
+                async (result) => {
+                    if (result.schedule) sfUpsertScheduleCache(result.schedule);
+                    iMeta.answered = true; iMeta.canAdvance = true; sfShowAdvanceHint(iEl);
+                    sfPrefetchNext();
+                    if (!sfFeed) return;
+                    const nextSlides = await sfBuildIntegrationSlidesFrom(rec, 0);
+                    if (nextSlides.length && sfFeed) sfInsertSlidesAt(sfFeed.currentIndex + 1, nextSlides);
+                });
+            return { el: iEl, meta: iMeta };
+        }
 
         const el = document.createElement('div');
         el.className = 'sf-feed-slide';
@@ -20470,7 +20674,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             }
             inputEl.disabled = true;
             feedbackEl.innerHTML = `<div class="sf-feedback-line">Checking…</div>`;
-            const result = await sfPostBackend('/knowledge-map-v2/node-review/ao1/submit', { nodeId: rec.node.id, questionText: data.questionText, answer, retryCount, followUpToken: fu.token });
+            const result = await sfPostBackend('/knowledge-map-v2/node-review/ao1/submit', { nodeId: rec.node.id, questionText: data.questionText, answer, retryCount, followUpToken: fu.token, poolRef: data.poolRef });
             if (!result) {
                 inputEl.disabled = false;
                 feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Something went wrong submitting that - try again.</div>`;
@@ -20757,6 +20961,17 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 </div>`;
             const qMeta = { canAdvance: false, kind: 'question', answered: false, nodeId: rec.node.id };
             sfWireDiagramQuestionSlide(qEl.querySelector('.sf-diagram-question-host'), rec.node, qMeta);
+            slides.push({ el: qEl, meta: qMeta });
+        } else if (qzIsInteractive(lesson.practiceQuestion)) {
+            const qEl = sfInteractiveSlideEl('', lesson.practiceQuestion);
+            const qMeta = { canAdvance: false, kind: 'question', answered: false, nodeId: rec.node.id };
+            sfWireInteractiveSlide(qEl, qMeta, lesson.practiceQuestion,
+                (answer, retryCount) => sfPostBackend('/knowledge-map-v2/text-question/submit', { nodeId: rec.node.id, questionType: 'practice', structured: answer, retryCount }),
+                async (result) => {
+                    if (result.schedule) sfUpsertScheduleCache(result.schedule);
+                    qMeta.answered = true; qMeta.canAdvance = true; sfShowAdvanceHint(qEl);
+                    sfPrefetchNext(); sfRefreshImmediateRecalls();
+                });
             slides.push({ el: qEl, meta: qMeta });
         } else if (lesson.practiceQuestion && lesson.practiceQuestion.questionText) {
             // Prefers the model's own explicit answerInputType (now generated
@@ -21061,6 +21276,18 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     // never touch real FSRS state). onDone fires only once, the moment
     // this specific recall is answered correctly.
     function sfBuildImmediateRecallSlide(row, onDone) {
+        if (qzIsInteractive(row)) {
+            const iEl = sfInteractiveSlideEl(`Quick recall · ${escapeHtml(row.subject)}`, row);
+            const iMeta = { canAdvance: false, kind: 'recall', answered: false, noBack: true };
+            sfWireInteractiveSlide(iEl, iMeta, row,
+                (answer, retryCount) => sfPostBackend(`/immediate-recalls/${row.recallId}/submit`, { recallCheckIndex: row.recallCheckIndex, structured: answer, retryCount }),
+                async () => {
+                    iMeta.answered = true; iMeta.canAdvance = true; sfShowAdvanceHint(iEl);
+                    const wasLast = await onDone();
+                    return wasLast ? 'handled' : true;
+                });
+            return { el: iEl, meta: iMeta };
+        }
         const el = document.createElement('div');
         el.className = 'sf-feed-slide';
         const isMcq = row.format === 'multiple_choice';
@@ -21569,6 +21796,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         // what showed up as the identical question appearing twice in a
         // row. Every question type shares this one function, so this
         // could happen after any of them, not just Day-1 checks.
+        if (currentMeta.holdMs) await sfDelay(currentMeta.holdMs);
         await sfAdvanceAfterCorrectAnswer();
     }
 
@@ -26063,11 +26291,14 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 // grouped fill-in-the-gaps question - see
                 // renderBlanksQuestionWidget and the backend's own
                 // isBlanksSubmission branch in text-question/submit.
+                const interactive = qzIsInteractive(nodeLesson.practiceQuestion);
                 const submit = async (answerOrAnswers, retryCount, followUpToken) => {
                     const isBlanks = Array.isArray(answerOrAnswers);
                     const result = await postChainDiagnostic(
                         nodeLesson.practiceQuestion.diagramSpec ? '/knowledge-map-v2/diagram-question/submit' : '/knowledge-map-v2/text-question/submit',
-                        isBlanks
+                        interactive
+                            ? { nodeId: d.id, questionType: 'practice', structured: answerOrAnswers, retryCount }
+                            : isBlanks
                             ? { nodeId: d.id, questionType: 'practice', answers: answerOrAnswers, retryCount }
                             : { nodeId: d.id, questionType: 'practice', answer: answerOrAnswers, retryCount, followUpToken }
                     );
@@ -26085,6 +26316,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                     return result;
                 };
                 if (nodeLesson.practiceQuestion.diagramSpec) renderDiagramWidget(el, null, submit);
+                else if (interactive) kmRenderInteractiveQuestion(el, nodeLesson.practiceQuestion, submit);
                 else if (nodeLesson.practiceQuestion.blanks && nodeLesson.practiceQuestion.blanks.length) renderBlanksQuestionWidget(el, nodeLesson.practiceQuestion, submit);
                 else renderTextQuestionWidget(el, nodeLesson.practiceQuestion, submit);
             } else {
@@ -26171,11 +26403,12 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             // The explanation stays on screen beside the question, so the text can
             // be read while answering.
             const el = lessonEl.querySelector('#km-untracked-question');
+            const interactiveU = qzIsInteractive(nodeLesson.practiceQuestion);
             const submit = async (answerOrAnswers, retryCount, followUpToken) => {
                 const isBlanks = Array.isArray(answerOrAnswers);
                 const result = await postChainDiagnostic(
                     `/knowledge-map-v2/node/${d.id}/untracked-submit`,
-                    isBlanks ? { answers: answerOrAnswers } : { answer: answerOrAnswers, followUpToken }
+                    interactiveU ? { structured: answerOrAnswers } : isBlanks ? { answers: answerOrAnswers } : { answer: answerOrAnswers, followUpToken }
                 );
                 if (result && result.correct) {
                     setTimeout(() => { if (contentInner.isConnected) showKmWorkspace(contentInner); }, UNTRACKED_AUTO_CLOSE_DELAY_MS);
@@ -26183,6 +26416,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 return result;
             };
             if (nodeLesson.practiceQuestion.diagramSpec) renderDiagramWidget(el, null, submit);
+            else if (interactiveU) kmRenderInteractiveQuestion(el, nodeLesson.practiceQuestion, submit);
             else if (nodeLesson.practiceQuestion.blanks && nodeLesson.practiceQuestion.blanks.length) renderBlanksQuestionWidget(el, nodeLesson.practiceQuestion, submit);
             else renderTextQuestionWidget(el, nodeLesson.practiceQuestion, submit);
         }
