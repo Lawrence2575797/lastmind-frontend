@@ -21088,12 +21088,17 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     // has already auto-hidden itself (SF_RECALL_GRACE_MS) by the time
     // this runs - the row itself is still genuinely unresolved server-side
     // regardless of whether the banner was seen.
+    // A feed opened for one subject only ever raises that subject's recalls; a cross-subject feed keeps them all.
+    function sfRecallsInScope(rows) {
+        const scope = sfFeed && sfFeed.scopeFolder;
+        return scope ? rows.filter((r) => r.subject === scope.subject) : rows;
+    }
     async function sfServeDueRecallOrAppendNext() {
         if (!sfFeed) return;
         const result = await sfGetBackend('/immediate-recalls/due');
         // The server also returns recalls due in the next few minutes (so the
         // feed can time a nudge for them); only ones already due are served here.
-        const rows = ((result && result.recalls) ? result.recalls : []).filter((r) => { const t = new Date(r.dueAt).getTime(); return t <= Date.now() && Date.now() <= t + SF_RECALL_GRACE_MS; });
+        const rows = sfRecallsInScope((result && result.recalls) ? result.recalls : []).filter((r) => { const t = new Date(r.dueAt).getTime(); return t <= Date.now() && Date.now() <= t + SF_RECALL_GRACE_MS; });
         if (!sfFeed) return;
         if (!rows.length) {
             await sfAppendNextRecommendation();
@@ -21162,7 +21167,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         if (!sfFeed) return;
         const result = await sfGetBackend('/immediate-recalls/due');
         if (!sfFeed || !result || !result.recalls) return;
-        result.recalls.forEach((row) => sfScheduleRecallTimer(row));
+        sfRecallsInScope(result.recalls).forEach((row) => sfScheduleRecallTimer(row));
     }
 
     // Starts computing+building the NEXT recommendation's slides in the
