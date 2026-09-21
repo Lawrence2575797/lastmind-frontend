@@ -1411,6 +1411,8 @@
     .sf-slide-explanation li:last-child { margin-bottom: 0; }
     .sf-speaker-label { font-size: 13px; font-weight: 700; opacity: 0.75; }
     .sf-question-text { font-size: 18px; line-height: 1.7; margin: 0; }
+    .sf-followup { padding: 12px 16px; border-left: 4px solid var(--accent); border-radius: 10px; background: rgba(255,255,255,0.07); animation: lmIn .4s ease both; }
+    .sf-followup-label { font-size: 11px; font-weight: 800; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
     /* Interactive questions: spot the mistake, jigsaw match, drag to order */
     .qz { margin: 12px 0 8px; } .qz-hint { font-size: 13px; opacity: 0.78; margin-bottom: 10px; }
     .qz-doc { padding: 16px 18px; border-radius: 14px; background: rgba(255,255,255,0.06); border: 1px dashed rgba(230,215,176,0.4); line-height: 2.15; font-size: 15.5px; }
@@ -20105,8 +20107,27 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     function sfApplyFollowUp(slideEl, result, state, clearInput) {
         if (!result || !result.followUp || !result.followUp.token) return false;
         state.token = result.followUp.token;
-        const qEl = slideEl.querySelector('.sf-question-text');
-        if (qEl) qEl.textContent = result.followUp.questionText;
+        // The original question stays where it was. The follow-up appears BELOW the feedback, and the answer box and Submit button move
+        // down under it, so the student reads: question, what was wrong, the next question, then answers it.
+        const feedbackEl = slideEl.querySelector('.sf-question-feedback');
+        let block = slideEl.querySelector('.sf-followup');
+        if (feedbackEl && !block) {
+            block = document.createElement('div');
+            block.className = 'sf-followup';
+            block.innerHTML = '<div class="sf-followup-label">Follow-up question</div><p class="sf-question-text sf-followup-q"></p>';
+            feedbackEl.after(block);
+            const input = slideEl.querySelector('.sf-question-input') || slideEl.querySelector('.sf-question-input-host');
+            const submit = slideEl.querySelector('.sf-question-submit');
+            if (input) block.after(input);
+            if (submit) (input || block).after(submit);
+        }
+        if (block) {
+            block.querySelector('.sf-followup-q').textContent = result.followUp.questionText;
+            setTimeout(() => { try { block.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (err) { /* stays put */ } }, 80);
+        } else {
+            const qEl = slideEl.querySelector('.sf-question-text');
+            if (qEl) qEl.textContent = result.followUp.questionText;   // a slide with no feedback area keeps the old behaviour
+        }
         if (clearInput) clearInput();
         return true;
     }
