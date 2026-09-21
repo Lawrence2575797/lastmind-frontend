@@ -7178,11 +7178,19 @@ SQIDAQAB
     async function syncFolderToServer(folder) {
         const accessToken = await getSyncAccessToken();
         if (!accessToken) return;
-        const resp = await fetch(`${COMPILE_BACKEND_URL}/sync/folders`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-            body: JSON.stringify({ folderId: String(folder.id), data: folder, updatedAt: new Date(folder.updatedAt || Date.now()).toISOString() })
-        });
+        // A busy minute can answer 429 (rate limit). That is temporary, so wait as long as the server asks and try again rather than
+        // failing the whole setup on one refused write.
+        let resp;
+        for (let attempt = 0; ; attempt++) {
+            resp = await fetch(`${COMPILE_BACKEND_URL}/sync/folders`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                body: JSON.stringify({ folderId: String(folder.id), data: folder, updatedAt: new Date(folder.updatedAt || Date.now()).toISOString() })
+            });
+            if (resp.status !== 429 || attempt >= 4) break;
+            const wait = Math.min(30, Math.max(2, Number(resp.headers.get('Retry-After')) || 5 * (attempt + 1)));
+            await new Promise((r) => setTimeout(r, wait * 1000));
+        }
         if (!resp.ok) throw new Error(`folder sync failed: ${resp.status}`);
     }
 
