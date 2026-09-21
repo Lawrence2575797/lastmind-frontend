@@ -154,7 +154,8 @@
     .lm-lesson-toggle { border: 1px solid rgba(255,255,255,0.18); border-radius: 12px; padding: 8px 14px; background: rgba(0,0,0,0.18); }
     .lm-lesson-toggle > summary { cursor: pointer; font-weight: 700; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; }
     .lm-lesson-toggle[open] > summary { margin-bottom: 10px; }
-    .sidebar-header .sidebar-logo { min-width: 0; flex: 0 1 auto; }
+    .sidebar-header .sidebar-logo { min-width: 0; flex: 0 1 auto; flex-direction: column; align-items: flex-start; gap: 8px; }   /* the word sits below the logo */
+    .sidebar-header .sidebar-logo-icon { width: 40px; height: 40px; }
     /* .manage-subscription-btn (defined later) sets width:100%, which made this button
        stretch over the logo - the higher specificity here keeps it compact on the right. */
     .sidebar-header .sidebar-header-upgrade { width: auto; flex: none; margin-left: auto; white-space: nowrap; }
