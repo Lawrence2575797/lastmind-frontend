@@ -22108,6 +22108,9 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     function sfTryAdvance(direction, useHorizontal) {
         if (!sfFeed || sfFeed.locked) return;
         const currentMeta = sfFeed.meta[sfFeed.currentIndex];
+        // A derivation lesson scrolls inside its own frame. A scroll or key that reaches the page around it (at the edge of the lesson)
+        // must not shake the slide or move the feed until the lesson is finished.
+        if (currentMeta && currentMeta.derive && !currentMeta.canAdvance) return;
         const move = (idx) => useHorizontal ? sfMoveToIndexHorizontal(idx, direction) : sfMoveToIndex(idx);
         if (direction > 0) {
             if (currentMeta && !currentMeta.canAdvance) {
@@ -22186,7 +22189,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         }
         el.innerHTML = '<iframe class="sf-derive-frame" src="/learn/derive/player.html" title="Lesson"></iframe>';
         const frame = el.querySelector('iframe');
-        const meta = { canAdvance: false, kind: 'question', answered: false, nodeId: rec.node.id };
+        const meta = { canAdvance: false, kind: 'question', answered: false, nodeId: rec.node.id, derive: true };
         let connected = false;
         const onMessage = async (e) => {
             if (connected && !el.isConnected) { window.removeEventListener('message', onMessage); return; }
@@ -22194,6 +22197,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             if (e.data.type === 'lm-derive-ready') {
                 connected = true;
                 frame.contentWindow.postMessage({ type: 'lm-derive-init', data: payload }, window.location.origin);
+                try { frame.focus(); frame.contentWindow.focus(); } catch (err) { /* focus is a convenience */ }
             } else if (e.data.type === 'lm-derive-complete' && !meta.answered) {
                 meta.answered = true;
                 const result = await sfPostBackend('/knowledge-map-v2/derivation/complete', { stage });
