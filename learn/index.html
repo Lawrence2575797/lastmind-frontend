@@ -20466,6 +20466,8 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         const decoyNote = q.format === 'order' && (q.items || []).length > (q.slots || 0) ? ' Some cards do not belong: leave them out.' : q.format === 'match' && (q.rights || []).length > (q.lefts || []).length ? ' Some pieces do not fit anywhere: leave them out.' : '';
         hint.textContent = q.format === 'match' ? 'Tap a piece, then tap where it fits. Or drag it across.' + decoyNote : q.format === 'order' ? 'Tap the cards in the right order, or drag them into the boxes. Tap a placed card to take it back.' + decoyNote : q.format === 'cloze' ? 'Type the missing terms from memory.' : q.format === 'steps' ? 'Type the steps in order, one in each box, from memory.' : '';
         if (hint.textContent) host.appendChild(hint);
+        if (q.format === 'multiple_choice') return qzMcq(host, q, onChange);
+        if (q.format === 'fill_blank') return qzFill(host, q, onChange);
         if (q.format === 'spot_mistake') return qzSpot(host, q, onChange);
         if (q.format === 'cloze') return qzCloze(host, q, onChange);
         if (q.format === 'steps') return qzSteps(host, q, onChange);
@@ -20570,6 +20572,29 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             },
         };
     }
+    // A stored multiple-choice or fill-in check, shown as a puzzle (a lesson whose own practice question is open text asks one of these
+    // straight after the lesson instead, because open recall is kept for later).
+    function qzMcq(host, q, onChange) {
+        const list = document.createElement('div'); list.style.cssText = 'display:grid;gap:10px;';
+        let picked = -1; let disabled = false;
+        const btns = (q.options || []).map((label, i) => {
+            const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sf-mcq-option'; b.textContent = label;
+            b.addEventListener('click', () => { if (disabled) return; picked = i; btns.forEach((x, j) => x.classList.toggle('sf-mcq-option-selected', j === i)); if (onChange) onChange(); });
+            list.appendChild(b); return b;
+        });
+        host.appendChild(list);
+        return {
+            incompleteText: 'Pick an option first.',
+            getAnswer: () => (picked < 0 ? null : { option: picked }),
+            setDisabled: (v) => { disabled = v; },
+            showResult(res) { if (res.correct) { list.classList.add('qz-done'); return; } if (btns[picked]) { btns[picked].classList.remove('sf-mcq-option-selected'); btns[picked].style.opacity = '0.45'; } picked = -1; if (onChange) onChange(); },
+        };
+    }
+    function qzFill(host, q, onChange) {
+        const inner = qzCloze(host, { text: String(q.questionText || ''), blanks: 1 }, onChange);
+        return { incompleteText: 'Type the missing term first.', getAnswer: () => { const a = inner.getAnswer(); return a ? { answer: a.answers[0] } : null; }, setDisabled: inner.setDisabled, showResult: (res) => inner.showResult({ correct: res.correct, detail: [!!res.correct] }) };
+    }
+
     // Typed recall: fill the missing terms into a passage, or list the steps of a process in order. Nothing to pick from.
     function qzTypedRows(host, onChange, inputs, locked) {
         return {
@@ -21208,6 +21233,20 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                     sfRecapMaybeInsert();
                 });
             slides.push({ el: qEl, meta: qMeta });
+        } else if (sfCuedSubstituteRef(lesson) >= 0) {
+            const ref = sfCuedSubstituteRef(lesson);
+            const chk = lesson.recallChecks[ref];
+            const qEl = sfInteractiveSlideEl('<span class="sf-stepchip">Step 2 of 2 · Check</span>', chk.format === 'fill_blank' ? { questionText: 'Type the missing term.' } : chk);
+            const qMeta = { canAdvance: false, kind: 'question', answered: false, nodeId: rec.node.id };
+            sfWireInteractiveSlide(qEl, qMeta, chk,
+                (answer, retryCount) => sfPostBackend('/knowledge-map-v2/text-question/submit', { nodeId: rec.node.id, questionType: 'practice', checkRef: ref, structured: answer, retryCount }),
+                async (result) => {
+                    if (result.schedule) sfUpsertScheduleCache(result.schedule);
+                    qMeta.answered = true; qMeta.canAdvance = true; sfShowAdvanceHint(qEl);
+                    sfPrefetchNext(); sfRefreshImmediateRecalls();
+                    sfRecapMaybeInsert();
+                });
+            slides.push({ el: qEl, meta: qMeta });
         } else if (lesson.practiceQuestion && lesson.practiceQuestion.questionText) {
             // Prefers the model's own explicit answerInputType (now generated
             // for every node's practiceQuestion, not just an edge's
@@ -21528,6 +21567,14 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     // grading route - see that route's own comment on why this must
     // never touch real FSRS state). onDone fires only once, the moment
     // this specific recall is answered correctly.
+    // Which of a lesson's stored checks stands in for an open-text practice question (-1: none is needed or none exists). The server picks
+    // its 2-minute recalls from the same list, starting after this one, so the two never repeat each other.
+    function sfCuedSubstituteRef(lesson) {
+        const pq = lesson && lesson.practiceQuestion;
+        if (!pq || !pq.questionText || pq.diagramSpec || qzIsInteractive(pq)) return -1;
+        if (pq.answerInputType === 'math' || (pq.blanks && pq.blanks.length)) return -1;
+        return (lesson.recallChecks || []).findIndex((c) => c && c.format && c.format !== 'free_text' && c.questionText);
+    }
     function sfBuildImmediateRecallSlide(row, onDone) {
         if (qzIsInteractive(row)) {
             const iEl = sfInteractiveSlideEl(`Quick recall · ${escapeHtml(row.subject)}`, row);
