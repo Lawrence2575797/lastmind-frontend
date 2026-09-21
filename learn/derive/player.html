@@ -139,6 +139,11 @@ button { font: inherit; color: inherit; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 
 [hidden] { display: none !important; }
+/* outside Minimalist the lesson takes the page background, panel colour and text colour */
+html[data-look="glass"], html[data-look="glass"] body { background: transparent; }
+html[data-look="glass"] { --ground: transparent; --panel: rgba(var(--pr), 0.32); --ink: var(--gtext); --muted: color-mix(in srgb, var(--gtext) 72%, transparent); --line: color-mix(in srgb, var(--gtext) 26%, transparent); --accent: var(--gtext); --accent-ink: rgb(var(--pr)); --edge: var(--gtext); --node-dash: color-mix(in srgb, var(--gtext) 45%, transparent); --hud: rgba(var(--pr), 0.94); }
+html[data-look="glass"] .milestone { background: var(--gtext); color: rgb(var(--pr)); }
+html[data-look="glass"] .svgwrap, html[data-look="glass"] .bank { background: rgba(var(--pr), 0.35); }
 .nextbtn { justify-self: start; border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 999px; padding: 8px 16px; font: 600 13px var(--sans); cursor: pointer; } .nextbtn:hover { border-color: var(--accent); color: var(--ink); } .tray { display: none !important; } .feed { padding-bottom: 0; overflow-x: hidden; scroll-snap-type: y proximity; } html, body { overflow: hidden; height: 100%; } .svgwrap, .bank, .slots, .lanes { scrollbar-width: none; } .svgwrap::-webkit-scrollbar, .bank::-webkit-scrollbar, .slots::-webkit-scrollbar, .lanes::-webkit-scrollbar { display: none; }
 </style>
 
@@ -170,7 +175,7 @@ button { font: inherit; color: inherit; }
 </div>
 
 <script>
-window.__runDerive = function (D) {
+window.__runDerive = function (D, CP) {
   'use strict';
   var TERMS = {};
   Object.keys(D.terms).forEach(function (k) { TERMS[k] = { t: D.terms[k].t, c: D.terms[k].c }; });
@@ -223,6 +228,7 @@ window.__runDerive = function (D) {
   /* ---- the engine: build the next step only when the last is done, so nothing can be skipped ---- */
   function next(scrollTo) {
     idx++;
+    try { if (idx >= 1 && idx < script().length - 1) parent.postMessage({ type: 'lm-derive-progress', cp: { idx: idx, collected: collected.slice(), held: held } }, location.origin); } catch (e) { /* standalone */ }
     var step = script()[idx]; if (!step) return;
     BUILDERS[step.type](step);
     if (scrollTo) scrollToLast();
@@ -685,6 +691,7 @@ window.__runDerive = function (D) {
     next(true);
   }
   function restart() {
+    try { parent.postMessage({ type: 'lm-derive-progress', cp: null }, location.origin); } catch (e) { /* standalone */ }
     feed.innerHTML = ''; tray.innerHTML = '<b>Key terms</b><span class="hint" id="trayEmpty">they collect here as you go</span>';
     collected = []; completed = 0; stageIdx = 0; idx = -1; setHeld(0); stageTitle.textContent = STAGES[0].hud;
     next(false); feed.scrollTo({ top: 0 });
@@ -730,14 +737,25 @@ window.__runDerive = function (D) {
     });
   })();
   stageTitle.textContent = STAGES[0].hud;
-  setHeld(0); next(false);
+  var resumed = false;
+  if (CP && typeof CP.idx === 'number' && CP.idx >= 1 && CP.idx < script().length - 1) {
+    (CP.collected || []).forEach(function (k) { if (TERMS[k]) collect(k); });
+    setHeld(CP.held || 0); idx = CP.idx - 1; resumed = true; next(false);
+  }
+  if (!resumed) { setHeld(0); next(false); }
 };
 
 window.addEventListener('message', function (e) {
   if (e.origin !== location.origin || !e.data) return;
   if (e.data.type === 'lm-derive-size') { var sb = document.getElementById('sizeBtn'); if (sb) sb.textContent = e.data.expanded ? 'Shrink' : 'Expand'; return; }
   if (e.data.type !== 'lm-derive-init' || window.__started) return;
-  window.__started = true; window.__runDerive(e.data.data);
+  if (e.data.look) {
+    var root = document.documentElement;
+    root.setAttribute('data-look', 'glass');
+    root.style.setProperty('--gtext', e.data.look.text);
+    root.style.setProperty('--pr', e.data.look.rgb);
+  }
+  window.__started = true; window.__runDerive(e.data.data, e.data.checkpoint);
 });
 (function () {
   var sb = document.getElementById('sizeBtn');
