@@ -8885,6 +8885,7 @@ SQIDAQAB
                 const body = treeWrap.querySelector('.folder-tree-collapsible');
                 const open = body.style.display !== 'none';
                 body.style.display = open ? 'none' : '';
+                if (open) sidebarOpenBranches.delete('themes'); else sidebarOpenBranches.add('themes');
                 collapseBtn.querySelector('.notes-tree-arrow').classList.toggle('open', !open);
             });
             if (selectedFolderKmData) wireSubjectTree(treeWrap.querySelector('.folder-tree-collapsible'), f, selectedFolderKmData);
@@ -8902,6 +8903,7 @@ SQIDAQAB
                 const body = treeWrap.querySelector('.folder-tree-collapsible');
                 const open = body.style.display !== 'none';
                 body.style.display = open ? 'none' : '';
+                if (open) sidebarOpenBranches.delete('themes'); else sidebarOpenBranches.add('themes');
                 collapseBtn.querySelector('.notes-tree-arrow').classList.toggle('open', !open);
             });
             if (selectedFolderKmData) wireSubjectTree(treeWrap.querySelector('.folder-tree-collapsible'), f, selectedFolderKmData);
@@ -8919,8 +8921,11 @@ SQIDAQAB
     // not something this sidebar view needs to solve on its own.
     // The lesson tree sits under a collapsed "Themes" toggle; when a lesson is
     // selected it starts open, otherwise the boxed (selected) lesson is hidden.
+    // Nothing in this tree opens by itself any more (it used to open the branch holding the selected lesson, which looked untidy). Only what the
+    // student opens by hand is kept open, across the re-draws that follow picking a lesson.
+    const sidebarOpenBranches = new Set();
     function sidebarTreeHasSelected() {
-        return !!(selectedFolderKmData && selectedSidebarLessonNodeId && selectedFolderKmData.nodes.some((n) => n.id === selectedSidebarLessonNodeId));
+        return sidebarOpenBranches.has('themes');
     }
 
     function buildSubjectTreeHtml(data) {
@@ -8935,17 +8940,16 @@ SQIDAQAB
         });
         // The branch holding the selected lesson starts open, so its boxed
         // button is actually visible.
-        const holdsSelected = (nodes) => nodes.some((n) => n.id === selectedSidebarLessonNodeId);
         return Array.from(byTheme.entries()).map(([theme, bySubtopic]) => {
-            const themeOpen = Array.from(bySubtopic.values()).some(holdsSelected);
+            const themeOpen = sidebarOpenBranches.has(`theme:${theme}`);
             return `
             <div class="notes-tree-theme">
-                <button type="button" class="notes-tree-theme-toggle"><span class="notes-tree-arrow${themeOpen ? ' open' : ''}">▶</span><span>${escapeHtml(theme)}</span></button>
+                <button type="button" class="notes-tree-theme-toggle" data-branch="${escapeHtml(`theme:${theme}`)}"><span class="notes-tree-arrow${themeOpen ? ' open' : ''}">▶</span><span>${escapeHtml(theme)}</span></button>
                 <div class="notes-tree-theme-body" style="display:${themeOpen ? 'block' : 'none'};">
                     ${Array.from(bySubtopic.entries()).sort((a, b) => compareSubtopicStrings(a[0], b[0])).map(([subtopic, nodes]) => `
                         <div class="notes-tree-subtopic">
-                            <button type="button" class="notes-tree-subtopic-toggle"><span class="notes-tree-arrow${holdsSelected(nodes) ? ' open' : ''}">▶</span><span>${escapeHtml(subtopic)}</span></button>
-                            <div class="notes-tree-subtopic-body" style="display:${holdsSelected(nodes) ? 'block' : 'none'};">
+                            <button type="button" class="notes-tree-subtopic-toggle" data-branch="${escapeHtml(`sub:${theme}/${subtopic}`)}"><span class="notes-tree-arrow${sidebarOpenBranches.has(`sub:${theme}/${subtopic}`) ? ' open' : ''}">▶</span><span>${escapeHtml(subtopic)}</span></button>
+                            <div class="notes-tree-subtopic-body" style="display:${sidebarOpenBranches.has(`sub:${theme}/${subtopic}`) ? 'block' : 'none'};">
                                 ${nodes.map((n) => `
                                     <button type="button" class="notes-tree-node-item${n.id === selectedSidebarLessonNodeId ? ' active' : ''}" data-node-id="${escapeHtml(n.id)}" data-subtopic="${escapeHtml(subtopic)}">
                                         <span>${escapeHtml(n.label)}</span>
@@ -8968,6 +8972,7 @@ SQIDAQAB
                 const body = btn.nextElementSibling;
                 const open = body.style.display !== 'none';
                 body.style.display = open ? 'none' : 'block';
+                if (btn.dataset.branch) { if (open) sidebarOpenBranches.delete(btn.dataset.branch); else sidebarOpenBranches.add(btn.dataset.branch); }
                 btn.querySelector('.notes-tree-arrow').classList.toggle('open', !open);
             });
         };
