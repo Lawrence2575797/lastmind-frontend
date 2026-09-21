@@ -143,19 +143,8 @@
         filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
     }
     .sidebar-header-upgrade { margin-left: auto; padding: 6px 10px; font-size: 0.68rem; width: auto; flex: none; white-space: nowrap; }
-    .sidebar-header { gap: 16px; align-items: flex-start; }
-    /* Revise on top, Explore beneath it, then Create: the top of the sidebar is deliberately taller for them. */
-    .sidebar-mode { display: flex; flex-direction: column; gap: 7px; margin-left: auto; min-width: 116px; }
-    .sidebar-mode-btn { font: 700 0.78rem Arial, sans-serif; letter-spacing: 0.05em; text-transform: uppercase; padding: 9px 14px; border-radius: 9px; cursor: pointer; color: var(--text); background: rgba(255,255,255,0.06); border: 1px solid rgba(230,215,176,0.28); transition: background .15s, transform .15s; }
-    .sidebar-mode-btn:hover { transform: translateY(-1px); background: rgba(255,255,255,0.12); }
-    .sidebar-mode-btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); box-shadow: 0 0 0 3px rgba(230,215,176,0.22); }
-    .sidebar-mode-create { margin-top: 2px; }
-    .notes-tree-node-item.lm-locked { opacity: 0.42; } .notes-tree-node-item.lm-locked::before { content: '🔒 '; }
-    .lm-lesson-toggle { border: 1px solid rgba(255,255,255,0.18); border-radius: 12px; padding: 8px 14px; background: rgba(0,0,0,0.18); }
-    .lm-lesson-toggle > summary { cursor: pointer; font-weight: 700; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; }
-    .lm-lesson-toggle[open] > summary { margin-bottom: 10px; }
-    .sidebar-header .sidebar-logo { min-width: 0; flex: 0 1 auto; flex-direction: column; align-items: flex-start; gap: 8px; }   /* the word sits below the logo */
-    .sidebar-header .sidebar-logo-icon { width: 40px; height: 40px; }
+    .sidebar-header { gap: 16px; }
+    .sidebar-header .sidebar-logo { min-width: 0; flex: 0 1 auto; }
     /* .manage-subscription-btn (defined later) sets width:100%, which made this button
        stretch over the logo - the higher specificity here keeps it compact on the right. */
     .sidebar-header .sidebar-header-upgrade { width: auto; flex: none; margin-left: auto; white-space: nowrap; }
@@ -730,7 +719,6 @@
     /* "Hide pre-covered lessons": darkens (never removes) everything the
        student said they'd already covered before LastMind. Reversible. */
     .km-node-group.km-covered-hidden { opacity: 0.3; filter: brightness(0.28) saturate(0.35); }
-    .km-node-group.km-lm-dark { opacity: 0.16; filter: brightness(0.22) saturate(0.2); } .km-link.km-lm-dark { stroke-opacity: 0.04 !important; }
     .km-link.km-covered-hidden { stroke-opacity: 0.06 !important; }
     /* While the toggle is on, what still needs covering is made vivid so the
        two groups are unmistakable. */
@@ -5948,11 +5936,6 @@
                     <img class="sidebar-logo-icon" src="/icons/lastmind-logo.png" alt="LastMind" width="24" height="24" />
                     <span>LastMind</span>
                 </div>
-                <div class="sidebar-mode" role="group" aria-label="LastMind mode">
-                    <button type="button" class="sidebar-mode-btn" id="modeReviseBtn" title="Go back over what you covered in school">Revise</button>
-                    <button type="button" class="sidebar-mode-btn" id="modeExploreBtn" title="Learn new content, on from what you have covered">Explore</button>
-                    <button type="button" class="sidebar-mode-btn sidebar-mode-create" id="createSidebarBtn" title="Build simulations and projects">Create</button>
-                </div>
             </div>
 
             <div class="sidebar-tabs">
@@ -6230,6 +6213,7 @@
                      here puts every topbar button in the one row that
                      actually handles overflow. -->
                 <div class="topbar-actions" id="topbarActions">
+                    <button class="cortex-btn-topbar" id="createTopbarBtn" type="button">Create</button>
                     <button class="cortex-btn-topbar" id="rewardsTopbarBtn" type="button">Rewards <span class="rewards-topbar-keys" title="Your Keys"><span id="rewardsTopbarKeys">0</span> 🔑</span></button>
                     <button class="cortex-btn-topbar" id="buyMoreTokensBtn" type="button" style="display:none;">Buy Extra Locks</button>
                     <button class="cortex-btn-topbar" id="practiceQuestionsTopbarBtn" type="button">Exam Preparation</button>
@@ -7568,41 +7552,6 @@ SQIDAQAB
     let kmGraphMode = false;
     // "Hide pre-covered lessons" toggle on the knowledge map (darkens, never removes).
     let kmHideCovered = false;
-
-    // ---- Revise and Explore ----
-    // The two modes split the knowledge map. Explore is the frontier: lessons the student has neither covered in school nor learned yet, and
-    // the 2-minute recalls that follow them. The moment a lesson is learned (or was covered in school) it goes dark in Explore and lives in
-    // Revise, where the Day-1 checks, spaced reviews and link reviews happen. Revise never goes beyond what is covered or learned.
-    const LM_MODE_KEY = 'lastmind-mode';
-    let lmMode = 'explore';
-    try { lmMode = localStorage.getItem(LM_MODE_KEY) === 'revise' ? 'revise' : 'explore'; } catch (err) { /* explore */ }
-    function lmPaintModeButtons() {
-        const revise = document.getElementById('modeReviseBtn'), explore = document.getElementById('modeExploreBtn');
-        if (!revise || !explore) return;
-        revise.classList.toggle('active', lmMode === 'revise'); explore.classList.toggle('active', lmMode === 'explore');
-        revise.setAttribute('aria-pressed', String(lmMode === 'revise')); explore.setAttribute('aria-pressed', String(lmMode === 'explore'));
-        document.body.classList.toggle('lm-mode-revise', lmMode === 'revise');
-    }
-    function lmSetMode(mode) {
-        const next = mode === 'revise' ? 'revise' : 'explore';
-        if (next === lmMode) return;
-        lmMode = next;
-        try { localStorage.setItem(LM_MODE_KEY, lmMode); } catch (err) { /* fine */ }
-        lmPaintModeButtons();
-        try { if (typeof sfCloseFeed === 'function' && sfFeed) sfCloseFeed(); } catch (err) { /* nothing open */ }
-        try { if (selectedFolderId) { kmGraphMode = false; specPracticeMode = false; selectFolder(selectedFolderId); } else goToMainFeed(); } catch (err) { console.error('LastMind: could not refresh after switching mode.', err); }
-    }
-    // Why a lesson cannot be opened in the current mode ('' when it can).
-    function lmBlockedReason(coveredHere, encodedHere) {
-        if (lmMode === 'explore') return coveredHere || encodedHere ? 'You have already covered or learned this, so it lives in Revise. Switch to Revise to go over it.' : '';
-        return coveredHere || encodedHere ? '' : 'Revise only covers what you have done in school or already learned on Explore. Switch to Explore to learn this.';
-    }
-    function lmNodeBlockedReason(folder, node) {
-        if (!node) return '';
-        const covered = new Set((folder && folder.externalCoveredConceptIds) || []).has(node.conceptId);
-        const encoded = (cachedScheduleData || []).some((r) => r.concept_id === node.conceptId);
-        return lmBlockedReason(covered, encoded);
-    }
     // Cache for the currently-selected subject's spec-lesson tree fetch -
     // same role as selectedFolderKmData plays for the atomic tree. null
     // while loading, before a subject is selected, or (a real, distinct
@@ -8934,9 +8883,6 @@ SQIDAQAB
         // The branch holding the selected lesson starts open, so its boxed
         // button is actually visible.
         const holdsSelected = (nodes) => nodes.some((n) => n.id === selectedSidebarLessonNodeId);
-        const coveredIdsForTree = new Set(data.externallyCoveredNodeIds || []);
-        const encodedForTree = new Set((cachedScheduleData || []).map((r) => r.concept_id));
-        const lockedInMode = (n) => !!lmBlockedReason(coveredIdsForTree.has(n.id), encodedForTree.has(n.conceptId));
         return Array.from(byTheme.entries()).map(([theme, bySubtopic]) => {
             const themeOpen = Array.from(bySubtopic.values()).some(holdsSelected);
             return `
@@ -8948,7 +8894,7 @@ SQIDAQAB
                             <button type="button" class="notes-tree-subtopic-toggle"><span class="notes-tree-arrow${holdsSelected(nodes) ? ' open' : ''}">▶</span><span>${escapeHtml(subtopic)}</span></button>
                             <div class="notes-tree-subtopic-body" style="display:${holdsSelected(nodes) ? 'block' : 'none'};">
                                 ${nodes.map((n) => `
-                                    <button type="button" class="notes-tree-node-item${n.id === selectedSidebarLessonNodeId ? ' active' : ''}${lockedInMode(n) ? ' lm-locked' : ''}" data-node-id="${escapeHtml(n.id)}" data-subtopic="${escapeHtml(subtopic)}">
+                                    <button type="button" class="notes-tree-node-item${n.id === selectedSidebarLessonNodeId ? ' active' : ''}" data-node-id="${escapeHtml(n.id)}" data-subtopic="${escapeHtml(subtopic)}">
                                         <span>${escapeHtml(n.label)}</span>
                                     </button>
                                 `).join('')}
@@ -11794,10 +11740,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     }
 
     document.getElementById('practiceQuestionsTopbarBtn').addEventListener('click', renderExamPrepEntryScreen);
-    document.getElementById('createSidebarBtn').addEventListener('click', () => renderCreatePage(false));
-    document.getElementById('modeReviseBtn').addEventListener('click', () => lmSetMode('revise'));
-    document.getElementById('modeExploreBtn').addEventListener('click', () => lmSetMode('explore'));
-    lmPaintModeButtons();
+    document.getElementById('createTopbarBtn').addEventListener('click', () => renderCreatePage(false));
     document.getElementById('rewardsTopbarBtn').addEventListener('click', renderRewardsPage);
     document.getElementById('dashboardTopbarBtn').addEventListener('click', goToMainFeed);
 
@@ -19946,15 +19889,10 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             if (predecessorAdjacency.has(e.target)) predecessorAdjacency.get(e.target).push(e.source);
         });
 
-        const revise = lmMode === 'revise';
-        // Explore: what was covered in school counts as known (nothing there is ever offered). Revise: only the covered part is on the
-        // table, and anything outside it counts as out of bounds, so it is never offered and never blocks.
         function isNodeEncoded(nodeId) {
             if (nodeId === pretendEncodedNodeId) return true;
             const n = nodeById.get(nodeId);
-            if (!n) return false;
-            if (schedule.has(n.conceptId)) return true;
-            return revise ? !externallyCoveredNodeIds.has(nodeId) : externallyCoveredNodeIds.has(nodeId);
+            return !!n && (schedule.has(n.conceptId) || externallyCoveredNodeIds.has(nodeId));
         }
         const visited = new Set();
         function firstReadyUnencoded(nodeId) {
@@ -19992,9 +19930,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         // below, generalised to real spaced reviews too.
         let bestDue = null;
         let bestIntegration = null;
-        // Explore only ever offers new lessons (and the 2-minute recalls that follow them): every Day-1 check and review is a Revise thing.
-        const dayOneOwn = externallyCoveredNodeIds;
-        for (const n of (revise ? data.nodes : [])) {
+        for (const n of data.nodes) {
             const learnedHere = schedule.has(n.conceptId);
             const learnedElsewhere = externallyCoveredNodeIds.has(n.id);
             if (!learnedHere && !learnedElsewhere) continue;
@@ -20004,8 +19940,8 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 // First-time integration requires both endpoint concepts'
                 // Day-1 checks to be complete.
                 .filter((ln) => ln &&
-                    (completedDay1ConceptIds.has(n.conceptId) || dayOneOwn.has(n.id)) &&
-                    (completedDay1ConceptIds.has(ln.conceptId) || dayOneOwn.has(ln.id)) &&
+                    (completedDay1ConceptIds.has(n.conceptId) || externallyCoveredNodeIds.has(n.id)) &&
+                    (completedDay1ConceptIds.has(ln.conceptId) || externallyCoveredNodeIds.has(ln.id)) &&
                     (completedDay1ConceptIds.has(n.conceptId) || completedDay1ConceptIds.has(ln.conceptId)))
                 .filter((ln) => !pendingDay1ConceptIds.has(sfReviewLinkKey(n, ln) + '::integration'));
             const newIntegrationLinks = qualifyingLinks.filter((ln) => !schedule.has(`${n.conceptId}->${ln.conceptId}::integration`));
@@ -20043,7 +19979,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         // (near-meaningless here - everything overdue shares "today") and
         // never by recall/FSRS priority, so the first one for this
         // folder's subject is simply taken as-is.
-        const day1Checks = revise ? (await sfFetchDueDay1Checks()).filter((c) => c.subject === folder.subject) : [];
+        const day1Checks = (await sfFetchDueDay1Checks()).filter((c) => c.subject === folder.subject);
         const bestDay1 = day1Checks.length ? day1Checks[0] : null;
 
         if (bestDue && bestDay1) {
@@ -21391,23 +21327,6 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             explEl.querySelector('.sf-advance-hint').textContent = sfAdvanceHintText("for what's next");
         }
 
-        // Revise: the student has met this in school, so the question comes first and the lesson is one tap away (open it, close it).
-        if (lmMode === 'revise' && slides.length > 1) {
-            const inner = slides[1].el.querySelector('.sf-slide-inner');
-            const lessonBox = explEl.querySelector('.sf-slide-explanation');
-            if (inner && lessonBox) {
-                const details = document.createElement('details');
-                details.className = 'lm-lesson-toggle';
-                const summary = document.createElement('summary'); summary.textContent = 'Open the lesson';
-                details.appendChild(summary);
-                details.appendChild(lessonBox);
-                const diagramHost = explEl.querySelector('.sf-diagram-explanation-host'); if (diagramHost) details.appendChild(diagramHost);
-                details.addEventListener('toggle', () => { summary.textContent = details.open ? 'Close the lesson' : 'Open the lesson'; });
-                inner.insertBefore(details, inner.firstChild);
-                inner.querySelectorAll('.sf-stepchip').forEach((chip) => { chip.textContent = 'Revise · answer first, open the lesson if you need it'; });
-                slides.shift();
-            }
-        }
         return slides;
     }
 
@@ -21916,13 +21835,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     // A feed opened for one subject only ever raises that subject's recalls; a cross-subject feed keeps them all.
     function sfRecallsInScope(rows) {
         const scope = sfFeed && sfFeed.scopeFolder;
-        const inSubject = scope ? rows.filter((r) => r.subject === scope.subject) : rows;
-        // A recall follows the lesson that started it: a new lesson (not covered in school) is an Explore lesson, a covered one is Revise.
-        return inSubject.filter((r) => {
-            const folder = (folders || []).find((f) => f.subject === r.subject);
-            const covered = !!(folder && r.conceptId && (folder.externalCoveredConceptIds || []).includes(r.conceptId));
-            return lmMode === 'revise' ? covered : !covered;
-        });
+        return scope ? rows.filter((r) => r.subject === scope.subject) : rows;
     }
     async function sfServeDueRecallOrAppendNext() {
         if (!sfFeed) return;
@@ -22817,8 +22730,6 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     // picking exactly that one. Closing the feed returns to the graph
     // (rather than Cortex/welcome) since that's where this was opened from.
     async function sfOpenNodeLessonInFeed(folder, node, returnToKnowledgeMap = true) {
-        const blocked = lmNodeBlockedReason(folder, node);
-        if (blocked) { alert(blocked); return; }
         selectedSidebarLessonNodeId = node.id;
         renderSidebarSelection();
         const closeLabel = returnToKnowledgeMap ? 'Back to Knowledge Map' : `Back to ${folderLabel(folder)}`;
@@ -25735,12 +25646,10 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
 
         const masteryDetail = fullData.masteryDetail || {};
         const externalCoveredIds = new Set(fullData.externallyCoveredNodeIds || []);
-        // In Revise everything not covered or learned is very dark; in Explore it is the other way round.
-        const kmModeDark = (d) => !!lmBlockedReason(externalCoveredIds.has(d.id), !!(fullData.scheduleByConceptId && fullData.scheduleByConceptId.has(d.conceptId)));
 
         const nodes = visibleNodes.map((n) => ({
             ...n,
-            state: (lmMode === 'explore' && externalCoveredIds.has(n.id)) ? 1 : masteryProgressTier(masteryDetail[n.id]),
+            state: externalCoveredIds.has(n.id) ? 1 : masteryProgressTier(masteryDetail[n.id]),
             detail: masteryDetail[n.id] || null,
             externallyCovered: externalCoveredIds.has(n.id),
         }));
@@ -25972,7 +25881,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         }
 
         function linkClass(d) {
-            return `km-link state-${d.state} km-integration-${integrationAccessForLink(d).status}${kmHideCovered && d.source.externallyCovered && d.target.externallyCovered ? ' km-covered-hidden' : ''}${kmModeDark(d.source) || kmModeDark(d.target) ? ' km-lm-dark' : ''}`;
+            return `km-link state-${d.state} km-integration-${integrationAccessForLink(d).status}${kmHideCovered && d.source.externallyCovered && d.target.externallyCovered ? ' km-covered-hidden' : ''}`;
         }
 
         const linkSelection = zoomLayer.append('g').selectAll('path')
@@ -26024,7 +25933,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
 
         const nodeGroup = zoomLayer.append('g').selectAll('g')
             .data(nodes, (d) => d.id).join('g')
-            .attr('class', (d) => `km-node-group state-${d.state}${kmHideCovered && d.externallyCovered ? ' km-covered-hidden' : ''}${kmModeDark(d) ? ' km-lm-dark' : ''}`)
+            .attr('class', (d) => `km-node-group state-${d.state}${kmHideCovered && d.externallyCovered ? ' km-covered-hidden' : ''}`)
             .attr('data-node-id', (d) => d.id)
             .attr('transform', (d) => `translate(${d.x},${d.y})`);
 
@@ -26100,7 +26009,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             nodeDatum.state = masteryProgressTier(detail);
             nodeDatum.detail = detail;
             const g = nodeGroup.filter((n) => n.id === nodeDatum.id);
-            g.attr('class', `km-node-group state-${nodeDatum.state}${kmHideCovered && nodeDatum.externallyCovered ? ' km-covered-hidden' : ''}${kmModeDark(nodeDatum) ? ' km-lm-dark' : ''}`);
+            g.attr('class', `km-node-group state-${nodeDatum.state}${kmHideCovered && nodeDatum.externallyCovered ? ' km-covered-hidden' : ''}`);
             g.select('.km-node-shape').attr('fill-opacity', nodeDatum.state === 0 ? 0.08 : 0.15);
             if (detailEl.dataset.nodeId === nodeDatum.id) selectKmInlineNode(nodeDatum);
         }
@@ -26297,9 +26206,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             const externallyCoveredNodeIds = new Set(fullData.externallyCoveredNodeIds || []);
             function isNodeEncoded(nodeId) {
                 const n = nodeById.get(nodeId);
-                if (!n) return false;
-                if (schedule.has(n.conceptId)) return true;
-                return lmMode === 'revise' ? !externallyCoveredNodeIds.has(nodeId) : externallyCoveredNodeIds.has(nodeId);
+                return !!n && (schedule.has(n.conceptId) || externallyCoveredNodeIds.has(nodeId));
             }
 
             const visited = new Set();
@@ -26358,8 +26265,6 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             showLessonFullpage(contentInner, d.id);
             const lessonEl = lessonFullpageBodyEl;
             showLoadingWithColdStartHint(lessonEl);
-            // Revise never goes beyond what was covered, so there is no "jump ahead" gate to pass.
-            if (lmMode === 'revise') { sfOpenNodeLessonInFeed(folder, d); return; }
 
             // The prerequisite gate — see chainDiagnosticService.ts. Fail
             // OPEN specifically on this check (a network hiccup here
@@ -26556,9 +26461,8 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             // attribute values, so a label containing a quote (plenty of
             // concept names do) would otherwise truncate the attribute.
             const reviewDue = !ownEntry || isScheduleEntryDue(ownEntry);
-            const modeBlock = lmBlockedReason(d.externallyCovered, !!ownEntry);
-            const startBtnHtml = modeBlock
-                ? `<button class="btn primary km-inline-start-lesson-btn" disabled title="${escapeHtml(modeBlock)}">${lmMode === 'explore' ? 'Already covered or learned: use Revise' : 'Beyond your revision: use Explore'}</button>`
+            const startBtnHtml = d.externallyCovered
+                ? `<button class="btn primary km-inline-start-lesson-btn" disabled>Covered already</button>`
                 : !ownEntry
                 ? `<button class="btn primary km-inline-start-lesson-btn">Start lesson</button>`
                 : blockedByUnencodedLink
