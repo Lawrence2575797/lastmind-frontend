@@ -5928,6 +5928,7 @@
      force-directed layout of the student's own dependency graph. -->
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600&family=IBM+Plex+Sans:wght@500;600&display=swap" rel="stylesheet">
+<link rel="prefetch" href="/learn/derive/player.html" as="document">
 </head>
 <body>
 
@@ -20050,7 +20051,8 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         if (dueReviews.length) return dueReviews[0];
         // A newly unlocked integration outranks fresh encoding, but never
         // a due Day-1 check or scheduled spaced review above.
-        return recs.find((r) => r.type === 'integration') || recs.find((r) => r.type === 'lesson') || null;
+        // Economics is the default: when nothing is due, its next lesson is the one shown first.
+        return recs.find((r) => r.type === 'integration') || recs.find((r) => r.type === 'lesson' && r.folder && r.folder.subject === 'Economics') || recs.find((r) => r.type === 'lesson') || null;
     }
 
     // ---- Short-form feed: the scrolling feed itself ----
@@ -21254,7 +21256,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
 
         // Economics is taught by derivation lessons: the lesson is a small game played inside the feed, and finishing it teaches every
         // concept of its stage at once (see sfBuildDerivationSlides).
-        if (lesson.derivation && Number.isInteger(lesson.derivation.stage)) return sfBuildDerivationSlides(rec, lesson.derivation.stage);
+        if (lesson.derivation && Number.isInteger(lesson.derivation.stage)) return sfBuildDerivationSlides(rec, lesson.derivation.stage, lesson.derivation.payload);
 
         // "Starting one lesson should trigger generation of the next" -
         // fires here, the moment THIS lesson's own content has loaded and
@@ -22155,9 +22157,10 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     // the player reports back when the student has rebuilt the whole derivation, and only then is every concept of the stage recorded as
     // taught (one schedule entry each) and the feed allowed to move on. Nothing is prefetched before that, because the next concept
     // depends on which concepts this lesson has just covered.
-    async function sfBuildDerivationSlides(rec, stage) {
-        let payload = null;
-        try {
+    async function sfBuildDerivationSlides(rec, stage, given) {
+        // The lesson usually arrives with the lesson request itself, so opening one needs no second round trip.
+        let payload = given || null;
+        if (!payload) try {
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (session) {
                 const resp = await fetch(`${COMPILE_BACKEND_URL}/derivation/stage/${stage}`, { headers: { Authorization: `Bearer ${session.access_token}` } });
