@@ -20452,7 +20452,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         };
     }
     // Wires one interactive question into a feed slide: Check button, feedback line, deterministic grading via `submit`.
-    function sfWireInteractiveSlide(slideEl, meta, question, submit, onCorrect) {
+    function sfWireInteractiveSlide(slideEl, meta, question, submit, onCorrect, onWrong) {
         const feedbackEl = slideEl.querySelector('.sf-question-feedback');
         const widget = qzBuild(slideEl.querySelector('.sf-q-host'), question);
         slideEl.querySelector('.sf-question-submit').addEventListener('click', sfSubmitCurrentSlide);
@@ -20473,6 +20473,8 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                 return out === 'handled' ? 'handled' : true;
             }
             retryCount += 1;
+            // A host can decide a wrong answer ends the question (the Day-1 check does, after its one re-ask).
+            if (onWrong && (await onWrong(result)) === true) { feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || 'Not quite - this one will come back around.')}</div>`; return true; }
             setTimeout(() => widget.setDisabled(false), 700);
             feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || 'Not quite - try again.')}</div>`;
             return false;
@@ -21136,6 +21138,23 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     // for its next real trigger (a fresh recall cascade or the concept's
     // own FSRS review) rather than retrying here indefinitely.
     function sfBuildDay1CheckSlide(check, isLastInBatch = true) {
+        if (qzIsInteractive(check)) {
+            const iEl = sfInteractiveSlideEl(`Day-1 check · ${escapeHtml(check.subject)}`, check);
+            const iMeta = { canAdvance: false, kind: 'day1', answered: false, noBack: true, nodeId: check.nodeId };
+            let retried = false;
+            const finish = () => { iMeta.answered = true; iMeta.canAdvance = true; sfShowAdvanceHint(iEl); if (isLastInBatch) sfPrefetchNext(); };
+            sfWireInteractiveSlide(iEl, iMeta, check,
+                (answer) => sfPostBackend(`/day1-checks/${check.checkId}/submit`, { structured: answer, retryAfterSillyMistake: retried }),
+                async (result) => { if (result.schedule) sfUpsertScheduleCache(result.schedule); finish(); },
+                async (result) => {
+                    // The first miss is treated as a slip and gets one more go; the second ends the check, as a free-text one does.
+                    if (result.sillyMistake && !retried) { retried = true; return false; }
+                    if (result.schedule) sfUpsertScheduleCache(result.schedule);
+                    finish();
+                    return true;
+                });
+            return { el: iEl, meta: iMeta };
+        }
         const el = document.createElement('div');
         el.className = 'sf-feed-slide';
         el.innerHTML = `
