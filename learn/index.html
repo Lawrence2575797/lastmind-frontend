@@ -1363,6 +1363,11 @@
        reward themes still replace this through the theme-bg-image rule. */
     .sf-feed-root { position: relative; height: calc(100vh - 128px); min-height: 420px; max-width: 900px; margin: 0 auto; border-radius: 12px; overflow: hidden; background: var(--panel); color: var(--text); }
     .sf-feed-exit-btn { position: absolute; top: 14px; right: 14px; z-index: 2; width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(0,0,0,0.25); color: var(--text); font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    /* Subtle "how much of this session is left" indicator - a thin bar along the very top edge plus a small muted count, so the
+       student can tell a 30-second dip from a 20-minute session without it competing for attention with the slide itself. */
+    .sf-feed-progress-track { position: absolute; top: 0; left: 0; right: 0; height: 3px; z-index: 2; background: rgba(127,127,127,0.18); }
+    .sf-feed-progress-fill { height: 100%; width: 0%; background: var(--accent); transition: width 300ms ease; }
+    .sf-feed-progress-label { position: absolute; top: 14px; left: 14px; z-index: 2; font-size: 12px; font-weight: 600; letter-spacing: 0.02em; color: var(--text); opacity: 0.55; background: rgba(0,0,0,0.25); padding: 4px 10px; border-radius: 999px; }
     /* Persistent greeting above the feed (see sfMountGreetingBanner) - a
        genuine sibling of .sf-feed-root, not part of any one slide, so it
        never scrolls or advances away as the student moves through the
@@ -1431,6 +1436,18 @@
     .sf-followup-label { font-size: 11px; font-weight: 800; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
     /* Interactive questions: spot the mistake, jigsaw match, drag to order */
     .qz { margin: 12px 0 8px; } .qz-hint { font-size: 13px; opacity: 0.78; margin-bottom: 10px; }
+    /* A whole-lesson Day-1 check's own diagram (see qzDiagram / derivationSectionQuestion): the exact boxes-and-arrows layout the
+       lesson's own final derive step draws, with every non-given box replaced by a typed input positioned right over it. */
+    .qz-diagram-wrap { position: relative; width: 100%; margin: 4px 0 8px; }
+    .qz-diagram-svg { display: block; width: 100%; height: auto; }
+    .qz-diagram-edge { fill: none; stroke: var(--edge, rgba(255,255,255,0.35)); stroke-width: 2; }
+    .qz-diagram-node { stroke: rgba(255,255,255,0.25); stroke-width: 1.5; }
+    .qz-diagram-given { stroke-dasharray: 5 4; fill: rgba(255,255,255,0.06); }
+    .qz-diagram-label { fill: var(--text); font: 600 13px var(--sans, sans-serif); text-anchor: middle; dominant-baseline: middle; }
+    .qz-diagram-overlay { position: absolute; inset: 0; pointer-events: none; }
+    .qz-diagram-input-box { position: absolute; display: flex; align-items: center; justify-content: center; padding: 2px 6px; pointer-events: auto; }
+    .qz-diagram-input { width: 100%; height: 100%; text-align: center; border-radius: 10px; border-bottom-width: 2px; }
+    .qz-diagram-input.good { background: var(--qz-diagram-node-color, rgba(76,195,138,0.25)); }
     .qz-doc { padding: 16px 18px; border-radius: 14px; background: rgba(255,255,255,0.06); border: 1px dashed rgba(230,215,176,0.4); line-height: 2.15; font-size: 15.5px; }
     .qz-doc.qz-cards { padding: 0; border: 0; background: none; display: grid; gap: 10px; line-height: 1.5; }
     .qz-n { flex: 0 0 28px; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--bg); font-weight: 800; font-size: 13px; display: grid; place-items: center; }
@@ -20566,19 +20583,41 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         });
     }
 
+    // Two short WebAudio chimes for a correct/wrong interactive answer - the derivation lesson player already has these (see
+    // scripts/derivation/export_player.js's sfxOk/sfxBad), but that's a separate iframe; a Day-1 check, immediate recall or any
+    // other question answered straight in this outer feed had no sound at all. Same on/off preference key as the lesson player
+    // (localStorage 'lm-derive-sound') so the one toggle covers both places consistently.
+    let qzAudioCtx = null;
+    function qzSoundOn() { try { return localStorage.getItem('lm-derive-sound') !== 'off'; } catch (err) { return true; } }
+    function qzBlip(freq, dur, type, gain, when) {
+        if (!qzSoundOn()) return;
+        if (!qzAudioCtx) { try { qzAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (err) { return; } }
+        try {
+            const ctx = qzAudioCtx, t0 = ctx.currentTime + (when || 0);
+            const osc = ctx.createOscillator(), g = ctx.createGain();
+            osc.type = type; osc.frequency.setValueAtTime(freq, t0);
+            g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(gain, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+            osc.connect(g); g.connect(ctx.destination);
+            osc.start(t0); osc.stop(t0 + dur + 0.02);
+        } catch (err) { /* audio unavailable - silent is fine */ }
+    }
+    function qzSfxOk() { qzBlip(880, 0.5, 'sine', 0.08); qzBlip(1320, 0.55, 'sine', 0.06, 0.09); qzBlip(1760, 0.4, 'sine', 0.025, 0.09); }
+    function qzSfxBad() { qzBlip(240, 0.32, 'triangle', 0.09); qzBlip(180, 0.34, 'sine', 0.05, 0.02); }
+
     // ---- interactive questions: spot the mistake, jigsaw match, drag-to-order ----
     // qzBuild(host, question) draws the puzzle and returns { getAnswer(), setDisabled(bool), showResult(result), incompleteText }.
     // The answer key is never on the page: the server grades, and sends back per-piece results for a wrong attempt.
-    const QZ_FORMATS = ['spot_mistake', 'match', 'order', 'cloze', 'steps'];
+    const QZ_FORMATS = ['spot_mistake', 'match', 'order', 'cloze', 'steps', 'diagram'];
     const qzIsInteractive = (q) => !!q && QZ_FORMATS.includes(q.format);
     function qzBuild(host, q, onChange) {
         host.classList.add('qz');
         const hint = document.createElement('div'); hint.className = 'qz-hint';
         const decoyNote = q.format === 'order' && (q.items || []).length > (q.slots || 0) ? ' Some cards do not belong: leave them out.' : q.format === 'match' && (q.rights || []).length > (q.lefts || []).length ? ' Some pieces do not fit anywhere: leave them out.' : '';
-        hint.textContent = q.format === 'match' ? 'Tap a piece, then tap where it fits. Or drag it across.' + decoyNote : q.format === 'order' ? 'Tap the cards in the right order, or drag them into the boxes. Tap a placed card to take it back.' + decoyNote : q.format === 'cloze' ? 'Type the missing terms from memory.' : q.format === 'steps' ? 'Type the steps in order, one in each box, from memory.' : '';
+        hint.textContent = q.format === 'match' ? 'Tap a piece, then tap where it fits. Or drag it across.' + decoyNote : q.format === 'order' ? 'Tap the cards in the right order, or drag them into the boxes. Tap a placed card to take it back.' + decoyNote : q.format === 'cloze' ? 'Type the missing terms from memory.' : q.format === 'steps' ? 'Type the steps in order, one in each box, from memory.' : q.format === 'diagram' ? 'Type each missing box of the diagram from memory.' : '';
         if (hint.textContent) host.appendChild(hint);
         if (q.format === 'multiple_choice') return qzMcq(host, q, onChange);
         if (q.format === 'fill_blank') return qzFill(host, q, onChange);
+        if (q.format === 'diagram') return qzDiagram(host, q, onChange);
         if (q.format === 'spot_mistake') return qzSpot(host, q, onChange);
         if (q.format === 'cloze') return qzCloze(host, q, onChange);
         if (q.format === 'steps') return qzSteps(host, q, onChange);
@@ -20711,10 +20750,12 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         return {
             getAnswer: null,
             setDisabled: (v) => { inputs.forEach((el, i) => { el.disabled = v || locked[i]; }); },
-            mark: (detail, correct) => {
+            // hints: one initial-letters string per still-wrong blank ("Finite stock" -> "F    S"), sent only on the first miss -
+            // shown as the input's placeholder, cleared the moment the student edits that box.
+            mark: (detail, correct, hints) => {
                 inputs.forEach((el, i) => {
-                    if (correct || (detail && detail[i])) { locked[i] = true; el.disabled = true; el.classList.add('good'); el.classList.remove('bad'); }
-                    else { el.classList.add('bad'); setTimeout(() => el.classList.remove('bad'), 700); }
+                    if (correct || (detail && detail[i])) { locked[i] = true; el.disabled = true; el.classList.add('good'); el.classList.remove('bad'); el.placeholder = ''; }
+                    else { el.classList.add('bad'); setTimeout(() => el.classList.remove('bad'), 700); if (hints && hints[i]) el.placeholder = hints[i]; }
                 });
                 if (correct) host.classList.add('qz-done');
             },
@@ -20737,7 +20778,78 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             incompleteText: 'Fill in every blank first.',
             getAnswer: () => (inputs.some((el) => !el.value.trim()) ? null : { answers: inputs.map((el) => el.value.trim()) }),
             setDisabled: rows.setDisabled,
-            showResult(res) { rows.mark(res.detail, res.correct); if (onChange) onChange(); },
+            showResult(res) { rows.mark(res.detail, res.correct, res.hints); if (onChange) onChange(); },
+        };
+    }
+    // A whole-lesson Day-1 check drawn as its own diagram (see derivationSectionQuestion on the backend): the exact same boxes and
+    // arrows the lesson's own final "derive" step lays out (q.nodes/q.edges come straight from that stage's own layout.js output),
+    // with every box that isn't already known replaced by a typed input positioned right over it. Percent-based overlay positions
+    // work because the wrapper is forced to the SVG's own 1040:h aspect ratio, so the two never drift apart at any width.
+    const QZ_DIAGRAM_W = 1040;
+    function qzDiagram(host, q, onChange) {
+        const NS = 'http://www.w3.org/2000/svg';
+        const h = q.h || 300;
+        const wrap = document.createElement('div'); wrap.className = 'qz-diagram-wrap'; wrap.style.aspectRatio = `${QZ_DIAGRAM_W} / ${h}`;
+        const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', `0 0 ${QZ_DIAGRAM_W} ${h}`); svg.setAttribute('class', 'qz-diagram-svg');
+        const defs = document.createElementNS(NS, 'defs');
+        const marker = document.createElementNS(NS, 'marker');
+        marker.setAttribute('id', 'qzdar'); marker.setAttribute('viewBox', '0 0 10 10'); marker.setAttribute('refX', '9'); marker.setAttribute('refY', '5');
+        marker.setAttribute('markerWidth', '7'); marker.setAttribute('markerHeight', '7'); marker.setAttribute('orient', 'auto-start-reverse');
+        const mpath = document.createElementNS(NS, 'path'); mpath.setAttribute('d', 'M0,0 L10,5 L0,10 z'); mpath.setAttribute('fill', 'currentColor');
+        marker.appendChild(mpath); defs.appendChild(marker); svg.appendChild(defs);
+        svg.style.color = 'var(--edge, rgba(255,255,255,0.35))';
+        (q.edges || []).forEach((pts) => {
+            const pl = document.createElementNS(NS, 'polyline');
+            pl.setAttribute('points', pts.map((p) => p.join(',')).join(' '));
+            pl.setAttribute('class', 'qz-diagram-edge'); pl.setAttribute('marker-end', 'url(#qzdar)');
+            svg.appendChild(pl);
+        });
+        const overlay = document.createElement('div'); overlay.className = 'qz-diagram-overlay';
+        const inputs = {}, colorOf = {}, locked = {};
+        const order = (q.blanks || []).map((b) => b.id);
+        (q.nodes || []).forEach((n) => {
+            colorOf[n.id] = n.color;
+            const rect = document.createElementNS(NS, 'rect');
+            rect.setAttribute('x', n.x); rect.setAttribute('y', n.y); rect.setAttribute('width', n.w); rect.setAttribute('height', n.hh); rect.setAttribute('rx', 12);
+            rect.setAttribute('class', 'qz-diagram-node' + (n.given ? ' qz-diagram-given' : ''));
+            if (n.given && n.color) rect.style.fill = n.color;
+            svg.appendChild(rect);
+            if (n.given) {
+                const text = document.createElementNS(NS, 'text');
+                text.setAttribute('x', n.x + n.w / 2); text.setAttribute('y', n.y + n.hh / 2);
+                text.setAttribute('class', 'qz-diagram-label'); text.textContent = n.label || '';
+                svg.appendChild(text);
+                return;
+            }
+            const box = document.createElement('div'); box.className = 'qz-diagram-input-box';
+            box.style.left = (n.x / QZ_DIAGRAM_W * 100) + '%'; box.style.top = (n.y / h * 100) + '%';
+            box.style.width = (n.w / QZ_DIAGRAM_W * 100) + '%'; box.style.height = (n.hh / h * 100) + '%';
+            const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'qz-blank qz-diagram-input'; inp.autocomplete = 'off'; inp.spellcheck = false;
+            inp.setAttribute('aria-label', 'Diagram box');
+            inp.addEventListener('input', () => { inp.classList.remove('bad'); if (onChange) onChange(); });
+            box.appendChild(inp); overlay.appendChild(box);
+            inputs[n.id] = inp; locked[n.id] = false;
+        });
+        wrap.appendChild(svg); wrap.appendChild(overlay);
+        host.appendChild(wrap);
+        return {
+            incompleteText: 'Fill in every box first.',
+            getAnswer: () => (order.some((id) => !inputs[id] || !inputs[id].value.trim()) ? null : { values: order.map((id) => inputs[id].value.trim()) }),
+            setDisabled: (v) => { order.forEach((id) => { if (inputs[id]) inputs[id].disabled = v || locked[id]; }); },
+            showResult(res) {
+                order.forEach((id, i) => {
+                    const el = inputs[id]; if (!el) return;
+                    if (res.correct || (res.detail && res.detail[i])) {
+                        locked[id] = true; el.disabled = true; el.classList.remove('bad'); el.classList.add('good'); el.placeholder = '';
+                        if (colorOf[id]) el.style.setProperty('--qz-diagram-node-color', colorOf[id]);
+                    } else {
+                        el.classList.add('bad'); setTimeout(() => el.classList.remove('bad'), 700);
+                        if (res.hints && res.hints[i]) el.placeholder = res.hints[i];
+                    }
+                });
+                if (res.correct) wrap.classList.add('qz-done');
+                if (onChange) onChange();
+            },
         };
     }
     function qzSteps(host, q, onChange) {
@@ -20803,11 +20915,13 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             widget.showResult(result);
             qzShowResultInView(slideEl, feedbackEl);
             if (result.correct) {
+                qzSfxOk();
                 sfShowCorrectFeedback(feedbackEl, retryCount > 0);
                 if (result.reveal) meta.holdMs = 3800;   // long enough to read why, then the feed moves on by itself
                 const out = await onCorrect(result);
                 return out === 'handled' ? 'handled' : true;
             }
+            qzSfxBad();
             retryCount += 1;
             // A host can decide a wrong answer ends the question (the Day-1 check does, after its one re-ask).
             const ended = onWrong ? await onWrong(result) : false;
@@ -21427,6 +21541,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         sfFeed.locked = true;
         sfFeed.currentIndex = newIndex;
         sfFeed.trackEl.style.transform = `translateY(-${newIndex * 100}%)`;
+        sfUpdateProgress();
         setTimeout(() => { if (sfFeed) sfFeed.locked = false; }, 420);
         // Landing on a different lesson may release a held-back recall nudge.
         setTimeout(() => sfCheckDueRecalls(), 450);
@@ -21492,6 +21607,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         setTimeout(() => {
             if (!sfFeed) return;
             sfFeed.currentIndex = newIndex;
+            sfUpdateProgress();
             track.style.transition = 'none';
             track.style.transform = `translate(${enterX}%, -${newIndex * 100}%)`;
             void track.offsetWidth; // force reflow so the next change animates instead of coalescing with this one
@@ -21535,6 +21651,25 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             sfFeed.slides.splice(index + i, 0, el);
             sfFeed.meta.splice(index + i, 0, meta);
         });
+        sfUpdateProgress();
+    }
+
+    // "3 of 8" rather than a fixed session length nobody can predict up front (new lessons and reviews are queued just-in-time,
+    // not planned as a whole batch) - counts every real question slide ever built into this feed (meta.answered starts false on
+    // all of them - see the many `answered: false` slide-meta literals above) against how many are actually answered so far.
+    // The total can tick up as more get appended mid-session; that's honest, not a bug - it's still a truer "how much is left"
+    // signal than nothing at all.
+    function sfUpdateProgress() {
+        if (!sfFeed) return;
+        const track = document.querySelector('.sf-feed-progress-track');
+        const label = document.querySelector('.sf-feed-progress-label');
+        if (!track || !label) return;
+        const total = sfFeed.meta.filter((m) => m && typeof m.answered === 'boolean').length;
+        const done = sfFeed.meta.filter((m) => m && m.answered === true).length;
+        if (!total) { track.hidden = true; label.hidden = true; return; }
+        track.hidden = false; label.hidden = false;
+        track.querySelector('.sf-feed-progress-fill').style.width = Math.min(100, (done / total) * 100) + '%';
+        label.textContent = `${done} of ${total}`;
     }
 
     // Builds a Day-1 check's slide - the day-after check for a concept's
@@ -22325,6 +22460,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         }
         if (!sfFeed) return; // feed closed while the submit was in flight
         if (!ok) { sfFeed.locked = false; sfShakeSlide(sfFeed.slides[sfFeed.currentIndex]); return; }
+        sfUpdateProgress();   // meta.answered just flipped inside trySubmit - reflect it now, not only once the feed actually advances
         // 'handled' means trySubmit already navigated itself (the last
         // recall in a batch jumping back to the lesson the student left -
         // see sfJumpToRecalls) - no further auto-advance needed on top.
@@ -22513,6 +22649,8 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             <div class="sf-greeting-banner${hasPracticePanel ? ' has-mini-cortex' + (sfSidePanelCollapsed() ? ' side-collapsed' : '') : ''}"></div>
             <div class="sf-feed-root${hasPracticePanel ? ' has-mini-cortex' + (sfSidePanelCollapsed() ? ' side-collapsed' : '') : ''}">
                 <button type="button" class="sf-feed-exit-btn" title="${escapeHtml(exitTitle)}">✕</button>
+                <div class="sf-feed-progress-track" hidden><div class="sf-feed-progress-fill"></div></div>
+                <span class="sf-feed-progress-label" hidden></span>
                 ${hasPracticePanel ? `<button type="button" class="sf-side-toggle" aria-expanded="${sfSidePanelCollapsed() ? 'false' : 'true'}">${sfSidePanelCollapsed() ? 'Show practice questions' : 'Hide practice questions'}</button>` : ''}
                 ${hasPracticePanel ? '<button type="button" class="btn sf-mobile-practice-btn">See practice questions</button>' : ''}
                 <div class="sf-feed-viewport">
