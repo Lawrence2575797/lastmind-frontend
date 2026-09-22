@@ -20603,6 +20603,20 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     }
     function qzSfxOk() { qzBlip(880, 0.5, 'sine', 0.08); qzBlip(1320, 0.55, 'sine', 0.06, 0.09); qzBlip(1760, 0.4, 'sine', 0.025, 0.09); }
     function qzSfxBad() { qzBlip(240, 0.32, 'triangle', 0.09); qzBlip(180, 0.34, 'sine', 0.05, 0.02); }
+    function qzSfxHover() { qzBlip(2100, 0.035, 'triangle', 0.022); }
+    // Same hover chime as the lesson player (export_player.js's own sfxHover/wireSounds - identical frequency, waveform and gain),
+    // wired here the same way: one delegated listener, not one per element, and de-duped against the last-hovered target so
+    // moving the mouse around inside the SAME box doesn't retrigger it on every pixel of movement.
+    (function qzWireHoverSound() {
+        let lastHover = null;
+        const SEL = '.qz-blank, .qz-diagram-input, .qz-stepinput, .sf-mcq-option, .qz-right, .qz-left, .qz-seg, .qz-question-submit';
+        document.addEventListener('mouseover', (e) => {
+            const t = e.target.closest ? e.target.closest(SEL) : null;
+            if (!t || t === lastHover || t.disabled) return;
+            lastHover = t; qzSfxHover();
+        });
+        document.addEventListener('mouseout', (e) => { const t = e.target.closest ? e.target.closest(SEL) : null; if (t && t === lastHover) lastHover = null; });
+    })();
 
     // ---- interactive questions: spot the mistake, jigsaw match, drag-to-order ----
     // qzBuild(host, question) draws the puzzle and returns { getAnswer(), setDisabled(bool), showResult(result), incompleteText }.
