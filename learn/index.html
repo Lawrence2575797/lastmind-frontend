@@ -1400,8 +1400,14 @@
     .sf-feed-root:has(.sf-derive-frame) { height: calc(100vh - 176px); }
     .sf-feed-root.sf-derive-full { position: fixed !important; inset: 0; z-index: 900; width: auto !important; height: 100vh !important; max-width: none !important; margin: 0 !important; border-radius: 0 !important; }
     .sf-feed-slide.sf-derive-slide { padding: 0; overflow: hidden; } .sf-derive-frame { width: 100%; height: 100%; border: 0; display: block; background: transparent; }
-    .sf-feed-slide { flex: none; height: 100%; display: flex; align-items: center; align-items: safe center; justify-content: center; padding: 40px 32px 140px; box-sizing: border-box; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-    .sf-slide-inner { max-width: 620px; width: 100%; display: flex; flex-direction: column; gap: 14px; }
+    /* No align-items:center here on purpose (not even the "safe center" fallback, which not every browser honours): centering the
+       cross axis that way clips the START of any slide taller than the viewport, with no way to scroll up to see what got cut
+       off - the real cause of a reported "scrolled too far, can't see the question, can't scroll back to it" bug once a slide
+       (the diagram Day-1 check, a long explanation, ...) grows taller than the screen. Auto margins on the child below center it
+       when there's room and degrade to plain top-alignment (scrollable, nothing clipped) the moment it doesn't fit - this needs
+       no vendor-specific keyword and works the same in every browser. */
+    .sf-feed-slide { flex: none; height: 100%; display: flex; justify-content: center; padding: 40px 32px 140px; box-sizing: border-box; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .sf-slide-inner { max-width: 620px; width: 100%; display: flex; flex-direction: column; gap: 14px; margin: auto 0; }
     .sf-feed-slide [role="status"] { align-self: center; padding: 12px 18px; border-radius: 8px; background: #D9C398; color: #12121E; font-weight: 700; text-align: center; }
     .sf-feed-root:not(.has-mini-cortex) .sf-slide-inner { max-width: 820px; }
     .sf-feed-root:not(.has-mini-cortex) .sf-question-text { font-size: 20px; }
