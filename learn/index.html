@@ -20609,18 +20609,18 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     // The answer key is never on the page: the server grades, and sends back per-piece results for a wrong attempt.
     const QZ_FORMATS = ['spot_mistake', 'match', 'order', 'cloze', 'steps', 'diagram'];
     const qzIsInteractive = (q) => !!q && QZ_FORMATS.includes(q.format);
-    function qzBuild(host, q, onChange) {
+    function qzBuild(host, q, onChange, peek) {
         host.classList.add('qz');
         const hint = document.createElement('div'); hint.className = 'qz-hint';
         const decoyNote = q.format === 'order' && (q.items || []).length > (q.slots || 0) ? ' Some cards do not belong: leave them out.' : q.format === 'match' && (q.rights || []).length > (q.lefts || []).length ? ' Some pieces do not fit anywhere: leave them out.' : '';
-        hint.textContent = q.format === 'match' ? 'Tap a piece, then tap where it fits. Or drag it across.' + decoyNote : q.format === 'order' ? 'Tap the cards in the right order, or drag them into the boxes. Tap a placed card to take it back.' + decoyNote : q.format === 'cloze' ? 'Type the missing terms from memory.' : q.format === 'steps' ? 'Type the steps in order, one in each box, from memory.' : q.format === 'diagram' ? 'Type each missing box of the diagram from memory.' : '';
+        hint.textContent = q.format === 'match' ? 'Tap a piece, then tap where it fits. Or drag it across.' + decoyNote : q.format === 'order' ? 'Tap the cards in the right order, or drag them into the boxes. Tap a placed card to take it back.' + decoyNote : q.format === 'cloze' ? 'Type the missing terms from memory - a right one locks in as you go. Press Check when you are done.' : q.format === 'steps' ? 'Type the steps in order, one in each box, from memory.' : q.format === 'diagram' ? 'Type each missing box of the diagram from memory - a right one locks in as you go. Press Check when you are done.' : '';
         if (hint.textContent) host.appendChild(hint);
         if (q.format === 'multiple_choice') return qzMcq(host, q, onChange);
-        if (q.format === 'fill_blank') return qzFill(host, q, onChange);
-        if (q.format === 'diagram') return qzDiagram(host, q, onChange);
+        if (q.format === 'fill_blank') return qzFill(host, q, onChange, peek);
+        if (q.format === 'diagram') return qzDiagram(host, q, onChange, peek);
         if (q.format === 'spot_mistake') return qzSpot(host, q, onChange);
-        if (q.format === 'cloze') return qzCloze(host, q, onChange);
-        if (q.format === 'steps') return qzSteps(host, q, onChange);
+        if (q.format === 'cloze') return qzCloze(host, q, onChange, peek);
+        if (q.format === 'steps') return qzSteps(host, q, onChange, peek);
         return qzPlacement(host, q, onChange);
     }
     function qzSpot(host, q, onChange) {
@@ -20740,13 +20740,39 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             showResult(res) { if (res.correct) { list.classList.add('qz-done'); return; } if (btns[picked]) { btns[picked].classList.remove('sf-mcq-option-selected'); btns[picked].style.opacity = '0.45'; } picked = -1; if (onChange) onChange(); },
         };
     }
-    function qzFill(host, q, onChange) {
-        const inner = qzCloze(host, { text: String(q.questionText || ''), blanks: 1 }, onChange);
+    function qzFill(host, q, onChange, peek) {
+        const inner = qzCloze(host, { text: String(q.questionText || ''), blanks: 1 }, onChange, peek);
         return { incompleteText: 'Type the missing term first.', getAnswer: () => { const a = inner.getAnswer(); return a ? { answer: a.answers[0] } : null; }, setDisabled: inner.setDisabled, showResult: (res) => inner.showResult({ correct: res.correct, detail: [!!res.correct] }) };
     }
 
-    // Typed recall: fill the missing terms into a passage, or list the steps of a process in order. Nothing to pick from.
-    function qzTypedRows(host, onChange, inputs, locked) {
+    // Typed recall: fill the missing terms into a passage, a diagram's boxes, or the steps of a process in order. Nothing to pick
+    // from - graded by the same code either way (gradeStructured/closeEnough on the backend, never a Claude call).
+    // `peek`, when given, is called (debounced, as the student types) with whatever `valuesForPeek()` builds from the CURRENT,
+    // possibly incomplete inputs; its response's `detail[i] === true` quietly locks box i in as correct - never marked wrong or
+    // even touched otherwise. A wrong box only ever gets its red flash and hint from `mark()`, called from a real Check press.
+    function qzTypedRows(host, onChange, inputs, locked, peek, valuesForPeek) {
+        if (peek && valuesForPeek) {
+            let peekTimer = null;
+            const schedule = () => {
+                if (peekTimer) clearTimeout(peekTimer);
+                peekTimer = setTimeout(async () => {
+                    peekTimer = null;
+                    if (inputs.every((el, i) => locked[i] || !el.value.trim())) return;   // nothing new to check
+                    let result;
+                    try { result = await peek(valuesForPeek()); } catch (err) { return; }
+                    if (!result || !Array.isArray(result.detail)) return;
+                    let changed = false;
+                    result.detail.forEach((ok, i) => {
+                        if (ok && !locked[i] && inputs[i]) {
+                            locked[i] = true; inputs[i].disabled = true; inputs[i].classList.add('good'); inputs[i].classList.remove('bad'); inputs[i].placeholder = '';
+                            changed = true;
+                        }
+                    });
+                    if (changed) { qzSfxOk(); if (inputs.every((el, i) => locked[i])) host.classList.add('qz-done'); if (onChange) onChange(); }
+                }, 550);
+            };
+            inputs.forEach((el) => el.addEventListener('input', schedule));
+        }
         return {
             getAnswer: null,
             setDisabled: (v) => { inputs.forEach((el, i) => { el.disabled = v || locked[i]; }); },
@@ -20761,7 +20787,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             },
         };
     }
-    function qzCloze(host, q, onChange) {
+    function qzCloze(host, q, onChange, peek) {
         const doc = document.createElement('div'); doc.className = 'qz-cloze-doc';
         const inputs = []; const locked = [];
         String(q.text || '').split(/_{2,}/).forEach((part, i, all) => {
@@ -20773,7 +20799,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             }
         });
         host.appendChild(doc);
-        const rows = qzTypedRows(host, onChange, inputs, locked);
+        const rows = qzTypedRows(host, onChange, inputs, locked, peek, () => ({ answers: inputs.map((el) => el.value.trim()) }));
         return {
             incompleteText: 'Fill in every blank first.',
             getAnswer: () => (inputs.some((el) => !el.value.trim()) ? null : { answers: inputs.map((el) => el.value.trim()) }),
@@ -20786,7 +20812,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     // with every box that isn't already known replaced by a typed input positioned right over it. Percent-based overlay positions
     // work because the wrapper is forced to the SVG's own 1040:h aspect ratio, so the two never drift apart at any width.
     const QZ_DIAGRAM_W = 1040;
-    function qzDiagram(host, q, onChange) {
+    function qzDiagram(host, q, onChange, peek) {
         const NS = 'http://www.w3.org/2000/svg';
         const h = q.h || 300;
         const wrap = document.createElement('div'); wrap.className = 'qz-diagram-wrap'; wrap.style.aspectRatio = `${QZ_DIAGRAM_W} / ${h}`;
@@ -20832,6 +20858,31 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         });
         wrap.appendChild(svg); wrap.appendChild(overlay);
         host.appendChild(wrap);
+        // Live peek, same rule as qzTypedRows: only ever locks in a box already right; a wrong or empty one is never marked.
+        if (peek) {
+            let peekTimer = null;
+            const schedule = () => {
+                if (peekTimer) clearTimeout(peekTimer);
+                peekTimer = setTimeout(async () => {
+                    peekTimer = null;
+                    if (order.every((id) => locked[id] || !inputs[id] || !inputs[id].value.trim())) return;
+                    let result;
+                    try { result = await peek({ values: order.map((id) => (inputs[id] ? inputs[id].value.trim() : '')) }); } catch (err) { return; }
+                    if (!result || !Array.isArray(result.detail)) return;
+                    let changed = false;
+                    result.detail.forEach((ok, i) => {
+                        const id = order[i], el = inputs[id];
+                        if (ok && el && !locked[id]) {
+                            locked[id] = true; el.disabled = true; el.classList.add('good'); el.classList.remove('bad'); el.placeholder = '';
+                            if (colorOf[id]) el.style.setProperty('--qz-diagram-node-color', colorOf[id]);
+                            changed = true;
+                        }
+                    });
+                    if (changed) { qzSfxOk(); if (order.every((id) => locked[id])) wrap.classList.add('qz-done'); if (onChange) onChange(); }
+                }, 550);
+            };
+            order.forEach((id) => { if (inputs[id]) inputs[id].addEventListener('input', schedule); });
+        }
         return {
             incompleteText: 'Fill in every box first.',
             getAnswer: () => (order.some((id) => !inputs[id] || !inputs[id].value.trim()) ? null : { values: order.map((id) => inputs[id].value.trim()) }),
@@ -20852,7 +20903,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             },
         };
     }
-    function qzSteps(host, q, onChange) {
+    function qzSteps(host, q, onChange, peek) {
         const wrap = document.createElement('div'); wrap.className = 'qz-steprows';
         const inputs = []; const locked = [];
         for (let i = 0; i < (q.count || 0); i++) {
@@ -20864,7 +20915,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         }
         host.appendChild(wrap);
         const reveal = document.createElement('div'); reveal.className = 'qz-reveal'; reveal.hidden = true; host.appendChild(reveal);
-        const rows = qzTypedRows(host, onChange, inputs, locked);
+        const rows = qzTypedRows(host, onChange, inputs, locked, peek, () => ({ lines: inputs.map((el) => el.value.trim()) }));
         return {
             incompleteText: 'Write every step first.',
             getAnswer: () => (inputs.some((el) => !el.value.trim()) ? null : { lines: inputs.map((el) => el.value.trim()) }),
@@ -20874,33 +20925,18 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
     }
 
     // Wires one interactive question into a feed slide: Check button, feedback line, deterministic grading via `submit`.
-    function sfWireInteractiveSlide(slideEl, meta, question, submit, onCorrect, onWrong) {
+    // `peek`, when given, lets a typed-blank widget (cloze/diagram/steps) quietly check each box as the student types - it only
+    // ever locks in a box that is ALREADY RIGHT; a wrong or still-empty box is never marked in any way by this path. Wrong only
+    // ever appears when the student presses Check themselves - that stays the one place a wrong answer can show up, exactly
+    // like Seneca marks a correct word the moment it's typed but only reveals a wrong one when you ask it to check.
+    function sfWireInteractiveSlide(slideEl, meta, question, submit, onCorrect, onWrong, peek) {
         const feedbackEl = slideEl.querySelector('.sf-question-feedback');
         const checkBtn = slideEl.querySelector('.sf-question-submit');
         checkBtn.classList.add('qz-check');
         let busy = false;
         let widget = null;   // assigned below; the puzzle reports changes while it is still being built
-        let autoTimer = null;
-        let lastAutoAnswer = null;   // never re-fires on an answer already marked wrong until the student actually changes something
-        // Like Seneca: once every blank/slot is filled, it checks itself - no Check click needed. The button stays as a manual fallback.
-        const maybeAutoCheck = () => {
-            if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
-            if (busy || !widget) return;
-            const answer = widget.getAnswer();
-            if (answer === null) return;
-            const sig = JSON.stringify(answer);
-            if (sig === lastAutoAnswer) return;
-            autoTimer = setTimeout(() => {
-                autoTimer = null;
-                if (busy || !widget) return;
-                const a = widget.getAnswer();
-                if (a === null || JSON.stringify(a) !== sig) return;
-                lastAutoAnswer = sig;
-                if (sfFeed && !sfFeed.locked && sfFeed.slides[sfFeed.currentIndex] === slideEl) sfSubmitCurrentSlide();
-            }, 500);
-        };
-        const refreshCheck = () => { checkBtn.disabled = busy || !widget || widget.getAnswer() === null; maybeAutoCheck(); };
-        widget = qzBuild(slideEl.querySelector('.sf-q-host'), question, refreshCheck);
+        const refreshCheck = () => { checkBtn.disabled = busy || !widget || widget.getAnswer() === null; };
+        widget = qzBuild(slideEl.querySelector('.sf-q-host'), question, refreshCheck, peek);
         checkBtn.addEventListener('click', sfSubmitCurrentSlide);
         refreshCheck();
         meta.noBack = true;
@@ -21696,7 +21732,10 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
                     if (result.schedule) sfUpsertScheduleCache(result.schedule); (result.schedules || []).forEach((sch) => sfUpsertScheduleCache(sch));
                     finish();
                     return true;
-                });
+                },
+                // Peek: pure code on the backend (gradeStructured - no Claude call, no charge, no side effects), so this is safe
+                // and free to call on every keystroke pause. Never resolves the check or bumps anything.
+                (answer) => sfPostBackend(`/day1-checks/${check.checkId}/peek`, { structured: answer }));
             return { el: iEl, meta: iMeta };
         }
         const el = document.createElement('div');
