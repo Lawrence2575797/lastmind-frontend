@@ -21299,9 +21299,10 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             return [{ el, meta: { canAdvance: true, kind: 'handoff' } }];
         }
 
-        // Economics is taught by derivation lessons: the lesson is a small game played inside the feed, and finishing it teaches every
-        // concept of its stage at once (see sfBuildDerivationSlides).
-        if (lesson.derivation && Number.isInteger(lesson.derivation.stage)) return sfBuildDerivationSlides(rec, lesson.derivation.stage, lesson.derivation.payload);
+        // Every subject with a real knowledge map is taught by derivation lessons: the lesson is a small game played inside the
+        // feed, and finishing it teaches every concept of its stage at once (see sfBuildDerivationSlides). Economics' own stage id
+        // is a bare index; any other subject's is generated on demand and carries a "g:..." string id instead (same shape either way).
+        if (lesson.derivation && (Number.isInteger(lesson.derivation.stage) || typeof lesson.derivation.stage === 'string')) return sfBuildDerivationSlides(rec, lesson.derivation.stage, lesson.derivation.payload);
 
         // "Starting one lesson should trigger generation of the next" -
         // fires here, the moment THIS lesson's own content has loaded and
