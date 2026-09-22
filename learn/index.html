@@ -16598,9 +16598,15 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         const open = specialistToolsMenu.classList.toggle('open');
         specialistToolsBtn.setAttribute('aria-expanded', String(open));
         if (open) {
+            // Opens to the right of the button, not below it - now that Specialist Tools is nested inside the More menu,
+            // dropping down would sit on top of the two items below it (Overdue Requests, Buy Extra Locks) instead of
+            // beside them. Flips to the left when there isn't 190px of room on the right (e.g. a narrow phone).
             const rect = specialistToolsBtn.getBoundingClientRect();
-            specialistToolsMenu.style.top = `${rect.bottom + 7}px`;
-            specialistToolsMenu.style.left = `${Math.max(8, rect.right - 190)}px`;
+            const menuWidth = 190;
+            let left = rect.right + 7;
+            if (left + menuWidth > window.innerWidth - 8) left = rect.left - menuWidth - 7;
+            specialistToolsMenu.style.top = `${rect.top}px`;
+            specialistToolsMenu.style.left = `${Math.max(8, left)}px`;
         }
     });
     specialistToolsMenu.addEventListener('click', () => {
