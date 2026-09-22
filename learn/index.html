@@ -1456,9 +1456,15 @@
        lesson's own final derive step draws, with every non-given box replaced by a typed input positioned right over it. */
     .qz-diagram-wrap { position: relative; width: 100%; margin: 4px 0 8px; }
     .qz-diagram-svg { display: block; width: 100%; height: auto; }
-    .qz-diagram-edge { fill: none; stroke: var(--edge, rgba(255,255,255,0.35)); stroke-width: 2; }
-    .qz-diagram-node { stroke: rgba(255,255,255,0.25); stroke-width: 1.5; }
-    .qz-diagram-given { stroke-dasharray: 5 4; fill: rgba(255,255,255,0.06); }
+    /* Dark, fixed colours, not var(--edge)/var(--text)-derived ones: the diagram check always sits on the feed slide's own
+       light workspace background now (see .sf-feed-slide above), regardless of theme, so these need to read against light,
+       not dark. Two real bugs this fixes: the connecting lines were an almost-white stroke, nearly invisible against the new
+       light background; and every blank (not-yet-answered) box had no fill at all, which SVG defaults to solid black - the
+       input typed into it sits on top with only an 8% tint (see .sf-feed-slide .qz-diagram-input below), nowhere near enough
+       to cover that black rect underneath it. */
+    .qz-diagram-edge { fill: none; stroke: rgba(27,35,44,0.4); stroke-width: 2; }
+    .qz-diagram-node { stroke: rgba(27,35,44,0.3); stroke-width: 1.5; fill: rgba(27,35,44,0.05); }
+    .qz-diagram-given { stroke-dasharray: 5 4; }
     /* Fixed dark, not var(--text): every one of these boxes is filled with a light pastel term colour (see build.js's PALETTE -
        they're all light), so a light theme text colour sat on top of them was often unreadable (a real reported case: white
        text on a pale pink box, invisible). Dark text is safe on every colour in that palette, in every theme. */
@@ -20890,7 +20896,7 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         marker.setAttribute('markerWidth', '7'); marker.setAttribute('markerHeight', '7'); marker.setAttribute('orient', 'auto-start-reverse');
         const mpath = document.createElementNS(NS, 'path'); mpath.setAttribute('d', 'M0,0 L10,5 L0,10 z'); mpath.setAttribute('fill', 'currentColor');
         marker.appendChild(mpath); defs.appendChild(marker); svg.appendChild(defs);
-        svg.style.color = 'var(--edge, rgba(255,255,255,0.35))';
+        svg.style.color = 'rgba(27,35,44,0.55)';   // the arrowhead marker's fill="currentColor" - dark, matching .qz-diagram-edge's stroke
         (q.edges || []).forEach((pts) => {
             const pl = document.createElementNS(NS, 'polyline');
             pl.setAttribute('points', pts.map((p) => p.join(',')).join(' '));
