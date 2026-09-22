@@ -24341,7 +24341,14 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         });
     }
 
-    document.getElementById('notesTreeSearchInput').addEventListener('input', (ev) => {
+    // The Notes tab and its search input no longer exist (removed from the sidebar) - this whole tree subsystem is
+    // unreachable now, but this one listener was a bare top-level statement (unlike the rest, which only run when
+    // called), so it threw the moment the element vanished and halted every script statement after it in the whole
+    // file - including the auth-gate logic further down, which is what actually froze the app on "Checking your
+    // subscription…" for every single user. Guarded rather than deleted outright, consistent with leaving the rest
+    // of this subsystem in place unreachable (see removeQuickNotesWidget's own comment on why a full removal pass
+    // wasn't done in one go).
+    document.getElementById('notesTreeSearchInput')?.addEventListener('input', (ev) => {
         applyNotesTreeSearch(document.getElementById('notesTreeContent'), ev.target.value);
     });
 
