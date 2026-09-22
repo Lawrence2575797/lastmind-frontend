@@ -2115,17 +2115,17 @@
 
     /* Premium Gold: the lesson feed IS the main screen, not a card floating on one - .content's own margin/max-width (the
        thing that made it read as "a separate page within the main screen") is removed so the feed fills the whole content
-       area edge to edge; the sidebar, topbar and every other panel stay gold-on-white as normal (theme.textColor/panelColor),
+       area edge to edge; the sidebar, topbar and every other panel stay gold-on-black as normal (theme.textColor/panelColor),
        genuinely secondary next to the feed rather than framing it. */
     body.theme-premium-gold .content { padding: 0; }
     body.theme-premium-gold .content-inner, body.theme-premium-gold .content-inner-wide { max-width: none; height: 100%; }
     body.theme-premium-gold .sf-feed-root { max-width: none; height: 100%; border-radius: 0; margin: 0; }
-    /* The feed's own surface: white with gold text, the deliberate opposite of the gold-panel/white-text chrome around it -
-       see .sf-feed-slide's own light-workspace gradient above, which this replaces with a flat white for this one theme. */
+    /* One gold (#D4AF37) used consistently everywhere in this theme - the feed's own flat text colour, and the same hue the
+       shine gradient below is built from for every gold surface, rather than two different, competing shades of "gold". */
     body.theme-premium-gold .sf-feed-slide { background: #0B0B0C; color: #D4AF37; }
     body.theme-premium-gold .sf-feed-slide .qz-blank,
     body.theme-premium-gold .sf-feed-slide .qz-stepinput,
-    body.theme-premium-gold .sf-feed-slide .qz-diagram-input { color: #D4AF37; background: rgba(212,175,55,0.08); border-bottom-color: #B8860B; }
+    body.theme-premium-gold .sf-feed-slide .qz-diagram-input { color: #D4AF37; background: rgba(212,175,55,0.08); border-bottom-color: #D4AF37; }
     body.theme-premium-gold .sf-feed-slide .qz-blank:focus,
     body.theme-premium-gold .sf-feed-slide .qz-stepinput:focus { background: rgba(212,175,55,0.16); }
     /* Correct is still always green, gold theme or not - never swallowed by the gold recolouring above. */
@@ -2133,9 +2133,28 @@
     body.theme-premium-gold .sf-feed-slide .qz-stepinput.good,
     body.theme-premium-gold .sf-feed-slide .qz-diagram-input.good { color: #0B0B0C; background: #4cc38a; border-bottom-color: #2f9e6a; }
     body.theme-premium-gold .sf-slide-explanation { background: rgba(212,175,55,0.08); }
-    body.theme-premium-gold .qz-diagram-edge { stroke: rgba(212,175,55,0.45); }
-    body.theme-premium-gold .qz-diagram-node { stroke: rgba(212,175,55,0.35); }
+    body.theme-premium-gold .qz-diagram-edge { stroke: rgba(212,175,55,0.6); }
+    body.theme-premium-gold .qz-diagram-node { stroke: rgba(212,175,55,0.4); }
     body.theme-premium-gold .qz-diagram-label { fill: #D4AF37; }
+
+    /* The shine: a metallic sheen band (dark gold -> bright highlight -> dark gold) built from the SAME #D4AF37 hue, not a
+       flat fill - applied to every panel-coloured surface (sidebar, topbar buttons, and every other var(--panel) consumer,
+       since "background" accepts a gradient value the same as a flat colour) plus a text-clipped version of the same
+       gradient on the feed's own most prominent text, so both the chrome and the lesson content actually shine. */
+    body.theme-premium-gold .sidebar,
+    body.theme-premium-gold .cortex-btn-topbar,
+    body.theme-premium-gold .specialist-tools-menu .cortex-btn-topbar {
+        background: linear-gradient(135deg, #8A6B1E 0%, #D4AF37 30%, #F7E7A6 50%, #D4AF37 70%, #8A6B1E 100%);
+    }
+    body.theme-premium-gold .sf-slide-subject,
+    body.theme-premium-gold .sf-question-text,
+    body.theme-premium-gold .sidebar-logo span {
+        background: linear-gradient(100deg, #8A6B1E 0%, #D4AF37 30%, #FCF3D0 50%, #D4AF37 70%, #8A6B1E 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        color: transparent;
+    }
     body.theme-minimal .topbar-fold-btn { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 4px; border: 1px solid rgba(241,234,214,0.3); background: none; color: var(--ink); cursor: pointer; font-size: 1rem; flex-shrink: 0; }
     body.theme-minimal.topbar-folded .topbar > :not(.sidebar-toggle):not(.topbar-fold-btn) { display: none !important; }
     body.theme-minimal .min-locks { display: flex; position: fixed; left: 16px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); z-index: 30; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(241,234,214,0.25); background: #1A232D; color: var(--text); font: 600 12px 'IBM Plex Sans', system-ui, sans-serif; font-variant-numeric: tabular-nums; cursor: pointer; }
@@ -6741,7 +6760,7 @@ SQIDAQAB
     // below - kept as a literal copy here rather than a reference, since this constant is declared first) - see
     // REWARD_UNLOCKED_THEME_KEYS' own unconditional 'premiumgold' entry further down, which keeps the Rewards page from
     // ever showing "Redeem" for a background that's already the baseline everyone starts on.
-    const THEME_DEFAULTS = { textColor: '#FFFFFF', panelColor: '#B8860B', bgColor: '#0B0B0C', bgTexture: 'premium-gold' };
+    const THEME_DEFAULTS = { textColor: '#FFFFFF', panelColor: '#D4AF37', bgColor: '#0B0B0C', bgTexture: 'premium-gold' };
     const THEME_CACHE_KEY = 'lm-theme-settings';
     let currentTheme = { ...THEME_DEFAULTS };
 
@@ -6769,9 +6788,12 @@ SQIDAQAB
     const MINIMALIST_THEME = { textColor: '#F1EAD6', panelColor: '#1A232D', bgColor: '#12181F', bgTexture: 'minimalist' };
     // The lesson feed IS the main screen here, not a card sitting on a background - sidebar, cards and every other panel-styled
     // surface are the "add-ons": gold panels with white text (textColor drives --text/--panel exactly like every other preset).
-    // The feed itself is the odd one out on purpose: white with gold text, the opposite pairing, forced by its own body-class
-    // rules below (applyTheme's isPremiumGold branch) since --text/--panel can't hold two different foreground colours at once.
-    const PREMIUM_GOLD_THEME = { textColor: '#FFFFFF', panelColor: '#B8860B', bgColor: '#0B0B0C', bgTexture: 'premium-gold' };
+    // The feed itself is the odd one out on purpose: near-black with gold text, the opposite pairing, forced by its own
+    // body-class rules below (applyTheme's isPremiumGold branch) since --text/--panel can't hold two different foreground
+    // colours at once. panelColor is the SAME #D4AF37 as the feed's own gold text, not a different, duller gold (was #B8860B) -
+    // one consistent gold identity everywhere, not two competing shades; body.theme-premium-gold's own CSS turns panelColor
+    // into a shining gradient (a metallic sheen band across the same hue) rather than using it as a flat fill.
+    const PREMIUM_GOLD_THEME = { textColor: '#FFFFFF', panelColor: '#D4AF37', bgColor: '#0B0B0C', bgTexture: 'premium-gold' };
     const THEME_PRESETS = [
         {
             key: 'havnstad',
