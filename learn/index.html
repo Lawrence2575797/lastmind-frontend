@@ -10073,23 +10073,27 @@ SQIDAQAB
         const missing = mission.decisions.filter((d) => !lomChoices[d.id]);
         if (missing.length) { outcomeHost.innerHTML = `<p style="color:#c0392b;">Choose an answer for every decision first.</p>`; return; }
         const state = lomState;
+        // Two passes on purpose: whether the mission's real chemistry decisions were right has to be known BEFORE applying a
+        // dynamic trade-off's own effect - a resource cost is real regardless (you spent the energy/material running the
+        // system either way), but the OXYGEN GAIN a trade-off promises is what a correctly-configured system actually
+        // delivers; running a well-tuned cell that's wired up backwards doesn't produce the oxygen a good current setting
+        // would otherwise give you. Without this split, a wrong electrode assignment could still show a rising oxygen
+        // reserve purely from the power-level choice, contradicting the mission's own "oxygen keeps falling" consequence.
         let allCorrect = true;
         const lines = [];
         const usedConcepts = [];
+        const dynamicChoices = [];
         mission.decisions.forEach((d) => {
             const chosen = d.options.find((o) => o.id === lomChoices[d.id]);
-            if (d.dynamic) {
-                // A trade-off, not a right/wrong answer - every option is "correct" chemistry, just a different real cost.
-                if (chosen.energyCost) state.resources.energy = Math.max(0, state.resources.energy - chosen.energyCost);
-                if (chosen.materialsCost) state.resources.materials = Math.max(0, state.resources.materials - chosen.materialsCost);
-                if (chosen.oxygenGain) state.resources.oxygen = Math.min(100, state.resources.oxygen + chosen.oxygenGain);
-                usedConcepts.push(d.conceptId);
-            } else if (chosen.correct) {
-                usedConcepts.push(d.conceptId);
-            } else {
-                allCorrect = false;
-                lines.push(chosen.consequence);
-            }
+            if (d.dynamic) { dynamicChoices.push({ d, chosen }); usedConcepts.push(d.conceptId); return; }
+            if (chosen.correct) usedConcepts.push(d.conceptId);
+            else { allCorrect = false; lines.push(chosen.consequence); }
+        });
+        dynamicChoices.forEach(({ chosen }) => {
+            // A trade-off, not a right/wrong answer - every option here is "correct" chemistry, just a different real cost.
+            if (chosen.energyCost) state.resources.energy = Math.max(0, state.resources.energy - chosen.energyCost);
+            if (chosen.materialsCost) state.resources.materials = Math.max(0, state.resources.materials - chosen.materialsCost);
+            if (chosen.oxygenGain && allCorrect) state.resources.oxygen = Math.min(100, state.resources.oxygen + chosen.oxygenGain);
         });
         if (allCorrect) {
             const already = lomState.completed.includes(mission.id);
