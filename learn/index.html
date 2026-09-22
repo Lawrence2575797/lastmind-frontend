@@ -9959,7 +9959,7 @@ SQIDAQAB
         if (createTrial) return createTrial;
         let saved = null;
         try { saved = JSON.parse(localStorage.getItem(CREATE_TRIAL_KEY) || 'null'); } catch (err) { /* private mode etc. */ }
-        createTrial = { step: 'experience', role: '', minutes: 0, picked: [], idea: '', details: {}, cortexDecides: false, showDetails: false, case: null, caseTab: 'overview', ...(saved || {}) };
+        createTrial = { step: 'experience', role: '', minutes: 0, duel: false, picked: [], idea: '', details: {}, cortexDecides: false, showDetails: false, case: null, caseTab: 'overview', ...(saved || {}) };
         if (!Array.isArray(createTrial.picked)) createTrial.picked = [];
         if (!createTrial.details || typeof createTrial.details !== 'object') createTrial.details = {};
         return createTrial;
@@ -10059,17 +10059,24 @@ SQIDAQAB
     function renderCreateExperience(body, trial, goTo, rerender) {
         body.innerHTML = `
             <h2>Experience</h2>
-            <p class="create-step-help">Decide who the student plays and roughly how long the simulation should take.</p>
-            <div class="create-field-label">Student role</div>
+            <p class="create-step-help">Decide who plays it, how, and roughly how long the simulation should take.</p>
+            <div class="create-field-label">How will this be played?</div>
+            <div class="create-options" role="radiogroup" aria-label="How will this be played?">
+                <button type="button" class="create-option${!trial.duel ? ' selected' : ''}" role="radio" aria-checked="${!trial.duel}" data-duel="0"><strong>One student</strong><span>Plays the whole case alone, as the role below.</span></button>
+                <button type="button" class="create-option${trial.duel ? ' selected' : ''}" role="radio" aria-checked="${!!trial.duel}" data-duel="1"><strong>Two-player duel</strong><span>One student takes each side, in turns, using a code you share between them. Same full courtroom simulation either way - the jury weighs what both of them achieved.</span></button>
+            </div>
+            <div class="create-field-label">${trial.duel ? 'Which side will you build the case from?' : 'Student role'}</div>
+            <p class="create-step-help" style="margin-top:-8px;">${trial.duel ? 'Just a starting point - whoever creates the duel picks their own side then, and their opponent automatically gets the other one when they join with the code.' : ''}</p>
             <div class="create-options" role="radiogroup" aria-label="Student role">
-                <button type="button" class="create-option${trial.role === 'defence' ? ' selected' : ''}" role="radio" aria-checked="${trial.role === 'defence'}" data-role="defence"><strong>Defence</strong><span>The student represents the defendant.</span></button>
-                <button type="button" class="create-option${trial.role === 'prosecution' ? ' selected' : ''}" role="radio" aria-checked="${trial.role === 'prosecution'}" data-role="prosecution"><strong>Prosecution</strong><span>The student represents the Crown.</span></button>
+                <button type="button" class="create-option${trial.role === 'defence' ? ' selected' : ''}" role="radio" aria-checked="${trial.role === 'defence'}" data-role="defence"><strong>Defence</strong><span>Represents the defendant.</span></button>
+                <button type="button" class="create-option${trial.role === 'prosecution' ? ' selected' : ''}" role="radio" aria-checked="${trial.role === 'prosecution'}" data-role="prosecution"><strong>Prosecution</strong><span>Represents the Crown.</span></button>
             </div>
             <div class="create-field-label">Approximate time</div>
             <div class="create-options create-options-time" role="radiogroup" aria-label="Approximate time">
                 ${CREATE_TRIAL_MINUTES.map((m) => `<button type="button" class="create-option create-option-time${trial.minutes === m.value ? ' selected' : ''}" role="radio" aria-checked="${trial.minutes === m.value}" data-minutes="${m.value}"><strong>${m.label}</strong></button>`).join('')}
             </div>
             <div class="create-next-row"><button type="button" class="create-cta" id="createTrialNext1">Next: Curriculum →</button></div>`;
+        body.querySelectorAll('[data-duel]').forEach((b) => b.addEventListener('click', () => { trial.duel = b.dataset.duel === '1'; saveCreateTrial(); rerender(); }));
         body.querySelectorAll('[data-role]').forEach((b) => b.addEventListener('click', () => { trial.role = b.dataset.role; saveCreateTrial(); rerender(); }));
         body.querySelectorAll('[data-minutes]').forEach((b) => b.addEventListener('click', () => { trial.minutes = Number(b.dataset.minutes); saveCreateTrial(); rerender(); }));
         body.querySelector('#createTrialNext1').addEventListener('click', () => goTo('curriculum'));
@@ -10437,8 +10444,19 @@ SQIDAQAB
                 ${(r.issues || []).filter((i, idx) => !state.applied.has(idx)).length > 1 ? '<div class="create-ready-actions" style="margin:6px 0 4px;"><button type="button" class="create-cta" id="createApplyAll" style="padding:10px 22px;font-size:0.9rem;">Apply all fixes</button></div>' : ''}
                 ${state.changes.length ? `<div class="create-issue"><b>Changes made</b><ul style="margin:6px 0 0 18px;padding:0;">${state.changes.map((c) => `<li>${escapeHtml(c)}</li>`).join('')}</ul></div>` : ''}
                 <p class="create-apply-note" id="createApplyNote"></p>
-                ${(() => { const open = (r.issues || []).map((i, idx) => ({ i, idx })).filter((x) => x.i.severity === 'blocker' && !state.applied.has(x.idx)); return (r.workable || !open.length) ? `${state.changes.length ? '<p class="create-apply-note" style="max-width:none;">Your fixes are in. There is no need to validate again.</p>' : ''}<div class="create-ready-actions" style="margin-top:18px;"><button type="button" class="create-play" id="createPlayBtn">Play</button><button type="button" class="create-secondary" id="createDuelBtn" title="Play one side while a friend plays the other">Two-player duel</button></div>` : '<p class="create-error" style="max-width:none;">Apply the fixes marked "Must fix" to continue. A case is only validated once.</p>'; })()}`;
+                ${(() => {
+                    const open = (r.issues || []).map((i, idx) => ({ i, idx })).filter((x) => x.i.severity === 'blocker' && !state.applied.has(x.idx));
+                    if (!(r.workable || !open.length)) return '<p class="create-error" style="max-width:none;">Apply the fixes marked "Must fix" to continue. A case is only validated once.</p>';
+                    // The Experience step's "two-player duel" choice carries through to here: that was the whole point of
+                    // asking it up front instead of only surfacing the duel option as an easy-to-miss secondary button
+                    // after the full build+validate flow.
+                    const playBtn = `<button type="button" class="create-play" id="createPlayBtn">Play</button>`;
+                    const soloBtn = `<button type="button" class="create-secondary" id="createPlaySoloBtn">Play solo instead</button>`;
+                    const duelBtn = `<button type="button" class="${trial.duel ? 'create-play' : 'create-secondary'}" id="createDuelBtn" title="Play one side while a friend plays the other">Start your duel</button>`;
+                    return `${state.changes.length ? '<p class="create-apply-note" style="max-width:none;">Your fixes are in. There is no need to validate again.</p>' : ''}<div class="create-ready-actions" style="margin-top:18px;">${trial.duel ? duelBtn + soloBtn : playBtn + duelBtn}</div>`;
+                })()}`;
             tail.querySelector('#createPlayBtn')?.addEventListener('click', () => ptStart(trial));
+            tail.querySelector('#createPlaySoloBtn')?.addEventListener('click', () => ptStart(trial));
             tail.querySelector('#createDuelBtn')?.addEventListener('click', () => createStartDuel(trial));
             const applyFixes = async (indexes) => {
                 const note = tail.querySelector('#createApplyNote');
