@@ -20768,7 +20768,26 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         checkBtn.classList.add('qz-check');
         let busy = false;
         let widget = null;   // assigned below; the puzzle reports changes while it is still being built
-        const refreshCheck = () => { checkBtn.disabled = busy || !widget || widget.getAnswer() === null; };
+        let autoTimer = null;
+        let lastAutoAnswer = null;   // never re-fires on an answer already marked wrong until the student actually changes something
+        // Like Seneca: once every blank/slot is filled, it checks itself - no Check click needed. The button stays as a manual fallback.
+        const maybeAutoCheck = () => {
+            if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
+            if (busy || !widget) return;
+            const answer = widget.getAnswer();
+            if (answer === null) return;
+            const sig = JSON.stringify(answer);
+            if (sig === lastAutoAnswer) return;
+            autoTimer = setTimeout(() => {
+                autoTimer = null;
+                if (busy || !widget) return;
+                const a = widget.getAnswer();
+                if (a === null || JSON.stringify(a) !== sig) return;
+                lastAutoAnswer = sig;
+                if (sfFeed && !sfFeed.locked && sfFeed.slides[sfFeed.currentIndex] === slideEl) sfSubmitCurrentSlide();
+            }, 500);
+        };
+        const refreshCheck = () => { checkBtn.disabled = busy || !widget || widget.getAnswer() === null; maybeAutoCheck(); };
         widget = qzBuild(slideEl.querySelector('.sf-q-host'), question, refreshCheck);
         checkBtn.addEventListener('click', sfSubmitCurrentSlide);
         refreshCheck();
