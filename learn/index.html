@@ -9651,6 +9651,13 @@ SQIDAQAB
                 { key: 'chancellor', title: 'Be the Chancellor', image: '/assets/create/chancellor.jpg', description: 'Steer a whole economy through the decisions that shape it', alt: 'A finance minister seen from behind at a desk, looking over a city skyline at dusk' },
             ],
         },
+        {
+            key: 'chemistry', title: 'Chemistry', image: '/assets/create/chemistry.jpg', description: 'Use real chemistry to solve real problems',
+            alt: 'Glass beakers and conical flasks of colourful bubbling liquid on a laboratory bench with a Bunsen burner flame',
+            simulations: [
+                { key: 'life-on-mars', title: 'Life on Mars', image: '/assets/create/life-on-mars.jpg', description: 'Keep the first Mars colony alive using GCSE Chemistry', alt: 'A small human colony habitat dome on the red surface of Mars at sunset' },
+            ],
+        },
     ];
     function renderCreatePage(view = 'projects') {
         if (view === true) view = 'gallery';
@@ -9665,6 +9672,7 @@ SQIDAQAB
         contentInner.classList.add('content-inner-wide');
         if (view === 'criminal-trial') { renderCreateTrialBuilder(contentInner); return; }
         if (view === 'chancellor') { renderChancellorBuilder(contentInner); return; }
+        if (view === 'life-on-mars') { renderLifeOnMars(contentInner); return; }
         const card = (t, attrs = '') => `
                         <article class="create-card${attrs ? ' create-card-link' : ''}" ${attrs}>
                             <h3>${escapeHtml(t.title)}</h3>
@@ -9708,6 +9716,403 @@ SQIDAQAB
             el.addEventListener('click', open);
             el.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
         });
+    }
+
+    // ─── LastMind Create: Life on Mars (GCSE Chemistry simulation) ───
+    // No creator setup at all - Chemistry > Life on Mars loads the persistent colony directly (see renderCreatePage's own
+    // 'life-on-mars' branch). The whole thing is a hand-authored, deterministic state machine (no Claude calls at all during
+    // play - only the two card thumbnails were ever AI-generated, once, via FAL), so chemistry decisions have real, fixed
+    // cause-and-effect rather than an AI improvising an outcome: the same setup always fails or succeeds the same way, which
+    // is what actually makes "wrong electrolysis setup -> oxygen keeps falling" a genuine, learnable consequence rather than
+    // a coin flip. Every decision is tagged with a real AQA GCSE Chemistry concept_id from the live knowledge map, and a
+    // correct decision reports it to gradeCorrectness the same way any other real review does (see lomReportConcept) - so
+    // playing this genuinely moves the same mastery/FSRS bar as an ordinary lesson would.
+    const LOM_STAGES = [
+        { name: 'Survival', need: 0, desc: 'A tiny habitat with extremely limited supplies. Every system is improvised.' },
+        { name: 'Stability', need: 1, desc: 'Reliable oxygen, water and energy systems are finally in place.' },
+        { name: 'Expansion', need: 2, desc: 'Greenhouses, laboratories and manufacturing facilities are under construction.' },
+        { name: 'Martian Settlement', need: 4, desc: 'A functioning, increasingly self-sufficient colony - built on chemistry.' },
+    ];
+    function lomStageFor(state) {
+        let s = LOM_STAGES[0];
+        LOM_STAGES.forEach((st) => { if (state.completed.length >= st.need) s = st; });
+        return s;
+    }
+    function lomDefaultState() {
+        return {
+            day: 1,
+            resources: { oxygen: 55, water: 50, energy: 60, food: 50, fuel: 30, materials: 45 },
+            population: 6,
+            equipment: 100,
+            completed: [],
+            attempts: {},
+            log: ["DAY 1 - ARRIVAL. Humanity has established its first permanent base on Mars. Six people live here. Earth is millions of kilometres away. Almost everything keeping them alive depends on a limited supply brought from Earth. Your objective: make Mars self-sufficient."],
+        };
+    }
+    const LOM_RES_META = {
+        oxygen: { label: 'Oxygen', color: '#4a90d9' }, water: { label: 'Water', color: '#4fb0c9' },
+        energy: { label: 'Energy', color: '#e0a83a' }, food: { label: 'Food', color: '#5cb85c' },
+        fuel: { label: 'Fuel', color: '#c96a4f' }, materials: { label: 'Raw materials', color: '#9c8a6e' },
+    };
+    // Every mission decision names a real concept_id from the live AQA GCSE Chemistry knowledge map (sampled directly from
+    // knowledge_map_nodes), so "which concepts has the student used" is never invented - see lomReportConcept.
+    const LOM_MISSIONS = [
+        {
+            id: 'oxygen-crisis', title: 'Oxygen Crisis', icon: '🫧',
+            briefing: "The colony's oxygen reserve is falling and the old canister supply from Earth is nearly empty. There is one real option: electrolyse the colony's water into hydrogen and oxygen, and vent the oxygen into the habitat.",
+            decisions: [
+                {
+                    id: 'electrode', prompt: 'You wire up the electrolysis cell. At which electrode will the oxygen you need actually be produced?',
+                    conceptId: 'chemistry:4_3:the_process_of_electrolysis_ion_movement_and_discharge_at_electrodes', conceptLabel: 'The process of electrolysis: ion movement and discharge at electrodes',
+                    hint: "In electrolysis, positive ions move to the negative electrode (cathode) and are reduced there (gain electrons); negative ions move to the positive electrode (anode) and are oxidised there (lose electrons). Water forms H⁺ and OH⁻ ions. Hydrogen (from H⁺) is reduced at the cathode. Oxygen forms at the anode, from the oxidation of OH⁻/O²⁻ ions losing electrons.",
+                    options: [
+                        { id: 'anode', label: 'The anode (positive electrode)', correct: true },
+                        { id: 'cathode', label: 'The cathode (negative electrode)', correct: false, consequence: 'You collect the wrong gas at the wrong electrode - the cell produces mostly hydrogen where you expected oxygen. The oxygen reserve keeps falling.' },
+                    ],
+                },
+                {
+                    id: 'test', prompt: 'Before you trust the system, you test the gas collecting at that electrode. Which result actually confirms it is oxygen?',
+                    conceptId: 'chemistry:8_2:test_for_oxygen_gas_glowing_splint_relights_', conceptLabel: 'Test for oxygen gas (glowing splint relights)',
+                    hint: 'A glowing (not flaming) wooden splint held in a test tube of gas RELIGHTS if the gas is oxygen - oxygen supports combustion. A lit splint making a "squeaky pop" is the test for HYDROGEN, not oxygen - a very easy mix-up under pressure.',
+                    options: [
+                        { id: 'glow', label: 'A glowing splint relights', correct: true },
+                        { id: 'pop', label: 'A lit splint gives a squeaky pop', correct: false, consequence: "That's the test for hydrogen, not oxygen - you've been testing the wrong gas and can't actually confirm the cell is working." },
+                    ],
+                },
+                {
+                    id: 'power', prompt: `Energy is at ${'{{energy}}'}%. How hard do you run the cell?`,
+                    conceptId: 'chemistry:0_1:factors_affecting_rate_of_reaction_temperature_concentration_pressure_catalysts_', conceptLabel: 'Factors affecting rate of reaction (temperature, concentration, pressure, catalysts)',
+                    hint: 'Running a process harder/hotter genuinely does speed it up - but on Mars every extra watt is one you don\'t have for anything else. The right setting depends on how much energy the colony can actually spare right now, not on getting the "biggest number".',
+                    dynamic: true,
+                    options: [
+                        { id: 'low', label: 'Low current - slow, safe, barely dents the crisis', energyCost: 4, oxygenGain: 10 },
+                        { id: 'medium', label: 'Medium current - a real balance of speed and energy', energyCost: 10, oxygenGain: 22 },
+                        { id: 'high', label: 'High current - fastest possible oxygen recovery', energyCost: 20, oxygenGain: 32 },
+                    ],
+                },
+            ],
+        },
+        {
+            id: 'contaminated-water', title: 'Contaminated Water', icon: '💧',
+            briefing: 'The water recycling tank has come back from testing looking cloudy, and something is clearly dissolved in it that shouldn\'t be there. You need to identify it and then actually remove it.',
+            decisions: [
+                {
+                    id: 'test-choice', prompt: 'A metal ion seems to be contaminating the tank. Which test actually identifies WHICH metal ion is present?',
+                    conceptId: 'chemistry:8_3:flame_test_procedure_chemistry_only_', conceptLabel: 'Flame test procedure',
+                    hint: 'A flame test heats a sample in a hot Bunsen flame; different metal ions colour the flame differently (this only works for metal ions, and only tells you which metal, not how much). Chromatography separates mixtures of soluble coloured substances - it doesn\'t identify a single dissolved metal ion.',
+                    options: [
+                        { id: 'flame', label: 'A flame test', correct: true },
+                        { id: 'chroma', label: 'Chromatography', correct: false, consequence: 'Chromatography separates mixtures of dyes - it tells you nothing about a dissolved metal ion. You\'re no closer to knowing what\'s in the tank.' },
+                    ],
+                },
+                {
+                    id: 'flame-colour', prompt: 'You run the test. The flame burns a distinct LILAC colour. Which ion is contaminating the water?',
+                    conceptId: 'chemistry:8_3:flame_test_colours_for_lithium_sodium_potassium_calcium_and_copper_ions_chemistry_only_', conceptLabel: 'Flame test colours for lithium, sodium, potassium, calcium and copper ions',
+                    hint: 'Standard GCSE flame test colours: lithium = crimson red, sodium = yellow/orange, potassium = lilac, calcium = brick-red/orange-red, copper = blue-green. Lilac is potassium\'s signature colour.',
+                    options: [
+                        { id: 'potassium', label: 'Potassium', correct: true },
+                        { id: 'sodium', label: 'Sodium', correct: false, consequence: 'Sodium burns yellow/orange, not lilac - you\'ve misidentified the contaminant and treat the water for the wrong ion.' },
+                        { id: 'copper', label: 'Copper', correct: false, consequence: 'Copper burns blue-green, not lilac - you\'ve misidentified the contaminant and treat the water for the wrong ion.' },
+                    ],
+                },
+                {
+                    id: 'purify', prompt: 'Now you actually have to remove it. Which process will genuinely take a dissolved ion OUT of the water?',
+                    conceptId: 'chemistry:0_1:simple_distillation_technique_to_separate_a_solvent_from_a_solution', conceptLabel: 'Simple distillation technique to separate a solvent from a solution',
+                    hint: 'Simple distillation boils the water off and condenses it back to a liquid elsewhere, leaving any dissolved solid/ions behind - it genuinely separates the pure solvent from whatever is dissolved in it. Filtration only ever removes INSOLUBLE solids; a dissolved ion passes straight through a filter paper.',
+                    options: [
+                        { id: 'distil', label: 'Simple distillation', correct: true },
+                        { id: 'filter', label: 'Filtration', correct: false, consequence: "A dissolved ion passes straight through filter paper - the water is still contaminated, and the colony's own supply keeps making people ill." },
+                    ],
+                },
+            ],
+        },
+        {
+            id: 'habitat-materials', title: 'Habitat Materials', icon: '🏗️',
+            briefing: 'The engineering team needs three real materials chosen and justified before construction can continue: pipework, electrical wiring, and the dome\'s own windows.',
+            decisions: [
+                {
+                    id: 'pipes', prompt: 'Water pipework will sit in direct contact with reactive Martian regolith for years. Which metal actually belongs there?',
+                    conceptId: "chemistry:4_1:reactivity_relates_to_a_metal_s_tendency_to_form_positive_ions", conceptLabel: "Reactivity relates to a metal's tendency to form positive ions",
+                    hint: 'A more reactive metal loses electrons (forms positive ions) more readily, which is exactly what corrosion is. The LESS reactive a metal, the more resistant it is to corroding in a hostile chemical environment - which is why unreactive metals are chosen for pipework and fittings that have to last.',
+                    options: [
+                        { id: 'titanium', label: 'Titanium - low down the reactivity series', correct: true },
+                        { id: 'sodium', label: 'Sodium - extremely reactive', correct: false, consequence: 'An extremely reactive metal reacts vigorously with anything around it - the pipework corrodes almost immediately and the equipment fails.' },
+                        { id: 'iron', label: 'Untreated iron', correct: false, consequence: 'Iron reacts and rusts over time - the pipework slowly corrodes and the equipment condition suffers.' },
+                    ],
+                },
+                {
+                    id: 'wiring', prompt: 'The colony\'s power grid needs a real conductor for its wiring. What kind of bonding actually gives a solid the free-moving charge carriers a wire needs?',
+                    conceptId: 'chemistry:2_1:metallic_bonding_giant_structure_with_delocalised_outer_shell_electrons', conceptLabel: 'Metallic bonding: giant structure with delocalised outer shell electrons',
+                    hint: 'Metallic bonding gives a giant structure of positive metal ions in a "sea" of delocalised electrons, free to move throughout the whole structure - that mobile charge is exactly what lets a metal conduct electricity as a solid. A simple covalent substance has no free charge carriers at all; an ionic solid only conducts once molten or dissolved, not as a solid.',
+                    options: [
+                        { id: 'metallic', label: 'Metallic bonding', correct: true },
+                        { id: 'covalent', label: 'Simple covalent bonding', correct: false, consequence: 'A simple covalent substance has no free-moving charged particles - it doesn\'t conduct at all. The grid can\'t be built from it.' },
+                        { id: 'ionic', label: 'Ionic bonding, used as a solid', correct: false, consequence: "An ionic solid's ions are locked in a fixed lattice and can't move - it only conducts once molten or dissolved, never as a solid wire." },
+                    ],
+                },
+                {
+                    id: 'windows', prompt: "The dome's windows must be strong, transparent, and hold pressure against a near-vacuum outside. What structure actually fits?",
+                    conceptId: 'chemistry:2_1:which_substances_show_which_bond_type_metal_nonmetal_nonmetal_elements_compounds_metals_alloys_', conceptLabel: 'Which substances show which bond type',
+                    hint: 'A giant covalent structure (like the silica-based glass this is modelled on) has strong covalent bonds throughout the whole structure, giving high melting points and real mechanical strength, while still being transparent. A simple molecular covalent substance is only held together by weak intermolecular forces between separate molecules - low melting point, easily broken apart, hopeless as a pressure-holding window.',
+                    options: [
+                        { id: 'giant', label: 'A giant covalent structure', correct: true },
+                        { id: 'simple', label: 'A simple molecular covalent substance', correct: false, consequence: 'Only weak forces hold the separate molecules together - the window is nowhere near strong enough to hold pressure and the habitat is put at risk.' },
+                    ],
+                },
+            ],
+        },
+        {
+            id: 'production-rate', title: 'Speeding Up Production', icon: '⚗️',
+            briefing: "The colony's oxygen-generating cell now works, but demand has grown past what it can supply fast enough. You need to speed the reaction up - without draining the colony's own resources doing it.",
+            decisions: [
+                {
+                    id: 'lever', prompt: 'The stores hold one catalyst suited to exactly this reaction, unused. Do you fit it?',
+                    conceptId: 'chemistry:6_1:presence_of_a_catalyst_as_a_factor_affecting_rate_of_reaction', conceptLabel: 'Presence of a catalyst as a factor affecting rate of reaction',
+                    hint: 'A catalyst speeds up a reaction by providing a different reaction pathway with a lower activation energy - and it is never used up itself, so it costs nothing ongoing once fitted. That makes it the one genuinely "free" way to speed up a reaction, compared with raising temperature (burns energy) or concentration (burns raw material) - both real, valid levers, but not free ones.',
+                    options: [
+                        { id: 'catalyst', label: 'Yes - fit the catalyst', correct: true },
+                        { id: 'temp', label: 'No - raise the temperature instead', correct: false, consequence: 'It works, but every degree costs energy the colony doesn\'t have much of - the energy reserve takes a real hit for a result the catalyst would have given you for nothing.' },
+                        { id: 'nothing', label: "No - the reaction rate is fine as it is", correct: false, consequence: 'Demand keeps outpacing supply. Oxygen production genuinely falls behind and the reserve starts sliding again.' },
+                    ],
+                },
+                {
+                    id: 'conc', prompt: `Raw materials sit at ${'{{materials}}'}%. Do you also raise the reactant concentration to push the rate up further?`,
+                    conceptId: 'chemistry:6_1:concentration_as_a_factor_affecting_rate_of_reaction', conceptLabel: 'Concentration as a factor affecting rate of reaction',
+                    hint: 'Raising reactant concentration genuinely does raise the rate of reaction (more particles in a given volume means more frequent collisions) - but each stronger batch consumes more of the colony\'s raw material stock. Whether it\'s worth doing depends entirely on how much material the colony can actually spare right now.',
+                    dynamic: true,
+                    options: [
+                        { id: 'yes', label: 'Yes - push the concentration up too', materialsCost: 14, oxygenGain: 12 },
+                        { id: 'no', label: 'No - the catalyst alone is enough for now', materialsCost: 3, oxygenGain: 6 },
+                    ],
+                },
+            ],
+        },
+    ];
+
+    // Every completed decision that was CORRECT (or, for a dynamic trade-off, always - there IS no "wrong" one) reports its
+    // real concept_id the same way any other genuine review does. Best-effort: this only ever helps the student's mastery
+    // record, so a failed call never blocks play.
+    async function lomReportConcept(conceptId) {
+        try { await createAuthedFetch('/life-on-mars/log-concept', { method: 'POST', body: JSON.stringify({ conceptId }) }); }
+        catch (err) { /* the mission still counts locally even if this can't reach the server right now */ }
+    }
+
+    const LOM_PROJECT_LOCAL_KEY = 'lastmind-life-on-mars';
+    let lomState = null;
+    let lomProjectId = null;
+    let lomActiveMission = null;      // the mission currently open, or null (hub view)
+    let lomChoices = {};              // { decisionId: optionId } for the mission currently open
+
+    async function lomLoad() {
+        try {
+            const { resp, body } = await createAuthedFetch('/create/projects');
+            if (resp.ok && !body.unavailable) {
+                const mine = (body.projects || []).find((p) => p.kind === 'life-on-mars');
+                if (mine) {
+                    const full = await createAuthedFetch(`/create/projects/${mine.id}`);
+                    if (full.resp.ok && full.body.data) { lomProjectId = mine.id; return full.body.data; }
+                }
+            }
+        } catch (err) { console.error('LastMind: could not load your Mars colony from your account.', err); }
+        try { const local = JSON.parse(localStorage.getItem(LOM_PROJECT_LOCAL_KEY) || 'null'); if (local) return local; } catch (err) { /* fine */ }
+        return lomDefaultState();
+    }
+    async function lomSave(button) {
+        try { localStorage.setItem(LOM_PROJECT_LOCAL_KEY, JSON.stringify(lomState)); } catch (err) { /* browser storage unavailable - the account save below still matters */ }
+        if (button) { button.disabled = true; button.textContent = 'Saving…'; }
+        try {
+            const { resp, body } = await createAuthedFetch('/create/projects', {
+                method: 'POST',
+                body: JSON.stringify({ id: lomProjectId || undefined, title: 'Life on Mars', kind: 'life-on-mars', data: lomState }),
+            });
+            if (resp.ok && body.id) lomProjectId = body.id;
+            if (button) { button.textContent = 'Saved ✓'; setTimeout(() => { button.textContent = 'Save'; button.disabled = false; }, 1400); }
+        } catch (err) {
+            console.error('LastMind: could not save your Mars colony to your account (kept on this device).', err);
+            if (button) { button.textContent = 'Saved to this device only'; setTimeout(() => { button.textContent = 'Save'; button.disabled = false; }, 2200); }
+        }
+    }
+
+    async function renderLifeOnMars(contentInner) {
+        document.getElementById('topbarTitle').textContent = 'Life on Mars';
+        contentInner.innerHTML = '<div class="mt-empty">Loading your colony…</div>';
+        lomState = await lomLoad();
+        lomActiveMission = null; lomChoices = {};
+        lomPaint(contentInner);
+    }
+
+    function lomResourceBarHtml(key, value) {
+        const meta = LOM_RES_META[key];
+        const pct = Math.max(0, Math.min(100, value));
+        const low = pct < 20;
+        return `<div style="display:flex; flex-direction:column; gap:4px;">
+            <div style="display:flex; justify-content:space-between; font-size:12px; opacity:0.85;"><span>${meta.label}</span><span style="font-weight:700; ${low ? 'color:#c0392b;' : ''}">${Math.round(pct)}%</span></div>
+            <div style="height:8px; border-radius:5px; background:rgba(128,128,128,0.25); overflow:hidden;"><div style="height:100%; width:${pct}%; background:${low ? '#c0392b' : meta.color}; transition:width .5s ease;"></div></div>
+        </div>`;
+    }
+
+    function lomPaint(contentInner) {
+        const state = lomState;
+        const stage = lomStageFor(state);
+        contentInner.innerHTML = `
+            <section class="create-view" style="max-width:980px; margin:0 auto;">
+                <div style="display:flex; align-items:baseline; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+                    <div>
+                        <button type="button" class="create-back" id="lomBackBtn">← Create</button>
+                        <h1 class="create-title" style="margin-top:8px;">Life on Mars</h1>
+                        <p class="create-slogan">Day ${state.day} &middot; ${escapeHtml(stage.name)}</p>
+                    </div>
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        <span style="font-size:13px; opacity:0.75;">Population: ${state.population}</span>
+                        <button type="button" class="create-cta" id="lomSaveBtn" style="padding:10px 24px; font-size:0.85rem;">Save</button>
+                    </div>
+                </div>
+                <p style="margin:6px 0 20px; opacity:0.8; max-width:640px;">${escapeHtml(stage.desc)}</p>
+                <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:14px 24px; padding:18px; border-radius:14px; background:rgba(128,128,128,0.08); margin-bottom:24px;">
+                    ${Object.keys(LOM_RES_META).map((k) => lomResourceBarHtml(k, state.resources[k])).join('')}
+                </div>
+                <div id="lomMissionHost"></div>
+                <div style="margin-top:26px;">
+                    <h2 style="font-size:1.05rem; margin-bottom:10px;">Colony log</h2>
+                    <div style="max-height:180px; overflow-y:auto; display:flex; flex-direction:column-reverse; gap:8px; padding:14px 16px; border-radius:10px; background:rgba(128,128,128,0.06); font-size:13.5px; line-height:1.5;">
+                        ${state.log.slice().reverse().map((l) => `<p style="margin:0;">${escapeHtml(l)}</p>`).join('')}
+                    </div>
+                </div>
+            </section>
+            <div id="lomHintOverlay"></div>`;
+        document.getElementById('lomBackBtn').addEventListener('click', () => renderCreatePage('chemistry'));
+        document.getElementById('lomSaveBtn').addEventListener('click', (e) => lomSave(e.currentTarget));
+        const missionHost = document.getElementById('lomMissionHost');
+        if (lomActiveMission) lomPaintMission(missionHost, lomActiveMission);
+        else lomPaintHub(missionHost);
+    }
+
+    function lomPaintHub(host) {
+        host.innerHTML = `<h2 style="font-size:1.05rem; margin-bottom:12px;">Missions</h2><div class="create-gallery">${LOM_MISSIONS.map((m) => {
+            const done = lomState.completed.includes(m.id);
+            return `<article class="create-card create-card-link" role="button" tabindex="0" data-mission="${m.id}" style="${done ? 'opacity:0.75;' : ''}">
+                <h3>${m.icon} ${escapeHtml(m.title)}${done ? ' ✓' : ''}</h3>
+                <p>${escapeHtml(m.briefing)}</p>
+            </article>`;
+        }).join('')}</div>`;
+        host.querySelectorAll('[data-mission]').forEach((el) => {
+            const open = () => { lomActiveMission = el.dataset.mission; lomChoices = {}; lomPaint(document.getElementById('contentInner')); };
+            el.addEventListener('click', open);
+            el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+        });
+    }
+
+    function lomFillTemplate(text, state) {
+        return text.replace(/\{\{(\w+)\}\}/g, (_, key) => (state.resources[key] !== undefined ? Math.round(state.resources[key]) : '?'));
+    }
+
+    function lomPaintMission(host, missionId) {
+        const mission = LOM_MISSIONS.find((m) => m.id === missionId);
+        const state = lomState;
+        host.innerHTML = `
+            <div style="padding:20px 22px; border-radius:14px; background:rgba(128,128,128,0.08);">
+                <button type="button" class="create-back" id="lomMissionBackBtn" style="margin-bottom:10px;">← Missions</button>
+                <h2 style="margin:0 0 8px;">${mission.icon} ${escapeHtml(mission.title)}</h2>
+                <p style="opacity:0.85; margin-bottom:20px;">${escapeHtml(mission.briefing)}</p>
+                <div id="lomDecisionsHost" style="display:flex; flex-direction:column; gap:22px;"></div>
+                <div id="lomOutcomeHost" style="margin-top:18px;"></div>
+                <button type="button" class="create-cta" id="lomRunBtn" style="margin-top:20px;">Run it</button>
+            </div>`;
+        document.getElementById('lomMissionBackBtn').addEventListener('click', () => { lomActiveMission = null; lomPaint(document.getElementById('contentInner')); });
+        const decisionsHost = document.getElementById('lomDecisionsHost');
+        mission.decisions.forEach((d) => {
+            const wrap = document.createElement('div');
+            wrap.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+                    <p style="margin:0; font-weight:600;">${escapeHtml(lomFillTemplate(d.prompt, state))}</p>
+                    <button type="button" class="lom-hint-btn" data-hint="${d.id}" title="Learn what you need to know" style="flex-shrink:0; width:26px; height:26px; border-radius:50%; border:1px solid var(--accent); background:none; color:var(--accent); cursor:pointer; font-weight:800;">?</button>
+                </div>
+                <div class="lom-options" data-decision="${d.id}" style="display:flex; flex-direction:column; gap:8px; margin-top:10px;"></div>`;
+            decisionsHost.appendChild(wrap);
+            const optionsHost = wrap.querySelector('.lom-options');
+            d.options.forEach((o) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.textContent = o.label;
+                btn.dataset.decision = d.id; btn.dataset.option = o.id;
+                btn.style.cssText = 'text-align:left; padding:12px 14px; border-radius:8px; border:1px solid rgba(128,128,128,0.35); background:none; color:inherit; cursor:pointer; font:inherit;';
+                btn.addEventListener('click', () => {
+                    lomChoices[d.id] = o.id;
+                    optionsHost.querySelectorAll('button').forEach((b) => { b.style.borderColor = b.dataset.option === o.id ? 'var(--accent)' : 'rgba(128,128,128,0.35)'; b.style.background = b.dataset.option === o.id ? 'rgba(230,215,176,0.12)' : 'none'; });
+                });
+                optionsHost.appendChild(btn);
+            });
+        });
+        decisionsHost.querySelectorAll('.lom-hint-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const d = mission.decisions.find((x) => x.id === btn.dataset.hint);
+                lomShowHint(d.conceptLabel, d.hint);
+            });
+        });
+        document.getElementById('lomRunBtn').addEventListener('click', () => lomRunMission(mission));
+    }
+
+    function lomShowHint(title, body) {
+        const overlay = document.getElementById('lomHintOverlay');
+        overlay.innerHTML = `<div style="position:fixed; inset:0; z-index:4000; background:rgba(10,10,10,0.55); display:flex; align-items:center; justify-content:center; padding:20px;" id="lomHintBackdrop">
+            <div style="background:var(--panel); color:var(--text); max-width:480px; width:100%; border-radius:14px; padding:24px 26px; box-shadow:0 20px 60px rgba(0,0,0,0.4);">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+                    <h3 style="margin:0; font-size:1.05rem;">${escapeHtml(title)}</h3>
+                    <button type="button" id="lomHintCloseBtn" aria-label="Close" style="border:0; background:none; color:inherit; font-size:1.3rem; cursor:pointer; line-height:1;">✕</button>
+                </div>
+                <p style="margin:14px 0 0; line-height:1.6; font-size:14.5px;">${escapeHtml(body)}</p>
+            </div>
+        </div>`;
+        const close = () => { overlay.innerHTML = ''; };
+        document.getElementById('lomHintCloseBtn').addEventListener('click', close);
+        document.getElementById('lomHintBackdrop').addEventListener('click', (e) => { if (e.target.id === 'lomHintBackdrop') close(); });
+    }
+
+    async function lomRunMission(mission) {
+        const outcomeHost = document.getElementById('lomOutcomeHost');
+        const missing = mission.decisions.filter((d) => !lomChoices[d.id]);
+        if (missing.length) { outcomeHost.innerHTML = `<p style="color:#c0392b;">Choose an answer for every decision first.</p>`; return; }
+        const state = lomState;
+        let allCorrect = true;
+        const lines = [];
+        const usedConcepts = [];
+        mission.decisions.forEach((d) => {
+            const chosen = d.options.find((o) => o.id === lomChoices[d.id]);
+            if (d.dynamic) {
+                // A trade-off, not a right/wrong answer - every option is "correct" chemistry, just a different real cost.
+                if (chosen.energyCost) state.resources.energy = Math.max(0, state.resources.energy - chosen.energyCost);
+                if (chosen.materialsCost) state.resources.materials = Math.max(0, state.resources.materials - chosen.materialsCost);
+                if (chosen.oxygenGain) state.resources.oxygen = Math.min(100, state.resources.oxygen + chosen.oxygenGain);
+                usedConcepts.push(d.conceptId);
+            } else if (chosen.correct) {
+                usedConcepts.push(d.conceptId);
+            } else {
+                allCorrect = false;
+                lines.push(chosen.consequence);
+            }
+        });
+        if (allCorrect) {
+            const already = lomState.completed.includes(mission.id);
+            if (!already) {
+                lomState.completed.push(mission.id);
+                // A genuine success rewards the colony directly, on top of any dynamic-decision effects already applied above.
+                state.resources.oxygen = Math.min(100, state.resources.oxygen + 8);
+                state.resources.equipment = Math.min(100, state.equipment + 5);
+            }
+            state.day += 1;
+            const stageBefore = lomStageFor({ ...state, completed: lomState.completed.filter((c) => c !== mission.id) });
+            const stageAfter = lomStageFor(state);
+            lomState.log.push(`${escapeHtml(mission.title)} resolved correctly. ${already ? 'The system keeps running smoothly.' : 'The colony is stronger for it.'}`);
+            if (stageAfter.name !== stageBefore.name) lomState.log.push(`The colony has grown: you have reached the ${stageAfter.name} stage. ${stageAfter.desc}`);
+            usedConcepts.forEach((c) => lomReportConcept(c));
+            outcomeHost.innerHTML = `<p style="color:#2f9e6a; font-weight:700;">Correct chemistry, correctly applied. ${already ? 'Systems holding steady.' : 'Mission complete - the colony changes because of it.'}</p>`;
+        } else {
+            state.day += 1;
+            lomState.log.push(`${escapeHtml(mission.title)}: ${lines.join(' ')}`);
+            outcomeHost.innerHTML = `<div style="padding:12px 14px; border-radius:8px; background:rgba(192,57,43,0.12); color:#c0392b;">${lines.map((l) => `<p style="margin:4px 0;">${escapeHtml(l)}</p>`).join('')}<p style="margin:8px 0 0; font-weight:600;">Reconsider your answers above and run it again - nothing is lost by trying.</p></div>`;
+        }
+        try { localStorage.setItem(LOM_PROJECT_LOCAL_KEY, JSON.stringify(lomState)); } catch (err) { /* fine */ }
+        setTimeout(() => lomPaint(document.getElementById('contentInner')), allCorrect ? 1400 : 0);
     }
 
     // ─── Text screening (mirrors the server: services/contentFilter.ts) ───
