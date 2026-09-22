@@ -22352,14 +22352,12 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
             }
             move(sfFeed.currentIndex + 1);
         } else {
-            // Once forward-scrolled onto a slide marked noBack (an answer
-            // box reached from its own content slide), scrolling back up
-            // to review that content is blocked - answer it or fix it,
-            // don't back out of it.
-            if (currentMeta && currentMeta.noBack) {
-                sfShakeSlide(sfFeed.slides[sfFeed.currentIndex]);
-                return;
-            }
+            // Scrolling back up is always allowed, even from a noBack (unanswered question) slide - noBack only ever blocks
+            // going FORWARD past a question that hasn't been answered yet (see the direction > 0 branch above). It used to also
+            // block backward movement ("answer it or fix it, don't back out of it"), but that turned a real, unrelated bug (a
+            // tall slide - e.g. the diagram Day-1 check - scrolling the whole feed past the question instead of scrolling its
+            // own content) into a dead end the student could not escape from at all. Reviewing something above costs nothing;
+            // only skipping a question forward does.
             move(sfFeed.currentIndex - 1);
         }
     }
@@ -22611,10 +22609,11 @@ REWARD_UNLOCKED_THEME_KEYS.clear();
         // dragging is ALWAYS just reading/scrolling the current slide's
         // content, full stop - it never advances, no matter how far you
         // scroll or how fast. A LEFT swipe is the only way to manually
-        // move forward (right swipe to go back, same noBack gating as
-        // ever) - see sfMoveToIndexHorizontal for the visual "slides
-        // left/right" treatment this triggers instead of the plain
-        // vertical one. Auto-advance after a correct answer is a
+        // move forward (blocked by an unanswered question, same as
+        // vertical); a RIGHT swipe always goes back, question or not
+        // (see sfTryAdvance) - see sfMoveToIndexHorizontal for the visual
+        // "slides left/right" treatment this triggers instead of the
+        // plain vertical one. Auto-advance after a correct answer is a
         // completely separate path (sfSubmitCurrentSlide) and stays
         // vertical on every device regardless of any of this.
         let touchStartX = null;
