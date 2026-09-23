@@ -1,0 +1,210 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Babylon racing feasibility spike</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #111; }
+  #renderCanvas { width: 100%; height: 100%; display: block; touch-action: none; }
+  #hud { position: fixed; top: 10px; left: 10px; color: #fff; font: 14px/1.4 monospace; background: rgba(0,0,0,.5); padding: 8px 12px; border-radius: 6px; }
+</style>
+</head>
+<body>
+<canvas id="renderCanvas"></canvas>
+<div id="hud">speed: <span id="speed">0</span> km/h<br>WASD / arrows to drive, R to reset, C to change camera</div>
+<script src="https://cdn.jsdelivr.net/npm/babylonjs@6.49.0/babylon.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/babylonjs-loaders@6.49.0/babylonjs.loaders.min.js"></script>
+<script>
+const canvas = document.getElementById('renderCanvas');
+const engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
+const scene = new BABYLON.Scene(engine);
+
+// Real modelled/textured assets (CC0, Kenney "Racing Kit" - see models/License.txt) instead of hand-built primitives:
+// this is the actual "existing Babylon tooling" path to a game-quality look - SceneLoader importing authored geometry,
+// not procedurally drawn boxes. Scale factor brings the kit's compact native units up to this scene's track scale.
+const KIT_SCALE = 4.5;
+
+const env = scene.createDefaultEnvironment({ createGround: false, skyboxSize: 1000, skyboxColor: new BABYLON.Color3(0.55, 0.72, 0.9) });
+const light = new BABYLON.HemisphericLight('light', new BABYLON.Vector3(0, 1, 0.3), scene);
+light.intensity = 0.85;
+light.groundColor = new BABYLON.Color3(0.35, 0.4, 0.35);
+const sun = new BABYLON.DirectionalLight('sun', new BABYLON.Vector3(-0.4, -1, -0.5), scene);
+sun.intensity = 1.4;
+sun.position = new BABYLON.Vector3(80, 120, 80);
+const shadowGen = new BABYLON.ShadowGenerator(2048, sun);
+shadowGen.useBlurExponentialShadowMap = true;
+shadowGen.blurKernel = 32;
+
+const grassMat = new BABYLON.PBRMaterial('grassMat', scene);
+grassMat.albedoColor = new BABYLON.Color3(0.16, 0.42, 0.18);
+grassMat.roughness = 1;
+grassMat.metallic = 0;
+const ground = BABYLON.MeshBuilder.CreateGround('ground', { width: 400, height: 400 }, scene);
+ground.material = grassMat;
+ground.receiveShadows = true;
+
+// --- Track path: an oval spline. Kept procedural (rather than chaining the kit's modular road tiles, whose exact
+// socket offsets aren't documented) so the drivable surface stays a smooth curve; the kit supplies the real 3D
+// dressing (barriers, grandstands, car) placed along that same spline. ---
+const R1 = 55, R2 = 30, N = 96, TRACK_HALF_WIDTH = 9, KERB_WIDTH = 1.6;
+function ringPoint(i) {
+  const a = (i / N) * Math.PI * 2;
+  const nx = Math.cos(a) / R1, nz = Math.sin(a) / R2;
+  const len = Math.hypot(nx, nz);
+  return { a, x: Math.cos(a) * R1, z: Math.sin(a) * R2, nx: nx / len, nz: nz / len, tx: -Math.sin(a) * R1, tz: Math.cos(a) * R2 };
+}
+function ribbonAtOffset(offsetIn, offsetOut, y) {
+  const path = [];
+  for (let i = 0; i <= N; i++) {
+    const p = ringPoint(i);
+    path.push({ inner: new BABYLON.Vector3(p.x + p.nx * offsetIn, y, p.z + p.nz * offsetIn),
+                outer: new BABYLON.Vector3(p.x + p.nx * offsetOut, y, p.z + p.nz * offsetOut) });
+  }
+  return [path.map(p => p.inner), path.map(p => p.outer)];
+}
+
+const asphaltMat = new BABYLON.PBRMaterial('asphaltMat', scene);
+asphaltMat.albedoColor = new BABYLON.Color3(0.09, 0.09, 0.1);
+asphaltMat.roughness = 0.9;
+asphaltMat.metallic = 0;
+const [ai, ao] = ribbonAtOffset(-TRACK_HALF_WIDTH, TRACK_HALF_WIDTH, 0.02);
+const track = BABYLON.MeshBuilder.CreateRibbon('track', { pathArray: [ai, ao] }, scene);
+track.material = asphaltMat;
+track.receiveShadows = true;
+
+function kerbMaterial(name) {
+  const size = 256;
+  const dt = new BABYLON.DynamicTexture(name, { width: size, height: 32 }, scene, false);
+  const ctx = dt.getContext();
+  const stripes = 8;
+  for (let i = 0; i < stripes; i++) { ctx.fillStyle = i % 2 === 0 ? '#c81e1e' : '#f2f2f2'; ctx.fillRect((size / stripes) * i, 0, size / stripes, 32); }
+  dt.update();
+  const mat = new BABYLON.StandardMaterial(name + 'Mat', scene);
+  mat.diffuseTexture = dt;
+  mat.diffuseTexture.uScale = 24;
+  mat.specularColor = new BABYLON.Color3(0.05, 0.05, 0.05);
+  return mat;
+}
+const kerbMat = kerbMaterial('kerb');
+[[-TRACK_HALF_WIDTH - KERB_WIDTH, -TRACK_HALF_WIDTH], [TRACK_HALF_WIDTH, TRACK_HALF_WIDTH + KERB_WIDTH]].forEach(([a, b], i) => {
+  const [ki, ko] = ribbonAtOffset(a, b, 0.03);
+  const kerb = BABYLON.MeshBuilder.CreateRibbon('kerb' + i, { pathArray: [ki, ko] }, scene);
+  kerb.material = kerbMat;
+});
+
+const checkerDt = new BABYLON.DynamicTexture('checker', { width: 128, height: 512 }, scene, false);
+const cctx = checkerDt.getContext();
+for (let r = 0; r < 8; r++) for (let c = 0; c < 2; c++) { cctx.fillStyle = (r + c) % 2 === 0 ? '#fff' : '#111'; cctx.fillRect(c * 64, r * 64, 64, 64); }
+checkerDt.update();
+const checkerMat = new BABYLON.StandardMaterial('checkerMat', scene);
+checkerMat.diffuseTexture = checkerDt;
+checkerMat.specularColor = new BABYLON.Color3(0, 0, 0);
+const startLine = BABYLON.MeshBuilder.CreatePlane('startLine', { width: TRACK_HALF_WIDTH * 2, height: 3 }, scene);
+startLine.rotation.x = Math.PI / 2;
+startLine.rotation.y = Math.PI / 2;
+startLine.position = new BABYLON.Vector3(R1, 0.04, 0);
+startLine.material = checkerMat;
+
+// --- Real 3D dressing from the kit: barriers hugging both edges, grandstands set back along the main straight. ---
+async function scatterAlongTrack(file, { offset, everyN, yOffset = 0, scale = KIT_SCALE, faceOutward = false }) {
+  const proto = await BABYLON.SceneLoader.ImportMeshAsync('', 'models/', file, scene);
+  proto.meshes[0].setEnabled(false);
+  for (let i = 0; i < N; i += everyN) {
+    const p = ringPoint(i);
+    const inst = proto.meshes[0].clone(file + i, null);
+    inst.setEnabled(true);
+    inst.scaling.setAll(scale);
+    inst.position = new BABYLON.Vector3(p.x + p.nx * offset, yOffset, p.z + p.nz * offset);
+    const heading = Math.atan2(p.tx, p.tz) + (faceOutward ? Math.PI / 2 : 0);
+    inst.rotation.y = heading;
+    inst.getChildMeshes().forEach(m => shadowGen.addShadowCaster(m));
+  }
+}
+const dressingReady = Promise.all([
+  scatterAlongTrack('barrierWhite.glb', { offset: -(TRACK_HALF_WIDTH + KERB_WIDTH + 1), everyN: 3 }),
+  scatterAlongTrack('barrierWhite.glb', { offset: TRACK_HALF_WIDTH + KERB_WIDTH + 1, everyN: 3 }),
+  scatterAlongTrack('grandStand.glb', { offset: TRACK_HALF_WIDTH + KERB_WIDTH + 6, everyN: 6, faceOutward: true }),
+]);
+
+// --- Car: the real modelled/textured raceCar asset, not a hand-built shape. Wheel nodes come in already named and
+// correctly offset (wheelFrontLeft/Right, wheelBackLeft/Right), so steering and rolling reuse them directly. ---
+const car = new BABYLON.TransformNode('car', scene);
+let wheelNodes = { fl: null, fr: null, bl: null, br: null };
+const carReady = BABYLON.SceneLoader.ImportMeshAsync('', 'models/', 'raceCarRed.glb', scene).then(result => {
+  result.meshes[0].parent = car;
+  result.meshes[0].scaling.setAll(KIT_SCALE);
+  result.meshes.forEach(m => shadowGen.addShadowCaster(m));
+  const byName = name => result.transformNodes.find(n => n.name === name);
+  wheelNodes = { fl: byName('wheelFrontLeft'), fr: byName('wheelFrontRight'), bl: byName('wheelBackLeft'), br: byName('wheelBackRight') };
+});
+
+const START = new BABYLON.Vector3(R1, 0, 0);
+car.position.copyFrom(START);
+car.rotation.y = Math.PI / 2;
+
+// --- Camera: low chase cam sitting just behind and above the car, matching a typical racing-game framing. ---
+let camMode = 0;
+const chaseCam = new BABYLON.FreeCamera('chaseCam', new BABYLON.Vector3(0, 0, 0), scene);
+chaseCam.minZ = 0.05;
+chaseCam.fov = 0.95;
+chaseCam.fovMode = BABYLON.Camera.FOVMODE_HORIZONTAL_FIXED;
+const orbitCam = new BABYLON.ArcRotateCamera('orbitCam', -Math.PI / 2, 1.1, 26, car.position, scene);
+orbitCam.lowerRadiusLimit = 26;
+orbitCam.upperRadiusLimit = 26;
+orbitCam.inputs.clear();
+scene.activeCamera = chaseCam;
+window.addEventListener('keydown', e => { if (e.key.toLowerCase() === 'c') { camMode = 1 - camMode; scene.activeCamera = camMode ? orbitCam : chaseCam; } });
+
+const keys = {};
+window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+let speed = 0;
+const MAX_SPEED = 55, ACCEL = 20, BRAKE = 34, DRAG = 4, MAX_STEER = 0.5, STEER_SPEED = 3.4, WHEELBASE = 3.6;
+let steerAngle = 0;
+
+engine.runRenderLoop(() => {
+  const dt = Math.min(engine.getDeltaTime() / 1000, 0.05);
+
+  const throttle = (keys['w'] || keys['arrowup']) ? 1 : (keys['s'] || keys['arrowdown']) ? -1 : 0;
+  const steerInput = (keys['a'] || keys['arrowleft']) ? -1 : (keys['d'] || keys['arrowright']) ? 1 : 0;
+
+  if (throttle > 0) speed += ACCEL * dt;
+  else if (throttle < 0) speed -= (speed > 0 ? BRAKE : ACCEL) * dt;
+  speed -= Math.sign(speed) * DRAG * dt * Math.abs(speed) / MAX_SPEED;
+  if (Math.abs(speed) < 0.05 && throttle === 0) speed = 0;
+  speed = Math.max(-MAX_SPEED * 0.4, Math.min(MAX_SPEED, speed));
+
+  const targetSteer = steerInput * MAX_STEER * (1 - Math.min(Math.abs(speed) / MAX_SPEED, 0.6));
+  steerAngle += (targetSteer - steerAngle) * Math.min(STEER_SPEED * dt, 1);
+
+  if (Math.abs(speed) > 0.01) {
+    const turnRate = (speed / WHEELBASE) * Math.tan(steerAngle);
+    car.rotation.y += turnRate * dt;
+  }
+  const forward = new BABYLON.Vector3(Math.sin(car.rotation.y), 0, Math.cos(car.rotation.y));
+  car.position.addInPlace(forward.scale(speed * dt));
+
+  if (wheelNodes.fl) {
+    const spin = speed * dt * 4;
+    [wheelNodes.fl, wheelNodes.fr, wheelNodes.bl, wheelNodes.br].forEach(w => w.rotation.x += spin);
+    wheelNodes.fl.rotation.y = wheelNodes.fr.rotation.y = steerAngle;
+  }
+
+  const behindOffset = forward.scale(-9.5).add(new BABYLON.Vector3(0, 2.4, 0));
+  chaseCam.position = BABYLON.Vector3.Lerp(chaseCam.position, car.position.add(behindOffset), Math.min(dt * 8, 1));
+  chaseCam.setTarget(car.position.add(new BABYLON.Vector3(0, 0.6, 0)).add(forward.scale(4)));
+  orbitCam.target = BABYLON.Vector3.Lerp(orbitCam.target, car.position, Math.min(dt * 6, 1));
+  orbitCam.alpha = -car.rotation.y - Math.PI / 2 + Math.PI;
+
+  document.getElementById('speed').textContent = Math.round(Math.abs(speed) * 3.6);
+
+  if (keys['r']) { car.position.copyFrom(START); car.rotation.y = Math.PI / 2; speed = 0; steerAngle = 0; }
+
+  scene.render();
+});
+
+window.addEventListener('resize', () => engine.resize());
+</script>
+</body>
+</html>
