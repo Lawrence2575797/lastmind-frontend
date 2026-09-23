@@ -23940,8 +23940,14 @@ SQIDAQAB
           qualifications: [{ label: 'GCSE Higher', qualification: 'GCSE Higher' }],
           examBoards: ['AQA'] },
         { key: 'economics', label: 'Economics', subject: 'Economics', examLesson: true,
-          qualifications: [{ label: 'A-Level', qualification: 'A-Level' }],
-          examBoards: ['Edexcel'] },
+          // Two qualifications with genuinely different exam-board lists - each qualification carries its own
+          // examBoards (falling back to the subject-level one below for every other entry that doesn't need this).
+          // "Warwick" here is a university name, not an exam board, but stands in for the exam_board column value
+          // the Undergraduate Year 1 knowledge map (EC104/EC108/EC109/EC124/EC140) is actually stored under.
+          qualifications: [
+              { label: 'A-Level', qualification: 'A-Level', examBoards: ['Edexcel'] },
+              { label: 'Undergraduate', qualification: 'Undergraduate Year 1', examBoards: ['Warwick'] },
+          ] },
         { key: 'law', label: 'Law', subject: 'Law', examLesson: true,
           qualifications: [{ label: 'A-Level', qualification: 'A-Level' }],
           examBoards: ['OCR'] },
@@ -24003,12 +24009,17 @@ SQIDAQAB
                 <button type="button" class="sf-wizard-choice-btn${chosen.qualification === q.qualification ? ' selected' : ''}" data-qualification="${escapeHtml(q.qualification)}">${escapeHtml(q.label)}</button>
               `).join('')}</div>`
             : `<p>${escapeHtml(s.qualifications[0].label)}</p>`;
+        // Exam boards can be scoped per-qualification (e.g. Economics: A-Level -> Edexcel, Undergraduate -> Warwick)
+        // via qualification.examBoards; falls back to the subject-level s.examBoards for every existing entry that
+        // doesn't set it, so this is a no-op for every subject except ones that opt in.
+        const activeQual = s.qualifications.find((q) => q.qualification === chosen.qualification) || (s.qualifications.length === 1 ? s.qualifications[0] : null);
+        const examBoards = (activeQual && activeQual.examBoards) || s.examBoards || [];
         const examBoardSelect = `
             <label class="sf-wizard-select-label" for="sfWizardExamBoardSelect">Exam board</label>
             <select id="sfWizardExamBoardSelect" class="sf-wizard-select">
-                ${s.examBoards.map((b) => `<option value="${escapeHtml(b)}"${chosen.examBoard === b ? ' selected' : ''}>${escapeHtml(b)}</option>`).join('')}
+                ${examBoards.map((b) => `<option value="${escapeHtml(b)}"${chosen.examBoard === b ? ' selected' : ''}>${escapeHtml(b)}</option>`).join('')}
             </select>`;
-        const ready = (s.qualifications.length === 1 || chosen.qualification) && (s.examBoards.length === 1 || chosen.examBoard);
+        const ready = (s.qualifications.length === 1 || chosen.qualification) && (examBoards.length === 1 || chosen.examBoard);
         return `
             ${closeBtn}
             <div class="sf-wizard-step-label">${escapeHtml(s.label)}</div>
@@ -24074,10 +24085,19 @@ SQIDAQAB
             // generically for whenever a second exam board exists.
             const chosen = sfWizard.levelChoices[s.key] || (sfWizard.levelChoices[s.key] = {});
             if (s.qualifications.length === 1 && !chosen.qualification) chosen.qualification = s.qualifications[0].qualification;
-            if (s.examBoards.length === 1 && !chosen.examBoard) chosen.examBoard = s.examBoards[0];
+            // Exam-board default only fires once the qualification is actually known - for a subject with a single
+            // qualification that's immediate (above); for one with several (e.g. Economics: A-Level vs
+            // Undergraduate), it waits until the student picks one, since different qualifications here can have
+            // entirely different exam-board lists (qualification.examBoards, falling back to s.examBoards).
+            const activeQualForDefault = s.qualifications.find((q) => q.qualification === chosen.qualification) || (s.qualifications.length === 1 ? s.qualifications[0] : null);
+            const examBoardsForDefault = (activeQualForDefault && activeQualForDefault.examBoards) || s.examBoards || [];
+            if (activeQualForDefault && examBoardsForDefault.length === 1 && !chosen.examBoard) chosen.examBoard = examBoardsForDefault[0];
 
             cardEl.querySelectorAll('[data-qualification]').forEach((btn) => {
-                btn.addEventListener('click', () => { chosen.qualification = btn.dataset.qualification; sfRenderWizardStep(); });
+                // Clear any previously chosen exam board on a qualification switch - it can belong to a different
+                // qualification's exam-board list (e.g. Economics: A-Level -> Edexcel vs Undergraduate -> Warwick),
+                // so a stale value here would silently create a folder with a mismatched qualification/exam board.
+                btn.addEventListener('click', () => { chosen.qualification = btn.dataset.qualification; chosen.examBoard = null; sfRenderWizardStep(); });
             });
             const examBoardSelectEl = cardEl.querySelector('#sfWizardExamBoardSelect');
             if (examBoardSelectEl) {
@@ -24112,8 +24132,10 @@ SQIDAQAB
             const s = SF_WIZARD_SUBJECTS.find((x) => x.key === key);
             if (!s) continue;
             const chosen = sfWizard.levelChoices[key] || {};
-            const qualification = (chosen.qualification && s.qualifications.find((q) => q.qualification === chosen.qualification)?.qualification) || s.qualifications[0].qualification;
-            const examBoard = s.examBoards ? (chosen.examBoard || s.examBoards[0]) : '';
+            const matchedQual = chosen.qualification && s.qualifications.find((q) => q.qualification === chosen.qualification);
+            const qualification = matchedQual?.qualification || s.qualifications[0].qualification;
+            const qualExamBoards = matchedQual?.examBoards || s.examBoards;
+            const examBoard = qualExamBoards ? (chosen.examBoard || qualExamBoards[0]) : '';
             try {
                 await createFolder(s.subject, qualification, examBoard, '', '', '', '');
             } catch (err) {
@@ -24246,7 +24268,8 @@ SQIDAQAB
             if (!subject) continue;
             const chosen = key === sfWizard.focusKey ? sfWizard.levelChoices[key] || {} : {};
             const qualification = chosen.qualification || subject.qualifications[0].qualification;
-            const examBoard = chosen.examBoard || subject.examBoards?.[0] || '';
+            const matchedQual = subject.qualifications.find((q) => q.qualification === qualification);
+            const examBoard = chosen.examBoard || matchedQual?.examBoards?.[0] || subject.examBoards?.[0] || '';
             const folder = await createFolder(subject.subject, qualification, examBoard, '', '', '', '', null, true);
             // Pending until Cortex's setup for it is FINISHED - including the subject
             // being set up right now, so leaving mid-conversation brings the student
@@ -24263,7 +24286,8 @@ SQIDAQAB
         const chosen = sfWizard.levelChoices[sfWizard.focusKey] || {};
         if (sfWizard.focusFolder) {
             sfWizard.focusFolder.qualification = chosen.qualification || subject.qualifications[0].qualification;
-            sfWizard.focusFolder.examBoard = chosen.examBoard || subject.examBoards?.[0] || '';
+            const matchedQual = subject.qualifications.find((q) => q.qualification === sfWizard.focusFolder.qualification);
+            sfWizard.focusFolder.examBoard = chosen.examBoard || matchedQual?.examBoards?.[0] || subject.examBoards?.[0] || '';
             const subtopics = await fetchStoredLessonPlan(sfWizard.focusFolder.subject, sfWizard.focusFolder.qualification, sfWizard.focusFolder.examBoard);
             if (subtopics?.length) sfWizard.focusFolder.subfolders = subtopics.map((st) => ({ id: crypto.randomUUID(), name: st.subtopic, orderConfirmed: true, pages: st.concepts.map((concept) => ({ id: crypto.randomUUID(), title: concept, content: '', createdAt: Date.now() })) }));
             await putFolder(sfWizard.focusFolder);
@@ -24347,7 +24371,9 @@ SQIDAQAB
             const s = SF_WIZARD_SUBJECTS.find((x) => x.key === sfWizard.focusKey);
             const chosen = sfWizard.levelChoices[s.key] || {};
             messages += `<div class="sf-onboarding-message">${returning ? `${escapeHtml(s.label)}, nice! ✨ What level and exam board are you studying it at?` : `Love it — ${escapeHtml(s.label)} is a great one to start with! ✨ Just so I get everything right, what level and exam board are you studying?`}</div>`;
-            controls = `<div class="sf-onboarding-controls"><div class="sf-wizard-choice-row">${s.qualifications.map((q)=>`<button class="sf-wizard-choice-btn${chosen.qualification===q.qualification?' selected':''}" data-qualification="${escapeHtml(q.qualification)}">${escapeHtml(q.label)}</button>`).join('')}</div><select class="sf-wizard-select" data-board>${(s.examBoards||['']).map((b)=>`<option${chosen.examBoard===b?' selected':''}>${escapeHtml(b)}</option>`).join('')}</select><div class="sf-wizard-actions"><button class="btn" data-back>← Back</button><button class="btn primary" data-next-level>Continue →</button></div></div>`;
+            const chatActiveQual = s.qualifications.find((q) => q.qualification === chosen.qualification) || (s.qualifications.length === 1 ? s.qualifications[0] : null);
+            const chatExamBoards = (chatActiveQual && chatActiveQual.examBoards) || s.examBoards || [''];
+            controls = `<div class="sf-onboarding-controls"><div class="sf-wizard-choice-row">${s.qualifications.map((q)=>`<button class="sf-wizard-choice-btn${chosen.qualification===q.qualification?' selected':''}" data-qualification="${escapeHtml(q.qualification)}">${escapeHtml(q.label)}</button>`).join('')}</div><select class="sf-wizard-select" data-board>${chatExamBoards.map((b)=>`<option${chosen.examBoard===b?' selected':''}>${escapeHtml(b)}</option>`).join('')}</select><div class="sf-wizard-actions"><button class="btn" data-back>← Back</button><button class="btn primary" data-next-level>Continue →</button></div></div>`;
         } else if (sfWizard.step === 'coverage_loading') {
             messages += `<div class="sf-onboarding-message">${returning ? 'Thanks! 😊 Pulling up the course now…' : 'Perfect, thank you! 😊 Give me a second while I pull up your whole course…'}</div>`;
         } else if (sfWizard.step === 'coverage') {
@@ -24370,10 +24396,10 @@ SQIDAQAB
         card.querySelector('[data-next]')?.addEventListener('click', () => { if (!sfWizard.selectedKeys.size) return; sfWizard.step='study_now'; sfRenderCortexOnboarding(); });
         card.querySelectorAll('[data-focus-key]').forEach((el)=>el.addEventListener('click',()=>{ sfWizard.focusKey=el.dataset.focusKey; const s=SF_WIZARD_SUBJECTS.find((x)=>x.key===sfWizard.focusKey); if(!s.examLesson){ sfCreateOnboardingFolders().then(async(folder)=>{ await sfPostBackend('/onboarding/subject-picker-seen', {}); await refreshFolderList(); sfOnboardingClose(); if(folder) selectFolder(folder.id); }); return; } sfWizard.step='level'; sfRenderCortexOnboarding(); }));
         card.querySelector('[data-none-now]')?.addEventListener('click', async()=>{ await sfCreateOnboardingFolders(); await sfPostBackend('/onboarding/subject-picker-seen', {}); await refreshFolderList(); sfOnboardingClose(); renderWelcome(); });
-        card.querySelectorAll('[data-qualification]').forEach((el)=>el.addEventListener('click',()=>{ const c=sfWizard.levelChoices[sfWizard.focusKey]||(sfWizard.levelChoices[sfWizard.focusKey]={}); c.qualification=el.dataset.qualification; sfRenderCortexOnboarding(); }));
+        card.querySelectorAll('[data-qualification]').forEach((el)=>el.addEventListener('click',()=>{ const c=sfWizard.levelChoices[sfWizard.focusKey]||(sfWizard.levelChoices[sfWizard.focusKey]={}); c.qualification=el.dataset.qualification; c.examBoard=null; sfRenderCortexOnboarding(); }));
         card.querySelector('[data-board]')?.addEventListener('change',(e)=>{ const c=sfWizard.levelChoices[sfWizard.focusKey]||(sfWizard.levelChoices[sfWizard.focusKey]={}); c.examBoard=e.target.value; });
         card.querySelector('[data-back]')?.addEventListener('click',()=>{ sfWizard.step=sfWizard.focusFolder?'subjects':'study_now'; sfRenderCortexOnboarding(); });
-        card.querySelector('[data-next-level]')?.addEventListener('click',()=>{ const s=SF_WIZARD_SUBJECTS.find((x)=>x.key===sfWizard.focusKey); const c=sfWizard.levelChoices[s.key]||(sfWizard.levelChoices[s.key]={}); c.qualification=c.qualification||s.qualifications[0].qualification; c.examBoard=c.examBoard||s.examBoards[0]; sfPrepareCoverage().catch((e)=>{ console.error(e); alert('Could not load this course. Please try again.'); }); });
+        card.querySelector('[data-next-level]')?.addEventListener('click',()=>{ const s=SF_WIZARD_SUBJECTS.find((x)=>x.key===sfWizard.focusKey); const c=sfWizard.levelChoices[s.key]||(sfWizard.levelChoices[s.key]={}); c.qualification=c.qualification||s.qualifications[0].qualification; if(!c.examBoard){ const q=s.qualifications.find((x)=>x.qualification===c.qualification); c.examBoard=(q&&q.examBoards&&q.examBoards[0])||s.examBoards&&s.examBoards[0]; } sfPrepareCoverage().catch((e)=>{ console.error(e); alert('Could not load this course. Please try again.'); }); });
         card.querySelectorAll('[data-coverage-scope] button').forEach((button)=>button.addEventListener('click',()=>{ sfWizard.coverage[button.parentElement.dataset.coverageScope]=button.dataset.coverageValue; sfRenderCortexOnboarding(); }));
         card.querySelector('[data-finish]')?.addEventListener('click',()=>sfFinishCortexOnboarding().catch((e)=>{ console.error(e); alert(`Could not finish setting up (${(e && e.message) || 'unknown error'}). Please try again.`); }));
     }
