@@ -20607,6 +20607,19 @@ SQIDAQAB
         return new Set((result && result.conceptIds) || []);
     }
 
+    // Subjects are not courses: "Economics" at A-Level and "Economics"
+    // at undergraduate level must never share due checks or recalls. Match
+    // the same identity used to fetch a knowledge map, with punctuation and
+    // spacing ignored so harmless "A Level"/"A-Level" differences survive.
+    function sfCourseIdentityPart(value) {
+        return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+    }
+    function sfItemBelongsToFolder(item, folder) {
+        return sfCourseIdentityPart(item?.subject) === sfCourseIdentityPart(folder?.subject)
+            && sfCourseIdentityPart(item?.qualification) === sfCourseIdentityPart(folder?.qualification)
+            && sfCourseIdentityPart(item?.examBoard) === sfCourseIdentityPart(folder?.examBoard);
+    }
+
     async function sfComputeFolderRecommendation(folder, pretendEncodedNodeId) {
         // A subject whose Cortex setup was never finished offers nothing until it is.
         if (folder && folder.onboardingPending) return null;
@@ -20722,7 +20735,7 @@ SQIDAQAB
         // (near-meaningless here - everything overdue shares "today") and
         // never by recall/FSRS priority, so the first one for this
         // folder's subject is simply taken as-is.
-        const day1Checks = (await sfFetchDueDay1Checks()).filter((c) => c.subject === folder.subject);
+        const day1Checks = (await sfFetchDueDay1Checks()).filter((c) => sfItemBelongsToFolder(c, folder));
         const bestDay1 = day1Checks.length ? day1Checks[0] : null;
 
         if (bestDue && bestDay1) {
@@ -22836,7 +22849,7 @@ SQIDAQAB
     // A feed opened for one subject only ever raises that subject's recalls; a cross-subject feed keeps them all.
     function sfRecallsInScope(rows) {
         const scope = sfFeed && sfFeed.scopeFolder;
-        return scope ? rows.filter((r) => r.subject === scope.subject) : rows;
+        return scope ? rows.filter((r) => sfItemBelongsToFolder(r, scope)) : rows;
     }
     async function sfServeDueRecallOrAppendNext() {
         if (!sfFeed) return;
