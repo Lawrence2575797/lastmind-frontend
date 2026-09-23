@@ -11,13 +11,21 @@
 </head>
 <body>
 <canvas id="renderCanvas"></canvas>
-<div id="hud">speed: <span id="speed">0</span> km/h<br>WASD / arrows to drive, R to reset, C to change camera</div>
+<div id="hud">speed: <span id="speed">0</span> km/h<br>WASD / arrows to drive, R to reset, C to change camera<br><span id="buildSummary"></span> &middot; <a href="garage.html" style="color:#9cf">rebuild car</a></div>
 <script src="https://cdn.jsdelivr.net/npm/babylonjs@6.49.0/babylon.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/babylonjs-loaders@6.49.0/babylonjs.loaders.min.js"></script>
 <script>
 const canvas = document.getElementById('renderCanvas');
 const engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
 const scene = new BABYLON.Scene(engine);
+
+// Car spec built in garage.html from real GCSE Physics answers (density/mass, efficiency, drag, Hooke's law grip,
+// braking-heat, generator-effect regen, etc.) - falls back to a neutral default so this page also works standalone.
+let carSpec = { mass: 1, accel: 1, topSpeed: 1, grip: 1, braking: 1, efficiency: 1, rollover: 1, electric: false };
+try {
+  const stored = JSON.parse(localStorage.getItem('lastmind_car_spec') || 'null');
+  if (stored) carSpec = { ...carSpec, ...stored };
+} catch (e) { /* private-mode/blocked storage - keep the neutral default */ }
 
 // Real modelled/textured assets (CC0, Kenney "Racing Kit" - see models/License.txt) instead of hand-built primitives:
 // this is the actual "existing Babylon tooling" path to a game-quality look - SceneLoader importing authored geometry,
@@ -130,7 +138,8 @@ const dressingReady = Promise.all([
 // correctly offset (wheelFrontLeft/Right, wheelBackLeft/Right), so steering and rolling reuse them directly. ---
 const car = new BABYLON.TransformNode('car', scene);
 let wheelNodes = { fl: null, fr: null, bl: null, br: null };
-const carReady = BABYLON.SceneLoader.ImportMeshAsync('', 'models/', 'raceCarRed.glb', scene).then(result => {
+const carFile = carSpec.electric ? 'raceCarGreen.glb' : 'raceCarRed.glb';
+const carReady = BABYLON.SceneLoader.ImportMeshAsync('', 'models/', carFile, scene).then(result => {
   result.meshes[0].parent = car;
   result.meshes[0].scaling.setAll(KIT_SCALE);
   result.meshes.forEach(m => shadowGen.addShadowCaster(m));
@@ -160,8 +169,18 @@ window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
 let speed = 0;
-const MAX_SPEED = 55, ACCEL = 20, BRAKE = 34, DRAG = 4, MAX_STEER = 0.5, STEER_SPEED = 3.4, WHEELBASE = 3.6;
+// F = ma: a fixed engine force divided by the build's relative mass sets acceleration, mirroring Newton's Second Law
+// rather than just scaling ACCEL by a flavour multiplier. Everything else scales directly off the garage stats.
+const ENGINE_FORCE = 20 * Math.max(carSpec.mass, 0.5);
+const MAX_SPEED = 55 * Math.max(carSpec.topSpeed, 0.3);
+const ACCEL = ENGINE_FORCE / Math.max(carSpec.mass, 0.5);
+const BRAKE = 34 * Math.max(carSpec.braking, 0.3);
+const DRAG = 4 / Math.max(carSpec.topSpeed, 0.3);
+const MAX_STEER = 0.5 * Math.max(Math.min(carSpec.grip, 1.6), 0.4);
+const STEER_SPEED = 3.4, WHEELBASE = 3.6;
 let steerAngle = 0;
+document.getElementById('buildSummary').textContent =
+  `${carSpec.electric ? 'electric' : 'combustion'} build - top speed ${Math.round(MAX_SPEED * 3.6)}km/h, grip x${carSpec.grip.toFixed(2)}`;
 
 engine.runRenderLoop(() => {
   const dt = Math.min(engine.getDeltaTime() / 1000, 0.05);

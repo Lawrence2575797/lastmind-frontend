@@ -1,0 +1,249 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Build your racing team's car</title>
+<style>
+  :root { --ink:#1a1a1f; --paper:#f4f4f7; --accent:#c81e3c; --good:#1a7a3c; --bad:#a01c1c; --card:#ffffff; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, Segoe UI, Roboto, sans-serif; background: var(--paper); color: var(--ink); }
+  header { background: var(--ink); color: #fff; padding: 18px 20px; }
+  header h1 { margin: 0 0 4px; font-size: 20px; }
+  header p { margin: 0; opacity: .75; font-size: 13px; }
+  #stationWrap { max-width: 640px; margin: 0 auto; padding: 20px 16px 80px; }
+  .card { background: var(--card); border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.12); margin-bottom: 16px; }
+  .stationTag { display: inline-block; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; background: var(--ink); color: #fff; padding: 3px 8px; border-radius: 999px; margin-bottom: 10px; }
+  h2 { margin: 0 0 10px; font-size: 18px; }
+  .physics { background: #eef1f6; border-left: 3px solid var(--ink); padding: 10px 12px; font-size: 14px; margin-bottom: 14px; border-radius: 0 6px 6px 0; }
+  .options { display: flex; flex-direction: column; gap: 10px; }
+  button.opt { text-align: left; padding: 12px 14px; border-radius: 8px; border: 2px solid #d8d8e0; background: #fff; cursor: pointer; font-size: 14.5px; line-height: 1.35; }
+  button.opt:hover { border-color: var(--ink); }
+  button.opt.correct { border-color: var(--good); background: #eafaf0; }
+  button.opt.incorrect { border-color: var(--bad); background: #fdecec; }
+  .feedback { margin-top: 12px; padding: 12px; border-radius: 8px; font-size: 14px; }
+  .feedback.correct { background: #eafaf0; color: var(--good); }
+  .feedback.incorrect { background: #fdecec; color: var(--bad); }
+  .nextBtn { margin-top: 14px; padding: 10px 18px; border: none; border-radius: 8px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; display: none; }
+  .progress { display: flex; gap: 4px; margin-bottom: 14px; }
+  .progress div { flex: 1; height: 5px; border-radius: 3px; background: #dcdce4; }
+  .progress div.done { background: var(--accent); }
+  #summary { display: none; }
+  .statRow { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; font-size: 14px; }
+  .statRow b { font-variant-numeric: tabular-nums; }
+  #driveBtn { margin-top: 18px; width: 100%; padding: 14px; border: none; border-radius: 10px; background: var(--ink); color: #fff; font-size: 16px; font-weight: 700; cursor: pointer; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Build your racing team's car</h1>
+  <p>Every choice below is decided by a real GCSE Physics idea. Get the physics right, get a faster/safer car.</p>
+</header>
+<div id="stationWrap">
+  <div class="progress" id="progress"></div>
+  <div id="stationCard" class="card"></div>
+  <div id="summary" class="card">
+    <h2>Your car is ready</h2>
+    <div id="statList"></div>
+    <button id="driveBtn">Take it to the track &rarr;</button>
+  </div>
+</div>
+<script>
+// Each station names the real spec node(s) it's teaching (node_key from the live AQA Physics 8463 knowledge map) so
+// a later phase can log FSRS mastery on a correct answer, exactly as Life on Mars does for Chemistry concepts.
+const STATIONS = [
+  {
+    id: 'chassis_material', concepts: ['p3_density_definition', 'p3_density_calc'],
+    title: 'Chassis material',
+    physics: 'Density: &rho; = m &divide; V. Two panels of equal SIZE (volume) but different materials do not have to have the same mass.',
+    question: 'Aluminium has a density of about 2,700 kg/m&sup3;. Steel is about 7,800 kg/m&sup3;. For a chassis panel of the same shape and size, which material gives the LOWER mass car - which by Newton\'s Second Law (F = ma) accelerates faster for the same engine force?',
+    options: [
+      { text: 'Steel - it is the traditional choice for car bodies', correct: false, note: 'Steel\'s higher density means more mass for the same volume, which needs more force to reach the same acceleration (F = ma).' },
+      { text: 'Aluminium - lower density means lower mass for the same size', correct: true, note: 'Right - same volume, lower density, so less mass. For a given engine force, F = ma means lower mass gives higher acceleration.' },
+      { text: 'It makes no difference - mass only depends on shape', correct: false, note: 'Mass depends on both volume AND density (m = &rho; &times; V), not shape alone.' },
+    ],
+    apply: (correct) => ({ mass: correct ? -0.12 : 0.05, accel: correct ? 0.08 : 0 }),
+  },
+  {
+    id: 'weight_balance', concepts: ['p5_centre_of_mass', 'p5_moment_equation'],
+    title: 'Weight distribution',
+    physics: 'Moment of a force: M = F &times; d (force &times; perpendicular distance from the pivot). A bigger d gives a bigger turning effect for the same force.',
+    question: 'Through a corner, the car\'s weight acts like it is trying to tip it outward around its wheels. Where should the heaviest parts (battery/engine/fuel) be mounted to keep this tipping moment as SMALL as possible?',
+    options: [
+      { text: 'As high and as far to one side as possible', correct: false, note: 'That maximises d (distance from the tipping pivot), which maximises the moment M = Fd - the worst choice for stability.' },
+      { text: 'As low and as central as possible', correct: true, note: 'Right - low and central minimises d in M = Fd, minimising the tipping moment and keeping the car planted through corners.' },
+      { text: 'It does not matter as long as total mass is the same', correct: false, note: 'Total mass sets F, but M = Fd also depends on WHERE that mass sits - the position matters just as much.' },
+    ],
+    apply: (correct) => ({ grip: correct ? 0.1 : -0.05, rollover: correct ? -0.15 : 0.1 }),
+  },
+  {
+    id: 'powertrain', concepts: ['p1_efficiency_energy_eq', 'p7_motor_effect', 'p7_force_equation'],
+    title: 'Powertrain',
+    physics: 'Efficiency = useful energy output &divide; total energy input. A petrol engine sends most of its input energy out as waste heat; an electric motor mostly does not.',
+    question: 'A petrol engine converts about 30% of the chemical energy in fuel into useful kinetic energy - the rest is wasted as heat and sound. An electric motor converts about 90% of electrical energy into useful kinetic energy. Which wastes LESS energy per unit of fuel/charge used?',
+    options: [
+      { text: 'Petrol engine - it has more raw power', correct: false, note: 'Raw power output is a different quantity from efficiency. 30% useful output means 70% is wasted as heat.' },
+      { text: 'Electric motor - efficiency = useful output &divide; total input, and 90% beats 30%', correct: true, note: 'Right - using the efficiency equation directly, the electric motor wastes far less of its input energy.' },
+      { text: 'They are the same because both obey conservation of energy', correct: false, note: 'Conservation of energy is true for both (no energy is created or destroyed) - but that says nothing about how much ends up USEFUL versus wasted as heat.' },
+    ],
+    apply: (correct) => ({ efficiency: correct ? 0.15 : 0, electric: correct }),
+  },
+  {
+    id: 'aero', concepts: ['p5_terminal_velocity', 'p5_newton_first_law'],
+    title: 'Aerodynamics',
+    physics: 'A car stops accelerating and reaches top speed when the resultant force is zero (Newton\'s First Law) - i.e. once air resistance (drag) grows to match the driving force from the engine.',
+    question: 'For the SAME engine power, which body shape reaches a higher top speed?',
+    options: [
+      { text: 'A boxy, flat-fronted shape', correct: false, note: 'More drag means air resistance balances the driving force at a LOWER speed - top speed is reduced.' },
+      { text: 'A streamlined, tapered shape', correct: true, note: 'Right - lower drag means the engine\'s driving force stays bigger than air resistance up to a higher speed before they balance out.' },
+      { text: 'Shape has no effect, only engine power matters', correct: false, note: 'Top speed is set by where driving force EQUALS drag - shape controls drag just as much as the engine controls driving force.' },
+    ],
+    apply: (correct) => ({ topSpeed: correct ? 0.14 : -0.03 }),
+  },
+  {
+    id: 'wing', concepts: ['p5_contact_noncontact_forces', 'p5_pressure_equation'],
+    title: 'Rear wing (trade-off)',
+    physics: 'A rear wing pushes the car down (extra downforce), increasing the normal contact force between tyre and road - which increases the friction force available for cornering. But shaping air to create that downward push also increases drag.',
+    question: 'Adding a big rear wing increases grip through corners. What is the direct physics cost of that extra downforce?',
+    options: [
+      { text: 'Reduced top speed, because generating downforce also increases drag', correct: true, note: 'Right - the same wing shape that pushes air down to add downforce also resists the car\'s forward motion, lowering top speed. A real engineering trade-off.' },
+      { text: 'No cost - wings are free grip', correct: false, note: 'Nothing here is free: creating a downward force on the air (Newton\'s Third Law) also creates a backward reaction force on the car - drag.' },
+      { text: 'Reduced braking distance only', correct: false, note: 'Downforce does help braking a little via extra grip, but the main and unavoidable cost is extra drag, not braking.' },
+    ],
+    apply: (correct) => ({ grip: 0.12, topSpeed: -0.07, understood: correct }),
+  },
+  {
+    id: 'suspension', concepts: ['p5_hookes_law', 'p5_spring_constant_equation'],
+    title: 'Suspension springs',
+    physics: 'Hooke\'s law: F = ke. A stiffer spring (larger spring constant k) needs a LARGER force to compress it by the same amount.',
+    question: 'For hard cornering, which spring setup keeps the tyres pressed more consistently onto the road (less unwanted body roll), at the cost of a rougher ride?',
+    options: [
+      { text: 'Soft springs (low k)', correct: false, note: 'A low spring constant means the suspension compresses easily under cornering forces, letting the body roll more - less consistent tyre contact.' },
+      { text: 'Stiff springs (high k)', correct: true, note: 'Right - by F = ke, a higher k resists compression more, reducing body roll and keeping the tyre contact patch more consistent through a corner.' },
+      { text: 'Spring stiffness only affects comfort, not handling', correct: false, note: 'Spring stiffness changes how much the body rolls under cornering force, which directly changes how consistently the tyres grip the road.' },
+    ],
+    apply: (correct) => ({ grip: correct ? 0.09 : -0.02 }),
+  },
+  {
+    id: 'tyre_pressure', concepts: ['p3_gas_pressure_explanation', 'p3_temp_pressure_constant_volume'],
+    title: 'Tyre pressure strategy',
+    physics: 'Gas pressure comes from particles colliding with the container walls. At constant volume, heating a gas makes its particles move faster and collide harder and more often - raising pressure.',
+    question: 'Tyres heat up significantly once a car is racing. Why do race teams deliberately set tyre pressures LOWER before the race (when the tyres are cold) than their actual target pressure?',
+    options: [
+      { text: 'Because the gas will heat up during the race, and heating a gas at constant volume raises its pressure', correct: true, note: 'Right - the trapped air heats up as the tyre works, so pressure naturally rises to the target range once racing, exactly as the particle model predicts.' },
+      { text: 'Lower pressure always means more grip, regardless of temperature', correct: false, note: 'Grip depends on running the tyre AT its correct target pressure - starting deliberately low is specifically about anticipating the heating effect, not a permanent grip strategy.' },
+      { text: 'Cold tyres and hot tyres have exactly the same pressure', correct: false, note: 'They do not - the particle model of a gas says pressure rises with temperature at constant volume, which is exactly why tyres are set up cold.' },
+    ],
+    apply: (correct) => ({ grip: correct ? 0.06 : -0.06 }),
+  },
+  {
+    id: 'brakes', concepts: ['p5_stopping_distance_definition', 'p5_braking_work_heat', 'p3_shc_definition'],
+    title: 'Brake discs',
+    physics: 'Braking converts kinetic energy to heat via friction (work done against friction). Specific heat capacity (c) tells you how much energy a material absorbs per kg per &deg;C rise (&Delta;E = mc&Delta;&theta;) - a higher c absorbs more heat before overheating.',
+    question: 'Carbon-ceramic discs have a HIGHER specific heat capacity than steel discs, AND a lower density. What does that mean for braking performance over a race?',
+    options: [
+      { text: 'They resist brake fade better (absorb more heat per &deg;C) and save weight', correct: true, note: 'Right - higher c means more of the braking heat energy is absorbed before the discs get dangerously hot (\'fade\'), and lower density means less unsprung mass too.' },
+      { text: 'Specific heat capacity has nothing to do with braking', correct: false, note: 'Braking is precisely a kinetic-energy-to-heat conversion (&Delta;E = mc&Delta;&theta; governs how hot the discs get for that energy) - specific heat capacity is central to it.' },
+      { text: 'Higher specific heat capacity means the discs heat up faster', correct: false, note: 'It is the opposite: a higher c means MORE energy is needed to raise temperature by the same amount, so the discs heat up more slowly for the same braking energy.' },
+    ],
+    apply: (correct) => ({ braking: correct ? 0.14 : -0.04, mass: correct ? -0.03 : 0 }),
+  },
+  {
+    id: 'regen', concepts: ['p7_generator_effect', 'p7_lenz_opposition'], requires: 'electric',
+    title: 'Regenerative braking',
+    physics: 'The generator effect: moving a conductor through a magnetic field induces a current. Lenz\'s law: the induced current always opposes the motion that created it.',
+    question: 'When an electric car brakes using its motor as a generator, the induced current opposes the wheel\'s rotation (Lenz\'s law). What TWO things does this achieve at once?',
+    options: [
+      { text: 'It slows the car down AND recovers energy back into the battery, instead of wasting it all as heat', correct: true, note: 'Right - the opposing force (from Lenz\'s law) decelerates the car, and because it works through the generator effect, that kinetic energy is converted to electrical energy and stored, not just wasted as brake heat.' },
+      { text: 'It only recovers energy - it does not actually slow the car', correct: false, note: 'Lenz\'s law guarantees the induced current opposes the motion that caused it, which means it DOES produce a real decelerating force on the car.' },
+      { text: 'It only slows the car - the energy is lost as normal friction heat', correct: false, note: 'That describes ordinary friction brakes. Regenerative braking specifically converts the kinetic energy to electrical energy via the generator effect instead of just heat.' },
+    ],
+    apply: (correct) => ({ efficiency: correct ? 0.08 : 0, braking: correct ? 0.03 : 0 }),
+  },
+];
+
+let idx = 0;
+let answered = false;
+const spec = { mass: 1, accel: 1, topSpeed: 1, grip: 1, braking: 1, efficiency: 1, rollover: 1, electric: false, log: [] };
+
+function activeStations() {
+  return STATIONS.filter(s => !s.requires || spec[s.requires]);
+}
+
+function renderProgress() {
+  const stations = activeStations();
+  const el = document.getElementById('progress');
+  el.innerHTML = '';
+  stations.forEach((_, i) => {
+    const d = document.createElement('div');
+    if (i < idx) d.className = 'done';
+    el.appendChild(d);
+  });
+}
+
+function renderStation() {
+  const stations = activeStations();
+  if (idx >= stations.length) return renderSummary();
+  answered = false;
+  const s = stations[idx];
+  renderProgress();
+  const card = document.getElementById('stationCard');
+  card.innerHTML = `
+    <div class="stationTag">Station ${idx + 1} of ${stations.length}</div>
+    <h2>${s.title}</h2>
+    <div class="physics">${s.physics}</div>
+    <p><strong>${s.question}</strong></p>
+    <div class="options">${s.options.map((o, i) => `<button class="opt" data-i="${i}">${o.text}</button>`).join('')}</div>
+    <div class="feedback" style="display:none"></div>
+    <button class="nextBtn">Continue &rarr;</button>
+  `;
+  card.querySelectorAll('.opt').forEach(btn => btn.addEventListener('click', () => selectOption(s, +btn.dataset.i)));
+  card.querySelector('.nextBtn').addEventListener('click', () => { idx++; renderStation(); });
+}
+
+function selectOption(station, i) {
+  if (answered) return;
+  answered = true;
+  const card = document.getElementById('stationCard');
+  const chosen = station.options[i];
+  card.querySelectorAll('.opt').forEach((btn, bi) => {
+    btn.disabled = true;
+    if (bi === i) btn.classList.add(chosen.correct ? 'correct' : 'incorrect');
+    if (station.options[bi].correct && bi !== i) btn.classList.add('correct');
+  });
+  const fb = card.querySelector('.feedback');
+  fb.style.display = 'block';
+  fb.className = 'feedback ' + (chosen.correct ? 'correct' : 'incorrect');
+  fb.textContent = (chosen.correct ? 'Correct. ' : 'Not quite. ') + chosen.note;
+  const delta = station.apply(chosen.correct);
+  Object.keys(delta).forEach(k => {
+    if (typeof delta[k] === 'boolean') spec[k] = delta[k];
+    else spec[k] = (spec[k] || (k === 'mass' || k.includes('Speed') || k === 'accel' || k === 'grip' || k === 'braking' || k === 'efficiency' || k === 'rollover' ? 1 : 0)) + delta[k];
+  });
+  spec.log.push({ concepts: station.concepts, correct: chosen.correct });
+  card.querySelector('.nextBtn').style.display = 'inline-block';
+}
+
+function renderSummary() {
+  document.getElementById('stationCard').style.display = 'none';
+  document.getElementById('progress').style.display = 'none';
+  const summary = document.getElementById('summary');
+  summary.style.display = 'block';
+  const rows = [
+    ['Powertrain', spec.electric ? 'Electric' : 'Combustion'],
+    ['Mass', (spec.mass * 100).toFixed(0) + '%'],
+    ['Acceleration', (spec.accel * 100).toFixed(0) + '%'],
+    ['Top speed', (spec.topSpeed * 100).toFixed(0) + '%'],
+    ['Cornering grip', (spec.grip * 100).toFixed(0) + '%'],
+    ['Braking', (spec.braking * 100).toFixed(0) + '%'],
+    ['Efficiency', (spec.efficiency * 100).toFixed(0) + '%'],
+    ['Correct calls made', spec.log.filter(l => l.correct).length + ' / ' + spec.log.length],
+  ];
+  document.getElementById('statList').innerHTML = rows.map(([k, v]) => `<div class="statRow"><span>${k}</span><b>${v}</b></div>`).join('');
+  localStorage.setItem('lastmind_car_spec', JSON.stringify(spec));
+  document.getElementById('driveBtn').onclick = () => location.href = 'index.html';
+}
+
+renderStation();
+</script>
+</body>
+</html>
