@@ -6071,10 +6071,10 @@
        reasoning as body's own color: var(--ink). */
     .btn-on-content {
         color: var(--ink);
-        border-color: rgba(26, 26, 28, 0.3);
+        border-color: color-mix(in srgb, currentColor 32%, transparent);
     }
     .btn-on-content:hover {
-        background: rgba(26, 26, 28, 0.06);
+        background: color-mix(in srgb, currentColor 9%, transparent);
     }
     .modal > .sf-wizard-close-btn {
         position: absolute; top: 12px; right: 12px; width: 32px; height: 32px;
@@ -7076,8 +7076,10 @@ SQIDAQAB
         // illegible-text bug this whole paragraph exists to avoid.
         // Premium Gold's own page background is white, and textColor (gold, for the sidebar) is too low-contrast for reading
         // body text directly on white - --ink gets a fixed charcoal here instead, independent of the Text picker entirely.
+        const bgRgb = themeHexToRgb(theme.bgColor);
+        const bgIsDark = (bgRgb.r * 0.2126 + bgRgb.g * 0.7152 + bgRgb.b * 0.0722) < 145;
         if (isPremiumGold) root.setProperty('--ink', '#2B2A2C');
-        else if (isImageBg || isMinimal) root.setProperty('--ink', theme.textColor);
+        else if (isImageBg || isMinimal || bgIsDark) root.setProperty('--ink', theme.textColor);
         else root.removeProperty('--ink');
         document.body.style.background = themeBackgroundValue(theme);
         try { localStorage.setItem(THEME_CACHE_KEY, JSON.stringify(theme)); } catch (e) {}
@@ -12433,6 +12435,17 @@ SQIDAQAB
         stopSpeaking();
         selectedPageId = null;
         document.getElementById('topbarTitle').textContent = 'Exam Preparation';
+        // Open a real exam subject immediately. The old empty landing page
+        // hid every lesson/type choice in the sidebar and, with a dark page
+        // palette, appeared completely blank. Keep the current exam subject
+        // when possible; otherwise use the first eligible one.
+        const examFolders = (folders || []).filter((f) => f.qualification !== CUSTOM_LEVEL && !f.deletedAt && !f.onboardingPending);
+        const initialFolder = examFolders.find((f) => f.id === selectedFolderId) || examFolders[0];
+        if (initialFolder) {
+            setSidebarTab('folders');
+            selectFolder(initialFolder.id);
+            return;
+        }
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
         contentInner.innerHTML = `
