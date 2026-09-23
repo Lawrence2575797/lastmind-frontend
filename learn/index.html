@@ -1480,6 +1480,12 @@
     .qz-blank, .qz-stepinput { font: inherit; color: var(--text); background: rgba(0,0,0,0.25); border: 0; border-bottom: 2px solid var(--accent); border-radius: 6px 6px 0 0; padding: 3px 8px; min-width: 110px; text-align: center; }
     .qz-blank:focus, .qz-stepinput:focus { outline: none; background: rgba(0,0,0,0.4); }
     .qz-blank.good, .qz-stepinput.good { border-bottom-color: #4cc38a; background: rgba(76,195,138,0.2); } .qz-blank.bad, .qz-stepinput.bad { border-bottom-color: #eb6b6b; background: rgba(235,107,107,0.18); animation: qzShake .4s; }
+    .qz-blank.qz-skipped, .qz-stepinput.qz-skipped { border-bottom-color: rgba(230,215,176,0.45); background: rgba(255,255,255,0.045); opacity: 0.72; }
+    .qz-dont-know { position: relative; display: inline-grid; place-items: center; width: 27px; height: 27px; margin: 0 3px; padding: 0; vertical-align: middle; flex: 0 0 27px; border-radius: 50%; border: 1px solid rgba(230,215,176,0.42); background: rgba(255,255,255,0.07); color: var(--text); font: 800 14px Arial, sans-serif; cursor: pointer; }
+    .qz-dont-know:hover { background: rgba(255,255,255,0.14); border-color: var(--accent); }
+    .qz-dont-know:disabled { cursor: default; opacity: 0.45; }
+    .qz-dont-know-key { position: absolute; right: -3px; bottom: -4px; font-size: 8px; line-height: 1; filter: none; }
+    .qz-diagram-input-box .qz-dont-know { position: absolute; right: -17px; bottom: -9px; z-index: 2; margin: 0; }
     .qz-steprows { display: grid; gap: 10px; } .qz-steprow { display: flex; gap: 12px; align-items: center; } .qz-stepinput { flex: 1; text-align: left; padding: 9px 12px; border-radius: 10px; border-bottom-width: 3px; }
     .sf-question-submit.qz-check { padding: 13px 34px; font-size: 16px; font-weight: 700; border-radius: 12px; align-self: flex-start; }
     .sf-question-submit.qz-check:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -21405,7 +21411,59 @@ SQIDAQAB
     }
     function qzFill(host, q, onChange, peek) {
         const inner = qzCloze(host, { text: String(q.questionText || ''), blanks: 1 }, onChange, peek);
-        return { incompleteText: 'Type the missing term first.', getAnswer: () => { const a = inner.getAnswer(); return a ? { answer: a.answers[0] } : null; }, setDisabled: inner.setDisabled, showResult: (res) => inner.showResult({ correct: res.correct, detail: [!!res.correct] }) };
+        return { incompleteText: 'Type the missing term first.', getAnswer: () => { const a = inner.getAnswer(); return a ? { answer: a.answers[0], gaveUp: !!a.gaveUp } : null; }, setDisabled: inner.setDisabled, clearDraft: inner.clearDraft, showResult: (res) => inner.showResult({ correct: res.correct, detail: [!!res.correct] }) };
+    }
+
+    function qzAttachDontKnow(input, parent, onChange) {
+        const btn = document.createElement('button');
+        btn.type = 'button'; btn.className = 'qz-dont-know'; btn.title = "I don't know"; btn.setAttribute('aria-label', "I don't know this box");
+        btn.innerHTML = '<span aria-hidden="true">?</span><span class="qz-dont-know-key" aria-hidden="true">🔑</span>';
+        btn.addEventListener('click', () => {
+            input.value = '';
+            input.dataset.gaveUp = 'true';
+            input.disabled = true;
+            input.classList.remove('bad');
+            input.classList.add('qz-skipped');
+            input.placeholder = "I don't know";
+            btn.disabled = true;
+            if (onChange) onChange();
+        });
+        input._dontKnowButton = btn;
+        parent.appendChild(btn);
+        return btn;
+    }
+    const qzInputComplete = (input) => !!input.value.trim() || input.dataset.gaveUp === 'true';
+    const qzAnyGivenUp = (inputs) => inputs.some((input) => input.dataset.gaveUp === 'true');
+    function qzDraftKey(q) {
+        const id = q?.checkId || q?.recallId || q?.reviewId;
+        return id ? `lastmind-structured-draft:${id}` : null;
+    }
+    function qzLoadDraft(q) {
+        const key = qzDraftKey(q);
+        if (!key) return null;
+        try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (err) { return null; }
+    }
+    function qzSaveDraft(q, values, gaveUp) {
+        const key = qzDraftKey(q);
+        if (!key) return;
+        try { localStorage.setItem(key, JSON.stringify({ values, gaveUp })); } catch (err) { /* storage is optional */ }
+    }
+    function qzClearDraft(q) {
+        const key = qzDraftKey(q);
+        if (!key) return;
+        try { localStorage.removeItem(key); } catch (err) { /* storage is optional */ }
+    }
+    function qzRestoreInput(input, value, gaveUp) {
+        if (gaveUp) {
+            input.value = '';
+            input.dataset.gaveUp = 'true';
+            input.disabled = true;
+            input.classList.add('qz-skipped');
+            input.placeholder = "I don't know";
+            if (input._dontKnowButton) input._dontKnowButton.disabled = true;
+        } else if (typeof value === 'string') {
+            input.value = value;
+        }
     }
 
     // Typed recall: fill the missing terms into a passage, a diagram's boxes, or the steps of a process in order. Nothing to pick
@@ -21427,7 +21485,7 @@ SQIDAQAB
                     let changed = false;
                     result.detail.forEach((ok, i) => {
                         if (ok && !locked[i] && inputs[i]) {
-                            locked[i] = true; inputs[i].disabled = true; inputs[i].classList.add('good'); inputs[i].classList.remove('bad'); inputs[i].placeholder = '';
+                            locked[i] = true; inputs[i].disabled = true; if (inputs[i]._dontKnowButton) inputs[i]._dontKnowButton.disabled = true; inputs[i].classList.add('good'); inputs[i].classList.remove('bad'); inputs[i].placeholder = '';
                             changed = true;
                         }
                     });
@@ -21438,13 +21496,13 @@ SQIDAQAB
         }
         return {
             getAnswer: null,
-            setDisabled: (v) => { inputs.forEach((el, i) => { el.disabled = v || locked[i]; }); },
+            setDisabled: (v) => { inputs.forEach((el, i) => { el.disabled = v || locked[i] || el.dataset.gaveUp === 'true'; if (el._dontKnowButton) el._dontKnowButton.disabled = v || locked[i] || el.dataset.gaveUp === 'true'; }); },
             // hints: one initial-letters string per still-wrong blank ("Finite stock" -> "F    S"), sent only on the first miss -
             // shown as the input's placeholder, cleared the moment the student edits that box.
             mark: (detail, correct, hints) => {
                 inputs.forEach((el, i) => {
-                    if (correct || (detail && detail[i])) { locked[i] = true; el.disabled = true; el.classList.add('good'); el.classList.remove('bad'); el.placeholder = ''; }
-                    else { el.classList.add('bad'); setTimeout(() => el.classList.remove('bad'), 700); if (hints && hints[i]) el.placeholder = hints[i]; }
+                    if (correct || (detail && detail[i])) { locked[i] = true; el.disabled = true; if (el._dontKnowButton) el._dontKnowButton.disabled = true; el.classList.add('good'); el.classList.remove('bad'); el.placeholder = ''; }
+                    else if (el.dataset.gaveUp !== 'true') { el.classList.add('bad'); setTimeout(() => el.classList.remove('bad'), 700); if (hints && hints[i]) el.placeholder = hints[i]; }
                 });
                 if (correct) host.classList.add('qz-done');
             },
@@ -21453,20 +21511,25 @@ SQIDAQAB
     function qzCloze(host, q, onChange, peek) {
         const doc = document.createElement('div'); doc.className = 'qz-cloze-doc';
         const inputs = []; const locked = [];
+        const changed = () => { qzSaveDraft(q, inputs.map((el) => el.value), inputs.map((el) => el.dataset.gaveUp === 'true')); if (onChange) onChange(); };
         String(q.text || '').split(/_{2,}/).forEach((part, i, all) => {
             doc.appendChild(document.createTextNode(part));
             if (i < all.length - 1) {
                 const el = document.createElement('input'); el.type = 'text'; el.className = 'qz-blank'; el.autocomplete = 'off'; el.spellcheck = false; el.setAttribute('aria-label', 'Blank ' + (i + 1));
-                el.addEventListener('input', () => { el.classList.remove('bad'); if (onChange) onChange(); });
-                inputs.push(el); locked.push(false); doc.appendChild(el);
+                el.addEventListener('input', () => { el.classList.remove('bad'); changed(); });
+                inputs.push(el); locked.push(false); doc.appendChild(el); qzAttachDontKnow(el, doc, changed);
             }
         });
         host.appendChild(doc);
+        const draft = qzLoadDraft(q);
+        inputs.forEach((el, i) => qzRestoreInput(el, draft?.values?.[i], !!draft?.gaveUp?.[i]));
         const rows = qzTypedRows(host, onChange, inputs, locked, peek, () => ({ answers: inputs.map((el) => el.value.trim()) }));
+        inputs.filter((el) => el.value.trim()).forEach((el) => el.dispatchEvent(new Event('input')));
         return {
             incompleteText: 'Fill in every blank first.',
-            getAnswer: () => (inputs.some((el) => !el.value.trim()) ? null : { answers: inputs.map((el) => el.value.trim()) }),
+            getAnswer: () => (inputs.some((el) => !qzInputComplete(el)) ? null : { answers: inputs.map((el) => el.value.trim()), gaveUp: qzAnyGivenUp(inputs) }),
             setDisabled: rows.setDisabled,
+            clearDraft: () => qzClearDraft(q),
             showResult(res) { rows.mark(res.detail, res.correct, res.hints); if (onChange) onChange(); },
         };
     }
@@ -21496,6 +21559,7 @@ SQIDAQAB
         const overlay = document.createElement('div'); overlay.className = 'qz-diagram-overlay';
         const inputs = {}, colorOf = {}, locked = {};
         const order = (q.blanks || []).map((b) => b.id);
+        const changed = () => { qzSaveDraft(q, order.map((id) => inputs[id]?.value || ''), order.map((id) => inputs[id]?.dataset.gaveUp === 'true')); if (onChange) onChange(); };
         (q.nodes || []).forEach((n) => {
             colorOf[n.id] = n.color;
             const rect = document.createElementNS(NS, 'rect');
@@ -21515,12 +21579,14 @@ SQIDAQAB
             box.style.width = (n.w / QZ_DIAGRAM_W * 100) + '%'; box.style.height = (n.hh / h * 100) + '%';
             const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'qz-blank qz-diagram-input'; inp.autocomplete = 'off'; inp.spellcheck = false;
             inp.setAttribute('aria-label', 'Diagram box');
-            inp.addEventListener('input', () => { inp.classList.remove('bad'); if (onChange) onChange(); });
-            box.appendChild(inp); overlay.appendChild(box);
+            inp.addEventListener('input', () => { inp.classList.remove('bad'); changed(); });
+            box.appendChild(inp); qzAttachDontKnow(inp, box, changed); overlay.appendChild(box);
             inputs[n.id] = inp; locked[n.id] = false;
         });
         wrap.appendChild(svg); wrap.appendChild(overlay);
         host.appendChild(wrap);
+        const draft = qzLoadDraft(q);
+        order.forEach((id, i) => { if (inputs[id]) qzRestoreInput(inputs[id], draft?.values?.[i], !!draft?.gaveUp?.[i]); });
         // Live peek, same rule as qzTypedRows: only ever locks in a box already right; a wrong or empty one is never marked.
         if (peek) {
             let peekTimer = null;
@@ -21536,7 +21602,7 @@ SQIDAQAB
                     result.detail.forEach((ok, i) => {
                         const id = order[i], el = inputs[id];
                         if (ok && el && !locked[id]) {
-                            locked[id] = true; el.disabled = true; el.classList.add('good'); el.classList.remove('bad'); el.placeholder = '';
+                            locked[id] = true; el.disabled = true; if (el._dontKnowButton) el._dontKnowButton.disabled = true; el.classList.add('good'); el.classList.remove('bad'); el.placeholder = '';
                             if (colorOf[id]) el.style.setProperty('--qz-diagram-node-color', colorOf[id]);
                             changed = true;
                         }
@@ -21546,17 +21612,19 @@ SQIDAQAB
             };
             order.forEach((id) => { if (inputs[id]) inputs[id].addEventListener('input', schedule); });
         }
+        order.forEach((id) => { if (inputs[id]?.value.trim()) inputs[id].dispatchEvent(new Event('input')); });
         return {
             incompleteText: 'Fill in every box first.',
-            getAnswer: () => (order.some((id) => !inputs[id] || !inputs[id].value.trim()) ? null : { values: order.map((id) => inputs[id].value.trim()) }),
-            setDisabled: (v) => { order.forEach((id) => { if (inputs[id]) inputs[id].disabled = v || locked[id]; }); },
+            getAnswer: () => (order.some((id) => !inputs[id] || !qzInputComplete(inputs[id])) ? null : { values: order.map((id) => inputs[id].value.trim()), gaveUp: order.some((id) => inputs[id]?.dataset.gaveUp === 'true') }),
+            setDisabled: (v) => { order.forEach((id) => { const el = inputs[id]; if (el) { el.disabled = v || locked[id] || el.dataset.gaveUp === 'true'; if (el._dontKnowButton) el._dontKnowButton.disabled = v || locked[id] || el.dataset.gaveUp === 'true'; } }); },
+            clearDraft: () => qzClearDraft(q),
             showResult(res) {
                 order.forEach((id, i) => {
                     const el = inputs[id]; if (!el) return;
                     if (res.correct || (res.detail && res.detail[i])) {
-                        locked[id] = true; el.disabled = true; el.classList.remove('bad'); el.classList.add('good'); el.placeholder = '';
+                        locked[id] = true; el.disabled = true; if (el._dontKnowButton) el._dontKnowButton.disabled = true; el.classList.remove('bad'); el.classList.add('good'); el.placeholder = '';
                         if (colorOf[id]) el.style.setProperty('--qz-diagram-node-color', colorOf[id]);
-                    } else {
+                    } else if (el.dataset.gaveUp !== 'true') {
                         el.classList.add('bad'); setTimeout(() => el.classList.remove('bad'), 700);
                         if (res.hints && res.hints[i]) el.placeholder = res.hints[i];
                     }
@@ -21569,20 +21637,25 @@ SQIDAQAB
     function qzSteps(host, q, onChange, peek) {
         const wrap = document.createElement('div'); wrap.className = 'qz-steprows';
         const inputs = []; const locked = [];
+        const changed = () => { qzSaveDraft(q, inputs.map((el) => el.value), inputs.map((el) => el.dataset.gaveUp === 'true')); if (onChange) onChange(); };
         for (let i = 0; i < (q.count || 0); i++) {
             const row = document.createElement('div'); row.className = 'qz-steprow';
             const badge = document.createElement('span'); badge.className = 'qz-n'; badge.textContent = i + 1;
             const el = document.createElement('input'); el.type = 'text'; el.className = 'qz-stepinput'; el.autocomplete = 'off'; el.placeholder = 'Step ' + (i + 1); el.setAttribute('aria-label', 'Step ' + (i + 1));
-            el.addEventListener('input', () => { el.classList.remove('bad'); if (onChange) onChange(); });
-            row.appendChild(badge); row.appendChild(el); wrap.appendChild(row); inputs.push(el); locked.push(false);
+            el.addEventListener('input', () => { el.classList.remove('bad'); changed(); });
+            row.appendChild(badge); row.appendChild(el); inputs.push(el); locked.push(false); qzAttachDontKnow(el, row, changed); wrap.appendChild(row);
         }
         host.appendChild(wrap);
+        const draft = qzLoadDraft(q);
+        inputs.forEach((el, i) => qzRestoreInput(el, draft?.values?.[i], !!draft?.gaveUp?.[i]));
         const reveal = document.createElement('div'); reveal.className = 'qz-reveal'; reveal.hidden = true; host.appendChild(reveal);
         const rows = qzTypedRows(host, onChange, inputs, locked, peek, () => ({ lines: inputs.map((el) => el.value.trim()) }));
+        inputs.filter((el) => el.value.trim()).forEach((el) => el.dispatchEvent(new Event('input')));
         return {
             incompleteText: 'Write every step first.',
-            getAnswer: () => (inputs.some((el) => !el.value.trim()) ? null : { lines: inputs.map((el) => el.value.trim()) }),
+            getAnswer: () => (inputs.some((el) => !qzInputComplete(el)) ? null : { lines: inputs.map((el) => el.value.trim()), gaveUp: qzAnyGivenUp(inputs) }),
             setDisabled: rows.setDisabled,
+            clearDraft: () => qzClearDraft(q),
             showResult(res) { rows.mark(res.detail, res.correct); if (res.correct && res.reveal) { reveal.hidden = false; reveal.textContent = 'The steps: ' + res.reveal; } if (onChange) onChange(); },
         };
     }
@@ -21614,6 +21687,7 @@ SQIDAQAB
             widget.showResult(result);
             qzShowResultInView(slideEl, feedbackEl);
             if (result.correct) {
+                if (widget.clearDraft) widget.clearDraft();
                 qzSfxOk();
                 sfShowCorrectFeedback(feedbackEl, retryCount > 0);
                 if (result.reveal) meta.holdMs = 3800;   // long enough to read why, then the feed moves on by itself
@@ -21624,7 +21698,7 @@ SQIDAQAB
             retryCount += 1;
             // A host can decide a wrong answer ends the question (the Day-1 check does, after its one re-ask).
             const ended = onWrong ? await onWrong(result) : false;
-            if (ended) { if (ended !== 'handled') feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || 'Not quite - this one will come back around.')}</div>`; return ended === 'handled' ? 'handled' : true; }
+            if (ended) { if (widget.clearDraft) widget.clearDraft(); if (ended !== 'handled') feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || 'Not quite - this one will come back around.')}</div>`; return ended === 'handled' ? 'handled' : true; }
             setTimeout(() => { widget.setDisabled(false); busy = false; refreshCheck(); }, 700);
             feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || 'Not quite - try again.')}</div>`;
             return false;
