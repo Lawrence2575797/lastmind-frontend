@@ -3640,6 +3640,60 @@
         max-width: 1200px;
     }
 
+    /* While a lesson is open, the lesson is the page rather than a card
+       placed inside the page. The normal dashboard padding and width cap
+       still apply everywhere else; lesson-main-active is kept in sync with
+       the presence of .sf-feed-root by the observer beside sfFeed. The
+       existing topbar and subject sidebar remain the page chrome, so their
+       controls now sit inside the lesson workspace instead of surrounding a
+       second, rounded "page". */
+    body.lesson-main-active .main { background: #FFFFFF; }
+    body.lesson-main-active .topbar {
+        z-index: 5;
+        background: #FFFFFF;
+        color: #2B2A2C;
+        border-bottom-color: rgba(43, 42, 44, 0.12);
+        padding-bottom: 20px;
+    }
+    body.lesson-main-active .sidebar-toggle { color: #2B2A2C; }
+    body.lesson-main-active .content {
+        padding: 0;
+        overflow: hidden;
+        position: relative;
+        justify-content: stretch;
+    }
+    body.lesson-main-active .content-inner,
+    body.lesson-main-active .content-inner-wide {
+        position: relative;
+        width: 100%;
+        max-width: none;
+        height: 100%;
+    }
+    body.lesson-main-active .sf-feed-root,
+    body.lesson-main-active .sf-feed-root:has(.sf-derive-frame) {
+        width: 100%;
+        max-width: none;
+        height: 100% !important;
+        min-height: 0;
+        margin: 0;
+        border-radius: 0;
+    }
+    body.lesson-main-active .sf-greeting-banner {
+        position: absolute;
+        top: 12px;
+        left: 20px;
+        right: 64px;
+        z-index: 4;
+        max-width: none;
+        margin: 0;
+        pointer-events: none;
+    }
+
+    @media (max-width: 768px) {
+        body.lesson-main-active .topbar { padding: 12px 14px; }
+        body.lesson-main-active .sf-greeting-banner { top: 9px; left: 14px; right: 54px; }
+    }
+
     /* Cortex chat now lives here directly (see renderWelcome()) — the
        page's own logo/quote/greeting empty-state and message thread are
        all rendered INSIDE cortex/index.html itself (loaded ?embed=1,
@@ -20651,6 +20705,17 @@ SQIDAQAB
     // ever happens through the button.
     let sfFeed = null; // { slides: [], meta: [], currentIndex, locked, trackEl, viewportEl }
 
+    // Keep the page-level lesson layout tied to the real DOM rather than to
+    // individual navigation buttons. Any route can replace #contentInner;
+    // observing that one shared mount point guarantees the full-page lesson
+    // styling disappears immediately when the student opens Cortex, a map,
+    // Rewards, Create, Exam Preparation, or any other page.
+    function syncLessonMainPageState() {
+        const contentInner = document.getElementById('contentInner');
+        document.body.classList.toggle('lesson-main-active', !!contentInner?.querySelector('.sf-feed-root'));
+    }
+    new MutationObserver(syncLessonMainPageState).observe(document.getElementById('contentInner'), { childList: true, subtree: true });
+
     function showKeyAwardToast(amount, balance) {
         const awarded = Number(amount) || 0;
         if (awarded <= 0) return;
@@ -23205,6 +23270,7 @@ SQIDAQAB
         const onClose = sfFeed && sfFeed.onClose;
         if (sfFeed && sfFeed.recallTimers) sfFeed.recallTimers.forEach(clearTimeout);
         sfFeed = null;
+        document.body.classList.remove('lesson-main-active');
         if (onClose) onClose();
         else renderWelcome();
     }
@@ -23245,6 +23311,7 @@ SQIDAQAB
                 <div class="sf-recall-nudge" hidden></div>
                 ${practicePanelHtml}
             </div>`;
+        syncLessonMainPageState();
         const viewportEl = contentInner.querySelector('.sf-feed-viewport');
         const trackEl = contentInner.querySelector('.sf-feed-track');
         const nudgeEl = contentInner.querySelector('.sf-recall-nudge');
