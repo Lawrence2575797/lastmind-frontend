@@ -3712,6 +3712,19 @@
     }
     body.lesson-main-active .sf-feed-slide .qz-blank:focus,
     body.lesson-main-active .sf-feed-slide .qz-stepinput:focus { background: rgba(255, 255, 255, 0.13); }
+    /* Live Day-1 checking adds .good and disables a box as soon as its
+       wording is accepted. Keep that state above the charcoal lesson's
+       normal input rule: otherwise the box still locks correctly but looks
+       unchanged, which made live marking appear to have stopped working. */
+    body.lesson-main-active .sf-feed-slide .qz-blank.good,
+    body.lesson-main-active .sf-feed-slide .qz-stepinput.good,
+    body.lesson-main-active .sf-feed-slide .qz-diagram-input.good {
+        color: #0B3D24;
+        background: #B7E8CF;
+        border-bottom-color: #2F9E6A;
+        opacity: 1;
+        -webkit-text-fill-color: #0B3D24;
+    }
     body.lesson-main-active .qz-diagram-edge { stroke: rgba(230, 215, 176, 0.48); }
     body.lesson-main-active .qz-diagram-node { stroke: rgba(230, 215, 176, 0.4); }
     body.lesson-main-active .qz-diagram-label { fill: var(--text); }
