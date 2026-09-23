@@ -3756,6 +3756,14 @@
         min-height: 100%;
         overflow: visible;
     }
+    /* Derivation lessons contain their own continuous lesson viewport. Give
+       that iframe the whole page below the top bar; percentage height on an
+       auto-height feed section collapsed it into the pale strip seen above. */
+    body.lesson-main-active .sf-feed-slide.sf-derive-slide {
+        height: calc(100dvh - 58px);
+        min-height: calc(100dvh - 58px);
+        overflow: hidden;
+    }
     body.lesson-main-active .sf-greeting-banner {
         position: absolute;
         top: 12px;
@@ -6873,11 +6881,9 @@ SQIDAQAB
        Maths Tool, same as it always has), and Background (where the
        birch-wood texture lives - a Plain/Wood toggle plus a base tint,
        same procedural-gradient mechanism as the original birch default). */
-    // Premium Gold is the default look for every account that hasn't chosen its own theme (same values as PREMIUM_GOLD_THEME
-    // below - kept as a literal copy here rather than a reference, since this constant is declared first) - see
-    // REWARD_UNLOCKED_THEME_KEYS' own unconditional 'premiumgold' entry further down, which keeps the Rewards page from
-    // ever showing "Redeem" for a background that's already the baseline everyone starts on.
-    const THEME_DEFAULTS = { textColor: '#C2A471', panelColor: '#2B2A2C', bgColor: '#FFFFFF', bgTexture: 'premium-gold' };
+    // The baseline is the same navy and cream used by the LastMind shell.
+    // Minimalist and Premium Gold are no longer selectable templates.
+    const THEME_DEFAULTS = { textColor: '#F1EAD6', panelColor: '#1A232D', bgColor: '#12181F', bgTexture: 'plain' };
     const THEME_CACHE_KEY = 'lm-theme-settings';
     let currentTheme = { ...THEME_DEFAULTS };
 
@@ -6962,19 +6968,9 @@ SQIDAQAB
             theme: { textColor: '#F1E6D0', panelColor: '#2E2A22', bgColor: '#A8763E', bgTexture: 'ancient-rome' },
         },
         {
-            key: 'minimalist',
-            label: 'Minimalist',
-            theme: MINIMALIST_THEME,
-        },
-        {
             key: 'sakuragarden',
             label: 'Sakura Garden',
             theme: { textColor: '#FBEFF3', panelColor: '#402530', bgColor: '#EFA8C4', bgTexture: 'sakura-garden' },
-        },
-        {
-            key: 'premiumgold',
-            label: 'Premium Gold',
-            theme: PREMIUM_GOLD_THEME,
         },
     ];
 
@@ -7042,8 +7038,9 @@ SQIDAQAB
     // this, every reload would flash the default birch/burgundy for a
     // moment while /theme-settings is in flight.
     function applyTheme(theme) {
-        if (theme && theme.bgTexture === 'minimalist') theme = { ...theme, ...MINIMALIST_THEME };
-        if (theme && theme.bgTexture === 'premium-gold') theme = { ...theme, ...PREMIUM_GOLD_THEME };
+        // Retire the two removed templates for accounts that had one saved,
+        // rather than leaving an invisible, unequippable legacy theme on.
+        if (!theme || theme.bgTexture === 'minimalist' || theme.bgTexture === 'premium-gold') theme = { ...THEME_DEFAULTS };
         const root = document.documentElement.style;
         root.setProperty('--text', theme.textColor);
         root.setProperty('--accent', theme.textColor);
@@ -9634,12 +9631,9 @@ SQIDAQAB
         selectFolder(selectedFolderId);
     }
 
-    // Empty until reward ownership is wired to the backend. This is the
-    // single access gate: once a key is present, its card uses the same
-    // applyTheme + /theme-settings save path the old preset UI used.
-    // 'premiumgold' starts unlocked, unconditionally - it's the default background every account already has, not something
-    // to gate behind a Redeem click on the Rewards page.
-    const REWARD_UNLOCKED_THEME_KEYS = new Set(['premiumgold']);
+    // This is the single access gate: once a key is present, its card uses
+    // the same applyTheme + /theme-settings save path as every background.
+    const REWARD_UNLOCKED_THEME_KEYS = new Set();
     let rewardKeyBalance = 0;
     function updateRewardsTopbarBadge() {
         const badge = document.getElementById('rewardsTopbarKeys');
@@ -9653,7 +9647,7 @@ SQIDAQAB
         { key: 'diagram-futuristic', diagramKey: 'futuristic', label: 'Futuristic Glass', price: DIAGRAM_REWARD_PRICE },
         { key: 'diagram-football', diagramKey: 'football', label: 'Football Tactics', price: DIAGRAM_REWARD_PRICE },
     ];
-    const FREE_REWARD_THEME_KEYS = new Set(['minimalist', 'cosycafe', 'diagram-seventies', 'premiumgold']);
+    const FREE_REWARD_THEME_KEYS = new Set(['cosycafe', 'diagram-seventies']);
     const rewardPrice = (preset) => FREE_REWARD_THEME_KEYS.has(preset.key) ? 0 : (preset.price != null ? preset.price : REWARD_KEY_PRICE);
     const rewardKeyIcon = (size = 18) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="8" cy="12" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M12 12h9m-3 0v3m-3-3v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
 
@@ -12350,8 +12344,6 @@ SQIDAQAB
                 <div class="rewards-section-heading"><h2>Backgrounds</h2><div class="rewards-section-actions"><span>${THEME_PRESETS.length} available</span><button type="button" class="reward-default-btn" id="rewardDefaultThemeBtn">Use original colours</button></div></div>
                 <div class="reward-grid">
                     ${[...THEME_PRESETS].sort((a, b) => {
-                        if (a.key === 'minimalist') return -1;
-                        if (b.key === 'minimalist') return 1;
                         if (a.key === 'cosycafe') return -1;
                         if (b.key === 'cosycafe') return 1;
                         return Number(REWARD_UNLOCKED_THEME_KEYS.has(b.key)) - Number(REWARD_UNLOCKED_THEME_KEYS.has(a.key));
@@ -22135,7 +22127,11 @@ SQIDAQAB
     // Builds the explanation+question slide pair for a 'lesson'
     // recommendation, or the ported spaced-review flow above for a
     // 'review' one.
-    async function sfBuildSlidesForRecommendation(rec) {
+    async function sfBuildSlidesForRecommendation(rec, options = {}) {
+        // A lesson built by the one-ahead prefetch must not start another
+        // prefetch of its own. Without this guard, generating N+1 could
+        // recursively begin N+2 before the student had even reached N+1.
+        const allowNextLessonPrefetch = options.prefetchNext !== false;
         if (rec.type === 'day1') {
             // Deliberately NOT prefetching here (unlike a lesson opening,
             // which passes pretendEncodedNodeId specifically to account for
@@ -22224,7 +22220,10 @@ SQIDAQAB
         // Every subject with a real knowledge map is taught by derivation lessons: the lesson is a small game played inside the
         // feed, and finishing it teaches every concept of its stage at once (see sfBuildDerivationSlides). Economics' own stage id
         // is a bare index; any other subject's is generated on demand and carries a "g:..." string id instead (same shape either way).
-        if (lesson.derivation && (Number.isInteger(lesson.derivation.stage) || typeof lesson.derivation.stage === 'string')) return sfBuildDerivationSlides(rec, lesson.derivation.stage, lesson.derivation.payload);
+        if (lesson.derivation && (Number.isInteger(lesson.derivation.stage) || typeof lesson.derivation.stage === 'string')) {
+            if (allowNextLessonPrefetch) sfPrefetchNext(rec.node.id);
+            return sfBuildDerivationSlides(rec, lesson.derivation.stage, lesson.derivation.payload);
+        }
 
         // "Starting one lesson should trigger generation of the next" -
         // fires here, the moment THIS lesson's own content has loaded and
@@ -22232,7 +22231,7 @@ SQIDAQAB
         // answering it - see sfPrefetchNext's own comment on why
         // rec.node.id is passed through as the pretend-already-encoded
         // override that keeps this safe to do this early.
-        sfPrefetchNext(rec.node.id);
+        if (allowNextLessonPrefetch) sfPrefetchNext(rec.node.id);
 
         sfRecapNote(rec.node.label, lesson.explanation);
         const explEl = document.createElement('div');
@@ -22961,7 +22960,9 @@ SQIDAQAB
             try {
                 const rec = await sfNextRecommendationForCurrentFeed(currentNodeId);
                 if (!rec) return { rec: null, built: null };
-                const built = await sfBuildSlidesForRecommendation(rec);
+                // Strictly one lesson ahead: constructing this prefetched
+                // item cannot recursively schedule another one.
+                const built = await sfBuildSlidesForRecommendation(rec, { prefetchNext: false });
                 return { rec, built };
             } catch (err) {
                 // Never leave a rejected promise behind: the append step would
@@ -23152,7 +23153,7 @@ SQIDAQAB
             return [{ el, meta: { canAdvance: true, kind: 'handoff' } }];
         }
         // the version in the address makes a browser fetch the current player after each change instead of reusing an old copy
-        const DERIVE_PLAYER_VERSION = '20260921g';
+        const DERIVE_PLAYER_VERSION = '20260923a';
         el.innerHTML = `<iframe class="sf-derive-frame" src="/learn/derive/player.html?v=${DERIVE_PLAYER_VERSION}" title="Lesson"></iframe>`;
         const frame = el.querySelector('iframe');
         const meta = { canAdvance: false, kind: 'question', answered: false, nodeId: rec.node.id, derive: true };
@@ -23164,9 +23165,11 @@ SQIDAQAB
             cpKey = `lm-derive-cp:${cpSession ? cpSession.user.id : 'anon'}:${stage}`;
             checkpoint = JSON.parse(localStorage.getItem(cpKey) || 'null');
         } catch (err) { /* no storage: the lesson simply starts from the top */ }
-        // Outside Minimalist the lesson takes the page's own background, panel colour and text colour, as the sidebar does.
+        // The lesson always takes the same navy panel and cream text as the
+        // sidebar. Minimalist previously sent no palette at all, exposing
+        // the derivation player's pale default background inside the feed.
         const cs = getComputedStyle(document.documentElement);
-        const look = document.body.classList.contains('theme-minimal') ? null : { text: cs.getPropertyValue('--text').trim() || '#F1EAD6', rgb: cs.getPropertyValue('--panel-rgb').trim() || '18, 18, 30' };
+        const look = { text: cs.getPropertyValue('--text').trim() || '#F1EAD6', rgb: cs.getPropertyValue('--panel-rgb').trim() || '22, 32, 43' };
         const onMessage = async (e) => {
             if (connected && !el.isConnected) { window.removeEventListener('message', onMessage); return; }
             if (e.origin !== window.location.origin || e.source !== frame.contentWindow || !e.data) return;

@@ -139,9 +139,10 @@ button { font: inherit; color: inherit; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 
 [hidden] { display: none !important; }
-/* outside Minimalist the lesson takes the page background, panel colour and text colour */
-html[data-look="glass"], html[data-look="glass"] body { background: transparent; }
-html[data-look="glass"] { --ground: transparent; --panel: rgba(var(--pr), 0.32); --ink: var(--gtext); --muted: color-mix(in srgb, var(--gtext) 72%, transparent); --line: color-mix(in srgb, var(--gtext) 26%, transparent); --accent: var(--gtext); --accent-ink: rgb(var(--pr)); --edge: var(--gtext); --node-dash: color-mix(in srgb, var(--gtext) 45%, transparent); --hud: rgba(var(--pr), 0.94); }
+/* Embedded lessons are a full navy page, matching the sidebar. Keeping the
+   ground transparent exposed the feed's pale base layer around the lesson. */
+html[data-look="glass"], html[data-look="glass"] body { background: rgb(var(--pr)); }
+html[data-look="glass"] { --ground: rgb(var(--pr)); --panel: rgb(var(--pr)); --ink: var(--gtext); --muted: color-mix(in srgb, var(--gtext) 72%, transparent); --line: color-mix(in srgb, var(--gtext) 26%, transparent); --accent: var(--gtext); --accent-ink: rgb(var(--pr)); --edge: var(--gtext); --node-dash: color-mix(in srgb, var(--gtext) 45%, transparent); --hud: rgb(var(--pr)); }
 html[data-look="glass"] .milestone { background: var(--gtext); color: rgb(var(--pr)); }
 html[data-look="glass"] .svgwrap, html[data-look="glass"] .bank { background: rgba(var(--pr), 0.35); }
 
