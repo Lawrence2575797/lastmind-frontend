@@ -20637,8 +20637,9 @@ SQIDAQAB
             if (predecessorAdjacency.has(e.target)) predecessorAdjacency.get(e.target).push(e.source);
         });
 
+        const pretendEncodedNodeIds = new Set(Array.isArray(pretendEncodedNodeId) ? pretendEncodedNodeId : [pretendEncodedNodeId].filter(Boolean));
         function isNodeEncoded(nodeId) {
-            if (nodeId === pretendEncodedNodeId) return true;
+            if (pretendEncodedNodeIds.has(nodeId)) return true;
             const n = nodeById.get(nodeId);
             return !!n && (schedule.has(n.conceptId) || externallyCoveredNodeIds.has(nodeId));
         }
@@ -22221,7 +22222,16 @@ SQIDAQAB
         // feed, and finishing it teaches every concept of its stage at once (see sfBuildDerivationSlides). Economics' own stage id
         // is a bare index; any other subject's is generated on demand and carries a "g:..." string id instead (same shape either way).
         if (lesson.derivation && (Number.isInteger(lesson.derivation.stage) || typeof lesson.derivation.stage === 'string')) {
-            if (allowNextLessonPrefetch) sfPrefetchNext(rec.node.id);
+            // One derivation lesson can teach several map nodes. Pretend the
+            // whole generated stage is encoded when choosing N+1, otherwise
+            // the lookahead can select another node from N and cache the same
+            // lesson again. `nodes` are concept ids, so translate them back
+            // to this map's node ids before asking the recommendation engine.
+            const stageConceptIds = lesson.derivation.payload?.stage?.nodes || [];
+            const stageNodeIds = stageConceptIds.length
+                ? (await fetchSubjectKnowledgeMapWithRetry(rec.folder)).nodes.filter((n) => stageConceptIds.includes(n.conceptId)).map((n) => n.id)
+                : [rec.node.id];
+            if (allowNextLessonPrefetch) sfPrefetchNext(stageNodeIds.length ? stageNodeIds : [rec.node.id]);
             return sfBuildDerivationSlides(rec, lesson.derivation.stage, lesson.derivation.payload);
         }
 
@@ -23158,6 +23168,7 @@ SQIDAQAB
         const frame = el.querySelector('iframe');
         const meta = { canAdvance: false, kind: 'question', answered: false, nodeId: rec.node.id, derive: true };
         let connected = false;
+        let completionPromise = null;
         // Checkpoint: where this student got to in this lesson, kept on this device so leaving half way resumes at the same step.
         let cpKey = null, checkpoint = null;
         try {
@@ -23182,13 +23193,25 @@ SQIDAQAB
             } else if (e.data.type === 'lm-derive-complete' && !meta.answered) {
                 try { localStorage.removeItem(cpKey); } catch (err) { /* storage unavailable */ }
                 meta.answered = true;
-                const result = await sfPostBackend('/knowledge-map-v2/derivation/complete', { stage });
-                if (!result) { meta.answered = false; return; }
-                (result.schedules || []).forEach((sch) => sfUpsertScheduleCache(sch));
-                meta.canAdvance = true;
-                sfPrefetchNext(); sfRefreshImmediateRecalls(); sfRecapMaybeInsert();
+                completionPromise = (async () => {
+                    const result = await sfPostBackend('/knowledge-map-v2/derivation/complete', { stage });
+                    if (!result) { meta.answered = false; return false; }
+                    (result.schedules || []).forEach((sch) => sfUpsertScheduleCache(sch));
+                    meta.canAdvance = true;
+                    // Replace any early lookahead with one computed from the
+                    // now-authoritative completed-stage schedules. This also
+                    // guarantees Continue cannot consume a stale duplicate.
+                    if (sfFeed) sfFeed.prefetchPromise = null;
+                    sfPrefetchNext(); sfRefreshImmediateRecalls(); sfRecapMaybeInsert();
+                    return true;
+                })();
+                await completionPromise;
             } else if (e.data.type === 'lm-derive-continue' && meta.answered) {
-                sfAdvanceAfterCorrectAnswer();
+                // The player's Continue button can be clicked while the
+                // completion request is still saving. Wait for that save so
+                // the next recommendation is based on committed progress.
+                if (completionPromise) await completionPromise;
+                if (meta.answered && meta.canAdvance) sfAdvanceAfterCorrectAnswer();
             } else if (e.data.type === 'lm-derive-open-map') {
                 sfCloseFeed();
                 selectedFolderId = rec.folder.id;
