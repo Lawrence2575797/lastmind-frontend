@@ -48,91 +48,100 @@ grassMat.albedoColor = new BABYLON.Color3(0.16, 0.42, 0.18);
 grassMat.roughness = 1;
 grassMat.metallic = 0;
 const ground = BABYLON.MeshBuilder.CreateGround('ground', { width: 400, height: 400 }, scene);
+ground.position.y = -0.08; // sits just below the road tiles (both otherwise at y=0) to avoid z-fighting
 ground.material = grassMat;
 ground.receiveShadows = true;
 
-// --- Track path: an oval spline. Kept procedural (rather than chaining the kit's modular road tiles, whose exact
-// socket offsets aren't documented) so the drivable surface stays a smooth curve; the kit supplies the real 3D
-// dressing (barriers, grandstands, car) placed along that same spline. ---
-const R1 = 55, R2 = 30, N = 96, TRACK_HALF_WIDTH = 9, KERB_WIDTH = 1.6;
-function ringPoint(i) {
-  const a = (i / N) * Math.PI * 2;
-  const nx = Math.cos(a) / R1, nz = Math.sin(a) / R2;
-  const len = Math.hypot(nx, nz);
-  return { a, x: Math.cos(a) * R1, z: Math.sin(a) * R2, nx: nx / len, nz: nz / len, tx: -Math.sin(a) * R1, tz: Math.cos(a) * R2 };
+// --- Track: built entirely from the kit's own modular road tiles (not a hand-drawn ribbon), so the drivable surface,
+// kerbs, barriers, grandstands and car are all the same real asset kit and are guaranteed to actually fit together.
+// Tile sockets (entry at local origin heading -Z, corner exit/turn) were measured directly off the .glb geometry -
+// see the exit-face vertex probe used to derive CORNER_EXIT/CORNER_TURN below - not guessed from the bounding box.
+const STRAIGHT_LEN = 2.65;         // roadStraightLong.glb footprint depth (native kit units, pre-KIT_SCALE)
+const CORNER_EXIT = new BABYLON.Vector3(-1.65, 0, -2.15); // roadCornerLarge.glb: measured exit-face centre
+const CORNER_TURN = Math.PI / 2;
+const LONG_SIDE_TILES = 6, SHORT_SIDE_TILES = 2;
+
+function makeCursor() { return { pos: BABYLON.Vector3.Zero(), rot: 0 }; }
+function placeTile(file, cursor, opts = {}) {
+  const proto = tileProtos[file];
+  const inst = proto.clone(file + tileIndex++, null);
+  inst.setEnabled(true);
+  inst.scaling.setAll(KIT_SCALE);
+  inst.position = cursor.pos.scale(KIT_SCALE);
+  inst.rotation.y = cursor.rot;
+  inst.getChildMeshes().forEach(m => { shadowGen.addShadowCaster(m); m.receiveShadows = true; });
+  return inst;
 }
-function ribbonAtOffset(offsetIn, offsetOut, y) {
-  const path = [];
-  for (let i = 0; i <= N; i++) {
-    const p = ringPoint(i);
-    path.push({ inner: new BABYLON.Vector3(p.x + p.nx * offsetIn, y, p.z + p.nz * offsetIn),
-                outer: new BABYLON.Vector3(p.x + p.nx * offsetOut, y, p.z + p.nz * offsetOut) });
-  }
-  return [path.map(p => p.inner), path.map(p => p.outer)];
+function advanceStraight(cursor, len = STRAIGHT_LEN) {
+  const dir = new BABYLON.Vector3(Math.sin(cursor.rot), 0, Math.cos(cursor.rot));
+  cursor.pos.addInPlace(dir.scale(-len));
+}
+function advanceCorner(cursor) {
+  const world = BABYLON.Vector3.TransformCoordinates(CORNER_EXIT, BABYLON.Matrix.RotationY(cursor.rot));
+  cursor.pos.addInPlace(world);
+  cursor.rot += CORNER_TURN;
+}
+// Barrier/grandstand offsets are perpendicular to the tile's own heading, so they track the tile exactly - no
+// separate "track radius" guess that can drift out of sync with the actual paved surface.
+function sideOffset(cursor, distance) {
+  const side = new BABYLON.Vector3(Math.cos(cursor.rot), 0, -Math.sin(cursor.rot));
+  return cursor.pos.add(side.scale(distance)).scale(KIT_SCALE);
+}
+function placeDressing(file, worldPos, headingRot) {
+  const proto = tileProtos[file];
+  const inst = proto.clone(file + tileIndex++, null);
+  inst.setEnabled(true);
+  inst.scaling.setAll(KIT_SCALE);
+  inst.position = worldPos;
+  inst.rotation.y = headingRot;
+  inst.getChildMeshes().forEach(m => shadowGen.addShadowCaster(m));
 }
 
-const asphaltMat = new BABYLON.PBRMaterial('asphaltMat', scene);
-asphaltMat.albedoColor = new BABYLON.Color3(0.09, 0.09, 0.1);
-asphaltMat.roughness = 0.9;
-asphaltMat.metallic = 0;
-const [ai, ao] = ribbonAtOffset(-TRACK_HALF_WIDTH, TRACK_HALF_WIDTH, 0.02);
-const track = BABYLON.MeshBuilder.CreateRibbon('track', { pathArray: [ai, ao] }, scene);
-track.material = asphaltMat;
-track.receiveShadows = true;
-
-function kerbMaterial(name) {
-  const size = 256;
-  const dt = new BABYLON.DynamicTexture(name, { width: size, height: 32 }, scene, false);
-  const ctx = dt.getContext();
-  const stripes = 8;
-  for (let i = 0; i < stripes; i++) { ctx.fillStyle = i % 2 === 0 ? '#c81e1e' : '#f2f2f2'; ctx.fillRect((size / stripes) * i, 0, size / stripes, 32); }
-  dt.update();
-  const mat = new BABYLON.StandardMaterial(name + 'Mat', scene);
-  mat.diffuseTexture = dt;
-  mat.diffuseTexture.uScale = 24;
-  mat.specularColor = new BABYLON.Color3(0.05, 0.05, 0.05);
-  return mat;
+let tileIndex = 0;
+const tileProtos = {};
+async function loadProto(file) {
+  const result = await BABYLON.SceneLoader.ImportMeshAsync('', 'models/', file, scene);
+  result.meshes[0].setEnabled(false);
+  tileProtos[file] = result.meshes[0];
 }
-const kerbMat = kerbMaterial('kerb');
-[[-TRACK_HALF_WIDTH - KERB_WIDTH, -TRACK_HALF_WIDTH], [TRACK_HALF_WIDTH, TRACK_HALF_WIDTH + KERB_WIDTH]].forEach(([a, b], i) => {
-  const [ki, ko] = ribbonAtOffset(a, b, 0.03);
-  const kerb = BABYLON.MeshBuilder.CreateRibbon('kerb' + i, { pathArray: [ki, ko] }, scene);
-  kerb.material = kerbMat;
-});
 
-const checkerDt = new BABYLON.DynamicTexture('checker', { width: 128, height: 512 }, scene, false);
-const cctx = checkerDt.getContext();
-for (let r = 0; r < 8; r++) for (let c = 0; c < 2; c++) { cctx.fillStyle = (r + c) % 2 === 0 ? '#fff' : '#111'; cctx.fillRect(c * 64, r * 64, 64, 64); }
-checkerDt.update();
-const checkerMat = new BABYLON.StandardMaterial('checkerMat', scene);
-checkerMat.diffuseTexture = checkerDt;
-checkerMat.specularColor = new BABYLON.Color3(0, 0, 0);
-const startLine = BABYLON.MeshBuilder.CreatePlane('startLine', { width: TRACK_HALF_WIDTH * 2, height: 3 }, scene);
-startLine.rotation.x = Math.PI / 2;
-startLine.rotation.y = Math.PI / 2;
-startLine.position = new BABYLON.Vector3(R1, 0.04, 0);
-startLine.material = checkerMat;
+const trackReady = Promise.all(['roadStraightLong.glb', 'roadCornerLarge.glb', 'barrierWhite.glb', 'grandStand.glb'].map(loadProto))
+  .then(() => {
+    const cursor = makeCursor();
+    const startCursor = { pos: cursor.pos.clone(), rot: cursor.rot };
+    for (let side = 0; side < 2; side++) {
+      for (let i = 0; i < LONG_SIDE_TILES; i++) {
+        placeTile('roadStraightLong.glb', cursor);
+        if (i % 2 === 0) { placeDressing('barrierWhite.glb', sideOffset(cursor, -1.9), cursor.rot); placeDressing('barrierWhite.glb', sideOffset(cursor, 1.9), cursor.rot); }
+        if (i % 3 === 0) placeDressing('grandStand.glb', sideOffset(cursor, 6), cursor.rot + Math.PI);
+        advanceStraight(cursor);
+      }
+      placeTile('roadCornerLarge.glb', cursor);
+      advanceCorner(cursor);
+      for (let i = 0; i < SHORT_SIDE_TILES; i++) {
+        placeTile('roadStraightLong.glb', cursor);
+        placeDressing('barrierWhite.glb', sideOffset(cursor, -1.9), cursor.rot);
+        placeDressing('barrierWhite.glb', sideOffset(cursor, 1.9), cursor.rot);
+        advanceStraight(cursor);
+      }
+      placeTile('roadCornerLarge.glb', cursor);
+      advanceCorner(cursor);
+    }
 
-// --- Real 3D dressing from the kit: barriers hugging both edges, grandstands set back along the main straight. ---
-async function scatterAlongTrack(file, { offset, everyN, yOffset = 0, scale = KIT_SCALE, faceOutward = false }) {
-  const proto = await BABYLON.SceneLoader.ImportMeshAsync('', 'models/', file, scene);
-  proto.meshes[0].setEnabled(false);
-  for (let i = 0; i < N; i += everyN) {
-    const p = ringPoint(i);
-    const inst = proto.meshes[0].clone(file + i, null);
-    inst.setEnabled(true);
-    inst.scaling.setAll(scale);
-    inst.position = new BABYLON.Vector3(p.x + p.nx * offset, yOffset, p.z + p.nz * offset);
-    const heading = Math.atan2(p.tx, p.tz) + (faceOutward ? Math.PI / 2 : 0);
-    inst.rotation.y = heading;
-    inst.getChildMeshes().forEach(m => shadowGen.addShadowCaster(m));
-  }
-}
-const dressingReady = Promise.all([
-  scatterAlongTrack('barrierWhite.glb', { offset: -(TRACK_HALF_WIDTH + KERB_WIDTH + 1), everyN: 3 }),
-  scatterAlongTrack('barrierWhite.glb', { offset: TRACK_HALF_WIDTH + KERB_WIDTH + 1, everyN: 3 }),
-  scatterAlongTrack('grandStand.glb', { offset: TRACK_HALF_WIDTH + KERB_WIDTH + 6, everyN: 6, faceOutward: true }),
-]);
+    const checkerDt = new BABYLON.DynamicTexture('checker', { width: 128, height: 512 }, scene, false);
+    const cctx = checkerDt.getContext();
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 2; c++) { cctx.fillStyle = (r + c) % 2 === 0 ? '#fff' : '#111'; cctx.fillRect(c * 64, r * 64, 64, 64); }
+    checkerDt.update();
+    const checkerMat = new BABYLON.StandardMaterial('checkerMat', scene);
+    checkerMat.diffuseTexture = checkerDt;
+    checkerMat.specularColor = new BABYLON.Color3(0, 0, 0);
+    const startLine = BABYLON.MeshBuilder.CreatePlane('startLine', { width: 4, height: 2 }, scene);
+    startLine.rotation.x = Math.PI / 2;
+    startLine.position = startCursor.pos.scale(KIT_SCALE).add(new BABYLON.Vector3(0, 0.03, -STRAIGHT_LEN * KIT_SCALE * 0.5));
+    startLine.material = checkerMat;
+
+    return startCursor;
+  });
 
 // --- Car: the real modelled/textured raceCar asset, not a hand-built shape. Wheel nodes come in already named and
 // correctly offset (wheelFrontLeft/Right, wheelBackLeft/Right), so steering and rolling reuse them directly. ---
@@ -147,9 +156,21 @@ const carReady = BABYLON.SceneLoader.ImportMeshAsync('', 'models/', carFile, sce
   wheelNodes = { fl: byName('wheelFrontLeft'), fr: byName('wheelFrontRight'), bl: byName('wheelBackLeft'), br: byName('wheelBackRight') };
 });
 
-const START = new BABYLON.Vector3(R1, 0, 0);
+// Tiles pave toward local -Z from the start cursor (rot 0), so the car - whose own forward is local +Z - must start
+// facing rot = PI to actually drive onto the paved surface instead of immediately reversing off it.
+let START = BABYLON.Vector3.Zero();
+let START_ROT = Math.PI;
 car.position.copyFrom(START);
-car.rotation.y = Math.PI / 2;
+car.rotation.y = START_ROT;
+trackReady.then(startCursor => {
+  START_ROT = startCursor.rot + Math.PI;
+  const forward0 = new BABYLON.Vector3(Math.sin(START_ROT), 0, Math.cos(START_ROT));
+  // The car model's own origin sits at its nose, not its centre, so spawning exactly on the tile edge leaves most
+  // of the car hanging back over the grass before the track starts - push the spawn point forward onto the tile.
+  START = startCursor.pos.scale(KIT_SCALE).add(forward0.scale(4));
+  car.position.copyFrom(START);
+  car.rotation.y = START_ROT;
+});
 
 // --- Camera: low chase cam sitting just behind and above the car, matching a typical racing-game framing. ---
 let camMode = 0;
@@ -218,7 +239,7 @@ engine.runRenderLoop(() => {
 
   document.getElementById('speed').textContent = Math.round(Math.abs(speed) * 3.6);
 
-  if (keys['r']) { car.position.copyFrom(START); car.rotation.y = Math.PI / 2; speed = 0; steerAngle = 0; }
+  if (keys['r']) { car.position.copyFrom(START); car.rotation.y = START_ROT; speed = 0; steerAngle = 0; }
 
   scene.render();
 });
