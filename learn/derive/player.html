@@ -40,6 +40,11 @@ button { font: inherit; color: inherit; }
 .card { width: min(760px, 100%); display: grid; gap: 22px; }
 .eyebrow { font: 600 12px var(--sans); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 .big { font-size: clamp(26px, 5vw, 40px); line-height: 1.25; margin: 0; text-wrap: balance; font-weight: 400; }
+/* A bounded, book-like card for longer explanatory text (buildRead, the derive-intro walkthrough) - kept visually
+   distinct from .big (used for short punchy prompts/titles, which stay large on purpose) so a paragraph of prose
+   reads like a passage in a box rather than a giant headline sprawled across the page. */
+.readcard { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 26px 30px; max-width: 620px; }
+.readtext { font-size: 19px; line-height: 1.65; margin: 0; text-align: left; font-weight: 400; }
 .hint { font: 500 13px var(--sans); color: var(--muted); }
 .hint b { color: var(--accent); }
 .down { font: 600 13px var(--sans); color: var(--muted); animation: nudge 1.6s ease-in-out infinite; }
@@ -260,7 +265,7 @@ window.__runDerive = function (D, CP) {
   }
 
   function buildRead(step) {
-    var wrap = stack('<div class="eyebrow">Read</div><p class="big">' + step.text + termHtmlAs(step.term, labelAfter(step.text, TERMS[step.term].t), 'pop') + '.</p><button type="button" class="nextbtn">Next ↓</button>');
+    var wrap = stack('<div class="eyebrow">Read</div><div class="readcard"><p class="readtext">' + step.text + termHtmlAs(step.term, labelAfter(step.text, TERMS[step.term].t), 'pop') + '.</p></div><button type="button" class="nextbtn">Next ↓</button>');
     var s = slide(wrap), done = false;
     var advance = function () { if (done) return; done = true; io.disconnect(); chunk(step.term); next(false); };
     var io = new IntersectionObserver(function (es) {
@@ -504,7 +509,9 @@ window.__runDerive = function (D, CP) {
     var sw = el('div', 'svgwrap'), svg = document.createElementNS(NS, 'svg'); sw.appendChild(svg);
     wrap.appendChild(sw);
     graph(svg, g, { uid: 'di' + stageIdx, filled: true, animate: true });
-    if (paras) paras.forEach(function (text) { var p = el('p', 'big'); p.style.textAlign = 'left'; p.textContent = text; wrap.appendChild(p); });
+    if (paras) paras.forEach(function (text) {
+      var box = el('div', 'readcard'), p = el('p', 'readtext'); p.textContent = text; box.appendChild(p); wrap.appendChild(box);
+    });
     var btn = el('button', 'nextbtn', 'Now try it yourself ↓'); btn.type = 'button';
     wrap.appendChild(btn);
     slide(wrap);
