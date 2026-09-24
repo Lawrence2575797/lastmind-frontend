@@ -64,6 +64,11 @@ button { font: inherit; color: inherit; }
 @keyframes shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
 .reveal { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: clamp(22px, 4vw, 30px); }
 .note { font: 500 14px var(--sans); color: var(--bad); min-height: 1.4em; }
+/* Free-text 'explain' step: the student writes their own answer before it's revealed - self-graded (no backend
+   call), but still requires production, not just recognition. */
+.explainbox { width: 100%; min-height: 120px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font: 400 16px var(--sans); padding: 14px 16px; resize: vertical; }
+.explainbox:focus { outline: 2px solid var(--accent); }
+.modelanswer .eyebrow { color: var(--good); }
 
 .milestone { display: inline-flex; align-items: center; gap: 8px; width: fit-content; padding: 5px 12px; border-radius: 999px; font: 600 12px var(--sans); letter-spacing: 0.08em; text-transform: uppercase; background: var(--accent); color: var(--accent-ink); }
 .slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
@@ -255,7 +260,7 @@ window.__runDerive = function (D, CP) {
   }
 
   function buildTitle() {
-    var st = STAGES[stageIdx], count = script().filter(function (s) { return (s.type === 'read' || s.type === 'ask') && s.term; }).length;
+    var st = STAGES[stageIdx], count = script().filter(function (s) { return (s.type === 'read' || s.type === 'ask' || s.type === 'explain') && s.term; }).length;
     var builds = st.builds.length ? st.builds.map(function (k) { return termHtml(k); }).join(' ') : '<span class="hint">nothing: this is where the course starts</span>';
     var wrap = stack('<span class="milestone">Lesson' + '</span><h2 class="title">' + st.title + '</h2><p class="big sub">' + st.sub + '</p>' +
       '<div class="facts"><div><span class="eyebrow">Builds on</span><div class="chips">' + builds + '</div></div><div><span class="eyebrow">You will derive</span><div class="hint">' + count + ' key terms, in chunks of no more than four</div></div></div><div class="down">Scroll ↓</div>');
@@ -520,6 +525,29 @@ window.__runDerive = function (D, CP) {
     btn.addEventListener('click', function () { buildDeriveInteractive(step); setTimeout(scrollToLast, 60); });
   }
 
+  // Free-text alternative to the drag-and-drop "derive" milestone - variety at the end of a lesson instead of
+  // always the same interaction, and better suited to a causal/evaluative idea ("why did X differ from Y") than to
+  // forcing it through the same graph-filling puzzle used for a straightforward chain of definitions. Self-graded:
+  // the student must write their own attempt BEFORE the model answer appears (still active production, no
+  // recognition shortcut), then judges their own answer against it rather than this calling out to an AI grader.
+  function buildExplain(step) {
+    var wrap = stack('<span class="milestone">' + (step.title || 'Explain it yourself') + '</span><p class="big">' + step.prompt + '</p>');
+    var box = el('textarea', 'explainbox'); box.placeholder = 'Write your answer here first — the model answer only appears once you have had a go.';
+    var btn = el('button', 'btn', 'Show model answer'); btn.type = 'button';
+    var modelWrap = el('div', 'readcard modelanswer'); modelWrap.hidden = true;
+    modelWrap.innerHTML = '<div class="eyebrow">Model answer</div><p class="readtext"></p>';
+    modelWrap.querySelector('.readtext').textContent = step.model;
+    var nextBtn = el('button', 'nextbtn', 'Continue ↓'); nextBtn.type = 'button'; nextBtn.hidden = true;
+    wrap.appendChild(box); wrap.appendChild(btn); wrap.appendChild(modelWrap); wrap.appendChild(nextBtn);
+    slide(wrap);
+    btn.addEventListener('click', function () {
+      modelWrap.hidden = false; btn.hidden = true; nextBtn.hidden = false;
+      if (step.term) chunk(step.term);
+      setTimeout(scrollToLast, 60);
+    });
+    nextBtn.addEventListener('click', function () { next(false); setTimeout(scrollToLast, 60); });
+  }
+
   function buildDeriveInteractive(step) {
     var st = STAGES[stageIdx], g = st.graph;
     var wrap = stack('<span class="milestone">' + step.title + '</span><p class="big">' + step.prompt + '</p>');
@@ -774,7 +802,7 @@ window.__runDerive = function (D, CP) {
     if (!window.__reported) { window.__reported = true; try { parent.postMessage({ type: 'lm-derive-complete' }, location.origin); } catch (e) { /* standalone */ } }
   }
 
-  var BUILDERS = { title: buildTitle, read: buildRead, ask: buildAsk, order: buildOrder, chains: buildChains, derive: buildDerive, done: buildDone };
+  var BUILDERS = { title: buildTitle, read: buildRead, ask: buildAsk, order: buildOrder, chains: buildChains, derive: buildDerive, explain: buildExplain, done: buildDone };
   if (typeof buildShow === 'function') BUILDERS.show = buildShow;
   if (typeof buildDraw === 'function') BUILDERS.draw = buildDraw;
   function startStage(n) {
