@@ -169,6 +169,22 @@ html[data-look="glass"] .svgwrap, html[data-look="glass"] .bank { background: rg
 .opt::before { counter-increment: opt; content: counter(opt, upper-alpha); flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; font: 700 13px var(--sans); color: var(--accent-ink); background: var(--accent); }
 .opt.right::before { background: var(--good); color: #fff; } .opt.wrong::before { background: var(--bad); color: #fff; }
 .nextbtn { justify-self: start; border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 999px; padding: 8px 16px; font: 600 13px var(--sans); cursor: pointer; } .nextbtn:hover { border-color: var(--accent); color: var(--ink); } .tray { display: none !important; } .feed { padding-bottom: 0; overflow-x: hidden; scroll-snap-type: y proximity; } html, body { overflow: hidden; height: 100%; } .svgwrap, .bank, .slots, .lanes { scrollbar-width: none; } .svgwrap::-webkit-scrollbar, .bank::-webkit-scrollbar, .slots::-webkit-scrollbar, .lanes::-webkit-scrollbar { display: none; }
+
+/* the maths tool: a numeric keypad for a calculation step, instead of picking between two options - real typeset
+   exponents/fractions/greek letters come from mathify() reformatting the authored plain-text (K^0.5, dQ/dK, lambda, ...) */
+.mfrac { display: inline-flex; flex-direction: column; vertical-align: middle; text-align: center; line-height: 1.05; margin: 0 2px; font-style: italic; }
+.mfrac .n, .mfrac .d { padding: 0 2px; }
+.mfrac .n { border-bottom: 1.4px solid currentColor; }
+.calcpad { display: grid; gap: 14px; max-width: 360px; }
+.calcdisplay { font: 600 26px var(--mono, monospace); background: var(--panel); border: 1.5px solid var(--line); border-radius: 14px; padding: 14px 18px; min-height: 30px; color: var(--ink); letter-spacing: .02em; transition: border-color .15s; }
+.calcdisplay .ph { color: var(--muted); font-weight: 400; }
+.calcdisplay.wrong { border-color: var(--bad); animation: shake .4s; }
+.calcdisplay.right { border-color: var(--good); }
+.keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.key { font: 600 17px var(--sans); padding: 14px 0; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+.key:hover { border-color: var(--accent); }
+.key.wide { grid-column: span 2; }
+.key.go { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 </style>
 
 <header class="hud">
@@ -228,6 +244,23 @@ window.__runDerive = function (D, CP) {
   }
   function termHtmlAs(k, text, extra) { return '<span class="term ' + (extra || '') + '" style="--tc:' + TERMS[k].c + '">' + text + '</span>'; }
   function termHtml(k, extra) { return '<span class="term ' + (extra || '') + '" style="--tc:' + TERMS[k].c + '">' + TERMS[k].t + '</span>'; }
+  /* typesets the plain-text maths conventions authored content uses (K^0.5, dQ/dK, lambda, sqrt(4), px) into real
+     superscripts, a stacked fraction and proper symbols, so a question reads like real maths instead of source code. */
+  function mathify(s) {
+    if (!s) return s;
+    return String(s)
+      // simple first-order fractions (dQ/dK, dy/dx, dπ/dQ) first, while the text is still plain - a "d^2Q/dK^2"
+      // second-order form never matches this (the letter right after "d" would be a digit/caret instead)
+      .replace(/\bd([A-Za-zπΔλ][A-Za-z0-9]*)\s*\/\s*d([A-Za-zπΔλ][A-Za-z0-9]*)\b/g,
+        '<span class="mfrac"><span class="n">d$1</span><span class="d">d$2</span></span>')
+      .replace(/\^\((-?[0-9.]+)\)/g, '<sup>$1</sup>')
+      .replace(/\^(-?[0-9.]+)/g, '<sup>$1</sup>')
+      .replace(/\blambda\*/gi, 'λ*').replace(/\blambda\b/gi, 'λ')
+      .replace(/\bDelta\s*([A-Za-z])/g, 'Δ$1')
+      .replace(/\bpi\b(?=\s*[\(\s])/gi, 'π')
+      .replace(/\bsqrt\(([^)]+)\)/gi, '√($1)')
+      .replace(/\bp([xy])\b/g, 'p<sub>$1</sub>');
+  }
   function shuffle(a) { var b = a.slice(); for (var i = b.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = b[i]; b[i] = b[j]; b[j] = t; } if (b.join() === a.join() && b.length > 2) b.push(b.shift()); return b; }
   function script() { return STAGES[stageIdx].script; }
 
@@ -260,7 +293,7 @@ window.__runDerive = function (D, CP) {
   }
 
   function buildTitle() {
-    var st = STAGES[stageIdx], count = script().filter(function (s) { return (s.type === 'read' || s.type === 'ask' || s.type === 'explain') && s.term; }).length;
+    var st = STAGES[stageIdx], count = script().filter(function (s) { return (s.type === 'read' || s.type === 'ask' || s.type === 'calc' || s.type === 'explain') && s.term; }).length;
     var builds = st.builds.length ? st.builds.map(function (k) { return termHtml(k); }).join(' ') : '<span class="hint">nothing: this is where the course starts</span>';
     var wrap = stack('<span class="milestone">Lesson' + '</span><h2 class="title">' + st.title + '</h2><p class="big sub">' + st.sub + '</p>' +
       '<div class="facts"><div><span class="eyebrow">Builds on</span><div class="chips">' + builds + '</div></div><div><span class="eyebrow">You will derive</span><div class="hint">' + count + ' key terms, in chunks of no more than four</div></div></div><div class="down">Scroll ↓</div>');
@@ -270,7 +303,7 @@ window.__runDerive = function (D, CP) {
   }
 
   function buildRead(step) {
-    var wrap = stack('<div class="eyebrow">Read</div><div class="readcard"><p class="readtext">' + step.text + termHtmlAs(step.term, labelAfter(step.text, TERMS[step.term].t), 'pop') + '.</p></div><button type="button" class="nextbtn">Next ↓</button>');
+    var wrap = stack('<div class="eyebrow">Read</div><div class="readcard"><p class="readtext">' + mathify(step.text) + termHtmlAs(step.term, labelAfter(step.text, TERMS[step.term].t), 'pop') + '.</p></div><button type="button" class="nextbtn">Next ↓</button>');
     var s = slide(wrap), done = false;
     var advance = function () { if (done) return; done = true; io.disconnect(); chunk(step.term); next(false); };
     var io = new IntersectionObserver(function (es) {
@@ -281,23 +314,67 @@ window.__runDerive = function (D, CP) {
   }
 
   function buildAsk(step) {
-    var wrap = stack('<div class="eyebrow">What follows?</div><div class="qbox"><p class="big">' + step.q + '</p></div>');
+    var wrap = stack('<div class="eyebrow">What follows?</div><div class="qbox"><p class="big">' + mathify(step.q) + '</p></div>');
     if (step.fig && typeof miniFigure === 'function') wrap.appendChild(miniFigure(step.fig));
     if (step.diagram) wrap.appendChild(diagramEl(step.diagram));
     var opts = el('div', 'opts'), note = el('div', 'note'), out = el('div', 'reveal'); out.hidden = true;
     (Math.random() < 0.5 ? [0, 1] : [1, 0]).forEach(function (i) {
-      var b = el('button', 'opt', step.opts[i]); b.type = 'button';
+      var b = el('button', 'opt', mathify(step.opts[i])); b.type = 'button';
       b.addEventListener('click', function () {
         if (i !== step.ok) { sfxBad(); b.classList.add('wrong'); note.textContent = step.hint; setTimeout(function () { b.classList.remove('wrong'); }, 500); return; }
         sfxOk(); b.classList.add('right'); note.textContent = '';
         Array.prototype.forEach.call(opts.children, function (o) { o.disabled = true; });
-        out.hidden = false; out.innerHTML = '<span>' + step.pre + '</span>' + termHtmlAs(step.term, labelAfter(step.pre, TERMS[step.term].t), 'pop');
+        out.hidden = false; out.innerHTML = '<span>' + mathify(step.pre) + '</span>' + termHtmlAs(step.term, labelAfter(step.pre, TERMS[step.term].t), 'pop');
         chunk(step.term);
         setTimeout(function () { next(true); }, 1500);
       });
       opts.appendChild(b);
     });
     wrap.appendChild(opts); wrap.appendChild(note); wrap.appendChild(out);
+    slide(wrap);
+  }
+
+  /* the maths tool: a numeric keypad instead of two options, for a step that has a genuine computed answer
+     (step.answer, optionally step.tol - default 0.01) rather than a reasoning choice. */
+  function buildCalc(step) {
+    var wrap = stack('<div class="eyebrow">Work it out</div><div class="qbox"><p class="big">' + mathify(step.q) + '</p></div>');
+    var pad = el('div', 'calcpad');
+    var disp = el('div', 'calcdisplay', '<span class="ph">answer</span>');
+    var keys = el('div', 'keys');
+    var note = el('div', 'note'), out = el('div', 'reveal'); out.hidden = true;
+    var buf = '', solved = false;
+    function paint() { disp.innerHTML = buf ? buf.replace(/-/g, '−') : '<span class="ph">answer</span>'; }
+    [['7', '8', '9', '⌫'], ['4', '5', '6', '−'], ['1', '2', '3', '.'], ['0']].forEach(function (row) {
+      row.forEach(function (k) {
+        var b = el('button', 'key' + (k === '0' ? ' wide' : ''), k); b.type = 'button';
+        b.addEventListener('click', function () {
+          if (solved) return;
+          if (k === '⌫') buf = buf.slice(0, -1);
+          else if (k === '−') { if (buf.indexOf('-') !== 0) buf = '-' + buf; }
+          else buf += k;
+          paint();
+        });
+        keys.appendChild(b);
+      });
+    });
+    var go = el('button', 'key go wide', 'Check'); go.type = 'button';
+    go.addEventListener('click', function () {
+      if (solved) return;
+      var val = parseFloat(buf), tol = step.tol != null ? step.tol : 0.01;
+      if (!isNaN(val) && Math.abs(val - step.answer) <= tol) {
+        solved = true; sfxOk(); disp.classList.add('right'); note.textContent = '';
+        Array.prototype.forEach.call(keys.children, function (b) { b.disabled = true; });
+        out.hidden = false; out.innerHTML = '<span>' + mathify(step.pre) + '</span>' + termHtmlAs(step.term, labelAfter(step.pre, TERMS[step.term].t), 'pop');
+        chunk(step.term);
+        setTimeout(function () { next(true); }, 1500);
+      } else {
+        sfxBad(); disp.classList.add('wrong'); note.textContent = step.hint;
+        setTimeout(function () { disp.classList.remove('wrong'); }, 500);
+      }
+    });
+    keys.appendChild(go);
+    pad.appendChild(disp); pad.appendChild(keys);
+    wrap.appendChild(pad); wrap.appendChild(note); wrap.appendChild(out);
     slide(wrap);
   }
 
@@ -554,11 +631,11 @@ window.__runDerive = function (D, CP) {
   // anything is confirmed), just comparing two already-introduced terms instead of revealing a new one - so it
   // doesn't call chunk() on success, only advances.
   function buildRecap(step) {
-    var wrap = stack('<div class="eyebrow">Quick check</div><div class="qbox"><p class="big">' + step.q + '</p></div>');
+    var wrap = stack('<div class="eyebrow">Quick check</div><div class="qbox"><p class="big">' + mathify(step.q) + '</p></div>');
     var opts = el('div', 'opts'), note = el('div', 'note'), out = el('div', 'reveal'); out.hidden = true;
     var options = [step.right, step.wrong];
     (Math.random() < 0.5 ? [0, 1] : [1, 0]).forEach(function (i) {
-      var b = el('button', 'opt', options[i]); b.type = 'button';
+      var b = el('button', 'opt', mathify(options[i])); b.type = 'button';
       b.addEventListener('click', function () {
         if (i !== 0) { sfxBad(); b.classList.add('wrong'); note.textContent = step.hint; setTimeout(function () { b.classList.remove('wrong'); }, 500); return; }
         sfxOk(); b.classList.add('right'); note.textContent = '';
@@ -826,7 +903,7 @@ window.__runDerive = function (D, CP) {
     if (!window.__reported) { window.__reported = true; try { parent.postMessage({ type: 'lm-derive-complete' }, location.origin); } catch (e) { /* standalone */ } }
   }
 
-  var BUILDERS = { title: buildTitle, read: buildRead, ask: buildAsk, order: buildOrder, chains: buildChains, recap: buildRecap, derive: buildDerive, explain: buildExplain, done: buildDone };
+  var BUILDERS = { title: buildTitle, read: buildRead, ask: buildAsk, calc: buildCalc, order: buildOrder, chains: buildChains, recap: buildRecap, derive: buildDerive, explain: buildExplain, done: buildDone };
   if (typeof buildShow === 'function') BUILDERS.show = buildShow;
   if (typeof buildDraw === 'function') BUILDERS.draw = buildDraw;
   function startStage(n) {
