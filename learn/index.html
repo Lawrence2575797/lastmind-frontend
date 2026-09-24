@@ -21466,9 +21466,9 @@ SQIDAQAB
         return { incompleteText: 'Type the missing term first.', getAnswer: () => { const a = inner.getAnswer(); return a ? { answer: a.answers[0], gaveUp: !!a.gaveUp } : null; }, setDisabled: inner.setDisabled, clearDraft: inner.clearDraft, showResult: (res) => inner.showResult({ correct: res.correct, detail: [!!res.correct] }) };
     }
 
-    function qzAttachDontKnow(input, parent, onChange) {
+    function qzAttachDontKnow(input, parent, onChange, initialLetterHint) {
         const btn = document.createElement('button');
-        btn.type = 'button'; btn.className = 'qz-dont-know'; btn.title = "I don't know"; btn.setAttribute('aria-label', "I don't know this box");
+        btn.type = 'button'; btn.className = 'qz-dont-know'; btn.title = "I don't know — reveal first letters"; btn.setAttribute('aria-label', "I don't know this box — reveal the first letter of each word");
         btn.innerHTML = '<span aria-hidden="true">?</span><span class="qz-dont-know-key" aria-hidden="true">🔑</span>';
         btn.addEventListener('click', () => {
             input.value = '';
@@ -21476,10 +21476,11 @@ SQIDAQAB
             input.disabled = true;
             input.classList.remove('bad');
             input.classList.add('qz-skipped');
-            input.placeholder = "I don't know";
+            input.placeholder = initialLetterHint || "I don't know";
             btn.disabled = true;
             if (onChange) onChange();
         });
+        input.dataset.dontKnowHint = initialLetterHint || '';
         input._dontKnowButton = btn;
         parent.appendChild(btn);
         return btn;
@@ -21511,7 +21512,7 @@ SQIDAQAB
             input.dataset.gaveUp = 'true';
             input.disabled = true;
             input.classList.add('qz-skipped');
-            input.placeholder = "I don't know";
+            input.placeholder = input.dataset.dontKnowHint || "I don't know";
             if (input._dontKnowButton) input._dontKnowButton.disabled = true;
         } else if (typeof value === 'string') {
             input.value = value;
@@ -21569,7 +21570,7 @@ SQIDAQAB
             if (i < all.length - 1) {
                 const el = document.createElement('input'); el.type = 'text'; el.className = 'qz-blank'; el.autocomplete = 'off'; el.spellcheck = false; el.setAttribute('aria-label', 'Blank ' + (i + 1));
                 el.addEventListener('input', () => { el.classList.remove('bad'); changed(); });
-                inputs.push(el); locked.push(false); doc.appendChild(el); qzAttachDontKnow(el, doc, changed);
+                inputs.push(el); locked.push(false); doc.appendChild(el); qzAttachDontKnow(el, doc, changed, q.hints?.[i]);
             }
         });
         host.appendChild(doc);
@@ -21632,7 +21633,8 @@ SQIDAQAB
             const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'qz-blank qz-diagram-input'; inp.autocomplete = 'off'; inp.spellcheck = false;
             inp.setAttribute('aria-label', 'Diagram box');
             inp.addEventListener('input', () => { inp.classList.remove('bad'); changed(); });
-            box.appendChild(inp); qzAttachDontKnow(inp, box, changed); overlay.appendChild(box);
+            const hintIndex = order.indexOf(n.id);
+            box.appendChild(inp); qzAttachDontKnow(inp, box, changed, hintIndex >= 0 ? q.hints?.[hintIndex] : ''); overlay.appendChild(box);
             inputs[n.id] = inp; locked[n.id] = false;
         });
         wrap.appendChild(svg); wrap.appendChild(overlay);
@@ -21695,7 +21697,7 @@ SQIDAQAB
             const badge = document.createElement('span'); badge.className = 'qz-n'; badge.textContent = i + 1;
             const el = document.createElement('input'); el.type = 'text'; el.className = 'qz-stepinput'; el.autocomplete = 'off'; el.placeholder = 'Step ' + (i + 1); el.setAttribute('aria-label', 'Step ' + (i + 1));
             el.addEventListener('input', () => { el.classList.remove('bad'); changed(); });
-            row.appendChild(badge); row.appendChild(el); inputs.push(el); locked.push(false); qzAttachDontKnow(el, row, changed); wrap.appendChild(row);
+            row.appendChild(badge); row.appendChild(el); inputs.push(el); locked.push(false); qzAttachDontKnow(el, row, changed, q.hints?.[i]); wrap.appendChild(row);
         }
         host.appendChild(wrap);
         const draft = qzLoadDraft(q);
