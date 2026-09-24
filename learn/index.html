@@ -22218,13 +22218,16 @@ SQIDAQAB
             // AFTER the real resolve completes) is what correctly prefetches
             // this - this early call just raced it and lost, showing up as
             // the same question appearing twice in a row.
-            // Every due check for this subject goes in as one batch (they are already
+            // Every due check for this COURSE goes in as one batch (they are already
             // ordered and carry their question text). Building them one at a time meant
             // recomputing the whole recommendation - map, pending/completed lists, every
             // due check - between each answer, which is what made scrolling on so slow.
             // Only the last slide starts the next prefetch, so the stale-recommendation
             // race described above cannot recur.
-            const others = (await sfFetchDueDay1Checks()).filter((c) => c.subject === rec.check.subject && c.checkId !== rec.check.checkId);
+            // Matched on qualification/examBoard too, not just subject - a real reported bug: two courses that
+            // happen to share a bare subject name (e.g. Economics A-Level and Economics Undergraduate Year 1) were
+            // being batched together as if they were one course, showing one's checks jammed in among the other's.
+            const others = (await sfFetchDueDay1Checks()).filter((c) => c.subject === rec.check.subject && c.qualification === rec.check.qualification && c.examBoard === rec.check.examBoard && c.checkId !== rec.check.checkId);
             const batch = [rec.check, ...others];
             return batch.map((c, i) => sfBuildDay1CheckSlide(c, i === batch.length - 1));
         }
@@ -22588,9 +22591,17 @@ SQIDAQAB
         });
     }
 
+    // Two courses can share a bare subject name (e.g. Economics A-Level vs Economics Undergraduate Year 1) - a real
+    // reported bug was these showing as indistinguishable "Day-1 check · Economics" slides back to back, reading as
+    // one course's checks bleeding into a completely different one. check.qualification already comes back from
+    // GET /day1-checks/due (see knowledgeMap.ts's withDisplay); this just stops dropping it on the floor.
+    function sfDay1CheckLabel(check) {
+        return check.qualification ? `Day-1 check · ${escapeHtml(check.subject)} (${escapeHtml(check.qualification)})` : `Day-1 check · ${escapeHtml(check.subject)}`;
+    }
+
     function sfBuildDay1CheckSlide(check, isLastInBatch = true) {
         if (qzIsInteractive(check)) {
-            const iEl = sfInteractiveSlideEl(`Day-1 check · ${escapeHtml(check.subject)}`, check);
+            const iEl = sfInteractiveSlideEl(sfDay1CheckLabel(check), check);
             const iMeta = { canAdvance: false, kind: 'day1', answered: false, noBack: true, nodeId: check.nodeId };
             let retried = false;
             const finish = () => { iMeta.answered = true; iMeta.canAdvance = true; sfShowAdvanceHint(iEl); if (isLastInBatch) sfPrefetchNext(); };
@@ -22614,7 +22625,7 @@ SQIDAQAB
         el.className = 'sf-feed-slide';
         el.innerHTML = `
             <div class="sf-slide-inner">
-                <div class="sf-slide-subject">Day-1 check · ${escapeHtml(check.subject)}</div>
+                <div class="sf-slide-subject">${sfDay1CheckLabel(check)}</div>
                 <div class="sf-speaker-label">Cortex asks</div>
                 <p class="sf-question-text">${escapeHtml(check.questionText)}</p>
                 <textarea class="sf-question-input" rows="3" placeholder="Your answer" autocomplete="off"></textarea>
