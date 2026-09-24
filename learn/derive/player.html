@@ -548,6 +548,30 @@ window.__runDerive = function (D, CP) {
     nextBtn.addEventListener('click', function () { next(false); setTimeout(scrollToLast, 60); });
   }
 
+  // Alternative chunk-closing milestone for terms that genuinely do NOT build on each other or converge (see
+  // prompt.js's "NO FORCED LINK" rule) - forcing the order/chains drag puzzle onto unrelated facts would claim a
+  // sequence or convergence that isn't real. Same ask-style mechanic as buildAsk (pick the right implication before
+  // anything is confirmed), just comparing two already-introduced terms instead of revealing a new one - so it
+  // doesn't call chunk() on success, only advances.
+  function buildRecap(step) {
+    var wrap = stack('<div class="eyebrow">Quick check</div><div class="qbox"><p class="big">' + step.q + '</p></div>');
+    var opts = el('div', 'opts'), note = el('div', 'note'), out = el('div', 'reveal'); out.hidden = true;
+    var options = [step.right, step.wrong];
+    (Math.random() < 0.5 ? [0, 1] : [1, 0]).forEach(function (i) {
+      var b = el('button', 'opt', options[i]); b.type = 'button';
+      b.addEventListener('click', function () {
+        if (i !== 0) { sfxBad(); b.classList.add('wrong'); note.textContent = step.hint; setTimeout(function () { b.classList.remove('wrong'); }, 500); return; }
+        sfxOk(); b.classList.add('right'); note.textContent = '';
+        Array.prototype.forEach.call(opts.children, function (o) { o.disabled = true; });
+        out.hidden = false; out.innerHTML = (step.terms || []).map(function (t) { return termHtml(t, 'pop'); }).join(' <span class="hint">vs</span> ');
+        setTimeout(function () { next(true); }, 1500);
+      });
+      opts.appendChild(b);
+    });
+    wrap.appendChild(opts); wrap.appendChild(out); wrap.appendChild(note);
+    slide(wrap);
+  }
+
   function buildDeriveInteractive(step) {
     var st = STAGES[stageIdx], g = st.graph;
     var wrap = stack('<span class="milestone">' + step.title + '</span><p class="big">' + step.prompt + '</p>');
@@ -802,7 +826,7 @@ window.__runDerive = function (D, CP) {
     if (!window.__reported) { window.__reported = true; try { parent.postMessage({ type: 'lm-derive-complete' }, location.origin); } catch (e) { /* standalone */ } }
   }
 
-  var BUILDERS = { title: buildTitle, read: buildRead, ask: buildAsk, order: buildOrder, chains: buildChains, derive: buildDerive, explain: buildExplain, done: buildDone };
+  var BUILDERS = { title: buildTitle, read: buildRead, ask: buildAsk, order: buildOrder, chains: buildChains, recap: buildRecap, derive: buildDerive, explain: buildExplain, done: buildDone };
   if (typeof buildShow === 'function') BUILDERS.show = buildShow;
   if (typeof buildDraw === 'function') BUILDERS.draw = buildDraw;
   function startStage(n) {
