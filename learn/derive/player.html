@@ -459,7 +459,61 @@ window.__runDerive = function (D, CP) {
     return slots;
   }
 
+  // Plain-English walkthrough of THIS lesson's own diagram, in prose paragraphs rather than bullet points, built
+  // straight from its real terms and arrows rather than a generic script - "the box with nothing pointing into it
+  // goes first, then just follow each arrow outward" is a transferable reading skill, taught here on a diagram
+  // whose answer the student can see filled in, so they know how to tackle the next one before they're on their own.
+  function explainGraph(g) {
+    var pairs = g.pairs || [];
+    var incoming = {}; pairs.forEach(function (p) { incoming[p[1]] = (incoming[p[1]] || 0) + 1; });
+    var roots = Object.keys(g.nodes).filter(function (k) { return !incoming[k] && g.given.indexOf(k) < 0; });
+    if (!roots.length) return null;
+    var rootLabel = TERMS[roots[0]].t;
+    var firstOuts = pairs.filter(function (p) { return p[0] === roots[0]; }).map(function (p) { return TERMS[p[1]].t; });
+    var p1 = "This diagram is a map of how the ideas in this lesson connect. Each box is one idea you just learned, and each arrow means “you need to understand this before the next one makes sense” — so the arrows aren't decoration, they're showing you a genuine chain of reasoning.";
+    var p2 = "Everything here starts from " + rootLabel + ". You can tell it comes first because it's the only box with no arrow pointing into it — nothing else has to be true before it makes sense.";
+    if (firstOuts.length === 1) {
+      p2 += " From there, the arrow leads straight to " + firstOuts[0] + ", because that idea only makes sense once " + rootLabel + " is already in place.";
+    } else if (firstOuts.length > 1) {
+      p2 += " From there, the arrows branch out to " + firstOuts.slice(0, -1).join(', ') + " and " + firstOuts[firstOuts.length - 1] + " — these all build on " + rootLabel + " directly, but not on each other, so either order between them is fine as long as " + rootLabel + " comes first.";
+    }
+    var secondLevel = [];
+    firstOuts.forEach(function (label) {
+      var id = Object.keys(TERMS).filter(function (k) { return TERMS[k].t === label; })[0];
+      pairs.filter(function (p) { return p[0] === id; }).forEach(function (p) { secondLevel.push({ from: label, to: TERMS[p[1]].t }); });
+    });
+    if (secondLevel.length) {
+      p2 += " " + secondLevel.map(function (s) { return s.to + " then follows from " + s.from + " the same way."; }).join(' ');
+    }
+    var p3 = "That's the trick for any of these diagrams: find the box with no arrow pointing into it — that's always where you start — then just follow each arrow outward, one step at a time, filling in whatever it points to next. If a box branches in two directions, both branches are fair game once the box before them is done.";
+    return [p1, p2, p3];
+  }
+
   function buildDerive(step) {
+    if (D.i === 0 && !window.__deriveIntroShown) { window.__deriveIntroShown = true; return buildDeriveIntro(step); }
+    return buildDeriveInteractive(step);
+  }
+
+  // Shown once, ahead of the very first "derive" puzzle of a brand-new course: the same diagram, already filled in
+  // with the answer, plus the plain-English walkthrough above explaining why it looks that way - so the FIRST time
+  // a student meets this interaction, they've already seen a solved example before being asked to solve one cold.
+  function buildDeriveIntro(step) {
+    var st = STAGES[stageIdx], g = st.graph;
+    var paras = explainGraph(g);
+    var wrap = stack('<span class="milestone">How to read this puzzle</span><p class="big">Here’s a worked example, using the diagram you’re about to fill in yourself.</p>');
+    var sw = el('div', 'svgwrap'), svg = document.createElementNS(NS, 'svg'); sw.appendChild(svg);
+    wrap.appendChild(sw);
+    graph(svg, g, { uid: 'di' + stageIdx, filled: true, animate: true });
+    if (paras) paras.forEach(function (text) { var p = el('p', 'big'); p.style.textAlign = 'left'; p.textContent = text; wrap.appendChild(p); });
+    var btn = el('button', 'nextbtn', 'Now try it yourself ↓'); btn.type = 'button';
+    wrap.appendChild(btn);
+    slide(wrap);
+    // Re-render the SAME step in its normal interactive form - this must NOT call next() (that would advance past
+    // this step to whatever comes after it in the script, skipping the actual puzzle entirely).
+    btn.addEventListener('click', function () { buildDeriveInteractive(step); setTimeout(scrollToLast, 60); });
+  }
+
+  function buildDeriveInteractive(step) {
     var st = STAGES[stageIdx], g = st.graph;
     var wrap = stack('<span class="milestone">' + step.title + '</span><p class="big">' + step.prompt + '</p>');
     var sw = el('div', 'svgwrap'), svg = document.createElementNS(NS, 'svg'); sw.appendChild(svg);
