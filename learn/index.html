@@ -22551,6 +22551,43 @@ SQIDAQAB
     // up the check is genuinely over either way; the concept just waits
     // for its next real trigger (a fresh recall cascade or the concept's
     // own FSRS review) rather than retrying here indefinitely.
+    function sfAddDay1SkipButton(el, meta, check, isLastInBatch, clearDraft) {
+        const submitBtn = el.querySelector('.sf-question-submit');
+        if (!submitBtn) return;
+        const skipBtn = document.createElement('button');
+        skipBtn.type = 'button';
+        skipBtn.className = 'btn sf-day1-skip';
+        skipBtn.textContent = 'Skip';
+        skipBtn.setAttribute('aria-label', 'Skip this Day-1 check');
+        submitBtn.insertAdjacentElement('afterend', skipBtn);
+        skipBtn.addEventListener('click', async () => {
+            if (!sfFeed || sfFeed.locked || meta.answered) return;
+            sfFeed.locked = true;
+            skipBtn.disabled = true;
+            submitBtn.disabled = true;
+            const feedbackEl = el.querySelector('.sf-question-feedback');
+            feedbackEl.innerHTML = '<div class="sf-feedback-line">Skipping…</div>';
+            const result = await sfPostBackend(`/day1-checks/${check.checkId}/skip`, {});
+            if (!result) {
+                sfFeed.locked = false;
+                skipBtn.disabled = false;
+                submitBtn.disabled = false;
+                feedbackEl.innerHTML = '<div class="sf-feedback-line sf-feedback-wrong">Something went wrong skipping that — try again.</div>';
+                return;
+            }
+            if (clearDraft) clearDraft();
+            if (result.schedule) sfUpsertScheduleCache(result.schedule);
+            (result.schedules || []).forEach((schedule) => sfUpsertScheduleCache(schedule));
+            meta.answered = true;
+            meta.canAdvance = true;
+            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || "Skipped — that's okay. This will return later.")}</div>`;
+            sfShowAdvanceHint(el);
+            sfUpdateProgress();
+            if (isLastInBatch) sfPrefetchNext();
+            await sfAdvanceAfterCorrectAnswer();
+        });
+    }
+
     function sfBuildDay1CheckSlide(check, isLastInBatch = true) {
         if (qzIsInteractive(check)) {
             const iEl = sfInteractiveSlideEl(`Day-1 check · ${escapeHtml(check.subject)}`, check);
@@ -22570,6 +22607,7 @@ SQIDAQAB
                 // Peek: pure code on the backend (gradeStructured - no Claude call, no charge, no side effects), so this is safe
                 // and free to call on every keystroke pause. Never resolves the check or bumps anything.
                 (answer) => sfPostBackend(`/day1-checks/${check.checkId}/peek`, { structured: answer }));
+            sfAddDay1SkipButton(iEl, iMeta, check, isLastInBatch, () => qzClearDraft(check));
             return { el: iEl, meta: iMeta };
         }
         const el = document.createElement('div');
@@ -22600,6 +22638,7 @@ SQIDAQAB
         const restoredDraft = loadAnswerDraft(draftKey);
         if (restoredDraft && !inputEl.value) inputEl.value = restoredDraft;
         inputEl.addEventListener('input', () => saveAnswerDraft(draftKey, inputEl.value));
+        sfAddDay1SkipButton(el, meta, check, isLastInBatch, () => clearAnswerDraft(draftKey));
         meta.trySubmit = async () => {
             const answer = (inputEl.value || '').trim();
             if (!answer) {
