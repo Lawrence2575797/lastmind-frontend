@@ -1491,6 +1491,11 @@
     .sf-question-submit.qz-check { padding: 13px 34px; font-size: 16px; font-weight: 700; border-radius: 12px; align-self: flex-start; }
     .sf-question-submit.qz-check:disabled { opacity: 0.4; cursor: not-allowed; }
     .lm-count { position: relative; margin-left: 8px; min-width: 44px; height: 14px; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; opacity: 0.85; } .lm-count b { position: absolute; left: 0; top: 0; opacity: 0; animation: lmSlot .28s linear; animation-delay: calc(var(--i) * 0.28s); } .lm-count b:last-child { animation-fill-mode: forwards; }
+    .lm-teaching-card { width: min(760px, 100%); padding: clamp(22px, 4vw, 42px); border: 1px solid rgba(230,215,176,.2); border-radius: 18px; background: rgba(255,255,255,.055); display: grid; gap: 16px; }
+    .lm-teaching-card-title { margin: 0; color: var(--text); font-size: clamp(24px, 3vw, 34px); line-height: 1.15; }
+    .lm-teaching-card-kind { font: 700 11px Arial, sans-serif; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); opacity: .75; }
+    .km-untracked-card-stack { display: grid; gap: 18px; margin: 18px 0 28px; }
+    .km-untracked-card-stack .lm-teaching-card { min-height: min(58vh, 520px); align-content: center; }
     @keyframes lmSlot { from { opacity: 1; } to { opacity: 1; } }
     .sf-side-toggle { position: absolute; top: 14px; right: 58px; z-index: 2; border: 0; border-radius: 999px; padding: 8px 14px; font: 700 12px Arial, sans-serif; background: rgba(0,0,0,0.3); color: var(--text); cursor: pointer; }
     .sf-feed-root.has-mini-cortex.side-collapsed { max-width: 1000px; } .sf-greeting-banner.has-mini-cortex.side-collapsed { max-width: 1000px; }
@@ -8016,6 +8021,36 @@ SQIDAQAB
         });
         const n = Math.min(8, i);
         return `<div class="lm-dots" aria-hidden="true">${Array.from({ length: n }, (_, k) => `<i style="--i:${k}"></i>`).join('')}<span class="lm-count">${Array.from({ length: n }, (_, k) => `<b style="--i:${k}">${k + 1} / ${n}</b>`).join('')}</span></div>${out.join('')}`;
+    }
+
+    // Authored card data is the new non-mechanistic lesson format. Older
+    // cached lessons still render coherently by grouping their existing
+    // paragraphs into a few cards until they are regenerated.
+    function lmTeachingCardsForLesson(lesson) {
+        const authored = Array.isArray(lesson?.teachingCards)
+            ? lesson.teachingCards.filter((card) => card && card.body)
+            : [];
+        if (authored.length) return authored.slice(0, 5).map((card, i) => ({
+            title: card.title || `Part ${i + 1}`,
+            kind: card.kind || 'theory',
+            body: card.body,
+        }));
+        const parts = String(lesson?.explanation || '').split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
+        if (!parts.length) return [];
+        const targetCount = Math.min(4, Math.max(2, Math.ceil(parts.length / 2)));
+        const perCard = Math.ceil(parts.length / targetCount);
+        const cards = [];
+        for (let i = 0; i < parts.length; i += perCard) cards.push({
+            title: cards.length === 0 ? 'Core idea' : cards.length === targetCount - 1 ? 'Putting it into practice' : `Build the idea · ${cards.length + 1}`,
+            kind: cards.length === 0 ? 'theory' : 'application',
+            body: parts.slice(i, i + perCard).join('\n\n'),
+        });
+        return cards;
+    }
+
+    function lmTeachingCardHtml(card) {
+        const kindLabels = { theory: 'Theory', worked_example: 'Worked example', application: 'Application' };
+        return `<article class="lm-teaching-card"><div class="lm-teaching-card-kind">${escapeHtml(kindLabels[card.kind] || 'Lesson')}</div><h2 class="lm-teaching-card-title">${escapeHtml(card.title || 'Lesson')}</h2><div class="sf-slide-explanation">${lmStyledLessonHtml(card.body)}</div></article>`;
     }
     function splitIntoParagraphs(text, sentencesPerParagraph = 2) {
         if (!text) return '';
@@ -22282,17 +22317,22 @@ SQIDAQAB
         if (allowNextLessonPrefetch) sfPrefetchNext(rec.node.id);
 
         sfRecapNote(rec.node.label, lesson.explanation);
-        const explEl = document.createElement('div');
-        explEl.className = 'sf-feed-slide';
-        explEl.innerHTML = `
-            <div class="sf-slide-inner">
-                <div class="sf-slide-subject">${escapeHtml(folderLabel(rec.folder))}</div>
-                ${lesson.practiceQuestion ? '<div><span class="sf-stepchip">Step 1 of 2 · Read</span></div>' : ''}
-                <div class="sf-slide-explanation">${lmStyledLessonHtml(lesson.explanation)}</div>
-                <div class="sf-diagram-explanation-host"></div>
-                <div class="sf-advance-hint">${sfAdvanceHintText()}</div>
-            </div>`;
-        makeTermsSpeakable(explEl.querySelector('.sf-slide-explanation'), rec.folder.subject);
+        const teachingCards = lmTeachingCardsForLesson(lesson);
+        const totalSteps = teachingCards.length + (lesson.practiceQuestion ? 1 : 0);
+        const slides = teachingCards.map((card, cardIndex) => {
+            const explEl = document.createElement('div');
+            explEl.className = 'sf-feed-slide';
+            explEl.innerHTML = `
+                <div class="sf-slide-inner">
+                    <div class="sf-slide-subject">${escapeHtml(folderLabel(rec.folder))}</div>
+                    <div><span class="sf-stepchip">Part ${cardIndex + 1} of ${totalSteps} · Learn</span></div>
+                    ${lmTeachingCardHtml(card)}
+                    <div class="sf-diagram-explanation-host"></div>
+                    <div class="sf-advance-hint">${sfAdvanceHintText()}</div>
+                </div>`;
+            makeTermsSpeakable(explEl.querySelector('.sf-slide-explanation'), rec.folder.subject);
+            return { el: explEl, meta: { canAdvance: true, kind: 'explanation', nodeId: rec.node.id } };
+        });
         // The same read-only illustration the Notes page already shows for
         // a diagrammatic concept (renderStaticDiagram, via the SAME
         // diagramSpec practiceQuestion carries) - real gap found: a concept
@@ -22302,8 +22342,8 @@ SQIDAQAB
         // practiceQuestion.diagramSpec the whole time, already used to grade
         // the question that follows.
         const diagramSpec = lesson.practiceQuestion && lesson.practiceQuestion.diagramSpec;
-        if (diagramSpec && !diagramSpec.notDiagrammatic) {
-            renderStaticDiagram(explEl.querySelector('.sf-diagram-explanation-host'), diagramSpec);
+        if (diagramSpec && !diagramSpec.notDiagrammatic && slides.length) {
+            renderStaticDiagram(slides[slides.length - 1].el.querySelector('.sf-diagram-explanation-host'), diagramSpec);
         }
 
         // nodeId is carried on every slide's own meta from here on so
@@ -22311,14 +22351,12 @@ SQIDAQAB
         // is for the SAME concept the student is currently mid-lesson on
         // (see its own comment) - a real reported bug otherwise, a recall
         // interrupting the very lesson that just scheduled it.
-        const slides = [{ el: explEl, meta: { canAdvance: true, kind: 'explanation', nodeId: rec.node.id } }];
-
         if (lesson.practiceQuestion && lesson.practiceQuestion.diagramSpec) {
             const qEl = document.createElement('div');
             qEl.className = 'sf-feed-slide';
             qEl.innerHTML = `
                 <div class="sf-slide-inner">
-                    <div><span class="sf-stepchip">Step 2 of 2 · Check</span></div>
+                    <div><span class="sf-stepchip">Part ${totalSteps} of ${totalSteps} · Practice</span></div>
                     <div class="sf-speaker-label">Cortex asks</div>
                     <p class="sf-question-text">${escapeHtml(lesson.practiceQuestion.questionText)}</p>
                     <div class="sf-diagram-question-host"></div>
@@ -22327,7 +22365,7 @@ SQIDAQAB
             sfWireDiagramQuestionSlide(qEl.querySelector('.sf-diagram-question-host'), rec.node, qMeta);
             slides.push({ el: qEl, meta: qMeta });
         } else if (qzIsInteractive(lesson.practiceQuestion)) {
-            const qEl = sfInteractiveSlideEl('<span class="sf-stepchip">Step 2 of 2 · Check</span>', lesson.practiceQuestion);
+            const qEl = sfInteractiveSlideEl(`<span class="sf-stepchip">Part ${totalSteps} of ${totalSteps} · Practice</span>`, lesson.practiceQuestion);
             const qMeta = { canAdvance: false, kind: 'question', answered: false, nodeId: rec.node.id };
             sfWireInteractiveSlide(qEl, qMeta, lesson.practiceQuestion,
                 (answer, retryCount) => sfPostBackend('/knowledge-map-v2/text-question/submit', { nodeId: rec.node.id, questionType: 'practice', structured: answer, retryCount }),
@@ -22341,7 +22379,7 @@ SQIDAQAB
         } else if (sfCuedSubstituteRef(lesson) >= 0) {
             const ref = sfCuedSubstituteRef(lesson);
             const chk = lesson.recallChecks[ref];
-            const qEl = sfInteractiveSlideEl('<span class="sf-stepchip">Step 2 of 2 · Check</span>', chk.format === 'fill_blank' ? { questionText: 'Type the missing term.' } : chk);
+            const qEl = sfInteractiveSlideEl(`<span class="sf-stepchip">Part ${totalSteps} of ${totalSteps} · Practice</span>`, chk.format === 'fill_blank' ? { questionText: 'Type the missing term.' } : chk);
             const qMeta = { canAdvance: false, kind: 'question', answered: false, nodeId: rec.node.id };
             sfWireInteractiveSlide(qEl, qMeta, chk,
                 (answer, retryCount) => sfPostBackend('/knowledge-map-v2/text-question/submit', { nodeId: rec.node.id, questionType: 'practice', checkRef: ref, structured: answer, retryCount }),
@@ -22368,7 +22406,7 @@ SQIDAQAB
             qEl.className = 'sf-feed-slide';
             qEl.innerHTML = `
                 <div class="sf-slide-inner">
-                    <div><span class="sf-stepchip">Step 2 of 2 · Check</span></div>
+                    <div><span class="sf-stepchip">Part ${totalSteps} of ${totalSteps} · Practice</span></div>
                     <div class="sf-speaker-label">Cortex asks</div>
                     <p class="sf-question-text">${escapeHtml(lesson.practiceQuestion.questionText)}</p>
                     ${useMathEditor
@@ -27984,10 +28022,10 @@ SQIDAQAB
                     <div class="km-inline-detail-eyebrow">${escapeHtml(d.subtopic || '')} — LastMind Untracked</div>
                     <div class="km-inline-detail-label">${escapeHtml(d.label)}</div>
                     <div class="km-inline-detail-item km-inline-detail-none">Not tracked — this won't be scheduled or counted as encoded. Your real lesson for this concept still starts fresh later.</div>
-                    <div class="km-untracked-split">
-                        <div class="km-inline-lesson-explanation" id="km-untracked-explanation">${lmStyledLessonHtml(nodeLesson.explanation)}</div>
-                        <div id="km-untracked-practice-block">${nodeLesson.practiceQuestion ? `<strong class="km-inline-lesson-question" style="display:block;">Practice</strong><div id="km-untracked-question"></div>` : ''}</div>
+                    <div class="km-untracked-card-stack" id="km-untracked-explanation">
+                        ${lmTeachingCardsForLesson(nodeLesson).map((card) => lmTeachingCardHtml(card)).join('')}
                     </div>
+                    <div id="km-untracked-practice-block">${nodeLesson.practiceQuestion ? `<strong class="km-inline-lesson-question" style="display:block;">Practice</strong><div id="km-untracked-question"></div>` : ''}</div>
                 `;
             if (!nodeLesson || nodeLesson.notFound) return;
             const explanationEl = lessonEl.querySelector('#km-untracked-explanation');
