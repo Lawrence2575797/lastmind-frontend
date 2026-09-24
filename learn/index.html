@@ -1483,6 +1483,7 @@
     .qz-blank.qz-skipped, .qz-stepinput.qz-skipped { border-bottom-color: rgba(230,215,176,0.45); background: rgba(255,255,255,0.045); opacity: 0.72; }
     .qz-dont-know { position: relative; display: inline-grid; place-items: center; width: 27px; height: 27px; margin: 0 3px; padding: 0; vertical-align: middle; flex: 0 0 27px; border-radius: 50%; border: 1px solid rgba(230,215,176,0.42); background: rgba(255,255,255,0.07); color: var(--text); font: 800 14px Arial, sans-serif; cursor: pointer; }
     .qz-dont-know:hover { background: rgba(255,255,255,0.14); border-color: var(--accent); }
+    .qz-dont-know.active { background: var(--accent); color: var(--panel); border-color: var(--accent); opacity: 1; }
     .qz-dont-know:disabled { cursor: default; opacity: 0.45; }
     .qz-dont-know-key { position: absolute; right: -3px; bottom: -4px; font-size: 8px; line-height: 1; filter: none; }
     .qz-diagram-input-box .qz-dont-know { position: absolute; right: -17px; bottom: -9px; z-index: 2; margin: 0; }
@@ -21469,18 +21470,33 @@ SQIDAQAB
     function qzAttachDontKnow(input, parent, onChange, initialLetterHint) {
         const btn = document.createElement('button');
         btn.type = 'button'; btn.className = 'qz-dont-know'; btn.title = "I don't know — reveal first letters"; btn.setAttribute('aria-label', "I don't know this box — reveal the first letter of each word");
+        btn.setAttribute('aria-pressed', 'false');
         btn.innerHTML = '<span aria-hidden="true">?</span><span class="qz-dont-know-key" aria-hidden="true">🔑</span>';
-        btn.addEventListener('click', () => {
-            input.value = '';
-            input.dataset.gaveUp = 'true';
-            input.disabled = true;
+        input.dataset.dontKnowHint = initialLetterHint || '';
+        input.dataset.originalPlaceholder = input.placeholder || '';
+        const setGaveUp = (gaveUp) => {
+            if (gaveUp) input.dataset.gaveUp = 'true';
+            else delete input.dataset.gaveUp;
             input.classList.remove('bad');
-            input.classList.add('qz-skipped');
-            input.placeholder = initialLetterHint || "I don't know";
-            btn.disabled = true;
+            input.classList.toggle('qz-skipped', gaveUp);
+            input.placeholder = gaveUp
+                ? (input.dataset.dontKnowHint || "I don't know")
+                : input.dataset.originalPlaceholder;
+            btn.classList.toggle('active', gaveUp);
+            btn.setAttribute('aria-pressed', String(gaveUp));
+        };
+        btn.addEventListener('click', () => {
+            setGaveUp(input.dataset.gaveUp !== 'true');
             if (onChange) onChange();
         });
-        input.dataset.dontKnowHint = initialLetterHint || '';
+        // Starting to type is also an intuitive undo of an accidental
+        // hint press. The student's text is then graded normally.
+        input.addEventListener('input', () => {
+            if (input.dataset.gaveUp !== 'true') return;
+            setGaveUp(false);
+            if (onChange) onChange();
+        });
+        input._setGaveUp = setGaveUp;
         input._dontKnowButton = btn;
         parent.appendChild(btn);
         return btn;
@@ -21509,11 +21525,7 @@ SQIDAQAB
     function qzRestoreInput(input, value, gaveUp) {
         if (gaveUp) {
             input.value = '';
-            input.dataset.gaveUp = 'true';
-            input.disabled = true;
-            input.classList.add('qz-skipped');
-            input.placeholder = input.dataset.dontKnowHint || "I don't know";
-            if (input._dontKnowButton) input._dontKnowButton.disabled = true;
+            if (input._setGaveUp) input._setGaveUp(true);
         } else if (typeof value === 'string') {
             input.value = value;
         }
