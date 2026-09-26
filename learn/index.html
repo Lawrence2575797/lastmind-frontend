@@ -24317,8 +24317,10 @@ SQIDAQAB
             specPracticeMode = false;
             selectFolder(biologyFolder.id);
         } else {
-            const shown = await sfMaybeShowFeed();
-            if (!shown) renderWelcome();
+            // Same reasoning as enterApp's own landing path: Cortex is the default now, not the
+            // per-subject scheduling feed - see the comment there for why sfMaybeShowFeed is kept
+            // but no longer called from a default-landing spot.
+            setSidebarTab('cortex'); renderWelcome();
         }
 
         // A genuine first-time signup never reached enterApp's own tour
@@ -31321,12 +31323,15 @@ SQIDAQAB
                         startTour('free');
                     }
                 }
-                const shown = await sfMaybeShowFeed();
-                // Cortex is now the sidebar's default landing tab, not Subjects - matches the
-                // click-handler's own setSidebarTab('cortex') + renderWelcome() pairing further
-                // down this file, so the sidebar's active tab actually matches what's on screen
-                // instead of still showing "Subjects" highlighted while Cortex is what's open.
-                if (!shown) { setSidebarTab('cortex'); renderWelcome(); }
+                // Cortex is the sidebar's default landing tab now, always - not Subjects, and not
+                // the per-subject scheduling feed. sfMaybeShowFeed's own recommendation logic
+                // (sfComputeGlobalNextLesson etc.) stays fully intact below, just not called from
+                // this default-landing path any more: it used to run FIRST and mount its own feed
+                // UI as a side effect the moment it found anything due, which meant Cortex only
+                // ever showed up for an account with nothing scheduled - in practice, almost never.
+                // Deliberately left in the codebase, not deleted, for when subject-based scheduling
+                // on the landing page returns.
+                setSidebarTab('cortex'); renderWelcome();
             }
         }
     }
