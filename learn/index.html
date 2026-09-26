@@ -31468,9 +31468,16 @@ SQIDAQAB
 
         // TEMPORARY - see TEMP_ALL_FEATURES_FREE's own comment. Skip ALL
         // async checks if bypassing subscription verification entirely.
+        // Routed through enterOnce (not a bare enterApp(true) call) so the
+        // 5-second slow-network fallback above sees `entered` already set
+        // and doesn't race a second, concurrent enterApp(false) on top of
+        // this one - that race is exactly what could leave isPaidUser stuck
+        // on false (enterApp's very first line) for any account whose own
+        // enterApp(true) takes longer than 5s to finish its subject sync,
+        // e.g. an account with a large folder/history set.
         if (TEMP_ALL_FEATURES_FREE) {
             console.log('Gate: TEMP_ALL_FEATURES_FREE is true, calling enterApp...');
-            await enterApp(true);
+            await enterOnce(true);
             console.log('Gate: enterApp returned');
             return;
         }
