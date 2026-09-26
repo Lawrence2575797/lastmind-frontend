@@ -31322,10 +31322,35 @@ SQIDAQAB
                     }
                 }
                 const shown = await sfMaybeShowFeed();
-                if (!shown) renderWelcome();
+                // Cortex is now the sidebar's default landing tab, not Subjects - matches the
+                // click-handler's own setSidebarTab('cortex') + renderWelcome() pairing further
+                // down this file, so the sidebar's active tab actually matches what's on screen
+                // instead of still showing "Subjects" highlighted while Cortex is what's open.
+                if (!shown) { setSidebarTab('cortex'); renderWelcome(); }
             }
         }
     }
+
+    // Cortex's own iframe can ask the parent dashboard to open a freshly
+    // generated custom-topic knowledge map (see cortex/index.html's "Learn
+    // something new" flow, POST /knowledge-map-v2/topic) - same
+    // parent<-iframe direction and unchecked-origin convention the
+    // derivation player's own "lm-derive-open-map" message already uses
+    // (see the onMessage handler that calls renderKnowledgeMapForFolder
+    // further down this file). A student can ask for the same topic more
+    // than once, so this reuses an existing "+Other" folder for that exact
+    // subject name if one is already there instead of creating a duplicate.
+    window.addEventListener('message', async (e) => {
+        if (!e.data || e.data.type !== 'lm-cortex-start-topic') return;
+        const subject = String(e.data.subject || '').trim();
+        if (!subject) return;
+        let folder = (folders || []).find((f) => f.qualification === CUSTOM_LEVEL && f.subject === subject && !f.deletedAt);
+        if (!folder) folder = await createFolder(subject, CUSTOM_LEVEL, '', '', '', subject, '', null, true);
+        kmGraphMode = true;
+        specPracticeMode = false;
+        selectedFolderId = folder.id;
+        renderKnowledgeMapForFolder(folder);
+    });
 
     // Plain-language hover help for persistent and dynamically-rendered
     // controls. Native title bubbles keep this usable in every browser;

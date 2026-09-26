@@ -163,6 +163,35 @@
         font-size: 1.15rem;
     }
 
+    /* "Learn something new": an interactive knowledge map generated live for
+       any topic the student types (POST /knowledge-map-v2/topic), scoped
+       and started here, taught in the existing dashboard knowledge-map view
+       once "Start" hands off to the parent frame (see the lm-cortex-start-
+       topic postMessage below). Sits on the same birch background as the
+       empty-state logo/quote, so it uses --ink, not the chat-bubble --bg. */
+    .topic-learn-card { max-width: 480px; margin: 22px auto 0; text-align: center; }
+    .topic-learn-label { font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.55; margin-bottom: 8px; }
+    .topic-learn-row { display: flex; gap: 8px; }
+    .topic-learn-input { flex: 1; padding: 10px 14px; border-radius: 10px; border: 1.5px solid rgba(78,27,38,0.25); background: rgba(255,255,255,0.35); color: var(--ink); font-family: inherit; font-size: 0.95rem; }
+    .topic-learn-input:focus { outline: none; border-color: var(--ink); }
+    .topic-learn-go { border: 0; border-radius: 10px; padding: 10px 18px; background: var(--ink); color: #F3D9A6; font-family: inherit; font-weight: 600; font-size: 0.9rem; cursor: pointer; }
+    .topic-learn-go:disabled { opacity: 0.5; cursor: default; }
+    #topicLearnResult { margin-top: 14px; text-align: left; }
+    .topic-map-card { background: rgba(255,255,255,0.4); border: 1px solid rgba(78,27,38,0.2); border-radius: 14px; padding: 16px 18px; }
+    .topic-map-row { display: flex; gap: 10px; align-items: flex-start; border-top: 1px solid rgba(78,27,38,0.14); padding: 10px 0; }
+    .topic-map-row:first-of-type { border-top: none; padding-top: 2px; }
+    .topic-map-check, .topic-map-radio { flex: none; width: 20px; height: 20px; margin-top: 2px; border: 1.5px solid rgba(78,27,38,0.4); cursor: pointer; background: transparent; }
+    .topic-map-check { border-radius: 5px; }
+    .topic-map-check.on { background: #4E9B6E; border-color: #4E9B6E; }
+    .topic-map-radio { border-radius: 50%; }
+    .topic-map-radio.on { border-color: var(--ink); background: radial-gradient(circle, var(--ink) 0 40%, transparent 42%); }
+    .topic-map-body { flex: 1; min-width: 0; }
+    .topic-map-title { font-weight: 700; font-size: 0.92rem; }
+    .topic-map-row.locked { opacity: 0.4; }
+    .topic-map-summary { margin-top: 12px; font-size: 0.85rem; opacity: 0.75; }
+    .topic-map-start { margin-top: 10px; border: 0; border-radius: 999px; padding: 9px 20px; background: var(--ink); color: #F3D9A6; font-family: inherit; font-weight: 700; cursor: pointer; }
+    .topic-map-error { color: #8a2e2e; font-size: 0.85rem; margin-top: 10px; }
+
     /* Sits just above the input row, only while chatHistory is empty —
        a rotating original prompt, never the same wording twice in a row. */
     .chat-greeting {
@@ -373,6 +402,14 @@
             <div class="chat-empty-hint" id="chatEmptyHint">
                 <h1 class="chat-empty-logo">Last<span>Mind</span></h1>
                 <p class="chat-empty-quote" id="chatEmptyQuote"></p>
+                <div class="topic-learn-card" id="topicLearnCard">
+                    <div class="topic-learn-label">Or learn something new</div>
+                    <div class="topic-learn-row">
+                        <input type="text" id="topicLearnInput" class="topic-learn-input" placeholder="e.g. the envelope theorem, ordering in Italian…" autocomplete="off">
+                        <button type="button" id="topicLearnGo" class="topic-learn-go">Build a lesson</button>
+                    </div>
+                    <div id="topicLearnResult"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -1116,6 +1153,120 @@ SQIDAQAB
         }
         chatMessagesEl.classList.add('chat-empty-active');
     }
+
+    // ─── "Learn something new": a live-generated, interactive knowledge map for
+    // any topic, scoped by the student (tick what's already known, pick a
+    // target), then handed off to the dashboard's own knowledge-map view to
+    // actually teach it. See topicKnowledgeMapService.ts (generation/caching)
+    // and learn/index.html's lm-cortex-start-topic listener (the hand-off).
+    let topicMapState = null; // { subject, nodes: [{id,label,description}], edges: [{from,to}], skip:Set, target:string }
+
+    function topicAncestorsOf(nodes, edges, targetId) {
+        const depsOf = new Map(nodes.map((n) => [n.id, []]));
+        edges.forEach((e) => { if (depsOf.has(e.to)) depsOf.get(e.to).push(e.from); });
+        const seen = new Set();
+        (function walk(id) { if (seen.has(id)) return; seen.add(id); (depsOf.get(id) || []).forEach(walk); })(targetId);
+        return seen;
+    }
+
+    function topicComputeTeachSet() {
+        const closure = topicAncestorsOf(topicMapState.nodes, topicMapState.edges, topicMapState.target);
+        return topicMapState.nodes.filter((n) => closure.has(n.id) && !topicMapState.skip.has(n.id));
+    }
+
+    function renderTopicMap() {
+        const closure = topicAncestorsOf(topicMapState.nodes, topicMapState.edges, topicMapState.target);
+        const depsOf = new Map(topicMapState.nodes.map((n) => [n.id, []]));
+        topicMapState.edges.forEach((e) => { if (depsOf.has(e.to)) depsOf.get(e.to).push(e.from); });
+        const labelOf = new Map(topicMapState.nodes.map((n) => [n.id, n.label]));
+
+        const rows = topicMapState.nodes.map((n) => {
+            const inClosure = closure.has(n.id);
+            const skipped = topicMapState.skip.has(n.id);
+            const isTarget = n.id === topicMapState.target;
+            const depsText = (depsOf.get(n.id) || []).length
+                ? `builds on: ${depsOf.get(n.id).map((d) => labelOf.get(d) || d).join(', ')}`
+                : 'starting point';
+            return `<div class="topic-map-row${skipped ? ' topic-map-skipped' : ''}${!inClosure ? ' locked' : ''}" data-node="${n.id}">
+                <button type="button" class="topic-map-check${skipped ? ' on' : ''}" data-action="skip" data-node="${n.id}" aria-label="I already know this"></button>
+                <div class="topic-map-body">
+                    <div class="topic-map-title" style="${skipped ? 'opacity:.55;text-decoration:line-through;' : ''}">${escapeHtmlTopic(n.label)}</div>
+                    <div style="font-size:0.8rem;opacity:0.65;">${escapeHtmlTopic(n.description || '')}</div>
+                    <div style="font-size:0.72rem;opacity:0.5;margin-top:3px;">${escapeHtmlTopic(depsText)}</div>
+                </div>
+                <button type="button" class="topic-map-radio${isTarget ? ' on' : ''}" data-action="target" data-node="${n.id}" aria-label="Make this my target"></button>
+            </div>`;
+        }).join('');
+
+        const teach = topicComputeTeachSet();
+        const targetLabel = labelOf.get(topicMapState.target) || topicMapState.target;
+        const summary = teach.length
+            ? `Teaching <b>${teach.length}</b> node${teach.length === 1 ? '' : 's'} to get you to “${escapeHtmlTopic(targetLabel)}”.`
+            : `You already know everything needed for this target — pick a further one, or start anyway.`;
+
+        document.getElementById('topicLearnResult').innerHTML = `
+            <div class="topic-map-card">
+                ${rows}
+                <div class="topic-map-summary">${summary}</div>
+                <button type="button" class="topic-map-start" id="topicMapStartBtn">Start the lesson</button>
+            </div>`;
+
+        document.querySelectorAll('#topicLearnResult [data-action="skip"]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const id = btn.dataset.node;
+                if (topicMapState.skip.has(id)) topicMapState.skip.delete(id); else topicMapState.skip.add(id);
+                renderTopicMap();
+            });
+        });
+        document.querySelectorAll('#topicLearnResult [data-action="target"]').forEach((btn) => {
+            btn.addEventListener('click', () => { topicMapState.target = btn.dataset.node; renderTopicMap(); });
+        });
+        document.getElementById('topicMapStartBtn').addEventListener('click', () => {
+            // The scope (skip/target) narrows what THIS view highlights as the plan, but the actual per-node
+            // teaching lives in the dashboard's existing knowledge-map graph for this subject (every node this
+            // student hasn't mastered yet, same as any other subject) - there is no separate "custom lesson
+            // player" this hands off to. Being upfront about that here rather than implying a scoped lesson that
+            // doesn't yet exist server-side.
+            window.parent.postMessage({ type: 'lm-cortex-start-topic', subject: topicMapState.subject }, window.location.origin);
+        });
+    }
+
+    function escapeHtmlTopic(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    async function handleTopicLearnGo() {
+        const input = document.getElementById('topicLearnInput');
+        const topic = input.value.trim();
+        if (!topic) return;
+        const goBtn = document.getElementById('topicLearnGo');
+        const resultEl = document.getElementById('topicLearnResult');
+        goBtn.disabled = true;
+        resultEl.innerHTML = `<div style="font-size:0.85rem;opacity:0.6;">Building a knowledge map for “${escapeHtmlTopic(topic)}”…</div>`;
+        try {
+            const accessToken = await getSyncAccessToken();
+            if (!accessToken) { resultEl.innerHTML = '<div class="topic-map-error">You need to be signed in to build a lesson.</div>'; return; }
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/topic`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                body: JSON.stringify({ topic }),
+            });
+            if (resp.status === 402) { resultEl.innerHTML = "<div class=\"topic-map-error\">You're out of Locks for now — come back once they refresh.</div>"; return; }
+            if (resp.status === 429) { resultEl.innerHTML = '<div class="topic-map-error">Too many lessons requested at once — try again shortly.</div>'; return; }
+            if (!resp.ok) { resultEl.innerHTML = '<div class="topic-map-error">Could not build a knowledge map for that topic. Try rephrasing it.</div>'; return; }
+            const data = await resp.json();
+            if (!data.nodes || !data.nodes.length) { resultEl.innerHTML = '<div class="topic-map-error">No usable map came back for that topic. Try rephrasing it.</div>'; return; }
+            const taskNode = data.nodes.find((n) => n.isFinalTask) || data.nodes[data.nodes.length - 1];
+            topicMapState = { subject: data.subject, nodes: data.nodes, edges: data.edges, skip: new Set(), target: taskNode.id };
+            renderTopicMap();
+        } catch (err) {
+            resultEl.innerHTML = '<div class="topic-map-error">Something went wrong building that lesson. Try again.</div>';
+        } finally {
+            goBtn.disabled = false;
+        }
+    }
+    document.getElementById('topicLearnGo').addEventListener('click', handleTopicLearnGo);
+    document.getElementById('topicLearnInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); handleTopicLearnGo(); } });
 
     function appendUserMessage(text) {
         clearEmptyHint();
