@@ -170,12 +170,13 @@
        topic postMessage below). Sits on the same birch background as the
        empty-state logo/quote, so it uses --ink, not the chat-bubble --bg. */
     .topic-learn-card { max-width: 480px; margin: 22px auto 0; text-align: center; }
-    .topic-learn-label { font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.55; margin-bottom: 8px; }
-    .topic-learn-row { display: flex; gap: 8px; }
-    .topic-learn-input { flex: 1; padding: 10px 14px; border-radius: 10px; border: 1.5px solid rgba(78,27,38,0.25); background: rgba(255,255,255,0.35); color: var(--ink); font-family: inherit; font-size: 0.95rem; }
-    .topic-learn-input:focus { outline: none; border-color: var(--ink); }
-    .topic-learn-go { border: 0; border-radius: 10px; padding: 10px 18px; background: var(--ink); color: #F3D9A6; font-family: inherit; font-weight: 600; font-size: 0.9rem; cursor: pointer; }
-    .topic-learn-go:disabled { opacity: 0.5; cursor: default; }
+    .topic-learn-label { font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.55; margin-bottom: 10px; }
+    .topic-learn-suggestions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+    .topic-learn-chip { border: 1.5px solid rgba(78,27,38,0.25); background: rgba(255,255,255,0.35); color: var(--ink); border-radius: 999px; padding: 7px 15px; font-family: inherit; font-size: 0.85rem; cursor: pointer; }
+    .topic-learn-chip:hover { background: rgba(255,255,255,0.55); border-color: var(--ink); }
+    /* The actual topic text now goes through the persistent #chatInput at the
+       bottom (see #topicLearnGoBtn there) — this card is just the label,
+       quick-pick suggestions, and (once built) the resulting map. */
     #topicLearnResult { margin-top: 14px; text-align: left; }
     .topic-map-card { background: rgba(255,255,255,0.4); border: 1px solid rgba(78,27,38,0.2); border-radius: 14px; padding: 16px 18px; }
     .topic-map-row { display: flex; gap: 10px; align-items: flex-start; border-top: 1px solid rgba(78,27,38,0.14); padding: 10px 0; }
@@ -368,6 +369,23 @@
 
     #chatMicBtn:hover, #chatSendBtn:hover { background: rgba(230, 215, 176, 0.1); }
 
+    #topicLearnGoBtn {
+        flex-shrink: 0;
+        height: 44px;
+        border-radius: 22px;
+        padding: 0 16px;
+        border: 1px solid rgba(230, 215, 176, 0.3);
+        background: var(--panel);
+        color: var(--accent);
+        font-family: 'Georgia', serif;
+        font-size: 0.82rem;
+        font-weight: 600;
+        white-space: nowrap;
+        cursor: pointer;
+    }
+    #topicLearnGoBtn:hover { background: rgba(230, 215, 176, 0.1); }
+    #topicLearnGoBtn:disabled { opacity: 0.4; cursor: default; }
+
     #chatMicBtn:disabled { opacity: 0.3; cursor: not-allowed; }
 
     #chatMicBtn.listening {
@@ -403,10 +421,11 @@
                 <h1 class="chat-empty-logo">Last<span>Mind</span></h1>
                 <p class="chat-empty-quote" id="chatEmptyQuote"></p>
                 <div class="topic-learn-card" id="topicLearnCard">
-                    <div class="topic-learn-label">Or learn something new</div>
-                    <div class="topic-learn-row">
-                        <input type="text" id="topicLearnInput" class="topic-learn-input" placeholder="e.g. the envelope theorem, ordering in Italian…" autocomplete="off">
-                        <button type="button" id="topicLearnGo" class="topic-learn-go">Build a lesson</button>
+                    <div class="topic-learn-label">Or learn something new — type a topic below and hit Build a lesson</div>
+                    <div class="topic-learn-suggestions" id="topicLearnSuggestions">
+                        <button type="button" class="topic-learn-chip" data-topic="the envelope theorem">the envelope theorem</button>
+                        <button type="button" class="topic-learn-chip" data-topic="ordering in a restaurant in Italian">ordering in Italian</button>
+                        <button type="button" class="topic-learn-chip" data-topic="supply and demand">supply and demand</button>
                     </div>
                     <div id="topicLearnResult"></div>
                 </div>
@@ -418,7 +437,8 @@
 
     <div class="chat-input-row">
         <button id="chatMicBtn" type="button" title="Speak">🎤</button>
-        <textarea id="chatInput" placeholder="Ask Cortex…" autocomplete="off" rows="1"></textarea>
+        <textarea id="chatInput" placeholder="Ask Cortex, or type a topic to learn…" autocomplete="off" rows="1"></textarea>
+        <button id="topicLearnGoBtn" type="button" title="Build a knowledge-map lesson on this topic">Build lesson</button>
         <button id="chatSendBtn" type="button" title="Send">➤</button>
     </div>
 </div>
@@ -1235,11 +1255,17 @@ SQIDAQAB
         return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
+    // The topic text now comes from the same persistent #chatInput used for
+    // ordinary questions (see #topicLearnGoBtn next to Send in the input
+    // row) rather than a separate field — one box, two things you can do
+    // with whatever's typed into it.
     async function handleTopicLearnGo() {
-        const input = document.getElementById('topicLearnInput');
+        const input = document.getElementById('chatInput');
         const topic = input.value.trim();
         if (!topic) return;
-        const goBtn = document.getElementById('topicLearnGo');
+        input.value = '';
+        input.style.height = 'auto';
+        const goBtn = document.getElementById('topicLearnGoBtn');
         const resultEl = document.getElementById('topicLearnResult');
         goBtn.disabled = true;
         resultEl.innerHTML = `<div style="font-size:0.85rem;opacity:0.6;">Building a knowledge map for “${escapeHtmlTopic(topic)}”…</div>`;
@@ -1265,8 +1291,15 @@ SQIDAQAB
             goBtn.disabled = false;
         }
     }
-    document.getElementById('topicLearnGo').addEventListener('click', handleTopicLearnGo);
-    document.getElementById('topicLearnInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); handleTopicLearnGo(); } });
+    document.getElementById('topicLearnGoBtn').addEventListener('click', handleTopicLearnGo);
+    document.querySelectorAll('#topicLearnSuggestions .topic-learn-chip').forEach((chip) => {
+        chip.addEventListener('click', () => {
+            const input = document.getElementById('chatInput');
+            input.value = chip.dataset.topic;
+            input.dispatchEvent(new Event('input'));
+            input.focus();
+        });
+    });
 
     function appendUserMessage(text) {
         clearEmptyHint();
