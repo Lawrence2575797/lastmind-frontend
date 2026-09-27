@@ -154,7 +154,13 @@
     .specialist-tools-menu .cortex-btn-topbar { width: 100%; text-align: left; white-space: nowrap; }
 
     .sidebar-tabs {
-        display: flex;
+        /* Hidden - Knowledge Map is a topbar/More-menu destination only now
+           (see knowledgeMapTopbarBtn), not a sidebar tab, and Cortex is the
+           sidebar's only remaining content, so there's nothing left to
+           switch between here. Markup/JS (setSidebarTab, both buttons'
+           click handlers) left fully intact - same one-line-revert pattern
+           used elsewhere (see practiceQuestionsTopbarBtn). */
+        display: none;
         border-bottom: 1px solid rgba(230, 215, 176, 0.1);
         flex-shrink: 0;
     }
@@ -12767,13 +12773,14 @@ SQIDAQAB
     // sfMaybeShowFeed/specPracticeMode elsewhere in this file) so a future
     // per-subject "browse every lesson" entry point is a one-line revert.
     // This button now opens the same unified, covered-concepts-only map
-    // the Knowledge Map sidebar tab shows instead, since a per-subject
-    // lesson browser is exactly the "specific lessons" view that map is
-    // meant to replace as the default.
-    document.getElementById('knowledgeMapTopbarBtn').addEventListener('click', () => {
-        setSidebarTab('folders');
-        renderUnifiedKnowledgeMap();
-    });
+    // instead, since a per-subject lesson browser is exactly the "specific
+    // lessons" view that map is meant to replace as the default. Stays a
+    // topbar/More-menu destination only - it no longer switches the
+    // sidebar's own tab (the Knowledge Map sidebar tab this used to flip to
+    // is itself hidden now, see .sidebar-tabs), so the sidebar keeps
+    // showing whatever it already was (in practice, always the Cortex chat
+    // list - see setSidebarTab('cortex')'s own call sites).
+    document.getElementById('knowledgeMapTopbarBtn').addEventListener('click', renderUnifiedKnowledgeMap);
 
     // Fetches this subject's real spec-lesson tree and caches it into
     // selectedFolderSpecTree, same role renderKnowledgeMapForFolder plays
@@ -24776,7 +24783,16 @@ SQIDAQAB
     // separate clusters rather than one connected graph: some things link
     // together, most won't, and that's the real shape of it, not a layout
     // limitation to work around.
+    // Guards against a stale fetch clobbering whatever's now on screen if
+    // the student navigates elsewhere before this resolves - was checking
+    // sidebarTab for this, but this view is opened from the topbar/More
+    // menu now (see knowledgeMapTopbarBtn) and deliberately no longer
+    // switches the sidebar's own tab to do it, so sidebarTab alone can't
+    // tell "still on this view" from "moved on" any more. A token this
+    // function's own call bumps and re-checks after the await does.
+    let unifiedMapRenderToken = 0;
     async function renderUnifiedKnowledgeMap() {
+        const myToken = ++unifiedMapRenderToken;
         stopActiveDictation();
         stopSpeaking();
         const contentInner = document.getElementById('contentInner');
@@ -24787,14 +24803,16 @@ SQIDAQAB
         try {
             data = await fetchUnifiedKnowledgeMap();
         } catch (err) {
+            if (myToken !== unifiedMapRenderToken) return;
             console.error('LastMind: failed to load the unified knowledge map.', err);
             contentInner.innerHTML = `<div class="km-inline-detail-empty">Couldn't load your knowledge map — check your connection and try again.<br><button type="button" class="btn" style="margin-top:14px;" id="umRetryBtn">Try again</button></div>`;
             document.getElementById('umRetryBtn').addEventListener('click', renderUnifiedKnowledgeMap);
             return;
         }
-        // The student may have switched tabs while this was in flight -
-        // don't clobber whatever's now showing with a stale response.
-        if (sidebarTab !== 'folders') return;
+        // The student may have navigated elsewhere while this was in
+        // flight - don't clobber whatever's now showing with a stale
+        // response.
+        if (myToken !== unifiedMapRenderToken) return;
 
         if (!data.nodes || !data.nodes.length) {
             contentInner.innerHTML = `
