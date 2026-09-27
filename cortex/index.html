@@ -1145,6 +1145,25 @@ SQIDAQAB
             if (turn.role === 'user') appendUserMessage(turn.content);
             else appendAssistantMessage(turn.content);
         });
+        // If the chat was closed/reloaded right after a map was built and
+        // never confirmed, re-arm the same "shall I build the first
+        // lesson?" checkpoint it would have shown live - restoring a map
+        // used to leave a real "Start the lesson" button on screen, so
+        // there was always a way to actually begin it; now that this is a
+        // plain typed reply instead of a button, without this the student
+        // would have no way to start that map short of retyping the exact
+        // same "teach me X" and paying for a whole new map generation.
+        // Only ever fires for the LAST turn - an earlier, already-acted-on
+        // map further back in history must not get a fresh prompt attached
+        // to it. topicMapState is reliably still this exact map's state
+        // object here, since renderRestoredSilentTurn's 'map' branch just
+        // set it moments ago in the loop above, and nothing since has
+        // changed it.
+        const lastTurn = chatHistory[chatHistory.length - 1];
+        if (lastTurn && lastTurn.silent && lastTurn.kind === 'map' && topicMapState) {
+            const state = topicMapState;
+            promptLessonContinuation(LESSON_START_PROMPTS, () => startTopicTeachSequence(state));
+        }
     }
 
     function clearEmptyHint() {
