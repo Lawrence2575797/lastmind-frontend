@@ -1175,6 +1175,29 @@
     .km-inline-detail-item.km-untracked-hint { background: transparent; border-style: dashed; font-style: italic; opacity: 0.85; }
     .km-inline-detail-item-action span { flex: 1; min-width: 0; }
     .km-inline-detail-item-action button.btn { flex: none; font-size: 11px; padding: 5px 9px; background: var(--bg); color: var(--text); border: 1px solid rgba(230, 215, 176, 0.3); font-weight: 600; }
+    /* ─── Unified knowledge map (Knowledge Map sidebar tab) ─────────────
+       Same dark chrome tokens as the per-subject km-inline-* view above,
+       laid out as clusters (one per subject/topic) of rows rather than an
+       SVG canvas - see renderUnifiedKnowledgeMap's own comment on why
+       clustering by subject IS the graph's real connected-component shape. */
+    .um-view { max-width: 920px; margin: 0 auto; padding: 28px 20px 60px; }
+    .um-empty { text-align: center; padding-top: 80px; }
+    .um-header { margin-bottom: 28px; }
+    .um-title { font-family: Georgia, serif; font-size: 1.7rem; margin: 0 0 6px; color: var(--accent); }
+    .um-sub { font-size: 0.9rem; opacity: 0.7; margin: 0; }
+    .um-cluster { margin-bottom: 26px; }
+    .um-cluster-title { font-size: 0.78rem; letter-spacing: 0.07em; text-transform: uppercase; opacity: 0.6; font-weight: 700; margin-bottom: 10px; }
+    .um-cluster-rows { display: flex; flex-direction: column; gap: 8px; }
+    .um-node { display: block; width: 100%; text-align: left; background: var(--panel); border: 1px solid rgba(230, 215, 176, 0.16); border-radius: 8px; padding: 12px 14px; cursor: pointer; font-family: inherit; color: var(--text); }
+    .um-node:hover { border-color: rgba(230, 215, 176, 0.4); }
+    .um-node-due { border-color: var(--accent); }
+    .um-node-main { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+    .um-node-label { font-weight: 600; font-size: 0.92rem; }
+    .um-badge { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+    .um-badge-mastered { background: rgba(120, 200, 150, 0.16); color: #78c896; }
+    .um-badge-learning { background: rgba(230, 215, 176, 0.14); color: var(--text); opacity: 0.8; }
+    .um-badge-due { background: rgba(230, 180, 120, 0.18); color: var(--accent); }
+    .um-node-sub { font-size: 0.78rem; opacity: 0.55; }
     .km-fsrs-details { font-size: 11.5px; margin-top: 4px; }
     .km-fsrs-details summary { cursor: pointer; opacity: 0.7; padding: 4px 0; }
     .km-fsrs-details summary:hover { opacity: 1; }
@@ -6184,7 +6207,7 @@
 
             <div class="sidebar-tabs">
                 <button class="sidebar-tab-btn" id="cortexTabBtn" type="button">Cortex</button>
-                <button class="sidebar-tab-btn active" id="foldersTabBtn" type="button">Subjects</button>
+                <button class="sidebar-tab-btn active" id="foldersTabBtn" type="button">Knowledge Map</button>
             </div>
 
             <div class="folder-list" id="folderList">
@@ -6451,7 +6474,11 @@
                     <!-- Rewards temporarily hidden site-wide (not localhost-gated like Create above) - code/handlers left
                          fully intact so this is a one-line revert (drop the inline style) when it's ready to come back. -->
                     <button class="cortex-btn-topbar" id="rewardsTopbarBtn" type="button" style="display:none;">Rewards <span class="rewards-topbar-keys" title="Your Keys"><span id="rewardsTopbarKeys">0</span> 🔑</span></button>
-                    <button class="cortex-btn-topbar" id="practiceQuestionsTopbarBtn" type="button">Exam Preparation</button>
+                    <!-- Exam Preparation / Practice Questions hidden from the visible UI per product decision - the
+                         knowledge map is now the default learning surface, not a separate practice-question mode.
+                         Code/handlers (renderExamPrepEntryScreen, specPracticeMode, renderSpecPracticeForFolder) left
+                         fully intact, same one-line-revert pattern as createTopbarBtn/rewardsTopbarBtn above. -->
+                    <button class="cortex-btn-topbar" id="practiceQuestionsTopbarBtn" type="button" style="display:none;">Exam Preparation</button>
                     <!-- Knowledge Map / Specialist Tools / Overdue Requests / Buy Extra Locks all moved in here to cut down the
                          number of always-visible topbar buttons - same open/close toggle pattern as Specialist Tools' own
                          nested dropdown already used (see the JS below), which stays a dropdown within this one rather than
@@ -9323,13 +9350,25 @@ SQIDAQAB
         return sfItem;
     }
 
-    // Top level: every folder, with "+ Create new folder" on the right.
+    // Top level of the Knowledge Map tab's sidebar: "+ Add new subject" is
+    // the one action left here now - the per-subject list this used to
+    // render (buildFolderRow for every folder) is gone. The main content
+    // area shows ONE unified knowledge map covering everything already
+    // covered across every subject/topic at once (see
+    // getUnifiedKnowledgeMapForUser/renderUnifiedKnowledgeMap), not a
+    // picker for one subject at a time. buildFolderRow itself is left
+    // fully intact, just no longer called from here - same one-call-site-
+    // removed pattern as sfMaybeShowFeed's own default-landing removal.
+    // The specPracticeMode Corrections-feed entry this used to show here
+    // too is dead along with it (its own entry point, Exam Preparation, is
+    // itself hidden now - see practiceQuestionsTopbarBtn), left in place
+    // rather than deleted for the same reason.
     function renderFoldersRootLevel() {
         const listEl = document.getElementById('folderList');
         listEl.innerHTML = '';
 
         listEl.appendChild(buildDrillHeader({
-            title: 'Subjects',
+            title: 'Knowledge Map',
             actionLabel: '+ Add new subject',
             actionId: 'createFolderBtn',
             onAction: sfShowSubjectPickerWizard,
@@ -9337,46 +9376,12 @@ SQIDAQAB
             onSecondaryAction: null
         }));
 
-        // Practice Questions is the real-exam-spec feature (spec_lesson_plans
-        // + exam_question_types, keyed by subject/qualification/examBoard) -
-        // a custom "Other" subject (Italian, Spanish, ...) never has either,
-        // since those use the knowledge-map-v2 architecture instead, where
-        // each node's own lesson already carries its own practice question.
-        // Filtering them out of this list (rather than letting the student
-        // click in and hit "not set up for this subject yet") is what makes
-        // this sidebar only ever show subjects that actually have practice
-        // questions to offer.
-        // Corrections lives in the Exam Preparation sidebar itself, above
-        // the subject list - it's a personalized feed across every subject's
-        // mistakes, not a per-subject thing, so it sits above rather than
-        // inside any one folder's row.
-        if (specPracticeMode) {
-            const correctionsItem = document.createElement('div');
-            correctionsItem.className = 'folder-item';
-            const correctionsHeader = document.createElement('div');
-            correctionsHeader.className = 'folder-item-header';
-            const correctionsLabel = document.createElement('div');
-            correctionsLabel.className = 'folder-item-label';
-            correctionsLabel.textContent = 'Corrections';
-            correctionsHeader.appendChild(correctionsLabel);
-            correctionsHeader.addEventListener('click', () => sfShowCorrectionsFeed(renderExamPrepEntryScreen));
-            correctionsItem.appendChild(correctionsHeader);
-            listEl.appendChild(correctionsItem);
-        }
-
-        const visibleFolders = specPracticeMode ? folders.filter((f) => f.qualification !== CUSTOM_LEVEL) : folders;
-
-        if (!visibleFolders.length) {
-            const hint = document.createElement('div');
-            hint.className = 'empty-hint';
-            hint.textContent = specPracticeMode
-                ? 'No subjects with Exam Preparation set up yet.'
-                : 'No subjects yet — click "+ Add new subject" to add one.';
-            listEl.appendChild(hint);
-            return;
-        }
-
-        visibleFolders.forEach((f) => listEl.appendChild(buildFolderRow(f)));
+        const hint = document.createElement('div');
+        hint.className = 'empty-hint';
+        hint.textContent = folders.length
+            ? 'Your knowledge map is shown on the right, covering everything you\'ve started across every subject.'
+            : 'Nothing covered yet — click "+ Add new subject" to start one, or ask Cortex to teach you something new.';
+        listEl.appendChild(hint);
     }
 
     // Inside a folder: its subfolders (with "+ Create new subfolder"), plus
@@ -17746,7 +17751,15 @@ SQIDAQAB
         if (tab === 'cortex') refreshCortexChatList();
     }
 
-    document.getElementById('foldersTabBtn').addEventListener('click', () => setSidebarTab('folders'));
+    // Unlike the old Subjects tab (which just swapped the sidebar list and
+    // left whatever was already in the main content area alone), clicking
+    // Knowledge Map is a real nav destination now - see cortexTabBtn's own
+    // handler just below, and its own comment on why that matters (same
+    // "no textbox shows up"-shaped bug would otherwise apply here too).
+    document.getElementById('foldersTabBtn').addEventListener('click', () => {
+        setSidebarTab('folders');
+        renderUnifiedKnowledgeMap();
+    });
     // Swapped with the old Calendar tab — Cortex now lives here in the
     // sidebar (a list of past chats, click to continue or "+ New chat"),
     // and the actual chat interface renders in the dashboard's own main
@@ -24682,6 +24695,148 @@ SQIDAQAB
         refreshFolderList();
         renderSubjectGraphView(folder, data, focusId);
         sfOpenSidebarOnMobile();
+    }
+
+    // ─── Knowledge Map tab: one unified graph of everything covered ────
+    // Fetches this student's own unified knowledge map (see
+    // getUnifiedKnowledgeMapForUser) - every concept covered so far, across
+    // every subject/topic at once, not scoped to one folder.
+    async function fetchUnifiedKnowledgeMap() {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) throw new Error('not signed in');
+        const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/mine`, {
+            headers: { Authorization: `Bearer ${session.access_token}` }
+        });
+        if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+        return await resp.json();
+    }
+
+    // Given a node from the unified map, opens it exactly the way clicking
+    // it in its OWN subject's per-subject map already would: finds (or, for
+    // a Cortex custom topic that's somehow missing one, creates) that real
+    // folder, then hands off entirely to the existing, already-correct
+    // per-folder pipeline (the prereq gate, derivation lookup, etc. all key
+    // off folder.subject/qualification/examBoard — see startNodeLesson)
+    // rather than reimplementing any of that here.
+    async function openUnifiedMapNode(node) {
+        if (!node) return;
+        await refreshFolderList();
+        let folder = folders.find((f) =>
+            f.subject === node.subject &&
+            (f.qualification || '') === (node.qualification || '') &&
+            (f.examBoard || '') === (node.examBoard || '')
+        );
+        if (!folder) {
+            folder = await createFolder(node.subject, node.qualification || '', node.examBoard || '', '', '', '', '', null, true);
+            await refreshFolderList();
+        }
+        selectedFolderId = folder.id;
+        selectedSidebarLessonNodeId = node.id;
+        renderKnowledgeMapForFolder(folder);
+    }
+
+    // One graph of everything this student has ever actually covered,
+    // across every subject and Cortex-generated custom topic at once — see
+    // getUnifiedKnowledgeMapForUser's own comment on why an edge only ever
+    // connects two covered nodes from the SAME subject/topic (edges never
+    // span subjects by design). That's exactly why this renders as several
+    // separate clusters rather than one connected graph: some things link
+    // together, most won't, and that's the real shape of it, not a layout
+    // limitation to work around.
+    async function renderUnifiedKnowledgeMap() {
+        stopActiveDictation();
+        stopSpeaking();
+        const contentInner = document.getElementById('contentInner');
+        contentInner.classList.add('content-inner-wide');
+        showLoadingWithColdStartHint(contentInner, 'Loading your knowledge map…');
+
+        let data;
+        try {
+            data = await fetchUnifiedKnowledgeMap();
+        } catch (err) {
+            console.error('LastMind: failed to load the unified knowledge map.', err);
+            contentInner.innerHTML = `<div class="km-inline-detail-empty">Couldn't load your knowledge map — check your connection and try again.<br><button type="button" class="btn" style="margin-top:14px;" id="umRetryBtn">Try again</button></div>`;
+            document.getElementById('umRetryBtn').addEventListener('click', renderUnifiedKnowledgeMap);
+            return;
+        }
+        // The student may have switched tabs while this was in flight -
+        // don't clobber whatever's now showing with a stale response.
+        if (sidebarTab !== 'folders') return;
+
+        if (!data.nodes || !data.nodes.length) {
+            contentInner.innerHTML = `
+                <div class="um-view um-empty">
+                    <h1 class="um-title">Your knowledge map</h1>
+                    <p class="um-sub">Nothing covered yet. Add a subject, or ask Cortex to teach you something new — everything you learn shows up here, linked to whatever it actually builds on.</p>
+                </div>`;
+            return;
+        }
+
+        const bySubject = new Map();
+        data.nodes.forEach((n) => {
+            if (!bySubject.has(n.subject)) bySubject.set(n.subject, []);
+            bySubject.get(n.subject).push(n);
+        });
+
+        const depsOf = new Map(data.nodes.map((n) => [n.id, []]));
+        data.edges.forEach((e) => { if (depsOf.has(e.target)) depsOf.get(e.target).push(e.source); });
+        const labelOf = new Map(data.nodes.map((n) => [n.id, n.label]));
+        const now = new Date();
+
+        const clusters = Array.from(bySubject.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([subject, nodes]) => {
+            // Topological layers within this subject, purely for a sane
+            // roots-first reading order - the graph's real shape is edges,
+            // not this ranking.
+            const ids = new Set(nodes.map((n) => n.id));
+            const rank = new Map();
+            function depth(id, seen) {
+                if (rank.has(id)) return rank.get(id);
+                if (seen.has(id)) return 0; // a cycle would mean a server bug (DAGs are validated at generation time) - fail safe, not an infinite loop
+                seen.add(id);
+                const deps = (depsOf.get(id) || []).filter((d) => ids.has(d));
+                const d = deps.length ? 1 + Math.max(...deps.map((dep) => depth(dep, seen))) : 0;
+                rank.set(id, d);
+                return d;
+            }
+            nodes.forEach((n) => depth(n.id, new Set()));
+            const ordered = [...nodes].sort((a, b) => (rank.get(a.id) - rank.get(b.id)) || a.label.localeCompare(b.label));
+
+            const rows = ordered.map((n) => {
+                const detail = data.masteryDetail[n.id];
+                const state = data.mastery[n.id] ?? 1;
+                const isDue = !!(detail && detail.dueDate && new Date(detail.dueDate) <= now);
+                const deps = (depsOf.get(n.id) || []).filter((d) => ids.has(d));
+                const depsText = deps.length ? `builds on: ${deps.map((d) => labelOf.get(d) || d).join(', ')}` : 'starting point';
+                const dueText = detail && detail.dueDate ? formatDueIn(detail.dueDate) : '';
+                return `<button type="button" class="um-node${isDue ? ' um-node-due' : ''}" data-node="${n.id}">
+                    <div class="um-node-main">
+                        <span class="um-node-label">${escapeHtml(n.label)}</span>
+                        <span class="um-badge ${state === 2 ? 'um-badge-mastered' : 'um-badge-learning'}">${state === 2 ? 'Mastered' : 'Learning'}</span>
+                        ${isDue ? '<span class="um-badge um-badge-due">Due for review</span>' : ''}
+                    </div>
+                    <div class="um-node-sub">${escapeHtml(depsText)}${dueText ? ' · ' + escapeHtml(dueText) : ''}</div>
+                </button>`;
+            }).join('');
+
+            return `<div class="um-cluster">
+                <div class="um-cluster-title">${escapeHtml(subject)}</div>
+                <div class="um-cluster-rows">${rows}</div>
+            </div>`;
+        }).join('');
+
+        contentInner.innerHTML = `
+            <div class="um-view">
+                <div class="um-header">
+                    <h1 class="um-title">Your knowledge map</h1>
+                    <p class="um-sub">Everything you've covered so far, across every subject — click any concept to continue it.</p>
+                </div>
+                <div class="um-clusters">${clusters}</div>
+            </div>`;
+
+        const nodeById = new Map(data.nodes.map((n) => [n.id, n]));
+        contentInner.querySelectorAll('.um-node').forEach((btn) => {
+            btn.addEventListener('click', () => openUnifiedMapNode(nodeById.get(btn.dataset.node)));
+        });
     }
 
     // Numeric-aware comparison for spec-numbered subtopic strings ("1.1
