@@ -3488,6 +3488,21 @@
         display: flex;
         flex-direction: column;
         min-width: 0;
+        /* Same procedural birch-wood texture body's own (now largely
+           theme-overridden - see applyTheme/themeBackgroundValue, whose
+           account-configurable default is dark navy, #12181F) background
+           rule used, and cortex/index.html's iframe still hardcodes for
+           itself unconditionally. Explicit here (not left to inherit body's
+           theme-driven background) so the whole main column - topbar strip
+           and content gutters alike, not just the Cortex iframe's own inset
+           card - is always this birch look regardless of the account's
+           panel/text theme choice, with the topbar/sidebar painted navy on
+           top of it below. */
+        background:
+            repeating-linear-gradient(90deg, rgba(0,0,0,0.14) 0px, rgba(0,0,0,0.14) 2px, transparent 2px, transparent 150px),
+            repeating-linear-gradient(0.6deg, rgba(255,255,255,0.06) 0px, rgba(255,255,255,0.06) 1px, transparent 1px, transparent 4px),
+            repeating-linear-gradient(-1.2deg, rgba(0,0,0,0.05) 0px, rgba(0,0,0,0.05) 1px, transparent 1px, transparent 6px),
+            linear-gradient(100deg, #F3D9A6, #D9C398 35%, #F3D9A6 55%, #BBA986 85%, #D9C398 100%);
     }
 
     .topbar {
@@ -3497,6 +3512,11 @@
         gap: 16px;
         padding: 20px 26px 28px 26px;
         border-bottom: 1px solid rgba(230, 215, 176, 0.1);
+        /* Explicit navy, not left transparent over .main's new birch
+           background - the topbar (and its buttons) is chrome that sits ON
+           the birch page, same visual role the sidebar's own explicit
+           background already plays. */
+        background: var(--panel);
     }
 
     .sidebar-toggle {
