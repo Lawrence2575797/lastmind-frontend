@@ -1650,9 +1650,24 @@ SQIDAQAB
         let lessonData;
         try {
             const accessToken = await getSyncAccessToken();
-            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/node/${encodeURIComponent(nodeUuid)}/lesson`, {
-                headers: { Authorization: `Bearer ${accessToken}` }
-            });
+            // Retries a plain network/server error (not a 409 - that's a
+            // real, meaningful rejection, not a hiccup) up to twice with a
+            // growing delay, same convention learn/index.html's own
+            // fetchSubjectKnowledgeMapWithRetry already uses - this route
+            // triggers a real generation on a cache miss, and the compile
+            // backend's free Render tier can hand back an outright 502/503
+            // for a request that lands while it's still waking from idle,
+            // which otherwise reads as a genuine failure ("Could not load
+            // this lesson") even though the exact same request succeeds
+            // seconds later. Never retries the 409 case itself.
+            let resp;
+            for (let attempt = 0; ; attempt++) {
+                resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/node/${encodeURIComponent(nodeUuid)}/lesson`, {
+                    headers: { Authorization: `Bearer ${accessToken}` }
+                });
+                if (resp.ok || resp.status === 409 || attempt >= 2) break;
+                await new Promise((resolve) => setTimeout(resolve, 2500 * (attempt + 1)));
+            }
             // 409/DERIVATION_NOT_READY: this node's own stage genuinely
             // isn't generatable yet (an earlier stage it depends on hasn't
             // been produced) - the route rejects this BEFORE spending
@@ -1670,7 +1685,7 @@ SQIDAQAB
             lessonData = await resp.json();
             stopLessonRotator();
         } catch (err) {
-            showRetryable('Could not load this lesson.');
+            showRetryable('Could not load this lesson — the server may just be waking up, this often works on retry.');
             return;
         }
         if (!lessonData.derivation) {
