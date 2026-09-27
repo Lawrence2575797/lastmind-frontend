@@ -313,6 +313,14 @@
         flex: 1;
         min-width: 0;
     }
+    /* One real <p> per paragraph (see renderChatMessageText) rather than
+       relying on .chat-msg's inherited white-space:pre-wrap to turn a
+       literal "\n\n" into a blank line - same visual treatment a lesson's
+       own multi-paragraph explanation gets (see learn/index.html's
+       splitIntoParagraphs), not a dense single block for anything longer
+       than a couple of sentences. */
+    .chat-msg-text p { margin: 0 0 12px; }
+    .chat-msg-text p:last-child { margin-bottom: 0; }
 
     .chat-msg-speak-btn {
         flex-shrink: 0;
@@ -1410,6 +1418,18 @@ SQIDAQAB
         'Putting it in a sensible order…',
         'Nearly there…',
     ];
+    // A cache HIT (the common case once any student has reached this
+    // concept before) resolves near-instantly - these only matter for a
+    // genuine live generation, so they describe that specifically rather
+    // than a generic "loading" that would be a little misleading the rest
+    // of the time.
+    const LESSON_LOADING_MESSAGES = [
+        'Working out how to teach this…',
+        'Building the derivation…',
+        'Writing the practice question…',
+        'Checking it holds together…',
+        'Nearly ready…',
+    ];
     const TOPIC_LOADING_WIRES_SVG = `<svg class="topic-loading-wires" viewBox="0 0 160 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <path d="M16,32 L80,12"/><path d="M16,32 L80,52"/><path d="M80,12 L144,32"/><path d="M80,52 L144,32"/>
         <circle cx="16" cy="32" r="5"/><circle cx="80" cy="12" r="5"/><circle cx="80" cy="52" r="5"/><circle cx="144" cy="32" r="5"/>
@@ -1418,12 +1438,12 @@ SQIDAQAB
     // flight - returns a stop function the caller runs once the real
     // result (or an error) is ready, so the interval never outlives the
     // card it was updating.
-    function startTopicLoadingRotator(textEl) {
+    function startLoadingRotator(textEl, messages) {
         let i = 0;
-        textEl.textContent = TOPIC_MAP_LOADING_MESSAGES[0];
+        textEl.textContent = messages[0];
         const timer = setInterval(() => {
-            i = (i + 1) % TOPIC_MAP_LOADING_MESSAGES.length;
-            textEl.textContent = TOPIC_MAP_LOADING_MESSAGES[i];
+            i = (i + 1) % messages.length;
+            textEl.textContent = messages[i];
         }, 1800);
         return () => clearInterval(timer);
     }
@@ -1589,11 +1609,13 @@ SQIDAQAB
         const node = queue[index];
         const card = appendCardMessage(`
             <div class="lesson-card-label">${escapeHtmlTopic(node.label)}</div>
-            <div class="lesson-card-status">Preparing this lesson…</div>
+            <div class="lesson-card-status"></div>
         `);
+        const stopLessonRotator = startLoadingRotator(card.querySelector('.lesson-card-status'), LESSON_LOADING_MESSAGES);
         pendingLessonRetry = null;
         const nodeUuid = uuidByConceptId.get(node.conceptId);
         if (!nodeUuid) {
+            stopLessonRotator();
             card.querySelector('.lesson-card-status').textContent = "Couldn't find this concept — try again in a moment.";
             return;
         }
@@ -1605,7 +1627,9 @@ SQIDAQAB
             });
             if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
             lessonData = await resp.json();
+            stopLessonRotator();
         } catch (err) {
+            stopLessonRotator();
             const statusEl = card.querySelector('.lesson-card-status');
             statusEl.innerHTML = 'Could not load this lesson. <button type="button" class="topic-map-start" id="lessonRetryBtn">Try again</button>';
             pendingLessonRetry = () => { card.remove(); teachNextInQueue(state, queue, index, uuidByConceptId, deferredCounts); };
@@ -1718,7 +1742,7 @@ SQIDAQAB
                 <div class="topic-loading-text"></div>
             </div>
         `);
-        const stopRotator = startTopicLoadingRotator(card.querySelector('.topic-loading-text'));
+        const stopRotator = startLoadingRotator(card.querySelector('.topic-loading-text'), TOPIC_MAP_LOADING_MESSAGES);
         try {
             const accessToken = await getSyncAccessToken();
             if (!accessToken) { stopRotator(); card.innerHTML = '<div class="topic-map-error">You need to be signed in to build a lesson.</div>'; return; }
@@ -1818,6 +1842,26 @@ SQIDAQAB
     // Every assistant message still gets its own speak button, so reading
     // any of them aloud — including mid-review questions, not just the
     // main reply — is always one click away.
+    // One real <p> per paragraph (split on a blank line, same convention
+    // CORTEX_INTENT_PROMPT's own formatting rule asks Cortex to write in
+    // for anything longer than a couple of sentences) instead of one dense
+    // run of text - the same visual treatment a lesson's own multi-
+    // paragraph explanation already gets (see .chat-msg-text p's own CSS
+    // comment). Built with createElement/textContent throughout, not an
+    // HTML string, so there's no risk of the same stray-whitespace-under-
+    // inherited-pre-wrap bug the map/lesson cards had (see .chat-msg.chat-
+    // msg-card's own fix) - nothing here is ever raw innerHTML.
+    function renderChatText(container, text) {
+        container.innerHTML = '';
+        const paragraphs = (text || '').split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+        if (!paragraphs.length) { container.textContent = text || ''; return; }
+        paragraphs.forEach((p) => {
+            const pEl = document.createElement('p');
+            pEl.textContent = p;
+            container.appendChild(pEl);
+        });
+    }
+
     function appendAssistantMessage(text) {
         clearEmptyHint();
         const el = document.createElement('div');
@@ -1825,7 +1869,7 @@ SQIDAQAB
 
         const textEl = document.createElement('span');
         textEl.className = 'chat-msg-text';
-        textEl.textContent = text;
+        renderChatText(textEl, text);
         el.appendChild(textEl);
 
         const speakBtn = document.createElement('button');
@@ -1833,7 +1877,14 @@ SQIDAQAB
         speakBtn.className = 'chat-msg-speak-btn';
         speakBtn.title = 'Read aloud';
         speakBtn.textContent = '🔊';
-        speakBtn.addEventListener('click', () => speakText(textEl.textContent));
+        // Reads the ORIGINAL text, not textEl.textContent - concatenating
+        // separate <p> elements' textContent has no space between them,
+        // which would run paragraph endings and starts together. Set via
+        // .onclick (not addEventListener) so setAssistantMessageText's own
+        // later reassignment below cleanly replaces this rather than
+        // stacking a second handler that would still read the stale
+        // placeholder text alongside it.
+        speakBtn.onclick = () => speakText(text);
         el.appendChild(speakBtn);
 
         chatMessagesEl.appendChild(el);
@@ -1848,7 +1899,9 @@ SQIDAQAB
     // children, button included.
     function setAssistantMessageText(el, text) {
         const textEl = el.querySelector('.chat-msg-text');
-        if (textEl) textEl.textContent = text;
+        if (textEl) renderChatText(textEl, text);
+        const speakBtn = el.querySelector('.chat-msg-speak-btn');
+        if (speakBtn) speakBtn.onclick = () => speakText(text);
     }
 
     // "done" lets Cortex reason about lesson order (what's already been
