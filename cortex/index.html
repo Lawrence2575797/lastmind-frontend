@@ -18,9 +18,18 @@
 
     :root {
         --bg: #1A1A1C;
-        --panel: #201F21;
-        --text: #E6D7B0;
-        --accent: #E6D7B0;
+        /* Matches learn/index.html's own THEME_DEFAULTS (panelColor/
+           textColor) exactly - this used to be a different literal navy
+           (#201F21 vs the dashboard sidebar's #1A232D), visibly
+           mismatched, for the entirely mundane reason that fetchThemeSettings
+           below existed but nothing ever actually called it (see enterApp's
+           own comment on the fix) - this is just the fallback these two
+           colours sit on for the instant before that fetch resolves, or for
+           an account with no saved theme row at all, so it needs to already
+           be the same as the dashboard's own default, not a separate guess. */
+        --panel: #1A232D;
+        --text: #F1EAD6;
+        --accent: #F1EAD6;
         /* Only for text sitting directly on the page's own birch
            background below (body, #gate-message, the empty-state logo,
            the back-link) - every chat bubble/input/button keeps using
@@ -2831,8 +2840,17 @@ SQIDAQAB
         document.getElementById('app').style.display = 'flex';
         document.getElementById('chatInput').focus();
 
-        // Reconciles the fast local cache (already applied above, before
-        // login even resolved) against this account's real saved colours.
+        // Applies this account's real saved theme colours - fetchThemeSettings
+        // existed but was never actually called anywhere in this file, so
+        // this page always sat on its own static :root defaults (a visibly
+        // different navy from learn/index.html's own THEME_DEFAULTS.panelColor)
+        // regardless of what the account's real theme was. The 'lm-theme-update'
+        // postMessage listener above only ever fires for an image-backed
+        // theme (see learn/index.html's own cortexEmbedFrame 'load' handler),
+        // so it alone was never enough for the plain/default case every
+        // account starts on. Fire-and-forget: nothing else here depends on
+        // this finishing before the chat itself is usable.
+        fetchThemeSettings().then((theme) => { if (theme) applyTheme(theme); });
 
         // Iframed into learn/index.html's own dashboard (see
         // renderWelcome()) — hides this page's own back-link/title header,
