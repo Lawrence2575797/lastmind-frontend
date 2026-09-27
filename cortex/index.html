@@ -1204,12 +1204,40 @@ SQIDAQAB
     // stays sequenced inside enterApp (after renderEmptyState(), which it
     // may need to tear back down via clearEmptyHint()); only the id
     // resolution above needed to move earlier.
+    // Rebuilds a turn recordSilentContext logged with a kind/data pair back
+    // into the actual boxed card it stood for - a "map" turn becomes the
+    // real, still-interactive knowledge-map card (tick/target/Start still
+    // work, using the same real node/concept ids the live session used),
+    // everything else becomes a small static summary card. Called from
+    // restoreChatHistory (page load / opening a past chat) - defined
+    // separately so it can also be reused for a turn appended in the
+    // current session without a full page reload, if that's ever needed.
+    function renderRestoredSilentTurn(turn) {
+        if (turn.kind === 'map' && turn.data) {
+            const card = appendCardMessage('');
+            const d = turn.data;
+            const taskNode = d.nodes.find((n) => n.isFinalTask) || d.nodes[d.nodes.length - 1];
+            const state = { subject: d.subject, qualification: d.qualification, examBoard: d.examBoard, nodes: d.nodes, edges: d.edges, skip: new Set(), target: taskNode ? taskNode.id : null };
+            renderTopicMap(card, state);
+            topicMapState = state; // kept as "most recently shown map", for reference only - every card's own interactivity closes over its own `state`, never this
+        } else if (turn.kind === 'lessonDone' && turn.data) {
+            appendCardMessage(`<div class="lesson-card-done">✓ Completed: ${escapeHtmlTopic(turn.data.label)}</div>`);
+        } else if (turn.kind === 'lessonFailed' && turn.data) {
+            appendCardMessage(`<div class="lesson-card-status">Couldn't generate an interactive lesson for “${escapeHtmlTopic(turn.data.label)}” at the time.</div>`);
+        } else if (turn.kind === 'allDone' && turn.data) {
+            appendCardMessage(`<div class="lesson-card-done">Finished every lesson for “${escapeHtmlTopic(turn.data.subject)}”.</div>`);
+        }
+        // A silent turn with no recognised kind (shouldn't normally happen)
+        // renders nothing - it was context-only to begin with.
+    }
+
     async function restoreChatHistory() {
         const session = await ensureSessionReady();
         if (!session.messages || !session.messages.length) return;
         chatHistory = session.messages;
         clearEmptyHint();
         chatHistory.forEach((turn) => {
+            if (turn.silent) { renderRestoredSilentTurn(turn); return; }
             if (turn.role === 'user') appendUserMessage(turn.content);
             else appendAssistantMessage(turn.content);
         });
@@ -1321,9 +1349,9 @@ SQIDAQAB
         return seen;
     }
 
-    function topicComputeTeachSet() {
-        const closure = topicAncestorsOf(topicMapState.nodes, topicMapState.edges, topicMapState.target);
-        return topicMapState.nodes.filter((n) => closure.has(n.id) && !topicMapState.skip.has(n.id));
+    function topicComputeTeachSet(state) {
+        const closure = topicAncestorsOf(state.nodes, state.edges, state.target);
+        return state.nodes.filter((n) => closure.has(n.id) && !state.skip.has(n.id));
     }
 
     function escapeHtmlTopic(s) {
@@ -1346,16 +1374,22 @@ SQIDAQAB
         return el;
     }
 
-    // The map/lesson cards are all visual - none of it ever touched
-    // chatHistory, so a plain chat message sent right after ("try again
-    // now") had genuinely nothing to go on: sendChatMessage only ever sees
-    // chatHistory, not the DOM. This records a short factual note into
-    // chatHistory (and saves it) WITHOUT rendering anything - the visible
-    // cards already show this, a duplicate bubble would just be noise -
-    // purely so Cortex has real context for whatever the student says next
-    // about what just happened above.
-    function recordSilentContext(content) {
-        chatHistory.push({ role: 'assistant', content });
+    // The map/lesson cards are all visual - none of it touched chatHistory
+    // at first, so (a) a plain chat message sent right after ("try again
+    // now") had nothing to go on, since sendChatMessage only ever sees
+    // chatHistory, not the DOM, and (b) reopening a past chat later could
+    // only ever replay plain text turns, never the actual map/lesson cards
+    // - real reported bug, "you shouldn't just be able to see the most
+    // previous lesson". This records a note into chatHistory (and saves
+    // it): `content` is the plain-text context Cortex reads (see
+    // CORTEX_INTENT_PROMPT's own note on the bracket-note convention);
+    // `kind`/`data`, when given, are what restoreChatHistory needs to
+    // rebuild the actual boxed card when this chat is reopened later,
+    // instead of just the bracket text. `silent: true` marks the turn so
+    // restoreChatHistory renders ONLY that reconstructed card, never a
+    // second, literal "[...]" chat bubble alongside it.
+    function recordSilentContext(content, kind, data) {
+        chatHistory.push({ role: 'assistant', content, silent: true, kind, data });
         saveChatHistory();
     }
 
@@ -1397,16 +1431,22 @@ SQIDAQAB
     // node N.
     const TOPIC_NODE_ARROW_SVG = `<svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M10,2 L10,15 M4,10 L10,16 L16,10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
-    function renderTopicMap(cardEl) {
-        const closure = topicAncestorsOf(topicMapState.nodes, topicMapState.edges, topicMapState.target);
-        const depsOf = new Map(topicMapState.nodes.map((n) => [n.id, []]));
-        topicMapState.edges.forEach((e) => { if (depsOf.has(e.to)) depsOf.get(e.to).push(e.from); });
-        const labelOf = new Map(topicMapState.nodes.map((n) => [n.id, n.label]));
+    // `state` is one specific map's own object (subject/qualification/
+    // examBoard/nodes/edges/skip/target) - never the shared topicMapState
+    // variable directly, so a chat with more than one "teach me" in it
+    // keeps each restored map card independently interactive (ticking a
+    // box on an OLDER map must not touch a newer one's state). Every click
+    // handler below closes over this same `state` object, not a global.
+    function renderTopicMap(cardEl, state) {
+        const closure = topicAncestorsOf(state.nodes, state.edges, state.target);
+        const depsOf = new Map(state.nodes.map((n) => [n.id, []]));
+        state.edges.forEach((e) => { if (depsOf.has(e.to)) depsOf.get(e.to).push(e.from); });
+        const labelOf = new Map(state.nodes.map((n) => [n.id, n.label]));
 
-        const boxes = topicMapState.nodes.map((n, i) => {
+        const boxes = state.nodes.map((n, i) => {
             const inClosure = closure.has(n.id);
-            const skipped = topicMapState.skip.has(n.id);
-            const isTarget = n.id === topicMapState.target;
+            const skipped = state.skip.has(n.id);
+            const isTarget = n.id === state.target;
             const depsText = (depsOf.get(n.id) || []).length
                 ? `Builds on: ${depsOf.get(n.id).map((d) => labelOf.get(d) || d).join(', ')}`
                 : 'Starting point';
@@ -1426,14 +1466,14 @@ SQIDAQAB
             </div>`;
         }).join('');
 
-        const teach = topicComputeTeachSet();
-        const targetLabel = labelOf.get(topicMapState.target) || topicMapState.target;
+        const teach = topicComputeTeachSet(state);
+        const targetLabel = labelOf.get(state.target) || state.target;
         const summary = teach.length
             ? `Teaching <b>${teach.length}</b> node${teach.length === 1 ? '' : 's'} to get you to “${escapeHtmlTopic(targetLabel)}”.`
             : `You already know everything needed for this target — pick a further one, or start anyway.`;
 
         cardEl.innerHTML = `
-            <div class="topic-map-heading">Your knowledge map for “${escapeHtmlTopic(topicMapState.subject)}”</div>
+            <div class="topic-map-heading">Your knowledge map for “${escapeHtmlTopic(state.subject)}”</div>
             ${boxes}
             <div class="topic-map-summary">${summary}</div>
             <button type="button" class="topic-map-start" id="topicMapStartBtn">Start the lesson</button>
@@ -1442,16 +1482,16 @@ SQIDAQAB
         cardEl.querySelectorAll('[data-action="skip"]').forEach((btn) => {
             btn.addEventListener('click', () => {
                 const id = btn.dataset.node;
-                if (topicMapState.skip.has(id)) topicMapState.skip.delete(id); else topicMapState.skip.add(id);
-                renderTopicMap(cardEl);
+                if (state.skip.has(id)) state.skip.delete(id); else state.skip.add(id);
+                renderTopicMap(cardEl, state);
             });
         });
         cardEl.querySelectorAll('[data-action="target"]').forEach((btn) => {
-            btn.addEventListener('click', () => { topicMapState.target = btn.dataset.node; renderTopicMap(cardEl); });
+            btn.addEventListener('click', () => { state.target = btn.dataset.node; renderTopicMap(cardEl, state); });
         });
         cardEl.querySelector('#topicMapStartBtn').addEventListener('click', () => {
             cardEl.querySelector('#topicMapStartBtn').remove();
-            startTopicTeachSequence();
+            startTopicTeachSequence(state);
         });
     }
 
@@ -1530,11 +1570,11 @@ SQIDAQAB
         window.addEventListener('message', onMessage);
     }
 
-    async function teachNextInQueue(queue, index, uuidByConceptId, deferredCounts) {
+    async function teachNextInQueue(state, queue, index, uuidByConceptId, deferredCounts) {
         if (!deferredCounts) deferredCounts = new Map();
         if (index >= queue.length) {
-            appendCardMessage(`<div class="lesson-card-done">You've covered everything for “${escapeHtmlTopic(topicMapState.subject)}” for now. Nice work.</div>`);
-            recordSilentContext(`[The student just finished every lesson in the "${topicMapState.subject}" knowledge map.]`);
+            appendCardMessage(`<div class="lesson-card-done">You've covered everything for “${escapeHtmlTopic(state.subject)}” for now. Nice work.</div>`);
+            recordSilentContext(`[The student just finished every lesson in the "${state.subject}" knowledge map.]`, 'allDone', { subject: state.subject });
             return;
         }
         const node = queue[index];
@@ -1559,7 +1599,7 @@ SQIDAQAB
         } catch (err) {
             const statusEl = card.querySelector('.lesson-card-status');
             statusEl.innerHTML = 'Could not load this lesson. <button type="button" class="topic-map-start" id="lessonRetryBtn">Try again</button>';
-            pendingLessonRetry = () => { card.remove(); teachNextInQueue(queue, index, uuidByConceptId, deferredCounts); };
+            pendingLessonRetry = () => { card.remove(); teachNextInQueue(state, queue, index, uuidByConceptId, deferredCounts); };
             statusEl.querySelector('#lessonRetryBtn').addEventListener('click', () => { const retry = pendingLessonRetry; pendingLessonRetry = null; retry(); });
             return;
         }
@@ -1578,24 +1618,24 @@ SQIDAQAB
                 queue.splice(index, 1);
                 queue.push(node);
                 card.remove();
-                teachNextInQueue(queue, index, uuidByConceptId, deferredCounts);
+                teachNextInQueue(state, queue, index, uuidByConceptId, deferredCounts);
                 return;
             }
             const statusEl = card.querySelector('.lesson-card-status');
             statusEl.innerHTML = "This concept doesn't have an interactive lesson ready yet. <button type=\"button\" class=\"topic-map-start\" id=\"lessonRetryBtn\">Try again</button>";
-            pendingLessonRetry = () => { deferredCounts.delete(node.id); card.remove(); teachNextInQueue(queue, index, uuidByConceptId, deferredCounts); };
+            pendingLessonRetry = () => { deferredCounts.delete(node.id); card.remove(); teachNextInQueue(state, queue, index, uuidByConceptId, deferredCounts); };
             statusEl.querySelector('#lessonRetryBtn').addEventListener('click', () => { const retry = pendingLessonRetry; pendingLessonRetry = null; retry(); });
-            recordSilentContext(`[Could not generate an interactive lesson yet for "${node.label}" - a plain "try again" from the student retries it directly, no action from you needed.]`);
+            recordSilentContext(`[Could not generate an interactive lesson yet for "${node.label}" - a plain "try again" from the student retries it directly, no action from you needed.]`, 'lessonFailed', { label: node.label });
             return;
         }
         mountDerivationInCard(card, lessonData.derivation, nodeUuid, () => {
-            recordSilentContext(`[Completed the lesson on "${node.label}".]`);
-            teachNextInQueue(queue, index + 1, uuidByConceptId, deferredCounts);
+            recordSilentContext(`[Completed the lesson on "${node.label}".]`, 'lessonDone', { label: node.label });
+            teachNextInQueue(state, queue, index + 1, uuidByConceptId, deferredCounts);
         });
     }
 
-    async function startTopicTeachSequence() {
-        const teach = topicComputeTeachSet();
+    async function startTopicTeachSequence(state) {
+        const teach = topicComputeTeachSet(state);
         if (!teach.length) {
             appendCardMessage(`<div class="lesson-card-done">You already know everything needed for this target.</div>`);
             return;
@@ -1603,13 +1643,13 @@ SQIDAQAB
         const card = appendCardMessage(`<div class="lesson-card-status">Getting your first lesson ready…</div>`);
         let uuidByConceptId;
         try {
-            uuidByConceptId = await fetchTopicNodeUuids(topicMapState.subject, topicMapState.qualification, topicMapState.examBoard);
+            uuidByConceptId = await fetchTopicNodeUuids(state.subject, state.qualification, state.examBoard);
         } catch (err) {
             card.querySelector('.lesson-card-status').textContent = 'Could not start the lesson — try again.';
             return;
         }
         card.remove();
-        teachNextInQueue(teach, 0, uuidByConceptId);
+        teachNextInQueue(state, teach, 0, uuidByConceptId);
     }
 
     // "teach me X" (or a close variant) typed into the ordinary chat box and
@@ -1662,9 +1702,14 @@ SQIDAQAB
             const data = await resp.json();
             if (!data.nodes || !data.nodes.length) { card.innerHTML = '<div class="topic-map-error">No usable map came back for that topic. Try rephrasing it.</div>'; return; }
             const taskNode = data.nodes.find((n) => n.isFinalTask) || data.nodes[data.nodes.length - 1];
-            topicMapState = { subject: data.subject, qualification: data.qualification, examBoard: data.examBoard, nodes: topicTopologicalOrder(data.nodes, data.edges), edges: data.edges, skip: new Set(), target: taskNode.id };
-            renderTopicMap(card);
-            recordSilentContext(`[Built a knowledge map for "${data.subject}": ${topicMapState.nodes.length} concepts - ${topicMapState.nodes.map((n) => n.label).join(', ')}.]`);
+            const state = { subject: data.subject, qualification: data.qualification, examBoard: data.examBoard, nodes: topicTopologicalOrder(data.nodes, data.edges), edges: data.edges, skip: new Set(), target: taskNode.id };
+            renderTopicMap(card, state);
+            topicMapState = state; // kept as "most recently shown map", for reference only - every card's own interactivity closes over its own `state`, never this
+            recordSilentContext(
+                `[Built a knowledge map for "${state.subject}": ${state.nodes.length} concepts - ${state.nodes.map((n) => n.label).join(', ')}.]`,
+                'map',
+                { subject: state.subject, qualification: state.qualification, examBoard: state.examBoard, nodes: state.nodes, edges: state.edges }
+            );
         } catch (err) {
             stopRotator();
             card.innerHTML = '<div class="topic-map-error">Something went wrong building that lesson. Try again.</div>';
