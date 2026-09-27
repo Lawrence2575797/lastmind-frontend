@@ -3512,11 +3512,12 @@
         gap: 16px;
         padding: 20px 26px 28px 26px;
         border-bottom: 1px solid rgba(230, 215, 176, 0.1);
-        /* Explicit navy, not left transparent over .main's new birch
-           background - the topbar (and its buttons) is chrome that sits ON
-           the birch page, same visual role the sidebar's own explicit
-           background already plays. */
-        background: var(--panel);
+        /* Transparent, deliberately - the strip itself is birch (.main's
+           own background shows straight through), same as every other gap
+           in the main column. Only the individual controls sitting in it
+           (.cortex-btn-topbar, .sidebar-toggle, etc.) paint their own navy
+           chrome on top of that birch, each already independently, so
+           nothing else here needs to change for that. */
     }
 
     .sidebar-toggle {
