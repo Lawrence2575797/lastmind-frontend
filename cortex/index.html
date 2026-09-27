@@ -1323,6 +1323,19 @@ SQIDAQAB
         return el;
     }
 
+    // The map/lesson cards are all visual - none of it ever touched
+    // chatHistory, so a plain chat message sent right after ("try again
+    // now") had genuinely nothing to go on: sendChatMessage only ever sees
+    // chatHistory, not the DOM. This records a short factual note into
+    // chatHistory (and saves it) WITHOUT rendering anything - the visible
+    // cards already show this, a duplicate bubble would just be noise -
+    // purely so Cortex has real context for whatever the student says next
+    // about what just happened above.
+    function recordSilentContext(content) {
+        chatHistory.push({ role: 'assistant', content });
+        saveChatHistory();
+    }
+
     const TOPIC_MAP_LOADING_MESSAGES = [
         'Reading the topic…',
         'Working out what it actually depends on…',
@@ -1497,6 +1510,7 @@ SQIDAQAB
         if (!deferredCounts) deferredCounts = new Map();
         if (index >= queue.length) {
             appendCardMessage(`<div class="lesson-card-done">You've covered everything for “${escapeHtmlTopic(topicMapState.subject)}” for now. Nice work.</div>`);
+            recordSilentContext(`[The student just finished every lesson in the "${topicMapState.subject}" knowledge map.]`);
             return;
         }
         const node = queue[index];
@@ -1541,10 +1555,16 @@ SQIDAQAB
                 teachNextInQueue(queue, index, uuidByConceptId, deferredCounts);
                 return;
             }
-            card.querySelector('.lesson-card-status').textContent = "This concept doesn't have an interactive lesson ready yet — try again shortly.";
+            const statusEl = card.querySelector('.lesson-card-status');
+            statusEl.innerHTML = "This concept doesn't have an interactive lesson ready yet. <button type=\"button\" class=\"topic-map-start\" id=\"lessonRetryBtn\">Try again</button>";
+            statusEl.querySelector('#lessonRetryBtn').addEventListener('click', () => { deferredCounts.delete(node.id); card.remove(); teachNextInQueue(queue, index, uuidByConceptId, deferredCounts); });
+            recordSilentContext(`[Could not generate an interactive lesson yet for "${node.label}" - the student may ask about this.]`);
             return;
         }
-        mountDerivationInCard(card, lessonData.derivation, () => teachNextInQueue(queue, index + 1, uuidByConceptId, deferredCounts));
+        mountDerivationInCard(card, lessonData.derivation, () => {
+            recordSilentContext(`[Completed the lesson on "${node.label}".]`);
+            teachNextInQueue(queue, index + 1, uuidByConceptId, deferredCounts);
+        });
     }
 
     async function startTopicTeachSequence() {
@@ -1608,6 +1628,7 @@ SQIDAQAB
             const taskNode = data.nodes.find((n) => n.isFinalTask) || data.nodes[data.nodes.length - 1];
             topicMapState = { subject: data.subject, qualification: data.qualification, examBoard: data.examBoard, nodes: topicTopologicalOrder(data.nodes, data.edges), edges: data.edges, skip: new Set(), target: taskNode.id };
             renderTopicMap(card);
+            recordSilentContext(`[Built a knowledge map for "${data.subject}": ${topicMapState.nodes.length} concepts - ${topicMapState.nodes.map((n) => n.label).join(', ')}.]`);
         } catch (err) {
             stopRotator();
             card.innerHTML = '<div class="topic-map-error">Something went wrong building that lesson. Try again.</div>';
