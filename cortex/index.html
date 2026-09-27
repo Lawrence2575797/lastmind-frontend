@@ -1258,6 +1258,19 @@ SQIDAQAB
     // comment on why that rule exists in the first place).
     let pendingLessonRetry = null;
 
+    // The knowledge_map_nodes.id (uuid) of whichever lesson card most
+    // recently mounted a derivation player (see mountDerivationInCard) -
+    // lets a plain question typed into chat ("instead of using 'would',
+    // what is 'could' in this sentence?") be answered WITH that lesson's
+    // own context (its explanation, its current on-screen question) via
+    // the existing GET /knowledge-map-v2/node/:nodeId/ask route, the same
+    // one the dashboard's own "Ask Cortex" corner panel already uses for
+    // exactly this - rather than a general chat call with no idea what
+    // "this sentence" even refers to. Never cleared once set - it's still
+    // reasonable to ask about the last thing you were taught even after
+    // moving on, and the next lesson's own mount overwrites it anyway.
+    let activeLessonNodeUuid = null;
+
     // Reorders nodes into a real dependency-respecting order (Kahn's
     // algorithm - a node only appears once every edge into it has already
     // been placed), original array order used as the tie-break wherever the
@@ -1477,7 +1490,8 @@ SQIDAQAB
     // reproduced here - this is a first-time, linear walk through a
     // brand-new topic's nodes in order, not a standing review queue.
     const DERIVE_PLAYER_VERSION = '20260923a'; // keep in sync with learn/index.html's own constant
-    function mountDerivationInCard(card, derivation, onDone) {
+    function mountDerivationInCard(card, derivation, nodeUuid, onDone) {
+        activeLessonNodeUuid = nodeUuid;
         card.innerHTML = `
             <div class="lesson-card-label">Lesson</div>
             <div class="lesson-card-frame-wrap"><iframe src="/learn/derive/player.html?v=${DERIVE_PLAYER_VERSION}" title="Lesson"></iframe></div>
@@ -1574,7 +1588,7 @@ SQIDAQAB
             recordSilentContext(`[Could not generate an interactive lesson yet for "${node.label}" - a plain "try again" from the student retries it directly, no action from you needed.]`);
             return;
         }
-        mountDerivationInCard(card, lessonData.derivation, () => {
+        mountDerivationInCard(card, lessonData.derivation, nodeUuid, () => {
             recordSilentContext(`[Completed the lesson on "${node.label}".]`);
             teachNextInQueue(queue, index + 1, uuidByConceptId, deferredCounts);
         });
@@ -2379,6 +2393,33 @@ SQIDAQAB
     // message retry very often just works.
     const CORTEX_TRUNCATED_MESSAGE = 'That was a lot to take in at once, so the response got cut off. Try asking again in a shorter or more specific way.';
 
+    // Answers a question WITH the currently active lesson's own context
+    // (its explanation, its current on-screen question) via the same
+    // GET .../ask route the dashboard's "Ask Cortex" corner panel already
+    // uses - see activeLessonNodeUuid. Returns the answer text, or null if
+    // this genuinely wasn't about the active lesson (the route's own
+    // "redirected" judgment) or the call itself failed - either way,
+    // sendChatMessage then falls through to the general chat path instead
+    // of dead-ending, since "not about THIS lesson" still isn't "not a
+    // learning question at all".
+    async function tryAnswerFromActiveLesson(text) {
+        if (!activeLessonNodeUuid) return null;
+        try {
+            const accessToken = await getSyncAccessToken();
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/node/${encodeURIComponent(activeLessonNodeUuid)}/ask`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                body: JSON.stringify({ question: text }),
+            });
+            if (!resp.ok) return null;
+            const result = await resp.json();
+            return result.redirected ? null : result.answer;
+        } catch (err) {
+            console.error('LastMind: lesson-context question failed.', err);
+            return null;
+        }
+    }
+
     async function postCortexMessage(text, session, folders, dueReviews) {
         const resp = await fetch(`${COMPILE_BACKEND_URL}/cortex/message`, {
             method: 'POST',
@@ -2445,6 +2486,18 @@ SQIDAQAB
         const thinkingEl = appendAssistantMessage('…');
 
         try {
+            // A lesson currently on screen gets first crack at this,
+            // WITH its own real content as context - "instead of using
+            // 'would', what is 'could' in this sentence?" means nothing to
+            // general chat, which has no idea what "this sentence" is.
+            const lessonAnswer = await tryAnswerFromActiveLesson(text);
+            if (lessonAnswer) {
+                setAssistantMessageText(thinkingEl, lessonAnswer);
+                chatHistory.push({ role: 'assistant', content: lessonAnswer });
+                saveChatHistory();
+                return;
+            }
+
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (!session) throw new Error('Not logged in.');
 
