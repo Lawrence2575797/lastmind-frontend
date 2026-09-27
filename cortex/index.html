@@ -214,18 +214,31 @@
 
     .topic-map-heading { align-self: flex-start; background: var(--panel); color: var(--text); border-radius: 8px; padding: 5px 10px; font-size: 0.68rem; letter-spacing: 0.03em; font-weight: 700; }
 
-    /* One node = one navy box; a small centred arrow in the birch gap
-       between boxes shows the teaching order (see renderTopicMap's own
-       comment on why this is a straightforward top-to-bottom sequence
-       rather than a full branching diagram). Deliberately compact - a
-       10-15 node map needs to read as a scannable sequence, not one node
-       per screen. */
-    .topic-node-box { background: var(--panel); color: var(--text); border-radius: 8px; padding: 7px 10px; }
+    /* The whole map on one screen as a real graph, not a single column -
+       one row per DAG level (topicComputeLevels), nodes at the same level
+       side by side within their row, real prerequisite edges drawn between
+       boxes wherever they actually go (drawTopicGraphEdges) rather than an
+       arrow just marking reading order. .topic-graph-svg sits absolutely
+       over .topic-graph-rows so its line coordinates (computed from the
+       boxes' own getBoundingClientRect()) line up with the boxes' normal
+       document-flow layout underneath it. */
+    .topic-graph-wrap { position: relative; }
+    .topic-graph-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+    .topic-graph-svg path { fill: none; stroke: var(--accent); stroke-width: 1.5px; opacity: 0.4; }
+    .topic-graph-rows { position: relative; display: flex; flex-direction: column; gap: 26px; }
+    .topic-graph-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+
+    /* One node = one navy box, sized (border-box, so the width below is
+       the real rendered width, padding included) narrow enough that two
+       still sit side by side inside the embedded chat sidebar (380px
+       panel, ~296px of that left for card content after its own padding -
+       see learn/index.html's .sf-mini-cortex-panel) rather than wrapping
+       to one column there the way the old full-width boxes always would
+       have. */
+    .topic-node-box { box-sizing: border-box; width: 135px; flex: 0 0 auto; background: var(--panel); color: var(--text); border-radius: 8px; padding: 7px 10px; }
     .topic-node-box.locked { opacity: 0.45; }
-    .topic-node-arrow { display: flex; justify-content: center; padding: 0; opacity: 0.6; }
-    .topic-node-arrow svg { display: block; width: 13px; height: 13px; }
     .topic-node-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 8px; }
-    .topic-node-info { flex: 1 1 160px; min-width: 0; }
+    .topic-node-info { flex: 1 1 auto; min-width: 0; }
     .topic-node-title { font-weight: 700; font-size: 0.78rem; }
     .topic-node-desc { font-size: 0.68rem; opacity: 0.75; margin-top: 1px; }
     .topic-node-deps { font-size: 0.62rem; opacity: 0.55; margin-top: 1px; }
@@ -1272,6 +1285,54 @@ SQIDAQAB
     // comment on why that rule exists in the first place).
     let pendingLessonRetry = null;
 
+    // A pending confirm-to-continue closure - set whenever Cortex is
+    // waiting on a plain "shall I go ahead?" about building a lesson: the
+    // map's first lesson, or the next one once a lesson just finished.
+    // Distinct from pendingLessonRetry above (a known FAILURE to redo);
+    // this is an ordinary, non-failure checkpoint that replaces what used
+    // to be a "Start the lesson" button - the student answers in their own
+    // words instead of clicking anything. A clearly affirmative reply runs
+    // it; a clearly negative one just clears it; anything else (a real
+    // question, an unrelated remark) falls through to the normal chat turn
+    // WITHOUT clearing it, so a later "yes" can still pick the same
+    // continuation back up.
+    let pendingLessonContinuation = null;
+
+    function detectAffirmativeIntent(text) {
+        return /^(?:yes|yeah|yep|yup|sure|ok(?:ay)?|go(?: on| ahead)?|do it|please(?: do)?|sounds good|let'?s (?:go|do it)|start|build it|go for it|why not|absolutely|definitely|of course)[.!]?$/i.test(text.trim());
+    }
+    function detectNegativeIntent(text) {
+        return /^(?:no|nah|nope|not (?:now|yet|really)|hold on|wait|later|maybe later)[.!]?$/i.test(text.trim());
+    }
+
+    // Never the same wording twice in a row where avoidable - picks
+    // uniformly at random, which is good enough for a two-word prompt the
+    // student will only see a handful of times per session.
+    function randomFrom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+    const LESSON_START_PROMPTS = [
+        'Shall I go ahead and build the first lesson?',
+        'Want me to build this one now?',
+        'Ready when you are — build the first lesson?',
+        "Say the word and I'll get the first lesson going.",
+        "I can build the first lesson whenever you're ready.",
+    ];
+    const LESSON_NEXT_PROMPTS = [
+        'Shall I build the next one?',
+        'Ready for the next lesson?',
+        'Want me to carry on to the next concept?',
+        'Nice work — build the next lesson?',
+        "Onwards? I can get the next one ready.",
+    ];
+
+    // Posts a warm, varying nudge as an ordinary chat message and arms
+    // pendingLessonContinuation with `run` - see sendChatMessage's own
+    // handling of it for how a plain yes/no (or anything else) resolves.
+    function promptLessonContinuation(promptPool, run) {
+        appendAssistantMessage(randomFrom(promptPool));
+        pendingLessonContinuation = run;
+    }
+
     // The knowledge_map_nodes.id (uuid) of whichever lesson card most
     // recently mounted a derivation player (see mountDerivationInCard) -
     // lets a plain question typed into chat ("instead of using 'would',
@@ -1417,17 +1478,48 @@ SQIDAQAB
         return () => clearInterval(timer);
     }
 
-    // Renders (or re-renders, after a skip/target click) the interactive
-    // map into the given card - the SAME card the whole time, never a new
-    // one, so ticking a checkbox doesn't add another message to the thread.
-    // A small downward arrow shown in the birch gap between two consecutive
-    // node boxes - the map's real prerequisite structure (which can have a
-    // node with several parents, or several independent branches) doesn't
-    // reduce to one straight line, but the "builds on: X, Y" text on each
-    // box already states that precisely; this arrow is just the reading
-    // order top-to-bottom, not a claim that node N+1 depends on nothing but
-    // node N.
-    const TOPIC_NODE_ARROW_SVG = `<svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M10,2 L10,15 M4,10 L10,16 L16,10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    // Assigns each node a "level" = 1 + the deepest level among its own
+    // prerequisites (0 for a node with none) - a real DAG layering, not
+    // just generation order, so nodes that don't depend on each other land
+    // in the same row instead of being forced into one artificial
+    // sequence. A mechanism with independent branches, or several parents
+    // converging on one node, actually looks like that once laid out this
+    // way, rather than reading as a single straight line. `nodes` must
+    // already be topologically sorted (see topicTopologicalOrder) so every
+    // prerequisite's level is already known by the time its dependents are
+    // processed.
+    function topicComputeLevels(nodes, edges) {
+        const depsOf = new Map(nodes.map((n) => [n.id, []]));
+        edges.forEach((e) => { if (depsOf.has(e.to)) depsOf.get(e.to).push(e.from); });
+        const levelOf = new Map();
+        nodes.forEach((n) => {
+            const deps = depsOf.get(n.id) || [];
+            levelOf.set(n.id, deps.length ? Math.max(...deps.map((d) => levelOf.get(d) ?? 0)) + 1 : 0);
+        });
+        return levelOf;
+    }
+
+    // Draws the map's real prerequisite edges as curved lines between each
+    // node's own rendered box - run AFTER the boxes are in the DOM so real,
+    // wrapped-text box sizes/positions are used rather than an assumed
+    // fixed layout. `wrapEl` is position:relative; `svgEl` sits over it via
+    // position:absolute;inset:0 in CSS, sized here to match.
+    function drawTopicGraphEdges(wrapEl, svgEl, state) {
+        const wrapRect = wrapEl.getBoundingClientRect();
+        svgEl.setAttribute('width', wrapRect.width);
+        svgEl.setAttribute('height', wrapRect.height);
+        svgEl.setAttribute('viewBox', `0 0 ${wrapRect.width} ${wrapRect.height}`);
+        svgEl.innerHTML = state.edges.map((e) => {
+            const fromEl = wrapEl.querySelector(`[data-node="${e.from}"]`);
+            const toEl = wrapEl.querySelector(`[data-node="${e.to}"]`);
+            if (!fromEl || !toEl) return '';
+            const fr = fromEl.getBoundingClientRect(), tr = toEl.getBoundingClientRect();
+            const x1 = fr.left + fr.width / 2 - wrapRect.left, y1 = fr.bottom - wrapRect.top;
+            const x2 = tr.left + tr.width / 2 - wrapRect.left, y2 = tr.top - wrapRect.top;
+            const midY = (y1 + y2) / 2;
+            return `<path d="M${x1},${y1} C${x1},${midY} ${x2},${midY} ${x2},${y2}" />`;
+        }).join('');
+    }
 
     // `state` is one specific map's own object (subject/qualification/
     // examBoard/nodes/edges/skip/target) - never the shared topicMapState
@@ -1435,21 +1527,29 @@ SQIDAQAB
     // keeps each restored map card independently interactive (ticking a
     // box on an OLDER map must not touch a newer one's state). Every click
     // handler below closes over this same `state` object, not a global.
+    // Renders (or re-renders, after a skip/target click) the whole map on
+    // one screen as a real layered graph - one row per DAG level, nodes at
+    // the same level side by side, edges drawn to wherever they actually
+    // go - instead of a single top-to-bottom list, since a mechanism's real
+    // prerequisite structure isn't always one straight line.
     function renderTopicMap(cardEl, state) {
         const closure = topicAncestorsOf(state.nodes, state.edges, state.target);
         const depsOf = new Map(state.nodes.map((n) => [n.id, []]));
         state.edges.forEach((e) => { if (depsOf.has(e.to)) depsOf.get(e.to).push(e.from); });
         const labelOf = new Map(state.nodes.map((n) => [n.id, n.label]));
+        const levelOf = topicComputeLevels(state.nodes, state.edges);
+        const maxLevel = state.nodes.length ? Math.max(...state.nodes.map((n) => levelOf.get(n.id))) : 0;
+        const rows = Array.from({ length: maxLevel + 1 }, () => []);
+        state.nodes.forEach((n) => rows[levelOf.get(n.id)].push(n));
 
-        const boxes = state.nodes.map((n, i) => {
+        const nodeBoxHtml = (n) => {
             const inClosure = closure.has(n.id);
             const skipped = state.skip.has(n.id);
             const isTarget = n.id === state.target;
             const depsText = (depsOf.get(n.id) || []).length
                 ? `Builds on: ${depsOf.get(n.id).map((d) => labelOf.get(d) || d).join(', ')}`
                 : 'Starting point';
-            const arrow = i > 0 ? `<div class="topic-node-arrow">${TOPIC_NODE_ARROW_SVG}</div>` : '';
-            return `${arrow}<div class="topic-node-box${!inClosure ? ' locked' : ''}" data-node="${n.id}">
+            return `<div class="topic-node-box${!inClosure ? ' locked' : ''}" data-node="${n.id}">
                 <div class="topic-node-top">
                     <div class="topic-node-info">
                         <div class="topic-node-title" style="${skipped ? 'opacity:.6;text-decoration:line-through;' : ''}">${escapeHtmlTopic(n.label)}</div>
@@ -1462,7 +1562,7 @@ SQIDAQAB
                     </div>
                 </div>
             </div>`;
-        }).join('');
+        };
 
         const teach = topicComputeTeachSet(state);
         const targetLabel = labelOf.get(state.target) || state.target;
@@ -1472,10 +1572,16 @@ SQIDAQAB
 
         cardEl.innerHTML = `
             <div class="topic-map-heading">Your knowledge map for “${escapeHtmlTopic(state.subject)}”</div>
-            ${boxes}
+            <div class="topic-graph-wrap">
+                <svg class="topic-graph-svg"></svg>
+                <div class="topic-graph-rows">
+                    ${rows.map((row) => `<div class="topic-graph-row">${row.map(nodeBoxHtml).join('')}</div>`).join('')}
+                </div>
+            </div>
             <div class="topic-map-summary">${summary}</div>
-            <button type="button" class="topic-map-start" id="topicMapStartBtn">Start the lesson</button>
         `;
+
+        drawTopicGraphEdges(cardEl.querySelector('.topic-graph-wrap'), cardEl.querySelector('.topic-graph-svg'), state);
 
         cardEl.querySelectorAll('[data-action="skip"]').forEach((btn) => {
             btn.addEventListener('click', () => {
@@ -1486,10 +1592,6 @@ SQIDAQAB
         });
         cardEl.querySelectorAll('[data-action="target"]').forEach((btn) => {
             btn.addEventListener('click', () => { state.target = btn.dataset.node; renderTopicMap(cardEl, state); });
-        });
-        cardEl.querySelector('#topicMapStartBtn').addEventListener('click', () => {
-            cardEl.querySelector('#topicMapStartBtn').remove();
-            startTopicTeachSequence(state);
         });
     }
 
@@ -1673,7 +1775,18 @@ SQIDAQAB
         }
         mountDerivationInCard(card, lessonData.derivation, nodeUuid, () => {
             recordSilentContext(`[Completed the lesson on "${node.label}".]`, 'lessonDone', { label: node.label });
-            teachNextInQueue(state, queue, index + 1, uuidByConceptId);
+            // Was an automatic cascade straight into the next node - now
+            // asks first, same as the map's own "shall I build the first
+            // lesson" nudge, so the student stays in control of pacing
+            // instead of the next lesson just appearing. The background
+            // prefetch above already kicked off before this point, so
+            // saying yes here is still near-instant either way.
+            if (index + 1 >= queue.length) {
+                appendCardMessage(`<div class="lesson-card-done">You've covered everything for “${escapeHtmlTopic(state.subject)}” for now. Nice work.</div>`);
+                recordSilentContext(`[The student just finished every lesson in the "${state.subject}" knowledge map.]`, 'allDone', { subject: state.subject });
+                return;
+            }
+            promptLessonContinuation(LESSON_NEXT_PROMPTS, () => teachNextInQueue(state, queue, index + 1, uuidByConceptId));
         });
     }
 
@@ -1753,6 +1866,13 @@ SQIDAQAB
                 'map',
                 { subject: state.subject, qualification: state.qualification, examBoard: state.examBoard, nodes: state.nodes, edges: state.edges }
             );
+            // Replaces the old "Start the lesson" button - the student
+            // answers a warm, varying nudge in their own words instead
+            // (see pendingLessonContinuation/sendChatMessage). `state` is
+            // the same live object skip/target clicks above mutate, so
+            // whatever the student's ticked by the time they say yes is
+            // what actually gets taught.
+            promptLessonContinuation(LESSON_START_PROMPTS, () => startTopicTeachSequence(state));
         } catch (err) {
             stopRotator();
             card.innerHTML = '<div class="topic-map-error">Something went wrong building that lesson. Try again.</div>';
@@ -2035,6 +2155,7 @@ SQIDAQAB
             input.value = '';
             input.style.height = 'auto';
             appendUserMessage(text);
+            pendingLessonContinuation = null; // starting a different topic supersedes any earlier "shall I build..." still waiting on an answer
             startTopicLearnFlow(teachTopic);
             return;
         }
@@ -2051,6 +2172,35 @@ SQIDAQAB
             pendingLessonRetry = null;
             retry();
             return;
+        }
+
+        // Waiting on a plain "shall I build the (next) lesson?" nudge (see
+        // promptLessonContinuation) - a clearly affirmative reply runs it
+        // directly, no LLM call needed, same short-circuit pattern as
+        // pendingLessonRetry above but for an ordinary checkpoint instead
+        // of a known failure. A clearly negative reply just clears it and
+        // lets the student keep talking. Anything else (a real question,
+        // an unrelated remark) falls through to the normal chat turn below
+        // WITHOUT touching pendingLessonContinuation, so a later "yes" can
+        // still pick the same continuation back up.
+        if (pendingLessonContinuation) {
+            if (detectAffirmativeIntent(text)) {
+                input.value = '';
+                input.style.height = 'auto';
+                appendUserMessage(text);
+                const run = pendingLessonContinuation;
+                pendingLessonContinuation = null;
+                run();
+                return;
+            }
+            if (detectNegativeIntent(text)) {
+                input.value = '';
+                input.style.height = 'auto';
+                appendUserMessage(text);
+                pendingLessonContinuation = null;
+                appendAssistantMessage("No worries — just say the word whenever you're ready.");
+                return;
+            }
         }
 
         input.value = '';
@@ -2113,6 +2263,7 @@ SQIDAQAB
             // ever flags the intent, this code decides what that means and
             // does it, same as a button click.
             if (result.startTopic) {
+                pendingLessonContinuation = null; // starting a different topic supersedes any earlier "shall I build..." still waiting on an answer
                 startTopicLearnFlow(result.startTopic);
             } else if (result.retryFailedLesson && pendingLessonRetry) {
                 const retry = pendingLessonRetry;
