@@ -179,39 +179,49 @@
        this card is just the label, quick-pick suggestion chips, and (once
        built) the resulting map; there's no separate build button any more. */
     #topicLearnResult { margin-top: 14px; text-align: left; }
-    .topic-map-card { background: rgba(255,255,255,0.4); border: 1px solid rgba(78,27,38,0.2); border-radius: 14px; padding: 16px 18px; }
-    .topic-map-row { display: flex; gap: 10px; align-items: flex-start; border-top: 1px solid rgba(78,27,38,0.14); padding: 10px 0; }
-    .topic-map-row:first-of-type { border-top: none; padding-top: 2px; }
-    .topic-map-check, .topic-map-radio { flex: none; width: 20px; height: 20px; margin-top: 2px; border: 1.5px solid rgba(78,27,38,0.4); cursor: pointer; background: transparent; }
-    .topic-map-check { border-radius: 5px; }
-    .topic-map-check.on { background: #4E9B6E; border-color: #4E9B6E; }
-    .topic-map-radio { border-radius: 50%; }
-    .topic-map-radio.on { border-color: var(--ink); background: radial-gradient(circle, var(--ink) 0 40%, transparent 42%); }
-    .topic-map-body { flex: 1; min-width: 0; }
-    .topic-map-title { font-weight: 700; font-size: 0.92rem; }
-    .topic-map-row.locked { opacity: 0.4; }
-    .topic-map-summary { margin-top: 12px; font-size: 0.85rem; opacity: 0.75; }
-    .topic-map-start { margin-top: 10px; border: 0; border-radius: 999px; padding: 9px 20px; background: var(--ink); color: #F3D9A6; font-family: inherit; font-weight: 700; cursor: pointer; }
-    .topic-map-error { color: #8a2e2e; font-size: 0.85rem; margin-top: 10px; }
 
     /* ─── Everything below keeps the whole "learn something new" flow -
        map, then every lesson stage - INSIDE the ordinary scrolling chat
-       thread as boxed cards, same width as a chat bubble's max-width but
-       full-width and boxed rather than a speech-bubble shape, since a
-       graph or a lesson isn't a line of dialogue. Nothing here ever
-       navigates the parent dashboard away from Cortex. */
-    .chat-msg-card { align-self: stretch; max-width: 100%; background: rgba(255,255,255,0.4); border: 1px solid rgba(78,27,38,0.2); border-radius: 14px; padding: 16px 18px; color: var(--ink); }
+       thread, styled exactly like the rest of the chat: sits directly on
+       the birch background (no separate pale card of its own), each piece
+       of content is its own navy box with cream text, same var(--panel)/
+       var(--text) pairing .chat-msg-assistant already uses. Nothing here
+       ever navigates the parent dashboard away from Cortex. */
+    .chat-msg-card { align-self: stretch; max-width: 100%; display: flex; flex-direction: column; gap: 10px; }
+
+    .topic-map-heading { align-self: flex-start; background: var(--panel); color: var(--text); border-radius: 10px; padding: 10px 16px; font-size: 0.8rem; letter-spacing: 0.04em; font-weight: 700; }
+
+    /* One node = one navy box; a small centred arrow in the birch gap
+       between boxes shows the teaching order (see renderTopicMap's own
+       comment on why this is a straightforward top-to-bottom sequence
+       rather than a full branching diagram). */
+    .topic-node-box { background: var(--panel); color: var(--text); border-radius: 12px; padding: 14px 16px; }
+    .topic-node-box.locked { opacity: 0.45; }
+    .topic-node-arrow { display: flex; justify-content: center; padding: 2px 0; opacity: 0.6; }
+    .topic-node-arrow svg { display: block; }
+    .topic-node-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .topic-node-title { font-weight: 700; font-size: 0.95rem; }
+    .topic-node-desc { font-size: 0.82rem; opacity: 0.75; margin-top: 4px; }
+    .topic-node-deps { font-size: 0.72rem; opacity: 0.55; margin-top: 6px; }
+    .topic-node-actions { flex: none; display: flex; flex-direction: column; gap: 6px; }
+    .topic-node-btn { border: 1px solid rgba(230, 215, 176, 0.35); background: transparent; color: var(--text); border-radius: 999px; padding: 5px 12px; font-family: inherit; font-size: 0.7rem; font-weight: 600; white-space: nowrap; cursor: pointer; }
+    .topic-node-btn:hover { background: rgba(230, 215, 176, 0.1); }
+    .topic-node-btn.on { background: var(--accent); color: var(--panel); border-color: var(--accent); }
+
+    .topic-map-summary { align-self: flex-start; background: var(--panel); color: var(--text); border-radius: 10px; padding: 10px 16px; font-size: 0.85rem; }
+    .topic-map-start { align-self: flex-start; border: 0; border-radius: 999px; padding: 10px 22px; background: var(--accent); color: var(--panel); font-family: inherit; font-weight: 700; cursor: pointer; }
+    .topic-map-error { align-self: flex-start; background: var(--panel); color: #E39B9B; border-radius: 10px; padding: 10px 16px; font-size: 0.85rem; }
 
     /* Knowledge-map GENERATION loading state: a short rotating status line
        (see TOPIC_MAP_LOADING_MESSAGES/rotateLoadingMessage) plus a small
        animated "wiring" graphic - a few nodes whose connecting lines draw
        themselves in a loop - standing in for the real graph while it's
        still being generated, rather than a generic spinner. */
-    .topic-loading-wrap { text-align: center; padding: 6px 0 2px; }
-    .topic-loading-text { font-size: 0.85rem; opacity: 0.75; margin-bottom: 12px; min-height: 1.3em; }
+    .topic-loading-wrap { align-self: flex-start; background: var(--panel); border-radius: 12px; padding: 16px 20px; text-align: center; }
+    .topic-loading-text { color: var(--text); font-size: 0.85rem; opacity: 0.8; margin-bottom: 12px; min-height: 1.3em; }
     .topic-loading-wires { display: block; margin: 0 auto; width: 160px; height: 64px; }
-    .topic-loading-wires circle { fill: var(--ink); opacity: 0.8; }
-    .topic-loading-wires path { fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; stroke-dasharray: 40; stroke-dashoffset: 40; animation: topic-wire-draw 1.6s ease-in-out infinite; opacity: 0.55; }
+    .topic-loading-wires circle { fill: var(--text); opacity: 0.8; }
+    .topic-loading-wires path { fill: none; stroke: var(--text); stroke-width: 1.6; stroke-linecap: round; stroke-dasharray: 40; stroke-dashoffset: 40; animation: topic-wire-draw 1.6s ease-in-out infinite; opacity: 0.55; }
     .topic-loading-wires path:nth-of-type(2) { animation-delay: 0.2s; }
     .topic-loading-wires path:nth-of-type(3) { animation-delay: 0.4s; }
     .topic-loading-wires path:nth-of-type(4) { animation-delay: 0.6s; }
@@ -225,12 +235,14 @@
     /* One lesson stage, embedded via the same /learn/derive/player.html
        player every other lesson in the app uses (see startTopicLessonCard)
        - just hosted inside a chat card instead of the dashboard's own
-       fullscreen lesson workspace. */
-    .lesson-card-label { font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.55; margin-bottom: 10px; }
+       fullscreen lesson workspace. Same navy-box treatment as everything
+       else in this flow; the player itself paints its own surface inside
+       the frame. */
+    .lesson-card-label { align-self: flex-start; background: var(--panel); color: var(--text); border-radius: 10px; padding: 8px 14px; font-size: 0.78rem; letter-spacing: 0.05em; text-transform: uppercase; font-weight: 700; }
     .lesson-card-frame-wrap { height: 560px; border-radius: 10px; overflow: hidden; background: var(--panel); }
     .lesson-card-frame-wrap iframe { width: 100%; height: 100%; border: 0; display: block; }
-    .lesson-card-status { font-size: 0.85rem; opacity: 0.7; text-align: center; padding: 30px 0; }
-    .lesson-card-done { margin-top: 12px; font-size: 0.9rem; font-weight: 700; text-align: center; }
+    .lesson-card-status { align-self: flex-start; background: var(--panel); color: var(--text); border-radius: 10px; padding: 10px 16px; font-size: 0.85rem; }
+    .lesson-card-done { align-self: flex-start; background: var(--panel); color: var(--text); border-radius: 10px; padding: 10px 16px; font-size: 0.9rem; font-weight: 700; }
 
     /* Sits just above the input row, only while chatHistory is empty —
        a rotating original prompt, never the same wording twice in a row. */
@@ -1267,27 +1279,41 @@ SQIDAQAB
     // Renders (or re-renders, after a skip/target click) the interactive
     // map into the given card - the SAME card the whole time, never a new
     // one, so ticking a checkbox doesn't add another message to the thread.
+    // A small downward arrow shown in the birch gap between two consecutive
+    // node boxes - the map's real prerequisite structure (which can have a
+    // node with several parents, or several independent branches) doesn't
+    // reduce to one straight line, but the "builds on: X, Y" text on each
+    // box already states that precisely; this arrow is just the reading
+    // order top-to-bottom, not a claim that node N+1 depends on nothing but
+    // node N.
+    const TOPIC_NODE_ARROW_SVG = `<svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M10,2 L10,15 M4,10 L10,16 L16,10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
     function renderTopicMap(cardEl) {
         const closure = topicAncestorsOf(topicMapState.nodes, topicMapState.edges, topicMapState.target);
         const depsOf = new Map(topicMapState.nodes.map((n) => [n.id, []]));
         topicMapState.edges.forEach((e) => { if (depsOf.has(e.to)) depsOf.get(e.to).push(e.from); });
         const labelOf = new Map(topicMapState.nodes.map((n) => [n.id, n.label]));
 
-        const rows = topicMapState.nodes.map((n) => {
+        const boxes = topicMapState.nodes.map((n, i) => {
             const inClosure = closure.has(n.id);
             const skipped = topicMapState.skip.has(n.id);
             const isTarget = n.id === topicMapState.target;
             const depsText = (depsOf.get(n.id) || []).length
-                ? `builds on: ${depsOf.get(n.id).map((d) => labelOf.get(d) || d).join(', ')}`
-                : 'starting point';
-            return `<div class="topic-map-row${skipped ? ' topic-map-skipped' : ''}${!inClosure ? ' locked' : ''}" data-node="${n.id}">
-                <button type="button" class="topic-map-check${skipped ? ' on' : ''}" data-action="skip" data-node="${n.id}" aria-label="I already know this"></button>
-                <div class="topic-map-body">
-                    <div class="topic-map-title" style="${skipped ? 'opacity:.55;text-decoration:line-through;' : ''}">${escapeHtmlTopic(n.label)}</div>
-                    <div style="font-size:0.8rem;opacity:0.65;">${escapeHtmlTopic(n.description || '')}</div>
-                    <div style="font-size:0.72rem;opacity:0.5;margin-top:3px;">${escapeHtmlTopic(depsText)}</div>
+                ? `Builds on: ${depsOf.get(n.id).map((d) => labelOf.get(d) || d).join(', ')}`
+                : 'Starting point';
+            const arrow = i > 0 ? `<div class="topic-node-arrow">${TOPIC_NODE_ARROW_SVG}</div>` : '';
+            return `${arrow}<div class="topic-node-box${!inClosure ? ' locked' : ''}" data-node="${n.id}">
+                <div class="topic-node-top">
+                    <div>
+                        <div class="topic-node-title" style="${skipped ? 'opacity:.6;text-decoration:line-through;' : ''}">${escapeHtmlTopic(n.label)}</div>
+                        <div class="topic-node-desc">${escapeHtmlTopic(n.description || '')}</div>
+                        <div class="topic-node-deps">${escapeHtmlTopic(depsText)}</div>
+                    </div>
+                    <div class="topic-node-actions">
+                        <button type="button" class="topic-node-btn${skipped ? ' on' : ''}" data-action="skip" data-node="${n.id}">${skipped ? 'Covered ✓' : "I've covered this"}</button>
+                        <button type="button" class="topic-node-btn${isTarget ? ' on' : ''}" data-action="target" data-node="${n.id}">${isTarget ? 'Goal ✓' : 'Make this the goal'}</button>
+                    </div>
                 </div>
-                <button type="button" class="topic-map-radio${isTarget ? ' on' : ''}" data-action="target" data-node="${n.id}" aria-label="Make this my target"></button>
             </div>`;
         }).join('');
 
@@ -1298,8 +1324,8 @@ SQIDAQAB
             : `You already know everything needed for this target — pick a further one, or start anyway.`;
 
         cardEl.innerHTML = `
-            <div class="topic-learn-label">Your knowledge map for “${escapeHtmlTopic(topicMapState.subject)}”</div>
-            ${rows}
+            <div class="topic-map-heading">Your knowledge map for “${escapeHtmlTopic(topicMapState.subject)}”</div>
+            ${boxes}
             <div class="topic-map-summary">${summary}</div>
             <button type="button" class="topic-map-start" id="topicMapStartBtn">Start the lesson</button>
         `;
