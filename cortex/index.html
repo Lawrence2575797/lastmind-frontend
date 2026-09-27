@@ -2647,14 +2647,24 @@ SQIDAQAB
             // has its own manual speak button regardless.
             if (result.speakAloud) speakText(result.reply);
 
-            // Cortex no longer takes actions on the student's account (see
-            // cortexPrompts.ts's own top comment) - the backend never
-            // returns an "actions" field any more, so there is nothing
-            // left to apply here. handleCortexActions and its appliers
-            // below are now dead code, kept only because ripping out ~10
-            // interdependent functions wasn't worth the risk in the same
-            // pass as this behavior change - safe to delete in a later
-            // cleanup pass since nothing calls them any more.
+            // Cortex still never touches the student's account directly
+            // (folders/pages/reviews - see cortexPrompts.ts's own top
+            // comment) - but it CAN now declare one of two narrow intents,
+            // recognized from whatever phrasing the student actually used
+            // rather than a fixed set of client-side regexes (real report:
+            // "try to generate it again" didn't match detectRetryIntent's
+            // pattern and fell through to a plain "I can't do that"
+            // reply). Executing either one here is exactly as deterministic
+            // and narrow as the regex short-circuits above - Cortex only
+            // ever flags the intent, this code decides what that means and
+            // does it, same as a button click.
+            if (result.startTopic) {
+                startTopicLearnFlow(result.startTopic);
+            } else if (result.retryFailedLesson && pendingLessonRetry) {
+                const retry = pendingLessonRetry;
+                pendingLessonRetry = null;
+                retry();
+            }
         } catch (err) {
             console.error('LastMind Cortex: message failed.', err);
             // Was a fixed generic string regardless of cause — genuinely
