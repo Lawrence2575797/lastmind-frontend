@@ -6211,7 +6211,7 @@
             </div>
 
             <div class="folder-list" id="folderList">
-                <div class="empty-hint">No subjects yet — click "+ Add new subject" to add one.</div>
+                <div class="empty-hint">Nothing covered yet — ask Cortex to teach you something new to get started.</div>
             </div>
 
             <div class="cortex-chat-list" id="cortexChatList">
@@ -9350,15 +9350,19 @@ SQIDAQAB
         return sfItem;
     }
 
-    // Top level of the Knowledge Map tab's sidebar: "+ Add new subject" is
-    // the one action left here now - the per-subject list this used to
-    // render (buildFolderRow for every folder) is gone. The main content
-    // area shows ONE unified knowledge map covering everything already
-    // covered across every subject/topic at once (see
+    // Top level of the Knowledge Map tab's sidebar. The per-subject list
+    // this used to render (buildFolderRow for every folder) is gone - the
+    // main content area shows ONE unified knowledge map covering everything
+    // already covered across every subject/topic at once (see
     // getUnifiedKnowledgeMapForUser/renderUnifiedKnowledgeMap), not a
     // picker for one subject at a time. buildFolderRow itself is left
     // fully intact, just no longer called from here - same one-call-site-
     // removed pattern as sfMaybeShowFeed's own default-landing removal.
+    // "+ Add new subject" (sfShowSubjectPickerWizard) is hidden the same
+    // way - omitting actionLabel/actionId/onAction below just skips
+    // rendering buildDrillHeader's action button entirely, no change
+    // needed to buildDrillHeader or sfShowSubjectPickerWizard themselves,
+    // so this is a one-line revert (pass them back in) when it returns.
     // The specPracticeMode Corrections-feed entry this used to show here
     // too is dead along with it (its own entry point, Exam Preparation, is
     // itself hidden now - see practiceQuestionsTopbarBtn), left in place
@@ -9368,19 +9372,14 @@ SQIDAQAB
         listEl.innerHTML = '';
 
         listEl.appendChild(buildDrillHeader({
-            title: 'Knowledge Map',
-            actionLabel: '+ Add new subject',
-            actionId: 'createFolderBtn',
-            onAction: sfShowSubjectPickerWizard,
-            secondaryActionLabel: null,
-            onSecondaryAction: null
+            title: 'Knowledge Map'
         }));
 
         const hint = document.createElement('div');
         hint.className = 'empty-hint';
         hint.textContent = folders.length
             ? 'Your knowledge map is shown on the right, covering everything you\'ve started across every subject.'
-            : 'Nothing covered yet — click "+ Add new subject" to start one, or ask Cortex to teach you something new.';
+            : 'Nothing covered yet — ask Cortex to teach you something new to get started.';
         listEl.appendChild(hint);
     }
 
