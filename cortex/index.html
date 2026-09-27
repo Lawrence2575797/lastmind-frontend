@@ -18,15 +18,12 @@
 
     :root {
         --bg: #1A1A1C;
-        /* Matches learn/index.html's own THEME_DEFAULTS (panelColor/
-           textColor) exactly - this used to be a different literal navy
-           (#201F21 vs the dashboard sidebar's #1A232D), visibly
-           mismatched, for the entirely mundane reason that fetchThemeSettings
-           below existed but nothing ever actually called it (see enterApp's
-           own comment on the fix) - this is just the fallback these two
-           colours sit on for the instant before that fetch resolves, or for
-           an account with no saved theme row at all, so it needs to already
-           be the same as the dashboard's own default, not a separate guess. */
+        /* Matches the dashboard sidebar's own hardcoded navy (learn/
+           index.html's .sf-mini-cortex-panel) exactly - Cortex no longer
+           mirrors the account's dashboard theme at all (removed by explicit
+           product decision - see the "Colour palette" comment further
+           down), so this is simply the one fixed navy every message box
+           uses, not a fallback for some other value to arrive later. */
         --panel: #1A232D;
         --text: #F1EAD6;
         --accent: #F1EAD6;
@@ -535,110 +532,17 @@ vw0E+SVdYHt5pSt2ifjQQkPUiYdZU1Ii99tBKG9G9pj8dF03aJlD0oWGQoQCIIky
 SQIDAQAB
 -----END PUBLIC KEY-----`;
 
-    /* ───────────────────────── Colour palette (read-only here) ─────────────────────────
-       The actual colour-picker UI lives in learn/index.html's own corner
-       icon - this page only ever CONSUMES the shared theme, two ways: (1)
-       fetches its own copy of /theme-settings on load, so it looks right
-       whether opened standalone or embedded before any message arrives,
-       and (2) listens for a live update posted by the parent dashboard
-       while a student is actively dragging a colour picker with this
-       chat visible in the embed - without this, "real time" preview would
-       only ever show the margins around this iframe, not the actual chat
-       surface most of the screen is showing. Same --text/--panel/--ink/
-       wood-background technique as learn/index.html's own applyTheme. */
-    function themeHexToRgb(hex) {
-        hex = (hex || '').replace('#', '');
-        if (hex.length === 3) hex = hex.split('').map((c) => c + c).join('');
-        const n = parseInt(hex, 16) || 0;
-        return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
-    }
-    function themeWoodBackground(baseHex) {
-        const base = themeHexToRgb(baseHex);
-        const light = `rgb(${Math.min(255, base.r + 26)},${Math.min(255, base.g + 22)},${Math.min(255, base.b + 14)})`;
-        const dark = `rgb(${Math.max(0, base.r - 30)},${Math.max(0, base.g - 26)},${Math.max(0, base.b - 18)})`;
-        const mid = `rgb(${base.r},${base.g},${base.b})`;
-        return `repeating-linear-gradient(90deg, rgba(0,0,0,0.14) 0px, rgba(0,0,0,0.14) 2px, transparent 2px, transparent 150px),` +
-            `repeating-linear-gradient(0.6deg, rgba(255,255,255,0.06) 0px, rgba(255,255,255,0.06) 1px, transparent 1px, transparent 4px),` +
-            `repeating-linear-gradient(-1.2deg, rgba(0,0,0,0.05) 0px, rgba(0,0,0,0.05) 1px, transparent 1px, transparent 6px),` +
-            `linear-gradient(100deg, ${light}, ${mid} 35%, ${light} 55%, ${dark} 85%, ${mid} 100%)`;
-    }
-    // Image-backed background textures (see learn/index.html's own
-    // THEME_IMAGE_BACKGROUNDS - kept in sync here since this page applies
-    // its own independent copy of the theme rather than sharing code with
-    // it). Root-relative so it resolves the same from this page's own
-    // /cortex/ path as it does from /learn/.
-    const THEME_IMAGE_BACKGROUNDS = {
-        'havnstad-village': '/assets/theme/havnstad-village.jpg',
-        'wild-west-town': '/assets/theme/wild-west-town.jpg',
-        'medieval-castle': '/assets/theme/medieval-castle.jpg',
-        'riverside-city': '/assets/theme/riverside-city.jpg',
-        'space-station': '/assets/theme/space-station.jpg',
-        'tokyo-night': '/assets/theme/tokyo-night.jpg',
-        'cosy-cafe': '/assets/theme/cosy-cafe.jpg',
-        'samurai-japan': '/assets/theme/samurai-japan.jpg',
-        'scholars-desk': '/assets/theme/scholars-desk.jpg',
-        'ancient-rome': '/assets/theme/ancient-rome.jpg',
-        'sakura-garden': '/assets/theme/sakura-garden.jpg',
-    };
-    function themeBackgroundValue(theme) {
-        const imageUrl = THEME_IMAGE_BACKGROUNDS[theme.bgTexture];
-        if (imageUrl) {
-            return `linear-gradient(rgba(8,7,6,0.4), rgba(8,7,6,0.52)), center / cover no-repeat fixed url('${imageUrl}')`;
-        }
-        return theme.bgTexture === 'wood' ? themeWoodBackground(theme.bgColor) : theme.bgColor;
-    }
-    function applyTheme(theme) {
-        // Minimalist: always the navy ground, whatever colours were saved earlier (the lesson feed itself is the light grey-blue).
-        if (theme && theme.bgTexture === 'minimalist') theme = { ...theme, textColor: '#F1EAD6', panelColor: '#1A232D', bgColor: '#12181F' };
-        const root = document.documentElement.style;
-        root.setProperty('--text', theme.textColor);
-        root.setProperty('--accent', theme.textColor);
-        root.setProperty('--panel', theme.panelColor);
-        const panelRgb = themeHexToRgb(theme.panelColor);
-        root.setProperty('--panel-rgb', `${panelRgb.r}, ${panelRgb.g}, ${panelRgb.b}`);
-        const isImageBg = !!THEME_IMAGE_BACKGROUNDS[theme.bgTexture];
-        document.body.classList.toggle('theme-bg-image', isImageBg);
-        // --ink deliberately left untouched here for plain/wood - see
-        // learn/index.html's own applyTheme comment: this used to be
-        // coupled to the Text picker the same way as --text/--accent,
-        // which made the default cream Text colour illegible against the
-        // birch background every --ink consumer (this page's own
-        // .chat-empty-logo included) actually sits on. --ink always reads
-        // its static :root default (burgundy) regardless of the Text
-        // picker for those two textures. An image texture's own dark
-        // scrim (see themeBackgroundValue) guarantees enough contrast for
-        // a light colour regardless of the photo underneath, so --ink
-        // safely follows the Text picker there instead.
-        if (isImageBg || theme.bgTexture === 'minimalist') root.setProperty('--ink', theme.textColor);
-        else root.removeProperty('--ink');
-        document.body.style.background = themeBackgroundValue(theme);
-    }
-    async function fetchThemeSettings() {
-        try {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) return null;
-            const resp = await fetch(`${COMPILE_BACKEND_URL}/theme-settings`, {
-                headers: { Authorization: `Bearer ${session.access_token}` }
-            });
-            if (!resp.ok) return null;
-            return await resp.json();
-        } catch (err) {
-            console.error('LastMind Cortex: failed to load theme settings.', err);
-            return null;
-        }
-    }
-    // Live preview while embedded - the parent posts its current theme on
-    // every colour-picker input event (see learn/index.html's applyTheme).
-    // Origin-checked since this only ever makes sense from the dashboard
-    // that actually embeds this page, on the same origin.
-    window.addEventListener('message', (event) => {
-        if (event.origin !== window.location.origin) return;
-        if (!event.data || event.data.type !== 'lm-theme-update') return;
-        applyTheme(event.data.theme);
-    });
-    // The dashboard now owns reward-background access. Cortex begins on the
-    // fixed default palette and only accepts an applied unlocked preset from
-    // its same-origin parent via the message listener above.
+    /* ───────────────────────── Colour palette ─────────────────────────
+       Cortex used to mirror whatever background/text theme the account had
+       set on the dashboard (fetchThemeSettings + a 'lm-theme-update'
+       postMessage listener) - removed by explicit product decision: Cortex
+       always sits on the birch background with cream-on-navy message boxes
+       (the plain :root defaults below), regardless of what the dashboard
+       itself is set to. This also fixes a real, reported mismatch: an
+       account on a non-default dashboard theme saw Cortex's whole page
+       replaced with a flat colour close to but not identical to the
+       sidebar's own separately-hardcoded navy - two different colours
+       standing in for what should have been one consistent birch canvas. */
 
     /* ───────────────────────── IndexedDB (same DB as /learn) ───────────────────────── */
 
@@ -2379,18 +2283,6 @@ SQIDAQAB
         document.getElementById('gate-message').style.display = 'none';
         document.getElementById('app').style.display = 'flex';
         document.getElementById('chatInput').focus();
-
-        // Applies this account's real saved theme colours - fetchThemeSettings
-        // existed but was never actually called anywhere in this file, so
-        // this page always sat on its own static :root defaults (a visibly
-        // different navy from learn/index.html's own THEME_DEFAULTS.panelColor)
-        // regardless of what the account's real theme was. The 'lm-theme-update'
-        // postMessage listener above only ever fires for an image-backed
-        // theme (see learn/index.html's own cortexEmbedFrame 'load' handler),
-        // so it alone was never enough for the plain/default case every
-        // account starts on. Fire-and-forget: nothing else here depends on
-        // this finishing before the chat itself is usable.
-        fetchThemeSettings().then((theme) => { if (theme) applyTheme(theme); });
 
         // Iframed into learn/index.html's own dashboard (see
         // renderWelcome()) — hides this page's own back-link/title header,
