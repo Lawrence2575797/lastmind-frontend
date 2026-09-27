@@ -12760,7 +12760,20 @@ SQIDAQAB
         refreshFolderList();
         sfOpenSidebarOnMobile();
     }
-    document.getElementById('knowledgeMapTopbarBtn').addEventListener('click', renderKnowledgeMapEntryScreen);
+    // Used to jump into whichever subject folder was already selected (or
+    // the first one) and show that ONE subject's full per-lesson map -
+    // renderKnowledgeMapEntryScreen itself is left fully intact below
+    // (nothing deleted, same "keep it in the code" pattern as
+    // sfMaybeShowFeed/specPracticeMode elsewhere in this file) so a future
+    // per-subject "browse every lesson" entry point is a one-line revert.
+    // This button now opens the same unified, covered-concepts-only map
+    // the Knowledge Map sidebar tab shows instead, since a per-subject
+    // lesson browser is exactly the "specific lessons" view that map is
+    // meant to replace as the default.
+    document.getElementById('knowledgeMapTopbarBtn').addEventListener('click', () => {
+        setSidebarTab('folders');
+        renderUnifiedKnowledgeMap();
+    });
 
     // Fetches this subject's real spec-lesson tree and caches it into
     // selectedFolderSpecTree, same role renderKnowledgeMapForFolder plays
@@ -24787,7 +24800,7 @@ SQIDAQAB
             contentInner.innerHTML = `
                 <div class="um-view um-empty">
                     <h1 class="um-title">Your knowledge map</h1>
-                    <p class="um-sub">Nothing covered yet. Add a subject, or ask Cortex to teach you something new — everything you learn shows up here, linked to whatever it actually builds on.</p>
+                    <p class="um-sub">No concepts covered yet — complete a lesson to get started. Everything you learn shows up here, linked to whatever it actually builds on.</p>
                 </div>`;
             return;
         }
