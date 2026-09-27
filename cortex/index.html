@@ -1599,8 +1599,18 @@ SQIDAQAB
         window.addEventListener('message', onMessage);
     }
 
-    async function teachNextInQueue(state, queue, index, uuidByConceptId, deferredCounts) {
-        if (!deferredCounts) deferredCounts = new Map();
+    // Attempts exactly ONE node - the current one - and stops there on
+    // failure with a retry option, rather than automatically racing ahead
+    // through the rest of the queue. That racing-ahead behaviour used to
+    // exist (deferring a failed node to the back and immediately trying
+    // the next one, and the next, ...) and was a real, reported problem on
+    // two fronts: it looked like the app was "trying to prepare every
+    // lesson" at once instead of just the one actually needed, and every
+    // one of those extra attempts could ALSO trigger a second, real, paid
+    // generation server-side (see the route's own DerivationStageNotReadyError
+    // handling) - i.e. a real, confirmed cost multiplier, not just a UX
+    // annoyance. One attempt, one clear outcome, retried only on request.
+    async function teachNextInQueue(state, queue, index, uuidByConceptId) {
         if (index >= queue.length) {
             appendCardMessage(`<div class="lesson-card-done">You've covered everything for “${escapeHtmlTopic(state.subject)}” for now. Nice work.</div>`);
             recordSilentContext(`[The student just finished every lesson in the "${state.subject}" knowledge map.]`, 'allDone', { subject: state.subject });
@@ -1619,51 +1629,44 @@ SQIDAQAB
             card.querySelector('.lesson-card-status').textContent = "Couldn't find this concept — try again in a moment.";
             return;
         }
+
+        function showRetryable(message) {
+            stopLessonRotator();
+            const statusEl = card.querySelector('.lesson-card-status');
+            statusEl.innerHTML = `${escapeHtmlTopic(message)} <button type="button" class="topic-map-start" id="lessonRetryBtn">Try again</button>`;
+            pendingLessonRetry = () => { card.remove(); teachNextInQueue(state, queue, index, uuidByConceptId); };
+            statusEl.querySelector('#lessonRetryBtn').addEventListener('click', () => { const retry = pendingLessonRetry; pendingLessonRetry = null; retry(); });
+        }
+
         let lessonData;
         try {
             const accessToken = await getSyncAccessToken();
             const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/node/${encodeURIComponent(nodeUuid)}/lesson`, {
                 headers: { Authorization: `Bearer ${accessToken}` }
             });
+            // 409/DERIVATION_NOT_READY: this node's own stage genuinely
+            // isn't generatable yet (an earlier stage it depends on hasn't
+            // been produced) - the route rejects this BEFORE spending
+            // anything, so retrying costs nothing but is also not
+            // guaranteed to help until an earlier node's own lesson has
+            // actually been opened. Same visible outcome as any other
+            // failure here: one clear message, one retry button, no
+            // automatic cascade to other nodes.
+            if (resp.status === 409) {
+                showRetryable("Couldn't generate an interactive lesson for this yet — try an earlier concept first, or try this again in a moment.");
+                recordSilentContext(`[Could not generate an interactive lesson for "${node.label}" yet - a plain "try again" from the student retries it directly, no action from you needed.]`, 'lessonFailed', { label: node.label });
+                return;
+            }
             if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
             lessonData = await resp.json();
             stopLessonRotator();
         } catch (err) {
-            stopLessonRotator();
-            const statusEl = card.querySelector('.lesson-card-status');
-            statusEl.innerHTML = 'Could not load this lesson. <button type="button" class="topic-map-start" id="lessonRetryBtn">Try again</button>';
-            pendingLessonRetry = () => { card.remove(); teachNextInQueue(state, queue, index, uuidByConceptId, deferredCounts); };
-            statusEl.querySelector('#lessonRetryBtn').addEventListener('click', () => { const retry = pendingLessonRetry; pendingLessonRetry = null; retry(); });
+            showRetryable('Could not load this lesson.');
             return;
         }
         if (!lessonData.derivation) {
-            // Despite topicTopologicalOrder, this node's own derivation stage
-            // can still need an earlier stage that hasn't been generated yet
-            // (stage grouping is the server's own, not 1:1 with this queue's
-            // node-by-node order - see derivationGenericService.ts's own
-            // prerequisite-stage check). That check now runs BEFORE any real
-            // generation call (see its own comment - it used to run after,
-            // silently spending a real Claude call on a stage it was then
-            // going to throw away), so a rejection here costs nothing -
-            // deferring this node to the back of the queue is free to do
-            // liberally, not something to ration to one or two tries. Capped
-            // at queue.length total attempts (comfortably more than one full
-            // pass over every other node) purely as a safety valve against a
-            // genuinely broken map, not a realistic ceiling in practice.
-            const attempts = deferredCounts.get(node.id) || 0;
-            if (attempts < queue.length && index < queue.length - 1) {
-                deferredCounts.set(node.id, attempts + 1);
-                queue.splice(index, 1);
-                queue.push(node);
-                card.remove();
-                teachNextInQueue(state, queue, index, uuidByConceptId, deferredCounts);
-                return;
-            }
-            const statusEl = card.querySelector('.lesson-card-status');
-            statusEl.innerHTML = "This concept doesn't have an interactive lesson ready yet. <button type=\"button\" class=\"topic-map-start\" id=\"lessonRetryBtn\">Try again</button>";
-            pendingLessonRetry = () => { deferredCounts.delete(node.id); card.remove(); teachNextInQueue(state, queue, index, uuidByConceptId, deferredCounts); };
-            statusEl.querySelector('#lessonRetryBtn').addEventListener('click', () => { const retry = pendingLessonRetry; pendingLessonRetry = null; retry(); });
-            recordSilentContext(`[Could not generate an interactive lesson yet for "${node.label}" - a plain "try again" from the student retries it directly, no action from you needed.]`, 'lessonFailed', { label: node.label });
+            showRetryable("Couldn't generate an interactive lesson for this.");
+            recordSilentContext(`[Could not generate an interactive lesson for "${node.label}" - a plain "try again" from the student retries it directly, no action from you needed.]`, 'lessonFailed', { label: node.label });
             return;
         }
         // Fire-and-forget: the moment THIS lesson is confirmed ready, start
@@ -1686,7 +1689,7 @@ SQIDAQAB
         }
         mountDerivationInCard(card, lessonData.derivation, nodeUuid, () => {
             recordSilentContext(`[Completed the lesson on "${node.label}".]`, 'lessonDone', { label: node.label });
-            teachNextInQueue(state, queue, index + 1, uuidByConceptId, deferredCounts);
+            teachNextInQueue(state, queue, index + 1, uuidByConceptId);
         });
     }
 
