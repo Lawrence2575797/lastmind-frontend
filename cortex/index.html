@@ -165,10 +165,10 @@
 
     /* "Learn something new": an interactive knowledge map generated live for
        any topic the student types (POST /knowledge-map-v2/topic), scoped
-       and started here, taught in the existing dashboard knowledge-map view
-       once "Start" hands off to the parent frame (see the lm-cortex-start-
-       topic postMessage below). Sits on the same birch background as the
-       empty-state logo/quote, so it uses --ink, not the chat-bubble --bg. */
+       here, then taught node by node right here in the chat thread (see
+       startTopicTeachSequence) - never handed off to a separate page. Sits
+       on the same birch background as the empty-state logo/quote, so it
+       uses --ink, not the chat-bubble --bg. */
     .topic-learn-card { max-width: 480px; margin: 22px auto 0; text-align: center; }
     .topic-learn-label { font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.55; margin-bottom: 10px; }
     .topic-learn-suggestions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
@@ -192,6 +192,44 @@
     .topic-map-summary { margin-top: 12px; font-size: 0.85rem; opacity: 0.75; }
     .topic-map-start { margin-top: 10px; border: 0; border-radius: 999px; padding: 9px 20px; background: var(--ink); color: #F3D9A6; font-family: inherit; font-weight: 700; cursor: pointer; }
     .topic-map-error { color: #8a2e2e; font-size: 0.85rem; margin-top: 10px; }
+
+    /* ─── Everything below keeps the whole "learn something new" flow -
+       map, then every lesson stage - INSIDE the ordinary scrolling chat
+       thread as boxed cards, same width as a chat bubble's max-width but
+       full-width and boxed rather than a speech-bubble shape, since a
+       graph or a lesson isn't a line of dialogue. Nothing here ever
+       navigates the parent dashboard away from Cortex. */
+    .chat-msg-card { align-self: stretch; max-width: 100%; background: rgba(255,255,255,0.4); border: 1px solid rgba(78,27,38,0.2); border-radius: 14px; padding: 16px 18px; color: var(--ink); }
+
+    /* Knowledge-map GENERATION loading state: a short rotating status line
+       (see TOPIC_MAP_LOADING_MESSAGES/rotateLoadingMessage) plus a small
+       animated "wiring" graphic - a few nodes whose connecting lines draw
+       themselves in a loop - standing in for the real graph while it's
+       still being generated, rather than a generic spinner. */
+    .topic-loading-wrap { text-align: center; padding: 6px 0 2px; }
+    .topic-loading-text { font-size: 0.85rem; opacity: 0.75; margin-bottom: 12px; min-height: 1.3em; }
+    .topic-loading-wires { display: block; margin: 0 auto; width: 160px; height: 64px; }
+    .topic-loading-wires circle { fill: var(--ink); opacity: 0.8; }
+    .topic-loading-wires path { fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; stroke-dasharray: 40; stroke-dashoffset: 40; animation: topic-wire-draw 1.6s ease-in-out infinite; opacity: 0.55; }
+    .topic-loading-wires path:nth-of-type(2) { animation-delay: 0.2s; }
+    .topic-loading-wires path:nth-of-type(3) { animation-delay: 0.4s; }
+    .topic-loading-wires path:nth-of-type(4) { animation-delay: 0.6s; }
+    @keyframes topic-wire-draw {
+        0% { stroke-dashoffset: 40; opacity: 0; }
+        30% { opacity: 0.7; }
+        60% { stroke-dashoffset: 0; opacity: 0.7; }
+        100% { stroke-dashoffset: 0; opacity: 0; }
+    }
+
+    /* One lesson stage, embedded via the same /learn/derive/player.html
+       player every other lesson in the app uses (see startTopicLessonCard)
+       - just hosted inside a chat card instead of the dashboard's own
+       fullscreen lesson workspace. */
+    .lesson-card-label { font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.55; margin-bottom: 10px; }
+    .lesson-card-frame-wrap { height: 560px; border-radius: 10px; overflow: hidden; background: var(--panel); }
+    .lesson-card-frame-wrap iframe { width: 100%; height: 100%; border: 0; display: block; }
+    .lesson-card-status { font-size: 0.85rem; opacity: 0.7; text-align: center; padding: 30px 0; }
+    .lesson-card-done { margin-top: 12px; font-size: 0.9rem; font-weight: 700; text-align: center; }
 
     /* Sits just above the input row, only while chatHistory is empty —
        a rotating original prompt, never the same wording twice in a row. */
@@ -1176,10 +1214,13 @@ SQIDAQAB
 
     // ─── "Learn something new": a live-generated, interactive knowledge map for
     // any topic, scoped by the student (tick what's already known, pick a
-    // target), then handed off to the dashboard's own knowledge-map view to
-    // actually teach it. See topicKnowledgeMapService.ts (generation/caching)
-    // and learn/index.html's lm-cortex-start-topic listener (the hand-off).
-    let topicMapState = null; // { subject, nodes: [{id,label,description}], edges: [{from,to}], skip:Set, target:string }
+    // target), taught node by node right here in the chat thread - map,
+    // then every lesson stage, all as boxed cards in the same scroll, never
+    // handed off to a separate dashboard page. See topicKnowledgeMapService.ts
+    // (generation/caching) and startTopicTeachSequence below (the teaching
+    // loop). learn/index.html's lm-cortex-start-topic listener is the old
+    // hand-off this replaced - left in place, just no longer sent from here.
+    let topicMapState = null; // { subject, qualification, examBoard, nodes: [{id,conceptId,label,description}], edges: [{from,to}], skip:Set, target:string }
 
     function topicAncestorsOf(nodes, edges, targetId) {
         const depsOf = new Map(nodes.map((n) => [n.id, []]));
@@ -1194,7 +1235,56 @@ SQIDAQAB
         return topicMapState.nodes.filter((n) => closure.has(n.id) && !topicMapState.skip.has(n.id));
     }
 
-    function renderTopicMap() {
+    function escapeHtmlTopic(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // Every card below - the loading state, the map, and every lesson stage
+    // - is appended straight into the ordinary chat thread (#chatMessages),
+    // never into a separate page, so it's part of the same scroll as every
+    // other message. clearEmptyHint() first: the empty-state logo/quote and
+    // its own suggestion chips only make sense before anything's happened
+    // yet, same as it already gets torn down for a plain chat message.
+    function appendCardMessage(innerHtml) {
+        clearEmptyHint();
+        const el = document.createElement('div');
+        el.className = 'chat-msg chat-msg-card';
+        el.innerHTML = innerHtml;
+        chatMessagesEl.appendChild(el);
+        el.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        return el;
+    }
+
+    const TOPIC_MAP_LOADING_MESSAGES = [
+        'Reading the topic…',
+        'Working out what it actually depends on…',
+        'Mapping the prerequisites…',
+        'Checking what genuinely connects to what…',
+        'Putting it in a sensible order…',
+        'Nearly there…',
+    ];
+    const TOPIC_LOADING_WIRES_SVG = `<svg class="topic-loading-wires" viewBox="0 0 160 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M16,32 L80,12"/><path d="M16,32 L80,52"/><path d="M80,12 L144,32"/><path d="M80,52 L144,32"/>
+        <circle cx="16" cy="32" r="5"/><circle cx="80" cy="12" r="5"/><circle cx="80" cy="52" r="5"/><circle cx="144" cy="32" r="5"/>
+    </svg>`;
+    // Rotates the loading line every 1.8s for as long as generation is in
+    // flight - returns a stop function the caller runs once the real
+    // result (or an error) is ready, so the interval never outlives the
+    // card it was updating.
+    function startTopicLoadingRotator(textEl) {
+        let i = 0;
+        textEl.textContent = TOPIC_MAP_LOADING_MESSAGES[0];
+        const timer = setInterval(() => {
+            i = (i + 1) % TOPIC_MAP_LOADING_MESSAGES.length;
+            textEl.textContent = TOPIC_MAP_LOADING_MESSAGES[i];
+        }, 1800);
+        return () => clearInterval(timer);
+    }
+
+    // Renders (or re-renders, after a skip/target click) the interactive
+    // map into the given card - the SAME card the whole time, never a new
+    // one, so ticking a checkbox doesn't add another message to the thread.
+    function renderTopicMap(cardEl) {
         const closure = topicAncestorsOf(topicMapState.nodes, topicMapState.edges, topicMapState.target);
         const depsOf = new Map(topicMapState.nodes.map((n) => [n.id, []]));
         topicMapState.edges.forEach((e) => { if (depsOf.has(e.to)) depsOf.get(e.to).push(e.from); });
@@ -1224,38 +1314,158 @@ SQIDAQAB
             ? `Teaching <b>${teach.length}</b> node${teach.length === 1 ? '' : 's'} to get you to “${escapeHtmlTopic(targetLabel)}”.`
             : `You already know everything needed for this target — pick a further one, or start anyway.`;
 
-        document.getElementById('topicLearnResult').innerHTML = `
-            <div class="topic-map-card">
-                ${rows}
-                <div class="topic-map-summary">${summary}</div>
-                <button type="button" class="topic-map-start" id="topicMapStartBtn">Start the lesson</button>
-            </div>`;
+        cardEl.innerHTML = `
+            <div class="topic-learn-label">Your knowledge map for “${escapeHtmlTopic(topicMapState.subject)}”</div>
+            ${rows}
+            <div class="topic-map-summary">${summary}</div>
+            <button type="button" class="topic-map-start" id="topicMapStartBtn">Start the lesson</button>
+        `;
 
-        document.querySelectorAll('#topicLearnResult [data-action="skip"]').forEach((btn) => {
+        cardEl.querySelectorAll('[data-action="skip"]').forEach((btn) => {
             btn.addEventListener('click', () => {
                 const id = btn.dataset.node;
                 if (topicMapState.skip.has(id)) topicMapState.skip.delete(id); else topicMapState.skip.add(id);
-                renderTopicMap();
+                renderTopicMap(cardEl);
             });
         });
-        document.querySelectorAll('#topicLearnResult [data-action="target"]').forEach((btn) => {
-            btn.addEventListener('click', () => { topicMapState.target = btn.dataset.node; renderTopicMap(); });
+        cardEl.querySelectorAll('[data-action="target"]').forEach((btn) => {
+            btn.addEventListener('click', () => { topicMapState.target = btn.dataset.node; renderTopicMap(cardEl); });
         });
-        document.getElementById('topicMapStartBtn').addEventListener('click', () => {
-            // The scope (skip/target) narrows what THIS view highlights as the plan, but the actual per-node
-            // teaching lives in the dashboard's existing knowledge-map graph for this subject (every node this
-            // student hasn't mastered yet, same as any other subject) - there is no separate "custom lesson
-            // player" this hands off to. Being upfront about that here rather than implying a scoped lesson that
-            // doesn't yet exist server-side.
-            window.parent.postMessage({ type: 'lm-cortex-start-topic', subject: topicMapState.subject }, window.location.origin);
+        cardEl.querySelector('#topicMapStartBtn').addEventListener('click', () => {
+            cardEl.querySelector('#topicMapStartBtn').remove();
+            startTopicTeachSequence();
         });
     }
 
-    function escapeHtmlTopic(s) {
-        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    // The topic map's own nodes are keyed by node_key (a short slug, unique
+    // only within this one topic's graph - see topicKnowledgeMapService.ts)
+    // since that's all the map-building endpoint ever needed to hand back.
+    // Actually teaching a node needs its real knowledge_map_nodes.id (uuid)
+    // instead - GET /knowledge-map-v2/node/:nodeId/lesson is keyed on that,
+    // same as every curated subject. Rather than changing the topic-map
+    // endpoint's own response shape, this reuses the EXISTING subject-map
+    // read (GET /knowledge-map-v2, already returns real uuids) and joins on
+    // conceptId, which is the one id that's stable and identical across
+    // both representations (clean(subject):clean(nodeKey), see
+    // topicKnowledgeMapService.ts's own clean()).
+    async function fetchTopicNodeUuids(subject, qualification, examBoard) {
+        const accessToken = await getSyncAccessToken();
+        if (!accessToken) throw new Error('not signed in');
+        const params = new URLSearchParams({ subject, qualification, examBoard });
+        const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2?${params.toString()}`, {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+        const data = await resp.json();
+        const byConceptId = new Map();
+        (data.nodes || []).forEach((n) => byConceptId.set(n.conceptId, n.id));
+        return byConceptId;
     }
 
-    // The topic text now comes from the same persistent #chatInput used for
+    // Same /learn/derive/player.html every other lesson in the app uses
+    // (see learn/index.html's sfBuildDerivationSlides) and the same
+    // lm-derive-* postMessage handshake, just hosted inside a chat card
+    // here instead of the dashboard's fullscreen lesson workspace - there
+    // is deliberately no separate page this ever navigates to. Recap/
+    // immediate-recall/Day-1-check interruptions the dashboard's spaced-
+    // repetition feed layers on top of this same player are NOT
+    // reproduced here - this is a first-time, linear walk through a
+    // brand-new topic's nodes in order, not a standing review queue.
+    const DERIVE_PLAYER_VERSION = '20260923a'; // keep in sync with learn/index.html's own constant
+    function mountDerivationInCard(card, derivation, onDone) {
+        card.innerHTML = `
+            <div class="lesson-card-label">Lesson</div>
+            <div class="lesson-card-frame-wrap"><iframe src="/learn/derive/player.html?v=${DERIVE_PLAYER_VERSION}" title="Lesson"></iframe></div>
+        `;
+        const frame = card.querySelector('iframe');
+        let answered = false;
+        let completionPromise = null;
+        const cs = getComputedStyle(document.documentElement);
+        const look = { text: cs.getPropertyValue('--text').trim() || '#F1EAD6', rgb: cs.getPropertyValue('--panel-rgb').trim() || '18, 24, 31' };
+        const onMessage = async (e) => {
+            if (e.origin !== window.location.origin || e.source !== frame.contentWindow || !e.data) return;
+            if (e.data.type === 'lm-derive-ready') {
+                frame.contentWindow.postMessage({ type: 'lm-derive-init', data: derivation.payload, checkpoint: null, look }, window.location.origin);
+                try { frame.focus(); frame.contentWindow.focus(); } catch (err) { /* focus is a convenience */ }
+            } else if (e.data.type === 'lm-derive-complete' && !answered) {
+                answered = true;
+                completionPromise = (async () => {
+                    try {
+                        const accessToken = await getSyncAccessToken();
+                        await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/derivation/complete`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                            body: JSON.stringify({ stage: derivation.stage }),
+                        });
+                    } catch (err) { console.error('LastMind: could not record this lesson.', err); }
+                })();
+                await completionPromise;
+            } else if (e.data.type === 'lm-derive-continue' && answered) {
+                if (completionPromise) await completionPromise;
+                window.removeEventListener('message', onMessage);
+                onDone();
+            }
+            // lm-derive-open-map / lm-derive-toggle-size: no-ops here - there is
+            // no separate map view or fullscreen mode to hand off to from a chat card.
+        };
+        window.addEventListener('message', onMessage);
+    }
+
+    async function teachNextInQueue(queue, index, uuidByConceptId) {
+        if (index >= queue.length) {
+            appendCardMessage(`<div class="lesson-card-done">You've covered everything for “${escapeHtmlTopic(topicMapState.subject)}” for now. Nice work.</div>`);
+            return;
+        }
+        const node = queue[index];
+        const card = appendCardMessage(`
+            <div class="lesson-card-label">${escapeHtmlTopic(node.label)}</div>
+            <div class="lesson-card-status">Preparing this lesson…</div>
+        `);
+        const nodeUuid = uuidByConceptId.get(node.conceptId);
+        if (!nodeUuid) {
+            card.querySelector('.lesson-card-status').textContent = "Couldn't find this concept — try again in a moment.";
+            return;
+        }
+        let lessonData;
+        try {
+            const accessToken = await getSyncAccessToken();
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/node/${encodeURIComponent(nodeUuid)}/lesson`, {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            lessonData = await resp.json();
+        } catch (err) {
+            const statusEl = card.querySelector('.lesson-card-status');
+            statusEl.innerHTML = 'Could not load this lesson. <button type="button" class="topic-map-start" id="lessonRetryBtn">Try again</button>';
+            statusEl.querySelector('#lessonRetryBtn').addEventListener('click', () => { card.remove(); teachNextInQueue(queue, index, uuidByConceptId); });
+            return;
+        }
+        if (!lessonData.derivation) {
+            card.querySelector('.lesson-card-status').textContent = "This concept doesn't have an interactive lesson ready yet — try again shortly.";
+            return;
+        }
+        mountDerivationInCard(card, lessonData.derivation, () => teachNextInQueue(queue, index + 1, uuidByConceptId));
+    }
+
+    async function startTopicTeachSequence() {
+        const teach = topicComputeTeachSet();
+        if (!teach.length) {
+            appendCardMessage(`<div class="lesson-card-done">You already know everything needed for this target.</div>`);
+            return;
+        }
+        const card = appendCardMessage(`<div class="lesson-card-status">Getting your first lesson ready…</div>`);
+        let uuidByConceptId;
+        try {
+            uuidByConceptId = await fetchTopicNodeUuids(topicMapState.subject, topicMapState.qualification, topicMapState.examBoard);
+        } catch (err) {
+            card.querySelector('.lesson-card-status').textContent = 'Could not start the lesson — try again.';
+            return;
+        }
+        card.remove();
+        teachNextInQueue(teach, 0, uuidByConceptId);
+    }
+
+    // The topic text comes from the same persistent #chatInput used for
     // ordinary questions (see #topicLearnGoBtn next to Send in the input
     // row) rather than a separate field — one box, two things you can do
     // with whatever's typed into it.
@@ -1266,27 +1476,34 @@ SQIDAQAB
         input.value = '';
         input.style.height = 'auto';
         const goBtn = document.getElementById('topicLearnGoBtn');
-        const resultEl = document.getElementById('topicLearnResult');
         goBtn.disabled = true;
-        resultEl.innerHTML = `<div style="font-size:0.85rem;opacity:0.6;">Building a knowledge map for “${escapeHtmlTopic(topic)}”…</div>`;
+        const card = appendCardMessage(`
+            <div class="topic-loading-wrap">
+                ${TOPIC_LOADING_WIRES_SVG}
+                <div class="topic-loading-text"></div>
+            </div>
+        `);
+        const stopRotator = startTopicLoadingRotator(card.querySelector('.topic-loading-text'));
         try {
             const accessToken = await getSyncAccessToken();
-            if (!accessToken) { resultEl.innerHTML = '<div class="topic-map-error">You need to be signed in to build a lesson.</div>'; return; }
+            if (!accessToken) { stopRotator(); card.innerHTML = '<div class="topic-map-error">You need to be signed in to build a lesson.</div>'; return; }
             const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/topic`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
                 body: JSON.stringify({ topic }),
             });
-            if (resp.status === 402) { resultEl.innerHTML = "<div class=\"topic-map-error\">You're out of Locks for now — come back once they refresh.</div>"; return; }
-            if (resp.status === 429) { resultEl.innerHTML = '<div class="topic-map-error">Too many lessons requested at once — try again shortly.</div>'; return; }
-            if (!resp.ok) { resultEl.innerHTML = '<div class="topic-map-error">Could not build a knowledge map for that topic. Try rephrasing it.</div>'; return; }
+            stopRotator();
+            if (resp.status === 402) { card.innerHTML = "<div class=\"topic-map-error\">You're out of Locks for now — come back once they refresh.</div>"; return; }
+            if (resp.status === 429) { card.innerHTML = '<div class="topic-map-error">Too many lessons requested at once — try again shortly.</div>'; return; }
+            if (!resp.ok) { card.innerHTML = '<div class="topic-map-error">Could not build a knowledge map for that topic. Try rephrasing it.</div>'; return; }
             const data = await resp.json();
-            if (!data.nodes || !data.nodes.length) { resultEl.innerHTML = '<div class="topic-map-error">No usable map came back for that topic. Try rephrasing it.</div>'; return; }
+            if (!data.nodes || !data.nodes.length) { card.innerHTML = '<div class="topic-map-error">No usable map came back for that topic. Try rephrasing it.</div>'; return; }
             const taskNode = data.nodes.find((n) => n.isFinalTask) || data.nodes[data.nodes.length - 1];
-            topicMapState = { subject: data.subject, nodes: data.nodes, edges: data.edges, skip: new Set(), target: taskNode.id };
-            renderTopicMap();
+            topicMapState = { subject: data.subject, qualification: data.qualification, examBoard: data.examBoard, nodes: data.nodes, edges: data.edges, skip: new Set(), target: taskNode.id };
+            renderTopicMap(card);
         } catch (err) {
-            resultEl.innerHTML = '<div class="topic-map-error">Something went wrong building that lesson. Try again.</div>';
+            stopRotator();
+            card.innerHTML = '<div class="topic-map-error">Something went wrong building that lesson. Try again.</div>';
         } finally {
             goBtn.disabled = false;
         }
