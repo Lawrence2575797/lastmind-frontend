@@ -174,9 +174,10 @@
     .topic-learn-suggestions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
     .topic-learn-chip { border: 1.5px solid rgba(78,27,38,0.25); background: rgba(255,255,255,0.35); color: var(--ink); border-radius: 999px; padding: 7px 15px; font-family: inherit; font-size: 0.85rem; cursor: pointer; }
     .topic-learn-chip:hover { background: rgba(255,255,255,0.55); border-color: var(--ink); }
-    /* The actual topic text now goes through the persistent #chatInput at the
-       bottom (see #topicLearnGoBtn there) — this card is just the label,
-       quick-pick suggestions, and (once built) the resulting map. */
+    /* Typing "teach me X" into the persistent #chatInput and hitting Send
+       (or Enter) is the actual trigger now - see detectTeachMeTopic - so
+       this card is just the label, quick-pick suggestion chips, and (once
+       built) the resulting map; there's no separate build button any more. */
     #topicLearnResult { margin-top: 14px; text-align: left; }
     .topic-map-card { background: rgba(255,255,255,0.4); border: 1px solid rgba(78,27,38,0.2); border-radius: 14px; padding: 16px 18px; }
     .topic-map-row { display: flex; gap: 10px; align-items: flex-start; border-top: 1px solid rgba(78,27,38,0.14); padding: 10px 0; }
@@ -407,23 +408,6 @@
 
     #chatMicBtn:hover, #chatSendBtn:hover { background: rgba(230, 215, 176, 0.1); }
 
-    #topicLearnGoBtn {
-        flex-shrink: 0;
-        height: 44px;
-        border-radius: 22px;
-        padding: 0 16px;
-        border: 1px solid rgba(230, 215, 176, 0.3);
-        background: var(--panel);
-        color: var(--accent);
-        font-family: 'Georgia', serif;
-        font-size: 0.82rem;
-        font-weight: 600;
-        white-space: nowrap;
-        cursor: pointer;
-    }
-    #topicLearnGoBtn:hover { background: rgba(230, 215, 176, 0.1); }
-    #topicLearnGoBtn:disabled { opacity: 0.4; cursor: default; }
-
     #chatMicBtn:disabled { opacity: 0.3; cursor: not-allowed; }
 
     #chatMicBtn.listening {
@@ -475,8 +459,7 @@
 
     <div class="chat-input-row">
         <button id="chatMicBtn" type="button" title="Speak">🎤</button>
-        <textarea id="chatInput" placeholder="Ask Cortex, or type a topic to learn…" autocomplete="off" rows="1"></textarea>
-        <button id="topicLearnGoBtn" type="button" title="Build a knowledge-map lesson on this topic">Build lesson</button>
+        <textarea id="chatInput" placeholder="Ask Cortex, or say 'teach me...' to learn a new topic…" autocomplete="off" rows="1"></textarea>
         <button id="chatSendBtn" type="button" title="Send">➤</button>
     </div>
 </div>
@@ -1465,18 +1448,25 @@ SQIDAQAB
         teachNextInQueue(teach, 0, uuidByConceptId);
     }
 
-    // The topic text comes from the same persistent #chatInput used for
-    // ordinary questions (see #topicLearnGoBtn next to Send in the input
-    // row) rather than a separate field — one box, two things you can do
-    // with whatever's typed into it.
-    async function handleTopicLearnGo() {
-        const input = document.getElementById('chatInput');
-        const topic = input.value.trim();
-        if (!topic) return;
-        input.value = '';
-        input.style.height = 'auto';
-        const goBtn = document.getElementById('topicLearnGoBtn');
-        goBtn.disabled = true;
+    // "teach me X" (or a close variant) typed into the ordinary chat box and
+    // sent normally - there is no separate "Build lesson" button any more.
+    // sendChatMessage checks every outgoing message against this before
+    // treating it as a normal chat turn; a match short-circuits straight
+    // into the topic-map flow instead of calling /cortex/message at all.
+    // Deliberately tolerant of a stray typo in the "how to" lead-in (real
+    // example that prompted this: "teach me hwo to order...").
+    function detectTeachMeTopic(text) {
+        const m = /^(?:can you |could you |please )?(?:teach me|i want to learn|i'd like to learn|help me learn)\b[,:]?\s*(.*)/i.exec(text.trim());
+        if (!m) return null;
+        let topic = m[1].trim().replace(/^(?:how to|hwo to|to)\s+/i, '').replace(/[.?!]+$/, '').trim();
+        return topic.length >= 3 ? topic : null;
+    }
+
+    // Builds the knowledge map for a topic and renders it as a boxed chat
+    // card - shared by sendChatMessage's "teach me X" detection and the
+    // suggestion chips below, both of which already have the topic text in
+    // hand rather than reading it back out of #chatInput.
+    async function startTopicLearnFlow(topic) {
         const card = appendCardMessage(`
             <div class="topic-loading-wrap">
                 ${TOPIC_LOADING_WIRES_SVG}
@@ -1504,17 +1494,13 @@ SQIDAQAB
         } catch (err) {
             stopRotator();
             card.innerHTML = '<div class="topic-map-error">Something went wrong building that lesson. Try again.</div>';
-        } finally {
-            goBtn.disabled = false;
         }
     }
-    document.getElementById('topicLearnGoBtn').addEventListener('click', handleTopicLearnGo);
     document.querySelectorAll('#topicLearnSuggestions .topic-learn-chip').forEach((chip) => {
         chip.addEventListener('click', () => {
-            const input = document.getElementById('chatInput');
-            input.value = chip.dataset.topic;
-            input.dispatchEvent(new Event('input'));
-            input.focus();
+            clearEmptyHint();
+            appendUserMessage(`Teach me ${chip.dataset.topic}`);
+            startTopicLearnFlow(chip.dataset.topic);
         });
     });
 
@@ -2224,10 +2210,46 @@ SQIDAQAB
         if (toConfirm.length) showBatchConfirmCard(toConfirm);
     }
 
+    // The exact string cortexService.ts's CortexResponseTruncatedError
+    // carries (see routes/cortex.ts) - matched so sendChatMessage can retry
+    // ONCE, silently, before ever showing the student anything. This is
+    // usually a one-off JSON-formatting slip (an unescaped quote inside the
+    // reply, e.g. quoting a phrase in another language - see
+    // CORTEX_INTENT_PROMPT's rule 1), not a standing problem, so a same-
+    // message retry very often just works.
+    const CORTEX_TRUNCATED_MESSAGE = 'That was a lot to take in at once, so the response got cut off. Try asking again in a shorter or more specific way.';
+
+    async function postCortexMessage(text, session, folders, dueReviews) {
+        const resp = await fetch(`${COMPILE_BACKEND_URL}/cortex/message`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify({ message: text, history: chatHistory.slice(-10), folders, dueReviews })
+        });
+        if (!resp.ok) {
+            const body = await resp.json().catch(() => ({}));
+            throw new Error(body.error || `Server returned ${resp.status}`);
+        }
+        return resp.json();
+    }
+
     async function sendChatMessage() {
         const input = document.getElementById('chatInput');
         const text = input.value.trim();
         if (!text) return;
+
+        // "teach me X" (or a close variant) short-circuits into the
+        // topic-map flow instead of an ordinary chat turn - see
+        // detectTeachMeTopic/startTopicLearnFlow above. Everything past
+        // this point is the normal Q&A path.
+        const teachTopic = detectTeachMeTopic(text);
+        if (teachTopic) {
+            input.value = '';
+            input.style.height = 'auto';
+            appendUserMessage(text);
+            startTopicLearnFlow(teachTopic);
+            return;
+        }
+
         input.value = '';
         input.style.height = 'auto';
         appendUserMessage(text);
@@ -2247,23 +2269,13 @@ SQIDAQAB
                 fetchDueReviews(session.access_token)
             ]);
 
-            const resp = await fetch(`${COMPILE_BACKEND_URL}/cortex/message`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-                body: JSON.stringify({
-                    message: text,
-                    history: chatHistory.slice(-10),
-                    folders,
-                    dueReviews
-                })
-            });
-
-            if (!resp.ok) {
-                const body = await resp.json().catch(() => ({}));
-                throw new Error(body.error || `Server returned ${resp.status}`);
+            let result;
+            try {
+                result = await postCortexMessage(text, session, folders, dueReviews);
+            } catch (err) {
+                if (err.message !== CORTEX_TRUNCATED_MESSAGE) throw err;
+                result = await postCortexMessage(text, session, folders, dueReviews);
             }
-
-            const result = await resp.json();
             setAssistantMessageText(thinkingEl, result.reply);
             chatHistory.push({ role: 'assistant', content: result.reply });
             saveChatHistory();
@@ -2292,6 +2304,9 @@ SQIDAQAB
             // actionable sentence — see routes/cortex.ts — not just a
             // status code) — only fall back to the generic wording for a
             // true network-level failure, which has no message of its own.
+            // By the time this shows, a same-message retry already happened
+            // once and failed again too - so it's a genuinely repeated
+            // problem, not the usual one-off blip.
             setAssistantMessageText(thinkingEl, (err && err.message) ? err.message : 'Sorry, could not reach the server. Please try again.');
         } finally {
             sendBtn.disabled = false;
