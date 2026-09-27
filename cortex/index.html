@@ -181,7 +181,27 @@
        of content is its own navy box with cream text, same var(--panel)/
        var(--text) pairing .chat-msg-assistant already uses. Nothing here
        ever navigates the parent dashboard away from Cortex. */
-    .chat-msg-card { align-self: stretch; max-width: 100%; display: flex; flex-direction: column; gap: 5px; line-height: 1.3; }
+    /* .chat-msg.chat-msg-card (two classes), not just .chat-msg-card - this
+       must beat .chat-msg's own max-width:82% (defined further down for
+       the speech-bubble messages) on specificity, not source order alone,
+       or it silently loses whenever the two rules get reordered. Real bug
+       this fixes: the card was capped at 82% of an already-narrow column,
+       squeezing every node box's text into a handful of characters per
+       line - what actually looked like "huge, oversized boxes" was severe
+       word-wrapping from a starved width, not oversized padding.
+
+       white-space:normal is the OTHER half of that same fix, and the
+       bigger one: .chat-msg sets white-space:pre-wrap (inherited by every
+       descendant) so a real newline in a chat bubble's own plain text
+       renders as a line break. This card's content is markup built from
+       indented, multi-line JS template literals, not plain text - under
+       inherited pre-wrap, the whitespace-only text nodes sitting between
+       block-level tags (one literal newline + a full line of indentation
+       each) don't collapse away the way they normally would, and render
+       as real vertical gaps instead - confirmed live: resetting this alone
+       dropped one otherwise-ordinary node box from ~360px tall to ~70px,
+       with no other change. */
+    .chat-msg.chat-msg-card { align-self: stretch; max-width: 100%; display: flex; flex-direction: column; gap: 5px; line-height: 1.3; white-space: normal; }
 
     .topic-map-heading { align-self: flex-start; background: var(--panel); color: var(--text); border-radius: 8px; padding: 5px 10px; font-size: 0.68rem; letter-spacing: 0.03em; font-weight: 700; }
 
@@ -195,11 +215,12 @@
     .topic-node-box.locked { opacity: 0.45; }
     .topic-node-arrow { display: flex; justify-content: center; padding: 0; opacity: 0.6; }
     .topic-node-arrow svg { display: block; width: 13px; height: 13px; }
-    .topic-node-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .topic-node-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 8px; }
+    .topic-node-info { flex: 1 1 160px; min-width: 0; }
     .topic-node-title { font-weight: 700; font-size: 0.78rem; }
     .topic-node-desc { font-size: 0.68rem; opacity: 0.75; margin-top: 1px; }
     .topic-node-deps { font-size: 0.62rem; opacity: 0.55; margin-top: 1px; }
-    .topic-node-actions { flex: none; display: flex; gap: 4px; }
+    .topic-node-actions { flex: none; display: flex; flex-wrap: wrap; gap: 4px; }
     .topic-node-btn { border: 1px solid rgba(230, 215, 176, 0.35); background: transparent; color: var(--text); border-radius: 999px; padding: 3px 8px; font-family: inherit; font-size: 0.58rem; font-weight: 600; white-space: nowrap; cursor: pointer; }
     .topic-node-btn:hover { background: rgba(230, 215, 176, 0.1); }
     .topic-node-btn.on { background: var(--accent); color: var(--panel); border-color: var(--accent); }
@@ -1441,7 +1462,7 @@ SQIDAQAB
             const arrow = i > 0 ? `<div class="topic-node-arrow">${TOPIC_NODE_ARROW_SVG}</div>` : '';
             return `${arrow}<div class="topic-node-box${!inClosure ? ' locked' : ''}" data-node="${n.id}">
                 <div class="topic-node-top">
-                    <div>
+                    <div class="topic-node-info">
                         <div class="topic-node-title" style="${skipped ? 'opacity:.6;text-decoration:line-through;' : ''}">${escapeHtmlTopic(n.label)}</div>
                         <div class="topic-node-desc">${escapeHtmlTopic(n.description || '')}</div>
                         <div class="topic-node-deps">${escapeHtmlTopic(depsText)}</div>
