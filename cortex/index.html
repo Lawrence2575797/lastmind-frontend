@@ -232,17 +232,18 @@
        see learn/index.html's .sf-mini-cortex-panel) rather than wrapping
        to one column there the way the old full-width boxes always would
        have. */
-    .topic-node-box { box-sizing: border-box; width: 135px; flex: 0 0 auto; background: var(--panel); color: var(--text); border-radius: 8px; padding: 7px 10px; }
+    .topic-node-box { box-sizing: border-box; width: 135px; flex: 0 0 auto; background: var(--panel); color: var(--text); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
     .topic-node-box.locked { opacity: 0.45; }
-    .topic-node-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 8px; }
-    .topic-node-info { flex: 1 1 auto; min-width: 0; }
     .topic-node-title { font-weight: 700; font-size: 0.78rem; }
-    .topic-node-desc { font-size: 0.68rem; opacity: 0.75; margin-top: 1px; }
-    .topic-node-deps { font-size: 0.62rem; opacity: 0.55; margin-top: 1px; }
-    .topic-node-actions { flex: none; display: flex; flex-wrap: wrap; gap: 4px; }
-    .topic-node-btn { border: 1px solid rgba(230, 215, 176, 0.35); background: transparent; color: var(--text); border-radius: 999px; padding: 3px 8px; font-family: inherit; font-size: 0.58rem; font-weight: 600; white-space: nowrap; cursor: pointer; }
-    .topic-node-btn:hover { background: rgba(230, 215, 176, 0.1); }
-    .topic-node-btn.on { background: var(--accent); color: var(--panel); border-color: var(--accent); }
+    .topic-node-actions { display: flex; gap: 6px; }
+    /* Two small circles instead of two spelled-out buttons per box - see
+       TOPIC_NODE_ICONS and the map's own text legend (.topic-map-legend)
+       for what each one means. */
+    .topic-node-icon-btn { width: 22px; height: 22px; border-radius: 50%; border: 1px solid rgba(230, 215, 176, 0.35); background: transparent; color: var(--text); font-family: inherit; font-size: 0.7rem; line-height: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    .topic-node-icon-btn:hover { background: rgba(230, 215, 176, 0.1); }
+    .topic-node-icon-btn.on { background: var(--accent); color: var(--panel); border-color: var(--accent); }
+
+    .topic-map-legend { align-self: flex-start; font-size: 0.68rem; opacity: 0.6; }
 
     .topic-map-summary { align-self: flex-start; background: var(--panel); color: var(--text); border-radius: 8px; padding: 6px 10px; font-size: 0.72rem; }
     .topic-map-start { align-self: flex-start; border: 0; border-radius: 999px; padding: 7px 16px; background: var(--accent); color: var(--panel); font-family: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
@@ -1408,6 +1409,11 @@ SQIDAQAB
     // wrapped-text box sizes/positions are used rather than an assumed
     // fixed layout. `wrapEl` is position:relative; `svgEl` sits over it via
     // position:absolute;inset:0 in CSS, sized here to match.
+    // A bare icon on its own isn't self-explanatory - renderTopicMap prints
+    // a matching text legend under the map (its "key") using these same two
+    // characters, so a student only ever has to learn what they mean once.
+    const TOPIC_NODE_ICONS = { skip: '✓', target: '★' };
+
     function drawTopicGraphEdges(wrapEl, svgEl, state) {
         const wrapRect = wrapEl.getBoundingClientRect();
         svgEl.setAttribute('width', wrapRect.width);
@@ -1446,24 +1452,23 @@ SQIDAQAB
         const rows = Array.from({ length: maxLevel + 1 }, () => []);
         state.nodes.forEach((n) => rows[levelOf.get(n.id)].push(n));
 
+        // Title only - no description, no "Builds on:" text - the box just
+        // names the concept; what it depends on is what the drawn edges
+        // above already show. skip/target used to be two spelled-out
+        // buttons per box, which is what was pushing every box tall enough
+        // to overlap the row below it; now two small icon circles (see
+        // TOPIC_NODE_ICONS/the legend line below the map, which is the
+        // "key" for what each one means, since a bare icon alone isn't
+        // self-explanatory).
         const nodeBoxHtml = (n) => {
             const inClosure = closure.has(n.id);
             const skipped = state.skip.has(n.id);
             const isTarget = n.id === state.target;
-            const depsText = (depsOf.get(n.id) || []).length
-                ? `Builds on: ${depsOf.get(n.id).map((d) => labelOf.get(d) || d).join(', ')}`
-                : 'Starting point';
             return `<div class="topic-node-box${!inClosure ? ' locked' : ''}" data-node="${n.id}">
-                <div class="topic-node-top">
-                    <div class="topic-node-info">
-                        <div class="topic-node-title" style="${skipped ? 'opacity:.6;text-decoration:line-through;' : ''}">${escapeHtmlTopic(n.label)}</div>
-                        <div class="topic-node-desc">${escapeHtmlTopic(n.description || '')}</div>
-                        <div class="topic-node-deps">${escapeHtmlTopic(depsText)}</div>
-                    </div>
-                    <div class="topic-node-actions">
-                        <button type="button" class="topic-node-btn${skipped ? ' on' : ''}" data-action="skip" data-node="${n.id}">${skipped ? 'Covered ✓' : "I've covered this"}</button>
-                        <button type="button" class="topic-node-btn${isTarget ? ' on' : ''}" data-action="target" data-node="${n.id}">${isTarget ? 'Goal ✓' : 'Make this the goal'}</button>
-                    </div>
+                <div class="topic-node-title" style="${skipped ? 'opacity:.6;text-decoration:line-through;' : ''}">${escapeHtmlTopic(n.label)}</div>
+                <div class="topic-node-actions">
+                    <button type="button" class="topic-node-icon-btn${skipped ? ' on' : ''}" data-action="skip" data-node="${n.id}" title="I've covered this">${TOPIC_NODE_ICONS.skip}</button>
+                    <button type="button" class="topic-node-icon-btn${isTarget ? ' on' : ''}" data-action="target" data-node="${n.id}" title="Make this the goal">${TOPIC_NODE_ICONS.target}</button>
                 </div>
             </div>`;
         };
@@ -1483,6 +1488,7 @@ SQIDAQAB
                 </div>
             </div>
             <div class="topic-map-summary">${summary}</div>
+            <div class="topic-map-legend">${TOPIC_NODE_ICONS.skip} I've already covered this &nbsp;·&nbsp; ${TOPIC_NODE_ICONS.target} Make this the goal</div>
         `;
 
         drawTopicGraphEdges(cardEl.querySelector('.topic-graph-wrap'), cardEl.querySelector('.topic-graph-svg'), state);
