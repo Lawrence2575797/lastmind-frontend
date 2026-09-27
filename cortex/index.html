@@ -187,29 +187,31 @@
        of content is its own navy box with cream text, same var(--panel)/
        var(--text) pairing .chat-msg-assistant already uses. Nothing here
        ever navigates the parent dashboard away from Cortex. */
-    .chat-msg-card { align-self: stretch; max-width: 100%; display: flex; flex-direction: column; gap: 10px; }
+    .chat-msg-card { align-self: stretch; max-width: 100%; display: flex; flex-direction: column; gap: 5px; line-height: 1.3; }
 
-    .topic-map-heading { align-self: flex-start; background: var(--panel); color: var(--text); border-radius: 10px; padding: 10px 16px; font-size: 0.8rem; letter-spacing: 0.04em; font-weight: 700; }
+    .topic-map-heading { align-self: flex-start; background: var(--panel); color: var(--text); border-radius: 8px; padding: 5px 10px; font-size: 0.68rem; letter-spacing: 0.03em; font-weight: 700; }
 
     /* One node = one navy box; a small centred arrow in the birch gap
        between boxes shows the teaching order (see renderTopicMap's own
        comment on why this is a straightforward top-to-bottom sequence
-       rather than a full branching diagram). */
-    .topic-node-box { background: var(--panel); color: var(--text); border-radius: 12px; padding: 14px 16px; }
+       rather than a full branching diagram). Deliberately compact - a
+       10-15 node map needs to read as a scannable sequence, not one node
+       per screen. */
+    .topic-node-box { background: var(--panel); color: var(--text); border-radius: 8px; padding: 7px 10px; }
     .topic-node-box.locked { opacity: 0.45; }
-    .topic-node-arrow { display: flex; justify-content: center; padding: 2px 0; opacity: 0.6; }
-    .topic-node-arrow svg { display: block; }
-    .topic-node-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-    .topic-node-title { font-weight: 700; font-size: 0.95rem; }
-    .topic-node-desc { font-size: 0.82rem; opacity: 0.75; margin-top: 4px; }
-    .topic-node-deps { font-size: 0.72rem; opacity: 0.55; margin-top: 6px; }
-    .topic-node-actions { flex: none; display: flex; flex-direction: column; gap: 6px; }
-    .topic-node-btn { border: 1px solid rgba(230, 215, 176, 0.35); background: transparent; color: var(--text); border-radius: 999px; padding: 5px 12px; font-family: inherit; font-size: 0.7rem; font-weight: 600; white-space: nowrap; cursor: pointer; }
+    .topic-node-arrow { display: flex; justify-content: center; padding: 0; opacity: 0.6; }
+    .topic-node-arrow svg { display: block; width: 13px; height: 13px; }
+    .topic-node-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .topic-node-title { font-weight: 700; font-size: 0.78rem; }
+    .topic-node-desc { font-size: 0.68rem; opacity: 0.75; margin-top: 1px; }
+    .topic-node-deps { font-size: 0.62rem; opacity: 0.55; margin-top: 1px; }
+    .topic-node-actions { flex: none; display: flex; gap: 4px; }
+    .topic-node-btn { border: 1px solid rgba(230, 215, 176, 0.35); background: transparent; color: var(--text); border-radius: 999px; padding: 3px 8px; font-family: inherit; font-size: 0.58rem; font-weight: 600; white-space: nowrap; cursor: pointer; }
     .topic-node-btn:hover { background: rgba(230, 215, 176, 0.1); }
     .topic-node-btn.on { background: var(--accent); color: var(--panel); border-color: var(--accent); }
 
-    .topic-map-summary { align-self: flex-start; background: var(--panel); color: var(--text); border-radius: 10px; padding: 10px 16px; font-size: 0.85rem; }
-    .topic-map-start { align-self: flex-start; border: 0; border-radius: 999px; padding: 10px 22px; background: var(--accent); color: var(--panel); font-family: inherit; font-weight: 700; cursor: pointer; }
+    .topic-map-summary { align-self: flex-start; background: var(--panel); color: var(--text); border-radius: 8px; padding: 6px 10px; font-size: 0.72rem; }
+    .topic-map-start { align-self: flex-start; border: 0; border-radius: 999px; padding: 7px 16px; background: var(--accent); color: var(--panel); font-family: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
     .topic-map-error { align-self: flex-start; background: var(--panel); color: #E39B9B; border-radius: 10px; padding: 10px 16px; font-size: 0.85rem; }
 
     /* Knowledge-map GENERATION loading state: a short rotating status line
@@ -1246,6 +1248,48 @@ SQIDAQAB
     // hand-off this replaced - left in place, just no longer sent from here.
     let topicMapState = null; // { subject, qualification, examBoard, nodes: [{id,conceptId,label,description}], edges: [{from,to}], skip:Set, target:string }
 
+    // Reorders nodes into a real dependency-respecting order (Kahn's
+    // algorithm - a node only appears once every edge into it has already
+    // been placed), original array order used as the tie-break wherever the
+    // DAG itself leaves the order free. Matters for more than just display:
+    // the backend generates each node's derivation lesson in STAGES that
+    // must be produced in order (a later stage's generation is REJECTED if
+    // an earlier one it depends on doesn't exist yet - see
+    // derivationGenericService.ts's own "prerequisite stage(s) ... have not
+    // been generated first" check) - the raw generation-order array from
+    // the topic-map endpoint is a reasonable reading order but isn't
+    // guaranteed to respect every real edge, and teaching out of dependency
+    // order is exactly what previously surfaced as "this concept doesn't
+    // have an interactive lesson ready yet" for a node reached too early.
+    function topicTopologicalOrder(nodes, edges) {
+        const indegree = new Map(nodes.map((n) => [n.id, 0]));
+        const adj = new Map(nodes.map((n) => [n.id, []]));
+        edges.forEach((e) => {
+            if (!adj.has(e.from) || !indegree.has(e.to)) return;
+            adj.get(e.from).push(e.to);
+            indegree.set(e.to, (indegree.get(e.to) || 0) + 1);
+        });
+        const byId = new Map(nodes.map((n) => [n.id, n]));
+        const ready = nodes.filter((n) => indegree.get(n.id) === 0).map((n) => n.id);
+        const seen = new Set();
+        const order = [];
+        while (ready.length) {
+            const id = ready.shift();
+            if (seen.has(id)) continue;
+            seen.add(id);
+            order.push(id);
+            (adj.get(id) || []).forEach((to) => {
+                indegree.set(to, indegree.get(to) - 1);
+                if (indegree.get(to) === 0) ready.push(to);
+            });
+        }
+        // A node never reached (only possible if the graph has a cycle -
+        // the server validates DAGs at generation time, so this is a
+        // fail-safe, not an expected path) is appended in original order.
+        nodes.forEach((n) => { if (!seen.has(n.id)) order.push(n.id); });
+        return order.map((id) => byId.get(id));
+    }
+
     function topicAncestorsOf(nodes, edges, targetId) {
         const depsOf = new Map(nodes.map((n) => [n.id, []]));
         edges.forEach((e) => { if (depsOf.has(e.to)) depsOf.get(e.to).push(e.from); });
@@ -1449,7 +1493,8 @@ SQIDAQAB
         window.addEventListener('message', onMessage);
     }
 
-    async function teachNextInQueue(queue, index, uuidByConceptId) {
+    async function teachNextInQueue(queue, index, uuidByConceptId, deferredCounts) {
+        if (!deferredCounts) deferredCounts = new Map();
         if (index >= queue.length) {
             appendCardMessage(`<div class="lesson-card-done">You've covered everything for “${escapeHtmlTopic(topicMapState.subject)}” for now. Nice work.</div>`);
             return;
@@ -1475,14 +1520,31 @@ SQIDAQAB
         } catch (err) {
             const statusEl = card.querySelector('.lesson-card-status');
             statusEl.innerHTML = 'Could not load this lesson. <button type="button" class="topic-map-start" id="lessonRetryBtn">Try again</button>';
-            statusEl.querySelector('#lessonRetryBtn').addEventListener('click', () => { card.remove(); teachNextInQueue(queue, index, uuidByConceptId); });
+            statusEl.querySelector('#lessonRetryBtn').addEventListener('click', () => { card.remove(); teachNextInQueue(queue, index, uuidByConceptId, deferredCounts); });
             return;
         }
         if (!lessonData.derivation) {
+            // Despite topicTopologicalOrder, this node's own derivation stage
+            // can still need an earlier stage that hasn't been generated yet
+            // (stage grouping is the server's own, not 1:1 with this queue's
+            // node-by-node order - see derivationGenericService.ts's "has not
+            // been generated first" check). Defer it to the back of the queue
+            // once or twice rather than dead-ending immediately - the earlier
+            // nodes still ahead of it will very likely trigger that stage
+            // themselves in the meantime.
+            const attempts = deferredCounts.get(node.id) || 0;
+            if (attempts < 2 && index < queue.length - 1) {
+                deferredCounts.set(node.id, attempts + 1);
+                queue.splice(index, 1);
+                queue.push(node);
+                card.remove();
+                teachNextInQueue(queue, index, uuidByConceptId, deferredCounts);
+                return;
+            }
             card.querySelector('.lesson-card-status').textContent = "This concept doesn't have an interactive lesson ready yet — try again shortly.";
             return;
         }
-        mountDerivationInCard(card, lessonData.derivation, () => teachNextInQueue(queue, index + 1, uuidByConceptId));
+        mountDerivationInCard(card, lessonData.derivation, () => teachNextInQueue(queue, index + 1, uuidByConceptId, deferredCounts));
     }
 
     async function startTopicTeachSequence() {
@@ -1544,7 +1606,7 @@ SQIDAQAB
             const data = await resp.json();
             if (!data.nodes || !data.nodes.length) { card.innerHTML = '<div class="topic-map-error">No usable map came back for that topic. Try rephrasing it.</div>'; return; }
             const taskNode = data.nodes.find((n) => n.isFinalTask) || data.nodes[data.nodes.length - 1];
-            topicMapState = { subject: data.subject, qualification: data.qualification, examBoard: data.examBoard, nodes: data.nodes, edges: data.edges, skip: new Set(), target: taskNode.id };
+            topicMapState = { subject: data.subject, qualification: data.qualification, examBoard: data.examBoard, nodes: topicTopologicalOrder(data.nodes, data.edges), edges: data.edges, skip: new Set(), target: taskNode.id };
             renderTopicMap(card);
         } catch (err) {
             stopRotator();
