@@ -1248,6 +1248,16 @@ SQIDAQAB
     // hand-off this replaced - left in place, just no longer sent from here.
     let topicMapState = null; // { subject, qualification, examBoard, nodes: [{id,conceptId,label,description}], edges: [{from,to}], skip:Set, target:string }
 
+    // Set whenever a lesson card fails in a way its own "Try again" button
+    // can retry (see teachNextInQueue), cleared the moment that resolves.
+    // Lets sendChatMessage honour a plain "try again" typed into chat as
+    // the same click, no LLM involved - this is a known, specific, already-
+    // visible failure in THIS session, not free text the model would have
+    // to infer a structural action from (that's what CORTEX_INTENT_PROMPT's
+    // "no actions" rule exists to avoid - see cortexPrompts.ts's own top
+    // comment on why that rule exists in the first place).
+    let pendingLessonRetry = null;
+
     // Reorders nodes into a real dependency-respecting order (Kahn's
     // algorithm - a node only appears once every edge into it has already
     // been placed), original array order used as the tie-break wherever the
@@ -1518,6 +1528,7 @@ SQIDAQAB
             <div class="lesson-card-label">${escapeHtmlTopic(node.label)}</div>
             <div class="lesson-card-status">Preparing this lesson…</div>
         `);
+        pendingLessonRetry = null;
         const nodeUuid = uuidByConceptId.get(node.conceptId);
         if (!nodeUuid) {
             card.querySelector('.lesson-card-status').textContent = "Couldn't find this concept — try again in a moment.";
@@ -1534,7 +1545,8 @@ SQIDAQAB
         } catch (err) {
             const statusEl = card.querySelector('.lesson-card-status');
             statusEl.innerHTML = 'Could not load this lesson. <button type="button" class="topic-map-start" id="lessonRetryBtn">Try again</button>';
-            statusEl.querySelector('#lessonRetryBtn').addEventListener('click', () => { card.remove(); teachNextInQueue(queue, index, uuidByConceptId, deferredCounts); });
+            pendingLessonRetry = () => { card.remove(); teachNextInQueue(queue, index, uuidByConceptId, deferredCounts); };
+            statusEl.querySelector('#lessonRetryBtn').addEventListener('click', () => { const retry = pendingLessonRetry; pendingLessonRetry = null; retry(); });
             return;
         }
         if (!lessonData.derivation) {
@@ -1557,8 +1569,9 @@ SQIDAQAB
             }
             const statusEl = card.querySelector('.lesson-card-status');
             statusEl.innerHTML = "This concept doesn't have an interactive lesson ready yet. <button type=\"button\" class=\"topic-map-start\" id=\"lessonRetryBtn\">Try again</button>";
-            statusEl.querySelector('#lessonRetryBtn').addEventListener('click', () => { deferredCounts.delete(node.id); card.remove(); teachNextInQueue(queue, index, uuidByConceptId, deferredCounts); });
-            recordSilentContext(`[Could not generate an interactive lesson yet for "${node.label}" - the student may ask about this.]`);
+            pendingLessonRetry = () => { deferredCounts.delete(node.id); card.remove(); teachNextInQueue(queue, index, uuidByConceptId, deferredCounts); };
+            statusEl.querySelector('#lessonRetryBtn').addEventListener('click', () => { const retry = pendingLessonRetry; pendingLessonRetry = null; retry(); });
+            recordSilentContext(`[Could not generate an interactive lesson yet for "${node.label}" - a plain "try again" from the student retries it directly, no action from you needed.]`);
             return;
         }
         mountDerivationInCard(card, lessonData.derivation, () => {
@@ -1597,6 +1610,15 @@ SQIDAQAB
         if (!m) return null;
         let topic = m[1].trim().replace(/^(?:how to|hwo to|to)\s+/i, '').replace(/[.?!]+$/, '').trim();
         return topic.length >= 3 ? topic : null;
+    }
+
+    // A plain "try again"/"retry" is only ever treated as a retry of the
+    // specific, already-visible lesson failure this session just had (see
+    // pendingLessonRetry) - never sent to the LLM as something to infer an
+    // action from. A message this short and generic is deliberately NOT
+    // matched as a teach-me/general-chat request either.
+    function detectRetryIntent(text) {
+        return /^(?:please\s+)?(?:try(?: it| that)? again|retry)\s*(?:now|please)?[.!]?$/i.test(text.trim());
     }
 
     // Builds the knowledge map for a topic and renders it as a boxed chat
@@ -2395,6 +2417,20 @@ SQIDAQAB
             input.style.height = 'auto';
             appendUserMessage(text);
             startTopicLearnFlow(teachTopic);
+            return;
+        }
+
+        // A plain "try again" retrying a lesson that just visibly failed
+        // (see pendingLessonRetry) is the same short-circuit, for the same
+        // reason - a known, specific, already-on-screen thing to redo,
+        // never sent to the LLM to guess an action from.
+        if (pendingLessonRetry && detectRetryIntent(text)) {
+            input.value = '';
+            input.style.height = 'auto';
+            appendUserMessage(text);
+            const retry = pendingLessonRetry;
+            pendingLessonRetry = null;
+            retry();
             return;
         }
 
