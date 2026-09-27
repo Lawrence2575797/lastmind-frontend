@@ -1154,6 +1154,7 @@ SQIDAQAB
     // pattern already used elsewhere (e.g. the stored subscription ID),
     // rather than adding a whole new object store just for this.
     async function saveChatHistory() {
+        await ensureSessionReady();
         if (!activeSessionId) return;
         try {
             const sessions = await loadSessions();
@@ -1172,9 +1173,37 @@ SQIDAQAB
     // (see sendChatMessage) — the FULL history is what gets displayed and
     // stored, so returning to this page shows everything, not just a
     // recent tail.
+    // Settles activeSessionId as early as possible - independent of the
+    // auth/subscription gate below (importPublicKey, getSession, the JWT
+    // verification round trip), since IndexedDB needs no server auth at
+    // all to read from. Real bug this fixes: the chat input is focused and
+    // usable the instant the page paints, well before that gate resolves -
+    // a message sent in that window used to find activeSessionId still
+    // null (saveChatHistory's own guard silently no-ops then) and never
+    // got saved, even though the reply still came back fine, making it
+    // look like "nothing saves unless I click + New chat first" (clicking
+    // it later reloads the iframe well after the gate has already
+    // resolved once, so the same race never has a chance to occur then).
+    // Idempotent - only ever does the real resolveActiveSession() work
+    // once; called again immediately below, in parallel with gate().
+    let sessionReadyPromise = null;
+    function ensureSessionReady() {
+        if (!sessionReadyPromise) {
+            sessionReadyPromise = resolveActiveSession().then((session) => {
+                activeSessionId = session.id;
+                return session;
+            });
+        }
+        return sessionReadyPromise;
+    }
+    ensureSessionReady();
+
+    // The DOM half of restoring a session - rendering its past messages -
+    // stays sequenced inside enterApp (after renderEmptyState(), which it
+    // may need to tear back down via clearEmptyHint()); only the id
+    // resolution above needed to move earlier.
     async function restoreChatHistory() {
-        const session = await resolveActiveSession();
-        activeSessionId = session.id;
+        const session = await ensureSessionReady();
         if (!session.messages || !session.messages.length) return;
         chatHistory = session.messages;
         clearEmptyHint();
@@ -2262,6 +2291,16 @@ SQIDAQAB
         const input = document.getElementById('chatInput');
         const text = input.value.trim();
         if (!text) return;
+
+        // Guarantees activeSessionId (and, for a resumed session, its past
+        // messages already loaded into chatHistory) is settled BEFORE this
+        // turn touches chatHistory itself - sending fast enough to beat
+        // ensureSessionReady's own resolution used to push this turn onto
+        // chatHistory first, only for restoreChatHistory's later
+        // `chatHistory = session.messages` to silently overwrite it. In
+        // practice this resolves near-instantly (a local IndexedDB read,
+        // already kicked off well before this could ever be called).
+        await ensureSessionReady();
 
         // "teach me X" (or a close variant) short-circuits into the
         // topic-map flow instead of an ordinary chat turn - see
