@@ -6226,7 +6226,14 @@
         <!-- ─── SIDEBAR ─── -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <div class="sidebar-logo">
+                <!-- Now the one consistent way back to the main feed on
+                     every page - see the dashboardTopbarBtn comment further
+                     down for why the topbar's own button was hidden instead
+                     of just deleted. role/tabindex here since this is a div
+                     acting as a button, not a real <button> (which would
+                     need its own reset against .sidebar-logo's flex/gap
+                     styling). -->
+                <div class="sidebar-logo" id="sidebarLogoBtn" role="button" tabindex="0" title="Back to feed" style="cursor:pointer;">
                     <img class="sidebar-logo-icon" src="/icons/lastmind-logo.png" alt="LastMind" width="24" height="24" />
                     <span>LastMind</span>
                 </div>
@@ -6478,11 +6485,14 @@
             <div class="topbar">
                 <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">☰</button>
                 <button class="topbar-fold-btn" id="topbarFoldBtn" type="button" title="Show or hide the buttons" aria-expanded="true">⋯</button>
-                <!-- Always visible, on every page (Knowledge Map, Exam
-                     Preparation, or any other subpage) - one consistent way
-                     back to the main feed, not scoped to any one mode's own
-                     exit button. See goToMainFeed. -->
-                <button class="cortex-btn-topbar" id="dashboardTopbarBtn" type="button" title="Back to feed">Dashboard</button>
+                <!-- Removed from the visible topbar by explicit product
+                     decision - the sidebar logo (id="sidebarLogoBtn") is now
+                     the one consistent way back to the main feed on every
+                     page, not scoped to any one mode's own exit button.
+                     Handler (goToMainFeed) and this button both left fully
+                     intact, same one-line-revert pattern as
+                     practiceQuestionsTopbarBtn/rewardsTopbarBtn below. -->
+                <button class="cortex-btn-topbar" id="dashboardTopbarBtn" type="button" title="Back to feed" style="display:none;">Dashboard</button>
                 <button class="cortex-btn-topbar" id="upgradeTopbarBtn" type="button" style="display:none;">Upgrade</button>
                 <span class="topbar-title" id="topbarTitle"></span>
                 <!-- Locks used to sit outside this scrollable row, in
@@ -12537,6 +12547,13 @@ SQIDAQAB
     document.getElementById('createTopbarBtn').addEventListener('click', () => renderCreatePage(false));
     document.getElementById('rewardsTopbarBtn').addEventListener('click', renderRewardsPage);
     document.getElementById('dashboardTopbarBtn').addEventListener('click', goToMainFeed);
+    // The sidebar logo is now the visible "back to feed" control (see its
+    // own comment in the HTML) - keyboard-activatable too since it's a div
+    // playing the role of a button, not a real one.
+    document.getElementById('sidebarLogoBtn').addEventListener('click', goToMainFeed);
+    document.getElementById('sidebarLogoBtn').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goToMainFeed(); }
+    });
 
     // LastMind Create isn't release-ready yet - keep it reachable on localhost during development, hidden for real
     // users everywhere else. The button/handler above are untouched; this only toggles visibility.
@@ -12809,6 +12826,18 @@ SQIDAQAB
             });
             if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
             const data = await resp.json();
+            // Stale-response guard: the student may have already navigated
+            // away (e.g. clicked Dashboard) while this fetch was still in
+            // flight - specPracticeMode/selectedFolderId are the two flags
+            // every such navigation changes synchronously (see goToMainFeed/
+            // selectFolder), so if either no longer matches what this call
+            // started with, contentInner now belongs to a different screen
+            // and must not be overwritten. Without this, a slow response
+            // landing after Dashboard had already rendered the main feed
+            // clobbered it with stale Exam Preparation markup mid-render -
+            // the real cause of a reported overlapping-screens/wrong-
+            // background bug, not anything about the background itself.
+            if (!specPracticeMode || selectedFolderId !== folder.id) { refreshFolderList(); return; }
             // null themes is a real, distinct state (nothing seeded yet for
             // this subject/board) vs. [] (seeded but genuinely empty) —
             // surfaced honestly rather than looking identical to "loading".
@@ -12819,6 +12848,7 @@ SQIDAQAB
             }
         } catch (err) {
             console.error('LastMind: failed to load the spec lesson tree.', err);
+            if (!specPracticeMode || selectedFolderId !== folder.id) { refreshFolderList(); return; }
             selectedFolderSpecTree = 'unseeded';
             contentInner.innerHTML = `<div class="dashboard-view dashboard-locked">${specPracticeBackButtonHtml()}<p class="dashboard-locked-quote">Couldn't load Exam Preparation for this subject — try again in a moment.</p></div>`;
             wireSpecPracticeBackButton();
@@ -17084,7 +17114,13 @@ SQIDAQAB
         { selector: null, title: 'Spaced repetition', body: 'After you learn something, LastMind brings it back periodically to cement it in memory. The schedule adapts based on how confident you feel, so harder topics come up more often.' },
         { selector: '#moreTopbarBtn', title: 'Explore the map', body: "Open More, then Knowledge Map, to see every concept in a subject and how they connect. This is your complete learning roadmap — you can jump to any topic, but your feed always suggests the best next step." },
         { selector: '#cortexTabBtn', title: 'Get help anytime', body: "Stuck on something? Ask Cortex for explanations, exam tips, or just to talk through a tricky concept. It understands what you're learning and can help you think it through." },
-        { selector: '#practiceQuestionsTopbarBtn', title: 'Exam preparation', body: 'Choose a lesson, generate up to three exam-style questions, submit your answers for marking, and revisit mistakes through Corrections.' },
+        // The "Exam preparation" step that used to point at
+        // #practiceQuestionsTopbarBtn was removed along with keeping that
+        // button genuinely hidden (see applyPlanChrome's own comment) -
+        // showTourStep's querySelector still finds a display:none element
+        // and reads a zero-size rect off it, which would have spotlighted
+        // a broken empty box in the corner of the screen instead of
+        // skipping to a centered tooltip the way a null selector does.
         { selector: '#rewardsTopbarBtn', title: 'Earn rewards', body: 'Visit Rewards to see your Keys and discover backgrounds you can unlock through genuine learning progress.' },
         { selector: null, title: 'Help is always nearby', body: 'Hover over or keyboard-focus buttons and controls throughout LastMind for a short explanation of what they do before you use them.' }
     ];
@@ -31438,9 +31474,13 @@ SQIDAQAB
     // in on the free plan while their subscription was still being checked
     // can be flipped to paid in place, without re-running enterApp.
     function applyPlanChrome(paid) {
-        // Exam Preparation and the specialist tools are on every plan - the
-        // plans differ only in usage limits.
-        document.getElementById('practiceQuestionsTopbarBtn').style.display = '';
+        // The specialist tools are on every plan - the plans differ only in
+        // usage limits. Exam Preparation itself stays hidden regardless of
+        // plan (see practiceQuestionsTopbarBtn's own inline display:none
+        // and renderFoldersRootLevel's comment on the same decision) - this
+        // used to also unhide it here, which silently undid that hide on
+        // every login/plan check, a real reported bug (the button kept
+        // coming back after being explicitly hidden).
         document.getElementById('specialistToolsWrap').style.display = '';
         document.getElementById('upgradeTopbarBtn').style.display = paid ? 'none' : '';
         updateTopbarScrollHint();
@@ -31568,7 +31608,7 @@ SQIDAQAB
     // MutationObserver covers lesson/map buttons that are created later.
     (function installFeatureHoverHelp() {
         const selectorHelp = new Map([
-            ['#dashboardTopbarBtn', 'Return to your recommended learning feed.'],
+            ['#sidebarLogoBtn', 'Return to your recommended learning feed.'],
             ['#rewardsTopbarBtn', 'View your Keys, redeem backgrounds, and equip rewards you own.'],
             ['#buyMoreTokensBtn', 'Buy extra Locks for AI-powered learning features.'],
             ['#practiceQuestionsTopbarBtn', 'Choose a lesson and generate up to three exam-style questions for it.'],
