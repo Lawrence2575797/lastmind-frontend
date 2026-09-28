@@ -17358,6 +17358,25 @@ SQIDAQAB
             specialistToolsBtn.setAttribute('aria-expanded', 'false');
         }
     }, true);
+    // The document click listener above can only ever see clicks that
+    // happen in THIS document - it can never see one that lands inside
+    // #cortexEmbedFrame, a separate document in its own browsing context
+    // (iframes don't bubble/capture events across the boundary, same-origin
+    // or not). Since Cortex now fills the content area edge to edge with no
+    // birch margin left around it in THIS document (see body.cortex-main-active),
+    // essentially all of what looks like "the birch background" while on the
+    // Cortex/Tutoring tab is actually iframe content - a real reported bug,
+    // and a direct side effect of un-boxing Cortex. Clicking into an iframe
+    // shifts focus there, which reliably fires `blur` on the parent window
+    // and leaves `document.activeElement` pointing at the <iframe> itself -
+    // a standard way to detect "focus moved into an iframe" without needing
+    // any cooperation from the iframe's own document.
+    window.addEventListener('blur', () => {
+        if (document.activeElement === document.getElementById('cortexEmbedFrame')) {
+            specialistToolsMenu.classList.remove('open');
+            specialistToolsBtn.setAttribute('aria-expanded', 'false');
+        }
+    });
 
     document.getElementById('mathsToolTopbarBtn').addEventListener('click', () => {
         leaveKmLesson();
