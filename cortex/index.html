@@ -32,9 +32,8 @@
            the back-link) - every chat bubble/input/button keeps using
            --text/--bg/--accent completely unchanged, since none of those
            variables' own values changed. --bg deliberately stays the old
-           dark tone: chat-msg-user/.chat-confirm-btn/#chatMicBtn.listening
-           all still rely on it as a flat colour, unrelated to the page's
-           own canvas. */
+           dark tone: chat-msg-user/.chat-confirm-btn/#chatSendBtn still
+           rely on it as a flat colour, unrelated to the page's own canvas. */
         /* Burgundy, matching learn/index.html's own --ink default (and
            its --panel) for consistency across the two pages. */
         --ink: #4E1B26;
@@ -145,18 +144,31 @@
         padding-bottom: 9vh;
     }
 
+    /* Same navy-box/cream-text treatment as the dashboard sidebar's own
+       logo header (learn/index.html's .sidebar-logo/.sidebar-logo-icon) -
+       uppercase, bold, sans-serif, with the same icon - rather than the
+       old plain serif display text sitting bare on birch. Scaled up from
+       the sidebar's own size since this is a page centerpiece, not a
+       corner logo. */
     .chat-empty-logo {
-        text-align: center;
-        font-size: clamp(2.3rem, 6vw, 3.4rem);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        width: fit-content;
+        margin: 0 auto;
+        background: var(--panel);
+        color: var(--text);
+        text-transform: uppercase;
+        font-family: 'Arial', sans-serif;
         font-weight: 700;
-        letter-spacing: -0.02em;
-        /* Sits directly on body's own birch background - --ink reads
-           clearly there, unlike the light gold --accent/--text this used
-           to pair with the old dark background. */
-        color: var(--ink);
+        letter-spacing: 0.08em;
+        font-size: clamp(1.3rem, 3vw, 1.7rem);
+        padding: 16px 30px;
+        border-radius: 10px;
     }
 
-    .chat-empty-logo span { color: var(--ink); opacity: 0.6; }
+    .chat-empty-logo-icon { flex-shrink: 0; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1)); }
 
     .chat-empty-quote {
         font-family: 'Georgia', serif;
@@ -448,37 +460,21 @@
 
     #chatInput:focus { outline: none; border-color: rgba(230, 215, 176, 0.5); }
 
-    #chatMicBtn, #chatSendBtn {
+    #chatSendBtn {
         flex-shrink: 0;
         width: 44px;
         height: 44px;
         border-radius: 50%;
-        border: 1px solid rgba(230, 215, 176, 0.3);
-        background: var(--panel);
-        color: var(--accent);
+        border: none;
+        background: var(--accent);
+        color: var(--bg);
         font-size: 1.05rem;
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
     }
-
-    #chatMicBtn:hover, #chatSendBtn:hover { background: rgba(230, 215, 176, 0.1); }
-
-    #chatMicBtn:disabled { opacity: 0.3; cursor: not-allowed; }
-
-    #chatMicBtn.listening {
-        background: var(--accent);
-        color: var(--bg);
-        animation: cortex-mic-pulse 1.4s infinite;
-    }
-
-    @keyframes cortex-mic-pulse {
-        0%, 100% { box-shadow: 0 0 0 0 rgba(230, 215, 176, 0.4); }
-        50% { box-shadow: 0 0 0 8px rgba(230, 215, 176, 0); }
-    }
-
-    #chatSendBtn { background: var(--accent); color: var(--bg); border: none; }
+    #chatSendBtn:hover { opacity: 0.85; }
 </style>
 </head>
 <body>
@@ -497,7 +493,10 @@
     <div class="chat-scroll">
         <div class="chat-inner" id="chatMessages">
             <div class="chat-empty-hint" id="chatEmptyHint">
-                <h1 class="chat-empty-logo">Last<span>Mind</span></h1>
+                <h1 class="chat-empty-logo">
+                    <img class="chat-empty-logo-icon" src="/icons/lastmind-logo.png" alt="LastMind" width="30" height="30" />
+                    <span>LastMind</span>
+                </h1>
                 <p class="chat-empty-quote" id="chatEmptyQuote"></p>
                 <div class="topic-learn-card" id="topicLearnCard">
                     <div class="topic-learn-suggestions" id="topicLearnSuggestions"></div>
@@ -509,7 +508,6 @@
     <div class="chat-greeting" id="chatGreeting"></div>
 
     <div class="chat-input-row">
-        <button id="chatMicBtn" type="button" title="Speak">🎤</button>
         <textarea id="chatInput" placeholder="Ask Cortex, or say 'teach me...' to learn a new topic…" autocomplete="off" rows="1"></textarea>
         <button id="chatSendBtn" type="button" title="Send">➤</button>
     </div>
@@ -864,16 +862,7 @@ SQIDAQAB
         }
     }
 
-    /* ───────────────────────── Voice (same primitives as /learn) ───────────────────────── */
-
-    let activeRecognition = null;
-
-    function stopActiveDictation() {
-        if (activeRecognition) {
-            try { activeRecognition.stop(); } catch (err) { /* already stopped */ }
-            activeRecognition = null;
-        }
-    }
+    /* ───────────────────────── Voice output (reading a reply aloud) ───────────────────────── */
 
     function stopSpeaking() {
         if (window.speechSynthesis) window.speechSynthesis.cancel();
@@ -2237,71 +2226,6 @@ SQIDAQAB
         e.target.style.height = `${e.target.scrollHeight}px`;
     });
 
-    // One persistent mic button drives voice for whichever text field is
-    // currently focused (the main chat box, or a review's answer box) —
-    // rather than a separate mic per field.
-    function setupChatMic() {
-        const micBtn = document.getElementById('chatMicBtn');
-        const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognitionCtor) {
-            micBtn.disabled = true;
-            micBtn.title = 'Dictation is not supported in this browser';
-            return { start: () => {} };
-        }
-
-        let isListening = false;
-
-        function setListeningUI(listening) {
-            isListening = listening;
-            micBtn.classList.toggle('listening', listening);
-            micBtn.textContent = listening ? '■' : '🎤';
-        }
-
-        function start() {
-            stopSpeaking();
-            const active = document.activeElement;
-            const target = (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA'))
-                ? active
-                : document.getElementById('chatInput');
-
-            const recognition = new SpeechRecognitionCtor();
-            recognition.continuous = false;
-            recognition.interimResults = false;
-            recognition.lang = navigator.language || 'en-GB';
-
-            recognition.onresult = (e) => {
-                const transcript = Array.from(e.results).map((r) => r[0].transcript).join(' ').trim();
-                if (!transcript) return;
-                target.value = transcript;
-                if (target.id === 'chatInput') {
-                    sendChatMessage();
-                } else {
-                    const submitBtn = target.nextElementSibling;
-                    if (submitBtn && submitBtn.tagName === 'BUTTON') submitBtn.click();
-                }
-            };
-            recognition.onerror = () => setListeningUI(false);
-            recognition.onend = () => { setListeningUI(false); activeRecognition = null; };
-
-            activeRecognition = recognition;
-            setListeningUI(true);
-            recognition.start();
-        }
-
-        micBtn.addEventListener('click', () => {
-            if (isListening) {
-                stopActiveDictation();
-                setListeningUI(false);
-            } else {
-                start();
-            }
-        });
-
-        return { start };
-    }
-
-    const chatMic = setupChatMic();
-
     /* ───────────────────────── Gate + boot ───────────────────────── */
 
     async function enterApp() {
@@ -2327,10 +2251,6 @@ SQIDAQAB
 
         await renderEmptyState();
         await restoreChatHistory();
-
-        if (new URLSearchParams(window.location.search).get('voice') === '1') {
-            chatMic.start();
-        }
     }
 
     (async function gate() {
