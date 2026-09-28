@@ -147,15 +147,19 @@
         padding-bottom: 9vh;
     }
 
-    /* Same uppercase/bold/icon treatment as the dashboard sidebar's own logo
-       header (learn/index.html's .sidebar-logo/.sidebar-logo-icon), and the
-       same font too - the sidebar never sets its own font-family, so it
-       actually renders in body's Georgia serif, not a sans-serif, which is
-       what this now matches. Sits directly on birch like everything else
-       here, not boxed - a navy box read as a stray chat bubble rather than
-       a page title. Icon stacked above the text and sized as a real
-       centerpiece mark, not a small corner logo. --ink is navy now (see
-       :root), so this and every other ink consumer already match. */
+    /* Same font as the dashboard sidebar's own logo header (learn/
+       index.html's .sidebar-logo/.sidebar-logo-icon) - it never sets its
+       own font-family, so it actually renders in body's Georgia serif, not
+       a sans-serif. Mixed case ("LastMind") and a heavier weight than the
+       sidebar's own 700, deliberately NOT an exact match there - Georgia's
+       "bold" reads thin at this much larger centerpiece size, and 900 is
+       the heaviest weight the browser can render it at without faking a
+       synthetic bold (which looks worse, not better). Sits directly on
+       birch like everything else here, not boxed - a navy box read as a
+       stray chat bubble rather than a page title. Icon stacked above the
+       text and sized as a real centerpiece mark, not a small corner logo.
+       --ink is navy now (see :root), so this and every other ink consumer
+       already match. */
     .chat-empty-logo {
         display: flex;
         flex-direction: column;
@@ -163,10 +167,9 @@
         justify-content: center;
         gap: 6px;
         color: var(--ink);
-        text-transform: uppercase;
         font-family: 'Georgia', serif;
-        font-weight: 700;
-        letter-spacing: 0.08em;
+        font-weight: 900;
+        letter-spacing: 0.02em;
         font-size: clamp(1.6rem, 4vw, 2.2rem);
     }
 
