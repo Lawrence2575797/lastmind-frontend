@@ -17896,6 +17896,13 @@ SQIDAQAB
         document.getElementById('topbarTitle').textContent = '';
         renderWelcome(chatId, isNew);
         refreshFolderList();
+        // Same "picking something in the sidebar closes it back up" pattern
+        // as selecting a subject/lesson elsewhere (see sfCloseSidebarOnMobile's
+        // own comment) - on mobile the sidebar covers the screen, so without
+        // this a chat pick from it left the sidebar sitting over the chat it
+        // just opened instead of getting out of the way. Covers both an
+        // existing chat and "+ New chat", since both call this.
+        sfCloseSidebarOnMobile();
     }
 
     document.getElementById('newChatBtn').addEventListener('click', () => {
