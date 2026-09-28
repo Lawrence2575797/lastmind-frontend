@@ -3527,13 +3527,12 @@
     }
 
     .sidebar-toggle {
-        background: none;
-        border: 1px solid rgba(26, 26, 28, 0.3);
-        /* Sits transparently on the topbar, i.e. directly on body's own
-           birch background - --ink, not --accent, is the readable choice
-           there (see body's own comment on why --accent stays unchanged
-           everywhere it's paired with an opaque/dark surface instead). */
-        color: var(--ink);
+        /* Same navy-box/cream-text pair as every other topbar button
+           (.cortex-btn-topbar) rather than sitting bare on birch - the
+           three lines read as a real button this way, not stray ink text. */
+        background: var(--panel);
+        border: 1px solid rgba(230, 215, 176, 0.3);
+        color: var(--text);
         width: 34px;
         height: 34px;
         border-radius: 4px;
