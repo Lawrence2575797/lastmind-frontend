@@ -2003,6 +2003,10 @@ SQIDAQAB
             body: JSON.stringify({ message: text, history: chatHistory.slice(-10), folders, dueReviews })
         });
         if (!resp.ok) {
+            // Same wording as startTopicLearnFlow's own 402 handling -
+            // the route now refuses upfront once Locks are at zero
+            // (previously the only metered feature that didn't).
+            if (resp.status === 402) throw new Error("You're out of Locks for now — come back once they refresh.");
             const body = await resp.json().catch(() => ({}));
             throw new Error(body.error || `Server returned ${resp.status}`);
         }
