@@ -171,17 +171,23 @@
         font-weight: 900;
         letter-spacing: 0.02em;
         font-size: clamp(1.6rem, 4vw, 2.2rem);
+        margin-top: 22px;
     }
 
     .chat-empty-logo-icon { flex-shrink: 0; width: clamp(64px, 12vw, 110px); height: auto; }
 
+    /* Reads top to bottom in the order a real conversation would: the
+       time-of-day greeting first, then the quote, then the LastMind
+       mark itself as the centerpiece anchoring the whole block - rather
+       than a greeting followed immediately by the brand mark and the
+       quote as an afterthought below it. */
     .chat-empty-quote {
         font-family: 'Georgia', serif;
         font-style: italic;
         text-align: center;
         opacity: 0.55;
         max-width: 480px;
-        margin: 12px auto 0;
+        margin: 0 auto;
         line-height: 1.7;
         font-size: 1.15rem;
     }
@@ -497,11 +503,11 @@
         <div class="chat-inner" id="chatMessages">
             <div class="chat-empty-hint" id="chatEmptyHint">
                 <p class="chat-empty-greeting" id="chatEmptyGreeting"></p>
+                <p class="chat-empty-quote" id="chatEmptyQuote"></p>
                 <h1 class="chat-empty-logo">
                     <img class="chat-empty-logo-icon" src="/icons/lastmind-logo.png" alt="LastMind" width="110" height="110" />
                     <span>LastMind</span>
                 </h1>
-                <p class="chat-empty-quote" id="chatEmptyQuote"></p>
             </div>
         </div>
     </div>
