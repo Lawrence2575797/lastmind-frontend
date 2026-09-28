@@ -3836,6 +3836,24 @@
         body.lesson-main-active .sf-greeting-banner { top: 9px; left: 14px; right: 54px; }
     }
 
+    /* Cortex used to sit as a boxed "card" (.cortex-embed-frame's own
+       border/radius/panel background) with birch margin around it (.content's
+       normal 40px padding + centered width cap) - a box within a box, on top
+       of a third page-level birch canvas. Since Cortex already paints its
+       own birch background internally (see cortex/index.html's body rule),
+       letting the iframe fill the content area edge to edge instead makes
+       the two birch surfaces read as one continuous page - the chat lives
+       IN the main page rather than as a separate panel floating on it. Kept
+       in sync with the iframe's presence the same way lesson-main-active is
+       (see syncLessonMainPageState) rather than toggled from renderWelcome
+       itself, so it can't drift out of sync with whatever's actually mounted.
+       .cortex-embed-frame's own border/radius/background are removed to
+       match - see its own rule below. */
+    body.cortex-main-active .content { padding: 0; position: relative; overflow: hidden; display: block; }
+    body.cortex-main-active .content-inner,
+    body.cortex-main-active .content-inner-wide { position: absolute; inset: 0; width: auto; max-width: none; height: auto; }
+    body.cortex-main-active .dashboard-view { height: 100%; }
+
     /* Cortex chat now lives here directly (see renderWelcome()) — the
        page's own logo/quote/greeting empty-state and message thread are
        all rendered INSIDE cortex/index.html itself (loaded ?embed=1,
@@ -3948,12 +3966,15 @@
     }
     .maths-tool-mode-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 
+    /* No border/radius/background of its own - Cortex paints its own birch
+       canvas internally (see body.cortex-main-active's own comment further
+       up), so a visible frame here would just draw a seam between two
+       birch surfaces that are otherwise identical. */
     .cortex-embed-frame {
+        display: block;
         width: 100%;
         height: 100%;
-        border: 1px solid rgba(230, 215, 176, 0.15);
-        border-radius: 10px;
-        background: var(--panel);
+        border: 0;
     }
 
     /* Free-tier dashboard — same logo/quote look Cortex's own empty state
@@ -6516,33 +6537,35 @@
                          Code/handlers (renderExamPrepEntryScreen, specPracticeMode, renderSpecPracticeForFolder) left
                          fully intact, same one-line-revert pattern as createTopbarBtn/rewardsTopbarBtn above. -->
                     <button class="cortex-btn-topbar" id="practiceQuestionsTopbarBtn" type="button" style="display:none;">Exam Preparation</button>
-                    <!-- Knowledge Map / Specialist Tools / Overdue Requests / Buy Extra Locks all moved in here to cut down the
-                         number of always-visible topbar buttons - same open/close toggle pattern as Specialist Tools' own
-                         nested dropdown already used (see the JS below), which stays a dropdown within this one rather than
-                         being flattened into it. -->
-                    <div class="specialist-tools-wrap" id="moreMenuWrap">
-                        <button class="cortex-btn-topbar" id="moreTopbarBtn" type="button" aria-expanded="false">More ▾</button>
-                        <div class="specialist-tools-menu" id="moreTopbarMenu">
-                            <button class="cortex-btn-topbar" id="knowledgeMapTopbarBtn" type="button">Knowledge Map</button>
-                            <div class="specialist-tools-wrap" id="specialistToolsWrap" style="display:none;">
-                                <button class="cortex-btn-topbar" id="specialistToolsBtn" type="button" aria-expanded="false">Specialist Tools ▾</button>
-                                <div class="specialist-tools-menu" id="specialistToolsMenu">
-                                    <button class="cortex-btn-topbar" id="mathsToolTopbarBtn" type="button">Maths Tool</button>
-                                    <button class="cortex-btn-topbar" id="econDiagramToolTopbarBtn" type="button">Economics Drawing Tool</button>
-                                </div>
-                            </div>
-                            <button class="cortex-btn-topbar" id="adminQueueTopbarBtn" type="button" style="display:none;">Overdue Requests<span class="mt-badge" id="aqBadge" style="display:none;"></span></button>
-                            <button class="cortex-btn-topbar" id="buyMoreTokensBtn" type="button" style="display:none;">Buy Extra Locks</button>
-                        </div>
-                    </div>
-                    <div class="specialist-tools-wrap" id="tutoringMenuWrap">
-                        <button class="cortex-btn-topbar" id="founderTutoringTopbarBtn" type="button" aria-expanded="false">Tutoring ▾</button>
+                    <!-- "More" removed by explicit product decision - Knowledge Map and Specialist Tools are common enough
+                         to earn their own permanent topbar buttons rather than being tucked a click deeper. Specialist Tools
+                         stays the one dropdown among these three (Maths Tool / Economics Drawing Tool); Knowledge Map and
+                         Tutoring are both single destinations now, so they're plain buttons. Overdue Requests/Buy Extra Locks
+                         (each independently display:none by default, only shown by their own conditional logic elsewhere)
+                         moved out to sit flat here too - nothing about their own visibility logic changed. -->
+                    <button class="cortex-btn-topbar" id="knowledgeMapTopbarBtn" type="button">Knowledge Map</button>
+                    <!-- Async peer tutoring ("Give help"/"Ask for help") hidden from the visible UI by explicit product
+                         decision - live, founder-led tutoring is the only tutoring surface shown for now. Code/handlers left
+                         fully intact, same one-line-revert pattern as createTopbarBtn/rewardsTopbarBtn above (drop the two
+                         inline display:none). Tutoring itself is now a single plain button straight to Live tutoring rather
+                         than a dropdown, since that's the only item left in it - see wireTutoringMenu's own comment. -->
+                    <button class="cortex-btn-topbar" id="founderTutoringTopbarBtn" type="button">Tutoring</button>
+                    <div class="specialist-tools-wrap" id="tutoringMenuWrap" style="display:none;">
                         <div class="specialist-tools-menu" id="tutoringMenu">
                             <button class="cortex-btn-topbar" id="liveTutoringMenuBtn" type="button">Live tutoring</button>
-                            <button class="cortex-btn-topbar" id="myTutoringTopbarBtn" type="button">Give help<span class="mt-badge" id="mtBadge" style="display:none;"></span></button>
-                            <button class="cortex-btn-topbar" id="peerTutoringHubBtn" type="button">Ask for help</button>
+                            <button class="cortex-btn-topbar" id="myTutoringTopbarBtn" type="button" style="display:none;">Give help<span class="mt-badge" id="mtBadge" style="display:none;"></span></button>
+                            <button class="cortex-btn-topbar" id="peerTutoringHubBtn" type="button" style="display:none;">Ask for help</button>
                         </div>
                     </div>
+                    <div class="specialist-tools-wrap" id="specialistToolsWrap" style="display:none;">
+                        <button class="cortex-btn-topbar" id="specialistToolsBtn" type="button" aria-expanded="false">Specialist Tools ▾</button>
+                        <div class="specialist-tools-menu" id="specialistToolsMenu">
+                            <button class="cortex-btn-topbar" id="mathsToolTopbarBtn" type="button">Maths Tool</button>
+                            <button class="cortex-btn-topbar" id="econDiagramToolTopbarBtn" type="button">Economics Drawing Tool</button>
+                        </div>
+                    </div>
+                    <button class="cortex-btn-topbar" id="adminQueueTopbarBtn" type="button" style="display:none;">Overdue Requests<span class="mt-badge" id="aqBadge" style="display:none;"></span></button>
+                    <button class="cortex-btn-topbar" id="buyMoreTokensBtn" type="button" style="display:none;">Buy Extra Locks</button>
                 </div>
                 <!-- Mobile-only "there's more here" hint — a fade plus a
                      tap-to-scroll button, shown only when topbarActions
@@ -17112,7 +17135,7 @@ SQIDAQAB
         { selector: '#createFolderBtn', title: 'Create a subject', body: "Click here to add each subject you're studying. LastMind builds your personalized learning path inside it, starting from your current knowledge level." },
         { selector: null, title: 'Your learning feed', body: 'When you select a subject, lessons appear in a scrolling feed. Each lesson teaches you a concept, then tests your understanding. Work through them at your own pace.' },
         { selector: null, title: 'Spaced repetition', body: 'After you learn something, LastMind brings it back periodically to cement it in memory. The schedule adapts based on how confident you feel, so harder topics come up more often.' },
-        { selector: '#moreTopbarBtn', title: 'Explore the map', body: "Open More, then Knowledge Map, to see every concept in a subject and how they connect. This is your complete learning roadmap — you can jump to any topic, but your feed always suggests the best next step." },
+        { selector: '#knowledgeMapTopbarBtn', title: 'Explore the map', body: "Open Knowledge Map to see every concept in a subject and how they connect. This is your complete learning roadmap — you can jump to any topic, but your feed always suggests the best next step." },
         { selector: '#cortexTabBtn', title: 'Get help anytime', body: "Stuck on something? Ask Cortex for explanations, exam tips, or just to talk through a tricky concept. It understands what you're learning and can help you think it through." },
         // The "Exam preparation" step that used to point at
         // #practiceQuestionsTopbarBtn was removed along with keeping that
@@ -17134,7 +17157,7 @@ SQIDAQAB
         ...TOUR_INTRO_STEPS,
         { selector: null, title: "Welcome to Premium", body: "Premium unlocks diagnostic learning — LastMind finds the root cause of what you don't understand, not just where you went wrong. Your learning becomes smarter and faster." },
         { selector: null, title: 'Instant learning verification', body: 'Each lesson you complete is verified immediately on Premium. No waiting, no separate step — progress is locked in the moment you demonstrate understanding.' },
-        { selector: '#moreTopbarBtn', title: 'Specialist Tools', body: "Open More, then Specialist Tools, for the Maths Tool and Economics Drawing Tool — focused help without crowding the main navigation." },
+        { selector: '#specialistToolsBtn', title: 'Specialist Tools', body: "Open Specialist Tools for the Maths Tool and Economics Drawing Tool — focused help without crowding the main navigation." },
         { selector: '#calendarTopbarBtn', title: 'Tutoring bookings', body: 'Schedule time with our founder for personalized 1:1 help. Browse available slots, pick what works for your schedule, and book directly.' }
     ];
 
@@ -17296,35 +17319,11 @@ SQIDAQAB
         openFullPageCalendar();
     });
 
-    // "More" bundles Knowledge Map, Specialist Tools, Overdue Requests and Buy Extra Locks behind one topbar button, cutting
-    // down how many are always visible. Same toggle/position pattern as Specialist Tools' own dropdown just below, which lives
-    // ON, not flattened into, this menu - clicking it must not immediately close the menu it's nested inside (its own click
-    // handler already calls stopPropagation, so a click on the button itself never reaches moreTopbarMenu's listener below;
-    // the explicit specialistToolsWrap check just also covers clicking one of ITS OWN items, e.g. Maths Tool).
-    const moreTopbarBtn = document.getElementById('moreTopbarBtn');
-    const moreTopbarMenu = document.getElementById('moreTopbarMenu');
-    moreTopbarBtn.addEventListener('click', (event) => {
-        event.stopPropagation();
-        const open = moreTopbarMenu.classList.toggle('open');
-        moreTopbarBtn.setAttribute('aria-expanded', String(open));
-        if (open) {
-            const rect = moreTopbarBtn.getBoundingClientRect();
-            moreTopbarMenu.style.top = `${rect.bottom + 7}px`;
-            moreTopbarMenu.style.left = `${Math.max(8, rect.right - 220)}px`;
-        }
-    });
-    moreTopbarMenu.addEventListener('click', (event) => {
-        if (document.getElementById('specialistToolsWrap').contains(event.target)) return;
-        moreTopbarMenu.classList.remove('open');
-        moreTopbarBtn.setAttribute('aria-expanded', 'false');
-    });
-    document.addEventListener('click', (event) => {
-        if (!document.getElementById('moreMenuWrap').contains(event.target)) {
-            moreTopbarMenu.classList.remove('open');
-            moreTopbarBtn.setAttribute('aria-expanded', 'false');
-        }
-    });
-
+    // "More" removed entirely (see the topbar HTML's own comment) - Specialist
+    // Tools is a plain top-level dropdown now, same toggle pattern as
+    // Tutoring's own wireTutoringMenu below, opening beneath the button and
+    // flipping left when there isn't 190px of room on the right (e.g. a
+    // narrow phone).
     const specialistToolsBtn = document.getElementById('specialistToolsBtn');
     const specialistToolsMenu = document.getElementById('specialistToolsMenu');
     specialistToolsBtn.addEventListener('click', (event) => {
@@ -17332,14 +17331,11 @@ SQIDAQAB
         const open = specialistToolsMenu.classList.toggle('open');
         specialistToolsBtn.setAttribute('aria-expanded', String(open));
         if (open) {
-            // Opens to the right of the button, not below it - now that Specialist Tools is nested inside the More menu,
-            // dropping down would sit on top of the two items below it (Overdue Requests, Buy Extra Locks) instead of
-            // beside them. Flips to the left when there isn't 190px of room on the right (e.g. a narrow phone).
             const rect = specialistToolsBtn.getBoundingClientRect();
             const menuWidth = 190;
-            let left = rect.right + 7;
-            if (left + menuWidth > window.innerWidth - 8) left = rect.left - menuWidth - 7;
-            specialistToolsMenu.style.top = `${rect.top}px`;
+            let left = rect.left;
+            if (left + menuWidth > window.innerWidth - 8) left = rect.right - menuWidth;
+            specialistToolsMenu.style.top = `${rect.bottom + 7}px`;
             specialistToolsMenu.style.left = `${Math.max(8, left)}px`;
         }
     });
@@ -17347,12 +17343,21 @@ SQIDAQAB
         specialistToolsMenu.classList.remove('open');
         specialistToolsBtn.setAttribute('aria-expanded', 'false');
     });
+    // Capture phase, not bubble - a plain bubble-phase document listener here
+    // was a real reported bug: this page is full of elements with their own
+    // click handlers that call stopPropagation() for unrelated reasons (their
+    // own local dropdown/menu logic), which silently swallowed the click
+    // before it ever reached a bubble-phase listener on document, so clicking
+    // "elsewhere" often did nothing and the only way to close this menu was
+    // clicking Specialist Tools again. A capture-phase listener runs before
+    // any of those, so it always sees the click regardless of what anything
+    // else downstream does with it.
     document.addEventListener('click', (event) => {
         if (!document.getElementById('specialistToolsWrap').contains(event.target)) {
             specialistToolsMenu.classList.remove('open');
             specialistToolsBtn.setAttribute('aria-expanded', 'false');
         }
-    });
+    }, true);
 
     document.getElementById('mathsToolTopbarBtn').addEventListener('click', () => {
         leaveKmLesson();
@@ -17790,31 +17795,18 @@ SQIDAQAB
         });
     }
 
-    // Tutoring is a dropdown: Live tutoring (the one-to-one booking page),
-    // Give help (My Tutoring - the peer tutoring tasks you've taken on) and
-    // Ask for help (the peer tutoring hub). Give/Ask are wired further down.
-    (function wireTutoringMenu() {
-        const btn = document.getElementById('founderTutoringTopbarBtn');
-        const menu = document.getElementById('tutoringMenu');
-        btn.addEventListener('click', (event) => {
-            event.stopPropagation();
-            const open = menu.classList.toggle('open');
-            btn.setAttribute('aria-expanded', String(open));
-            if (open) {
-                const rect = btn.getBoundingClientRect();
-                menu.style.top = `${rect.bottom + 7}px`;
-                menu.style.left = `${Math.max(8, rect.right - 190)}px`;
-            }
-        });
-        menu.addEventListener('click', () => { menu.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); });
-        document.addEventListener('click', (event) => {
-            if (!document.getElementById('tutoringMenuWrap').contains(event.target)) {
-                menu.classList.remove('open');
-                btn.setAttribute('aria-expanded', 'false');
-            }
-        });
-        document.getElementById('liveTutoringMenuBtn').addEventListener('click', renderFounderTutoringPage);
-    })();
+    // Tutoring used to be a dropdown - Live tutoring (the one-to-one booking
+    // page), Give help (My Tutoring - the peer tutoring tasks you've taken
+    // on) and Ask for help (the peer tutoring hub). Async peer tutoring
+    // (Give help/Ask for help) is hidden by explicit product decision (see
+    // the topbar HTML's own comment) - Live tutoring is the only destination
+    // left, so the topbar button now goes straight there instead of opening
+    // a one-item menu. tutoringMenuWrap/tutoringMenu and both async buttons'
+    // handlers are left fully intact for a one-line revert (drop the inline
+    // display:none on tutoringMenuWrap and the two buttons, then swap this
+    // handler back to the toggle it replaced).
+    document.getElementById('founderTutoringTopbarBtn').addEventListener('click', renderFounderTutoringPage);
+    document.getElementById('liveTutoringMenuBtn').addEventListener('click', renderFounderTutoringPage);
 
     let sidebarTab = 'folders'; // 'folders' | 'cortex'
 
@@ -17886,6 +17878,27 @@ SQIDAQAB
     // If the deleted chat happens to be the one currently open in the
     // embedded iframe, reset to a fresh chat rather than leaving the
     // iframe pointed at an id that no longer exists in storage.
+    // Same read-filter-write shape as deleteChatSession below, and the same
+    // renameModal already used for pages/subfolders (openRenameModal/
+    // saveRenameBtn) rather than a separate modal of its own - see its
+    // 'chat' branch. Never touches the iframe even if this chat is the one
+    // currently open: the title is sidebar-list metadata only, not
+    // displayed anywhere inside cortex/index.html itself.
+    async function renameChatSession(chatId, newTitle) {
+        let sessions;
+        try {
+            sessions = await getAuthRecord('cortexChatSessions');
+        } catch (err) {
+            sessions = null;
+        }
+        if (!Array.isArray(sessions)) return;
+        const session = sessions.find((s) => s.id === chatId);
+        if (!session) return;
+        session.title = newTitle;
+        await putAuthRecord('cortexChatSessions', sessions);
+        await refreshCortexChatList();
+    }
+
     async function deleteChatSession(chatId) {
         if (!confirm('Delete this chat? This cannot be undone.')) return;
         let sessions;
@@ -17936,6 +17949,7 @@ SQIDAQAB
             textWrap.appendChild(dateEl);
             item.appendChild(textWrap);
             item.appendChild(buildItemMenu([
+                { label: 'Rename Chat', onClick: () => openRenameModal('chat', { chatId: s.id }, s.title || 'New chat', 'Rename Chat', 'Title') },
                 { label: 'Delete Chat', danger: true, onClick: () => deleteChatSession(s.id) }
             ]));
             item.addEventListener('click', () => openCortexChat(s.id, false));
@@ -18582,6 +18596,8 @@ SQIDAQAB
             await renameSubfolder(target.folderId, target.subfolderId, value);
         } else if (target.type === 'page') {
             await renamePageById(target.pageId, value);
+        } else if (target.type === 'chat') {
+            await renameChatSession(target.chatId, value);
         }
     });
 
@@ -20946,6 +20962,15 @@ SQIDAQAB
     function syncLessonMainPageState() {
         const contentInner = document.getElementById('contentInner');
         document.body.classList.toggle('lesson-main-active', !!contentInner?.querySelector('.sf-feed-root'));
+        // Same idea for Cortex (see body.cortex-main-active's own CSS) - the
+        // iframe used to sit as a boxed panel with birch margin around it
+        // AND its own border/background inside that, i.e. a box within a
+        // box. Cortex already renders its own birch canvas internally (see
+        // cortex/index.html's body background), so letting it fill the
+        // content area edge to edge instead makes the two birch surfaces
+        // read as one continuous page rather than a chat "card" floating on
+        // top of it.
+        document.body.classList.toggle('cortex-main-active', !!contentInner?.querySelector('.cortex-embed-frame'));
     }
     new MutationObserver(syncLessonMainPageState).observe(document.getElementById('contentInner'), { childList: true, subtree: true });
 
@@ -31612,7 +31637,7 @@ SQIDAQAB
             ['#rewardsTopbarBtn', 'View your Keys, redeem backgrounds, and equip rewards you own.'],
             ['#buyMoreTokensBtn', 'Buy extra Locks for AI-powered learning features.'],
             ['#practiceQuestionsTopbarBtn', 'Choose a lesson and generate up to three exam-style questions for it.'],
-            ['#moreTopbarBtn', 'Knowledge Map, Specialist Tools, Overdue Requests and Buy Extra Locks.'],
+            ['#adminQueueTopbarBtn', 'Review and action overdue peer-tutoring requests.'],
             ['#knowledgeMapTopbarBtn', 'See how lessons connect, inspect prerequisites, and open concept or integration lessons.'],
             ['#specialistToolsBtn', 'Open the Maths Tool or Economics Drawing Tool.'],
             ['#mathsToolTopbarBtn', 'Work through maths using LastMind’s shortcut keyboard and guided help.'],
