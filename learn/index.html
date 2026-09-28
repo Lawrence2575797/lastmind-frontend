@@ -6292,7 +6292,9 @@
                      setCalendarFullscreen, tutoring bookings) left fully intact, same one-line-revert pattern (drop the
                      inline style) as everything else hidden this way. -->
                 <button class="manage-subscription-btn" id="calendarTopbarBtn" type="button" style="display:none;">Calendar</button>
-                <button class="manage-subscription-btn" id="seeTutorialBtn" type="button">See Tutorial</button>
+                <!-- See Tutorial hidden along with the guided tour itself (see startTour's own TOUR_ENABLED flag) -
+                     code/handler left fully intact, same one-line-revert pattern (drop the inline style). -->
+                <button class="manage-subscription-btn" id="seeTutorialBtn" type="button" style="display:none;">See Tutorial</button>
                 <button class="manage-subscription-btn" id="myAccountBtn">My Account</button>
             </div>
         </aside>
@@ -17222,7 +17224,16 @@ SQIDAQAB
         }
     }
 
+    // Guided tour hidden from the visible UI by explicit product decision -
+    // flipping this one flag covers every entry point (a new account's
+    // automatic first-run tour, and the sidebar's "See Tutorial" replay
+    // button, itself now hidden too) instead of guarding three separate
+    // call sites. Tour markup/steps/CSS and every call site left fully
+    // intact - this is the whole revert.
+    const TOUR_ENABLED = false;
+
     function startTour(tier, replay = false) {
+        if (!TOUR_ENABLED) return;
         // The main tour is shown once, ever: mark it seen as it OPENS (not when
         // it is finished) and remember that on this device too, so closing the
         // tab, reloading mid-tour or a failed status lookup can't bring it back.
