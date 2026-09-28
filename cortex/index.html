@@ -34,9 +34,12 @@
            variables' own values changed. --bg deliberately stays the old
            dark tone: chat-msg-user/.chat-confirm-btn/#chatSendBtn still
            rely on it as a flat colour, unrelated to the page's own canvas. */
-        /* Burgundy, matching learn/index.html's own --ink default (and
-           its --panel) for consistency across the two pages. */
-        --ink: #4E1B26;
+        /* Was burgundy (matching learn/index.html's own --ink default) -
+           changed to the same navy as --panel by explicit request, so every
+           piece of text sitting directly on birch (body, #gate-message, the
+           empty-state logo/quote/greeting, the back-link) reads as one
+           consistent navy instead of two different dark tones. */
+        --ink: #1A232D;
     }
 
     html, body { height: 100%; }
@@ -144,31 +147,26 @@
         padding-bottom: 9vh;
     }
 
-    /* Same navy-box/cream-text treatment as the dashboard sidebar's own
-       logo header (learn/index.html's .sidebar-logo/.sidebar-logo-icon) -
-       uppercase, bold, sans-serif, with the same icon - rather than the
-       old plain serif display text sitting bare on birch. Scaled up from
-       the sidebar's own size since this is a page centerpiece, not a
-       corner logo. */
+    /* Same uppercase/bold/sans-serif/icon treatment as the dashboard
+       sidebar's own logo header (learn/index.html's .sidebar-logo/
+       .sidebar-logo-icon) - but sitting directly on birch like everything
+       else here, not boxed - a navy box read as a stray chat bubble rather
+       than a page title. --ink is navy now (see :root), so this and every
+       other ink consumer already match. */
     .chat-empty-logo {
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 12px;
-        width: fit-content;
-        margin: 0 auto;
-        background: var(--panel);
-        color: var(--text);
+        color: var(--ink);
         text-transform: uppercase;
         font-family: 'Arial', sans-serif;
         font-weight: 700;
         letter-spacing: 0.08em;
-        font-size: clamp(1.3rem, 3vw, 1.7rem);
-        padding: 16px 30px;
-        border-radius: 10px;
+        font-size: clamp(1.6rem, 4vw, 2.2rem);
     }
 
-    .chat-empty-logo-icon { flex-shrink: 0; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1)); }
+    .chat-empty-logo-icon { flex-shrink: 0; }
 
     .chat-empty-quote {
         font-family: 'Georgia', serif;
@@ -181,18 +179,18 @@
         font-size: 1.15rem;
     }
 
-    /* "Learn something new": an interactive knowledge map generated live for
-       any topic the student types (POST /knowledge-map-v2/topic), scoped
-       here, then taught node by node right here in the chat thread (see
-       startTopicTeachSequence) - never handed off to a separate page. Sits
-       on the same birch background as the empty-state logo/quote, so it
-       uses --ink, not the chat-bubble --bg. */
-    .topic-learn-card { max-width: 480px; margin: 22px auto 0; text-align: center; }
-    .topic-learn-suggestions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-    .topic-learn-chip { border: 1.5px solid rgba(78,27,38,0.25); background: rgba(255,255,255,0.35); color: var(--ink); border-radius: 999px; padding: 7px 15px; font-family: inherit; font-size: 0.85rem; cursor: pointer; }
-    .topic-learn-chip:hover { background: rgba(255,255,255,0.55); border-color: var(--ink); }
+    /* The empty-state topic suggestion chips (topic-learn-card/
+       topic-learn-suggestions/topic-learn-chip, populated by
+       loadTopicSuggestions) were removed by explicit request - the chat
+       input's own placeholder now carries one concrete example instead.
+       "Learn something new" itself - an interactive knowledge map generated
+       live for any topic the student types (POST /knowledge-map-v2/topic),
+       taught node by node right here in the chat thread (see
+       startTopicTeachSequence) - is unaffected; only its empty-state
+       shortcut entry point is gone, not detectTeachMeTopic/startTopicLearnFlow
+       themselves.
 
-    /* ─── Everything below keeps the whole "learn something new" flow -
+       ─── Everything below keeps the whole "learn something new" flow -
        map, then every lesson stage - INSIDE the ordinary scrolling chat
        thread, styled exactly like the rest of the chat: sits directly on
        the birch background (no separate pale card of its own), each piece
@@ -498,9 +496,6 @@
                     <span>LastMind</span>
                 </h1>
                 <p class="chat-empty-quote" id="chatEmptyQuote"></p>
-                <div class="topic-learn-card" id="topicLearnCard">
-                    <div class="topic-learn-suggestions" id="topicLearnSuggestions"></div>
-                </div>
             </div>
         </div>
     </div>
@@ -508,7 +503,7 @@
     <div class="chat-greeting" id="chatGreeting"></div>
 
     <div class="chat-input-row">
-        <textarea id="chatInput" placeholder="Ask Cortex, or say 'teach me...' to learn a new topic…" autocomplete="off" rows="1"></textarea>
+        <textarea id="chatInput" placeholder="Ask Cortex, or try 'teach me basic supply and demand'…" autocomplete="off" rows="1"></textarea>
         <button id="chatSendBtn" type="button" title="Send">➤</button>
     </div>
 </div>
@@ -1796,61 +1791,6 @@ SQIDAQAB
             card.innerHTML = '<div class="topic-map-error">Something went wrong building that lesson. Try again.</div>';
         }
     }
-    // Personalized against this student's own recent activity (see
-    // suggestNextTopicsService.ts's own "natural next step" prompt)
-    // instead of three fixed examples every account saw forever. Cached in
-    // localStorage per account for a day, so opening Cortex repeatedly in
-    // the same day doesn't re-trigger a generation call each time - the
-    // route already falls back to sensible defaults on any failure, so a
-    // stale or missing cache entry is never worse than what used to be
-    // shown unconditionally.
-    const SUGGEST_NEXT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-    async function loadTopicSuggestions() {
-        const container = document.getElementById('topicLearnSuggestions');
-        if (!container) return;
-        let userId = null, accessToken = null;
-        try {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (session) { userId = session.user.id; accessToken = session.access_token; }
-        } catch (err) { /* fall through to the request below, or the defaults past that */ }
-
-        let suggestions = null;
-        const cacheKey = userId ? `lm-topic-suggestions:${userId}` : null;
-        if (cacheKey) {
-            try {
-                const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
-                if (cached && Array.isArray(cached.suggestions) && Date.now() - cached.ts < SUGGEST_NEXT_CACHE_TTL_MS) {
-                    suggestions = cached.suggestions;
-                }
-            } catch (err) { /* no usable cache - fetch fresh below */ }
-        }
-
-        if (!suggestions && accessToken) {
-            try {
-                const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/suggest-next`, { headers: { Authorization: `Bearer ${accessToken}` } });
-                if (resp.ok) {
-                    const data = await resp.json();
-                    if (Array.isArray(data.suggestions) && data.suggestions.length) {
-                        suggestions = data.suggestions;
-                        if (cacheKey) { try { localStorage.setItem(cacheKey, JSON.stringify({ suggestions, ts: Date.now() })); } catch (err) { /* storage unavailable - just skip caching */ } }
-                    }
-                }
-            } catch (err) { console.error('LastMind: could not load topic suggestions.', err); }
-        }
-
-        if (!suggestions || !suggestions.length) suggestions = ['the envelope theorem', 'ordering in Italian', 'supply and demand'];
-
-        container.innerHTML = suggestions.map((s) => `<button type="button" class="topic-learn-chip" data-topic="${escapeHtmlTopic(s)}">${escapeHtmlTopic(s)}</button>`).join('');
-        container.querySelectorAll('.topic-learn-chip').forEach((chip) => {
-            chip.addEventListener('click', () => {
-                clearEmptyHint();
-                appendUserMessage(`Teach me ${chip.dataset.topic}`);
-                startTopicLearnFlow(chip.dataset.topic);
-            });
-        });
-    }
-    loadTopicSuggestions();
-
     function appendUserMessage(text) {
         clearEmptyHint();
         const el = document.createElement('div');
