@@ -6289,7 +6289,10 @@
                 <!-- Progress Reports hidden for now (same pattern as Rewards above) - code/handlers left fully intact,
                      dropping this inline style is the whole revert. -->
                 <button class="manage-subscription-btn" id="progressReportTopbarBtn" type="button" style="display:none;">Progress Reports</button>
-                <button class="manage-subscription-btn" id="calendarTopbarBtn" type="button">Calendar</button>
+                <!-- Calendar hidden from the visible UI by explicit product decision - code/handlers (renderCalendar,
+                     setCalendarFullscreen, tutoring bookings) left fully intact, same one-line-revert pattern (drop the
+                     inline style) as everything else hidden this way. -->
+                <button class="manage-subscription-btn" id="calendarTopbarBtn" type="button" style="display:none;">Calendar</button>
                 <button class="manage-subscription-btn" id="seeTutorialBtn" type="button">See Tutorial</button>
                 <button class="manage-subscription-btn" id="myAccountBtn">My Account</button>
             </div>
@@ -17158,7 +17161,13 @@ SQIDAQAB
         { selector: null, title: "Welcome to Premium", body: "Premium unlocks diagnostic learning — LastMind finds the root cause of what you don't understand, not just where you went wrong. Your learning becomes smarter and faster." },
         { selector: null, title: 'Instant learning verification', body: 'Each lesson you complete is verified immediately on Premium. No waiting, no separate step — progress is locked in the moment you demonstrate understanding.' },
         { selector: '#specialistToolsBtn', title: 'Specialist Tools', body: "Open Specialist Tools for the Maths Tool and Economics Drawing Tool — focused help without crowding the main navigation." },
-        { selector: '#calendarTopbarBtn', title: 'Tutoring bookings', body: 'Schedule time with our founder for personalized 1:1 help. Browse available slots, pick what works for your schedule, and book directly.' }
+        // The "Tutoring bookings" step that used to point at
+        // calendarTopbarBtn was removed along with hiding that button - same
+        // reasoning as the earlier Exam Preparation tour-step removal
+        // (showTourStep's querySelector still finds a display:none element
+        // and reads a zero-size rect off it instead of skipping to a
+        // centered tooltip).
+        { selector: null, title: 'Tutoring bookings', body: 'Schedule time with our founder for personalized 1:1 help through Tutoring in the topbar.' }
     ];
 
     const FEATURE_TUTORIALS = {
@@ -30622,7 +30631,12 @@ SQIDAQAB
             });
             if (!resp.ok) return;
             const requests = await resp.json();
-            document.getElementById('adminQueueTopbarBtn').style.display = '';
+            // Was unhiding Overdue Requests here for any account that passes
+            // this admin check - overdue peer-tutoring requests are moot now
+            // that async peer tutoring itself is hidden site-wide (see the
+            // topbar HTML's own comment), so this no longer unhides the
+            // button. Left fully intact otherwise, same one-line-revert
+            // pattern as everything else hidden this way.
             const badge = document.getElementById('aqBadge');
             if (requests.length > 0) {
                 badge.textContent = requests.length > 9 ? '9+' : String(requests.length);
