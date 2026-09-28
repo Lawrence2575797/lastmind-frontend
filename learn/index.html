@@ -6264,12 +6264,13 @@
         <!-- ─── SIDEBAR ─── -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <!-- Now the one consistent way back to the main feed on
-                     every page - see the dashboardTopbarBtn comment further
-                     down for why the topbar's own button was hidden instead
-                     of just deleted. role/tabindex here since this is a div
-                     acting as a button, not a real <button> (which would
-                     need its own reset against .sidebar-logo's flex/gap
+                <!-- A consistent way back to the main feed on every page -
+                     the topbar's own dashboardTopbarBtn ("Home") is a second,
+                     equally valid entry point for the same action
+                     (goToMainFeed), not a replacement for this one.
+                     role/tabindex here since this is a div acting as a
+                     button, not a real <button> (which would need its own
+                     reset against .sidebar-logo's flex/gap
                      styling). -->
                 <div class="sidebar-logo" id="sidebarLogoBtn" role="button" tabindex="0" title="Back to feed" style="cursor:pointer;">
                     <img class="sidebar-logo-icon" src="/icons/lastmind-logo.png" alt="LastMind" width="24" height="24" />
@@ -6535,7 +6536,12 @@
                      Handler (goToMainFeed) and this button both left fully
                      intact, same one-line-revert pattern as
                      practiceQuestionsTopbarBtn/rewardsTopbarBtn below. -->
-                <button class="cortex-btn-topbar" id="dashboardTopbarBtn" type="button" title="Back to feed" style="display:none;">Dashboard</button>
+                <!-- Was hidden in favour of the sidebar logo as "the one way back to
+                     the main feed" - brought back, relabelled "Home", by explicit
+                     request: level with the hamburger/topbar buttons rather than
+                     living inside Cortex's own iframe (which sits lower, and not
+                     level with anything else). Same goToMainFeed handler either way. -->
+                <button class="cortex-btn-topbar" id="dashboardTopbarBtn" type="button" title="Back to feed">Home</button>
                 <button class="cortex-btn-topbar" id="upgradeTopbarBtn" type="button" style="display:none;">Upgrade</button>
                 <span class="topbar-title" id="topbarTitle"></span>
                 <!-- Locks used to sit outside this scrollable row, in

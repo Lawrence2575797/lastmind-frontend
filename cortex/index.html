@@ -121,27 +121,6 @@
         letter-spacing: 0.02em;
     }
 
-    /* Sits above .cortex-header, and unlike it is NEVER hidden when
-       embedded (see body.cortex-embed .cortex-header below) - embedded is
-       the normal way students actually see this page, and that mode had
-       nothing at all in the top-left corner to reset back to a fresh chat
-       from wherever the student currently is (a specific saved chat, a
-       knowledge map, mid-lesson). Same navy/cream pair as every message
-       box and topbar button rather than sitting bare on birch. */
-    .cortex-home-bar { flex-shrink: 0; padding: 14px 26px 0; }
-    .cortex-home-btn {
-        background: var(--panel);
-        color: var(--text);
-        border: 1px solid rgba(230, 215, 176, 0.3);
-        border-radius: 6px;
-        padding: 8px 16px;
-        font-family: 'Arial', sans-serif;
-        font-size: 0.78rem;
-        font-weight: 600;
-        cursor: pointer;
-    }
-    .cortex-home-btn:hover { background: rgba(230, 215, 176, 0.1); }
-
     .chat-scroll {
         flex: 1;
         overflow-y: auto;
@@ -535,9 +514,6 @@
 <div id="gate-message">Checking your subscription…</div>
 
 <div id="app">
-    <div class="cortex-home-bar">
-        <button type="button" class="cortex-home-btn" id="cortexHomeBtn">Home</button>
-    </div>
     <div class="cortex-header">
         <a class="cortex-back-link" href="/learn">‹ Learn</a>
         <div>
@@ -2222,19 +2198,6 @@ SQIDAQAB
             sendBtn.disabled = false;
         }
     }
-
-    // Reloads into a genuinely fresh chat - same '?new=1' convention
-    // learn/index.html's own renderWelcome(null, true) already uses for
-    // "+ New chat", rather than trying to hand-reset chatHistory/
-    // activeSessionId/activeLessonNodeUuid/pendingLessonContinuation and
-    // whatever's currently mounted (a map, a lesson iframe) in place - a
-    // full reload guarantees every bit of that state genuinely starts over,
-    // not just the visible chat thread. Preserves 'embed=1' so this still
-    // works correctly inside the dashboard's iframe, not just standalone.
-    document.getElementById('cortexHomeBtn').addEventListener('click', () => {
-        const embedded = new URLSearchParams(window.location.search).get('embed') === '1';
-        window.location.href = embedded ? '/cortex?embed=1&new=1' : '/cortex?new=1';
-    });
 
     document.getElementById('chatSendBtn').addEventListener('click', sendChatMessage);
     document.getElementById('chatInput').addEventListener('keydown', (e) => {
