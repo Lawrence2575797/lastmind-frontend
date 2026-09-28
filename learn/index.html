@@ -6201,6 +6201,13 @@
     @media (max-width: 768px) {
         #app, .layout { height: 100vh; height: 100dvh; }
         .sidebar {
+            /* Was the same fixed 280px as desktop - on a real phone that's
+               most of the screen, a real reported problem ("takes up the
+               whole page"). Narrower here, and every long line inside it
+               (chat titles, the current lesson's drill title) wraps instead
+               of truncating/overflowing at this new narrower width - see
+               the wrap rules further down. */
+            width: min(230px, 75vw);
             height: 100vh; height: 100dvh;
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
@@ -6208,6 +6215,17 @@
         }
         .sidebar > * { flex-shrink: 0; }
         .sidebar-footer { padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px)); }
+        /* Wrap instead of ellipsis-truncating at the sidebar's new narrower
+           width - a cut-off chat title or lesson name is worse here than a
+           second line. */
+        .cortex-chat-item-title,
+        .notes-general-item,
+        .drill-title {
+            white-space: normal;
+            overflow: visible;
+            text-overflow: clip;
+            word-break: break-word;
+        }
     }
     @media (max-width: 768px) {
         .scratch-notes-dropdown {
