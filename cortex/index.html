@@ -137,14 +137,21 @@
 
     /* Shown only while chatHistory is empty — replaced by the ordinary
        scrolling message list the moment the first message (sent or
-       restored) lands (see clearEmptyHint). min-height/justify-content
-       center it within whatever room .chat-scroll actually has, with
-       padding-bottom biasing it slightly ABOVE true center rather than
-       dead-center. */
+       restored) lands (see clearEmptyHint). Fills the full height
+       .chat-scroll makes available so its two children can be positioned
+       independently (greeting near the top, logo centered in the rest of
+       the space - see .chat-empty-greeting/.chat-empty-center) rather than
+       centering the whole hint as one block. */
     #chatMessages.chat-empty-active {
         min-height: 100%;
-        justify-content: center;
-        padding-bottom: 9vh;
+        display: flex;
+        flex-direction: column;
+    }
+    #chatMessages.chat-empty-active .chat-empty-hint {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
     }
 
     /* Same font as the dashboard sidebar's own logo header (learn/
@@ -157,40 +164,23 @@
        synthetic bold (which looks worse, not better). Sits directly on
        birch like everything else here, not boxed - a navy box read as a
        stray chat bubble rather than a page title. Icon stacked above the
-       text and sized as a real centerpiece mark, not a small corner logo.
-       --ink is navy now (see :root), so this and every other ink consumer
-       already match. */
+       text and sized as a real centerpiece mark, not a small corner logo -
+       sized up again here, the largest this page uses it. --ink is navy
+       now (see :root), so this and every other ink consumer already match. */
     .chat-empty-logo {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 6px;
+        gap: 8px;
         color: var(--ink);
         font-family: 'Georgia', serif;
         font-weight: 900;
         letter-spacing: 0.02em;
-        font-size: clamp(1.6rem, 4vw, 2.2rem);
-        margin-top: 22px;
+        font-size: clamp(2rem, 5.5vw, 3rem);
     }
 
-    .chat-empty-logo-icon { flex-shrink: 0; width: clamp(64px, 12vw, 110px); height: auto; }
-
-    /* Reads top to bottom in the order a real conversation would: the
-       time-of-day greeting first, then the quote, then the LastMind
-       mark itself as the centerpiece anchoring the whole block - rather
-       than a greeting followed immediately by the brand mark and the
-       quote as an afterthought below it. */
-    .chat-empty-quote {
-        font-family: 'Georgia', serif;
-        font-style: italic;
-        text-align: center;
-        opacity: 0.55;
-        max-width: 480px;
-        margin: 0 auto;
-        line-height: 1.7;
-        font-size: 1.15rem;
-    }
+    .chat-empty-logo-icon { flex-shrink: 0; width: clamp(90px, 16vw, 150px); height: auto; }
 
     /* The empty-state topic suggestion chips (topic-learn-card/
        topic-learn-suggestions/topic-learn-chip, populated by
@@ -304,17 +294,33 @@
     .lesson-card-status { align-self: flex-start; background: var(--panel); color: var(--text); border-radius: 10px; padding: 10px 16px; font-size: 0.85rem; }
     .lesson-card-done { align-self: flex-start; background: var(--panel); color: var(--text); border-radius: 10px; padding: 10px 16px; font-size: 0.9rem; font-weight: 700; }
 
-    /* An ordinary time-of-day greeting ("Good morning, X.") above the logo/
-       title, centered the same way they are - same italic/subtle treatment
-       as learn/index.html's own dashboard feed greeting banner
-       (.sf-greeting-banner), not competing with the title for attention. */
+    /* The time-of-day greeting and the rotating quote used to be two
+       separate lines - now one flowing sentence (see cortexEmptyStateMessage)
+       sitting near the TOP of the page, with the LastMind mark on its own
+       further down, vertically centered in whatever room is left below it
+       (see .chat-empty-center) - two distinct anchors rather than one
+       block centered as a whole. Same italic/subtle treatment as
+       learn/index.html's own dashboard feed greeting banner
+       (.sf-greeting-banner). */
     .chat-empty-greeting {
+        flex: none;
         text-align: center;
         font-family: 'Georgia', serif;
         font-style: italic;
         opacity: 0.65;
-        font-size: 1rem;
-        margin-bottom: 14px;
+        font-size: 1.05rem;
+        max-width: 480px;
+        margin: 0 auto;
+        padding-top: 6vh;
+        line-height: 1.6;
+    }
+
+    .chat-empty-center {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
     body.cortex-embed .cortex-header { display: none; }
@@ -503,11 +509,12 @@
         <div class="chat-inner" id="chatMessages">
             <div class="chat-empty-hint" id="chatEmptyHint">
                 <p class="chat-empty-greeting" id="chatEmptyGreeting"></p>
-                <p class="chat-empty-quote" id="chatEmptyQuote"></p>
-                <h1 class="chat-empty-logo">
-                    <img class="chat-empty-logo-icon" src="/icons/lastmind-logo.png" alt="LastMind" width="110" height="110" />
-                    <span>LastMind</span>
-                </h1>
+                <div class="chat-empty-center">
+                    <h1 class="chat-empty-logo">
+                        <img class="chat-empty-logo-icon" src="/icons/lastmind-logo.png" alt="LastMind" width="110" height="110" />
+                        <span>LastMind</span>
+                    </h1>
+                </div>
             </div>
         </div>
     </div>
@@ -920,21 +927,22 @@ SQIDAQAB
     const chatMessagesEl = document.getElementById('chatMessages');
     let emptyHintEl = document.getElementById('chatEmptyHint');
 
-    // Rotates on every dashboard/page load, same purpose and same
-    // "keep cycling forward, never restart from the top" persistence
-    // pattern learn/index.html's own dashboard quote uses (moved here
-    // since this page now owns the whole dashboard-facing empty state
-    // when embedded — see learn/index.html's renderWelcome()).
+    // Written as a CONTINUATION clause, not a standalone sentence - see
+    // cortexEmptyStateMessage below, which appends one of these straight
+    // onto "Good evening, Name — " to read as one flowing thought rather
+    // than a greeting and an unrelated quote sitting side by side. Rotates
+    // the same "keep cycling forward, never restart from the top"
+    // persistence pattern learn/index.html's own dashboard quote uses.
     const MOTIVATIONAL_QUOTES = [
-        "It doesn't matter how you do it, it matters that you do it.",
-        "Starting is the real battle; everything after is momentum.",
-        "Long horizons make short-term setbacks irrelevant.",
-        "Standards shape outcomes; raise them and outcomes follow.",
-        "The hard thing is usually the right thing.",
-        "Action without direction is noise; direction without action is fantasy.",
-        "Champions are made when nothing exciting is happening.",
-        "1% better every day.",
-        "The limit is usually the story you are telling yourself."
+        "it doesn't matter how you do it, it matters that you do it.",
+        "remember that starting is the real battle — everything after is just momentum.",
+        "long horizons make short-term setbacks irrelevant.",
+        "raise your standards and the outcomes will follow.",
+        "the hard thing is usually the right thing.",
+        "action without direction is just noise, and direction without action is just fantasy.",
+        "remember, champions are made when nothing exciting is happening.",
+        "just aim to be 1% better today.",
+        "the limit is usually just the story you're telling yourself."
     ];
 
     async function pickNextQuote() {
@@ -947,12 +955,13 @@ SQIDAQAB
 
     // A plain "Where should we pick up?"-style rotating prompt sitting
     // right above the input box didn't make sense there - replaced with an
-    // ordinary time-of-day greeting at the TOP of the empty state instead,
-    // alongside the logo/title, same "Good morning/afternoon/evening[, name]"
-    // convention learn/index.html's own dashboard feed greeting banner
-    // already uses (sfTimeOfDayGreeting/sfGetStudentName) - reproduced here
-    // rather than shared, since this is a separate page/iframe with its own
-    // supabaseClient.
+    // ordinary time-of-day greeting, same "Good morning/afternoon/evening[,
+    // name]" convention learn/index.html's own dashboard feed greeting
+    // banner already uses (sfTimeOfDayGreeting/sfGetStudentName) -
+    // reproduced here rather than shared, since this is a separate
+    // page/iframe with its own supabaseClient. Combined with the rotating
+    // quote above into ONE continuous sentence (cortexEmptyStateMessage)
+    // rather than two unrelated lines stacked on top of each other.
     function cortexTimeOfDayGreetingWord() {
         const hour = new Date().getHours();
         if (hour < 5) return 'Still up';
@@ -976,9 +985,13 @@ SQIDAQAB
         }
     }
 
-    async function cortexTimeOfDayGreetingText() {
-        const name = await cortexGetStudentName();
-        return name ? `${cortexTimeOfDayGreetingWord()}, ${name}.` : `${cortexTimeOfDayGreetingWord()}.`;
+    // "Good evening, Lawrence — remember that starting is the real battle,
+    // everything after is just momentum." - one flowing thought rather than
+    // a greeting and a quote as two separate, unrelated lines.
+    async function cortexEmptyStateMessage() {
+        const [name, continuation] = await Promise.all([cortexGetStudentName(), pickNextQuote()]);
+        const greeting = name ? `${cortexTimeOfDayGreetingWord()}, ${name}` : cortexTimeOfDayGreetingWord();
+        return `${greeting} — ${continuation}`;
     }
 
     // Multiple saved chat threads — replaces the old single
@@ -1181,15 +1194,13 @@ SQIDAQAB
         chatMessagesEl.classList.remove('chat-empty-active');
     }
 
-    // Populates the empty-state greeting/logo/quote - called once at boot,
+    // Populates the empty-state greeting+quote/logo - called once at boot,
     // before restoreChatHistory decides whether to immediately clear it
     // again (a session with existing messages tears this straight back down
     // via clearEmptyHint, which is fine — cheap either way).
     async function renderEmptyState() {
-        const quoteEl = document.getElementById('chatEmptyQuote');
-        if (quoteEl) quoteEl.textContent = await pickNextQuote();
         const greetingEl = document.getElementById('chatEmptyGreeting');
-        if (greetingEl) greetingEl.textContent = await cortexTimeOfDayGreetingText();
+        if (greetingEl) greetingEl.textContent = await cortexEmptyStateMessage();
         chatMessagesEl.classList.add('chat-empty-active');
     }
 
