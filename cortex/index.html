@@ -298,20 +298,18 @@
     .lesson-card-status { align-self: flex-start; background: var(--panel); color: var(--text); border-radius: 10px; padding: 10px 16px; font-size: 0.85rem; }
     .lesson-card-done { align-self: flex-start; background: var(--panel); color: var(--text); border-radius: 10px; padding: 10px 16px; font-size: 0.9rem; font-weight: 700; }
 
-    /* Sits just above the input row, only while chatHistory is empty —
-       a rotating original prompt, never the same wording twice in a row. */
-    .chat-greeting {
-        display: none;
+    /* An ordinary time-of-day greeting ("Good morning, X.") above the logo/
+       title, centered the same way they are - same italic/subtle treatment
+       as learn/index.html's own dashboard feed greeting banner
+       (.sf-greeting-banner), not competing with the title for attention. */
+    .chat-empty-greeting {
         text-align: center;
-        font-family: 'Arial', sans-serif;
-        font-size: 0.85rem;
-        opacity: 0.6;
-        padding: 0 26px 14px;
-        max-width: 680px;
-        margin: 0 auto;
+        font-family: 'Georgia', serif;
+        font-style: italic;
+        opacity: 0.65;
+        font-size: 1rem;
+        margin-bottom: 14px;
     }
-
-    .chat-greeting.active { display: block; }
 
     body.cortex-embed .cortex-header { display: none; }
 
@@ -498,6 +496,7 @@
     <div class="chat-scroll">
         <div class="chat-inner" id="chatMessages">
             <div class="chat-empty-hint" id="chatEmptyHint">
+                <p class="chat-empty-greeting" id="chatEmptyGreeting"></p>
                 <h1 class="chat-empty-logo">
                     <img class="chat-empty-logo-icon" src="/icons/lastmind-logo.png" alt="LastMind" width="110" height="110" />
                     <span>LastMind</span>
@@ -507,10 +506,8 @@
         </div>
     </div>
 
-    <div class="chat-greeting" id="chatGreeting"></div>
-
     <div class="chat-input-row">
-        <textarea id="chatInput" placeholder="Ask Cortex, or try 'teach me basic supply and demand'…" autocomplete="off" rows="1"></textarea>
+        <textarea id="chatInput" placeholder="Try 'teach me basic supply and demand'…" autocomplete="off" rows="1"></textarea>
         <button id="chatSendBtn" type="button" title="Send">➤</button>
     </div>
 </div>
@@ -942,24 +939,40 @@ SQIDAQAB
         return MOTIVATIONAL_QUOTES[nextIndex];
     }
 
-    // Original wording only — deliberately NOT the familiar "How can I
-    // help you today?" line every other assistant opens with. Rotated the
-    // same way as the quote above, own persisted index.
-    const CORTEX_GREETINGS = [
-        "What are we working on today?",
-        "Where should we pick up?",
-        "Stuck on something? Ask me about it, or just talk through what's due.",
-        "What's on your mind for this session?",
-        "Ready when you are — what's first?",
-        "Tell me what you're studying and I'll help you get into it."
-    ];
+    // A plain "Where should we pick up?"-style rotating prompt sitting
+    // right above the input box didn't make sense there - replaced with an
+    // ordinary time-of-day greeting at the TOP of the empty state instead,
+    // alongside the logo/title, same "Good morning/afternoon/evening[, name]"
+    // convention learn/index.html's own dashboard feed greeting banner
+    // already uses (sfTimeOfDayGreeting/sfGetStudentName) - reproduced here
+    // rather than shared, since this is a separate page/iframe with its own
+    // supabaseClient.
+    function cortexTimeOfDayGreetingWord() {
+        const hour = new Date().getHours();
+        if (hour < 5) return 'Still up';
+        if (hour < 12) return 'Good morning';
+        if (hour < 18) return 'Good afternoon';
+        return 'Good evening';
+    }
 
-    async function pickNextGreeting() {
-        const stored = await getAuthRecord('cortexGreetingIndex');
-        const prevIndex = typeof stored === 'number' ? stored : -1;
-        const nextIndex = (prevIndex + 1) % CORTEX_GREETINGS.length;
-        await putAuthRecord('cortexGreetingIndex', nextIndex);
-        return CORTEX_GREETINGS[nextIndex];
+    function cortexDeriveNameFromEmail(email) {
+        const local = (email || '').split('@')[0];
+        return local ? local.replace(/[._]+/g, ' ').trim() : '';
+    }
+
+    async function cortexGetStudentName() {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            const realName = (session?.user?.user_metadata?.first_name || '').trim();
+            return realName || cortexDeriveNameFromEmail(session?.user?.email || '');
+        } catch (err) {
+            return '';
+        }
+    }
+
+    async function cortexTimeOfDayGreetingText() {
+        const name = await cortexGetStudentName();
+        return name ? `${cortexTimeOfDayGreetingWord()}, ${name}.` : `${cortexTimeOfDayGreetingWord()}.`;
     }
 
     // Multiple saved chat threads — replaces the old single
@@ -1160,23 +1173,17 @@ SQIDAQAB
     function clearEmptyHint() {
         if (emptyHintEl) { emptyHintEl.remove(); emptyHintEl = null; }
         chatMessagesEl.classList.remove('chat-empty-active');
-        const greetingEl = document.getElementById('chatGreeting');
-        if (greetingEl) greetingEl.classList.remove('active');
     }
 
-    // Populates the empty-state logo/quote and the rotating greeting —
-    // called once at boot, before restoreChatHistory decides whether to
-    // immediately clear it again (a session with existing messages tears
-    // this straight back down via clearEmptyHint, which is fine — cheap
-    // either way).
+    // Populates the empty-state greeting/logo/quote - called once at boot,
+    // before restoreChatHistory decides whether to immediately clear it
+    // again (a session with existing messages tears this straight back down
+    // via clearEmptyHint, which is fine — cheap either way).
     async function renderEmptyState() {
         const quoteEl = document.getElementById('chatEmptyQuote');
         if (quoteEl) quoteEl.textContent = await pickNextQuote();
-        const greetingEl = document.getElementById('chatGreeting');
-        if (greetingEl) {
-            greetingEl.textContent = await pickNextGreeting();
-            greetingEl.classList.add('active');
-        }
+        const greetingEl = document.getElementById('chatEmptyGreeting');
+        if (greetingEl) greetingEl.textContent = await cortexTimeOfDayGreetingText();
         chatMessagesEl.classList.add('chat-empty-active');
     }
 
