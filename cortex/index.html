@@ -294,14 +294,15 @@
     .lesson-card-status { align-self: flex-start; background: var(--panel); color: var(--text); border-radius: 10px; padding: 10px 16px; font-size: 0.85rem; }
     .lesson-card-done { align-self: flex-start; background: var(--panel); color: var(--text); border-radius: 10px; padding: 10px 16px; font-size: 0.9rem; font-weight: 700; }
 
-    /* The time-of-day greeting and the rotating quote used to be two
-       separate lines - now one flowing sentence (see cortexEmptyStateMessage)
-       sitting near the TOP of the page, with the LastMind mark on its own
-       further down, vertically centered in whatever room is left below it
-       (see .chat-empty-center) - two distinct anchors rather than one
-       block centered as a whole. Same italic/subtle treatment as
-       learn/index.html's own dashboard feed greeting banner
-       (.sf-greeting-banner). */
+    /* The time-of-day greeting and the rotating quote (see
+       .chat-empty-quote just below) sit near the TOP of the page, each its
+       own line/sentence - a real person says the greeting, then says the
+       thing, rather than fusing both into one run-on line with a dash. The
+       LastMind mark sits on its own further down, vertically centered in
+       whatever room is left below them (see .chat-empty-center) - two
+       distinct anchors rather than one block centered as a whole. Same
+       italic/subtle treatment as learn/index.html's own dashboard feed
+       greeting banner (.sf-greeting-banner). */
     .chat-empty-greeting {
         flex: none;
         text-align: center;
@@ -310,8 +311,24 @@
         opacity: 0.65;
         font-size: 1.05rem;
         max-width: 480px;
-        margin: 0 auto;
+        margin: 0 auto 10px;
         padding-top: 6vh;
+        line-height: 1.6;
+    }
+
+    /* Its own line, own complete sentence, directly under the greeting -
+       not fused onto the end of it with a dash (see MOTIVATIONAL_QUOTES'
+       own comment). Same italic treatment, slightly more prominent since
+       it's the actual thought of the two. */
+    .chat-empty-quote {
+        flex: none;
+        text-align: center;
+        font-family: 'Georgia', serif;
+        font-style: italic;
+        opacity: 0.75;
+        font-size: 1.1rem;
+        max-width: 480px;
+        margin: 0 auto;
         line-height: 1.6;
     }
 
@@ -509,6 +526,7 @@
         <div class="chat-inner" id="chatMessages">
             <div class="chat-empty-hint" id="chatEmptyHint">
                 <p class="chat-empty-greeting" id="chatEmptyGreeting"></p>
+                <p class="chat-empty-quote" id="chatEmptyQuote"></p>
                 <div class="chat-empty-center">
                     <h1 class="chat-empty-logo">
                         <img class="chat-empty-logo-icon" src="/icons/lastmind-logo.png" alt="LastMind" width="110" height="110" />
@@ -927,22 +945,22 @@ SQIDAQAB
     const chatMessagesEl = document.getElementById('chatMessages');
     let emptyHintEl = document.getElementById('chatEmptyHint');
 
-    // Written as a CONTINUATION clause, not a standalone sentence - see
-    // cortexEmptyStateMessage below, which appends one of these straight
-    // onto "Good evening, Name — " to read as one flowing thought rather
-    // than a greeting and an unrelated quote sitting side by side. Rotates
-    // the same "keep cycling forward, never restart from the top"
-    // persistence pattern learn/index.html's own dashboard quote uses.
+    // Own complete sentence, its own line, right under the greeting - a
+    // real person doesn't fuse "good morning" and a piece of advice into
+    // one run-on line with a dash; they say the greeting, then say the
+    // thing. Rotates the same "keep cycling forward, never restart from
+    // the top" persistence pattern learn/index.html's own dashboard quote
+    // uses.
     const MOTIVATIONAL_QUOTES = [
-        "it doesn't matter how you do it, it matters that you do it.",
-        "remember that starting is the real battle — everything after is just momentum.",
-        "long horizons make short-term setbacks irrelevant.",
-        "raise your standards and the outcomes will follow.",
-        "the hard thing is usually the right thing.",
-        "action without direction is just noise, and direction without action is just fantasy.",
-        "remember, champions are made when nothing exciting is happening.",
-        "just aim to be 1% better today.",
-        "the limit is usually just the story you're telling yourself."
+        "It doesn't matter how you do it, it matters that you do it.",
+        "Remember, starting is the real battle — everything after is just momentum.",
+        "Long horizons make short-term setbacks irrelevant.",
+        "Raise your standards, and the outcomes will follow.",
+        "The hard thing is usually the right thing.",
+        "Always remember, action without direction is just noise, and direction without action is just fantasy.",
+        "Remember, champions are made when nothing exciting is happening.",
+        "Just aim to be 1% better today.",
+        "The limit is usually just the story you're telling yourself."
     ];
 
     async function pickNextQuote() {
@@ -959,9 +977,10 @@ SQIDAQAB
     // name]" convention learn/index.html's own dashboard feed greeting
     // banner already uses (sfTimeOfDayGreeting/sfGetStudentName) -
     // reproduced here rather than shared, since this is a separate
-    // page/iframe with its own supabaseClient. Combined with the rotating
-    // quote above into ONE continuous sentence (cortexEmptyStateMessage)
-    // rather than two unrelated lines stacked on top of each other.
+    // page/iframe with its own supabaseClient. Its own line, own complete
+    // sentence - the rotating quote below it (see cortexTimeOfDayGreetingText/
+    // MOTIVATIONAL_QUOTES) is a separate thought, not fused onto the end
+    // of this one with a dash.
     function cortexTimeOfDayGreetingWord() {
         const hour = new Date().getHours();
         if (hour < 5) return 'Still up';
@@ -985,13 +1004,9 @@ SQIDAQAB
         }
     }
 
-    // "Good evening, Lawrence — remember that starting is the real battle,
-    // everything after is just momentum." - one flowing thought rather than
-    // a greeting and a quote as two separate, unrelated lines.
-    async function cortexEmptyStateMessage() {
-        const [name, continuation] = await Promise.all([cortexGetStudentName(), pickNextQuote()]);
-        const greeting = name ? `${cortexTimeOfDayGreetingWord()}, ${name}` : cortexTimeOfDayGreetingWord();
-        return `${greeting} — ${continuation}`;
+    async function cortexTimeOfDayGreetingText() {
+        const name = await cortexGetStudentName();
+        return name ? `${cortexTimeOfDayGreetingWord()}, ${name}.` : `${cortexTimeOfDayGreetingWord()}.`;
     }
 
     // Multiple saved chat threads — replaces the old single
@@ -1200,7 +1215,9 @@ SQIDAQAB
     // via clearEmptyHint, which is fine — cheap either way).
     async function renderEmptyState() {
         const greetingEl = document.getElementById('chatEmptyGreeting');
-        if (greetingEl) greetingEl.textContent = await cortexEmptyStateMessage();
+        if (greetingEl) greetingEl.textContent = await cortexTimeOfDayGreetingText();
+        const quoteEl = document.getElementById('chatEmptyQuote');
+        if (quoteEl) quoteEl.textContent = await pickNextQuote();
         chatMessagesEl.classList.add('chat-empty-active');
     }
 
