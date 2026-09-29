@@ -1227,11 +1227,23 @@ SQIDAQAB
         if (!session.messages || !session.messages.length) return;
         chatHistory = session.messages;
         clearEmptyHint();
+        // Real, reported bug: appendUserMessage/appendAssistantMessage/
+        // appendCardMessage each call scrollIntoView({behavior:'smooth'})
+        // on their own element - fine one at a time for a live chat, but
+        // restoring several turns in this one synchronous loop fired that
+        // many competing smooth-scroll animations back to back, and the
+        // browser could settle wherever the FIRST (often tallest - the map
+        // card) one landed instead of the actual bottom, reading as "only
+        // the map shows, nothing else did" even though everything after it
+        // was really there, just scrolled out of view. Suppressed here and
+        // done exactly once at the end instead.
+        suppressAutoScroll = true;
         chatHistory.forEach((turn) => {
             if (turn.silent) { renderRestoredSilentTurn(turn); return; }
             if (turn.role === 'user') appendUserMessage(turn.content);
             else appendAssistantMessage(turn.content);
         });
+        suppressAutoScroll = false;
         // If the chat was closed/reloaded right after a map was built and
         // never confirmed, re-arm the same "shall I build the first
         // lesson?" checkpoint it would have shown live - restoring a map
@@ -1251,6 +1263,7 @@ SQIDAQAB
             const state = topicMapState;
             promptLessonContinuation(LESSON_START_PROMPTS, () => startTopicTeachSequence(state));
         }
+        chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
     }
 
     function clearEmptyHint() {
@@ -1428,13 +1441,19 @@ SQIDAQAB
     // other message. clearEmptyHint() first: the empty-state logo/quote and
     // its own suggestion chips only make sense before anything's happened
     // yet, same as it already gets torn down for a plain chat message.
+    // Set by restoreChatHistory while it bulk-appends every past turn at
+    // once - see its own comment on why firing scrollIntoView once per
+    // turn there could leave the page settled somewhere other than the
+    // bottom (looking like everything after that point had gone missing).
+    let suppressAutoScroll = false;
+
     function appendCardMessage(innerHtml) {
         clearEmptyHint();
         const el = document.createElement('div');
         el.className = 'chat-msg chat-msg-card';
         el.innerHTML = innerHtml;
         chatMessagesEl.appendChild(el);
-        el.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        if (!suppressAutoScroll) el.scrollIntoView({ behavior: 'smooth', block: 'end' });
         return el;
     }
 
@@ -1906,13 +1925,11 @@ SQIDAQAB
         el.className = 'chat-msg chat-msg-user';
         el.textContent = text;
         chatMessagesEl.appendChild(el);
-        el.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        if (!suppressAutoScroll) el.scrollIntoView({ behavior: 'smooth', block: 'end' });
         return el;
     }
 
-    // Default is text-only now — nothing here is spoken automatically
-    // (see sendChatMessage, which only auto-speaks when the student's own
-    // message explicitly asked for that turn's reply to be read aloud).
+    // Text-only - nothing here is spoken automatically.
     // Every assistant message still gets its own speak button, so reading
     // any of them aloud — including mid-review questions, not just the
     // main reply — is always one click away.
@@ -1947,7 +1964,7 @@ SQIDAQAB
         el.appendChild(textEl);
 
         chatMessagesEl.appendChild(el);
-        el.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        if (!suppressAutoScroll) el.scrollIntoView({ behavior: 'smooth', block: 'end' });
         return el;
     }
 
