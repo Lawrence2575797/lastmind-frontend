@@ -1188,6 +1188,7 @@
        clustering by subject IS the graph's real connected-component shape. */
     .um-view { max-width: 920px; margin: 0 auto; padding: 28px 20px 60px; }
     .um-empty { text-align: center; padding-top: 80px; }
+    .um-empty .um-sub { background: var(--panel); color: var(--text); opacity: 1; display: inline-block; max-width: 480px; padding: 18px 24px; border-radius: 12px; font-size: 1.15rem; line-height: 1.5; }
     .um-header { margin-bottom: 28px; }
     .um-title { font-family: Georgia, serif; font-size: 1.7rem; margin: 0 0 6px; color: var(--accent); }
     .um-sub { font-size: 0.9rem; opacity: 0.7; margin: 0; }
@@ -6571,7 +6572,7 @@
                          Tutoring are both single destinations now, so they're plain buttons. Overdue Requests/Buy Extra Locks
                          (each independently display:none by default, only shown by their own conditional logic elsewhere)
                          moved out to sit flat here too - nothing about their own visibility logic changed. -->
-                    <button class="cortex-btn-topbar" id="knowledgeMapTopbarBtn" type="button">Knowledge Map</button>
+                    <button class="cortex-btn-topbar" id="knowledgeMapTopbarBtn" type="button">Your knowledge</button>
                     <!-- Async peer tutoring ("Give help"/"Ask for help") hidden from the visible UI by explicit product
                          decision - live, founder-led tutoring is the only tutoring surface shown for now. Code/handlers left
                          fully intact, same one-line-revert pattern as createTopbarBtn/rewardsTopbarBtn above (drop the two
@@ -24967,7 +24968,7 @@ SQIDAQAB
         if (!data.nodes || !data.nodes.length) {
             contentInner.innerHTML = `
                 <div class="um-view um-empty">
-                    <h1 class="um-title">Your knowledge map</h1>
+                    <h1 class="um-title">Your knowledge on Lastmind</h1>
                     <p class="um-sub">No concepts covered yet — complete a lesson to get started. Everything you learn shows up here, linked to whatever it actually builds on.</p>
                 </div>`;
             return;
@@ -25028,7 +25029,7 @@ SQIDAQAB
         contentInner.innerHTML = `
             <div class="um-view">
                 <div class="um-header">
-                    <h1 class="um-title">Your knowledge map</h1>
+                    <h1 class="um-title">Your knowledge on Lastmind</h1>
                     <p class="um-sub">Everything you've covered so far, across every subject — click any concept to continue it.</p>
                 </div>
                 <div class="um-clusters">${clusters}</div>
