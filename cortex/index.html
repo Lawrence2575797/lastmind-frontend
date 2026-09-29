@@ -1511,7 +1511,18 @@ SQIDAQAB
             i = (i + 1) % messages.length;
             textEl.textContent = messages[i];
         }, 1800);
-        return () => clearInterval(timer);
+        // Real, reported confusion this fixes: a stage covering several map
+        // nodes at once (see plan_stages.js's subtopic-merge fix) can take
+        // more than one Claude attempt to generate, well past a single lap
+        // of these 5 messages - which just reads as "stuck repeating the
+        // same steps" with no way to tell still-working from actually-hung.
+        // Same reassurance copy already used elsewhere for a slow-but-not-
+        // failed wait (see showLoadingWithColdStartHint in learn/index.html).
+        const longWaitTimer = setTimeout(() => {
+            clearInterval(timer);
+            textEl.textContent = "Still working on this one - it's taking longer than usual, but hasn't failed. Hang tight.";
+        }, 14000);
+        return () => { clearInterval(timer); clearTimeout(longWaitTimer); };
     }
 
     // Assigns each node a "level" = 1 + the deepest level among its own
