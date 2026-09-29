@@ -31672,18 +31672,17 @@ SQIDAQAB
         // Skipped when a deep link just opened a specific page — showing
         // the tour on top of that would just be in the way.
         //
-        // The subject picker is governed solely by whether the account has
-        // any subjects. It is not a login prompt and it is not tied to the
-        // onboarding-status flag: an existing subject means Cortex must not
-        // ask what the student is studying again. If the local cache was
-        // empty, wait for account sync first so this test reflects the
-        // Subjects section in the sidebar rather than one device's cache.
+        // The subject picker used to fire here for any brand-new account
+        // (zero folders) on first load. Subjects are no longer a sidebar
+        // concept, so a fresh account should land straight on Cortex like
+        // every other account, not be stopped for a subject-picking step
+        // first. sfShowSubjectPickerWizard itself is left fully intact
+        // (still reachable from its other call sites) - this just removes
+        // the automatic first-load trigger, a one-line revert if it
+        // returns: restore the `if (!folders.length) { sfShowSubjectPickerWizard(); } else { ... }` branch.
         if (!openedViaDeepLink) {
-            if (!folders.length) await folderSyncPromise;
             const tourStatus = await fetchOnboardingStatus();
-            if (!folders.length) {
-                sfShowSubjectPickerWizard();
-            } else {
+            {
                 if (tourStatus) {
                     if (paid && !tourStatus.seenPremiumTour) {
                         startTour('premium');

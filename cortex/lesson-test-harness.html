@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="robots" content="noindex">
+<title>LastMind - Lesson generation test harness</title>
+<style>
+    /* Not part of the live product flow - reachable only by a direct URL,
+       linked from nowhere. Exists purely so lesson generation's actual UI
+       (loading copy, card states, the real derivation player) can be
+       clicked through and checked by eye with zero backend calls and zero
+       API spend. The canned payload below is a REAL derivation this
+       account already generated and paid for once (Mathematics A-Level
+       Edexcel, "Statistical sampling", read back from
+       derivation_generated_stages.compiled) - reusing it costs nothing
+       further, and it renders through the exact same /learn/derive/
+       player.html this account sees in production, not a re-implementation
+       of it. Safe to delete once it's no longer needed; nothing else
+       depends on this file existing. */
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    :root { --bg:#1A1A1C; --panel:#1A232D; --panel-rgb: 26, 35, 45; --text:#F1EAD6; --accent:#F1EAD6; --ink:#1A232D; }
+    html, body { height:100%; }
+    body {
+        background:
+            repeating-linear-gradient(90deg, rgba(0,0,0,0.14) 0px, rgba(0,0,0,0.14) 2px, transparent 2px, transparent 150px),
+            repeating-linear-gradient(0.6deg, rgba(255,255,255,0.06) 0px, rgba(255,255,255,0.06) 1px, transparent 1px, transparent 4px),
+            repeating-linear-gradient(-1.2deg, rgba(0,0,0,0.05) 0px, rgba(0,0,0,0.05) 1px, transparent 1px, transparent 6px),
+            linear-gradient(100deg, #F3D9A6, #D9C398 35%, #F3D9A6 55%, #BBA986 85%, #D9C398 100%);
+        color: var(--ink);
+        font-family: 'Georgia', serif;
+        min-height: 100%;
+        display: flex; flex-direction: column; align-items: center;
+        padding: 24px 16px 60px;
+    }
+    .harness-banner { max-width: 640px; width: 100%; background: rgba(26,35,45,0.08); border: 1px dashed rgba(26,35,45,0.35); border-radius: 10px; padding: 10px 14px; font-size: 0.8rem; line-height: 1.5; margin-bottom: 18px; }
+    .harness-banner strong { display:block; font-size: 0.85rem; margin-bottom: 2px; }
+    .chat-inner { max-width: 640px; width: 100%; display:flex; flex-direction:column; gap: 14px; }
+    .lesson-card-label { align-self: flex-start; background: var(--panel); color: var(--text); border-radius: 10px; padding: 8px 14px; font-size: 0.78rem; letter-spacing: 0.05em; text-transform: uppercase; font-weight: 700; }
+    .lesson-card-status { align-self: flex-start; background: var(--panel); color: var(--text); border-radius: 10px; padding: 10px 16px; font-size: 0.85rem; }
+    .lesson-card-done { align-self: flex-start; background: var(--panel); color: var(--text); border-radius: 10px; padding: 10px 16px; font-size: 0.9rem; font-weight: 700; }
+    .lesson-card-frame-wrap { height: 560px; width: 100%; border-radius: 10px; overflow: hidden; background: var(--panel); }
+    .lesson-card-frame-wrap iframe { width: 100%; height: 100%; border: 0; display: block; }
+    .topic-map-start { align-self: flex-start; border: 0; border-radius: 999px; padding: 7px 16px; background: var(--accent); color: var(--panel); font-family: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
+    .harness-controls { max-width: 640px; width:100%; display:flex; gap:10px; margin-top: 22px; flex-wrap: wrap; }
+    .harness-controls button { border:0; border-radius: 999px; padding: 8px 16px; background: var(--panel); color: var(--text); font-family: inherit; font-size: 0.78rem; font-weight: 700; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<div class="harness-banner">
+    <strong>Lesson-generation test harness - not a real page in the app.</strong>
+    Mirrors exactly what a Cortex chat shows while it builds a topic's map and then a lesson,
+    but with a canned already-generated derivation instead of a live Claude call - no backend
+    request, no Locks, no cost. The final card is the real, live /learn/derive/player.html.
+</div>
+
+<div class="chat-inner" id="chatInner"></div>
+
+<div class="harness-controls">
+    <button type="button" id="runSuccessBtn">Run: map build -&gt; "let's go" -&gt; lesson (success)</button>
+    <button type="button" id="runFailureBtn">Run: same flow, but lesson generation fails</button>
+    <button type="button" id="resetBtn">Reset</button>
+</div>
+
+<script>
+    const chatInner = document.getElementById('chatInner');
+
+    // Copied verbatim from cortex/index.html - the exact same copy a real
+    // student sees, so this harness catches wording regressions there too.
+    const TOPIC_MAP_LOADING_MESSAGES = [
+        'Reading the topic…',
+        'Working out what it depends on…',
+        'Mapping the prerequisites…',
+        'Checking what connects to what…',
+        'Putting it in a sensible order…',
+        'Nearly there…',
+    ];
+    const LESSON_LOADING_MESSAGES = [
+        'Working out how to teach this…',
+        'Building the derivation…',
+        'Writing the practice question…',
+        'Checking it holds together…',
+        'Nearly ready…',
+    ];
+
+    // A real derivation this account already generated and paid for once
+    // (Mathematics A-Level Edexcel, "Statistical sampling"), read back
+    // read-only from derivation_generated_stages.compiled. Replaying it
+    // costs nothing further and renders through the real player.
+    const SAMPLE_DERIVATION_PAYLOAD = {"i":87,"name":"mathematics:1_statistical_sampling:definition_of_population_,mathematics:1_statistical_sampling:definition_of_sample_,mathematics:1_statistical_sampling:definition_of_a_census_sampling_entire_population_,mathematics:1_statistical_sampling:using_samples_to_make_informal_inferences_about_a_population,mathematics:1_statistical_sampling:different_samples_can_lead_to_different_conclusions_about_the_population","edges":[["mathematics:1_statistical_sampling:using_samples_to_make_informal_inferences_about_a_population","mathematics:1_statistical_sampling:different_samples_can_lead_to_different_conclusions_about_the_population"],["mathematics:1_statistical_sampling:definition_of_population_","mathematics:1_statistical_sampling:definition_of_a_census_sampling_entire_population_"],["mathematics:1_statistical_sampling:definition_of_population_","mathematics:1_statistical_sampling:definition_of_sample_"],["mathematics:1_statistical_sampling:definition_of_sample_","mathematics:1_statistical_sampling:using_samples_to_make_informal_inferences_about_a_population"]],"nodes":["mathematics:1_statistical_sampling:definition_of_population_","mathematics:1_statistical_sampling:definition_of_sample_","mathematics:1_statistical_sampling:definition_of_a_census_sampling_entire_population_","mathematics:1_statistical_sampling:using_samples_to_make_informal_inferences_about_a_population","mathematics:1_statistical_sampling:different_samples_can_lead_to_different_conclusions_about_the_population"],"stage":{"hud":"Stage 1 · Statistical sampling","sub":"Why samples are used instead of surveying everyone, and why conclusions from samples can vary.","name":"Statistical sampling","given":[],"graph":{"h":234,"edges":[[[732,162],[836,162]],[[170,66],[256,66],[256,68],[274,68]],[[170,78],[244,78],[244,158],[274,158]],[[404,158],[490,158],[490,162],[508,162]]],"given":[],"nodes":{"mathematics:1_statistical_sampling:definition_of_sample_":[274,130,130,56],"mathematics:1_statistical_sampling:definition_of_population_":[40,40,130,64],"mathematics:1_statistical_sampling:definition_of_a_census_sampling_entire_population_":[274,40,130,56],"mathematics:1_statistical_sampling:using_samples_to_make_informal_inferences_about_a_population":[508,130,224,64],"mathematics:1_statistical_sampling:different_samples_can_lead_to_different_conclusions_about_the_population":[836,130,164,64]},"pairs":[["mathematics:1_statistical_sampling:using_samples_to_make_informal_inferences_about_a_population","mathematics:1_statistical_sampling:different_samples_can_lead_to_different_conclusions_about_the_population"],["mathematics:1_statistical_sampling:definition_of_population_","mathematics:1_statistical_sampling:definition_of_a_census_sampling_entire_population_"],["mathematics:1_statistical_sampling:definition_of_population_","mathematics:1_statistical_sampling:definition_of_sample_"],["mathematics:1_statistical_sampling:definition_of_sample_","mathematics:1_statistical_sampling:using_samples_to_make_informal_inferences_about_a_population"]]},"title":"Statistical sampling","builds":[],"script":[{"type":"title"},{"q":"A school wants to know the height of every single student in the school, all 900 of them. Who exactly are they interested in?","ok":0,"pre":"The entire group you want to know about is called the","hint":"The school has not left anyone out yet, it wants data on all of them.","opts":["Every student in the school","Just the students who agree to be measured"],"term":"mathematics:1_statistical_sampling:definition_of_population_","type":"ask"},{"q":"The school actually measures all 900 students, with no one left out. What has it just done?","ok":0,"pre":"Measuring every member of the population is called taking a","hint":"Every single member was measured, not just some of them.","opts":["Surveyed the whole population","Surveyed a small part of the population"],"term":"mathematics:1_statistical_sampling:definition_of_a_census_sampling_entire_population_","type":"ask"},{"q":"Measuring all 900 students takes too long, so the school measures 30 students instead. What have they picked?","ok":0,"pre":"That smaller group is called a","hint":"It is part of the 900, not a whole new group of people.","opts":["A smaller group taken from the population","A second, separate population"],"term":"mathematics:1_statistical_sampling:definition_of_sample_","type":"ask"},{"q":"The 30 students in the sample have an average height of 1.5m. What can the school reasonably do with this number?","ok":0,"pre":"Using a sample's result to estimate something about the whole group is","hint":"The sample gives a clue about the whole group, not an exact measurement of each person.","opts":["Estimate the average height of all 900 students","State the exact height of every one of the 900 students"],"term":"mathematics:1_statistical_sampling:using_samples_to_make_informal_inferences_about_a_population","type":"ask"},{"q":"The school picks a different 30 students and now the average height comes out as 1.6m instead of 1.5m. Why the change?","ok":0,"pre":"This shows that","hint":"The population of 900 did not change, only which 30 students were chosen.","opts":["Different samples can give different results","The students actually grew taller overnight"],"term":"mathematics:1_statistical_sampling:different_samples_can_lead_to_different_conclusions_about_the_population","type":"ask"},{"type":"derive","title":"Final test: the whole derivation","prompt":"Drag and drop the 5 key terms into the boxes to rebuild the whole derivation from memory. Chains meet at the concept."},{"type":"done"}]},"terms":{"mathematics:1_statistical_sampling:definition_of_sample_":{"c":"#f6ecb9","t":"Sample","syn":["A smaller group taken from the population"]},"mathematics:1_statistical_sampling:definition_of_population_":{"c":"#cfe8c8","t":"Population","syn":["The whole group being studied"]},"mathematics:1_statistical_sampling:definition_of_a_census_sampling_entire_population_":{"c":"#cfe3f6","t":"Census","syn":["Surveying every member of the population"]},"mathematics:1_statistical_sampling:using_samples_to_make_informal_inferences_about_a_population":{"c":"#f8d9c4","t":"Inference from a sample","syn":["Using a sample to estimate something about the population"]},"mathematics:1_statistical_sampling:different_samples_can_lead_to_different_conclusions_about_the_population":{"c":"#cfd9e8","t":"Sample variation","syn":["Different samples can give different estimates"]}},"concepts":["mathematics:1_statistical_sampling:definition_of_population_","mathematics:1_statistical_sampling:definition_of_sample_","mathematics:1_statistical_sampling:definition_of_a_census_sampling_entire_population_","mathematics:1_statistical_sampling:using_samples_to_make_informal_inferences_about_a_population","mathematics:1_statistical_sampling:different_samples_can_lead_to_different_conclusions_about_the_population"]};
+
+    function appendCardMessage(innerHtml) {
+        const card = document.createElement('div');
+        card.className = 'chat-inner';
+        card.style.gap = '8px';
+        card.style.display = 'flex';
+        card.style.flexDirection = 'column';
+        card.innerHTML = innerHtml;
+        chatInner.appendChild(card);
+        card.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        return card;
+    }
+
+    function startLoadingRotator(textEl, messages) {
+        let i = 0;
+        textEl.textContent = messages[0];
+        const timer = setInterval(() => {
+            i = (i + 1) % messages.length;
+            textEl.textContent = messages[i];
+        }, 1200);
+        return () => clearInterval(timer);
+    }
+
+    function wait(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+
+    // Same protocol cortex/index.html's mountDerivationInCard uses against
+    // the real /learn/derive/player.html - this file is served from the
+    // same origin as that player once deployed, so the postMessage
+    // exchange works exactly as it does in production.
+    function mountDerivationInCard(card, derivation) {
+        card.innerHTML = `
+            <div class="lesson-card-label">Lesson</div>
+            <div class="lesson-card-frame-wrap"><iframe src="/learn/derive/player.html?v=harness" title="Lesson"></iframe></div>
+        `;
+        const frame = card.querySelector('iframe');
+        const cs = getComputedStyle(document.documentElement);
+        const look = { text: cs.getPropertyValue('--text').trim(), rgb: cs.getPropertyValue('--panel-rgb').trim() };
+        window.addEventListener('message', function onMessage(e) {
+            if (e.origin !== window.location.origin || e.source !== frame.contentWindow || !e.data) return;
+            if (e.data.type === 'lm-derive-ready') {
+                frame.contentWindow.postMessage({ type: 'lm-derive-init', data: derivation, checkpoint: null, look }, window.location.origin);
+            } else if (e.data.type === 'lm-derive-complete') {
+                appendCardMessage(`<div class="lesson-card-done">Lesson completed. (Test harness: not recorded anywhere - no completion request was sent.)</div>`);
+                window.removeEventListener('message', onMessage);
+            }
+        });
+    }
+
+    async function runFlow(shouldFail) {
+        chatInner.innerHTML = '';
+        appendCardMessage(`<div class="lesson-card-done">You: "teach me statistical sampling"</div>`);
+        await wait(400);
+
+        const mapCard = appendCardMessage(`<div class="lesson-card-status"></div>`);
+        const stopMapRotator = startLoadingRotator(mapCard.querySelector('.lesson-card-status'), TOPIC_MAP_LOADING_MESSAGES);
+        await wait(4200);
+        stopMapRotator();
+        mapCard.querySelector('.lesson-card-status').textContent = 'Map ready - 5 concepts, 1 stage.';
+
+        await wait(400);
+        const goCard = appendCardMessage(`<div class="lesson-card-status">Ready when you are - build the first lesson? <button type="button" class="topic-map-start" id="letsGoBtn">Let's go</button></div>`);
+        goCard.querySelector('#letsGoBtn').addEventListener('click', async () => {
+            goCard.remove();
+            const card = appendCardMessage(`
+                <div class="lesson-card-label">Statistical sampling</div>
+                <div class="lesson-card-status"></div>
+            `);
+            const stopLessonRotator = startLoadingRotator(card.querySelector('.lesson-card-status'), LESSON_LOADING_MESSAGES);
+            await wait(shouldFail ? 5400 : 4800);
+            stopLessonRotator();
+            if (shouldFail) {
+                const statusEl = card.querySelector('.lesson-card-status');
+                statusEl.innerHTML = `Could not load this lesson - the server may just be waking up, this often works on retry. <button type="button" class="topic-map-start" id="retryBtn">Try again</button>`;
+                statusEl.querySelector('#retryBtn').addEventListener('click', () => { card.remove(); runFlow(false); });
+            } else {
+                mountDerivationInCard(card, SAMPLE_DERIVATION_PAYLOAD);
+            }
+        }, { once: true });
+    }
+
+    document.getElementById('runSuccessBtn').addEventListener('click', () => runFlow(false));
+    document.getElementById('runFailureBtn').addEventListener('click', () => runFlow(true));
+    document.getElementById('resetBtn').addEventListener('click', () => { chatInner.innerHTML = ''; });
+</script>
+</body>
+</html>
