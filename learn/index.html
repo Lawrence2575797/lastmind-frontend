@@ -1948,6 +1948,13 @@
     .math-shortcut-toggle[aria-expanded="true"] { margin-bottom: 8px; }
     .math-shortcut-hint-title { font-weight: 800; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; opacity: 0.85; }
     .math-shortcut-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+    /* This author rule's own `display: grid` otherwise beats the browser's
+       default `[hidden] { display: none }` UA rule outright (author origin
+       always wins a tie with user-agent origin, regardless of matching
+       specificity) - the toggle button above was flipping the `hidden`
+       attribute correctly the whole time, the list itself just never
+       actually disappeared. */
+    .math-shortcut-list[hidden] { display: none; }
     .math-shortcut-list li { display: grid; grid-template-columns: 12em 1fr; column-gap: 12px; align-items: baseline; line-height: 1.4; }
     .math-shortcut-list li > span:last-child { opacity: 0.8; }
     .math-shortcut-list kbd { display: inline-block; min-width: 1.5em; text-align: center; padding: 1px 6px; border: 1px solid rgba(230, 215, 176, 0.4); border-bottom-width: 2px; border-radius: 4px; background: rgba(230, 215, 176, 0.1); font: 700 11px Arial, sans-serif; }
