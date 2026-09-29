@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>LastMind – Learn</title>
 <!-- Gated app dashboard — Googlebot can't log in, so it only ever sees
      the "Checking your subscription…" gate shell. Keeping it out of the
@@ -17369,8 +17369,26 @@ SQIDAQAB
     // narrow phone).
     const specialistToolsBtn = document.getElementById('specialistToolsBtn');
     const specialistToolsMenu = document.getElementById('specialistToolsMenu');
-    specialistToolsBtn.addEventListener('click', (event) => {
+    // Real reported bug: on mobile, this button sits off the edge of the
+    // horizontally-scrollable topbarActions row (see its own "narrow phone
+    // has no overflow handling" comment) - reaching it means scrolling the
+    // row first, then tapping. Mobile browsers commonly suppress the
+    // synthesized 'click' that would normally follow a touchend when it
+    // lands right after a scroll/pan gesture (a built-in "don't treat the
+    // end of a scroll as an accidental tap" heuristic), so a plain 'click'
+    // listener alone silently did nothing there - confirmed live: a real
+    // dispatched 'click' event toggles this correctly, but the equivalent
+    // touch tap after scrolling the row into view did not. Listening on
+    // 'touchend' too, with a short debounce, catches the case 'click' gets
+    // suppressed without double-toggling on an ordinary tap where both
+    // still fire normally.
+    let specialistToolsLastToggle = 0;
+    function toggleSpecialistTools(event) {
+        const now = Date.now();
+        if (now - specialistToolsLastToggle < 350) return;
+        specialistToolsLastToggle = now;
         event.stopPropagation();
+        event.preventDefault();
         const open = specialistToolsMenu.classList.toggle('open');
         specialistToolsBtn.setAttribute('aria-expanded', String(open));
         if (open) {
@@ -17381,7 +17399,9 @@ SQIDAQAB
             specialistToolsMenu.style.top = `${rect.bottom + 7}px`;
             specialistToolsMenu.style.left = `${Math.max(8, left)}px`;
         }
-    });
+    }
+    specialistToolsBtn.addEventListener('click', toggleSpecialistTools);
+    specialistToolsBtn.addEventListener('touchend', toggleSpecialistTools);
     specialistToolsMenu.addEventListener('click', () => {
         specialistToolsMenu.classList.remove('open');
         specialistToolsBtn.setAttribute('aria-expanded', 'false');
@@ -31547,7 +31567,10 @@ SQIDAQAB
         const contentInner = document.getElementById('contentInner');
         if (!contentInner) return;
         contentInner.classList.add('content-inner-wide');
-        const messages = ['Finding your next lesson…', 'Checking what\'s due…', 'Loading your knowledge map…', 'Almost there…'];
+        // "Finding your next lesson..." was stale wording from before Cortex
+        // became the default landing view - this boot screen isn't finding
+        // a lesson at all any more.
+        const messages = ['Getting things ready…', 'Checking what\'s due…', 'Loading your account…', 'Almost there…'];
         // Hardcoded colours, deliberately not any --variable - previous
         // attempts (inherited --ink, explicit --panel/--text, then a
         // plain dark grey/white pair) were all still reported as

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>LastMind – Cortex</title>
 <meta name="robots" content="noindex">
 <link rel="manifest" href="/manifest.json">
@@ -485,6 +485,12 @@
         font-family: 'Georgia', serif;
         font-size: 0.92rem;
         resize: none;
+        /* rows="1" plus this line-height only fit one line before the
+           auto-grow-on-input JS ever runs (it only fires on typing) - the
+           placeholder text itself is long enough to wrap on a narrower
+           screen, and that second line was being clipped rather than
+           shown. min-height fits it comfortably up front. */
+        min-height: 52px;
         max-height: 160px;
         overflow-y: auto;
         line-height: 1.4;
@@ -953,7 +959,7 @@ SQIDAQAB
     // uses.
     const MOTIVATIONAL_QUOTES = [
         "It doesn't matter how you do it, it matters that you do it.",
-        "Remember, starting is the real battle — everything after is just momentum.",
+        "Remember, starting is the real battle - everything after is just momentum.",
         "Long horizons make short-term setbacks irrelevant.",
         "Raise your standards, and the outcomes will follow.",
         "The hard thing is usually the right thing.",
@@ -1269,7 +1275,7 @@ SQIDAQAB
     const LESSON_START_PROMPTS = [
         'Shall I go ahead and build the first lesson?',
         'Want me to build this one now?',
-        'Ready when you are — build the first lesson?',
+        'Ready when you are - build the first lesson?',
         "Say the word and I'll get the first lesson going.",
         "I can build the first lesson whenever you're ready.",
     ];
@@ -1277,7 +1283,7 @@ SQIDAQAB
         'Shall I build the next one?',
         'Ready for the next lesson?',
         'Want me to carry on to the next concept?',
-        'Nice work — build the next lesson?',
+        'Nice work - build the next lesson?',
         "Onwards? I can get the next one ready.",
     ];
 
@@ -1398,9 +1404,9 @@ SQIDAQAB
 
     const TOPIC_MAP_LOADING_MESSAGES = [
         'Reading the topic…',
-        'Working out what it actually depends on…',
+        'Working out what it depends on…',
         'Mapping the prerequisites…',
-        'Checking what genuinely connects to what…',
+        'Checking what connects to what…',
         'Putting it in a sensible order…',
         'Nearly there…',
     ];
@@ -1528,7 +1534,7 @@ SQIDAQAB
         const targetLabel = labelOf.get(state.target) || state.target;
         const summary = teach.length
             ? `Teaching <b>${teach.length}</b> node${teach.length === 1 ? '' : 's'} to get you to “${escapeHtmlTopic(targetLabel)}”.`
-            : `You already know everything needed for this target — pick a further one, or start anyway.`;
+            : `You already know everything needed for this target - pick a further one, or start anyway.`;
 
         cardEl.innerHTML = `
             <div class="topic-map-heading">Your knowledge map for “${escapeHtmlTopic(state.subject)}”</div>
@@ -1658,7 +1664,7 @@ SQIDAQAB
         const nodeUuid = uuidByConceptId.get(node.conceptId);
         if (!nodeUuid) {
             stopLessonRotator();
-            card.querySelector('.lesson-card-status').textContent = "Couldn't find this concept — try again in a moment.";
+            card.querySelector('.lesson-card-status').textContent = "Couldn't find this concept - try again in a moment.";
             return;
         }
 
@@ -1700,7 +1706,7 @@ SQIDAQAB
             // failure here: one clear message, one retry button, no
             // automatic cascade to other nodes.
             if (resp.status === 409) {
-                showRetryable("Couldn't generate an interactive lesson for this yet — try an earlier concept first, or try this again in a moment.");
+                showRetryable("Couldn't generate an interactive lesson for this yet - try an earlier concept first, or try this again in a moment.");
                 recordSilentContext(`[Could not generate an interactive lesson for "${node.label}" yet - a plain "try again" from the student retries it directly, no action from you needed.]`, 'lessonFailed', { label: node.label });
                 return;
             }
@@ -1708,7 +1714,7 @@ SQIDAQAB
             lessonData = await resp.json();
             stopLessonRotator();
         } catch (err) {
-            showRetryable('Could not load this lesson — the server may just be waking up, this often works on retry.');
+            showRetryable('Could not load this lesson - the server may just be waking up, this often works on retry.');
             return;
         }
         if (!lessonData.derivation) {
@@ -1762,7 +1768,7 @@ SQIDAQAB
         try {
             uuidByConceptId = await fetchTopicNodeUuids(state.subject, state.qualification, state.examBoard);
         } catch (err) {
-            card.querySelector('.lesson-card-status').textContent = 'Could not start the lesson — try again.';
+            card.querySelector('.lesson-card-status').textContent = 'Could not start the lesson - try again.';
             return;
         }
         card.remove();
@@ -1813,8 +1819,8 @@ SQIDAQAB
                 body: JSON.stringify({ topic }),
             });
             stopRotator();
-            if (resp.status === 402) { card.innerHTML = "<div class=\"topic-map-error\">You're out of Locks for now — come back once they refresh.</div>"; return; }
-            if (resp.status === 429) { card.innerHTML = '<div class="topic-map-error">Too many lessons requested at once — try again shortly.</div>'; return; }
+            if (resp.status === 402) { card.innerHTML = "<div class=\"topic-map-error\">You're out of Locks for now - come back once they refresh.</div>"; return; }
+            if (resp.status === 429) { card.innerHTML = '<div class="topic-map-error">Too many lessons requested at once - try again shortly.</div>'; return; }
             if (!resp.ok) { card.innerHTML = '<div class="topic-map-error">Could not build a knowledge map for that topic. Try rephrasing it.</div>'; return; }
             const data = await resp.json();
             if (!data.nodes || !data.nodes.length) { card.innerHTML = '<div class="topic-map-error">No usable map came back for that topic. Try rephrasing it.</div>'; return; }
@@ -2034,7 +2040,7 @@ SQIDAQAB
             // Same wording as startTopicLearnFlow's own 402 handling -
             // the route now refuses upfront once Locks are at zero
             // (previously the only metered feature that didn't).
-            if (resp.status === 402) throw new Error("You're out of Locks for now — come back once they refresh.");
+            if (resp.status === 402) throw new Error("You're out of Locks for now - come back once they refresh.");
             const body = await resp.json().catch(() => ({}));
             throw new Error(body.error || `Server returned ${resp.status}`);
         }
@@ -2108,7 +2114,7 @@ SQIDAQAB
                 input.style.height = 'auto';
                 appendUserMessage(text);
                 pendingLessonContinuation = null;
-                appendAssistantMessage("No worries — just say the word whenever you're ready.");
+                appendAssistantMessage("No worries - just say the word whenever you're ready.");
                 return;
             }
         }
