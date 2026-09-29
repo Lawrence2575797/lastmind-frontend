@@ -1310,6 +1310,18 @@ SQIDAQAB
         return /^(?:no|nah|nope|not (?:now|yet|really)|hold on|wait|later|maybe later)[.!]?$/i.test(text.trim());
     }
 
+    // Deliberately looser than detectAffirmativeIntent above (which only
+    // matches a short reply as the WHOLE message) - this matches "start"/
+    // "begin"/"dive in" etc. anywhere in a fuller, more natural sentence
+    // ("can we start with the lessons then please", "let's begin the first
+    // one"), specifically against the word "lesson(s)" so it doesn't
+    // misfire on an unrelated "let's start" about something else entirely.
+    function detectStartLessonsIntent(text) {
+        const t = text.trim();
+        if (/\b(?:start|begin|dive in|get going|get started|carry on|continue)\b/i.test(t) && /\blesson/i.test(t)) return true;
+        return /^(?:start|begin)(?: (?:the|this|it|now))?[.!]?$/i.test(t);
+    }
+
     // Never the same wording twice in a row where avoidable - picks
     // uniformly at random, which is good enough for a two-word prompt the
     // student will only see a handful of times per session.
@@ -2156,6 +2168,38 @@ SQIDAQAB
                 appendAssistantMessage("No worries - just say the word whenever you're ready.");
                 return;
             }
+        }
+
+        // Real, reported bug: detectAffirmativeIntent above only matches the
+        // WHOLE message against a short list of one/two-word replies (e.g.
+        // "let's go" as the entire text), so a perfectly natural fuller
+        // sentence like "can we start with the lessons then please" missed
+        // it, fell all the way through to the plain LLM chat call below, and
+        // Cortex - which has no ability to actually start anything itself
+        // (see cortexPrompts.ts's own top comment) - just replied vaguely
+        // instead of either doing it or saying plainly it couldn't. This is
+        // checked independently of pendingLessonContinuation's exact state:
+        // if a continuation IS waiting, resume that; otherwise, if this chat
+        // has already built a map (topicMapState), (re-)start teaching it -
+        // topicComputeTeachSet always recomputes fresh, so this is safe to
+        // call again even after some lessons are already done or the exact
+        // continuation window was already missed/dismissed earlier.
+        if (detectStartLessonsIntent(text)) {
+            input.value = '';
+            input.style.height = 'auto';
+            appendUserMessage(text);
+            chatHistory.push({ role: 'user', content: text });
+            saveChatHistory();
+            if (pendingLessonContinuation) {
+                const run = pendingLessonContinuation;
+                pendingLessonContinuation = null;
+                run();
+            } else if (topicMapState) {
+                startTopicTeachSequence(topicMapState);
+            } else {
+                appendAssistantMessage("I don't have a topic lined up to teach yet - tell me what you'd like to learn and I'll build a map for it first.");
+            }
+            return;
         }
 
         input.value = '';
