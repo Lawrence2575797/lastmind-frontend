@@ -6280,12 +6280,12 @@
             </div>
 
             <div class="sidebar-tabs">
-                <button class="sidebar-tab-btn" id="cortexTabBtn" type="button">Cortex</button>
+                <button class="sidebar-tab-btn" id="cortexTabBtn" type="button">LastMind</button>
                 <button class="sidebar-tab-btn active" id="foldersTabBtn" type="button">Knowledge Map</button>
             </div>
 
             <div class="folder-list" id="folderList">
-                <div class="empty-hint">Nothing covered yet — ask Cortex to teach you something new to get started.</div>
+                <div class="empty-hint">Nothing covered yet — ask LastMind to teach you something new to get started.</div>
             </div>
 
             <div class="cortex-chat-list" id="cortexChatList">
@@ -6608,7 +6608,7 @@
             <div class="content">
                 <div class="content-inner" id="contentInner">
                     <div class="dashboard-view">
-                        <iframe class="cortex-embed-frame" id="cortexEmbedFrame" allow="microphone" title="LastMind Cortex"></iframe>
+                        <iframe class="cortex-embed-frame" id="cortexEmbedFrame" allow="microphone" title="LastMind"></iframe>
                     </div>
                 </div>
             </div>
@@ -9496,7 +9496,7 @@ SQIDAQAB
         if (!subfolders.length) {
             const hint = document.createElement('div');
             hint.className = 'empty-hint';
-            hint.textContent = "No subfolders yet — switch to Cortex and describe what you're studying to have it build this subject's structure.";
+            hint.textContent = "No subfolders yet — switch to LastMind and describe what you're studying to have it build this subject's structure.";
             listEl.appendChild(hint);
         } else {
             subfolders.forEach((sf) => listEl.appendChild(buildSubfolderRow(folder, sf)));
@@ -9731,7 +9731,7 @@ SQIDAQAB
 
         contentInner.innerHTML = `
             <div class="dashboard-view">
-                <iframe class="cortex-embed-frame" id="cortexEmbedFrame" allow="microphone" title="LastMind Cortex"></iframe>
+                <iframe class="cortex-embed-frame" id="cortexEmbedFrame" allow="microphone" title="LastMind"></iframe>
             </div>
         `;
         const params = isNew ? 'embed=1&new=1' : (chatId ? `embed=1&chatId=${encodeURIComponent(chatId)}` : 'embed=1');
@@ -10780,7 +10780,7 @@ SQIDAQAB
                 <div class="create-builder-head">
                     <button type="button" class="create-back" id="createTrialBack">← Law</button>
                     <h1 class="create-builder-title" id="createTrialTitle">Criminal trial</h1>
-                    <span class="create-budget" title="Everything Cortex does in LastMind Create counts towards a hard testing budget"></span>
+                    <span class="create-budget" title="Everything LastMind does in LastMind Create counts towards a hard testing budget"></span>
                 </div>
                 <div class="create-builder-layout">
                     <nav class="create-steps" aria-label="Simulation steps">
@@ -10887,10 +10887,10 @@ SQIDAQAB
         if (createBuild) { renderCreateBuilding(body, trial, goTo, contentInner); return; }
         const detailsHtml = trial.showDetails ? `
             <div class="create-detail-panel">
-                ${CREATE_DETAIL_FIELDS.map((f) => `<div class="create-detail-field"><label for="createDetail-${f.key}">${f.label}</label><textarea id="createDetail-${f.key}" data-detail="${f.key}" rows="3" placeholder="${escapeHtml(trial.cortexDecides ? 'Cortex will choose this' : f.placeholder)}">${escapeHtml(trial.details[f.key] || '')}</textarea></div>`).join('')}
+                ${CREATE_DETAIL_FIELDS.map((f) => `<div class="create-detail-field"><label for="createDetail-${f.key}">${f.label}</label><textarea id="createDetail-${f.key}" data-detail="${f.key}" rows="3" placeholder="${escapeHtml(trial.cortexDecides ? 'LastMind will choose this' : f.placeholder)}">${escapeHtml(trial.details[f.key] || '')}</textarea></div>`).join('')}
                 <div class="create-detail-actions">
-                    <button type="button" class="create-secondary" id="createCortexHandles" aria-pressed="${!!trial.cortexDecides}">${trial.cortexDecides ? '✓ Cortex will fill in anything left empty' : 'Let Cortex handle the rest'}</button>
-                    <span class="create-warn" style="margin:0;">${trial.cortexDecides ? 'Boxes you have filled in are kept exactly as written; Cortex only fills in the empty ones.' : 'Leave any box empty and Cortex will choose for you.'}</span>
+                    <button type="button" class="create-secondary" id="createCortexHandles" aria-pressed="${!!trial.cortexDecides}">${trial.cortexDecides ? '✓ LastMind will fill in anything left empty' : 'Let LastMind handle the rest'}</button>
+                    <span class="create-warn" style="margin:0;">${trial.cortexDecides ? 'Boxes you have filled in are kept exactly as written; LastMind only fills in the empty ones.' : 'Leave any box empty and LastMind will choose for you.'}</span>
                 </div>
             </div>` : '';
         body.innerHTML = `
@@ -10899,7 +10899,7 @@ SQIDAQAB
             <textarea class="create-idea" id="createIdea" rows="5" placeholder="${escapeHtml(CREATE_IDEA_PLACEHOLDER)}" aria-label="What's your idea?">${escapeHtml(trial.idea || '')}</textarea>
             <div class="create-detail-row">
                 <button type="button" class="create-secondary" id="createMoreDetail">${trial.showDetails ? '− Hide detail' : '+ Add more detail'}</button>
-                ${trial.cortexDecides && !trial.showDetails ? '<span class="create-chip">Cortex will fill in anything you leave empty <button type="button" id="createUndoCortex">change</button></span>' : ''}
+                ${trial.cortexDecides && !trial.showDetails ? '<span class="create-chip">LastMind will fill in anything you leave empty <button type="button" id="createUndoCortex">change</button></span>' : ''}
             </div>
             ${detailsHtml}
             <div class="create-build-row"><button type="button" class="create-build-btn" id="createBuildBtn">Build my Case</button></div>
@@ -10916,7 +10916,7 @@ SQIDAQAB
             if (!trial.role || !trial.minutes) missing.push('<button type="button" data-goto="experience">choose a student role and time</button>');
             if (!trial.picked.length) missing.push('<button type="button" data-goto="curriculum">select at least one concept</button>');
             if (missing.length) {
-                warn.innerHTML = `<p class="create-warn" style="text-align:center;">Before Cortex can build, ${missing.join(' and ')}.</p>`;
+                warn.innerHTML = `<p class="create-warn" style="text-align:center;">Before LastMind can build, ${missing.join(' and ')}.</p>`;
                 warn.querySelectorAll('[data-goto]').forEach((b) => b.addEventListener('click', () => goTo(b.dataset.goto)));
                 return;
             }
@@ -10974,7 +10974,7 @@ SQIDAQAB
                 tail.innerHTML = '<div class="create-ready-actions"><button type="button" class="create-cta" id="createReview">Review case →</button></div>';
                 tail.querySelector('#createReview').addEventListener('click', () => { createBuild = null; goTo('case'); });
             } else {
-                title.textContent = "Cortex couldn't build that";
+                title.textContent = "LastMind couldn't build that";
                 tail.innerHTML = `<p class="create-error">${escapeHtml(state.error || 'Something went wrong.')}</p><div class="create-ready-actions"><button type="button" class="create-cta" id="createRetryBuild">Try again</button><button type="button" class="create-secondary" id="createBackToIdea">Back to my idea</button></div>`;
                 tail.querySelector('#createRetryBuild').addEventListener('click', () => startCreateBuild(body, trial, goTo, contentInner));
                 tail.querySelector('#createBackToIdea').addEventListener('click', () => { createBuild = null; renderCreateTrialBuilder(contentInner); });
@@ -11014,7 +11014,7 @@ SQIDAQAB
     function renderCreateCase(body, trial, goTo) {
         const c = trial.case;
         if (!c) {
-            body.innerHTML = `<h2>Your Case</h2><p class="create-step-help">Nothing to show yet - Cortex builds your case from your idea.</p><div class="create-next-row" style="justify-content:flex-start;"><button type="button" class="create-cta" id="createGoDesign">Go to Design Your Case</button></div>`;
+            body.innerHTML = `<h2>Your Case</h2><p class="create-step-help">Nothing to show yet - LastMind builds your case from your idea.</p><div class="create-next-row" style="justify-content:flex-start;"><button type="button" class="create-cta" id="createGoDesign">Go to Design Your Case</button></div>`;
             body.querySelector('#createGoDesign').addEventListener('click', () => goTo('design'));
             return;
         }
@@ -11173,9 +11173,9 @@ SQIDAQAB
             if (btn) { btn.disabled = key === 'working' || key === 'done'; if (key === 'done') btn.textContent = 'Validated ✓'; }
             if (key === phase) return;
             phase = key;
-            if (key === 'working') { title.innerHTML = 'Cortex is checking your case<span class="dots"></span>'; tail.innerHTML = ''; return; }
+            if (key === 'working') { title.innerHTML = 'LastMind is checking your case<span class="dots"></span>'; tail.innerHTML = ''; return; }
             if (key === 'error') {
-                title.textContent = "Cortex couldn't finish the check";
+                title.textContent = "LastMind couldn't finish the check";
                 tail.innerHTML = `<p class="create-error">${escapeHtml(state.error || '')}</p>`;
                 return;
             }
@@ -11206,7 +11206,7 @@ SQIDAQAB
             const applyFixes = async (indexes) => {
                 const note = tail.querySelector('#createApplyNote');
                 tail.querySelectorAll('.create-apply, #createApplyAll').forEach((b) => { b.disabled = true; });
-                note.textContent = 'Cortex is applying the fix…';
+                note.textContent = 'LastMind is applying the fix…';
                 try {
                     const result = await createRunJob('/create/criminal-trial/apply-fixes', {
                         case: trial.case, role: trial.role, minutes: trial.minutes,
@@ -11221,7 +11221,7 @@ SQIDAQAB
                     saveCreateTrial();
                     renderCreateTrialBuilder(document.getElementById('contentInner'));
                 } catch (err) {
-                    note.textContent = err.message || 'Cortex could not apply that fix.';
+                    note.textContent = err.message || 'LastMind could not apply that fix.';
                     tail.querySelectorAll('.create-apply, #createApplyAll').forEach((b) => { b.disabled = false; });
                 }
             };
@@ -11727,7 +11727,7 @@ SQIDAQAB
         if (!graph) {
             if (createBudgetLeft() < 0.2) { ptShowBlocked('The testing budget is used up, so Cortex cannot prepare this case. Nothing more can be spent.'); return; }
             let shown = 1; const started = Date.now();
-            const stage = ptStage(`<div class="pl-prep"><div class="create-orb">${createScalesSvg}</div><h2 class="create-building-title" style="color:#E6D7B0" id="plPrepTitle">Cortex is preparing your case<span class="dots"></span></h2><ul class="create-build-steps" id="plPrepList">${PT_COMPILE_STEPS.map((s) => `<li><span class="mark"></span><span>${s}</span></li>`).join('')}</ul></div>`, '');
+            const stage = ptStage(`<div class="pl-prep"><div class="create-orb">${createScalesSvg}</div><h2 class="create-building-title" style="color:#E6D7B0" id="plPrepTitle">LastMind is preparing your case<span class="dots"></span></h2><ul class="create-build-steps" id="plPrepList">${PT_COMPILE_STEPS.map((s) => `<li><span class="mark"></span><span>${s}</span></li>`).join('')}</ul></div>`, '');
             const items = [...stage.querySelectorAll('#plPrepList li')];
             const timer = setInterval(() => {
                 if (!pt || pt.token !== token) { clearInterval(timer); return; }
@@ -11886,7 +11886,7 @@ SQIDAQAB
     }
     function ptShowBlocked(message) {
         ptHud(true, false);
-        ptStage(`<div class="pl-prep"><div class="pl-dialog"><div class="pl-speaker">Cortex</div><p class="pl-text">${ptE(message)}</p><div class="pl-actions"><span class="pl-spacer"></span><button type="button" class="pl-btn primary" id="plBlockedExit">Back to Create</button></div></div></div>`);
+        ptStage(`<div class="pl-prep"><div class="pl-dialog"><div class="pl-speaker">LastMind</div><p class="pl-text">${ptE(message)}</p><div class="pl-actions"><span class="pl-spacer"></span><button type="button" class="pl-btn primary" id="plBlockedExit">Back to Create</button></div></div></div>`);
         document.getElementById('plBlockedExit').addEventListener('click', ptExit);
     }
 
@@ -12005,7 +12005,7 @@ SQIDAQAB
             <div class="pl-speech-grid">
                 <div class="pl-notes-col">
                     <div class="pl-h" style="margin-top:0;">Quick notes</div>
-                    <p class="pl-p muted" style="font-size:0.85rem;margin:2px 0 6px;">Jot down the points you want to make. Cortex can turn them into a proper courtroom speech, and you can edit it afterwards.</p>
+                    <p class="pl-p muted" style="font-size:0.85rem;margin:2px 0 6px;">Jot down the points you want to make. LastMind can turn them into a proper courtroom speech, and you can edit it afterwards.</p>
                     <textarea class="pl-notes-area" id="plSpeechNotes" placeholder="${kind === 'opening' ? 'e.g. defendant acted in self-defence; the only eyewitness had been drinking; the knife was never proved to be his…' : 'e.g. prosecution has not proved intention; CCTV shows the victim swung first; witness changed her story under cross-examination; ask for not guilty…'}"></textarea>
                     <div class="pl-actions" style="margin-top:8px;"><button type="button" class="pl-btn primary" id="plCompile">Compile into a speech ▸</button></div>
                     <p class="pl-note" id="plCompileNote" style="display:none;"></p>
@@ -12030,7 +12030,7 @@ SQIDAQAB
             const notes = notesEl.value.trim();
             if (notes.split(/\s+/).filter(Boolean).length < 5) { note.style.display = ''; note.textContent = 'Jot down at least a few points first.'; return; }
             if (ta.value.trim() && !window.confirm('Replace what is in your speech box with a new version written from your notes?')) return;
-            btn.disabled = true; btn.textContent = 'Cortex is writing it up…'; note.style.display = 'none';
+            btn.disabled = true; btn.textContent = 'LastMind is writing it up…'; note.style.display = 'none';
             try {
                 const send = () => createAuthedFetch('/playtest/compile-speech', { method: 'POST', body: JSON.stringify({ sessionId: pt.sessionId, kind, side: pt.side, notes, establishedFactIds: [...pt.established], clientUsedUsd: createSpend.usedUsd }) });
                 let { resp, body: out } = await send();
@@ -12039,7 +12039,7 @@ SQIDAQAB
                 if (!resp.ok) throw new Error(out.error || 'Cortex could not write that up.');
                 ta.value = out.speech; refresh();
                 note.style.display = ''; note.textContent = out.tips && out.tips.length ? 'Written up from your notes. To make it stronger, think about: ' + out.tips.join(' ') : 'Written up from your notes. Edit it however you like.';
-            } catch (err) { note.style.display = ''; note.textContent = err.message || 'Cortex could not write that up.'; }
+            } catch (err) { note.style.display = ''; note.textContent = err.message || 'LastMind could not write that up.'; }
             btn.disabled = false; btn.textContent = 'Compile into a speech ▸';
         });
         stage.querySelector('#plTranscriptAll').addEventListener('click', ptShowHeard);
@@ -13182,7 +13182,7 @@ SQIDAQAB
             openPqAssistOverlay(async (assistanceTypes) => {
                 assistBtn.disabled = true;
                 const label = assistBtn.textContent;
-                assistBtn.textContent = 'Asking Cortex…';
+                assistBtn.textContent = 'Asking LastMind…';
                 try {
                     const { data: { session } } = await supabaseClient.auth.getSession();
                     if (!session) throw new Error('not signed in');
@@ -13415,7 +13415,7 @@ SQIDAQAB
                 ${q.answerStructureAdvice ? `<div class="field-hint" style="margin-top:10px; margin-bottom:6px;"><strong>How to structure your answer:</strong> ${renderMathShorthand(q.answerStructureAdvice)}</div>` : ''}
                 <div class="bottom-action-row">
                     ${q.requiresDiagram ? '' : `<button class="btn primary" type="button" id="pq-submit-${q.id}">Submit for marking</button>`}
-                    <button class="btn" type="button" id="pq-assist-btn-${q.id}">Cortex assistance</button>
+                    <button class="btn" type="button" id="pq-assist-btn-${q.id}">LastMind assistance</button>
                     <button class="btn" type="button" id="pq-modelanswer-btn-${q.id}">Model answer</button>
                 </div>
                 <div id="pq-result-${q.id}" style="margin-top:12px; display:none;"></div>
@@ -13850,7 +13850,7 @@ SQIDAQAB
                 ${notesLocked ? '' : `
                 <div class="notes-mode-toggle">
                     <label class="notes-mode-option"><input type="radio" name="notesMode" id="notesModeOwn" checked> Add your own notes</label>
-                    <label class="notes-mode-option"><input type="radio" name="notesMode" id="notesModeCortex"> Create new notes using Cortex</label>
+                    <label class="notes-mode-option"><input type="radio" name="notesMode" id="notesModeCortex"> Create new notes using LastMind</label>
                 </div>
                 `}
 
@@ -13886,7 +13886,7 @@ SQIDAQAB
 
                 ${notesLocked ? '' : `
                 <div id="notesCortexMode" style="display:none;">
-                    <p class="cortex-placeholder">Cortex note generation is coming soon.</p>
+                    <p class="cortex-placeholder">LastMind note generation is coming soon.</p>
                 </div>
                 `}
             </div>
@@ -14869,7 +14869,7 @@ SQIDAQAB
             if (explanationText) {
                 const cortexLabel = document.createElement('div');
                 cortexLabel.className = 'question-speaker-label';
-                cortexLabel.textContent = 'Cortex';
+                cortexLabel.textContent = 'LastMind';
                 card.appendChild(cortexLabel);
 
                 const explanation = document.createElement('div');
@@ -15223,7 +15223,7 @@ SQIDAQAB
 
             const label = document.createElement('div');
             label.className = 'drilldown-label';
-            label.textContent = `Cortex steps in — let’s figure out where this went wrong`;
+            label.textContent = `LastMind steps in — let’s figure out where this went wrong`;
             labelRow.appendChild(label);
             drilldownBlock.appendChild(labelRow);
 
@@ -17165,7 +17165,7 @@ SQIDAQAB
         { selector: null, title: 'Your learning feed', body: 'When you select a subject, lessons appear in a scrolling feed. Each lesson teaches you a concept, then tests your understanding. Work through them at your own pace.' },
         { selector: null, title: 'Spaced repetition', body: 'After you learn something, LastMind brings it back periodically to cement it in memory. The schedule adapts based on how confident you feel, so harder topics come up more often.' },
         { selector: '#knowledgeMapTopbarBtn', title: 'Explore the map', body: "Open Knowledge Map to see every concept in a subject and how they connect. This is your complete learning roadmap — you can jump to any topic, but your feed always suggests the best next step." },
-        { selector: '#cortexTabBtn', title: 'Get help anytime', body: "Stuck on something? Ask Cortex for explanations, exam tips, or just to talk through a tricky concept. It understands what you're learning and can help you think it through." },
+        { selector: '#cortexTabBtn', title: 'Get help anytime', body: "Stuck on something? Ask LastMind for explanations, exam tips, or just to talk through a tricky concept. It understands what you're learning and can help you think it through." },
         // The "Exam preparation" step that used to point at
         // #practiceQuestionsTopbarBtn was removed along with keeping that
         // button genuinely hidden (see applyPlanChrome's own comment) -
@@ -20661,7 +20661,7 @@ SQIDAQAB
         btn.type = 'button';
         btn.className = 'km-ask-cortex-btn';
         btn.hidden = true;
-        btn.textContent = 'Ask Cortex';
+        btn.textContent = 'Ask LastMind';
         document.body.appendChild(btn);
 
         const panel = document.createElement('div');
@@ -20669,10 +20669,10 @@ SQIDAQAB
         panel.hidden = true;
         panel.innerHTML = `
             <div class="km-ask-cortex-header">
-                <span>Ask Cortex</span>
+                <span>Ask LastMind</span>
                 <button type="button" class="km-ask-cortex-close-btn" aria-label="Close">✕</button>
             </div>
-            <div class="km-ask-cortex-intro km-inline-detail-item km-inline-detail-none">Cortex can help with anything about this lesson's own subject - nothing else, here.</div>
+            <div class="km-ask-cortex-intro km-inline-detail-item km-inline-detail-none">LastMind can help with anything about this lesson's own subject - nothing else, here.</div>
             <div class="km-ask-cortex-history"></div>
             <div class="km-ask-cortex-composer">
                 <textarea class="km-ask-cortex-input" rows="2" placeholder="Ask a question…"></textarea>
@@ -21482,7 +21482,7 @@ SQIDAQAB
             const followed = sfApplyFollowUp(slideEl, result, fu, () => {
                 if (useMathEditor) mathInput.clear(); else { inputEl.value = ''; clearAnswerDraft(draftKey); }
             });
-            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || "Not quite - check the specific wording and try again.")}${followed ? ' Try this new question on that point.' : ''}</div>`;
+            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">LastMind: ${escapeHtml(result.feedback || "Not quite - check the specific wording and try again.")}${followed ? ' Try this new question on that point.' : ''}</div>`;
             return false;
         };
     }
@@ -22003,9 +22003,9 @@ SQIDAQAB
             retryCount += 1;
             // A host can decide a wrong answer ends the question (the Day-1 check does, after its one re-ask).
             const ended = onWrong ? await onWrong(result) : false;
-            if (ended) { if (widget.clearDraft) widget.clearDraft(); if (ended !== 'handled') feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || 'Not quite - this one will come back around.')}</div>`; return ended === 'handled' ? 'handled' : true; }
+            if (ended) { if (widget.clearDraft) widget.clearDraft(); if (ended !== 'handled') feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">LastMind: ${escapeHtml(result.feedback || 'Not quite - this one will come back around.')}</div>`; return ended === 'handled' ? 'handled' : true; }
             setTimeout(() => { widget.setDisabled(false); busy = false; refreshCheck(); }, 700);
-            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || 'Not quite - try again.')}</div>`;
+            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">LastMind: ${escapeHtml(result.feedback || 'Not quite - try again.')}</div>`;
             return false;
         };
     }
@@ -22019,7 +22019,7 @@ SQIDAQAB
     function sfInteractiveSlideEl(subjectLabel, question, buttonText) {
         const el = document.createElement('div');
         el.className = 'sf-feed-slide';
-        el.innerHTML = `<div class="sf-slide-inner">${subjectLabel ? `<div class="sf-slide-subject">${subjectLabel}</div>` : ''}<div class="sf-speaker-label">Cortex asks</div><p class="sf-question-text">${escapeHtml(question.questionText)}</p><div class="sf-q-host"></div><button type="button" class="btn primary sf-question-submit">${buttonText || 'Check'}</button><div class="sf-question-feedback"></div><div class="sf-advance-hint" hidden>Moving on…</div></div>`;
+        el.innerHTML = `<div class="sf-slide-inner">${subjectLabel ? `<div class="sf-slide-subject">${subjectLabel}</div>` : ''}<div class="sf-speaker-label">LastMind asks</div><p class="sf-question-text">${escapeHtml(question.questionText)}</p><div class="sf-q-host"></div><button type="button" class="btn primary sf-question-submit">${buttonText || 'Check'}</button><div class="sf-question-feedback"></div><div class="sf-advance-hint" hidden>Moving on…</div></div>`;
         return el;
     }
     // Graph-view counterpart (the Knowledge Map's own inline lesson): question, puzzle, Check button, result line.
@@ -22167,7 +22167,7 @@ SQIDAQAB
         el.innerHTML = `
             <div class="sf-slide-inner">
                 <div class="sf-slide-subject">Review · ${escapeHtml(folderLabel(rec.folder))}</div>
-                <div class="sf-speaker-label">Cortex asks</div>
+                <div class="sf-speaker-label">LastMind asks</div>
                 <p class="sf-question-text">${escapeHtml(data.questionText)}</p>
                 <textarea class="sf-question-input" rows="3" placeholder="Your answer" autocomplete="off"></textarea>
                 <button type="button" class="btn primary sf-question-submit">Submit</button>
@@ -22229,7 +22229,7 @@ SQIDAQAB
                     if (sfFeed) sfForceMoveToIndex(sfFeed.currentIndex + 1);
                 } else {
                     retryCount += 1;
-                    feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml((result && result.feedback) || 'Not quite - try again.')}</div>`;
+                    feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">LastMind: ${escapeHtml((result && result.feedback) || 'Not quite - try again.')}</div>`;
                     inputEl.disabled = false;
                     inputEl.value = originalAnswer;
                 }
@@ -22239,7 +22239,7 @@ SQIDAQAB
                     nodeId: rec.node.id, questionText, originalAnswer, declined: true, retryCount
                 });
                 retryCount += 1;
-                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml((result && result.feedback) || 'Not quite - try again.')}</div>`;
+                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">LastMind: ${escapeHtml((result && result.feedback) || 'Not quite - try again.')}</div>`;
                 inputEl.disabled = false;
                 inputEl.value = '';
             });
@@ -22271,7 +22271,7 @@ SQIDAQAB
             retryCount += 1;
             inputEl.disabled = false;
             const followed = sfApplyFollowUp(el, result, fu, () => { inputEl.value = ''; clearAnswerDraft(draftKey); });
-            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || "Not quite - try again.")}${followed ? ' Try this new question on that point.' : ''}</div>`;
+            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">LastMind: ${escapeHtml(result.feedback || "Not quite - try again.")}${followed ? ' Try this new question on that point.' : ''}</div>`;
             return false;
         };
         return { el, meta };
@@ -22315,7 +22315,7 @@ SQIDAQAB
         qEl.innerHTML = `
             <div class="sf-slide-inner">
                 <div class="sf-slide-subject">Review link ${index + 1} of ${rec.qualifyingLinks.length} · ${escapeHtml(rec.node.label)} → ${escapeHtml(link.label)}</div>
-                <div class="sf-speaker-label">Cortex asks</div>
+                <div class="sf-speaker-label">LastMind asks</div>
                 <p class="sf-question-text">${escapeHtml(data.questionText)}</p>
                 <textarea class="sf-question-input" rows="3" placeholder="Your answer" autocomplete="off"></textarea>
                 <button type="button" class="btn primary sf-question-submit">Submit</button>
@@ -22365,7 +22365,7 @@ SQIDAQAB
             retryCount += 1;
             inputEl.disabled = false;
             const followed = sfApplyFollowUp(qEl, result, fu, () => { inputEl.value = ''; clearAnswerDraft(draftKey); });
-            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || "Not quite - try again.")}${followed ? ' Try this new question on that point.' : ''}</div>`;
+            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">LastMind: ${escapeHtml(result.feedback || "Not quite - try again.")}${followed ? ' Try this new question on that point.' : ''}</div>`;
             return false;
         };
         slides.push({ el: qEl, meta });
@@ -22452,7 +22452,7 @@ SQIDAQAB
             el.className = 'sf-feed-slide';
             el.innerHTML = `
                 <div class="sf-slide-inner sf-handoff">
-                    <div class="sf-speaker-label">Cortex</div>
+                    <div class="sf-speaker-label">LastMind</div>
                     <p class="sf-handoff-text">Couldn't load the spaced review for <strong>${escapeHtml(rec.node.label)}</strong> right now - open ${escapeHtml(folderLabel(rec.folder))} directly instead.</p>
                     <button type="button" class="btn primary sf-handoff-btn">Open ${escapeHtml(folderLabel(rec.folder))} →</button>
                 </div>`;
@@ -22487,7 +22487,7 @@ SQIDAQAB
             el.className = 'sf-feed-slide';
             el.innerHTML = `
                 <div class="sf-slide-inner sf-handoff">
-                    <div class="sf-speaker-label">Cortex</div>
+                    <div class="sf-speaker-label">LastMind</div>
                     <p class="sf-handoff-text">${bodyText}</p>
                     <button type="button" class="btn primary sf-handoff-btn">Open ${escapeHtml(folderLabel(rec.folder))} →</button>
                 </div>`;
@@ -22564,7 +22564,7 @@ SQIDAQAB
             qEl.innerHTML = `
                 <div class="sf-slide-inner">
                     <div><span class="sf-stepchip">Part ${totalSteps} of ${totalSteps} · Practice</span></div>
-                    <div class="sf-speaker-label">Cortex asks</div>
+                    <div class="sf-speaker-label">LastMind asks</div>
                     <p class="sf-question-text">${escapeHtml(lesson.practiceQuestion.questionText)}</p>
                     <div class="sf-diagram-question-host"></div>
                 </div>`;
@@ -22614,7 +22614,7 @@ SQIDAQAB
             qEl.innerHTML = `
                 <div class="sf-slide-inner">
                     <div><span class="sf-stepchip">Part ${totalSteps} of ${totalSteps} · Practice</span></div>
-                    <div class="sf-speaker-label">Cortex asks</div>
+                    <div class="sf-speaker-label">LastMind asks</div>
                     <p class="sf-question-text">${escapeHtml(lesson.practiceQuestion.questionText)}</p>
                     ${useMathEditor
                         ? '<div class="sf-question-input-host"></div>'
@@ -22787,7 +22787,7 @@ SQIDAQAB
             (result.schedules || []).forEach((schedule) => sfUpsertScheduleCache(schedule));
             meta.answered = true;
             meta.canAdvance = true;
-            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || "Skipped — that's okay. This will return later.")}</div>`;
+            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">LastMind: ${escapeHtml(result.feedback || "Skipped — that's okay. This will return later.")}</div>`;
             sfShowAdvanceHint(el);
             sfUpdateProgress();
             if (isLastInBatch) sfPrefetchNext();
@@ -22830,7 +22830,7 @@ SQIDAQAB
         el.innerHTML = `
             <div class="sf-slide-inner">
                 <div class="sf-slide-subject">${sfDay1CheckLabel(check)}</div>
-                <div class="sf-speaker-label">Cortex asks</div>
+                <div class="sf-speaker-label">LastMind asks</div>
                 <p class="sf-question-text">${escapeHtml(check.questionText)}</p>
                 <textarea class="sf-question-input" rows="3" placeholder="Your answer" autocomplete="off"></textarea>
                 <button type="button" class="btn primary sf-question-submit">Submit</button>
@@ -22890,7 +22890,7 @@ SQIDAQAB
             // check is over either way, so the student moves on despite
             // the wrong answer rather than being stuck retrying it here.
             clearAnswerDraft(draftKey);
-            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || "Not quite - this one will come back around.")}</div>`;
+            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">LastMind: ${escapeHtml(result.feedback || "Not quite - this one will come back around.")}</div>`;
             sfUpsertScheduleCache(result.schedule);
             meta.answered = true;
             meta.canAdvance = true;
@@ -23011,7 +23011,7 @@ SQIDAQAB
         el.innerHTML = `
             <div class="sf-slide-inner">
                 <div class="sf-slide-subject">Quick recall · ${escapeHtml(row.subject)}</div>
-                <div class="sf-speaker-label">Cortex asks</div>
+                <div class="sf-speaker-label">LastMind asks</div>
                 <p class="sf-question-text">${escapeHtml(row.questionText)}</p>
                 ${answerHtml}
                 <button type="button" class="btn primary sf-question-submit">Submit</button>
@@ -23098,7 +23098,7 @@ SQIDAQAB
             if (wrongCount >= 2) { clearAnswerDraft(draftKey); return sfRecallGiveUp(row, feedbackEl, meta, onDone); }
             if (inputEl) inputEl.disabled = false;
             const followed = !isMcq && sfApplyFollowUp(el, result, fu, () => { inputEl.value = ''; clearAnswerDraft(draftKey); });
-            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || "Not quite - try again.")}${followed ? ' Try this new question on that point.' : ''}</div>`;
+            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">LastMind: ${escapeHtml(result.feedback || "Not quite - try again.")}${followed ? ' Try this new question on that point.' : ''}</div>`;
             return false;
         };
         return { el, meta };
@@ -23348,7 +23348,7 @@ SQIDAQAB
             el.className = 'sf-feed-slide';
             el.innerHTML = `
                 <div class="sf-slide-inner sf-handoff">
-                    <div class="sf-speaker-label">Cortex</div>
+                    <div class="sf-speaker-label">LastMind</div>
                     <p class="sf-handoff-text">Couldn't load your next item just now.</p>
                     <button type="button" class="btn primary sf-handoff-btn">Try again</button>
                 </div>`;
@@ -23372,9 +23372,9 @@ SQIDAQAB
             el.className = 'sf-feed-slide';
             el.innerHTML = `
                 <div class="sf-slide-inner sf-handoff">
-                    <div class="sf-speaker-label">Cortex</div>
+                    <div class="sf-speaker-label">LastMind</div>
                     <p class="sf-handoff-text">Nothing due, and nothing new left to unlock right now - you're caught up.</p>
-                    <button type="button" class="btn sf-handoff-btn">Back to Cortex</button>
+                    <button type="button" class="btn sf-handoff-btn">Back to LastMind</button>
                 </div>`;
             el.querySelector('.sf-handoff-btn').addEventListener('click', sfCloseFeed);
             sfFeed.trackEl.appendChild(el);
@@ -23485,7 +23485,7 @@ SQIDAQAB
         if (!payload) {
             el.innerHTML = `
                 <div class="sf-slide-inner sf-handoff">
-                    <div class="sf-speaker-label">Cortex</div>
+                    <div class="sf-speaker-label">LastMind</div>
                     <p class="sf-handoff-text">Couldn't load the next lesson right now - open ${escapeHtml(folderLabel(rec.folder))} directly instead.</p>
                     <button type="button" class="btn primary sf-handoff-btn">Open ${escapeHtml(folderLabel(rec.folder))} →</button>
                 </div>`;
@@ -24044,7 +24044,7 @@ SQIDAQAB
                 sfFeed.miniCortexHistory.push({ role: 'assistant', content: result.reply });
             } catch (err) {
                 console.error('LastMind: mini-Cortex message failed.', err);
-                pendingEl.textContent = "Couldn't reach Cortex just now - try again.";
+                pendingEl.textContent = "Couldn't reach LastMind just now - try again.";
                 pendingEl.classList.remove('sf-mini-cortex-msg-pending');
             } finally {
                 sendBtn.disabled = false;
@@ -24208,7 +24208,7 @@ SQIDAQAB
         el.innerHTML = `
             <div class="sf-slide-inner">
                 <div class="sf-slide-subject">${escapeHtml(correction.subject)} · correction</div>
-                <div class="sf-speaker-label">Cortex</div>
+                <div class="sf-speaker-label">LastMind</div>
                 <div class="sf-slide-explanation">${splitIntoParagraphs(correction.correctionExplanation)}</div>
                 <p class="sf-question-text">${escapeHtml(correction.followupQuestionText)}</p>
                 <textarea class="sf-question-input" rows="3" placeholder="Your answer" autocomplete="off"></textarea>
@@ -24246,7 +24246,7 @@ SQIDAQAB
             }
             inputEl.disabled = false;
             const followed = sfApplyFollowUp(el, result, fu, () => { inputEl.value = ''; });
-            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">Cortex: ${escapeHtml(result.feedback || 'Not quite - try again.')}${followed ? ' Try this new question on that point.' : ''}</div>`;
+            feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">LastMind: ${escapeHtml(result.feedback || 'Not quite - try again.')}${followed ? ' Try this new question on that point.' : ''}</div>`;
             return false;
         };
         return { el, meta };
@@ -24264,7 +24264,7 @@ SQIDAQAB
             el.className = 'sf-feed-slide';
             el.innerHTML = `
                 <div class="sf-slide-inner sf-handoff">
-                    <div class="sf-speaker-label">Cortex</div>
+                    <div class="sf-speaker-label">LastMind</div>
                     <p class="sf-handoff-text">All caught up on corrections for now.</p>
                     <button type="button" class="btn sf-handoff-btn">Back to Exam Preparation</button>
                 </div>`;
@@ -24357,7 +24357,7 @@ SQIDAQAB
             const nonExamBlocks = SF_WIZARD_SUBJECTS.filter((s) => !s.examLesson).map(sfWizardSubjectBlockHtml).join('');
             return `
                 ${closeBtn}
-                <p class="sf-wizard-greeting">Hi ${escapeHtml(sfWizardGreetingName())}, from Cortex</p>
+                <p class="sf-wizard-greeting">Hi ${escapeHtml(sfWizardGreetingName())}, from LastMind</p>
                 <div class="sf-wizard-step-label">What are you studying?</div>
                 <div class="sf-wizard-section-label">Exam lessons</div>
                 <div class="sf-wizard-subject-grid">${examBlocks}</div>
@@ -24730,7 +24730,7 @@ SQIDAQAB
         const returning = !!sfWizard.returning;
         const greeting = returning
             ? `<div class="sf-onboarding-message">Welcome back, ${escapeHtml(sfWizardGreetingName())}! 😊 Let's add another subject to your LastMind.</div>`
-            : `<div class="sf-onboarding-message">Hi ${escapeHtml(sfWizardGreetingName())}! 👋 I'm Cortex, your LastMind personal assistant, and I'm so excited you're here!</div>`;
+            : `<div class="sf-onboarding-message">Hi ${escapeHtml(sfWizardGreetingName())}! 👋 I'm LastMind, your personal assistant, and I'm so excited you're here!</div>`;
         let messages = '';
         if (sfWizard.step === 'subjects') {
             messages += `<div class="sf-onboarding-message">${returning ? 'Which subject would you like to add?' : "Let's get you set up — first, which subjects are you working on?"}</div>`;
@@ -24788,7 +24788,7 @@ SQIDAQAB
         kmGraphMode = false;
         setSidebarTab('cortex');
         sfCloseSidebarOnMobile();
-        document.getElementById('topbarTitle').textContent = 'Cortex';
+        document.getElementById('topbarTitle').textContent = 'LastMind';
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
         const overlayEl = document.createElement('div');
@@ -31743,14 +31743,14 @@ SQIDAQAB
             ['#progressReportTopbarBtn', 'Open your weekly learning progress report.'],
             ['#calendarTopbarBtn', 'See scheduled reviews, study events, exams, and bookings.'],
             ['#seeTutorialBtn', 'Replay the guided tour of LastMind.'],
-            ['#cortexTabBtn', 'Ask Cortex for learning help and explanations.'],
+            ['#cortexTabBtn', 'Ask LastMind for learning help and explanations.'],
             ['#foldersTabBtn', 'Browse your subjects, themes, and lessons.'],
             ['#createFolderBtn', 'Add another subject to your LastMind account.'],
             ['.km-inline-untracked-btn', 'Try this lesson without changing its progress or review schedule.'],
             ['.km-inline-start-lesson-btn', 'Start this lesson or its currently due review.'],
             ['.sf-mobile-practice-btn', 'Open this subject’s exam practice questions on a smaller screen.'],
             ['.sf-side-practice-type-btn', 'Generate this exam-style question for the current lesson.'],
-            ['.pq-cortex-assist-btn', 'Ask Cortex for a hint without revealing the full model answer.'],
+            ['.pq-cortex-assist-btn', 'Ask LastMind for a hint without revealing the full model answer.'],
             ['.pq-model-answer-btn', 'Show the model answer for this practice question.'],
             ['.pq-submit-btn', 'Submit your answer for exam-board-style marking and feedback.'],
             ['.km-link-hit', 'Open the integration lesson connecting these two concepts.'],
