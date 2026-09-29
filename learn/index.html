@@ -1190,7 +1190,8 @@
     .um-empty { text-align: center; padding-top: 80px; }
     .um-empty .um-sub { background: var(--panel); color: var(--text); opacity: 1; display: inline-block; max-width: 480px; padding: 18px 24px; border-radius: 12px; font-size: 1.15rem; line-height: 1.5; }
     .um-header { margin-bottom: 28px; }
-    .um-title { font-family: Georgia, serif; font-size: 1.7rem; margin: 0 0 6px; color: var(--accent); }
+    .um-title { font-family: Georgia, serif; font-size: clamp(1.9rem, 4.2vw, 2.6rem); font-weight: 700; margin: 0 0 14px; color: var(--text); background: var(--panel); display: inline-block; padding: 14px 28px; border-radius: 12px; }
+    .um-empty .um-title { display: block; margin-left: auto; margin-right: auto; width: fit-content; }
     .um-sub { font-size: 0.9rem; opacity: 0.7; margin: 0; }
     .um-cluster { margin-bottom: 26px; }
     .um-cluster-title { font-size: 0.78rem; letter-spacing: 0.07em; text-transform: uppercase; opacity: 0.6; font-weight: 700; margin-bottom: 10px; }
@@ -24968,7 +24969,7 @@ SQIDAQAB
         if (!data.nodes || !data.nodes.length) {
             contentInner.innerHTML = `
                 <div class="um-view um-empty">
-                    <h1 class="um-title">Your knowledge on Lastmind</h1>
+                    <h1 class="um-title">Your knowledge on LastMind</h1>
                     <p class="um-sub">No concepts covered yet — complete a lesson to get started. Everything you learn shows up here, linked to whatever it actually builds on.</p>
                 </div>`;
             return;
@@ -25029,7 +25030,7 @@ SQIDAQAB
         contentInner.innerHTML = `
             <div class="um-view">
                 <div class="um-header">
-                    <h1 class="um-title">Your knowledge on Lastmind</h1>
+                    <h1 class="um-title">Your knowledge on LastMind</h1>
                     <p class="um-sub">Everything you've covered so far, across every subject — click any concept to continue it.</p>
                 </div>
                 <div class="um-clusters">${clusters}</div>
