@@ -1208,7 +1208,18 @@ SQIDAQAB
             const card = appendCardMessage('');
             const d = turn.data;
             const taskNode = d.nodes.find((n) => n.isFinalTask) || d.nodes[d.nodes.length - 1];
-            const state = { subject: d.subject, qualification: d.qualification, examBoard: d.examBoard, nodes: d.nodes, edges: d.edges, skip: new Set(), target: taskNode ? taskNode.id : null };
+            // Real, reported bug this fixes: this used to always start as an
+            // empty Set, so reopening a chat after a reload had no memory of
+            // which lessons were already completed - restarting the teach
+            // sequence (e.g. via beginQueuedLessons' own fallback, with no
+            // pendingLessonContinuation left to resume) repeated the first
+            // already-finished lesson. chatHistory is the full array by this
+            // point regardless of iteration order, so every 'lessonDone'
+            // turn's conceptIds (see teachNextInQueue's own completion
+            // handler) can be collected up front here.
+            const skip = new Set();
+            chatHistory.forEach((t) => { if (t.silent && t.kind === 'lessonDone' && t.data && t.data.conceptIds) t.data.conceptIds.forEach((id) => skip.add(id)); });
+            const state = { subject: d.subject, qualification: d.qualification, examBoard: d.examBoard, nodes: d.nodes, edges: d.edges, skip, target: taskNode ? taskNode.id : null };
             renderTopicMap(card, state);
             topicMapState = state; // kept as "most recently shown map", for reference only - every card's own interactivity closes over its own `state`, never this
         } else if (turn.kind === 'lessonDone' && turn.data) {
@@ -1890,14 +1901,6 @@ SQIDAQAB
             }
         }
         mountDerivationInCard(card, lessonData.derivation, nodeUuid, () => {
-            recordSilentContext(`[Completed the lesson on "${node.label}".]`, 'lessonDone', { label: node.label });
-            // Was an automatic cascade straight into the next node - now
-            // asks first, same as the map's own "shall I build the first
-            // lesson" nudge, so the student stays in control of pacing
-            // instead of the next lesson just appearing. The background
-            // prefetch above already kicked off before this point, so
-            // saying yes here is still near-instant either way.
-            //
             // Real, reported bug this fixes: a stage now commonly covers
             // SEVERAL map nodes at once (see plan_stages.js's subtopic-
             // merge fix), but this queue is a flat list of individual map
@@ -1909,6 +1912,26 @@ SQIDAQAB
             // actually covers - skip past all of them, not just this one
             // node, to reach the next genuinely new stage.
             const covered = new Set(lessonData.derivation.concepts || [node.conceptId]);
+            // Also fed into state.skip immediately (not just the queue
+            // above) - real, reported bug this fixes: re-entering via
+            // beginQueuedLessons' own fallback (no pendingLessonContinuation
+            // waiting - e.g. after a page reload) calls
+            // startTopicTeachSequence(state) fresh, which recomputes the
+            // teach set from scratch via topicComputeTeachSet - that ONLY
+            // ever excluded manually-ticked "I've covered this" nodes, never
+            // anything actually completed live, so restarting it repeated
+            // the exact same already-finished lesson. conceptIds is also
+            // recorded into chatHistory (not just label) so a restore across
+            // a real reload can rebuild this same skip set - see
+            // renderRestoredSilentTurn's own 'map' branch.
+            covered.forEach((id) => state.skip.add(id));
+            recordSilentContext(`[Completed the lesson on "${node.label}".]`, 'lessonDone', { label: node.label, conceptIds: [...covered] });
+            // Was an automatic cascade straight into the next node - now
+            // asks first, same as the map's own "shall I build the first
+            // lesson" nudge, so the student stays in control of pacing
+            // instead of the next lesson just appearing. The background
+            // prefetch above already kicked off before this point, so
+            // saying yes here is still near-instant either way.
             let nextIndex = index + 1;
             while (nextIndex < queue.length && covered.has(queue[nextIndex].conceptId)) nextIndex++;
             if (nextIndex >= queue.length) {
