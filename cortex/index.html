@@ -1239,9 +1239,21 @@ SQIDAQAB
         // done exactly once at the end instead.
         suppressAutoScroll = true;
         chatHistory.forEach((turn) => {
-            if (turn.silent) { renderRestoredSilentTurn(turn); return; }
-            if (turn.role === 'user') appendUserMessage(turn.content);
-            else appendAssistantMessage(turn.content);
+            // Array.forEach stops dead the moment its callback throws - a
+            // single malformed/legacy-shaped turn used to silently cut the
+            // WHOLE restore short, meaning every turn after it (topicMapState-
+            // setting map turns included) never rendered and never ran their
+            // own side effects either. Real, reported consequence: Cortex
+            // confidently said "On it - starting the first lesson now." (a
+            // correctly recognized intent) and then nothing happened at all,
+            // because topicMapState had silently never been restored.
+            try {
+                if (turn.silent) { renderRestoredSilentTurn(turn); return; }
+                if (turn.role === 'user') appendUserMessage(turn.content);
+                else appendAssistantMessage(turn.content);
+            } catch (err) {
+                console.error('LastMind Cortex: could not restore one chat turn - continuing with the rest.', turn, err);
+            }
         });
         suppressAutoScroll = false;
         // If the chat was closed/reloaded right after a map was built and
@@ -2338,12 +2350,23 @@ SQIDAQAB
                 // so anything outside that (e.g. "generate the lesson")
                 // fell through to a plain chat reply that couldn't actually
                 // start anything.
+                //
+                // Real, reported bug this ALSO fixes: this branch had no
+                // final else - Cortex's own reply already said "On it -
+                // starting the first lesson now." (a real, correctly
+                // recognized intent), but if topicMapState somehow wasn't
+                // populated (e.g. a page reload whose restore didn't pick
+                // it back up), NOTHING happened at all: no card, no error,
+                // nothing - a confident-sounding reply that silently did
+                // not do the thing it just said it was doing.
                 if (pendingLessonContinuation) {
                     const run = pendingLessonContinuation;
                     pendingLessonContinuation = null;
                     run();
                 } else if (topicMapState) {
                     startTopicTeachSequence(topicMapState);
+                } else {
+                    appendAssistantMessage("I don't actually have a topic map loaded to teach from right now - try reopening this chat, or tell me what you'd like to learn and I'll build a fresh map for it.");
                 }
             } else if (result.retryFailedLesson && pendingLessonRetry) {
                 const retry = pendingLessonRetry;
