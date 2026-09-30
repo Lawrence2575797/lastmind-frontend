@@ -8,6 +8,7 @@
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <meta name="theme-color" content="#D9C398">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet">
 <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
@@ -56,7 +57,7 @@
             repeating-linear-gradient(-1.2deg, rgba(0,0,0,0.05) 0px, rgba(0,0,0,0.05) 1px, transparent 1px, transparent 6px),
             linear-gradient(100deg, #F3D9A6, #D9C398 35%, #F3D9A6 55%, #BBA986 85%, #D9C398 100%);
         color: var(--ink);
-        font-family: 'Georgia', serif;
+        font-family: 'Lora', Georgia, serif;
         display: flex;
         flex-direction: column;
         height: 100vh;
@@ -174,7 +175,7 @@
         justify-content: center;
         gap: 8px;
         color: var(--ink);
-        font-family: 'Georgia', serif;
+        font-family: 'Lora', Georgia, serif;
         font-weight: 900;
         letter-spacing: 0.02em;
         font-size: clamp(2rem, 5.5vw, 3rem);
@@ -313,7 +314,7 @@
     .chat-empty-greeting {
         flex: none;
         text-align: center;
-        font-family: 'Georgia', serif;
+        font-family: 'Lora', Georgia, serif;
         font-style: italic;
         opacity: 0.65;
         font-size: 1.05rem;
@@ -330,7 +331,7 @@
     .chat-empty-quote {
         flex: none;
         text-align: center;
-        font-family: 'Georgia', serif;
+        font-family: 'Lora', Georgia, serif;
         font-style: italic;
         opacity: 0.75;
         font-size: 1.1rem;
@@ -446,7 +447,7 @@
         border-radius: 6px;
         padding: 10px 12px;
         color: var(--text);
-        font-family: 'Georgia', serif;
+        font-family: 'Lora', Georgia, serif;
         font-size: 0.9rem;
         resize: vertical;
         margin-bottom: 10px;
@@ -473,7 +474,7 @@
         border-radius: 8px;
         padding: 12px 18px;
         color: var(--text);
-        font-family: 'Georgia', serif;
+        font-family: 'Lora', Georgia, serif;
         font-size: 0.92rem;
         resize: none;
         /* rows="1" plus this line-height only fit one line before the
