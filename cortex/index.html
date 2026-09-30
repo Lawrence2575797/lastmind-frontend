@@ -1825,24 +1825,23 @@ SQIDAQAB
                 // network-level failure (502/503/504, or no response at
                 // all) is the only case that's genuinely a transient/
                 // infra issue worth blaming on the server itself.
-                let bodyError = null;
-                try { ({ error: bodyError } = await resp.json()); } catch (parseErr) { /* not JSON - status code is all we have */ }
-                const err = new Error(bodyError || `Server returned ${resp.status}`);
+                let bodyDetail = null;
+                try { ({ detail: bodyDetail } = await resp.json()); } catch (parseErr) { /* not JSON - status code is all we have */ }
+                const err = new Error(bodyDetail || `Server returned ${resp.status}`);
                 err.genuineFailure = ![502, 503, 504].includes(resp.status);
                 throw err;
             }
             lessonData = await resp.json();
             stopLessonRotator();
         } catch (err) {
-            // The backend's own error text (e.g. "could not generate this
-            // lesson") already says almost the same thing this wrapper does
-            // - shown alongside it before, that read as a stutter ("Couldn't
-            // generate an interactive lesson for this (could not generate
-            // this lesson)"). Logged for debugging instead of repeated back
-            // to the student.
             console.error('LastMind Cortex: lesson generation failed.', err.message);
+            // "detail" (see knowledgeMap.ts) is the actual structural
+            // validate() failure (e.g. "not atomic: only 3 new terms") -
+            // shown directly rather than a flat generic line, so a repeated
+            // failure can actually be diagnosed from what's on screen,
+            // without needing server log access.
             showRetryable(err.genuineFailure
-                ? "Couldn't generate an interactive lesson for this - try again, or try a different concept."
+                ? `Couldn't generate an interactive lesson for this${err.message ? ` (${err.message})` : ''} - try again, or try a different concept.`
                 : 'Could not reach the server just now - this often works on retry.');
             return;
         }
