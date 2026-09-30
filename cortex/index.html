@@ -1526,8 +1526,17 @@ SQIDAQAB
     function startLoadingRotator(textEl, messages) {
         let i = 0;
         textEl.textContent = messages[0];
+        // Real, reported confusion this fixes: this used to wrap back to
+        // messages[0] (`% messages.length`) once it reached the end, so a
+        // generation slower than one lap visibly repeated "figuring out how
+        // to teach this" AFTER "writing the question" had already shown -
+        // reading as if it had forgotten its own progress and started over,
+        // not as if it were simply still working. Now just holds on the
+        // final message ("Nearly ready…") instead of looping back to the
+        // first one; the 14s failsafe below still kicks in for a genuinely
+        // long wait.
         const timer = setInterval(() => {
-            i = (i + 1) % messages.length;
+            if (i < messages.length - 1) i++;
             textEl.textContent = messages[i];
         }, 1800);
         // Real, reported confusion this fixes: a stage covering several map
