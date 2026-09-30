@@ -1208,20 +1208,23 @@ SQIDAQAB
             const card = appendCardMessage('');
             const d = turn.data;
             const taskNode = d.nodes.find((n) => n.isFinalTask) || d.nodes[d.nodes.length - 1];
-            // Real, reported bug this fixes: this used to always start as an
-            // empty Set, so reopening a chat after a reload had no memory of
-            // which lessons were already completed - restarting the teach
-            // sequence (e.g. via beginQueuedLessons' own fallback, with no
-            // pendingLessonContinuation left to resume) repeated the first
-            // already-finished lesson. chatHistory is the full array by this
-            // point regardless of iteration order, so every 'lessonDone'
-            // turn's conceptIds (see teachNextInQueue's own completion
-            // handler) can be collected up front here.
-            const skip = new Set();
-            chatHistory.forEach((t) => { if (t.silent && t.kind === 'lessonDone' && t.data && t.data.conceptIds) t.data.conceptIds.forEach((id) => skip.add(id)); });
-            const state = { subject: d.subject, qualification: d.qualification, examBoard: d.examBoard, nodes: d.nodes, edges: d.edges, skip, target: taskNode ? taskNode.id : null };
+            const state = { subject: d.subject, qualification: d.qualification, examBoard: d.examBoard, nodes: d.nodes, edges: d.edges, skip: new Set(), target: taskNode ? taskNode.id : null };
             renderTopicMap(card, state);
             topicMapState = state; // kept as "most recently shown map", for reference only - every card's own interactivity closes over its own `state`, never this
+            // Real, reported bug this fixes: which nodes are already taught
+            // used to have no source of truth at all on restore (always an
+            // empty skip set), so reopening a chat had no memory of real
+            // progress - restarting the teach sequence (e.g. via
+            // beginQueuedLessons' own fallback, with no
+            // pendingLessonContinuation left to resume) repeated an already-
+            // finished lesson. Paints instantly from the stored snapshot
+            // above, then refreshes in the background from the real
+            // concept_reviews progress table (the same one every lesson
+            // completion writes to - see knowledge-map-v2/topic's own route)
+            // and re-renders if anything's now marked done that wasn't
+            // stored as such - a plain cache hit (this topic's map already
+            // exists), so no real generation cost either way.
+            refreshTopicNodeCompletion(card, state);
         } else if (turn.kind === 'lessonDone' && turn.data) {
             appendCardMessage(`<div class="lesson-card-done">✓ Completed: ${escapeHtmlTopic(turn.data.label)}</div>`);
         } else if (turn.kind === 'lessonFailed' && turn.data) {
@@ -1686,6 +1689,34 @@ SQIDAQAB
         });
     }
 
+    // Background refresh of which nodes are actually already taught,
+    // against the real concept_reviews progress table (not a client-side
+    // guess) - called right after a restored map's first paint, same
+    // "paint immediately, then sync" shape as the rest of this app's own
+    // server-sync code. A plain cache hit against /knowledge-map-v2/topic
+    // (this topic's map already exists), so no real generation cost.
+    async function refreshTopicNodeCompletion(cardEl, state) {
+        try {
+            const accessToken = await getSyncAccessToken();
+            if (!accessToken) return;
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/topic`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                body: JSON.stringify({ topic: state.subject }),
+            });
+            if (!resp.ok) return;
+            const data = await resp.json();
+            if (!Array.isArray(data.nodes)) return;
+            let changed = false;
+            data.nodes.forEach((n) => {
+                if (n.completed && !state.skip.has(n.id)) { state.skip.add(n.id); changed = true; }
+            });
+            if (changed) renderTopicMap(cardEl, state);
+        } catch (err) {
+            console.error('LastMind Cortex: could not refresh this map\'s completion status.', err);
+        }
+    }
+
     // The topic map's own nodes are keyed by node_key (a short slug, unique
     // only within this one topic's graph - see topicKnowledgeMapService.ts)
     // since that's all the map-building endpoint ever needed to hand back.
@@ -2011,7 +2042,15 @@ SQIDAQAB
             const data = await resp.json();
             if (!data.nodes || !data.nodes.length) { card.innerHTML = '<div class="topic-map-error">No usable map came back for that topic. Try rephrasing it.</div>'; return; }
             const taskNode = data.nodes.find((n) => n.isFinalTask) || data.nodes[data.nodes.length - 1];
-            const state = { subject: data.subject, qualification: data.qualification, examBoard: data.examBoard, nodes: topicTopologicalOrder(data.nodes, data.edges), edges: data.edges, skip: new Set(), target: taskNode.id };
+            // "completed" (see knowledgeMapV2/topic's own route) comes from
+            // the real concept_reviews progress table, the same one every
+            // lesson completion already writes to - a node that's genuinely
+            // already been taught (in this chat, a past session, or even a
+            // different device) is correctly excluded from the teach queue
+            // and shown as done on the map from the very first render, not
+            // just after a manual tick.
+            const skip = new Set(data.nodes.filter((n) => n.completed).map((n) => n.id));
+            const state = { subject: data.subject, qualification: data.qualification, examBoard: data.examBoard, nodes: topicTopologicalOrder(data.nodes, data.edges), edges: data.edges, skip, target: taskNode.id };
             renderTopicMap(card, state);
             topicMapState = state; // kept as "most recently shown map", for reference only - every card's own interactivity closes over its own `state`, never this
             recordSilentContext(
