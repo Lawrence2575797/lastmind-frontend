@@ -234,7 +234,14 @@
        document-flow layout underneath it. */
     .topic-graph-wrap { position: relative; }
     .topic-graph-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
-    .topic-graph-svg path { fill: none; stroke: var(--accent); stroke-width: 1.5px; opacity: 0.4; }
+    .topic-graph-svg .topic-graph-edge { fill: none; stroke: var(--panel); stroke-width: 1.5px; opacity: 0.55; }
+    /* Arrowhead marker content doesn't inherit the referencing path's own
+       fill:none/stroke - it needs its own rule, specific enough to win over
+       .topic-graph-edge above (which would otherwise also match this path,
+       since a marker's content lives in the same document, not a separate
+       scope). userSpaceOnUse (set on the <marker> itself) keeps every
+       arrowhead the same fixed size regardless of an edge's own length. */
+    .topic-graph-svg .topic-graph-arrowhead { fill: var(--panel); stroke: none; opacity: 0.85; }
     .topic-graph-rows { position: relative; display: flex; flex-direction: column; gap: 26px; }
     .topic-graph-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 
@@ -1151,8 +1158,16 @@ SQIDAQAB
         try {
             const sessions = await loadSessions();
             const idx = sessions.findIndex((s) => s.id === activeSessionId);
+            // Real, reported bug this fixes: the title used to be
+            // recomputed from the first user turn on EVERY save, which
+            // silently reverted a manual rename (see learn/index.html's own
+            // renameChatSession) the moment the next message was sent in
+            // that chat. Now only auto-generated the first time this
+            // session is actually created (idx < 0) - once it exists,
+            // whatever title it already has (auto-generated or manually
+            // renamed) is preserved indefinitely.
             const firstUserTurn = chatHistory.find((t) => t.role === 'user');
-            const title = firstUserTurn ? firstUserTurn.content.slice(0, 48) : 'New chat';
+            const title = idx >= 0 ? sessions[idx].title : (firstUserTurn ? firstUserTurn.content.slice(0, 48) : 'New chat');
             const updated = { id: activeSessionId, title, createdAt: idx >= 0 ? sessions[idx].createdAt : Date.now(), updatedAt: Date.now(), messages: chatHistory };
             if (idx >= 0) sessions[idx] = updated; else sessions.unshift(updated);
             await saveSessions(sessions);
@@ -1605,7 +1620,16 @@ SQIDAQAB
         svgEl.setAttribute('width', wrapRect.width);
         svgEl.setAttribute('height', wrapRect.height);
         svgEl.setAttribute('viewBox', `0 0 ${wrapRect.width} ${wrapRect.height}`);
-        svgEl.innerHTML = state.edges.map((e) => {
+        // Real, reported request: the edges had no direction indicator at
+        // all - just a bare line. markerUnits="userSpaceOnUse" (fixed pixel
+        // size, not scaled by the path's own stroke-width or length) keeps
+        // every arrowhead the same size regardless of how long or short an
+        // edge is. innerHTML replaces the whole SVG on every re-render (a
+        // skip/target click), so <defs> is included in that same string
+        // rather than added once separately, or it would be wiped out on
+        // the next render.
+        const defs = `<defs><marker id="topicArrowhead" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path class="topic-graph-arrowhead" d="M0,0 L10,5 L0,10 z" /></marker></defs>`;
+        const paths = state.edges.map((e) => {
             const fromEl = wrapEl.querySelector(`[data-node="${e.from}"]`);
             const toEl = wrapEl.querySelector(`[data-node="${e.to}"]`);
             if (!fromEl || !toEl) return '';
@@ -1613,8 +1637,9 @@ SQIDAQAB
             const x1 = fr.left + fr.width / 2 - wrapRect.left, y1 = fr.bottom - wrapRect.top;
             const x2 = tr.left + tr.width / 2 - wrapRect.left, y2 = tr.top - wrapRect.top;
             const midY = (y1 + y2) / 2;
-            return `<path d="M${x1},${y1} C${x1},${midY} ${x2},${midY} ${x2},${y2}" />`;
+            return `<path class="topic-graph-edge" d="M${x1},${y1} C${x1},${midY} ${x2},${midY} ${x2},${y2}" marker-end="url(#topicArrowhead)" />`;
         }).join('');
+        svgEl.innerHTML = defs + paths;
     }
 
     // `state` is one specific map's own object (subject/qualification/
