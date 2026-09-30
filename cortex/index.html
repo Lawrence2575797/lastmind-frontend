@@ -2329,6 +2329,22 @@ SQIDAQAB
             if (result.startTopic) {
                 pendingLessonContinuation = null; // starting a different topic supersedes any earlier "shall I build..." still waiting on an answer
                 startTopicLearnFlow(result.startTopic);
+            } else if (result.beginQueuedLessons) {
+                // Real, reported gap this closes: unlike startTopic/
+                // retryFailedLesson above, there was previously no general
+                // fallback for "begin/continue the lessons for the map I
+                // already built" - only the client's own narrow exact-
+                // phrasing fast path (detectStartLessonsIntent) covered it,
+                // so anything outside that (e.g. "generate the lesson")
+                // fell through to a plain chat reply that couldn't actually
+                // start anything.
+                if (pendingLessonContinuation) {
+                    const run = pendingLessonContinuation;
+                    pendingLessonContinuation = null;
+                    run();
+                } else if (topicMapState) {
+                    startTopicTeachSequence(topicMapState);
+                }
             } else if (result.retryFailedLesson && pendingLessonRetry) {
                 const retry = pendingLessonRetry;
                 pendingLessonRetry = null;
