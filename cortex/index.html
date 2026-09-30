@@ -1554,16 +1554,18 @@ SQIDAQAB
             textEl.textContent = messages[i];
         }, 1800);
         // Real, reported confusion this fixes: a stage covering several map
-        // nodes at once (see plan_stages.js's subtopic-merge fix) can take
-        // more than one Claude attempt to generate, well past a single lap
-        // of these 5 messages - which just reads as "stuck repeating the
-        // same steps" with no way to tell still-working from actually-hung.
-        // Same reassurance copy already used elsewhere for a slow-but-not-
-        // failed wait (see showLoadingWithColdStartHint in learn/index.html).
+        // nodes at once (see plan_stages.js's subtopic-merge fix) routinely
+        // takes several sequential Claude attempts, comfortably past a
+        // single lap of these 5 messages - not an edge case, the norm for
+        // this kind of stage. 14s/"than usual" was firing on basically every
+        // generation, which is a contradiction in terms - "usual" cannot
+        // mean "every time". Raised well past a typical multi-attempt
+        // generation's real duration, and reworded to not claim something
+        // that isn't true just because it's slow.
         const longWaitTimer = setTimeout(() => {
             clearInterval(timer);
-            textEl.textContent = "Still working on this one - it's taking longer than usual, but hasn't failed. Hang tight.";
-        }, 14000);
+            textEl.textContent = "Still working on this one - it hasn't failed, this can genuinely take a while. Hang tight.";
+        }, 45000);
         return () => { clearInterval(timer); clearTimeout(longWaitTimer); };
     }
 

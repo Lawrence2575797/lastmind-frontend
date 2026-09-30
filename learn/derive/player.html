@@ -176,6 +176,19 @@ html[data-look="glass"] .svgwrap, html[data-look="glass"] .bank { background: rg
 .mfrac .n, .mfrac .d { padding: 0 2px; }
 .mfrac .n { border-bottom: 1.4px solid currentColor; }
 
+/* A vector/matrix written in the authored plain-text convention ([2,0], or
+   [[2,0],[0,3]] - see mathify()'s own comment) as a real bracketed grid,
+   not literal bracket-and-comma text. The brackets are two CSS
+   pseudo-elements (top+bottom+one-side border each) rather than real "["/"]"
+   glyphs - a genuine bracket shape at any size, not a font's own fixed-size
+   character. */
+.matrix { display: inline-flex; align-items: center; vertical-align: middle; margin: 0 3px; }
+.matrix-grid { position: relative; display: inline-grid; gap: 2px 14px; padding: 3px 12px; }
+.matrix-grid::before, .matrix-grid::after { content: ''; position: absolute; top: 1px; bottom: 1px; width: 5px; border-top: 1.4px solid currentColor; border-bottom: 1.4px solid currentColor; }
+.matrix-grid::before { left: 0; border-left: 1.4px solid currentColor; }
+.matrix-grid::after { right: 0; border-right: 1.4px solid currentColor; }
+.matrix-cell { text-align: center; }
+
 /* ── the real maths answer box, ported verbatim from learn/index.html's createMathShortcutEditor (the same
    contenteditable + keyboard-shortcut editor used for node-review/lesson calculation answers) rather than a
    bespoke widget, so a calc step looks and behaves exactly like the maths input everywhere else on the site. ── */
@@ -272,9 +285,40 @@ window.__runDerive = function (D, CP) {
   function termHtml(k, extra) { return '<span class="term ' + (extra || '') + '" style="--tc:' + TERMS[k].c + '">' + TERMS[k].t + '</span>'; }
   /* typesets the plain-text maths conventions authored content uses (K^0.5, dQ/dK, lambda, sqrt(4), px) into real
      superscripts, a stacked fraction and proper symbols, so a question reads like real maths instead of source code. */
+  // A vector/matrix row - "2, 0" (already stripped of its own brackets) -
+  // into a run of grid cells; used by bracketGroupHtml below for both a
+  // plain vector and each row of a matrix.
+  function matrixCellsHtml(str) {
+    return str.split(',').map(function (c) { return '<span class="matrix-cell">' + c.trim() + '</span>'; }).join('');
+  }
+  // rowsStr is everything between the OUTERMOST pair of brackets mathify()
+  // matched - either a flat "2,0" (a plain vector: [2,0]) or several
+  // bracketed rows "[2,0],[0,3]" (a matrix: [[2,0],[0,3]]). Real, reported
+  // problem this fixes: the model already naturally writes matrices/vectors
+  // this exact way (it's the obvious plain-text notation for one), but
+  // nothing ever rendered it as a real grid - it just showed as literal
+  // bracket-and-comma text.
+  function bracketGroupHtml(rowsStr) {
+    var rowMatches = rowsStr.match(/\[[^\[\]]*\]/g);
+    if (rowMatches) {
+      var rows = rowMatches.map(function (r) { return r.slice(1, -1).split(',').map(function (x) { return x.trim(); }); });
+      var cols = rows.reduce(function (m, r) { return Math.max(m, r.length); }, 1);
+      var cellsHtml = rows.map(function (r) { return r.map(function (c) { return '<span class="matrix-cell">' + c + '</span>'; }).join(''); }).join('');
+      return '<span class="matrix"><span class="matrix-grid" style="grid-template-columns:repeat(' + cols + ',minmax(1.4em,auto))">' + cellsHtml + '</span></span>';
+    }
+    var cellCount = rowsStr.split(',').length;
+    return '<span class="matrix"><span class="matrix-grid" style="grid-template-columns:repeat(' + cellCount + ',minmax(1.4em,auto))">' + matrixCellsHtml(rowsStr) + '</span></span>';
+  }
   function mathify(s) {
     if (!s) return s;
     return String(s)
+      // Matrices/vectors - matched first, before anything else touches the
+      // text, so these bracket characters can't be caught by a later
+      // replacement. A full matrix ([[2,0],[0,3]]) before a plain vector
+      // ([2,0]), since the matrix pattern's own brackets would otherwise
+      // each individually match the plain-vector pattern first.
+      .replace(/\[(?:\[[^\[\]]*\],?)+\]/g, function (m) { return bracketGroupHtml(m.slice(1, -1)); })
+      .replace(/\[([^\[\]]+)\]/g, function (m, inner) { return bracketGroupHtml(inner); })
       // simple first-order fractions (dQ/dK, dy/dx, dπ/dQ) first, while the text is still plain - a "d^2Q/dK^2"
       // second-order form never matches this (the letter right after "d" would be a digit/caret instead)
       .replace(/\bd([A-Za-zπΔλ][A-Za-z0-9]*)\s*\/\s*d([A-Za-zπΔλ][A-Za-z0-9]*)\b/g,
