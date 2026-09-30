@@ -1695,6 +1695,8 @@ SQIDAQAB
     // "paint immediately, then sync" shape as the rest of this app's own
     // server-sync code. A plain cache hit against /knowledge-map-v2/topic
     // (this topic's map already exists), so no real generation cost.
+    // cardEl is optional - omit it to just update state.skip without a map
+    // card to re-render (see startTopicTeachSequence's own awaited call).
     async function refreshTopicNodeCompletion(cardEl, state) {
         try {
             const accessToken = await getSyncAccessToken();
@@ -1711,7 +1713,7 @@ SQIDAQAB
             data.nodes.forEach((n) => {
                 if (n.completed && !state.skip.has(n.id)) { state.skip.add(n.id); changed = true; }
             });
-            if (changed) renderTopicMap(cardEl, state);
+            if (changed && cardEl) renderTopicMap(cardEl, state);
         } catch (err) {
             console.error('LastMind Cortex: could not refresh this map\'s completion status.', err);
         }
@@ -1975,6 +1977,18 @@ SQIDAQAB
     }
 
     async function startTopicTeachSequence(state) {
+        // Real, reported bug this fixes: a restored map's completion status
+        // refreshes in the background (see renderRestoredSilentTurn) and
+        // isn't awaited there - fine for painting the map itself, but a
+        // genuine race if the student replies fast enough to ask for the
+        // next lesson BEFORE that background check finishes: state.skip
+        // would still be at its stale/empty starting point, so this
+        // recomputed the teach set as if nothing had been done and repeated
+        // an already-completed stage. Awaited here specifically, right
+        // before the one decision that actually depends on it being
+        // current - a plain cache hit either way, so this costs nothing,
+        // just a moment's real network round trip instead of a guess.
+        await refreshTopicNodeCompletion(null, state);
         const teach = topicComputeTeachSet(state);
         if (!teach.length) {
             appendCardMessage(`<div class="lesson-card-done">You already know everything needed for this target.</div>`);
