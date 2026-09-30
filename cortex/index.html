@@ -1476,26 +1476,33 @@ SQIDAQAB
         saveChatHistory();
     }
 
-    const TOPIC_MAP_LOADING_MESSAGES = [
-        'Reading the topic…',
-        'Working out what it depends on…',
-        'Mapping the prerequisites…',
-        'Checking what connects to what…',
-        'Putting it in a sensible order…',
-        'Nearly there…',
-    ];
+    // Named after the actual topic/concept being loaded, not a generic
+    // "loading…" - real, reported request: a rotating message should say
+    // what it's actually doing, not just a plausible-sounding placeholder.
+    function topicMapLoadingMessages(topic) {
+        return [
+            `Reading up on “${topic}”…`,
+            `Working out what “${topic}” depends on…`,
+            'Mapping the prerequisites…',
+            'Checking what connects to what…',
+            'Putting it in a sensible order…',
+            'Nearly there…',
+        ];
+    }
     // A cache HIT (the common case once any student has reached this
     // concept before) resolves near-instantly - these only matter for a
     // genuine live generation, so they describe that specifically rather
     // than a generic "loading" that would be a little misleading the rest
     // of the time.
-    const LESSON_LOADING_MESSAGES = [
-        'Working out how to teach this…',
-        'Building the derivation…',
-        'Writing the practice question…',
-        'Checking it holds together…',
-        'Nearly ready…',
-    ];
+    function lessonLoadingMessages(label) {
+        return [
+            `Working out how to teach “${label}”…`,
+            `Building the derivation for “${label}”…`,
+            `Writing a practice question on “${label}”…`,
+            `Checking “${label}” holds together…`,
+            'Nearly ready…',
+        ];
+    }
     const TOPIC_LOADING_WIRES_SVG = `<svg class="topic-loading-wires" viewBox="0 0 160 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <path d="M16,32 L80,12"/><path d="M16,32 L80,52"/><path d="M80,12 L144,32"/><path d="M80,52 L144,32"/>
         <circle cx="16" cy="32" r="5"/><circle cx="80" cy="12" r="5"/><circle cx="80" cy="52" r="5"/><circle cx="144" cy="32" r="5"/>
@@ -1744,7 +1751,7 @@ SQIDAQAB
             <div class="lesson-card-label">${escapeHtmlTopic(node.label)}</div>
             <div class="lesson-card-status"></div>
         `);
-        const stopLessonRotator = startLoadingRotator(card.querySelector('.lesson-card-status'), LESSON_LOADING_MESSAGES);
+        const stopLessonRotator = startLoadingRotator(card.querySelector('.lesson-card-status'), lessonLoadingMessages(node.label));
         pendingLessonRetry = null;
         const nodeUuid = uuidByConceptId.get(node.conceptId);
         if (!nodeUuid) {
@@ -1795,11 +1802,29 @@ SQIDAQAB
                 recordSilentContext(`[Could not generate an interactive lesson for "${node.label}" yet - a plain "try again" from the student retries it directly, no action from you needed.]`, 'lessonFailed', { label: node.label });
                 return;
             }
-            if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            if (!resp.ok) {
+                // Real, reported problem this fixes: "the server may just be
+                // waking up" was shown for EVERY failure here, including a
+                // genuine checker rejection after real, paid generation
+                // attempts (a 500 from the route's own try/catch - see
+                // knowledgeMap.ts) that has nothing to do with the server
+                // sleeping - flatly wrong on a paid Render plan that never
+                // spins down, and confusing/misleading regardless. A
+                // network-level failure (502/503/504, or no response at
+                // all) is the only case that's genuinely a transient/
+                // infra issue worth blaming on the server itself.
+                let bodyError = null;
+                try { ({ error: bodyError } = await resp.json()); } catch (parseErr) { /* not JSON - status code is all we have */ }
+                const err = new Error(bodyError || `Server returned ${resp.status}`);
+                err.genuineFailure = ![502, 503, 504].includes(resp.status);
+                throw err;
+            }
             lessonData = await resp.json();
             stopLessonRotator();
         } catch (err) {
-            showRetryable('Could not load this lesson - the server may just be waking up, this often works on retry.');
+            showRetryable(err.genuineFailure
+                ? `Couldn't generate an interactive lesson for this (${err.message}) - try again, or try a different concept.`
+                : 'Could not reach the server just now - this often works on retry.');
             return;
         }
         if (!lessonData.derivation) {
@@ -1894,7 +1919,7 @@ SQIDAQAB
                 <div class="topic-loading-text"></div>
             </div>
         `);
-        const stopRotator = startLoadingRotator(card.querySelector('.topic-loading-text'), TOPIC_MAP_LOADING_MESSAGES);
+        const stopRotator = startLoadingRotator(card.querySelector('.topic-loading-text'), topicMapLoadingMessages(topic));
         try {
             const accessToken = await getSyncAccessToken();
             if (!accessToken) { stopRotator(); card.innerHTML = '<div class="topic-map-error">You need to be signed in to build a lesson.</div>'; return; }
