@@ -1897,12 +1897,26 @@ SQIDAQAB
             // instead of the next lesson just appearing. The background
             // prefetch above already kicked off before this point, so
             // saying yes here is still near-instant either way.
-            if (index + 1 >= queue.length) {
+            //
+            // Real, reported bug this fixes: a stage now commonly covers
+            // SEVERAL map nodes at once (see plan_stages.js's subtopic-
+            // merge fix), but this queue is a flat list of individual map
+            // NODES - just advancing to index+1 could land on a different
+            // node that happens to share the exact same stage as the one
+            // just finished, which is already cached, so the student saw
+            // the identical lesson repeat. derivation.concepts (see
+            // knowledgeMap.ts) lists every concept id this one stage
+            // actually covers - skip past all of them, not just this one
+            // node, to reach the next genuinely new stage.
+            const covered = new Set(lessonData.derivation.concepts || [node.conceptId]);
+            let nextIndex = index + 1;
+            while (nextIndex < queue.length && covered.has(queue[nextIndex].conceptId)) nextIndex++;
+            if (nextIndex >= queue.length) {
                 appendCardMessage(`<div class="lesson-card-done">You've covered everything for “${escapeHtmlTopic(state.subject)}” for now. Nice work.</div>`);
                 recordSilentContext(`[The student just finished every lesson in the "${state.subject}" knowledge map.]`, 'allDone', { subject: state.subject });
                 return;
             }
-            promptLessonContinuation(LESSON_NEXT_PROMPTS, () => teachNextInQueue(state, queue, index + 1, uuidByConceptId));
+            promptLessonContinuation(LESSON_NEXT_PROMPTS, () => teachNextInQueue(state, queue, nextIndex, uuidByConceptId));
         });
     }
 
