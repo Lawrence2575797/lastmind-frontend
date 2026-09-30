@@ -1781,12 +1781,24 @@ SQIDAQAB
             // which otherwise reads as a genuine failure ("Could not load
             // this lesson") even though the exact same request succeeds
             // seconds later. Never retries the 409 case itself.
+            // Real, reported bug this fixes: this only meant to retry an
+            // actual transient/cold-start-shaped response (502/503/504) -
+            // but the condition retried on ANY non-ok, non-409 status,
+            // including a genuine 500 (a real checker rejection AFTER real,
+            // paid generation attempts - see derivationGenericGenerate).
+            // That meant one failed generation triggered this loop 3 times,
+            // and each of those 3 calls independently ran the backend's own
+            // up-to-3-attempt Claude loop again from scratch (nothing was
+            // cached to short-circuit it) - up to 3x3=9 real Claude calls
+            // for one failure that was never going to succeed on a plain
+            // retry, which is also why the loading messages were cycling
+            // through so many times before finally failing.
             let resp;
             for (let attempt = 0; ; attempt++) {
                 resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/node/${encodeURIComponent(nodeUuid)}/lesson`, {
                     headers: { Authorization: `Bearer ${accessToken}` }
                 });
-                if (resp.ok || resp.status === 409 || attempt >= 2) break;
+                if (![502, 503, 504].includes(resp.status) || attempt >= 2) break;
                 await new Promise((resolve) => setTimeout(resolve, 2500 * (attempt + 1)));
             }
             // 409/DERIVATION_NOT_READY: this node's own stage genuinely
@@ -1822,8 +1834,15 @@ SQIDAQAB
             lessonData = await resp.json();
             stopLessonRotator();
         } catch (err) {
+            // The backend's own error text (e.g. "could not generate this
+            // lesson") already says almost the same thing this wrapper does
+            // - shown alongside it before, that read as a stutter ("Couldn't
+            // generate an interactive lesson for this (could not generate
+            // this lesson)"). Logged for debugging instead of repeated back
+            // to the student.
+            console.error('LastMind Cortex: lesson generation failed.', err.message);
             showRetryable(err.genuineFailure
-                ? `Couldn't generate an interactive lesson for this (${err.message}) - try again, or try a different concept.`
+                ? "Couldn't generate an interactive lesson for this - try again, or try a different concept."
                 : 'Could not reach the server just now - this often works on retry.');
             return;
         }
