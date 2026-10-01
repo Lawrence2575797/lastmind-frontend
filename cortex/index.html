@@ -2672,6 +2672,23 @@ SQIDAQAB
 
         await renderEmptyState();
         await restoreChatHistory();
+
+        // Opened from the LastMind browser extension's "Understand with
+        // LastMind" context-menu entry (right-click a text selection on any
+        // page) — the extension's side panel loads this same page with
+        // ?embed=1&topic=<the selected text>, so a brand-new chat here goes
+        // straight into building that topic's map instead of waiting for
+        // the student to type it in themselves. Only on a genuinely empty
+        // chat — a reload of an existing extension-opened panel must not
+        // silently restart the same topic on top of whatever's already
+        // there.
+        const extensionTopic = new URLSearchParams(window.location.search).get('topic');
+        if (extensionTopic && !chatHistory.length) {
+            appendUserMessage(extensionTopic);
+            chatHistory.push({ role: 'user', content: extensionTopic });
+            saveChatHistory();
+            startTopicLearnFlow(extensionTopic);
+        }
     }
 
     (async function gate() {
