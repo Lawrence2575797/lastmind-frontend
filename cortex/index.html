@@ -2255,35 +2255,45 @@ SQIDAQAB
         if (textEl) renderChatText(textEl, text);
     }
 
-    // "done" lets Cortex reason about lesson order (what's already been
-    // covered vs. what's next) without the student needing to say so —
-    // see CORTEX_INTENT_PROMPT's ordering capability.
-    function pageSummary(p) {
-        return { title: p.title, done: p.encodingDone === true || p.taughtBefore === true };
+    // Real, confirmed cost problem this fixes: sending every subfolder's
+    // every page TITLE on every single Cortex message - regardless of
+    // whether that message had anything to do with any subject - was the
+    // actual dominant cost of a Cortex conversation for an account with a
+    // real course (hundreds of lesson pages), dwarfing the map/lesson
+    // generation calls that were getting blamed instead. Cortex's own job
+    // here is general conversational grounding ("since you're doing AQA
+    // Biology..."), which only ever needed what's being studied and
+    // roughly how far in - counts, not a full title-by-title page list.
+    function countPages(pages) {
+        const list = pages || [];
+        return { count: list.length, done: list.filter((p) => p.encodingDone === true || p.taughtBefore === true).length };
     }
 
     async function buildFolderSummary() {
         const all = await getAllFolders();
-        return all.map((f) => ({
-            name: f.subject,
-            qualification: f.qualification,
-            // Same split CortexFolderSummary documents server-side — a
-            // school folder's identifying detail is its exam board, a
-            // university one's is institution+moduleCode instead (never
-            // both). Omitting whichever doesn't apply, rather than sending
-            // it as undefined/empty, keeps Cortex from treating a blank
-            // examBoard as a real (missing) value on a university folder.
-            ...(isUniversityLevel(f.qualification)
-                ? { institution: f.institution || '', moduleCode: f.moduleCode || '' }
-                : { examBoard: f.examBoard || '' }),
-            subfolders: (f.subfolders || []).map((sf) => ({
-                name: sf.name,
-                pages: (sf.pages || []).map(pageSummary),
-                ...(sf.plannedConcepts && sf.plannedConcepts.length ? { plannedConcepts: sf.plannedConcepts } : {})
-            })),
-            pages: (f.pages || []).map(pageSummary),
-            ...(f.plannedConcepts && f.plannedConcepts.length ? { plannedConcepts: f.plannedConcepts } : {})
-        }));
+        return all.map((f) => {
+            const own = countPages(f.pages);
+            const sub = (f.subfolders || []).reduce((acc, sf) => {
+                const c = countPages(sf.pages);
+                return { count: acc.count + c.count, done: acc.done + c.done };
+            }, { count: 0, done: 0 });
+            return {
+                name: f.subject,
+                qualification: f.qualification,
+                // Same split CortexFolderSummary documents server-side — a
+                // school folder's identifying detail is its exam board, a
+                // university one's is institution+moduleCode instead (never
+                // both). Omitting whichever doesn't apply, rather than sending
+                // it as undefined/empty, keeps Cortex from treating a blank
+                // examBoard as a real (missing) value on a university folder.
+                ...(isUniversityLevel(f.qualification)
+                    ? { institution: f.institution || '', moduleCode: f.moduleCode || '' }
+                    : { examBoard: f.examBoard || '' }),
+                subfolderCount: (f.subfolders || []).length,
+                pageCount: own.count + sub.count,
+                completedPageCount: own.done + sub.done,
+            };
+        });
     }
 
     async function fetchDueReviews(accessToken) {
