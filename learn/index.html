@@ -18116,6 +18116,15 @@ SQIDAQAB
         document.getElementById('folderList').style.display = tab === 'folders' ? 'block' : 'none';
         document.getElementById('cortexChatList').style.display = tab === 'cortex' ? 'flex' : 'none';
         if (tab === 'cortex') refreshCortexChatList();
+        // Real, reported request: Home (goToMainFeed) just re-opens the
+        // LastMind chat/dashboard when nothing else is selected (see
+        // goToMainFeed's own comment) - showing it while already on that
+        // exact destination (about to start a chat, or mid-conversation)
+        // offers a button that does nothing new. Hidden only on the
+        // LastMind tab itself; still shown everywhere else (Your Mind,
+        // a subject's feed, practice questions, ...) where it's a real,
+        // useful way back.
+        document.getElementById('dashboardTopbarBtn').style.display = tab === 'cortex' ? 'none' : '';
     }
 
     // Unlike the old Subjects tab (which just swapped the sidebar list and
