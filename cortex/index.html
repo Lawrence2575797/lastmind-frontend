@@ -268,7 +268,6 @@
        to one column there the way the old full-width boxes always would
        have. */
     .topic-node-box { box-sizing: border-box; width: 135px; flex: 0 0 auto; background: var(--panel); color: var(--text); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
-    .topic-node-box.locked { opacity: 0.45; }
     .topic-node-title { font-weight: 700; font-size: 0.78rem; }
     .topic-node-actions { display: flex; gap: 6px; }
     /* Two small circles instead of two spelled-out buttons per box - see
@@ -1685,7 +1684,6 @@ SQIDAQAB
     // go - instead of a single top-to-bottom list, since a mechanism's real
     // prerequisite structure isn't always one straight line.
     function renderTopicMap(cardEl, state) {
-        const closure = topicAncestorsOf(state.nodes, state.edges, state.target);
         const depsOf = new Map(state.nodes.map((n) => [n.id, []]));
         state.edges.forEach((e) => { if (depsOf.has(e.to)) depsOf.get(e.to).push(e.from); });
         const labelOf = new Map(state.nodes.map((n) => [n.id, n.label]));
@@ -1703,15 +1701,15 @@ SQIDAQAB
         // "key" for what each one means, since a bare icon alone isn't
         // self-explanatory).
         const nodeBoxHtml = (n) => {
-            const inClosure = closure.has(n.id);
             const skipped = state.skip.has(n.id);
             const isTarget = n.id === state.target;
-            // Deliberately NOT dulled/highlighted by completion here (see
-            // .topic-node-box.done/.todo in learn/index.html's "Your Mind"
-            // graph for that treatment) - real, reported product decision:
-            // this compact in-chat preview should stay plain, the
-            // completed/dull distinction belongs only to the full map.
-            return `<div class="topic-node-box${!inClosure ? ' locked' : ''}" data-node="${n.id}">
+            // Deliberately plain, no dulled/highlighted/locked treatment
+            // here (see .topic-node-box.done/.todo in learn/index.html's
+            // "Your Mind" graph for that) - real, reported product
+            // decision: this compact in-chat preview stays the same for
+            // every node regardless of completion or relevance to the
+            // current goal.
+            return `<div class="topic-node-box" data-node="${n.id}">
                 <div class="topic-node-title" style="${skipped ? 'opacity:.6;text-decoration:line-through;' : ''}">${escapeHtmlTopic(n.label)}</div>
                 <div class="topic-node-actions">
                     <button type="button" class="topic-node-icon-btn${skipped ? ' on' : ''}" data-action="skip" data-node="${n.id}" title="I've covered this">${TOPIC_NODE_ICONS.skip}</button>
