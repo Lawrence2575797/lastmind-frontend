@@ -9917,6 +9917,14 @@ SQIDAQAB
     function renderWelcome(chatId, isNew = true) {
         stopActiveDictation();
         stopSpeaking();
+        // The single real choke point that paints the LastMind chat/
+        // dashboard itself (boot's default landing, the LastMind sidebar
+        // tab, opening a past chat) - hidden here rather than only inside
+        // setSidebarTab, since this is also reached directly (e.g. the
+        // default landing path) without necessarily going through that.
+        // Shown again by setSidebarTab('folders') or the delegated topbar
+        // click listener below, whichever actually navigates away first.
+        document.getElementById('dashboardTopbarBtn').style.display = 'none';
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
 
@@ -12815,6 +12823,22 @@ SQIDAQAB
     document.getElementById('createTopbarBtn').addEventListener('click', () => renderCreatePage(false));
     document.getElementById('rewardsTopbarBtn').addEventListener('click', renderRewardsPage);
     document.getElementById('dashboardTopbarBtn').addEventListener('click', goToMainFeed);
+    // Real, reported bug this fixes: several topbar destinations (Your
+    // Mind, Rewards, Create, Exam Preparation, Maths Tool, ...) navigate
+    // by calling their own render function directly from their OWN click
+    // handler, never through setSidebarTab - so renderWelcome's hide (see
+    // its own comment) never got undone on them, leaving Home hidden on
+    // every page reached this way, not just the LastMind chat it was
+    // meant for. One delegated listener on the whole topbar, rather than
+    // hand-editing every individual handler (past, present, and future),
+    // shows Home again the moment any OTHER topbar button is clicked -
+    // sidebarToggle/topbarFoldBtn excluded since those just toggle chrome,
+    // they don't navigate anywhere.
+    document.querySelector('.topbar').addEventListener('click', (e) => {
+        const btn = e.target.closest('button');
+        if (!btn || btn.id === 'dashboardTopbarBtn' || btn.id === 'sidebarToggle' || btn.id === 'topbarFoldBtn') return;
+        document.getElementById('dashboardTopbarBtn').style.display = '';
+    });
     // The sidebar logo is now the visible "back to feed" control (see its
     // own comment in the HTML) - keyboard-activatable too since it's a div
     // playing the role of a button, not a real one.
