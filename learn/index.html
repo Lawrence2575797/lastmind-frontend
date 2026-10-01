@@ -1201,6 +1201,31 @@
     .um-node-due { border-color: var(--accent); }
     .um-node-main { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
     .um-node-label { font-weight: 600; font-size: 0.92rem; }
+
+    /* Real, reported request: "Your Mind" showed covered concepts as a
+       flat text list instead of an actual map - replaced with the same
+       lateral (level = column, left to right), mastery-coloured box+arrow
+       treatment the rest of the site's own knowledge-map graph uses (see
+       renderKmInlineGraph's .state-0..4 palette, reused here directly) so
+       it reads as the same knowledge map, not a different UI. */
+    .um-graph-wrap { position: relative; overflow-x: auto; padding: 6px 4px 14px; }
+    .um-graph-svg { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+    .um-graph-cols { display: flex; gap: 40px; align-items: flex-start; position: relative; width: max-content; }
+    .um-graph-col { display: flex; flex-direction: column; gap: 14px; }
+    .um-graph-node {
+        box-sizing: border-box;
+        width: 160px;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.8rem;
+        font-weight: 700;
+        line-height: 1.3;
+        text-align: left;
+        cursor: pointer;
+    }
+    .um-graph-node:hover { outline: 2px solid var(--accent); outline-offset: 1px; }
     .um-badge { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
     .um-badge-mastered { background: rgba(120, 200, 150, 0.16); color: #78c896; }
     .um-badge-learning { background: rgba(230, 215, 176, 0.14); color: var(--text); opacity: 0.8; }
@@ -25177,51 +25202,12 @@ SQIDAQAB
             bySubject.get(n.subject).push(n);
         });
 
-        const depsOf = new Map(data.nodes.map((n) => [n.id, []]));
-        data.edges.forEach((e) => { if (depsOf.has(e.target)) depsOf.get(e.target).push(e.source); });
-        const labelOf = new Map(data.nodes.map((n) => [n.id, n.label]));
-        const now = new Date();
-
-        const clusters = Array.from(bySubject.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([subject, nodes]) => {
-            // Topological layers within this subject, purely for a sane
-            // roots-first reading order - the graph's real shape is edges,
-            // not this ranking.
-            const ids = new Set(nodes.map((n) => n.id));
-            const rank = new Map();
-            function depth(id, seen) {
-                if (rank.has(id)) return rank.get(id);
-                if (seen.has(id)) return 0; // a cycle would mean a server bug (DAGs are validated at generation time) - fail safe, not an infinite loop
-                seen.add(id);
-                const deps = (depsOf.get(id) || []).filter((d) => ids.has(d));
-                const d = deps.length ? 1 + Math.max(...deps.map((dep) => depth(dep, seen))) : 0;
-                rank.set(id, d);
-                return d;
-            }
-            nodes.forEach((n) => depth(n.id, new Set()));
-            const ordered = [...nodes].sort((a, b) => (rank.get(a.id) - rank.get(b.id)) || a.label.localeCompare(b.label));
-
-            const rows = ordered.map((n) => {
-                const detail = data.masteryDetail[n.id];
-                const state = data.mastery[n.id] ?? 1;
-                const isDue = !!(detail && detail.dueDate && new Date(detail.dueDate) <= now);
-                const deps = (depsOf.get(n.id) || []).filter((d) => ids.has(d));
-                const depsText = deps.length ? `builds on: ${deps.map((d) => labelOf.get(d) || d).join(', ')}` : 'starting point';
-                const dueText = detail && detail.dueDate ? formatDueIn(detail.dueDate) : '';
-                return `<button type="button" class="um-node${isDue ? ' um-node-due' : ''}" data-node="${n.id}">
-                    <div class="um-node-main">
-                        <span class="um-node-label">${escapeHtml(n.label)}</span>
-                        <span class="um-badge ${state === 2 ? 'um-badge-mastered' : 'um-badge-learning'}">${state === 2 ? 'Mastered' : 'Learning'}</span>
-                        ${isDue ? '<span class="um-badge um-badge-due">Due for review</span>' : ''}
-                    </div>
-                    <div class="um-node-sub">${escapeHtml(depsText)}${dueText ? ' · ' + escapeHtml(dueText) : ''}</div>
-                </button>`;
-            }).join('');
-
-            return `<div class="um-cluster">
+        const subjects = Array.from(bySubject.keys()).sort((a, b) => a.localeCompare(b));
+        const clusters = subjects.map((subject, i) => `
+            <div class="um-cluster">
                 <div class="um-cluster-title">${escapeHtml(subject)}</div>
-                <div class="um-cluster-rows">${rows}</div>
-            </div>`;
-        }).join('');
+                <div class="um-graph-wrap" data-cluster-id="um-cluster-${i}"><svg class="um-graph-svg"></svg><div class="um-graph-cols"></div></div>
+            </div>`).join('');
 
         contentInner.innerHTML = `
             <div class="um-view">
@@ -25233,7 +25219,82 @@ SQIDAQAB
             </div>`;
 
         const nodeById = new Map(data.nodes.map((n) => [n.id, n]));
-        contentInner.querySelectorAll('.um-node').forEach((btn) => {
+        const edgesBySourceSubject = data.edges.filter((e) => nodeById.has(e.source) && nodeById.has(e.target));
+        contentInner.querySelectorAll('.um-graph-wrap').forEach((wrapEl, i) => {
+            const subject = subjects[i];
+            const subjNodes = bySubject.get(subject);
+            const subjIds = new Set(subjNodes.map((n) => n.id));
+            // Prerequisite edges genuinely stay within one subject in
+            // practice (this unified view's own backend query never
+            // crosses subjects - see getUnifiedKnowledgeMapForUser) -
+            // scoped here anyway rather than assumed, same defensive
+            // habit as renderKmInlineGraph's own edge filtering.
+            const subjEdges = edgesBySourceSubject.filter((e) => subjIds.has(e.source) && subjIds.has(e.target));
+            renderUnifiedClusterGraph(wrapEl, subjNodes, subjEdges, data.masteryDetail, nodeById);
+        });
+    }
+
+    // Lays one subject's covered concepts out the same way the rest of
+    // the site's own knowledge-map graph does - lateral (level = column,
+    // left to right, not stacked top-to-bottom), each box coloured by the
+    // same 5-tier mastery palette renderKmInlineGraph uses (.state-0..4,
+    // reused directly here rather than a second one) - replacing the flat
+    // text-row list this view used to show, which read as a different UI
+    // from the knowledge map everywhere else on the site.
+    function umComputeLevels(nodes, edges) {
+        const ids = new Set(nodes.map((n) => n.id));
+        const depsOf = new Map(nodes.map((n) => [n.id, []]));
+        edges.forEach((e) => { if (depsOf.has(e.target)) depsOf.get(e.target).push(e.source); });
+        const levelOf = new Map();
+        function level(id, seen) {
+            if (levelOf.has(id)) return levelOf.get(id);
+            if (seen.has(id)) return 0; // a cycle would mean a server bug - fail safe, not an infinite loop
+            seen.add(id);
+            const deps = (depsOf.get(id) || []).filter((d) => ids.has(d));
+            const l = deps.length ? 1 + Math.max(...deps.map((d) => level(d, seen))) : 0;
+            levelOf.set(id, l);
+            return l;
+        }
+        nodes.forEach((n) => level(n.id, new Set()));
+        return levelOf;
+    }
+
+    const UM_TIER_COLORS = ['#4a453e', '#8a5a3f', '#c98a4b', '#e0ab5f', 'var(--accent)'];
+
+    function renderUnifiedClusterGraph(wrapEl, nodes, edges, masteryDetail, nodeById) {
+        const levelOf = umComputeLevels(nodes, edges);
+        const maxLevel = nodes.length ? Math.max(...nodes.map((n) => levelOf.get(n.id))) : 0;
+        const cols = Array.from({ length: maxLevel + 1 }, () => []);
+        nodes.slice().sort((a, b) => a.label.localeCompare(b.label)).forEach((n) => cols[levelOf.get(n.id)].push(n));
+
+        const nodeBoxHtml = (n) => {
+            const tier = masteryProgressTier(masteryDetail[n.id]);
+            const textColor = tier >= 2 ? 'var(--panel)' : 'var(--text)';
+            return `<button type="button" class="um-graph-node" data-node="${n.id}" style="background:${UM_TIER_COLORS[tier]};color:${textColor};">${escapeHtml(n.label)}</button>`;
+        };
+
+        wrapEl.querySelector('.um-graph-cols').innerHTML = cols.map((col) => `<div class="um-graph-col">${col.map(nodeBoxHtml).join('')}</div>`).join('');
+
+        const svgEl = wrapEl.querySelector('.um-graph-svg');
+        const wrapRect = wrapEl.getBoundingClientRect();
+        svgEl.setAttribute('width', wrapRect.width);
+        svgEl.setAttribute('height', wrapRect.height);
+        svgEl.setAttribute('viewBox', `0 0 ${wrapRect.width} ${wrapRect.height}`);
+        const markerId = `${wrapEl.dataset.clusterId}-arrow`;
+        const defs = `<defs><marker id="${markerId}" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--panel)" /></marker></defs>`;
+        const paths = edges.map((e) => {
+            const fromEl = wrapEl.querySelector(`[data-node="${e.source}"]`);
+            const toEl = wrapEl.querySelector(`[data-node="${e.target}"]`);
+            if (!fromEl || !toEl) return '';
+            const fr = fromEl.getBoundingClientRect(), tr = toEl.getBoundingClientRect();
+            const x1 = fr.right - wrapRect.left, y1 = fr.top + fr.height / 2 - wrapRect.top;
+            const x2 = tr.left - wrapRect.left, y2 = tr.top + tr.height / 2 - wrapRect.top;
+            const midX = (x1 + x2) / 2;
+            return `<path d="M${x1},${y1} C${midX},${y1} ${midX},${y2} ${x2},${y2}" stroke="var(--panel)" stroke-width="2" fill="none" opacity="0.45" marker-end="url(#${markerId})" />`;
+        }).join('');
+        svgEl.innerHTML = defs + paths;
+
+        wrapEl.querySelectorAll('.um-graph-node').forEach((btn) => {
             btn.addEventListener('click', () => openUnifiedMapNode(nodeById.get(btn.dataset.node)));
         });
     }
