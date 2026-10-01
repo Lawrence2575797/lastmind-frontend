@@ -269,14 +269,6 @@
        have. */
     .topic-node-box { box-sizing: border-box; width: 135px; flex: 0 0 auto; background: var(--panel); color: var(--text); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
     .topic-node-box.locked { opacity: 0.45; }
-    /* Real, reported request: a covered concept should read as genuinely
-       done (highlighted), not just a strikethrough label - and anything
-       not yet covered should read as dull, so progress across the map is
-       visible at a glance rather than something you have to read each
-       title to notice. */
-    .topic-node-box.done { background: var(--accent); color: var(--panel); }
-    .topic-node-box.done .topic-node-title { text-decoration: line-through; opacity: 0.8; }
-    .topic-node-box.todo { opacity: 0.55; }
     .topic-node-title { font-weight: 700; font-size: 0.78rem; }
     .topic-node-actions { display: flex; gap: 6px; }
     /* Two small circles instead of two spelled-out buttons per box - see
@@ -1714,9 +1706,13 @@ SQIDAQAB
             const inClosure = closure.has(n.id);
             const skipped = state.skip.has(n.id);
             const isTarget = n.id === state.target;
-            const stateClass = !inClosure ? ' locked' : (skipped ? ' done' : ' todo');
-            return `<div class="topic-node-box${stateClass}" data-node="${n.id}">
-                <div class="topic-node-title">${escapeHtmlTopic(n.label)}</div>
+            // Deliberately NOT dulled/highlighted by completion here (see
+            // .topic-node-box.done/.todo in learn/index.html's "Your Mind"
+            // graph for that treatment) - real, reported product decision:
+            // this compact in-chat preview should stay plain, the
+            // completed/dull distinction belongs only to the full map.
+            return `<div class="topic-node-box${!inClosure ? ' locked' : ''}" data-node="${n.id}">
+                <div class="topic-node-title" style="${skipped ? 'opacity:.6;text-decoration:line-through;' : ''}">${escapeHtmlTopic(n.label)}</div>
                 <div class="topic-node-actions">
                     <button type="button" class="topic-node-icon-btn${skipped ? ' on' : ''}" data-action="skip" data-node="${n.id}" title="I've covered this">${TOPIC_NODE_ICONS.skip}</button>
                     <button type="button" class="topic-node-icon-btn${isTarget ? ' on' : ''}" data-action="target" data-node="${n.id}" title="Make this the goal">${TOPIC_NODE_ICONS.target}</button>

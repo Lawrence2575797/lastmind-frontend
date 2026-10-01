@@ -3421,6 +3421,37 @@
         line-height: 1.6;
     }
 
+    /* "Your Mind" root sidebar: lists Cortex-built custom topics so they're
+       reachable from the main app, not just the chat that built them - a
+       freshly built map has no real progress yet, so it wouldn't otherwise
+       appear in the unified cross-subject graph (which only shows concepts
+       with actual review history). */
+    .custom-topics-section { padding: 4px 12px 16px; }
+    .custom-topics-heading {
+        font-family: 'Arial', sans-serif;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        opacity: 0.45;
+        padding: 0 0 8px;
+    }
+    .custom-topic-row {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: var(--panel-2, rgba(0,0,0,0.04));
+        border: none;
+        border-radius: 8px;
+        padding: 10px 12px;
+        margin-bottom: 6px;
+        font-family: 'Arial', sans-serif;
+        font-size: 0.85rem;
+        cursor: pointer;
+        color: inherit;
+    }
+    .custom-topic-row:hover { opacity: 0.85; }
+
     .plan-progress-wrap {
         padding: 4px 12px 16px;
     }
@@ -6290,7 +6321,7 @@
 
             <div class="sidebar-tabs">
                 <button class="sidebar-tab-btn" id="cortexTabBtn" type="button">LastMind</button>
-                <button class="sidebar-tab-btn active" id="foldersTabBtn" type="button">Knowledge Map</button>
+                <button class="sidebar-tab-btn active" id="foldersTabBtn" type="button">Your Mind</button>
             </div>
 
             <div class="folder-list" id="folderList">
@@ -6581,7 +6612,7 @@
                          Tutoring are both single destinations now, so they're plain buttons. Overdue Requests/Buy Extra Locks
                          (each independently display:none by default, only shown by their own conditional logic elsewhere)
                          moved out to sit flat here too - nothing about their own visibility logic changed. -->
-                    <button class="cortex-btn-topbar" id="knowledgeMapTopbarBtn" type="button">Your knowledge</button>
+                    <button class="cortex-btn-topbar" id="knowledgeMapTopbarBtn" type="button">Your Mind</button>
                     <!-- Async peer tutoring ("Give help"/"Ask for help") hidden from the visible UI by explicit product
                          decision - live, founder-led tutoring is the only tutoring surface shown for now. Code/handlers left
                          fully intact, same one-line-revert pattern as createTopbarBtn/rewardsTopbarBtn above (drop the two
@@ -9557,15 +9588,77 @@ SQIDAQAB
         listEl.innerHTML = '';
 
         listEl.appendChild(buildDrillHeader({
-            title: 'Knowledge Map'
+            title: 'Your Mind'
         }));
 
         const hint = document.createElement('div');
         hint.className = 'empty-hint';
         hint.textContent = folders.length
-            ? 'Your knowledge map is shown on the right, covering everything you\'ve started across every subject.'
+            ? 'Your mind is shown on the right, covering everything you\'ve started across every subject.'
             : 'Nothing covered yet — ask Cortex to teach you something new to get started.';
         listEl.appendChild(hint);
+
+        // Cortex-built custom topics ("teach me X") have no real progress
+        // yet the moment they're built, so they're invisible in the
+        // unified cross-subject graph above (which only shows concepts
+        // with actual concept_reviews history) until a lesson's actually
+        // done - this surfaces them here too, so building a map in chat
+        // doesn't strand it there until you've started it.
+        fetchMyCustomTopics().then((topics) => {
+            if (!topics.length) return;
+            if (selectedFolderId !== null) return; // navigated away from this root view before the fetch resolved
+            const section = document.createElement('div');
+            section.className = 'custom-topics-section';
+            const heading = document.createElement('div');
+            heading.className = 'custom-topics-heading';
+            heading.textContent = "Maps you're building in chat";
+            section.appendChild(heading);
+            topics.forEach((t) => {
+                const row = document.createElement('button');
+                row.type = 'button';
+                row.className = 'custom-topic-row';
+                row.textContent = `${t.subject} (${t.nodeCount} concept${t.nodeCount === 1 ? '' : 's'})`;
+                row.addEventListener('click', () => openCustomTopicMap(t));
+                section.appendChild(row);
+            });
+            listEl.appendChild(section);
+        }).catch((err) => console.error('LastMind: could not load your custom topics.', err));
+    }
+
+    // GET /knowledge-map-v2/topic/mine -> this student's own Cortex-built
+    // custom topics (see topicKnowledgeMapService.ts's listMyCustomTopics),
+    // each one a private generation instance identified by its own
+    // examBoard token - resolves to [] (never throws) so a failure here
+    // just means the section above doesn't render, not a broken tab.
+    async function fetchMyCustomTopics() {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return [];
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/topic/mine`, {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!resp.ok) return [];
+            const data = await resp.json();
+            return Array.isArray(data.topics) ? data.topics : [];
+        } catch (err) {
+            console.error('LastMind: fetching custom topics failed.', err);
+            return [];
+        }
+    }
+
+    // Opens a Cortex-built custom topic's own graph exactly the way a real
+    // subject folder's would (same renderKnowledgeMapForFolder pipeline),
+    // via a synthetic folder-shaped object rather than a real row in the
+    // student's own `folders` list - this topic was never "added as a
+    // subject", it was built ad hoc in chat, so it deliberately doesn't
+    // show up in the Subjects tab's folder tree the way a real subject
+    // would. GET /knowledge-map-v2 (see knowledgeMapService.ts's
+    // getKnowledgeMapForSubject) already resolves any subject/qualification/
+    // examBoard triple generically, custom topics included.
+    function openCustomTopicMap(topic) {
+        const folder = { id: `custom-topic:${topic.examBoard}`, subject: topic.subject, qualification: 'Other', examBoard: topic.examBoard };
+        selectedFolderId = folder.id;
+        renderKnowledgeMapForFolder(folder);
     }
 
     // Inside a folder: its subfolders (with "+ Create new subfolder"), plus
@@ -12917,7 +13010,7 @@ SQIDAQAB
             selectFolder(mapFolder.id);
             return;
         }
-        document.getElementById('topbarTitle').textContent = 'Knowledge Map';
+        document.getElementById('topbarTitle').textContent = 'Your Mind';
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
         contentInner.innerHTML = `
@@ -17260,7 +17353,7 @@ SQIDAQAB
         { selector: '#createFolderBtn', title: 'Create a subject', body: "Click here to add each subject you're studying. LastMind builds your personalized learning path inside it, starting from your current knowledge level." },
         { selector: null, title: 'Your learning feed', body: 'When you select a subject, lessons appear in a scrolling feed. Each lesson teaches you a concept, then tests your understanding. Work through them at your own pace.' },
         { selector: null, title: 'Spaced repetition', body: 'After you learn something, LastMind brings it back periodically to cement it in memory. The schedule adapts based on how confident you feel, so harder topics come up more often.' },
-        { selector: '#knowledgeMapTopbarBtn', title: 'Explore the map', body: "Open Knowledge Map to see every concept in a subject and how they connect. This is your complete learning roadmap — you can jump to any topic, but your feed always suggests the best next step." },
+        { selector: '#knowledgeMapTopbarBtn', title: 'Explore the map', body: "Open Your Mind to see every concept in a subject and how they connect. This is your complete learning roadmap — you can jump to any topic, but your feed always suggests the best next step." },
         { selector: '#cortexTabBtn', title: 'Get help anytime', body: "Stuck on something? Ask LastMind for explanations, exam tips, or just to talk through a tricky concept. It understands what you're learning and can help you think it through." },
         // The "Exam preparation" step that used to point at
         // #practiceQuestionsTopbarBtn was removed along with keeping that
@@ -17294,7 +17387,7 @@ SQIDAQAB
 
     const FEATURE_TUTORIALS = {
         knowledgeMap: [
-            { selector: null, title: 'Knowledge Map', body: 'This shows every concept in the subject. Boxes are individual topics, lines connect related ideas. Colored boxes show your progress — blue for mastered, grey for still learning.' },
+            { selector: null, title: 'Your Mind', body: 'This shows every concept in the subject. Boxes are individual topics, lines connect related ideas. Colored boxes show your progress — blue for mastered, grey for still learning.' },
             { selector: null, title: 'Navigate the map', body: 'Click any box to jump directly to that lesson. The map updates as you learn, so you can always see what\'s next and how concepts fit together.' },
             { selector: null, title: 'Plan your study', body: 'See prerequisites before attempting harder topics. Your feed suggests the best order, but the map lets you explore and plan your own path through the material.' }
         ],
@@ -24257,7 +24350,7 @@ SQIDAQAB
     async function sfOpenNodeLessonInFeed(folder, node, returnToKnowledgeMap = true) {
         selectedSidebarLessonNodeId = node.id;
         renderSidebarSelection();
-        const closeLabel = returnToKnowledgeMap ? 'Back to Knowledge Map' : `Back to ${folderLabel(folder)}`;
+        const closeLabel = returnToKnowledgeMap ? 'Back to Your Mind' : `Back to ${folderLabel(folder)}`;
         const onClose = returnToKnowledgeMap ? () => renderKnowledgeMapForFolder(folder) : () => sfShowFolderFeed(folder);
         const { viewportEl, trackEl } = sfMountFeedShell(closeLabel, onClose, folder, true);
         const activeFeed = sfFeed;
@@ -25072,7 +25165,7 @@ SQIDAQAB
         if (!data.nodes || !data.nodes.length) {
             contentInner.innerHTML = `
                 <div class="um-view um-empty">
-                    <h1 class="um-title">Your knowledge on LastMind</h1>
+                    <h1 class="um-title">Your Mind</h1>
                     <p class="um-sub">No concepts covered yet — complete a lesson to get started. Everything you learn shows up here, linked to whatever it actually builds on.</p>
                 </div>`;
             return;
@@ -25133,7 +25226,7 @@ SQIDAQAB
         contentInner.innerHTML = `
             <div class="um-view">
                 <div class="um-header">
-                    <h1 class="um-title">Your knowledge on LastMind</h1>
+                    <h1 class="um-title">Your Mind</h1>
                     <p class="um-sub">Everything you've covered so far, across every subject — click any concept to continue it.</p>
                 </div>
                 <div class="um-clusters">${clusters}</div>
@@ -30062,7 +30155,7 @@ SQIDAQAB
                 return true;
             }
 
-            const { viewportEl } = sfMountFeedShell('Back to Knowledge Map', () => renderKnowledgeMapForFolder(folder), folder, true);
+            const { viewportEl } = sfMountFeedShell('Back to Your Mind', () => renderKnowledgeMapForFolder(folder), folder, true);
             sfLoadSidePracticePanel(folder, d.conceptId, d.label);
             for (const item of items) {
                 if (!sfFeed) return true; // closed while a fetch was in flight - not a failure
