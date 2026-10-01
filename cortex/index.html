@@ -183,6 +183,20 @@
 
     .chat-empty-logo-icon { flex-shrink: 0; width: clamp(105px, 18vw, 170px); height: auto; }
 
+    /* Sits right under the LastMind wordmark, same centerpiece block - a
+       plain, non-italic sans line (not the greeting/quote's italic serif
+       treatment above) so it reads as the brand's own tagline, not another
+       rotating quote. Deliberately much smaller than the wordmark itself
+       and a touch translucent - a strapline, not a second headline. */
+    .chat-empty-slogan {
+        font-family: Arial, Helvetica, sans-serif;
+        font-weight: 600;
+        font-style: normal;
+        letter-spacing: 0.01em;
+        font-size: clamp(0.85rem, 1.6vw, 1rem);
+        opacity: 0.6;
+    }
+
     /* The empty-state topic suggestion chips (topic-learn-card/
        topic-learn-suggestions/topic-learn-chip, populated by
        loadTopicSuggestions) were removed by explicit request - the chat
@@ -255,6 +269,14 @@
        have. */
     .topic-node-box { box-sizing: border-box; width: 135px; flex: 0 0 auto; background: var(--panel); color: var(--text); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
     .topic-node-box.locked { opacity: 0.45; }
+    /* Real, reported request: a covered concept should read as genuinely
+       done (highlighted), not just a strikethrough label - and anything
+       not yet covered should read as dull, so progress across the map is
+       visible at a glance rather than something you have to read each
+       title to notice. */
+    .topic-node-box.done { background: var(--accent); color: var(--panel); }
+    .topic-node-box.done .topic-node-title { text-decoration: line-through; opacity: 0.8; }
+    .topic-node-box.todo { opacity: 0.55; }
     .topic-node-title { font-weight: 700; font-size: 0.78rem; }
     .topic-node-actions { display: flex; gap: 6px; }
     /* Two small circles instead of two spelled-out buttons per box - see
@@ -539,6 +561,7 @@
                     <h1 class="chat-empty-logo">
                         <img class="chat-empty-logo-icon" src="/icons/lastmind-logo.png" alt="LastMind" width="110" height="110" />
                         <span>LastMind</span>
+                        <span class="chat-empty-slogan">Anyone can learn anything.</span>
                     </h1>
                 </div>
             </div>
@@ -1153,6 +1176,21 @@ SQIDAQAB
     // Reuses the AUTH_STORE as a generic small key-value store — same
     // pattern already used elsewhere (e.g. the stored subscription ID),
     // rather than adding a whole new object store just for this.
+    // Real, reported request: a chat started with "teach me eigenvalues
+    // and eigenvectors" got the title "teach me eigenvalues and
+    // eigenvectors" verbatim (the old logic was a plain slice(0, 48) of
+    // the first message, no stripping at all) - strips a leading
+    // request-style phrase so the title reads as just the topic/question
+    // itself, the way a person would actually name the chat.
+    function autoChatTitle(firstMessage) {
+        const stripped = (firstMessage || '').trim().replace(
+            /^(?:(?:can|could|would) you |please )*(?:teach me(?: how to)?|show me how to|help me (?:learn|understand)|i(?:'d| would)? like to learn(?: about)?|i want to learn(?: about)?|let'?s (?:do|learn|cover|go over)|how about (?:we )?(?:do|cover|going over)?|can we (?:do|cover|learn)|explain)\s+/i,
+            ''
+        ).trim();
+        const title = stripped || firstMessage.trim();
+        return title.charAt(0).toUpperCase() + title.slice(1, 48);
+    }
+
     async function saveChatHistory() {
         await ensureSessionReady();
         if (!activeSessionId) return;
@@ -1168,7 +1206,7 @@ SQIDAQAB
             // whatever title it already has (auto-generated or manually
             // renamed) is preserved indefinitely.
             const firstUserTurn = chatHistory.find((t) => t.role === 'user');
-            const title = idx >= 0 ? sessions[idx].title : (firstUserTurn ? firstUserTurn.content.slice(0, 48) : 'New chat');
+            const title = idx >= 0 ? sessions[idx].title : (firstUserTurn ? autoChatTitle(firstUserTurn.content) : 'New chat');
             const updated = { id: activeSessionId, title, createdAt: idx >= 0 ? sessions[idx].createdAt : Date.now(), updatedAt: Date.now(), messages: chatHistory };
             if (idx >= 0) sessions[idx] = updated; else sessions.unshift(updated);
             await saveSessions(sessions);
@@ -1676,8 +1714,9 @@ SQIDAQAB
             const inClosure = closure.has(n.id);
             const skipped = state.skip.has(n.id);
             const isTarget = n.id === state.target;
-            return `<div class="topic-node-box${!inClosure ? ' locked' : ''}" data-node="${n.id}">
-                <div class="topic-node-title" style="${skipped ? 'opacity:.6;text-decoration:line-through;' : ''}">${escapeHtmlTopic(n.label)}</div>
+            const stateClass = !inClosure ? ' locked' : (skipped ? ' done' : ' todo');
+            return `<div class="topic-node-box${stateClass}" data-node="${n.id}">
+                <div class="topic-node-title">${escapeHtmlTopic(n.label)}</div>
                 <div class="topic-node-actions">
                     <button type="button" class="topic-node-icon-btn${skipped ? ' on' : ''}" data-action="skip" data-node="${n.id}" title="I've covered this">${TOPIC_NODE_ICONS.skip}</button>
                     <button type="button" class="topic-node-icon-btn${isTarget ? ' on' : ''}" data-action="target" data-node="${n.id}" title="Make this the goal">${TOPIC_NODE_ICONS.target}</button>
@@ -1692,7 +1731,7 @@ SQIDAQAB
             : `You already know everything needed for this target - pick a further one, or start anyway.`;
 
         cardEl.innerHTML = `
-            <div class="topic-map-heading">Your knowledge map for “${escapeHtmlTopic(state.subject)}”</div>
+            <div class="topic-map-heading">Your mind map for “${escapeHtmlTopic(state.subject)}”</div>
             <div class="topic-graph-wrap">
                 <svg class="topic-graph-svg"></svg>
                 <div class="topic-graph-rows">
@@ -2120,7 +2159,10 @@ SQIDAQAB
     // mutate a possibly long-scrolled-past earlier card in place) is
     // simplest and matches how every other map/lesson update in this chat
     // already appears as its own new card.
-    async function extendTopicMapBackwardFlow(subject) {
+    async function extendTopicMapDirectionFlow(priorState, direction) {
+        const endpoint = direction === 'forward' ? 'extend-forward' : 'extend-backward';
+        const verb = direction === 'forward' ? 'further forward' : 'further back';
+        const subject = priorState.subject;
         const card = appendCardMessage(`
             <div class="topic-loading-wrap">
                 ${TOPIC_LOADING_WIRES_SVG}
@@ -2131,15 +2173,20 @@ SQIDAQAB
         try {
             const accessToken = await getSyncAccessToken();
             if (!accessToken) { stopRotator(); card.innerHTML = '<div class="topic-map-error">You need to be signed in to do that.</div>'; return; }
-            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/topic/extend-backward`, {
+            // examBoard (round-tripped verbatim from this exact map's own
+            // earlier response) identifies the one specific, private
+            // generation instance to extend - topic maps are no longer
+            // shared/looked-up by subject text alone (see
+            // topicKnowledgeMapService.ts's own top comment).
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/topic/${endpoint}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-                body: JSON.stringify({ topic: subject }),
+                body: JSON.stringify({ topic: subject, examBoard: priorState.examBoard }),
             });
             stopRotator();
             if (resp.status === 402) { card.innerHTML = "<div class=\"topic-map-error\">You're out of Locks for now - come back once they refresh.</div>"; return; }
             if (resp.status === 429) { card.innerHTML = '<div class="topic-map-error">Too many lessons requested at once - try again shortly.</div>'; return; }
-            if (!resp.ok) { card.innerHTML = '<div class="topic-map-error">Could not extend that map further back. Try again shortly.</div>'; return; }
+            if (!resp.ok) { card.innerHTML = `<div class="topic-map-error">Could not extend that map ${verb}. Try again shortly.</div>`; return; }
             const data = await resp.json();
             if (!data.nodes || !data.nodes.length) { card.innerHTML = '<div class="topic-map-error">No usable map came back. Try again.</div>'; return; }
             const taskNode = data.nodes.find((n) => n.isFinalTask) || data.nodes[data.nodes.length - 1];
@@ -2148,7 +2195,7 @@ SQIDAQAB
             renderTopicMap(card, state);
             topicMapState = state; // kept as "most recently shown map", same convention as startTopicLearnFlow
             recordSilentContext(
-                `[Extended the knowledge map for "${state.subject}" further back: ${state.nodes.length} concepts now - ${state.nodes.map((n) => n.label).join(', ')}.]`,
+                `[Extended the knowledge map for "${state.subject}" ${verb}: ${state.nodes.length} concepts now - ${state.nodes.map((n) => n.label).join(', ')}.]`,
                 'map',
                 { subject: state.subject, qualification: state.qualification, examBoard: state.examBoard, nodes: state.nodes, edges: state.edges }
             );
@@ -2545,7 +2592,7 @@ SQIDAQAB
                 const retry = pendingLessonRetry;
                 pendingLessonRetry = null;
                 retry();
-            } else if (result.extendPrerequisitesBackward) {
+            } else if (result.extendPrerequisitesBackward || result.extendPrerequisitesForward) {
                 // Same "declared intent, deterministic frontend code acts
                 // on it" pattern as beginQueuedLessons above, with the same
                 // guard against a confident-sounding reply doing nothing:
@@ -2553,7 +2600,7 @@ SQIDAQAB
                 // extend, since the student's message won't necessarily
                 // repeat the topic by name.
                 if (topicMapState) {
-                    extendTopicMapBackwardFlow(topicMapState.subject);
+                    extendTopicMapDirectionFlow(topicMapState, result.extendPrerequisitesForward ? 'forward' : 'backward');
                 } else {
                     appendAssistantMessage("I don't actually have a topic map loaded right now to extend - tell me what you'd like to learn and I'll build one.");
                 }
