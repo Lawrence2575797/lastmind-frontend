@@ -6976,9 +6976,14 @@
         <button class="btn primary" id="saveAccountSettingsBtn" style="width:100%;">Save Password</button>
         <div class="account-status" id="accountSettingsStatus"></div>
 
-        <div class="my-account-divider" id="ptOptInDivider"></div>
+        <!-- Peer tutoring opt-in hidden from My Account by explicit product
+             decision - tutoring is no longer an option offered to users.
+             Code/handlers left fully intact, same one-line-revert pattern
+             (drop these two inline styles) as every other hidden feature in
+             this app. -->
+        <div class="my-account-divider" id="ptOptInDivider" style="display:none;"></div>
 
-        <div id="ptOptInSection">
+        <div id="ptOptInSection" style="display:none;">
             <label class="dont-know-label">
                 <input type="checkbox" id="ptOptInCheckbox">
                 Take part as a tutor — get matched to help others with concepts you've mastered
@@ -19017,10 +19022,11 @@ SQIDAQAB
         document.getElementById('accountSettingsStatus').textContent = '';
         document.getElementById('accountSettingsStatus').classList.remove('error');
         document.getElementById('ptOptInStatus').textContent = '';
-        // Tutoring opt-in (matchable as a tutor) - on for every plan.
-        document.getElementById('ptOptInSection').style.display = '';
-        document.getElementById('ptOptInDivider').style.display = '';
-        if (session) loadTutoringOptInStatus(session);
+        // Tutoring opt-in hidden by explicit product decision - tutoring is
+        // no longer an option offered to users (see the section's own HTML
+        // comment). Was: unconditionally shown here on every plan - dropping
+        // these two lines (and loadTutoringOptInStatus below) is the whole
+        // revert, same pattern as every other hidden feature in this app.
         document.getElementById('myAccountOverlay').classList.add('open');
     });
 
