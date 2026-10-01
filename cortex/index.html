@@ -2112,6 +2112,52 @@ SQIDAQAB
             card.innerHTML = '<div class="topic-map-error">Something went wrong building that lesson. Try again.</div>';
         }
     }
+    // Adds new, earlier prerequisite nodes in front of an existing topic
+    // map's current root(s), then re-renders the (now extended) map as a
+    // fresh boxed card - fired from extendPrerequisitesBackward below when
+    // a student says the map's starting point assumes too much. Mirrors
+    // startTopicLearnFlow's shape; a fresh card (rather than trying to
+    // mutate a possibly long-scrolled-past earlier card in place) is
+    // simplest and matches how every other map/lesson update in this chat
+    // already appears as its own new card.
+    async function extendTopicMapBackwardFlow(subject) {
+        const card = appendCardMessage(`
+            <div class="topic-loading-wrap">
+                ${TOPIC_LOADING_WIRES_SVG}
+                <div class="topic-loading-text"></div>
+            </div>
+        `);
+        const stopRotator = startLoadingRotator(card.querySelector('.topic-loading-text'), topicMapLoadingMessages(subject));
+        try {
+            const accessToken = await getSyncAccessToken();
+            if (!accessToken) { stopRotator(); card.innerHTML = '<div class="topic-map-error">You need to be signed in to do that.</div>'; return; }
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/topic/extend-backward`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                body: JSON.stringify({ topic: subject }),
+            });
+            stopRotator();
+            if (resp.status === 402) { card.innerHTML = "<div class=\"topic-map-error\">You're out of Locks for now - come back once they refresh.</div>"; return; }
+            if (resp.status === 429) { card.innerHTML = '<div class="topic-map-error">Too many lessons requested at once - try again shortly.</div>'; return; }
+            if (!resp.ok) { card.innerHTML = '<div class="topic-map-error">Could not extend that map further back. Try again shortly.</div>'; return; }
+            const data = await resp.json();
+            if (!data.nodes || !data.nodes.length) { card.innerHTML = '<div class="topic-map-error">No usable map came back. Try again.</div>'; return; }
+            const taskNode = data.nodes.find((n) => n.isFinalTask) || data.nodes[data.nodes.length - 1];
+            const skip = new Set(data.nodes.filter((n) => n.completed).map((n) => n.id));
+            const state = { subject: data.subject, qualification: data.qualification, examBoard: data.examBoard, nodes: topicTopologicalOrder(data.nodes, data.edges), edges: data.edges, skip, target: taskNode.id };
+            renderTopicMap(card, state);
+            topicMapState = state; // kept as "most recently shown map", same convention as startTopicLearnFlow
+            recordSilentContext(
+                `[Extended the knowledge map for "${state.subject}" further back: ${state.nodes.length} concepts now - ${state.nodes.map((n) => n.label).join(', ')}.]`,
+                'map',
+                { subject: state.subject, qualification: state.qualification, examBoard: state.examBoard, nodes: state.nodes, edges: state.edges }
+            );
+            promptLessonContinuation(LESSON_START_PROMPTS, () => startTopicTeachSequence(state));
+        } catch (err) {
+            stopRotator();
+            card.innerHTML = '<div class="topic-map-error">Something went wrong extending that map. Try again.</div>';
+        }
+    }
     function appendUserMessage(text) {
         clearEmptyHint();
         const el = document.createElement('div');
@@ -2499,6 +2545,18 @@ SQIDAQAB
                 const retry = pendingLessonRetry;
                 pendingLessonRetry = null;
                 retry();
+            } else if (result.extendPrerequisitesBackward) {
+                // Same "declared intent, deterministic frontend code acts
+                // on it" pattern as beginQueuedLessons above, with the same
+                // guard against a confident-sounding reply doing nothing:
+                // topicMapState is the only source of "which map" to
+                // extend, since the student's message won't necessarily
+                // repeat the topic by name.
+                if (topicMapState) {
+                    extendTopicMapBackwardFlow(topicMapState.subject);
+                } else {
+                    appendAssistantMessage("I don't actually have a topic map loaded right now to extend - tell me what you'd like to learn and I'll build one.");
+                }
             }
         } catch (err) {
             console.error('LastMind Cortex: message failed.', err);
