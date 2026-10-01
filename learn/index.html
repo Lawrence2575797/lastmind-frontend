@@ -1192,9 +1192,9 @@
     .um-header { margin-bottom: 28px; }
     .um-title { font-family: 'Lora', Georgia, serif; font-size: clamp(1.9rem, 4.2vw, 2.6rem); font-weight: 700; margin: 0 0 14px; color: var(--text); background: var(--panel); display: inline-block; padding: 14px 28px; border-radius: 12px; }
     .um-empty .um-title { display: block; margin-left: auto; margin-right: auto; width: fit-content; }
-    .um-sub { font-size: 0.9rem; opacity: 0.7; margin: 0; }
+    .um-sub { font-size: 0.9rem; opacity: 0.7; margin: 0; color: var(--panel); }
     .um-cluster { margin-bottom: 26px; }
-    .um-cluster-title { font-size: 0.78rem; letter-spacing: 0.07em; text-transform: uppercase; opacity: 0.6; font-weight: 700; margin-bottom: 10px; }
+    .um-cluster-title { font-size: 0.78rem; letter-spacing: 0.07em; text-transform: uppercase; opacity: 0.6; font-weight: 700; margin-bottom: 10px; color: var(--panel); }
     .um-cluster-rows { display: flex; flex-direction: column; gap: 8px; }
     .um-node { display: block; width: 100%; text-align: left; background: var(--panel); border: 1px solid rgba(230, 215, 176, 0.16); border-radius: 8px; padding: 12px 14px; cursor: pointer; font-family: inherit; color: var(--text); }
     .um-node:hover { border-color: rgba(230, 215, 176, 0.4); }
@@ -1224,6 +1224,8 @@
         line-height: 1.3;
         text-align: left;
         cursor: pointer;
+        background: var(--panel);
+        color: var(--accent);
     }
     .um-graph-node:hover { outline: 2px solid var(--accent); outline-offset: 1px; }
     .um-badge { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
@@ -25259,19 +25261,13 @@ SQIDAQAB
         return levelOf;
     }
 
-    const UM_TIER_COLORS = ['#4a453e', '#8a5a3f', '#c98a4b', '#e0ab5f', 'var(--accent)'];
-
     function renderUnifiedClusterGraph(wrapEl, nodes, edges, masteryDetail, nodeById) {
         const levelOf = umComputeLevels(nodes, edges);
         const maxLevel = nodes.length ? Math.max(...nodes.map((n) => levelOf.get(n.id))) : 0;
         const cols = Array.from({ length: maxLevel + 1 }, () => []);
         nodes.slice().sort((a, b) => a.label.localeCompare(b.label)).forEach((n) => cols[levelOf.get(n.id)].push(n));
 
-        const nodeBoxHtml = (n) => {
-            const tier = masteryProgressTier(masteryDetail[n.id]);
-            const textColor = tier >= 2 ? 'var(--panel)' : 'var(--text)';
-            return `<button type="button" class="um-graph-node" data-node="${n.id}" style="background:${UM_TIER_COLORS[tier]};color:${textColor};">${escapeHtml(n.label)}</button>`;
-        };
+        const nodeBoxHtml = (n) => `<button type="button" class="um-graph-node" data-node="${n.id}">${escapeHtml(n.label)}</button>`;
 
         wrapEl.querySelector('.um-graph-cols').innerHTML = cols.map((col) => `<div class="um-graph-col">${col.map(nodeBoxHtml).join('')}</div>`).join('');
 
