@@ -6622,9 +6622,8 @@
                      here puts every topbar button in the one row that
                      actually handles overflow. -->
                 <div class="topbar-actions" id="topbarActions">
-                    <!-- Not release-ready yet - shown only on localhost during development (see the isLocalhostDev check
-                         near this button's click handler below), hidden everywhere else. Code/handlers left fully intact. -->
-                    <button class="cortex-btn-topbar" id="createTopbarBtn" type="button" style="display:none;">Create</button>
+                    <!-- LastMind Create is live for everyone again (was localhost-only while not release-ready). -->
+                    <button class="cortex-btn-topbar" id="createTopbarBtn" type="button">Create</button>
                     <!-- Rewards temporarily hidden site-wide (not localhost-gated like Create above) - code/handlers left
                          fully intact so this is a one-line revert (drop the inline style) when it's ready to come back. -->
                     <button class="cortex-btn-topbar" id="rewardsTopbarBtn" type="button" style="display:none;">Rewards <span class="rewards-topbar-keys" title="Your Keys"><span id="rewardsTopbarKeys">0</span> 🔑</span></button>
@@ -12852,10 +12851,6 @@ SQIDAQAB
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goToMainFeed(); }
     });
 
-    // LastMind Create isn't release-ready yet - keep it reachable on localhost during development, hidden for real
-    // users everywhere else. The button/handler above are untouched; this only toggles visibility.
-    const isLocalhostDev = ['localhost', '127.0.0.1'].includes(location.hostname);
-    if (isLocalhostDev) document.getElementById('createTopbarBtn').style.display = '';
 
     async function prFetch(path) {
         const { data: { session } } = await supabaseClient.auth.getSession();
