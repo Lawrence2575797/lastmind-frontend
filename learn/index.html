@@ -11160,15 +11160,42 @@ SQIDAQAB
             ? { where: 'browser', note: 'Saved in this browser (the shared projects table has not been set up yet).' }
             : { where: null, note: 'Could not save: this browser has no space left.' };
     }
+    // The football manager season is saved by its own page. Read that save directly, so it is listed as a project even if the game page
+    // has not been opened since this list was added.
+    function createFootballProject() {
+        try {
+            const raw = localStorage.getItem('lm_football_save_v1');
+            if (!raw) return null;
+            const d = JSON.parse(raw);
+            const team = (d.teams || []).find((t) => t.id === d.userId);
+            if (!team) return null;
+            const mine = (d.fixtures || []).filter((f) => f.played && (f.homeId === d.userId || f.awayId === d.userId)).length;
+            const rows = {};
+            (d.teams || []).forEach((t) => { rows[t.id] = { id: t.id, pts: 0, gf: 0, ga: 0 }; });
+            (d.fixtures || []).filter((f) => f.played).forEach((f) => {
+                const h = rows[f.homeId], a = rows[f.awayId];
+                h.gf += f.hg; h.ga += f.ag; a.gf += f.ag; a.ga += f.hg;
+                if (f.hg > f.ag) h.pts += 3; else if (f.hg < f.ag) a.pts += 3; else { h.pts++; a.pts++; }
+            });
+            const order = Object.values(rows).sort((x, y) => (y.pts - x.pts) || ((y.gf - y.ga) - (x.gf - x.ga)) || (y.gf - x.gf));
+            const pos = order.findIndex((r) => r.id === d.userId) + 1;
+            const ord = (n) => n + (['th', 'st', 'nd', 'rd'][(n % 100 > 10 && n % 100 < 14) || n % 10 > 3 ? 0 : n % 10]);
+            const tier = { gcse: 'GCSE', alevel: 'A-level', above: 'Beyond A-level' }[d.tier] || d.tier;
+            return { id: 'local-football-manager', title: 'Be the manager: ' + team.name, kind: 'football-manager', href: '/create/football/', isReference: false, local: true,
+                updatedAt: new Date().toISOString(),
+                meta: 'Season ' + d.season + ' · ' + (mine >= 14 ? 'season complete' : mine + ' of 14 played') + (mine ? ' · ' + ord(pos) + ' in the table' : '') + ' · ' + tier + ' statistics' };
+        } catch (err) { return null; }
+    }
+    const createWithFootball = (list) => { const fp = createFootballProject(); return fp ? [fp, ...list.filter((p) => p.id !== 'local-football-manager')] : list.filter((p) => p.id !== 'local-football-manager'); };
     async function createLoadProjects() {
         try {
             const { resp, body } = await createAuthedFetch('/create/projects');
             if (resp.ok && !body.unavailable) {
                 const local = createLocalProjects().map((p) => ({ id: p.id, title: p.title, kind: p.kind, href: p.data && p.data.href, meta: p.data && p.data.meta, isReference: false, updatedAt: p.updatedAt, role: p.data && p.data.trial && p.data.trial.role, minutes: p.data && p.data.trial && p.data.trial.minutes, local: true }));
-                return { projects: [...(body.projects || []), ...local], references: body.references || [] };
+                return { projects: createWithFootball([...(body.projects || []), ...local]), references: body.references || [] };
             }
         } catch (err) { console.error('LastMind: could not load projects from the account.', err); }
-        return { projects: createLocalProjects().map((p) => ({ id: p.id, title: p.title, kind: p.kind, href: p.data && p.data.href, meta: p.data && p.data.meta, isReference: false, updatedAt: p.updatedAt, role: p.data && p.data.trial && p.data.trial.role, minutes: p.data && p.data.trial && p.data.trial.minutes, local: true })), references: [] };
+        return { projects: createWithFootball(createLocalProjects().map((p) => ({ id: p.id, title: p.title, kind: p.kind, href: p.data && p.data.href, meta: p.data && p.data.meta, isReference: false, updatedAt: p.updatedAt, role: p.data && p.data.trial && p.data.trial.role, minutes: p.data && p.data.trial && p.data.trial.minutes, local: true }))), references: [] };
     }
     async function createOpenProject(id, { playtest, duel } = {}) {
         let data = null; let mine = true;
