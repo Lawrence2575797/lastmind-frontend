@@ -105,6 +105,22 @@
   .res { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; font-family: var(--sans); font-size: 0.86rem; padding: 3px 0; font-variant-numeric: tabular-nums; }
   .res span:first-child { text-align: right; } .res b { text-align: center; min-width: 46px; }
   .res.me { color: var(--gold); }
+
+  .tb-grid { display: grid; grid-template-columns: minmax(0, 460px) minmax(0, 1fr); gap: 20px; align-items: start; }
+  @media (max-width: 900px) { .tb-grid { grid-template-columns: minmax(0, 1fr); } }
+  .tb-left, .tb-right { display: grid; gap: 12px; min-width: 0; align-content: start; }
+  svg.board { display: block; width: 100%; max-width: 460px; height: auto; border-radius: 8px; touch-action: none; user-select: none; }
+  svg.board .dot { cursor: grab; }
+  svg.board .dot:active { cursor: grabbing; }
+  svg.board text { pointer-events: none; font-family: Helvetica, Arial, sans-serif; }
+  .ins h3 { margin: 0 0 6px; font-family: var(--sans); font-size: 0.78rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--cream-soft); }
+  .ins { display: grid; gap: 8px; }
+  .ins-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px 16px; }
+  .warns { display: grid; gap: 8px; }
+  .warn { background: var(--navy-raise); border-left: 4px solid #E58C8C; border-radius: 6px; padding: 8px 12px; font-family: var(--sans); font-size: 0.82rem; line-height: 1.45; }
+  .warn.me { border-left-color: var(--gold); }
+  .warn ul { margin: 4px 0 0; padding-left: 18px; }
+  textarea { background: var(--navy-raise); color: var(--cream); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-family: var(--sans); font-size: 0.85rem; width: 100%; resize: vertical; }
   .radio { display: flex; gap: 10px; align-items: flex-start; flex-direction: row; }
   .radio input { margin-top: 4px; }
 </style>
@@ -185,6 +201,7 @@
 <script src="/create/football/ratings.js"></script>
 <script src="/create/football/names.js"></script>
 <script src="/create/football/engine.js"></script>
+<script src="/create/football/instructions.js"></script>
 <script src="/create/football/match.js"></script>
 <script src="/create/football/league.js"></script>
 <script src="/create/football/main.js"></script>

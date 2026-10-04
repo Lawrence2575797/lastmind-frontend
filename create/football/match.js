@@ -45,7 +45,7 @@
     return Math.abs(Math.atan2(dy + 3.66, dx) - Math.atan2(dy - 3.66, dx));
   };
   FM.xgLogit = function (shooter, x, y, attackDir, defDist) {
-    return -4.2 + 7.6 * FM.shotAngle(x, y, attackDir) + 0.03 * (shooter.ratings.finishing - 60) - 0.9 * Math.exp(-defDist / 2);
+    return -4.45 + 7.6 * FM.shotAngle(x, y, attackDir) + 0.03 * (shooter.ratings.finishing - 60) - 0.9 * Math.exp(-defDist / 2);
   };
 
   // ---------- roles' tendencies when on the ball ----------
@@ -90,6 +90,7 @@
     match.kickoffTimer = KICKOFF_PAUSE;
     match.kickoffTeam = team;
     match.flight = null; match.carry = null; match.restart = null; match.forcePass = false; match.noOffside = false;
+    match.teams.forEach((t) => { t.phaseCtx = {}; });
     match.ball.x = L / 2; match.ball.y = W / 2; match.ball.state = 'carried';
     // The kicking side's most advanced player takes the kick-off.
     const players = team.players.filter((p) => p.group !== 'GK');
@@ -132,6 +133,19 @@
       ranked.slice(0, n).forEach(({ p, d }) => {
         if (d < pressTrigger(opp, p, press)) ov.set(p, { x: c.player.x + c.player.vx * 0.4, y: c.player.y + c.player.vy * 0.4 });
       });
+      // Tight markers follow the nearest attacker; a centre-half told to step up follows a forward who drops deep.
+      const att = c.team.players.filter((q) => q.group !== 'GK');
+      opp.players.forEach((p) => {
+        if (p.group === 'GK' || ov.has(p)) return;
+        const mm = FM.instrMods(p);
+        let target = null, reach = 0;
+        if (mm.marking > 0) { reach = 14; target = att; }
+        else if (mm.stepUp > 0 && (p.group === 'CB' || p.group === 'DM')) { reach = 24; target = att.filter((q) => q.group === 'ST' || q.group === 'AM'); }
+        if (!target) return;
+        let best = null, bd = reach;
+        target.forEach((q) => { const dd = dist(p, q); if (dd < bd) { bd = dd; best = q; } });
+        if (best) ov.set(p, { x: best.x - opp.attackDir * 1.5, y: best.y });
+      });
     } else if (match.flight && match.flight.target) {
       const f = match.flight;
       ov.set(f.target, f.outcome === 'complete' ? { x: f.ex, y: f.ey } : { x: f.target.x, y: f.target.y });
@@ -148,7 +162,7 @@
   function pressTrigger(team, player, press) {
     const role = player.roleId;
     const bonus = role === 'pressing_forward' ? 10 : role === 'ball_winning_midfielder' ? 8 : 0;
-    return 12 + 13 * press + bonus;
+    return 12 + 13 * press + bonus + 7 * FM.instrMods(player).closeDown;
   }
   // Pressing as the manager set it, adjusted for the seconds just after losing the ball:
   // a high counter-press instruction hunts it back at once, a low one drops into shape first.
@@ -161,6 +175,20 @@
       if (since < PRESS_WINDOW) p += (team.tactics.counterPress - 0.5) * 1.2 * (1 - since / PRESS_WINDOW);
     }
     return clamp(p, 0, 1);
+  }
+  // For a few seconds after winning the ball a team is drawn toward its transition-to-attack positions, and after losing it
+  // toward its transition-to-defence positions. How strongly depends on the counter-attack and counter-press settings.
+  function setPhaseContext(match) {
+    const ch = match.lastChange;
+    match.teams.forEach((team) => {
+      let ta = 0, td = 0;
+      if (ch) {
+        const since = match.clock - ch.t;
+        if (ch.team === team && since < COUNTER_WINDOW) ta = (1 - since / COUNTER_WINDOW) * (0.25 + 0.45 * team.tactics.counterAttack);
+        if (ch.team !== team && since < PRESS_WINDOW) td = (1 - since / PRESS_WINDOW) * (0.25 + 0.45 * team.tactics.counterPress);
+      }
+      team.phaseCtx = { transAtt: ta, transDef: td };
+    });
   }
   // How strongly the team is in a counter-attack, from 0 (not) to 1, in the seconds just after winning the ball.
   function counterNow(match, team) {
@@ -208,9 +236,10 @@
     const counter = counterNow(match, team);
     // Which phase the ball is in decides which of the manager's instructions apply.
     const zone = ownDepth0 < 0.38 ? 'build' : ownDepth0 > 0.68 ? 'final' : 'mid';
-    const directness = clamp((zone === 'build' ? tac.buildDirect : tac.directness) + 0.5 * counter, 0, 1);
+    const mods = FM.instrMods(carrier);
+    const directness = clamp((zone === 'build' ? tac.buildDirect : tac.directness) + 0.5 * counter + mods.passDirect - (mods.holdUp ? 0.2 : 0) + (carrier.group === 'GK' ? 0.4 * mods.distribution : 0), 0, 1);
     const baseRisk = zone === 'final' ? tac.finalRisk : tac.risk;
-    const risk = clamp(baseRisk + (ROLE_RISK[role] || 0) + 0.25 * counter, 0, 1);
+    const risk = clamp(baseRisk + (ROLE_RISK[role] || 0) + 0.25 * counter + mods.risk, 0, 1);
     const goal = { x: team.attackDir === 1 ? L : 0, y: W / 2 };
     const dGoal = dist(carrier, goal);
     const ownDepth = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d;
@@ -239,12 +268,12 @@
     const { opp: nearOpp, d: nearD } = nearestOpponent(match, team, carrier);
     const dp = FM.dribbleProb(carrier, nearD, nearOpp);
     const dribbleBias = (GROUP_DRIBBLE[carrier.group] || 0) + (ROLE_DRIBBLE[role] || 0);
-    options.push({ kind: 'dribble', p: dp, nearOpp, nearD, score: dp * (0.3 + 0.9 * directness * 0.4 + (dribbleBias + (tac.dribbleFreedom - 0.5) * 0.9 + (zone === 'final' && nearD > 3.5 ? 0.45 : 0))) - (1 - dp) * 0.55 * (1 - risk) * lossFactor });
+    options.push({ kind: 'dribble', p: dp, nearOpp, nearD, score: dp * (0.3 + 0.9 * directness * 0.4 + (dribbleBias + mods.dribble + (tac.dribbleFreedom - 0.5) * 0.9 + (zone === 'final' && nearD > 3.5 ? 0.45 : 0))) - (1 - dp) * 0.55 * (1 - risk) * lossFactor });
 
     const attackingThird = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d > 0.6;
     if (dGoal < 28 && attackingThird && carrier.group !== 'GK') {
       const xg = sig(FM.xgLogit(carrier, carrier.x, carrier.y, team.attackDir, nearD) - 0.55 * crowd(match, team, carrier));
-      options.push({ kind: 'shoot', xg, score: xg * 3.2 * (0.5 + risk * 0.9) * (0.4 + 1.2 * tac.shootFreedom) - (1 - xg) * 0.12 - Math.max(0, 0.09 - xg) * 8 * (1.2 - tac.shootFreedom) });
+      options.push({ kind: 'shoot', xg, score: xg * 3.2 * (0.5 + risk * 0.9) * (0.4 + 1.2 * tac.shootFreedom) * mods.shoot - (1 - xg) * 0.12 - Math.max(0, 0.09 - xg) * 8 * (1.2 - tac.shootFreedom) });
     }
 
     // Softmax: the manager's settings favour an action, but nothing is certain.
@@ -263,7 +292,7 @@
     const base = 3.9 - 1.5 * clamp(team.tactics.tempo + 0.4 * counterNow(match, team), 0, 1);
     const { d } = nearestOpponent(match, team, carrier);
     const pressureFactor = d < 3 ? 0.55 : d < 6 ? 0.8 : 1;
-    return base * pressureFactor * (0.8 + 0.4 * match.rng());
+    return (base * pressureFactor + (FM.instrMods(carrier).holdUp ? 0.9 : 0)) * (0.8 + 0.4 * match.rng());
   }
 
   // ---------- performing an action ----------
@@ -520,12 +549,12 @@
     const nearSign = r.y < W / 2 ? -1 : 1;
     const points = boxPoints(team, nearSign);
     const nAtt = clamp(Math.round(t.cornerAttackers), 1, 7);
-    const pool = outfield(team).filter((p) => p !== r.taker).sort((a, b) => b.ratings.heading - a.ratings.heading);
+    const pool = outfield(team).filter((p) => p !== r.taker && FM.instrMods(p).cornerAtt >= 0).sort((a, b) => (b.ratings.heading + 15 * FM.instrMods(b).cornerAtt) - (a.ratings.heading + 15 * FM.instrMods(a).cornerAtt));
     const attackers = pool.slice(0, nAtt);
     const short = t.cornerDelivery === 'short' && r.kind === 'corner'
       ? outfield(team).filter((p) => p !== r.taker && !attackers.includes(p)).sort((a, b) => Math.hypot(a.x - r.x, a.y - r.y) - Math.hypot(b.x - r.x, b.y - r.y))[0] : null;
     const goalX = team.attackDir === 1 ? L : 0;
-    const defenders = outfield(opp).sort((a, b) => Math.abs(a.x - goalX) - Math.abs(b.x - goalX)).slice(0, clamp(Math.round(opp.tactics.cornerMarkers), 3, 9));
+    const defenders = outfield(opp).filter((p) => FM.instrMods(p).cornerDef >= 0).sort((a, b) => (Math.abs(a.x - goalX) - 25 * FM.instrMods(a).cornerDef) - (Math.abs(b.x - goalX) - 25 * FM.instrMods(b).cornerDef)).slice(0, clamp(Math.round(opp.tactics.cornerMarkers), 3, 9));
     const marks = new Map(), targets = new Map();
     attackers.forEach((a, i) => targets.set(a, points[i % points.length]));
     const free = defenders.slice();
@@ -581,7 +610,7 @@
 
   function runRestart(match, dt) {
     const r = match.restart;
-    match.teams.forEach((t) => { t.offsideLine = null; });
+    match.teams.forEach((t) => { t.offsideLine = null; t.phaseCtx = {}; });
     const ov = restartOverrides(match);
     match.teams.forEach((t) => FM.stepTeam(t, match.ball, t === r.team, dt, ov));
     r.timer -= dt;
@@ -806,6 +835,7 @@
     if (match.aiTeams.length && match.carrier && match.clock >= match.nextAiCheck) { match.nextAiCheck += AI_CHECK_SECONDS; aiTick(match); }
 
     setOffsideLines(match);
+    setPhaseContext(match);
     const ov = buildOverrides(match);
     match.teams.forEach((t) => FM.stepTeam(t, match.ball, t === poss, dt, ov));
 
@@ -818,7 +848,7 @@
       for (const d of opp.players) {
         if (d.group === 'GK') continue;
         if (dist(d, c.player) > 1.8) continue;
-        const rate = (0.05 + 0.08 * opp.tactics.pressing + (d.roleId === 'ball_winning_midfielder' ? 0.06 : 0)) * (0.6 + 0.8 * opp.tactics.tackleAggression);
+        const rate = (0.05 + 0.08 * opp.tactics.pressing + (d.roleId === 'ball_winning_midfielder' ? 0.06 : 0)) * (0.6 + 0.8 * opp.tactics.tackleAggression) * (1 + 0.35 * FM.instrMods(d).tackle);
         if (match.clock >= (match.tackleLock || 0) && match.rng() < rate * dt) {
           match.tackleLock = match.clock + 1.2;
           const p = FM.tackleProb(d, c.player);
@@ -829,7 +859,7 @@
           record(match, { type: 'tackle', team: opp.id, player: d.number, vs: c.player.number, p, ok, x: c.player.x, y: c.player.y });
           if (ok && (c.player.y < 5 || c.player.y > W - 5) && match.rng() < 0.2) { startRestart(match, 'throw', team, clamp(c.player.x, 1, L - 1), c.player.y < W / 2 ? 0.5 : W - 0.5); break; }
           if (ok) { giveBall(match, opp, d, 0.9 + delayBeforeNextDecision(match, opp, d) * 0.4); break; }
-          if (match.rng() < 0.06 + 0.1 * opp.tactics.tackleAggression + 0.002 * (60 - d.ratings.tackling)) { commitFoul(match, d, c.player, opp, team); break; }
+          if (match.rng() < 0.06 + 0.1 * opp.tactics.tackleAggression + 0.002 * (60 - d.ratings.tackling) + 0.04 * FM.instrMods(d).tackle) { commitFoul(match, d, c.player, opp, team); break; }
         }
       }
     }

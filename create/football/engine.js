@@ -67,6 +67,7 @@
       id: spec.id, name: spec.name, kit: spec.kit, attackDir: spec.attackDir,
       formationKey: spec.formation, tactics: FM.defaultTactics(), players: [], bench: [], squad: [],
       strength: spec.strength || 0, seed: spec.seed || FM.hashString(spec.id), subsUsed: 0, maxSubs: 5,
+      shape: {}, phasePos: {},
     };
     const rng = FM.mulberry32(team.seed);
     formation.slots.forEach((slot, i) => {
@@ -92,6 +93,7 @@
   FM.setFormation = function (team, formationKey) {
     const formation = FM.FORMATIONS[formationKey];
     team.formationKey = formationKey;
+    team.shape = {}; team.phasePos = {}; // a new formation starts from its own preset positions
     const free = team.players.slice();
     const pairs = [];
     // Slots in order, each taking the free player whose natural position is nearest (a side with ten men fills the first ten).
@@ -117,7 +119,7 @@
     inPlayer.x = outPlayer.x; inPlayer.y = outPlayer.y; inPlayer.vx = outPlayer.vx; inPlayer.vy = outPlayer.vy;
     inPlayer.index = outPlayer.index; inPlayer.slotKey = outPlayer.slotKey; inPlayer.group = outPlayer.group;
     // The new player takes over the role if it suits his slot, otherwise the slot's default role.
-    inPlayer.roleId = outPlayer.roleId; inPlayer.options = Object.assign({}, outPlayer.options);
+    inPlayer.roleId = outPlayer.roleId; inPlayer.options = Object.assign({}, outPlayer.options); inPlayer.instr = Object.assign({}, outPlayer.instr || {});
     team.players[k] = inPlayer;
     team.bench[bi] = outPlayer;
     outPlayer.index = -1; outPlayer.slotKey = null; outPlayer.group = outPlayer.natural;
@@ -148,40 +150,120 @@
   FM.resetToKickoff = function (team) {
     const formation = FM.FORMATIONS[team.formationKey];
     team.players.forEach((p) => {
-      const slot = formation.slots[p.index];
+      const slot = FM.slotBase(team, p);
       const pos = toMetres(team.attackDir, Math.min(slot.d, 0.47), slot.w);
       p.x = pos.x; p.y = pos.y; p.vx = 0; p.vy = 0;
     });
   };
 
-  // The target position for one player, in pitch metres.
-  FM.targetFor = function (team, player, ball, hasBall) {
-    const formation = FM.FORMATIONS[team.formationKey];
-    const slot = formation.slots[player.index];
-    const role = FM.ROLES[player.roleId];
-    let phase = hasBall ? role.inPoss : role.outPoss;
-    let depthShift = phase.depth;
-    let wTarget = phase.wTarget;
-    let widthShift = phase.width;
+  // ---------- positions in each phase of play ----------
+  // Every player has a position (team space) in each phase. Unless the manager has dragged him somewhere, it follows
+  // from where his slot is in the shape, his role and his instructions. The same role and instructions feed every phase,
+  // so the phases agree with each other: an inverted full-back is inside in build-up AND in the final third.
+  FM.PHASES = ['build', 'final', 'transAtt', 'transDef', 'without'];
+  FM.PHASE_NAMES = { build: 'Build-up', final: 'Final third', transAtt: 'Transition to attack', transDef: 'Transition to defence', without: 'Without the ball' };
+  const PUSH = { GK: 0, CB: 0.04, FB: 0.10, DM: 0.08, CM: 0.12, AM: 0.14, WF: 0.14, ST: 0.12 };
 
+  // Where his slot stands in the team's shape (the formation's preset, or where the manager has dragged it).
+  FM.slotBase = function (team, p) {
+    const s = team.shape && team.shape[p.index];
+    if (s) return s;
+    const slot = FM.FORMATIONS[team.formationKey].slots[p.index];
+    return { d: slot.d, w: slot.w };
+  };
+
+  FM.defaultPhasePos = function (team, p, phase) {
+    const base = FM.slotBase(team, p), role = FM.ROLES[p.roleId], m = FM.instrMods(p);
+    const inPos = phase === 'build' || phase === 'final' || phase === 'transAtt';
+    const o = inPos ? role.inPoss : role.outPoss;
+    let depth = o.depth, wTarget = o.wTarget;
+    const width = o.width;
     // Settings on a role can replace its movement (for example where an inverted full-back inverts to).
-    if (hasBall && role.invertTargets) {
-      const t = role.invertTargets[player.options.invertTo] || role.invertTargets[role.options.invertTo.default];
-      depthShift = t.depth; wTarget = t.wTarget;
+    if (inPos && role.invertTargets) {
+      const t = role.invertTargets[p.options.invertTo] || role.invertTargets[role.options.invertTo.default];
+      depth = t.depth; wTarget = t.wTarget;
     }
+    const k = phase === 'build' ? 0.6 : phase === 'transAtt' ? 0.8 : 1; // how much of the role's movement shows in this phase
+    let d = base.d + depth * k, w = base.w;
+    const centre = Math.abs(base.w - 0.5) < 0.01;
+    if (wTarget != null) { const tw = base.w < 0.5 ? wTarget : 1 - wTarget; w = base.w + (tw - base.w) * k; }
+    else if (width) w += (base.w < 0.5 ? -1 : 1) * width * k * (centre ? 0 : 1);
+    const push = PUSH[p.group] || 0;
+    if (phase === 'final') d += push; else if (phase === 'transAtt') d += push * 0.6; else if (phase === 'transDef') d -= 0.03;
+    d += m.depth;
+    if (!centre) w += (base.w < 0.5 ? -1 : 1) * m.width;
+    return { d: clamp(d, 0.02, 0.97), w: clamp(w, 0.04, 0.96) };
+  };
+  FM.phasePos = function (team, p, phase) {
+    const man = team.phasePos && team.phasePos[phase] && team.phasePos[phase][p.index];
+    return man || FM.defaultPhasePos(team, p, phase);
+  };
+  FM.isManual = (team, p, phase) => !!(team.phasePos && team.phasePos[phase] && team.phasePos[phase][p.index]);
 
-    let d = slot.d + depthShift;
-    let w = slot.w;
-    if (wTarget != null) w = slot.w < 0.5 ? wTarget : 1 - wTarget;
-    else if (widthShift) w += (slot.w < 0.5 ? -1 : 1) * widthShift * (Math.abs(slot.w - 0.5) < 0.01 ? 0 : 1);
+  // ---------- how far can he get between phases? ----------
+  // About six seconds at top speed: a full-back can come inside, a winger cannot be on the left in build-up and the
+  // right in the final third.
+  FM.REACH_SECONDS = 6;
+  FM.reachMetres = (p) => FM.REACH_SECONDS * p.maxSpeed;
+  FM.posDist = (a, b) => Math.hypot((a.d - b.d) * L, (a.w - b.w) * W);
+  // Pulls a wished-for position back until he could reach it from where he stands in every other phase.
+  FM.clampToReach = function (team, p, phase, pos) {
+    const reach = FM.reachMetres(p);
+    let cur = { d: pos.d, w: pos.w };
+    for (let it = 0; it < 8; it++) {
+      let moved = false;
+      FM.PHASES.forEach((ph) => {
+        if (ph === phase) return;
+        const o = FM.phasePos(team, p, ph);
+        const dist = FM.posDist(cur, o);
+        if (dist > reach) { const f = reach / dist; cur = { d: o.d + (cur.d - o.d) * f, w: o.w + (cur.w - o.w) * f }; moved = true; }
+      });
+      if (!moved) break;
+    }
+    return { d: clamp(cur.d, 0.02, 0.98), w: clamp(cur.w, 0.03, 0.97) };
+  };
+  FM.setPhasePos = function (team, p, phase, pos) {
+    team.phasePos[phase] = team.phasePos[phase] || {};
+    team.phasePos[phase][p.index] = { d: pos.d, w: pos.w };
+  };
+  FM.setSlotBase = function (team, p, pos) {
+    team.shape[p.index] = { d: clamp(pos.d, 0.02, 0.98), w: clamp(pos.w, 0.03, 0.97) };
+    FM.fixSlot(team, p);
+  };
+  // After anything moves, any hand-placed position that is now out of reach is pulled back.
+  FM.fixSlot = function (team, p) {
+    FM.PHASES.forEach((ph) => { if (FM.isManual(team, p, ph)) FM.setPhasePos(team, p, ph, FM.clampToReach(team, p, ph, FM.phasePos(team, p, ph))); });
+  };
+  FM.clearPhase = function (team, phase) { if (phase === 'shape') team.shape = {}; else if (team.phasePos) delete team.phasePos[phase]; };
+  FM.clearPlayerPositions = function (team, p) {
+    delete team.shape[p.index];
+    FM.PHASES.forEach((ph) => { if (team.phasePos[ph]) delete team.phasePos[ph][p.index]; });
+  };
+
+  // The target position for one player, in pitch metres.
+  // With the ball he moves from his build-up position toward his final-third position as the ball goes forward; for a few
+  // seconds after winning it he is drawn toward his transition position, and after losing it toward his defensive one.
+  FM.targetFor = function (team, player, ball, hasBall) {
+    const role = FM.ROLES[player.roleId], m = FM.instrMods(player), ctx = team.phaseCtx || {};
+    const b = toTeamSpace(team.attackDir, ball.x, ball.y);
+    const mix = (a, c, t) => ({ d: a.d + (c.d - a.d) * t, w: a.w + (c.w - a.w) * t });
+    let pos;
+    if (hasBall) {
+      pos = mix(FM.phasePos(team, player, 'build'), FM.phasePos(team, player, 'final'), clamp((b.d - 0.33) / 0.4, 0, 1));
+      if (ctx.transAtt > 0) pos = mix(pos, FM.phasePos(team, player, 'transAtt'), ctx.transAtt);
+    } else {
+      pos = FM.phasePos(team, player, 'without');
+      if (ctx.transDef > 0) pos = mix(pos, FM.phasePos(team, player, 'transDef'), ctx.transDef);
+    }
+    let d = pos.d, w = pos.w;
+    const phase = hasBall ? role.inPoss : role.outPoss;
 
     // Team instruction: how high the defensive line sits. Counts for more when the team does not have the ball.
     const weight = FM.GROUP_LINE_WEIGHT[player.group] || 0;
     d += (team.tactics.lineHeight - 0.5) * 0.28 * weight * (hasBall ? 0.6 : 1);
 
-    // Shape shifts toward the ball.
-    const b = toTeamSpace(team.attackDir, ball.x, ball.y);
-    const pull = clamp((FM.GROUP_BALL_PULL[player.group] || 0.4) + phase.ballPull, 0, 1);
+    // Shape shifts toward the ball (a roaming player follows it more, a player told to hold less).
+    const pull = clamp((FM.GROUP_BALL_PULL[player.group] || 0.4) + phase.ballPull + 0.25 * m.roam, 0, 1);
     d += (b.d - d) * pull * 0.3;
     w += (b.w - w) * pull * 0.22;
 
@@ -202,7 +284,11 @@
       const o = overrides && overrides.get(p);
       if (o) return o;
       const t = FM.targetFor(team, p, ball, hasBall);
-      if (lim != null && p.group !== 'GK') t.x = team.attackDir === 1 ? Math.min(t.x, lim) : Math.max(t.x, lim);
+      if (lim != null && p.group !== 'GK') {
+        const runs = FM.instrMods(p).runs;
+        const l = lim + team.attackDir * (runs > 0 ? 0.5 : runs < 0 ? -1.2 : 0);
+        t.x = team.attackDir === 1 ? Math.min(t.x, l) : Math.max(t.x, l);
+      }
       return t;
     });
     team.players.forEach((p, i) => {

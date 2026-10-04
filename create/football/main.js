@@ -343,6 +343,18 @@
     ['squad', 'Squad and formation'], ['build', 'Build-up'], ['final', 'Final third'],
     ['transatt', 'Transition to attack'], ['transdef', 'Transition to defence'], ['without', 'Without the ball'], ['setpieces', 'Set pieces'],
   ];
+  // Each tab with a board shows the team in that phase of play.
+  const BOARD_KEY = { squad: 'shape', build: 'build', final: 'final', transatt: 'transAtt', transdef: 'transDef', without: 'without' };
+  const PHASE_TEXT = {
+    shape: 'The team set up in its formation. Drag a shirt anywhere on the pitch; every other phase follows from this shape, the role and the instructions. Drag one shirt onto another to swap those two players.',
+    build: 'The team with the ball in its own half. A shirt you drag here moves for this phase only, and only as far as the player could run from his other positions. A shirt with a gold dot has been placed by hand.',
+    final: 'The team with the ball near the opposition goal. Attackers can stand on the edge of the box or inside it, but they are held at the offside line, and the same role and instructions apply as in every other phase.',
+    transAtt: 'The few seconds just after winning the ball, before the team settles. This is where the first runs are made, so positions here pull players toward where the attack will go.',
+    transDef: 'The few seconds just after losing the ball. Players here are pulled toward the positions that cut the counter-attack off, or toward the ball if the team presses.',
+    without: 'The team without the ball, set to defend. The line height, pressing and width settings move these positions further.',
+  };
+  const BALL_AT = { build: 0.18, final: 0.86, transAtt: 0.42, transDef: 0.55, without: 0.45 };
+  const PHASE_CODE = { build: 'B', final: 'F', transAtt: 'TA', transDef: 'TD', without: 'D' };
   // [key, label, left end, right end, min, max, what it does]
   const SLIDER_TABS = {
     build: [
@@ -378,13 +390,12 @@
 
   function renderTactics() {
     if (!world.league) return;
-    const team = userTeam(), m = world.match;
+    const team = userTeam();
     el('subInfo').textContent = 'Substitutions used: ' + team.subsUsed + ' of ' + team.maxSubs + (inLive() ? '' : ' (changes before kick-off are free)');
     el('tabs').innerHTML = TABS.map(([k, label]) => `<button data-tab="${k}" class="${world.tab === k ? 'on' : ''}">${label}</button>`).join('');
     el('tabs').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { world.tab = b.dataset.tab; renderTactics(); }));
-    if (world.tab === 'squad') renderSquadTab(team);
-    else if (SLIDER_TABS[world.tab]) renderSliderTab(team, SLIDER_TABS[world.tab]);
-    else renderSetPieces(team);
+    if (world.tab === 'setpieces') renderSetPieces(team);
+    else renderBoardTab(team, world.tab);
   }
 
   function takerSelect(team, key, label) {
@@ -419,8 +430,7 @@
     }));
   }
 
-  function renderSliderTab(team, list) {
-    const host = el('tabBody');
+  function renderSliderTab(team, list, host) {
     host.innerHTML = '<div class="sliders">' + list.map(([k, label, lo, hi, min, max, why]) => `
       <label><span class="lbl"><span>${label}</span><span data-v="${k}">${team.tactics[k].toFixed(2)}</span></span>
         <input type="range" min="${min}" max="${max}" step="0.05" value="${team.tactics[k]}" data-k="${k}">
@@ -434,36 +444,148 @@
     }));
   }
 
-  function renderSquadTab(team) {
-    const host = el('tabBody');
-    const formation = FM.FORMATIONS[team.formationKey];
-    const slots = team.players.map((p) => {
-      const slot = formation.slots[p.index];
-      const sel = world.selSlot === p ? ' sel' : '';
-      return `<button class="slot${sel}" draggable="true" data-slot="${p.index}" style="left:${(Math.max(slot.d, 0.04) * 94 + 3).toFixed(1)}%;top:${(slot.w * 84 + 8).toFixed(1)}%;${KITNUM(team)}" title="${esc(p.name)} (${p.slotKey})">${p.number}<small>${esc(shortName(p))}</small></button>`;
+  // ---------- the tactics board ----------
+  // A vertical pitch, attacking up. Positions are team space: d (0 own goal, 1 opposition goal) and w (0 the team's left).
+  const BS = 6.5, BW = 68 * BS, BH = 105 * BS;
+  const bpt = (pos) => ({ x: pos.w * BW, y: (1 - pos.d) * BH });
+
+  function boardPitchSvg(key) {
+    const cx = BW / 2, S = BS;
+    const ln = 'stroke="rgba(255,255,255,0.85)" stroke-width="2.5" fill="none"';
+    let s = '';
+    for (let i = 0; i < 14; i++) s += `<rect x="0" y="${(i * BH / 14).toFixed(1)}" width="${BW}" height="${(BH / 14).toFixed(1)}" fill="${i % 2 ? '#2E7D3E' : '#2A7539'}"/>`;
+    if (key === 'final') s += `<rect x="0" y="0" width="${BW}" height="${BH / 3}" fill="rgba(255,255,255,0.07)"/>`;
+    if (key === 'build') s += `<rect x="0" y="${BH * 2 / 3}" width="${BW}" height="${BH / 3}" fill="rgba(255,255,255,0.07)"/>`;
+    s += `<rect x="0" y="0" width="${BW}" height="${BH}" ${ln}/><line x1="0" y1="${BH / 2}" x2="${BW}" y2="${BH / 2}" ${ln}/>`;
+    s += `<circle cx="${cx}" cy="${BH / 2}" r="${9.15 * S}" ${ln}/><circle cx="${cx}" cy="${BH / 2}" r="3" fill="rgba(255,255,255,0.85)"/>`;
+    [[0, 1], [BH, -1]].forEach(([y0, dir]) => {
+      const y = (m) => y0 + dir * m * S;
+      s += `<rect x="${cx - 20.16 * S}" y="${dir > 0 ? y0 : y(16.5)}" width="${40.32 * S}" height="${16.5 * S}" ${ln}/>`;
+      s += `<rect x="${cx - 9.16 * S}" y="${dir > 0 ? y0 : y(5.5)}" width="${18.32 * S}" height="${5.5 * S}" ${ln}/>`;
+      s += `<rect x="${cx - 3.66 * S}" y="${dir > 0 ? y0 - 2 * S : y0}" width="${7.32 * S}" height="${2 * S}" ${ln}/>`;
+      s += `<circle cx="${cx}" cy="${y(11)}" r="3" fill="rgba(255,255,255,0.85)"/>`;
+      s += `<path d="M ${cx - 7.31 * S} ${y(16.5)} A ${9.15 * S} ${9.15 * S} 0 0 ${dir > 0 ? 0 : 1} ${cx + 7.31 * S} ${y(16.5)}" ${ln}/>`;
+    });
+    return s;
+  }
+
+  function drawBoard(host, team, key) {
+    const selected = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
+    const posOf = (p) => (key === 'shape' ? FM.slotBase(team, p) : FM.phasePos(team, p, key));
+    let ghosts = '';
+    if (selected && key !== 'shape') {
+      const reach = FM.reachMetres(selected) * BS;
+      FM.PHASES.forEach((ph) => {
+        if (ph === key) return;
+        const g = bpt(FM.phasePos(team, selected, ph));
+        ghosts += `<circle cx="${g.x}" cy="${g.y}" r="${reach}" fill="rgba(242,193,78,0.05)" stroke="rgba(242,193,78,0.55)" stroke-width="2" stroke-dasharray="9 7"/>`;
+        ghosts += `<circle cx="${g.x}" cy="${g.y}" r="11" fill="rgba(242,193,78,0.9)"/><text x="${g.x}" y="${g.y + 4.5}" text-anchor="middle" font-size="12" font-weight="700" fill="#1A232D">${PHASE_CODE[ph]}</text>`;
+      });
+    }
+    let ball = '';
+    if (BALL_AT[key] != null) {
+      const bp = bpt({ d: BALL_AT[key], w: 0.5 });
+      ball = `<circle cx="${bp.x + 120}" cy="${bp.y}" r="9" fill="#fff" stroke="#111" stroke-width="2"/><text x="${bp.x + 136}" y="${bp.y + 5}" font-size="14" fill="#fff" style="paint-order:stroke" stroke="#000" stroke-width="3">${key === 'without' || key === 'transDef' ? 'opposition have the ball about here' : 'ball about here'}</text>`;
+    }
+    const dots = team.players.map((p) => {
+      const pt = bpt(posOf(p)), sel = selected === p;
+      const manual = key === 'shape' ? !!(team.shape && team.shape[p.index]) : FM.isManual(team, p, key);
+      return `<g class="dot" data-idx="${p.index}" transform="translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})">
+        <circle r="20" fill="${team.kit.shirt}" stroke="${sel ? '#F2C14E' : '#fff'}" stroke-width="${sel ? 5 : 3}"/>
+        <text y="6" text-anchor="middle" font-size="18" font-weight="700" fill="${team.kit.number}">${p.number}</text>
+        <text y="38" text-anchor="middle" font-size="14" fill="#fff" stroke="#000" stroke-width="3" style="paint-order:stroke">${esc(shortName(p))}</text>
+        ${manual ? '<circle cx="15" cy="-15" r="5.5" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/>' : ''}</g>`;
     }).join('');
+    host.innerHTML = `<svg class="board" viewBox="-20 -26 ${BW + 40} ${BH + 52}" role="img" aria-label="Tactics board">${boardPitchSvg(key)}${ghosts}${ball}${dots}</svg>`;
+    const svg = host.firstChild;
+    const toPos = (e) => {
+      const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+      const q = pt.matrixTransform(svg.getScreenCTM().inverse());
+      return { d: clamp01(1 - q.y / BH, 0.02, 0.98), w: clamp01(q.x / BW, 0.03, 0.97), x: q.x, y: q.y };
+    };
+    let drag = null;
+    svg.addEventListener('pointerdown', (e) => {
+      const g = e.target.closest('.dot');
+      if (!g) return;
+      const p = team.players.find((x) => x.index === +g.dataset.idx);
+      world.selSlot = p;
+      drag = { p, g, sx: e.clientX, sy: e.clientY, moved: false, pos: null };
+      svg.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+    svg.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 5) return;
+      drag.moved = true;
+      let pos = toPos(e);
+      if (key !== 'shape') pos = FM.clampToReach(team, drag.p, key, pos);
+      drag.pos = pos;
+      const pt = bpt(pos);
+      drag.g.setAttribute('transform', `translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})`);
+    });
+    svg.addEventListener('pointerup', (e) => {
+      if (!drag) return;
+      const d = drag; drag = null;
+      if (!d.moved && world.selBench) { host.dispatchEvent(new CustomEvent('sub', { detail: { idx: d.p.index, id: world.selBench.id } })); return; }
+      world.selBench = null;
+      if (d.moved) {
+        if (key === 'shape') {
+          // dropped on another shirt: swap the two players
+          const q = toPos(e);
+          const other = team.players.find((x) => { if (x === d.p) return false; const o = bpt(FM.slotBase(team, x)); return Math.hypot(o.x - q.x, o.y - q.y) < 30; });
+          if (other) { FM.swapSlots(team, d.p, other); FM.fixSlot(team, d.p); FM.fixSlot(team, other); }
+          else FM.setSlotBase(team, d.p, d.pos);
+        } else FM.setPhasePos(team, d.p, key, d.pos);
+        saveSoon();
+      }
+      renderTactics();
+    });
+    // a bench player dragged from the list onto a shirt is a substitution
+    svg.addEventListener('dragover', (e) => { if (e.target.closest('.dot')) e.preventDefault(); });
+    svg.addEventListener('drop', (e) => {
+      const g = e.target.closest('.dot');
+      if (!g) return;
+      e.preventDefault();
+      const [kind, id] = e.dataTransfer.getData('text/plain').split(':');
+      if (kind === 'bench') host.dispatchEvent(new CustomEvent('sub', { detail: { idx: +g.dataset.idx, id } }));
+    });
+  }
+  const clamp01 = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+  function renderBoardTab(team, tab) {
+    const host = el('tabBody'), key = BOARD_KEY[tab], isShape = key === 'shape';
     const bench = team.bench.map((p) => `
       <button class="chip${world.selBench === p ? ' sel' : ''}" draggable="true" data-bench="${p.id}">
         <span class="num" style="${KITNUM(team)}">${p.number}</span><span>${p.natural} ${esc(shortName(p))}</span><span class="meta">${overall(p)}</span>
       </button>`).join('');
     host.innerHTML = `
-      <div class="squad-grid">
-        <div style="display:grid;gap:10px">
-          <label>Formation
-            <select id="formSel">${Object.keys(FM.FORMATIONS).map((k) => `<option value="${k}"${k === team.formationKey ? ' selected' : ''}>${k}</option>`).join('')}</select>
-          </label>
-          <div class="formpitch" id="formpitch">${slots}</div>
-          <p class="note">Drag a bench player onto a shirt to make the substitution, or pick a bench player and then click the shirt. Drag one shirt onto another to swap them. Click a shirt to set his role.</p>
+      <div class="tb-grid">
+        <div class="tb-left">
+          ${isShape ? `<label>Formation<select id="formSel">${Object.keys(FM.FORMATIONS).map((k) => `<option value="${k}"${k === team.formationKey ? ' selected' : ''}>${k}</option>`).join('')}</select></label>` : `<h2>${FM.PHASE_NAMES[key]}</h2>`}
+          <p class="note">${PHASE_TEXT[key]}</p>
+          <div id="board"></div>
+          <p class="note" id="reachNote"></p>
+          <div class="row"><button id="resetPhase">${isShape ? 'Reset the shape to the formation' : 'Reset this phase to the role defaults'}</button></div>
           <p class="err" id="subErr"></p>
         </div>
-        <div style="display:grid;gap:14px">
-          <div><h2 style="margin-bottom:8px">Bench</h2><div class="bench" id="bench">${bench}</div></div>
+        <div class="tb-right">
+          <div id="phaseSliders"></div>
+          ${isShape ? `<div><h2 style="margin-bottom:8px">Bench</h2><div class="bench" id="bench">${bench}</div><p class="note" style="margin-top:8px">Drag a bench player onto a shirt, or pick one and click a shirt, to substitute.</p></div>` : ''}
           <div id="rolePanel"></div>
+          <div id="warnPanel"></div>
         </div>
       </div>`;
-    host.querySelector('#formSel').addEventListener('change', (e) => { FM.setFormation(team, e.target.value); world.selSlot = null; saveSoon(); renderTactics(); });
-
+    const board = host.querySelector('#board');
+    drawBoard(board, team, key);
+    if (SLIDER_TABS[tab]) renderSliderTab(team, SLIDER_TABS[tab], host.querySelector('#phaseSliders'));
     const err = (msg) => { host.querySelector('#subErr').textContent = msg || ''; };
+    const sel = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
+    if (sel && !isShape) host.querySelector('#reachNote').textContent = `${sel.name} can cover about ${Math.round(FM.reachMetres(sel))} m between phases. The gold circles show where he can stand here, given where he is in the other phases (B build-up, F final third, TA and TD the transitions, D defending).`;
+    else host.querySelector('#reachNote').textContent = isShape ? '' : 'Click a shirt to see how far that player can move between phases.';
+
+    if (isShape) host.querySelector('#formSel').addEventListener('change', (e) => { FM.setFormation(team, e.target.value); world.selSlot = null; saveSoon(); renderTactics(); });
+    host.querySelector('#resetPhase').addEventListener('click', () => { FM.clearPhase(team, key); saveSoon(); renderTactics(); });
+
     const slotPlayer = (i) => team.players.find((p) => p.index === i);
     function doSub(outP, inP) {
       const msg = FM.substitute(team, outP, inP, world.match);
@@ -471,36 +593,35 @@
       if (inLive()) world.running = false; // a substitution pauses play, press Play to continue
       world.selBench = null; world.selSlot = inP; saveSoon(); renderTactics();
     }
-    host.querySelectorAll('[data-slot]').forEach((b) => {
-      const idx = +b.dataset.slot;
-      b.addEventListener('click', () => {
-        if (world.selBench) { doSub(slotPlayer(idx), world.selBench); return; }
-        world.selSlot = slotPlayer(idx); renderTactics();
-      });
-      b.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', 'slot:' + idx); });
-      b.addEventListener('dragover', (e) => { e.preventDefault(); b.classList.add('over'); });
-      b.addEventListener('dragleave', () => b.classList.remove('over'));
-      b.addEventListener('drop', (e) => {
-        e.preventDefault(); b.classList.remove('over');
-        const [kind, id] = e.dataTransfer.getData('text/plain').split(':');
-        if (kind === 'bench') doSub(slotPlayer(idx), team.bench.find((p) => p.id === id));
-        else if (kind === 'slot' && +id !== idx) { FM.swapSlots(team, slotPlayer(+id), slotPlayer(idx)); saveSoon(); renderTactics(); }
-      });
-    });
+    board.addEventListener('sub', (e) => { const inP = team.bench.find((p) => p.id === e.detail.id); if (inP) doSub(slotPlayer(e.detail.idx), inP); });
     host.querySelectorAll('[data-bench]').forEach((b) => {
-      b.addEventListener('click', () => {
-        const p = team.bench.find((x) => x.id === b.dataset.bench);
-        world.selBench = world.selBench === p ? null : p; renderTactics();
-      });
+      b.addEventListener('click', () => { const p = team.bench.find((x) => x.id === b.dataset.bench); world.selBench = world.selBench === p ? null : p; renderTactics(); });
       b.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', 'bench:' + b.dataset.bench); });
     });
     renderRolePanel(team);
+    renderWarnPanel(team);
+  }
+
+  function renderWarnPanel(team) {
+    const host = el('warnPanel');
+    if (!host) return;
+    const all = FM.teamProblems(team);
+    const sel = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
+    let html = '<h2 style="margin-bottom:8px">Do the phases fit together?</h2>';
+    if (!all.length) html += '<p class="note">Yes. Every player can reach each of his positions in time, and each position fits his role.</p>';
+    else {
+      html += '<div class="warns">' + all.map(({ p, list }) => `<div class="warn${p === sel ? ' me' : ''}"><b>${esc(shortName(p))}</b> (${p.slotKey})<ul>${list.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>`).join('') + '</div>';
+      html += '<div class="row" style="margin-top:8px"><button id="fixAll">Pull impossible positions back within reach</button></div>';
+    }
+    host.innerHTML = html;
+    const fix = host.querySelector('#fixAll');
+    if (fix) fix.addEventListener('click', () => { team.players.forEach((p) => FM.fixSlot(team, p)); saveSoon(); renderTactics(); });
   }
 
   function renderRolePanel(team) {
     const host = el('rolePanel');
     const player = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
-    if (!player) { host.innerHTML = '<p class="note">Click a shirt to see that player and set his role.</p>'; return; }
+    if (!player) { host.innerHTML = '<p class="note">Click a shirt to see that player, set his role and give him instructions.</p>'; return; }
     const role = FM.ROLES[player.roleId];
     const roleOptions = FM.rolesForGroup(player.group).map((id) => `<option value="${id}"${id === player.roleId ? ' selected' : ''}>${FM.ROLES[id].name}</option>`).join('');
     let extra = '';
@@ -510,6 +631,13 @@
       else extra += `<label class="check"><input type="checkbox" data-opt="${k}"${player.options[k] ? ' checked' : ''}> ${o.label}</label>`;
     });
     const r = player.ratings;
+    const list = FM.instructionsFor(player.group);
+    const sections = ['Movement', 'On the ball', 'Off the ball', 'Set pieces'];
+    const ins = sections.map((sec) => {
+      const items = list.filter((i) => i.section === sec);
+      if (!items.length) return '';
+      return `<div class="ins"><h3>${sec}</h3>` + items.map((i) => `<label title="${esc(i.desc)}">${i.label}<select data-ins="${i.key}">${i.options.map(([v, t]) => `<option value="${v}"${(+(player.instr || {})[i.key] || 0) === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>`).join('') + '</div>';
+    }).join('');
     host.innerHTML = `
       <h2 style="margin-bottom:8px">${esc(player.name)}, number ${player.number}</h2>
       <div style="display:grid;gap:10px">
@@ -517,11 +645,22 @@
         <label>Role<select data-k="role">${roleOptions}</select></label>
         <p class="desc">${role.desc}</p>
         ${extra}
+        <h2>Instructions <span class="note" style="text-transform:none;letter-spacing:0">(${FM.countInstructions(player)} set, they hold in every phase)</span></h2>
+        <div class="ins-grid">${ins}</div>
+        <div class="row"><button id="resetPlayer">Reset his positions in every phase</button></div>
+        <label>Your notes on him (these do not change how he plays)<textarea id="playerNote" rows="2">${esc(player.note || '')}</textarea></label>
       </div>`;
-    host.querySelector('[data-k="role"]').addEventListener('change', (e) => { FM.setRole(team, player, e.target.value); saveSoon(); renderRolePanel(team); });
+    host.querySelector('[data-k="role"]').addEventListener('change', (e) => { FM.setRole(team, player, e.target.value); FM.fixSlot(team, player); saveSoon(); renderTactics(); });
     host.querySelectorAll('[data-opt]').forEach((o) => o.addEventListener('change', () => {
-      player.options[o.dataset.opt] = o.type === 'checkbox' ? o.checked : o.value; saveSoon();
+      player.options[o.dataset.opt] = o.type === 'checkbox' ? o.checked : o.value; saveSoon(); renderTactics();
     }));
+    host.querySelectorAll('[data-ins]').forEach((o) => o.addEventListener('change', () => {
+      player.instr = player.instr || {};
+      player.instr[o.dataset.ins] = +o.value;
+      FM.fixSlot(team, player); saveSoon(); renderTactics();
+    }));
+    host.querySelector('#resetPlayer').addEventListener('click', () => { FM.clearPlayerPositions(team, player); saveSoon(); renderTactics(); });
+    host.querySelector('#playerNote').addEventListener('input', (e) => { player.note = e.target.value; saveSoon(); });
   }
 
   // ---------- starting up ----------
