@@ -195,7 +195,8 @@
     blurb: 'Goals, corners and fouls are counts of events happening at some average rate. If they happen independently at a steady rate, the count in a match follows a Poisson distribution, whose mean and variance are equal.',
     draw(box, c) {
       const key = VAR[st.x] && VAR[st.x].whole ? st.x : 'goals';
-      const wholeVars = FM.STAT_VARS.filter((v) => v[2]);
+      // Counts that stay small suit a Poisson picture; the number of passes runs into the hundreds, which does not.
+      const wholeVars = FM.STAT_VARS.filter((v) => v[2] && v[0] !== 'passes');
       const v = values(c.rows, key), n = v.length;
       box.innerHTML = `<label>Count${`<select id="poVar">${wholeVars.map((w) => `<option value="${w[0]}"${w[0] === key ? ' selected' : ''}>${w[1]}</option>`).join('')}</select>`}</label>`;
       if (n < 6) { box.insertAdjacentHTML('beforeend', needN(n, 6)); }
@@ -212,7 +213,7 @@
         const barsObs = obs.map((o, k) => ({ a: k - 0.5, b: k + 0.5, c: o }));
         const ch = chart({ x0: -0.5, x1: K + 0.5, y0: 0, y1: Math.max.apply(null, obs.concat(exp)) * 1.15, xlabel: VAR[key].label + ' in a match', ylabel: 'Number of matches', xticks: obs.map((_, k) => k), label: 'Observed against Poisson' });
         let s = ch.s;
-        barsObs.forEach((b) => { s += `<rect x="${ch.xs(b.a) + 2}" y="${ch.ys(b.c)}" width="${ch.xs(b.b) - ch.xs(b.a) - 4}" height="${ch.ys(0) - ch.ys(b.c)}" fill="#F2C14E" fill-opacity="0.85"/>`; });
+        barsObs.forEach((b) => { s += `<rect x="${ch.xs(b.a) + 2}" y="${ch.ys(b.c)}" width="${Math.max(1, ch.xs(b.b) - ch.xs(b.a) - 4)}" height="${ch.ys(0) - ch.ys(b.c)}" fill="#F2C14E" fill-opacity="0.85"/>`; });
         exp.forEach((e, k) => { s += `<circle cx="${ch.xs(k)}" cy="${ch.ys(e)}" r="5" fill="#7FD1FF" stroke="#1A232D" stroke-width="1.5"/>`; });
         s += path(ch, exp.map((e, k) => [k, e]), '#7FD1FF', 1.5) + ch.close;
         const lam0 = st.poL0 != null && st.poVar0 === key ? st.poL0 : +S.mean(values(all(c), key)).toFixed(2);

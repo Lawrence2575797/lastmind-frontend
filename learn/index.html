@@ -23900,7 +23900,7 @@ SQIDAQAB
                 sfFeed.miniCortexHistory.push({ role: 'assistant', content: result.reply });
             } catch (err) {
                 console.error('LastMind: mini-Cortex message failed.', err);
-                pendingEl.textContent = "Couldn't reach LastMind just now - try again.";
+                pendingEl.textContent = (err && err.message && err.message !== 'Failed to fetch') ? err.message : "Couldn't reach LastMind just now - try again.";
                 pendingEl.classList.remove('sf-mini-cortex-msg-pending');
             } finally {
                 sendBtn.disabled = false;

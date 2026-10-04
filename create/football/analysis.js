@@ -104,7 +104,10 @@
 
   function networkHtml(league, fx, teamId) {
     const team = FM.teamById(league, teamId), ti = teamId === fx.homeId ? 0 : 1, dir = ti === 0 ? 1 : -1;
-    const passes = fx.log.passes.filter((p) => p[1] === ti);
+    // A pass network describes the team as it was set up, so only the starting eleven are shown: anyone who came on during the
+    // match (a substitute, or a keeper change) is left out, along with passes to or from him.
+    const cameOn = new Set(fx.log.other.filter((e) => (e.type === 'sub' || e.type === 'keeperSwap') && e.team === teamId).map((e) => e.on));
+    const passes = fx.log.passes.filter((p) => p[1] === ti && !cameOn.has(p[2]) && !cameOn.has(p[3]));
     const origins = {}, edges = {}, made = {};
     passes.forEach((p) => {
       const d = dir === 1 ? p[5] / L : 1 - p[5] / L, w = dir === 1 ? p[6] / W : 1 - p[6] / W;
@@ -114,23 +117,36 @@
       if (p[4] === 1) { const k = p[2] + '>' + p[3]; edges[k] = (edges[k] || 0) + 1; }
     });
     const nodes = Object.keys(origins).map((n) => ({ n: +n, d: origins[n].d / origins[n].n, w: origins[n].w / origins[n].n, made: made[n] }));
-    const pos = {}; nodes.forEach((o) => { pos[o.n] = o; });
+    const pos = {}; nodes.forEach((o) => { pos[o.n] = o; const p = toSvg(o.d, o.w); o.x = p.x; o.y = p.y; });
+    // Players' average passing positions can be almost the same, which would put circles and names on top of each other.
+    // So each player is placed on the nearest free spot of a grid just wide enough for a circle and a name: nothing can
+    // overlap, and the picture still follows where each of them passed from.
+    const cols = 5, rows = 5, gx = (PW - 112) / (cols - 1), gy = (PH - 102) / (rows - 1), taken = {};
+    nodes.slice().sort((p, q) => q.made - p.made).forEach((o) => {
+      let best = null, bd = Infinity;
+      for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++) {
+        if (taken[c + ':' + r]) continue;
+        const cx = 56 + c * gx, cy = 40 + r * gy, d = Math.pow((cx - o.x) / PW, 2) + Math.pow((cy - o.y) / PH, 2);
+        if (d < bd) { bd = d; best = { c, r, cx, cy }; }
+      }
+      taken[best.c + ':' + best.r] = true; o.x = best.cx; o.y = best.cy;
+    });
     const maxE = Math.max.apply(null, Object.values(edges).concat([1]));
     let lines = '';
     Object.keys(edges).forEach((k) => {
       const [a, b] = k.split('>').map(Number), c = edges[k];
       if (c < Math.max(4, 0.3 * maxE) || !pos[a] || !pos[b]) return;
-      const A = toSvg(pos[a].d, pos[a].w), B = toSvg(pos[b].d, pos[b].w);
+      const A = { x: pos[a].x, y: pos[a].y }, B = { x: pos[b].x, y: pos[b].y };
       lines += `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="#F2C14E" stroke-opacity="${(0.25 + 0.65 * c / maxE).toFixed(2)}" stroke-width="${(1.5 + 7 * c / maxE).toFixed(1)}" stroke-linecap="round"/>`;
     });
     const maxMade = Math.max.apply(null, nodes.map((o) => o.made).concat([1]));
     const dots = nodes.map((o) => {
-      const P = toSvg(o.d, o.w), r = 13 + 9 * o.made / maxMade;
+      const P = { x: o.x, y: o.y }, r = 13 + 9 * o.made / maxMade;
       const pl = team.squad.find((x) => x.number === o.n);
       return `<circle cx="${P.x}" cy="${P.y}" r="${r.toFixed(1)}" fill="${team.kits.home[0]}" stroke="#fff" stroke-width="3"/><text x="${P.x}" y="${P.y + 6}" text-anchor="middle" font-size="17" font-weight="700" fill="${team.kits.home[1]}">${o.n}</text><text x="${P.x}" y="${P.y + r + 17}" text-anchor="middle" font-size="15" fill="#fff" stroke="#000" stroke-width="3" style="paint-order:stroke">${esc(pl ? shortName(pl) : '')}</text>`;
     }).join('');
     return `<svg class="amap" viewBox="0 0 ${PW} ${PH}" role="img" aria-label="Pass network">${pitchLines()}${lines}${dots}</svg>
-      <p class="note">Each circle is a player, placed where he made his passes on average, bigger the more passes he made. A line joins two players who completed a lot of passes between them (at least four, and at least 30% of the busiest link), thicker for more. ${passes.length} passes in total.</p>`;
+      <p class="note">Each circle is a player, placed where he made his passes on average (arranged on a grid, so no two overlap), bigger the more passes he made. Only the starting eleven are shown: substitutes, and passes to or from them, are left out. A line joins two players who completed a lot of passes between them (at least four, and at least 30% of the busiest link), thicker for more. ${passes.length} passes in total.</p>`;
   }
 
   // ---------- the page ----------

@@ -377,13 +377,14 @@
   const BOARD_KEY = { squad: 'shape', build: 'build', final: 'final', transatt: 'transAtt', transdef: 'transDef', without: 'without' };
   const PHASE_TEXT = {
     shape: 'The team set up in its formation. Drag a shirt anywhere on the pitch; every other phase follows from this shape, the role and the instructions. Drag one shirt onto another to swap those two players.',
-    build: 'The team with the ball in its own half. A shirt you drag here moves for this phase only, and only as far as the player could run from his other positions. A shirt with a gold dot has been placed by hand.',
+    build: 'The team with the ball close to its own goal, which is why the ball starts beside the goalkeeper. These positions apply while the ball is in the team\'s own third, and the team moves toward the final-third positions as the ball goes forward. The ball here is only a guide, so you can drag it to picture other situations. A shirt you drag moves for this phase only, and only as far as the player could run from his other positions. A shirt with a gold dot has been placed by hand.',
     final: 'The team with the ball near the opposition goal. Attackers can stand on the edge of the box or inside it, but they are held at the offside line, and the same role and instructions apply as in every other phase.',
     transAtt: 'The few seconds just after winning the ball, before the team settles. This is where the first runs are made, so positions here pull players toward where the attack will go.',
     transDef: 'The few seconds just after losing the ball. Players here are pulled toward the positions that cut the counter-attack off, or toward the ball if the team presses.',
     without: 'The team without the ball, set to defend. The line height, pressing and width settings move these positions further.',
   };
-  const BALL_AT = { build: 0.18, final: 0.86, transAtt: 0.42, transDef: 0.55, without: 0.45 };
+  // Where the ball starts on each phase's board. It is only a picture to think with: drag it anywhere to imagine another situation.
+  const BALL_AT = { build: { d: 0.07, w: 0.6 }, final: { d: 0.86, w: 0.5 }, transAtt: { d: 0.42, w: 0.5 }, transDef: { d: 0.55, w: 0.5 }, without: { d: 0.45, w: 0.5 } };
   const PHASE_CODE = { build: 'B', final: 'F', transAtt: 'TA', transDef: 'TD', without: 'D' };
   // [key, label, left end, right end, min, max, what it does]
   const SLIDER_TABS = {
@@ -515,9 +516,9 @@
       });
     }
     let ball = '';
-    if (BALL_AT[key] != null) {
-      const bp = bpt({ d: BALL_AT[key], w: 0.5 });
-      ball = `<circle cx="${bp.x + 120}" cy="${bp.y}" r="9" fill="#fff" stroke="#111" stroke-width="2"/><text x="${bp.x + 136}" y="${bp.y + 5}" font-size="14" fill="#fff" style="paint-order:stroke" stroke="#000" stroke-width="3">${key === 'without' || key === 'transDef' ? 'opposition have the ball about here' : 'ball about here'}</text>`;
+    if (BALL_AT[key]) {
+      const bp = bpt((world.ballPos && world.ballPos[key]) || BALL_AT[key]);
+      ball = `<g class="ball" transform="translate(${bp.x.toFixed(1)},${bp.y.toFixed(1)})"><circle r="16" fill="#fff" stroke="#111" stroke-width="3"/><circle r="6" fill="#111"/><text y="36" text-anchor="middle" font-size="15" fill="#fff" stroke="#000" stroke-width="3.5" style="paint-order:stroke">ball</text></g>`;
     }
     const dots = team.players.map((p) => {
       const pt = bpt(posOf(p)), sel = selected === p;
@@ -529,15 +530,17 @@
         <text y="65" text-anchor="middle" font-size="16" fill="${FM.isInjured(p) ? '#FF9A9A' : FM.conditionOf(p) < 0.6 ? '#F2C8A0' : '#cfe8cf'}" stroke="#000" stroke-width="3.5" style="paint-order:stroke">${FM.isInjured(p) ? 'injured' : Math.round(100 * FM.conditionOf(p)) + '%'}</text>
         ${manual ? '<circle cx="18" cy="-18" r="6.5" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/>' : ''}</g>`;
     }).join('');
-    host.innerHTML = `<svg class="board" viewBox="-24 -30 ${BW + 48} ${BH + 92}" role="img" aria-label="Tactics board">${boardPitchSvg(key)}${ghosts}${ball}${dots}</svg>`;
+    host.innerHTML = `<svg class="board" viewBox="-24 -30 ${BW + 48} ${BH + 92}" role="img" aria-label="Tactics board">${boardPitchSvg(key)}${ghosts}${dots}${ball}</svg>`;
     const svg = host.firstChild;
     const toPos = (e) => {
       const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
       const q = pt.matrixTransform(svg.getScreenCTM().inverse());
       return { d: clamp01(1 - q.y / BH, 0.02, 0.98), w: clamp01(q.x / BW, 0.03, 0.97), x: q.x, y: q.y };
     };
-    let drag = null;
+    let drag = null, dragBall = null;
     svg.addEventListener('pointerdown', (e) => {
+      const bl = e.target.closest('.ball');
+      if (bl) { dragBall = { g: bl, pos: null }; svg.setPointerCapture(e.pointerId); e.preventDefault(); return; }
       const g = e.target.closest('.dot');
       if (!g) return;
       const p = team.players.find((x) => x.index === +g.dataset.idx);
@@ -547,6 +550,7 @@
       e.preventDefault();
     });
     svg.addEventListener('pointermove', (e) => {
+      if (dragBall) { const pos = toPos(e); dragBall.pos = pos; const pt = bpt(pos); dragBall.g.setAttribute('transform', `translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})`); return; }
       if (!drag) return;
       if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 5) return;
       drag.moved = true;
@@ -557,6 +561,7 @@
       drag.g.setAttribute('transform', `translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})`);
     });
     svg.addEventListener('pointerup', (e) => {
+      if (dragBall) { if (dragBall.pos) { world.ballPos = world.ballPos || {}; world.ballPos[key] = { d: dragBall.pos.d, w: dragBall.pos.w }; } dragBall = null; return; }
       if (!drag) return;
       const d = drag; drag = null;
       if (!d.moved && world.selBench) { host.dispatchEvent(new CustomEvent('sub', { detail: { idx: d.p.index, id: world.selBench.id } })); return; }

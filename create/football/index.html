@@ -111,7 +111,8 @@
   .tb-left, .tb-right { display: grid; gap: 12px; min-width: 0; align-content: start; }
   svg.board { display: block; width: 100%; max-width: 460px; height: auto; border-radius: 8px; touch-action: none; user-select: none; }
   svg.board .dot { cursor: grab; }
-  svg.board .dot:active { cursor: grabbing; }
+  svg.board .dot:active, svg.board .ball:active { cursor: grabbing; }
+  svg.board .ball { cursor: grab; }
   svg.board text { pointer-events: none; font-family: Helvetica, Arial, sans-serif; }
   .ins h3 { margin: 0 0 6px; font-family: var(--sans); font-size: 0.78rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--cream-soft); }
   .ins { display: grid; gap: 8px; }
