@@ -49,8 +49,9 @@
   const BENCH_GROUPS = ['GK', 'CB', 'CB', 'FB', 'DM', 'CM', 'AM', 'WF', 'ST'];
 
   function makePlayer(id, number, natural, rng, strength) {
-    const ratings = FM.generateRatings(natural, rng, strength);
-    return { id, number, natural, group: natural, index: -1, slotKey: null, roleId: null, options: {}, ratings, x: 0, y: 0, vx: 0, vy: 0, maxSpeed: FM.speedFromPace(ratings.pace) };
+    const body = FM.generatePhysique(natural, rng);
+    const ratings = FM.generateRatings(natural, rng, strength, body.height);
+    return { id, number, natural, height: body.height, foot: body.foot, group: natural, index: -1, slotKey: null, roleId: null, options: {}, ratings, x: 0, y: 0, vx: 0, vy: 0, maxSpeed: FM.speedFromPace(ratings.pace) };
   }
   function putInSlot(player, formation, i) {
     const slot = formation.slots[i];

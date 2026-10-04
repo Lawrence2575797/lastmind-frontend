@@ -396,7 +396,7 @@
   };
 
   // ---------- saving ----------
-  const PLAYER_KEYS = ['id', 'number', 'natural', 'name', 'nation', 'ratings', 'maxSpeed', 'roleId', 'options', 'index', 'slotKey', 'group', 'stats', 'origGk', 'emergencyKeeper', 'instr', 'note', 'condition', 'injury'];
+  const PLAYER_KEYS = ['id', 'number', 'natural', 'name', 'nation', 'ratings', 'height', 'foot', 'maxSpeed', 'roleId', 'options', 'index', 'slotKey', 'group', 'stats', 'origGk', 'emergencyKeeper', 'instr', 'note', 'condition', 'injury'];
   FM.serializeLeague = function (league) {
     const teams = league.teams.map((t) => ({
       id: t.id, name: t.name, kit: t.kit, kits: t.kits, style: t.style, strength: t.strength, seed: t.seed, formationKey: t.formationKey, tactics: t.tactics,
@@ -476,6 +476,7 @@
   FM.loadLeague = function () {
     try {
       const t = localStorage.getItem(SAVE_KEY), lg = t ? FM.deserializeLeague(t) : null;
+      if (lg) lg.teams.forEach((tm) => tm.squad.forEach((p) => FM.backfillPhysique(p))); // a save from before heights existed
       FM.syncProject(lg); // lists the season as a project, or removes the entry if there is no save
       return lg;
     } catch (e) { return null; }

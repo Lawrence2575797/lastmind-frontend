@@ -80,6 +80,7 @@
   const POSSESSION = ['build', 'final', 'transAtt'];
   const side = (pos) => Math.abs(pos.w - 0.5);
 
+  // The rules he must obey (checkPlayer) are kept apart from advice about how well his positions suit his role (roleAdvice).
   // Returns a list of plain-English problems for one player.
   FM.checkPlayer = function (team, p, opp, lineFor) {
     const out = [];
@@ -97,7 +98,12 @@
       const limOf = (ph) => FM.offsideLimit(opp, p, lineFor ? lineFor(ph) : null), offs = FM.OFFSIDE_PHASES.filter((ph) => FM.isManual(team, p, ph) && FM.phasePos(team, p, ph).d > limOf(ph) + 0.004);
       if (offs.length) out.push('He would be offside in ' + offs.map((ph) => PHASE_SHORT[ph]).join(' and ') + ': their deepest defender is about ' + Math.round(limOf(offs[0]) * 105) + ' m from your goal and he is placed beyond him.');
     }
-    // 2. Do the positions fit the role? The role is the same in every phase, so its shape has to show in each of them.
+    return out;
+  };
+
+  // Advice, not rules: places where his positions do not look like the role he has been given. Nothing stops the manager doing them.
+  FM.roleAdvice = function (team, p) {
+    const out = [];
     const role = p.roleId;
     POSSESSION.forEach((ph) => {
       const pos = FM.phasePos(team, p, ph);
@@ -105,8 +111,10 @@
       if (['wing_back', 'attacking_full_back', 'winger'].indexOf(role) >= 0 && ph !== 'build' && side(pos) < 0.22) out.push('A ' + FM.ROLES[role].name.toLowerCase() + ' is expected to stay wide, but he is central in ' + PHASE_SHORT[ph] + '.');
       if (['inside_forward', 'inverted_winger'].indexOf(role) >= 0 && ph === 'final' && side(pos) > 0.34) out.push('An ' + FM.ROLES[role].name.toLowerCase() + ' cuts inside in the final third, but he stands out wide.');
     });
+    // A holding midfielder usually screens the middle when defending. In build-up and the transitions he is free to drop wide
+    // (stepping out to full-back is a real way to build), so only the defending phases are looked at.
     if (['anchor', 'defensive_midfielder', 'deep_lying_playmaker'].indexOf(role) >= 0) {
-      FM.PHASES.forEach((ph) => { if (side(FM.phasePos(team, p, ph)) > 0.24) out.push('A ' + FM.ROLES[role].name.toLowerCase() + ' works in the middle, but he is wide in ' + PHASE_SHORT[ph] + '.'); });
+      ['without', 'press'].forEach((ph) => { if (side(FM.phasePos(team, p, ph)) > 0.3) out.push('A ' + FM.ROLES[role].name.toLowerCase() + ' usually screens the middle when defending, and he is out wide in ' + PHASE_SHORT[ph] + '. That leaves the middle open.'); });
     }
     if (role === 'false_9') {
       const fin = FM.phasePos(team, p, 'final');
@@ -115,5 +123,5 @@
     }
     return out;
   };
-  FM.teamProblems = (team, opp, lineFor) => team.players.map((p) => ({ p, list: FM.checkPlayer(team, p, opp, lineFor) })).filter((x) => x.list.length);
+  FM.teamProblems = (team, opp, lineFor) => team.players.map((p) => ({ p, list: FM.checkPlayer(team, p, opp, lineFor), advice: FM.roleAdvice(team, p) })).filter((x) => x.list.length || x.advice.length);
 })();

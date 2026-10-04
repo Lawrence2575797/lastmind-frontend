@@ -37,11 +37,34 @@
     ST: { pace: 70, dribbling: 66, passing: 56, finishing: 76, tackling: 34, composure: 66, heading: 70, stamina: 62 },
   };
 
-  FM.generateRatings = function (group, rng, strength) {
+  // Body: height (cm) and preferred foot. Typical height for each kind of position, and how far a player's height is from it
+  // moves his heading rating (taller wins more in the air), so a tall centre-back is a better header of the ball than a short one.
+  const HEIGHTS = { GK: [189, 5], CB: [187, 5], FB: [177, 5], DM: [181, 5], CM: [179, 5], AM: [177, 5], WF: [175, 5.5], ST: [183, 5.5] };
+  FM.HEADING_PER_CM = 1.0; // heading rating points for each cm taller than the position's typical height
+  FM.generatePhysique = function (group, rng) {
+    const [mean, sd] = HEIGHTS[group] || HEIGHTS.CM;
+    const height = Math.round(Math.max(160, Math.min(203, mean + gauss(rng) * sd)));
+    const f = rng();
+    return { height, foot: f < 0.72 ? 'right' : f < 0.95 ? 'left' : 'both' };
+  };
+  FM.FOOT_TEXT = { right: 'Right-footed', left: 'Left-footed', both: 'Two-footed' };
+  // A player saved before heights existed gets one, worked out from his id, leaning toward what his heading rating suggests.
+  FM.backfillPhysique = function (p) {
+    if (p.height) return;
+    const rng = FM.mulberry32(FM.hashString(String(p.id)) + 7), [mean, sd] = HEIGHTS[p.natural] || HEIGHTS.CM, prof = (PROFILES[p.natural] || PROFILES.CM).heading;
+    const lean = Math.max(-2, Math.min(2, ((p.ratings.heading - prof) / FM.RATING_SD) * 0.7));
+    p.height = Math.round(Math.max(160, Math.min(203, mean + (lean + gauss(rng) * 0.7) * sd)));
+    if (!p.foot) { const f = rng(); p.foot = f < 0.72 ? 'right' : f < 0.95 ? 'left' : 'both'; }
+  };
+
+  FM.generateRatings = function (group, rng, strength, height) {
     const prof = PROFILES[group] || PROFILES.CM;
     const r = {};
+    const tallBy = height != null ? height - (HEIGHTS[group] || HEIGHTS.CM)[0] : 0;
     Object.keys(prof).forEach((k) => {
-      r[k] = Math.round(Math.max(25, Math.min(95, prof[k] + (strength || 0) + gauss(rng) * FM.RATING_SD)));
+      // heading: height supplies part of its spread (about 5 points a standard deviation), so the rest is ordinary variation
+      const noise = k === 'heading' && height != null ? gauss(rng) * Math.sqrt(Math.max(FM.RATING_SD * FM.RATING_SD - 25, 4)) : gauss(rng) * FM.RATING_SD;
+      r[k] = Math.round(Math.max(25, Math.min(95, prof[k] + (strength || 0) + noise + (k === 'heading' ? FM.HEADING_PER_CM * tallBy : 0))));
     });
     r.gk = group === 'GK' ? Math.round(Math.max(45, Math.min(92, 68 + (strength || 0) + gauss(rng) * FM.RATING_SD))) : 20;
     return r;

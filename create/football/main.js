@@ -405,12 +405,12 @@
     const team = userTeam(), host = el('view-squad');
     const onPitch = team.players.slice().sort((a, b) => a.index - b.index);
     const all = onPitch.concat(team.bench);
-    const row = (p) => `<tr><td class="l">${p.number}</td><td class="l">${esc(p.name)}</td><td class="l">${esc(p.nation)}</td><td class="l">${p.natural}</td><td class="l">${p.slotKey ? p.slotKey : 'Bench'}</td><td class="${condClass(p)}">${Math.round(100 * FM.conditionOf(p))}%</td><td class="l ${FM.isInjured(p) ? 'out' : ''}">${FM.isInjured(p) ? esc(injuryText(p)) : 'Fit'}</td>
+    const row = (p) => `<tr><td class="l">${p.number}</td><td class="l">${esc(p.name)}</td><td class="l">${esc(p.nation)}</td><td class="l">${p.natural}</td><td class="l">${p.slotKey ? p.slotKey : 'Bench'}</td><td class="l">${{ right: 'Right', left: 'Left', both: 'Both' }[p.foot] || ''}</td><td>${p.height || '-'}</td><td class="${condClass(p)}">${Math.round(100 * FM.conditionOf(p))}%</td><td class="l ${FM.isInjured(p) ? 'out' : ''}">${FM.isInjured(p) ? esc(injuryText(p)) : 'Fit'}</td>
       <td><b>${FM.playerRating(p).toFixed(1)}</b></td><td>${FM.shown(p.ratings.pace)}</td><td>${FM.shown(p.ratings.dribbling)}</td><td>${FM.shown(p.ratings.passing)}</td><td>${FM.shown(p.ratings.finishing)}</td><td>${FM.shown(p.ratings.tackling)}</td><td>${FM.shown(p.ratings.heading)}</td><td>${FM.shown(p.ratings.composure)}</td><td>${p.ratings.stamina ? FM.shown(p.ratings.stamina) : '-'}</td><td>${p.natural === 'GK' ? FM.shown(p.ratings.gk) : '-'}</td>
       <td>${p.stats.apps}</td><td>${p.stats.goals}</td><td>${p.stats.shots}</td><td>${p.stats.yellows}</td><td>${p.stats.reds}</td></tr>`;
     host.innerHTML = `<div class="card"><h2>${esc(team.name)}: squad of ${all.length}</h2>
-      <div class="tablewrap"><table class="data"><thead><tr><th class="l">#</th><th class="l">Name</th><th class="l">Nation</th><th class="l">Pos</th><th class="l">Now</th><th>Cond</th><th class="l">Fitness</th><th title="Overall rating out of 10 in his natural position">Rating</th><th>Pac</th><th>Dri</th><th>Pas</th><th>Fin</th><th>Tck</th><th>Hea</th><th>Com</th><th>Sta</th><th>GK</th><th>Apps</th><th>Goals</th><th>Shots</th><th>YC</th><th>RC</th></tr></thead><tbody>${all.map(row).join('')}</tbody></table></div>
-      <p class="note">The Rating column is one number out of 10 for his natural position, worked out from the ratings that matter most there; the individual ratings are beside it. Ratings run from about 55 to 99, where 60 is a poor player and 80 is about average, and they change the odds of what a player tries: a better dribbler wins more dribbles, a better finisher scores more of the same chances.</p></div>`;
+      <div class="tablewrap"><table class="data"><thead><tr><th class="l">#</th><th class="l">Name</th><th class="l">Nation</th><th class="l">Pos</th><th class="l">Now</th><th class="l">Foot</th><th title="Height in cm. Taller players are better in the air.">Ht</th><th>Cond</th><th class="l">Fitness</th><th title="Overall rating out of 10 in his natural position">Rating</th><th>Pac</th><th>Dri</th><th>Pas</th><th>Fin</th><th>Tck</th><th>Hea</th><th>Com</th><th>Sta</th><th>GK</th><th>Apps</th><th>Goals</th><th>Shots</th><th>YC</th><th>RC</th></tr></thead><tbody>${all.map(row).join('')}</tbody></table></div>
+      <p class="note">Height (in cm) feeds a player's heading: a taller player is better in the air than a shorter one in the same position. The Rating column is one number out of 10 for his natural position, worked out from the ratings that matter most there; the individual ratings are beside it. Ratings run from about 55 to 99, where 60 is a poor player and 80 is about average, and they change the odds of what a player tries: a better dribbler wins more dribbles, a better finisher scores more of the same chances.</p></div>`;
   }
 
   // ---------- the tactics page ----------
@@ -775,11 +775,14 @@
     const sel = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
     const hurt = team.players.filter(FM.isInjured);
     let html = (hurt.length && !inLive() ? `<p class="note warnnote">${hurt.map((p) => esc(p.name)).join(', ')} ${hurt.length > 1 ? 'are' : 'is'} injured. Substitute ${hurt.length > 1 ? 'them' : 'him'} here, or the best available replacement will start at kick-off.</p>` : '') + '<h2 style="margin-bottom:8px">Do the phases fit together?</h2>';
-    if (!all.length) html += '<p class="note">Yes. Every player can reach each of his positions in time, and each position fits his role.</p>';
+    const hard = all.filter((x) => x.list.length), soft = all.filter((x) => x.advice.length);
+    if (!hard.length) html += '<p class="note">Yes. Every player can reach each of his positions in time, and nobody is placed offside.</p>';
     else {
-      html += '<div class="warns">' + all.map(({ p, list }) => `<div class="warn${p === sel ? ' me' : ''}"><b>${esc(shortName(p))}</b> (${p.slotKey})<ul>${list.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>`).join('') + '</div>';
+      html += '<div class="warns">' + hard.map(({ p, list }) => `<div class="warn${p === sel ? ' me' : ''}"><b>${esc(shortName(p))}</b> (${p.slotKey})<ul>${list.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>`).join('') + '</div>';
       html += '<div class="row" style="margin-top:8px"><button id="fixAll">Pull impossible and offside positions back</button></div>';
     }
+    // Advice about roles is only advice: it is shown apart from the rules and cannot be "fixed" by the button.
+    if (soft.length) html += '<h3 style="margin:14px 0 6px">Advice on roles</h3><p class="note">These are suggestions, not rules. Nothing stops you doing any of them.</p><div class="warns">' + soft.map(({ p, advice }) => `<div class="warn soft${p === sel ? ' me' : ''}"><b>${esc(shortName(p))}</b> (${p.slotKey})<ul>${advice.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>`).join('') + '</div>';
     host.innerHTML = html;
     const fix = host.querySelector('#fixAll');
     if (fix) fix.addEventListener('click', () => { const op = nextOpponent(); team.players.forEach((p) => FM.fixSlot(team, p, op, (ph) => oppLine(ph))); saveSoon(); renderTactics(); });
@@ -792,7 +795,7 @@
     const bars = rows.map(([k, l]) => `<div class="rrow"><span>${l}</span><span class="rbar"><i style="width:${Math.max(0, Math.min(100, FM.shown(r[k] || 0)))}%"></i></span><b>${r[k] != null ? FM.shown(r[k]) : '-'}</b></div>`).join('');
     const st = p.stats || { apps: 0, goals: 0, shots: 0, yellows: 0, reds: 0 };
     const cond = FM.isInjured(p) ? `<span class="out">injured: ${esc(injuryText(p))}</span>` : `condition ${Math.round(100 * FM.conditionOf(p))}%`;
-    return `<p class="note">${esc(p.nation)} · natural position ${p.natural}${playingAs ? ', playing ' + playingAs : ''} · <b>rated ${FM.ratingText(p)}</b>${p.group && p.group !== p.natural ? ' (' + FM.ratingText(p, p.group) + ' as a ' + p.group + ')' : ''} · ${cond}</p>
+    return `<p class="note">${esc(p.nation)} · natural position ${p.natural}${playingAs ? ', playing ' + playingAs : ''} · ${FM.FOOT_TEXT[p.foot] || ''}, ${p.height || '?'} cm · <b>rated ${FM.ratingText(p)}</b>${p.group && p.group !== p.natural ? ' (' + FM.ratingText(p, p.group) + ' as a ' + p.group + ')' : ''} · ${cond}</p>
       <div class="ratings">${bars}</div>
       <p class="note">This season: ${st.apps} appearance${st.apps === 1 ? '' : 's'}, ${st.goals} goal${st.goals === 1 ? '' : 's'}, ${st.shots} shot${st.shots === 1 ? '' : 's'}, ${st.yellows} yellow card${st.yellows === 1 ? '' : 's'}, ${st.reds} red.</p>`;
   }
