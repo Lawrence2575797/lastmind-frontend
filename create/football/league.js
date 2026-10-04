@@ -71,7 +71,7 @@
       });
       return team;
     });
-    const league = { seed, tier: opts.tier || 'gcse', userId: teams[opts.userIndex || 0].id, season: 1, day: 0, teams, fixtures: [] };
+    const league = { seed, tier: opts.tier || 'gcse', userId: teams[opts.userIndex || 0].id, season: 1, day: 0, teams, fixtures: [], testLog: [], hypotheses: [] };
     league.fixtures = makeFixtures(teams.map((t) => t.id), rng, seed);
     return league;
   };
@@ -302,6 +302,7 @@
     FM.finishFixture(league, userFx, userMatch);
     league.fixtures.filter((f) => f.round === userFx.round && !f.played).forEach((f) => FM.simulateFixture(league, f));
     FM.aiAfterRound(league, userFx.round);
+    if (FM.testPendingHypotheses) FM.testPendingHypotheses(league, userFx);
   };
 
   // ---------- table ----------

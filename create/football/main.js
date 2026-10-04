@@ -222,8 +222,8 @@
   });
 
   // ---------- views and navigation ----------
-  const VIEWS = ['home', 'league', 'squad', 'analysis', 'match'];
-  const NAV = [['home', 'Home'], ['tactics', 'Tactics'], ['league', 'League'], ['squad', 'Squad'], ['analysis', 'Analysis']];
+  const VIEWS = ['home', 'league', 'squad', 'analysis', 'reports', 'hypotheses', 'match'];
+  const NAV = [['home', 'Home'], ['tactics', 'Tactics'], ['league', 'League'], ['squad', 'Squad'], ['reports', 'Reports'], ['analysis', 'Analysis'], ['hypotheses', 'Hypotheses']];
   function setView(v) {
     world.view = v;
     VIEWS.forEach((k) => { el('view-' + k).hidden = k !== v; });
@@ -236,6 +236,8 @@
     else if (v === 'league') renderLeague();
     else if (v === 'squad') renderSquad();
     else if (v === 'analysis') FM.renderAnalysis(el('view-analysis'), world.league);
+    else if (v === 'reports') FM.renderReports(el('view-reports'), world.league);
+    else if (v === 'hypotheses') FM.renderHypotheses(el('view-hypotheses'), world.league);
     else if (v === 'tactics' || v === 'match') renderTactics();
     if (v === 'match') resize();
   }
@@ -666,7 +668,7 @@
 
   // ---------- starting up ----------
   function showNewGame() {
-    ['home', 'league', 'squad', 'analysis', 'match'].forEach((k) => { el('view-' + k).hidden = true; });
+    ['home', 'league', 'squad', 'analysis', 'reports', 'hypotheses', 'match'].forEach((k) => { el('view-' + k).hidden = true; });
     el('tactics').hidden = true; el('nav').hidden = true; el('newGame').hidden = false;
     el('topRight').innerHTML = ''; el('subtitle').textContent = 'Eight clubs, one season, and a lot of numbers.';
   }
