@@ -121,6 +121,7 @@
   };
 
   function giveBall(match, team, player, delay) {
+    if (match.rec) chainOnBall(match, team, player, match.lastTeam !== team);
     if (match.lastTeam !== team || !match.lastChange) match.lastChange = { team, t: match.clock };
     match.carrier = { team, player };
     match.flight = null;
@@ -407,6 +408,7 @@
     if (outcome === 'off') { ex = goalX; ey = W / 2 + (rng() < 0.5 ? -1 : 1) * (4.5 + rng() * 4); }
     if (outcome === 'blocked') { const s = segInfo(blocker.x, blocker.y, carrier.x, carrier.y, goalX, aimY); ex = s.cx; ey = s.cy; }
     if (outcome === 'saved') { ex = goalX + (team.attackDir === 1 ? -0.5 : 0.5); ey = gk.y; }
+    if (match.rec && outcome !== 'goal' && opt.xg >= 0.1) clipChance(match, team, carrier, opt.xg);
     record(match, { type: 'shot', team: team.id, player: carrier.number, xg: opt.xg, outcome, defDist: nearD, x: carrier.x, y: carrier.y, setPiece: opt.header ? 'header' : undefined });
     match.carrier = null; match.carry = null;
     match.flight = { kind: 'shot', team, shooter: carrier, speed: 28, target: null, ex, ey: clamp(ey, 0.5, W - 0.5), outcome, gk, blocker };
@@ -743,8 +745,87 @@
     match.ball.state = 'flight';
   }
 
+  // ---------- clips ----------
+  // For the user's own matches the engine keeps a rolling record of where every player and the ball are, three times a second.
+  // When something worth studying happens (a goal either way, a big chance, a build-up from the back that reaches the final
+  // third) the last few seconds are cut out as a clip, with the passes and shots in it, for the Analysis Centre to replay.
+  // Coordinates are stored as whole decimetres to keep a season's worth small.
+  const CLIP_DT = 1 / 3, BUFFER_SECONDS = 32;
+  function recordFrame(match) {
+    const r = match.rec;
+    if (!r || match.clock < r.next) return;
+    r.next = match.clock + CLIP_DT;
+    const snap = (team) => team.players.map((p) => [p.number, p.x, p.y]);
+    r.buf.push({ t: match.clock, b: [match.ball.x, match.ball.y], h: snap(match.home), a: snap(match.away) });
+    while (r.buf.length && r.buf[0].t < match.clock - BUFFER_SECONDS) r.buf.shift();
+    for (let i = r.pending.length - 1; i >= 0; i--) if (match.clock >= r.pending[i].until) extractClip(match, r.pending.splice(i, 1)[0]);
+  }
+  function extractClip(match, spec) {
+    const r = match.rec, d1 = (v) => Math.round(v * 10);
+    const frames = r.buf.filter((f) => f.t >= spec.from && f.t <= spec.to + 1e-6);
+    if (frames.length < 4) return;
+    const roster = [[], []];
+    frames.forEach((f) => { f.h.forEach((q) => { if (roster[0].indexOf(q[0]) < 0) roster[0].push(q[0]); }); f.a.forEach((q) => { if (roster[1].indexOf(q[0]) < 0) roster[1].push(q[0]); }); });
+    const f = frames.map((fr) => {
+      const row = [d1(fr.b[0]), d1(fr.b[1])];
+      [['h', 0], ['a', 1]].forEach(([k, si]) => roster[si].forEach((n) => { const q = fr[k].find((z) => z[0] === n); row.push(q ? d1(q[1]) : -1, q ? d1(q[2]) : -1); }));
+      return row;
+    });
+    const t0 = frames[0].t, off = (t) => Math.round((t - t0) * 10) / 10, idx = (id) => (id === match.home.id ? 0 : 1);
+    const ev = [];
+    match.events.forEach((e) => {
+      if (e.t < t0 || e.t > frames[frames.length - 1].t) return;
+      if (e.type === 'pass' && e.tx != null) ev.push(['pass', off(e.t), idx(e.team), e.from, e.to, d1(e.x), d1(e.y), d1(e.tx), d1(e.ty), e.ok ? 1 : 0, Math.round(e.p * 100), Math.round(e.dist), Math.round(Math.min(e.lane, 30) * 10) / 10, Math.round(Math.min(e.press, 30) * 10) / 10]);
+      else if (e.type === 'shot') ev.push(['shot', off(e.t), idx(e.team), e.player, d1(e.x), d1(e.y), Math.round(e.xg * 100), e.outcome, e.setPiece || '']);
+      else if (e.type === 'goal') ev.push(['goal', off(e.t), idx(e.team), e.player]);
+      else if (e.type === 'tackle') ev.push(['tackle', off(e.t), idx(e.team), e.player, e.vs, e.ok ? 1 : 0]);
+    });
+    r.cands.push({
+      kind: spec.kind, label: spec.label, rank: spec.rank || 0, minute: Math.floor((spec.event != null ? spec.event : t0) / 60) + 1,
+      at: Math.round(((spec.event != null ? spec.event : t0) - t0) * 10) / 10, dt: Math.round(CLIP_DT * 1000) / 1000, roster, f, ev,
+      kits: [{ shirt: match.home.kit.shirt, number: match.home.kit.number }, { shirt: match.away.kit.shirt, number: match.away.kit.number }],
+      score: [match.score[match.home.id], match.score[match.away.id]],
+    });
+  }
+  function clipGoal(match, team, shooter) {
+    const t = match.clock, mine = team.id === match.userId;
+    match.rec.pending.push({ kind: mine ? 'goal' : 'conceded', label: (mine ? 'Goal: ' : 'Goal conceded: ') + shooter.name + ' (' + team.name + ')', from: t - 14, to: t + 3.5, until: t + 3.5, event: t });
+  }
+  function clipChance(match, team, shooter, xg) {
+    const t = match.clock, mine = team.id === match.userId;
+    match.rec.pending.push({ kind: mine ? 'chance' : 'chanceAgainst', label: (mine ? 'Chance: ' : 'Chance against: ') + shooter.name + ' (xG ' + xg.toFixed(2) + ')', from: t - 10, to: t + 3, until: t + 3, event: t, rank: xg });
+  }
+  // A build-up from the back: the user's team wins the ball in its own third and, keeping it, gets it into the final third
+  // after at least four passes. Called each time the ball is given to a player.
+  function chainOnBall(match, team, player, changed) {
+    const r = match.rec, ch = r.chain;
+    const d = FM.toTeamSpace(team.attackDir, player.x, player.y).d;
+    if (team.id !== match.userId) { r.chain = null; return; }
+    if (changed || !ch || match.clock - ch.start > 28) { r.chain = d < 0.33 ? { start: match.clock, passes: 0, done: false } : null; return; }
+    ch.passes++;
+    if (!ch.done && d > 0.66 && ch.passes >= 4) {
+      ch.done = true;
+      const t = match.clock;
+      r.pending.push({ kind: 'buildup', label: 'Build-up from the back: ' + ch.passes + ' passes', from: ch.start - 1.5, to: t + 2, until: t + 2, event: ch.start, rank: ch.passes });
+    }
+  }
+  // At the final whistle: cut anything still waiting, then keep the clips worth keeping (every goal, the best few chances
+  // and build-ups) so a season stays a reasonable size.
+  FM.finaliseClips = function (match) {
+    const r = match.rec;
+    if (!r) return [];
+    r.pending.splice(0).forEach((s) => { s.to = Math.min(s.to, match.clock); extractClip(match, s); });
+    const top = (kind, n) => r.cands.filter((c) => c.kind === kind).sort((a, b) => b.rank - a.rank).slice(0, n);
+    const keep = r.cands.filter((c) => c.kind === 'goal' || c.kind === 'conceded').concat(top('chance', 3), top('chanceAgainst', 2), top('buildup', 2));
+    keep.sort((a, b) => a.score[0] + a.score[1] - (b.score[0] + b.score[1]) || a.minute - b.minute);
+    keep.sort((a, b) => a.minute - b.minute);
+    keep.forEach((c, i) => { c.id = 'c' + i; delete c.rank; });
+    return keep;
+  };
+
   // ---------- energy and injuries during play ----------
   function fitnessTick(match, dt) {
+    recordFrame(match);
     match.teams.forEach((team) => team.players.forEach((p) => { p.energy = Math.max(0.05, (p.energy == null ? 1 : p.energy) - FM.drainFor(p, team, dt)); }));
     if (match.clock >= (match.fitNext || 0)) { match.fitNext = match.clock + 30; match.teams.forEach((t) => t.players.forEach(FM.applyFatigue)); }
     if (!match.friendly && match.clock >= (match.injNext || 0)) {
@@ -1013,6 +1094,7 @@
       const st = statsOf(match, team); st.goals++;
       match.score[team.id]++;
       record(match, { type: 'goal', team: team.id, player: f.shooter.number });
+      if (match.rec) clipGoal(match, team, f.shooter);
       FM.beginKickoff(match, opp);
     } else if (f.outcome === 'saved') {
       if (match.rng() < 0.45) startRestart(match, 'corner', team, team.attackDir === 1 ? L - 0.5 : 0.5, f.ey < W / 2 ? 0.5 : W - 0.5);

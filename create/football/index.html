@@ -147,6 +147,11 @@
   table.data tr.rel-first td { border-top: 2px dashed #E58C8C; }
   table.data tr.champ td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
   .zone { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: rgba(229, 140, 140, 0.5); vertical-align: middle; margin-right: 6px; }
+  .clipwrap { max-width: 860px; }
+  .clipevents { display: flex; flex-wrap: wrap; gap: 6px; max-height: 150px; overflow-y: auto; margin: 6px 0; }
+  .clipev { font-size: 0.78rem; padding: 4px 8px; }
+  .clipev.on { background: var(--gold); color: #1b1b1b; border-color: var(--gold); }
+  .clipinfo { min-height: 3.2em; }
   .ratings { display: grid; gap: 5px; }
   .rrow { display: grid; grid-template-columns: 92px 1fr 30px; gap: 8px; align-items: center; font-family: var(--sans); font-size: 0.8rem; }
   .rrow b { text-align: right; font-variant-numeric: tabular-nums; }
@@ -254,6 +259,7 @@
 <script src="/create/football/stats_top.js"></script>
 <script src="/create/football/news.js"></script>
 <script src="/create/football/analysis.js"></script>
+<script src="/create/football/clips.js"></script>
 <script src="/create/football/reports.js"></script>
 <script src="/create/football/hypotheses.js"></script>
 <script src="/create/football/main.js"></script>

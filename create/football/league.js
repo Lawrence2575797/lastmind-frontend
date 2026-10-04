@@ -256,6 +256,8 @@
     match.day = league.day; match.userId = league.userId; match.interactive = !!(opts && opts.interactive); match.friendly = friendly;
     match.aiTeams = [home, away].filter((t) => t.id !== league.userId);
     match.fixture = fx;
+    // Clips are cut from your own matches (not friendlies, and not matches between other clubs).
+    if (!friendly && (home.id === league.userId || away.id === league.userId)) { match.clips = []; match.rec = { buf: [], next: 0, pending: [], cands: [], chain: null }; }
     match.starters = { [home.id]: home.players.map((p) => p.id), [away.id]: away.players.map((p) => p.id) };
     return match;
   };
@@ -293,7 +295,7 @@
     });
     [home, away].forEach((t) => t.squad.forEach((p) => { if (played.has(p.id)) p.stats.apps++; }));
     // For the user's own matches, keep a compact log for the Analysis Centre.
-    if (fx.homeId === league.userId || fx.awayId === league.userId) fx.log = FM.compactLog(match);
+    if (fx.homeId === league.userId || fx.awayId === league.userId) { fx.log = FM.compactLog(match); fx.clips = FM.finaliseClips(match); }
     if (FM.summariseMatch) fx.summary = FM.summariseMatch(league, fx, match);
     [home, away].forEach((t) => { FM.fitnessEnd(t, played); FM.restoreLineup(t, t.snap); t.snap = null; delete t.liveBase; delete t.liveLean; });
   };
@@ -399,7 +401,13 @@
     return league;
   };
   FM.saveLeague = function (league) {
-    try { localStorage.setItem(SAVE_KEY, FM.serializeLeague(league)); return true; } catch (e) { return false; }
+    try { localStorage.setItem(SAVE_KEY, FM.serializeLeague(league)); return true; } catch (e) { /* storage full: drop the oldest clips and try again */ }
+    const withClips = league.fixtures.filter((f) => f.clips && f.clips.length).sort((a, b) => a.round - b.round);
+    for (const f of withClips) {
+      f.clips = []; f.clipsDropped = true;
+      try { localStorage.setItem(SAVE_KEY, FM.serializeLeague(league)); return true; } catch (e) { /* keep trimming */ }
+    }
+    return false;
   };
   FM.loadLeague = function () {
     try { const t = localStorage.getItem(SAVE_KEY); return t ? FM.deserializeLeague(t) : null; } catch (e) { return null; }

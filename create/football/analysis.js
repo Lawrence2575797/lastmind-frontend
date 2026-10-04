@@ -72,6 +72,7 @@
     return s;
   }
   const toSvg = (d, w) => ({ x: d * PW, y: w * PH });
+  FM.ANALYSIS_DRAW = { pitchLines, PW, PH, PS };
 
   function heatSvg(cells, color) {
     const GX = FM.HEAT.GX, GY = FM.HEAT.GY;
@@ -187,6 +188,7 @@
             ${state.mapKind === 'heat' ? mapHtml(league, fx, teamId) : networkHtml(league, fx, teamId)}
           </div>
         </div>
+        <div class="card" id="anClips"></div>
         <div id="anStats"></div>
       </div>`;
     host.querySelector('#anMatch').addEventListener('change', (e) => { state.fxId = e.target.value; FM.renderAnalysis(host, league); });
@@ -194,6 +196,8 @@
     host.querySelector('#anKind').addEventListener('change', (e) => { state.mapKind = e.target.value; FM.renderAnalysis(host, league); });
     const ps = host.querySelector('#anPlayer');
     if (ps) ps.addEventListener('change', (e) => { state.playerSel = e.target.value; FM.renderAnalysis(host, league); });
+    if (FM.stopClips) FM.stopClips();
+    if (FM.renderClips) FM.renderClips(host.querySelector('#anClips'), league, fx);
     if (FM.renderStatsTiers) FM.renderStatsTiers(host.querySelector('#anStats'), league, fxs, state);
   };
 })();
