@@ -571,14 +571,22 @@
     const posOf = (p) => (key === 'shape' ? FM.slotBase(team, p) : FM.phasePos(team, p, key));
     let ghosts = '';
     if (selected && key !== 'shape') {
-      // One region, not one ring per phase: wherever he stands here he must be within reach of his position in every other phase,
-      // so the allowed area is where all those circles overlap. Each circle's clip is nested to cut the outline to that overlap.
+      // One region, drawn as a single outline: wherever he stands here he must be within reach of his position in every other phase,
+      // so the allowed area is where all those circles overlap (always one convex shape). Its boundary is traced as one closed path.
       const reach = FM.reachMetres(selected) * BS;
       const others = FM.PHASES.filter((ph) => ph !== key).map((ph) => ({ ph, g: bpt(FM.phasePos(team, selected, ph)) }));
-      ghosts += '<defs>' + others.map((o, i) => `<clipPath id="reach${i}"><circle cx="${o.g.x}" cy="${o.g.y}" r="${reach}"/></clipPath>`).join('') + '</defs>';
-      const nest = (skip, inner) => others.reduce((acc, o, i) => (i === skip ? acc : `<g clip-path="url(#reach${i})">${acc}</g>`), inner);
-      ghosts += nest(-1, '<rect x="-200" y="-200" width="2000" height="2000" fill="rgba(242,193,78,0.10)"/>');
-      others.forEach((o, i) => { ghosts += nest(i, `<circle cx="${o.g.x}" cy="${o.g.y}" r="${reach}" fill="none" stroke="rgba(242,193,78,0.8)" stroke-width="2.5" stroke-dasharray="9 7"/>`); });
+      const pts = [];
+      others.forEach((o, i) => {
+        for (let a = 0; a < 360; a += 3) {
+          const x = o.g.x + reach * Math.cos(a * Math.PI / 180), y = o.g.y + reach * Math.sin(a * Math.PI / 180);
+          if (others.every((q, k) => k === i || Math.hypot(x - q.g.x, y - q.g.y) <= reach + 0.01)) pts.push([x, y]);
+        }
+      });
+      if (pts.length > 2) {
+        const cx = pts.reduce((m, q) => m + q[0], 0) / pts.length, cy = pts.reduce((m, q) => m + q[1], 0) / pts.length;
+        pts.sort((u, v) => Math.atan2(u[1] - cy, u[0] - cx) - Math.atan2(v[1] - cy, v[0] - cx));
+        ghosts += `<path d="M${pts.map((q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' L')} Z" fill="rgba(242,193,78,0.12)" stroke="rgba(242,193,78,0.9)" stroke-width="2.5" stroke-dasharray="9 7" stroke-linejoin="round"/>`;
+      }
       others.forEach((o) => {
         ghosts += `<circle cx="${o.g.x}" cy="${o.g.y}" r="11" fill="rgba(242,193,78,0.9)"/><text x="${o.g.x}" y="${o.g.y + 4.5}" text-anchor="middle" font-size="12" font-weight="700" fill="#1A232D">${PHASE_CODE[o.ph]}</text>`;
       });

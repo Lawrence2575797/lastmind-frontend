@@ -45,7 +45,7 @@
     return Math.abs(Math.atan2(dy + 3.66, dx) - Math.atan2(dy - 3.66, dx));
   };
   FM.xgLogit = function (shooter, x, y, attackDir, defDist) {
-    return -4.33 + 7.6 * FM.shotAngle(x, y, attackDir) + 0.03 * (shooter.ratings.finishing - 60) - 0.9 * Math.exp(-defDist / 2);
+    return -4.0 + 7.6 * FM.shotAngle(x, y, attackDir) + 0.03 * (shooter.ratings.finishing - 60) - 0.9 * Math.exp(-defDist / 2);
   };
 
   // ---------- roles' tendencies when on the ball ----------
@@ -421,7 +421,6 @@
     const aimY = W / 2 + (rng() - 0.5) * 6.5;
     const shooter = opt.rating != null ? { ratings: { finishing: opt.rating } } : carrier;
     st.shots++;
-    st.xg += opt.xg;
 
     // Blocked by a defender standing on the shooting line?
     let blocker = null, bd = 99;
@@ -431,23 +430,28 @@
       if (s.t > 0.05 && s.t < 0.95 && s.d < bd) { bd = s.d; blocker = o; }
     });
     const nearD = nearestOpponent(match, team, carrier).d;
+    // The true chance of this shot going in: it must get past a defender on the line, then the goalkeeper. This is what is recorded as
+    // its xG, so that over many shots expected goals and goals agree (the chance the shooter weighed up beforehand, opt.xg, ignores both).
+    const pBlock = blocker ? 0.8 * Math.exp(-bd / 1.5) : 0;
+    const xgAdj = sig(FM.xgLogit(shooter, carrier.x, carrier.y, team.attackDir, nearD) - 0.55 * crowd(match, team, carrier) - 0.03 * ((gk ? gk.ratings.gk : 60) - 60));
+    const shotXg = (1 - pBlock) * xgAdj;
+    st.xg += shotXg;
     let outcome;
-    if (blocker && rng() < 0.8 * Math.exp(-bd / 1.5)) outcome = 'blocked';
+    if (blocker && rng() < pBlock) outcome = 'blocked';
     else {
       const pOn = sig(0.15 + 0.03 * (shooter.ratings.finishing - 60) - 0.6 * Math.exp(-nearD / 2));
       if (rng() > pOn) outcome = 'off';
       else {
         st.onTarget++;
-        const xgAdj = sig(FM.xgLogit(shooter, carrier.x, carrier.y, team.attackDir, nearD) - 0.55 * crowd(match, team, carrier) - 0.03 * ((gk ? gk.ratings.gk : 60) - 60));
-        outcome = rng() < clamp(xgAdj / pOn, 0.02, 0.9) ? 'goal' : 'saved';
+        outcome = rng() < clamp(xgAdj / pOn, 0.02, 0.97) ? 'goal' : 'saved';
       }
     }
     let ex = goalX, ey = aimY;
     if (outcome === 'off') { ex = goalX; ey = W / 2 + (rng() < 0.5 ? -1 : 1) * (4.5 + rng() * 4); }
     if (outcome === 'blocked') { const s = segInfo(blocker.x, blocker.y, carrier.x, carrier.y, goalX, aimY); ex = s.cx; ey = s.cy; }
     if (outcome === 'saved') { ex = goalX + (team.attackDir === 1 ? -0.5 : 0.5); ey = gk.y; }
-    if (match.rec && outcome !== 'goal' && opt.xg >= 0.1) clipChance(match, team, carrier, opt.xg);
-    record(match, { type: 'shot', team: team.id, player: carrier.number, xg: opt.xg, outcome, defDist: nearD, x: carrier.x, y: carrier.y, setPiece: opt.header ? 'header' : undefined });
+    if (match.rec && outcome !== 'goal' && shotXg >= 0.1) clipChance(match, team, carrier, shotXg);
+    record(match, { type: 'shot', team: team.id, player: carrier.number, xg: shotXg, outcome, defDist: nearD, x: carrier.x, y: carrier.y, setPiece: opt.header ? 'header' : undefined });
     match.carrier = null; match.carry = null;
     match.flight = { kind: 'shot', team, shooter: carrier, speed: 28, target: null, ex, ey: clamp(ey, 0.5, W - 0.5), outcome, gk, blocker };
     match.ball.state = 'flight';
