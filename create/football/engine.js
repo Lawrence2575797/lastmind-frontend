@@ -20,25 +20,59 @@
   FM.toMetres = toMetres;
   FM.toTeamSpace = toTeamSpace;
 
+  // Instructions for each phase of play. All run from 0 to 1 unless noted.
+  //   Build-up:            buildDirect (own third), directness (middle third), risk, tempo, attackWidth
+  //   Final third:         finalRisk, shootFreedom, dribbleFreedom
+  //   Transition to attack: counterAttack (how fast and direct the first moves after winning the ball are)
+  //   Transition to defence: counterPress (win it back at once, versus drop back into shape)
+  //   Without the ball:    pressing, lineHeight, defWidth
   FM.defaultTactics = function () {
-    return { lineHeight: 0.5, widthScale: 1, directness: 0.5, risk: 0.5, tempo: 0.5, pressing: 0.5 };
+    return {
+      lineHeight: 0.5, defWidth: 1, attackWidth: 1, pressing: 0.5,
+      buildDirect: 0.35, directness: 0.5, risk: 0.5, tempo: 0.5,
+      finalRisk: 0.5, shootFreedom: 0.5, dribbleFreedom: 0.5,
+      counterAttack: 0.5, counterPress: 0.5,
+    };
   };
 
-  // Builds a team: 11 players on the formation's slots, each with a default role.
+  function freshOptions(roleId) {
+    const role = FM.ROLES[roleId];
+    const options = {};
+    Object.keys(role.options || {}).forEach((k) => { options[k] = role.options[k].default != null ? role.options[k].default : false; });
+    return options;
+  }
+
+  // A squad is 20 players: 11 start, 9 are on the bench (one of each kind of position, plus extra cover).
+  const BENCH_GROUPS = ['GK', 'CB', 'CB', 'FB', 'DM', 'CM', 'AM', 'WF', 'ST'];
+
+  function makePlayer(id, number, natural, rng, strength) {
+    const ratings = FM.generateRatings(natural, rng, strength);
+    return { id, number, natural, group: natural, index: -1, slotKey: null, roleId: null, options: {}, ratings, x: 0, y: 0, vx: 0, vy: 0, maxSpeed: FM.speedFromPace(ratings.pace) };
+  }
+  function putInSlot(player, formation, i) {
+    const slot = formation.slots[i];
+    player.index = i; player.slotKey = slot.key; player.group = slot.group;
+    player.roleId = slot.defaultRole; player.options = freshOptions(slot.defaultRole);
+  }
+
+  // Builds a team: a squad of 20, with 11 on the formation's slots (each with a default role) and 9 on the bench.
   FM.createTeam = function (spec) {
     const formation = FM.FORMATIONS[spec.formation];
     const team = {
       id: spec.id, name: spec.name, kit: spec.kit, attackDir: spec.attackDir,
-      formationKey: spec.formation, tactics: FM.defaultTactics(), players: [],
-      strength: spec.strength || 0, seed: spec.seed || FM.hashString(spec.id),
+      formationKey: spec.formation, tactics: FM.defaultTactics(), players: [], bench: [], squad: [],
+      strength: spec.strength || 0, seed: spec.seed || FM.hashString(spec.id), subsUsed: 0, maxSubs: 5,
     };
     const rng = FM.mulberry32(team.seed);
     formation.slots.forEach((slot, i) => {
-      const role = FM.ROLES[slot.defaultRole];
-      const options = {};
-      Object.keys(role.options || {}).forEach((k) => { options[k] = role.options[k].default != null ? role.options[k].default : false; });
-      const ratings = FM.generateRatings(slot.group, rng, team.strength);
-      team.players.push({ index: i, slotKey: slot.key, group: slot.group, number: slot.number, roleId: slot.defaultRole, options, ratings, x: 0, y: 0, vx: 0, vy: 0, maxSpeed: FM.speedFromPace(ratings.pace) });
+      const p = makePlayer(team.id + '-' + slot.number, slot.number, slot.group, rng, team.strength);
+      p.number = slot.number;
+      putInSlot(p, formation, i);
+      team.players.push(p); team.squad.push(p);
+    });
+    BENCH_GROUPS.forEach((g, i) => {
+      const p = makePlayer(team.id + '-' + (12 + i), 12 + i, g, rng, team.strength - 3);
+      team.bench.push(p); team.squad.push(p);
     });
     FM.resetToKickoff(team);
     return team;
@@ -47,20 +81,53 @@
   // Top running speed in metres per second, from the pace rating.
   FM.speedFromPace = function (pace) { return 6 + (pace / 100) * 2.6; };
 
-  // Changes formation, keeping the same 11 players by moving them to the matching slots.
+  // Changes formation. The same 11 players stay on; each goes to the slot that best fits his natural position.
+  const GROUP_NEAR = { GK: ['GK'], CB: ['CB', 'DM', 'FB'], FB: ['FB', 'CB', 'WF', 'DM'], DM: ['DM', 'CM', 'CB'], CM: ['CM', 'DM', 'AM'], AM: ['AM', 'CM', 'WF', 'ST'], WF: ['WF', 'AM', 'FB', 'ST'], ST: ['ST', 'AM', 'WF'] };
   FM.setFormation = function (team, formationKey) {
     const formation = FM.FORMATIONS[formationKey];
     team.formationKey = formationKey;
-    const rng = FM.mulberry32(team.seed + 7);
-    team.players.forEach((p, i) => {
-      const slot = formation.slots[i];
-      p.slotKey = slot.key; p.group = slot.group; p.number = slot.number; p.roleId = slot.defaultRole;
-      p.ratings = FM.generateRatings(slot.group, rng, team.strength);
-      p.maxSpeed = FM.speedFromPace(p.ratings.pace);
-      const role = FM.ROLES[p.roleId];
-      p.options = {};
-      Object.keys(role.options || {}).forEach((k) => { p.options[k] = role.options[k].default != null ? role.options[k].default : false; });
+    const free = team.players.slice();
+    const assigned = new Array(formation.slots.length);
+    // Goalkeeper first, then slots in order, each taking the free player whose natural position is nearest.
+    formation.slots.forEach((slot, i) => {
+      const prefs = GROUP_NEAR[slot.group] || [slot.group];
+      let best = -1, bestRank = 99;
+      free.forEach((p, k) => { const r = prefs.indexOf(p.natural); const rank = r < 0 ? 50 : r; if (rank < bestRank) { bestRank = rank; best = k; } });
+      assigned[i] = free.splice(best, 1)[0];
     });
+    team.players = assigned;
+    team.players.forEach((p, i) => { putInSlot(p, formation, i); });
+  };
+
+  // Puts a bench player on in place of one on the pitch. In a match the sub counts toward the limit.
+  // Returns an error string if it is not allowed.
+  FM.substitute = function (team, outPlayer, inPlayer, match) {
+    const k = team.players.indexOf(outPlayer);
+    const bi = team.bench.indexOf(inPlayer);
+    if (k < 0 || bi < 0) return 'Not a valid substitution.';
+    const live = match && match.phase !== 'kickoff' || (match && match.clock > 0);
+    if (live && team.subsUsed >= team.maxSubs) return 'No substitutions left.';
+    inPlayer.x = outPlayer.x; inPlayer.y = outPlayer.y; inPlayer.vx = outPlayer.vx; inPlayer.vy = outPlayer.vy;
+    inPlayer.index = outPlayer.index; inPlayer.slotKey = outPlayer.slotKey; inPlayer.group = outPlayer.group;
+    // The new player takes over the role if it suits his slot, otherwise the slot's default role.
+    inPlayer.roleId = outPlayer.roleId; inPlayer.options = Object.assign({}, outPlayer.options);
+    team.players[k] = inPlayer;
+    team.bench[bi] = outPlayer;
+    outPlayer.index = -1; outPlayer.slotKey = null; outPlayer.group = outPlayer.natural;
+    if (live) team.subsUsed++;
+    if (match && match.carrier && match.carrier.player === outPlayer) match.carrier.player = inPlayer;
+    if (match && match.flight && match.flight.target === outPlayer) match.flight.target = inPlayer;
+    if (match && live) match.events.push({ type: 'sub', t: match.clock, team: team.id, off: outPlayer.number, on: inPlayer.number });
+    return null;
+  };
+
+  // Swaps two players already on the pitch (they trade slots and roles).
+  FM.swapSlots = function (team, a, b) {
+    const ia = a.index, ib = b.index;
+    const ka = team.players.indexOf(a), kb = team.players.indexOf(b);
+    const formation = FM.FORMATIONS[team.formationKey];
+    team.players[ka] = b; team.players[kb] = a;
+    putInSlot(a, formation, ib); putInSlot(b, formation, ia);
   };
 
   FM.setRole = function (team, player, roleId) {
@@ -111,7 +178,7 @@
     w += (b.w - w) * pull * 0.22;
 
     // Width instruction: spreads or squeezes the whole shape around the centre line.
-    w = 0.5 + (w - 0.5) * team.tactics.widthScale;
+    w = 0.5 + (w - 0.5) * (hasBall ? team.tactics.attackWidth : team.tactics.defWidth);
 
     if (player.group === 'GK') d = clamp(d, 0.02, 0.2);
     d = clamp(d, 0.02, 0.97);

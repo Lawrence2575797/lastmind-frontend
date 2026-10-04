@@ -97,6 +97,7 @@
   };
 
   function giveBall(match, team, player, delay) {
+    if (match.lastTeam !== team || !match.lastChange) match.lastChange = { team, t: match.clock };
     match.carrier = { team, player };
     match.flight = null;
     match.lastTeam = team;
@@ -121,11 +122,11 @@
         ov.set(c.player, { x: clamp(c.player.x + match.carry.dx * 9, 1, L - 1), y: clamp(c.player.y + match.carry.dy * 9, 1, W - 1) });
       }
       // Defenders press the carrier: how many, and from how far, is the team's pressing instruction.
-      const press = opp.tactics.pressing;
+      const press = pressingNow(match, opp);
       const n = 1 + Math.round(2 * press);
       const ranked = opp.players.filter((p) => p.group !== 'GK').map((p) => ({ p, d: dist(p, c.player) })).sort((a, b) => a.d - b.d);
       ranked.slice(0, n).forEach(({ p, d }) => {
-        if (d < pressTrigger(opp, p)) ov.set(p, { x: c.player.x + c.player.vx * 0.4, y: c.player.y + c.player.vy * 0.4 });
+        if (d < pressTrigger(opp, p, press)) ov.set(p, { x: c.player.x + c.player.vx * 0.4, y: c.player.y + c.player.vy * 0.4 });
       });
     } else if (match.flight && match.flight.target) {
       ov.set(match.flight.target, { x: match.flight.target.x, y: match.flight.target.y });
@@ -139,10 +140,30 @@
     }
     return ov;
   }
-  function pressTrigger(team, player) {
+  function pressTrigger(team, player, press) {
     const role = player.roleId;
     const bonus = role === 'pressing_forward' ? 10 : role === 'ball_winning_midfielder' ? 8 : 0;
-    return 12 + 20 * team.tactics.pressing + bonus;
+    return 12 + 20 * press + bonus;
+  }
+  // Pressing as the manager set it, adjusted for the seconds just after losing the ball:
+  // a high counter-press instruction hunts it back at once, a low one drops into shape first.
+  const PRESS_WINDOW = 6, COUNTER_WINDOW = 8;
+  function pressingNow(match, team) {
+    const ch = match.lastChange;
+    let p = team.tactics.pressing;
+    if (ch && ch.team !== team) {
+      const since = match.clock - ch.t;
+      if (since < PRESS_WINDOW) p += (team.tactics.counterPress - 0.5) * 1.2 * (1 - since / PRESS_WINDOW);
+    }
+    return clamp(p, 0, 1);
+  }
+  // How strongly the team is in a counter-attack, from 0 (not) to 1, in the seconds just after winning the ball.
+  function counterNow(match, team) {
+    const ch = match.lastChange;
+    if (!ch || ch.team !== team) return 0;
+    const since = match.clock - ch.t;
+    if (since >= COUNTER_WINDOW) return 0;
+    return team.tactics.counterAttack * (1 - since / COUNTER_WINDOW);
   }
 
   // ---------- the decision a ball carrier makes ----------
@@ -178,7 +199,13 @@
     const tac = team.tactics;
     const rng = match.rng;
     const role = carrier.roleId;
-    const risk = clamp(tac.risk + (ROLE_RISK[role] || 0), 0, 1);
+    const ownDepth0 = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d;
+    const counter = counterNow(match, team);
+    // Which phase the ball is in decides which of the manager's instructions apply.
+    const zone = ownDepth0 < 0.38 ? 'build' : ownDepth0 > 0.68 ? 'final' : 'mid';
+    const directness = clamp((zone === 'build' ? tac.buildDirect : tac.directness) + 0.5 * counter, 0, 1);
+    const baseRisk = zone === 'final' ? tac.finalRisk : tac.risk;
+    const risk = clamp(baseRisk + (ROLE_RISK[role] || 0) + 0.25 * counter, 0, 1);
     const goal = { x: team.attackDir === 1 ? L : 0, y: W / 2 };
     const dGoal = dist(carrier, goal);
     const ownDepth = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d;
@@ -194,19 +221,19 @@
       const { lane, press } = laneInfo(match, team, carrier, tx, ty);
       const p = FM.passProb(carrier, d, lane, press);
       const prog = clamp((dGoal - Math.hypot(tx - goal.x, ty - goal.y)) / 25, -0.6, 1.2);
-      const score = p * (0.35 + tac.directness * 1.4 * prog + 0.5 * prog * risk) - (1 - p) * 0.6 * (1 - risk) * lossFactor;
+      const score = p * (0.35 + directness * 0.9 * prog + 0.5 * prog * risk) - (1 - p) * 0.6 * (1 - risk) * lossFactor;
       options.push({ kind: 'pass', target: t, tx, ty, d, lane, press, p, score });
     });
 
     const { opp: nearOpp, d: nearD } = nearestOpponent(match, team, carrier);
     const dp = FM.dribbleProb(carrier, nearD, nearOpp);
     const dribbleBias = (GROUP_DRIBBLE[carrier.group] || 0) + (ROLE_DRIBBLE[role] || 0);
-    options.push({ kind: 'dribble', p: dp, nearOpp, nearD, score: dp * (0.3 + 0.9 * tac.directness * 0.4 + dribbleBias) - (1 - dp) * 0.55 * (1 - risk) * lossFactor });
+    options.push({ kind: 'dribble', p: dp, nearOpp, nearD, score: dp * (0.3 + 0.9 * directness * 0.4 + (dribbleBias + (tac.dribbleFreedom - 0.5) * 0.9)) - (1 - dp) * 0.55 * (1 - risk) * lossFactor });
 
     const attackingThird = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d > 0.6;
     if (dGoal < 32 && attackingThird && carrier.group !== 'GK') {
       const xg = sig(FM.xgLogit(carrier, carrier.x, carrier.y, team.attackDir, nearD) - 0.5 * crowd(match, team, carrier));
-      options.push({ kind: 'shoot', xg, score: xg * 0.55 * (0.5 + risk * 0.9) - (1 - xg) * 0.12 });
+      options.push({ kind: 'shoot', xg, score: xg * 0.55 * (0.5 + risk * 0.9) * (0.4 + 1.2 * tac.shootFreedom) - (1 - xg) * 0.12 });
     }
 
     // Softmax: the manager's settings favour an action, but nothing is certain.
@@ -220,7 +247,7 @@
   }
 
   function delayBeforeNextDecision(match, team, carrier) {
-    const base = 4.2 - 2.6 * team.tactics.tempo;
+    const base = 3.9 - 1.5 * clamp(team.tactics.tempo + 0.4 * counterNow(match, team), 0, 1);
     const { d } = nearestOpponent(match, team, carrier);
     const pressureFactor = d < 3 ? 0.55 : d < 6 ? 0.8 : 1;
     return base * pressureFactor * (0.8 + 0.4 * match.rng());

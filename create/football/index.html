@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Football Manager - build step 2</title>
+<title>Football Manager - build step 3</title>
 <meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&display=swap" rel="stylesheet">
@@ -57,14 +57,38 @@
   table.stats td:nth-child(2) { text-align: center; color: var(--cream-soft); }
   .feed { max-height: 200px; overflow-y: auto; font-family: var(--sans); font-size: 0.8rem; line-height: 1.5; color: var(--cream-soft); display: grid; gap: 3px; }
   .feed b { color: var(--cream); font-variant-numeric: tabular-nums; }
+
+  .tactics { background: var(--navy); color: var(--cream); border-radius: 14px; padding: 18px; display: grid; gap: 14px; }
+  .tactics h2 { margin: 0; font-size: 1rem; font-family: var(--sans); letter-spacing: 0.06em; text-transform: uppercase; color: var(--cream-soft); }
+  .tac-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tabs button { padding: 7px 12px; }
+  .squad-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  @media (max-width: 900px) { .squad-grid { grid-template-columns: minmax(0, 1fr); } }
+  .formpitch { position: relative; width: 100%; aspect-ratio: 105 / 68; background: #2E7D3E; border-radius: 8px; border: 2px solid rgba(255,255,255,0.7); overflow: hidden; }
+  .formpitch::before { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; border-left: 2px solid rgba(255,255,255,0.5); }
+  .slot { position: absolute; transform: translate(-50%, -50%); width: 9%; max-width: 46px; min-width: 30px; aspect-ratio: 1; border-radius: 50%; border: 2px solid #fff; color: #fff; font-family: var(--sans); font-weight: 700; font-size: 0.85rem; padding: 0; display: grid; place-items: center; cursor: grab; }
+  .slot.sel { outline: 3px solid #F2C14E; outline-offset: 2px; }
+  .slot.over { outline: 3px dashed #fff; outline-offset: 3px; }
+  .slot small { position: absolute; top: 100%; font-size: 0.62rem; font-weight: 400; color: #fff; white-space: nowrap; text-shadow: 0 1px 2px #000; }
+  .bench { display: grid; gap: 6px; }
+  .chip { display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: var(--navy-raise); border: 1px solid var(--line); border-radius: 8px; font-family: var(--sans); font-size: 0.85rem; cursor: grab; text-align: left; color: var(--cream); }
+  .chip.sel { border-color: #F2C14E; background: #3a4a5c; }
+  .chip .num { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 0.75rem; border: 2px solid #fff; flex: none; }
+  .chip .meta { margin-left: auto; color: var(--cream-soft); font-variant-numeric: tabular-nums; }
+  .sliders { display: grid; gap: 16px; max-width: 640px; }
+  .sliders .ends { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--cream-soft); font-family: var(--sans); }
+  .sliders .lbl { display: flex; justify-content: space-between; font-weight: 700; color: var(--cream); }
+  .note { font-family: var(--sans); font-size: 0.82rem; color: var(--cream-soft); line-height: 1.5; margin: 0; }
+  .err { color: #F2A0A0; font-family: var(--sans); font-size: 0.85rem; }
   .check { display: flex; align-items: center; gap: 8px; flex-direction: row; }
 </style>
 </head>
 <body>
 <div class="shell">
   <div>
-    <h1>Football Manager: build step 2</h1>
-    <p class="sub">Tactics decide where all 22 players stand. Positions create passing lanes, pressure and space, and those become probabilities for passes, dribbles, tackles and shots. Watch a match, pause it, and change the instructions.</p>
+    <h1>Football Manager: build step 3</h1>
+    <p class="sub">Tactics decide where all 22 players stand. Positions create passing lanes, pressure and space, and those become probabilities for passes, dribbles, tackles and shots. Watch a match, pause it, and change the tactics or make a substitution below.</p>
   </div>
   <div class="score" id="score">
     <div class="team"><span class="swatch" id="swHome"></span><span id="nmHome"></span></div>
@@ -94,11 +118,17 @@
         <div class="feed" id="feed"></div>
         <p class="hint">Click a player to change his role. The shape and decisions respond to the instructions below straight away.</p>
       </div>
-      <div class="group" id="homeControls"></div>
-      <div class="group" id="awayControls"></div>
-      <div class="group" id="playerPanel"><h2>Selected player</h2><p class="hint">Click a player on the pitch.</p></div>
     </aside>
   </div>
+  <section class="tactics" id="tactics" aria-label="Tactics">
+    <div class="tac-head">
+      <h2>Tactics</h2>
+      <div class="row" id="teamPick" style="flex:0 0 auto"></div>
+      <span class="hint" id="subInfo"></span>
+    </div>
+    <div class="tabs" id="tabs"></div>
+    <div id="tabBody"></div>
+  </section>
 </div>
 <script src="/create/football/formations.js"></script>
 <script src="/create/football/roles.js"></script>
