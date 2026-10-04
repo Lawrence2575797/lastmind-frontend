@@ -109,10 +109,8 @@
     const m = world.match;
     if (world.view === 'match' && m) {
       if (world.running && m.phase !== 'halftime' && m.phase !== 'fulltime') {
-        // A pass or shot lasts about a second of match time, which at full speed is a blink. So the clock slows while the ball
-        // is in the air, and speeds up while the match waits for a dead ball to be taken, which keeps the whole match about as long.
-        const flightSlow = m.flight ? 0.35 : 1, deadFast = (m.restart || m.phase === 'kickoff') ? 2 : 1;
-        advanceMatch(dt * MATCH_SPEED * world.speed * flightSlow * deadFast);
+        // One steady pace throughout: the match does not speed up or slow down for passes, shots or restarts.
+        advanceMatch(dt * MATCH_SPEED * world.speed);
         world.vt += dt;
       }
       draw();

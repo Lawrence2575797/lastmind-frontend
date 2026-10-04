@@ -45,7 +45,7 @@
     return Math.abs(Math.atan2(dy + 3.66, dx) - Math.atan2(dy - 3.66, dx));
   };
   FM.xgLogit = function (shooter, x, y, attackDir, defDist) {
-    return -4.0 + 7.6 * FM.shotAngle(x, y, attackDir) + 0.03 * (shooter.ratings.finishing - 60) - 0.9 * Math.exp(-defDist / 2);
+    return -3.8 + 7.6 * FM.shotAngle(x, y, attackDir) + 0.03 * (shooter.ratings.finishing - 60) - 0.9 * Math.exp(-defDist / 2);
   };
 
   // ---------- roles' tendencies when on the ball ----------
@@ -185,14 +185,25 @@
       if (match.carry && match.carry.player === c.player && match.clock < match.carry.until) {
         ov.set(c.player, { x: clamp(c.player.x + match.carry.dx * 9, 1, L - 1), y: clamp(c.player.y + match.carry.dy * 9, 1, W - 1) });
       }
-      // Defenders press the carrier: how many, and from how far, is the team's pressing instruction.
+      // Defending the man on the ball. Most of the time one defender goes to him, and he closes down rather than charging in: how
+      // tightly depends on the team's pressing instruction (a hard press gets right on top of him, a soft one holds off and jockeys).
+      // A second defender joins only for a counter-press just after losing the ball, or when the team is set to press their build-up
+      // hard and the ball is deep in their own third. The rest do not chase the ball: see the passing lanes below.
       // Pressing their build-up: when the ball is deep in the carrier's own third, the defending team's setting for it adds to the press.
       const deep = FM.toTeamSpace(c.team.attackDir, c.player.x, c.player.y).d < 0.33;
-      const press = clamp(pressingNow(match, opp) + (deep ? 0.35 * ((opp.tactics.pressBuildUp == null ? 0.4 : opp.tactics.pressBuildUp) - 0.4) : 0), 0, 1);
-      const n = 1 + Math.round(1.4 * press);
+      const pbu = opp.tactics.pressBuildUp == null ? 0.4 : opp.tactics.pressBuildUp;
+      // Near their own goal defenders do close the man on the ball down, whatever the team's pressing setting: a shot has to be stopped.
+      const ownGoal = { x: opp.attackDir === 1 ? 0 : L, y: W / 2 };
+      const nearGoal = dist(c.player, ownGoal) < (FM.DEF_BOX || 30);
+      const press = clamp(Math.max(pressingNow(match, opp) + (deep ? 0.35 * (pbu - 0.4) : 0), nearGoal ? (FM.DEF_BOX_PRESS || 0.8) : 0), 0, 1);
+      const lostIt = match.lastChange && match.lastChange.team === c.team && match.clock - match.lastChange.t < PRESS_WINDOW;
+      const n = 1 + (press > 0.65 && (lostIt || nearGoal || (deep && pbu > 0.6)) ? 1 : 0);
       const ranked = opp.players.filter((p) => p.group !== 'GK').map((p) => ({ p, d: dist(p, c.player) })).sort((a, b) => a.d - b.d);
-      ranked.slice(0, n).forEach(({ p, d }) => {
-        if (d < pressTrigger(opp, p, press)) ov.set(p, { x: c.player.x + c.player.vx * 0.4, y: c.player.y + c.player.vy * 0.4 });
+      ranked.slice(0, n).forEach(({ p, d }, i) => {
+        if (d >= pressTrigger(opp, p, press)) return;
+        const stand = 0.5 + 2.2 * (1 - press) + 0.8 * i; // how far off the carrier he stops, in metres
+        const dx = p.x - c.player.x, dy = p.y - c.player.y, dd = Math.max(d, 0.1);
+        ov.set(p, { x: c.player.x + c.player.vx * 0.4 + dx / dd * stand, y: c.player.y + c.player.vy * 0.4 + dy / dd * stand });
       });
       // Tight markers follow the nearest attacker; a centre-half told to step up follows a forward who drops deep.
       const att = c.team.players.filter((q) => q.group !== 'GK');
@@ -207,6 +218,22 @@
         target.forEach((q) => { const dd = dist(p, q); if (dd < bd) { bd = dd; best = q; } });
         if (best) ov.set(p, { x: best.x - opp.attackDir * 1.5, y: best.y });
       });
+      // Cutting the passing lanes. Defenders nearest the likeliest passes stand between the carrier and the receiver, so the pass is
+      // hard to make and easy to intercept, instead of every defender running at the ball. Most advanced receivers first, a few at a time.
+      const goalPt = { x: c.team.attackDir === 1 ? L : 0, y: W / 2 };
+      const free = opp.players.filter((q) => q.group !== 'GK' && !ov.has(q));
+      const recv = att.filter((q) => q !== c.player).map((q) => ({ q, d: dist(c.player, q) })).filter((o) => o.d > 6 && o.d < 38)
+        .sort((x, y) => dist(x.q, goalPt) - dist(y.q, goalPt));
+      const cutters = Math.max(2, Math.round((FM.DEF_CUTTERS || 3) * (0.5 + 0.5 * press)));
+      const taken = new Set();
+      let used = 0;
+      for (const { q } of recv) {
+        if (used >= cutters) break;
+        const lx = c.player.x + (q.x - c.player.x) * (FM.DEF_LANE_AT || 0.6), ly = c.player.y + (q.y - c.player.y) * (FM.DEF_LANE_AT || 0.6);
+        let who = null, bd = 18;
+        free.forEach((m) => { if (taken.has(m)) return; const dd = Math.hypot(m.x - lx, m.y - ly); if (dd < bd) { bd = dd; who = m; } });
+        if (who) { taken.add(who); used++; ov.set(who, { x: lx, y: ly }); }
+      }
     } else if (match.flight && match.flight.target) {
       const f = match.flight;
       ov.set(f.target, f.outcome === 'complete' ? { x: f.ex, y: f.ey } : { x: f.target.x, y: f.target.y });
@@ -222,8 +249,8 @@
   }
   function pressTrigger(team, player, press) {
     const role = player.roleId;
-    const bonus = role === 'pressing_forward' ? 10 : role === 'ball_winning_midfielder' ? 8 : 0;
-    return 12 + 13 * press + bonus + 7 * FM.instrMods(player).closeDown;
+    const bonus = role === 'pressing_forward' ? 8 : role === 'ball_winning_midfielder' ? 6 : 0;
+    return 9 + 11 * press + bonus + 5 * FM.instrMods(player).closeDown;
   }
   // Pressing as the manager set it, adjusted for the seconds just after losing the ball:
   // a high counter-press instruction hunts it back at once, a low one drops into shape first.
