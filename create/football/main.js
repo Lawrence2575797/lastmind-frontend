@@ -553,6 +553,19 @@
     return s;
   }
 
+  // When you are in one phase, the opposition are in the one that answers it.
+  const OPP_PHASE = { build: 'press', final: 'without', transAtt: 'transDef', transDef: 'transAtt', press: 'build', without: 'final' };
+  function nextOpponent() {
+    const lg = world.league, nx = lg && FM.nextUserFixture(lg);
+    return nx ? FM.teamById(lg, nx.homeId === lg.userId ? nx.awayId : nx.homeId) : null;
+  }
+  function scoutFor() {
+    const opp = nextOpponent();
+    if (!opp) return null;
+    const shape = FM.scoutedShape(world.league, opp.id);
+    return shape ? { opp, shape } : null;
+  }
+
   function drawBoard(host, team, key) {
     const selected = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
     const posOf = (p) => (key === 'shape' ? FM.slotBase(team, p) : FM.phasePos(team, p, key));
@@ -570,6 +583,16 @@
         ghosts += `<circle cx="${o.g.x}" cy="${o.g.y}" r="11" fill="rgba(242,193,78,0.9)"/><text x="${o.g.x}" y="${o.g.y + 4.5}" text-anchor="middle" font-size="12" font-weight="700" fill="#1A232D">${PHASE_CODE[o.ph]}</text>`;
       });
     }
+    // The next opponent as scouted: where their players have stood in the phase that answers this one (when you build, they press).
+    let opp = '';
+    const sc = key !== 'shape' && world.showOpp ? scoutFor() : null;
+    if (sc && sc.shape.phases[OPP_PHASE[key]]) {
+      const cells = sc.shape.phases[OPP_PHASE[key]];
+      opp = '<g style="pointer-events:none">' + Object.keys(cells).map((slot) => {
+        const c = cells[slot], pt = bpt({ d: 1 - c.d, w: 1 - c.w });
+        return `<circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="19" fill="rgba(70,110,190,0.88)" stroke="#fff" stroke-opacity="0.85" stroke-width="2.5" stroke-dasharray="4 3"/><text x="${pt.x.toFixed(1)}" y="${(pt.y + 4.5).toFixed(1)}" text-anchor="middle" font-size="12.5" font-weight="700" fill="#fff">${slot}</text>`;
+      }).join('') + '</g>';
+    }
     let ball = '';
     if (BALL_AT[key]) {
       const bp = bpt((world.ballPos && world.ballPos[key]) || BALL_AT[key]);
@@ -585,7 +608,7 @@
         <text y="65" text-anchor="middle" font-size="16" fill="${FM.isInjured(p) ? '#FF9A9A' : FM.conditionOf(p) < 0.6 ? '#F2C8A0' : '#cfe8cf'}" stroke="#000" stroke-width="3.5" style="paint-order:stroke">${FM.isInjured(p) ? 'injured' : Math.round(100 * FM.conditionOf(p)) + '%'}</text>
         ${manual ? '<circle cx="18" cy="-18" r="6.5" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/>' : ''}</g>`;
     }).join('');
-    host.innerHTML = `<svg class="board" viewBox="-24 -30 ${BW + 48} ${BH + 92}" role="img" aria-label="Tactics board">${boardPitchSvg(key)}${ghosts}${dots}${ball}</svg>`;
+    host.innerHTML = `<svg class="board" viewBox="-24 -30 ${BW + 48} ${BH + 92}" role="img" aria-label="Tactics board">${boardPitchSvg(key)}${ghosts}${opp}${dots}${ball}</svg>`;
     const svg = host.firstChild;
     const toPos = (e) => {
       const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
@@ -656,6 +679,7 @@
         <div class="tb-left">
           ${isShape ? `<label>Formation<select id="formSel">${Object.keys(FM.FORMATIONS).map((k) => `<option value="${k}"${k === team.formationKey ? ' selected' : ''}>${k}</option>`).join('')}</select></label>` : `<h2>${FM.PHASE_NAMES[key]}</h2>`}
           <p class="note">${PHASE_TEXT[key]}</p>
+          ${isShape || !nextOpponent() ? '' : `<label class="chk"><input type="checkbox" id="showOpp"${world.showOpp ? ' checked' : ''}/> Show how ${esc(nextOpponent().name)} set up in the matching phase (scouted)</label><p class="note" id="oppNote"></p>`}
           <div id="board"></div>
           <p class="note" id="reachNote"></p>
           <div class="row"><button id="resetPhase">${isShape ? 'Reset the shape to the formation' : 'Reset this phase to the role defaults'}</button></div>
@@ -670,6 +694,17 @@
       </div>`;
     const board = host.querySelector('#board');
     drawBoard(board, team, key);
+    const oppBox = host.querySelector('#showOpp');
+    if (oppBox) {
+      oppBox.addEventListener('change', () => { world.showOpp = oppBox.checked; renderTactics(); });
+      const sc = scoutFor(), note = host.querySelector('#oppNote');
+      if (!world.showOpp) note.textContent = '';
+      else if (!sc) note.textContent = 'Nothing is known about how they line up yet: they have not played.';
+      else {
+        const cells = sc.shape.phases[OPP_PHASE[key]], n = cells ? Math.max.apply(null, Object.keys(cells).map((k) => cells[k].n)) : 0;
+        note.textContent = `Blue shirts are where ${sc.opp.name} have stood in their ${FM.PHASE_NAMES[OPP_PHASE[key]].toLowerCase()} phase, when you are in yours, drawn as they stand facing you. From ${sc.shape.matches} match${sc.shape.matches > 1 ? 'es' : ''} (${sc.shape.friendlies} pre-season friendl${sc.shape.friendlies === 1 ? 'y' : 'ies'}, which count half; newer matches count more), in their ${sc.shape.formation}. ${cells ? 'This phase has up to ' + n + ' samples a player, taken every two seconds.' : 'They have not been seen in this phase yet.'} It shows what they did, and they may change.`;
+      }
+    }
     if (SLIDER_TABS[tab]) renderSliderTab(team, SLIDER_TABS[tab], host.querySelector('#phaseSliders'));
     const err = (msg) => { host.querySelector('#subErr').textContent = msg || ''; };
     const sel = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
@@ -801,6 +836,12 @@
   window.FM_WORLD = world; // debug handle for the console
   window.addEventListener('resize', resize);
   world.league = FM.loadLeague();
-  if (world.league) setView('home'); else showNewGame();
+  if (world.league) {
+    setView('home');
+    // a game saved before friendlies existed: play them now so the reports have something to read
+    if (FM.ensureFriendlies(world.league)) {
+      FM.playFriendlies(world.league).then(() => { FM.saveLeague(world.league); if (world.view === 'reports' || world.view === 'home' || world.view === 'league') setView(world.view); });
+    }
+  } else showNewGame();
   requestAnimationFrame(frame);
 })();

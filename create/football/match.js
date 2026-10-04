@@ -76,10 +76,48 @@
   // team's space (attacking left to right), the ball on the actual pitch. Heatmaps and territory come from these counts.
   FM.HEAT = { GX: 21, GY: 14 };
   const heatCell = (u, v) => Math.min(FM.HEAT.GY - 1, Math.max(0, Math.floor(v * FM.HEAT.GY))) * FM.HEAT.GX + Math.min(FM.HEAT.GX - 1, Math.max(0, Math.floor(u * FM.HEAT.GX)));
+  // Scouting: every two seconds, note which phase of play each team is in and where each player stands (in his team's space).
+  // Afterwards this shows how a club really lines up in build-up, the press and so on, from the matches it has played.
+  function scoutPhase(match, team) {
+    const ctx = team.phaseCtx || {};
+    if (ctx.transAtt > 0.05) return 'transAtt';
+    if (ctx.transDef > 0.05) return 'transDef';
+    const mine = match.lastTeam === team;
+    if (mine) return FM.toTeamSpace(team.attackDir, match.ball.x, match.ball.y).d < 0.5 ? 'build' : 'final';
+    const opp = other(match, team);
+    return FM.toTeamSpace(opp.attackDir, match.ball.x, match.ball.y).d < 0.33 ? 'press' : 'without';
+  }
+  function sampleScout(match) {
+    if (!match.scout) match.scout = {};
+    match.teams.forEach((team) => {
+      const ph = scoutPhase(match, team);
+      const book = match.scout[team.id] || (match.scout[team.id] = {});
+      const row = book[ph] || (book[ph] = {});
+      team.players.forEach((p) => {
+        const k = team.formationKey + '|' + p.slotKey, ts = FM.toTeamSpace(team.attackDir, p.x, p.y);
+        const c = row[k] || (row[k] = [0, 0, 0]);
+        c[0]++; c[1] += ts.d; c[2] += ts.w;
+      });
+    });
+  }
+  // Compact form for storing with the fixture: for each phase and slot, the sample count and the average position.
+  FM.scoutSummary = function (match) {
+    const out = {};
+    Object.keys(match.scout || {}).forEach((tid) => {
+      out[tid] = {};
+      Object.keys(match.scout[tid]).forEach((ph) => {
+        out[tid][ph] = {};
+        Object.keys(match.scout[tid][ph]).forEach((k) => { const c = match.scout[tid][ph][k]; out[tid][ph][k] = [c[0], Math.round(1000 * c[1] / c[0]) / 1000, Math.round(1000 * c[2] / c[0]) / 1000]; });
+      });
+    });
+    return out;
+  };
+
   function sampleHeat(match) {
     const h = match.heat;
     if (match.clock < h.next) return;
     h.next = match.clock + 2;
+    sampleScout(match);
     h.ball[heatCell(match.ball.x / L, match.ball.y / W)]++;
     const size = FM.HEAT.GX * FM.HEAT.GY;
     match.teams.forEach((team) => {

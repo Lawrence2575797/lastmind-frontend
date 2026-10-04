@@ -272,6 +272,7 @@
       fx.stats[t.id].formation = t.formationKey;
       fx.stats[t.id].tactics = Object.assign({}, t.tactics);
     });
+    fx.scout = FM.scoutSummary(match);
     // A friendly leaves everything else alone: only the result and team figures are kept (with the goalscorers, for the reports).
     if (fx.friendly) {
       if (FM.summariseMatch) fx.summary = FM.summariseMatch(league, fx, match);
@@ -408,6 +409,17 @@
       try { localStorage.setItem(SAVE_KEY, FM.serializeLeague(league)); return true; } catch (e) { /* keep trimming */ }
     }
     return false;
+  };
+  // A game saved before pre-season friendlies existed has none: if no match has been played yet, add them so the reports have data.
+  FM.ensureFriendlies = function (league) {
+    if (league.fixtures.some((f) => f.played)) return false;
+    // friendlies played before scouting existed have no positions recorded; they change nothing, so before the season they are simply replayed
+    const stale = (league.friendlies || []).filter((f) => f.played && !f.scout);
+    stale.forEach((f) => { f.played = false; delete f.hg; delete f.ag; delete f.stats; delete f.summary; });
+    if ((league.friendlies || []).length) return stale.length > 0;
+    const ids = league.teams.map((t) => t.id);
+    league.friendlies = makeFixtures(ids, FM.mulberry32(league.seed + 555), league.seed + 555).filter((f) => f.round < 3).map((f, i) => Object.assign(f, { id: 'p' + i, round: f.round - 3, friendly: true }));
+    return true;
   };
   FM.loadLeague = function () {
     try { const t = localStorage.getItem(SAVE_KEY); return t ? FM.deserializeLeague(t) : null; } catch (e) { return null; }

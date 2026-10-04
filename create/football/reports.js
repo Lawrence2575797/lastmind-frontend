@@ -63,6 +63,33 @@
     return rep;
   };
 
+  // How a club has lined up in each phase of play, from the matches it has played. Newer matches count for more (each match back
+  // counts 0.8 of the one after it) and pre-season friendlies for half, so the picture moves through the season as the club does.
+  // Uses the formation the club has used most (by weight), so slots are comparable.
+  FM.scoutedShape = function (league, teamId) {
+    const list = [];
+    (league.friendlies || []).filter((f) => f.played && f.scout && f.scout[teamId]).forEach((f) => list.push({ fx: f, friendly: true }));
+    league.fixtures.filter((f) => f.played && f.scout && f.scout[teamId]).sort((a, b) => a.round - b.round).forEach((f) => list.push({ fx: f, friendly: false }));
+    if (!list.length) return null;
+    list.forEach((m, i) => { m.w = Math.pow(0.8, list.length - 1 - i) * (m.friendly ? 0.5 : 1); });
+    const byForm = {};
+    list.forEach((m) => { const sc = m.fx.scout[teamId]; const seen = {}; Object.keys(sc).forEach((ph) => Object.keys(sc[ph]).forEach((k) => { const f = k.split('|')[0]; if (!seen[f]) { seen[f] = 1; byForm[f] = (byForm[f] || 0) + m.w; } })); });
+    const formation = Object.keys(byForm).sort((a, b) => byForm[b] - byForm[a])[0];
+    const phases = {};
+    list.forEach((m) => {
+      const sc = m.fx.scout[teamId];
+      Object.keys(sc).forEach((ph) => Object.keys(sc[ph]).forEach((k) => {
+        const [f, slot] = k.split('|');
+        if (f !== formation) return;
+        const [n, d, w] = sc[ph][k], ww = m.w * n;
+        const cell = ((phases[ph] = phases[ph] || {})[slot] = phases[ph][slot] || { ws: 0, d: 0, w: 0, n: 0 });
+        cell.ws += ww; cell.d += d * ww; cell.w += w * ww; cell.n += n;
+      }));
+    });
+    Object.keys(phases).forEach((ph) => Object.keys(phases[ph]).forEach((slot) => { const c = phases[ph][slot]; c.d /= c.ws; c.w /= c.ws; }));
+    return { formation, matches: list.length, friendlies: list.filter((m) => m.friendly).length, phases };
+  };
+
   const label3 = (v, lo, hi) => (v < 0.4 ? 'low (' + lo + ')' : v > 0.6 ? 'high (' + hi + ')' : 'middling');
   function bar(v, league, lo, hi) {
     const l = Math.max(0, Math.min(1, ((league != null ? league : 0.5) - (lo)) / (hi - lo))), p = Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
