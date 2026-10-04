@@ -13,14 +13,14 @@
 
   // Eight fictional clubs. Each has a home and an away kit, a starting style, a formation and a strength.
   FM.TEAM_DEFS = [
-    { name: 'Ashford Rovers', style: 'balanced', formation: '4-3-3', strength: 0, home: ['#D62828', '#FFFFFF'], away: ['#F4F4F4', '#1A232D'] },
-    { name: 'Kingsbridge Athletic', style: 'possession', formation: '4-2-2-2', strength: 1, home: ['#1E5AE0', '#FFFFFF'], away: ['#F2C94C', '#1A232D'] },
-    { name: 'Northfield United', style: 'counter', formation: '4-3-3', strength: -0.5, home: ['#1F8A4C', '#FFFFFF'], away: ['#F2C94C', '#1A232D'] },
-    { name: 'Redcliffe Town', style: 'press', formation: '4-2-2-2', strength: 0.5, home: ['#7B1E3A', '#FFFFFF'], away: ['#8FC7E8', '#1A232D'] },
-    { name: 'Harbour City', style: 'possession', formation: '4-3-3', strength: 1.5, home: ['#0F8B8D', '#FFFFFF'], away: ['#F28C6B', '#1A232D'] },
-    { name: 'Stoneham Wanderers', style: 'direct', formation: '4-2-2-2', strength: -1.5, home: ['#F28C28', '#1A232D'], away: ['#2B2B2B', '#FFFFFF'] },
-    { name: 'Westmoor Albion', style: 'balanced', formation: '4-3-3', strength: 0, home: ['#F4F4F4', '#1D3557'], away: ['#6A3FA0', '#FFFFFF'] },
-    { name: 'Eastgate Rangers', style: 'counter', formation: '4-2-2-2', strength: -1, home: ['#C9A227', '#1A232D'], away: ['#1D3557', '#FFFFFF'] },
+    { tag: 'Mid-table side', story: "A steady club aiming for a top-half finish. Not the strongest squad, but nobody's pushover.", name: 'Ashford Rovers', style: 'balanced', formation: '4-3-3', strength: 0, home: ['#D62828', '#FFFFFF'], away: ['#F4F4F4', '#1A232D'] },
+    { tag: 'Title challengers', story: "Patient passers with one of the best squads in the league, expected to be in the title race.", name: 'Kingsbridge Athletic', style: 'possession', formation: '4-2-2-2', strength: 1, home: ['#1E5AE0', '#FFFFFF'], away: ['#F2C94C', '#1A232D'] },
+    { tag: 'Lower mid-table', story: "Dangerous on the break, rarely in real trouble but never comfortable.", name: 'Northfield United', style: 'counter', formation: '4-3-3', strength: -0.5, home: ['#1F8A4C', '#FFFFFF'], away: ['#F2C94C', '#1A232D'] },
+    { tag: 'Top-half club', story: "A high-energy pressing side pushing to break into the top three.", name: 'Redcliffe Town', style: 'press', formation: '4-2-2-2', strength: 0.5, home: ['#7B1E3A', '#FFFFFF'], away: ['#8FC7E8', '#1A232D'] },
+    { tag: 'Title favourites', story: "The strongest squad in the league. Anything but the title would be a disappointment.", name: 'Harbour City', style: 'possession', formation: '4-3-3', strength: 1.5, home: ['#0F8B8D', '#FFFFFF'], away: ['#F28C6B', '#1A232D'] },
+    { tag: 'Fighting relegation', story: "Long balls and hard graft. The weakest squad, and favourites to go down.", name: 'Stoneham Wanderers', style: 'direct', formation: '4-2-2-2', strength: -1.5, home: ['#F28C28', '#1A232D'], away: ['#2B2B2B', '#FFFFFF'] },
+    { tag: 'Mid-table side', story: "Solid and unspectacular, with no great strength and no great weakness.", name: 'Westmoor Albion', style: 'balanced', formation: '4-3-3', strength: 0, home: ['#F4F4F4', '#1D3557'], away: ['#6A3FA0', '#FFFFFF'] },
+    { tag: 'Fighting relegation', story: "A thin squad that survives by hitting teams on the counter. Expected to be in the relegation fight.", name: 'Eastgate Rangers', style: 'counter', formation: '4-2-2-2', strength: -1, home: ['#C9A227', '#1A232D'], away: ['#1D3557', '#FFFFFF'] },
   ];
 
   const STYLES = {
@@ -51,10 +51,14 @@
   };
 
   FM.teamById = (league, id) => league.teams.find((t) => t.id === id);
+  // What a club is known for: where it is expected to finish and the story behind it.
+  FM.clubProfile = (team) => FM.TEAM_DEFS.find((d) => d.name === team.name) || { tag: '', story: '' };
 
   // ---------- creating a season ----------
+  FM.WORLD_SEED = 20261004;
   FM.createLeague = function (opts) {
-    const seed = opts.seed || Math.floor(Math.random() * 1e9);
+    // Every game is the same league (same clubs, squads and fixtures), so the pre-season friendlies could be played once, in advance.
+    const seed = opts.seed || FM.WORLD_SEED;
     const rng = FM.mulberry32(seed);
     const used = new Set();
     const teams = FM.TEAM_DEFS.map((def, i) => {
@@ -77,6 +81,8 @@
     // they do not count: not in the table, not in player records, injuries or fatigue, and not in the statistics workshop.
     league.friendlies = makeFixtures(teams.map((t) => t.id), FM.mulberry32(seed + 555), seed + 555)
       .filter((f) => f.round < 3).map((f, i) => Object.assign(f, { id: 'p' + i, round: f.round - 3, friendly: true }));
+    // The friendlies for the shared league are played in advance (see tools/gen_preseason.js) and simply loaded here.
+    if (seed === FM.WORLD_SEED && FM.PRESEASON) league.friendlies = JSON.parse(JSON.stringify(FM.PRESEASON));
     return league;
   };
 
@@ -435,6 +441,13 @@
   // A game saved before pre-season friendlies existed has none: if no match has been played yet, add them so the reports have data.
   FM.ensureFriendlies = function (league) {
     if (league.fixtures.some((f) => f.played)) return false;
+    // the shared league: just load the friendlies that were played in advance
+    if (league.seed === FM.WORLD_SEED && FM.PRESEASON) {
+      const have = (league.friendlies || []).length === FM.PRESEASON.length && league.friendlies.every((f) => f.played && f.scout);
+      if (have) return false;
+      league.friendlies = JSON.parse(JSON.stringify(FM.PRESEASON));
+      return false;
+    }
     // friendlies played before scouting existed have no positions recorded; they change nothing, so before the season they are simply replayed
     const stale = (league.friendlies || []).filter((f) => f.played && !f.scout);
     stale.forEach((f) => { f.played = false; delete f.hg; delete f.ag; delete f.stats; delete f.summary; });

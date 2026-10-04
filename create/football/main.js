@@ -327,7 +327,7 @@
     const started = rows.some((r) => r.p > 0), n = rows.length;
     const cls = (r, i) => [r.id === me ? 'me' : '', started && i >= n - 2 ? 'rel' : '', started && i === n - 2 ? 'rel-first' : '', started && i === 0 ? 'champ' : ''].filter(Boolean).join(' ');
     return `<div class="tablewrap"><table class="data"><thead><tr><th class="l">#</th><th class="l">Club</th><th>P</th><th>W</th><th>D</th><th>L</th>${head}<th>GD</th><th>Pts</th>${compact ? '' : '<th class="l">Form</th>'}</tr></thead><tbody>` +
-      rows.map((r, i) => `<tr class="${cls(r, i)}"><td class="l">${i + 1}</td><td class="l">${esc(r.name)}</td><td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td>${compact ? '' : `<td>${r.gf}</td><td>${r.ga}</td>`}<td>${r.gf - r.ga > 0 ? '+' : ''}${r.gf - r.ga}</td><td><b>${r.pts}</b></td>${compact ? '' : `<td class="l">${r.form.slice(-5).map((f) => `<span class="pill ${f}">${f}</span>`).join('')}</td>`}</tr>`).join('') +
+      rows.map((r, i) => `<tr class="${cls(r, i)}"><td class="l">${i + 1}</td><td class="l">${esc(r.name)}${compact ? '' : ` <span class="pm">${esc(FM.clubProfile(r).tag)}</span>`}</td><td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td>${compact ? '' : `<td>${r.gf}</td><td>${r.ga}</td>`}<td>${r.gf - r.ga > 0 ? '+' : ''}${r.gf - r.ga}</td><td><b>${r.pts}</b></td>${compact ? '' : `<td class="l">${r.form.slice(-5).map((f) => `<span class="pill ${f}">${f}</span>`).join('')}</td>`}</tr>`).join('') +
       '</tbody></table></div>' + (started ? '<p class="note"><span class="zone"></span>Relegation zone: the bottom two clubs go down at the end of the season. The club top of the table wins the league.</p>' : '');
   }
   function renderHome() {
@@ -348,7 +348,7 @@
       const when = days === 0 ? 'Today, matchday' : days === 1 ? 'Tomorrow' : 'In ' + days + ' days, on Saturday';
       next = `<h2>Next match</h2>
         <div class="fixture-big">${esc(home.name)} <span style="opacity:.6">v</span> ${esc(away.name)}</div>
-        <p class="desc">${when} · Round ${nextFx.round + 1} of 14 · ${home.id === me ? 'Home' : 'Away'} against ${esc(opp.name)} (${{ balanced: 'a balanced side', possession: 'keeping the ball', counter: 'attacking on the counter', press: 'pressing high up the pitch', direct: 'playing long and direct' }[opp.style] ? 'known for ' + { balanced: 'being a balanced side', possession: 'keeping possession', counter: 'counter-attacking', press: 'pressing high up the pitch', direct: 'playing long and direct' }[opp.style] : ''})</p>
+        <p class="desc">${when} · Round ${nextFx.round + 1} of 14 · ${home.id === me ? 'Home' : 'Away'} against ${esc(opp.name)} (${FM.clubProfile(opp).tag ? FM.clubProfile(opp).tag + ', ' : ''}${{ balanced: 'a balanced side', possession: 'keeping the ball', counter: 'attacking on the counter', press: 'pressing high up the pitch', direct: 'playing long and direct' }[opp.style] ? 'known for ' + { balanced: 'being well balanced', possession: 'keeping possession', counter: 'counter-attacking', press: 'pressing high up the pitch', direct: 'playing long and direct' }[opp.style] : ''})</p>
         ${today && !today.played ? '<div class="banner">It is matchday. Check your tactics, then play the match.</div>' : '<p class="note">Use the days before the match to adjust your tactics. Advance the calendar when you are ready.</p>'}`;
     }
     const played = lg.fixtures.filter((f) => f.played && (f.homeId === me || f.awayId === me)).sort((a, b) => b.round - a.round);
