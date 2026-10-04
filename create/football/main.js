@@ -717,7 +717,10 @@
     if (SLIDER_TABS[tab]) renderSliderTab(team, SLIDER_TABS[tab], host.querySelector('#phaseSliders'));
     const err = (msg) => { host.querySelector('#subErr').textContent = msg || ''; };
     const sel = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
-    if (sel && !isShape) host.querySelector('#reachNote').textContent = `${sel.name} can cover about ${Math.round(FM.reachMetres(sel))} m between phases. The gold area shows where he can stand here, given where he is in the other phases (B build-up, F final third, TA and TD the transitions, D defending).`;
+    if (sel && !isShape) {
+      const here = FM.phasePos(team, sel, key), slow = FM.PHASES.filter((ph) => ph !== key).map((ph) => ({ ph, s: FM.trueDist(here, FM.phasePos(team, sel, ph)) / sel.maxSpeed })).filter((x) => x.s >= 4).sort((a, b) => b.s - a.s);
+      host.querySelector('#reachNote').textContent = `${sel.name} cannot get from one side of the pitch to the other between phases, which is what the gold area shows (B build-up, F final third, TA and TD the transitions, P pressing, D defending). Up and down the pitch he can go anywhere, but the further apart his positions are, the longer he takes to get from one to the other at his top speed (${sel.maxSpeed.toFixed(1)} m/s).` + (slow.length ? ' From here he needs ' + slow.map((x) => 'about ' + Math.round(x.s) + ' s to reach his ' + FM.PHASE_NAMES[x.ph].toLowerCase() + ' position').join(', ') + '.' : '');
+    }
     else host.querySelector('#reachNote').textContent = isShape ? '' : 'Click a shirt to see how far that player can move between phases.';
 
     if (isShape) host.querySelector('#formSel').addEventListener('change', (e) => { FM.setFormation(team, e.target.value); world.selSlot = null; saveSoon(); renderTactics(); });
