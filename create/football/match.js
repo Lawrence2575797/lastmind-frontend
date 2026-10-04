@@ -64,7 +64,7 @@
       ball: { x: L / 2, y: W / 2, state: 'carried' },
       carrier: null, flight: null, carry: null, lastTeam: home,
       events: [], aiTeams: [], aiSubStep: {}, nextAiCheck: 1200,
-      stats: {},
+      stats: {}, heat: { next: 0, ball: new Array(FM.HEAT.GX * FM.HEAT.GY).fill(0), teams: {}, players: {} },
     };
     home.attackDir = 1; away.attackDir = -1;
     match.score[home.id] = 0; match.score[away.id] = 0;
@@ -72,6 +72,26 @@
     FM.beginKickoff(match, home);
     return match;
   };
+  // Where the ball and the players are, sampled every two seconds, on a 21 by 14 grid. Players are recorded in their own
+  // team's space (attacking left to right), the ball on the actual pitch. Heatmaps and territory come from these counts.
+  FM.HEAT = { GX: 21, GY: 14 };
+  const heatCell = (u, v) => Math.min(FM.HEAT.GY - 1, Math.max(0, Math.floor(v * FM.HEAT.GY))) * FM.HEAT.GX + Math.min(FM.HEAT.GX - 1, Math.max(0, Math.floor(u * FM.HEAT.GX)));
+  function sampleHeat(match) {
+    const h = match.heat;
+    if (match.clock < h.next) return;
+    h.next = match.clock + 2;
+    h.ball[heatCell(match.ball.x / L, match.ball.y / W)]++;
+    const size = FM.HEAT.GX * FM.HEAT.GY;
+    match.teams.forEach((team) => {
+      const arr = h.teams[team.id] || (h.teams[team.id] = new Array(size).fill(0));
+      team.players.forEach((p) => {
+        const c = heatCell(...Object.values(FM.toTeamSpace(team.attackDir, p.x, p.y)));
+        arr[c]++;
+        (h.players[p.id] || (h.players[p.id] = new Array(size).fill(0)))[c]++;
+      });
+    });
+  }
+
   function blankStats() {
     return { passes: 0, passesOk: 0, shots: 0, onTarget: 0, goals: 0, tackles: 0, tacklesWon: 0, dribbles: 0, dribblesWon: 0, possession: 0, xg: 0, fouls: 0, yellows: 0, reds: 0, offsides: 0, corners: 0, freeKicks: 0, throwIns: 0, penalties: 0 };
   }
@@ -81,7 +101,7 @@
   function record(match, ev) {
     ev.t = match.clock;
     match.events.push(ev);
-    if (match.events.length > 3000) match.events.shift();
+    if (match.events.length > 8000) match.events.shift();
   }
 
   FM.beginKickoff = function (match, team) {
@@ -829,6 +849,7 @@
     match.clock += dt;
     const poss = possessionTeam(match);
     statsOf(match, poss).possession += dt;
+    sampleHeat(match);
 
     if (match.restart) { runRestart(match, dt); checkEnd(match); return; }
 

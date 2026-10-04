@@ -261,7 +261,29 @@
       }
     });
     [home, away].forEach((t) => t.squad.forEach((p) => { if (played.has(p.id)) p.stats.apps++; }));
+    // For the user's own matches, keep a compact log for the Analysis Centre.
+    if (fx.homeId === league.userId || fx.awayId === league.userId) fx.log = FM.compactLog(match);
     [home, away].forEach((t) => { FM.restoreLineup(t, t.snap); t.snap = null; delete t.liveBase; delete t.liveLean; });
+  };
+
+  // A compact copy of what happened, small enough to keep for every match of a season. Passes are arrays:
+  //   [seconds, 0 home / 1 away, from shirt, to shirt, result (1 completed, 0 failed, 2 offside), x, y, distance, lane clearance, receiver pressure, probability]
+  // Tackles: [seconds, team, player, opponent, won, x, y]. Dribbles: [seconds, team, player, won, x, y, defender distance, probability].
+  FM.compactLog = function (match) {
+    const r1 = (v) => Math.round(v * 10) / 10, r3 = (v) => Math.round(v * 1000) / 1000;
+    const idx = (id) => (id === match.home.id ? 0 : 1);
+    const log = { teams: [match.home.id, match.away.id], passes: [], tackles: [], dribbles: [], other: [], heat: match.heat, duration: Math.round(match.clock) };
+    match.events.forEach((e) => {
+      if (e.type === 'pass') log.passes.push([Math.round(e.t), idx(e.team), e.from, e.to, e.outcome === 'offside' ? 2 : e.ok ? 1 : 0, r1(e.x), r1(e.y), r1(e.dist), r1(Math.min(e.lane, 30)), r1(Math.min(e.press, 30)), r3(e.p)]);
+      else if (e.type === 'tackle') log.tackles.push([Math.round(e.t), idx(e.team), e.player, e.vs, e.ok ? 1 : 0, r1(e.x), r1(e.y)]);
+      else if (e.type === 'dribble') log.dribbles.push([Math.round(e.t), idx(e.team), e.player, e.ok ? 1 : 0, r1(e.x), r1(e.y), r1(Math.min(e.defDist, 30)), r3(e.p)]);
+      else {
+        const o = {};
+        Object.keys(e).forEach((k) => { o[k] = typeof e[k] === 'number' ? (k === 't' ? Math.round(e[k]) : r3(e[k])) : e[k]; });
+        log.other.push(o);
+      }
+    });
+    return log;
   };
 
   // Plays a whole match without watching it.
