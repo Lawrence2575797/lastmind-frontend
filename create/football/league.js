@@ -56,6 +56,7 @@
 
   // ---------- creating a season ----------
   FM.WORLD_SEED = 20261004;
+  FM.RATING_BASE = 58; FM.STRENGTH_SCALE = 4.5; // the league average starting eleven, and rating points per step of club strength
   FM.createLeague = function (opts) {
     // Every game is the same league (same clubs, squads and fixtures), so the pre-season friendlies could be played once, in advance.
     const seed = opts.seed || FM.WORLD_SEED;
@@ -72,6 +73,16 @@
         const id = FM.generateIdentity(rng, used);
         p.name = id.name; p.nation = id.nation;
         p.stats = { apps: 0, goals: 0, shots: 0, yellows: 0, reds: 0 };
+      });
+      // A club's standing has to show in its players. Random ratings alone swamp a small strength offset, so shift the whole squad
+      // until the starting eleven averages what the club's strength says it should: title challengers clearly better than relegation candidates.
+      const keys = ['pace', 'dribbling', 'passing', 'finishing', 'tackling', 'heading', 'composure', 'stamina'];
+      const xiMean = team.players.reduce((a, p) => a + keys.reduce((m, k) => m + p.ratings[k], 0) / keys.length, 0) / team.players.length;
+      const shift = Math.round(FM.RATING_BASE + FM.STRENGTH_SCALE * def.strength - xiMean);
+      team.squad.forEach((p) => {
+        keys.forEach((k) => { p.ratings[k] = Math.max(25, Math.min(95, p.ratings[k] + shift)); });
+        if (p.natural === 'GK') p.ratings.gk = Math.max(45, Math.min(92, p.ratings.gk + shift));
+        p.maxSpeed = FM.speedFromPace(p.ratings.pace);
       });
       return team;
     });
