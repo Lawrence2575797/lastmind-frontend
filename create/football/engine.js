@@ -30,7 +30,7 @@
     return {
       lineHeight: 0.5, defWidth: 1, attackWidth: 1, pressing: 0.5,
       buildDirect: 0.35, directness: 0.5, risk: 0.5, tempo: 0.5,
-      finalRisk: 0.5, shootFreedom: 0.5, dribbleFreedom: 0.5, pressBuildUp: 0.4,
+      finalRisk: 0.5, shootFreedom: 0.5, dribbleFreedom: 0.5, pressBuildUp: 0.4, beatPress: 0.5,
       counterAttack: 0.5, counterPress: 0.5,
       tackleAggression: 0.5, offsideTrap: 0.3,
       cornerDelivery: 'near', cornerAttackers: 4, cornerMarkers: 7, fkStyle: 'shoot',

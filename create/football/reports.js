@@ -11,7 +11,7 @@
 
   const TACTIC_ROWS = [
     ['pressing', 'Pressing', 'sit back', 'press hard'], ['pressBuildUp', 'Pressing their build-up', 'let them play out', 'press them high'], ['lineHeight', 'Defensive line', 'deep', 'high'], ['tempo', 'Tempo', 'slow', 'fast'],
-    ['directness', 'Directness through midfield', 'patient', 'direct'], ['buildDirect', 'Playing out from the back', 'short', 'long'], ['risk', 'Risk in possession', 'safe', 'ambitious'],
+    ['directness', 'Directness through midfield', 'patient', 'direct'], ['buildDirect', 'Playing out from the back', 'short', 'long'], ['beatPress', 'Going long against the press', 'keeps playing short', 'goes long'], ['risk', 'Risk in possession', 'safe', 'ambitious'],
     ['counterAttack', 'Counter-attack after winning the ball', 'hold shape', 'counter at once'], ['counterPress', 'Counter-press after losing it', 'drop back', 'win it back'],
     ['tackleAggression', 'Tackling', 'on feet', 'hard'], ['attackWidth', 'Width in attack', 'narrow', 'wide'], ['shootFreedom', 'Shooting', 'work it in', 'shoot on sight'],
   ];

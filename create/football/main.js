@@ -443,6 +443,7 @@
       ['directness', 'Progressing through midfield', 'Patient', 'Direct', 0, 1, 'In the middle third: how much the carrier looks for the forward pass over the safe one.'],
       ['tempo', 'Tempo', 'Slow', 'Fast', 0, 1, 'How quickly the ball is moved on. Quicker means more actions and less time for the opposition to set.'],
       ['risk', 'Risk in possession', 'Safe', 'Ambitious', 0, 1, 'How willing players are to try a pass that might be lost.'],
+      ['beatPress', 'Beating the press', 'Keep playing short', 'Go long over the top', 0, 1, 'Depends on how they press. When they press high and tightly, your short passes are shut off, and the higher this is the sooner the ball goes long up the pitch. When they are not pressing like that, short passes stay open and this changes nothing: your build-up settings above decide.'],
       ['attackWidth', 'Width when attacking', 'Narrow', 'Wide', 0.7, 1.25, 'Spreads or squeezes your whole shape across the pitch with the ball.'],
     ],
     final: [

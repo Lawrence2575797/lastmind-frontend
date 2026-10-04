@@ -25,10 +25,10 @@
 
   const STYLES = {
     balanced: {},
-    possession: { buildDirect: 0.2, directness: 0.35, tempo: 0.4, risk: 0.4, pressing: 0.45, counterPress: 0.6, attackWidth: 1.1, pressBuildUp: 0.5 },
+    possession: { buildDirect: 0.2, directness: 0.35, tempo: 0.4, risk: 0.4, pressing: 0.45, counterPress: 0.6, attackWidth: 1.1, pressBuildUp: 0.5, beatPress: 0.3 },
     counter: { lineHeight: 0.4, pressing: 0.4, counterAttack: 0.8, directness: 0.62, buildDirect: 0.4, tempo: 0.58, defWidth: 0.95, pressBuildUp: 0.2 },
     press: { lineHeight: 0.57, pressing: 0.7, counterPress: 0.75, tackleAggression: 0.55, pressBuildUp: 0.8 },
-    direct: { buildDirect: 0.7, directness: 0.7, tempo: 0.56, shootFreedom: 0.6, risk: 0.56, pressing: 0.45, pressBuildUp: 0.3 },
+    direct: { buildDirect: 0.7, directness: 0.7, tempo: 0.56, shootFreedom: 0.6, risk: 0.56, pressing: 0.45, pressBuildUp: 0.3, beatPress: 0.7 },
   };
   FM.STYLE_NAMES = { balanced: 'Balanced', possession: 'Possession football', counter: 'Counter-attacking', press: 'High press', direct: 'Direct play' };
   function styleTactics(style, rng) {

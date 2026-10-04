@@ -326,6 +326,17 @@
       options.push({ kind: 'pass', target: t, tx, ty, d, lane, press, p, score: off === 'off' ? -4 : score });
     });
 
+    // Beating the press. How likely a team is to go long depends on how the other side press its build-up. Against a side that press high
+    // and hard, the short passes are the ones that get closed down, so a team set to beat the press sends the ball long up the pitch;
+    // against a side that is not pressing like that the short passes are safe, the setting does nothing, and the usual build-up settings
+    // decide. The press is read from the opposition's own settings for pressing its build-up and pressing generally.
+    if (ownDepth0 < 0.5) {
+      const beat = tac.beatPress == null ? 0.5 : tac.beatPress, ot = other(match, team).tactics;
+      const oppPress = 0.6 * (ot.pressBuildUp == null ? 0.4 : ot.pressBuildUp) + 0.4 * pressingNow(match, other(match, team));
+      const pressure = clamp((oppPress - 0.4) / 0.45, 0, 1);
+      if (pressure > 0) options.forEach((o) => { if (o.kind === 'pass' && o.d >= 28 && (o.tx - carrier.x) * team.attackDir > 15 && o.score > -3) o.score += beat * (FM.BEAT_K || 2.5) * pressure * (0.4 + o.p); });
+    }
+
     const { opp: nearOpp, d: nearD } = nearestOpponent(match, team, carrier);
     const dp = FM.dribbleProb(carrier, nearD, nearOpp);
     const dribbleBias = (GROUP_DRIBBLE[carrier.group] || 0) + (ROLE_DRIBBLE[role] || 0);
