@@ -58,6 +58,7 @@
     ];
     const lgLine = (group, key) => S.mean([].concat.apply([], league.teams.filter((t) => t.id !== teamId).map((t) => t.players.filter((p) => group.indexOf(p.group) >= 0).map((p) => (key === 'gk' ? p.ratings.gk : p.ratings[key])))));
     rep.linesLeague = [lgLine(['GK'], 'gk'), lgLine(['CB', 'FB'], 'tackling'), lgLine(['DM', 'CM'], 'passing'), lgLine(['AM', 'WF', 'ST'], 'finishing'), S.mean([].concat.apply([], league.teams.filter((t) => t.id !== teamId).map((t) => t.players.map((p) => p.ratings.pace))))];
+    rep.lines = rep.lines.map((l) => [l[0], FM.shown(l[1])]); rep.linesLeague = rep.linesLeague.map((v) => FM.shown(v));
     // meetings with the user's club
     rep.meetings = league.fixtures.filter((f) => f.played && ((f.homeId === teamId && f.awayId === league.userId) || (f.awayId === teamId && f.homeId === league.userId)));
     return rep;

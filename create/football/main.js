@@ -406,11 +406,11 @@
     const onPitch = team.players.slice().sort((a, b) => a.index - b.index);
     const all = onPitch.concat(team.bench);
     const row = (p) => `<tr><td class="l">${p.number}</td><td class="l">${esc(p.name)}</td><td class="l">${esc(p.nation)}</td><td class="l">${p.natural}</td><td class="l">${p.slotKey ? p.slotKey : 'Bench'}</td><td class="${condClass(p)}">${Math.round(100 * FM.conditionOf(p))}%</td><td class="l ${FM.isInjured(p) ? 'out' : ''}">${FM.isInjured(p) ? esc(injuryText(p)) : 'Fit'}</td>
-      <td><b>${FM.playerRating(p).toFixed(1)}</b></td><td>${p.ratings.pace}</td><td>${p.ratings.dribbling}</td><td>${p.ratings.passing}</td><td>${p.ratings.finishing}</td><td>${p.ratings.tackling}</td><td>${p.ratings.heading}</td><td>${p.ratings.composure}</td><td>${p.ratings.stamina || '-'}</td><td>${p.natural === 'GK' ? p.ratings.gk : '-'}</td>
+      <td><b>${FM.playerRating(p).toFixed(1)}</b></td><td>${FM.shown(p.ratings.pace)}</td><td>${FM.shown(p.ratings.dribbling)}</td><td>${FM.shown(p.ratings.passing)}</td><td>${FM.shown(p.ratings.finishing)}</td><td>${FM.shown(p.ratings.tackling)}</td><td>${FM.shown(p.ratings.heading)}</td><td>${FM.shown(p.ratings.composure)}</td><td>${p.ratings.stamina ? FM.shown(p.ratings.stamina) : '-'}</td><td>${p.natural === 'GK' ? FM.shown(p.ratings.gk) : '-'}</td>
       <td>${p.stats.apps}</td><td>${p.stats.goals}</td><td>${p.stats.shots}</td><td>${p.stats.yellows}</td><td>${p.stats.reds}</td></tr>`;
     host.innerHTML = `<div class="card"><h2>${esc(team.name)}: squad of ${all.length}</h2>
       <div class="tablewrap"><table class="data"><thead><tr><th class="l">#</th><th class="l">Name</th><th class="l">Nation</th><th class="l">Pos</th><th class="l">Now</th><th>Cond</th><th class="l">Fitness</th><th title="Overall rating out of 10 in his natural position">Rating</th><th>Pac</th><th>Dri</th><th>Pas</th><th>Fin</th><th>Tck</th><th>Hea</th><th>Com</th><th>Sta</th><th>GK</th><th>Apps</th><th>Goals</th><th>Shots</th><th>YC</th><th>RC</th></tr></thead><tbody>${all.map(row).join('')}</tbody></table></div>
-      <p class="note">The Rating column is one number out of 10 for his natural position, worked out from the ratings that matter most there; the individual ratings are beside it. Ratings run from about 25 to 95 and change the odds of what a player tries: a better dribbler wins more dribbles, a better finisher scores more of the same chances.</p></div>`;
+      <p class="note">The Rating column is one number out of 10 for his natural position, worked out from the ratings that matter most there; the individual ratings are beside it. Ratings run from about 55 to 99, where 60 is a poor player and 80 is about average, and they change the odds of what a player tries: a better dribbler wins more dribbles, a better finisher scores more of the same chances.</p></div>`;
   }
 
   // ---------- the tactics page ----------
@@ -486,7 +486,7 @@
 
   function takerSelect(team, key, label) {
     const opts = ['<option value="">Automatic (best on the pitch)</option>'].concat(team.players.filter((p) => p.group !== 'GK').map((p) =>
-      `<option value="${p.id}"${team.tactics[key] === p.id ? ' selected' : ''}>${esc(shortName(p))} (${p.slotKey}): passing ${p.ratings.passing}, finishing ${p.ratings.finishing}</option>`)).join('');
+      `<option value="${p.id}"${team.tactics[key] === p.id ? ' selected' : ''}>${esc(shortName(p))} (${p.slotKey}): passing ${FM.shown(p.ratings.passing)}, finishing ${FM.shown(p.ratings.finishing)}</option>`)).join('');
     return `<label>${label}<select data-sp="${key}">${opts}</select></label>`;
   }
   function renderSetPieces(team) {
@@ -765,7 +765,7 @@
   const RATING_ROWS = [['pace', 'Pace'], ['dribbling', 'Dribbling'], ['passing', 'Passing'], ['finishing', 'Finishing'], ['tackling', 'Tackling'], ['heading', 'Heading'], ['composure', 'Composure'], ['stamina', 'Stamina']];
   function profileHtml(p, playingAs) {
     const r = p.ratings, rows = RATING_ROWS.concat(p.natural === 'GK' ? [['gk', 'Goalkeeping']] : []);
-    const bars = rows.map(([k, l]) => `<div class="rrow"><span>${l}</span><span class="rbar"><i style="width:${Math.max(0, Math.min(100, r[k] || 0))}%"></i></span><b>${r[k] != null ? r[k] : '-'}</b></div>`).join('');
+    const bars = rows.map(([k, l]) => `<div class="rrow"><span>${l}</span><span class="rbar"><i style="width:${Math.max(0, Math.min(100, FM.shown(r[k] || 0)))}%"></i></span><b>${r[k] != null ? FM.shown(r[k]) : '-'}</b></div>`).join('');
     const st = p.stats || { apps: 0, goals: 0, shots: 0, yellows: 0, reds: 0 };
     const cond = FM.isInjured(p) ? `<span class="out">injured: ${esc(injuryText(p))}</span>` : `condition ${Math.round(100 * FM.conditionOf(p))}%`;
     return `<p class="note">${esc(p.nation)} · natural position ${p.natural}${playingAs ? ', playing ' + playingAs : ''} · <b>rated ${FM.ratingText(p)}</b>${p.group && p.group !== p.natural ? ' (' + FM.ratingText(p, p.group) + ' as a ' + p.group + ')' : ''} · ${cond}</p>

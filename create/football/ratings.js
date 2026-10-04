@@ -60,11 +60,24 @@
     WF: { pace: 0.25, dribbling: 0.25, finishing: 0.15, passing: 0.15, composure: 0.1, stamina: 0.1 },
     ST: { finishing: 0.3, composure: 0.15, pace: 0.15, heading: 0.15, dribbling: 0.1, stamina: 0.1, passing: 0.05 },
   };
+  // What a rating looks like to the player. The match engine works on the internal ratings (about 25 to 95, an average player near 58);
+  // this shifts the scale the player sees upward, closer to 100, without changing any rating's effect: an internal 30 shows as 60 (a
+  // poor player), 58 as 80 (about average), 90 as 97. It never reorders anyone.
+  const SHOWN_ANCHORS = [[0, 40], [25, 56], [30, 60], [58, 80], [90, 97], [100, 100]];
+  FM.shown = function (v) {
+    if (typeof v !== 'number' || !isFinite(v)) return v;
+    for (let i = 1; i < SHOWN_ANCHORS.length; i++) {
+      const [x0, y0] = SHOWN_ANCHORS[i - 1], [x1, y1] = SHOWN_ANCHORS[i];
+      if (v <= x1) return Math.round(Math.min(99, y0 + (y1 - y0) * (v - x0) / (x1 - x0)));
+    }
+    return 99;
+  };
+  FM.shownExact = (v) => { if (typeof v !== 'number' || !isFinite(v)) return v; for (let i = 1; i < SHOWN_ANCHORS.length; i++) { const [x0, y0] = SHOWN_ANCHORS[i - 1], [x1, y1] = SHOWN_ANCHORS[i]; if (v <= x1) return Math.min(99, y0 + (y1 - y0) * (v - x0) / (x1 - x0)); } return 99; };
   FM.playerRating = function (p, group) {
     const w = RATING_WEIGHTS[group || p.natural] || RATING_WEIGHTS.CM, r = p.baseRatings || p.ratings;
     let sum = 0;
     Object.keys(w).forEach((k) => { sum += w[k] * (r[k] != null ? r[k] : 50); });
-    return Math.round(sum) / 10;
+    return Math.round(FM.shownExact(sum)) / 10;
   };
   FM.ratingText = (p, group) => FM.playerRating(p, group).toFixed(1) + '/10';
 })();
