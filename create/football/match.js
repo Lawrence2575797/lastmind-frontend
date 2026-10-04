@@ -745,7 +745,7 @@
   function fitnessTick(match, dt) {
     match.teams.forEach((team) => team.players.forEach((p) => { p.energy = Math.max(0.05, (p.energy == null ? 1 : p.energy) - FM.drainFor(p, team, dt)); }));
     if (match.clock >= (match.fitNext || 0)) { match.fitNext = match.clock + 30; match.teams.forEach((t) => t.players.forEach(FM.applyFatigue)); }
-    if (match.clock >= (match.injNext || 0)) {
+    if (!match.friendly && match.clock >= (match.injNext || 0)) {
       match.injNext = match.clock + 1;
       match.teams.forEach((team) => team.players.slice().forEach((p) => {
         if (match.injuryPause || FM.isInjured(p)) return;

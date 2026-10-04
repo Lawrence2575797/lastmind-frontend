@@ -73,6 +73,10 @@
     });
     const league = { seed, tier: opts.tier || 'gcse', userId: teams[opts.userIndex || 0].id, season: 1, day: 0, teams, fixtures: [], testLog: [], hypotheses: [], news: [] };
     league.fixtures = makeFixtures(teams.map((t) => t.id), rng, seed);
+    // Three pre-season friendlies each, played before the season starts. They give the opposition reports something to read, but
+    // they do not count: not in the table, not in player records, injuries or fatigue, and not in the statistics workshop.
+    league.friendlies = makeFixtures(teams.map((t) => t.id), FM.mulberry32(seed + 555), seed + 555)
+      .filter((f) => f.round < 3).map((f, i) => Object.assign(f, { id: 'p' + i, round: f.round - 3, friendly: true }));
     return league;
   };
 
@@ -192,6 +196,13 @@
     return adj;
   }
 
+  // Settings a computer-run club tries out in a friendly: its usual ones, with a wide random shake.
+  FM.friendlyTactics = function (team, rng) {
+    const base = team.baseTactics || team.tactics, t = Object.assign({}, base);
+    AI_KEYS.forEach((k) => { t[k] = clampKey(k, base[k] + (rng() - 0.5) * 0.3); });
+    return t;
+  };
+
   FM.aiTacticsFor = function (league, team, opp) {
     const base = team.baseTactics || team.tactics;
     const scout = scoutedTactics(league, team, opp);
@@ -231,16 +242,18 @@
     FM.today = league.day;
     FM.chooseKits(home, away);
     // AI clubs prepare for this opponent; the user's tactics are never touched.
-    if (home.id !== league.userId) Object.assign(home.tactics, FM.aiTacticsFor(league, home, away));
-    if (away.id !== league.userId) Object.assign(away.tactics, FM.aiTacticsFor(league, away, home));
+    // In a friendly a computer-run club experiments a little with its settings instead of preparing for this opponent.
+    const friendly = !!fx.friendly;
+    const prepare = (t, o) => { if (t.id !== league.userId) Object.assign(t.tactics, friendly ? FM.friendlyTactics(t, FM.mulberry32(fx.seed + (t === home ? 1 : 2))) : FM.aiTacticsFor(league, t, o)); };
+    prepare(home, away); prepare(away, home);
     // Injured players cannot play, and computer-run clubs also rest exhausted ones. Your own line-up only changes for injuries.
     [home, away].forEach((t) => {
       const changes = FM.autoLineup(t, { rotate: t.id !== league.userId });
-      if (t.id === league.userId && FM.pushNews) changes.filter((c) => c.injured).forEach((c) => FM.pushNews(league, { round: fx.round, day: league.day, kind: 'Injury', headline: c.off.name + ' is injured, ' + c.on.name + ' starts', body: c.off.name + ' (' + c.off.natural + ') is unavailable' + (c.off.injury ? ' with ' + c.off.injury.name : '') + ', so ' + c.on.name + ' takes his place in your starting line-up.', club: t.id, mine: true }));
+      if (t.id === league.userId && !friendly && FM.pushNews) changes.filter((c) => c.injured).forEach((c) => FM.pushNews(league, { round: fx.round, day: league.day, kind: 'Injury', headline: c.off.name + ' is injured, ' + c.on.name + ' starts', body: c.off.name + ' (' + c.off.natural + ') is unavailable' + (c.off.injury ? ' with ' + c.off.injury.name : '') + ', so ' + c.on.name + ' takes his place in your starting line-up.', club: t.id, mine: true }));
     });
     [home, away].forEach((t) => { t.snap = FM.snapshotLineup(t); t.subsUsed = 0; t.sentOff = []; t.retired = []; delete t.liveBase; delete t.liveLean; FM.fitnessBegin(t); });
     const match = FM.createMatch(home, away, fx.seed);
-    match.day = league.day; match.userId = league.userId; match.interactive = !!(opts && opts.interactive);
+    match.day = league.day; match.userId = league.userId; match.interactive = !!(opts && opts.interactive); match.friendly = friendly;
     match.aiTeams = [home, away].filter((t) => t.id !== league.userId);
     match.fixture = fx;
     match.starters = { [home.id]: home.players.map((p) => p.id), [away.id]: away.players.map((p) => p.id) };
@@ -257,6 +270,12 @@
       fx.stats[t.id].formation = t.formationKey;
       fx.stats[t.id].tactics = Object.assign({}, t.tactics);
     });
+    // A friendly leaves everything else alone: only the result and team figures are kept (with the goalscorers, for the reports).
+    if (fx.friendly) {
+      if (FM.summariseMatch) fx.summary = FM.summariseMatch(league, fx, match);
+      [home, away].forEach((t) => { FM.fitnessEnd(t, new Set()); FM.restoreLineup(t, t.snap); t.snap = null; delete t.liveBase; delete t.liveLean; });
+      return;
+    }
     // Player statistics from the event log.
     const find = (team, n) => team.squad.find((p) => p.number === n);
     const played = new Set();
@@ -299,13 +318,30 @@
     return log;
   };
 
+  // Plays the pre-season friendlies in the background, one match at a time so a page can show progress.
+  FM.playFriendlies = function (league, onProgress) {
+    const todo = (league.friendlies || []).filter((f) => !f.played);
+    return new Promise((resolve) => {
+      let i = 0;
+      const next = () => {
+        if (i >= todo.length) { resolve(); return; }
+        FM.simulateFixture(league, todo[i], 0.25); // nobody is watching, so a coarser time step is fine and much quicker
+        i++;
+        if (onProgress) onProgress(i, todo.length);
+        setTimeout(next, 0);
+      };
+      next();
+    });
+  };
+
   // Plays a whole match without watching it.
-  FM.simulateFixture = function (league, fx) {
+  FM.simulateFixture = function (league, fx, step) {
     const match = FM.startFixture(league, fx);
+    const dt = step || 0.1;
     let guard = 0;
     while (match.phase !== 'fulltime' && guard++ < 200000) {
       if (match.phase === 'halftime') FM.startSecondHalf(match);
-      FM.stepMatch(match, 0.1);
+      FM.stepMatch(match, dt);
     }
     FM.finishFixture(league, fx, match);
   };
@@ -342,7 +378,7 @@
       squad: t.squad.map((p) => { const o = {}; PLAYER_KEYS.forEach((k) => { if (p[k] !== undefined) o[k] = p[k]; }); if (p.baseRatings) o.ratings = p.baseRatings; return o; }),
       players: t.players.map((p) => p.id), bench: t.bench.map((p) => p.id),
     }));
-    return JSON.stringify({ v: 1, seed: league.seed, tier: league.tier, userId: league.userId, season: league.season, day: league.day, fixtures: league.fixtures, teams, testLog: league.testLog || [], hypotheses: league.hypotheses || [], news: league.news || [] });
+    return JSON.stringify({ v: 1, seed: league.seed, tier: league.tier, userId: league.userId, season: league.season, day: league.day, fixtures: league.fixtures, teams, testLog: league.testLog || [], hypotheses: league.hypotheses || [], news: league.news || [], friendlies: league.friendlies || [] });
   };
   FM.deserializeLeague = function (text) {
     const d = JSON.parse(text);
@@ -356,7 +392,7 @@
       };
       return team;
     });
-    const league = { seed: d.seed, tier: d.tier, userId: d.userId, season: d.season, day: d.day, fixtures: d.fixtures, teams, testLog: d.testLog || [], hypotheses: d.hypotheses || [], news: d.news || [] };
+    const league = { seed: d.seed, tier: d.tier, userId: d.userId, season: d.season, day: d.day, fixtures: d.fixtures, teams, testLog: d.testLog || [], hypotheses: d.hypotheses || [], news: d.news || [], friendlies: d.friendlies || [] };
     FM.today = d.day;
     // A match that was abandoned part way: put the lineups back as they were before kick-off.
     league.teams.forEach((t) => { if (t.snap) { FM.restoreLineup(t, t.snap); t.snap = null; } else FM.resetToKickoff(t); });

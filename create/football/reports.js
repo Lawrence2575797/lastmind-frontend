@@ -24,12 +24,14 @@
   // everything a report knows about one club
   FM.opponentReport = function (league, teamId) {
     const team = FM.teamById(league, teamId);
-    const rows = FM.statRows(league, 'all').filter((r) => r.teamId === teamId);
-    const everyone = FM.statRows(league, 'all');
+    const rows = FM.statRows(league, 'all', { friendlies: true }).filter((r) => r.teamId === teamId);
+    const everyone = FM.statRows(league, 'all', { friendlies: true });
     const rep = { team, n: rows.length, rows };
     rep.record = { w: rows.filter((r) => r.win).length, d: rows.filter((r) => r.draw).length, l: rows.filter((r) => r.loss).length };
-    rep.rounds = rows.length ? [rows[0].round + 1, rows[rows.length - 1].round + 1] : null;
-    rep.lastRound = rows.length ? rows[rows.length - 1].round : null;
+    const leagueRows = rows.filter((r) => !r.friendly);
+    rep.friendlyCount = rows.length - leagueRows.length; rep.leagueCount = leagueRows.length;
+    rep.rounds = leagueRows.length ? [leagueRows[0].round + 1, leagueRows[leagueRows.length - 1].round + 1] : null;
+    rep.lastRound = leagueRows.length ? leagueRows[leagueRows.length - 1].round : null;
     rep.daysSinceLast = rep.lastRound == null ? null : league.day - matchDay(rep.lastRound);
     const lg = {};
     const mean = (a) => (a.length ? S.mean(a) : NaN);
@@ -44,7 +46,10 @@
     });
     const forms = {}; rows.forEach((r) => { forms[r.formation] = (forms[r.formation] || 0) + 1; });
     rep.formations = Object.keys(forms).map((k) => [k, forms[k]]).sort((a, b) => b[1] - a[1]);
-    rep.scorers = team.squad.filter((p) => p.stats && (p.stats.goals || p.stats.shots)).sort((a, b) => (b.stats.goals - a.stats.goals) || (b.stats.shots - a.stats.shots)).slice(0, 4);
+    // goals include the pre-season friendlies (they are in the match summaries); shots are counted in league matches only
+    const fg = {};
+    (league.friendlies || []).filter((f) => f.played && f.summary).forEach((f) => f.summary.goals.forEach((g) => { if (g.team === teamId) fg[g.n] = (fg[g.n] || 0) + 1; }));
+    rep.scorers = team.squad.map((p) => ({ p, goals: (p.stats ? p.stats.goals : 0) + (fg[p.number] || 0), shots: p.stats ? p.stats.shots : 0 })).filter((x) => x.goals || x.shots).sort((a, b) => (b.goals - a.goals) || (b.shots - a.shots)).slice(0, 4);
     // the strength of the team as it would line up now
     const avg = (group, key) => { const ps = team.players.filter((p) => group.indexOf(p.group) >= 0); return ps.length ? S.mean(ps.map((p) => (key === 'gk' ? p.ratings.gk : p.ratings[key]))) : NaN; };
     rep.lines = [
@@ -71,7 +76,11 @@
     if (!state.teamId || state.teamId === me) state.teamId = nextOpp || others[0].id;
     const rep = FM.opponentReport(league, state.teamId);
     const t = rep.team, isNext = state.teamId === nextOpp;
-    const sample = rep.n === 0 ? 'No previous matches: nothing is known about how this club plays yet.' : `Based on <b>${rep.n} match${rep.n > 1 ? 'es' : ''}</b> (rounds ${rep.rounds[0]}${rep.rounds[0] !== rep.rounds[1] ? ' to ' + rep.rounds[1] : ''}), last played ${rep.daysSinceLast <= 0 ? 'today' : rep.daysSinceLast + ' day' + (rep.daysSinceLast > 1 ? 's' : '') + ' ago'}.`;
+    const parts = [];
+    if (rep.friendlyCount) parts.push(`${rep.friendlyCount} pre-season friendl${rep.friendlyCount > 1 ? 'ies' : 'y'}`);
+    if (rep.leagueCount) parts.push(`${rep.leagueCount} league match${rep.leagueCount > 1 ? 'es' : ''}`);
+    const sample = rep.n === 0 ? 'No previous matches: nothing is known about how this club plays yet.' : `Based on <b>${rep.n} match${rep.n > 1 ? 'es' : ''}</b> (${parts.join(' and ')})` + (rep.leagueCount ? `, the latest league match ${rep.daysSinceLast <= 0 ? 'today' : rep.daysSinceLast + ' day' + (rep.daysSinceLast > 1 ? 's' : '') + ' ago'}.` : ', all played before the season began.');
+    const friendlyNote = rep.friendlyCount ? '<p class="note warnnote">Pre-season friendlies are a poor guide. Clubs try out ideas and line-ups in them and nobody is playing for points, so what they show can differ from how the club plays when it matters.</p>' : '';
     const small = rep.n > 0 && rep.n < 4 ? `<p class="note warnnote">That is a small sample. A club's last ${rep.n} match${rep.n > 1 ? 'es' : ''} may not be typical, and a single odd result can move every average here.</p>` : '';
     const pm = (s, d) => (!fin(s.mean) ? 'n/a' : f2(s.mean, d) + (s.ci ? ` <span class="pm">(${f2(s.ci.lo, d)} to ${f2(s.ci.hi, d)})</span>` : ''));
 
@@ -81,7 +90,7 @@
         <label>Club<select id="rpTeam">${others.map((o) => `<option value="${o.id}"${o.id === state.teamId ? ' selected' : ''}>${esc(o.name)}${o.id === nextOpp ? ' (your next opponent)' : ''}</option>`).join('')}</select></label>
         <div class="fixture-big">${esc(t.name)}</div>
         <p class="desc">${sample} ${rep.n ? `Record: won ${rep.record.w}, drawn ${rep.record.d}, lost ${rep.record.l}.` : ''}</p>
-        ${small}
+        ${small}${friendlyNote}
         <p class="note">This report describes what they did, not what they will do. Managers adapt, especially to a club that has just beaten them, so the more your approach has changed since they last scouted you, the less this tells you. You can read it as often as you like, and it does not get updated until a match has been played.</p>
       </div>
       <div class="two">
@@ -99,7 +108,7 @@
           <p class="note">Brackets are a 95% confidence interval for their true average, shown once there are three matches or more. A wide bracket means the average could easily be off.</p>` : '<p class="note">No matches to read it from yet.</p>'}</div>
       </div>
       <div class="two">
-        <div class="card"><h2>Who to watch</h2>${rep.scorers.length ? `<div class="tablewrap"><table class="data"><thead><tr><th class="l">Player</th><th class="l">Position</th><th>Goals</th><th>Shots</th></tr></thead><tbody>${rep.scorers.map((p) => `<tr><td class="l">${esc(p.name)} (${p.number})</td><td class="l">${p.natural}</td><td>${p.stats.goals}</td><td>${p.stats.shots}</td></tr>`).join('')}</tbody></table></div><p class="note">Counted over the whole season so far. Goals are rare events, so a leading scorer after a few matches is often partly luck.</p>` : '<p class="note">Nobody has scored or shot yet.</p>'}
+        <div class="card"><h2>Who to watch</h2>${rep.scorers.length ? `<div class="tablewrap"><table class="data"><thead><tr><th class="l">Player</th><th class="l">Position</th><th>Goals</th><th>Shots (league)</th></tr></thead><tbody>${rep.scorers.map((x) => `<tr><td class="l">${esc(x.p.name)} (${x.p.number})</td><td class="l">${x.p.natural}</td><td>${x.goals}</td><td>${x.shots}</td></tr>`).join('')}</tbody></table></div><p class="note">Goals include pre-season friendlies; shots are league matches only. Goals are rare events, so a leading scorer after a few matches is often partly luck.</p>` : '<p class="note">Nobody has scored or shot yet.</p>'}
           <h2 style="margin-top:6px">The team as it would line up</h2>
           <div class="tablewrap"><table class="data"><thead><tr><th class="l">Area</th><th>Rating</th><th>Other clubs</th></tr></thead><tbody>${rep.lines.map((l, i) => `<tr><td class="l">${l[0]}</td><td>${f2(l[1], 0)}</td><td>${f2(rep.linesLeague[i], 0)}</td></tr>`).join('')}</tbody></table></div>
           <p class="note">Average ratings of the players in their current starting line-up. This can change before the match if they make selection changes.</p></div>

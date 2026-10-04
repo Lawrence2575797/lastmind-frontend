@@ -284,9 +284,11 @@
   function tableHtml(rows, compact) {
     const me = world.league.userId;
     const head = compact ? '' : '<th>GF</th><th>GA</th>';
+    const started = rows.some((r) => r.p > 0), n = rows.length;
+    const cls = (r, i) => [r.id === me ? 'me' : '', started && i >= n - 2 ? 'rel' : '', started && i === n - 2 ? 'rel-first' : '', started && i === 0 ? 'champ' : ''].filter(Boolean).join(' ');
     return `<div class="tablewrap"><table class="data"><thead><tr><th class="l">#</th><th class="l">Club</th><th>P</th><th>W</th><th>D</th><th>L</th>${head}<th>GD</th><th>Pts</th>${compact ? '' : '<th class="l">Form</th>'}</tr></thead><tbody>` +
-      rows.map((r, i) => `<tr class="${r.id === me ? 'me' : ''}"><td class="l">${i + 1}</td><td class="l">${esc(r.name)}</td><td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td>${compact ? '' : `<td>${r.gf}</td><td>${r.ga}</td>`}<td>${r.gf - r.ga > 0 ? '+' : ''}${r.gf - r.ga}</td><td><b>${r.pts}</b></td>${compact ? '' : `<td class="l">${r.form.slice(-5).map((f) => `<span class="pill ${f}">${f}</span>`).join('')}</td>`}</tr>`).join('') +
-      '</tbody></table></div>';
+      rows.map((r, i) => `<tr class="${cls(r, i)}"><td class="l">${i + 1}</td><td class="l">${esc(r.name)}</td><td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td>${compact ? '' : `<td>${r.gf}</td><td>${r.ga}</td>`}<td>${r.gf - r.ga > 0 ? '+' : ''}${r.gf - r.ga}</td><td><b>${r.pts}</b></td>${compact ? '' : `<td class="l">${r.form.slice(-5).map((f) => `<span class="pill ${f}">${f}</span>`).join('')}</td>`}</tr>`).join('') +
+      '</tbody></table></div>' + (started ? '<p class="note"><span class="zone"></span>Relegation zone: the bottom two clubs go down at the end of the season. The club top of the table wins the league.</p>' : '');
   }
   function renderHome() {
     const lg = world.league, host = el('view-home'), me = lg.userId;
@@ -297,7 +299,8 @@
     let next = '';
     if (over) {
       const pos = rows.findIndex((r) => r.id === me) + 1;
-      next = `<h2>Season complete</h2><div class="fixture-big">${esc(rows[0].name)} are champions.</div><p class="desc">You finished ${pos}${['st', 'nd', 'rd'][pos - 1] || 'th'} of 8 with ${rows[pos - 1].pts} points.</p><div class="row"><button class="primary" id="newSeasonBtn" style="flex:0 0 auto">Start a new season</button></div>`;
+      const down = rows.slice(-2), mine = pos === 1 ? 'You won the league.' : pos >= 7 ? `You finished ${pos}${pos === 7 ? 'th' : 'th'} of 8 with ${rows[pos - 1].pts} points, in the relegation zone: your club goes down.` : `You finished ${pos}${['st', 'nd', 'rd'][pos - 1] || 'th'} of 8 with ${rows[pos - 1].pts} points, safe from relegation.`;
+      next = `<h2>Season complete</h2><div class="fixture-big">${esc(rows[0].name)} are champions.</div><p class="desc">${esc(down[0].name)} and ${esc(down[1].name)} are relegated.</p><p class="desc">${mine}</p><div class="row"><button class="primary" id="newSeasonBtn" style="flex:0 0 auto">Start a new season</button></div>`;
     } else if (nextFx) {
       const home = FM.teamById(lg, nextFx.homeId), away = FM.teamById(lg, nextFx.awayId);
       const opp = home.id === me ? away : home;
@@ -309,7 +312,8 @@
         ${today && !today.played ? '<div class="banner">It is matchday. Check your tactics, then play the match.</div>' : '<p class="note">Use the days before the match to adjust your tactics. Advance the calendar when you are ready.</p>'}`;
     }
     const played = lg.fixtures.filter((f) => f.played && (f.homeId === me || f.awayId === me)).sort((a, b) => b.round - a.round);
-    let lastCard = '<h2>Last result</h2><p class="note">No match played yet.</p>';
+    const myFriendlies = (lg.friendlies || []).filter((f) => f.played && (f.homeId === me || f.awayId === me));
+    let lastCard = '<h2>Last result</h2><p class="note">No league match played yet.</p>' + (myFriendlies.length ? '<p class="desc">Pre-season friendlies:</p>' + myFriendlies.map((f) => `<p class="note">${esc(FM.teamById(lg, f.homeId).name)} ${f.hg}-${f.ag} ${esc(FM.teamById(lg, f.awayId).name)}</p>`).join('') : '');
     if (played.length) {
       const f = played[0], home = FM.teamById(lg, f.homeId), away = FM.teamById(lg, f.awayId);
       const hs = f.stats[home.id], as = f.stats[away.id], tot = hs.possession + as.possession;
@@ -353,7 +357,9 @@
       const h = FM.teamById(lg, f.homeId), a = FM.teamById(lg, f.awayId);
       return `<div class="res ${f.homeId === me || f.awayId === me ? 'me' : ''}"><span>${esc(h.name)}</span><b>${f.played ? f.hg + ' - ' + f.ag : 'v'}</b><span>${esc(a.name)}</span></div>`;
     }).join('') + '</div>').join('');
-    host.innerHTML = `<div class="two"><div class="card"><h2>League table</h2>${tableHtml(rows, false)}</div><div class="card"><h2>Results and fixtures</h2><div class="rounds">${roundHtml}</div></div></div>`;
+    const fr = (lg.friendlies || []).filter((f) => f.played);
+    const friendlyCard = fr.length ? `<div class="card"><h2>Pre-season friendlies</h2><p class="note">These did not count toward the table.</p><div class="rounds">${fr.map((f) => `<div class="res ${f.homeId === me || f.awayId === me ? 'me' : ''}"><span>${esc(FM.teamById(lg, f.homeId).name)}</span><b>${f.hg} - ${f.ag}</b><span>${esc(FM.teamById(lg, f.awayId).name)}</span></div>`).join('')}</div></div>` : '';
+    host.innerHTML = `<div class="two"><div class="card"><h2>League table</h2>${tableHtml(rows, false)}</div><div style="display:grid;gap:16px"><div class="card"><h2>Results and fixtures</h2><div class="rounds">${roundHtml}</div></div>${friendlyCard}</div></div>`;
   }
   function renderSquad() {
     const team = userTeam(), host = el('view-squad');
@@ -709,10 +715,14 @@
     el('topRight').innerHTML = ''; el('subtitle').textContent = 'Eight clubs, one season, and a lot of numbers.';
   }
   el('ngTeam').innerHTML = FM.TEAM_DEFS.map((d, i) => `<option value="${i}">${esc(d.name)}</option>`).join('');
-  el('ngStart').addEventListener('click', () => {
-    const tier = document.querySelector('input[name="tier"]:checked').value;
+  el('ngStart').addEventListener('click', async () => {
+    const btn = el('ngStart'), tier = document.querySelector('input[name="tier"]:checked').value;
+    btn.disabled = true; btn.textContent = 'Setting up the clubs...';
+    await new Promise((r) => setTimeout(r, 30));
     world.league = FM.createLeague({ userIndex: +el('ngTeam').value, tier });
+    await FM.playFriendlies(world.league, (i, n) => { btn.textContent = 'Playing pre-season friendlies (' + i + ' of ' + n + ')...'; });
     FM.saveLeague(world.league);
+    btn.disabled = false; btn.textContent = 'Start the season';
     setView('home');
   });
 

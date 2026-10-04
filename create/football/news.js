@@ -139,6 +139,16 @@
       const nowTop = FM.tableRows(league)[0], prevTop = tableBefore(league, round)[0];
       if (nowTop && prevTop && nowTop.id !== prevTop.id) push('Table', `${nowTop.name} go top`, `${nowTop.name} move to the top of the table on ${nowTop.pts} points, replacing ${name(prevTop.id)}.`, nowTop.id);
     }
+    // the bottom of the table
+    const tbl = FM.tableRows(league), bottom = tbl.slice(-2), me2 = league.userId;
+    const mineBottom = bottom.some((b) => b.id === me2) ? me2 : null;
+    if (round === 13) {
+      push('Champions', `${tbl[0].name} are champions`, `${tbl[0].name} finish top of the table on ${tbl[0].pts} points, ${tbl[0].pts - tbl[1].pts} clear of ${tbl[1].name}.`, tbl[0].id);
+      push('Relegation', `${bottom[0].name} and ${bottom[1].name} are relegated`, `${bottom[0].name} (${bottom[0].pts} points) and ${bottom[1].name} (${bottom[1].pts}) finish in the bottom two and go down.`, mineBottom);
+    } else if (round >= 5 && round % 3 === 2) {
+      const gap = tbl[5].pts - tbl[6].pts;
+      push('Relegation', `${bottom[1].name} and ${bottom[0].name} in the relegation zone`, `${bottom[1].name} (${bottom[1].pts} points) and ${bottom[0].name} (${bottom[0].pts}) occupy the bottom two places, ${gap > 0 ? gap + ' point' + (gap > 1 ? 's' : '') + ' from safety' : 'level on points with the club above them'}.`, mineBottom);
+    }
     items.forEach((it) => FM.pushNews(league, it));
     return items.length;
   };

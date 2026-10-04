@@ -21,9 +21,9 @@
   FM.STAT_VAR_INFO = VAR;
 
   // One row per team per match. scope 'me': your team; 'opp': the opponents in your matches; 'all': every match in the league.
-  FM.statRows = function (league, scope) {
+  FM.statRows = function (league, scope, opts) {
     const rows = [];
-    league.fixtures.filter((f) => f.played && f.stats).forEach((f) => {
+    league.fixtures.concat(opts && opts.friendlies ? (league.friendlies || []) : []).filter((f) => f.played && f.stats).forEach((f) => {
       const ids = [f.homeId, f.awayId];
       const involvesUser = ids.indexOf(league.userId) >= 0;
       if (scope !== 'all' && !involvesUser) return;
@@ -35,7 +35,7 @@
         const tot = s.possession + o.possession || 1;
         const gf = k === 0 ? f.hg : f.ag, ga = k === 0 ? f.ag : f.hg;
         rows.push({
-          fxId: f.id, round: f.round, teamId: id, oppId: oid, home: k === 0,
+          fxId: f.id, round: f.round, friendly: !!f.friendly, teamId: id, oppId: oid, home: k === 0,
           goals: gf, goalsAgainst: ga, shots: s.shots, shotsAgainst: o.shots, onTarget: s.onTarget, xg: s.xg, xga: o.xg,
           possession: 100 * s.possession / tot, passes: s.passes, passPct: s.passes ? 100 * s.passesOk / s.passes : NaN,
           dribbleWinPct: s.dribbles ? 100 * s.dribblesWon / s.dribbles : NaN, tackleWinPct: s.tackles ? 100 * s.tacklesWon / s.tackles : NaN,
