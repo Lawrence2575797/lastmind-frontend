@@ -211,7 +211,12 @@
   // right in the final third.
   FM.REACH_SECONDS = 6;
   FM.reachMetres = (p) => FM.REACH_SECONDS * p.maxSpeed;
-  FM.posDist = (a, b) => Math.hypot((a.d - b.d) * L, (a.w - b.w) * W);
+  // Running up and down the pitch between phases is easier than switching sides (the play moves that way too: a striker drops
+  // into his own half to help build, then gets forward again), so depth counts for less than width when measuring how far apart
+  // two positions are. A player's reach is therefore an oval: about 1.4 times as far up and down as across.
+  FM.DEPTH_WEIGHT = 0.7;
+  FM.posDist = (a, b) => Math.hypot((a.d - b.d) * L * FM.DEPTH_WEIGHT, (a.w - b.w) * W);
+  FM.trueDist = (a, b) => Math.hypot((a.d - b.d) * L, (a.w - b.w) * W);
   // Pulls a wished-for position back until he could reach it from where he stands in every other phase.
   FM.clampToReach = function (team, p, phase, pos) {
     const reach = FM.reachMetres(p);

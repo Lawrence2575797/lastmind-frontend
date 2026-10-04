@@ -89,7 +89,7 @@
     for (let a = 0; a < FM.PHASES.length; a++) for (let b = a + 1; b < FM.PHASES.length; b++) {
       const pa = FM.phasePos(team, p, FM.PHASES[a]), pb = FM.phasePos(team, p, FM.PHASES[b]);
       const d = FM.posDist(pa, pb);
-      if (d > reach + 0.5) bad.push(PHASE_SHORT[FM.PHASES[a]] + ' and ' + PHASE_SHORT[FM.PHASES[b]] + ' (' + Math.round(d) + ' m apart)');
+      if (d > reach + 0.5) bad.push(PHASE_SHORT[FM.PHASES[a]] + ' and ' + PHASE_SHORT[FM.PHASES[b]] + ' (' + Math.round(FM.trueDist(pa, pb)) + ' m apart)');
     }
     if (bad.length) out.push('He cannot get between these positions in time, he covers about ' + Math.round(reach) + ' m: ' + bad.join('; ') + '.');
     // 2. Do the positions fit the role? The role is the same in every phase, so its shape has to show in each of them.
