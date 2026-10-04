@@ -121,6 +121,22 @@
   .warn.me { border-left-color: var(--gold); }
   .warn ul { margin: 4px 0 0; padding-left: 18px; }
   textarea { background: var(--navy-raise); color: var(--cream); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-family: var(--sans); font-size: 0.85rem; width: 100%; resize: vertical; }
+  svg.chart { display: block; width: 100%; height: auto; max-width: 720px; }
+  svg.chart .grid { stroke: rgba(241, 234, 214, 0.12); stroke-width: 1; }
+  svg.chart .axis { stroke: rgba(241, 234, 214, 0.55); stroke-width: 1.5; }
+  svg.chart text.tick { fill: var(--cream-soft); font-size: 11px; font-family: var(--sans); }
+  svg.chart text.axl { fill: var(--cream-soft); font-size: 12px; font-family: var(--sans); }
+  details.tool { background: var(--navy-raise); border-radius: 10px; }
+  details.tool > summary { cursor: pointer; padding: 12px 14px; font-family: var(--sans); font-weight: 700; font-size: 0.95rem; list-style: none; display: flex; gap: 10px; align-items: center; }
+  details.tool > summary::-webkit-details-marker { display: none; }
+  details.tool > summary::before { content: '+'; display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--line); font-weight: 400; flex: none; }
+  details.tool[open] > summary::before { content: '-'; }
+  .tool-body { padding: 0 14px 16px; display: grid; gap: 12px; }
+  .tool-box { display: grid; gap: 12px; min-width: 0; }
+  .lvl { font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; color: var(--navy); flex: none; }
+  .lvl.gcse { background: #7CC38A; } .lvl.alevel { background: var(--gold); } .lvl.above { background: #C7A6F2; }
+  .warnnote { color: #F2C8A0; }
+  input[type="number"] { background: var(--navy-raise); color: var(--cream); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-family: var(--sans); font-size: 0.9rem; width: 100%; }
   svg.amap { display: block; width: 100%; height: auto; border-radius: 8px; }
   .radio { display: flex; gap: 10px; align-items: flex-start; flex-direction: row; }
   .radio input { margin-top: 4px; }
@@ -206,6 +222,8 @@
 <script src="/create/football/instructions.js"></script>
 <script src="/create/football/match.js"></script>
 <script src="/create/football/league.js"></script>
+<script src="/create/football/stats_math.js"></script>
+<script src="/create/football/stats.js"></script>
 <script src="/create/football/analysis.js"></script>
 <script src="/create/football/main.js"></script>
 </body>

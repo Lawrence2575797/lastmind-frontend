@@ -327,7 +327,7 @@
       squad: t.squad.map((p) => { const o = {}; PLAYER_KEYS.forEach((k) => { if (p[k] !== undefined) o[k] = p[k]; }); return o; }),
       players: t.players.map((p) => p.id), bench: t.bench.map((p) => p.id),
     }));
-    return JSON.stringify({ v: 1, seed: league.seed, tier: league.tier, userId: league.userId, season: league.season, day: league.day, fixtures: league.fixtures, teams });
+    return JSON.stringify({ v: 1, seed: league.seed, tier: league.tier, userId: league.userId, season: league.season, day: league.day, fixtures: league.fixtures, teams, testLog: league.testLog || [], hypotheses: league.hypotheses || [] });
   };
   FM.deserializeLeague = function (text) {
     const d = JSON.parse(text);
@@ -341,7 +341,7 @@
       };
       return team;
     });
-    const league = { seed: d.seed, tier: d.tier, userId: d.userId, season: d.season, day: d.day, fixtures: d.fixtures, teams };
+    const league = { seed: d.seed, tier: d.tier, userId: d.userId, season: d.season, day: d.day, fixtures: d.fixtures, teams, testLog: d.testLog || [], hypotheses: d.hypotheses || [] };
     // A match that was abandoned part way: put the lineups back as they were before kick-off.
     league.teams.forEach((t) => { if (t.snap) { FM.restoreLineup(t, t.snap); t.snap = null; } else FM.resetToKickoff(t); });
     return league;
