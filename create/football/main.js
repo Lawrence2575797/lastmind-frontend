@@ -183,7 +183,7 @@
     el('playBtn').classList.toggle('on', playing);
     const ip = m.injuryPause;
     el('injuryBox').hidden = !ip;
-    if (ip) { world.running = false; el('injuryText').textContent = ip.player.name + ' (number ' + ip.player.number + ') is injured and cannot continue, so play is stopped. Substitute him on the tactics board below (drag a bench player onto his shirt), or play on with ten men.'; }
+    if (ip) { world.running = false; el('injuryText').textContent = ip.player.name + ' (number ' + ip.player.number + ') is injured and cannot continue, so play is stopped. Substitute him on the tactics board below (click a bench player, then his shirt), or play on with ten men.'; }
     const done = m.phase === 'fulltime';
     el('finishBox').hidden = !done;
     if (done) el('finishText').textContent = 'Full time: ' + home.name + ' ' + m.score[home.id] + '-' + m.score[away.id] + ' ' + away.name + '.';
@@ -422,7 +422,7 @@
   // Each tab with a board shows the team in that phase of play.
   const BOARD_KEY = { squad: 'shape', build: 'build', final: 'final', transatt: 'transAtt', transdef: 'transDef', press: 'press', without: 'without' };
   const PHASE_TEXT = {
-    shape: 'The team set up in its formation. Drag a shirt anywhere on the pitch; every other phase follows from this shape, the role and the instructions. Drag one shirt onto another to swap those two players.',
+    shape: 'The team set up in its formation. Choose the formation here, and click one player and then another to swap them. Every other phase follows from this shape, the roles and the instructions, and is where you place players by hand.',
     build: 'The team with the ball close to its own goal, which is why the ball starts beside the goalkeeper. These positions apply while the ball is in the team\'s own third, and the team moves toward the final-third positions as the ball goes forward. The ball here is only a guide, so you can drag it to picture other situations. A shirt you drag moves for this phase only, and only as far as the player could run from his other positions. A shirt with a gold dot has been placed by hand.',
     final: 'The team with the ball near the opposition goal. Attackers can stand on the edge of the box or inside it, but they are held at the offside line, and the same role and instructions apply as in every other phase.',
     transAtt: 'The few seconds just after winning the ball, before the team settles. This is where the first runs are made, so positions here pull players toward where the attack will go.',
@@ -627,14 +627,16 @@
       const g = e.target.closest('.dot');
       if (!g) return;
       const p = team.players.find((x) => x.index === +g.dataset.idx);
+      const prev = world.selSlot;
       world.selSlot = p;
-      drag = { p, g, sx: e.clientX, sy: e.clientY, moved: false, pos: null };
+      drag = { p, prev, g, sx: e.clientX, sy: e.clientY, moved: false, pos: null };
       svg.setPointerCapture(e.pointerId);
       e.preventDefault();
     });
     svg.addEventListener('pointermove', (e) => {
       if (dragBall) { const pos = toPos(e); dragBall.pos = pos; const pt = bpt(pos); dragBall.g.setAttribute('transform', `translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})`); return; }
       if (!drag) return;
+      if (key === 'shape') return; // on Squad and formation shirts are clicked, never dragged
       if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 5) return;
       drag.moved = true;
       let pos = toPos(e);
@@ -653,6 +655,13 @@
       }
       if (!d.moved && world.selBench) { host.dispatchEvent(new CustomEvent('sub', { detail: { idx: d.p.index, id: world.selBench.id } })); return; }
       world.selBench = null;
+      if (key === 'shape') {
+        // Click a player, then click another to swap them. Clicking the same player again lets go of him.
+        if (d.prev && d.prev !== d.p && team.players.includes(d.prev)) { FM.swapSlots(team, d.prev, d.p); FM.fixSlot(team, d.prev); FM.fixSlot(team, d.p); world.selSlot = null; saveSoon(); }
+        else if (d.prev === d.p) world.selSlot = null;
+        renderTactics();
+        return;
+      }
       if (d.moved) {
         if (key === 'shape') {
           // dropped on another shirt: swap the two players
@@ -666,21 +675,13 @@
       renderTactics();
     });
     // a bench player dragged from the list onto a shirt is a substitution
-    svg.addEventListener('dragover', (e) => { if (e.target.closest('.dot')) e.preventDefault(); });
-    svg.addEventListener('drop', (e) => {
-      const g = e.target.closest('.dot');
-      if (!g) return;
-      e.preventDefault();
-      const [kind, id] = e.dataTransfer.getData('text/plain').split(':');
-      if (kind === 'bench') host.dispatchEvent(new CustomEvent('sub', { detail: { idx: +g.dataset.idx, id } }));
-    });
   }
   const clamp01 = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
   function renderBoardTab(team, tab) {
     const host = el('tabBody'), key = BOARD_KEY[tab], isShape = key === 'shape';
     const bench = team.bench.map((p) => `
-      <button class="chip${world.selBench === p ? ' sel' : ''}" draggable="true" data-bench="${p.id}">
+      <button class="chip${world.selBench === p ? ' sel' : ''}" data-bench="${p.id}">
         <span class="num" style="${KITNUM(team)}">${p.number}</span><span>${p.natural} ${esc(shortName(p))}</span><span class="meta ${FM.isInjured(p) ? 'out' : FM.conditionOf(p) < 0.6 ? 'low' : ''}">${FM.ratingText(p)} · ${FM.isInjured(p) ? 'injured' : Math.round(100 * FM.conditionOf(p)) + '%'}</span>
       </button>`).join('');
     host.innerHTML = `
@@ -696,7 +697,7 @@
         </div>
         <div class="tb-right">
           <div id="phaseSliders"></div>
-          ${isShape ? `<div><h2 style="margin-bottom:8px">Bench</h2><div class="bench" id="bench">${bench}</div><p class="note" style="margin-top:8px">Drag a bench player onto a shirt, or pick one and click a shirt, to substitute.</p></div>` : ''}
+          ${isShape ? `<div><h2 style="margin-bottom:8px">Bench</h2><div class="bench" id="bench">${bench}</div><p class="note" style="margin-top:8px">To substitute, click a bench player and then click the shirt he replaces.</p></div>` : ''}
           <div id="rolePanel"></div>
           <div id="warnPanel"></div>
         </div>
@@ -738,7 +739,6 @@
     board.addEventListener('sub', (e) => { const inP = team.bench.find((p) => p.id === e.detail.id); if (inP) doSub(slotPlayer(e.detail.idx), inP); });
     host.querySelectorAll('[data-bench]').forEach((b) => {
       b.addEventListener('click', () => { const p = team.bench.find((x) => x.id === b.dataset.bench); world.selBench = world.selBench === p ? null : p; renderTactics(); });
-      b.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', 'bench:' + b.dataset.bench); });
     });
     renderRolePanel(team);
     renderWarnPanel(team);
