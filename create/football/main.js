@@ -297,7 +297,7 @@
     let next = '';
     if (over) {
       const pos = rows.findIndex((r) => r.id === me) + 1;
-      next = `<h2>Season complete</h2><div class="fixture-big">${esc(rows[0].name)} are champions.</div><p class="desc">You finished ${pos}${['st', 'nd', 'rd'][pos - 1] || 'th'} of 8 with ${rows[pos - 1].pts} points.</p>`;
+      next = `<h2>Season complete</h2><div class="fixture-big">${esc(rows[0].name)} are champions.</div><p class="desc">You finished ${pos}${['st', 'nd', 'rd'][pos - 1] || 'th'} of 8 with ${rows[pos - 1].pts} points.</p><div class="row"><button class="primary" id="newSeasonBtn" style="flex:0 0 auto">Start a new season</button></div>`;
     } else if (nextFx) {
       const home = FM.teamById(lg, nextFx.homeId), away = FM.teamById(lg, nextFx.awayId);
       const opp = home.id === me ? away : home;
@@ -328,6 +328,7 @@
       <div style="display:grid;gap:16px"><div class="card">${next}</div><div class="card">${lastCard}</div><div class="card">${fitCard}</div><div class="card">${newsCard}</div></div>
       <div class="card"><h2>League table</h2>${tableHtml(rows, true)}</div></div>`;
     const nb = host.querySelector('[data-nav-news]'); if (nb) nb.addEventListener('click', () => setView('news'));
+    const ns = host.querySelector('#newSeasonBtn'); if (ns) ns.addEventListener('click', () => { FM.clearSave(); world.league = null; world.match = null; showNewGame(); });
   }
 
   // How many matches an injured player will still miss, counting from the next Saturday.
