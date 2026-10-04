@@ -571,11 +571,7 @@
     const posOf = (p) => (key === 'shape' ? FM.slotBase(team, p) : FM.phasePos(team, p, key));
     let ghosts = '';
     if (selected && key !== 'shape') {
-      // The sideways limit still applies when dragging (see FM.clampToReach), but its outline is not drawn: only where he stands in the other phases.
-      const others = FM.PHASES.filter((ph) => ph !== key).map((ph) => ({ ph, g: bpt(FM.phasePos(team, selected, ph)) }));
-      others.forEach((o) => {
-        ghosts += `<circle cx="${o.g.x}" cy="${o.g.y}" r="11" fill="rgba(242,193,78,0.9)"/><text x="${o.g.x}" y="${o.g.y + 4.5}" text-anchor="middle" font-size="12" font-weight="700" fill="#1A232D">${PHASE_CODE[o.ph]}</text>`;
-      });
+      // The sideways limit still applies when dragging (see FM.clampToReach); nothing is drawn for it.
     }
     // The next opponent as scouted: where their players have stood in the phase that answers this one (when you build, they press).
     let opp = '';
@@ -705,7 +701,7 @@
     const sel = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
     if (sel && !isShape) {
       const here = FM.phasePos(team, sel, key), slow = FM.PHASES.filter((ph) => ph !== key).map((ph) => ({ ph, s: FM.trueDist(here, FM.phasePos(team, sel, ph)) / sel.maxSpeed })).filter((x) => x.s >= 4).sort((a, b) => b.s - a.s);
-      host.querySelector('#reachNote').textContent = `${sel.name} cannot get from one side of the pitch to the other between phases, and the gold markers show where he stands in the other phases (B build-up, F final third, TA and TD the transitions, P pressing, D defending). Up and down the pitch he can go anywhere, but the further apart his positions are, the longer he takes to get from one to the other at his top speed (${sel.maxSpeed.toFixed(1)} m/s).` + (slow.length ? ' From here he needs ' + slow.map((x) => 'about ' + Math.round(x.s) + ' s to reach his ' + FM.PHASE_NAMES[x.ph].toLowerCase() + ' position').join(', ') + '.' : '');
+      host.querySelector('#reachNote').textContent = `${sel.name} cannot get from one side of the pitch to the other between phases, which is why he cannot be placed too far across the pitch from his position in the other phases. Up and down the pitch he can go anywhere, but the further apart his positions are, the longer he takes to get from one to the other at his top speed (${sel.maxSpeed.toFixed(1)} m/s).` + (slow.length ? ' From here he needs ' + slow.map((x) => 'about ' + Math.round(x.s) + ' s to reach his ' + FM.PHASE_NAMES[x.ph].toLowerCase() + ' position').join(', ') + '.' : '');
     }
     else host.querySelector('#reachNote').textContent = isShape ? '' : 'Click a shirt to see how far that player can move between phases.';
 
