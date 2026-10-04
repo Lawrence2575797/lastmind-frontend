@@ -51,6 +51,12 @@
   };
 
   FM.teamById = (league, id) => league.teams.find((t) => t.id === id);
+  // The kit a club would wear against another (its home kit, unless that clashes with the other side's), for drawing it on a pitch.
+  FM.kitAgainst = function (team, vs) {
+    const home = { shirt: team.kits.home[0], number: team.kits.home[1] }, away = { shirt: team.kits.away[0], number: team.kits.away[1] };
+    const mine = { shirt: vs.kits.home[0] };
+    return colourDistance(home.shirt, mine.shirt) < 110 ? away : home;
+  };
   // What a club is known for: where it is expected to finish and the story behind it.
   FM.clubProfile = (team) => FM.TEAM_DEFS.find((d) => d.name === team.name) || { tag: '', story: '' };
 

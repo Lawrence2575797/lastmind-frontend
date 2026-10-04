@@ -99,26 +99,26 @@
   // The club's shape in each phase of play, as scouted: six small pitches, the club always attacking up the page.
   const PHASE_ORDER = ['build', 'press', 'final', 'without', 'transAtt', 'transDef'];
   const PHASE_BLURB = { build: 'building from the back', press: 'pressing the other side\'s build-up', final: 'attacking in the final third', without: 'defending without the ball', transAtt: 'just after winning the ball', transDef: 'just after losing the ball' };
-  function miniPitch(cells) {
+  function miniPitch(cells, kit) {
     const PW = 136, PH = 210, ln = 'stroke="rgba(255,255,255,0.7)" stroke-width="1" fill="none"';
     let s = `<rect x="0" y="0" width="${PW}" height="${PH}" fill="#2E7D3E"/><rect x="0.5" y="0.5" width="${PW - 1}" height="${PH - 1}" ${ln}/><line x1="0" y1="${PH / 2}" x2="${PW}" y2="${PH / 2}" ${ln}/><circle cx="${PW / 2}" cy="${PH / 2}" r="18" ${ln}/>`;
     s += `<rect x="${PW / 2 - 40}" y="0" width="80" height="32" ${ln}/><rect x="${PW / 2 - 40}" y="${PH - 32}" width="80" height="32" ${ln}/>`;
     if (cells) Object.keys(cells).forEach((slot) => {
       const c = cells[slot], x = c.w * PW, y = (1 - c.d) * PH;
-      s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="9.5" fill="#D62828" stroke="#fff" stroke-width="1.2"/><text x="${x.toFixed(1)}" y="${(y + 3).toFixed(1)}" text-anchor="middle" font-size="7.5" font-weight="700" fill="#fff" font-family="sans-serif">${slot}</text>`;
+      s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="9.5" fill="${kit.shirt}" stroke="${kit.number}" stroke-width="1.4"/><text x="${x.toFixed(1)}" y="${(y + 3).toFixed(1)}" text-anchor="middle" font-size="7.5" font-weight="700" fill="${kit.number}" font-family="sans-serif">${slot}</text>`;
     });
     return `<svg viewBox="0 0 ${PW} ${PH}" style="width:100%;height:auto;display:block;border-radius:6px" role="img">${s}</svg>`;
   }
   function shapeCard(league, teamId) {
     const sh = FM.scoutedShape(league, teamId);
     if (!sh) return '<div class="card"><h2>How they line up in each phase</h2><p class="note">No matches to read it from yet.</p></div>';
-    const team = FM.teamById(league, teamId);
+    const team = FM.teamById(league, teamId), kit = FM.kitAgainst(team, FM.teamById(league, league.userId));
     return `<div class="card"><h2>How they line up in each phase</h2>
       <p class="note">Where ${esc(team.name)} have actually stood, in their ${esc(sh.formation)}, taken every two seconds of ${sh.matches} match${sh.matches > 1 ? 'es' : ''} (${sh.friendlies} pre-season friendl${sh.friendlies === 1 ? 'y' : 'ies'}, which count half). They always attack up the page. Newer matches count more, so this changes as the season goes on. The same pictures can be laid over your own board on the Tactics page.</p>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px">${PHASE_ORDER.map((ph) => {
         const cells = sh.phases[ph];
         const n = cells ? Math.max.apply(null, Object.keys(cells).map((k) => cells[k].n)) : 0;
-        return `<figure style="margin:0"><figcaption style="font-weight:700;margin-bottom:4px">${FM.PHASE_NAMES[ph]}</figcaption>${miniPitch(cells)}<p class="note" style="margin-top:4px">${PHASE_BLURB[ph]}${cells ? `. ${n} samples.` : ': not seen yet.'}</p></figure>`;
+        return `<figure style="margin:0"><figcaption style="font-weight:700;margin-bottom:4px">${FM.PHASE_NAMES[ph]}</figcaption>${miniPitch(cells, kit)}<p class="note" style="margin-top:4px">${PHASE_BLURB[ph]}${cells ? `. ${n} samples.` : ': not seen yet.'}</p></figure>`;
       }).join('')}</div></div>`;
   }
 

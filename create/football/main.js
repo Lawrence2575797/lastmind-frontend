@@ -596,9 +596,10 @@
     const sc = key !== 'shape' && world.showOpp ? scoutFor() : null;
     if (sc && sc.shape.phases[OPP_PHASE[key]]) {
       const cells = sc.shape.phases[OPP_PHASE[key]];
+      const kit = FM.kitAgainst(sc.opp, FM.teamById(world.league, world.league.userId));
       opp = '<g style="pointer-events:none">' + Object.keys(cells).map((slot) => {
         const c = cells[slot], pt = bpt({ d: 1 - c.d, w: 1 - c.w });
-        return `<circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="19" fill="rgba(70,110,190,0.88)" stroke="#fff" stroke-opacity="0.85" stroke-width="2.5" stroke-dasharray="4 3"/><text x="${pt.x.toFixed(1)}" y="${(pt.y + 4.5).toFixed(1)}" text-anchor="middle" font-size="12.5" font-weight="700" fill="#fff">${slot}</text>`;
+        return `<circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="19" fill="${kit.shirt}" fill-opacity="0.9" stroke="${kit.number}" stroke-width="2.5" stroke-dasharray="4 3"/><text x="${pt.x.toFixed(1)}" y="${(pt.y + 4.5).toFixed(1)}" text-anchor="middle" font-size="12.5" font-weight="700" fill="${kit.number}">${slot}</text>`;
       }).join('') + '</g>';
     }
     let ball = '';
@@ -710,7 +711,7 @@
       else if (!sc) note.textContent = 'Nothing is known about how they line up yet: they have not played.';
       else {
         const cells = sc.shape.phases[OPP_PHASE[key]], n = cells ? Math.max.apply(null, Object.keys(cells).map((k) => cells[k].n)) : 0;
-        note.textContent = `Blue shirts are where ${sc.opp.name} have stood in their ${FM.PHASE_NAMES[OPP_PHASE[key]].toLowerCase()} phase, when you are in yours, drawn as they stand facing you. From ${sc.shape.matches} match${sc.shape.matches > 1 ? 'es' : ''} (${sc.shape.friendlies} pre-season friendl${sc.shape.friendlies === 1 ? 'y' : 'ies'}, which count half; newer matches count more), in their ${sc.shape.formation}. ${cells ? 'This phase has up to ' + n + ' samples a player, taken every two seconds.' : 'They have not been seen in this phase yet.'} It shows what they did, and they may change.`;
+        note.textContent = `Dashed shirts, in their kit, are where ${sc.opp.name} have stood in their ${FM.PHASE_NAMES[OPP_PHASE[key]].toLowerCase()} phase, when you are in yours, drawn as they stand facing you. From ${sc.shape.matches} match${sc.shape.matches > 1 ? 'es' : ''} (${sc.shape.friendlies} pre-season friendl${sc.shape.friendlies === 1 ? 'y' : 'ies'}, which count half; newer matches count more), in their ${sc.shape.formation}. ${cells ? 'This phase has up to ' + n + ' samples a player, taken every two seconds.' : 'They have not been seen in this phase yet.'} It shows what they did, and they may change.`;
       }
     }
     if (SLIDER_TABS[tab]) renderSliderTab(team, SLIDER_TABS[tab], host.querySelector('#phaseSliders'));
