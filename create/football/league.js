@@ -62,6 +62,8 @@
       team.kits = { home: def.home, away: def.away };
       team.style = def.style;
       team.tactics = styleTactics(def.style, rng);
+      team.baseTactics = Object.assign({}, team.tactics);
+      team.drift = {};
       team.squad.forEach((p) => {
         const id = FM.generateIdentity(rng, used);
         p.name = id.name; p.nation = id.nation;
@@ -148,12 +150,86 @@
     FM.resetToKickoff(team);
   };
 
+
+  // ---------- AI managers between matches ----------
+  // Each AI club has a base set of tactics from its style. Before a match it plays that base, plus a small drift that
+  // wanders after results (bounded), plus a counter-plan against the manager it is about to face, built from what
+  // that manager did when they last met (full weight for a return fixture, half weight from their latest match otherwise).
+  const AI_KEYS = ['buildDirect', 'directness', 'tempo', 'risk', 'finalRisk', 'shootFreedom', 'dribbleFreedom', 'counterAttack', 'counterPress', 'pressing', 'lineHeight', 'tackleAggression', 'offsideTrap', 'attackWidth', 'defWidth'];
+  const DRIFT_KEYS = ['lineHeight', 'pressing', 'counterPress', 'counterAttack', 'offsideTrap', 'attackWidth', 'defWidth', 'dribbleFreedom', 'finalRisk'];
+  const WIDTHS = ['attackWidth', 'defWidth'];
+  const clampKey = (k, v) => (WIDTHS.indexOf(k) >= 0 ? Math.max(0.7, Math.min(1.25, v)) : Math.max(0, Math.min(1, v)));
+
+  function scoutedTactics(league, team, opp) {
+    const played = league.fixtures.filter((f) => f.played && f.stats && f.stats[opp.id]).sort((a, b) => b.round - a.round);
+    const meeting = played.find((f) => (f.homeId === team.id || f.awayId === team.id) && (f.homeId === opp.id || f.awayId === opp.id));
+    if (meeting) {
+      const mine = meeting.homeId === team.id ? meeting.hg : meeting.ag, theirs = meeting.homeId === team.id ? meeting.ag : meeting.hg;
+      return { tactics: meeting.stats[opp.id].tactics, weight: 1, lost: mine < theirs, meeting: true };
+    }
+    if (played.length) return { tactics: played[0].stats[opp.id].tactics, weight: 0.5, lost: false, meeting: false };
+    return null;
+  }
+
+  // The adjustment against a manager who played like this.
+  function counterPlan(t) {
+    const adj = {};
+    const add = (k, v) => { adj[k] = (adj[k] || 0) + v; };
+    if (t.pressing > 0.6) { add('buildDirect', 0.15); add('counterAttack', 0.15); add('directness', 0.1); }
+    if (t.pressing < 0.4) { add('pressing', 0.12); add('counterPress', 0.1); }
+    if (t.lineHeight > 0.6) { add('directness', 0.12); add('counterAttack', 0.15); }
+    if (t.lineHeight < 0.4) { add('buildDirect', -0.1); add('risk', -0.05); add('tempo', -0.05); }
+    if (t.tempo > 0.6) add('tackleAggression', 0.1);
+    if (t.attackWidth > 1.08) add('defWidth', 0.08);
+    if (t.attackWidth < 0.92) add('defWidth', -0.08);
+    if (t.directness > 0.65 || t.buildDirect > 0.65) { add('lineHeight', -0.08); add('offsideTrap', 0.15); }
+    if (t.shootFreedom > 0.65) add('lineHeight', -0.05);
+    return adj;
+  }
+
+  FM.aiTacticsFor = function (league, team, opp) {
+    const base = team.baseTactics || team.tactics;
+    const scout = scoutedTactics(league, team, opp);
+    const adj = {};
+    if (scout) {
+      const s = 0.5 * scout.weight * (scout.lost ? 1.3 : 1), plan = counterPlan(scout.tactics);
+      Object.keys(plan).forEach((k) => { adj[k] = plan[k] * s; });
+    }
+    const t = Object.assign({}, base);
+    AI_KEYS.forEach((k) => {
+      const d = ((team.drift && team.drift[k]) || 0) + (adj[k] || 0);
+      t[k] = clampKey(k, base[k] + Math.max(-0.3, Math.min(0.3, d)));
+    });
+    return t;
+  };
+
+  FM.aiAfterRound = function (league, round) {
+    league.teams.forEach((team, idx) => {
+      if (team.id === league.userId) return;
+      const f = league.fixtures.find((x) => x.round === round && (x.homeId === team.id || x.awayId === team.id));
+      if (!f || !f.played) return;
+      const gf = f.homeId === team.id ? f.hg : f.ag, ga = f.homeId === team.id ? f.ag : f.hg;
+      const rng = FM.mulberry32(league.seed + round * 977 + idx * 31);
+      team.drift = team.drift || {};
+      // Only settings that shape the style of play wander; tempo, directness and risk swing scoring too hard to drift at random.
+      DRIFT_KEYS.forEach((k) => { team.drift[k] = (team.drift[k] || 0) * 0.75 + (rng() - 0.5) * 0.05; });
+      const nudge = (k, v) => { team.drift[k] = (team.drift[k] || 0) + v; };
+      if (ga >= 3) { nudge('lineHeight', -0.03); nudge('pressing', -0.02); }
+      if (gf === 0) { nudge('dribbleFreedom', 0.03); nudge('finalRisk', 0.02); }
+      DRIFT_KEYS.forEach((k) => { team.drift[k] = Math.max(-0.06, Math.min(0.06, team.drift[k])); });
+    });
+  };
+
   // ---------- playing a fixture ----------
   FM.startFixture = function (league, fx) {
     const home = FM.teamById(league, fx.homeId), away = FM.teamById(league, fx.awayId);
     FM.chooseKits(home, away);
-    [home, away].forEach((t) => { t.snap = FM.snapshotLineup(t); t.subsUsed = 0; t.sentOff = []; });
+    // AI clubs prepare for this opponent; the user's tactics are never touched.
+    if (home.id !== league.userId) Object.assign(home.tactics, FM.aiTacticsFor(league, home, away));
+    if (away.id !== league.userId) Object.assign(away.tactics, FM.aiTacticsFor(league, away, home));
+    [home, away].forEach((t) => { t.snap = FM.snapshotLineup(t); t.subsUsed = 0; t.sentOff = []; delete t.liveBase; delete t.liveLean; });
     const match = FM.createMatch(home, away, fx.seed);
+    match.aiTeams = [home, away].filter((t) => t.id !== league.userId);
     match.fixture = fx;
     match.starters = { [home.id]: home.players.map((p) => p.id), [away.id]: away.players.map((p) => p.id) };
     return match;
@@ -185,7 +261,7 @@
       }
     });
     [home, away].forEach((t) => t.squad.forEach((p) => { if (played.has(p.id)) p.stats.apps++; }));
-    [home, away].forEach((t) => { FM.restoreLineup(t, t.snap); t.snap = null; });
+    [home, away].forEach((t) => { FM.restoreLineup(t, t.snap); t.snap = null; delete t.liveBase; delete t.liveLean; });
   };
 
   // Plays a whole match without watching it.
@@ -203,6 +279,7 @@
   FM.completeRound = function (league, userFx, userMatch) {
     FM.finishFixture(league, userFx, userMatch);
     league.fixtures.filter((f) => f.round === userFx.round && !f.played).forEach((f) => FM.simulateFixture(league, f));
+    FM.aiAfterRound(league, userFx.round);
   };
 
   // ---------- table ----------
@@ -224,7 +301,7 @@
   FM.serializeLeague = function (league) {
     const teams = league.teams.map((t) => ({
       id: t.id, name: t.name, kit: t.kit, kits: t.kits, style: t.style, strength: t.strength, seed: t.seed, formationKey: t.formationKey, tactics: t.tactics,
-      subsUsed: t.subsUsed, maxSubs: t.maxSubs, snap: t.snap || null,
+      subsUsed: t.subsUsed, maxSubs: t.maxSubs, snap: t.snap || null, baseTactics: t.baseTactics, drift: t.drift,
       squad: t.squad.map((p) => { const o = {}; PLAYER_KEYS.forEach((k) => { if (p[k] !== undefined) o[k] = p[k]; }); return o; }),
       players: t.players.map((p) => p.id), bench: t.bench.map((p) => p.id),
     }));
@@ -237,7 +314,7 @@
       const byId = (id) => squad.find((p) => p.id === id);
       const team = {
         id: t.id, name: t.name, kit: t.kit, kits: t.kits, style: t.style, strength: t.strength, seed: t.seed, attackDir: 1, formationKey: t.formationKey,
-        tactics: Object.assign(FM.defaultTactics(), t.tactics), subsUsed: t.subsUsed || 0, maxSubs: t.maxSubs || 5, snap: t.snap || null,
+        tactics: Object.assign(FM.defaultTactics(), t.tactics), subsUsed: t.subsUsed || 0, maxSubs: t.maxSubs || 5, snap: t.snap || null, baseTactics: Object.assign(FM.defaultTactics(), t.baseTactics || t.tactics), drift: t.drift || {},
         squad, players: t.players.map(byId), bench: t.bench.map(byId), sentOff: [],
       };
       return team;

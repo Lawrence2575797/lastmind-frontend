@@ -88,6 +88,7 @@
 
   // Changes formation. The same 11 players stay on; each goes to the slot that best fits his natural position.
   const GROUP_NEAR = { GK: ['GK'], CB: ['CB', 'DM', 'FB'], FB: ['FB', 'CB', 'WF', 'DM'], DM: ['DM', 'CM', 'CB'], CM: ['CM', 'DM', 'AM'], AM: ['AM', 'CM', 'WF', 'ST'], WF: ['WF', 'AM', 'FB', 'ST'], ST: ['ST', 'AM', 'WF'] };
+  FM.GROUP_NEAR = GROUP_NEAR;
   FM.setFormation = function (team, formationKey) {
     const formation = FM.FORMATIONS[formationKey];
     team.formationKey = formationKey;
@@ -122,6 +123,7 @@
     outPlayer.index = -1; outPlayer.slotKey = null; outPlayer.group = outPlayer.natural;
     if (live) team.subsUsed++;
     if (match && match.carrier && match.carrier.player === outPlayer) match.carrier.player = inPlayer;
+    if (match && match.restart && match.restart.taker === outPlayer) match.restart.taker = inPlayer;
     if (match && match.flight && match.flight.target === outPlayer) match.flight.target = inPlayer;
     if (match && live) match.events.push({ type: 'sub', t: match.clock, team: team.id, off: outPlayer.number, on: inPlayer.number });
     return null;

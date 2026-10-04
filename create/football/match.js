@@ -45,7 +45,7 @@
     return Math.abs(Math.atan2(dy + 3.66, dx) - Math.atan2(dy - 3.66, dx));
   };
   FM.xgLogit = function (shooter, x, y, attackDir, defDist) {
-    return -4.6 + 7.6 * FM.shotAngle(x, y, attackDir) + 0.03 * (shooter.ratings.finishing - 60) - 0.9 * Math.exp(-defDist / 2);
+    return -4.2 + 7.6 * FM.shotAngle(x, y, attackDir) + 0.03 * (shooter.ratings.finishing - 60) - 0.9 * Math.exp(-defDist / 2);
   };
 
   // ---------- roles' tendencies when on the ball ----------
@@ -63,7 +63,7 @@
       score: {},
       ball: { x: L / 2, y: W / 2, state: 'carried' },
       carrier: null, flight: null, carry: null, lastTeam: home,
-      events: [],
+      events: [], aiTeams: [], aiSubStep: {}, nextAiCheck: 1200,
       stats: {},
     };
     home.attackDir = 1; away.attackDir = -1;
@@ -243,7 +243,7 @@
 
     const attackingThird = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d > 0.6;
     if (dGoal < 28 && attackingThird && carrier.group !== 'GK') {
-      const xg = sig(FM.xgLogit(carrier, carrier.x, carrier.y, team.attackDir, nearD) - 0.25 * crowd(match, team, carrier));
+      const xg = sig(FM.xgLogit(carrier, carrier.x, carrier.y, team.attackDir, nearD) - 0.55 * crowd(match, team, carrier));
       options.push({ kind: 'shoot', xg, score: xg * 3.2 * (0.5 + risk * 0.9) * (0.4 + 1.2 * tac.shootFreedom) - (1 - xg) * 0.12 - Math.max(0, 0.09 - xg) * 8 * (1.2 - tac.shootFreedom) });
     }
 
@@ -348,7 +348,7 @@
       if (rng() > pOn) outcome = 'off';
       else {
         st.onTarget++;
-        const xgAdj = sig(FM.xgLogit(shooter, carrier.x, carrier.y, team.attackDir, nearD) - 0.25 * crowd(match, team, carrier) - 0.03 * ((gk ? gk.ratings.gk : 60) - 60));
+        const xgAdj = sig(FM.xgLogit(shooter, carrier.x, carrier.y, team.attackDir, nearD) - 0.55 * crowd(match, team, carrier) - 0.03 * ((gk ? gk.ratings.gk : 60) - 60));
         outcome = rng() < clamp(xgAdj / pOn, 0.02, 0.9) ? 'goal' : 'saved';
       }
     }
@@ -641,7 +641,7 @@
     if (win.team === team) {
       p.x = f.ex; p.y = f.ey;
       const nearD = nearestOpponent(match, team, p).d;
-      const xg = sig(FM.xgLogit({ ratings: { finishing: p.ratings.heading - 10 } }, p.x, p.y, team.attackDir, nearD) - 0.25 * crowd(match, team, p));
+      const xg = sig(FM.xgLogit({ ratings: { finishing: p.ratings.heading - 10 } }, p.x, p.y, team.attackDir, nearD) - 0.55 * crowd(match, team, p));
       if (xg < 0.04 && rng() < 0.5) { giveBall(match, team, p, 0.8); return; }
       doShot(match, team, p, { xg, rating: p.ratings.heading - 10, header: true });
     } else if (p.group === 'GK') {
@@ -691,6 +691,99 @@
     match.ball.state = 'flight';
   }
 
+  // ---------- AI managers ----------
+  // Teams the user does not manage change their approach during a match. Every five minutes (from the 20th) each one
+  // looks at the score, the minute, the numbers on the pitch and how the match is going, and sets its tactics to its
+  // pre-match tactics plus an adjustment. The adjustment is recalculated each time, never piled up, so it can reverse.
+  FM.AI_SCALE = 0.5;
+  const AI_CHECK_SECONDS = 300, AI_FIRST_CHECK = 1200, AI_SUB_MINUTES = [55, 65, 75, 83];
+  const RANGES = { attackWidth: [0.7, 1.25], defWidth: [0.7, 1.25], cornerAttackers: [1, 7], cornerMarkers: [3, 9] };
+
+  function runAI(match) {
+    match.aiTeams.forEach((team) => {
+      const opp = other(match, team);
+      if (!team.liveBase) team.liveBase = Object.assign({}, team.tactics);
+      const base = team.liveBase;
+      const minute = match.clock / 60;
+      const diff = match.score[team.id] - match.score[opp.id];
+      const st = statsOf(match, team), so = statsOf(match, opp);
+      const oppPoss = so.possession / ((st.possession + so.possession) || 1);
+      const urgency = clamp((minute - 25) / 55, 0, 1);
+      const adj = {};
+      const add = (k, v) => { adj[k] = (adj[k] || 0) + v * FM.AI_SCALE; };
+
+      if (diff < 0) {
+        const push = clamp(0.35 - diff * 0.35, 0, 1) * urgency;
+        add('tempo', 0.25 * push); add('risk', 0.3 * push); add('directness', 0.25 * push); add('buildDirect', 0.2 * push);
+        add('shootFreedom', 0.25 * push); add('pressing', 0.2 * push); add('lineHeight', 0.15 * push); add('counterPress', 0.15 * push);
+        add('cornerAttackers', 2 * push);
+      } else if (diff > 0 && minute > 55) {
+        const protect = clamp(diff * 0.5, 0, 1) * urgency;
+        add('tempo', -0.25 * protect); add('risk', -0.3 * protect); add('directness', -0.15 * protect); add('lineHeight', -0.2 * protect);
+        add('pressing', -0.1 * protect); add('counterAttack', 0.1 * protect); add('cornerAttackers', -1.5 * protect);
+      } else if (diff === 0 && minute > 70) {
+        add('tempo', 0.08); add('risk', 0.1); add('shootFreedom', 0.1);
+      }
+      // How the match is going: being pinned back, or being outplayed on chances.
+      if (oppPoss > 0.58) { add('counterAttack', 0.15); add('lineHeight', -0.06); }
+      if (so.xg - st.xg > 0.8 && diff <= 0) { add('lineHeight', -0.1); add('pressing', -0.05); }
+      if (1 - oppPoss > 0.62 && diff <= 0 && minute > 50) add('directness', 0.1);
+      // Numbers on the pitch.
+      if (team.players.length < opp.players.length) { add('lineHeight', -0.15); add('pressing', -0.15); add('tempo', -0.05); }
+      else if (team.players.length > opp.players.length) { add('lineHeight', 0.08); add('pressing', 0.1); add('risk', 0.05); }
+
+      const lean = (adj.tempo || 0) + (adj.risk || 0) + (adj.lineHeight || 0);
+      Object.keys(adj).forEach((k) => {
+        const r = RANGES[k] || [0, 1];
+        const v = clamp(base[k] + adj[k], r[0], r[1]);
+        team.tactics[k] = (k === 'cornerAttackers' || k === 'cornerMarkers') ? Math.round(v) : v;
+      });
+      // Tell the user when an opponent visibly changes approach.
+      const prev = team.liveLean || 0;
+      if (Math.abs(lean - prev) > 0.12) {
+        record(match, { type: 'tactic', team: team.id, direction: lean > prev ? 'attack' : 'defend' });
+        team.liveLean = lean;
+      }
+    });
+  }
+
+  function aiSubstitution(match, team, minute) {
+    const opp = other(match, team);
+    if (team.subsUsed >= 4 || !team.bench.length) return;
+    const diff = match.score[team.id] - match.score[opp.id];
+    const near = (slotGroup, p) => (FM.GROUP_NEAR[slotGroup] || [slotGroup]).indexOf(p.natural) >= 0;
+    const att = (p) => p.ratings.finishing + p.ratings.dribbling + p.ratings.passing;
+    const def = (p) => p.ratings.tackling + p.ratings.heading + p.ratings.composure;
+    const ovr = (p) => p.ratings.pace + p.ratings.dribbling + p.ratings.passing + p.ratings.finishing + p.ratings.tackling;
+    const on = team.players.filter((p) => p.group !== 'GK' && !p.emergencyKeeper);
+    const bench = team.bench.filter((p) => p.natural !== 'GK');
+    let best = null, bestGain = 0;
+    const consider = (out, inn, gain) => { if (gain > bestGain) { bestGain = gain; best = [out, inn]; } };
+    if (diff < 0 && minute >= 55) {
+      // Trailing: a more attacking player in place of a defensive one.
+      on.filter((p) => ['FB', 'DM', 'CM', 'CB'].indexOf(p.group) >= 0).forEach((o) => bench.filter((b) => near(o.group, b)).forEach((b) => consider(o, b, att(b) - att(o))));
+    } else if (diff > 0 && minute >= 70) {
+      // Protecting a lead: a defensive player in place of an attacking one.
+      on.filter((p) => ['WF', 'ST', 'AM'].indexOf(p.group) >= 0).forEach((o) => bench.filter((b) => near(o.group, b)).forEach((b) => consider(o, b, def(b) - def(o))));
+    } else if (minute >= 60 && match.rng() < 0.5) {
+      // Otherwise freshen up: a better like-for-like replacement for the weakest player.
+      on.forEach((o) => bench.filter((b) => b.natural === o.natural).forEach((b) => consider(o, b, ovr(b) - ovr(o) - 3)));
+    }
+    if (best) FM.substitute(team, best[0], best[1], match);
+  }
+
+  function aiTick(match) {
+    const minute = match.clock / 60;
+    runAI(match);
+    match.aiTeams.forEach((team) => {
+      const i = match.aiSubStep[team.id] || 0;
+      if (i < AI_SUB_MINUTES.length && minute >= AI_SUB_MINUTES[i]) {
+        match.aiSubStep[team.id] = i + 1;
+        aiSubstitution(match, team, minute);
+      }
+    });
+  }
+
   // ---------- one simulation step ----------
   FM.stepMatch = function (match, dt) {
     if (match.phase === 'halftime' || match.phase === 'fulltime') return;
@@ -709,6 +802,8 @@
     statsOf(match, poss).possession += dt;
 
     if (match.restart) { runRestart(match, dt); checkEnd(match); return; }
+
+    if (match.aiTeams.length && match.carrier && match.clock >= match.nextAiCheck) { match.nextAiCheck += AI_CHECK_SECONDS; aiTick(match); }
 
     setOffsideLines(match);
     const ov = buildOverrides(match);
