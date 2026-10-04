@@ -4,6 +4,7 @@
 // challenges. They do not decide where a player goes: the tactics do.
 (function () {
   const FM = (window.FM = window.FM || {});
+  FM.RATING_SD = FM.RATING_SD || 7; // how widely individual ratings vary around their position average
 
   FM.mulberry32 = function (seed) {
     let a = seed >>> 0;
@@ -40,9 +41,9 @@
     const prof = PROFILES[group] || PROFILES.CM;
     const r = {};
     Object.keys(prof).forEach((k) => {
-      r[k] = Math.round(Math.max(25, Math.min(95, prof[k] + (strength || 0) + gauss(rng) * 7)));
+      r[k] = Math.round(Math.max(25, Math.min(95, prof[k] + (strength || 0) + gauss(rng) * FM.RATING_SD)));
     });
-    r.gk = group === 'GK' ? Math.round(Math.max(45, Math.min(92, 68 + (strength || 0) + gauss(rng) * 7))) : 20;
+    r.gk = group === 'GK' ? Math.round(Math.max(45, Math.min(92, 68 + (strength || 0) + gauss(rng) * FM.RATING_SD))) : 20;
     return r;
   };
 })();

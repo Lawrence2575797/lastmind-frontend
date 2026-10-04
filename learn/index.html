@@ -10142,6 +10142,13 @@ SQIDAQAB
                 { key: 'chancellor', title: 'Be the Chancellor', image: '/assets/create/chancellor.jpg', description: 'Steer a whole economy through the decisions that shape it', alt: 'A finance minister seen from behind at a desk, looking over a city skyline at dusk' },
             ],
         },
+        {
+            key: 'statistics', title: 'Statistics', image: '/assets/create/statistics.svg', description: 'Learn statistics from data you create yourself',
+            alt: 'A histogram with a bell curve over it beside a scatter graph with a line of best fit',
+            simulations: [
+                { key: 'football-manager', title: 'Be the manager', image: '/assets/create/football-manager.svg', description: 'Run a football club for a season and learn statistics from your own matches', alt: 'A football pitch seen from above with two teams in formation', href: '/create/football/' },
+            ],
+        },
     ];
     function renderCreatePage(view = 'projects') {
         if (view === true) view = 'gallery';
@@ -10173,7 +10180,7 @@ SQIDAQAB
         } else if (subject) {
             heading = subject.title;
             backBtn = '<button type="button" class="create-back" id="createBackBtn" data-view="gallery">← Starting points</button>';
-            body = `<div class="create-gallery">${subject.simulations.map((t) => card(t, `role="button" tabindex="0" data-simulation="${t.key}"`)).join('')}</div>`;
+            body = `<div class="create-gallery">${subject.simulations.map((t) => card(t, `role="button" tabindex="0" data-simulation="${t.key}"${t.href ? ` data-href="${t.href}"` : ''}`)).join('')}</div>`;
         } else {
             body = '<div id="createProjectsHost"></div>';
         }
@@ -10195,7 +10202,7 @@ SQIDAQAB
         const back = document.getElementById('createBackBtn');
         if (back) back.addEventListener('click', () => renderCreatePage(back.dataset.view));
         contentInner.querySelectorAll('[data-template], [data-simulation]').forEach((el) => {
-            const open = () => { if (el.dataset.simulation === 'criminal-trial') createStartNewTrial(); renderCreatePage(el.dataset.template || el.dataset.simulation); };
+            const open = () => { if (el.dataset.href) { window.location.href = el.dataset.href; return; } if (el.dataset.simulation === 'criminal-trial') createStartNewTrial(); renderCreatePage(el.dataset.template || el.dataset.simulation); };
             el.addEventListener('click', open);
             el.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
         });

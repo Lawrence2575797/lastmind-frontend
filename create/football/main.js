@@ -413,6 +413,8 @@
     ],
   };
 
+  // Surname only, shortened, so labels stay readable on a phone.
+  const boardName = (p) => { const n = p.name.split(' ').slice(1).join(' ') || p.name; return n.length > 10 ? n.slice(0, 9) + '.' : n; };
   const KITNUM = (team) => 'background:' + team.kit.shirt + ';color:' + team.kit.number;
   const overall = (p) => { const r = p.ratings; return p.natural === 'GK' ? r.gk : Math.round((r.pace + r.dribbling + r.passing + r.finishing + r.tackling) / 5); };
   const inLive = () => world.match && world.match.clock > 0 && world.match.phase !== 'fulltime';
@@ -520,13 +522,13 @@
       const pt = bpt(posOf(p)), sel = selected === p;
       const manual = key === 'shape' ? !!(team.shape && team.shape[p.index]) : FM.isManual(team, p, key);
       return `<g class="dot" data-idx="${p.index}" transform="translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})">
-        <circle r="20" fill="${team.kit.shirt}" stroke="${sel ? '#F2C14E' : '#fff'}" stroke-width="${sel ? 5 : 3}"/>
-        <text y="6" text-anchor="middle" font-size="18" font-weight="700" fill="${team.kit.number}">${p.number}</text>
-        <text y="38" text-anchor="middle" font-size="14" fill="#fff" stroke="#000" stroke-width="3" style="paint-order:stroke">${esc(shortName(p))}</text>
-        <text y="53" text-anchor="middle" font-size="12" fill="${FM.isInjured(p) ? '#FF9A9A' : FM.conditionOf(p) < 0.6 ? '#F2C8A0' : '#cfe8cf'}" stroke="#000" stroke-width="3" style="paint-order:stroke">${FM.isInjured(p) ? 'injured' : Math.round(100 * FM.conditionOf(p)) + '%'}</text>
-        ${manual ? '<circle cx="15" cy="-15" r="5.5" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/>' : ''}</g>`;
+        <circle r="23" fill="${team.kit.shirt}" stroke="${sel ? '#F2C14E' : '#fff'}" stroke-width="${sel ? 5 : 3}"/>
+        <text y="8" text-anchor="middle" font-size="22" font-weight="700" fill="${team.kit.number}">${p.number}</text>
+        <text y="46" text-anchor="middle" font-size="20" font-weight="700" fill="#fff" stroke="#000" stroke-width="4" style="paint-order:stroke">${esc(boardName(p))}</text>
+        <text y="65" text-anchor="middle" font-size="16" fill="${FM.isInjured(p) ? '#FF9A9A' : FM.conditionOf(p) < 0.6 ? '#F2C8A0' : '#cfe8cf'}" stroke="#000" stroke-width="3.5" style="paint-order:stroke">${FM.isInjured(p) ? 'injured' : Math.round(100 * FM.conditionOf(p)) + '%'}</text>
+        ${manual ? '<circle cx="18" cy="-18" r="6.5" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/>' : ''}</g>`;
     }).join('');
-    host.innerHTML = `<svg class="board" viewBox="-20 -26 ${BW + 40} ${BH + 70}" role="img" aria-label="Tactics board">${boardPitchSvg(key)}${ghosts}${ball}${dots}</svg>`;
+    host.innerHTML = `<svg class="board" viewBox="-24 -30 ${BW + 48} ${BH + 92}" role="img" aria-label="Tactics board">${boardPitchSvg(key)}${ghosts}${ball}${dots}</svg>`;
     const svg = host.firstChild;
     const toPos = (e) => {
       const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
