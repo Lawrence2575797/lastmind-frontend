@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Football Manager - build step 1</title>
+<title>Football Manager - build step 2</title>
 <meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&display=swap" rel="stylesheet">
@@ -44,31 +44,55 @@
   .swatch { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; }
   .desc { font-size: 0.9rem; line-height: 1.5; color: var(--cream); }
   .hint { font-size: 0.82rem; color: var(--cream-soft); font-family: var(--sans); line-height: 1.5; }
+  .score { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--navy); color: var(--cream); border-radius: 14px; padding: 12px 18px; font-family: var(--sans); flex-wrap: wrap; }
+  .score .team { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+  .score .big { font-family: var(--serif); font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .score .clock { font-variant-numeric: tabular-nums; color: var(--cream-soft); font-size: 0.95rem; }
+  .controls { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 6px 0; }
+  .controls button { padding: 7px 12px; }
+  table.stats { width: 100%; border-collapse: collapse; font-family: var(--sans); font-size: 0.85rem; }
+  table.stats td { padding: 4px 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  table.stats td:nth-child(1), table.stats td:nth-child(3) { width: 22%; font-weight: 700; }
+  table.stats td:nth-child(3) { text-align: right; }
+  table.stats td:nth-child(2) { text-align: center; color: var(--cream-soft); }
+  .feed { max-height: 200px; overflow-y: auto; font-family: var(--sans); font-size: 0.8rem; line-height: 1.5; color: var(--cream-soft); display: grid; gap: 3px; }
+  .feed b { color: var(--cream); font-variant-numeric: tabular-nums; }
   .check { display: flex; align-items: center; gap: 8px; flex-direction: row; }
 </style>
 </head>
 <body>
 <div class="shell">
   <div>
-    <h1>Football Manager: build step 1</h1>
-    <p class="sub">The formation, roles and instructions decide where all 22 players stand and move. There is no ball play yet. Place the ball, switch possession, and change the tactics to watch the shape respond.</p>
+    <h1>Football Manager: build step 2</h1>
+    <p class="sub">Tactics decide where all 22 players stand. Positions create passing lanes, pressure and space, and those become probabilities for passes, dribbles, tackles and shots. Watch a match, pause it, and change the instructions.</p>
+  </div>
+  <div class="score" id="score">
+    <div class="team"><span class="swatch" id="swHome"></span><span id="nmHome"></span></div>
+    <div><span class="big" id="scHome">0</span> <span class="big">:</span> <span class="big" id="scAway">0</span><div class="clock" id="clock">00:00</div></div>
+    <div class="team"><span id="nmAway"></span><span class="swatch" id="swAway"></span></div>
   </div>
   <div class="layout">
     <div>
       <div class="pitch-wrap">
         <canvas id="pitch" aria-label="Football pitch seen from above with 22 numbered players"></canvas>
+        <div class="controls">
+          <button id="playBtn" class="on">Pause</button>
+          <button data-speed="0.5">0.5x</button><button data-speed="1" class="on">1x</button><button data-speed="2">2x</button><button data-speed="4">4x</button>
+          <button id="skipBtn">Skip to next break</button>
+          <button id="restartBtn">New match</button>
+        </div>
         <div class="legend" id="legend"></div>
       </div>
     </div>
     <aside class="panel">
       <div class="group">
-        <h2>Ball</h2>
-        <div class="row">
-          <button id="posHome" class="on">Home has the ball</button>
-          <button id="posAway">Away has the ball</button>
-        </div>
-        <label class="check"><input type="checkbox" id="demo"> Demo: move the ball around on its own</label>
-        <p class="hint">Click anywhere on the pitch to place the ball. Click a player to change his role.</p>
+        <h2>Match</h2>
+        <table class="stats" id="stats"></table>
+      </div>
+      <div class="group">
+        <h2>Events</h2>
+        <div class="feed" id="feed"></div>
+        <p class="hint">Click a player to change his role. The shape and decisions respond to the instructions below straight away.</p>
       </div>
       <div class="group" id="homeControls"></div>
       <div class="group" id="awayControls"></div>
@@ -78,7 +102,9 @@
 </div>
 <script src="/create/football/formations.js"></script>
 <script src="/create/football/roles.js"></script>
+<script src="/create/football/ratings.js"></script>
 <script src="/create/football/engine.js"></script>
+<script src="/create/football/match.js"></script>
 <script src="/create/football/main.js"></script>
 </body>
 </html>

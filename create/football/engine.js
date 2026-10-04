@@ -21,7 +21,7 @@
   FM.toTeamSpace = toTeamSpace;
 
   FM.defaultTactics = function () {
-    return { lineHeight: 0.5, widthScale: 1 };
+    return { lineHeight: 0.5, widthScale: 1, directness: 0.5, risk: 0.5, tempo: 0.5, pressing: 0.5 };
   };
 
   // Builds a team: 11 players on the formation's slots, each with a default role.
@@ -30,24 +30,33 @@
     const team = {
       id: spec.id, name: spec.name, kit: spec.kit, attackDir: spec.attackDir,
       formationKey: spec.formation, tactics: FM.defaultTactics(), players: [],
+      strength: spec.strength || 0, seed: spec.seed || FM.hashString(spec.id),
     };
+    const rng = FM.mulberry32(team.seed);
     formation.slots.forEach((slot, i) => {
       const role = FM.ROLES[slot.defaultRole];
       const options = {};
       Object.keys(role.options || {}).forEach((k) => { options[k] = role.options[k].default != null ? role.options[k].default : false; });
-      team.players.push({ index: i, slotKey: slot.key, group: slot.group, number: slot.number, roleId: slot.defaultRole, options, x: 0, y: 0, vx: 0, vy: 0, maxSpeed: 6.8 });
+      const ratings = FM.generateRatings(slot.group, rng, team.strength);
+      team.players.push({ index: i, slotKey: slot.key, group: slot.group, number: slot.number, roleId: slot.defaultRole, options, ratings, x: 0, y: 0, vx: 0, vy: 0, maxSpeed: FM.speedFromPace(ratings.pace) });
     });
     FM.resetToKickoff(team);
     return team;
   };
 
+  // Top running speed in metres per second, from the pace rating.
+  FM.speedFromPace = function (pace) { return 6 + (pace / 100) * 2.6; };
+
   // Changes formation, keeping the same 11 players by moving them to the matching slots.
   FM.setFormation = function (team, formationKey) {
     const formation = FM.FORMATIONS[formationKey];
     team.formationKey = formationKey;
+    const rng = FM.mulberry32(team.seed + 7);
     team.players.forEach((p, i) => {
       const slot = formation.slots[i];
       p.slotKey = slot.key; p.group = slot.group; p.number = slot.number; p.roleId = slot.defaultRole;
+      p.ratings = FM.generateRatings(slot.group, rng, team.strength);
+      p.maxSpeed = FM.speedFromPace(p.ratings.pace);
       const role = FM.ROLES[p.roleId];
       p.options = {};
       Object.keys(role.options || {}).forEach((k) => { p.options[k] = role.options[k].default != null ? role.options[k].default : false; });
@@ -111,8 +120,8 @@
   };
 
   // Moves every player of one team one time step toward their target.
-  FM.stepTeam = function (team, ball, hasBall, dt) {
-    const targets = team.players.map((p) => FM.targetFor(team, p, ball, hasBall));
+  FM.stepTeam = function (team, ball, hasBall, dt, overrides) {
+    const targets = team.players.map((p) => (overrides && overrides.get(p)) || FM.targetFor(team, p, ball, hasBall));
     team.players.forEach((p, i) => {
       const t = targets[i];
       const dx = t.x - p.x, dy = t.y - p.y;

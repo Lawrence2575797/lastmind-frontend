@@ -1,13 +1,17 @@
-// Build step 1 page: draws the pitch and dots, runs the movement model, and provides a few controls
-// so the formation, roles and instructions can be changed and their effect watched.
+// Build step 2 page: draws the pitch, runs a live match at a chosen speed, and shows the score, stats and events.
+// The formation, roles and instructions can be changed at any time and apply to the rest of the match.
 (function () {
   const { L, W } = FM.PITCH;
   const canvas = document.getElementById('pitch');
   const ctx = canvas.getContext('2d');
+  const el = (id) => document.getElementById(id);
 
-  const home = FM.createTeam({ id: 'home', name: 'Ashford Rovers', attackDir: 1, formation: '4-3-3', kit: { shirt: '#D62828', number: '#FFFFFF' } });
-  const away = FM.createTeam({ id: 'away', name: 'Kingsbridge Athletic', attackDir: -1, formation: '4-2-2-2', kit: { shirt: '#1E5AE0', number: '#FFFFFF' } });
-  const world = { teams: [home, away], ball: { x: L / 2, y: W / 2 }, ballTarget: null, possession: 'home', selected: null };
+  const home = FM.createTeam({ id: 'home', name: 'Ashford Rovers', attackDir: 1, formation: '4-3-3', kit: { shirt: '#D62828', number: '#FFFFFF' }, seed: 101 });
+  const away = FM.createTeam({ id: 'away', name: 'Kingsbridge Athletic', attackDir: -1, formation: '4-2-2-2', kit: { shirt: '#1E5AE0', number: '#FFFFFF' }, seed: 901 });
+  const world = { teams: [home, away], selected: null, match: null, running: true, speed: 1, seedCounter: 1, shownEvents: 0, lastStats: '' };
+  const REAL_SECONDS_FOR_MATCH = 600; // a full 90 minutes takes about ten real minutes at 1x
+  const MATCH_SPEED = 5400 / REAL_SECONDS_FOR_MATCH;
+  const SUBSTEP = 0.1;
 
   // ---------- drawing ----------
   const MARGIN = 3; // metres of grass drawn around the pitch lines
@@ -57,12 +61,19 @@
 
   function drawPlayers() {
     const r = Math.max(8, scale * 1.55);
+    const m = world.match;
     world.teams.forEach((team) => {
       team.players.forEach((p) => {
         const cx = px(p.x), cy = py(p.y);
         ctx.beginPath(); ctx.arc(cx + 1.5, cy + 2.5, r, 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fill();
         ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fillStyle = team.kit.shirt; ctx.fill();
+        const hasBall = m.carrier && m.carrier.player === p;
+        if (hasBall) {
+          ctx.beginPath(); ctx.arc(cx, cy, r * 1.5, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = Math.max(2, r * 0.18); ctx.stroke();
+        }
         const selected = world.selected && world.selected.player === p;
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
         ctx.lineWidth = selected ? Math.max(3, r * 0.3) : Math.max(1.5, r * 0.14);
         ctx.strokeStyle = selected ? '#F2C14E' : '#FFFFFF';
         ctx.stroke();
@@ -72,56 +83,94 @@
         ctx.fillText(String(p.number), cx, cy + r * 0.06);
       });
     });
-    const bx = px(world.ball.x), by = py(world.ball.y);
+    const bx = px(m.ball.x), by = py(m.ball.y);
     ctx.beginPath(); ctx.arc(bx, by, Math.max(5, scale * 0.9), 0, Math.PI * 2);
     ctx.fillStyle = '#FFFFFF'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#111'; ctx.stroke();
   }
 
   function draw() { drawPitch(); drawPlayers(); }
 
-  // ---------- simulation loop ----------
-  let last = performance.now();
-  let demoClock = 0;
-  function frame(now) {
-    const dt = Math.min(0.05, (now - last) / 1000);
-    last = now;
-    if (document.getElementById('demo').checked) runDemo(dt);
-    const steps = 2;
-    for (let i = 0; i < steps; i++) {
-      FM.stepTeam(home, world.ball, world.possession === 'home', dt / steps);
-      FM.stepTeam(away, world.ball, world.possession === 'away', dt / steps);
+  // ---------- match control ----------
+  function newMatch() {
+    FM.setFormation(home, home.formationKey);
+    FM.setFormation(away, away.formationKey);
+    world.match = FM.createMatch(home, away, world.seedCounter++);
+    world.shownEvents = 0;
+    world.lastStats = '';
+    el('feed').innerHTML = '';
+    updateHud();
+  }
+  function advance(matchSeconds) {
+    const m = world.match;
+    let left = matchSeconds;
+    while (left > 1e-6 && m.phase !== 'halftime' && m.phase !== 'fulltime') {
+      const dt = Math.min(SUBSTEP, left);
+      FM.stepMatch(m, dt);
+      left -= dt;
     }
+  }
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.1, (now - last) / 1000);
+    last = now;
+    const m = world.match;
+    if (world.running && m.phase !== 'halftime' && m.phase !== 'fulltime') advance(dt * MATCH_SPEED * world.speed);
     draw();
+    updateHud();
     requestAnimationFrame(frame);
   }
 
-  // Demo only: wanders the ball toward points ahead of whichever team has it, and swaps possession now and then.
-  function runDemo(dt) {
-    demoClock += dt;
-    if (!world.ballTarget || Math.hypot(world.ballTarget.x - world.ball.x, world.ballTarget.y - world.ball.y) < 1) {
-      const team = world.possession === 'home' ? home : away;
-      const ahead = team.attackDir === 1 ? 1 : -1;
-      const nx = Math.max(4, Math.min(L - 4, world.ball.x + ahead * (6 + Math.random() * 16) * (Math.random() < 0.8 ? 1 : -0.6)));
-      const ny = Math.max(4, Math.min(W - 4, world.ball.y + (Math.random() - 0.5) * 30));
-      world.ballTarget = { x: nx, y: ny };
+  // ---------- scoreboard, stats, event feed ----------
+  const pct = (a, b) => (b ? Math.round(100 * a / b) + '%' : '-');
+  function updateHud() {
+    const m = world.match;
+    el('scHome').textContent = m.score.home; el('scAway').textContent = m.score.away;
+    el('clock').textContent = m.phase === 'halftime' ? 'Half time' : m.phase === 'fulltime' ? 'Full time' : FM.formatClock(m.clock);
+    const h = m.stats.home, a = m.stats.away, tot = h.possession + a.possession;
+    const rows = [
+      ['Possession', pct(h.possession, tot), pct(a.possession, tot)],
+      ['Shots', h.shots, a.shots], ['On target', h.onTarget, a.onTarget], ['Expected goals', h.xg.toFixed(2), a.xg.toFixed(2)],
+      ['Passes', h.passes, a.passes], ['Pass accuracy', pct(h.passesOk, h.passes), pct(a.passesOk, a.passes)],
+      ['Dribbles won', h.dribblesWon + '/' + h.dribbles, a.dribblesWon + '/' + a.dribbles],
+      ['Challenges won', h.tacklesWon + '/' + h.tackles, a.tacklesWon + '/' + a.tackles],
+    ];
+    const html = rows.map((r) => '<tr><td>' + r[1] + '</td><td>' + r[0] + '</td><td>' + r[2] + '</td></tr>').join('');
+    if (html !== world.lastStats) { el('stats').innerHTML = html; world.lastStats = html; }
+    const feed = el('feed');
+    for (; world.shownEvents < m.events.length; world.shownEvents++) {
+      const e = m.events[world.shownEvents];
+      if (e.type !== 'shot' && e.type !== 'goal') continue;
+      const team = e.team === 'home' ? home : away;
+      const text = e.type === 'goal' ? 'GOAL, ' + team.name + ' (number ' + e.player + ')'
+        : 'Shot, ' + team.name + ' number ' + e.player + ': ' + e.outcome + ' (xG ' + e.xg.toFixed(2) + ')';
+      const div = document.createElement('div');
+      div.innerHTML = '<b>' + FM.formatClock(e.t) + '</b> ' + text;
+      feed.prepend(div);
     }
-    if (demoClock > 9) { demoClock = 0; setPossession(world.possession === 'home' ? 'away' : 'home'); }
-    const speed = 9;
-    const dx = world.ballTarget.x - world.ball.x, dy = world.ballTarget.y - world.ball.y;
-    const dist = Math.hypot(dx, dy) || 1;
-    const move = Math.min(dist, speed * dt);
-    world.ball.x += dx / dist * move; world.ball.y += dy / dist * move;
+    const playing = world.running && m.phase !== 'halftime' && m.phase !== 'fulltime';
+    el('playBtn').textContent = m.phase === 'halftime' ? 'Start second half' : m.phase === 'fulltime' ? 'Full time' : world.running ? 'Pause' : 'Play';
+    el('playBtn').classList.toggle('on', playing);
   }
 
-  // ---------- controls ----------
-  function setPossession(which) {
-    world.possession = which;
-    document.getElementById('posHome').classList.toggle('on', which === 'home');
-    document.getElementById('posAway').classList.toggle('on', which === 'away');
-  }
-  document.getElementById('posHome').addEventListener('click', () => setPossession('home'));
-  document.getElementById('posAway').addEventListener('click', () => setPossession('away'));
+  el('playBtn').addEventListener('click', () => {
+    const m = world.match;
+    if (m.phase === 'halftime') { FM.startSecondHalf(m); world.running = true; return; }
+    if (m.phase === 'fulltime') return;
+    world.running = !world.running;
+  });
+  document.querySelectorAll('[data-speed]').forEach((b) => b.addEventListener('click', () => {
+    world.speed = parseFloat(b.dataset.speed);
+    document.querySelectorAll('[data-speed]').forEach((x) => x.classList.toggle('on', x === b));
+  }));
+  el('skipBtn').addEventListener('click', () => {
+    const m = world.match;
+    if (m.phase === 'halftime') FM.startSecondHalf(m);
+    let guard = 0;
+    while (m.phase !== 'halftime' && m.phase !== 'fulltime' && guard++ < 100000) FM.stepMatch(m, SUBSTEP);
+  });
+  el('restartBtn').addEventListener('click', () => { newMatch(); world.running = true; });
 
+  // ---------- selecting players and tactics controls ----------
   function pitchPoint(evt) {
     const rect = canvas.getBoundingClientRect();
     const cx = (evt.clientX - rect.left) / rect.width * canvas.width;
@@ -135,39 +184,36 @@
       const d = Math.hypot(p.x - pt.x, p.y - pt.y);
       if (d < bestD) { bestD = d; best = { team, player: p }; }
     }));
-    if (best) { world.selected = best; renderPlayerPanel(); return; }
-    document.getElementById('demo').checked = false;
-    world.ballTarget = null;
-    world.ball.x = Math.max(0, Math.min(L, pt.x));
-    world.ball.y = Math.max(0, Math.min(W, pt.y));
+    if (best) { world.selected = best; renderPlayerPanel(); }
   });
 
+  const SLIDERS = [
+    ['lineHeight', 'Defensive line height', 0, 1], ['widthScale', 'Width', 0.7, 1.25],
+    ['directness', 'Directness', 0, 1], ['risk', 'Risk', 0, 1], ['tempo', 'Tempo', 0, 1], ['pressing', 'Pressing', 0, 1],
+  ];
   function teamControls(team, hostId) {
-    const host = document.getElementById(hostId);
+    const host = el(hostId);
     host.innerHTML = `
       <div class="teamname"><span class="swatch" style="background:${team.kit.shirt}"></span>${team.name}</div>
       <label>Formation
         <select data-k="formation">${Object.keys(FM.FORMATIONS).map((k) => `<option value="${k}"${k === team.formationKey ? ' selected' : ''}>${k}</option>`).join('')}</select>
-      </label>
-      <label>Defensive line height: <span data-v="lineHeight">${team.tactics.lineHeight.toFixed(2)}</span>
-        <input type="range" min="0" max="1" step="0.05" value="${team.tactics.lineHeight}" data-k="lineHeight">
-      </label>
-      <label>Width: <span data-v="widthScale">${team.tactics.widthScale.toFixed(2)}</span>
-        <input type="range" min="0.7" max="1.25" step="0.05" value="${team.tactics.widthScale}" data-k="widthScale">
-      </label>`;
+      </label>` + SLIDERS.map(([k, label, lo, hi]) => `
+      <label>${label}: <span data-v="${k}">${team.tactics[k].toFixed(2)}</span>
+        <input type="range" min="${lo}" max="${hi}" step="0.05" value="${team.tactics[k]}" data-k="${k}">
+      </label>`).join('');
     host.querySelector('[data-k="formation"]').addEventListener('change', (e) => {
       FM.setFormation(team, e.target.value);
       if (world.selected && world.selected.team === team) world.selected = null;
       renderPlayerPanel();
     });
-    ['lineHeight', 'widthScale'].forEach((k) => host.querySelector(`[data-k="${k}"]`).addEventListener('input', (e) => {
+    SLIDERS.forEach(([k]) => host.querySelector(`input[data-k="${k}"]`).addEventListener('input', (e) => {
       team.tactics[k] = parseFloat(e.target.value);
       host.querySelector(`[data-v="${k}"]`).textContent = team.tactics[k].toFixed(2);
     }));
   }
 
   function renderPlayerPanel() {
-    const host = document.getElementById('playerPanel');
+    const host = el('playerPanel');
     const sel = world.selected;
     if (!sel) { host.innerHTML = '<h2>Selected player</h2><p class="hint">Click a player on the pitch.</p>'; return; }
     const { team, player } = sel;
@@ -179,25 +225,30 @@
       if (o.type === 'choice') extra += `<label>${o.label}<select data-opt="${k}">${o.choices.map(([v, t]) => `<option value="${v}"${player.options[k] === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>`;
       else extra += `<label class="check"><input type="checkbox" data-opt="${k}"${player.options[k] ? ' checked' : ''}> ${o.label}</label>`;
     });
+    const r = player.ratings;
     host.innerHTML = `
       <h2>Selected player</h2>
       <div class="teamname"><span class="swatch" style="background:${team.kit.shirt}"></span>${team.name}, number ${player.number} (${player.slotKey})</div>
+      <p class="hint">Pace ${r.pace} · Dribbling ${r.dribbling} · Passing ${r.passing} · Finishing ${r.finishing} · Tackling ${r.tackling} · Composure ${r.composure}${player.group === 'GK' ? ' · Goalkeeping ' + r.gk : ''}</p>
       <label>Role<select data-k="role">${roleOptions}</select></label>
       <p class="desc">${role.desc}</p>
       ${extra}`;
     host.querySelector('[data-k="role"]').addEventListener('change', (e) => { FM.setRole(team, player, e.target.value); renderPlayerPanel(); });
-    host.querySelectorAll('[data-opt]').forEach((el) => el.addEventListener('change', () => {
-      player.options[el.dataset.opt] = el.type === 'checkbox' ? el.checked : el.value;
+    host.querySelectorAll('[data-opt]').forEach((o) => o.addEventListener('change', () => {
+      player.options[o.dataset.opt] = o.type === 'checkbox' ? o.checked : o.value;
     }));
   }
 
   function buildLegend() {
-    document.getElementById('legend').innerHTML = world.teams.map((t) => `<span style="display:inline-flex;align-items:center;gap:6px;"><span class="swatch" style="background:${t.kit.shirt}"></span>${t.name} (${t.id === 'home' ? 'attacks right' : 'attacks left'})</span>`).join('');
+    el('legend').innerHTML = world.teams.map((t) => `<span style="display:inline-flex;align-items:center;gap:6px;"><span class="swatch" style="background:${t.kit.shirt}"></span>${t.name} (${t.id === 'home' ? 'attacks right' : 'attacks left'})</span>`).join('');
   }
 
   // Debug handle for checking the model from the console.
   window.FM_WORLD = world;
 
+  el('nmHome').textContent = home.name; el('nmAway').textContent = away.name;
+  el('swHome').style.background = home.kit.shirt; el('swAway').style.background = away.kit.shirt;
+  newMatch();
   teamControls(home, 'homeControls');
   teamControls(away, 'awayControls');
   buildLegend();
