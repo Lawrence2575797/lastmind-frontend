@@ -60,12 +60,15 @@
       rng: FM.mulberry32(seed || 1),
       seed: seed || 1,
       clock: 0, phase: 'kickoff', kickoffTimer: KICKOFF_PAUSE, kickoffTeam: home,
-      score: { home: 0, away: 0 },
+      score: {},
       ball: { x: L / 2, y: W / 2, state: 'carried' },
       carrier: null, flight: null, carry: null, lastTeam: home,
       events: [],
-      stats: { home: blankStats(), away: blankStats() },
+      stats: {},
     };
+    home.attackDir = 1; away.attackDir = -1;
+    match.score[home.id] = 0; match.score[away.id] = 0;
+    match.stats[home.id] = blankStats(); match.stats[away.id] = blankStats();
     FM.beginKickoff(match, home);
     return match;
   };
@@ -124,7 +127,7 @@
       }
       // Defenders press the carrier: how many, and from how far, is the team's pressing instruction.
       const press = pressingNow(match, opp);
-      const n = 1 + Math.round(2 * press);
+      const n = 1 + Math.round(1.4 * press);
       const ranked = opp.players.filter((p) => p.group !== 'GK').map((p) => ({ p, d: dist(p, c.player) })).sort((a, b) => a.d - b.d);
       ranked.slice(0, n).forEach(({ p, d }) => {
         if (d < pressTrigger(opp, p, press)) ov.set(p, { x: c.player.x + c.player.vx * 0.4, y: c.player.y + c.player.vy * 0.4 });
@@ -145,7 +148,7 @@
   function pressTrigger(team, player, press) {
     const role = player.roleId;
     const bonus = role === 'pressing_forward' ? 10 : role === 'ball_winning_midfielder' ? 8 : 0;
-    return 12 + 20 * press + bonus;
+    return 12 + 13 * press + bonus;
   }
   // Pressing as the manager set it, adjusted for the seconds just after losing the ball:
   // a high counter-press instruction hunts it back at once, a low one drops into shape first.
@@ -220,7 +223,9 @@
       if (d < 4 || d > 60) return;
       const leadT = d / clamp(10 + d * 0.5, 12, 26);
       const forward = (t.x - carrier.x) * team.attackDir > -5;
-      const ahead = forward ? (2 + 8 * directness) * (['WF', 'ST', 'AM'].includes(t.group) ? 1 : 0.35) * team.attackDir : 0;
+      // Space behind a high defensive line is easier to run into, and the counter-attack finds it fastest.
+      const space = clamp(1 + 3 * (other(match, team).tactics.lineHeight - 0.5), 0.5, 2.2) * (1 + 0.6 * counter) * (0.8 + 0.4 * t.ratings.pace / 70);
+      const ahead = forward ? (2 + 8 * directness) * space * (['WF', 'ST', 'AM'].includes(t.group) ? 1 : 0.35) * team.attackDir : 0;
       const tx = clamp(t.x + t.vx * leadT + ahead, 1, L - 1), ty = clamp(t.y + t.vy * leadT, 1, W - 1);
       const { lane, press } = laneInfo(match, team, carrier, tx, ty);
       const p = FM.passProb(carrier, d, lane, press);
@@ -294,6 +299,11 @@
   }
 
   function doDribble(match, team, carrier, opt) {
+    const oppGK = other(match, team).players.find((p) => p.group === 'GK');
+    if (oppGK && dist(oppGK, carrier) < 7 && inBox(team.attackDir, carrier.x, carrier.y) && match.rng() < 0.08) {
+      commitFoul(match, oppGK, carrier, other(match, team), team, { denial: true });
+      return;
+    }
     const st = statsOf(match, team);
     st.dribbles++;
     const ok = match.rng() < opt.p;
@@ -362,7 +372,7 @@
     const recv = tx * dir, ball = passer.x * dir, mid = dir * L / 2;
     if (recv <= ball || recv <= mid) return 'on';
     if (recv > line) return 'off';
-    if (recv > line - 1.4) return 'marginal';
+    if (recv > line - 1.25) return 'marginal';
     return 'on';
   }
 
@@ -372,7 +382,7 @@
       const opp = other(match, team), dir = team.attackDir;
       const xs = opp.players.map((o) => o.x * dir).sort((a, b) => b - a);
       const line = xs.length > 1 ? xs[1] : xs[0];
-      team.offsideLine = (line - 1.5) * dir;
+      team.offsideLine = Math.max(line - 1.5, dir * L / 2) * dir;
     });
   }
 
@@ -385,22 +395,58 @@
     team.players = team.players.filter((x) => x !== p);
     team.sentOff = (team.sentOff || []).concat(p);
     p.sentOff = true;
+    if (p.group === 'GK') replaceKeeper(match, team, p);
   }
-  function commitFoul(match, fouler, victim, foulTeam, team) {
+
+  FM.sendOffPlayer = function (match, team, p) { sendOff(match, team, p); };
+
+  // A sent-off goalkeeper must be replaced. With a spare keeper on the bench and a substitution left, the weakest
+  // forward is taken off and the keeper comes on; otherwise an outfield player goes in goal with poor goalkeeping.
+  function replaceKeeper(match, team, gk) {
+    const formation = FM.FORMATIONS[team.formationKey];
+    const slotIdx = gk.index;
+    const benchGK = team.bench.find((p) => p.natural === 'GK');
+    const goalX = team.attackDir === 1 ? 3 : L - 3;
+    if (benchGK && team.subsUsed < team.maxSubs) {
+      const rank = { ST: 0, WF: 1, AM: 2, CM: 3, DM: 4, FB: 5, CB: 6 };
+      const ovr = (p) => p.ratings.pace + p.ratings.dribbling + p.ratings.passing + p.ratings.finishing + p.ratings.tackling;
+      const off = team.players.filter((p) => p.group !== 'GK').sort((a, b) => (rank[a.group] - rank[b.group]) || (ovr(a) - ovr(b)))[0];
+      team.players[team.players.indexOf(off)] = benchGK;
+      team.bench.splice(team.bench.indexOf(benchGK), 1);
+      team.bench.push(off);
+      FM.putInSlot(benchGK, formation, slotIdx);
+      benchGK.x = goalX; benchGK.y = W / 2; benchGK.vx = 0; benchGK.vy = 0;
+      off.index = -1; off.slotKey = null; off.group = off.natural;
+      team.subsUsed++;
+      record(match, { type: 'keeperSwap', team: team.id, on: benchGK.number, off: off.number, emergency: false });
+    } else {
+      const ok = team.players.filter((p) => p.group !== 'GK');
+      const pick = ok.sort((a, b) => (b.ratings.composure + b.ratings.passing) - (a.ratings.composure + a.ratings.passing))[0];
+      if (!pick) return;
+      FM.putInSlot(pick, formation, slotIdx);
+      pick.origGk = pick.ratings.gk;
+      pick.ratings = Object.assign({}, pick.ratings, { gk: Math.max(pick.ratings.gk, 38) });
+      pick.emergencyKeeper = true;
+      pick.x = goalX; pick.y = W / 2; pick.vx = 0; pick.vy = 0;
+      record(match, { type: 'keeperSwap', team: team.id, on: pick.number, off: null, emergency: true });
+    }
+  }
+  function commitFoul(match, fouler, victim, foulTeam, team, opts) {
     const st = statsOf(match, foulTeam);
     st.fouls++;
     const aggr = foulTeam.tactics.tackleAggression;
     const dangerous = FM.toTeamSpace(team.attackDir, victim.x, victim.y).d > 0.6;
     const r = match.rng();
-    const pRed = fouler.group === 'GK' ? 0 : 0.002 + 0.006 * aggr + (dangerous ? 0.006 : 0);
-    const pYellow = (0.04 + 0.18 * aggr + (dangerous ? 0.08 : 0)) * (fouler.yellows ? 0.6 : 1);
+    const denial = opts && opts.denial;
+    const pRed = 0.002 + 0.006 * aggr + (dangerous ? 0.006 : 0) + (denial ? 0.3 : 0);
+    const pYellow = (0.04 + 0.18 * aggr + (dangerous ? 0.08 : 0) + (denial ? 0.4 : 0)) * (fouler.yellows ? 0.6 : 1);
     let card = null;
     if (r < pRed) card = 'red';
     else if (r < pRed + pYellow) {
       card = 'yellow';
       fouler.yellows = (fouler.yellows || 0) + 1;
       st.yellows++;
-      if (fouler.yellows >= 2 && fouler.group !== 'GK') card = 'second yellow';
+      if (fouler.yellows >= 2) card = 'second yellow';
     }
     if (card === 'red' || card === 'second yellow') { st.reds++; sendOff(match, foulTeam, fouler); }
     record(match, { type: 'foul', team: foulTeam.id, player: fouler.number, vs: victim.number, card, x: victim.x, y: victim.y });
@@ -677,7 +723,7 @@
       for (const d of opp.players) {
         if (d.group === 'GK') continue;
         if (dist(d, c.player) > 1.8) continue;
-        const rate = (0.05 + 0.12 * opp.tactics.pressing + (d.roleId === 'ball_winning_midfielder' ? 0.06 : 0)) * (0.6 + 0.8 * opp.tactics.tackleAggression);
+        const rate = (0.05 + 0.08 * opp.tactics.pressing + (d.roleId === 'ball_winning_midfielder' ? 0.06 : 0)) * (0.6 + 0.8 * opp.tactics.tackleAggression);
         if (match.clock >= (match.tackleLock || 0) && match.rng() < rate * dt) {
           match.tackleLock = match.clock + 1.2;
           const p = FM.tackleProb(d, c.player);

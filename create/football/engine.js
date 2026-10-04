@@ -58,6 +58,8 @@
     player.roleId = slot.defaultRole; player.options = freshOptions(slot.defaultRole);
   }
 
+  FM.putInSlot = putInSlot;
+
   // Builds a team: a squad of 20, with 11 on the formation's slots (each with a default role) and 9 on the bench.
   FM.createTeam = function (spec) {
     const formation = FM.FORMATIONS[spec.formation];
