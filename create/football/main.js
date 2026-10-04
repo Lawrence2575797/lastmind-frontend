@@ -840,7 +840,10 @@
     setView('home');
     // a game saved before friendlies existed: play them now so the reports have something to read
     if (FM.ensureFriendlies(world.league)) {
-      FM.playFriendlies(world.league).then(() => { FM.saveLeague(world.league); if (world.view === 'reports' || world.view === 'home' || world.view === 'league') setView(world.view); });
+      const lg = world.league, redraw = () => { if (['reports', 'home', 'league'].indexOf(world.view) >= 0) setView(world.view); };
+      lg.frProgress = { i: 0, n: lg.friendlies.filter((f) => !f.played).length };
+      redraw();
+      FM.playFriendlies(lg, (i, n) => { lg.frProgress = { i, n }; if (world.view === 'reports') redraw(); }).then(() => { lg.frProgress = null; FM.saveLeague(lg); redraw(); });
     }
   } else showNewGame();
   requestAnimationFrame(frame);

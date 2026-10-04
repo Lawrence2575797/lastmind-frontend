@@ -96,6 +96,32 @@
     return `<span class="tbar"><i style="width:${(100 * p).toFixed(0)}%"></i><b style="left:${(100 * l).toFixed(0)}%"></b></span>`;
   }
 
+  // The club's shape in each phase of play, as scouted: six small pitches, the club always attacking up the page.
+  const PHASE_ORDER = ['build', 'press', 'final', 'without', 'transAtt', 'transDef'];
+  const PHASE_BLURB = { build: 'building from the back', press: 'pressing the other side\'s build-up', final: 'attacking in the final third', without: 'defending without the ball', transAtt: 'just after winning the ball', transDef: 'just after losing the ball' };
+  function miniPitch(cells) {
+    const PW = 136, PH = 210, ln = 'stroke="rgba(255,255,255,0.7)" stroke-width="1" fill="none"';
+    let s = `<rect x="0" y="0" width="${PW}" height="${PH}" fill="#2E7D3E"/><rect x="0.5" y="0.5" width="${PW - 1}" height="${PH - 1}" ${ln}/><line x1="0" y1="${PH / 2}" x2="${PW}" y2="${PH / 2}" ${ln}/><circle cx="${PW / 2}" cy="${PH / 2}" r="18" ${ln}/>`;
+    s += `<rect x="${PW / 2 - 40}" y="0" width="80" height="32" ${ln}/><rect x="${PW / 2 - 40}" y="${PH - 32}" width="80" height="32" ${ln}/>`;
+    if (cells) Object.keys(cells).forEach((slot) => {
+      const c = cells[slot], x = c.w * PW, y = (1 - c.d) * PH;
+      s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="9.5" fill="#D62828" stroke="#fff" stroke-width="1.2"/><text x="${x.toFixed(1)}" y="${(y + 3).toFixed(1)}" text-anchor="middle" font-size="7.5" font-weight="700" fill="#fff" font-family="sans-serif">${slot}</text>`;
+    });
+    return `<svg viewBox="0 0 ${PW} ${PH}" style="width:100%;height:auto;display:block;border-radius:6px" role="img">${s}</svg>`;
+  }
+  function shapeCard(league, teamId) {
+    const sh = FM.scoutedShape(league, teamId);
+    if (!sh) return '<div class="card"><h2>How they line up in each phase</h2><p class="note">No matches to read it from yet.</p></div>';
+    const team = FM.teamById(league, teamId);
+    return `<div class="card"><h2>How they line up in each phase</h2>
+      <p class="note">Where ${esc(team.name)} have actually stood, in their ${esc(sh.formation)}, taken every two seconds of ${sh.matches} match${sh.matches > 1 ? 'es' : ''} (${sh.friendlies} pre-season friendl${sh.friendlies === 1 ? 'y' : 'ies'}, which count half). They always attack up the page. Newer matches count more, so this changes as the season goes on. The same pictures can be laid over your own board on the Tactics page.</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px">${PHASE_ORDER.map((ph) => {
+        const cells = sh.phases[ph];
+        const n = cells ? Math.max.apply(null, Object.keys(cells).map((k) => cells[k].n)) : 0;
+        return `<figure style="margin:0"><figcaption style="font-weight:700;margin-bottom:4px">${FM.PHASE_NAMES[ph]}</figcaption>${miniPitch(cells)}<p class="note" style="margin-top:4px">${PHASE_BLURB[ph]}${cells ? `. ${n} samples.` : ': not seen yet.'}</p></figure>`;
+      }).join('')}</div></div>`;
+  }
+
   FM.renderReports = function (host, league) {
     const me = league.userId, others = league.teams.filter((t) => t.id !== me);
     const next = FM.nextUserFixture(league);
@@ -106,6 +132,7 @@
     const parts = [];
     if (rep.friendlyCount) parts.push(`${rep.friendlyCount} pre-season friendl${rep.friendlyCount > 1 ? 'ies' : 'y'}`);
     if (rep.leagueCount) parts.push(`${rep.leagueCount} league match${rep.leagueCount > 1 ? 'es' : ''}`);
+    const pending = league.frProgress ? `<p class="desc"><b>Playing the pre-season friendlies now (${league.frProgress.i} of ${league.frProgress.n}).</b> This report fills in when they finish, in a few seconds.</p>` : '';
     const sample = rep.n === 0 ? 'No previous matches: nothing is known about how this club plays yet.' : `Based on <b>${rep.n} match${rep.n > 1 ? 'es' : ''}</b> (${parts.join(' and ')})` + (rep.leagueCount ? `, the latest league match ${rep.daysSinceLast <= 0 ? 'today' : rep.daysSinceLast + ' day' + (rep.daysSinceLast > 1 ? 's' : '') + ' ago'}.` : ', all played before the season began.');
     const friendlyNote = rep.friendlyCount ? '<p class="note warnnote">Pre-season friendlies are a poor guide. Clubs try out ideas and line-ups in them and nobody is playing for points, so what they show can differ from how the club plays when it matters.</p>' : '';
     const small = rep.n > 0 && rep.n < 4 ? `<p class="note warnnote">That is a small sample. A club's last ${rep.n} match${rep.n > 1 ? 'es' : ''} may not be typical, and a single odd result can move every average here.</p>` : '';
@@ -116,10 +143,11 @@
         <h2>Opposition report</h2>
         <label>Club<select id="rpTeam">${others.map((o) => `<option value="${o.id}"${o.id === state.teamId ? ' selected' : ''}>${esc(o.name)}${o.id === nextOpp ? ' (your next opponent)' : ''}</option>`).join('')}</select></label>
         <div class="fixture-big">${esc(t.name)}</div>
-        <p class="desc">${sample} ${rep.n ? `Record: won ${rep.record.w}, drawn ${rep.record.d}, lost ${rep.record.l}.` : ''}</p>
+        ${pending}<p class="desc">${sample} ${rep.n ? `Record: won ${rep.record.w}, drawn ${rep.record.d}, lost ${rep.record.l}.` : ''}</p>
         ${small}${friendlyNote}
         <p class="note">This report describes what they did, not what they will do. Managers adapt, especially to a club that has just beaten them, so the more your approach has changed since they last scouted you, the less this tells you. You can read it as often as you like, and it does not get updated until a match has been played.</p>
       </div>
+      ${shapeCard(league, state.teamId)}
       <div class="two">
         <div class="card"><h2>How they set up and play</h2>${rep.n ? `
           <p class="note">Their average setting across those matches, with the average of every other club shown as a tick. The wider the "varies" note, the less reliable the average is.</p>
