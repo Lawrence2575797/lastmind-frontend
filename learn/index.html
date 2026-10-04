@@ -11164,11 +11164,11 @@ SQIDAQAB
         try {
             const { resp, body } = await createAuthedFetch('/create/projects');
             if (resp.ok && !body.unavailable) {
-                const local = createLocalProjects().map((p) => ({ id: p.id, title: p.title, kind: p.kind, isReference: false, updatedAt: p.updatedAt, role: p.data && p.data.trial && p.data.trial.role, minutes: p.data && p.data.trial && p.data.trial.minutes, local: true }));
+                const local = createLocalProjects().map((p) => ({ id: p.id, title: p.title, kind: p.kind, href: p.data && p.data.href, meta: p.data && p.data.meta, isReference: false, updatedAt: p.updatedAt, role: p.data && p.data.trial && p.data.trial.role, minutes: p.data && p.data.trial && p.data.trial.minutes, local: true }));
                 return { projects: [...(body.projects || []), ...local], references: body.references || [] };
             }
         } catch (err) { console.error('LastMind: could not load projects from the account.', err); }
-        return { projects: createLocalProjects().map((p) => ({ id: p.id, title: p.title, kind: p.kind, isReference: false, updatedAt: p.updatedAt, role: p.data && p.data.trial && p.data.trial.role, minutes: p.data && p.data.trial && p.data.trial.minutes, local: true })), references: [] };
+        return { projects: createLocalProjects().map((p) => ({ id: p.id, title: p.title, kind: p.kind, href: p.data && p.data.href, meta: p.data && p.data.meta, isReference: false, updatedAt: p.updatedAt, role: p.data && p.data.trial && p.data.trial.role, minutes: p.data && p.data.trial && p.data.trial.minutes, local: true })), references: [] };
     }
     async function createOpenProject(id, { playtest, duel } = {}) {
         let data = null; let mine = true;
@@ -11204,6 +11204,7 @@ SQIDAQAB
         } catch (err) { /* the list is optional */ }
     }
     async function createDeleteProject(id) {
+        if (id === 'local-football-manager') { try { localStorage.removeItem('lm_football_save_v1'); } catch (err) { /* nothing to remove */ } }
         if (String(id).startsWith('local-')) { createSetLocalProjects(createLocalProjects().filter((p) => p.id !== id)); return; }
         await createAuthedFetch(`/create/projects/${encodeURIComponent(id)}`, { method: 'DELETE' });
     }
@@ -11218,7 +11219,9 @@ SQIDAQAB
             createBindDuelBox(host);
             return;
         }
-        const card = (p, isRef) => `<article class="create-proj"><h3>${escapeHtml(p.title)}</h3>${p.isReference ? '<span class="badge">Reference example</span>' : ''}<div class="meta">Criminal trial${p.role ? ` · ${p.role === 'prosecution' ? 'Prosecution' : 'Defence'}` : ''}${p.minutes ? ` · ${p.minutes} min` : ''}${p.local ? ' · saved in this browser' : ''}</div><div class="row"><button type="button" class="create-secondary" data-open="${escapeHtml(p.id)}">${isRef ? 'Open a copy' : 'Open'}</button><button type="button" class="create-secondary" data-play="${escapeHtml(p.id)}">Playtest</button><button type="button" class="create-secondary" data-duel="${escapeHtml(p.id)}" title="Play one side while a friend plays the other">Two-player</button>${isRef ? '' : `<button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button>`}</div></article>`;
+        const card = (p, isRef) => p.kind === 'football-manager'
+            ? `<article class="create-proj"><h3>${escapeHtml(p.title)}</h3><div class="meta">Football manager${p.meta ? ' · ' + escapeHtml(p.meta) : ''} · saved in this browser</div><div class="row"><a class="create-cta" href="${escapeHtml(p.href || '/create/football/')}" style="padding:8px 18px;font-size:0.85rem;text-decoration:none;">Resume</a><button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button></div></article>`
+            : `<article class="create-proj"><h3>${escapeHtml(p.title)}</h3>${p.isReference ? '<span class="badge">Reference example</span>' : ''}<div class="meta">Criminal trial${p.role ? ` · ${p.role === 'prosecution' ? 'Prosecution' : 'Defence'}` : ''}${p.minutes ? ` · ${p.minutes} min` : ''}${p.local ? ' · saved in this browser' : ''}</div><div class="row"><button type="button" class="create-secondary" data-open="${escapeHtml(p.id)}">${isRef ? 'Open a copy' : 'Open'}</button><button type="button" class="create-secondary" data-play="${escapeHtml(p.id)}">Playtest</button><button type="button" class="create-secondary" data-duel="${escapeHtml(p.id)}" title="Play one side while a friend plays the other">Two-player</button>${isRef ? '' : `<button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button>`}</div></article>`;
         host.innerHTML = `
             ${createDuelBoxHtml()}
             <div class="create-projects-head"><span></span><button type="button" class="create-cta" id="createProjectBtn" style="padding:10px 22px;font-size:0.9rem;">+ Create project</button></div>

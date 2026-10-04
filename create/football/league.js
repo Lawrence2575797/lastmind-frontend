@@ -401,7 +401,29 @@
     league.teams.forEach((t) => { if (t.snap) { FM.restoreLineup(t, t.snap); t.snap = null; } else FM.resetToKickoff(t); });
     return league;
   };
+  // The Create page's "Your projects" list reads this entry (same browser storage), so the season shows up there with a Resume button.
+  const PROJECTS_KEY = 'lastmind-create-projects', PROJECT_ID = 'local-football-manager';
+  FM.syncProject = function (league) {
+    try {
+      let list = JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]');
+      list = list.filter((p) => p.id !== PROJECT_ID);
+      if (league) {
+        const user = FM.teamById(league, league.userId), played = league.fixtures.filter((f) => f.played && (f.homeId === league.userId || f.awayId === league.userId)).length;
+        const pos = FM.tableRows(league).findIndex((r) => r.id === league.userId) + 1;
+        const ord = (n) => n + (['th', 'st', 'nd', 'rd'][(n % 100 > 10 && n % 100 < 14) || n % 10 > 3 ? 0 : n % 10]);
+        const tier = { gcse: 'GCSE', alevel: 'A-level', above: 'Beyond A-level' }[league.tier] || league.tier;
+        list.unshift({ id: PROJECT_ID, title: 'Be the manager: ' + user.name, kind: 'football-manager', updatedAt: new Date().toISOString(), isReference: false,
+          data: { href: '/create/football/', meta: 'Season ' + league.season + ' · ' + (played >= 14 ? 'season complete' : played + ' of 14 played') + (played ? ' · ' + ord(pos) + ' in the table' : '') + ' · ' + tier + ' statistics' } });
+      }
+      localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
+    } catch (e) { /* the projects list is a convenience */ }
+  };
   FM.saveLeague = function (league) {
+    const done = FM.saveLeagueRaw(league);
+    if (done) FM.syncProject(league);
+    return done;
+  };
+  FM.saveLeagueRaw = function (league) {
     try { localStorage.setItem(SAVE_KEY, FM.serializeLeague(league)); return true; } catch (e) { /* storage full: drop the oldest clips and try again */ }
     const withClips = league.fixtures.filter((f) => f.clips && f.clips.length).sort((a, b) => a.round - b.round);
     for (const f of withClips) {
@@ -422,7 +444,11 @@
     return true;
   };
   FM.loadLeague = function () {
-    try { const t = localStorage.getItem(SAVE_KEY); return t ? FM.deserializeLeague(t) : null; } catch (e) { return null; }
+    try {
+      const t = localStorage.getItem(SAVE_KEY), lg = t ? FM.deserializeLeague(t) : null;
+      FM.syncProject(lg); // lists the season as a project, or removes the entry if there is no save
+      return lg;
+    } catch (e) { return null; }
   };
   FM.clearSave = function () { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } };
 })();
