@@ -45,7 +45,7 @@
     return Math.abs(Math.atan2(dy + 3.66, dx) - Math.atan2(dy - 3.66, dx));
   };
   FM.xgLogit = function (shooter, x, y, attackDir, defDist) {
-    return -5.5 + 7.6 * FM.shotAngle(x, y, attackDir) + 0.03 * (shooter.ratings.finishing - 60) - 0.9 * Math.exp(-defDist / 2);
+    return -4.6 + 7.6 * FM.shotAngle(x, y, attackDir) + 0.03 * (shooter.ratings.finishing - 60) - 0.9 * Math.exp(-defDist / 2);
   };
 
   // ---------- roles' tendencies when on the ball ----------
@@ -70,7 +70,7 @@
     return match;
   };
   function blankStats() {
-    return { passes: 0, passesOk: 0, shots: 0, onTarget: 0, goals: 0, tackles: 0, tacklesWon: 0, dribbles: 0, dribblesWon: 0, possession: 0, xg: 0 };
+    return { passes: 0, passesOk: 0, shots: 0, onTarget: 0, goals: 0, tackles: 0, tacklesWon: 0, dribbles: 0, dribblesWon: 0, possession: 0, xg: 0, fouls: 0, yellows: 0, reds: 0, offsides: 0, corners: 0, freeKicks: 0, throwIns: 0, penalties: 0 };
   }
   const other = (match, team) => (team === match.home ? match.away : match.home);
   const statsOf = (match, team) => match.stats[team.id];
@@ -86,7 +86,7 @@
     match.phase = 'kickoff';
     match.kickoffTimer = KICKOFF_PAUSE;
     match.kickoffTeam = team;
-    match.flight = null; match.carry = null;
+    match.flight = null; match.carry = null; match.restart = null; match.forcePass = false; match.noOffside = false;
     match.ball.x = L / 2; match.ball.y = W / 2; match.ball.state = 'carried';
     // The kicking side's most advanced player takes the kick-off.
     const players = team.players.filter((p) => p.group !== 'GK');
@@ -107,6 +107,7 @@
   }
 
   function possessionTeam(match) {
+    if (match.restart) return match.restart.team;
     if (match.carrier) return match.carrier.team;
     if (match.flight) return match.flight.team;
     return match.lastTeam;
@@ -129,7 +130,8 @@
         if (d < pressTrigger(opp, p, press)) ov.set(p, { x: c.player.x + c.player.vx * 0.4, y: c.player.y + c.player.vy * 0.4 });
       });
     } else if (match.flight && match.flight.target) {
-      ov.set(match.flight.target, { x: match.flight.target.x, y: match.flight.target.y });
+      const f = match.flight;
+      ov.set(f.target, f.outcome === 'complete' ? { x: f.ex, y: f.ey } : { x: f.target.x, y: f.target.y });
     } else if (!match.flight) {
       match.teams.forEach((team) => {
         team.players.map((p) => ({ p, d: Math.hypot(p.x - match.ball.x, p.y - match.ball.y) }))
@@ -217,33 +219,39 @@
       const d = dist(carrier, t);
       if (d < 4 || d > 60) return;
       const leadT = d / clamp(10 + d * 0.5, 12, 26);
-      const tx = clamp(t.x + t.vx * leadT, 1, L - 1), ty = clamp(t.y + t.vy * leadT, 1, W - 1);
+      const forward = (t.x - carrier.x) * team.attackDir > -5;
+      const ahead = forward ? (2 + 8 * directness) * (['WF', 'ST', 'AM'].includes(t.group) ? 1 : 0.35) * team.attackDir : 0;
+      const tx = clamp(t.x + t.vx * leadT + ahead, 1, L - 1), ty = clamp(t.y + t.vy * leadT, 1, W - 1);
       const { lane, press } = laneInfo(match, team, carrier, tx, ty);
       const p = FM.passProb(carrier, d, lane, press);
       const prog = clamp((dGoal - Math.hypot(tx - goal.x, ty - goal.y)) / 25, -0.6, 1.2);
-      const score = p * (0.35 + directness * 0.9 * prog + 0.5 * prog * risk) - (1 - p) * 0.6 * (1 - risk) * lossFactor;
-      options.push({ kind: 'pass', target: t, tx, ty, d, lane, press, p, score });
+      const boxBonus = Math.hypot(tx - goal.x, ty - goal.y) < 19 && Math.abs(ty - W / 2) < 18 ? 0.45 * (0.5 + risk) : 0;
+      const score = p * (0.35 + directness * 0.9 * prog + 0.5 * prog * risk + boxBonus) - (1 - p) * 0.6 * (1 - risk) * lossFactor;
+      const off = match.noOffside ? 'on' : offsideStatus(match, team, carrier, t.x);
+      options.push({ kind: 'pass', target: t, tx, ty, d, lane, press, p, score: off === 'off' ? -4 : score });
     });
 
     const { opp: nearOpp, d: nearD } = nearestOpponent(match, team, carrier);
     const dp = FM.dribbleProb(carrier, nearD, nearOpp);
     const dribbleBias = (GROUP_DRIBBLE[carrier.group] || 0) + (ROLE_DRIBBLE[role] || 0);
-    options.push({ kind: 'dribble', p: dp, nearOpp, nearD, score: dp * (0.3 + 0.9 * directness * 0.4 + (dribbleBias + (tac.dribbleFreedom - 0.5) * 0.9)) - (1 - dp) * 0.55 * (1 - risk) * lossFactor });
+    options.push({ kind: 'dribble', p: dp, nearOpp, nearD, score: dp * (0.3 + 0.9 * directness * 0.4 + (dribbleBias + (tac.dribbleFreedom - 0.5) * 0.9 + (zone === 'final' && nearD > 3.5 ? 0.45 : 0))) - (1 - dp) * 0.55 * (1 - risk) * lossFactor });
 
     const attackingThird = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d > 0.6;
-    if (dGoal < 32 && attackingThird && carrier.group !== 'GK') {
-      const xg = sig(FM.xgLogit(carrier, carrier.x, carrier.y, team.attackDir, nearD) - 0.5 * crowd(match, team, carrier));
-      options.push({ kind: 'shoot', xg, score: xg * 0.55 * (0.5 + risk * 0.9) * (0.4 + 1.2 * tac.shootFreedom) - (1 - xg) * 0.12 });
+    if (dGoal < 28 && attackingThird && carrier.group !== 'GK') {
+      const xg = sig(FM.xgLogit(carrier, carrier.x, carrier.y, team.attackDir, nearD) - 0.25 * crowd(match, team, carrier));
+      options.push({ kind: 'shoot', xg, score: xg * 3.2 * (0.5 + risk * 0.9) * (0.4 + 1.2 * tac.shootFreedom) - (1 - xg) * 0.12 - Math.max(0, 0.09 - xg) * 8 * (1.2 - tac.shootFreedom) });
     }
 
     // Softmax: the manager's settings favour an action, but nothing is certain.
     const temp = 0.22 + 0.25 * (1 - carrier.ratings.composure / 100);
-    const maxScore = Math.max.apply(null, options.map((o) => o.score));
-    const weights = options.map((o) => Math.exp((o.score - maxScore) / temp));
+    let pool = options;
+    if (match.forcePass) { const only = options.filter((o) => o.kind === 'pass' && o.d < 40); if (only.length) pool = only; }
+    const maxScore = Math.max.apply(null, pool.map((o) => o.score));
+    const weights = pool.map((o) => Math.exp((o.score - maxScore) / temp));
     const total = weights.reduce((a, b) => a + b, 0);
     let r = rng() * total;
-    for (let i = 0; i < options.length; i++) { r -= weights[i]; if (r <= 0) return options[i]; }
-    return options[options.length - 1];
+    for (let i = 0; i < pool.length; i++) { r -= weights[i]; if (r <= 0) return pool[i]; }
+    return pool[pool.length - 1];
   }
 
   function delayBeforeNextDecision(match, team, carrier) {
@@ -263,7 +271,9 @@
     const flight = { kind: 'pass', team, passer: carrier, speed, target: null, ex: opt.tx, ey: opt.ty, outcome: 'complete' };
     if (ok) {
       flight.target = opt.target;
-      st.passesOk++;
+      const os = match.noOffside ? 'on' : offsideStatus(match, team, carrier, opt.target.x);
+      if (os === 'off' || (os === 'marginal' && rng() < 0.1 + 0.3 * other(match, team).tactics.offsideTrap)) flight.outcome = 'offside';
+      else st.passesOk++;
     } else {
       // Failed: usually cut out by the defender nearest the lane, otherwise it runs loose.
       const opp = other(match, team);
@@ -272,9 +282,9 @@
       if (best && bd < 6 && rng() < 0.75) { flight.outcome = 'intercepted'; flight.target = best; flight.interceptor = best; }
       else {
         flight.outcome = 'loose';
-        const spread = 2 + opt.d * 0.12;
-        flight.ex = clamp(opt.tx + (rng() - 0.5) * 2 * spread, 1, L - 1);
-        flight.ey = clamp(opt.ty + (rng() - 0.5) * 2 * spread, 1, W - 1);
+        const spread = (2 + opt.d * 0.12) * (rng() < 0.45 ? 3 : 1);
+        flight.ex = clamp(opt.tx + (rng() - 0.5) * 2 * spread, -4, L + 4);
+        flight.ey = clamp(opt.ty + (rng() - 0.5) * 2 * spread, -4, W + 4);
       }
     }
     record(match, { type: 'pass', team: team.id, from: carrier.number, to: opt.target.number, p: opt.p, ok, outcome: flight.outcome, dist: opt.d, lane: opt.lane, press: opt.press, x: carrier.x, y: carrier.y });
@@ -309,6 +319,7 @@
     const gk = opp.players.find((p) => p.group === 'GK');
     const goalX = team.attackDir === 1 ? L : 0;
     const aimY = W / 2 + (rng() - 0.5) * 6.5;
+    const shooter = opt.rating != null ? { ratings: { finishing: opt.rating } } : carrier;
     st.shots++;
     st.xg += opt.xg;
 
@@ -323,11 +334,11 @@
     let outcome;
     if (blocker && rng() < 0.8 * Math.exp(-bd / 1.5)) outcome = 'blocked';
     else {
-      const pOn = sig(0.15 + 0.03 * (carrier.ratings.finishing - 60) - 0.6 * Math.exp(-nearD / 2));
+      const pOn = sig(0.15 + 0.03 * (shooter.ratings.finishing - 60) - 0.6 * Math.exp(-nearD / 2));
       if (rng() > pOn) outcome = 'off';
       else {
         st.onTarget++;
-        const xgAdj = sig(FM.xgLogit(carrier, carrier.x, carrier.y, team.attackDir, nearD) - 0.5 * crowd(match, team, carrier) - 0.03 * ((gk ? gk.ratings.gk : 60) - 60));
+        const xgAdj = sig(FM.xgLogit(shooter, carrier.x, carrier.y, team.attackDir, nearD) - 0.25 * crowd(match, team, carrier) - 0.03 * ((gk ? gk.ratings.gk : 60) - 60));
         outcome = rng() < clamp(xgAdj / pOn, 0.02, 0.9) ? 'goal' : 'saved';
       }
     }
@@ -335,9 +346,302 @@
     if (outcome === 'off') { ex = goalX; ey = W / 2 + (rng() < 0.5 ? -1 : 1) * (4.5 + rng() * 4); }
     if (outcome === 'blocked') { const s = segInfo(blocker.x, blocker.y, carrier.x, carrier.y, goalX, aimY); ex = s.cx; ey = s.cy; }
     if (outcome === 'saved') { ex = goalX + (team.attackDir === 1 ? -0.5 : 0.5); ey = gk.y; }
-    record(match, { type: 'shot', team: team.id, player: carrier.number, xg: opt.xg, outcome, defDist: nearD, x: carrier.x, y: carrier.y });
+    record(match, { type: 'shot', team: team.id, player: carrier.number, xg: opt.xg, outcome, defDist: nearD, x: carrier.x, y: carrier.y, setPiece: opt.header ? 'header' : undefined });
     match.carrier = null; match.carry = null;
     match.flight = { kind: 'shot', team, shooter: carrier, speed: 28, target: null, ex, ey: clamp(ey, 0.5, W - 0.5), outcome, gk, blocker };
+    match.ball.state = 'flight';
+  }
+
+  // ---------- offsides ----------
+  // 'off' if the receiver (at the point the pass is aimed) is beyond the second-last defender, the ball and the halfway line.
+  // 'marginal' if he is within the trap's reach: a high offside-trap instruction catches some who were just onside.
+  function offsideStatus(match, team, passer, tx) {
+    const opp = other(match, team), dir = team.attackDir;
+    const xs = opp.players.map((o) => o.x * dir).sort((a, b) => b - a);
+    const line = xs.length > 1 ? xs[1] : xs[0];
+    const recv = tx * dir, ball = passer.x * dir, mid = dir * L / 2;
+    if (recv <= ball || recv <= mid) return 'on';
+    if (recv > line) return 'off';
+    if (recv > line - 1.4) return 'marginal';
+    return 'on';
+  }
+
+  // The line each team's attackers must not pass (second-last opposing defender), kept just onside.
+  function setOffsideLines(match) {
+    match.teams.forEach((team) => {
+      const opp = other(match, team), dir = team.attackDir;
+      const xs = opp.players.map((o) => o.x * dir).sort((a, b) => b - a);
+      const line = xs.length > 1 ? xs[1] : xs[0];
+      team.offsideLine = (line - 1.5) * dir;
+    });
+  }
+
+  // ---------- fouls and cards ----------
+  function inBox(attackDir, x, y) {
+    const gx = attackDir === 1 ? L : 0;
+    return Math.abs(x - gx) < 16.5 && Math.abs(y - W / 2) < 20.16;
+  }
+  function sendOff(match, team, p) {
+    team.players = team.players.filter((x) => x !== p);
+    team.sentOff = (team.sentOff || []).concat(p);
+    p.sentOff = true;
+  }
+  function commitFoul(match, fouler, victim, foulTeam, team) {
+    const st = statsOf(match, foulTeam);
+    st.fouls++;
+    const aggr = foulTeam.tactics.tackleAggression;
+    const dangerous = FM.toTeamSpace(team.attackDir, victim.x, victim.y).d > 0.6;
+    const r = match.rng();
+    const pRed = fouler.group === 'GK' ? 0 : 0.002 + 0.006 * aggr + (dangerous ? 0.006 : 0);
+    const pYellow = (0.04 + 0.18 * aggr + (dangerous ? 0.08 : 0)) * (fouler.yellows ? 0.6 : 1);
+    let card = null;
+    if (r < pRed) card = 'red';
+    else if (r < pRed + pYellow) {
+      card = 'yellow';
+      fouler.yellows = (fouler.yellows || 0) + 1;
+      st.yellows++;
+      if (fouler.yellows >= 2 && fouler.group !== 'GK') card = 'second yellow';
+    }
+    if (card === 'red' || card === 'second yellow') { st.reds++; sendOff(match, foulTeam, fouler); }
+    record(match, { type: 'foul', team: foulTeam.id, player: fouler.number, vs: victim.number, card, x: victim.x, y: victim.y });
+    if (inBox(team.attackDir, victim.x, victim.y)) startRestart(match, 'penalty', team, team.attackDir === 1 ? L - 11 : 11, W / 2);
+    else startRestart(match, 'freekick', team, clamp(victim.x, 0.5, L - 0.5), clamp(victim.y, 0.5, W - 0.5));
+  }
+
+  // ---------- out of play ----------
+  function handleOut(match, lastTouchTeam, x, y) {
+    const lastTouchOpp = other(match, lastTouchTeam);
+    if (y < 0 || y > W) {
+      startRestart(match, 'throw', lastTouchOpp, clamp(x, 1, L - 1), y < 0 ? 0.5 : W - 0.5);
+      return;
+    }
+    const defTeam = match.teams.find((t) => t.attackDir === (x < 0 ? 1 : -1));
+    if (lastTouchTeam === defTeam) {
+      const attackers = other(match, defTeam);
+      startRestart(match, 'corner', attackers, x < 0 ? 0.5 : L - 0.5, y < W / 2 ? 0.5 : W - 0.5);
+    } else {
+      startRestart(match, 'goalkick', defTeam, defTeam.attackDir === 1 ? 5.5 : L - 5.5, W / 2);
+    }
+  }
+
+  // ---------- restarts ----------
+  const RESTART_SECONDS = { throw: 3, goalkick: 4, corner: 6, freekick: 5, penalty: 7 };
+  const outfield = (team) => team.players.filter((p) => p.group !== 'GK');
+  const byId = (team, id) => team.players.find((p) => p.id === id);
+
+  function pickTaker(match, kind, team, x, y) {
+    const t = team.tactics;
+    const best = (list, f) => list.reduce((a, b) => (f(b) > f(a) ? b : a), list[0]);
+    const nearest = (list) => list.reduce((a, b) => (Math.hypot(b.x - x, b.y - y) < Math.hypot(a.x - x, a.y - y) ? b : a));
+    if (kind === 'goalkick') return team.players.find((p) => p.group === 'GK') || best(team.players, (p) => p.ratings.passing);
+    if (kind === 'throw') return nearest(outfield(team));
+    if (kind === 'penalty') return (t.penTaker && byId(team, t.penTaker)) || best(outfield(team), (p) => p.ratings.finishing + 0.5 * p.ratings.composure);
+    if (kind === 'corner') return (t.cornerTaker && byId(team, t.cornerTaker)) || best(outfield(team), (p) => p.ratings.passing + (['WF', 'AM', 'FB', 'CM'].includes(p.group) ? 10 : 0));
+    // Free kick: a named taker near goal, otherwise the best dead-ball player; far from goal, whoever is closest.
+    const goalX = team.attackDir === 1 ? L : 0;
+    if (Math.hypot(goalX - x, W / 2 - y) > 45) return nearest(outfield(team));
+    return (t.fkTaker && byId(team, t.fkTaker)) || best(outfield(team), (p) => p.ratings.passing + p.ratings.finishing);
+  }
+
+  function startRestart(match, kind, team, x, y, extra) {
+    match.carrier = null; match.flight = null; match.carry = null;
+    const taker = pickTaker(match, kind, team, x, y);
+    const r = { kind, team, x, y, taker, timer: RESTART_SECONDS[kind], extra: extra || {} };
+    match.restart = r;
+    match.lastTeam = team;
+    match.ball.x = x; match.ball.y = y; match.ball.state = 'dead';
+    const st = statsOf(match, team);
+    if (kind === 'corner') st.corners++;
+    if (kind === 'freekick') st.freeKicks++;
+    if (kind === 'throw') st.throwIns++;
+    if (kind === 'penalty') st.penalties++;
+    const goalX = team.attackDir === 1 ? L : 0;
+    const style = team.tactics.fkStyle;
+    const crossing = kind === 'corner' || (kind === 'freekick' && FM.toTeamSpace(team.attackDir, x, y).d > 0.55 && style !== 'short' &&
+      !(style === 'shoot' && Math.hypot(goalX - x, W / 2 - y) <= 30 && !r.extra.indirect));
+    if (crossing) planBox(match, r);
+    record(match, { type: 'restart', kind, team: team.id, x, y });
+  }
+
+  // Box points for attackers and the defenders marking them, for corners and crossed free kicks.
+  function boxPoints(team, nearSign) {
+    const gx = team.attackDir === 1 ? L : 0, inward = team.attackDir === 1 ? -1 : 1;
+    const pt = (d, off) => ({ x: gx + inward * d, y: W / 2 + off });
+    return [pt(11, 0), pt(7, -nearSign * 5), pt(6.5, nearSign * 4), pt(15, nearSign * 9), pt(15, -nearSign * 9), pt(17.5, 0), pt(11, nearSign * 7), pt(11, -nearSign * 7)];
+  }
+  function planBox(match, r) {
+    const team = r.team, opp = other(match, team), t = team.tactics;
+    const nearSign = r.y < W / 2 ? -1 : 1;
+    const points = boxPoints(team, nearSign);
+    const nAtt = clamp(Math.round(t.cornerAttackers), 1, 7);
+    const pool = outfield(team).filter((p) => p !== r.taker).sort((a, b) => b.ratings.heading - a.ratings.heading);
+    const attackers = pool.slice(0, nAtt);
+    const short = t.cornerDelivery === 'short' && r.kind === 'corner'
+      ? outfield(team).filter((p) => p !== r.taker && !attackers.includes(p)).sort((a, b) => Math.hypot(a.x - r.x, a.y - r.y) - Math.hypot(b.x - r.x, b.y - r.y))[0] : null;
+    const goalX = team.attackDir === 1 ? L : 0;
+    const defenders = outfield(opp).sort((a, b) => Math.abs(a.x - goalX) - Math.abs(b.x - goalX)).slice(0, clamp(Math.round(opp.tactics.cornerMarkers), 3, 9));
+    const marks = new Map(), targets = new Map();
+    attackers.forEach((a, i) => targets.set(a, points[i % points.length]));
+    const free = defenders.slice();
+    attackers.forEach((a) => {
+      if (!free.length) return;
+      const pt = targets.get(a);
+      let bi = 0;
+      free.forEach((d, k) => { if (Math.hypot(d.x - pt.x, d.y - pt.y) < Math.hypot(free[bi].x - pt.x, free[bi].y - pt.y)) bi = k; });
+      marks.set(free.splice(bi, 1)[0], { mark: a });
+    });
+    // Defenders left over hold zones in the box.
+    const spare = points.slice().reverse();
+    free.forEach((d, k) => marks.set(d, { zone: spare[k % spare.length] }));
+    r.extra.attackers = attackers; r.extra.targets = targets; r.extra.marks = marks; r.extra.short = short; r.extra.nearSign = nearSign;
+  }
+
+  function restartOverrides(match) {
+    const r = match.restart, ov = new Map();
+    const team = r.team, opp = other(match, team);
+    ov.set(r.taker, { x: r.x, y: r.y });
+    const goalX = team.attackDir === 1 ? L : 0;
+    if (r.extra.attackers) {
+      r.extra.attackers.forEach((a) => ov.set(a, r.extra.targets.get(a)));
+      r.extra.marks.forEach((m, d) => {
+        if (m.zone) ov.set(d, m.zone);
+        else { const pt = r.extra.targets.get(m.mark); ov.set(d, { x: pt.x + (goalX - pt.x) * 0.06, y: pt.y + (W / 2 - pt.y) * 0.1 }); }
+      });
+      const gk = opp.players.find((p) => p.group === 'GK');
+      if (gk) ov.set(gk, { x: goalX + (team.attackDir === 1 ? -2 : 2), y: W / 2 + r.extra.nearSign * 1.5 });
+      if (r.extra.short) ov.set(r.extra.short, { x: r.x + (r.x < L / 2 ? 6 : -6), y: r.y + (r.y < W / 2 ? 6 : -6) });
+    }
+    if (r.kind === 'freekick' && !r.extra.attackers) {
+      // A wall of defenders stands 9.15 m from the ball on the line to goal when a shot is possible.
+      const dg = Math.hypot(goalX - r.x, W / 2 - r.y);
+      if (dg <= 32) {
+        const ux = (goalX - r.x) / dg, uy = (W / 2 - r.y) / dg;
+        const wall = outfield(opp).sort((a, b) => Math.hypot(a.x - r.x, a.y - r.y) - Math.hypot(b.x - r.x, b.y - r.y)).slice(0, dg < 22 ? 4 : 3);
+        wall.forEach((p, k) => { const o = (k - (wall.length - 1) / 2) * 0.9; ov.set(p, { x: r.x + ux * 9.15 - uy * o, y: r.y + uy * 9.15 + ux * o }); });
+      }
+    }
+    if (r.kind === 'penalty') {
+      const inward = team.attackDir === 1 ? -1 : 1;
+      let k = 0;
+      match.teams.forEach((t) => t.players.forEach((p) => {
+        if (p === r.taker || p.group === 'GK') return;
+        ov.set(p, { x: goalX + inward * (20 + (k % 3) * 2), y: 10 + (k * 2.7) % 48 }); k++;
+      }));
+      const gk = opp.players.find((p) => p.group === 'GK');
+      if (gk) ov.set(gk, { x: goalX, y: W / 2 });
+    }
+    return ov;
+  }
+
+  function runRestart(match, dt) {
+    const r = match.restart;
+    match.teams.forEach((t) => { t.offsideLine = null; });
+    const ov = restartOverrides(match);
+    match.teams.forEach((t) => FM.stepTeam(t, match.ball, t === r.team, dt, ov));
+    r.timer -= dt;
+    if (r.timer <= 0 && (Math.hypot(r.taker.x - r.x, r.taker.y - r.y) < 1.6 || r.timer < -4)) execRestart(match);
+  }
+
+  function execRestart(match) {
+    const r = match.restart, team = r.team, taker = r.taker, t = team.tactics;
+    match.restart = null;
+    taker.x = r.x; taker.y = r.y; taker.vx = 0; taker.vy = 0;
+    if (r.kind === 'throw' || r.kind === 'goalkick') { match.forcePass = true; match.noOffside = true; giveBall(match, team, taker, 0.4); return; }
+    if (r.kind === 'penalty') { takePenalty(match, team, taker); return; }
+    const goalX = team.attackDir === 1 ? L : 0;
+    if (r.kind === 'freekick') {
+      const dg = Math.hypot(goalX - r.x, W / 2 - r.y);
+      const attackingHalf = FM.toTeamSpace(team.attackDir, r.x, r.y).d > 0.55;
+      if (t.fkStyle === 'shoot' && dg <= 30 && !r.extra.indirect) { takeFreeKickShot(match, team, taker, dg); return; }
+      if (t.fkStyle !== 'short' && attackingHalf && r.extra.attackers) { const zones = ['near', 'far', 'centre']; deliverCross(match, team, taker, r, zones[Math.floor(match.rng() * 3)]); return; }
+      match.forcePass = true; giveBall(match, team, taker, 0.4); return;
+    }
+    // corner
+    if (t.cornerDelivery === 'short' && r.extra.short) { match.forcePass = true; match.noOffside = true; giveBall(match, team, taker, 0.2); return; }
+    deliverCross(match, team, taker, r, t.cornerDelivery === 'short' ? 'near' : t.cornerDelivery);
+  }
+
+  function deliverCross(match, team, taker, r, zone) {
+    const rng = match.rng;
+    const gx = team.attackDir === 1 ? L : 0, inward = team.attackDir === 1 ? -1 : 1;
+    const ns = r.extra.nearSign != null ? r.extra.nearSign : (r.y < W / 2 ? -1 : 1);
+    const spot = zone === 'near' ? { d: 6, off: ns * 3.5 } : zone === 'far' ? { d: 7, off: -ns * 5 } : zone === 'edge' ? { d: 17, off: 0 } : { d: 11, off: 0 };
+    const quality = sig(0.07 * (taker.ratings.passing - 60));
+    const noise = 1.0 + (1 - quality) * 7;
+    const ex = gx + inward * spot.d + (rng() - 0.5) * 2 * noise;
+    const ey = W / 2 + spot.off + (rng() - 0.5) * 2 * noise;
+    record(match, { type: 'cross', team: team.id, player: taker.number, zone, kind: r.kind, quality });
+    match.flight = { kind: 'cross', team, passer: taker, speed: 20, target: null, ex: clamp(ex, 0.3, L - 0.3), ey: clamp(ey, 0.3, W - 0.3), quality, zone };
+    match.ball.state = 'flight';
+  }
+
+  // The ball arrives from a cross: players near the landing point contest it in the air.
+  function crossArrive(match, f) {
+    match.flight = null;
+    const team = f.team, opp = other(match, team), rng = match.rng;
+    const cands = [];
+    const at = (p) => Math.hypot(p.x - f.ex, p.y - f.ey);
+    team.players.forEach((p) => { if (p.group === 'GK') return; const d = at(p); if (d <= 4.5) cands.push({ p, team, w: Math.exp((p.ratings.heading + 14 * f.quality - 4 * d) / 14) }); });
+    opp.players.forEach((p) => {
+      const d = at(p);
+      if (p.group === 'GK') { if (d <= 7) cands.push({ p, team: opp, w: 0.9 * Math.exp((p.ratings.gk + 6 - 3 * d) / 14) }); }
+      else if (d <= 4.5) cands.push({ p, team: opp, w: 1.1 * Math.exp((p.ratings.heading + 4 - 4 * d) / 14) });
+    });
+    if (!cands.length) { match.ball.state = 'loose'; match.lastTeam = team; return; }
+    const total = cands.reduce((a, c) => a + c.w, 0);
+    let r = rng() * total, win = cands[cands.length - 1];
+    for (const c of cands) { r -= c.w; if (r <= 0) { win = c; break; } }
+    const p = win.p;
+    if (win.team === team) {
+      p.x = f.ex; p.y = f.ey;
+      const nearD = nearestOpponent(match, team, p).d;
+      const xg = sig(FM.xgLogit({ ratings: { finishing: p.ratings.heading - 10 } }, p.x, p.y, team.attackDir, nearD) - 0.25 * crowd(match, team, p));
+      if (xg < 0.04 && rng() < 0.5) { giveBall(match, team, p, 0.8); return; }
+      doShot(match, team, p, { xg, rating: p.ratings.heading - 10, header: true });
+    } else if (p.group === 'GK') {
+      giveBall(match, opp, p, 1.6);
+    } else if (rng() < 0.35) {
+      giveBall(match, opp, p, 0.8);
+    } else {
+      // Cleared out of the box, possibly out of play.
+      const ex = f.ex + opp.attackDir * (14 + rng() * 16), ey = f.ey + (rng() - 0.5) * 34;
+      record(match, { type: 'clearance', team: opp.id, player: p.number });
+      match.flight = { kind: 'pass', team: opp, passer: p, speed: 22, target: null, ex: clamp(ex, -3, L + 3), ey: clamp(ey, -3, W + 3), outcome: 'loose' };
+      match.ball.state = 'flight';
+    }
+  }
+
+  function takeFreeKickShot(match, team, taker, dg) {
+    const rng = match.rng, opp = other(match, team), st = statsOf(match, team);
+    const gk = opp.players.find((p) => p.group === 'GK');
+    const goalX = team.attackDir === 1 ? L : 0;
+    const p = sig(-2.4 + 0.03 * (taker.ratings.finishing - 60) + 0.02 * (taker.ratings.passing - 60) - 0.12 * (dg - 20) - 0.02 * ((gk ? gk.ratings.gk : 60) - 60));
+    st.shots++; st.xg += p;
+    let outcome;
+    if (rng() < p) { outcome = 'goal'; st.onTarget++; }
+    else {
+      const q = rng();
+      if (q < 0.3) { outcome = 'saved'; st.onTarget++; } else if (q < 0.55) outcome = 'blocked'; else outcome = 'off';
+    }
+    let ey = W / 2 + (rng() - 0.5) * 6.5;
+    if (outcome === 'off') ey = W / 2 + (rng() < 0.5 ? -1 : 1) * (4.5 + rng() * 5);
+    record(match, { type: 'shot', team: team.id, player: taker.number, xg: p, outcome, defDist: 9.15, x: taker.x, y: taker.y, setPiece: 'freekick' });
+    match.flight = { kind: 'shot', team, shooter: taker, speed: 26, target: null, ex: outcome === 'blocked' ? taker.x + (goalX - taker.x) * 0.5 : goalX, ey: clamp(ey, 0.5, W - 0.5), outcome, gk, blocker: null };
+    match.ball.state = 'flight';
+  }
+
+  function takePenalty(match, team, taker) {
+    const rng = match.rng, opp = other(match, team), st = statsOf(match, team);
+    const gk = opp.players.find((p) => p.group === 'GK');
+    const goalX = team.attackDir === 1 ? L : 0;
+    const p = sig(1.25 + 0.03 * (taker.ratings.finishing - 60) + 0.015 * (taker.ratings.composure - 60) - 0.03 * ((gk ? gk.ratings.gk : 60) - 60));
+    st.shots++; st.xg += 0.78;
+    let outcome;
+    if (rng() < p) { outcome = 'goal'; st.onTarget++; }
+    else if (rng() < 0.55) { outcome = 'saved'; st.onTarget++; } else outcome = 'off';
+    const ey = outcome === 'off' ? W / 2 + (rng() < 0.5 ? -1 : 1) * 4.5 : W / 2 + (rng() - 0.5) * 6;
+    record(match, { type: 'shot', team: team.id, player: taker.number, xg: 0.78, outcome, defDist: 11, x: taker.x, y: taker.y, setPiece: 'penalty' });
+    match.flight = { kind: 'shot', team, shooter: taker, speed: 28, target: null, ex: goalX, ey, outcome, gk, blocker: null };
     match.ball.state = 'flight';
   }
 
@@ -358,6 +662,9 @@
     const poss = possessionTeam(match);
     statsOf(match, poss).possession += dt;
 
+    if (match.restart) { runRestart(match, dt); checkEnd(match); return; }
+
+    setOffsideLines(match);
     const ov = buildOverrides(match);
     match.teams.forEach((t) => FM.stepTeam(t, match.ball, t === poss, dt, ov));
 
@@ -370,7 +677,7 @@
       for (const d of opp.players) {
         if (d.group === 'GK') continue;
         if (dist(d, c.player) > 1.8) continue;
-        const rate = 0.05 + 0.12 * opp.tactics.pressing + (d.roleId === 'ball_winning_midfielder' ? 0.06 : 0);
+        const rate = (0.05 + 0.12 * opp.tactics.pressing + (d.roleId === 'ball_winning_midfielder' ? 0.06 : 0)) * (0.6 + 0.8 * opp.tactics.tackleAggression);
         if (match.clock >= (match.tackleLock || 0) && match.rng() < rate * dt) {
           match.tackleLock = match.clock + 1.2;
           const p = FM.tackleProb(d, c.player);
@@ -379,7 +686,9 @@
           st.tackles++;
           if (ok) st.tacklesWon++;
           record(match, { type: 'tackle', team: opp.id, player: d.number, vs: c.player.number, p, ok, x: c.player.x, y: c.player.y });
+          if (ok && (c.player.y < 5 || c.player.y > W - 5) && match.rng() < 0.2) { startRestart(match, 'throw', team, clamp(c.player.x, 1, L - 1), c.player.y < W / 2 ? 0.5 : W - 0.5); break; }
           if (ok) { giveBall(match, opp, d, 0.9 + delayBeforeNextDecision(match, opp, d) * 0.4); break; }
+          if (match.rng() < 0.06 + 0.1 * opp.tactics.tackleAggression + 0.002 * (60 - d.ratings.tackling)) { commitFoul(match, d, c.player, opp, team); break; }
         }
       }
     }
@@ -389,11 +698,15 @@
       if (opt.kind === 'pass') doPass(match, team, player, opt);
       else if (opt.kind === 'shoot') doShot(match, team, player, opt);
       else doDribble(match, team, player, opt);
+      match.forcePass = false; match.noOffside = false;
     }
 
+    checkEnd(match);
+  };
+  function checkEnd(match) {
     if (match.clock >= HALF_SECONDS && match.phase === 'play' && !match.firstHalfDone) { match.firstHalfDone = true; match.phase = 'halftime'; }
     if (match.clock >= FULL_SECONDS) { match.phase = 'fulltime'; }
-  };
+  }
 
   FM.startSecondHalf = function (match) {
     if (match.phase !== 'halftime') return;
@@ -428,10 +741,19 @@
   }
 
   function arrive(match, f) {
+    if (f.kind === 'cross') { crossArrive(match, f); return; }
     if (f.kind === 'pass') {
       match.flight = null;
+      if (f.outcome === 'offside') {
+        statsOf(match, f.team).offsides++;
+        record(match, { type: 'offside', team: f.team.id, player: f.target.number, x: f.target.x, y: f.target.y });
+        startRestart(match, 'freekick', other(match, f.team), clamp(match.ball.x, 0.5, L - 0.5), clamp(match.ball.y, 0.5, W - 0.5), { indirect: true });
+        return;
+      }
       if (f.outcome === 'complete') giveBall(match, f.team, f.target, 0.3 + delayBeforeNextDecision(match, f.team, f.target));
+      else if (f.outcome === 'intercepted' && match.rng() < 0.15) startRestart(match, 'throw', f.team, clamp(match.ball.x, 1, L - 1), match.ball.y < W / 2 ? 0.5 : W - 0.5);
       else if (f.outcome === 'intercepted') giveBall(match, other(match, f.team), f.interceptor, 0.6 + delayBeforeNextDecision(match, other(match, f.team), f.interceptor) * 0.5);
+      else if (match.ball.x < 0 || match.ball.x > L || match.ball.y < 0 || match.ball.y > W) handleOut(match, f.team, match.ball.x, match.ball.y);
       else { match.ball.state = 'loose'; match.lastTeam = f.team; }
       return;
     }
@@ -444,13 +766,14 @@
       record(match, { type: 'goal', team: team.id, player: f.shooter.number });
       FM.beginKickoff(match, opp);
     } else if (f.outcome === 'saved') {
-      giveBall(match, opp, f.gk, 1.6);
+      if (match.rng() < 0.45) startRestart(match, 'corner', team, team.attackDir === 1 ? L - 0.5 : 0.5, f.ey < W / 2 ? 0.5 : W - 0.5);
+      else giveBall(match, opp, f.gk, 1.6);
     } else if (f.outcome === 'blocked') {
-      match.ball.state = 'loose'; match.lastTeam = opp;
+      if (match.rng() < 0.45) startRestart(match, 'corner', team, team.attackDir === 1 ? L - 0.5 : 0.5, f.ey < W / 2 ? 0.5 : W - 0.5);
+      else { match.ball.state = 'loose'; match.lastTeam = opp; }
     } else {
       // Off target: goal kick.
-      giveBall(match, opp, f.gk, 2);
-      f.gk.x = opp.attackDir === 1 ? 5 : L - 5; f.gk.y = W / 2;
+      startRestart(match, 'goalkick', opp, opp.attackDir === 1 ? 5.5 : L - 5.5, W / 2);
     }
   }
 

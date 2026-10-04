@@ -32,6 +32,9 @@
       buildDirect: 0.35, directness: 0.5, risk: 0.5, tempo: 0.5,
       finalRisk: 0.5, shootFreedom: 0.5, dribbleFreedom: 0.5,
       counterAttack: 0.5, counterPress: 0.5,
+      tackleAggression: 0.5, offsideTrap: 0.3,
+      cornerDelivery: 'near', cornerAttackers: 4, cornerMarkers: 7, fkStyle: 'shoot',
+      cornerTaker: null, fkTaker: null, penTaker: null,
     };
   };
 
@@ -87,16 +90,17 @@
     const formation = FM.FORMATIONS[formationKey];
     team.formationKey = formationKey;
     const free = team.players.slice();
-    const assigned = new Array(formation.slots.length);
-    // Goalkeeper first, then slots in order, each taking the free player whose natural position is nearest.
+    const pairs = [];
+    // Slots in order, each taking the free player whose natural position is nearest (a side with ten men fills the first ten).
     formation.slots.forEach((slot, i) => {
+      if (!free.length) return;
       const prefs = GROUP_NEAR[slot.group] || [slot.group];
-      let best = -1, bestRank = 99;
+      let best = 0, bestRank = 99;
       free.forEach((p, k) => { const r = prefs.indexOf(p.natural); const rank = r < 0 ? 50 : r; if (rank < bestRank) { bestRank = rank; best = k; } });
-      assigned[i] = free.splice(best, 1)[0];
+      pairs.push([free.splice(best, 1)[0], i]);
     });
-    team.players = assigned;
-    team.players.forEach((p, i) => { putInSlot(p, formation, i); });
+    team.players = pairs.map((x) => x[0]);
+    pairs.forEach(([p, i]) => putInSlot(p, formation, i));
   };
 
   // Puts a bench player on in place of one on the pitch. In a match the sub counts toward the limit.
@@ -139,8 +143,8 @@
 
   FM.resetToKickoff = function (team) {
     const formation = FM.FORMATIONS[team.formationKey];
-    team.players.forEach((p, i) => {
-      const slot = formation.slots[i];
+    team.players.forEach((p) => {
+      const slot = formation.slots[p.index];
       const pos = toMetres(team.attackDir, Math.min(slot.d, 0.47), slot.w);
       p.x = pos.x; p.y = pos.y; p.vx = 0; p.vy = 0;
     });
@@ -188,7 +192,15 @@
 
   // Moves every player of one team one time step toward their target.
   FM.stepTeam = function (team, ball, hasBall, dt, overrides) {
-    const targets = team.players.map((p) => (overrides && overrides.get(p)) || FM.targetFor(team, p, ball, hasBall));
+    // With the ball, attackers hold the offside line instead of standing beyond it.
+    const lim = hasBall ? team.offsideLine : null;
+    const targets = team.players.map((p) => {
+      const o = overrides && overrides.get(p);
+      if (o) return o;
+      const t = FM.targetFor(team, p, ball, hasBall);
+      if (lim != null && p.group !== 'GK') t.x = team.attackDir === 1 ? Math.min(t.x, lim) : Math.max(t.x, lim);
+      return t;
+    });
     team.players.forEach((p, i) => {
       const t = targets[i];
       const dx = t.x - p.x, dy = t.y - p.y;

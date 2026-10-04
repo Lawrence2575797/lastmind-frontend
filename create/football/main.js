@@ -124,7 +124,8 @@
   function updateHud() {
     const m = world.match;
     el('scHome').textContent = m.score.home; el('scAway').textContent = m.score.away;
-    el('clock').textContent = m.phase === 'halftime' ? 'Half time' : m.phase === 'fulltime' ? 'Full time' : FM.formatClock(m.clock);
+    const RESTART_NAMES = { throw: 'Throw-in', goalkick: 'Goal kick', corner: 'Corner', freekick: 'Free kick', penalty: 'Penalty' };
+    el('clock').textContent = m.phase === 'halftime' ? 'Half time' : m.phase === 'fulltime' ? 'Full time' : FM.formatClock(m.clock) + (m.restart ? ' · ' + RESTART_NAMES[m.restart.kind] : '');
     const h = m.stats.home, a = m.stats.away, tot = h.possession + a.possession;
     const rows = [
       ['Possession', pct(h.possession, tot), pct(a.possession, tot)],
@@ -132,16 +133,23 @@
       ['Passes', h.passes, a.passes], ['Pass accuracy', pct(h.passesOk, h.passes), pct(a.passesOk, a.passes)],
       ['Dribbles won', h.dribblesWon + '/' + h.dribbles, a.dribblesWon + '/' + a.dribbles],
       ['Challenges won', h.tacklesWon + '/' + h.tackles, a.tacklesWon + '/' + a.tackles],
+      ['Fouls', h.fouls, a.fouls], ['Yellow cards', h.yellows, a.yellows], ['Red cards', h.reds, a.reds],
+      ['Offsides', h.offsides, a.offsides], ['Corners', h.corners, a.corners], ['Free kicks', h.freeKicks, a.freeKicks],
     ];
     const html = rows.map((r) => '<tr><td>' + r[1] + '</td><td>' + r[0] + '</td><td>' + r[2] + '</td></tr>').join('');
     if (html !== world.lastStats) { el('stats').innerHTML = html; world.lastStats = html; }
     const feed = el('feed');
     for (; world.shownEvents < m.events.length; world.shownEvents++) {
       const e = m.events[world.shownEvents];
-      if (e.type !== 'shot' && e.type !== 'goal') continue;
       const team = e.team === 'home' ? home : away;
-      const text = e.type === 'goal' ? 'GOAL, ' + team.name + ' (number ' + e.player + ')'
-        : 'Shot, ' + team.name + ' number ' + e.player + ': ' + e.outcome + ' (xG ' + e.xg.toFixed(2) + ')';
+      let text = null;
+      if (e.type === 'goal') text = 'GOAL, ' + team.name + ' (number ' + e.player + ')';
+      else if (e.type === 'shot') text = (e.setPiece ? ({ header: 'Header', freekick: 'Free kick', penalty: 'Penalty' }[e.setPiece]) : 'Shot') + ', ' + team.name + ' number ' + e.player + ': ' + e.outcome + ' (xG ' + e.xg.toFixed(2) + ')';
+      else if (e.type === 'foul') text = 'Foul by ' + team.name + ' number ' + e.player + (e.card ? ', ' + e.card.toUpperCase() : '');
+      else if (e.type === 'offside') text = 'Offside, ' + team.name + ' number ' + e.player;
+      else if (e.type === 'restart' && (e.kind === 'corner' || e.kind === 'penalty')) text = (e.kind === 'corner' ? 'Corner' : 'PENALTY') + ' to ' + team.name;
+      else if (e.type === 'sub') text = 'Substitution, ' + team.name + ': number ' + e.on + ' on for number ' + e.off;
+      if (!text) continue;
       const div = document.createElement('div');
       div.innerHTML = '<b>' + FM.formatClock(e.t) + '</b> ' + text;
       feed.prepend(div);
@@ -219,6 +227,8 @@
       ['pressing', 'Pressing', 'Stay compact, let them have it', 'Press hard', 0, 1, 'How many players close down the ball carrier, and from how far away.'],
       ['lineHeight', 'Defensive line', 'Deep', 'High', 0, 1, 'A high line squeezes space but leaves room behind.'],
       ['defWidth', 'Width without the ball', 'Narrow', 'Wide', 0.7, 1.25, 'Compact through the middle, or covering the flanks.'],
+      ['tackleAggression', 'Tackling', 'Stay on feet', 'Go in hard', 0, 1, 'More challenges, but more fouls and more cards.'],
+      ['offsideTrap', 'Offside trap', 'Do not play it', 'Step up together', 0, 1, 'Catches more runners who are only just onside, but a mistimed step leaves a gap.'],
     ],
   };
 
@@ -241,7 +251,38 @@
     el('tabs').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { world.tab = b.dataset.tab; renderTactics(); }));
     if (world.tab === 'squad') renderSquadTab(team);
     else if (SLIDER_TABS[world.tab]) renderSliderTab(team, SLIDER_TABS[world.tab]);
-    else el('tabBody').innerHTML = '<p class="note">Corners, free kicks, throw-ins and penalties arrive in the next build step, together with fouls, cards and offsides. Their instructions will be set on this tab.</p>';
+    else renderSetPieces(team);
+  }
+
+  function takerSelect(team, key, label) {
+    const opts = ['<option value="">Automatic (best on the pitch)</option>'].concat(team.players.filter((p) => p.group !== 'GK').map((p) =>
+      `<option value="${p.id}"${team.tactics[key] === p.id ? ' selected' : ''}>Number ${p.number} (${p.slotKey}): passing ${p.ratings.passing}, finishing ${p.ratings.finishing}</option>`)).join('');
+    return `<label>${label}<select data-sp="${key}">${opts}</select></label>`;
+  }
+  function renderSetPieces(team) {
+    const t = team.tactics, host = el('tabBody');
+    host.innerHTML = `<div class="sliders">
+      <label>Corner delivery
+        <select data-sp="cornerDelivery">${[['near', 'Near post'], ['far', 'Far post'], ['edge', 'Edge of the box'], ['short', 'Short, played to a teammate']].map(([v, n]) => `<option value="${v}"${t.cornerDelivery === v ? ' selected' : ''}>${n}</option>`).join('')}</select>
+      </label>
+      <label><span class="lbl"><span>Attackers in the box for corners and crossed free kicks</span><span data-v="cornerAttackers">${t.cornerAttackers}</span></span>
+        <input type="range" min="1" max="7" step="1" value="${t.cornerAttackers}" data-sp="cornerAttackers">
+        <span class="note">Your tallest players go forward. The more you send, the fewer are left to defend a counter.</span></label>
+      <label><span class="lbl"><span>Defenders marking when defending a corner</span><span data-v="cornerMarkers">${t.cornerMarkers}</span></span>
+        <input type="range" min="3" max="9" step="1" value="${t.cornerMarkers}" data-sp="cornerMarkers">
+        <span class="note">The rest stay up the pitch, ready to break.</span></label>
+      <label>Free kicks in the attacking half
+        <select data-sp="fkStyle">${[['shoot', 'Shoot when in range, otherwise cross'], ['cross', 'Cross into the box'], ['short', 'Play it short']].map(([v, n]) => `<option value="${v}"${t.fkStyle === v ? ' selected' : ''}>${n}</option>`).join('')}</select>
+      </label>
+      ${takerSelect(team, 'cornerTaker', 'Corner taker')}
+      ${takerSelect(team, 'fkTaker', 'Free-kick taker')}
+      ${takerSelect(team, 'penTaker', 'Penalty taker')}
+    </div>`;
+    host.querySelectorAll('[data-sp]').forEach((c) => c.addEventListener('input', () => {
+      const k = c.dataset.sp;
+      if (c.type === 'range') { t[k] = parseFloat(c.value); host.querySelector(`[data-v="${k}"]`).textContent = t[k]; }
+      else t[k] = c.value || null;
+    }));
   }
 
   function renderSliderTab(team, list) {
@@ -337,7 +378,7 @@
     host.innerHTML = `
       <h2 style="margin-bottom:8px">Number ${player.number} (${player.slotKey})</h2>
       <div style="display:grid;gap:10px">
-        <p class="note">Natural position ${player.natural}. Pace ${r.pace} · Dribbling ${r.dribbling} · Passing ${r.passing} · Finishing ${r.finishing} · Tackling ${r.tackling} · Composure ${r.composure}${player.natural === 'GK' ? ' · Goalkeeping ' + r.gk : ''}</p>
+        <p class="note">Natural position ${player.natural}. Pace ${r.pace} · Dribbling ${r.dribbling} · Passing ${r.passing} · Finishing ${r.finishing} · Tackling ${r.tackling} · Heading ${r.heading} · Composure ${r.composure}${player.natural === 'GK' ? ' · Goalkeeping ' + r.gk : ''}</p>
         <label>Role<select data-k="role">${roleOptions}</select></label>
         <p class="desc">${role.desc}</p>
         ${extra}
