@@ -281,7 +281,7 @@
   };
   FM.RATES = RATES;
   const totals = (rows, key) => rows.reduce((a, r) => a + (r[key] || 0), 0);
-  const record = (c, entry) => { c.league.testLog = c.league.testLog || []; entry.day = c.league.day; entry.id = 'T' + (c.league.testLog.length + 1); c.league.testLog.push(entry); FM.saveLeague(c.league); };
+  const record = (c, entry) => { c.league.testLog = c.league.testLog || []; entry.day = c.league.day; entry.id = 'T' + (c.league.testLog.length + 1); c.league.testLog.push(entry); FM.saveLeague(c.league); if (FM.redrawStatTool) FM.redrawStatTool('multiple'); };
   FM.recordTest = record;
   const logNote = (c) => { const m = (c.league.testLog || []).length; return `<p class="note" id="logNote">Tests you have recorded this season: <b>${m}</b>.${m >= 5 ? ' The more tests you run, the more likely one passes by chance alone.' : ''}</p>`; };
 
@@ -411,6 +411,8 @@
     },
   });
 
+  FM.STAT_UI = { esc, f2, pfmt, fin, chart, barChart, niceTicks, tickFmt, scatterSvg, histogramBars, st, tool, values, pairs, varSelect, needN, smallN, record, logNote, SCOPES, VAR, strength, totals };
+
   // ---------- the workshop page ----------
   const LEVEL_NAMES = { gcse: 'GCSE', alevel: 'A-level', above: 'Beyond A-level' };
   const RANK = { gcse: 1, alevel: 2, above: 3 };
@@ -439,6 +441,7 @@
       toolsHost.appendChild(d);
       boxes[t.id] = d.querySelector('.tool-box');
     });
+    FM.redrawStatTool = (id) => { const t = tools.find((x) => x.id === id); if (t) drawOne(t); };
     host.querySelector('#stScope').addEventListener('change', (e) => { st.scope = e.target.value; drawAll(); });
     drawAll();
   };
