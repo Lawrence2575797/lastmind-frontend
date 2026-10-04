@@ -422,7 +422,7 @@
   // Each tab with a board shows the team in that phase of play.
   const BOARD_KEY = { squad: 'shape', build: 'build', final: 'final', transatt: 'transAtt', transdef: 'transDef', press: 'press', without: 'without' };
   const PHASE_TEXT = {
-    shape: 'The team set up in its formation. Choose the formation here, and click one player and then another to swap them. Every other phase follows from this shape, the roles and the instructions, and is where you place players by hand.',
+    shape: 'The team set up in its formation. Choose the formation here, and drag one player onto another to swap them (a shirt dropped anywhere else springs back). Every other phase follows from this shape, the roles and the instructions, and is where you place players by hand.',
     build: 'The team with the ball close to its own goal, which is why the ball starts beside the goalkeeper. These positions apply while the ball is in the team\'s own third, and the team moves toward the final-third positions as the ball goes forward. The ball here is only a guide, so you can drag it to picture other situations. A shirt you drag moves for this phase only, and only as far as the player could run from his other positions. A shirt with a gold dot has been placed by hand.',
     final: 'The team with the ball near the opposition goal. Attackers can stand on the edge of the box or inside it, but they are held at the offside line, and the same role and instructions apply as in every other phase.',
     transAtt: 'The few seconds just after winning the ball, before the team settles. This is where the first runs are made, so positions here pull players toward where the attack will go.',
@@ -636,7 +636,6 @@
     svg.addEventListener('pointermove', (e) => {
       if (dragBall) { const pos = toPos(e); dragBall.pos = pos; const pt = bpt(pos); dragBall.g.setAttribute('transform', `translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})`); return; }
       if (!drag) return;
-      if (key === 'shape') return; // on Squad and formation shirts are clicked, never dragged
       if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 5) return;
       drag.moved = true;
       let pos = toPos(e);
@@ -656,9 +655,13 @@
       if (!d.moved && world.selBench) { host.dispatchEvent(new CustomEvent('sub', { detail: { idx: d.p.index, id: world.selBench.id } })); return; }
       world.selBench = null;
       if (key === 'shape') {
-        // Click a player, then click another to swap them. Clicking the same player again lets go of him.
-        if (d.prev && d.prev !== d.p && team.players.includes(d.prev)) { FM.swapSlots(team, d.prev, d.p); FM.fixSlot(team, d.prev); FM.fixSlot(team, d.p); world.selSlot = null; saveSoon(); }
-        else if (d.prev === d.p) world.selSlot = null;
+        // The only thing a drag does here is swap two players: drop one shirt on another. Dropped anywhere else, it springs back.
+        // A plain click only selects a player, and clicking the same player again lets go of him.
+        if (d.moved) {
+          const q = toPos(e);
+          const other = team.players.find((x) => { if (x === d.p) return false; const o = bpt(FM.slotBase(team, x)); return Math.hypot(o.x - q.x, o.y - q.y) < 34; });
+          if (other) { FM.swapSlots(team, d.p, other); FM.fixSlot(team, d.p); FM.fixSlot(team, other); world.selSlot = null; saveSoon(); }
+        } else if (d.prev === d.p) world.selSlot = null;
         renderTactics();
         return;
       }
