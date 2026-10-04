@@ -348,7 +348,7 @@
       const when = days === 0 ? 'Today, matchday' : days === 1 ? 'Tomorrow' : 'In ' + days + ' days, on Saturday';
       next = `<h2>Next match</h2>
         <div class="fixture-big">${esc(home.name)} <span style="opacity:.6">v</span> ${esc(away.name)}</div>
-        <p class="desc">${when} · Round ${nextFx.round + 1} of 14 · ${home.id === me ? 'Home' : 'Away'} against ${esc(opp.name)} (${FM.STYLE_NAMES[opp.style] ? 'known for ' + FM.STYLE_NAMES[opp.style].toLowerCase() : ''})</p>
+        <p class="desc">${when} · Round ${nextFx.round + 1} of 14 · ${home.id === me ? 'Home' : 'Away'} against ${esc(opp.name)} (${{ balanced: 'a balanced side', possession: 'keeping the ball', counter: 'attacking on the counter', press: 'pressing high up the pitch', direct: 'playing long and direct' }[opp.style] ? 'known for ' + { balanced: 'being a balanced side', possession: 'keeping possession', counter: 'counter-attacking', press: 'pressing high up the pitch', direct: 'playing long and direct' }[opp.style] : ''})</p>
         ${today && !today.played ? '<div class="banner">It is matchday. Check your tactics, then play the match.</div>' : '<p class="note">Use the days before the match to adjust your tactics. Advance the calendar when you are ready.</p>'}`;
     }
     const played = lg.fixtures.filter((f) => f.played && (f.homeId === me || f.awayId === me)).sort((a, b) => b.round - a.round);
