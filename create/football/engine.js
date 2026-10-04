@@ -236,6 +236,22 @@
     }
     return { d: clamp(cur.d, 0.02, 0.98), w: clamp(cur.w, 0.03, 0.97) };
   };
+  // ---------- the offside line ----------
+  // With the ball, a player cannot stand beyond the opposition's second-last defender (the keeper is the last), and in the match the
+  // team's targets are held there. In the editor the opposition's line is read from where their defenders stand when defending, which
+  // depends on how high they have set their defensive line, so a high line lets your forwards stand higher and a deep one holds them back.
+  FM.OFFSIDE_PHASES = ['build', 'final', 'transAtt'];
+  FM.offsideLimit = function (opp, p) {
+    const ds = opp.players.filter((q) => q.group !== 'GK').map((q) => FM.phasePos(opp, q, 'without').d);
+    if (!ds.length) return 1;
+    const line = 1 - Math.min.apply(null, ds); // their second-last defender, in this team's space
+    const runs = p ? FM.instrMods(p).runs : 0; // a player told to run in behind stands a little beyond it, one told to hold the line a little short
+    return Math.max(line - 1.5 / L + (runs > 0 ? 0.5 : runs < 0 ? -1.2 : 0) / L, 0.5);
+  };
+  FM.clampOffside = function (team, p, phase, pos, opp) {
+    if (!opp || p.group === 'GK' || FM.OFFSIDE_PHASES.indexOf(phase) < 0) return pos;
+    return { d: Math.min(pos.d, FM.offsideLimit(opp, p)), w: pos.w };
+  };
   FM.setPhasePos = function (team, p, phase, pos) {
     team.phasePos[phase] = team.phasePos[phase] || {};
     team.phasePos[phase][p.index] = { d: pos.d, w: pos.w };
@@ -245,8 +261,8 @@
     FM.fixSlot(team, p);
   };
   // After anything moves, any hand-placed position that is now out of reach is pulled back.
-  FM.fixSlot = function (team, p) {
-    FM.PHASES.forEach((ph) => { if (FM.isManual(team, p, ph)) FM.setPhasePos(team, p, ph, FM.clampToReach(team, p, ph, FM.phasePos(team, p, ph))); });
+  FM.fixSlot = function (team, p, opp) {
+    FM.PHASES.forEach((ph) => { if (FM.isManual(team, p, ph)) FM.setPhasePos(team, p, ph, FM.clampOffside(team, p, ph, FM.clampToReach(team, p, ph, FM.phasePos(team, p, ph)), opp)); });
   };
   FM.clearPhase = function (team, phase) { if (phase === 'shape') team.shape = {}; else if (team.phasePos) delete team.phasePos[phase]; };
   FM.clearPlayerPositions = function (team, p) {

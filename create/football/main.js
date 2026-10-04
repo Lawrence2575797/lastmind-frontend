@@ -589,6 +589,13 @@
         return `<g class="odot" data-slot="${slot}" transform="translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})"><circle r="19" fill="${kit.shirt}" fill-opacity="0.9" stroke="${kit.number}" stroke-width="2.5" stroke-dasharray="4 3"/><text y="4.5" text-anchor="middle" font-size="12.5" font-weight="700" fill="${kit.number}" style="pointer-events:none">${slot}</text>${moved[slot] ? '<circle cx="14" cy="-14" r="5" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/>' : ''}</g>`;
       }).join('') + '</g>';
     }
+    // With the ball, nobody can stand beyond the opposition's second-last defender: show that line, which moves with their defensive line.
+    let offLine = '';
+    const opp0 = nextOpponent();
+    if (key !== 'shape' && opp0 && FM.OFFSIDE_PHASES.indexOf(key) >= 0) {
+      const y = (1 - FM.offsideLimit(opp0, null)) * BH;
+      offLine = `<g style="pointer-events:none"><line x1="0" y1="${y.toFixed(1)}" x2="${BW}" y2="${y.toFixed(1)}" stroke="#FF6B5A" stroke-width="2.5" stroke-dasharray="3 7" stroke-opacity="0.9"/><text x="6" y="${(y - 6).toFixed(1)}" font-size="14" fill="#fff" stroke="#000" stroke-width="3" style="paint-order:stroke">Offside line (${esc(opp0.name)}'s defensive line)</text></g>`;
+    }
     let ball = '';
     if (BALL_AT[key]) {
       const bp = bpt((world.ballPos && world.ballPos[key]) || BALL_AT[key]);
@@ -604,7 +611,7 @@
         <text y="65" text-anchor="middle" font-size="16" fill="${FM.isInjured(p) ? '#FF9A9A' : FM.conditionOf(p) < 0.6 ? '#F2C8A0' : '#cfe8cf'}" stroke="#000" stroke-width="3.5" style="paint-order:stroke">${FM.isInjured(p) ? 'injured' : Math.round(100 * FM.conditionOf(p)) + '%'}</text>
         ${manual ? '<circle cx="18" cy="-18" r="6.5" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/>' : ''}</g>`;
     }).join('');
-    host.innerHTML = `<svg class="board" viewBox="-24 -30 ${BW + 48} ${BH + 92}" role="img" aria-label="Tactics board">${boardPitchSvg(key)}${ghosts}${opp}${dots}${ball}</svg>`;
+    host.innerHTML = `<svg class="board" viewBox="-24 -30 ${BW + 48} ${BH + 92}" role="img" aria-label="Tactics board">${boardPitchSvg(key)}${ghosts}${offLine}${opp}${dots}${ball}</svg>`;
     const svg = host.firstChild;
     const toPos = (e) => {
       const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
@@ -631,7 +638,7 @@
       if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 5) return;
       drag.moved = true;
       let pos = toPos(e);
-      if (key !== 'shape' && !drag.opp) pos = FM.clampToReach(team, drag.p, key, pos);
+      if (key !== 'shape' && !drag.opp) pos = FM.clampOffside(team, drag.p, key, FM.clampToReach(team, drag.p, key, pos), nextOpponent());
       drag.pos = pos;
       const pt = bpt(pos);
       drag.g.setAttribute('transform', `translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})`);
@@ -740,18 +747,18 @@
   function renderWarnPanel(team) {
     const host = el('warnPanel');
     if (!host) return;
-    const all = FM.teamProblems(team);
+    const all = FM.teamProblems(team, nextOpponent());
     const sel = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
     const hurt = team.players.filter(FM.isInjured);
     let html = (hurt.length && !inLive() ? `<p class="note warnnote">${hurt.map((p) => esc(p.name)).join(', ')} ${hurt.length > 1 ? 'are' : 'is'} injured. Substitute ${hurt.length > 1 ? 'them' : 'him'} here, or the best available replacement will start at kick-off.</p>` : '') + '<h2 style="margin-bottom:8px">Do the phases fit together?</h2>';
     if (!all.length) html += '<p class="note">Yes. Every player can reach each of his positions in time, and each position fits his role.</p>';
     else {
       html += '<div class="warns">' + all.map(({ p, list }) => `<div class="warn${p === sel ? ' me' : ''}"><b>${esc(shortName(p))}</b> (${p.slotKey})<ul>${list.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>`).join('') + '</div>';
-      html += '<div class="row" style="margin-top:8px"><button id="fixAll">Pull impossible positions back within reach</button></div>';
+      html += '<div class="row" style="margin-top:8px"><button id="fixAll">Pull impossible and offside positions back</button></div>';
     }
     host.innerHTML = html;
     const fix = host.querySelector('#fixAll');
-    if (fix) fix.addEventListener('click', () => { team.players.forEach((p) => FM.fixSlot(team, p)); saveSoon(); renderTactics(); });
+    if (fix) fix.addEventListener('click', () => { const op = nextOpponent(); team.players.forEach((p) => FM.fixSlot(team, p, op)); saveSoon(); renderTactics(); });
   }
 
   // A player's profile: where he is from, his ratings as bars, his condition, and what he has done this season.
