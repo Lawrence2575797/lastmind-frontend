@@ -21,7 +21,7 @@
     { key: 'closeDown', section: 'Off the ball', label: 'Closing down', groups: OUT, options: [[-1, 'Close down less'], [0, 'Default'], [1, 'Close down more']], desc: 'How far away he will chase the player with the ball.' },
     { key: 'tackle', section: 'Off the ball', label: 'Tackling', groups: OUT, options: [[-1, 'Stay on his feet'], [0, 'Default'], [1, 'Tackle harder']], desc: 'More challenges, but more fouls and more cards.' },
     { key: 'marking', section: 'Off the ball', label: 'Marking', groups: ['CB', 'FB', 'DM', 'CM'], options: [[0, 'Default (zonal)'], [1, 'Mark his man tightly']], desc: 'Follows the nearest attacker instead of holding a zone.' },
-    { key: 'stepUp', section: 'Off the ball', label: 'Stepping up', groups: ['CB', 'DM'], options: [[-1, 'Hold the line'], [0, 'Default'], [1, 'Step up to follow the false 9']], desc: 'Follows a forward who drops deep, leaving space behind, or stays with the back line.' },
+    { key: 'stepUp', section: 'Off the ball', label: 'Stepping up', groups: ['CB', 'DM'], options: [[-1, 'Hold the line'], [0, 'Default'], [1, 'Step up to follow a forward who drops deep']], desc: 'Follows a forward who drops deep, leaving space behind, or stays with the back line.' },
     { key: 'cornerAtt', section: 'Set pieces', label: 'Attacking corners and free kicks', groups: OUT, options: [[-1, 'Stay back'], [0, 'Default'], [1, 'Join the attack']], desc: 'Whether he goes into the box.' },
     { key: 'cornerDef', section: 'Set pieces', label: 'Defending corners', groups: OUT, options: [[-1, 'Stay up the pitch'], [0, 'Default'], [1, 'Mark in the box']], desc: 'Whether he defends the box or stays up for the counter.' },
   ];
@@ -32,29 +32,19 @@
   // baseline and carry none, so nothing is set unless the role actually asks for it. Values are -1, 0 or +1 as in the options.
   FM.ROLE_INSTR = {
     sweeper_keeper: { distribution: -1 },
-    wide_centre_half: { width: 1 },
-    libero: { position: 1, stepUp: 1 },
     defensive_full_back: { depth: -1, runs: -1, risk: -1, dribble: -1 },
-    wing_back: { width: 1, depth: 1, runs: 1 },
     attacking_full_back: { width: 1, depth: 1, runs: 1, dribble: 1 },
-    inverted_full_back: { passing: -1 },
     anchor: { position: -1, depth: -1, closeDown: -1, risk: -1 },
     deep_lying_playmaker: { position: 1, risk: 1 },
     ball_winning_midfielder: { closeDown: 1, tackle: 1, marking: 1 },
-    half_back: { depth: -1, position: -1 },
     box_to_box: { position: 1, runs: 1 },
-    mezzala: { width: 1, runs: 1, dribble: 1 },
-    carrilero: { position: -1, width: 1, passing: -1 },
     advanced_playmaker: { risk: 1, position: 1 },
     number_10: { risk: 1, position: 1 },
     shadow_striker: { depth: 1, runs: 1, shoot: 1 },
-    inverted_winger: { dribble: 1, shoot: 1 },
     inside_forward: { runs: 1, dribble: 1, shoot: 1 },
     poacher: { runs: 1, shoot: 1, closeDown: -1 },
     target_man: { holdUp: 1, runs: -1, passing: -1, cornerAtt: 1 },
-    advanced_forward: { depth: 1, runs: 1 },
     pressing_forward: { closeDown: 1, tackle: 1 },
-    false_9: { depth: -1, position: 1, holdUp: 1 },
   };
   FM.roleInstr = (roleId) => Object.assign({}, FM.ROLE_INSTR[roleId] || {});
 
@@ -80,7 +70,6 @@
   const POSSESSION = ['build', 'final', 'transAtt'];
   const side = (pos) => Math.abs(pos.w - 0.5);
 
-  // The rules he must obey (checkPlayer) are kept apart from advice about how well his positions suit his role (roleAdvice).
   // Returns a list of plain-English problems for one player.
   FM.checkPlayer = function (team, p, opp, lineFor) {
     const out = [];
@@ -101,27 +90,5 @@
     return out;
   };
 
-  // Advice, not rules: places where his positions do not look like the role he has been given. Nothing stops the manager doing them.
-  FM.roleAdvice = function (team, p) {
-    const out = [];
-    const role = p.roleId;
-    POSSESSION.forEach((ph) => {
-      const pos = FM.phasePos(team, p, ph);
-      if (role === 'inverted_full_back' && side(pos) > 0.3) out.push('He is an inverted full-back but stands wide in ' + PHASE_SHORT[ph] + '. Move him inside, or change his role.');
-      if (['wing_back', 'attacking_full_back', 'winger'].indexOf(role) >= 0 && ph !== 'build' && side(pos) < 0.22) out.push('A ' + FM.ROLES[role].name.toLowerCase() + ' is expected to stay wide, but he is central in ' + PHASE_SHORT[ph] + '.');
-      if (['inside_forward', 'inverted_winger'].indexOf(role) >= 0 && ph === 'final' && side(pos) > 0.34) out.push('An ' + FM.ROLES[role].name.toLowerCase() + ' cuts inside in the final third, but he stands out wide.');
-    });
-    // A holding midfielder usually screens the middle when defending. In build-up and the transitions he is free to drop wide
-    // (stepping out to full-back is a real way to build), so only the defending phases are looked at.
-    if (['anchor', 'defensive_midfielder', 'deep_lying_playmaker'].indexOf(role) >= 0) {
-      ['without', 'press'].forEach((ph) => { if (side(FM.phasePos(team, p, ph)) > 0.3) out.push('A ' + FM.ROLES[role].name.toLowerCase() + ' usually screens the middle when defending, and he is out wide in ' + PHASE_SHORT[ph] + '. That leaves the middle open.'); });
-    }
-    if (role === 'false_9') {
-      const fin = FM.phasePos(team, p, 'final');
-      const front = team.players.filter((q) => q !== p && ['ST', 'WF', 'AM'].indexOf(q.group) >= 0).map((q) => FM.phasePos(team, q, 'final').d);
-      if (front.length && fin.d >= Math.max.apply(null, front) - 0.02) out.push('A false 9 drops off the front line, but he is the most advanced player in the final third.');
-    }
-    return out;
-  };
-  FM.teamProblems = (team, opp, lineFor) => team.players.map((p) => ({ p, list: FM.checkPlayer(team, p, opp, lineFor), advice: FM.roleAdvice(team, p) })).filter((x) => x.list.length || x.advice.length);
+  FM.teamProblems = (team, opp, lineFor) => team.players.map((p) => ({ p, list: FM.checkPlayer(team, p, opp, lineFor) })).filter((x) => x.list.length);
 })();

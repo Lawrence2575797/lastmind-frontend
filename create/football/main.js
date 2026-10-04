@@ -776,14 +776,12 @@
     const sel = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
     const hurt = team.players.filter(FM.isInjured);
     let html = (hurt.length && !inLive() ? `<p class="note warnnote">${hurt.map((p) => esc(p.name)).join(', ')} ${hurt.length > 1 ? 'are' : 'is'} injured. Substitute ${hurt.length > 1 ? 'them' : 'him'} here, or the best available replacement will start at kick-off.</p>` : '') + '<h2 style="margin-bottom:8px">Do the phases fit together?</h2>';
-    const hard = all.filter((x) => x.list.length), soft = all.filter((x) => x.advice.length);
+    const hard = all;
     if (!hard.length) html += '<p class="note">Yes. Every player can reach each of his positions in time, and nobody is placed offside.</p>';
     else {
       html += '<div class="warns">' + hard.map(({ p, list }) => `<div class="warn${p === sel ? ' me' : ''}"><b>${esc(shortName(p))}</b> (${p.slotKey})<ul>${list.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>`).join('') + '</div>';
       html += '<div class="row" style="margin-top:8px"><button id="fixAll">Pull impossible and offside positions back</button></div>';
     }
-    // Advice about roles is only advice: it is shown apart from the rules and cannot be "fixed" by the button.
-    if (soft.length) html += '<h3 style="margin:14px 0 6px">Advice on roles</h3><p class="note">These are suggestions, not rules. Nothing stops you doing any of them.</p><div class="warns">' + soft.map(({ p, advice }) => `<div class="warn soft${p === sel ? ' me' : ''}"><b>${esc(shortName(p))}</b> (${p.slotKey})<ul>${advice.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>`).join('') + '</div>';
     host.innerHTML = html;
     const fix = host.querySelector('#fixAll');
     if (fix) fix.addEventListener('click', () => { const op = nextOpponent(); team.players.forEach((p) => FM.fixSlot(team, p, op, (ph) => oppLine(ph))); saveSoon(); renderTactics(); });

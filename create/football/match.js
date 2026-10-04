@@ -50,8 +50,8 @@
 
   // ---------- roles' tendencies when on the ball ----------
   const GROUP_DRIBBLE = { GK: -1.2, CB: -0.3, FB: 0, DM: -0.1, CM: 0, AM: 0.1, WF: 0.25, ST: 0.05 };
-  const ROLE_DRIBBLE = { winger: 0.15, inverted_winger: 0.25, inside_forward: 0.2, advanced_playmaker: 0.05, box_to_box: 0.1, wing_back: 0.1 };
-  const ROLE_RISK = { advanced_playmaker: 0.2, deep_lying_playmaker: 0.15, number_10: 0.2, sweeper_keeper: 0.1, libero: 0.1, anchor: -0.2, defensive_full_back: -0.15, centre_half: -0.1, goalkeeper: -0.1 };
+  const ROLE_DRIBBLE = { winger: 0.15, inside_forward: 0.2, advanced_playmaker: 0.05, box_to_box: 0.1 };
+  const ROLE_RISK = { advanced_playmaker: 0.2, deep_lying_playmaker: 0.15, number_10: 0.2, sweeper_keeper: 0.1, anchor: -0.2, defensive_full_back: -0.15, centre_half: -0.1, goalkeeper: -0.1 };
 
   // ---------- match ----------
   FM.createMatch = function (home, away, seed) {

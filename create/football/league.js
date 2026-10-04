@@ -473,10 +473,22 @@
     league.friendlies = makeFixtures(ids, FM.mulberry32(league.seed + 555), league.seed + 555).filter((f) => f.round < 3).map((f, i) => Object.assign(f, { id: 'p' + i, round: f.round - 3, friendly: true }));
     return true;
   };
+  // A saved game from before the purely positional roles were removed: each such player takes the nearest role that remains. His
+  // instructions and his hand-placed positions are left exactly as they were.
+  const ROLE_RENAMES = { wide_centre_half: 'centre_half', libero: 'centre_half', wing_back: 'attacking_full_back', inverted_full_back: 'full_back', half_back: 'defensive_midfielder', mezzala: 'central_midfielder', carrilero: 'central_midfielder', wide_midfielder: 'winger', inverted_winger: 'winger', advanced_forward: 'poacher', false_9: 'striker' };
+  FM.migrateRoles = function (team) {
+    team.squad.forEach((p) => {
+      const to = ROLE_RENAMES[p.roleId];
+      if (!to) return;
+      p.roleId = to; p.options = {};
+      const role = FM.ROLES[to];
+      Object.keys(role.options || {}).forEach((k) => { p.options[k] = role.options[k].default != null ? role.options[k].default : false; });
+    });
+  };
   FM.loadLeague = function () {
     try {
       const t = localStorage.getItem(SAVE_KEY), lg = t ? FM.deserializeLeague(t) : null;
-      if (lg) lg.teams.forEach((tm) => tm.squad.forEach((p) => FM.backfillPhysique(p))); // a save from before heights existed
+      if (lg) lg.teams.forEach((tm) => { tm.squad.forEach((p) => FM.backfillPhysique(p)); FM.migrateRoles(tm); }); // saves from before heights existed and before the positional roles went
       FM.syncProject(lg); // lists the season as a project, or removes the entry if there is no save
       return lg;
     } catch (e) { return null; }

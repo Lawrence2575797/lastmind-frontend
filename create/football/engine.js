@@ -185,11 +185,6 @@
     const o = inPos ? role.inPoss : role.outPoss;
     let depth = o.depth, wTarget = o.wTarget;
     const width = o.width;
-    // Settings on a role can replace its movement (for example where an inverted full-back inverts to).
-    if (inPos && role.invertTargets) {
-      const t = role.invertTargets[p.options.invertTo] || role.invertTargets[role.options.invertTo.default];
-      depth = t.depth; wTarget = t.wTarget;
-    }
     const k = phase === 'build' ? 0.6 : phase === 'transAtt' ? 0.8 : 1; // how much of the role's movement shows in this phase
     let d = base.d + depth * k, w = base.w;
     const centre = Math.abs(base.w - 0.5) < 0.01;
