@@ -571,22 +571,8 @@
     const posOf = (p) => (key === 'shape' ? FM.slotBase(team, p) : FM.phasePos(team, p, key));
     let ghosts = '';
     if (selected && key !== 'shape') {
-      // One region, drawn as a single outline: wherever he stands here he must be within reach of his position in every other phase,
-      // so the allowed area is where all those circles overlap (always one convex shape). Its boundary is traced as one closed path.
-      const reach = FM.reachMetres(selected) * BS;
+      // The sideways limit still applies when dragging (see FM.clampToReach), but its outline is not drawn: only where he stands in the other phases.
       const others = FM.PHASES.filter((ph) => ph !== key).map((ph) => ({ ph, g: bpt(FM.phasePos(team, selected, ph)) }));
-      const pts = [];
-      others.forEach((o, i) => {
-        for (let a = 0; a < 360; a += 3) {
-          const x = o.g.x + reach * Math.cos(a * Math.PI / 180), y = o.g.y + reach * Math.sin(a * Math.PI / 180);
-          if (others.every((q, k) => k === i || Math.hypot(x - q.g.x, y - q.g.y) <= reach + 0.01)) pts.push([x, y]);
-        }
-      });
-      if (pts.length > 2) {
-        const cx = pts.reduce((m, q) => m + q[0], 0) / pts.length, cy = pts.reduce((m, q) => m + q[1], 0) / pts.length;
-        pts.sort((u, v) => Math.atan2(u[1] - cy, u[0] - cx) - Math.atan2(v[1] - cy, v[0] - cx));
-        ghosts += `<path d="M${pts.map((q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' L')} Z" fill="rgba(242,193,78,0.12)" stroke="rgba(242,193,78,0.9)" stroke-width="2.5" stroke-dasharray="9 7" stroke-linejoin="round"/>`;
-      }
       others.forEach((o) => {
         ghosts += `<circle cx="${o.g.x}" cy="${o.g.y}" r="11" fill="rgba(242,193,78,0.9)"/><text x="${o.g.x}" y="${o.g.y + 4.5}" text-anchor="middle" font-size="12" font-weight="700" fill="#1A232D">${PHASE_CODE[o.ph]}</text>`;
       });
@@ -719,7 +705,7 @@
     const sel = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
     if (sel && !isShape) {
       const here = FM.phasePos(team, sel, key), slow = FM.PHASES.filter((ph) => ph !== key).map((ph) => ({ ph, s: FM.trueDist(here, FM.phasePos(team, sel, ph)) / sel.maxSpeed })).filter((x) => x.s >= 4).sort((a, b) => b.s - a.s);
-      host.querySelector('#reachNote').textContent = `${sel.name} cannot get from one side of the pitch to the other between phases, which is what the gold area shows (B build-up, F final third, TA and TD the transitions, P pressing, D defending). Up and down the pitch he can go anywhere, but the further apart his positions are, the longer he takes to get from one to the other at his top speed (${sel.maxSpeed.toFixed(1)} m/s).` + (slow.length ? ' From here he needs ' + slow.map((x) => 'about ' + Math.round(x.s) + ' s to reach his ' + FM.PHASE_NAMES[x.ph].toLowerCase() + ' position').join(', ') + '.' : '');
+      host.querySelector('#reachNote').textContent = `${sel.name} cannot get from one side of the pitch to the other between phases, and the gold markers show where he stands in the other phases (B build-up, F final third, TA and TD the transitions, P pressing, D defending). Up and down the pitch he can go anywhere, but the further apart his positions are, the longer he takes to get from one to the other at his top speed (${sel.maxSpeed.toFixed(1)} m/s).` + (slow.length ? ' From here he needs ' + slow.map((x) => 'about ' + Math.round(x.s) + ' s to reach his ' + FM.PHASE_NAMES[x.ph].toLowerCase() + ' position').join(', ') + '.' : '');
     }
     else host.querySelector('#reachNote').textContent = isShape ? '' : 'Click a shirt to see how far that player can move between phases.';
 
