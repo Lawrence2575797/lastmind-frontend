@@ -30,7 +30,7 @@
     return {
       lineHeight: 0.5, defWidth: 1, attackWidth: 1, pressing: 0.5,
       buildDirect: 0.35, directness: 0.5, risk: 0.5, tempo: 0.5,
-      finalRisk: 0.5, shootFreedom: 0.5, dribbleFreedom: 0.5,
+      finalRisk: 0.5, shootFreedom: 0.5, dribbleFreedom: 0.5, pressBuildUp: 0.4,
       counterAttack: 0.5, counterPress: 0.5,
       tackleAggression: 0.5, offsideTrap: 0.3,
       cornerDelivery: 'near', cornerAttackers: 4, cornerMarkers: 7, fkStyle: 'shoot',
@@ -56,6 +56,7 @@
     const slot = formation.slots[i];
     player.index = i; player.slotKey = slot.key; player.group = slot.group;
     player.roleId = slot.defaultRole; player.options = freshOptions(slot.defaultRole);
+    player.instr = FM.roleInstr ? FM.roleInstr(slot.defaultRole) : {};
   }
 
   FM.putInSlot = putInSlot;
@@ -144,6 +145,7 @@
 
   FM.setRole = function (team, player, roleId) {
     player.roleId = roleId;
+    player.instr = FM.roleInstr ? FM.roleInstr(roleId) : {}; // a role brings its own usual instructions
     const role = FM.ROLES[roleId];
     player.options = {};
     Object.keys(role.options || {}).forEach((k) => { player.options[k] = role.options[k].default != null ? role.options[k].default : false; });
@@ -162,9 +164,11 @@
   // Every player has a position (team space) in each phase. Unless the manager has dragged him somewhere, it follows
   // from where his slot is in the shape, his role and his instructions. The same role and instructions feed every phase,
   // so the phases agree with each other: an inverted full-back is inside in build-up AND in the final third.
-  FM.PHASES = ['build', 'final', 'transAtt', 'transDef', 'without'];
-  FM.PHASE_NAMES = { build: 'Build-up', final: 'Final third', transAtt: 'Transition to attack', transDef: 'Transition to defence', without: 'Without the ball' };
+  FM.PHASES = ['build', 'final', 'transAtt', 'transDef', 'press', 'without'];
+  FM.PHASE_NAMES = { build: 'Build-up', final: 'Final third', transAtt: 'Transition to attack', transDef: 'Transition to defence', press: 'Pressing their build-up', without: 'Without the ball' };
   const PUSH = { GK: 0, CB: 0.04, FB: 0.10, DM: 0.08, CM: 0.12, AM: 0.14, WF: 0.14, ST: 0.12 };
+  // How far each kind of player steps up from his defending position when the team is pressing the opposition's build-up.
+  const PRESS_PUSH = { GK: 0.03, CB: 0.10, FB: 0.14, DM: 0.14, CM: 0.16, AM: 0.14, WF: 0.12, ST: 0.08 };
 
   // Where his slot stands in the team's shape (the formation's preset, or where the manager has dragged it).
   FM.slotBase = function (team, p) {
@@ -191,7 +195,7 @@
     if (wTarget != null) { const tw = base.w < 0.5 ? wTarget : 1 - wTarget; w = base.w + (tw - base.w) * k; }
     else if (width) w += (base.w < 0.5 ? -1 : 1) * width * k * (centre ? 0 : 1);
     const push = PUSH[p.group] || 0;
-    if (phase === 'final') d += push; else if (phase === 'transAtt') d += push * 0.6; else if (phase === 'transDef') d -= 0.03;
+    if (phase === 'final') d += push; else if (phase === 'transAtt') d += push * 0.6; else if (phase === 'transDef') d -= 0.03; else if (phase === 'press') d += PRESS_PUSH[p.group] || 0;
     d += m.depth;
     if (!centre) w += (base.w < 0.5 ? -1 : 1) * m.width;
     return { d: clamp(d, 0.02, 0.97), w: clamp(w, 0.04, 0.96) };
@@ -255,6 +259,9 @@
       if (ctx.transAtt > 0) pos = mix(pos, FM.phasePos(team, player, 'transAtt'), ctx.transAtt);
     } else {
       pos = FM.phasePos(team, player, 'without');
+      // While the opposition build from their own end, a team that presses their build-up takes its pressing positions instead.
+      const pw = clamp((b.d - 0.5) / 0.25, 0, 1) * clamp((team.tactics.pressBuildUp == null ? 0.4 : team.tactics.pressBuildUp) * 1.25, 0, 1);
+      if (pw > 0) pos = mix(pos, FM.phasePos(team, player, 'press'), pw);
       if (ctx.transDef > 0) pos = mix(pos, FM.phasePos(team, player, 'transDef'), ctx.transDef);
     }
     let d = pos.d, w = pos.w;

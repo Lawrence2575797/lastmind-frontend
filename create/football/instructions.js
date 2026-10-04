@@ -26,6 +26,38 @@
     { key: 'cornerDef', section: 'Set pieces', label: 'Defending corners', groups: OUT, options: [[-1, 'Stay up the pitch'], [0, 'Default'], [1, 'Mark in the box']], desc: 'Whether he defends the box or stays up for the counter.' },
   ];
 
+  // What each role means in terms of instructions. Choosing a role sets these (an advanced forward runs in behind often, a target
+  // man holds the ball up, a ball-winning midfielder closes down and tackles), so the role is not just a name. They can then be
+  // changed one by one. The everyday roles (full-back, centre-half, central midfielder, winger, striker and so on) are the
+  // baseline and carry none, so nothing is set unless the role actually asks for it. Values are -1, 0 or +1 as in the options.
+  FM.ROLE_INSTR = {
+    sweeper_keeper: { distribution: -1 },
+    wide_centre_half: { width: 1 },
+    libero: { position: 1, stepUp: 1 },
+    defensive_full_back: { depth: -1, runs: -1, risk: -1, dribble: -1 },
+    wing_back: { width: 1, depth: 1, runs: 1 },
+    attacking_full_back: { width: 1, depth: 1, runs: 1, dribble: 1 },
+    inverted_full_back: { passing: -1 },
+    anchor: { position: -1, depth: -1, closeDown: -1, risk: -1 },
+    deep_lying_playmaker: { position: 1, risk: 1 },
+    ball_winning_midfielder: { closeDown: 1, tackle: 1, marking: 1 },
+    half_back: { depth: -1, position: -1 },
+    box_to_box: { position: 1, runs: 1 },
+    mezzala: { width: 1, runs: 1, dribble: 1 },
+    carrilero: { position: -1, width: 1, passing: -1 },
+    advanced_playmaker: { risk: 1, position: 1 },
+    number_10: { risk: 1, position: 1 },
+    shadow_striker: { depth: 1, runs: 1, shoot: 1 },
+    inverted_winger: { dribble: 1, shoot: 1 },
+    inside_forward: { runs: 1, dribble: 1, shoot: 1 },
+    poacher: { runs: 1, shoot: 1, closeDown: -1 },
+    target_man: { holdUp: 1, runs: -1, passing: -1, cornerAtt: 1 },
+    advanced_forward: { depth: 1, runs: 1 },
+    pressing_forward: { closeDown: 1, tackle: 1 },
+    false_9: { depth: -1, position: 1, holdUp: 1 },
+  };
+  FM.roleInstr = (roleId) => Object.assign({}, FM.ROLE_INSTR[roleId] || {});
+
   FM.instructionsFor = (group) => FM.INSTRUCTIONS.filter((i) => i.groups.indexOf(group) >= 0);
 
   // The numbers the engine uses, from a player's instructions.
@@ -44,7 +76,7 @@
   FM.countInstructions = (p) => Object.keys(p.instr || {}).filter((k) => +p.instr[k] !== 0).length;
 
   // ---------- do the phases agree with each other and with the player's role? ----------
-  const PHASE_SHORT = { build: 'build-up', final: 'the final third', transAtt: 'the transition to attack', transDef: 'the transition to defence', without: 'defending' };
+  const PHASE_SHORT = { build: 'build-up', final: 'the final third', transAtt: 'the transition to attack', transDef: 'the transition to defence', press: 'pressing their build-up', without: 'defending' };
   const POSSESSION = ['build', 'final', 'transAtt'];
   const side = (pos) => Math.abs(pos.w - 0.5);
 

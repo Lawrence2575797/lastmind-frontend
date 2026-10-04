@@ -147,7 +147,9 @@
         ov.set(c.player, { x: clamp(c.player.x + match.carry.dx * 9, 1, L - 1), y: clamp(c.player.y + match.carry.dy * 9, 1, W - 1) });
       }
       // Defenders press the carrier: how many, and from how far, is the team's pressing instruction.
-      const press = pressingNow(match, opp);
+      // Pressing their build-up: when the ball is deep in the carrier's own third, the defending team's setting for it adds to the press.
+      const deep = FM.toTeamSpace(c.team.attackDir, c.player.x, c.player.y).d < 0.33;
+      const press = clamp(pressingNow(match, opp) + (deep ? 0.35 * ((opp.tactics.pressBuildUp == null ? 0.4 : opp.tactics.pressBuildUp) - 0.4) : 0), 0, 1);
       const n = 1 + Math.round(1.4 * press);
       const ranked = opp.players.filter((p) => p.group !== 'GK').map((p) => ({ p, d: dist(p, c.player) })).sort((a, b) => a.d - b.d);
       ranked.slice(0, n).forEach(({ p, d }) => {
@@ -341,7 +343,7 @@
         flight.ey = clamp(opt.ty + (rng() - 0.5) * 2 * spread, -4, W + 4);
       }
     }
-    record(match, { type: 'pass', team: team.id, from: carrier.number, to: opt.target.number, p: opt.p, ok, outcome: flight.outcome, dist: opt.d, lane: opt.lane, press: opt.press, x: carrier.x, y: carrier.y });
+    record(match, { type: 'pass', team: team.id, from: carrier.number, to: opt.target.number, p: opt.p, ok, outcome: flight.outcome, dist: opt.d, lane: opt.lane, press: opt.press, x: carrier.x, y: carrier.y, tx: flight.ex, ty: flight.ey });
     match.carrier = null; match.carry = null;
     match.flight = flight;
     match.ball.state = 'flight';

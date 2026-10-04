@@ -11,7 +11,7 @@
   const pf = (p) => (!fin(p) ? 'n/a' : p < 0.0001 ? '< 0.0001' : p.toFixed(4));
   const RANK = { gcse: 1, alevel: 2, above: 3 };
 
-  const TACTICS = { pressing: 'pressing', lineHeight: 'a high defensive line', tempo: 'a fast tempo', directness: 'direct passing', risk: 'risk in possession', shootFreedom: 'shooting on sight' };
+  const TACTICS = { pressing: 'pressing', pressBuildUp: 'pressing their build-up', lineHeight: 'a high defensive line', tempo: 'a fast tempo', directness: 'direct passing', risk: 'risk in possession', shootFreedom: 'shooting on sight' };
   const NEXT = {
     win: ['win', (a, b, f, me) => (me === f.homeId ? f.hg > f.ag : f.ag > f.hg)],
     moreShots: ['have more shots than the opposition', (a, b) => a.shots > b.shots],

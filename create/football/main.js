@@ -4,7 +4,7 @@
   const { L, W } = FM.PITCH;
   const el = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const world = { league: null, view: 'home', match: null, fixture: null, running: true, speed: 1, shownEvents: 0, lastStats: '', tab: 'squad', selSlot: null, selBench: null, saveTimer: null };
+  const world = { league: null, view: 'home', match: null, fixture: null, running: true, speed: 1, shownEvents: 0, lastStats: '', trails: [], vt: 0, tab: 'squad', selSlot: null, selBench: null, saveTimer: null };
   const REAL_SECONDS_FOR_MATCH = 600; // a full 90 minutes takes about ten real minutes at 1x
   const MATCH_SPEED = 5400 / REAL_SECONDS_FOR_MATCH;
   const SUBSTEP = 0.1;
@@ -108,13 +108,34 @@
     last = now;
     const m = world.match;
     if (world.view === 'match' && m) {
-      if (world.running && m.phase !== 'halftime' && m.phase !== 'fulltime') advanceMatch(dt * MATCH_SPEED * world.speed);
+      if (world.running && m.phase !== 'halftime' && m.phase !== 'fulltime') {
+        // A pass or shot lasts about a second of match time, which at full speed is a blink. So the clock slows while the ball
+        // is in the air, and speeds up while the match waits for a dead ball to be taken, which keeps the whole match about as long.
+        const flightSlow = m.flight ? 0.35 : 1, deadFast = (m.restart || m.phase === 'kickoff') ? 2 : 1;
+        advanceMatch(dt * MATCH_SPEED * world.speed * flightSlow * deadFast);
+        world.vt += dt;
+      }
       draw();
       updateHud();
     }
     requestAnimationFrame(frame);
   }
-  function draw() { drawPitch(); drawPlayers(); }
+  // Where the ball just went: a fading line for each recent pass and shot. They fade with time spent watching, so they stay while paused.
+  function drawTrails() {
+    const t = world.vt;
+    world.trails = world.trails.filter((tr) => t - tr.born < 3).slice(-12);
+    world.trails.forEach((tr) => {
+      const a = Math.max(0, 1 - (t - tr.born) / 3);
+      const col = tr.kind === 'pass' ? '255,255,255' : tr.kind === 'fail' ? '255,110,110' : tr.kind === 'goal' ? '242,193,78' : '255,205,130';
+      ctx.strokeStyle = `rgba(${col},${(0.8 * a).toFixed(2)})`;
+      ctx.lineWidth = Math.max(2, scale * (tr.kind === 'pass' || tr.kind === 'fail' ? 0.3 : 0.55));
+      ctx.setLineDash(tr.kind === 'fail' ? [7, 7] : []);
+      ctx.beginPath(); ctx.moveTo(px(tr.x0), py(tr.y0)); ctx.lineTo(px(tr.x1), py(tr.y1)); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(px(tr.x1), py(tr.y1), Math.max(3, scale * 0.55), 0, Math.PI * 2); ctx.fillStyle = `rgba(${col},${(0.95 * a).toFixed(2)})`; ctx.fill();
+    });
+  }
+  function draw() { drawPitch(); drawTrails(); drawPlayers(); }
 
   const pct = (a, b) => (b ? Math.round(100 * a / b) + '%' : '-');
   const RESTART_NAMES = { throw: 'Throw-in', goalkick: 'Goal kick', corner: 'Corner', freekick: 'Free kick', penalty: 'Penalty' };
@@ -140,6 +161,8 @@
       const team = e.team === home.id ? home : e.team === away.id ? away : null;
       if (!team) continue;
       const who = (n) => { const p = playerBy(team, n); return p ? shortName(p) : 'number ' + n; };
+      if (e.type === 'pass' && e.tx != null) world.trails.push({ x0: e.x, y0: e.y, x1: e.tx, y1: e.ty, kind: e.ok ? 'pass' : 'fail', born: world.vt });
+      else if (e.type === 'shot') world.trails.push({ x0: e.x, y0: e.y, x1: team.attackDir === 1 ? L : 0, y1: W / 2, kind: e.outcome === 'goal' ? 'goal' : 'shot', born: world.vt });
       let text = null;
       if (e.type === 'goal') text = 'GOAL, ' + team.name + ': ' + who(e.player);
       else if (e.type === 'shot') text = (e.setPiece ? ({ header: 'Header', freekick: 'Free kick', penalty: 'Penalty' }[e.setPiece]) : 'Shot') + ', ' + who(e.player) + ' (' + team.name + '): ' + e.outcome + ' (xG ' + e.xg.toFixed(2) + ')';
@@ -177,6 +200,12 @@
     world.speed = parseFloat(b.dataset.speed);
     document.querySelectorAll('[data-speed]').forEach((x) => x.classList.toggle('on', x === b));
   }));
+  el('stepBtn').addEventListener('click', () => {
+    const m = world.match;
+    if (!m || world.running || m.injuryPause || m.phase === 'halftime' || m.phase === 'fulltime') return;
+    advanceMatch(1);
+    world.vt += 0.4;
+  });
   el('skipBtn').addEventListener('click', () => {
     const m = world.match;
     if (!m) return;
@@ -201,9 +230,9 @@
     if (!fx || fx.played) return;
     world.fixture = fx;
     world.match = FM.startFixture(world.league, fx, { interactive: true });
-    world.running = true; world.speed = 1; world.shownEvents = 0; world.lastStats = '';
+    world.running = true; world.speed = 0.5; world.shownEvents = 0; world.lastStats = ''; world.trails = []; world.vt = 0;
     world.selSlot = null; world.selBench = null; world.tab = 'squad';
-    document.querySelectorAll('[data-speed]').forEach((x) => x.classList.toggle('on', x.dataset.speed === '1'));
+    document.querySelectorAll('[data-speed]').forEach((x) => x.classList.toggle('on', x.dataset.speed === '0.5'));
     const m = world.match;
     el('feed').innerHTML = '';
     el('nmHome').textContent = m.home.name; el('nmAway').textContent = m.away.name;
@@ -377,21 +406,22 @@
   // One page, used on any preparation day and again when the match is paused. Changes apply to the rest of the match.
   const TABS = [
     ['squad', 'Squad and formation'], ['build', 'Build-up'], ['final', 'Final third'],
-    ['transatt', 'Transition to attack'], ['transdef', 'Transition to defence'], ['without', 'Without the ball'], ['setpieces', 'Set pieces'],
+    ['transatt', 'Transition to attack'], ['transdef', 'Transition to defence'], ['press', 'Pressing'], ['without', 'Without the ball'], ['setpieces', 'Set pieces'],
   ];
   // Each tab with a board shows the team in that phase of play.
-  const BOARD_KEY = { squad: 'shape', build: 'build', final: 'final', transatt: 'transAtt', transdef: 'transDef', without: 'without' };
+  const BOARD_KEY = { squad: 'shape', build: 'build', final: 'final', transatt: 'transAtt', transdef: 'transDef', press: 'press', without: 'without' };
   const PHASE_TEXT = {
     shape: 'The team set up in its formation. Drag a shirt anywhere on the pitch; every other phase follows from this shape, the role and the instructions. Drag one shirt onto another to swap those two players.',
     build: 'The team with the ball close to its own goal, which is why the ball starts beside the goalkeeper. These positions apply while the ball is in the team\'s own third, and the team moves toward the final-third positions as the ball goes forward. The ball here is only a guide, so you can drag it to picture other situations. A shirt you drag moves for this phase only, and only as far as the player could run from his other positions. A shirt with a gold dot has been placed by hand.',
     final: 'The team with the ball near the opposition goal. Attackers can stand on the edge of the box or inside it, but they are held at the offside line, and the same role and instructions apply as in every other phase.',
     transAtt: 'The few seconds just after winning the ball, before the team settles. This is where the first runs are made, so positions here pull players toward where the attack will go.',
     transDef: 'The few seconds just after losing the ball. Players here are pulled toward the positions that cut the counter-attack off, or toward the ball if the team presses.',
+    press: 'The team pressing the opposition while they build from their own end: the ball is with their goalkeeper or defenders deep in their half. Strikers and wide players step up to cut off the short passes, and the midfield and back line move up to squeeze the space behind them. The more you press, the further these positions pull the team up the pitch, and the more players chase the ball. The slider sets how much, and the shirts show where each player stands when the press is fully on.',
     without: 'The team without the ball, set to defend. The line height, pressing and width settings move these positions further.',
   };
   // Where the ball starts on each phase's board. It is only a picture to think with: drag it anywhere to imagine another situation.
-  const BALL_AT = { build: { d: 0.07, w: 0.6 }, final: { d: 0.86, w: 0.5 }, transAtt: { d: 0.42, w: 0.5 }, transDef: { d: 0.55, w: 0.5 }, without: { d: 0.45, w: 0.5 } };
-  const PHASE_CODE = { build: 'B', final: 'F', transAtt: 'TA', transDef: 'TD', without: 'D' };
+  const BALL_AT = { press: { d: 0.93, w: 0.5 }, build: { d: 0.07, w: 0.6 }, final: { d: 0.86, w: 0.5 }, transAtt: { d: 0.42, w: 0.5 }, transDef: { d: 0.55, w: 0.5 }, without: { d: 0.45, w: 0.5 } };
+  const PHASE_CODE = { build: 'B', final: 'F', transAtt: 'TA', transDef: 'TD', press: 'P', without: 'D' };
   // [key, label, left end, right end, min, max, what it does]
   const SLIDER_TABS = {
     build: [
@@ -411,6 +441,10 @@
     ],
     transdef: [
       ['counterPress', 'After losing the ball', 'Drop back into shape', 'Win it back at once', 0, 1, 'For about six seconds after a loss, more players press the new carrier, and harder.'],
+    ],
+    press: [
+      ['pressBuildUp', 'Pressing their build-up', 'Let them play out', 'Press them high', 0, 1, 'When they build from their own third: how far up the pitch you press them, and how many players join in. At the top setting the team squeezes their goalkeeper and defenders hard, which wins the ball high but leaves space behind.'],
+      ['pressing', 'Pressing everywhere else (same as on the Without the ball tab)', 'Stay compact', 'Press hard', 0, 1, 'How many players close down the ball carrier, and from how far away, once the ball is past their own third.'],
     ],
     without: [
       ['pressing', 'Pressing', 'Stay compact, let them have it', 'Press hard', 0, 1, 'How many players close down the ball carrier, and from how far away.'],
@@ -663,8 +697,29 @@
     if (fix) fix.addEventListener('click', () => { team.players.forEach((p) => FM.fixSlot(team, p)); saveSoon(); renderTactics(); });
   }
 
+  // A player's profile: where he is from, his ratings as bars, his condition, and what he has done this season.
+  const RATING_ROWS = [['pace', 'Pace'], ['dribbling', 'Dribbling'], ['passing', 'Passing'], ['finishing', 'Finishing'], ['tackling', 'Tackling'], ['heading', 'Heading'], ['composure', 'Composure'], ['stamina', 'Stamina']];
+  function profileHtml(p, playingAs) {
+    const r = p.ratings, rows = RATING_ROWS.concat(p.natural === 'GK' ? [['gk', 'Goalkeeping']] : []);
+    const bars = rows.map(([k, l]) => `<div class="rrow"><span>${l}</span><span class="rbar"><i style="width:${Math.max(0, Math.min(100, r[k] || 0))}%"></i></span><b>${r[k] != null ? r[k] : '-'}</b></div>`).join('');
+    const st = p.stats || { apps: 0, goals: 0, shots: 0, yellows: 0, reds: 0 };
+    const cond = FM.isInjured(p) ? `<span class="out">injured: ${esc(injuryText(p))}</span>` : `condition ${Math.round(100 * FM.conditionOf(p))}%`;
+    return `<p class="note">${esc(p.nation)} · natural position ${p.natural}${playingAs ? ', playing ' + playingAs : ''} · overall ${overall(p)} · ${cond}</p>
+      <div class="ratings">${bars}</div>
+      <p class="note">This season: ${st.apps} appearance${st.apps === 1 ? '' : 's'}, ${st.goals} goal${st.goals === 1 ? '' : 's'}, ${st.shots} shot${st.shots === 1 ? '' : 's'}, ${st.yellows} yellow card${st.yellows === 1 ? '' : 's'}, ${st.reds} red.</p>`;
+  }
+
   function renderRolePanel(team) {
     const host = el('rolePanel');
+    // A substitute picked from the bench: show his profile, with how to bring him on.
+    if (world.selBench && team.bench.includes(world.selBench)) {
+      const b = world.selBench;
+      host.innerHTML = `<h2 style="margin-bottom:8px">${esc(b.name)}, number ${b.number} (on the bench)</h2>
+        <div style="display:grid;gap:10px">${profileHtml(b, null)}
+          <p class="note">Suited to: ${FM.rolesForGroup(b.natural).map((id) => FM.ROLES[id].name).join(', ')}.</p>
+          <p class="note">${FM.isInjured(b) ? 'He is injured and cannot be brought on.' : 'To bring him on, click one of the shirts on the board, or drag him onto one. Click him again to deselect.'}</p></div>`;
+      return;
+    }
     const player = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
     if (!player) { host.innerHTML = '<p class="note">Click a shirt to see that player, set his role and give him instructions.</p>'; return; }
     const role = FM.ROLES[player.roleId];
@@ -681,18 +736,19 @@
     const ins = sections.map((sec) => {
       const items = list.filter((i) => i.section === sec);
       if (!items.length) return '';
-      return `<div class="ins"><h3>${sec}</h3>` + items.map((i) => `<label title="${esc(i.desc)}">${i.label}<select data-ins="${i.key}">${i.options.map(([v, t]) => `<option value="${v}"${(+(player.instr || {})[i.key] || 0) === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>`).join('') + '</div>';
+      return `<div class="ins"><h3>${sec}</h3>` + items.map((i) => { const fromRole = (FM.roleInstr(player.roleId)[i.key] || 0) !== 0 && (+(player.instr || {})[i.key] || 0) === FM.roleInstr(player.roleId)[i.key]; return `<label title="${esc(i.desc)}">${i.label}${fromRole ? ' <span class="pm">(from his role)</span>' : ''}<select data-ins="${i.key}">${i.options.map(([v, t]) => `<option value="${v}"${(+(player.instr || {})[i.key] || 0) === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>`; }).join('') + '</div>';
     }).join('');
     host.innerHTML = `
       <h2 style="margin-bottom:8px">${esc(player.name)}, number ${player.number}</h2>
       <div style="display:grid;gap:10px">
-        <p class="note">${esc(player.nation)} · natural position ${player.natural}, playing ${player.slotKey}. Pace ${r.pace} · Dribbling ${r.dribbling} · Passing ${r.passing} · Finishing ${r.finishing} · Tackling ${r.tackling} · Heading ${r.heading} · Composure ${r.composure}${player.natural === 'GK' ? ' · Goalkeeping ' + r.gk : ''}</p>
+        ${profileHtml(player, player.slotKey)}
         <label>Role<select data-k="role">${roleOptions}</select></label>
         <p class="desc">${role.desc}</p>
         ${extra}
         <h2>Instructions <span class="note" style="text-transform:none;letter-spacing:0">(${FM.countInstructions(player)} set, they hold in every phase)</span></h2>
         <div class="ins-grid">${ins}</div>
-        <div class="row"><button id="resetPlayer">Reset his positions in every phase</button></div>
+        <p class="note">Choosing a role sets the instructions that role usually carries (marked "from his role"). Change any of them freely; choosing a different role resets them.</p>
+        <div class="row"><button id="resetInstr">Reset instructions to this role's usual</button><button id="resetPlayer">Reset his positions in every phase</button></div>
         <label>Your notes on him (these do not change how he plays)<textarea id="playerNote" rows="2">${esc(player.note || '')}</textarea></label>
       </div>`;
     host.querySelector('[data-k="role"]').addEventListener('change', (e) => { FM.setRole(team, player, e.target.value); FM.fixSlot(team, player); saveSoon(); renderTactics(); });
@@ -704,6 +760,7 @@
       player.instr[o.dataset.ins] = +o.value;
       FM.fixSlot(team, player); saveSoon(); renderTactics();
     }));
+    host.querySelector('#resetInstr').addEventListener('click', () => { player.instr = FM.roleInstr(player.roleId); FM.fixSlot(team, player); saveSoon(); renderTactics(); });
     host.querySelector('#resetPlayer').addEventListener('click', () => { FM.clearPlayerPositions(team, player); saveSoon(); renderTactics(); });
     host.querySelector('#playerNote').addEventListener('input', (e) => { player.note = e.target.value; saveSoon(); });
   }

@@ -147,6 +147,11 @@
   table.data tr.rel-first td { border-top: 2px dashed #E58C8C; }
   table.data tr.champ td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
   .zone { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: rgba(229, 140, 140, 0.5); vertical-align: middle; margin-right: 6px; }
+  .ratings { display: grid; gap: 5px; }
+  .rrow { display: grid; grid-template-columns: 92px 1fr 30px; gap: 8px; align-items: center; font-family: var(--sans); font-size: 0.8rem; }
+  .rrow b { text-align: right; font-variant-numeric: tabular-nums; }
+  .rbar { position: relative; height: 8px; background: rgba(241, 234, 214, 0.14); border-radius: 4px; }
+  .rbar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--gold); border-radius: 4px; }
   .pm { color: var(--cream-soft); font-size: 0.78rem; }
   .hyp { background: var(--navy-raise); border-radius: 8px; padding: 10px 12px; display: grid; gap: 6px; font-family: var(--sans); font-size: 0.88rem; }
   .hyp-head { line-height: 1.45; }
@@ -203,7 +208,8 @@
             <canvas id="pitch" aria-label="Football pitch seen from above with 22 numbered players"></canvas>
             <div class="controls">
               <button id="playBtn" class="on">Pause</button>
-              <button data-speed="0.5">0.5x</button><button data-speed="1" class="on">1x</button><button data-speed="2">2x</button><button data-speed="4">4x</button>
+              <button data-speed="0.25">0.25x</button><button data-speed="0.5" class="on">0.5x</button><button data-speed="1">1x</button><button data-speed="2">2x</button><button data-speed="4">4x</button>
+              <button id="stepBtn" title="While paused, move the match on one second at a time">Step 1 s</button>
               <button id="skipBtn">Skip to next break</button>
             </div>
             <div class="legend" id="legend"></div>
