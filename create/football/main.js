@@ -213,6 +213,17 @@
     let guard = 0;
     while (m.phase !== 'halftime' && m.phase !== 'fulltime' && !m.injuryPause && guard++ < 100000) FM.stepMatch(m, SUBSTEP);
   });
+  el('simEndBtn').addEventListener('click', () => {
+    const m = world.match;
+    if (!m || m.injuryPause) return;
+    world.running = false;
+    let guard = 0;
+    while (m.phase !== 'fulltime' && !m.injuryPause && guard++ < 200000) {
+      if (m.phase === 'halftime') FM.startSecondHalf(m);
+      FM.stepMatch(m, SUBSTEP);
+    }
+    world.trails = [];
+  });
   el('finishBtn').addEventListener('click', () => {
     const btn = el('finishBtn');
     btn.disabled = true; btn.textContent = 'Playing the other matches...';
