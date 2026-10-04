@@ -561,6 +561,22 @@
     const lg = world.league, nx = lg && FM.nextUserFixture(lg);
     return nx ? FM.teamById(lg, nx.homeId === lg.userId ? nx.awayId : nx.homeId) : null;
   }
+  // The offside line as drawn: where the deepest outfield player of the opposition shirts on the board stands (their moved positions
+  // included), in the team's own space. Null when the opposition are not shown, and the editor falls back to their usual defending shape.
+  // 'live' puts one shirt at a position it is being dragged to.
+  function oppLine(key, live) {
+    if (!world.showOpp || key === 'shape') return null;
+    const sc = scoutFor(), cells = sc && sc.shape.phases[OPP_PHASE[key]];
+    if (!cells) return null;
+    const moved = (world.oppMoved && world.oppMoved[key]) || {};
+    let min = 1, any = false;
+    Object.keys(cells).forEach((slot) => {
+      if (/^GK/.test(slot)) return;
+      const c = live && live.slot === slot ? live.c : (moved[slot] || cells[slot]);
+      min = Math.min(min, c.d); any = true;
+    });
+    return any ? 1 - min : null;
+  }
   function scoutFor() {
     const opp = nextOpponent();
     if (!opp) return null;
@@ -593,8 +609,8 @@
     let offLine = '';
     const opp0 = nextOpponent();
     if (key !== 'shape' && opp0 && FM.OFFSIDE_PHASES.indexOf(key) >= 0) {
-      const y = (1 - FM.offsideLimit(opp0, null)) * BH;
-      offLine = `<g style="pointer-events:none"><line x1="0" y1="${y.toFixed(1)}" x2="${BW}" y2="${y.toFixed(1)}" stroke="#FF6B5A" stroke-width="2.5" stroke-dasharray="3 7" stroke-opacity="0.9"/><text x="6" y="${(y - 6).toFixed(1)}" font-size="14" fill="#fff" stroke="#000" stroke-width="3" style="paint-order:stroke">Offside line (${esc(opp0.name)}'s defensive line)</text></g>`;
+      const y = (1 - FM.offsideLimit(opp0, null, oppLine(key))) * BH;
+      offLine = `<g class="offline" style="pointer-events:none"><line x1="0" y1="${y.toFixed(1)}" x2="${BW}" y2="${y.toFixed(1)}" stroke="#FF6B5A" stroke-width="2.5" stroke-dasharray="3 7" stroke-opacity="0.9"/><text x="6" y="${(y - 6).toFixed(1)}" font-size="14" fill="#fff" stroke="#000" stroke-width="3" style="paint-order:stroke">Offside line (${esc(opp0.name)}'s deepest defender)</text></g>`;
     }
     let ball = '';
     if (BALL_AT[key]) {
@@ -639,10 +655,15 @@
       if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 5) return;
       drag.moved = true;
       let pos = toPos(e);
-      if (key !== 'shape' && !drag.opp) pos = FM.clampOffside(team, drag.p, key, FM.clampToReach(team, drag.p, key, pos), nextOpponent());
+      if (key !== 'shape' && !drag.opp) pos = FM.clampOffside(team, drag.p, key, FM.clampToReach(team, drag.p, key, pos), nextOpponent(), oppLine(key));
       drag.pos = pos;
       const pt = bpt(pos);
       drag.g.setAttribute('transform', `translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})`);
+      // dragging one of their shirts moves the offside line with their deepest defender
+      if (drag.opp) {
+        const og = svg.querySelector('.offline'), ln = oppLine(key, { slot: drag.slot, c: { d: 1 - pos.d, w: 1 - pos.w } });
+        if (og && ln != null) { const y = (1 - Math.max(ln, 0.5)) * BH; const l = og.querySelector('line'), t = og.querySelector('text'); l.setAttribute('y1', y.toFixed(1)); l.setAttribute('y2', y.toFixed(1)); t.setAttribute('y', (y - 6).toFixed(1)); }
+      }
     });
     svg.addEventListener('pointerup', (e) => {
       if (dragBall) { if (dragBall.pos) { world.ballPos = world.ballPos || {}; world.ballPos[key] = { d: dragBall.pos.d, w: dragBall.pos.w }; } dragBall = null; return; }
@@ -750,7 +771,7 @@
   function renderWarnPanel(team) {
     const host = el('warnPanel');
     if (!host) return;
-    const all = FM.teamProblems(team, nextOpponent());
+    const all = FM.teamProblems(team, nextOpponent(), (ph) => oppLine(ph));
     const sel = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
     const hurt = team.players.filter(FM.isInjured);
     let html = (hurt.length && !inLive() ? `<p class="note warnnote">${hurt.map((p) => esc(p.name)).join(', ')} ${hurt.length > 1 ? 'are' : 'is'} injured. Substitute ${hurt.length > 1 ? 'them' : 'him'} here, or the best available replacement will start at kick-off.</p>` : '') + '<h2 style="margin-bottom:8px">Do the phases fit together?</h2>';
@@ -761,7 +782,7 @@
     }
     host.innerHTML = html;
     const fix = host.querySelector('#fixAll');
-    if (fix) fix.addEventListener('click', () => { const op = nextOpponent(); team.players.forEach((p) => FM.fixSlot(team, p, op)); saveSoon(); renderTactics(); });
+    if (fix) fix.addEventListener('click', () => { const op = nextOpponent(); team.players.forEach((p) => FM.fixSlot(team, p, op, (ph) => oppLine(ph))); saveSoon(); renderTactics(); });
   }
 
   // A player's profile: where he is from, his ratings as bars, his condition, and what he has done this season.

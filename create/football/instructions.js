@@ -81,7 +81,7 @@
   const side = (pos) => Math.abs(pos.w - 0.5);
 
   // Returns a list of plain-English problems for one player.
-  FM.checkPlayer = function (team, p, opp) {
+  FM.checkPlayer = function (team, p, opp, lineFor) {
     const out = [];
     const reach = FM.reachMetres(p);
     // 1. Can he get from one phase position to another in time?
@@ -94,8 +94,8 @@
     if (bad.length) out.push('He cannot get between these positions in time, he covers about ' + Math.round(reach) + ' m: ' + bad.join('; ') + '.');
     // 1b. Positions placed by hand in the phases with the ball must be onside: not beyond the opposition's second-last defender.
     if (opp && p.group !== 'GK') {
-      const lim = FM.offsideLimit(opp, p), offs = FM.OFFSIDE_PHASES.filter((ph) => FM.isManual(team, p, ph) && FM.phasePos(team, p, ph).d > lim + 0.004);
-      if (offs.length) out.push('He would be offside in ' + offs.map((ph) => PHASE_SHORT[ph]).join(' and ') + ': their defensive line is at about ' + Math.round(lim * 105) + ' m from your goal and he is placed beyond it.');
+      const limOf = (ph) => FM.offsideLimit(opp, p, lineFor ? lineFor(ph) : null), offs = FM.OFFSIDE_PHASES.filter((ph) => FM.isManual(team, p, ph) && FM.phasePos(team, p, ph).d > limOf(ph) + 0.004);
+      if (offs.length) out.push('He would be offside in ' + offs.map((ph) => PHASE_SHORT[ph]).join(' and ') + ': their deepest defender is about ' + Math.round(limOf(offs[0]) * 105) + ' m from your goal and he is placed beyond him.');
     }
     // 2. Do the positions fit the role? The role is the same in every phase, so its shape has to show in each of them.
     const role = p.roleId;
@@ -115,5 +115,5 @@
     }
     return out;
   };
-  FM.teamProblems = (team, opp) => team.players.map((p) => ({ p, list: FM.checkPlayer(team, p, opp) })).filter((x) => x.list.length);
+  FM.teamProblems = (team, opp, lineFor) => team.players.map((p) => ({ p, list: FM.checkPlayer(team, p, opp, lineFor) })).filter((x) => x.list.length);
 })();

@@ -241,16 +241,21 @@
   // team's targets are held there. In the editor the opposition's line is read from where their defenders stand when defending, which
   // depends on how high they have set their defensive line, so a high line lets your forwards stand higher and a deep one holds them back.
   FM.OFFSIDE_PHASES = ['build', 'final', 'transAtt'];
-  FM.offsideLimit = function (opp, p) {
-    const ds = opp.players.filter((q) => q.group !== 'GK').map((q) => FM.phasePos(opp, q, 'without').d);
-    if (!ds.length) return 1;
-    const line = 1 - Math.min.apply(null, ds); // their second-last defender, in this team's space
-    const runs = p ? FM.instrMods(p).runs : 0; // a player told to run in behind stands a little beyond it, one told to hold the line a little short
-    return Math.max(line - 1.5 / L + (runs > 0 ? 0.5 : runs < 0 ? -1.2 : 0) / L, 0.5);
+  // The line is exactly where the opposition's deepest outfield player stands (the keeper is the last defender, so he is the second-last).
+  // lineOverride, if given, is that line in this team's space, read from the opposition shirts as they are shown on the board.
+  FM.offsideLimit = function (opp, p, lineOverride) {
+    let line = lineOverride;
+    if (line == null) {
+      const ds = opp.players.filter((q) => q.group !== 'GK').map((q) => FM.phasePos(opp, q, 'without').d);
+      if (!ds.length) return 1;
+      line = 1 - Math.min.apply(null, ds); // their deepest defender, in this team's space
+    }
+    const runs = p ? FM.instrMods(p).runs : 0; // a player told to run in behind may stand a little beyond it, one told to hold the line a little short
+    return Math.max(line + (runs > 0 ? 0.5 : runs < 0 ? -1.2 : 0) / L, 0.5);
   };
-  FM.clampOffside = function (team, p, phase, pos, opp) {
+  FM.clampOffside = function (team, p, phase, pos, opp, lineOverride) {
     if (!opp || p.group === 'GK' || FM.OFFSIDE_PHASES.indexOf(phase) < 0) return pos;
-    return { d: Math.min(pos.d, FM.offsideLimit(opp, p)), w: pos.w };
+    return { d: Math.min(pos.d, FM.offsideLimit(opp, p, lineOverride)), w: pos.w };
   };
   FM.setPhasePos = function (team, p, phase, pos) {
     team.phasePos[phase] = team.phasePos[phase] || {};
@@ -261,8 +266,8 @@
     FM.fixSlot(team, p);
   };
   // After anything moves, any hand-placed position that is now out of reach is pulled back.
-  FM.fixSlot = function (team, p, opp) {
-    FM.PHASES.forEach((ph) => { if (FM.isManual(team, p, ph)) FM.setPhasePos(team, p, ph, FM.clampOffside(team, p, ph, FM.clampToReach(team, p, ph, FM.phasePos(team, p, ph)), opp)); });
+  FM.fixSlot = function (team, p, opp, lineFor) {
+    FM.PHASES.forEach((ph) => { if (FM.isManual(team, p, ph)) FM.setPhasePos(team, p, ph, FM.clampOffside(team, p, ph, FM.clampToReach(team, p, ph, FM.phasePos(team, p, ph)), opp, lineFor ? lineFor(ph) : null)); });
   };
   FM.clearPhase = function (team, phase) { if (phase === 'shape') team.shape = {}; else if (team.phasePos) delete team.phasePos[phase]; };
   FM.clearPlayerPositions = function (team, p) {
