@@ -46,4 +46,25 @@
     r.gk = group === 'GK' ? Math.round(Math.max(45, Math.min(92, 68 + (strength || 0) + gauss(rng) * FM.RATING_SD))) : 20;
     return r;
   };
+
+  // A single rating out of 10 for a player in a position, so you do not have to read every stat: a weighted average of the ratings
+  // that matter most for that position (a striker's finishing counts for far more than his tackling), shown to one decimal place.
+  // It uses his rested ratings, so it does not dip during a match. The individual ratings are still there for anyone who wants them.
+  const RATING_WEIGHTS = {
+    GK: { gk: 0.75, composure: 0.1, passing: 0.1, stamina: 0.05 },
+    CB: { tackling: 0.35, heading: 0.25, composure: 0.15, pace: 0.1, passing: 0.1, stamina: 0.05 },
+    FB: { pace: 0.2, tackling: 0.2, stamina: 0.2, passing: 0.15, dribbling: 0.1, composure: 0.1, heading: 0.05 },
+    DM: { tackling: 0.3, passing: 0.25, composure: 0.15, stamina: 0.15, heading: 0.1, pace: 0.05 },
+    CM: { passing: 0.3, stamina: 0.15, tackling: 0.15, dribbling: 0.15, composure: 0.15, pace: 0.05, finishing: 0.05 },
+    AM: { passing: 0.25, dribbling: 0.25, composure: 0.15, finishing: 0.15, pace: 0.1, stamina: 0.05, heading: 0.05 },
+    WF: { pace: 0.25, dribbling: 0.25, finishing: 0.15, passing: 0.15, composure: 0.1, stamina: 0.1 },
+    ST: { finishing: 0.3, composure: 0.15, pace: 0.15, heading: 0.15, dribbling: 0.1, stamina: 0.1, passing: 0.05 },
+  };
+  FM.playerRating = function (p, group) {
+    const w = RATING_WEIGHTS[group || p.natural] || RATING_WEIGHTS.CM, r = p.baseRatings || p.ratings;
+    let sum = 0;
+    Object.keys(w).forEach((k) => { sum += w[k] * (r[k] != null ? r[k] : 50); });
+    return Math.round(sum) / 10;
+  };
+  FM.ratingText = (p, group) => FM.playerRating(p, group).toFixed(1) + '/10';
 })();
