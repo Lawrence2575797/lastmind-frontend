@@ -558,12 +558,16 @@
     const posOf = (p) => (key === 'shape' ? FM.slotBase(team, p) : FM.phasePos(team, p, key));
     let ghosts = '';
     if (selected && key !== 'shape') {
+      // One region, not one ring per phase: wherever he stands here he must be within reach of his position in every other phase,
+      // so the allowed area is where all those circles overlap. Each circle's clip is nested to cut the outline to that overlap.
       const reach = FM.reachMetres(selected) * BS;
-      FM.PHASES.forEach((ph) => {
-        if (ph === key) return;
-        const g = bpt(FM.phasePos(team, selected, ph));
-        ghosts += `<circle cx="${g.x}" cy="${g.y}" r="${reach}" fill="rgba(242,193,78,0.05)" stroke="rgba(242,193,78,0.55)" stroke-width="2" stroke-dasharray="9 7"/>`;
-        ghosts += `<circle cx="${g.x}" cy="${g.y}" r="11" fill="rgba(242,193,78,0.9)"/><text x="${g.x}" y="${g.y + 4.5}" text-anchor="middle" font-size="12" font-weight="700" fill="#1A232D">${PHASE_CODE[ph]}</text>`;
+      const others = FM.PHASES.filter((ph) => ph !== key).map((ph) => ({ ph, g: bpt(FM.phasePos(team, selected, ph)) }));
+      ghosts += '<defs>' + others.map((o, i) => `<clipPath id="reach${i}"><circle cx="${o.g.x}" cy="${o.g.y}" r="${reach}"/></clipPath>`).join('') + '</defs>';
+      const nest = (skip, inner) => others.reduce((acc, o, i) => (i === skip ? acc : `<g clip-path="url(#reach${i})">${acc}</g>`), inner);
+      ghosts += nest(-1, '<rect x="-200" y="-200" width="2000" height="2000" fill="rgba(242,193,78,0.10)"/>');
+      others.forEach((o, i) => { ghosts += nest(i, `<circle cx="${o.g.x}" cy="${o.g.y}" r="${reach}" fill="none" stroke="rgba(242,193,78,0.8)" stroke-width="2.5" stroke-dasharray="9 7"/>`); });
+      others.forEach((o) => {
+        ghosts += `<circle cx="${o.g.x}" cy="${o.g.y}" r="11" fill="rgba(242,193,78,0.9)"/><text x="${o.g.x}" y="${o.g.y + 4.5}" text-anchor="middle" font-size="12" font-weight="700" fill="#1A232D">${PHASE_CODE[o.ph]}</text>`;
       });
     }
     let ball = '';
@@ -669,7 +673,7 @@
     if (SLIDER_TABS[tab]) renderSliderTab(team, SLIDER_TABS[tab], host.querySelector('#phaseSliders'));
     const err = (msg) => { host.querySelector('#subErr').textContent = msg || ''; };
     const sel = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
-    if (sel && !isShape) host.querySelector('#reachNote').textContent = `${sel.name} can cover about ${Math.round(FM.reachMetres(sel))} m between phases. The gold circles show where he can stand here, given where he is in the other phases (B build-up, F final third, TA and TD the transitions, D defending).`;
+    if (sel && !isShape) host.querySelector('#reachNote').textContent = `${sel.name} can cover about ${Math.round(FM.reachMetres(sel))} m between phases. The gold area shows where he can stand here, given where he is in the other phases (B build-up, F final third, TA and TD the transitions, D defending).`;
     else host.querySelector('#reachNote').textContent = isShape ? '' : 'Click a shirt to see how far that player can move between phases.';
 
     if (isShape) host.querySelector('#formSel').addEventListener('change', (e) => { FM.setFormation(team, e.target.value); world.selSlot = null; saveSoon(); renderTactics(); });
