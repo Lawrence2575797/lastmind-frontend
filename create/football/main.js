@@ -147,6 +147,7 @@
       else if (e.type === 'offside') text = 'Offside, ' + who(e.player) + ' (' + team.name + ')';
       else if (e.type === 'restart' && (e.kind === 'corner' || e.kind === 'penalty')) text = (e.kind === 'corner' ? 'Corner' : 'PENALTY') + ' to ' + team.name;
       else if (e.type === 'sub') text = 'Substitution, ' + team.name + ': ' + who(e.on) + ' on for ' + who(e.off);
+      else if (e.type === 'injury') text = 'Injury: ' + who(e.player) + ' (' + team.name + ') with ' + e.name + ', out for ' + (e.matches === 1 ? 'one match' : e.matches + ' matches');
       else if (e.type === 'tactic') text = team.name + (e.direction === 'attack' ? ' have changed approach: more attacking' : ' have changed approach: more cautious');
       else if (e.type === 'keeperSwap') text = team.name + ' goalkeeper change: ' + who(e.on) + ' in goal' + (e.emergency ? ' (an outfield player)' : '');
       if (!text) continue;
@@ -157,6 +158,9 @@
     const playing = world.running && m.phase !== 'halftime' && m.phase !== 'fulltime';
     el('playBtn').textContent = m.phase === 'halftime' ? 'Start second half' : m.phase === 'fulltime' ? 'Full time' : world.running ? 'Pause' : 'Play';
     el('playBtn').classList.toggle('on', playing);
+    const ip = m.injuryPause;
+    el('injuryBox').hidden = !ip;
+    if (ip) { world.running = false; el('injuryText').textContent = ip.player.name + ' (number ' + ip.player.number + ') is injured and cannot continue, so play is stopped. Substitute him on the tactics board below (drag a bench player onto his shirt), or play on with ten men.'; }
     const done = m.phase === 'fulltime';
     el('finishBox').hidden = !done;
     if (done) el('finishText').textContent = 'Full time: ' + home.name + ' ' + m.score[home.id] + '-' + m.score[away.id] + ' ' + away.name + '.';
@@ -164,7 +168,7 @@
 
   el('playBtn').addEventListener('click', () => {
     const m = world.match;
-    if (!m) return;
+    if (!m || m.injuryPause) return;
     if (m.phase === 'halftime') { FM.startSecondHalf(m); world.running = true; return; }
     if (m.phase === 'fulltime') return;
     world.running = !world.running;
@@ -178,7 +182,7 @@
     if (!m) return;
     if (m.phase === 'halftime') FM.startSecondHalf(m);
     let guard = 0;
-    while (m.phase !== 'halftime' && m.phase !== 'fulltime' && guard++ < 100000) FM.stepMatch(m, SUBSTEP);
+    while (m.phase !== 'halftime' && m.phase !== 'fulltime' && !m.injuryPause && guard++ < 100000) FM.stepMatch(m, SUBSTEP);
   });
   el('finishBtn').addEventListener('click', () => {
     const btn = el('finishBtn');
@@ -196,7 +200,7 @@
     const fx = FM.userFixtureToday(world.league);
     if (!fx || fx.played) return;
     world.fixture = fx;
-    world.match = FM.startFixture(world.league, fx);
+    world.match = FM.startFixture(world.league, fx, { interactive: true });
     world.running = true; world.speed = 1; world.shownEvents = 0; world.lastStats = '';
     world.selSlot = null; world.selBench = null; world.tab = 'squad';
     document.querySelectorAll('[data-speed]').forEach((x) => x.classList.toggle('on', x.dataset.speed === '1'));
@@ -221,9 +225,11 @@
     if (best) { world.selSlot = best; world.selBench = null; world.tab = 'squad'; renderTactics(); }
   });
 
+  el('injuryTen').addEventListener('click', () => { if (world.match) FM.resolveInjury(world.match); });
+
   // ---------- views and navigation ----------
-  const VIEWS = ['home', 'league', 'squad', 'analysis', 'reports', 'hypotheses', 'match'];
-  const NAV = [['home', 'Home'], ['tactics', 'Tactics'], ['league', 'League'], ['squad', 'Squad'], ['reports', 'Reports'], ['analysis', 'Analysis'], ['hypotheses', 'Hypotheses']];
+  const VIEWS = ['home', 'league', 'squad', 'analysis', 'reports', 'news', 'hypotheses', 'match'];
+  const NAV = [['home', 'Home'], ['tactics', 'Tactics'], ['league', 'League'], ['squad', 'Squad'], ['reports', 'Reports'], ['news', 'News'], ['analysis', 'Analysis'], ['hypotheses', 'Hypotheses']];
   function setView(v) {
     world.view = v;
     VIEWS.forEach((k) => { el('view-' + k).hidden = k !== v; });
@@ -237,6 +243,7 @@
     else if (v === 'squad') renderSquad();
     else if (v === 'analysis') FM.renderAnalysis(el('view-analysis'), world.league);
     else if (v === 'reports') FM.renderReports(el('view-reports'), world.league);
+    else if (v === 'news') FM.renderNews(el('view-news'), world.league);
     else if (v === 'hypotheses') FM.renderHypotheses(el('view-hypotheses'), world.league);
     else if (v === 'tactics' || v === 'match') renderTactics();
     if (v === 'match') resize();
@@ -309,10 +316,29 @@
       lastCard = `<h2>Last result</h2><div class="fixture-big">${esc(home.name)} ${f.hg}-${f.ag} ${esc(away.name)}</div>
         <p class="desc">Shots ${hs.shots}-${as.shots} · On target ${hs.onTarget}-${as.onTarget} · xG ${hs.xg.toFixed(2)}-${as.xg.toFixed(2)} · Possession ${pct(hs.possession, tot)}-${pct(as.possession, tot)}</p>`;
     }
+    const team = userTeam();
+    const hurt = team.squad.filter(FM.isInjured), tired = team.players.filter((p) => !FM.isInjured(p) && FM.conditionOf(p) < 0.7);
+    const hurtXI = team.players.filter(FM.isInjured);
+    const fitCard = '<h2>Squad fitness</h2>' + (hurt.length ? '<div class="tablewrap"><table class="data"><tbody>' + hurt.map((p) => `<tr class="out"><td class="l">${esc(p.name)} (${p.natural})</td><td class="l">${esc(injuryText(p))}</td></tr>`).join('') + '</tbody></table></div>' : '<p class="desc">No injuries.</p>') +
+      (hurtXI.length ? `<p class="note warnnote">${hurtXI.map((p) => esc(p.name)).join(', ')} ${hurtXI.length > 1 ? 'are' : 'is'} in your starting line-up but injured. The best available replacement will start unless you change it on the Tactics page.</p>` : '') +
+      (tired.length ? `<p class="desc">Tired starters, still short of full fitness from recent matches: ${tired.map((p) => esc(shortName(p)) + ' ' + Math.round(100 * FM.conditionOf(p)) + '%').join(', ')}.</p><p class="note">A tired player runs slower and makes more mistakes, and is likelier to be injured. Players recover a little each day, and fully if rested.</p>` : '<p class="note">Nobody in the starting line-up is carrying fatigue.</p>');
+    const latest = (world.league.news || []).slice(-3).reverse();
+    const newsCard = '<h2>Latest news</h2>' + (latest.length ? latest.map((n) => `<div class="hyp"><div class="hyp-head"><span class="lvl ${n.mine ? 'alevel' : 'gcse'}">${esc(n.kind)}</span> <b>${esc(n.headline)}</b></div></div>`).join('') + '<div class="row"><button data-nav-news>All the news</button></div>' : '<p class="note">News appears after the first round of matches.</p>');
     host.innerHTML = `<div class="two">
-      <div style="display:grid;gap:16px"><div class="card">${next}</div><div class="card">${lastCard}</div></div>
+      <div style="display:grid;gap:16px"><div class="card">${next}</div><div class="card">${lastCard}</div><div class="card">${fitCard}</div><div class="card">${newsCard}</div></div>
       <div class="card"><h2>League table</h2>${tableHtml(rows, true)}</div></div>`;
+    const nb = host.querySelector('[data-nav-news]'); if (nb) nb.addEventListener('click', () => setView('news'));
   }
+
+  // How many matches an injured player will still miss, counting from the next Saturday.
+  function missesCount(until) {
+    const today = FM.userFixtureToday(world.league);
+    let sat = world.league.day + (today && !today.played ? 0 : 1); // today's match only counts if it has not been played yet
+    while (sat % 7 !== 5) sat++;
+    return Math.max(1, Math.ceil((until - sat) / 7));
+  }
+  const injuryText = (p) => (p.injury ? p.injury.name + ', misses ' + (missesCount(p.injury.until) === 1 ? 'the next match' : 'the next ' + missesCount(p.injury.until) + ' matches') : '');
+  const condClass = (p) => (FM.isInjured(p) ? 'out' : FM.conditionOf(p) < 0.6 ? 'low' : '');
 
   // ---------- league and squad ----------
   function renderLeague() {
@@ -332,11 +358,11 @@
     const team = userTeam(), host = el('view-squad');
     const onPitch = team.players.slice().sort((a, b) => a.index - b.index);
     const all = onPitch.concat(team.bench);
-    const row = (p) => `<tr><td class="l">${p.number}</td><td class="l">${esc(p.name)}</td><td class="l">${esc(p.nation)}</td><td class="l">${p.natural}</td><td class="l">${p.slotKey ? p.slotKey : 'Bench'}</td>
-      <td>${p.ratings.pace}</td><td>${p.ratings.dribbling}</td><td>${p.ratings.passing}</td><td>${p.ratings.finishing}</td><td>${p.ratings.tackling}</td><td>${p.ratings.heading}</td><td>${p.ratings.composure}</td><td>${p.natural === 'GK' ? p.ratings.gk : '-'}</td>
+    const row = (p) => `<tr><td class="l">${p.number}</td><td class="l">${esc(p.name)}</td><td class="l">${esc(p.nation)}</td><td class="l">${p.natural}</td><td class="l">${p.slotKey ? p.slotKey : 'Bench'}</td><td class="${condClass(p)}">${Math.round(100 * FM.conditionOf(p))}%</td><td class="l ${FM.isInjured(p) ? 'out' : ''}">${FM.isInjured(p) ? esc(injuryText(p)) : 'Fit'}</td>
+      <td>${p.ratings.pace}</td><td>${p.ratings.dribbling}</td><td>${p.ratings.passing}</td><td>${p.ratings.finishing}</td><td>${p.ratings.tackling}</td><td>${p.ratings.heading}</td><td>${p.ratings.composure}</td><td>${p.ratings.stamina || '-'}</td><td>${p.natural === 'GK' ? p.ratings.gk : '-'}</td>
       <td>${p.stats.apps}</td><td>${p.stats.goals}</td><td>${p.stats.shots}</td><td>${p.stats.yellows}</td><td>${p.stats.reds}</td></tr>`;
     host.innerHTML = `<div class="card"><h2>${esc(team.name)}: squad of ${all.length}</h2>
-      <div class="tablewrap"><table class="data"><thead><tr><th class="l">#</th><th class="l">Name</th><th class="l">Nation</th><th class="l">Pos</th><th class="l">Now</th><th>Pac</th><th>Dri</th><th>Pas</th><th>Fin</th><th>Tck</th><th>Hea</th><th>Com</th><th>GK</th><th>Apps</th><th>Goals</th><th>Shots</th><th>YC</th><th>RC</th></tr></thead><tbody>${all.map(row).join('')}</tbody></table></div>
+      <div class="tablewrap"><table class="data"><thead><tr><th class="l">#</th><th class="l">Name</th><th class="l">Nation</th><th class="l">Pos</th><th class="l">Now</th><th>Cond</th><th class="l">Fitness</th><th>Pac</th><th>Dri</th><th>Pas</th><th>Fin</th><th>Tck</th><th>Hea</th><th>Com</th><th>Sta</th><th>GK</th><th>Apps</th><th>Goals</th><th>Shots</th><th>YC</th><th>RC</th></tr></thead><tbody>${all.map(row).join('')}</tbody></table></div>
       <p class="note">Ratings run from about 25 to 95 and change the odds of what a player tries: a better dribbler wins more dribbles, a better finisher scores more of the same chances.</p></div>`;
   }
 
@@ -497,9 +523,10 @@
         <circle r="20" fill="${team.kit.shirt}" stroke="${sel ? '#F2C14E' : '#fff'}" stroke-width="${sel ? 5 : 3}"/>
         <text y="6" text-anchor="middle" font-size="18" font-weight="700" fill="${team.kit.number}">${p.number}</text>
         <text y="38" text-anchor="middle" font-size="14" fill="#fff" stroke="#000" stroke-width="3" style="paint-order:stroke">${esc(shortName(p))}</text>
+        <text y="53" text-anchor="middle" font-size="12" fill="${FM.isInjured(p) ? '#FF9A9A' : FM.conditionOf(p) < 0.6 ? '#F2C8A0' : '#cfe8cf'}" stroke="#000" stroke-width="3" style="paint-order:stroke">${FM.isInjured(p) ? 'injured' : Math.round(100 * FM.conditionOf(p)) + '%'}</text>
         ${manual ? '<circle cx="15" cy="-15" r="5.5" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/>' : ''}</g>`;
     }).join('');
-    host.innerHTML = `<svg class="board" viewBox="-20 -26 ${BW + 40} ${BH + 52}" role="img" aria-label="Tactics board">${boardPitchSvg(key)}${ghosts}${ball}${dots}</svg>`;
+    host.innerHTML = `<svg class="board" viewBox="-20 -26 ${BW + 40} ${BH + 70}" role="img" aria-label="Tactics board">${boardPitchSvg(key)}${ghosts}${ball}${dots}</svg>`;
     const svg = host.firstChild;
     const toPos = (e) => {
       const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
@@ -559,7 +586,7 @@
     const host = el('tabBody'), key = BOARD_KEY[tab], isShape = key === 'shape';
     const bench = team.bench.map((p) => `
       <button class="chip${world.selBench === p ? ' sel' : ''}" draggable="true" data-bench="${p.id}">
-        <span class="num" style="${KITNUM(team)}">${p.number}</span><span>${p.natural} ${esc(shortName(p))}</span><span class="meta">${overall(p)}</span>
+        <span class="num" style="${KITNUM(team)}">${p.number}</span><span>${p.natural} ${esc(shortName(p))}</span><span class="meta ${FM.isInjured(p) ? 'out' : FM.conditionOf(p) < 0.6 ? 'low' : ''}">${overall(p)} · ${FM.isInjured(p) ? 'injured' : Math.round(100 * FM.conditionOf(p)) + '%'}</span>
       </button>`).join('');
     host.innerHTML = `
       <div class="tb-grid">
@@ -610,7 +637,8 @@
     if (!host) return;
     const all = FM.teamProblems(team);
     const sel = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
-    let html = '<h2 style="margin-bottom:8px">Do the phases fit together?</h2>';
+    const hurt = team.players.filter(FM.isInjured);
+    let html = (hurt.length && !inLive() ? `<p class="note warnnote">${hurt.map((p) => esc(p.name)).join(', ')} ${hurt.length > 1 ? 'are' : 'is'} injured. Substitute ${hurt.length > 1 ? 'them' : 'him'} here, or the best available replacement will start at kick-off.</p>` : '') + '<h2 style="margin-bottom:8px">Do the phases fit together?</h2>';
     if (!all.length) html += '<p class="note">Yes. Every player can reach each of his positions in time, and each position fits his role.</p>';
     else {
       html += '<div class="warns">' + all.map(({ p, list }) => `<div class="warn${p === sel ? ' me' : ''}"><b>${esc(shortName(p))}</b> (${p.slotKey})<ul>${list.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>`).join('') + '</div>';
@@ -668,7 +696,7 @@
 
   // ---------- starting up ----------
   function showNewGame() {
-    ['home', 'league', 'squad', 'analysis', 'reports', 'hypotheses', 'match'].forEach((k) => { el('view-' + k).hidden = true; });
+    ['home', 'league', 'squad', 'analysis', 'reports', 'news', 'hypotheses', 'match'].forEach((k) => { el('view-' + k).hidden = true; });
     el('tactics').hidden = true; el('nav').hidden = true; el('newGame').hidden = false;
     el('topRight').innerHTML = ''; el('subtitle').textContent = 'Eight clubs, one season, and a lot of numbers.';
   }

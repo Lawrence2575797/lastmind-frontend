@@ -26,14 +26,14 @@
 
   // Typical rating for each kind of position (mean of a normal distribution).
   const PROFILES = {
-    GK: { pace: 45, dribbling: 35, passing: 55, finishing: 25, tackling: 35, composure: 62, heading: 40 },
-    CB: { pace: 56, dribbling: 45, passing: 58, finishing: 32, tackling: 72, composure: 60, heading: 72 },
-    FB: { pace: 70, dribbling: 58, passing: 62, finishing: 40, tackling: 64, composure: 58, heading: 50 },
-    DM: { pace: 58, dribbling: 56, passing: 70, finishing: 42, tackling: 70, composure: 64, heading: 58 },
-    CM: { pace: 62, dribbling: 64, passing: 72, finishing: 52, tackling: 60, composure: 64, heading: 52 },
-    AM: { pace: 68, dribbling: 72, passing: 72, finishing: 62, tackling: 42, composure: 66, heading: 48 },
-    WF: { pace: 78, dribbling: 76, passing: 64, finishing: 66, tackling: 38, composure: 62, heading: 46 },
-    ST: { pace: 70, dribbling: 66, passing: 56, finishing: 76, tackling: 34, composure: 66, heading: 70 },
+    GK: { pace: 45, dribbling: 35, passing: 55, finishing: 25, tackling: 35, composure: 62, heading: 40, stamina: 60 },
+    CB: { pace: 56, dribbling: 45, passing: 58, finishing: 32, tackling: 72, composure: 60, heading: 72, stamina: 62 },
+    FB: { pace: 70, dribbling: 58, passing: 62, finishing: 40, tackling: 64, composure: 58, heading: 50, stamina: 72 },
+    DM: { pace: 58, dribbling: 56, passing: 70, finishing: 42, tackling: 70, composure: 64, heading: 58, stamina: 68 },
+    CM: { pace: 62, dribbling: 64, passing: 72, finishing: 52, tackling: 60, composure: 64, heading: 52, stamina: 70 },
+    AM: { pace: 68, dribbling: 72, passing: 72, finishing: 62, tackling: 42, composure: 66, heading: 48, stamina: 66 },
+    WF: { pace: 78, dribbling: 76, passing: 64, finishing: 66, tackling: 38, composure: 62, heading: 46, stamina: 66 },
+    ST: { pace: 70, dribbling: 66, passing: 56, finishing: 76, tackling: 34, composure: 66, heading: 70, stamina: 62 },
   };
 
   FM.generateRatings = function (group, rng, strength) {

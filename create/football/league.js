@@ -71,7 +71,7 @@
       });
       return team;
     });
-    const league = { seed, tier: opts.tier || 'gcse', userId: teams[opts.userIndex || 0].id, season: 1, day: 0, teams, fixtures: [], testLog: [], hypotheses: [] };
+    const league = { seed, tier: opts.tier || 'gcse', userId: teams[opts.userIndex || 0].id, season: 1, day: 0, teams, fixtures: [], testLog: [], hypotheses: [], news: [] };
     league.fixtures = makeFixtures(teams.map((t) => t.id), rng, seed);
     return league;
   };
@@ -120,6 +120,8 @@
     const f = FM.userFixtureToday(league);
     if (f && !f.played) return 'Matchday: play your match before moving on.';
     league.day++;
+    FM.today = league.day;
+    FM.recoverDay(league);
     return null;
   };
 
@@ -139,7 +141,10 @@
       p.yellows = 0; p.sentOff = false;
       if (p.origGk != null) { p.ratings.gk = p.origGk; delete p.origGk; }
       p.emergencyKeeper = false;
+      if (p.baseRatings) { Object.assign(p.ratings, p.baseRatings); p.maxSpeed = FM.speedFromPace(p.baseRatings.pace); delete p.baseRatings; }
+      delete p.energy;
     });
+    team.retired = [];
     team.players = snap.slots.map((s) => {
       const p = byId(s.id), slot = formation.slots[s.index];
       p.index = s.index; p.slotKey = slot.key; p.group = slot.group; p.roleId = s.roleId; p.options = Object.assign({}, s.options);
@@ -221,14 +226,21 @@
   };
 
   // ---------- playing a fixture ----------
-  FM.startFixture = function (league, fx) {
+  FM.startFixture = function (league, fx, opts) {
     const home = FM.teamById(league, fx.homeId), away = FM.teamById(league, fx.awayId);
+    FM.today = league.day;
     FM.chooseKits(home, away);
     // AI clubs prepare for this opponent; the user's tactics are never touched.
     if (home.id !== league.userId) Object.assign(home.tactics, FM.aiTacticsFor(league, home, away));
     if (away.id !== league.userId) Object.assign(away.tactics, FM.aiTacticsFor(league, away, home));
-    [home, away].forEach((t) => { t.snap = FM.snapshotLineup(t); t.subsUsed = 0; t.sentOff = []; delete t.liveBase; delete t.liveLean; });
+    // Injured players cannot play, and computer-run clubs also rest exhausted ones. Your own line-up only changes for injuries.
+    [home, away].forEach((t) => {
+      const changes = FM.autoLineup(t, { rotate: t.id !== league.userId });
+      if (t.id === league.userId && FM.pushNews) changes.filter((c) => c.injured).forEach((c) => FM.pushNews(league, { round: fx.round, day: league.day, kind: 'Injury', headline: c.off.name + ' is injured, ' + c.on.name + ' starts', body: c.off.name + ' (' + c.off.natural + ') is unavailable' + (c.off.injury ? ' with ' + c.off.injury.name : '') + ', so ' + c.on.name + ' takes his place in your starting line-up.', club: t.id, mine: true }));
+    });
+    [home, away].forEach((t) => { t.snap = FM.snapshotLineup(t); t.subsUsed = 0; t.sentOff = []; t.retired = []; delete t.liveBase; delete t.liveLean; FM.fitnessBegin(t); });
     const match = FM.createMatch(home, away, fx.seed);
+    match.day = league.day; match.userId = league.userId; match.interactive = !!(opts && opts.interactive);
     match.aiTeams = [home, away].filter((t) => t.id !== league.userId);
     match.fixture = fx;
     match.starters = { [home.id]: home.players.map((p) => p.id), [away.id]: away.players.map((p) => p.id) };
@@ -263,7 +275,8 @@
     [home, away].forEach((t) => t.squad.forEach((p) => { if (played.has(p.id)) p.stats.apps++; }));
     // For the user's own matches, keep a compact log for the Analysis Centre.
     if (fx.homeId === league.userId || fx.awayId === league.userId) fx.log = FM.compactLog(match);
-    [home, away].forEach((t) => { FM.restoreLineup(t, t.snap); t.snap = null; delete t.liveBase; delete t.liveLean; });
+    if (FM.summariseMatch) fx.summary = FM.summariseMatch(league, fx, match);
+    [home, away].forEach((t) => { FM.fitnessEnd(t, played); FM.restoreLineup(t, t.snap); t.snap = null; delete t.liveBase; delete t.liveLean; });
   };
 
   // A compact copy of what happened, small enough to keep for every match of a season. Passes are arrays:
@@ -303,6 +316,7 @@
     league.fixtures.filter((f) => f.round === userFx.round && !f.played).forEach((f) => FM.simulateFixture(league, f));
     FM.aiAfterRound(league, userFx.round);
     if (FM.testPendingHypotheses) FM.testPendingHypotheses(league, userFx);
+    if (FM.makeNews) FM.makeNews(league, userFx.round);
   };
 
   // ---------- table ----------
@@ -320,15 +334,15 @@
   };
 
   // ---------- saving ----------
-  const PLAYER_KEYS = ['id', 'number', 'natural', 'name', 'nation', 'ratings', 'maxSpeed', 'roleId', 'options', 'index', 'slotKey', 'group', 'stats', 'origGk', 'emergencyKeeper', 'instr', 'note'];
+  const PLAYER_KEYS = ['id', 'number', 'natural', 'name', 'nation', 'ratings', 'maxSpeed', 'roleId', 'options', 'index', 'slotKey', 'group', 'stats', 'origGk', 'emergencyKeeper', 'instr', 'note', 'condition', 'injury'];
   FM.serializeLeague = function (league) {
     const teams = league.teams.map((t) => ({
       id: t.id, name: t.name, kit: t.kit, kits: t.kits, style: t.style, strength: t.strength, seed: t.seed, formationKey: t.formationKey, tactics: t.tactics,
       subsUsed: t.subsUsed, maxSubs: t.maxSubs, snap: t.snap || null, baseTactics: t.baseTactics, drift: t.drift, shape: t.shape, phasePos: t.phasePos,
-      squad: t.squad.map((p) => { const o = {}; PLAYER_KEYS.forEach((k) => { if (p[k] !== undefined) o[k] = p[k]; }); return o; }),
+      squad: t.squad.map((p) => { const o = {}; PLAYER_KEYS.forEach((k) => { if (p[k] !== undefined) o[k] = p[k]; }); if (p.baseRatings) o.ratings = p.baseRatings; return o; }),
       players: t.players.map((p) => p.id), bench: t.bench.map((p) => p.id),
     }));
-    return JSON.stringify({ v: 1, seed: league.seed, tier: league.tier, userId: league.userId, season: league.season, day: league.day, fixtures: league.fixtures, teams, testLog: league.testLog || [], hypotheses: league.hypotheses || [] });
+    return JSON.stringify({ v: 1, seed: league.seed, tier: league.tier, userId: league.userId, season: league.season, day: league.day, fixtures: league.fixtures, teams, testLog: league.testLog || [], hypotheses: league.hypotheses || [], news: league.news || [] });
   };
   FM.deserializeLeague = function (text) {
     const d = JSON.parse(text);
@@ -342,7 +356,8 @@
       };
       return team;
     });
-    const league = { seed: d.seed, tier: d.tier, userId: d.userId, season: d.season, day: d.day, fixtures: d.fixtures, teams, testLog: d.testLog || [], hypotheses: d.hypotheses || [] };
+    const league = { seed: d.seed, tier: d.tier, userId: d.userId, season: d.season, day: d.day, fixtures: d.fixtures, teams, testLog: d.testLog || [], hypotheses: d.hypotheses || [], news: d.news || [] };
+    FM.today = d.day;
     // A match that was abandoned part way: put the lineups back as they were before kick-off.
     league.teams.forEach((t) => { if (t.snap) { FM.restoreLineup(t, t.snap); t.snap = null; } else FM.resetToKickoff(t); });
     return league;

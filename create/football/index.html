@@ -140,6 +140,8 @@
   .tbar { position: relative; display: inline-block; width: 120px; height: 9px; background: rgba(241, 234, 214, 0.14); border-radius: 5px; vertical-align: middle; }
   .tbar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--gold); border-radius: 5px; }
   .tbar b { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #7FD1FF; }
+  .out { color: #F2A0A0; }
+  .low { color: #F2C8A0; }
   .pm { color: var(--cream-soft); font-size: 0.78rem; }
   .hyp { background: var(--navy-raise); border-radius: 8px; padding: 10px 12px; display: grid; gap: 6px; font-family: var(--sans); font-size: 0.88rem; }
   .hyp-head { line-height: 1.45; }
@@ -180,6 +182,7 @@
   <section id="view-squad" hidden></section>
   <section id="view-analysis" hidden></section>
   <section id="view-reports" hidden></section>
+  <section id="view-news" hidden></section>
   <section id="view-hypotheses" hidden></section>
 
   <section id="view-match" hidden>
@@ -204,6 +207,10 @@
         <aside class="panel">
           <div class="group"><h2>Match</h2><table class="stats" id="stats"></table></div>
           <div class="group"><h2>Events</h2><div class="feed" id="feed"></div></div>
+          <div class="group" id="injuryBox" hidden>
+            <p class="desc" id="injuryText"></p>
+            <button id="injuryTen">Play on without a replacement</button>
+          </div>
           <div class="group" id="finishBox" hidden>
             <p class="desc" id="finishText"></p>
             <button class="primary" id="finishBtn">Finish and see the table</button>
@@ -228,11 +235,13 @@
 <script src="/create/football/names.js"></script>
 <script src="/create/football/engine.js"></script>
 <script src="/create/football/instructions.js"></script>
+<script src="/create/football/fitness.js"></script>
 <script src="/create/football/match.js"></script>
 <script src="/create/football/league.js"></script>
 <script src="/create/football/stats_math.js"></script>
 <script src="/create/football/stats.js"></script>
 <script src="/create/football/stats_top.js"></script>
+<script src="/create/football/news.js"></script>
 <script src="/create/football/analysis.js"></script>
 <script src="/create/football/reports.js"></script>
 <script src="/create/football/hypotheses.js"></script>

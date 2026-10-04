@@ -45,7 +45,7 @@
     return Math.abs(Math.atan2(dy + 3.66, dx) - Math.atan2(dy - 3.66, dx));
   };
   FM.xgLogit = function (shooter, x, y, attackDir, defDist) {
-    return -4.45 + 7.6 * FM.shotAngle(x, y, attackDir) + 0.03 * (shooter.ratings.finishing - 60) - 0.9 * Math.exp(-defDist / 2);
+    return -4.33 + 7.6 * FM.shotAngle(x, y, attackDir) + 0.03 * (shooter.ratings.finishing - 60) - 0.9 * Math.exp(-defDist / 2);
   };
 
   // ---------- roles' tendencies when on the ball ----------
@@ -454,7 +454,7 @@
   function replaceKeeper(match, team, gk) {
     const formation = FM.FORMATIONS[team.formationKey];
     const slotIdx = gk.index;
-    const benchGK = team.bench.find((p) => p.natural === 'GK');
+    const benchGK = team.bench.find((p) => p.natural === 'GK' && !FM.isInjured(p));
     const goalX = team.attackDir === 1 ? 3 : L - 3;
     if (benchGK && team.subsUsed < team.maxSubs) {
       const rank = { ST: 0, WF: 1, AM: 2, CM: 3, DM: 4, FB: 5, CB: 6 };
@@ -633,6 +633,7 @@
     match.teams.forEach((t) => { t.offsideLine = null; t.phaseCtx = {}; });
     const ov = restartOverrides(match);
     match.teams.forEach((t) => FM.stepTeam(t, match.ball, t === r.team, dt, ov));
+    fitnessTick(match, dt);
     r.timer -= dt;
     if (r.timer <= 0 && (Math.hypot(r.taker.x - r.x, r.taker.y - r.y) < 1.6 || r.timer < -4)) execRestart(match);
   }
@@ -740,6 +741,57 @@
     match.ball.state = 'flight';
   }
 
+  // ---------- energy and injuries during play ----------
+  function fitnessTick(match, dt) {
+    match.teams.forEach((team) => team.players.forEach((p) => { p.energy = Math.max(0.05, (p.energy == null ? 1 : p.energy) - FM.drainFor(p, team, dt)); }));
+    if (match.clock >= (match.fitNext || 0)) { match.fitNext = match.clock + 30; match.teams.forEach((t) => t.players.forEach(FM.applyFatigue)); }
+    if (match.clock >= (match.injNext || 0)) {
+      match.injNext = match.clock + 1;
+      match.teams.forEach((team) => team.players.slice().forEach((p) => {
+        if (match.injuryPause || FM.isInjured(p)) return;
+        if (match.rng() < FM.injuryHazard(p, team)) handleInjury(match, team, p);
+      }));
+    }
+  }
+  // An injured player is out for a number of days. In the user's own match play stops so a substitute can be chosen;
+  // for computer-run clubs (and when there is no one to bring on) the replacement is made at once.
+  function handleInjury(match, team, p) {
+    const inj = FM.rollInjury(match.rng);
+    p.injury = { until: (match.day || 0) + inj.days, name: inj.name, matches: inj.matches };
+    record(match, { type: 'injury', team: team.id, player: p.number, matches: inj.matches, name: inj.name });
+    const manual = match.interactive && team.id === match.userId;
+    const options = team.subsUsed < team.maxSubs && team.bench.some((b) => !FM.isInjured(b) && (p.group === 'GK' ? b.natural === 'GK' : b.natural !== 'GK'));
+    if (!manual || !options) { replaceInjured(match, team, p); return; }
+    match.injuryPause = { team, player: p };
+  }
+  function replaceInjured(match, team, p) {
+    const near = FM.GROUP_NEAR[p.group] || [p.group];
+    const rank = (b) => { const r = near.indexOf(b.natural); return r < 0 ? 9 : r; };
+    const ovr = (b) => b.ratings.pace + b.ratings.dribbling + b.ratings.passing + b.ratings.finishing + b.ratings.tackling;
+    if (team.subsUsed < team.maxSubs) {
+      const cands = team.bench.filter((b) => !FM.isInjured(b) && (p.group === 'GK' ? b.natural === 'GK' : b.natural !== 'GK')).sort((a, b) => (rank(a) - rank(b)) || (ovr(b) - ovr(a)));
+      if (cands.length) { FM.substitute(team, p, cands[0], match); return; }
+    }
+    retire(match, team, p);
+  }
+  // The injured player leaves and is not replaced: the side plays on with ten (an outfield player goes in goal if it was the keeper).
+  function retire(match, team, p) {
+    const wasKeeper = p.group === 'GK';
+    team.players = team.players.filter((x) => x !== p);
+    team.retired = (team.retired || []).concat(p);
+    if (match.carrier && match.carrier.player === p) { const alt = team.players.filter((x) => x.group !== 'GK').sort((a, b) => dist(a, p) - dist(b, p))[0]; if (alt) match.carrier.player = alt; else match.carrier = null; }
+    if (match.flight && match.flight.target === p) { match.flight.target = null; match.flight.outcome = 'loose'; }
+    if (match.restart && match.restart.taker === p) { const alt = team.players.filter((x) => x.group !== 'GK')[0]; if (alt) match.restart.taker = alt; }
+    if (wasKeeper) replaceKeeper(match, team, p);
+  }
+  // The manager chooses to play on without replacing the injured player.
+  FM.resolveInjury = function (match) {
+    if (!match.injuryPause) return;
+    const { team, player } = match.injuryPause;
+    match.injuryPause = null;
+    retire(match, team, player);
+  };
+
   // ---------- AI managers ----------
   // Teams the user does not manage change their approach during a match. Every five minutes (from the 20th) each one
   // looks at the score, the minute, the numbers on the pitch and how the match is going, and sets its tactics to its
@@ -836,6 +888,7 @@
   // ---------- one simulation step ----------
   FM.stepMatch = function (match, dt) {
     if (match.phase === 'halftime' || match.phase === 'fulltime') return;
+    if (match.injuryPause) return;
 
     if (match.phase === 'kickoff') {
       const poss = match.kickoffTeam;
@@ -859,6 +912,7 @@
     setPhaseContext(match);
     const ov = buildOverrides(match);
     match.teams.forEach((t) => FM.stepTeam(t, match.ball, t === poss, dt, ov));
+    fitnessTick(match, dt);
 
     updateBall(match, dt);
 
@@ -902,6 +956,7 @@
 
   FM.startSecondHalf = function (match) {
     if (match.phase !== 'halftime') return;
+    match.teams.forEach((t) => t.players.forEach((p) => { p.energy = Math.min(1, (p.energy == null ? 1 : p.energy) + 0.08); FM.applyFatigue(p); }));
     FM.beginKickoff(match, match.away);
   };
 
