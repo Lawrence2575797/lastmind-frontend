@@ -428,13 +428,16 @@
     transAtt: 'The few seconds just after winning the ball, before the team settles. This is where the first runs are made, so positions here pull players toward where the attack will go.',
     transDef: 'The few seconds just after losing the ball. Players here are pulled toward the positions that cut the counter-attack off, or toward the ball if the team presses.',
     press: 'The team pressing the opposition while they build from their own end: the ball is with their goalkeeper or defenders deep in their half. Strikers and wide players step up to cut off the short passes, and the midfield and back line move up to squeeze the space behind them. The more you press, the further these positions pull the team up the pitch, and the more players chase the ball. The slider sets how much, and the shirts show where each player stands when the press is fully on.',
-    without: 'The team without the ball, set to defend. The line height, pressing and width settings move these positions further.',
+    without: 'The team without the ball, set to defend. The pressing and width settings move these positions further. The height of the defensive line is set on the Squad and formation tab and moves the default positions in every phase.',
   };
   // Where the ball starts on each phase's board. It is only a picture to think with: drag it anywhere to imagine another situation.
   const BALL_AT = { press: { d: 0.93, w: 0.5 }, build: { d: 0.07, w: 0.6 }, final: { d: 0.86, w: 0.5 }, transAtt: { d: 0.42, w: 0.5 }, transDef: { d: 0.55, w: 0.5 }, without: { d: 0.45, w: 0.5 } };
   const PHASE_CODE = { build: 'B', final: 'F', transAtt: 'TA', transDef: 'TD', press: 'P', without: 'D' };
   // [key, label, left end, right end, min, max, what it does]
   const SLIDER_TABS = {
+    squad: [
+      ['lineHeight', 'Height of the defensive line', 'Deep', 'High', 0, 1, 'A team setting for every phase. A high line squeezes the space between the lines but leaves room behind it; a deep one is harder to run in behind. It moves the default positions of the whole team, the back line most, in every phase (a shirt you have placed by hand stays where you put it).'],
+    ],
     build: [
       ['buildDirect', 'Playing out from the back', 'Short and patient', 'Long and direct', 0, 1, 'In your own third: short passes to feet, or the ball sent forward early.'],
       ['directness', 'Progressing through midfield', 'Patient', 'Direct', 0, 1, 'In the middle third: how much the carrier looks for the forward pass over the safe one.'],
@@ -459,7 +462,6 @@
     ],
     without: [
       ['pressing', 'Pressing', 'Stay compact, let them have it', 'Press hard', 0, 1, 'How many players close down the ball carrier, and from how far away.'],
-      ['lineHeight', 'Defensive line', 'Deep', 'High', 0, 1, 'A high line squeezes space but leaves room behind.'],
       ['defWidth', 'Width without the ball', 'Narrow', 'Wide', 0.7, 1.25, 'Compact through the middle, or covering the flanks.'],
       ['tackleAggression', 'Tackling', 'Stay on feet', 'Go in hard', 0, 1, 'More challenges, but more fouls and more cards.'],
       ['offsideTrap', 'Offside trap', 'Do not play it', 'Step up together', 0, 1, 'Catches more runners who are only just onside, but a mistimed step leaves a gap.'],
@@ -766,6 +768,8 @@
 
   function renderRolePanel(team) {
     const host = el('rolePanel');
+    // A player's role and instructions belong to the player, so they are set here on Squad and formation, not on each phase's page.
+    if (world.tab !== 'squad') { host.innerHTML = '<p class="note">The role and instructions for a player (dribbling, shooting, closing down and so on) are set on the Squad and formation tab, because they belong to the player, not to one phase.</p>'; return; }
     // A substitute picked from the bench: show his profile, with how to bring him on.
     if (world.selBench && team.bench.includes(world.selBench)) {
       const b = world.selBench;

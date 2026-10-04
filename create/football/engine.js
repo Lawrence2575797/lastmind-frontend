@@ -197,6 +197,9 @@
     const push = PUSH[p.group] || 0;
     if (phase === 'final') d += push; else if (phase === 'transAtt') d += push * 0.6; else if (phase === 'transDef') d -= 0.03; else if (phase === 'press') d += PRESS_PUSH[p.group] || 0;
     d += m.depth;
+    // Team setting, the height of the defensive line: it moves the defaults of every phase (the back line most, the front line least),
+    // and counts for more when the team does not have the ball. A position placed by hand is left where the manager put it.
+    d += (team.tactics.lineHeight - 0.5) * 0.28 * (FM.GROUP_LINE_WEIGHT[p.group] || 0) * (inPos ? 0.6 : 1);
     if (!centre) w += (base.w < 0.5 ? -1 : 1) * m.width;
     return { d: clamp(d, 0.02, 0.97), w: clamp(w, 0.04, 0.96) };
   };
@@ -272,9 +275,7 @@
     let d = pos.d, w = pos.w;
     const phase = hasBall ? role.inPoss : role.outPoss;
 
-    // Team instruction: how high the defensive line sits. Counts for more when the team does not have the ball.
-    const weight = FM.GROUP_LINE_WEIGHT[player.group] || 0;
-    d += (team.tactics.lineHeight - 0.5) * 0.28 * weight * (hasBall ? 0.6 : 1);
+    // (The height of the defensive line is part of each phase's default position: see defaultPhasePos.)
 
     // Shape shifts toward the ball (a roaming player follows it more, a player told to hold less).
     const pull = clamp((FM.GROUP_BALL_PULL[player.group] || 0.4) + phase.ballPull + 0.25 * m.roam, 0, 1);
