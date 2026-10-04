@@ -579,9 +579,12 @@
     if (sc && sc.shape.phases[OPP_PHASE[key]]) {
       const cells = sc.shape.phases[OPP_PHASE[key]];
       const kit = FM.kitAgainst(sc.opp, FM.teamById(world.league, world.league.userId));
-      opp = '<g style="pointer-events:none">' + Object.keys(cells).map((slot) => {
-        const c = cells[slot], pt = bpt({ d: 1 - c.d, w: 1 - c.w });
-        return `<circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="19" fill="${kit.shirt}" fill-opacity="0.9" stroke="${kit.number}" stroke-width="2.5" stroke-dasharray="4 3"/><text x="${pt.x.toFixed(1)}" y="${(pt.y + 4.5).toFixed(1)}" text-anchor="middle" font-size="12.5" font-weight="700" fill="${kit.number}">${slot}</text>`;
+      // Their shirts can be dragged to try out "what if they stood here". These moves are only for looking at, not saved, and the
+      // button under the board puts them back where they were scouted.
+      const moved = (world.oppMoved && world.oppMoved[key]) || {};
+      opp = '<g>' + Object.keys(cells).map((slot) => {
+        const c = moved[slot] || cells[slot], pt = bpt({ d: 1 - c.d, w: 1 - c.w });
+        return `<g class="odot" data-slot="${slot}" transform="translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})"><circle r="19" fill="${kit.shirt}" fill-opacity="0.9" stroke="${kit.number}" stroke-width="2.5" stroke-dasharray="4 3"/><text y="4.5" text-anchor="middle" font-size="12.5" font-weight="700" fill="${kit.number}" style="pointer-events:none">${slot}</text>${moved[slot] ? '<circle cx="14" cy="-14" r="5" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/>' : ''}</g>`;
       }).join('') + '</g>';
     }
     let ball = '';
@@ -610,6 +613,8 @@
     svg.addEventListener('pointerdown', (e) => {
       const bl = e.target.closest('.ball');
       if (bl) { dragBall = { g: bl, pos: null }; svg.setPointerCapture(e.pointerId); e.preventDefault(); return; }
+      const og = e.target.closest('.odot');
+      if (og && !e.target.closest('.dot')) { drag = { opp: true, slot: og.dataset.slot, g: og, sx: e.clientX, sy: e.clientY, moved: false, pos: null }; svg.setPointerCapture(e.pointerId); e.preventDefault(); return; }
       const g = e.target.closest('.dot');
       if (!g) return;
       const p = team.players.find((x) => x.index === +g.dataset.idx);
@@ -624,7 +629,7 @@
       if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 5) return;
       drag.moved = true;
       let pos = toPos(e);
-      if (key !== 'shape') pos = FM.clampToReach(team, drag.p, key, pos);
+      if (key !== 'shape' && !drag.opp) pos = FM.clampToReach(team, drag.p, key, pos);
       drag.pos = pos;
       const pt = bpt(pos);
       drag.g.setAttribute('transform', `translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})`);
@@ -633,6 +638,10 @@
       if (dragBall) { if (dragBall.pos) { world.ballPos = world.ballPos || {}; world.ballPos[key] = { d: dragBall.pos.d, w: dragBall.pos.w }; } dragBall = null; return; }
       if (!drag) return;
       const d = drag; drag = null;
+      if (d.opp) {
+        if (d.moved && d.pos) { world.oppMoved = world.oppMoved || {}; (world.oppMoved[key] = world.oppMoved[key] || {})[d.slot] = { d: 1 - d.pos.d, w: 1 - d.pos.w }; renderTactics(); }
+        return;
+      }
       if (!d.moved && world.selBench) { host.dispatchEvent(new CustomEvent('sub', { detail: { idx: d.p.index, id: world.selBench.id } })); return; }
       world.selBench = null;
       if (d.moved) {
@@ -689,11 +698,13 @@
     if (oppBox) {
       oppBox.addEventListener('change', () => { world.showOpp = oppBox.checked; renderTactics(); });
       const sc = scoutFor(), note = host.querySelector('#oppNote');
+      const movedAny = world.oppMoved && world.oppMoved[key] && Object.keys(world.oppMoved[key]).length;
       if (!world.showOpp) note.textContent = '';
       else if (!sc) note.textContent = 'Nothing is known about how they line up yet: they have not played.';
       else {
         const cells = sc.shape.phases[OPP_PHASE[key]], n = cells ? Math.max.apply(null, Object.keys(cells).map((k) => cells[k].n)) : 0;
-        note.textContent = `Dashed shirts, in their kit, are where ${sc.opp.name} have stood in their ${FM.PHASE_NAMES[OPP_PHASE[key]].toLowerCase()} phase, when you are in yours, drawn as they stand facing you. From ${sc.shape.matches} match${sc.shape.matches > 1 ? 'es' : ''} (${sc.shape.friendlies} pre-season friendl${sc.shape.friendlies === 1 ? 'y' : 'ies'}, which count half; newer matches count more), in their ${sc.shape.formation}. ${cells ? 'This phase has up to ' + n + ' samples a player, taken every two seconds.' : 'They have not been seen in this phase yet.'} It shows what they did, and they may change.`;
+        note.textContent = `Dashed shirts, in their kit, are where ${sc.opp.name} have stood in their ${FM.PHASE_NAMES[OPP_PHASE[key]].toLowerCase()} phase, when you are in yours, drawn as they stand facing you. From ${sc.shape.matches} match${sc.shape.matches > 1 ? 'es' : ''} (${sc.shape.friendlies} pre-season friendl${sc.shape.friendlies === 1 ? 'y' : 'ies'}, which count half; newer matches count more), in their ${sc.shape.formation}. ${cells ? 'This phase has up to ' + n + ' samples a player, taken every two seconds.' : 'They have not been seen in this phase yet.'} It shows what they did, and they may change. Drag their shirts to try out where they might stand instead (these moves are not saved).`;
+        if (movedAny) { const b = document.createElement('button'); b.textContent = 'Put their shirts back where they were scouted'; b.style.marginLeft = '8px'; b.addEventListener('click', () => { delete world.oppMoved[key]; renderTactics(); }); note.appendChild(b); }
       }
     }
     if (SLIDER_TABS[tab]) renderSliderTab(team, SLIDER_TABS[tab], host.querySelector('#phaseSliders'));
