@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Football Manager - build step 1</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  /* Work-in-progress build page: not linked from Create until the match is playable. */
+  :root {
+    --birch: #D9C398;
+    --navy: #1A232D;
+    --navy-raise: #26323F;
+    --cream: #F1EAD6;
+    --cream-soft: rgba(241, 234, 214, 0.75);
+    --line: rgba(241, 234, 214, 0.18);
+    --serif: 'Lora', Georgia, 'Times New Roman', serif;
+    --sans: 'Helvetica Neue', Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--birch); color: var(--navy); font-family: var(--serif); padding: 20px 16px 48px; }
+  .shell { max-width: 1280px; margin: 0 auto; display: grid; gap: 16px; }
+  h1 { margin: 0; font-size: clamp(1.5rem, 4vw, 2.1rem); }
+  .sub { margin: 4px 0 0; font-size: 0.95rem; opacity: 0.75; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+  @media (max-width: 960px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  .pitch-wrap { background: var(--navy); border-radius: 14px; padding: 10px; }
+  canvas { display: block; width: 100%; height: auto; border-radius: 8px; cursor: crosshair; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--cream-soft); font-family: var(--sans); font-size: 0.8rem; padding: 10px 6px 2px; }
+  .panel { background: var(--navy); color: var(--cream); border-radius: 14px; padding: 18px; display: grid; gap: 16px; min-width: 0; }
+  .panel h2 { margin: 0; font-size: 1rem; font-family: var(--sans); letter-spacing: 0.06em; text-transform: uppercase; color: var(--cream-soft); }
+  .group { display: grid; gap: 10px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+  .group:last-child { border-bottom: 0; padding-bottom: 0; }
+  label { display: grid; gap: 4px; font-family: var(--sans); font-size: 0.82rem; color: var(--cream-soft); }
+  select, input[type="range"] { width: 100%; font: inherit; }
+  select { background: var(--navy-raise); color: var(--cream); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-family: var(--sans); font-size: 0.9rem; }
+  button { background: var(--navy-raise); color: var(--cream); border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; font-family: var(--sans); font-size: 0.88rem; font-weight: 700; cursor: pointer; }
+  button.on { background: var(--cream); color: var(--navy); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row > * { flex: 1 1 auto; }
+  .teamname { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+  .swatch { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; }
+  .desc { font-size: 0.9rem; line-height: 1.5; color: var(--cream); }
+  .hint { font-size: 0.82rem; color: var(--cream-soft); font-family: var(--sans); line-height: 1.5; }
+  .check { display: flex; align-items: center; gap: 8px; flex-direction: row; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div>
+    <h1>Football Manager: build step 1</h1>
+    <p class="sub">The formation, roles and instructions decide where all 22 players stand and move. There is no ball play yet. Place the ball, switch possession, and change the tactics to watch the shape respond.</p>
+  </div>
+  <div class="layout">
+    <div>
+      <div class="pitch-wrap">
+        <canvas id="pitch" aria-label="Football pitch seen from above with 22 numbered players"></canvas>
+        <div class="legend" id="legend"></div>
+      </div>
+    </div>
+    <aside class="panel">
+      <div class="group">
+        <h2>Ball</h2>
+        <div class="row">
+          <button id="posHome" class="on">Home has the ball</button>
+          <button id="posAway">Away has the ball</button>
+        </div>
+        <label class="check"><input type="checkbox" id="demo"> Demo: move the ball around on its own</label>
+        <p class="hint">Click anywhere on the pitch to place the ball. Click a player to change his role.</p>
+      </div>
+      <div class="group" id="homeControls"></div>
+      <div class="group" id="awayControls"></div>
+      <div class="group" id="playerPanel"><h2>Selected player</h2><p class="hint">Click a player on the pitch.</p></div>
+    </aside>
+  </div>
+</div>
+<script src="/create/football/formations.js"></script>
+<script src="/create/football/roles.js"></script>
+<script src="/create/football/engine.js"></script>
+<script src="/create/football/main.js"></script>
+</body>
+</html>
