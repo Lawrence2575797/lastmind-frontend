@@ -19743,6 +19743,64 @@ SQIDAQAB
         }, 0);
     }
 
+    // A "/" typed straight after a closing bracket turns everything inside that bracket pair into the numerator and drops the brackets, so
+    // (2xh + h^2)/ becomes a fraction over an empty denominator with the caret in it. The pair is found on the same line by matching brackets
+    // (a nested pair is skipped over). Returns false, doing nothing, whenever it does not apply, so the ordinary "/" behaviour carries on.
+    function mathsFractionFromBrackets(editor) {
+        const sel = window.getSelection();
+        if (!sel.rangeCount || !sel.isCollapsed) return false;
+        const rg = sel.getRangeAt(0), node = rg.startContainer;
+        if (!editor.contains(node)) return false;
+        const host = node.nodeType === 1 ? node : node.parentNode;
+        if (host && host.closest && host.closest(MATHS_ZONES)) return false;
+        let parent, endChild, endOff;
+        if (node.nodeType === 3) { parent = node.parentNode; endChild = node; endOff = rg.startOffset; }
+        else { parent = node; endChild = parent.childNodes[rg.startOffset] || null; endOff = 0; }
+        const marks = [];            // every bracket character before the caret, in order
+        let last = null, elementSince = false;
+        const scan = (t, upTo) => {
+            const txt = t.textContent;
+            for (let i = 0; i < upTo; i++) {
+                const c = txt[i];
+                if (c === '\u200B') continue;
+                last = { n: t, i, c }; elementSince = false;
+                if (c === '(' || c === ')') marks.push({ n: t, i, c });
+            }
+        };
+        for (const ch of parent.childNodes) {
+            if (ch === endChild) { if (ch.nodeType === 3) scan(ch, endOff); break; }
+            if (ch.nodeType === 3) scan(ch, ch.textContent.length); else if (ch.nodeType === 1 && ch.tagName !== 'BR') elementSince = true;
+        }
+        if (!last || last.c !== ')' || elementSince) return false;          // the "/" must come directly after the ")"
+        let depth = 0, open = null;
+        for (let j = marks.length - 1; j >= 0; j--) {
+            depth += marks[j].c === ')' ? 1 : -1;
+            if (depth === 0) { open = marks[j]; break; }
+        }
+        if (!open) return false;
+        const close = marks[marks.length - 1];
+        const big = document.createRange(); big.setStart(open.n, open.i); big.setEnd(close.n, close.i + 1);
+        const probe = big.cloneContents();
+        if (!probe.textContent.replace(/[()\u200B\s]/g, '') && !probe.querySelector('*')) return false;   // "()" has nothing to put on top
+        const frag = big.extractContents();                                   // from "(" to ")" inclusive
+        const first = frag.firstChild, lastNode = frag.lastChild;
+        if (first && lastNode && first === lastNode && first.nodeType === 3) first.textContent = first.textContent.slice(1, -1);
+        else {
+            if (first && first.nodeType === 3) first.textContent = first.textContent.slice(1);
+            if (lastNode && lastNode.nodeType === 3) lastNode.textContent = lastNode.textContent.slice(0, -1);
+        }
+        const num = document.createElement('span'); num.className = 'frac-num';
+        num.appendChild(frag);
+        if (!num.textContent.replace(/\u200B/g, '') && !num.querySelector('*')) num.textContent = '\u200B';
+        const den = document.createElement('span'); den.className = 'frac-den'; den.appendChild(document.createTextNode('\u200B'));
+        const frac = document.createElement('span'); frac.className = 'frac'; frac.appendChild(num); frac.appendChild(den);
+        big.insertNode(frac);
+        const caret = document.createRange(); caret.setStart(den.firstChild, 1); caret.collapse(true);
+        sel.removeAllRanges(); sel.addRange(caret);
+        editor.dispatchEvent(new Event('input', { bubbles: true }));
+        return true;
+    }
+
     function createSmartAnswerEditor(placeholder, opts) {
         opts = opts || {};
         const wrap = document.createElement('div');
@@ -20226,6 +20284,7 @@ SQIDAQAB
                 if (fracPart && fracPart.className === 'frac-num') { ev.preventDefault(); advanceFracNumToDen(fracPart); return; }
                 if (fracPart && fracPart.className === 'frac-den') return;
                 ev.preventDefault();
+                if (mathsFractionFromBrackets(editor)) return;
                 const token = findTokenBeforeCaret();
                 if (token) {
                     const numerator = token.range.extractContents();
@@ -30588,6 +30647,7 @@ SQIDAQAB
                     if (fracPart && fracPart.className === 'frac-num') { ev.preventDefault(); advanceFracNumToDen(fracPart); return; }
                     if (fracPart && fracPart.className === 'frac-den') return;
                     ev.preventDefault();
+                    if (mathsFractionFromBrackets(editor)) return;
                     const token = findTokenBeforeCaret();
                     if (token) {
                         const numerator = token.range.extractContents();
