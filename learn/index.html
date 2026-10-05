@@ -4163,10 +4163,12 @@
     .coord-graph-btn:hover { background: rgba(230,215,176,.12); }
     .coord-graph-expression { flex: 1 1 310px; min-width: 150px; color: #E6D7B0; background: rgba(230,215,176,.07); border: 1px solid rgba(230,215,176,.32); border-radius: 7px; padding: 7px 9px; font: 14px ui-monospace, Consolas, monospace; }
     .coord-graph-expression:focus { outline: 2px solid rgba(230,215,176,.3); border-color: #E6D7B0; }
-    .coord-graph-expression-host { flex: 1 1 310px; min-width: 170px; }
+    .coord-graph-expression-host { position: relative; flex: 1 1 310px; min-width: 170px; }
     .coord-graph-expression-host .math-shortcut-wrap { margin: 0; }
-    .coord-graph-expression-host .math-shortcut-editor { min-height: 34px; padding: 6px 9px; border-radius: 7px; font: 14px/1.45 ui-monospace, Consolas, monospace; }
+    .coord-graph-expression-host .math-shortcut-editor { min-height: 34px; padding: 6px 40px 6px 9px; border-radius: 7px; font: 14px/1.45 ui-monospace, Consolas, monospace; }
     .coord-graph-expression-host .math-shortcut-mode-badge { margin-top: 3px; font-size: 10px; }
+    .coord-graph-submit { position: absolute; right: 4px; top: 4px; z-index: 2; width: 27px; height: 27px; display: flex; align-items: center; justify-content: center; border: 0; border-radius: 6px; background: #E6D7B0; color: #12121E; font: 900 17px/1 Arial, sans-serif; cursor: pointer; }
+    .coord-graph-submit:hover { background: #fff; }
     .coord-graph-range { display: flex; align-items: center; gap: 4px; font-size: 11px; opacity: .9; }
     .coord-graph-range input { width: 52px; color: #E6D7B0; background: rgba(230,215,176,.07); border: 1px solid rgba(230,215,176,.28); border-radius: 5px; padding: 5px; }
     .coord-graph-stage { position: relative; aspect-ratio: 16 / 10; min-height: 300px; background: #171827; touch-action: none; }
@@ -4177,9 +4179,12 @@
     .coord-graph-error { min-height: 18px; padding: 0 10px 7px; color: #ffaaaa; font-size: 12px; }
     .nb-graph { background: #12121E; color: #E6D7B0; border-radius: 10px; border: 1px solid rgba(230,215,176,.3); box-shadow: 0 2px 10px rgba(0,0,0,.35); overflow: hidden; }
     .nb-graph .nb-dbar { border-bottom: 0; }
-    .nb-graph-title { flex: 1; padding: 0 8px; font-size: 13px; font-weight: 700; }
-    .nb-graph-equation { display: none; flex: 1; min-width: 0; padding: 1px 8px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #E6D7B0; font: 700 15px/1.35 'Lora', Georgia, serif; }
-    .nb-graph-equation.math-shortcut-editor { min-height: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+    .nb-graph-title { flex: none; padding: 0 8px; font-size: 13px; font-weight: 700; white-space: nowrap; }
+    .nb-graph .nb-dbar .coord-graph-mode { flex: none; }
+    .nb-graph .nb-dbar .coord-graph-mode button { padding: 5px 10px; }
+    .nb-graph .nb-dbar .coord-graph-expression-host { flex: 1 1 180px; min-width: 80px; }
+    .nb-graph .nb-dbar .coord-graph-expression-host .math-shortcut-editor { min-height: 30px; padding: 4px 8px; }
+    .nb-graph .nb-dbar .coord-graph-expression-host .math-shortcut-mode-badge { display: none; }
     .nb-graph .coord-graph { border: 0; border-top: 1px solid rgba(230,215,176,.18); border-radius: 0; box-shadow: none; }
     .nb-graph .coord-graph-stage { min-height: 0; }
     .nb-corner { position: absolute; width: 14px; height: 14px; z-index: 4; background: #E6D7B0; border: 2px solid #1A232D; border-radius: 4px; opacity: 0; touch-action: none; }
@@ -4192,7 +4197,8 @@
     .nb-compact .diagram-palette, .nb-compact .diagram-toolbar, .nb-compact .diagram-result { display: none !important; }
     .nb-compact .nb-dbar { padding: 3px 6px; }
     .nb-compact.nb-graph .nb-graph-title { display: none; }
-    .nb-compact.nb-graph .nb-graph-equation { display: block; }
+    .nb-compact.nb-graph .nb-dbar { gap: 4px; }
+    .nb-compact.nb-graph .nb-dbar .coord-graph-mode button { padding: 4px 7px; }
     .nb-compact .nb-dbar .nb-grip { font-size: 0; height: 22px; }
     .nb-compact .nb-dbar .nb-grip::before { content: '⠿'; font-size: 13px; }
     .nb-compact .nb-dhost { padding: 4px 6px 0; }
@@ -20493,23 +20499,25 @@ SQIDAQAB
     function nbMakeGraphBlock(page, block, canvas) {
         const el = document.createElement('div');
         el.className = 'nb-block nb-graph'; el.dataset.id = block.id;
-        el.innerHTML = `<div class="nb-dbar"><span class="nb-graph-title">Coordinate graph</span><span class="nb-graph-equation math-shortcut-editor" aria-label="Graph equation"></span>
+        el.innerHTML = `<div class="nb-dbar"><span class="nb-graph-title">Coordinate graph</span>
             <button type="button" class="nb-del nb-del-inline" aria-label="Delete this graph" title="Delete">×</button></div><div class="nb-graph-host"></div><div class="nb-resize" title="Drag to resize"></div>`;
         canvas.appendChild(el); nbPlace(el, block, canvas);
-        const equationEl = el.querySelector('.nb-graph-equation');
-        function updateCompactEquation(state) {
-            const is3d = state && state.mode === '3d';
-            const expression = String((state && (is3d ? state.expression3d : state.expression2d)) || '');
-            const savedHtml = state && (is3d ? state.expression3dHtml : state.expression2dHtml);
-            equationEl.innerHTML = `<span>${is3d ? 'z' : 'y'} = </span>${savedHtml ? sanitizeEditorHtml(savedHtml) : (expression ? renderMathShorthand(expression) : '<span style="opacity:.45">…</span>')}`;
-        }
-        updateCompactEquation(block.state || {});
-        renderCoordinateGraph(el.querySelector('.nb-graph-host'), block.state || {}, { onChange: (state) => { block.state = state; updateCompactEquation(state); notesScheduleSave(); nbFitCanvas(canvas); } });
+        const graphHost = el.querySelector('.nb-graph-host');
+        renderCoordinateGraph(graphHost, block.state || {}, { onChange: (state) => { block.state = state; notesScheduleSave(); nbFitCanvas(canvas); } });
+        // Notes graphs use a single compact header. Move the two controls
+        // that remain useful into it and remove the redundant second row
+        // (including +/- zoom, Draw and Reset view). Enter or the arrow
+        // inside the equation field draws the graph instead.
+        const innerControls = graphHost.querySelector('.coord-graph-controls');
+        const deleteBtn = el.querySelector('.nb-del');
+        el.querySelector('.nb-dbar').insertBefore(innerControls.querySelector('.coord-graph-mode'), deleteBtn);
+        el.querySelector('.nb-dbar').insertBefore(innerControls.querySelector('.coord-graph-expression-host'), deleteBtn);
+        innerControls.remove();
         // Coordinate graphs stay anchored where they were inserted. Dragging
         // inside the canvas is reserved for panning/rotating the graph and
         // must never move the whole Notes block.
         nbWireResize(el.querySelector('.nb-resize'), el, block, canvas); nbWireCorners(el, block, canvas);
-        const delBtn = el.querySelector('.nb-del'); let armed = null;
+        const delBtn = deleteBtn; let armed = null;
         delBtn.addEventListener('click', () => { if (armed) { clearTimeout(armed); nbRemoveBlock(page, block, el, canvas); return; } delBtn.textContent='Sure?';delBtn.style.width='auto';delBtn.style.padding='0 8px';armed=setTimeout(()=>{armed=null;delBtn.textContent='×';delBtn.style.width='';delBtn.style.padding='';},3000); });
         if (notesResizeObs) notesResizeObs.observe(el); return el;
     }
@@ -20836,6 +20844,7 @@ SQIDAQAB
         const canvas = host.querySelector('canvas'), stage = host.querySelector('.coord-graph-stage'), expressionHost = host.querySelector('.coord-graph-expression-host'), error = host.querySelector('.coord-graph-error'), help = host.querySelector('.coord-graph-help');
         const expressionEditor = createSmartAnswerEditor('Enter y = f(x)', { hideShortcutHint: true });
         expressionHost.appendChild(expressionEditor.container);
+        expressionHost.insertAdjacentHTML('beforeend', '<button type="button" class="coord-graph-submit" aria-label="Draw graph" title="Draw graph (or press Enter)">→</button>');
         expressionEditor.setWritingMode(false);
         const expressionInput = expressionEditor.container.querySelector('.math-shortcut-editor');
         function loadExpression() {
@@ -20877,7 +20886,7 @@ SQIDAQAB
         function saveExpression() { if(state.mode==='3d'){state.expression3d=expressionEditor.getValue();state.expression3dHtml=expressionEditor.getHtml();}else{state.expression2d=expressionEditor.getValue();state.expression2dHtml=expressionEditor.getHtml();} }
         function commit() { saveExpression();draw();notify();}
         host.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>{if(state.mode===b.dataset.mode)return;saveExpression();state.mode=b.dataset.mode;loadExpression();draw();notify();}));
-        host.querySelector('[data-act="draw"]').addEventListener('click',commit); expressionInput.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();e.stopPropagation();commit();}});
+        host.querySelector('[data-act="draw"]').addEventListener('click',commit); expressionHost.querySelector('.coord-graph-submit').addEventListener('click',commit); expressionInput.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();e.stopPropagation();commit();}});
         function zoomBy(f,ax,ay){
             if(state.mode==='3d'){const sz=nbClamp((state.max-state.min)/2*f,0.05,5000);state.min=-sz;state.max=sz;}
             else{const oxs=state.xmax-state.xmin,oys=state.ymax-state.ymin,cx=state.xmin+oxs*ax,cy=state.ymax-oys*ay,nxs=nbClamp(oxs*f,1e-4,1e7),nys=nbClamp(oys*f,1e-4,1e7);
