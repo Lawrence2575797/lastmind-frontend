@@ -4174,6 +4174,8 @@
     .nb-graph { background: #12121E; color: #E6D7B0; border-radius: 10px; border: 1px solid rgba(230,215,176,.3); box-shadow: 0 2px 10px rgba(0,0,0,.35); overflow: hidden; }
     .nb-graph .nb-dbar { border-bottom: 0; }
     .nb-graph-title { flex: 1; padding: 0 8px; font-size: 13px; font-weight: 700; }
+    .nb-graph-equation { display: none; flex: 1; min-width: 0; padding: 1px 8px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #E6D7B0; font: 700 15px/1.35 'Lora', Georgia, serif; }
+    .nb-graph-equation.math-shortcut-editor { min-height: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
     .nb-graph .coord-graph { border: 0; border-top: 1px solid rgba(230,215,176,.18); border-radius: 0; box-shadow: none; }
     .nb-graph .coord-graph-stage { min-height: 0; }
     .nb-corner { position: absolute; width: 14px; height: 14px; z-index: 4; background: #E6D7B0; border: 2px solid #1A232D; border-radius: 4px; opacity: 0; touch-action: none; }
@@ -4185,6 +4187,8 @@
     .nb-compact .coord-graph-controls, .nb-compact .coord-graph-error, .nb-compact .coord-graph-help, .nb-compact .nb-lines-btn,
     .nb-compact .diagram-palette, .nb-compact .diagram-toolbar, .nb-compact .diagram-result { display: none !important; }
     .nb-compact .nb-dbar { padding: 3px 6px; }
+    .nb-compact.nb-graph .nb-graph-title { display: none; }
+    .nb-compact.nb-graph .nb-graph-equation { display: block; }
     .nb-compact .nb-dbar .nb-grip { font-size: 0; height: 22px; }
     .nb-compact .nb-dbar .nb-grip::before { content: '⠿'; font-size: 13px; }
     .nb-compact .nb-dhost { padding: 4px 6px 0; }
@@ -20482,10 +20486,18 @@ SQIDAQAB
     function nbMakeGraphBlock(page, block, canvas) {
         const el = document.createElement('div');
         el.className = 'nb-block nb-graph'; el.dataset.id = block.id;
-        el.innerHTML = `<div class="nb-dbar"><span class="nb-graph-title">Coordinate graph</span>
+        el.innerHTML = `<div class="nb-dbar"><span class="nb-graph-title">Coordinate graph</span><span class="nb-graph-equation math-shortcut-editor" aria-label="Graph equation"></span>
             <button type="button" class="nb-del nb-del-inline" aria-label="Delete this graph" title="Delete">×</button></div><div class="nb-graph-host"></div><div class="nb-resize" title="Drag to resize"></div>`;
         canvas.appendChild(el); nbPlace(el, block, canvas);
-        renderCoordinateGraph(el.querySelector('.nb-graph-host'), block.state || {}, { onChange: (state) => { block.state = state; notesScheduleSave(); nbFitCanvas(canvas); } });
+        const equationEl = el.querySelector('.nb-graph-equation');
+        function updateCompactEquation(state) {
+            const is3d = state && state.mode === '3d';
+            const expression = String((state && (is3d ? state.expression3d : state.expression2d)) || '');
+            const savedHtml = state && (is3d ? state.expression3dHtml : state.expression2dHtml);
+            equationEl.innerHTML = `<span>${is3d ? 'z' : 'y'} = </span>${savedHtml ? sanitizeEditorHtml(savedHtml) : (expression ? renderMathShorthand(expression) : '<span style="opacity:.45">…</span>')}`;
+        }
+        updateCompactEquation(block.state || {});
+        renderCoordinateGraph(el.querySelector('.nb-graph-host'), block.state || {}, { onChange: (state) => { block.state = state; updateCompactEquation(state); notesScheduleSave(); nbFitCanvas(canvas); } });
         // Coordinate graphs stay anchored where they were inserted. Dragging
         // inside the canvas is reserved for panning/rotating the graph and
         // must never move the whole Notes block.
