@@ -86,7 +86,7 @@
     const clips = fx.clips || [];
     const user = FM.teamById(league, league.userId);
     if (!clips.length) {
-      host.innerHTML = `<h2>Clips</h2><p class="note">${fx.clipsDropped ? 'The clips from this match were removed to make room in your browser storage.' : 'No clips were recorded for this match. Clips are cut from the matches you play yourself, from round to round, so a match simulated before this feature existed has none.'}</p>`;
+      host.innerHTML = `<h2>Clips</h2><p class="note">${fx.clipsExpired ? 'Clips are only kept for your most recent match, so the clips from this match were cleared when you played the next one.' : fx.clipsDropped ? 'The clips from this match were removed to make room in your browser storage.' : 'No clips were recorded for this match. Clips are cut from the matches you play yourself, from round to round, so a match simulated before this feature existed has none.'}</p>`;
       return;
     }
     if (!clips.find((c) => c.id === state.clipId)) state.clipId = clips[0].id;

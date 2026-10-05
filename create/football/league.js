@@ -319,7 +319,10 @@
     });
     [home, away].forEach((t) => t.squad.forEach((p) => { if (played.has(p.id)) p.stats.apps++; }));
     // For the user's own matches, keep a compact log for the Analysis Centre.
-    if (fx.homeId === league.userId || fx.awayId === league.userId) { fx.log = FM.compactLog(match); fx.clips = FM.finaliseClips(match); }
+    if (fx.homeId === league.userId || fx.awayId === league.userId) { fx.log = FM.compactLog(match); fx.clips = FM.finaliseClips(match);
+      // Only the previous game's clips are kept: playing the next one clears the older ones (the stats and reports stay).
+      league.fixtures.forEach((o) => { if (o !== fx && o.clips && o.clips.length) { o.clips = []; o.clipsExpired = true; } });
+    }
     if (FM.summariseMatch) fx.summary = FM.summariseMatch(league, fx, match);
     [home, away].forEach((t) => { FM.fitnessEnd(t, played); FM.restoreLineup(t, t.snap); t.snap = null; delete t.liveBase; delete t.liveLean; });
   };
