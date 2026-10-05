@@ -102,13 +102,28 @@
       left -= dt;
     }
   }
+  // Skipping (to the next break, or to full time) used to run the whole stretch in one go, which freezes the page for as long as it takes
+  // and ignores every click meanwhile. It now runs a few milliseconds at a time between screen updates, so the page stays alive, the Play
+  // button turns into "Stop skipping", and it stops by itself at a break, at full time, or when a player is injured.
+  function skipSlice(m) {
+    const t0 = performance.now();
+    while (performance.now() - t0 < 30) {
+      if (m.injuryPause || m.phase === 'fulltime') { world.skipTo = null; return; }
+      if (m.phase === 'halftime') {
+        if (world.skipTo === 'end') FM.startSecondHalf(m);
+        else { world.skipTo = null; return; }
+      }
+      FM.stepMatch(m, SUBSTEP);
+    }
+  }
   let last = performance.now();
   function frame(now) {
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
     const m = world.match;
     if (world.view === 'match' && m) {
-      if (world.running && m.phase !== 'halftime' && m.phase !== 'fulltime') {
+      if (world.skipTo) { skipSlice(m); if (!world.skipTo) world.trails = []; }
+      else if (world.running && m.phase !== 'halftime' && m.phase !== 'fulltime') {
         // One steady pace throughout: the match does not speed up or slow down for passes, shots or restarts.
         advanceMatch(dt * MATCH_SPEED * world.speed);
         world.vt += dt;
@@ -177,7 +192,8 @@
       feed.prepend(div);
     }
     const playing = world.running && m.phase !== 'halftime' && m.phase !== 'fulltime';
-    el('playBtn').textContent = m.phase === 'halftime' ? 'Start second half' : m.phase === 'fulltime' ? 'Full time' : world.running ? 'Pause' : 'Play';
+    el('playBtn').textContent = world.skipTo ? 'Stop skipping' : m.phase === 'halftime' ? 'Start second half' : m.phase === 'fulltime' ? 'Full time' : world.running ? 'Pause' : 'Play';
+    el('skipBtn').disabled = el('simEndBtn').disabled = !!world.skipTo;
     el('playBtn').classList.toggle('on', playing);
     const ip = m.injuryPause;
     el('injuryBox').hidden = !ip;
@@ -189,6 +205,7 @@
 
   el('playBtn').addEventListener('click', () => {
     const m = world.match;
+    if (world.skipTo) { world.skipTo = null; world.running = false; return; } // stop skipping
     if (!m || m.injuryPause) return;
     if (m.phase === 'halftime') { FM.startSecondHalf(m); world.running = true; return; }
     if (m.phase === 'fulltime') return;
@@ -200,27 +217,22 @@
   }));
   el('stepBtn').addEventListener('click', () => {
     const m = world.match;
-    if (!m || world.running || m.injuryPause || m.phase === 'halftime' || m.phase === 'fulltime') return;
+    if (!m || world.running || world.skipTo || m.injuryPause || m.phase === 'halftime' || m.phase === 'fulltime') return;
     advanceMatch(1);
     world.vt += 0.4;
   });
   el('skipBtn').addEventListener('click', () => {
     const m = world.match;
-    if (!m) return;
+    if (!m || world.skipTo || m.phase === 'fulltime') return;
     if (m.phase === 'halftime') FM.startSecondHalf(m);
-    let guard = 0;
-    while (m.phase !== 'halftime' && m.phase !== 'fulltime' && !m.injuryPause && guard++ < 100000) FM.stepMatch(m, SUBSTEP);
+    world.running = false;
+    world.skipTo = 'break';
   });
   el('simEndBtn').addEventListener('click', () => {
     const m = world.match;
-    if (!m || m.injuryPause) return;
+    if (!m || m.injuryPause || world.skipTo || m.phase === 'fulltime') return;
     world.running = false;
-    let guard = 0;
-    while (m.phase !== 'fulltime' && !m.injuryPause && guard++ < 200000) {
-      if (m.phase === 'halftime') FM.startSecondHalf(m);
-      FM.stepMatch(m, SUBSTEP);
-    }
-    world.trails = [];
+    world.skipTo = 'end';
   });
   el('finishBtn').addEventListener('click', () => {
     const btn = el('finishBtn');
@@ -235,6 +247,7 @@
   });
 
   function startMatch() {
+    world.skipTo = null;
     const fx = FM.userFixtureToday(world.league);
     if (!fx || fx.played) return;
     world.fixture = fx;

@@ -45,7 +45,7 @@
     return Math.abs(Math.atan2(dy + 3.66, dx) - Math.atan2(dy - 3.66, dx));
   };
   FM.xgLogit = function (shooter, x, y, attackDir, defDist) {
-    return -3.8 + 7.6 * FM.shotAngle(x, y, attackDir) + 0.03 * (shooter.ratings.finishing - 60) - 0.9 * Math.exp(-defDist / 2);
+    return -3.77 + 7.6 * FM.shotAngle(x, y, attackDir) + 0.03 * (shooter.ratings.finishing - 60) - 0.9 * Math.exp(-defDist / 2);
   };
 
   // ---------- roles' tendencies when on the ball ----------
@@ -224,12 +224,16 @@
       const free = opp.players.filter((q) => q.group !== 'GK' && !ov.has(q));
       const recv = att.filter((q) => q !== c.player).map((q) => ({ q, d: dist(c.player, q) })).filter((o) => o.d > 6 && o.d < 38)
         .sort((x, y) => dist(x.q, goalPt) - dist(y.q, goalPt));
-      const cutters = Math.max(2, Math.round((FM.DEF_CUTTERS || 3) * (0.5 + 0.5 * press)));
+      // How tightly: a soft press cuts the lane well off the receiver (a cover shadow), but a team that is set to press high closes the
+      // receiver down as well, getting right up to him and covering more of the carrier's options. Only when the instructions say press high.
+      const hardPress = clamp((press - 0.5) / 0.4, 0, 1);
+      const laneAt = (FM.DEF_LANE_AT || 0.6) + 0.3 * hardPress;
+      const cutters = Math.max(2, Math.round((FM.DEF_CUTTERS || 3) * (0.5 + 0.5 * press) + 1.5 * hardPress));
       const taken = new Set();
       let used = 0;
       for (const { q } of recv) {
         if (used >= cutters) break;
-        const lx = c.player.x + (q.x - c.player.x) * (FM.DEF_LANE_AT || 0.6), ly = c.player.y + (q.y - c.player.y) * (FM.DEF_LANE_AT || 0.6);
+        const lx = c.player.x + (q.x - c.player.x) * laneAt, ly = c.player.y + (q.y - c.player.y) * laneAt;
         let who = null, bd = 18;
         free.forEach((m) => { if (taken.has(m)) return; const dd = Math.hypot(m.x - lx, m.y - ly); if (dd < bd) { bd = dd; who = m; } });
         if (who) { taken.add(who); used++; ov.set(who, { x: lx, y: ly }); }
@@ -333,6 +337,10 @@
     const ownDepth = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d;
     const lossFactor = 1 + 1.3 * (1 - ownDepth); // losing the ball deep in your own half costs more
     const options = [];
+    // Through on goal: no defender is goal-side of him in his channel, so he is past the last line.
+    const throughDef = other(match, team).players.filter((o) => o.group !== 'GK' && (o.x - carrier.x) * team.attackDir > -1 && Math.abs(o.y - carrier.y) < 16).length;
+    const through = carrier.group !== 'GK' && throughDef === 0 && ownDepth0 > 0.55;
+    const nearNow = nearestOpponent(match, team, carrier).d;
 
     team.players.forEach((t) => {
       if (t === carrier) return;
@@ -350,7 +358,13 @@
       const boxBonus = Math.hypot(tx - goal.x, ty - goal.y) < 19 && Math.abs(ty - W / 2) < 18 ? 0.45 * (0.5 + risk) : 0;
       const score = p * (0.35 + directness * 0.9 * prog + 0.5 * prog * risk + boxBonus) - (1 - p) * 0.6 * (1 - risk) * lossFactor;
       const off = match.noOffside ? 'on' : offsideStatus(match, team, carrier, t.x);
-      options.push({ kind: 'pass', target: t, tx, ty, d, lane, press, p, score: off === 'off' ? -4 : score });
+      // A player through on goal does not turn and play it back, and near the opposition box a pass backwards is a last resort
+      // (when he is being closed down hard) rather than the usual choice.
+      const back = (carrier.x - t.x) * team.attackDir;
+      let adj = 0;
+      if (through && back > 3) adj = -2.0;
+      else if (ownDepth0 > 0.66 && back > 8) adj = (nearNow < 2.5 ? 0.45 : 1) * -(FM.BACK_PEN == null ? 0 : FM.BACK_PEN);
+      options.push({ kind: 'pass', target: t, tx, ty, d, lane, press, p, score: off === 'off' ? -4 : score + adj });
     });
 
     // Beating the press. How likely a team is to go long depends on how the other side press its build-up. Against a side that press high
@@ -367,12 +381,12 @@
     const { opp: nearOpp, d: nearD } = nearestOpponent(match, team, carrier);
     const dp = FM.dribbleProb(carrier, nearD, nearOpp);
     const dribbleBias = (GROUP_DRIBBLE[carrier.group] || 0) + (ROLE_DRIBBLE[role] || 0);
-    options.push({ kind: 'dribble', p: dp, nearOpp, nearD, score: dp * (0.3 + 0.9 * directness * 0.4 + (dribbleBias + mods.dribble + (tac.dribbleFreedom - 0.5) * 0.9 + (zone === 'final' && nearD > 3.5 ? 0.45 : 0))) - (1 - dp) * 0.55 * (1 - risk) * lossFactor });
+    options.push({ kind: 'dribble', p: dp, nearOpp, nearD, score: dp * (0.3 + 0.9 * directness * 0.4 + (dribbleBias + mods.dribble + (tac.dribbleFreedom - 0.5) * 0.9 + (zone === 'final' && nearD > 3.5 ? 0.45 : 0) + (through ? (FM.THROUGH_DRIB == null ? 0.4 : FM.THROUGH_DRIB) : 0))) - (1 - dp) * 0.55 * (1 - risk) * lossFactor });
 
     const attackingThird = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d > 0.6;
-    if (dGoal < 28 && attackingThird && carrier.group !== 'GK') {
+    if (((dGoal < 28 && attackingThird) || (through && dGoal < 42)) && carrier.group !== 'GK') {
       const xg = sig(FM.xgLogit(carrier, carrier.x, carrier.y, team.attackDir, nearD) - 0.55 * crowd(match, team, carrier));
-      options.push({ kind: 'shoot', xg, score: xg * 3.2 * (0.5 + risk * 0.9) * (0.4 + 1.2 * tac.shootFreedom) * mods.shoot - (1 - xg) * 0.12 - Math.max(0, 0.09 - xg) * 8 * (1.2 - tac.shootFreedom) });
+      options.push({ kind: 'shoot', xg, score: xg * 3.2 * (0.5 + risk * 0.9) * (0.4 + 1.2 * tac.shootFreedom) * mods.shoot - (1 - xg) * 0.12 - Math.max(0, 0.09 - xg) * 8 * (1.2 - tac.shootFreedom) + (through ? (FM.THROUGH_SHOOT == null ? 0.7 : FM.THROUGH_SHOOT) * clamp((42 - dGoal) / 22, 0, 1) : 0) });
     }
 
     // Softmax: the manager's settings favour an action, but nothing is certain.

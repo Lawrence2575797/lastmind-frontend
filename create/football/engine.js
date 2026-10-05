@@ -238,14 +238,12 @@
   // depends on how high they have set their defensive line, so a high line lets your forwards stand higher and a deep one holds them back.
   FM.OFFSIDE_PHASES = ['build', 'final', 'transAtt'];
   // The line is exactly where the opposition's deepest outfield player stands (the keeper is the last defender, so he is the second-last).
-  // lineOverride, if given, is that line in this team's space, read from the opposition shirts as they are shown on the board.
+  // With the opposition not shown, the line is the same whoever the opponent is: where a side in an ordinary defensive shape keeps its
+  // deepest outfield player. It only differs when the opposition shirts are shown and moved, in which case lineOverride is the line
+  // read from those shirts, in this team's space.
+  FM.STANDARD_OFFSIDE = 0.8;
   FM.offsideLimit = function (opp, p, lineOverride) {
-    let line = lineOverride;
-    if (line == null) {
-      const ds = opp.players.filter((q) => q.group !== 'GK').map((q) => FM.phasePos(opp, q, 'without').d);
-      if (!ds.length) return 1;
-      line = 1 - Math.min.apply(null, ds); // their deepest defender, in this team's space
-    }
+    const line = lineOverride == null ? FM.STANDARD_OFFSIDE : lineOverride;
     const runs = p ? FM.instrMods(p).runs : 0; // a player told to run in behind may stand a little beyond it, one told to hold the line a little short
     return Math.max(line + (runs > 0 ? 0.5 : runs < 0 ? -1.2 : 0) / L, 0.5);
   };
