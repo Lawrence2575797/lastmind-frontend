@@ -91,6 +91,12 @@
         sentences: (c.verdict.sentences || []).map((s) => ({ minScore: s[0], text: s[1] })), notGuiltyText: c.verdict.notGuilty },
       curriculum: (c.concepts || []).map((k) => ({ label: k.label, arisesWhen: k.arises || '', calledUponAt: { stage: k.stage || 'closing', characterId: k.char || '' } })),
     };
+    // Every person who appears on screen has a hand-picked, front-facing cutout made once and shipped with the site (nothing is generated while playing).
+    const slug = (n) => String(n).toLowerCase().replace(/[^a-z]+/g, '-').replace(/^-|-$/g, '');
+    g.characters.forEach((ch) => {
+      if (ch.calledBy !== 'none' || ch.id === g.meta.interviewCharacterId || ch.id === g.meta.defendantId) { ch.portrait = '/assets/career/portraits/' + c.id + '-' + ch.id + '.webp'; ch.portraitTransparent = true; }
+    });
+    g.meta.judgePortrait = '/assets/career/portraits/judge-' + slug(g.meta.judge) + '.webp'; g.meta.judgePortraitTransparent = true;
     if (g.verdict.convictionThreshold === 'auto') g.verdict.convictionThreshold = L.autoThreshold(g, c.role === 'prosecution' ? 'prosecution' : 'defence');
     return g;
   };

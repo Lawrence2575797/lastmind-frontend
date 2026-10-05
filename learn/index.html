@@ -11511,7 +11511,7 @@ SQIDAQAB
     // (kind 'criminal-lawyer-career') and mirrored in this browser.
     // ═══════════════════════════════════════════════════════════════════════════
     const CAREER_FILES = ['case-01-pryce', 'case-02-okafor', 'case-03-hale', 'case-04-mensah', 'case-05-calloway', 'case-06-vance', 'case-07-dunmore', 'case-08-salter', 'case-09-kiplagat', 'case-10-fenwick', 'case-11-bright', 'case-12-ashworth', 'case-13-reid', 'case-14-tolland', 'case-15-hargreaves', 'case-16-mbeki', 'case-17-penhale', 'case-18-sato', 'case-19-donnelly', 'case-20-karimi', 'case-21-vasquez', 'case-22-wetherby', 'case-23-adeyinka', 'case-24-marlow', 'case-25-ellison', 'case-26-marchetti'];
-    const CAREER_VERSION = '20261005b';
+    const CAREER_VERSION = '20261005c';
     const CAREER_LOCAL_KEY = 'lastmind-law-career-v1';
     let career = null, careerLocalKey = CAREER_LOCAL_KEY, careerSaveTimer = null, careerFilesPromise = null;
 
@@ -12521,6 +12521,7 @@ SQIDAQAB
         if (tab) tab.style.display = has && pt.hudOn !== false && !document.getElementById('plGuidance') ? '' : 'none';
     }
     function ptCallUpon(concepts) {
+        if (pt && pt.career) return; // written career cases are not linked to the knowledge map, so there is no lesson to open
         const fresh = concepts.filter((c) => !pt.triggered.includes(c.label));
         if (!fresh.length) { ptUpdateGuidancePill(); return; }
         fresh.forEach((c) => pt.triggered.push(c.label));
@@ -32996,7 +32997,7 @@ SQIDAQAB
     })();
 </script>
 
-    <script src="/create/law-career/career-base.js?v=20261005b"></script>
+    <script src="/create/law-career/career-base.js?v=20261005c"></script>
     <script src="/cortex/pricing.js?v=20260916-checkout3"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
