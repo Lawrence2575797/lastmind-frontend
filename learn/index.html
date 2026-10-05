@@ -19725,6 +19725,8 @@ SQIDAQAB
 
         let writingMode = false;
         function updateModeBadge() {
+            // Red spelling underlines belong to writing, not to maths: "lim", "sin" and variable names are not misspellings.
+            editor.spellcheck = writingMode; editor.setAttribute('spellcheck', String(writingMode));
             modeBadge.textContent = writingMode ? 'Mode: writing (# for maths)' : 'Mode: maths (# for writing)';
             modeBadge.classList.toggle('writing', writingMode);
             if (typeof opts.onModeChange === 'function') opts.onModeChange(writingMode);
