@@ -577,10 +577,10 @@
   // included), in the team's own space. Null when the opposition are not shown, and the editor falls back to their usual defending shape.
   // 'live' puts one shirt at a position it is being dragged to.
   function oppLine(key, live) {
-    if (!world.showOpp || key === 'shape') return null;
+    if (key === 'shape') return null;                // the line follows their scouted defence whether or not their shirts are shown
     const sc = scoutFor(), cells = sc && sc.shape.phases[OPP_PHASE[key]];
     if (!cells) return null;
-    const moved = (world.oppMoved && world.oppMoved[key]) || {};
+    const moved = (world.showOpp && world.oppMoved && world.oppMoved[key]) || {};
     let min = 1, any = false;
     Object.keys(cells).forEach((slot) => {
       if (/^GK/.test(slot)) return;

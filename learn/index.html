@@ -11482,8 +11482,11 @@ SQIDAQAB
         const meta = careerLocalSummary();
         return had || meta ? [{ id: 'local-law-career', title: 'Criminal Lawyer Career', kind: 'criminal-lawyer-career', meta: meta || '', isReference: false, updatedAt: new Date().toISOString() }, ...rest] : rest;
     }
-    const createWithFootball = (list0) => { const list = createWithCareer(list0); const fp = createFootballProject(); return fp ? [fp, ...list.filter((p) => p.id !== 'local-football-manager')] : list.filter((p) => p.id !== 'local-football-manager'); };
+    const createWithFootball = (list0) => { let list = list0; try { list = createWithCareer(list0); } catch (err) { console.error('LastMind: career entry failed.', err); } const fp = createFootballProject(); return fp ? [fp, ...list.filter((p) => p.id !== 'local-football-manager')] : list.filter((p) => p.id !== 'local-football-manager'); };
     async function createLoadProjects() {
+        // The career is saved under a per-account key that is only worked out once the career is opened, so settle it here first or a
+        // fresh visit to the list reads the wrong key and the career never shows.
+        try { const { data: { session } } = await supabaseClient.auth.getSession(); careerLocalKey = session && session.user ? `${CAREER_LOCAL_KEY}:${session.user.id}` : CAREER_LOCAL_KEY; } catch (_) { /* signed out: the plain key */ }
         try {
             const { resp, body } = await createAuthedFetch('/create/projects');
             if (resp.ok && !body.unavailable) {
