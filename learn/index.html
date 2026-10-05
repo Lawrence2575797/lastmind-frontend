@@ -11517,7 +11517,7 @@ SQIDAQAB
     // (kind 'criminal-lawyer-career') and mirrored in this browser.
     // ═══════════════════════════════════════════════════════════════════════════
     const CAREER_FILES = ['case-01-pryce', 'case-02-okafor', 'case-03-hale', 'case-04-mensah', 'case-05-calloway', 'case-06-vance', 'case-07-dunmore', 'case-08-salter', 'case-09-kiplagat', 'case-10-fenwick', 'case-11-bright', 'case-12-ashworth', 'case-13-reid', 'case-14-tolland', 'case-15-hargreaves', 'case-16-mbeki', 'case-17-penhale', 'case-18-sato', 'case-19-donnelly', 'case-20-karimi', 'case-21-vasquez', 'case-22-wetherby', 'case-23-adeyinka', 'case-24-marlow', 'case-25-ellison', 'case-26-marchetti'];
-    const CAREER_VERSION = '20261005c';
+    const CAREER_VERSION = '20261005d';
     const CAREER_LOCAL_KEY = 'lastmind-law-career-v1';
     let career = null, careerLocalKey = CAREER_LOCAL_KEY, careerSaveTimer = null, careerFilesPromise = null;
 
@@ -11587,12 +11587,32 @@ SQIDAQAB
         trial.career = { caseId: c.id, special: !!c.special, scene: rank.scene, place: rank.place, rankTitle: rank.title, workplace: rank.workplace };
         const hash = 'career:' + c.id;
         createSwitchCase(0); // each case has its own live-conversation budget
-        ptMount(); ptHud(true, false); ptScene(rank.scene, true);
+        ptMount(); ptHud(true, false);
         const token = Math.random().toString(36).slice(2);
         pt = { token, hash, graph: null };
-        await ptBoot({ token, hash, graph, sessionId: null, trial });
+        const resuming = ((ptLoadSaved(hash) || {}).idx || 0) > 0;
+        if (resuming) { ptScene(rank.scene, true); await ptBoot({ token, hash, graph, sessionId: null, trial }); return; }
+        // Sir Nigel hands over the file first, with a line that depends on your rank and the case.
+        const intro = LAW_CAREER.bossBefore(c, LAW_CAREER.rankIndex(career.results), career.results.length);
+        ptScene(intro.scene, true); ptLabel(rank.place);
+        ptSpeak(intro.lines.map((text) => ({ speaker: LAW_CAREER.boss.name, role: LAW_CAREER.boss.role, text })), () => { if (pt && pt.token === token) ptBoot({ token, hash, graph, sessionId: null, trial }); }, 'Take the file');
     }
     // Called when the trial's analysis screen opens: scores the case, adds it to the record once, and says if it earned a promotion.
+    // After the verdict: a poor result brings Sir Nigel in to tell you so (and a very poor one is worse), a good one earns a grudging nod.
+    // Returns true when a scene was started; it comes back to the analysis screen when the lines are done.
+    function careerBossAfter() {
+        const c = LAW_CAREER.byId(pt.career.caseId); const v = pt.verdict;
+        if (!c || !v || !career) return false;
+        const won = (pt.side === 'defence' && !v.guilty) || (pt.side === 'prosecution' && v.guilty);
+        const score = LAW_CAREER.score({ graph: pt.graph, side: pt.side, established: [...pt.established], learnerWon: won, assessment: pt.assessment });
+        const b = LAW_CAREER.bossAfter(c, score, won, LAW_CAREER.rankIndex(career.results));
+        if (!b) return false;
+        const token = pt.token;
+        document.querySelector('#ptRoot .pl-analysis')?.remove();
+        ptHud(true, false); ptLabel(''); ptScene(b.scene, true);
+        ptSpeak(b.lines.map((text) => ({ speaker: LAW_CAREER.boss.name, role: LAW_CAREER.boss.role, text })), () => { if (pt && pt.token === token) ptRenderAnalysis(); }, 'See your result');
+        return true;
+    }
     function careerRecordFromAnalysis(learnerWon, verdict, assessment) {
         const c = LAW_CAREER.byId(pt.career.caseId); const host = document.getElementById('plCareerResult');
         if (!c || !career) return;
@@ -12666,6 +12686,7 @@ SQIDAQAB
 
     // ---- after the case: the learning analysis (revealed only now) ----
     function ptRenderAnalysis() {
+        if (pt.career && !pt.career.bossDone) { pt.career.bossDone = true; if (careerBossAfter()) return; }
         const g = pt.graph; const v = pt.verdict; const a = pt.assessment;
         ptScene('verdict'); ptHud(false);
         const learnerWon = (pt.side === 'defence' && !v.guilty) || (pt.side === 'prosecution' && v.guilty);
@@ -33044,7 +33065,7 @@ SQIDAQAB
     })();
 </script>
 
-    <script src="/create/law-career/career-base.js?v=20261005c"></script>
+    <script src="/create/law-career/career-base.js?v=20261005d"></script>
     <script src="/cortex/pricing.js?v=20260916-checkout3"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {

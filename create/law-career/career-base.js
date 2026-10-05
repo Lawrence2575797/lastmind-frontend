@@ -111,6 +111,100 @@
   // The interview person for the learner's side: the defendant for defence, the officer in the case for prosecution.
   L.interviewFor = (c) => (c.role === 'prosecution' ? (c.officerId || c.characters[0].id) : 'def');
 
+  // ---------- the boss ----------
+  // Sir Nigel Crane, Head of Chambers, hands out the files and reacts to how a case went. His lines are written in advance (no AI): a bank per
+  // situation, one chosen by a stable hash of the case and how many cases you have done, so they change each time but never flicker on re-render.
+  L.boss = { name: 'Sir Nigel Crane', role: 'Head of Chambers' };
+  const hashStr = (str) => { let h = 2166136261; for (const ch of String(str)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
+  const pick = (arr, key) => arr[hashStr(key) % arr.length];
+  const fill = (t, c) => t.replace(/\{title\}/g, c.title).replace(/\{side\}/g, c.role === 'defence' ? 'the defence' : 'the Crown');
+  const BEFORE_FIRST = [
+    "It's your first case, kid. Don't mess it up.",
+    "Right. Your first brief. Don't make me regret taking you on.",
+    "First day, first file. Try not to embarrass chambers.",
+    "Everyone remembers their first brief. Make sure it's for the right reasons.",
+  ];
+  const BEFORE_RANK = [
+    [ // Pupil
+      "Another one for the bullpen. Try to read it before the hearing this time.",
+      "Here. Nobody else wanted it, which makes it yours.",
+      "Don't look at me like that. Everyone starts at a shared desk.",
+      "Files, pink ribbon, you know the drill. Off you go.",
+      "The solicitors think you're cheap. Prove them wrong.",
+      "Read the evidence twice. Then read it again.",
+    ],
+    [ // Junior
+      "You're getting better briefs now. Don't get comfortable.",
+      "I've put my name next to yours on this one. Remember that.",
+      "A proper brief. Read it twice, then check the exhibits again.",
+      "The clerks tell me you're improving. I'll believe it when the jury does.",
+      "Sharp questions, short speeches. That's all I ask.",
+    ],
+    [ // Senior Junior
+      "Close the door behind you. This one matters.",
+      "Instructing solicitors asked for you by name. Don't make me look foolish.",
+      "You've got an office now. Earn the chair.",
+      "Clean hands, clear head. Don't take anything for granted.",
+      "This is the sort of brief that gets you noticed, for good or ill.",
+    ],
+    [ // King's Counsel
+      "You're silk now. Act like it.",
+      "Juniors are watching how you work. Give them something worth copying.",
+      "The Bar Council reads the papers, and so do I. No mistakes.",
+      "I don't hand these to just anyone. Don't waste it.",
+      "A silk is only as good as their last verdict. What was yours?",
+    ],
+    [ "Chambers is yours now. I'm only here for the tea.", "You run this place. Show them how it's done." ],
+  ];
+  const BEFORE_SPECIAL = [
+    "This one is a big one. The kind that makes or breaks a name. Don't fluff it.",
+    "Half an hour of your life, and a client's whole future. Take it seriously.",
+    "The papers will be watching this one. Wear the good suit.",
+    "A proper trial. Take your time, and don't take any shortcuts.",
+  ];
+  L.bossBefore = function (c, rankIdx, played) {
+    const key = c.id + ':' + played;
+    const opener = played === 0 ? pick(BEFORE_FIRST, key) : c.special ? pick(BEFORE_SPECIAL, key) : pick(BEFORE_RANK[Math.min(rankIdx, BEFORE_RANK.length - 1)], key);
+    const scene = rankIdx >= 2 ? 'boss_brief_office' : hashStr(c.id) % 2 ? 'boss_brief_desk' : 'boss_brief_bullpen';
+    return { scene, lines: [opener, fill("{title}. You are for {side}. " + c.tagline.replace(/[.\s]+$/, '') + '.', c)] };
+  };
+  const AFTER_POOR = [
+    "Did you read the evidence at all?",
+    "I have seen pupils do better with their eyes closed.",
+    "That was not good enough. Not nearly.",
+    "The jury weren't the problem. You were.",
+    "Come here. That was an embarrassment.",
+    "I expect better from this chambers, and so should you.",
+  ];
+  const AFTER_VERY_POOR = [
+    "Do you have any idea what that cost this chambers?!",
+    "I have a window to replace and a solicitor to apologise to. Get out of my sight.",
+    "That was the worst advocacy I have seen in thirty years at the Bar!",
+    "I put my name on you. And you did THAT with it?",
+    "Out. Go and read the textbook. All of it.",
+  ];
+  const AFTER_GOOD = [
+    "Not bad. Not bad at all.",
+    "The solicitors rang. They were... complimentary. Don't let it go to your head.",
+    "That is how it's done. Do it again.",
+    "Hm. Better. Much better.",
+    "I'll say this once: well done.",
+  ];
+  L.bossAfter = function (c, score, won, rankIdx) {
+    const key = c.id + ':' + score;
+    let kind = null;
+    if (score < 30) kind = 'very_poor'; else if (score < 50) kind = 'poor'; else if (score >= 75) kind = 'good';
+    if (!kind) return null;
+    const office = rankIdx >= 2;
+    const scene = kind === 'good' ? 'boss_nod' : kind === 'poor' ? (office ? 'boss_poor_office' : 'boss_poor') : (office ? 'boss_very_poor_office' : 'boss_very_poor');
+    const bank = kind === 'good' ? AFTER_GOOD : kind === 'poor' ? AFTER_POOR : AFTER_VERY_POOR;
+    let detail;
+    if (kind === 'good') detail = won ? fill("{title}. Take the win, and the next brief.", c) : fill("You lost {title}, but you lost it properly. That I can work with.", c);
+    else if (!won) detail = c.role === 'defence' ? fill("In {title} you let the Crown run the whole case.", c) : fill("In {title} you handed the defence every doubt they needed.", c);
+    else detail = fill("You won {title}, and I still couldn't tell you how. Your law was a mess.", c);
+    return { kind, scene, lines: [pick(bank, key), detail] };
+  };
+
   // ---------- how long a case really takes ----------
   // Calibrated against a real run: the old 15-minute setting allowed 15 client questions and 10 per witness, which is about 40
   // minutes of honest work. Time is the sum of reading, speaking and typing, each at a realistic pace.
