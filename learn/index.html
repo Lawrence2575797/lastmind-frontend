@@ -1969,7 +1969,9 @@
     .math-shortcut-editor:focus { border-color: var(--accent); }
     .math-shortcut-editor:empty::before { content: attr(data-placeholder); color: var(--text); opacity: 0.4; font-style: normal; }
     .math-shortcut-editor sup, .math-shortcut-editor sub { color: var(--accent); font-weight: 500; }
-    .math-shortcut-editor .math-symbol { font-style: italic; color: var(--accent); }
+    .math-shortcut-editor .math-symbol { font-family: "Cambria Math", "STIX Two Math", "Times New Roman", serif; font-size: 1em; line-height: inherit; font-style: italic; color: var(--accent); }
+    .math-shortcut-editor .math-symbol.math-greek-upper { font-style: normal; font-size: 1em; }
+    .math-shortcut-editor .math-bracket, .math-shortcut-editor .math-function-argument { font-family: "Cambria Math", "STIX Two Math", "Times New Roman", serif; font-size: 1em; line-height: inherit; font-style: normal; vertical-align: baseline; }
     .math-shortcut-editor .frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin: 0 0.2em; font-size: 0.82em; line-height: 1.15; }
     .math-shortcut-editor .frac-num { padding: 0 0.2em 0.12em; border-bottom: 1.5px solid var(--text); }
     .math-shortcut-editor .frac-den { padding: 0.12em 0.2em 0; }
@@ -19625,6 +19627,7 @@ SQIDAQAB
             range.deleteContents();
             const span = document.createElement('i');
             span.className = 'math-symbol';
+            if (/^[Α-Ω]$/.test(text)) span.classList.add('math-greek-upper');
             span.textContent = text;
             const landing = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL);
             const frag = document.createDocumentFragment();
@@ -19634,6 +19637,15 @@ SQIDAQAB
             after.setStart(landing, 1); after.collapse(true);
             sel.removeAllRanges(); sel.addRange(after);
             return span;
+        }
+        function insertMathBracket(text) {
+            const sel = window.getSelection();
+            if (!sel.rangeCount) return;
+            const range = sel.getRangeAt(0); range.deleteContents();
+            const bracket = document.createElement('span'); bracket.className = 'math-bracket'; bracket.textContent = text;
+            const landing = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL);
+            const frag = document.createDocumentFragment(); frag.appendChild(bracket); frag.appendChild(landing); range.insertNode(frag);
+            const after = document.createRange(); after.setStart(landing, 1); after.collapse(true); sel.removeAllRanges(); sel.addRange(after);
         }
         function startZone(tag) {
             const sel = window.getSelection();
@@ -19676,16 +19688,27 @@ SQIDAQAB
         function findTokenBeforeCaret() {
             const sel = window.getSelection();
             if (!sel.rangeCount || !sel.isCollapsed) return null;
-            const range = sel.getRangeAt(0);
-            const node = range.startContainer, offset = range.startOffset;
-            if (node.nodeType !== 3) return null;
-            const text = node.textContent;
-            let start = offset;
-            while (start > 0 && /[0-9a-zA-Z.]/.test(text.charAt(start - 1))) start--;
-            if (start === offset) return null;
-            return { node, start, end: offset, text: text.slice(start, offset) };
+            const caret = sel.getRangeAt(0);
+            const before = document.createRange();
+            before.selectNodeContents(editor); before.setEnd(caret.startContainer, caret.startOffset);
+            const text = before.toString();
+            // A numerator is the full uninterrupted term. Zero-width caret
+            // landing characters and separate styled spans must not split 5y,
+            // while a real space deliberately starts a new numerator.
+            const match = text.match(/[0-9A-Za-zΑ-ω.\u200b]+$/);
+            if (!match || !match[0].replace(/\u200b/g, '')) return null;
+            let remaining = text.length - match[0].length, startNode = null, startOffset = 0;
+            const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                if (remaining <= node.textContent.length) { startNode = node; startOffset = remaining; break; }
+                remaining -= node.textContent.length;
+            }
+            if (!startNode) return null;
+            const tokenRange = document.createRange();
+            tokenRange.setStart(startNode, startOffset); tokenRange.setEnd(caret.startContainer, caret.startOffset);
+            return { range: tokenRange };
         }
-        function makeFraction(numText) {
+        function makeFraction(numContent) {
             const sel = window.getSelection();
             if (!sel.rangeCount) return;
             const range = sel.getRangeAt(0);
@@ -19693,12 +19716,13 @@ SQIDAQAB
             const frac = document.createElement('span'); frac.className = 'frac';
             const num = document.createElement('span'); num.className = 'frac-num';
             const den = document.createElement('span'); den.className = 'frac-den';
-            num.appendChild(document.createTextNode(numText || MATH_SHORTCUT_ZWS_GLOBAL));
+            const hasNum = !!(numContent && numContent.textContent.replace(/\u200b/g, ''));
+            if (hasNum) num.appendChild(numContent); else num.appendChild(document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL));
             den.appendChild(document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL));
             frac.appendChild(num); frac.appendChild(den);
             range.insertNode(frac);
             const inner = document.createRange();
-            if (numText) inner.setStart(den.firstChild, 1); else inner.setStart(num.firstChild, 1);
+            if (hasNum) inner.setStart(den.firstChild, 1); else inner.setStart(num.firstChild, 1);
             inner.collapse(true);
             sel.removeAllRanges(); sel.addRange(inner);
         }
@@ -19748,7 +19772,7 @@ SQIDAQAB
             range.deleteContents();
             const letter = document.createElement('i'); letter.className = 'math-symbol'; letter.textContent = 'f';
             const primes = document.createElement('span'); primes.className = 'func-primes';
-            const suffix = document.createTextNode('(x)');
+            const suffix = document.createElement('span'); suffix.className = 'math-function-argument'; suffix.textContent = '(x)';
             const landing = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL);
             const frag = document.createDocumentFragment();
             frag.appendChild(letter); frag.appendChild(primes); frag.appendChild(suffix); frag.appendChild(landing);
@@ -20013,6 +20037,7 @@ SQIDAQAB
                 if (capsOn) insertRootWithIndex(); else insertStyledSymbol('√');
                 return;
             }
+            if (ev.key === '(' || ev.key === ')') { ev.preventDefault(); insertMathBracket(ev.key); return; }
             if (ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && ev.key.length === 1 && ev.key.toLowerCase() === 'm') { ev.preventDefault(); insertMatrixSpec(); return; }
             if (ev.key === '^') { ev.preventDefault(); startZone('sup'); return; }
             if (ev.key === '_') { ev.preventDefault(); startZone('sub'); return; }
@@ -20023,12 +20048,10 @@ SQIDAQAB
                 ev.preventDefault();
                 const token = findTokenBeforeCaret();
                 if (token) {
-                    const delRange = document.createRange();
-                    delRange.setStart(token.node, token.start); delRange.setEnd(token.node, token.end);
-                    delRange.deleteContents();
+                    const numerator = token.range.extractContents();
                     const sel0 = window.getSelection();
-                    sel0.removeAllRanges(); sel0.addRange(delRange);
-                    makeFraction(token.text);
+                    sel0.removeAllRanges(); sel0.addRange(token.range);
+                    makeFraction(numerator);
                 } else { makeFraction(null); }
                 return;
             }
@@ -30103,6 +30126,7 @@ SQIDAQAB
                 range.deleteContents();
                 const span = document.createElement('i');
                 span.className = 'math-symbol';
+                if (/^[Α-Ω]$/.test(text)) span.classList.add('math-greek-upper');
                 span.textContent = text;
                 const landing = document.createTextNode(MATH_SHORTCUT_ZWS);
                 const frag = document.createDocumentFragment();
@@ -30112,6 +30136,15 @@ SQIDAQAB
                 after.setStart(landing, 1); after.collapse(true);
                 sel.removeAllRanges(); sel.addRange(after);
                 return span;
+            }
+            function insertMathBracket(text) {
+                const sel = window.getSelection();
+                if (!sel.rangeCount) return;
+                const range = sel.getRangeAt(0); range.deleteContents();
+                const bracket = document.createElement('span'); bracket.className = 'math-bracket'; bracket.textContent = text;
+                const landing = document.createTextNode(MATH_SHORTCUT_ZWS);
+                const frag = document.createDocumentFragment(); frag.appendChild(bracket); frag.appendChild(landing); range.insertNode(frag);
+                const after = document.createRange(); after.setStart(landing, 1); after.collapse(true); sel.removeAllRanges(); sel.addRange(after);
             }
             function startZone(tag) {
                 const sel = window.getSelection();
@@ -30154,16 +30187,24 @@ SQIDAQAB
             function findTokenBeforeCaret() {
                 const sel = window.getSelection();
                 if (!sel.rangeCount || !sel.isCollapsed) return null;
-                const range = sel.getRangeAt(0);
-                const node = range.startContainer, offset = range.startOffset;
-                if (node.nodeType !== 3) return null;
-                const text = node.textContent;
-                let start = offset;
-                while (start > 0 && /[0-9a-zA-Z.]/.test(text.charAt(start - 1))) start--;
-                if (start === offset) return null;
-                return { node, start, end: offset, text: text.slice(start, offset) };
+                const caret = sel.getRangeAt(0);
+                const before = document.createRange();
+                before.selectNodeContents(editor); before.setEnd(caret.startContainer, caret.startOffset);
+                const text = before.toString();
+                const match = text.match(/[0-9A-Za-zΑ-ω.\u200b]+$/);
+                if (!match || !match[0].replace(/\u200b/g, '')) return null;
+                let remaining = text.length - match[0].length, startNode = null, startOffset = 0;
+                const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+                for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                    if (remaining <= node.textContent.length) { startNode = node; startOffset = remaining; break; }
+                    remaining -= node.textContent.length;
+                }
+                if (!startNode) return null;
+                const tokenRange = document.createRange();
+                tokenRange.setStart(startNode, startOffset); tokenRange.setEnd(caret.startContainer, caret.startOffset);
+                return { range: tokenRange };
             }
-            function makeFraction(numText) {
+            function makeFraction(numContent) {
                 const sel = window.getSelection();
                 if (!sel.rangeCount) return;
                 const range = sel.getRangeAt(0);
@@ -30171,12 +30212,13 @@ SQIDAQAB
                 const frac = document.createElement('span'); frac.className = 'frac';
                 const num = document.createElement('span'); num.className = 'frac-num';
                 const den = document.createElement('span'); den.className = 'frac-den';
-                num.appendChild(document.createTextNode(numText || MATH_SHORTCUT_ZWS));
+                const hasNum = !!(numContent && numContent.textContent.replace(/\u200b/g, ''));
+                if (hasNum) num.appendChild(numContent); else num.appendChild(document.createTextNode(MATH_SHORTCUT_ZWS));
                 den.appendChild(document.createTextNode(MATH_SHORTCUT_ZWS));
                 frac.appendChild(num); frac.appendChild(den);
                 range.insertNode(frac);
                 const inner = document.createRange();
-                if (numText) inner.setStart(den.firstChild, 1); else inner.setStart(num.firstChild, 1);
+                if (hasNum) inner.setStart(den.firstChild, 1); else inner.setStart(num.firstChild, 1);
                 inner.collapse(true);
                 sel.removeAllRanges(); sel.addRange(inner);
             }
@@ -30226,7 +30268,7 @@ SQIDAQAB
                 range.deleteContents();
                 const letter = document.createElement('i'); letter.className = 'math-symbol'; letter.textContent = 'f';
                 const primes = document.createElement('span'); primes.className = 'func-primes';
-                const suffix = document.createTextNode('(x)');
+                const suffix = document.createElement('span'); suffix.className = 'math-function-argument'; suffix.textContent = '(x)';
                 const landing = document.createTextNode(MATH_SHORTCUT_ZWS);
                 const frag = document.createDocumentFragment();
                 frag.appendChild(letter); frag.appendChild(primes); frag.appendChild(suffix); frag.appendChild(landing);
@@ -30322,6 +30364,7 @@ SQIDAQAB
                 if (ev.key === 'f' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !precedingCharIsLetter()) { ev.preventDefault(); insertFuncF(); return; }
                 if (ev.key === '*') { ev.preventDefault(); insertStyledSymbol('×'); return; }
                 if (ev.key === '~') { ev.preventDefault(); insertStyledSymbol('√'); return; }
+                if (ev.key === '(' || ev.key === ')') { ev.preventDefault(); insertMathBracket(ev.key); return; }
                 if (ev.key === '^') { ev.preventDefault(); startZone('sup'); return; }
                 if (ev.key === '_') { ev.preventDefault(); startZone('sub'); return; }
                 if (ev.key === '/') {
@@ -30331,12 +30374,10 @@ SQIDAQAB
                     ev.preventDefault();
                     const token = findTokenBeforeCaret();
                     if (token) {
-                        const delRange = document.createRange();
-                        delRange.setStart(token.node, token.start); delRange.setEnd(token.node, token.end);
-                        delRange.deleteContents();
+                        const numerator = token.range.extractContents();
                         const sel0 = window.getSelection();
-                        sel0.removeAllRanges(); sel0.addRange(delRange);
-                        makeFraction(token.text);
+                        sel0.removeAllRanges(); sel0.addRange(token.range);
+                        makeFraction(numerator);
                     } else { makeFraction(null); }
                     return;
                 }
