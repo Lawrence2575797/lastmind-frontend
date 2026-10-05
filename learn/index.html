@@ -4160,7 +4160,9 @@
     .coord-graph-range { display: flex; align-items: center; gap: 4px; font-size: 11px; opacity: .9; }
     .coord-graph-range input { width: 52px; color: #E6D7B0; background: rgba(230,215,176,.07); border: 1px solid rgba(230,215,176,.28); border-radius: 5px; padding: 5px; }
     .coord-graph-stage { position: relative; aspect-ratio: 16 / 10; min-height: 300px; background: #171827; touch-action: none; }
-    .coord-graph-stage canvas { display: block; width: 100%; height: 100%; }
+    .coord-graph-stage canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+    .coord-graph-stage canvas:active { cursor: grabbing; }
+    .coord-graph-zoom { display: inline-flex; gap: 4px; }
     .coord-graph-help { position: absolute; left: 10px; bottom: 8px; padding: 3px 7px; border-radius: 5px; background: rgba(18,18,30,.74); font-size: 11px; opacity: .76; pointer-events: none; }
     .coord-graph-error { min-height: 18px; padding: 0 10px 7px; color: #ffaaaa; font-size: 12px; }
     .nb-graph { background: #12121E; color: #E6D7B0; border-radius: 10px; border: 1px solid rgba(230,215,176,.3); box-shadow: 0 2px 10px rgba(0,0,0,.35); overflow: hidden; }
@@ -20731,26 +20733,36 @@ SQIDAQAB
     function renderCoordinateGraph(host, initialState, options) {
         const uid = `cg${coordinateGraphSeq++}`;
         const state = Object.assign({ mode: '2d', expression2d: 'sin(x)', expression3d: 'sin(sqrt(x^2 + y^2))', min: -10, max: 10, angleX: .62, angleZ: -.72 }, initialState || {});
+        // The 2D view is a window that is zoomed with the wheel or a pinch and moved by dragging (older saves start from their old range).
+        if (!Number.isFinite(state.xmin)) { state.xmin = state.min; state.xmax = state.max; }
+        if (!Number.isFinite(state.ymin)) { state.ymin = state.min; state.ymax = state.max; }
         host.innerHTML = `<div class="coord-graph">
             <div class="coord-graph-controls">
                 <span class="coord-graph-mode" role="group" aria-label="Graph view"><button type="button" data-mode="2d">2D</button><button type="button" data-mode="3d">3D</button></span>
                 <input class="coord-graph-expression" spellcheck="false" aria-label="Equation">
-                <span class="coord-graph-range">from <input type="number" data-range="min" step="1"> to <input type="number" data-range="max" step="1"></span>
+                <span class="coord-graph-zoom" role="group" aria-label="Zoom"><button type="button" class="coord-graph-btn" data-act="zoomout" aria-label="Zoom out" title="Zoom out">−</button><button type="button" class="coord-graph-btn" data-act="zoomin" aria-label="Zoom in" title="Zoom in">+</button></span>
                 <button type="button" class="coord-graph-btn" data-act="draw">Draw</button><button type="button" class="coord-graph-btn" data-act="reset">Reset view</button>
             </div><div class="coord-graph-stage"><canvas aria-label="Coordinate graph"></canvas><span class="coord-graph-help"></span></div><div class="coord-graph-error" aria-live="polite"></div>
         </div>`;
         const canvas = host.querySelector('canvas'), stage = host.querySelector('.coord-graph-stage'), input = host.querySelector('.coord-graph-expression'), error = host.querySelector('.coord-graph-error'), help = host.querySelector('.coord-graph-help');
-        const rangeInputs = host.querySelectorAll('[data-range]'); let drag = null;
+        let drag = null, pinch = null, notifyTimer = null; const ptrs = new Map();
         function notify() { if (options && options.onChange) options.onChange(Object.assign({}, state)); }
         function size() { const dpr = Math.min(2, window.devicePixelRatio || 1), r = stage.getBoundingClientRect(); canvas.width = Math.max(1, Math.round(r.width*dpr)); canvas.height = Math.max(1, Math.round(r.height*dpr)); return { ctx: canvas.getContext('2d'), w:r.width, h:r.height, dpr }; }
         function draw2d(ctx,w,h) {
-            const fn = graphCompile(state.expression2d, ['x']), lo=state.min, hi=state.max, span=hi-lo, sy=span;
-            const X=(x)=>(x-lo)/span*w, Y=(y)=>h-(y-lo)/sy*h, step=graphNiceStep(span);
+            const fn = graphCompile(state.expression2d, ['x']), xlo=state.xmin, xhi=state.xmax, ylo=state.ymin, yhi=state.ymax, xs=xhi-xlo, ys=yhi-ylo;
+            const X=(x)=>(x-xlo)/xs*w, Y=(y)=>h-(y-ylo)/ys*h, sx=graphNiceStep(xs), sy=graphNiceStep(ys);
+            const lx=nbClamp(X(0),4,w-44), ly=nbClamp(Y(0),14,h-6);
             ctx.lineWidth=1; ctx.font='11px Arial'; ctx.fillStyle='rgba(230,215,176,.62)'; ctx.strokeStyle='rgba(230,215,176,.13)';
-            for(let v=Math.ceil(lo/step)*step;v<=hi;v+=step){const x=X(v),y=Y(v);ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();if(Math.abs(v)>step/10){ctx.fillText(Number(v.toPrecision(5)),x+3,Y(0)-5);ctx.fillText(Number(v.toPrecision(5)),X(0)+5,y-3);}}
-            ctx.strokeStyle='#E6D7B0';ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(0,Y(0));ctx.lineTo(w,Y(0));ctx.moveTo(X(0),0);ctx.lineTo(X(0),h);ctx.stroke();
+            let guard=0;
+            for(let v=Math.ceil(xlo/sx)*sx;v<=xhi&&guard++<300;v+=sx){const x=X(v);ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();if(Math.abs(v)>sx/10)ctx.fillText(Number(v.toPrecision(5)),x+3,ly-5);}
+            guard=0;
+            for(let v=Math.ceil(ylo/sy)*sy;v<=yhi&&guard++<300;v+=sy){const y=Y(v);ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();if(Math.abs(v)>sy/10)ctx.fillText(Number(v.toPrecision(5)),lx+5,y-3);}
+            ctx.strokeStyle='#E6D7B0';ctx.lineWidth=1.6;ctx.beginPath();
+            if(Y(0)>=0&&Y(0)<=h){ctx.moveTo(0,Y(0));ctx.lineTo(w,Y(0));}
+            if(X(0)>=0&&X(0)<=w){ctx.moveTo(X(0),0);ctx.lineTo(X(0),h);}
+            ctx.stroke();
             ctx.strokeStyle='#6EC8FF';ctx.lineWidth=2.4;ctx.beginPath();let pen=false;
-            for(let px=0;px<=w;px+=1){const x=lo+px/w*span,y=fn(x),py=Y(y);if(!Number.isFinite(y)||py < -h*3||py>h*4){pen=false;continue;}if(!pen){ctx.moveTo(px,py);pen=true;}else ctx.lineTo(px,py);}ctx.stroke();
+            for(let px=0;px<=w;px+=1){const x=xlo+px/w*xs,y=fn(x),py=Y(y);if(!Number.isFinite(y)||py < -h*3||py>h*4){pen=false;continue;}if(!pen){ctx.moveTo(px,py);pen=true;}else ctx.lineTo(px,py);}ctx.stroke();
         }
         function draw3d(ctx,w,h) {
             const fn=graphCompile(state.expression3d,['x','y']),lo=state.min,hi=state.max, span=hi-lo, n=25, scale=Math.min(w,h)*.38/span;
@@ -20762,14 +20774,29 @@ SQIDAQAB
             for(let pass=0;pass<2;pass++)for(let i=0;i<=n;i++){ctx.beginPath();let pen=false;for(let j=0;j<=n;j++){const a=lo+i/n*span,b=lo+j/n*span,x=pass?a:b,y=pass?b:a,z=val(x,y);if(!Number.isFinite(z)){pen=false;continue;}const p=project(x,y,z);if(!pen){ctx.moveTo(p.x,p.y);pen=true;}else ctx.lineTo(p.x,p.y);}ctx.strokeStyle=pass?'rgba(110,200,255,.72)':'rgba(230,215,176,.5)';ctx.stroke();}
             ctx.fillStyle='#E6D7B0';ctx.font='12px Arial';[['x',hi,0,0],['y',0,hi,0],['z',0,0,span/2]].forEach(a=>{const p=project(a[1],a[2],a[3]);ctx.fillText(a[0],p.x+4,p.y-4);});
         }
-        function draw() { error.textContent=''; input.value=state.mode==='3d'?state.expression3d:state.expression2d; rangeInputs[0].value=state.min;rangeInputs[1].value=state.max; host.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===state.mode))); help.textContent=state.mode==='3d'?'Drag to rotate the 3D surface':'y = f(x)'; const {ctx,w,h,dpr}=size();ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);ctx.fillStyle='#171827';ctx.fillRect(0,0,w,h);try{state.mode==='3d'?draw3d(ctx,w,h):draw2d(ctx,w,h);}catch(e){error.textContent=e.message||'Could not draw that equation.';} }
-        function commit() { const lo=Number(rangeInputs[0].value),hi=Number(rangeInputs[1].value);if(Number.isFinite(lo)&&Number.isFinite(hi)&&hi>lo){state.min=lo;state.max=hi;}if(state.mode==='3d')state.expression3d=input.value;else state.expression2d=input.value;draw();notify();}
+        function draw() { error.textContent=''; input.value=state.mode==='3d'?state.expression3d:state.expression2d; host.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===state.mode))); help.textContent=state.mode==='3d'?'Drag to rotate, scroll or pinch to zoom':'y = f(x). Scroll or pinch to zoom, drag to move'; const {ctx,w,h,dpr}=size();ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);ctx.fillStyle='#171827';ctx.fillRect(0,0,w,h);try{state.mode==='3d'?draw3d(ctx,w,h):draw2d(ctx,w,h);}catch(e){error.textContent=e.message||'Could not draw that equation.';} }
+        function commit() { if(state.mode==='3d')state.expression3d=input.value;else state.expression2d=input.value;draw();notify();}
         host.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>{if(state.mode===b.dataset.mode)return;if(state.mode==='3d')state.expression3d=input.value;else state.expression2d=input.value;state.mode=b.dataset.mode;draw();notify();}));
-        host.querySelector('[data-act="draw"]').addEventListener('click',commit); input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();commit();}}); rangeInputs.forEach(i=>i.addEventListener('change',commit));
-        host.querySelector('[data-act="reset"]').addEventListener('click',()=>{state.angleX=.62;state.angleZ=-.72;draw();notify();});
-        canvas.addEventListener('pointerdown',e=>{if(state.mode!=='3d'||e.button!==0)return;drag={x:e.clientX,y:e.clientY,ax:state.angleX,az:state.angleZ};canvas.setPointerCapture(e.pointerId);});
-        canvas.addEventListener('pointermove',e=>{if(!drag)return;state.angleZ=drag.az+(e.clientX-drag.x)*.009;state.angleX=nbClamp(drag.ax+(e.clientY-drag.y)*.009,-1.35,1.35);draw();});
-        const endDrag=()=>{if(drag){drag=null;notify();}};canvas.addEventListener('pointerup',endDrag);canvas.addEventListener('pointercancel',endDrag);
+        host.querySelector('[data-act="draw"]').addEventListener('click',commit); input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();commit();}});
+        function zoomBy(f,ax,ay){
+            if(state.mode==='3d'){const sz=nbClamp((state.max-state.min)/2*f,0.05,5000);state.min=-sz;state.max=sz;}
+            else{const oxs=state.xmax-state.xmin,oys=state.ymax-state.ymin,cx=state.xmin+oxs*ax,cy=state.ymax-oys*ay,nxs=nbClamp(oxs*f,1e-4,1e7),nys=nbClamp(oys*f,1e-4,1e7);
+                state.xmin=cx-(cx-state.xmin)*(nxs/oxs);state.xmax=state.xmin+nxs;state.ymin=cy-(cy-state.ymin)*(nys/oys);state.ymax=state.ymin+nys;}
+            draw();clearTimeout(notifyTimer);notifyTimer=setTimeout(notify,300);
+        }
+        host.querySelector('[data-act="zoomin"]').addEventListener('click',()=>zoomBy(0.8,.5,.5));
+        host.querySelector('[data-act="zoomout"]').addEventListener('click',()=>zoomBy(1.25,.5,.5));
+        host.querySelector('[data-act="reset"]').addEventListener('click',()=>{state.angleX=.62;state.angleZ=-.72;state.min=-10;state.max=10;state.xmin=-10;state.xmax=10;state.ymin=-10;state.ymax=10;draw();notify();});
+        stage.addEventListener('wheel',e=>{e.preventDefault();const r=canvas.getBoundingClientRect();zoomBy(Math.exp(e.deltaY*0.0016),(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height);},{passive:false});
+        canvas.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button!==0)return;ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});try{canvas.setPointerCapture(e.pointerId);}catch(_){}
+            if(ptrs.size===2){const v=[...ptrs.values()];pinch={d:Math.hypot(v[0].x-v[1].x,v[0].y-v[1].y)||1};drag=null;}
+            else if(ptrs.size===1){drag=state.mode==='3d'?{x:e.clientX,y:e.clientY,ax:state.angleX,az:state.angleZ}:{x:e.clientX,y:e.clientY,xmin:state.xmin,xmax:state.xmax,ymin:state.ymin,ymax:state.ymax};}});
+        canvas.addEventListener('pointermove',e=>{if(!ptrs.has(e.pointerId))return;ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+            if(pinch&&ptrs.size===2){const v=[...ptrs.values()],d=Math.hypot(v[0].x-v[1].x,v[0].y-v[1].y)||1,r=canvas.getBoundingClientRect();zoomBy(pinch.d/d,((v[0].x+v[1].x)/2-r.left)/r.width,((v[0].y+v[1].y)/2-r.top)/r.height);pinch.d=d;return;}
+            if(!drag)return;
+            if(state.mode==='3d'){state.angleZ=drag.az+(e.clientX-drag.x)*.009;state.angleX=nbClamp(drag.ax+(e.clientY-drag.y)*.009,-1.35,1.35);draw();}
+            else{const r=canvas.getBoundingClientRect(),dx=(e.clientX-drag.x)/r.width*(drag.xmax-drag.xmin),dy=(e.clientY-drag.y)/r.height*(drag.ymax-drag.ymin);state.xmin=drag.xmin-dx;state.xmax=drag.xmax-dx;state.ymin=drag.ymin+dy;state.ymax=drag.ymax+dy;draw();}});
+        const endDrag=e=>{ptrs.delete(e.pointerId);if(ptrs.size<2)pinch=null;if(ptrs.size===0&&drag){drag=null;notify();}};canvas.addEventListener('pointerup',endDrag);canvas.addEventListener('pointercancel',endDrag);
         const ro=typeof ResizeObserver==='function'?new ResizeObserver(draw):null;if(ro)ro.observe(stage);draw();return{getState:()=>Object.assign({},state),destroy:()=>ro&&ro.disconnect()};
     }
     function openCoordinateGraphTool() {
