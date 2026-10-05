@@ -505,6 +505,7 @@
     if (outcome === 'off') { ex = goalX; ey = W / 2 + (rng() < 0.5 ? -1 : 1) * (4.5 + rng() * 4); }
     if (outcome === 'blocked') { const s = segInfo(blocker.x, blocker.y, carrier.x, carrier.y, goalX, aimY); ex = s.cx; ey = s.cy; }
     if (outcome === 'saved') { ex = goalX + (team.attackDir === 1 ? -0.5 : 0.5); ey = gk.y; }
+    if (match.rec) noteShotForClips(match, team, carrier, shotXg);
     if (match.rec && outcome !== 'goal' && shotXg >= 0.1) clipChance(match, team, carrier, shotXg);
     record(match, { type: 'shot', team: team.id, player: carrier.number, xg: shotXg, outcome, defDist: nearD, x: carrier.x, y: carrier.y, setPiece: opt.header ? 'header' : undefined });
     match.carrier = null; match.carry = null;
@@ -657,6 +658,7 @@
       !(style === 'shoot' && Math.hypot(goalX - x, W / 2 - y) <= 30 && !r.extra.indirect));
     if (crossing) planBox(match, r);
     record(match, { type: 'restart', kind, team: team.id, x, y });
+    if (match.rec && (kind === 'corner' || (kind === 'freekick' && FM.toTeamSpace(team.attackDir, x, y).d > 0.55))) match.rec.sp = { team: team.id, kind, t: match.clock };
   }
 
   // Box points for attackers and the defenders marking them, for corners and crossed free kicks.
@@ -822,6 +824,7 @@
     }
     let ey = W / 2 + (rng() - 0.5) * 6.5;
     if (outcome === 'off') ey = W / 2 + (rng() < 0.5 ? -1 : 1) * (4.5 + rng() * 5);
+    if (match.rec) noteShotForClips(match, team, taker, p);
     record(match, { type: 'shot', team: team.id, player: taker.number, xg: p, outcome, defDist: 9.15, x: taker.x, y: taker.y, setPiece: 'freekick' });
     match.flight = { kind: 'shot', team, shooter: taker, speed: 26, target: null, ex: outcome === 'blocked' ? taker.x + (goalX - taker.x) * 0.5 : goalX, ey: clamp(ey, 0.5, W - 0.5), outcome, gk, blocker: null };
     match.ball.state = 'flight';
@@ -895,6 +898,7 @@
   // A build-up from the back: the user's team wins the ball in its own third and, keeping it, gets it into the final third
   // after at least four passes. Called each time the ball is given to a player.
   function chainOnBall(match, team, player, changed) {
+    trackTransitions(match, team, player, changed);
     const r = match.rec, ch = r.chain;
     const d = FM.toTeamSpace(team.attackDir, player.x, player.y).d;
     if (team.id !== match.userId) { r.chain = null; return; }
@@ -906,6 +910,46 @@
       r.pending.push({ kind: 'buildup', label: 'Build-up from the back: ' + ch.passes + ' passes', from: ch.start - 1.5, to: t + 2, until: t + 2, event: ch.start, rank: ch.passes });
     }
   }
+  // The other moments worth a clip, all cut from the user's own matches and all found as the ball changes hands:
+  //   press        our team wins the ball high up the pitch (in the opposition's half)
+  //   counter      we win it in our own half and are in their final third within about ten seconds, in five passes or fewer
+  //   counterAgainst  the same, done to us
+  //   turnover     we lose the ball in our own third and they have a shot within twelve seconds of it
+  //   setpiece / setpieceAgainst  a corner or a free kick in the attacking half that ends in a shot
+  // `changed` is true only when the ball truly changes hands in open play (restarts such as throw-ins set the side beforehand, so they do not count).
+  function trackTransitions(match, team, player, changed) {
+    const r = match.rec, mine = team.id === match.userId;
+    const d = FM.toTeamSpace(team.attackDir, player.x, player.y).d;       // 0 = this team's own goal, 1 = the goal it attacks
+    if (changed) {
+      r.tr = { team: team.id, t: match.clock, d, passes: 0, done: false };
+      if (mine && d > 0.58 && match.clock - (r.lastPress || -99) > 18) {
+        r.lastPress = match.clock;
+        r.pending.push({ kind: 'press', label: 'Pressing: the ball won ' + Math.round(100 * d) + '% of the way up the pitch', from: match.clock - 9, to: match.clock + 5, until: match.clock + 5, event: match.clock, rank: d });
+      }
+      if (!mine && 1 - d < 0.4) r.turn = { t: match.clock };                // they took it off us in our own third
+      else if (mine) r.turn = null;
+    } else if (r.tr && r.tr.team === team.id) {
+      const k = r.tr;
+      k.passes++;
+      if (!k.done && d > 0.75 && k.d < 0.55 && match.clock - k.t <= 11 && k.passes <= 5) {
+        k.done = true;
+        const t = match.clock;
+        r.pending.push({ kind: mine ? 'counter' : 'counterAgainst', label: (mine ? 'Counter-attack: ' : 'Their counter-attack: ') + Math.round(t - k.t) + ' seconds from winning the ball to their final third', from: k.t - 3, to: t + 2.5, until: t + 2.5, event: k.t, rank: 12 - (t - k.t) });
+      }
+    }
+  }
+  // Called for every shot: turns a loss in our own third, or a set piece, that ends in a shot into a clip.
+  function noteShotForClips(match, team, shooter, xg) {
+    const r = match.rec, t = match.clock, mine = team.id === match.userId;
+    if (!mine && r.turn && t - r.turn.t <= 12 && xg >= 0.03) {
+      r.pending.push({ kind: 'turnover', label: 'Ball lost in our own third, then a shot against: ' + shooter.name + ' (xG ' + xg.toFixed(2) + ')', from: r.turn.t - 8, to: t + 3, until: t + 3, event: r.turn.t, rank: xg });
+      r.turn = null;
+    }
+    if (r.sp && r.sp.team === team.id && t - r.sp.t <= 9) {
+      r.pending.push({ kind: mine ? 'setpiece' : 'setpieceAgainst', label: (mine ? '' : 'Against: ') + (r.sp.kind === 'corner' ? 'Corner' : 'Free kick') + ', shot by ' + shooter.name + ' (xG ' + xg.toFixed(2) + ')', from: r.sp.t - 3, to: t + 3, until: t + 3, event: r.sp.t, rank: xg });
+      r.sp = null;
+    }
+  }
   // At the final whistle: cut anything still waiting, then keep the clips worth keeping (every goal, the best few chances
   // and build-ups) so a season stays a reasonable size.
   FM.finaliseClips = function (match) {
@@ -913,7 +957,8 @@
     if (!r) return [];
     r.pending.splice(0).forEach((s) => { s.to = Math.min(s.to, match.clock); extractClip(match, s); });
     const top = (kind, n) => r.cands.filter((c) => c.kind === kind).sort((a, b) => b.rank - a.rank).slice(0, n);
-    const keep = r.cands.filter((c) => c.kind === 'goal' || c.kind === 'conceded').concat(top('chance', 3), top('chanceAgainst', 2), top('buildup', 2));
+    const keep = r.cands.filter((c) => c.kind === 'goal' || c.kind === 'conceded').concat(top('chance', 3), top('chanceAgainst', 2), top('buildup', 2),
+      top('press', 2), top('counter', 1), top('counterAgainst', 1), top('turnover', 1), top('setpiece', 1), top('setpieceAgainst', 1));
     keep.sort((a, b) => a.score[0] + a.score[1] - (b.score[0] + b.score[1]) || a.minute - b.minute);
     keep.sort((a, b) => a.minute - b.minute);
     keep.forEach((c, i) => { c.id = 'c' + i; delete c.rank; });

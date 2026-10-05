@@ -150,6 +150,17 @@
       <p class="note">Each circle is a player, placed where he made his passes on average (arranged on a grid, so no two overlap), bigger the more passes he made. Only the starting eleven are shown: substitutes, and passes to or from them, are left out. A line joins two players who completed a lot of passes between them (at least four, and at least 30% of the busiest link), thicker for more. ${passes.length} passes in total.</p>`;
   }
 
+  // ---------- strengths and weaknesses (from the saved statistics and log, so it works for every match already played) ----------
+  function insightsHtml(league, fx) {
+    const ins = FM.matchInsights ? FM.matchInsights(league, fx) : { strengths: [], weaknesses: [] };
+    const list = (items, none) => (items.length ? `<ol class="insights">${items.map((i) => `<li><b>${esc(i.title)}</b><span class="fact">${esc(i.fact)}</span><span class="why">${esc(i.text)}</span></li>`).join('')}</ol>` : `<p class="note">${none}</p>`);
+    return `<div class="two">
+      <div class="card"><h2>Five strengths</h2>${list(ins.strengths, 'There is not enough recorded for this match to say.')}</div>
+      <div class="card"><h2>Five weaknesses</h2>${list(ins.weaknesses, 'There is not enough recorded for this match to say.')}</div>
+    </div>
+    <p class="note">Strengths and weaknesses compare you with this opposition (and with a sensible benchmark) in this one match, using the statistics and log saved for it. They are a place to look next, not a verdict: one match is a small sample.</p>`;
+  }
+
   // ---------- the page ----------
   FM.renderAnalysis = function (host, league) {
     const fxs = userFixtures(league);
@@ -176,6 +187,7 @@
           </label>
           <p class="note">Everything here comes from one match, a single sample. Over the season you will have fourteen, and what holds across them is what you can trust.</p>
         </div>
+        ${insightsHtml(league, fx)}
         <div class="two">
           <div class="card"><h2>Key facts</h2>${keyFactsHtml(league, fx)}</div>
           <div class="card">

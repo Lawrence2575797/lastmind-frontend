@@ -5,8 +5,9 @@
   const FM = (window.FM = window.FM || {});
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const L = 105, W = 68, PS = 6, PW = L * PS, PH = W * PS;
-  const KIND_NAMES = { goal: 'Goals scored', conceded: 'Goals conceded', chance: 'Our best chances', chanceAgainst: 'Their best chances', buildup: 'Build-up from the back' };
-  const KIND_ORDER = ['goal', 'conceded', 'chance', 'chanceAgainst', 'buildup'];
+  const KIND_NAMES = { goal: 'Goals scored', conceded: 'Goals conceded', chance: 'Our best chances', chanceAgainst: 'Their best chances', buildup: 'Build-up from the back',
+    press: 'Our press: winning the ball high up', counter: 'Our counter-attacks', counterAgainst: 'Their counter-attacks', turnover: 'Ball lost in our own third', setpiece: 'Our set pieces', setpieceAgainst: 'Their set pieces' };
+  const KIND_ORDER = ['goal', 'conceded', 'chance', 'chanceAgainst', 'buildup', 'press', 'counter', 'counterAgainst', 'turnover', 'setpiece', 'setpieceAgainst'];
   const state = { clipId: null, speed: 0.5, playing: false, t: 0, raf: 0 };
 
   function stop() { state.playing = false; if (state.raf) cancelAnimationFrame(state.raf); state.raf = 0; }
