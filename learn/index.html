@@ -4166,7 +4166,19 @@
     .nb-graph { background: #12121E; color: #E6D7B0; border-radius: 10px; border: 1px solid rgba(230,215,176,.3); box-shadow: 0 2px 10px rgba(0,0,0,.35); overflow: hidden; }
     .nb-graph .nb-dbar { border-bottom: 0; }
     .nb-graph .coord-graph { border: 0; border-top: 1px solid rgba(230,215,176,.18); border-radius: 0; box-shadow: none; }
-    .nb-graph .coord-graph-stage { min-height: 250px; }
+    .nb-graph .coord-graph-stage { min-height: 0; }
+    .nb-corner { position: absolute; width: 14px; height: 14px; z-index: 4; background: #E6D7B0; border: 2px solid #1A232D; border-radius: 4px; opacity: 0; touch-action: none; }
+    .nb-corner-nw { left: 3px; top: 3px; cursor: nwse-resize; } .nb-corner-se { right: 3px; bottom: 3px; cursor: nwse-resize; }
+    .nb-corner-ne { right: 3px; top: 3px; cursor: nesw-resize; } .nb-corner-sw { left: 3px; bottom: 3px; cursor: nesw-resize; }
+    .nb-graph:hover > .nb-corner, .nb-diagram:hover > .nb-corner, .nb-graph:focus-within > .nb-corner, .nb-diagram:focus-within > .nb-corner { opacity: 0.95; }
+    @media (hover: none) { .nb-corner { opacity: 0.85; } }
+    /* Shrunk right down: just the picture, with the grip and delete button; its tool rows return when it is enlarged. */
+    .nb-compact .coord-graph-controls, .nb-compact .coord-graph-error, .nb-compact .coord-graph-help, .nb-compact .nb-lines-btn,
+    .nb-compact .diagram-palette, .nb-compact .diagram-toolbar, .nb-compact .diagram-result { display: none !important; }
+    .nb-compact .nb-dbar { padding: 3px 6px; }
+    .nb-compact .nb-dbar .nb-grip { font-size: 0; height: 22px; }
+    .nb-compact .nb-dbar .nb-grip::before { content: '⠿'; font-size: 13px; }
+    .nb-compact .nb-dhost { padding: 4px 6px 0; }
     .nb-graph:hover > .nb-resize { opacity: 1; }
     @media (max-width: 620px) { .coord-graph-stage { min-height: 260px; } .coord-graph-range { display: none; } }
     /* ─── CRIMINAL LAWYER CAREER ─── */
@@ -20275,10 +20287,11 @@ SQIDAQAB
 
     // Where a block sits and how wide it is, kept inside the page on a narrow screen without changing what is saved.
     function nbPlace(el, block, canvas) {
-        const minW = (block.type === 'diagram' || block.type === 'graph') ? 300 : 140, cw = canvas.clientWidth || 600;
+        const minW = (block.type === 'diagram' || block.type === 'graph') ? NB_MIN_FIGURE : 140, cw = canvas.clientWidth || 600;
         const w = nbClamp(block.w || 460, minW, Math.max(minW, cw));
         const x = nbClamp(block.x || 0, 0, Math.max(0, cw - w));
         el.style.left = x + 'px'; el.style.top = Math.max(0, block.y || 0) + 'px'; el.style.width = w + 'px';
+        nbSyncCompact(el);
     }
     function nbFitCanvas(canvas) {
         let bottom = 0;
@@ -20305,11 +20318,37 @@ SQIDAQAB
         handle.addEventListener('pointerdown', (e) => {
             if (e.button !== 0) return;
             e.preventDefault(); e.stopPropagation();
-            const sx = e.clientX, ow = el.offsetWidth, minW = (block.type === 'diagram' || block.type === 'graph') ? 300 : 140;
+            const sx = e.clientX, ow = el.offsetWidth, minW = (block.type === 'diagram' || block.type === 'graph') ? NB_MIN_FIGURE : 140;
             try { handle.setPointerCapture(e.pointerId); } catch (_) { /* older browser */ }
-            const move = (ev) => { block.w = nbClamp(ow + ev.clientX - sx, minW, Math.max(minW, canvas.clientWidth - el.offsetLeft)); el.style.width = block.w + 'px'; nbFitCanvas(canvas); };
+            const move = (ev) => { block.w = nbClamp(ow + ev.clientX - sx, minW, Math.max(minW, canvas.clientWidth - el.offsetLeft)); el.style.width = block.w + 'px'; nbSyncCompact(el); nbFitCanvas(canvas); };
             const up = () => { handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up); handle.removeEventListener('pointercancel', up); notesScheduleSave(); };
             handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', up); handle.addEventListener('pointercancel', up);
+        });
+    }
+    // A graph or diagram can be shrunk to the picture itself: below this width its tool rows fold away (enlarge it again to edit).
+    const NB_MIN_FIGURE = 150, NB_COMPACT_BELOW = 340;
+    function nbSyncCompact(el) { if (el.classList.contains('nb-graph') || el.classList.contains('nb-diagram')) el.classList.toggle('nb-compact', el.offsetWidth < NB_COMPACT_BELOW); }
+    // Four corner handles. The picture scales with the width, so a corner drag changes the size while keeping the opposite corner still.
+    function nbWireCorners(el, block, canvas) {
+        [['nw', -1, -1], ['ne', 1, -1], ['sw', -1, 1], ['se', 1, 1]].forEach(([name, sx, sy]) => {
+            const h = document.createElement('div'); h.className = 'nb-corner nb-corner-' + name; h.title = 'Drag to resize'; el.appendChild(h);
+            h.addEventListener('pointerdown', (e) => {
+                if (e.button !== 0) return;
+                e.preventDefault(); e.stopPropagation();
+                const px = e.clientX, py = e.clientY, ox = el.offsetLeft, oy = el.offsetTop, ow = el.offsetWidth, oh = el.offsetHeight, ratio = ow / Math.max(1, oh);
+                try { h.setPointerCapture(e.pointerId); } catch (_) { /* older browser */ }
+                const move = (ev) => {
+                    const dx = (ev.clientX - px) * sx, dy = (ev.clientY - py) * sy * ratio;
+                    const room = sx > 0 ? canvas.clientWidth - ox : ox + ow;
+                    const w = nbClamp(ow + (Math.abs(dx) >= Math.abs(dy) ? dx : dy), NB_MIN_FIGURE, Math.max(NB_MIN_FIGURE, room));
+                    block.w = Math.round(w); el.style.width = block.w + 'px'; nbSyncCompact(el);
+                    if (sx < 0) { block.x = Math.max(0, ox + ow - block.w); el.style.left = block.x + 'px'; }
+                    if (sy < 0) { block.y = Math.max(0, oy + oh - el.offsetHeight); el.style.top = block.y + 'px'; }
+                    nbFitCanvas(canvas);
+                };
+                const up = () => { h.removeEventListener('pointermove', move); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up); notesScheduleSave(); };
+                h.addEventListener('pointermove', move); h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
+            });
         });
     }
     function nbRemoveBlock(page, block, el, canvas) {
@@ -20400,7 +20439,7 @@ SQIDAQAB
         setLines(block.linesOpen !== false);
         linesBtn.addEventListener('click', () => { setLines(block.linesOpen === false); notesScheduleSave(); nbFitCanvas(canvas); });
         nbWireDrag(el.querySelector('.nb-dgrip'), el, block, canvas);
-        nbWireResize(el.querySelector('.nb-resize'), el, block, canvas);
+        nbWireResize(el.querySelector('.nb-resize'), el, block, canvas); nbWireCorners(el, block, canvas);
         const delBtn = el.querySelector('.nb-del'); let armed = null;
         delBtn.addEventListener('click', () => {
             if (armed) { clearTimeout(armed); nbRemoveBlock(page, block, el, canvas); return; }
@@ -20418,7 +20457,7 @@ SQIDAQAB
             <button type="button" class="nb-del nb-del-inline" aria-label="Delete this graph" title="Delete">×</button></div><div class="nb-graph-host"></div><div class="nb-resize" title="Drag to resize"></div>`;
         canvas.appendChild(el); nbPlace(el, block, canvas);
         renderCoordinateGraph(el.querySelector('.nb-graph-host'), block.state || {}, { onChange: (state) => { block.state = state; notesScheduleSave(); nbFitCanvas(canvas); } });
-        nbWireDrag(el.querySelector('.nb-dgrip'), el, block, canvas); nbWireResize(el.querySelector('.nb-resize'), el, block, canvas);
+        nbWireDrag(el.querySelector('.nb-dgrip'), el, block, canvas); nbWireResize(el.querySelector('.nb-resize'), el, block, canvas); nbWireCorners(el, block, canvas);
         const delBtn = el.querySelector('.nb-del'); let armed = null;
         delBtn.addEventListener('click', () => { if (armed) { clearTimeout(armed); nbRemoveBlock(page, block, el, canvas); return; } delBtn.textContent='Sure?';delBtn.style.width='auto';delBtn.style.padding='0 8px';armed=setTimeout(()=>{armed=null;delBtn.textContent='×';delBtn.style.width='';delBtn.style.padding='';},3000); });
         if (notesResizeObs) notesResizeObs.observe(el); return el;
@@ -20458,7 +20497,7 @@ SQIDAQAB
                 <div class="nb-canvas" id="nbCanvas"></div>
             </div>`;
         const canvas = document.getElementById('nbCanvas');
-        if (typeof ResizeObserver === 'function') notesResizeObs = new ResizeObserver(() => nbFitCanvas(canvas));
+        if (typeof ResizeObserver === 'function') notesResizeObs = new ResizeObserver(() => { canvas.querySelectorAll('.nb-graph, .nb-diagram').forEach(nbSyncCompact); nbFitCanvas(canvas); });
         page.doc = page.doc && Array.isArray(page.doc.blocks) ? page.doc : { blocks: [] };
         page.doc.blocks.forEach((b) => { if (b.type === 'diagram') nbMakeDiagramBlock(page, b, canvas); else if (b.type === 'graph') nbMakeGraphBlock(page, b, canvas); else nbMakeTextBlock(page, b, canvas, false); });
         nbToggleHint(canvas, page); nbFitCanvas(canvas);
