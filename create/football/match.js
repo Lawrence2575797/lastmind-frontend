@@ -45,7 +45,7 @@
     return Math.abs(Math.atan2(dy + 3.66, dx) - Math.atan2(dy - 3.66, dx));
   };
   FM.xgLogit = function (shooter, x, y, attackDir, defDist) {
-    return -3.77 + 7.6 * FM.shotAngle(x, y, attackDir) + 0.03 * (shooter.ratings.finishing - 60) - 0.9 * Math.exp(-defDist / 2);
+    return -3.65 + 7.6 * FM.shotAngle(x, y, attackDir) + 0.03 * (shooter.ratings.finishing - 60) - 0.9 * Math.exp(-defDist / 2);
   };
 
   // ---------- roles' tendencies when on the ball ----------
@@ -389,7 +389,7 @@
     const attackingThird = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d > 0.6;
     if (((dGoal < 28 && attackingThird) || (through && dGoal < 42)) && carrier.group !== 'GK') {
       const xg = sig(FM.xgLogit(carrier, carrier.x, carrier.y, team.attackDir, nearD) - 0.55 * crowd(match, team, carrier));
-      options.push({ kind: 'shoot', xg, score: xg * 3.2 * (0.5 + risk * 0.9) * (0.4 + 1.2 * tac.shootFreedom) * mods.shoot - (1 - xg) * 0.12 - Math.max(0, 0.09 - xg) * 8 * (1.2 - tac.shootFreedom) + (through ? (FM.THROUGH_SHOOT == null ? 0.7 : FM.THROUGH_SHOOT) * clamp((42 - dGoal) / 22, 0, 1) : 0) });
+      options.push({ kind: 'shoot', xg, score: xg * 3.2 * (0.5 + risk * 0.9) * (0.4 + 1.2 * tac.shootFreedom) * mods.shoot - (1 - xg) * 0.12 - Math.max(0, 0.09 - xg) * 8 * (1.2 - tac.shootFreedom) + 0.35 * clamp((nearD - 1.2) / 2.5, 0, 1) * clamp((28 - dGoal) / 14, 0, 1) + (through ? (FM.THROUGH_SHOOT == null ? 0.7 : FM.THROUGH_SHOOT) * clamp((42 - dGoal) / 22, 0, 1) : 0) });
     }
 
     // Softmax: the manager's settings favour an action, but nothing is certain.
