@@ -4301,6 +4301,11 @@
     .cr-exh small { display: block; font: 700 0.58rem Arial, sans-serif; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.6; }
     .cr-exh:hover, .cr-exh.on { background: #1A232D; color: #F3E7BE; }
     .cr-exhibit-view { margin-top: 12px; }
+    /* The exhibits sit on the birch desk, so their text is navy there (the dark CCTV, phone and map exhibits keep their own light text) */
+    .cr-exhibit-view { color: #1A232D; }
+    .cr-exhibit-view .pl-bag { color: #1A232D; background: linear-gradient(160deg, rgba(255,255,255,0.55), rgba(255,255,255,0.3)); border-color: rgba(26, 35, 45, 0.55); }
+    .cr-exhibit-view .pl-bag *:not(.tag) { color: #1A232D; }
+    .cr-exhibit-view .pl-cctv-cap, .cr-exhibit-view .pl-p, .cr-exhibit-view p { color: #1A232D; opacity: 1; }
     .cr-exhibit-view .pl-paper, .cr-exhibit-view .pl-phone, .cr-exhibit-view .pl-cctv, .cr-exhibit-view .pl-medical, .cr-exhibit-view .pl-polaroid, .cr-exhibit-view .pl-map, .cr-exhibit-view .pl-bag { max-width: 100%; margin-left: auto; margin-right: auto; }
     .cr-paper-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; margin-top: 22px; padding-top: 14px; border-top: 1px solid rgba(60, 40, 15, 0.25); }
     .cr-paper-btn { font: inherit; font-weight: 700; padding: 9px 20px; border-radius: 8px; cursor: pointer; background: transparent; color: #1F1A10; border: 2px solid #1F1A10; }
@@ -11585,7 +11590,7 @@ SQIDAQAB
     // (kind 'criminal-lawyer-career') and mirrored in this browser.
     // ═══════════════════════════════════════════════════════════════════════════
     const CAREER_FILES = ['case-01-pryce', 'case-02-okafor', 'case-03-hale', 'case-04-mensah', 'case-05-calloway', 'case-06-vance', 'case-07-dunmore', 'case-08-salter', 'case-09-kiplagat', 'case-10-fenwick', 'case-11-bright', 'case-12-ashworth', 'case-13-reid', 'case-14-tolland', 'case-15-hargreaves', 'case-16-mbeki', 'case-17-penhale', 'case-18-sato', 'case-19-donnelly', 'case-20-karimi', 'case-21-vasquez', 'case-22-wetherby', 'case-23-adeyinka', 'case-24-marlow', 'case-25-ellison', 'case-26-marchetti'];
-    const CAREER_VERSION = '20261005e';
+    const CAREER_VERSION = '20261006a';
     const CAREER_LOCAL_KEY = 'lastmind-law-career-v1';
     let career = null, careerLocalKey = CAREER_LOCAL_KEY, careerSaveTimer = null, careerFilesPromise = null;
 
@@ -12591,6 +12596,34 @@ SQIDAQAB
                 ta.addEventListener('input', () => { draft = ta.value; });
                 ta.addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); ask(); } });
                 stage.querySelector('#plAsk').addEventListener('click', ask);
+                // LastMind can word a rough note as a proper courtroom question (the same writing aid as the speeches); it adds no point of its own.
+                if (o.setting === 'court') {
+                    const word = document.createElement('button');
+                    word.type = 'button'; word.className = 'pl-btn'; word.id = 'plWord'; word.style.marginTop = '8px';
+                    word.textContent = 'Word my question for me ▸';
+                    word.title = 'Type a rough note of what you want to find out, then let LastMind phrase it as a courtroom question. You can edit it before asking.';
+                    stage.querySelector('.pl-ask').insertAdjacentElement('afterend', word);
+                    word.addEventListener('click', async () => {
+                        const notes = ta.value.trim();
+                        if (notes.split(/\s+/).filter(Boolean).length < 3) { errorText = 'Type a rough note of what you want to ask first.'; const n = document.getElementById('plWordNote'); if (n) n.textContent = errorText; else word.insertAdjacentHTML('afterend', `<p class="pl-note" id="plWordNote">${ptE(errorText)}</p>`); return; }
+                        word.disabled = true; word.textContent = 'LastMind is wording it…';
+                        try {
+                            const send = () => createAuthedFetch('/playtest/compile-speech', { method: 'POST', body: JSON.stringify({ sessionId: pt.sessionId, kind: 'question', side: pt.side, notes, witness: ch.name, examination: o.asking === pt.side ? 'chief' : 'cross', clientUsedUsd: createSpend.usedUsd }) });
+                            let { resp, body: out } = await send();
+                            if (resp.status === 409 && out.code === 'SESSION_EXPIRED') { await ptRestoreSession(); ({ resp, body: out } = await send()); }
+                            if (out.spend) createNoteSpend(out.spend);
+                            if (!resp.ok) throw new Error(out.error || 'LastMind could not word that.');
+                            draft = out.speech; ta.value = draft;
+                            const tip = out.tips && out.tips[0] ? ` To think about: ${out.tips[0]}` : '';
+                            const n = document.getElementById('plWordNote'); const msg = 'Worded from your note: edit it however you like, then ask.' + tip;
+                            if (n) n.textContent = msg; else word.insertAdjacentHTML('afterend', `<p class="pl-note" id="plWordNote">${ptE(msg)}</p>`);
+                        } catch (err) {
+                            const n = document.getElementById('plWordNote'); const msg = err.message || 'LastMind could not word that.';
+                            if (n) n.textContent = msg; else word.insertAdjacentHTML('afterend', `<p class="pl-note" id="plWordNote">${ptE(msg)}</p>`);
+                        }
+                        word.disabled = false; word.textContent = 'Word my question for me ▸';
+                    });
+                }
             }
             stage.querySelectorAll('[data-unpresent]').forEach((b) => b.addEventListener('click', () => { pending = pending.filter((id) => id !== b.dataset.unpresent); draw(); }));
             stage.querySelector('#plPresent').addEventListener('click', () => ptShowEvidence({ chName: ch.name, selected: pending.slice(), onPresent: (ids) => { pending = ids; draw(); } }));
@@ -33376,7 +33409,7 @@ SQIDAQAB
     })();
 </script>
 
-    <script src="/create/law-career/career-base.js?v=20261005d"></script>
+    <script src="/create/law-career/career-base.js?v=20261006a"></script>
     <script src="/cortex/pricing.js?v=20260916-checkout3"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {

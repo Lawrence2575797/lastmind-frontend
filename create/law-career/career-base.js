@@ -1,3 +1,5 @@
+// Pictures made once with fal.ai for the CCTV, photographic and physical exhibits (assets/career/evidence/<case>-<exhibit>.jpg).
+const EVIDENCE_PICTURES = new Set(["c01-e1", "c01-e3", "c02-e1", "c03-e1", "c05-e1", "c06-e1", "c08-e1", "c10-e3", "c11-e1", "c11-e5", "c12-e1", "c14-e1", "c15-e1", "c16-e1", "c16-e5", "c18-e1", "c19-e3", "c20-e1", "c22-e2", "c24-e1", "c26-e1"]);
 // Criminal Lawyer Career: the rules (ranks, promotion, scoring) and the helper that turns a hand-written case into the same Case Graph the
 // Criminal trial simulation plays. Nothing here calls the AI: every case is written in advance, so building a career costs nothing.
 // Pure logic with no page code, so it can be tested in Node.
@@ -83,6 +85,7 @@
         inChief: (x.chief || []).map(line), underCross: (x.cross || []).map(line),
       })),
       evidence: c.evidence.map((e) => ({ id: e.id, name: e.title, kind: e.kind, title: e.title, caption: e.caption || '', content: e.content || {},
+        image: EVIDENCE_PICTURES.has(c.id + '-' + e.id) ? '/assets/career/evidence/' + c.id + '-' + e.id + '.jpg' : undefined,
         factIds: ids(e.facts), favours: SIDE[e.favours] || 'neutral', introducedBy: e.by || null })),
       caseFile: { summary: c.caseFile.summary, agreedFacts: c.caseFile.agreed || [], chargeSheet: c.caseFile.chargeSheet || c.charge },
       scripts: { arraignment: c.scripts.arraignment || [], prosecutionOpening: c.scripts.pOpen || [], defenceOpening: c.scripts.dOpen || [],
