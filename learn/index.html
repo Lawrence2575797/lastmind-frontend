@@ -4167,6 +4167,7 @@
     .coord-graph-error { min-height: 18px; padding: 0 10px 7px; color: #ffaaaa; font-size: 12px; }
     .nb-graph { background: #12121E; color: #E6D7B0; border-radius: 10px; border: 1px solid rgba(230,215,176,.3); box-shadow: 0 2px 10px rgba(0,0,0,.35); overflow: hidden; }
     .nb-graph .nb-dbar { border-bottom: 0; }
+    .nb-graph-title { flex: 1; padding: 0 8px; font-size: 13px; font-weight: 700; }
     .nb-graph .coord-graph { border: 0; border-top: 1px solid rgba(230,215,176,.18); border-radius: 0; box-shadow: none; }
     .nb-graph .coord-graph-stage { min-height: 0; }
     .nb-corner { position: absolute; width: 14px; height: 14px; z-index: 4; background: #E6D7B0; border: 2px solid #1A232D; border-radius: 4px; opacity: 0; touch-action: none; }
@@ -17699,8 +17700,19 @@ SQIDAQAB
         }
     });
 
-    // iPhones ignore the viewport tag's no-zoom request, and pinching is only stopped by cancelling the gesture itself.
+    // Keep the app at a fixed page scale on every device. The viewport and
+    // gesture handlers cover touch devices; desktop browsers additionally
+    // expose Ctrl/Cmd + wheel and Ctrl/Cmd + +/-/0 page-zoom shortcuts.
+    // Graph canvases still receive an ordinary wheel (without Ctrl/Cmd), so
+    // their own local graph zoom remains available without scaling the site.
     ['gesturestart', 'gesturechange', 'gestureend'].forEach((type) => document.addEventListener(type, (e) => e.preventDefault(), { passive: false }));
+    document.addEventListener('wheel', (e) => {
+        if (e.ctrlKey || e.metaKey) e.preventDefault();
+    }, { passive: false, capture: true });
+    document.addEventListener('keydown', (e) => {
+        if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+        if (['+', '=', '-', '_', '0'].includes(e.key)) e.preventDefault();
+    }, true);
 
     document.getElementById('mathsToolTopbarBtn').addEventListener('click', () => {
         leaveKmLesson();
@@ -20459,11 +20471,14 @@ SQIDAQAB
     function nbMakeGraphBlock(page, block, canvas) {
         const el = document.createElement('div');
         el.className = 'nb-block nb-graph'; el.dataset.id = block.id;
-        el.innerHTML = `<div class="nb-dbar"><span class="nb-grip nb-dgrip" title="Drag to move" role="button" aria-label="Drag to move this coordinate graph">⠿ Coordinate graph</span>
+        el.innerHTML = `<div class="nb-dbar"><span class="nb-graph-title">Coordinate graph</span>
             <button type="button" class="nb-del nb-del-inline" aria-label="Delete this graph" title="Delete">×</button></div><div class="nb-graph-host"></div><div class="nb-resize" title="Drag to resize"></div>`;
         canvas.appendChild(el); nbPlace(el, block, canvas);
         renderCoordinateGraph(el.querySelector('.nb-graph-host'), block.state || {}, { onChange: (state) => { block.state = state; notesScheduleSave(); nbFitCanvas(canvas); } });
-        nbWireDrag(el.querySelector('.nb-dgrip'), el, block, canvas); nbWireResize(el.querySelector('.nb-resize'), el, block, canvas); nbWireCorners(el, block, canvas);
+        // Coordinate graphs stay anchored where they were inserted. Dragging
+        // inside the canvas is reserved for panning/rotating the graph and
+        // must never move the whole Notes block.
+        nbWireResize(el.querySelector('.nb-resize'), el, block, canvas); nbWireCorners(el, block, canvas);
         const delBtn = el.querySelector('.nb-del'); let armed = null;
         delBtn.addEventListener('click', () => { if (armed) { clearTimeout(armed); nbRemoveBlock(page, block, el, canvas); return; } delBtn.textContent='Sure?';delBtn.style.width='auto';delBtn.style.padding='0 8px';armed=setTimeout(()=>{armed=null;delBtn.textContent='×';delBtn.style.width='';delBtn.style.padding='';},3000); });
         if (notesResizeObs) notesResizeObs.observe(el); return el;
@@ -20476,7 +20491,7 @@ SQIDAQAB
         <li><span class="sc-keys"><kbd>-</kbd> then <kbd>Space</kbd></span><span>Bullet point (English keyboard, at the start of a line)</span></li>
         <li><span class="sc-keys"><kbd>1.</kbd> then <kbd>Space</kbd></span><span>Numbered list (English keyboard, at the start of a line)</span></li>
         <li><span class="sc-keys"><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>G</kbd></span><span>Add a coordinate graph</span></li>
-        <li><span class="sc-keys">Drag <b>⠿</b></span><span>Move a text box, graph or diagram; drag its right edge to resize</span></li></ul><strong>Maths keyboard</strong></div>`;
+        <li><span class="sc-keys">Drag <b>⠿</b></span><span>Move a text box or economics diagram; coordinate graphs stay fixed</span></li></ul><strong>Maths keyboard</strong></div>`;
 
     function notesRenderPage(page) {
         const contentInner = notesPrepareMain('Notes');
