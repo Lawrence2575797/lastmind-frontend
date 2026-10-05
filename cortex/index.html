@@ -1402,7 +1402,9 @@ SQIDAQAB
     // misfire on an unrelated "let's start" about something else entirely.
     function detectStartLessonsIntent(text) {
         const t = text.trim();
-        if (/\b(?:start|begin|dive in|get going|get started|carry on|continue)\b/i.test(t) && /\blesson/i.test(t)) return true;
+        if (/\b(?:start|begin|dive in|get going|get started|carry on|continue|build|make|generate|create|redo|rebuild|retry|try)\b/i.test(t) && /\blesson/i.test(t)) return true;
+        // a bare "retry" / "try again" with no failed card left on screen means the same thing: have another go at the lessons
+        if (detectRetryIntent(t)) return true;
         return /^(?:start|begin)(?: (?:the|this|it|now))?[.!]?$/i.test(t);
     }
 
@@ -1894,6 +1896,16 @@ SQIDAQAB
             statusEl.querySelector('#lessonRetryBtn').addEventListener('click', () => { const retry = pendingLessonRetry; pendingLessonRetry = null; retry(); });
         }
 
+        // The request can now be stopped: Cancel, or running out of time, aborts it, and the server stops generating (and stops spending)
+        // as soon as the connection goes. Before this, a lesson that was slow or stuck could only be waited out.
+        const lessonAbort = new AbortController();
+        let cancelledByStudent = false, timedOut = false;
+        const cancelRow = document.createElement('div');
+        cancelRow.innerHTML = '<button type="button" class="topic-map-start" style="margin-top:8px">Cancel</button>';
+        card.appendChild(cancelRow);
+        cancelRow.querySelector('button').addEventListener('click', () => { cancelledByStudent = true; lessonAbort.abort(); });
+        const lessonTimer = setTimeout(() => { timedOut = true; lessonAbort.abort(); }, 4 * 60 * 1000);
+
         let lessonData;
         try {
             const accessToken = await getSyncAccessToken();
@@ -1922,7 +1934,8 @@ SQIDAQAB
             let resp;
             for (let attempt = 0; ; attempt++) {
                 resp = await fetch(`${COMPILE_BACKEND_URL}/knowledge-map-v2/node/${encodeURIComponent(nodeUuid)}/lesson`, {
-                    headers: { Authorization: `Bearer ${accessToken}` }
+                    headers: { Authorization: `Bearer ${accessToken}` },
+                    signal: lessonAbort.signal
                 });
                 if (![502, 503, 504].includes(resp.status) || attempt >= 2) break;
                 await new Promise((resolve) => setTimeout(resolve, 2500 * (attempt + 1)));
@@ -1959,7 +1972,17 @@ SQIDAQAB
             }
             lessonData = await resp.json();
             stopLessonRotator();
+            clearTimeout(lessonTimer);
+            cancelRow.remove();
         } catch (err) {
+            clearTimeout(lessonTimer);
+            cancelRow.remove();
+            if (cancelledByStudent || timedOut) {
+                showRetryable(cancelledByStudent
+                    ? "Stopped. Nothing more is being spent on it. Say \"build the lesson again\" whenever you want another go."
+                    : "That is taking much longer than it should, so I have stopped it. Nothing more is being spent on it.");
+                return;
+            }
             console.error('LastMind Cortex: lesson generation failed.', err.message);
             // "detail" (see knowledgeMap.ts) is the actual structural
             // validate() failure (e.g. "not atomic: only 3 new terms") -
@@ -2592,10 +2615,24 @@ SQIDAQAB
                 } else {
                     appendAssistantMessage("I don't actually have a topic map loaded to teach from right now - try reopening this chat, or tell me what you'd like to learn and I'll build a fresh map for it.");
                 }
-            } else if (result.retryFailedLesson && pendingLessonRetry) {
-                const retry = pendingLessonRetry;
-                pendingLessonRetry = null;
-                retry();
+            } else if (result.retryFailedLesson) {
+                // Real, reported bug: this only acted when the failed lesson's own card was still on screen (pendingLessonRetry). After a
+                // reload the card is gone, so Cortex said "Retrying now." and then NOTHING happened - no card, no message. It now falls
+                // back the way "begin the lessons" does: retry the card if there is one, otherwise (re-)start the map's lessons, otherwise
+                // say plainly that it cannot.
+                if (pendingLessonRetry) {
+                    const retry = pendingLessonRetry;
+                    pendingLessonRetry = null;
+                    retry();
+                } else if (pendingLessonContinuation) {
+                    const run = pendingLessonContinuation;
+                    pendingLessonContinuation = null;
+                    run();
+                } else if (topicMapState) {
+                    startTopicTeachSequence(topicMapState);
+                } else {
+                    appendAssistantMessage("I don't actually have a topic map loaded to retry from right now - try reopening this chat, or tell me what you'd like to learn and I'll build a fresh map for it.");
+                }
             } else if (result.extendPrerequisitesBackward || result.extendPrerequisitesForward) {
                 // Same "declared intent, deterministic frontend code acts
                 // on it" pattern as beginQueuedLessons above, with the same
