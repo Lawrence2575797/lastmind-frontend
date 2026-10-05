@@ -4082,6 +4082,11 @@
     .nt-name.nt-folder { font-weight: 700; }
     .nt-more { flex: none; width: 28px; height: 28px; background: none; border: 0; color: var(--text); opacity: 0.55; cursor: pointer; font-size: 1rem; border-radius: 4px; }
     .nt-more:hover, .nt-more[aria-expanded="true"] { opacity: 1; background: rgba(230, 215, 176, 0.12); }
+    .nt-add { flex: none; width: 28px; height: 28px; background: none; border: 0; color: var(--text); opacity: 0.7; cursor: pointer; font-size: 1.2rem; line-height: 1; border-radius: 4px; }
+    .nt-add:hover { opacity: 1; background: rgba(230, 215, 176, 0.12); }
+    .nt-input { flex: 1; min-width: 0; font: inherit; font-size: 0.84rem; color: var(--text); background: rgba(230, 215, 176, 0.1); border: 1px solid var(--accent); border-radius: 4px; padding: 5px 7px; margin: 2px 4px 2px 0; outline: none; }
+    .nt-sure { flex-basis: 100%; font-size: 0.78rem; opacity: 0.9; }
+    .nt-actions .btn.nt-danger { background: #8A2B2B; border-color: #8A2B2B; }
     .nt-actions { display: flex; flex-wrap: wrap; gap: 4px; padding: 2px 4px 6px; }
     .nt-actions .btn { font-size: 0.72rem; padding: 4px 9px; background: var(--panel); color: var(--text); border: 1px solid rgba(230, 215, 176, 0.35); }
 
@@ -6509,8 +6514,7 @@
 
             <div class="notes-panel" id="notesPanel">
                 <div class="notes-panel-actions">
-                    <button type="button" class="new-chat-btn" id="notesNewFolderBtn">+ Folder</button>
-                    <button type="button" class="new-chat-btn" id="notesNewPageBtn">+ Page</button>
+                    <button type="button" class="new-chat-btn" id="notesNewFolderBtn">Add new folder</button>
                 </div>
                 <div class="notes-panel-tree" id="notesTreeItems"></div>
             </div>
@@ -20100,6 +20104,13 @@ SQIDAQAB
         notesChildren(id).forEach((c) => { out.push(c.id); notesDescendants(c.id).forEach((x) => out.push(x)); });
         return out;
     }
+    // The tree is folder > subfolder > page. A folder's + adds a subfolder, a subfolder's + adds a page, and every name is typed straight
+    // into the row (no pop-up boxes: they do not work everywhere). notesEditing is the row currently being named.
+    let notesEditing = null;          // { id, isNew }
+    let notesConfirmId = null;        // the row showing "Delete this?"
+    function notesDepth(n) { let d = 0, p = n.parentId && notesNode(n.parentId); while (p) { d++; p = p.parentId && notesNode(p.parentId); } return d; }
+    // What a row's + creates: folders at the top make subfolders, subfolders make pages, nothing else takes children.
+    function notesAddKind(n) { if (n.type !== 'folder') return null; const d = notesDepth(n); return d === 0 ? 'folder' : d === 1 ? 'page' : null; }
     function renderMyNotesTree() {
         const el = document.getElementById('notesTreeItems');
         if (!el) return;
@@ -20108,47 +20119,64 @@ SQIDAQAB
             const isFolder = n.type === 'folder';
             const open = isFolder && n.open !== false;
             const label = escapeHtml(n.name || (isFolder ? 'New folder' : 'Untitled page'));
-            rows.push(`<div class="nt-row ${n.id === notes.activeId ? 'active' : ''}" data-id="${escapeHtml(n.id)}" style="padding-left:${6 + depth * 14}px">
+            const pad = 6 + depth * 14;
+            const addKind = notesAddKind(n);
+            const editing = notesEditing && notesEditing.id === n.id;
+            rows.push(`<div class="nt-row ${n.id === notes.activeId ? 'active' : ''}" data-id="${escapeHtml(n.id)}" style="padding-left:${pad}px">
                 ${isFolder ? `<button type="button" class="nt-caret" data-act="toggle" aria-label="${open ? 'Close' : 'Open'} folder" aria-expanded="${open}">${open ? '▾' : '▸'}</button>` : '<span class="nt-caret nt-caret-page"></span>'}
-                <button type="button" class="nt-name ${isFolder ? 'nt-folder' : ''}" data-act="${isFolder ? 'toggle' : 'open'}">${label}</button>
-                <button type="button" class="nt-more" data-act="more" aria-label="Actions for ${label}" aria-expanded="${notesMenuId === n.id}">⋯</button>
+                ${editing ? `<input type="text" class="nt-input" maxlength="80" value="${escapeHtml(n.name || '')}" placeholder="${isFolder ? (depth ? 'Subfolder name' : 'Folder name') : 'Page name'}" aria-label="Name">`
+                    : `<button type="button" class="nt-name ${isFolder ? 'nt-folder' : ''}" data-act="${isFolder ? 'toggle' : 'open'}">${label}</button>`}
+                ${editing ? '' : `${addKind ? `<button type="button" class="nt-add" data-act="add" title="${addKind === 'folder' ? 'Add a subfolder' : 'Add a page'}" aria-label="${addKind === 'folder' ? 'Add a subfolder to' : 'Add a page to'} ${label}">+</button>` : ''}<button type="button" class="nt-more" data-act="more" aria-label="Rename or delete ${label}" aria-expanded="${notesMenuId === n.id}">⋯</button>`}
             </div>`);
-            if (notesMenuId === n.id) rows.push(`<div class="nt-actions" data-for="${escapeHtml(n.id)}" style="padding-left:${6 + depth * 14}px">
-                ${isFolder ? '<button type="button" class="btn" data-act="addpage">+ Page</button><button type="button" class="btn" data-act="addfolder">+ Folder</button>' : ''}
-                <button type="button" class="btn" data-act="rename">Rename</button><button type="button" class="btn" data-act="delete">Delete</button></div>`);
+            if (notesMenuId === n.id && !editing) rows.push(`<div class="nt-actions" data-for="${escapeHtml(n.id)}" style="padding-left:${pad}px">
+                ${notesConfirmId === n.id
+                    ? `<span class="nt-sure">Delete ${isFolder ? 'this and everything in it' : 'this page'}?</span><button type="button" class="btn nt-danger" data-act="delete-yes">Yes, delete</button><button type="button" class="btn" data-act="delete-no">Keep</button>`
+                    : '<button type="button" class="btn" data-act="rename">Rename</button><button type="button" class="btn" data-act="delete">Delete</button>'}</div>`);
             if (open) walk(n.id, depth + 1);
         });
         walk(null, 0);
-        el.innerHTML = rows.length ? rows.join('') : '<div class="empty-hint">No notes yet. Add a folder to organise them, or a page to start writing.</div>';
+        el.innerHTML = rows.length ? rows.join('') : '<div class="empty-hint">No notes yet. Press "Add new folder" to begin.</div>';
+        const input = el.querySelector('.nt-input');
+        if (input) {
+            input.focus(); input.select();
+            let done = false;
+            const finish = (commit) => { if (done) return; done = true; notesCommitName(notesEditing.id, commit ? input.value : null); };
+            input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); finish(true); } else if (e.key === 'Escape') { e.preventDefault(); finish(false); } });
+            input.addEventListener('blur', () => finish(true));
+        }
     }
-    function notesAddFolder(parentId) {
-        const name = prompt(parentId ? 'Name of the new subfolder' : 'Name of the new folder', '');
-        if (name == null) return;
-        notes.nodes.push({ id: notesNewId(), type: 'folder', parentId: parentId || null, name: name.trim() || 'New folder', open: true });
+    // Starts a new unnamed folder or page and puts the cursor in its name.
+    function notesStartNew(parentId, type) {
+        const n = { id: notesNewId(), type, parentId: parentId || null, name: '' };
+        if (type === 'folder') n.open = true; else n.doc = { blocks: [] };
+        n.updatedAt = new Date().toISOString();
+        notes.nodes.push(n);
         const p = parentId && notesNode(parentId); if (p) p.open = true;
-        notesMenuId = null; notesPersist(); renderMyNotesTree();
+        notesMenuId = null; notesConfirmId = null;
+        notesEditing = { id: n.id, isNew: true };
+        renderMyNotesTree();
     }
-    function notesAddPage(parentId) {
-        const page = { id: notesNewId(), type: 'page', parentId: parentId || null, name: 'Untitled page', doc: { blocks: [] }, updatedAt: new Date().toISOString() };
-        notes.nodes.push(page);
-        const p = parentId && notesNode(parentId); if (p) p.open = true;
-        notesMenuId = null; notesPersist();
-        notesOpenPage(page.id, true);
-    }
-    function notesRename(id) {
-        const n = notesNode(id); if (!n) return;
-        const name = prompt('New name', n.name || '');
-        if (name == null || !name.trim()) return;
-        n.name = name.trim(); notesMenuId = null; notesPersist(); renderMyNotesTree();
-        if (n.id === notes.activeId) { const t = document.getElementById('nbTitle'); if (t) t.value = n.name; }
+    // value === null cancels: a brand-new row with no name is dropped, a rename keeps the old name.
+    function notesCommitName(id, value) {
+        const n = notesNode(id), e = notesEditing;
+        notesEditing = null;
+        if (!n) { renderMyNotesTree(); return; }
+        const v = value == null ? '' : value.trim();
+        if (!v) {
+            if (e && e.isNew) notes.nodes = notes.nodes.filter((x) => x.id !== id);
+        } else { n.name = v; n.updatedAt = new Date().toISOString(); }
+        notesMenuId = null;
+        notesPersist(); renderMyNotesTree();
+        const t = document.getElementById('nbTitle');
+        if (v && n.id === notes.activeId && t) t.value = v;
+        // A page that has just been named opens straight away, ready to type on.
+        if (v && e && e.isNew && n.type === 'page') notesOpenPage(n.id, false);
     }
     function notesDelete(id) {
         const n = notesNode(id); if (!n) return;
-        const inside = notesDescendants(id);
-        if (!confirm(n.type === 'folder' && inside.length ? `Delete the folder "${n.name}" and everything inside it? This cannot be undone.` : `Delete "${n.name}"? This cannot be undone.`)) return;
-        const gone = new Set([id, ...inside]);
+        const gone = new Set([id, ...notesDescendants(id)]);
         notes.nodes = notes.nodes.filter((x) => !gone.has(x.id));
-        notesMenuId = null;
+        notesMenuId = null; notesConfirmId = null;
         const wasOpen = gone.has(notes.activeId);
         if (wasOpen) notes.activeId = null;
         notesPersist(); renderMyNotesTree();
@@ -20162,14 +20190,14 @@ SQIDAQAB
             const act = btn.dataset.act, n = notesNode(id);
             if (act === 'toggle' && n) { n.open = n.open === false; notesPersist(); renderMyNotesTree(); }
             else if (act === 'open') notesOpenPage(id, false);
-            else if (act === 'more') { notesMenuId = notesMenuId === id ? null : id; renderMyNotesTree(); }
-            else if (act === 'addpage') notesAddPage(id);
-            else if (act === 'addfolder') notesAddFolder(id);
-            else if (act === 'rename') notesRename(id);
-            else if (act === 'delete') notesDelete(id);
+            else if (act === 'more') { notesMenuId = notesMenuId === id ? null : id; notesConfirmId = null; renderMyNotesTree(); }
+            else if (act === 'add' && n) notesStartNew(id, notesAddKind(n));
+            else if (act === 'rename') { notesEditing = { id, isNew: false }; notesMenuId = null; renderMyNotesTree(); }
+            else if (act === 'delete') { notesConfirmId = id; renderMyNotesTree(); }
+            else if (act === 'delete-no') { notesConfirmId = null; renderMyNotesTree(); }
+            else if (act === 'delete-yes') notesDelete(id);
         });
-        document.getElementById('notesNewFolderBtn').addEventListener('click', () => notesAddFolder(null));
-        document.getElementById('notesNewPageBtn').addEventListener('click', () => notesAddPage(null));
+        document.getElementById('notesNewFolderBtn').addEventListener('click', () => notesStartNew(null, 'folder'));
     }
 
     // ----- the main area -----
@@ -20185,10 +20213,7 @@ SQIDAQAB
     }
     function notesRenderLanding() {
         const contentInner = notesPrepareMain('Notes');
-        contentInner.innerHTML = `<div class="nb-landing"><h2>Notes</h2><p>Pick a page from the list on the left, or start a new one.</p>
-            <div class="nb-landing-actions"><button type="button" class="btn primary" id="nbLandingPage">+ New page</button><button type="button" class="btn" id="nbLandingFolder">+ New folder</button></div></div>`;
-        document.getElementById('nbLandingPage').addEventListener('click', () => notesAddPage(null));
-        document.getElementById('nbLandingFolder').addEventListener('click', () => notesAddFolder(null));
+        contentInner.innerHTML = '<div class="nb-landing"><h2>Notes</h2><p>Choose a page in the sidebar to open it. Add folders and pages from the sidebar too.</p></div>';
     }
 
     const NB_FORMATS = { h1: ['formatBlock', 'h1'], h2: ['formatBlock', 'h2'], p: ['formatBlock', 'div'], ul: ['insertUnorderedList'], ol: ['insertOrderedList'] };
@@ -20335,7 +20360,12 @@ SQIDAQAB
         linesBtn.addEventListener('click', () => { setLines(block.linesOpen === false); notesScheduleSave(); nbFitCanvas(canvas); });
         nbWireDrag(el.querySelector('.nb-dgrip'), el, block, canvas);
         nbWireResize(el.querySelector('.nb-resize'), el, block, canvas);
-        el.querySelector('.nb-del').addEventListener('click', () => { if (confirm('Delete this diagram? This cannot be undone.')) nbRemoveBlock(page, block, el, canvas); });
+        const delBtn = el.querySelector('.nb-del'); let armed = null;
+        delBtn.addEventListener('click', () => {
+            if (armed) { clearTimeout(armed); nbRemoveBlock(page, block, el, canvas); return; }
+            delBtn.textContent = 'Sure?'; delBtn.style.width = 'auto'; delBtn.style.padding = '0 8px';
+            armed = setTimeout(() => { armed = null; delBtn.textContent = '×'; delBtn.style.width = ''; delBtn.style.padding = ''; }, 3000);
+        });
         if (notesResizeObs) notesResizeObs.observe(el);
         return el;
     }
