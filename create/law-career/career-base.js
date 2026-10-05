@@ -69,7 +69,7 @@
 
   L.toGraph = function (c) {
     const line = (l) => ({ q: l[0], a: l[1], factIds: ids(l[2]) });
-    return {
+    const g = {
       meta: Object.assign({
         timeUntilTrial: 'Trial begins tomorrow at 10:00', court: 'Ashford Crown Court', judge: 'His Honour Judge Marlowe', clerk: 'Mrs Okonkwo',
         prosecutionCounsel: 'Ms Imogen Hart', defenceCounsel: 'Mr Julian Reeve', defendantId: 'def', interviewCharacterId: '', free: true, portraitVersion: 99,
@@ -91,6 +91,8 @@
         sentences: (c.verdict.sentences || []).map((s) => ({ minScore: s[0], text: s[1] })), notGuiltyText: c.verdict.notGuilty },
       curriculum: (c.concepts || []).map((k) => ({ label: k.label, arisesWhen: k.arises || '', calledUponAt: { stage: k.stage || 'closing', characterId: k.char || '' } })),
     };
+    if (g.verdict.convictionThreshold === 'auto') g.verdict.convictionThreshold = L.autoThreshold(g, c.role === 'prosecution' ? 'prosecution' : 'defence');
+    return g;
   };
   // The shape the courtroom reads as `trial` (title, charge and briefing are shown in chambers; the concepts feed the guidance panel).
   L.toTrial = function (c) {
@@ -133,26 +135,40 @@
 
   // ---------- checking a written case plays fairly ----------
   // What the jury hears with NO effort from the learner (the scripted lines and exhibits only) and with a perfect effort (every fact
-  // an examined witness knows and would admit). A fair case: doing nothing loses, a perfect run wins, for the learner's own side.
-  L.analyse = function (c) {
-    const g = L.toGraph(c), side = c.role === 'prosecution' ? 'prosecution' : 'defence';
-    const heard = new Set(), W = {}; g.facts.forEach((f) => { W[f.id] = f; });
-    const addEv = (evIds) => (evIds || []).forEach((id) => { const e = g.evidence.find((x) => x.id === id); if (e) e.factIds.forEach((f) => heard.add(f)); });
+  // an examined witness knows and would admit, and every exhibit put to a witness).
+  L.reach = function (g, side) {
+    const none = new Set();
+    const addEv = (evIds) => (evIds || []).forEach((id) => { const e = g.evidence.find((x) => x.id === id); if (e) e.factIds.forEach((f) => none.add(f)); });
     g.characters.forEach((ch) => {
       if (ch.calledBy === 'none') return;
       addEv(ch.introducesEvidence);
-      const scripted = ch.calledBy === side ? ch.underCross : ch.inChief;
-      scripted.forEach((l) => l.factIds.forEach((f) => heard.add(f)));
+      (ch.calledBy === side ? ch.underCross : ch.inChief).forEach((l) => l.factIds.forEach((f) => none.add(f)));
     });
-    const sum = (set, fav) => [...set].filter((id) => W[id] && W[id].favours === fav).reduce((s, id) => s + W[id].weight, 0);
-    const none = new Set(heard);
-    const best = new Set(heard);
-    g.evidence.forEach((e) => e.factIds.forEach((f) => best.add(f))); // anything can be put to a witness
-    g.characters.forEach((ch) => { if (ch.calledBy !== 'none') ch.mind.knows.filter((f) => !ch.mind.concealing.includes(f)).forEach((f) => best.add(f)); });
-    const margin = (set) => sum(set, 'prosecution') - sum(set, 'defence') - g.verdict.convictionThreshold;
+    // A perfect learner brings out everything that helps their own side (or hurts nobody) and never puts the other side's exhibits forward.
+    const W = {}; g.facts.forEach((f) => { W[f.id] = f; });
+    const useful = (id) => W[id] && (W[id].favours === side || W[id].favours === 'neutral');
+    const best = new Set(none);
+    g.evidence.forEach((e) => e.factIds.filter(useful).forEach((f) => best.add(f)));
+    g.characters.forEach((ch) => { if (ch.calledBy !== 'none') ch.mind.knows.filter((f) => !ch.mind.concealing.includes(f) && useful(f)).forEach((f) => best.add(f)); });
+    return { none, best };
+  };
+  L.margin = function (g, set, thr) {
+    const W = {}; g.facts.forEach((f) => { W[f.id] = f; });
+    let p = 0, d = 0; set.forEach((id) => { const f = W[id]; if (!f) return; if (f.favours === 'prosecution') p += f.weight; else if (f.favours === 'defence') d += f.weight; });
+    return p - d - (thr || 0);
+  };
+  // The conviction threshold that asks the learner for a bit over half of the swing between doing nothing and doing everything.
+  L.autoThreshold = function (g, side) {
+    const r = L.reach(g, side), m0 = L.margin(g, r.none, 0), mb = L.margin(g, r.best, 0);
+    return side === 'defence' ? Math.round(m0 - 0.55 * (m0 - mb)) : Math.round(m0 + 0.55 * (mb - m0));
+  };
+  L.analyse = function (c) {
+    const g = L.toGraph(c), side = c.role === 'prosecution' ? 'prosecution' : 'defence';
+    const r = L.reach(g, side), thr = g.verdict.convictionThreshold;
     const win = (m) => (side === 'defence' ? m <= 0 : m > 0);
     const total = (fav) => g.facts.filter((f) => f.favours === fav).reduce((s, f) => s + f.weight, 0);
+    const mn = L.margin(g, r.none, thr), mb = L.margin(g, r.best, thr);
     const missing = g.facts.filter((f) => f.favours !== 'neutral' && !g.characters.some((ch) => ch.calledBy !== 'none' && ch.mind.knows.includes(f.id)) && !g.evidence.some((e) => e.factIds.includes(f.id))).map((f) => f.id);
-    return { doingNothingWins: win(margin(none)), perfectWins: win(margin(best)), marginNothing: margin(none), marginBest: margin(best), totalP: total('prosecution'), totalD: total('defence'), unreachable: missing, graph: g };
+    return { doingNothingWins: win(mn), perfectWins: win(mb), marginNothing: mn, marginBest: mb, threshold: thr, totalP: total('prosecution'), totalD: total('defence'), unreachable: missing, graph: g };
   };
 })();

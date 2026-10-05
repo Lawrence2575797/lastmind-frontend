@@ -4141,6 +4141,32 @@
     .nb-diagram .diagram-submit-btn, .nb-diagram .diagram-result { display: none; }
     .nb-diagram .diagram-widget { max-width: 100%; }
     .nb-shortcut-extra { margin-bottom: 6px; }
+    /* Coordinate Graph Drawer — shared by Specialist Tools and draggable Notes blocks. */
+    .graph-tool-page { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+    .graph-tool-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px; }
+    .graph-tool-head h2 { margin: 0; }
+    .graph-tool-head p { margin: 3px 0 0; opacity: 0.72; }
+    .coord-graph { background: #12121E; color: #E6D7B0; border: 1px solid rgba(230,215,176,.28); border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,.28); }
+    .coord-graph-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding: 10px; border-bottom: 1px solid rgba(230,215,176,.18); }
+    .coord-graph-mode { display: inline-flex; border: 1px solid rgba(230,215,176,.38); border-radius: 999px; overflow: hidden; }
+    .coord-graph-mode button, .coord-graph-btn { font: inherit; font-size: 12px; font-weight: 700; color: #E6D7B0; background: transparent; border: 0; padding: 6px 11px; cursor: pointer; }
+    .coord-graph-mode button[aria-pressed="true"] { color: #12121E; background: #E6D7B0; }
+    .coord-graph-btn { border: 1px solid rgba(230,215,176,.38); border-radius: 7px; }
+    .coord-graph-btn:hover { background: rgba(230,215,176,.12); }
+    .coord-graph-expression { flex: 1 1 310px; min-width: 150px; color: #E6D7B0; background: rgba(230,215,176,.07); border: 1px solid rgba(230,215,176,.32); border-radius: 7px; padding: 7px 9px; font: 14px ui-monospace, Consolas, monospace; }
+    .coord-graph-expression:focus { outline: 2px solid rgba(230,215,176,.3); border-color: #E6D7B0; }
+    .coord-graph-range { display: flex; align-items: center; gap: 4px; font-size: 11px; opacity: .9; }
+    .coord-graph-range input { width: 52px; color: #E6D7B0; background: rgba(230,215,176,.07); border: 1px solid rgba(230,215,176,.28); border-radius: 5px; padding: 5px; }
+    .coord-graph-stage { position: relative; aspect-ratio: 16 / 10; min-height: 300px; background: #171827; touch-action: none; }
+    .coord-graph-stage canvas { display: block; width: 100%; height: 100%; }
+    .coord-graph-help { position: absolute; left: 10px; bottom: 8px; padding: 3px 7px; border-radius: 5px; background: rgba(18,18,30,.74); font-size: 11px; opacity: .76; pointer-events: none; }
+    .coord-graph-error { min-height: 18px; padding: 0 10px 7px; color: #ffaaaa; font-size: 12px; }
+    .nb-graph { background: #12121E; color: #E6D7B0; border-radius: 10px; border: 1px solid rgba(230,215,176,.3); box-shadow: 0 2px 10px rgba(0,0,0,.35); overflow: hidden; }
+    .nb-graph .nb-dbar { border-bottom: 0; }
+    .nb-graph .coord-graph { border: 0; border-top: 1px solid rgba(230,215,176,.18); border-radius: 0; box-shadow: none; }
+    .nb-graph .coord-graph-stage { min-height: 250px; }
+    .nb-graph:hover > .nb-resize { opacity: 1; }
+    @media (max-width: 620px) { .coord-graph-stage { min-height: 260px; } .coord-graph-range { display: none; } }
     /* ─── CRIMINAL LAWYER CAREER ─── */
     .cr-wrap { display: flex; flex-direction: column; gap: 16px; max-width: 980px; margin: 0 auto; width: 100%; }
     .cr-banner { min-height: 190px; border-radius: 14px; background-size: cover; background-position: center; display: flex; align-items: flex-end; overflow: hidden; box-shadow: 0 2px 14px rgba(0, 0, 0, 0.35); }
@@ -4174,6 +4200,8 @@
     .cr-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.88rem; }
     .cr-table th { text-align: left; font-weight: 600; opacity: 0.7; padding: 4px 6px; }
     .cr-table td { padding: 6px; border-top: 1px solid rgba(230, 215, 176, 0.15); }
+    .cr-replay { font: inherit; font-size: 0.78rem; padding: 3px 10px; border-radius: 999px; cursor: pointer; background: transparent; color: #E6D7B0; border: 1px solid rgba(230, 215, 176, 0.5); }
+    .cr-replay:hover { background: rgba(230, 215, 176, 0.14); }
     .cr-won { color: #9AD18F; }
     .cr-lost { color: #E8A08A; }
     @media (max-width: 560px) { .cr-stats { grid-template-columns: repeat(2, 1fr); } .cr-table { display: block; overflow-x: auto; } }
@@ -6813,6 +6841,7 @@
                         <button class="cortex-btn-topbar" id="specialistToolsBtn" type="button" aria-expanded="false">Specialist Tools ▾</button>
                         <div class="specialist-tools-menu" id="specialistToolsMenu">
                             <button class="cortex-btn-topbar" id="mathsToolTopbarBtn" type="button">Maths Tool</button>
+                            <button class="cortex-btn-topbar" id="coordinateGraphToolTopbarBtn" type="button">Coordinate Graph Drawer</button>
                             <button class="cortex-btn-topbar" id="econDiagramToolTopbarBtn" type="button">Economics Drawing Tool</button>
                         </div>
                     </div>
@@ -11450,8 +11479,8 @@ SQIDAQAB
     // standard reached (the rules live in career-base.js: LAW_CAREER.ranks). One career per account, kept in the account's projects
     // (kind 'criminal-lawyer-career') and mirrored in this browser.
     // ═══════════════════════════════════════════════════════════════════════════
-    const CAREER_FILES = ['case-01-pryce', 'case-02-okafor', 'case-03-hale', 'case-04-mensah', 'case-05-calloway', 'case-06-vance'];
-    const CAREER_VERSION = '20261005a';
+    const CAREER_FILES = ['case-01-pryce', 'case-02-okafor', 'case-03-hale', 'case-04-mensah', 'case-05-calloway', 'case-06-vance', 'case-07-dunmore', 'case-08-salter', 'case-09-kiplagat', 'case-10-fenwick', 'case-11-bright', 'case-12-ashworth', 'case-13-reid', 'case-14-tolland', 'case-15-hargreaves', 'case-16-mbeki', 'case-17-penhale', 'case-18-sato', 'case-19-donnelly', 'case-20-karimi', 'case-21-vasquez', 'case-22-wetherby', 'case-23-adeyinka', 'case-24-marlow', 'case-25-ellison', 'case-26-marchetti'];
+    const CAREER_VERSION = '20261005b';
     const CAREER_LOCAL_KEY = 'lastmind-law-career-v1';
     let career = null, careerLocalKey = CAREER_LOCAL_KEY, careerSaveTimer = null, careerFilesPromise = null;
 
@@ -11532,13 +11561,18 @@ SQIDAQAB
         if (!c || !career) return;
         const score = LAW_CAREER.score({ graph: pt.graph, side: pt.side, established: [...pt.established], learnerWon, assessment });
         const before = LAW_CAREER.rankIndex(career.results);
-        if (!career.results.some((r) => r.caseId === c.id)) {
+        const existing = career.results.find((r) => r.caseId === c.id);
+        let replayNote = '';
+        if (!existing) {
             career.results.push({ caseId: c.id, title: c.title, side: pt.side, guilty: !!verdict.guilty, won: learnerWon, score, special: !!c.special, at: new Date().toISOString(), rank: before });
             careerSave(true);
-        }
+        } else if (score > existing.score) {
+            Object.assign(existing, { guilty: !!verdict.guilty, won: learnerWon, score, at: new Date().toISOString() });
+            replayNote = ' A new best for this case.';
+            careerSave(true);
+        } else replayNote = ` Your best on this case stays at ${existing.score}.`;
         const after = LAW_CAREER.rankIndex(career.results);
-        const mine = career.results.find((r) => r.caseId === c.id);
-        if (host) host.innerHTML = `<div class="pl-h">Your record</div><p class="pl-p">Case score <b>${mine.score}</b> out of 100. This case is on your record: ${career.results.filter((r) => r.won).length} won from ${career.results.length}.</p>`
+        if (host) host.innerHTML = `<div class="pl-h">Your record</div><p class="pl-p">Case score <b>${score}</b> out of 100.${ptE(replayNote)} This case is on your record: ${career.results.filter((r) => r.won).length} won from ${career.results.length}.</p>`
             + (after > before ? `<p class="pl-p" style="color:#f3e7c4;"><b>Promoted: ${ptE(LAW_CAREER.ranks[after].title)}.</b> ${ptE(LAW_CAREER.ranks[after].place === LAW_CAREER.ranks[before].place ? 'You stay in ' + LAW_CAREER.ranks[after].place.toLowerCase() + ' for now.' : 'You have earned ' + LAW_CAREER.ranks[after].place.toLowerCase() + '.')}</p>` : '');
     }
 
@@ -11569,7 +11603,7 @@ SQIDAQAB
                 <div class="cr-chips"><span>${c.role === 'prosecution' ? 'You prosecute' : 'You defend'}</span><span>About ${plan.estimate} minutes</span><span>${escapeHtml(rank.place)}</span></div>
                 <button type="button" class="create-cta" id="crStart" style="padding:11px 26px;">${resumable ? 'Resume the case' : 'Open the case file'}</button>`;
         } else if (nx.locked) {
-            nextHtml = `<div class="cr-eyebrow">Your next brief</div><h3 class="cr-case-title">Waiting on a promotion</h3><p class="cr-brief">The next brief on the desk is a ${nx.locked.special ? 'big special case' : 'case'} for a ${escapeHtml(LAW_CAREER.ranks[nx.locked.rank].title)}. Keep your standard up on the cases you have and it will be passed to you.</p>`;
+            nextHtml = `<div class="cr-eyebrow">Your next brief</div><h3 class="cr-case-title">Waiting on a promotion</h3><p class="cr-brief">The next brief on the desk is a ${nx.locked.special ? 'big special case' : 'case'} for a ${escapeHtml(LAW_CAREER.ranks[nx.locked.rank].title)}. Lift your average by replaying earlier cases from your record below: the best score on each case is the one that counts.</p>`;
         } else {
             nextHtml = '<div class="cr-eyebrow">Your desk</div><h3 class="cr-case-title">Every brief is done</h3><p class="cr-brief">You have worked through every case written so far. New briefs are added over time, and your record and rank are kept for when they arrive.</p>';
         }
@@ -11591,10 +11625,15 @@ SQIDAQAB
                     <div class="cr-card"><div class="cr-eyebrow">The ladder</div>
                         <ol class="cr-ladder">${LAW_CAREER.ranks.map((r, i) => `<li class="${i < idx ? 'done' : i === idx ? 'now' : ''}"><b>${escapeHtml(r.title)}</b><span>${escapeHtml(r.place)}${r.next ? ` · ${r.next.cases} cases, ${r.next.avg}+ average${r.next.specials ? `, ${r.next.specials} special` : ''} to move on` : ''}</span></li>`).join('')}</ol></div>
                     <div class="cr-card"><div class="cr-eyebrow">Case record</div>
-                        ${results.length ? `<table class="cr-table"><thead><tr><th>Case</th><th>Role</th><th>Result</th><th>Score</th><th></th></tr></thead><tbody>${results.map((r) => `<tr><td>${escapeHtml(r.title)}${r.special ? ' <span class="cr-special">special</span>' : ''}</td><td>${r.side === 'prosecution' ? 'Prosecution' : 'Defence'}</td><td class="${r.won ? 'cr-won' : 'cr-lost'}">${r.won ? 'Won' : 'Lost'} (${r.guilty ? 'guilty' : 'not guilty'})</td><td>${r.score}</td><td>${careerFmtDate(r.at)}</td></tr>`).join('')}</tbody></table>` : '<p class="cr-small">No cases yet. Your first brief is waiting above.</p>'}</div>
+                        ${results.length ? `<table class="cr-table"><thead><tr><th>Case</th><th>Role</th><th>Result</th><th>Best score</th><th></th><th></th></tr></thead><tbody>${results.map((r) => `<tr><td>${escapeHtml(r.title)}${r.special ? ' <span class="cr-special">special</span>' : ''}</td><td>${r.side === 'prosecution' ? 'Prosecution' : 'Defence'}</td><td class="${r.won ? 'cr-won' : 'cr-lost'}">${r.won ? 'Won' : 'Lost'} (${r.guilty ? 'guilty' : 'not guilty'})</td><td>${r.score}</td><td>${careerFmtDate(r.at)}</td><td><button type="button" class="cr-replay" data-replay="${escapeHtml(r.caseId)}">Replay</button></td></tr>`).join('')}</tbody></table>` : '<p class="cr-small">No cases yet. Your first brief is waiting above.</p>'}</div>
                 </div>
             </section>`;
         document.getElementById('createBackBtn').addEventListener('click', () => renderCreatePage('law'));
+        contentInner.querySelectorAll('[data-replay]').forEach((b) => b.addEventListener('click', () => {
+            const c = LAW_CAREER.byId(b.dataset.replay); if (!c) return;
+            try { localStorage.removeItem('lastmind-playtest:career:' + c.id); } catch (_) { /* fine */ }
+            b.disabled = true; careerStartCase(c).catch((err) => { b.disabled = false; alert(err.message || 'The case could not be opened.'); });
+        }));
         const start = document.getElementById('crStart');
         if (start) start.addEventListener('click', () => { start.disabled = true; careerStartCase(nx.c).catch((err) => { start.disabled = false; alert(err.message || 'The case could not be opened.'); }); });
     }
@@ -20234,7 +20273,7 @@ SQIDAQAB
 
     // Where a block sits and how wide it is, kept inside the page on a narrow screen without changing what is saved.
     function nbPlace(el, block, canvas) {
-        const minW = block.type === 'diagram' ? 300 : 140, cw = canvas.clientWidth || 600;
+        const minW = (block.type === 'diagram' || block.type === 'graph') ? 300 : 140, cw = canvas.clientWidth || 600;
         const w = nbClamp(block.w || 460, minW, Math.max(minW, cw));
         const x = nbClamp(block.x || 0, 0, Math.max(0, cw - w));
         el.style.left = x + 'px'; el.style.top = Math.max(0, block.y || 0) + 'px'; el.style.width = w + 'px';
@@ -20264,7 +20303,7 @@ SQIDAQAB
         handle.addEventListener('pointerdown', (e) => {
             if (e.button !== 0) return;
             e.preventDefault(); e.stopPropagation();
-            const sx = e.clientX, ow = el.offsetWidth, minW = block.type === 'diagram' ? 300 : 140;
+            const sx = e.clientX, ow = el.offsetWidth, minW = (block.type === 'diagram' || block.type === 'graph') ? 300 : 140;
             try { handle.setPointerCapture(e.pointerId); } catch (_) { /* older browser */ }
             const move = (ev) => { block.w = nbClamp(ow + ev.clientX - sx, minW, Math.max(minW, canvas.clientWidth - el.offsetLeft)); el.style.width = block.w + 'px'; nbFitCanvas(canvas); };
             const up = () => { handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up); handle.removeEventListener('pointercancel', up); notesScheduleSave(); };
@@ -20370,13 +20409,27 @@ SQIDAQAB
         return el;
     }
 
+    function nbMakeGraphBlock(page, block, canvas) {
+        const el = document.createElement('div');
+        el.className = 'nb-block nb-graph'; el.dataset.id = block.id;
+        el.innerHTML = `<div class="nb-dbar"><span class="nb-grip nb-dgrip" title="Drag to move" role="button" aria-label="Drag to move this coordinate graph">⠿ Coordinate graph</span>
+            <button type="button" class="nb-del nb-del-inline" aria-label="Delete this graph" title="Delete">×</button></div><div class="nb-graph-host"></div><div class="nb-resize" title="Drag to resize"></div>`;
+        canvas.appendChild(el); nbPlace(el, block, canvas);
+        renderCoordinateGraph(el.querySelector('.nb-graph-host'), block.state || {}, { onChange: (state) => { block.state = state; notesScheduleSave(); nbFitCanvas(canvas); } });
+        nbWireDrag(el.querySelector('.nb-dgrip'), el, block, canvas); nbWireResize(el.querySelector('.nb-resize'), el, block, canvas);
+        const delBtn = el.querySelector('.nb-del'); let armed = null;
+        delBtn.addEventListener('click', () => { if (armed) { clearTimeout(armed); nbRemoveBlock(page, block, el, canvas); return; } delBtn.textContent='Sure?';delBtn.style.width='auto';delBtn.style.padding='0 8px';armed=setTimeout(()=>{armed=null;delBtn.textContent='×';delBtn.style.width='';delBtn.style.padding='';},3000); });
+        if (notesResizeObs) notesResizeObs.observe(el); return el;
+    }
+
     const NB_SHORTCUTS_HTML = `<div class="nb-shortcut-extra"><strong>On the page</strong><ul class="math-shortcut-list">
         <li><span class="sc-keys">Click anywhere</span><span>Start typing at that spot</span></li>
         <li><span class="sc-keys"><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>1</kbd> / <kbd>2</kbd> / <kbd>0</kbd></span><span>Title / heading / normal text</span></li>
         <li><span class="sc-keys"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>8</kbd> / <kbd>7</kbd></span><span>Bullet points / numbered list</span></li>
         <li><span class="sc-keys"><kbd>-</kbd> then <kbd>Space</kbd></span><span>Bullet point (English keyboard, at the start of a line)</span></li>
         <li><span class="sc-keys"><kbd>1.</kbd> then <kbd>Space</kbd></span><span>Numbered list (English keyboard, at the start of a line)</span></li>
-        <li><span class="sc-keys">Drag <b>⠿</b></span><span>Move a text box or diagram; drag its right edge to resize</span></li></ul><strong>Maths keyboard</strong></div>`;
+        <li><span class="sc-keys"><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>G</kbd></span><span>Add a coordinate graph</span></li>
+        <li><span class="sc-keys">Drag <b>⠿</b></span><span>Move a text box, graph or diagram; drag its right edge to resize</span></li></ul><strong>Maths keyboard</strong></div>`;
 
     function notesRenderPage(page) {
         const contentInner = notesPrepareMain('Notes');
@@ -20396,7 +20449,8 @@ SQIDAQAB
                         <button type="button" id="nbKbdEnglish" aria-pressed="true">English keyboard</button>
                         <button type="button" id="nbKbdMaths" aria-pressed="false">Maths keyboard</button>
                     </span>
-                    <button type="button" class="nb-tool nb-tool-strong" id="nbAddDiagram">+ Diagram</button>
+                    <button type="button" class="nb-tool nb-tool-strong" id="nbAddGraph" title="Add coordinate graph (Ctrl+Alt+G)">+ Graph</button>
+                    <button type="button" class="nb-tool" id="nbAddDiagram">+ Economics diagram</button>
                     <button type="button" class="nb-tool" id="nbShortcuts">Shortcuts</button>
                 </div>
                 <div class="nb-canvas" id="nbCanvas"></div>
@@ -20404,7 +20458,7 @@ SQIDAQAB
         const canvas = document.getElementById('nbCanvas');
         if (typeof ResizeObserver === 'function') notesResizeObs = new ResizeObserver(() => nbFitCanvas(canvas));
         page.doc = page.doc && Array.isArray(page.doc.blocks) ? page.doc : { blocks: [] };
-        page.doc.blocks.forEach((b) => { if (b.type === 'diagram') nbMakeDiagramBlock(page, b, canvas); else nbMakeTextBlock(page, b, canvas, false); });
+        page.doc.blocks.forEach((b) => { if (b.type === 'diagram') nbMakeDiagramBlock(page, b, canvas); else if (b.type === 'graph') nbMakeGraphBlock(page, b, canvas); else nbMakeTextBlock(page, b, canvas, false); });
         nbToggleHint(canvas, page); nbFitCanvas(canvas);
         // Click on empty paper: a new text box starts exactly there.
         canvas.addEventListener('click', (e) => {
@@ -20429,6 +20483,13 @@ SQIDAQAB
         document.getElementById('nbKbdMaths').addEventListener('click', () => setKeyboard(false));
         nbSyncKeyboardButtons();
         document.getElementById('nbShortcuts').addEventListener('click', () => openMathsShortcutPopup(NB_SHORTCUTS_HTML));
+        const addGraph = () => {
+            let bottom = 0; canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
+            const block = { id: notesNewId(), type: 'graph', x: 24, y: bottom ? bottom + 24 : 24, w: Math.min(700, Math.max(300, canvas.clientWidth - 48)), state: { mode: '2d', expression2d: 'sin(x)', expression3d: 'sin(sqrt(x^2 + y^2))', min: -10, max: 10 } };
+            page.doc.blocks.push(block); nbToggleHint(canvas, page); const el = nbMakeGraphBlock(page, block, canvas); nbFitCanvas(canvas); notesScheduleSave(); el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        };
+        document.getElementById('nbAddGraph').addEventListener('click', addGraph);
+        canvas.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.altKey && e.code === 'KeyG') { e.preventDefault(); addGraph(); } });
         document.getElementById('nbAddDiagram').addEventListener('click', () => {
             let bottom = 0; canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
             const block = { id: notesNewId(), type: 'diagram', x: 24, y: bottom ? bottom + 24 : 24, w: Math.min(620, Math.max(300, canvas.clientWidth - 48)), state: {}, linesOpen: true };
@@ -20588,6 +20649,79 @@ SQIDAQAB
         renderMathsToolThreadList();
         renderMathsToolCompose();
     }
+
+    // ─── Coordinate Graph Drawer ───
+    // One dependency-free canvas renderer is used both here and inside a Notes block.
+    // 2D graphs y=f(x); the separate 3D view graphs z=f(x,y) as a rotatable wireframe.
+    let coordinateGraphSeq = 0;
+    function graphCompile(raw, variables) {
+        let expr = String(raw || '').trim().replace(/^\s*[yz]\s*=\s*/i, '').replace(/\^/g, '**');
+        if (!expr) throw new Error('Enter an equation first.');
+        if (!/^[0-9a-zA-Z_+\-*/().,\s*]+$/.test(expr)) throw new Error('That equation contains an unsupported character.');
+        const allowed = new Set([...variables, 'pi', 'e', 'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'atan2', 'sqrt', 'abs', 'log', 'ln', 'exp', 'pow', 'min', 'max', 'floor', 'ceil', 'round']);
+        const words = expr.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
+        if (words.some((w) => !allowed.has(w.toLowerCase()))) throw new Error('Use x and y with standard functions such as sin, cos, sqrt and abs.');
+        expr = expr.replace(/\bpi\b/gi, 'Math.PI').replace(/\be\b/g, 'Math.E').replace(/\bln\b/gi, 'Math.log');
+        ['sin','cos','tan','asin','acos','atan','atan2','sqrt','abs','log','exp','pow','min','max','floor','ceil','round'].forEach((n) => { expr = expr.replace(new RegExp(`\\b${n}\\b`, 'gi'), `Math.${n}`); });
+        const fn = Function(...variables, `"use strict"; return (${expr});`);
+        return (...args) => { const v = Number(fn(...args)); return Number.isFinite(v) ? v : NaN; };
+    }
+    function graphNiceStep(span) {
+        const rough = span / 10, p = Math.pow(10, Math.floor(Math.log10(rough))), n = rough / p;
+        return (n < 2 ? 1 : n < 5 ? 2 : 5) * p;
+    }
+    function renderCoordinateGraph(host, initialState, options) {
+        const uid = `cg${coordinateGraphSeq++}`;
+        const state = Object.assign({ mode: '2d', expression2d: 'sin(x)', expression3d: 'sin(sqrt(x^2 + y^2))', min: -10, max: 10, angleX: .62, angleZ: -.72 }, initialState || {});
+        host.innerHTML = `<div class="coord-graph">
+            <div class="coord-graph-controls">
+                <span class="coord-graph-mode" role="group" aria-label="Graph view"><button type="button" data-mode="2d">2D</button><button type="button" data-mode="3d">3D</button></span>
+                <input class="coord-graph-expression" spellcheck="false" aria-label="Equation">
+                <span class="coord-graph-range">from <input type="number" data-range="min" step="1"> to <input type="number" data-range="max" step="1"></span>
+                <button type="button" class="coord-graph-btn" data-act="draw">Draw</button><button type="button" class="coord-graph-btn" data-act="reset">Reset view</button>
+            </div><div class="coord-graph-stage"><canvas aria-label="Coordinate graph"></canvas><span class="coord-graph-help"></span></div><div class="coord-graph-error" aria-live="polite"></div>
+        </div>`;
+        const canvas = host.querySelector('canvas'), stage = host.querySelector('.coord-graph-stage'), input = host.querySelector('.coord-graph-expression'), error = host.querySelector('.coord-graph-error'), help = host.querySelector('.coord-graph-help');
+        const rangeInputs = host.querySelectorAll('[data-range]'); let drag = null;
+        function notify() { if (options && options.onChange) options.onChange(Object.assign({}, state)); }
+        function size() { const dpr = Math.min(2, window.devicePixelRatio || 1), r = stage.getBoundingClientRect(); canvas.width = Math.max(1, Math.round(r.width*dpr)); canvas.height = Math.max(1, Math.round(r.height*dpr)); return { ctx: canvas.getContext('2d'), w:r.width, h:r.height, dpr }; }
+        function draw2d(ctx,w,h) {
+            const fn = graphCompile(state.expression2d, ['x']), lo=state.min, hi=state.max, span=hi-lo, sy=span;
+            const X=(x)=>(x-lo)/span*w, Y=(y)=>h-(y-lo)/sy*h, step=graphNiceStep(span);
+            ctx.lineWidth=1; ctx.font='11px Arial'; ctx.fillStyle='rgba(230,215,176,.62)'; ctx.strokeStyle='rgba(230,215,176,.13)';
+            for(let v=Math.ceil(lo/step)*step;v<=hi;v+=step){const x=X(v),y=Y(v);ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();if(Math.abs(v)>step/10){ctx.fillText(Number(v.toPrecision(5)),x+3,Y(0)-5);ctx.fillText(Number(v.toPrecision(5)),X(0)+5,y-3);}}
+            ctx.strokeStyle='#E6D7B0';ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(0,Y(0));ctx.lineTo(w,Y(0));ctx.moveTo(X(0),0);ctx.lineTo(X(0),h);ctx.stroke();
+            ctx.strokeStyle='#6EC8FF';ctx.lineWidth=2.4;ctx.beginPath();let pen=false;
+            for(let px=0;px<=w;px+=1){const x=lo+px/w*span,y=fn(x),py=Y(y);if(!Number.isFinite(y)||py < -h*3||py>h*4){pen=false;continue;}if(!pen){ctx.moveTo(px,py);pen=true;}else ctx.lineTo(px,py);}ctx.stroke();
+        }
+        function draw3d(ctx,w,h) {
+            const fn=graphCompile(state.expression3d,['x','y']),lo=state.min,hi=state.max, span=hi-lo, n=25, scale=Math.min(w,h)*.38/span;
+            const ca=Math.cos(state.angleZ),sa=Math.sin(state.angleZ),cb=Math.cos(state.angleX),sb=Math.sin(state.angleX);
+            const project=(x,y,z)=>{const rx=x*ca-y*sa, ry=x*sa+y*ca;return{x:w/2+rx*scale,y:h*.52-(ry*cb-z*sb)*scale};};
+            const zCap=span*.9, val=(x,y)=>nbClamp(fn(x,y),-zCap,zCap);
+            ctx.strokeStyle='rgba(230,215,176,.25)';ctx.lineWidth=1;
+            const axis=[[lo,0,0,hi,0,0],[0,lo,0,0,hi,0],[0,0,-span/2,0,0,span/2]]; axis.forEach(a=>{const p=project(a[0],a[1],a[2]),q=project(a[3],a[4],a[5]);ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.stroke();});
+            for(let pass=0;pass<2;pass++)for(let i=0;i<=n;i++){ctx.beginPath();let pen=false;for(let j=0;j<=n;j++){const a=lo+i/n*span,b=lo+j/n*span,x=pass?a:b,y=pass?b:a,z=val(x,y);if(!Number.isFinite(z)){pen=false;continue;}const p=project(x,y,z);if(!pen){ctx.moveTo(p.x,p.y);pen=true;}else ctx.lineTo(p.x,p.y);}ctx.strokeStyle=pass?'rgba(110,200,255,.72)':'rgba(230,215,176,.5)';ctx.stroke();}
+            ctx.fillStyle='#E6D7B0';ctx.font='12px Arial';[['x',hi,0,0],['y',0,hi,0],['z',0,0,span/2]].forEach(a=>{const p=project(a[1],a[2],a[3]);ctx.fillText(a[0],p.x+4,p.y-4);});
+        }
+        function draw() { error.textContent=''; input.value=state.mode==='3d'?state.expression3d:state.expression2d; rangeInputs[0].value=state.min;rangeInputs[1].value=state.max; host.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===state.mode))); help.textContent=state.mode==='3d'?'Drag to rotate the 3D surface':'y = f(x)'; const {ctx,w,h,dpr}=size();ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);ctx.fillStyle='#171827';ctx.fillRect(0,0,w,h);try{state.mode==='3d'?draw3d(ctx,w,h):draw2d(ctx,w,h);}catch(e){error.textContent=e.message||'Could not draw that equation.';} }
+        function commit() { const lo=Number(rangeInputs[0].value),hi=Number(rangeInputs[1].value);if(Number.isFinite(lo)&&Number.isFinite(hi)&&hi>lo){state.min=lo;state.max=hi;}if(state.mode==='3d')state.expression3d=input.value;else state.expression2d=input.value;draw();notify();}
+        host.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>{if(state.mode===b.dataset.mode)return;if(state.mode==='3d')state.expression3d=input.value;else state.expression2d=input.value;state.mode=b.dataset.mode;draw();notify();}));
+        host.querySelector('[data-act="draw"]').addEventListener('click',commit); input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();commit();}}); rangeInputs.forEach(i=>i.addEventListener('change',commit));
+        host.querySelector('[data-act="reset"]').addEventListener('click',()=>{state.angleX=.62;state.angleZ=-.72;draw();notify();});
+        canvas.addEventListener('pointerdown',e=>{if(state.mode!=='3d'||e.button!==0)return;drag={x:e.clientX,y:e.clientY,ax:state.angleX,az:state.angleZ};canvas.setPointerCapture(e.pointerId);});
+        canvas.addEventListener('pointermove',e=>{if(!drag)return;state.angleZ=drag.az+(e.clientX-drag.x)*.009;state.angleX=nbClamp(drag.ax+(e.clientY-drag.y)*.009,-1.35,1.35);draw();});
+        const endDrag=()=>{if(drag){drag=null;notify();}};canvas.addEventListener('pointerup',endDrag);canvas.addEventListener('pointercancel',endDrag);
+        const ro=typeof ResizeObserver==='function'?new ResizeObserver(draw):null;if(ro)ro.observe(stage);draw();return{getState:()=>Object.assign({},state),destroy:()=>ro&&ro.disconnect()};
+    }
+    function openCoordinateGraphTool() {
+        stopActiveDictation(); stopSpeaking(); document.getElementById('topbarTitle').textContent='Coordinate Graph Drawer';
+        const contentInner=document.getElementById('contentInner');contentInner.classList.add('content-inner-wide');
+        contentInner.innerHTML='<div class="graph-tool-page"><div class="graph-tool-head"><div><h2>Coordinate Graph Drawer</h2><p>Plot y = f(x), or switch to a separate rotatable 3D surface z = f(x, y).</p></div></div><div id="coordinateGraphStandalone"></div></div>';
+        let saved={};try{saved=JSON.parse(localStorage.getItem('lastmind-coordinate-graph-v1')||'{}');}catch(_){};
+        renderCoordinateGraph(document.getElementById('coordinateGraphStandalone'),saved,{onChange:s=>{try{localStorage.setItem('lastmind-coordinate-graph-v1',JSON.stringify(s));}catch(_){}}});
+    }
+    document.getElementById('coordinateGraphToolTopbarBtn').addEventListener('click',()=>{leaveKmLesson();openCoordinateGraphTool();});
 
     // ─── Economics Drawing Tool - a standalone gallery around the same
     // renderDiagramWidget every graded diagram question already uses (see
@@ -32675,7 +32809,7 @@ SQIDAQAB
     })();
 </script>
 
-    <script src="/create/law-career/career-base.js?v=20261005a"></script>
+    <script src="/create/law-career/career-base.js?v=20261005b"></script>
     <script src="/cortex/pricing.js?v=20260916-checkout3"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
