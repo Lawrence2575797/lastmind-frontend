@@ -4032,6 +4032,26 @@
         opacity: 0.85;
     }
     .maths-tool-mode-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+    /* Maths Tool: Questions | Notes switch, and the notes pages */
+    .maths-tool-view[hidden] { display: none; }
+    .maths-tool-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+    .maths-tool-tab { font: inherit; font-size: 13px; font-weight: 700; padding: 7px 18px; border-radius: 999px; cursor: pointer; background: transparent; color: var(--text); border: 1.5px solid rgba(230, 215, 176, 0.3); opacity: 0.75; }
+    .maths-tool-tab:hover { opacity: 1; }
+    .maths-tool-tab.active { background: var(--accent); color: var(--bg); border-color: var(--accent); opacity: 1; }
+    .maths-notes-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 8px; }
+    .maths-notes-title { flex: 1 1 220px; min-width: 0; font: inherit; font-size: 17px; font-weight: 700; color: var(--text); background: transparent; border: 0; border-bottom: 1.5px solid rgba(230, 215, 176, 0.25); padding: 4px 2px; outline: none; }
+    .maths-notes-title:focus { border-bottom-color: var(--accent); }
+    .maths-notes-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12.5px; }
+    .maths-notes-kbd-switch { display: inline-flex; border: 1.5px solid rgba(230, 215, 176, 0.3); border-radius: 999px; overflow: hidden; }
+    .maths-notes-kbd-switch button { font: inherit; font-size: 12px; font-weight: 700; padding: 5px 12px; cursor: pointer; background: transparent; color: var(--text); border: 0; opacity: 0.7; }
+    .maths-notes-kbd-switch button[aria-pressed="true"] { background: var(--accent); color: var(--bg); opacity: 1; }
+    .maths-notes-status { margin-left: auto; opacity: 0.6; font-size: 12px; }
+    .maths-notes-editor-host .math-shortcut-wrap { margin-top: 0; }
+    .maths-notes-editor-host .math-shortcut-editor { min-height: clamp(320px, 62vh, 900px); font-family: inherit; font-size: 16px; line-height: 1.8; }
+    .maths-shortcut-popup { position: fixed; right: 20px; bottom: 20px; z-index: 300; width: min(460px, calc(100vw - 32px)); max-height: min(70vh, 560px); overflow: auto; padding: 12px 14px 14px; border-radius: 10px; background: var(--panel); color: var(--text); border: 1.5px solid rgba(230, 215, 176, 0.35); box-shadow: 0 10px 34px rgba(0, 0, 0, 0.4); font-size: 12px; }
+    .maths-shortcut-popup-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; font-size: 13px; }
+    .maths-shortcut-popup-close { font: inherit; font-size: 20px; line-height: 1; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; background: transparent; color: var(--text); border: 1.5px solid rgba(230, 215, 176, 0.3); }
+    .maths-shortcut-popup-close:hover { background: rgba(230, 215, 176, 0.12); }
 
     /* No border/radius/background of its own - Cortex paints its own birch
        canvas internally (see body.cortex-main-active's own comment further
@@ -19088,18 +19108,8 @@ SQIDAQAB
     // "integrate" literally, then resumes maths shortcuts. The "#"
     // keystrokes themselves are consumed (preventDefault) and never
     // inserted, so they never show up in the answer.
-    function createSmartAnswerEditor(placeholder) {
-        const wrap = document.createElement('div');
-        wrap.className = 'math-shortcut-wrap';
-        const editor = document.createElement('div');
-        editor.className = 'math-shortcut-editor';
-        editor.contentEditable = 'true';
-        editor.dataset.placeholder = placeholder || 'Write your answer here…';
-        wrap.appendChild(editor);
-        const hint = document.createElement('div');
-        hint.className = 'math-shortcut-hint';
-        hint.innerHTML = `<button type="button" class="math-shortcut-toggle" aria-expanded="false">Keyboard shortcuts <span class="math-shortcut-caret">▸</span></button>
-            <ul class="math-shortcut-list" hidden>
+    // The shortcut list, shared by the editor's own collapsible hint and the Notes page's closable popup, so the two can never differ.
+    const MATHS_SHORTCUT_ITEMS_HTML = `
                 <li><span class="sc-keys"><kbd>^</kbd></span><span>Power (press <kbd>Space</kbd> or <kbd>→</kbd> to leave it)</span></li>
                 <li><span class="sc-keys"><kbd>_</kbd></span><span>Subscript</span></li>
                 <li><span class="sc-keys"><kbd>/</kbd></span><span>Fraction, after a number (e.g. 3/ )</span></li>
@@ -19112,8 +19122,24 @@ SQIDAQAB
                 <li><span class="sc-keys"><kbd>Shift</kbd> + <kbd>I</kbd></span><span>Integral (then <kbd>d</kbd> for limits)</span></li>
                 <li><span class="sc-keys"><kbd>Shift</kbd> + <kbd>M</kbd></span><span>Matrix: type the size as (rows*columns), e.g. (3*3), then <kbd>)</kbd> or <kbd>Enter</kbd>. Move with <kbd>Tab</kbd> or the arrow keys; <kbd>→</kbd> from the last cell leaves it, then <kbd>^</kbd> for a power such as -1</span></li>
                 <li><span class="sc-keys"><kbd>#</kbd></span><span>Switch between maths and normal writing</span></li>
-            </ul>`;
-        wrap.appendChild(hint);
+`;
+
+    // opts (all optional): onModeChange(writingMode) when the keyboard switches between maths and English; hideShortcutHint to leave the
+    // inline shortcut list out (the Notes page shows it as a popup instead).
+    function createSmartAnswerEditor(placeholder, opts) {
+        opts = opts || {};
+        const wrap = document.createElement('div');
+        wrap.className = 'math-shortcut-wrap';
+        const editor = document.createElement('div');
+        editor.className = 'math-shortcut-editor';
+        editor.contentEditable = 'true';
+        editor.dataset.placeholder = placeholder || 'Write your answer here…';
+        wrap.appendChild(editor);
+        const hint = document.createElement('div');
+        hint.className = 'math-shortcut-hint';
+        hint.innerHTML = `<button type="button" class="math-shortcut-toggle" aria-expanded="false">Keyboard shortcuts <span class="math-shortcut-caret">▸</span></button>
+            <ul class="math-shortcut-list" hidden>${MATHS_SHORTCUT_ITEMS_HTML}</ul>`;
+        if (!opts.hideShortcutHint) wrap.appendChild(hint);
         // Collapsible: the list is long, so it opens and closes on demand (and
         // remembers which the student last chose).
         (function wireShortcutToggle() {
@@ -19139,6 +19165,7 @@ SQIDAQAB
         function updateModeBadge() {
             modeBadge.textContent = writingMode ? 'Mode: writing (# for maths)' : 'Mode: maths (# for writing)';
             modeBadge.classList.toggle('writing', writingMode);
+            if (typeof opts.onModeChange === 'function') opts.onModeChange(writingMode);
         }
         updateModeBadge();
 
@@ -19644,7 +19671,177 @@ SQIDAQAB
             getValue() { return serializeChildren(editor).trim(); },
             isEmpty() { return !serializeChildren(editor).trim(); },
             focus() { editor.focus(); },
+            // Exactly what is on the page, markup included (fractions, powers, roots, matrices), so it can be put back as it was.
+            getHtml() { return editor.innerHTML; },
+            setHtml(html) { editor.innerHTML = sanitizeEditorHtml(html); },
+            // Called (after a short pause is the caller's business) whenever anything in the box changes, including changes the
+            // maths shortcuts make directly without a normal keystroke.
+            onChange(cb) { new MutationObserver(() => cb()).observe(editor, { childList: true, subtree: true, characterData: true, attributes: false }); editor.addEventListener('input', () => cb()); },
         };
+    }
+
+    // Saved editor markup is put back through this: only the kinds of element the editor itself makes, no scripts or event handlers.
+    function sanitizeEditorHtml(html) {
+        const tpl = document.createElement('template');
+        tpl.innerHTML = String(html || '');
+        tpl.content.querySelectorAll('script,style,iframe,object,embed,link,meta,form,input,button,textarea,select,img,svg,audio,video,base').forEach((n) => n.remove());
+        tpl.content.querySelectorAll('*').forEach((el) => {
+            Array.from(el.attributes).forEach((at) => { if (/^on/i.test(at.name) || /javascript:/i.test(at.value)) el.removeAttribute(at.name); });
+        });
+        return tpl.innerHTML;
+    }
+
+    // ─── Maths Tool: Notes ───
+    // Pages of free writing in the same editor as the Maths Tool's questions (same maths keyboard, # or the switch for English).
+    // Saved in this browser as you type, under the signed-in account, so another account on the same computer never sees them.
+    const MATHS_NOTES_KEY = 'lastmind-maths-notes-v1';
+    let mathsNotes = { pages: [], activeId: null };
+    let mathsNotesStorageKey = MATHS_NOTES_KEY;
+    let mathsNotesEditor = null, mathsNotesSaveTimer = null, mathsNotesWriting = false, mathsNotesListening = false;
+
+    function mathsNotesNewPage() {
+        return { id: 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title: '', html: '', updatedAt: new Date().toISOString() };
+    }
+    function mathsNotesLoad() {
+        try {
+            const d = JSON.parse(localStorage.getItem(mathsNotesStorageKey) || 'null');
+            if (d && Array.isArray(d.pages)) return { pages: d.pages.filter((pg) => pg && pg.id), activeId: d.activeId || null };
+        } catch (_) { /* nothing saved yet, or unreadable: start fresh */ }
+        return { pages: [], activeId: null };
+    }
+    function mathsNotesPersist() {
+        try { localStorage.setItem(mathsNotesStorageKey, JSON.stringify(mathsNotes)); return true; } catch (_) { return false; }
+    }
+    function mathsNotesStatus(text) { const el = document.getElementById('mathsNotesStatus'); if (el) el.textContent = text; }
+    function mathsNotesPage() { return mathsNotes.pages.find((pg) => pg.id === mathsNotes.activeId) || null; }
+
+    // Writes the open page to storage now (used before switching page or leaving, and by the short delay after typing).
+    function mathsNotesFlush() {
+        if (mathsNotesSaveTimer) { clearTimeout(mathsNotesSaveTimer); mathsNotesSaveTimer = null; }
+        const page = mathsNotesPage();
+        if (!page || !mathsNotesEditor) return;
+        const html = mathsNotesEditor.getHtml();
+        if (html !== page.html) { page.html = html; page.updatedAt = new Date().toISOString(); }
+        mathsNotesStatus(mathsNotesPersist() ? 'Saved' : 'Could not save: this browser has no space left');
+    }
+    function mathsNotesScheduleSave() {
+        mathsNotesStatus('Saving…');
+        if (mathsNotesSaveTimer) clearTimeout(mathsNotesSaveTimer);
+        mathsNotesSaveTimer = setTimeout(mathsNotesFlush, 500);
+    }
+
+    function openMathsShortcutPopup() {
+        const old = document.getElementById('mathsShortcutPopup');
+        if (old) { old.remove(); return; } // pressing the button again closes it
+        const pop = document.createElement('div');
+        pop.id = 'mathsShortcutPopup'; pop.className = 'maths-shortcut-popup';
+        pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', 'Keyboard shortcuts');
+        pop.innerHTML = `<div class="maths-shortcut-popup-head"><strong>Keyboard shortcuts</strong><button type="button" class="maths-shortcut-popup-close" aria-label="Close the shortcuts">×</button></div><ul class="math-shortcut-list">${MATHS_SHORTCUT_ITEMS_HTML}</ul>`;
+        document.body.appendChild(pop);
+        const onKey = (e) => { if (e.key === 'Escape') close(); };
+        function close() { pop.remove(); document.removeEventListener('keydown', onKey, true); }
+        pop.querySelector('.maths-shortcut-popup-close').addEventListener('click', close);
+        document.addEventListener('keydown', onKey, true);
+    }
+    function closeMathsShortcutPopup() { const pop = document.getElementById('mathsShortcutPopup'); if (pop) pop.remove(); }
+
+    function renderMathsNotesList() {
+        const el = document.getElementById('mathsNotesList');
+        if (!el) return;
+        el.innerHTML = mathsNotes.pages.map((pg) => `<button type="button" class="maths-tool-thread-item ${pg.id === mathsNotes.activeId ? 'active' : ''}" data-id="${escapeHtml(pg.id)}">${escapeHtml(pg.title || 'Untitled page')}</button>`).join('');
+        el.querySelectorAll('.maths-tool-thread-item').forEach((btn) => btn.addEventListener('click', () => mathsNotesSelect(btn.dataset.id)));
+    }
+
+    function mathsNotesRenderPage() {
+        const main = document.getElementById('mathsNotesMain');
+        const page = mathsNotesPage();
+        if (!main || !page) return;
+        main.innerHTML = `
+            <div class="maths-notes-head">
+                <input type="text" class="maths-notes-title" id="mathsNotesTitle" placeholder="Untitled page" maxlength="120" aria-label="Page title">
+                <button type="button" class="btn" id="mathsNotesDeleteBtn">Delete page</button>
+            </div>
+            <div class="maths-notes-bar">
+                <span class="maths-notes-kbd-switch" role="group" aria-label="Keyboard">
+                    <button type="button" id="mathsNotesKbdMaths" aria-pressed="true">Maths keyboard</button>
+                    <button type="button" id="mathsNotesKbdEnglish" aria-pressed="false">English keyboard</button>
+                </span>
+                <button type="button" class="btn" id="mathsNotesShortcutsBtn">Keyboard shortcuts</button>
+                <span class="maths-notes-status" id="mathsNotesStatus" aria-live="polite"></span>
+            </div>
+            <div class="maths-notes-editor-host" id="mathsNotesEditorHost"></div>`;
+        const syncKeyboard = (writing) => {
+            mathsNotesWriting = writing;
+            const m = document.getElementById('mathsNotesKbdMaths'), e = document.getElementById('mathsNotesKbdEnglish');
+            if (m) m.setAttribute('aria-pressed', String(!writing));
+            if (e) e.setAttribute('aria-pressed', String(writing));
+        };
+        mathsNotesEditor = createSmartAnswerEditor('Start writing here…', { hideShortcutHint: true, onModeChange: syncKeyboard });
+        document.getElementById('mathsNotesEditorHost').appendChild(mathsNotesEditor.container);
+        mathsNotesEditor.setHtml(page.html);               // before onChange is hooked up, so loading a page does not count as an edit
+        mathsNotesEditor.setWritingMode(mathsNotesWriting); // the keyboard stays as you left it from page to page
+        syncKeyboard(mathsNotesWriting);
+        mathsNotesEditor.onChange(mathsNotesScheduleSave);
+        const title = document.getElementById('mathsNotesTitle');
+        title.value = page.title || '';
+        title.addEventListener('input', () => { page.title = title.value; page.updatedAt = new Date().toISOString(); renderMathsNotesList(); mathsNotesScheduleSave(); });
+        title.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); mathsNotesEditor.focus(); } });
+        document.getElementById('mathsNotesKbdMaths').addEventListener('click', () => { mathsNotesEditor.setWritingMode(false); mathsNotesEditor.focus(); });
+        document.getElementById('mathsNotesKbdEnglish').addEventListener('click', () => { mathsNotesEditor.setWritingMode(true); mathsNotesEditor.focus(); });
+        document.getElementById('mathsNotesShortcutsBtn').addEventListener('click', openMathsShortcutPopup);
+        document.getElementById('mathsNotesDeleteBtn').addEventListener('click', mathsNotesDelete);
+        mathsNotesStatus(page.html ? 'Saved' : '');
+    }
+
+    function mathsNotesSelect(id) {
+        mathsNotesFlush();
+        mathsNotes.activeId = id;
+        mathsNotesPersist();
+        renderMathsNotesList();
+        mathsNotesRenderPage();
+    }
+    function mathsNotesAdd() {
+        mathsNotesFlush();
+        const page = mathsNotesNewPage();
+        mathsNotes.pages.unshift(page);
+        mathsNotes.activeId = page.id;
+        mathsNotesPersist();
+        renderMathsNotesList();
+        mathsNotesRenderPage();
+        const t = document.getElementById('mathsNotesTitle');
+        if (t) t.focus();
+    }
+    function mathsNotesDelete() {
+        const page = mathsNotesPage();
+        if (!page) return;
+        if (!confirm(`Delete "${page.title || 'Untitled page'}"? This cannot be undone.`)) return;
+        const at = mathsNotes.pages.indexOf(page);
+        mathsNotes.pages.splice(at, 1);
+        if (!mathsNotes.pages.length) mathsNotes.pages.push(mathsNotesNewPage());
+        mathsNotes.activeId = mathsNotes.pages[Math.min(at, mathsNotes.pages.length - 1)].id;
+        mathsNotesEditor = null; // the deleted page must not be written back by a pending save
+        if (mathsNotesSaveTimer) { clearTimeout(mathsNotesSaveTimer); mathsNotesSaveTimer = null; }
+        mathsNotesPersist();
+        renderMathsNotesList();
+        mathsNotesRenderPage();
+    }
+
+    async function openMathsNotes() {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            mathsNotesStorageKey = session && session.user ? `${MATHS_NOTES_KEY}:${session.user.id}` : MATHS_NOTES_KEY;
+        } catch (_) { mathsNotesStorageKey = MATHS_NOTES_KEY; }
+        mathsNotes = mathsNotesLoad();
+        if (!mathsNotes.pages.length) { const first = mathsNotesNewPage(); mathsNotes.pages.push(first); mathsNotes.activeId = first.id; mathsNotesPersist(); }
+        if (!mathsNotesPage()) mathsNotes.activeId = mathsNotes.pages[0].id;
+        if (!mathsNotesListening) {
+            mathsNotesListening = true;
+            // Nothing typed is lost if the tab is closed or switched away a moment after typing.
+            window.addEventListener('beforeunload', () => mathsNotesFlush());
+            document.addEventListener('visibilitychange', () => { if (document.hidden) mathsNotesFlush(); });
+        }
+        renderMathsNotesList();
+        mathsNotesRenderPage();
     }
 
     function mathsToolBubbleHtml(role, content) {
@@ -19758,6 +19955,20 @@ SQIDAQAB
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
         contentInner.innerHTML = `
+            <div class="maths-tool-tabs" role="tablist" aria-label="Maths Tool sections">
+                <button type="button" class="maths-tool-tab active" role="tab" aria-selected="true" data-section="questions">Questions</button>
+                <button type="button" class="maths-tool-tab" role="tab" aria-selected="false" data-section="notes">Notes</button>
+            </div>
+            <div class="maths-tool-view" id="mathsNotesView" hidden>
+                <div class="maths-tool-sidebar">
+                    <button type="button" class="btn primary" id="mathsNotesNewBtn">+ New page</button>
+                    <div class="maths-tool-thread-list" id="mathsNotesList"></div>
+                </div>
+                <div class="maths-tool-main-wrap">
+                    <button type="button" class="btn maths-tool-sidebar-toggle-btn" id="mathsNotesSidebarToggleBtn" title="Show/hide the page list">☰ Pages</button>
+                    <div class="maths-tool-main" id="mathsNotesMain"></div>
+                </div>
+            </div>
             <div class="maths-tool-view" id="mathsToolView">
                 <div class="maths-tool-sidebar">
                     <button type="button" class="btn primary maths-tool-new-btn">+ New question</button>
@@ -19770,6 +19981,21 @@ SQIDAQAB
             </div>
         `;
         contentInner.querySelector('.maths-tool-new-btn').addEventListener('click', renderMathsToolCompose);
+        contentInner.querySelector('#mathsNotesNewBtn').addEventListener('click', mathsNotesAdd);
+        // On a narrow screen the page list starts tucked away (the Pages button opens it) so the writing area gets the room.
+        if (window.innerWidth < 760) contentInner.querySelector('#mathsNotesView').classList.add('sidebar-collapsed');
+        contentInner.querySelector('#mathsNotesSidebarToggleBtn').addEventListener('click', () => {
+            document.getElementById('mathsNotesView').classList.toggle('sidebar-collapsed');
+        });
+        let notesOpened = false;
+        contentInner.querySelectorAll('.maths-tool-tab').forEach((tab) => tab.addEventListener('click', async () => {
+            const notes = tab.dataset.section === 'notes';
+            contentInner.querySelectorAll('.maths-tool-tab').forEach((t) => { const on = t === tab; t.classList.toggle('active', on); t.setAttribute('aria-selected', String(on)); });
+            if (!notes) { mathsNotesFlush(); closeMathsShortcutPopup(); }
+            document.getElementById('mathsToolView').hidden = notes;
+            document.getElementById('mathsNotesView').hidden = !notes;
+            if (notes && !notesOpened) { notesOpened = true; await openMathsNotes(); }
+        }));
         contentInner.querySelector('#mathsToolSidebarToggleBtn').addEventListener('click', () => {
             document.getElementById('mathsToolView').classList.toggle('sidebar-collapsed');
         });
