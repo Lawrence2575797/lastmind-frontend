@@ -3563,6 +3563,14 @@
     }
 
     /* ─── MAIN ─── */
+    /* The main column is ALWAYS birch, whatever theme the account picked (see below). Text printed straight onto it therefore uses
+       navy, never the theme's own --ink: a dark theme sets --ink to cream for the page behind the main column, which made every heading,
+       slogan and empty-state line here cream on birch and unreadable. Panels and buttons that paint their own navy surface set their own
+       text colour (see the dark-surface contract further down) and are not affected. */
+    .main { --ink: #1A232D; color: var(--ink); }
+    /* A button that sits straight on the birch (such as the map's "Try again") reads navy there, and keeps cream inside any navy panel,
+       because those panels set --ink to cream themselves. */
+    .km-inline-detail-empty .btn { color: var(--ink); border-color: currentColor; }
     .main {
         flex: 1;
         display: flex;
