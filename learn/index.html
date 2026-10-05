@@ -19753,42 +19753,29 @@ SQIDAQAB
         if (!editor.contains(node)) return false;
         const host = node.nodeType === 1 ? node : node.parentNode;
         if (host && host.closest && host.closest(MATHS_ZONES)) return false;
-        let parent, endChild, endOff;
-        if (node.nodeType === 3) { parent = node.parentNode; endChild = node; endOff = rg.startOffset; }
-        else { parent = node; endChild = parent.childNodes[rg.startOffset] || null; endOff = 0; }
-        const marks = [];            // every bracket character before the caret, in order
-        let last = null, elementSince = false;
-        const scan = (t, upTo) => {
-            const txt = t.textContent;
-            for (let i = 0; i < upTo; i++) {
-                const c = txt[i];
-                if (c === '\u200B') continue;
-                last = { n: t, i, c }; elementSince = false;
-                if (c === '(' || c === ')') marks.push({ n: t, i, c });
-            }
-        };
-        for (const ch of parent.childNodes) {
-            if (ch === endChild) { if (ch.nodeType === 3) scan(ch, endOff); break; }
-            if (ch.nodeType === 3) scan(ch, ch.textContent.length); else if (ch.nodeType === 1 && ch.tagName !== 'BR') elementSince = true;
+        // Brackets typed on the maths keyboard are <span class="math-bracket"> elements, siblings of the other pieces of the line.
+        let parent, upTo;                       // the siblings before the caret are parent.childNodes[0 .. upTo)
+        if (node.nodeType === 3) {
+            parent = node.parentNode;
+            upTo = Array.prototype.indexOf.call(parent.childNodes, node);
+            const before = node.textContent.slice(0, rg.startOffset).replace(/\u200B/g, '');
+            if (before) return false;           // text between the ")" and the caret
+            // the text node itself holds only invisible landing characters before the caret, so it counts as "nothing"
+        } else { parent = node; upTo = rg.startOffset; }
+        const kids = Array.prototype.slice.call(parent.childNodes, 0, upTo);
+        let ci = kids.length - 1;
+        while (ci >= 0 && kids[ci].nodeType === 3 && !kids[ci].textContent.replace(/\u200B/g, '')) ci--;
+        const isB = (n, c) => n && n.nodeType === 1 && n.classList.contains('math-bracket') && n.textContent === c;
+        if (ci < 0 || !isB(kids[ci], ')')) return false;     // the "/" must come directly after the ")"
+        let depth = 0, oi = -1;
+        for (let j = ci; j >= 0; j--) {
+            if (isB(kids[j], ')')) depth++; else if (isB(kids[j], '(')) { depth--; if (depth === 0) { oi = j; break; } }
         }
-        if (!last || last.c !== ')' || elementSince) return false;          // the "/" must come directly after the ")"
-        let depth = 0, open = null;
-        for (let j = marks.length - 1; j >= 0; j--) {
-            depth += marks[j].c === ')' ? 1 : -1;
-            if (depth === 0) { open = marks[j]; break; }
-        }
-        if (!open) return false;
-        const close = marks[marks.length - 1];
-        const big = document.createRange(); big.setStart(open.n, open.i); big.setEnd(close.n, close.i + 1);
-        const probe = big.cloneContents();
-        if (!probe.textContent.replace(/[()\u200B\s]/g, '') && !probe.querySelector('*')) return false;   // "()" has nothing to put on top
-        const frag = big.extractContents();                                   // from "(" to ")" inclusive
-        const first = frag.firstChild, lastNode = frag.lastChild;
-        if (first && lastNode && first === lastNode && first.nodeType === 3) first.textContent = first.textContent.slice(1, -1);
-        else {
-            if (first && first.nodeType === 3) first.textContent = first.textContent.slice(1);
-            if (lastNode && lastNode.nodeType === 3) lastNode.textContent = lastNode.textContent.slice(0, -1);
-        }
+        if (oi < 0) return false;
+        const open = kids[oi], close = kids[ci];
+        const big = document.createRange(); big.setStartBefore(open); big.setEndAfter(close);
+        const frag = big.extractContents();                  // "(" ... ")" inclusive
+        frag.removeChild(frag.firstChild); frag.removeChild(frag.lastChild);   // drop the two outer bracket spans
         const num = document.createElement('span'); num.className = 'frac-num';
         num.appendChild(frag);
         if (!num.textContent.replace(/\u200B/g, '') && !num.querySelector('*')) num.textContent = '\u200B';
@@ -20650,7 +20637,7 @@ SQIDAQAB
         const touches = new Set();
         let moveState = null, moved = false;
         surface.addEventListener('pointerdown', (e) => {
-            if (e.pointerType !== 'touch') return;
+            if (e.pointerType === 'mouse') return;
             touches.add(e.pointerId);
             if (touches.size === 1) {
                 moveState = { id: e.pointerId, sx: e.clientX, sy: e.clientY, ox: el.offsetLeft, oy: el.offsetTop };
@@ -21250,16 +21237,20 @@ SQIDAQAB
         host.querySelector('[data-act="reset"]').addEventListener('click',()=>{state.angleX=.62;state.angleZ=-.72;state.min=-10;state.max=10;state.xmin=-10;state.xmax=10;state.ymin=-10;state.ymax=10;draw();notify();});
         stage.addEventListener('wheel',e=>{e.preventDefault();const r=canvas.getBoundingClientRect();zoomBy(Math.exp(e.deltaY*0.0016),(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height);},{passive:false});
         canvas.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button!==0)return;ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});try{canvas.setPointerCapture(e.pointerId);}catch(_){}
-            if(ptrs.size===2){const v=[...ptrs.values()];pinch={d:Math.hypot(v[0].x-v[1].x,v[0].y-v[1].y)||1};drag=null;}
-            else if(ptrs.size===1&&e.pointerType!=='touch'){drag=state.mode==='3d'?{x:e.clientX,y:e.clientY,ax:state.angleX,az:state.angleZ}:{x:e.clientX,y:e.clientY,xmin:state.xmin,xmax:state.xmax,ymin:state.ymin,ymax:state.ymax};}
+            if(ptrs.size===2){const v=[...ptrs.values()];pinch={d:Math.hypot(v[0].x-v[1].x,v[0].y-v[1].y)||1,mx:(v[0].x+v[1].x)/2,my:(v[0].y+v[1].y)/2};drag=null;}
+            else if(ptrs.size===1&&e.pointerType==='mouse'){drag=state.mode==='3d'?{x:e.clientX,y:e.clientY,ax:state.angleX,az:state.angleZ}:{x:e.clientX,y:e.clientY,xmin:state.xmin,xmax:state.xmax,ymin:state.ymin,ymax:state.ymax};}
             else drag=null;});
         canvas.addEventListener('pointermove',e=>{if(!ptrs.has(e.pointerId))return;ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
-            if(pinch&&ptrs.size===2){const v=[...ptrs.values()],d=Math.hypot(v[0].x-v[1].x,v[0].y-v[1].y)||1,r=canvas.getBoundingClientRect();zoomBy(pinch.d/d,((v[0].x+v[1].x)/2-r.left)/r.width,((v[0].y+v[1].y)/2-r.top)/r.height);pinch.d=d;return;}
-            if(e.pointerType==='touch')return;
+            if(pinch&&ptrs.size===2){const v=[...ptrs.values()],d=Math.hypot(v[0].x-v[1].x,v[0].y-v[1].y)||1,r=canvas.getBoundingClientRect();const mx=(v[0].x+v[1].x)/2,my=(v[0].y+v[1].y)/2;
+                // two fingers navigate: the pinch zooms and moving both together pans (2D) or turns (3D) the graph
+                if(state.mode==='3d'){state.angleZ+=(mx-pinch.mx)*.009;state.angleX=nbClamp(state.angleX+(my-pinch.my)*.009,-1.35,1.35);}
+                else{const dx=(mx-pinch.mx)/r.width*(state.xmax-state.xmin),dy=(my-pinch.my)/r.height*(state.ymax-state.ymin);state.xmin-=dx;state.xmax-=dx;state.ymin+=dy;state.ymax+=dy;}
+                zoomBy(pinch.d/d,(mx-r.left)/r.width,(my-r.top)/r.height);pinch.d=d;pinch.mx=mx;pinch.my=my;return;}
+            if(e.pointerType!=='mouse')return;
             if(!drag)return;
             if(state.mode==='3d'){state.angleZ=drag.az+(e.clientX-drag.x)*.009;state.angleX=nbClamp(drag.ax+(e.clientY-drag.y)*.009,-1.35,1.35);draw();}
             else{const r=canvas.getBoundingClientRect(),dx=(e.clientX-drag.x)/r.width*(drag.xmax-drag.xmin),dy=(e.clientY-drag.y)/r.height*(drag.ymax-drag.ymin);state.xmin=drag.xmin-dx;state.xmax=drag.xmax-dx;state.ymin=drag.ymin+dy;state.ymax=drag.ymax+dy;draw();}});
-        const endDrag=e=>{ptrs.delete(e.pointerId);if(ptrs.size<2)pinch=null;if(ptrs.size===0&&drag){drag=null;notify();}};canvas.addEventListener('pointerup',endDrag);canvas.addEventListener('pointercancel',endDrag);
+        const endDrag=e=>{ptrs.delete(e.pointerId);if(ptrs.size<2){if(pinch)notify();pinch=null;}if(ptrs.size===0&&drag){drag=null;notify();}};canvas.addEventListener('pointerup',endDrag);canvas.addEventListener('pointercancel',endDrag);
         const ro=typeof ResizeObserver==='function'?new ResizeObserver(draw):null;if(ro)ro.observe(stage);draw();return{getState:()=>Object.assign({},state),destroy:()=>ro&&ro.disconnect()};
     }
     function openCoordinateGraphTool() {
