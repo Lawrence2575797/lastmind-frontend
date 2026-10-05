@@ -19688,6 +19688,61 @@ SQIDAQAB
 
     // opts (all optional): onModeChange(writingMode) when the keyboard switches between maths and English; hideShortcutHint to leave the
     // inline shortcut list out (the Notes page shows it as a popup instead).
+    // ─── Maths layout helpers, shared by both maths editors (Notes and the Maths Tool use createSmartAnswerEditor; lesson answer boxes use
+    // createMathShortcutEditor). A new line that starts with a Space lines its first character up with the right-hand side of the "=" on the line
+    // directly above, so a derivation reads down the page; only that one line above is looked at, never any earlier line.
+    const MATHS_ZONES = 'sup, sub, .frac, .mx, .int-limits, .root-n';
+    const MATHS_BLOCK = /^(DIV|P|UL|OL|H1|H2|H3|LI)$/;
+    function mathsAlignToEquals(editor) {
+        const sel = window.getSelection();
+        if (!sel.rangeCount || !sel.isCollapsed) return false;
+        const range = sel.getRangeAt(0), node = range.startContainer;
+        if (!editor.contains(node)) return false;
+        const host = node.nodeType === 1 ? node : node.parentNode;
+        if (host && host.closest && host.closest(MATHS_ZONES)) return false;           // Space leaves a power, subscript or fraction there
+        let cur = node; while (cur && cur.parentNode !== editor) cur = cur.parentNode;
+        if (!cur || cur.nodeType !== 1 || !/^(DIV|P)$/.test(cur.tagName)) return false;   // the very first line has nothing above it
+        const before = document.createRange(); before.selectNodeContents(cur); before.setEnd(range.startContainer, range.startOffset);
+        const frag = before.cloneContents();
+        if (frag.textContent.replace(/[\u200B\s]/g, '') || frag.querySelector('*:not(br)')) return false; // only at the very start of the line
+        const above = []; let p = cur.previousSibling;
+        if (p && p.nodeType === 1 && MATHS_BLOCK.test(p.tagName)) above.push(p);
+        else while (p && !(p.nodeType === 1 && MATHS_BLOCK.test(p.tagName))) { above.unshift(p); p = p.previousSibling; }
+        if (!above.length) return false;
+        let eq = null;
+        for (const n of above) {
+            const walker = document.createTreeWalker(n, NodeFilter.SHOW_TEXT);
+            while (walker.nextNode()) {
+                const t = walker.currentNode, par = t.parentElement;
+                if (par && par.closest(MATHS_ZONES)) continue;                              // an "=" inside a fraction or power is not the line's equals sign
+                const i = t.textContent.indexOf('=');
+                if (i >= 0) { eq = { t, i }; break; }
+            }
+            if (eq) break;
+        }
+        if (!eq) return false;
+        const r = document.createRange(); r.setStart(eq.t, eq.i); r.setEnd(eq.t, eq.i + 1);
+        const rect = r.getBoundingClientRect();
+        if (!rect.width) return false;
+        const indent = Math.max(0, Math.round(rect.right - cur.getBoundingClientRect().left + 5));
+        cur.style.paddingLeft = indent + 'px'; cur.dataset.eqAlign = '1';
+        editor.dispatchEvent(new Event('input', { bubbles: true }));                        // so the change is saved
+        return true;
+    }
+    // Pressing Enter copies a line's style onto the new line; the alignment belongs only to the line it was made for.
+    function mathsClearClonedAlign(editor) {
+        setTimeout(() => {
+            const sel = window.getSelection();
+            if (!sel.rangeCount) return;
+            let cur = sel.getRangeAt(0).startContainer;
+            while (cur && cur.parentNode !== editor) cur = cur.parentNode;
+            if (cur && cur.nodeType === 1 && cur.dataset && cur.dataset.eqAlign) {
+                cur.style.paddingLeft = ''; delete cur.dataset.eqAlign;
+                if (!cur.getAttribute('style')) cur.removeAttribute('style');
+            }
+        }, 0);
+    }
+
     function createSmartAnswerEditor(placeholder, opts) {
         opts = opts || {};
         const wrap = document.createElement('div');
@@ -20119,6 +20174,8 @@ SQIDAQAB
             }
 
             if (writingMode) return; // plain typing — every key behaves like an ordinary textarea.
+            if (ev.key === 'Enter' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) mathsClearClonedAlign(editor);
+            if (ev.key === ' ' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && mathsAlignToEquals(editor)) { ev.preventDefault(); return; }
 
             // Inside the matrix size prompt "(*)", only digits / * / ) are meaningful.
             if (handleMatrixSpecKey(ev)) return;
@@ -20643,11 +20700,14 @@ SQIDAQAB
         el.className = 'nb-block nb-text'; el.dataset.id = block.id;
         el.innerHTML = '<div class="nb-grip" title="Drag to move" role="button" aria-label="Drag to move this text box">⠿</div><button type="button" class="nb-align-left" aria-label="Align this text box with another" aria-pressed="false" title="Align left edge with another text box">⇤</button><button type="button" class="nb-del" aria-label="Delete this text box" title="Delete">×</button><div class="nb-body"></div><div class="nb-resize" title="Drag to resize"></div>';
         let ready = false;
-        const ed = createSmartAnswerEditor('Type here…', { hideShortcutHint: true, onModeChange: (w) => { if (!ready) return; notesWriting = w; nbSyncKeyboardButtons(); } });
+        const ed = createSmartAnswerEditor('Type here…', { hideShortcutHint: true, onModeChange: (w) => { if (!ready) return; notesWriting = w; block.writing = w; nbSyncKeyboardButtons(); notesScheduleSave(); } });
         el.querySelector('.nb-body').appendChild(ed.container);
         ed.setHtml(block.html || '');
-        ed.setWritingMode(notesWriting);
+        // Each box remembers its own keyboard. A box with maths in it opens on the maths keyboard, so it is never spell-checked as prose.
+        const hasMaths = /math-symbol|class="frac|<sup|<sub|root-n|class="mx|int-limits/.test(block.html || '');
+        ed.setWritingMode(typeof block.writing === 'boolean' ? block.writing : hasMaths ? false : notesWriting);
         ready = true;
+        if (typeof block.writing !== 'boolean') block.writing = ed.isWritingMode();
         ed.onChange(() => { block.html = ed.getHtml(); notesScheduleSave(); });
         const editable = ed.container.querySelector('.math-shortcut-editor');
         editable.style.fontSize = `${nbClamp(Number(block.fontSize) || 16, 12, 36)}px`;
@@ -20656,7 +20716,7 @@ SQIDAQAB
             const size = document.getElementById('nbTextSize');
             if (size) size.value = String(nbClamp(Number(block.fontSize) || 16, 12, 36));
         };
-        editable.addEventListener('focus', () => { activate(); if (ed.isWritingMode() !== notesWriting) ed.setWritingMode(notesWriting); });
+        editable.addEventListener('focus', () => { activate(); notesWriting = ed.isWritingMode(); nbSyncKeyboardButtons(); });
         editable.addEventListener('pointerdown', activate); editable.addEventListener('keydown', activate);
         editable.addEventListener('blur', () => setTimeout(() => {
             if (document.activeElement === editable || !el.isConnected || !ed.isEmpty()) return;
@@ -30256,6 +30316,7 @@ SQIDAQAB
             editor.className = 'math-shortcut-editor';
             editor.contentEditable = 'true';
             editor.dataset.placeholder = placeholder || 'Write your answer here…';
+            editor.spellcheck = false; editor.setAttribute('spellcheck', 'false'); // maths is not prose
             wrap.appendChild(editor);
             const hint = document.createElement('div');
             hint.className = 'math-shortcut-hint';
@@ -30485,6 +30546,8 @@ SQIDAQAB
             }
 
             editor.addEventListener('keydown', (ev) => {
+                if (ev.key === 'Enter' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) mathsClearClonedAlign(editor);
+                if (ev.key === ' ' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && mathsAlignToEquals(editor)) { ev.preventDefault(); return; }
                 const extendingPrimes = funcPrimeLanding && ev.key === "'" && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && isCaretAt(funcPrimeLanding, 1);
                 if (extendingPrimes) {
                     ev.preventDefault();
