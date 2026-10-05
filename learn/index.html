@@ -4105,6 +4105,10 @@
     .nb-tool-strong:hover { background: #fff; }
     .nb-text-size { font: inherit; font-size: 12.5px; font-weight: 700; padding: 6px 8px; border-radius: 8px; cursor: pointer; background: #1A232D; color: #F1EAD6; border: 1.5px solid rgba(241, 234, 214, 0.35); }
     .nb-text-size option { background: #1A232D; color: #F1EAD6; }
+    .nb-text-size-wrap { display: inline-flex; align-items: center; gap: 6px; color: #F1EAD6; font: 700 12px Arial, sans-serif; }
+    .nb-selection-size { display: none; position: fixed; z-index: 145; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 9px; background: #1A232D; color: #F1EAD6; border: 1px solid rgba(241,234,214,.35); box-shadow: 0 8px 24px rgba(0,0,0,.35); font: 700 11px Arial, sans-serif; }
+    .nb-selection-size.open { display: flex; }
+    .nb-selection-size .nb-text-size { padding: 4px 7px; }
     .nb-toolbar .maths-notes-kbd-switch { border-color: rgba(241, 234, 214, 0.35); }
     .nb-toolbar .maths-notes-kbd-switch button { color: #F1EAD6; }
     .nb-toolbar .maths-notes-kbd-switch button[aria-pressed="true"] { background: #F1EAD6; color: #1A232D; }
@@ -20124,6 +20128,7 @@ SQIDAQAB
     let notesKey = NOTES_KEY, notesLoaded = false, notesSaveTimer = null, notesListening = false;
     let notesWriting = true;          // the keyboard: true = English, false = maths (# switches)
     let notesActive = null;           // { ed, editable, block }: the text box the toolbar acts on
+    let notesSelectionSizeCleanup = null;
     let notesMenuId = null;           // the row whose actions are showing in the tree
     let notesResizeObs = null;
     const nbClamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -20285,6 +20290,7 @@ SQIDAQAB
         // #contentInner, so clear the previous page's instance before any
         // Notes page/landing is rendered. notesRenderPage mounts a fresh one.
         removeQuickNotesWidget();
+        if (notesSelectionSizeCleanup) { notesSelectionSizeCleanup(); notesSelectionSizeCleanup = null; }
         document.getElementById('topbarTitle').textContent = title;
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
@@ -20530,9 +20536,11 @@ SQIDAQAB
                     <button type="button" class="nb-tool" data-fmt="p" title="Normal text (Ctrl+Alt+0)">Text</button>
                     <button type="button" class="nb-tool" data-fmt="ul" title="Bullet points (Ctrl+Shift+8, or type - then Space)">• Bullets</button>
                     <button type="button" class="nb-tool" data-fmt="ol" title="Numbered list (Ctrl+Shift+7, or type 1. then Space)">1. Numbers</button>
-                    <select class="nb-text-size" id="nbTextSize" aria-label="Text size" title="Text size for the active text box">
-                        <option value="12">12px</option><option value="14">14px</option><option value="16" selected>16px</option><option value="18">18px</option><option value="22">22px</option><option value="28">28px</option><option value="36">36px</option>
-                    </select>
+                    <label class="nb-text-size-wrap">Text size
+                        <select class="nb-text-size" id="nbTextSize" aria-label="Text size" title="Text size for highlighted text or the active text box">
+                            <option value="12">12px</option><option value="14">14px</option><option value="16" selected>16px</option><option value="18">18px</option><option value="22">22px</option><option value="28">28px</option><option value="36">36px</option>
+                        </select>
+                    </label>
                     <span class="maths-notes-kbd-switch" role="group" aria-label="Keyboard">
                         <button type="button" id="nbKbdEnglish" aria-pressed="true">English keyboard</button>
                         <button type="button" id="nbKbdMaths" aria-pressed="false">Maths keyboard</button>
@@ -20542,6 +20550,7 @@ SQIDAQAB
                     <button type="button" class="nb-tool" id="nbShortcuts">Shortcuts</button>
                 </div>
                 <div class="nb-canvas" id="nbCanvas"></div>
+                <div class="nb-selection-size" id="nbSelectionSize"><span>Text size</span><select class="nb-text-size" aria-label="Selected text size"><option value="12">12px</option><option value="14">14px</option><option value="16" selected>16px</option><option value="18">18px</option><option value="22">22px</option><option value="28">28px</option><option value="36">36px</option></select></div>
             </div>`;
         const canvas = document.getElementById('nbCanvas');
         if (typeof ResizeObserver === 'function') notesResizeObs = new ResizeObserver(() => { canvas.querySelectorAll('.nb-graph, .nb-diagram').forEach(nbSyncCompact); nbFitCanvas(canvas); });
@@ -20573,13 +20582,44 @@ SQIDAQAB
         const bar = contentInner.querySelector('.nb-toolbar');
         bar.addEventListener('mousedown', (e) => { if (e.target.closest('button')) e.preventDefault(); }); // keep the caret where it is
         bar.querySelectorAll('[data-fmt]').forEach((b) => b.addEventListener('click', () => nbFormat(b.dataset.fmt)));
-        document.getElementById('nbTextSize').addEventListener('change', (e) => {
-            if (!notesActive) { notesStatus('Click inside a text box first'); e.target.value = '16'; return; }
-            const px = nbClamp(Number(e.target.value) || 16, 12, 36);
-            notesActive.block.fontSize = px;
-            notesActive.editable.style.fontSize = `${px}px`;
+        const topSizeSelect = document.getElementById('nbTextSize');
+        const selectionSize = document.getElementById('nbSelectionSize');
+        const selectionSizeSelect = selectionSize.querySelector('select');
+        let savedTextRange = null;
+        function applyNotesTextSize(px) {
+            if (!notesActive) { notesStatus('Click inside a text box first'); topSizeSelect.value = '16'; return; }
+            px = nbClamp(Number(px) || 16, 12, 36);
+            if (savedTextRange && notesActive.editable.contains(savedTextRange.commonAncestorContainer.nodeType === 1 ? savedTextRange.commonAncestorContainer : savedTextRange.commonAncestorContainer.parentNode)) {
+                const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(savedTextRange);
+                document.execCommand('fontSize', false, '7');
+                notesActive.editable.querySelectorAll('font[size="7"]').forEach((font) => { font.removeAttribute('size'); font.style.fontSize = `${px}px`; });
+                notesActive.block.html = notesActive.ed.getHtml();
+            } else {
+                notesActive.block.fontSize = px;
+                notesActive.editable.style.fontSize = `${px}px`;
+            }
             notesScheduleSave(); nbFitCanvas(canvas); notesActive.editable.focus();
-        });
+            selectionSize.classList.remove('open'); savedTextRange = null;
+        }
+        topSizeSelect.addEventListener('change', (e) => applyNotesTextSize(e.target.value));
+        selectionSizeSelect.addEventListener('change', (e) => applyNotesTextSize(e.target.value));
+        const onSelectionChange = () => {
+            const sel = window.getSelection(); if (!sel || !sel.rangeCount || sel.isCollapsed || !notesActive) return;
+            const range = sel.getRangeAt(0), node = range.commonAncestorContainer.nodeType === 1 ? range.commonAncestorContainer : range.commonAncestorContainer.parentNode;
+            if (!notesActive.editable.contains(node)) return;
+            savedTextRange = range.cloneRange();
+            const rect = range.getBoundingClientRect(); if (!rect.width && !rect.height) return;
+            const currentPx = Math.round(parseFloat(getComputedStyle(range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement).fontSize)) || 16;
+            const allowed = [12,14,16,18,22,28,36], nearest = allowed.reduce((a,b) => Math.abs(b-currentPx)<Math.abs(a-currentPx)?b:a,16);
+            selectionSizeSelect.value = String(nearest); topSizeSelect.value = String(nearest);
+            selectionSize.style.left = `${nbClamp(rect.left + rect.width / 2 - 58, 8, window.innerWidth - 126)}px`;
+            selectionSize.style.top = `${Math.max(8, rect.top - 46)}px`;
+            selectionSize.classList.add('open');
+        };
+        const onSelectionPointerDown = (e) => { if (!selectionSize.contains(e.target) && !topSizeSelect.contains(e.target) && !(notesActive && notesActive.editable.contains(e.target))) { selectionSize.classList.remove('open'); savedTextRange = null; } };
+        document.addEventListener('selectionchange', onSelectionChange);
+        document.addEventListener('pointerdown', onSelectionPointerDown, true);
+        notesSelectionSizeCleanup = () => { document.removeEventListener('selectionchange', onSelectionChange); document.removeEventListener('pointerdown', onSelectionPointerDown, true); selectionSize.remove(); };
         const setKeyboard = (writing) => { notesWriting = writing; nbSyncKeyboardButtons(); if (notesActive) { notesActive.ed.setWritingMode(writing); notesActive.editable.focus(); } };
         document.getElementById('nbKbdEnglish').addEventListener('click', () => setKeyboard(true));
         document.getElementById('nbKbdMaths').addEventListener('click', () => setKeyboard(false));
