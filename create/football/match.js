@@ -362,6 +362,9 @@
       // (when he is being closed down hard) rather than the usual choice.
       const back = (carrier.x - t.x) * team.attackDir;
       let adj = 0;
+      // The free man. A teammate with no defender near him is the pass a real player looks for, so an open receiver (nearest defender
+      // well away) is favoured, more so for a pass that goes forward or across than one that goes back; a marked one is not.
+      adj += (FM.OPEN_BONUS == null ? 0.5 : FM.OPEN_BONUS) * clamp((press - 3) / 9, 0, 1) * (back < -3 ? 1 : back < 3 ? 0.7 : 0.3);
       if (through && back > 3) adj = -2.0;
       else if (ownDepth0 > 0.66 && back > 8) adj = (nearNow < 2.5 ? 0.45 : 1) * -(FM.BACK_PEN == null ? 0 : FM.BACK_PEN);
       options.push({ kind: 'pass', target: t, tx, ty, d, lane, press, p, score: off === 'off' ? -4 : score + adj });
