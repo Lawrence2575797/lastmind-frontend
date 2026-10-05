@@ -1,0 +1,58 @@
+// Case 3 (Pupil Barrister, defence): criminal damage, intoxication, and an honest belief that the owner consented.
+LAW_CAREER.add({
+  id: 'c03', rank: 0, special: false, minutes: 15, role: 'defence',
+  title: 'R v Hale', tagline: 'Two blue Astras on Orchard Close',
+  charge: 'Criminal damage, contrary to section 1(1) of the Criminal Damage Act 1971: on 23 May, without lawful excuse, he damaged a blue Vauxhall Astra belonging to Priya Nair, intending to damage it or being reckless as to whether it would be damaged.',
+  briefing: 'Callum Hale, drunk, smashed the windscreen of a car in the early hours. He says a friend had told him by text to smash his own blue Astra, and he got the wrong car. You defend him. The law on a drunken mistake is not what most people assume.',
+  concepts: [
+    { label: 'Criminal damage and lawful excuse', subtopic: 'Property offences', arises: 'When the barrister asks what the defendant believed about whose car it was.', stage: 'interview', char: 'hal' },
+    { label: 'Voluntary intoxication', subtopic: 'General defences', arises: 'When the defendant describes how much he had drunk.', stage: 'witness', char: 'hal' },
+    { label: 'Burden and standard of proof', subtopic: 'Trial procedure', arises: 'In the closing speech.', stage: 'closing' },
+  ],
+  meta: { interviewCharacterId: 'hal', defendantId: 'hal' },
+  facts: [
+    ['f1', 'Callum Hale smashed the windscreen of Priya Nair\'s blue Vauxhall Astra with a bottle and kicked off a wing mirror, causing £640 of damage.', 'p', 3],
+    ['f2', 'It happened at about 01:20 outside 14 Orchard Close; Ms Nair woke to the noise and saw him from her window.', 'p', 2],
+    ['f3', 'Hale was very drunk: nine pints and two shots, slurring and unsteady when the police arrived.', 'p', 2],
+    ['f4', 'At 00:58 his friend Jonno texted him: "Blue Astra outside mine, keys lost, just smash the window and I will sort the insurance lol".', 'd', 4],
+    ['f5', 'Jonno\'s own blue Astra of the same model was parked two doors away at 18 Orchard Close.', 'd', 3],
+    ['f6', 'Hale honestly believed the car was Jonno\'s and that Jonno had told him to smash it; he shouted "Jonno said it was fine!" as Ms Nair opened her window.', 'd', 3],
+    ['f7', 'Jonno\'s text gave the house number as 18, and Hale was standing outside number 14.', 'p', 2],
+    ['f8', 'Hale apologised at once and offered to pay when Ms Nair came out.', 'd', 2],
+    ['f9', 'Hale was on his way to sleep on Jonno\'s sofa.', 'n', 1],
+  ],
+  characters: [
+    { id: 'hal', name: 'Callum Hale', role: 'Defendant', side: 'd', look: 'a lanky man of 22, messy fair hair, rumpled blue shirt, ashamed expression', demeanour: 'Embarrassed and earnest; stumbles over how much he drank', speech: 'Young, quick, apologetic, says "honestly" a lot',
+      knows: 'f3 f4 f5 f6 f7 f8 f9', believes: ['He was smashing Jonno\'s car because Jonno had asked him to, as a drunken joke.'], remembers: ['Jonno\'s text came in as he left the pub.', 'He saw a blue Astra and thought it was the one.', 'He did not look at the house number.', 'A woman shouted from a window and he apologised.'], gaps: ['He cannot remember exactly how he got to Orchard Close.', 'He did not notice the other blue Astra.'],
+      rel: 'medium', honesty: 'truthful', candour: 'full', by: 'd', order: 1, intro: '',
+      cross: [['The text said number 18, did it not?', 'Yes, it did. I was not looking. I just saw a blue Astra.', 'f7'], ['And you had drunk nine pints that night?', 'About that, yes. I was properly drunk.', 'f3']] },
+    { id: 'nai', name: 'Priya Nair', role: 'Car owner', side: 'p', look: 'a woman of 41, dark hair in a clip, dressing gown over pyjamas in the memory, now smart casual', demeanour: 'Angry about the damage but fair', speech: 'Clear and direct',
+      knows: 'f1 f2 f3 f6 f8', believes: ['He should have been more careful whatever he thought.'], remembers: ['The crash woke her at 01:20 and she saw him by her car.', 'He swayed and slurred.', 'He shouted that someone called Jonno said it was fine.', 'He apologised straight away and offered to pay.'], gaps: ['She does not know anyone called Jonno or what the text said.'],
+      rel: 'high', honesty: 'truthful', by: 'p', order: 1, intro: 'e1',
+      chief: [['What did you see that night?', 'I heard a smash at about twenty past one and saw a man swaying beside my Astra. The windscreen was in pieces and the wing mirror was on the pavement.', 'f1 f2'], ['What state was he in?', 'Very drunk. He was slurring and could barely stand.', 'f3']] },
+  ],
+  evidence: [
+    { id: 'e1', kind: 'photo', title: 'Photograph of the damaged car', caption: 'Taken by PC Evans at 01:40', content: { location: '14 Orchard Close', description: 'A blue Vauxhall Astra parked at the kerb with the windscreen shattered, glass on the bonnet and the left wing mirror lying in the road.' }, facts: 'f1', favours: 'p', by: 'nai' },
+    { id: 'e2', kind: 'messages', title: 'Messages, Hale and Jonno Pike', caption: 'From Mr Hale\'s phone', content: { participants: ['Jonno', 'Callum'], messages: [{ from: 'Jonno', time: '00:58', text: 'blue Astra outside mine no. 18, keys lost, just smash the window and I\'ll sort the insurance lol' }, { from: 'Callum', time: '00:59', text: 'seriously?? ok mate' }] }, facts: 'f4 f7', favours: 'd' },
+    { id: 'e3', kind: 'map', title: 'Plan of Orchard Close', caption: 'Drawn by the police', content: { title: 'Orchard Close, north side', areas: [{ label: 'No. 14', note: 'Ms Nair\'s house; her blue Astra parked outside' }, { label: 'No. 16', note: 'Empty, for sale' }, { label: 'No. 18', note: 'Mr Pike\'s house; his own blue Astra of the same model parked outside' }] }, facts: 'f5', favours: 'd' },
+  ],
+  caseFile: {
+    summary: 'At about 01:20 on 23 May Mr Hale, very drunk, smashed the windscreen of Ms Nair\'s blue Astra. He says his friend Jonno texted him to smash Jonno\'s own blue Astra of the same model, two doors along, and he picked the wrong one.',
+    agreed: ['Mr Hale smashed the windscreen and mirror of Ms Nair\'s car.', 'Mr Hale had been drinking heavily.', 'Mr Hale co-operated with the police.'],
+    chargeSheet: 'Criminal damage, contrary to section 1(1) of the Criminal Damage Act 1971.',
+  },
+  scripts: {
+    arraignment: ['Callum Hale, you are charged that without lawful excuse you damaged a motor car belonging to Priya Nair. How do you plead?', 'Not guilty.'],
+    pOpen: ['Members of the jury, the defendant admits smashing this car. The Crown says that is criminal damage. Being drunk is not an excuse for damaging a stranger\'s property.'],
+    dOpen: ['Members of the jury, Mr Hale thought he was smashing his friend\'s own car, at his friend\'s request. That belief is a lawful excuse.'],
+    pClose: ['Members of the jury, the text said number 18. He was outside number 14. Whatever he told himself in a drunken haze, he smashed a stranger\'s windscreen and the Crown asks you to be sure he has no lawful excuse.'],
+    dClose: ['Members of the jury, the Crown must make you sure Mr Hale did not honestly believe the owner had consented. Two identical cars, a drunken text and a shout of "Jonno said it was fine" is exactly what an honest mistake looks like.'],
+    summing: ['Members of the jury, the defendant is presumed innocent and the prosecution must make you sure of guilt.', 'A person has a lawful excuse if he believed that the person entitled to consent to the damage had consented, or would have done had they known the circumstances. The belief must be honest. It does not have to be reasonable, and it counts even if it was a mistake made because he was drunk.', 'Ask yourselves what Mr Hale honestly believed. If the Crown has not made you sure that he did not believe Mr Pike\'s car was the one he had been asked to damage, you must find him not guilty.'],
+  },
+  verdict: {
+    threshold: 3,
+    elements: [['He damaged property belonging to another', 'f1 f2'], ['He had no lawful excuse', 'f3 f4 f5 f6 f7 f8']],
+    sentences: [[0, 'The judge imposes a 12-month community order with compensation of £640 to Ms Nair.'], [4, 'The judge imposes a fine, a curfew and compensation of £640, and warns Mr Hale about drinking.']],
+    notGuilty: 'Members of the jury, thank you. Mr Hale, you are found not guilty and are free to go.',
+  },
+});

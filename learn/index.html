@@ -4136,6 +4136,42 @@
     .nb-diagram .diagram-submit-btn, .nb-diagram .diagram-result { display: none; }
     .nb-diagram .diagram-widget { max-width: 100%; }
     .nb-shortcut-extra { margin-bottom: 6px; }
+    /* ─── CRIMINAL LAWYER CAREER ─── */
+    .cr-wrap { display: flex; flex-direction: column; gap: 16px; max-width: 980px; margin: 0 auto; width: 100%; }
+    .cr-banner { min-height: 190px; border-radius: 14px; background-size: cover; background-position: center; display: flex; align-items: flex-end; overflow: hidden; box-shadow: 0 2px 14px rgba(0, 0, 0, 0.35); }
+    .cr-banner-in { width: 100%; padding: 56px 22px 18px; color: #F3E7BE; background: linear-gradient(to top, rgba(10, 14, 20, 0.92), rgba(10, 14, 20, 0)); }
+    .cr-banner-in h3 { margin: 2px 0 4px; font-size: clamp(1.5rem, 4vw, 2.1rem); }
+    .cr-banner-in p { margin: 0; max-width: 60ch; opacity: 0.92; }
+    .cr-eyebrow { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.75; }
+    .cr-card { background: #1A232D; color: #E6D7B0; border-radius: 12px; padding: 18px 20px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25); }
+    .cr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+    .cr-promo { background: #E6D7B0; color: #1A232D; border-radius: 10px; padding: 12px 16px; }
+    .cr-case-title { margin: 4px 0 2px; font-size: 1.5rem; }
+    .cr-tagline { margin: 0 0 8px; opacity: 0.8; font-style: italic; }
+    .cr-brief { margin: 0 0 12px; line-height: 1.55; max-width: 70ch; }
+    .cr-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+    .cr-chips span { border: 1px solid rgba(230, 215, 176, 0.4); border-radius: 999px; padding: 3px 12px; font-size: 0.8rem; }
+    .cr-special { background: #E6D7B0; color: #1A232D; border-radius: 6px; padding: 1px 7px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+    .cr-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; margin: 10px 0; }
+    .cr-stats b { display: block; font-size: 1.6rem; }
+    .cr-stats span, .cr-small { font-size: 0.8rem; opacity: 0.8; }
+    .cr-small { margin: 8px 0 0; line-height: 1.5; }
+    .cr-bar { margin: 10px 0; }
+    .cr-bar-top { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px; }
+    .cr-bar-track { height: 8px; border-radius: 99px; background: rgba(230, 215, 176, 0.18); overflow: hidden; }
+    .cr-bar-fill { height: 100%; background: #C9B37A; border-radius: 99px; }
+    .cr-bar-fill.met { background: #8FBF8A; }
+    .cr-ladder { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+    .cr-ladder li { display: flex; flex-direction: column; gap: 1px; padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(230, 215, 176, 0.2); opacity: 0.6; }
+    .cr-ladder li span { font-size: 0.8rem; opacity: 0.85; }
+    .cr-ladder li.done { opacity: 0.85; }
+    .cr-ladder li.now { opacity: 1; border-color: #E6D7B0; background: rgba(230, 215, 176, 0.1); }
+    .cr-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.88rem; }
+    .cr-table th { text-align: left; font-weight: 600; opacity: 0.7; padding: 4px 6px; }
+    .cr-table td { padding: 6px; border-top: 1px solid rgba(230, 215, 176, 0.15); }
+    .cr-won { color: #9AD18F; }
+    .cr-lost { color: #E8A08A; }
+    @media (max-width: 560px) { .cr-stats { grid-template-columns: repeat(2, 1fr); } .cr-table { display: block; overflow-x: auto; } }
     .maths-shortcut-popup { position: fixed; right: 20px; bottom: 20px; z-index: 300; width: min(460px, calc(100vw - 32px)); max-height: min(70vh, 560px); overflow: auto; padding: 12px 14px 14px; border-radius: 10px; background: var(--panel); color: var(--text); border: 1.5px solid rgba(230, 215, 176, 0.35); box-shadow: 0 10px 34px rgba(0, 0, 0, 0.4); font-size: 12px; }
     .maths-shortcut-popup-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; font-size: 13px; }
     .maths-shortcut-popup-close { font: inherit; font-size: 20px; line-height: 1; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; background: transparent; color: var(--text); border: 1.5px solid rgba(230, 215, 176, 0.3); }
@@ -10268,31 +10304,6 @@ SQIDAQAB
             ],
         },
     ];
-    // The Criminal Lawyer Career card opens here for now: the simulation itself is not built yet, so it says so plainly instead of
-    // falling through to the projects list.
-    function renderCreateCareerPlaceholder(contentInner) {
-        const sim = CREATE_TEMPLATES.find((t) => t.key === 'law').simulations.find((t) => t.key === 'criminal-lawyer-career');
-        contentInner.innerHTML = `
-            <section class="create-view" aria-labelledby="createTitle">
-                <div class="create-hero">
-                    <h1 class="create-title" id="createTitle">LastMind Create</h1>
-                    <p class="create-slogan">Learn by doing.</p>
-                    <p class="create-intro">Build interactive simulations, and sell them to an audience.</p>
-                </div>
-                <div class="create-section-heading">
-                    <h2>${escapeHtml(sim.title)}</h2>
-                    <button type="button" class="create-back" id="createBackBtn" data-view="law">← Law</button>
-                </div>
-                <div class="create-gallery">
-                    <article class="create-card">
-                        <h3>${escapeHtml(sim.title)}</h3>
-                        <img class="create-card-image" src="${sim.image}" alt="${escapeHtml(sim.alt)}" loading="lazy">
-                        <p>This simulation is coming soon.</p>
-                    </article>
-                </div>
-            </section>`;
-        document.getElementById('createBackBtn').addEventListener('click', () => renderCreatePage('law'));
-    }
     function renderCreatePage(view = 'projects') {
         if (view === true) view = 'gallery';
         if (view === false) view = 'projects';
@@ -10306,7 +10317,7 @@ SQIDAQAB
         contentInner.classList.add('content-inner-wide');
         if (view === 'criminal-trial') { renderCreateTrialBuilder(contentInner); return; }
         if (view === 'chancellor') { renderChancellorBuilder(contentInner); return; }
-        if (view === 'criminal-lawyer-career') { renderCreateCareerPlaceholder(contentInner); return; }
+        if (view === 'criminal-lawyer-career') { renderCareerHome(contentInner); return; }
         const card = (t, attrs = '') => `
                         <article class="create-card${attrs ? ' create-card-link' : ''}" ${attrs}>
                             <h3>${escapeHtml(t.title)}</h3>
@@ -11330,7 +11341,13 @@ SQIDAQAB
                 meta: 'Season ' + d.season + ' · ' + (mine >= 14 ? 'season complete' : mine + ' of 14 played') + (mine ? ' · ' + ord(pos) + ' in the table' : '') + ' · ' + tier + ' statistics' };
         } catch (err) { return null; }
     }
-    const createWithFootball = (list) => { const fp = createFootballProject(); return fp ? [fp, ...list.filter((p) => p.id !== 'local-football-manager')] : list.filter((p) => p.id !== 'local-football-manager'); };
+    function createWithCareer(list) {
+        const had = list.some((p) => p.kind === 'criminal-lawyer-career');
+        const rest = list.filter((p) => p.kind !== 'criminal-lawyer-career');
+        const meta = careerLocalSummary();
+        return had || meta ? [{ id: 'local-law-career', title: 'Criminal Lawyer Career', kind: 'criminal-lawyer-career', meta: meta || '', isReference: false, updatedAt: new Date().toISOString() }, ...rest] : rest;
+    }
+    const createWithFootball = (list0) => { const list = createWithCareer(list0); const fp = createFootballProject(); return fp ? [fp, ...list.filter((p) => p.id !== 'local-football-manager')] : list.filter((p) => p.id !== 'local-football-manager'); };
     async function createLoadProjects() {
         try {
             const { resp, body } = await createAuthedFetch('/create/projects');
@@ -11390,7 +11407,9 @@ SQIDAQAB
             createBindDuelBox(host);
             return;
         }
-        const card = (p, isRef) => p.kind === 'football-manager'
+        const card = (p, isRef) => p.kind === 'criminal-lawyer-career'
+            ? `<article class="create-proj"><h3>Criminal Lawyer Career</h3><div class="meta">Career${p.meta ? ' · ' + escapeHtml(p.meta) : ''}</div><div class="row"><button type="button" class="create-cta" data-career style="padding:8px 18px;font-size:0.85rem;">Resume career</button></div></article>`
+            : p.kind === 'football-manager'
             ? `<article class="create-proj"><h3>${escapeHtml(p.title)}</h3><div class="meta">Football manager${p.meta ? ' · ' + escapeHtml(p.meta) : ''} · saved in this browser</div><div class="row"><a class="create-cta" href="${escapeHtml(p.href || '/create/football/')}" style="padding:8px 18px;font-size:0.85rem;text-decoration:none;">Resume</a><button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button></div></article>`
             : `<article class="create-proj"><h3>${escapeHtml(p.title)}</h3>${p.isReference ? '<span class="badge">Reference example</span>' : ''}<div class="meta">Criminal trial${p.role ? ` · ${p.role === 'prosecution' ? 'Prosecution' : 'Defence'}` : ''}${p.minutes ? ` · ${p.minutes} min` : ''}${p.local ? ' · saved in this browser' : ''}</div><div class="row"><button type="button" class="create-secondary" data-open="${escapeHtml(p.id)}">${isRef ? 'Open a copy' : 'Open'}</button><button type="button" class="create-secondary" data-play="${escapeHtml(p.id)}">Playtest</button><button type="button" class="create-secondary" data-duel="${escapeHtml(p.id)}" title="Play one side while a friend plays the other">Two-player</button>${isRef ? '' : `<button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button>`}</div></article>`;
         host.innerHTML = `
@@ -11399,6 +11418,7 @@ SQIDAQAB
             ${projects.length ? `<div class="create-gallery">${projects.map((p) => card(p, false)).join('')}</div>` : ''}
             ${references.length ? `<div class="create-section-heading" style="margin-top:30px;"><h2>Reference examples</h2></div><p class="create-step-help" style="margin-top:-8px;">Finished cases to learn from. Open one to see how a complete case is put together.</p><div class="create-gallery">${references.map((p) => card(p, true)).join('')}</div>` : ''}`;
         host.querySelector('#createProjectBtn').addEventListener('click', () => renderCreatePage('gallery'));
+        host.querySelectorAll('[data-career]').forEach((b) => b.addEventListener('click', () => renderCreatePage('criminal-lawyer-career')));
         host.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => createOpenProject(b.dataset.open)));
         host.querySelectorAll('[data-play]').forEach((b) => b.addEventListener('click', () => createOpenProject(b.dataset.play, { playtest: true })));
         host.querySelectorAll('[data-duel]').forEach((b) => b.addEventListener('click', () => createOpenProject(b.dataset.duel, { duel: true })));
@@ -11419,9 +11439,167 @@ SQIDAQAB
     //   KNOWLEDGE MAP            the selected concepts (graph.curriculum) - only these are ever assessed
     //   PLAYTEST UI  (pt* fns)   how the learner experiences all of it
     // ═══════════════════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Criminal Lawyer Career (single player)
+    // Every case is written in advance (create/law-career/case-*.js) and played in the same courtroom as the Criminal trial simulation,
+    // so no case is ever generated by the AI. The player starts in the bullpen as a Pupil Barrister and is promoted on cases done AND
+    // standard reached (the rules live in career-base.js: LAW_CAREER.ranks). One career per account, kept in the account's projects
+    // (kind 'criminal-lawyer-career') and mirrored in this browser.
+    // ═══════════════════════════════════════════════════════════════════════════
+    const CAREER_FILES = ['case-01-pryce', 'case-02-okafor', 'case-03-hale', 'case-04-mensah', 'case-05-calloway', 'case-06-vance'];
+    const CAREER_VERSION = '20261005a';
+    const CAREER_LOCAL_KEY = 'lastmind-law-career-v1';
+    let career = null, careerLocalKey = CAREER_LOCAL_KEY, careerSaveTimer = null, careerFilesPromise = null;
+
+    function careerLoadFiles() {
+        if (careerFilesPromise) return careerFilesPromise;
+        const load = (name) => new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = `/create/law-career/${name}.js?v=${CAREER_VERSION}`; s.onload = resolve; s.onerror = () => reject(new Error('Could not load ' + name));
+            document.head.appendChild(s);
+        });
+        careerFilesPromise = (async () => { for (const f of CAREER_FILES) await load(f); LAW_CAREER.cases.sort((a, b) => a.rank - b.rank || a.id.localeCompare(b.id)); })().catch((err) => { careerFilesPromise = null; throw err; });
+        return careerFilesPromise;
+    }
+    const careerBlank = () => ({ v: 1, results: [], shownRank: 0, projectId: null });
+    function careerReadLocal() {
+        try { const d = JSON.parse(localStorage.getItem(careerLocalKey) || 'null'); if (d && Array.isArray(d.results)) return { ...careerBlank(), ...d }; } catch (_) { /* none yet */ }
+        return null;
+    }
+    async function careerEnsure() {
+        if (career) return career;
+        try { const { data: { session } } = await supabaseClient.auth.getSession(); careerLocalKey = session && session.user ? `${CAREER_LOCAL_KEY}:${session.user.id}` : CAREER_LOCAL_KEY; } catch (_) { careerLocalKey = CAREER_LOCAL_KEY; }
+        let mine = careerReadLocal();
+        try {
+            const { resp, body } = await createAuthedFetch('/create/projects');
+            const row = resp.ok && !body.unavailable ? (body.projects || []).find((p) => p.kind === 'criminal-lawyer-career') : null;
+            if (row) {
+                const got = await createAuthedFetch(`/create/projects/${encodeURIComponent(row.id)}`);
+                const remote = got.resp.ok && got.body.data && got.body.data.career;
+                if (remote && Array.isArray(remote.results) && (!mine || remote.results.length >= mine.results.length)) mine = { ...careerBlank(), ...remote };
+                if (mine) mine.projectId = row.id;
+            }
+        } catch (err) { console.error('LastMind: the career could not be read from the account, using this browser.', err); }
+        career = mine || careerBlank();
+        return career;
+    }
+    function careerSave(now) {
+        if (!career) return;
+        try { localStorage.setItem(careerLocalKey, JSON.stringify(career)); } catch (_) { /* browser full */ }
+        if (careerSaveTimer) clearTimeout(careerSaveTimer);
+        const push = async () => {
+            careerSaveTimer = null;
+            try {
+                const { resp, body } = await createAuthedFetch('/create/projects', { method: 'POST', body: JSON.stringify({ id: career.projectId && !String(career.projectId).startsWith('local-') ? career.projectId : undefined, title: 'Criminal Lawyer Career', kind: 'criminal-lawyer-career', data: { career } }) });
+                if (resp.ok && body.id && career.projectId !== body.id) { career.projectId = body.id; try { localStorage.setItem(careerLocalKey, JSON.stringify(career)); } catch (_) { /* fine */ } }
+            } catch (err) { console.error('LastMind: the career could not be saved to the account (it is kept in this browser).', err); }
+        };
+        if (now) push(); else careerSaveTimer = setTimeout(push, 800);
+    }
+    const careerRank = () => LAW_CAREER.ranks[LAW_CAREER.rankIndex(career.results)];
+    function careerNextCase() {
+        const done = new Set(career.results.map((r) => r.caseId));
+        const c = LAW_CAREER.cases.find((x) => !done.has(x.id));
+        if (!c) return { none: true };
+        const idx = LAW_CAREER.rankIndex(career.results);
+        return c.rank > idx ? { locked: c } : { c };
+    }
+    function careerLocalSummary() {
+        const d = careerReadLocal(); if (!d) return null;
+        const rank = LAW_CAREER.ranks[LAW_CAREER.rankIndex(d.results)];
+        return `${rank.title} · ${d.results.length} case${d.results.length === 1 ? '' : 's'} done · ${d.results.filter((r) => r.won).length} won`;
+    }
+
+    async function careerStartCase(c) {
+        await careerEnsure();
+        const rank = careerRank();
+        const graph = LAW_CAREER.toGraph(c), trial = LAW_CAREER.toTrial(c);
+        trial.career = { caseId: c.id, special: !!c.special, scene: rank.scene, place: rank.place, rankTitle: rank.title, workplace: rank.workplace };
+        const hash = 'career:' + c.id;
+        createSwitchCase(0); // each case has its own live-conversation budget
+        ptMount(); ptHud(true, false); ptScene(rank.scene, true);
+        const token = Math.random().toString(36).slice(2);
+        pt = { token, hash, graph: null };
+        await ptBoot({ token, hash, graph, sessionId: null, trial });
+    }
+    // Called when the trial's analysis screen opens: scores the case, adds it to the record once, and says if it earned a promotion.
+    function careerRecordFromAnalysis(learnerWon, verdict, assessment) {
+        const c = LAW_CAREER.byId(pt.career.caseId); const host = document.getElementById('plCareerResult');
+        if (!c || !career) return;
+        const score = LAW_CAREER.score({ graph: pt.graph, side: pt.side, established: [...pt.established], learnerWon, assessment });
+        const before = LAW_CAREER.rankIndex(career.results);
+        if (!career.results.some((r) => r.caseId === c.id)) {
+            career.results.push({ caseId: c.id, title: c.title, side: pt.side, guilty: !!verdict.guilty, won: learnerWon, score, special: !!c.special, at: new Date().toISOString(), rank: before });
+            careerSave(true);
+        }
+        const after = LAW_CAREER.rankIndex(career.results);
+        const mine = career.results.find((r) => r.caseId === c.id);
+        if (host) host.innerHTML = `<div class="pl-h">Your record</div><p class="pl-p">Case score <b>${mine.score}</b> out of 100. This case is on your record: ${career.results.filter((r) => r.won).length} won from ${career.results.length}.</p>`
+            + (after > before ? `<p class="pl-p" style="color:#f3e7c4;"><b>Promoted: ${ptE(LAW_CAREER.ranks[after].title)}.</b> ${ptE(LAW_CAREER.ranks[after].place === LAW_CAREER.ranks[before].place ? 'You stay in ' + LAW_CAREER.ranks[after].place.toLowerCase() + ' for now.' : 'You have earned ' + LAW_CAREER.ranks[after].place.toLowerCase() + '.')}</p>` : '');
+    }
+
+    const careerFmtDate = (iso) => { try { return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }); } catch (_) { return ''; } };
+    function careerBar(label, have, need, suffix) {
+        const pct = need ? Math.max(0, Math.min(100, Math.round(100 * have / need))) : 100;
+        return `<div class="cr-bar"><div class="cr-bar-top"><span>${label}</span><b>${have}${suffix || ''} / ${need}${suffix || ''}</b></div><div class="cr-bar-track"><div class="cr-bar-fill${have >= need ? ' met' : ''}" style="width:${pct}%"></div></div></div>`;
+    }
+    async function renderCareerHome(contentInner) {
+        contentInner.innerHTML = '<section class="create-view"><p class="create-intro">Opening your career…</p></section>';
+        try { await careerLoadFiles(); await careerEnsure(); }
+        catch (err) { contentInner.innerHTML = `<section class="create-view"><p class="create-intro">The career could not be loaded just now (${escapeHtml(err.message || 'unknown error')}). Check your connection and try again.</p><button type="button" class="create-back" id="createBackBtn" data-view="law">← Law</button></section>`; document.getElementById('createBackBtn').addEventListener('click', () => renderCreatePage('law')); return; }
+        if (!contentInner.isConnected) return;
+        const results = career.results, idx = LAW_CAREER.rankIndex(results), rank = LAW_CAREER.ranks[idx];
+        const won = results.filter((r) => r.won).length, lost = results.length - won;
+        const recent = results.slice(-6).map((r) => r.score), avg = recent.length ? Math.round(recent.reduce((s, x) => s + x, 0) / recent.length) : null;
+        const side = (s) => { const r = results.filter((x) => x.side === s); return r.length ? `${r.filter((x) => x.won).length} won of ${r.length}` : 'none yet'; };
+        const req = LAW_CAREER.requirement(rank, results), nextRank = LAW_CAREER.ranks[idx + 1];
+        const promo = career.shownRank < idx;
+        if (promo) { career.shownRank = idx; careerSave(); }
+        const nx = careerNextCase();
+        let nextHtml;
+        if (nx.c) {
+            const c = nx.c, plan = LAW_CAREER.capsFor(LAW_CAREER.toGraph(c), c.role, c.minutes), resumable = (ptLoadSaved('career:' + c.id) || {}).idx > 0;
+            nextHtml = `<div class="cr-eyebrow">${resumable ? 'Case in progress' : 'Your next brief'}${c.special ? ' · <span class="cr-special">Special case</span>' : ''}</div>
+                <h3 class="cr-case-title">${escapeHtml(c.title)}</h3><p class="cr-tagline">${escapeHtml(c.tagline)}</p>
+                <p class="cr-brief">${escapeHtml(c.briefing)}</p>
+                <div class="cr-chips"><span>${c.role === 'prosecution' ? 'You prosecute' : 'You defend'}</span><span>About ${plan.estimate} minutes</span><span>${escapeHtml(rank.place)}</span></div>
+                <button type="button" class="create-cta" id="crStart" style="padding:11px 26px;">${resumable ? 'Resume the case' : 'Open the case file'}</button>`;
+        } else if (nx.locked) {
+            nextHtml = `<div class="cr-eyebrow">Your next brief</div><h3 class="cr-case-title">Waiting on a promotion</h3><p class="cr-brief">The next brief on the desk is a ${nx.locked.special ? 'big special case' : 'case'} for a ${escapeHtml(LAW_CAREER.ranks[nx.locked.rank].title)}. Keep your standard up on the cases you have and it will be passed to you.</p>`;
+        } else {
+            nextHtml = '<div class="cr-eyebrow">Your desk</div><h3 class="cr-case-title">Every brief is done</h3><p class="cr-brief">You have worked through every case written so far. New briefs are added over time, and your record and rank are kept for when they arrive.</p>';
+        }
+        contentInner.innerHTML = `
+            <section class="create-view" aria-labelledby="createTitle">
+                <div class="create-hero"><h1 class="create-title" id="createTitle">LastMind Create</h1><p class="create-slogan">Learn by doing.</p></div>
+                <div class="create-section-heading"><h2>Criminal Lawyer Career</h2><button type="button" class="create-back" id="createBackBtn" data-view="law">← Law</button></div>
+                <div class="cr-wrap">
+                    <div class="cr-banner" style="background-image:url('/assets/playtest/${rank.scene}.jpg')"><div class="cr-banner-in"><div class="cr-eyebrow">${escapeHtml(rank.place)}</div><h3>${escapeHtml(rank.title)}</h3><p>${escapeHtml(rank.blurb)}</p></div></div>
+                    ${promo ? `<div class="cr-promo"><b>Promoted to ${escapeHtml(rank.title)}.</b> ${idx > 0 && LAW_CAREER.ranks[idx - 1].place === rank.place ? 'You stay in the bullpen, with bigger briefs.' : escapeHtml(rank.place) + ' is yours now.'}</div>` : ''}
+                    <div class="cr-card cr-next">${nextHtml}</div>
+                    <div class="cr-grid">
+                        <div class="cr-card"><div class="cr-eyebrow">Your record</div>
+                            <div class="cr-stats"><div><b>${results.length}</b><span>Cases</span></div><div><b>${won}</b><span>Won</span></div><div><b>${lost}</b><span>Lost</span></div><div><b>${avg == null ? '-' : avg}</b><span>Recent score</span></div></div>
+                            <p class="cr-small">Defence: ${side('defence')}<br>Prosecution: ${side('prosecution')}</p></div>
+                        <div class="cr-card"><div class="cr-eyebrow">${nextRank ? 'Next promotion: ' + escapeHtml(nextRank.title) : 'Top of the profession'}</div>
+                            ${req ? careerBar('Cases completed', Math.min(req.have.cases, req.need.cases), req.need.cases) + careerBar(`Average of your last ${req.need.recent}`, Math.min(req.have.avg, req.need.avg), req.need.avg) + (req.need.specials ? careerBar('Special cases', Math.min(req.have.specials, req.need.specials), req.need.specials) : '') + '<p class="cr-small">All of these are needed. Scores come from the verdict and from how well you used the law.</p>' : '<p class="cr-small">There is nowhere higher to go.</p>'}</div>
+                    </div>
+                    <div class="cr-card"><div class="cr-eyebrow">The ladder</div>
+                        <ol class="cr-ladder">${LAW_CAREER.ranks.map((r, i) => `<li class="${i < idx ? 'done' : i === idx ? 'now' : ''}"><b>${escapeHtml(r.title)}</b><span>${escapeHtml(r.place)}${r.next ? ` · ${r.next.cases} cases, ${r.next.avg}+ average${r.next.specials ? `, ${r.next.specials} special` : ''} to move on` : ''}</span></li>`).join('')}</ol></div>
+                    <div class="cr-card"><div class="cr-eyebrow">Case record</div>
+                        ${results.length ? `<table class="cr-table"><thead><tr><th>Case</th><th>Role</th><th>Result</th><th>Score</th><th></th></tr></thead><tbody>${results.map((r) => `<tr><td>${escapeHtml(r.title)}${r.special ? ' <span class="cr-special">special</span>' : ''}</td><td>${r.side === 'prosecution' ? 'Prosecution' : 'Defence'}</td><td class="${r.won ? 'cr-won' : 'cr-lost'}">${r.won ? 'Won' : 'Lost'} (${r.guilty ? 'guilty' : 'not guilty'})</td><td>${r.score}</td><td>${careerFmtDate(r.at)}</td></tr>`).join('')}</tbody></table>` : '<p class="cr-small">No cases yet. Your first brief is waiting above.</p>'}</div>
+                </div>
+            </section>`;
+        document.getElementById('createBackBtn').addEventListener('click', () => renderCreatePage('law'));
+        const start = document.getElementById('crStart');
+        if (start) start.addEventListener('click', () => { start.disabled = true; careerStartCase(nx.c).catch((err) => { start.disabled = false; alert(err.message || 'The case could not be opened.'); }); });
+    }
+
     const PT_SCENE = (key) => `/assets/playtest/${key}.jpg`;
     const PT_SCENES = ['chambers', 'interview', 'arrival', 'courtroom_wide', 'prosecution_opening', 'witness_box', 'defence_case', 'closing_speech', 'summing_up', 'jury_deliberation', 'verdict', 'sentencing'];
     const PT_MAX_QUESTIONS = { interview: 15, exam: 10 };
+    // How many questions each conversation allows is worked out per case so the whole trial comes out near the time chosen (see LAW_CAREER.capsFor).
+    const ptCaps = () => (pt && pt.caps) || PT_MAX_QUESTIONS;
     const PT_PORTRAIT_VERSION = 2; // 2 = pictures checked to face the camera; older ones are regenerated
     const PT_GRAPH_VERSION = 2; // bump when the Case Graph gains fields the courtroom relies on
     const PT_LESSON_HINT = 'This is the lesson from your LastMind knowledge map, opened to help you. Nothing here is tested or recorded.';
@@ -11641,9 +11819,11 @@ SQIDAQAB
         document.removeEventListener('keydown', ptEscHandler);
     }
     function ptExit() {
+        const wasCareer = !!(pt && pt.career);
         const trial = loadCreateTrial();
         pt = null;
         ptUnmount();
+        if (wasCareer) { if (document.getElementById('contentInner')) renderCreatePage('criminal-lawyer-career'); return; }
         trial.step = 'case';
         if (document.getElementById('contentInner')) renderCreatePage('criminal-trial');
     }
@@ -11753,7 +11933,7 @@ SQIDAQAB
     async function ptBoot({ token, hash, graph, sessionId, trial, duelCreate, duel }) {
         const defendant = graph.characters.find((c) => c.id === graph.meta.defendantId) || graph.characters[0];
         pt = {
-            duel: duel || null,
+            duel: duel || null, career: trial.career || null,
             token, hash, graph, sessionId, side: trial.role === 'prosecution' ? 'prosecution' : 'defence',
             title: (trial.case && trial.case.title) || 'The case', charge: (trial.case && trial.case.overview && trial.case.overview.charge) || graph.caseFile.chargeSheet,
             briefing: (trial.case && trial.case.overview && trial.case.overview.studentBriefing) || graph.caseFile.summary,
@@ -11762,6 +11942,7 @@ SQIDAQAB
             assessment: null, assessmentError: null, assessPromise: null, verdict: null, interviewHist: [], shownInterview: [], w: null, sceneKey: null,
             concepts: trial.picked.map((n) => ({ id: n.id, label: n.label, subtopic: n.subtopic })), triggered: [], lessons: {},
         };
+        if (window.LAW_CAREER && LAW_CAREER.capsFor) { const plan = LAW_CAREER.capsFor(graph, pt.side, trial.minutes || 25); pt.caps = plan.caps; pt.timePlan = plan; }
         PT_SCENES.forEach((k) => { const i = new Image(); i.src = PT_SCENE(k); });
         const saved = ptLoadSaved(hash);
         if (saved && saved.idx > 0 && !duelCreate && confirm(duel ? 'Resume your earlier progress in this duel? (Cancel starts your side again.)' : 'Resume your earlier playtest of this case? (Cancel starts it again.)')) {
@@ -11777,8 +11958,8 @@ SQIDAQAB
         }
         graph.meta.portraitVersion = PT_PORTRAIT_VERSION;
         createStoreGraphCache();
-        ptLoadPortraits(pt.token);
-        ptLoadEvidenceImages(pt.token);
+        // A written career case has no portraits or exhibit pictures to generate: nothing is bought for it.
+        if (!graph.meta.free) { ptLoadPortraits(pt.token); ptLoadEvidenceImages(pt.token); }
         ptRender();
     }
     // ---- two-player duels ----
@@ -11937,14 +12118,14 @@ SQIDAQAB
         return (officer || mine[0] || set || {}).id;
     }
     function ptRenderChambers() {
-        ptScene('chambers'); ptLabel('Chambers'); ptHud(true, false);
+        ptScene(pt.career ? pt.career.scene : 'chambers'); ptLabel(pt.career ? pt.career.place : 'Chambers'); ptHud(true, false);
         const g = pt.graph;
         const interviewee = ptById(ptInterviewId());
         const stage = ptStage(`
             <div class="pl-title-block pl-fade">
-                <div class="pl-eyebrow">${ptE(g.meta.court)}</div>
+                <div class="pl-eyebrow">${ptE(pt.career ? pt.career.rankTitle + ' · ' + g.meta.court : g.meta.court)}</div>
                 <h1 class="pl-case-title">${ptE(pt.title)}</h1>
-                <div class="pl-facts"><div><b>Charge</b>${ptE(pt.charge)}</div><div><b>You are</b>${ptE(pt.roleText)}</div><div><b>Time until trial</b>${ptE(g.meta.timeUntilTrial)}</div></div>
+                <div class="pl-facts"><div><b>Charge</b>${ptE(pt.charge)}</div><div><b>You are</b>${ptE(pt.roleText)}</div><div><b>Time until trial</b>${ptE(g.meta.timeUntilTrial)}</div>${pt.timePlan ? `<div><b>Time needed</b>About ${pt.timePlan.estimate} minutes</div>` : ''}</div>
                 <p class="pl-text muted" style="margin-top:18px;">${ptE(pt.briefing)}</p>
             </div>
             <div class="pl-tools">
@@ -11966,7 +12147,7 @@ SQIDAQAB
         ptCastIn(ch);
         ptCallUpon(ptConceptsFor('interview', ch.id));
         ptExam({
-            ch, setting: 'interview', asking: pt.side, hist: pt.interviewHist, establish: false, cap: PT_MAX_QUESTIONS.interview,
+            ch, setting: 'interview', asking: pt.side, hist: pt.interviewHist, establish: false, cap: ptCaps().interview,
             intro: pt.side === 'defence' ? `${ch.name} is waiting for you. This conversation is private. Ask what you need to know.` : `${ch.name} is ready to go through the case with you.`,
             placeholder: 'Ask your question in your own words…', finishLabel: 'Back to chambers', onFinish: ptRenderChambers,
             shown: () => pt.shownInterview, markShown: (id) => { if (!pt.shownInterview.includes(id)) pt.shownInterview.push(id); },
@@ -12140,7 +12321,7 @@ SQIDAQAB
         if (w.phase === 'chief') {
             if (pt.side === by) {
                 ptCallUpon(ptConceptsFor('witness', ch.id));
-                ptExam({ ch, setting: 'court', asking: by, hist: w.chiefHist, establish: true, cap: PT_MAX_QUESTIONS.exam,
+                ptExam({ ch, setting: 'court', asking: by, hist: w.chiefHist, establish: true, cap: ptCaps().exam,
                     intro: `${ch.name} is in the witness box. You may begin your examination-in-chief.`, placeholder: 'Ask your first question…', finishLabel: 'No further questions',
                     onFinish: () => { w.phase = 'cross'; ptRenderWitness(); }, shown: () => [...pt.inCourt, ...w.shown], markShown: (id) => { if (!w.shown.includes(id)) w.shown.push(id); ptIntroduceEvidence([id]); },
                     capNote: 'The judge indicates that this witness has been examined for long enough.' });
@@ -12151,7 +12332,7 @@ SQIDAQAB
         }
         if (pt.side !== by) {
             ptCallUpon(ptConceptsFor('witness', ch.id));
-            ptExam({ ch, setting: 'court', asking: other, hist: w.crossHist, establish: true, cap: PT_MAX_QUESTIONS.exam,
+            ptExam({ ch, setting: 'court', asking: other, hist: w.crossHist, establish: true, cap: ptCaps().exam,
                 intro: `${ch.name} has given evidence. You may now cross-examine.`, placeholder: 'Put your first question to the witness…', finishLabel: 'No further questions',
                 onFinish: ptNext, shown: () => [...pt.inCourt, ...w.shown], markShown: (id) => { if (!w.shown.includes(id)) w.shown.push(id); ptIntroduceEvidence([id]); },
                 capNote: 'The judge indicates that the cross-examination has gone on long enough.' });
@@ -12429,10 +12610,11 @@ SQIDAQAB
             ${a && a.summary ? `<div class="pl-h">As an advocate</div><p class="pl-p">${ptE(a.summary)}</p>` : ''}
             ${a && a.strengths.length ? `<div class="pl-h">Strengths</div><ul class="pl-list">${a.strengths.map((s) => `<li>${ptE(s)}</li>`).join('')}</ul>` : ''}
             ${a && a.improvements.length ? `<div class="pl-h">To work on</div><ul class="pl-list">${a.improvements.map((s) => `<li>${ptE(s)}</li>`).join('')}</ul>` : ''}
-            ${pt.duel ? '<div id="plDuel"></div><div class="pl-actions" style="margin-top:30px;"><button type="button" class="pl-btn primary" id="plDone">Back to Create</button></div>' : '<div class="pl-actions" style="margin-top:30px;"><button type="button" class="pl-btn primary" id="plSave">Save this case</button><button type="button" class="pl-btn" id="plSaveRef">Save as reference example</button><button type="button" class="pl-btn" id="plAgain">Play again</button><button type="button" class="pl-btn" id="plDone">Back to Create</button></div>'}
+            ${pt.career ? '<div id="plCareerResult"></div><div class="pl-actions" style="margin-top:30px;"><button type="button" class="pl-btn primary" id="plDone">Back to your desk</button></div>' : pt.duel ? '<div id="plDuel"></div><div class="pl-actions" style="margin-top:30px;"><button type="button" class="pl-btn primary" id="plDone">Back to Create</button></div>' : '<div class="pl-actions" style="margin-top:30px;"><button type="button" class="pl-btn primary" id="plSave">Save this case</button><button type="button" class="pl-btn" id="plSaveRef">Save as reference example</button><button type="button" class="pl-btn" id="plAgain">Play again</button><button type="button" class="pl-btn" id="plDone">Back to Create</button></div>'}
             <p class="pl-note" id="plSaveNote"></p>
         </div>`;
         root.appendChild(panel);
+        if (pt.career) careerRecordFromAnalysis(learnerWon, v, a);
         ptRecordSignals(a);
         const note = panel.querySelector('#plSaveNote');
         const result = () => ({ at: new Date().toISOString(), verdict: v.guilty ? 'guilty' : 'not_guilty', side: pt.side, assessment: a, outcomeNote });
@@ -32463,6 +32645,7 @@ SQIDAQAB
     })();
 </script>
 
+    <script src="/create/law-career/career-base.js?v=20261005a"></script>
     <script src="/cortex/pricing.js?v=20260916-checkout3"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {

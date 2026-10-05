@@ -1,0 +1,58 @@
+// Case 4 (Pupil Barrister, defence): burglary, a borrowed bike, and a witness who deleted her messages.
+LAW_CAREER.add({
+  id: 'c04', rank: 0, special: false, minutes: 15, role: 'defence',
+  title: 'R v Mensah', tagline: 'The red bike and the deleted messages',
+  charge: 'Burglary, contrary to section 9(1)(b) of the Theft Act 1968: on 11 July, having entered a garage at 31 Larch Avenue as a trespasser, he stole a red Cannondale road bike belonging to Tunde Adeyemi.',
+  briefing: 'Kofi Mensah wheeled a bike out of his girlfriend\'s father\'s garage at night. He says she told him to borrow it. She now says she never did. You defend him, and the truth may be sitting on her phone.',
+  concepts: [
+    { label: 'Burglary: entering as a trespasser', subtopic: 'Property offences', arises: 'When the barrister asks what permission the defendant thought he had.', stage: 'interview', char: 'men' },
+    { label: 'Theft: intention to permanently deprive', subtopic: 'Theft Act 1968', arises: 'When the defendant says he meant to bring the bike back.', stage: 'witness', char: 'men' },
+    { label: 'Burden and standard of proof', subtopic: 'Trial procedure', arises: 'In the closing speech.', stage: 'closing' },
+  ],
+  meta: { interviewCharacterId: 'men', defendantId: 'men' },
+  facts: [
+    ['f1', 'At about 23:10 on 11 July Kofi Mensah took Tunde Adeyemi\'s red Cannondale bike from his garage and wheeled it away.', 'p', 3],
+    ['f2', 'Mr Adeyemi did not know Mensah was in the garage and had never given him permission to enter it or use the bike.', 'p', 2],
+    ['f3', 'Mr Adeyemi had told his daughter Ayesha not to lend the bike to anyone.', 'p', 2],
+    ['f4', 'At 21:40 Ayesha texted Mensah: "side door is open, take dad\'s red bike for the weekend, he won\'t notice, back by Sunday x".', 'd', 4],
+    ['f5', 'Mensah honestly believed Ayesha was entitled to lend him the bike and that her father would not mind.', 'd', 3],
+    ['f6', 'Ayesha\'s phone shows her thread with Mensah was deleted at 07:15 next morning, after her father found the bike gone.', 'd', 3],
+    ['f7', 'Mensah left through the back lane at night and told nobody he had taken it.', 'p', 2],
+    ['f8', 'Mensah was arrested at 08:45 on Saturday wheeling the bike back towards the Adeyemis\' house.', 'd', 3],
+    ['f9', 'Ayesha and Mensah had been together for four months.', 'n', 1],
+  ],
+  characters: [
+    { id: 'men', name: 'Kofi Mensah', role: 'Defendant', side: 'd', look: 'a slim young man of 19, close-cropped hair, green bomber jacket, nervous', demeanour: 'Quiet, hurt that Ayesha has denied it, determined to stay polite', speech: 'Soft, careful, short sentences',
+      knows: 'f1 f4 f5 f7 f8 f9', believes: ['Ayesha said he could take the bike and he was only borrowing it.'], remembers: ['Ayesha texted him that evening and he went round at about eleven.', 'The side door was open as she said.', 'He took the bike home to ride on Saturday and meant to return it Sunday.', 'Police stopped him on the way back.'], gaps: ['He did not know Mr Adeyemi had forbidden anyone to use the bike.'],
+      rel: 'high', honesty: 'truthful', candour: 'full', by: 'd', order: 1, intro: 'e1',
+      cross: [['You told nobody you were taking it?', 'No. I thought Ayesha had told her dad. I went through the back lane because it was dark.', 'f7'], ['And Mr Adeyemi never told you that you could?', 'No. Only Ayesha did.', 'f2']] },
+    { id: 'ay', name: 'Ayesha Adeyemi', role: 'Mr Adeyemi\'s daughter', side: 'p', look: 'a young woman of 19, long dark hair, cream cardigan, avoids eye contact', demeanour: 'Defensive, afraid of her father, easily flustered', speech: 'Hurried, defensive, trails off',
+      knows: 'f2 f3 f4 f6 f9', believes: ['She will be in serious trouble with her father if the messages come out.'], remembers: ['She sent the message at 21:40 and later deleted the thread when her father shouted about the bike.', 'Her father had told her never to lend the bike.'], gaps: [],
+      rel: 'low', honesty: 'lying', hide: 'f4 f6', lie: 'She says she never texted Mensah anything about the bike and had no idea he would take it. She suggests his messages are made up. She fears her father.', candour: 'guarded', by: 'p', order: 1, intro: 'e3',
+      chief: [['Did you give Mr Mensah permission to take the bike?', 'No. I would never have. Dad told me never to lend it to anyone.', 'f3'], ['Did you know he was going to take it?', 'No. I was asleep. I found out the next morning.', 'f2']] },
+  ],
+  evidence: [
+    { id: 'e1', kind: 'messages', title: 'Messages on Mr Mensah\'s phone', caption: 'Ayesha to Kofi, 11 July', content: { participants: ['Ayesha', 'Kofi'], messages: [{ from: 'Ayesha', time: '21:40', text: 'side door is open, take dads red bike for the weekend, he wont notice. back by sunday x' }, { from: 'Kofi', time: '21:41', text: 'you sure? x' }, { from: 'Ayesha', time: '21:42', text: 'yes!! he never uses it x' }] }, facts: 'f4', favours: 'd' },
+    { id: 'e2', kind: 'document', title: 'Forensic report on Ayesha\'s phone', caption: 'Recovered deleted data', content: { title: 'Digital forensics report, device belonging to A. Adeyemi', paragraphs: ['A message thread with the contact "Kofi" was deleted on 12 July at 07:15.', 'Fragments of 11 July messages recovered from the device include the words "red bike", "back by sunday" and "he won\'t notice".'] }, facts: 'f6', favours: 'd' },
+    { id: 'e3', kind: 'statement', title: 'Statement of Tunde Adeyemi', caption: 'Read to the court by agreement', content: { witness: 'Tunde Adeyemi', date: '12 July', paragraphs: ['I own a red Cannondale road bike worth about £1,450, kept in my detached garage. I woke on Saturday and the bike was gone.', 'I have never given Kofi Mensah permission to use it or go into my garage. I told my daughter not to lend it to anyone.'] }, facts: 'f1 f2 f3', favours: 'p', by: 'ay' },
+  ],
+  caseFile: {
+    summary: 'On the night of 11 July a red bike was taken from the Adeyemis\' garage. Mr Mensah, who was dating their daughter Ayesha, was arrested the next morning wheeling it back. He says Ayesha had lent it to him by text; she denies it.',
+    agreed: ['The bike belongs to Mr Adeyemi.', 'Mr Mensah took it from the garage.', 'Mr Mensah was arrested wheeling it back towards the house.'],
+    chargeSheet: 'Burglary, contrary to section 9(1)(b) of the Theft Act 1968.',
+  },
+  scripts: {
+    arraignment: ['Kofi Mensah, you are charged that having entered a building as a trespasser you stole a bicycle belonging to Tunde Adeyemi. How do you plead?', 'Not guilty.'],
+    pOpen: ['Members of the jury, the defendant went into a family\'s garage at night, without telling anyone, and took a valuable bike. The people who owned it did not give him permission.'],
+    dOpen: ['Members of the jury, Mr Mensah was told he could borrow the bike. He took it openly and was bringing it back when he was arrested.'],
+    pClose: ['Members of the jury, the owner never agreed. The defendant crept out through a back lane at night. The Crown says he was a trespasser and he stole the bike.'],
+    dClose: ['Members of the jury, the Crown must make you sure Mr Mensah knew he was trespassing and meant to keep the bike. A text, a deleted thread and a man arrested while returning the bike say otherwise.'],
+    summing: ['Members of the jury, the defendant is presumed innocent and the prosecution must make you sure of guilt.', 'The Crown must prove that he entered the garage as a trespasser, knowing or being reckless that he was entering without permission, and that he then stole the bike. Stealing requires dishonesty and an intention permanently to deprive. Borrowing is not theft unless it is meant to last until the bike\'s value has gone.', 'If he honestly believed he had permission, he was not knowingly a trespasser and was not dishonest. The belief does not have to be reasonable, but you should consider whether it was genuine.'],
+  },
+  verdict: {
+    threshold: 1,
+    elements: [['He entered a building as a trespasser', 'f2 f3 f4 f5'], ['He stole the bike dishonestly', 'f1 f5 f7'], ['He intended permanently to deprive', 'f4 f8']],
+    sentences: [[0, 'The judge imposes a 12-month community order with 80 hours of unpaid work.'], [4, 'The judge imposes a 6-month custodial sentence, suspended for 12 months.']],
+    notGuilty: 'Members of the jury, thank you. Mr Mensah, you are found not guilty and are free to go.',
+  },
+});
