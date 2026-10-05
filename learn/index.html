@@ -54,7 +54,14 @@
 
     html, body {
         height: 100%;
+        /* The screen is locked: no sideways panning and no pinch or double-tap zoom. Phones ignore the viewport tag's no-zoom request
+           (iPhones always do), so this is what actually holds it still. Parts of the page that scroll sideways on purpose (the button
+           row along the top, wide tables) are their own scrollers and keep doing so. */
+        touch-action: pan-y;
+        overscroll-behavior: none;
     }
+    body .main, body .content { touch-action: pan-y; }
+    body .content { overflow-x: hidden; }
 
     body {
         /* Birch-panel background - a procedural wood-grain texture (plank
@@ -149,7 +156,7 @@
        stretch over the logo - the higher specificity here keeps it compact on the right. */
     .sidebar-header .sidebar-header-upgrade { width: auto; flex: none; margin-left: auto; white-space: nowrap; }
     .specialist-tools-wrap { position: relative; flex: none; }
-    .specialist-tools-menu { position: fixed; z-index: 140; min-width: 190px; padding: 6px; border-radius: 8px; background: var(--panel); border: 1px solid rgba(230,215,176,0.28); box-shadow: 0 10px 28px rgba(0,0,0,0.32); display: none; }
+    .specialist-tools-menu { position: fixed; z-index: 160; min-width: 190px; padding: 6px; border-radius: 8px; background: var(--panel); border: 1px solid rgba(230,215,176,0.28); box-shadow: 0 10px 28px rgba(0,0,0,0.32); display: none; }
     .specialist-tools-menu.open { display: flex; flex-direction: column; gap: 5px; }
     .specialist-tools-menu .cortex-btn-topbar { width: 100%; text-align: left; white-space: nowrap; }
 
@@ -3945,6 +3952,11 @@
        wholesale on every thread switch) so it survives that. */
     .maths-tool-view.sidebar-collapsed { grid-template-columns: 1fr; }
     .maths-tool-view.sidebar-collapsed .maths-tool-sidebar { display: none; }
+    @media (max-width: 760px) {
+        .maths-tool-view, .maths-tool-view.sidebar-collapsed { grid-template-columns: minmax(0, 1fr); }
+        .maths-tool-main-wrap, .maths-tool-main, .maths-tool-sidebar { min-width: 0; max-width: 100%; }
+        .maths-tool-view .math-shortcut-editor { max-width: 100%; }
+    }
     .maths-tool-sidebar {
         border: 1px solid rgba(230, 215, 176, 0.16);
         border-radius: 8px;
@@ -17258,6 +17270,10 @@ SQIDAQAB
     // narrow phone).
     const specialistToolsBtn = document.getElementById('specialistToolsBtn');
     const specialistToolsMenu = document.getElementById('specialistToolsMenu');
+    // Real reported bug (phones): the two items were tappable but not drawn. The menu was a child of the topbar's horizontally scrolling
+    // button row, and a fixed-position element inside a touch-scrolling container is clipped or left unpainted on iPhones even though
+    // it still takes taps. It is positioned by screen coordinates anyway, so it is attached to the page body, outside any scroller.
+    document.body.appendChild(specialistToolsMenu);
     // Real reported bug: on mobile, this button sits off the edge of the
     // horizontally-scrollable topbarActions row (see its own "narrow phone
     // has no overflow handling" comment) - reaching it means scrolling the
@@ -17305,7 +17321,7 @@ SQIDAQAB
     // any of those, so it always sees the click regardless of what anything
     // else downstream does with it.
     document.addEventListener('click', (event) => {
-        if (!document.getElementById('specialistToolsWrap').contains(event.target)) {
+        if (!document.getElementById('specialistToolsWrap').contains(event.target) && !specialistToolsMenu.contains(event.target)) {
             specialistToolsMenu.classList.remove('open');
             specialistToolsBtn.setAttribute('aria-expanded', 'false');
         }
@@ -17329,6 +17345,9 @@ SQIDAQAB
             specialistToolsBtn.setAttribute('aria-expanded', 'false');
         }
     });
+
+    // iPhones ignore the viewport tag's no-zoom request, and pinching is only stopped by cancelling the gesture itself.
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach((type) => document.addEventListener(type, (e) => e.preventDefault(), { passive: false }));
 
     document.getElementById('mathsToolTopbarBtn').addEventListener('click', () => {
         leaveKmLesson();
@@ -19981,6 +20000,8 @@ SQIDAQAB
             </div>
         `;
         contentInner.querySelector('.maths-tool-new-btn').addEventListener('click', renderMathsToolCompose);
+        // On a phone the list of questions starts tucked away (the Questions button opens it) so the working area gets the width.
+        if (window.innerWidth < 760) document.getElementById('mathsToolView').classList.add('sidebar-collapsed');
         contentInner.querySelector('#mathsNotesNewBtn').addEventListener('click', mathsNotesAdd);
         // On a narrow screen the page list starts tucked away (the Pages button opens it) so the writing area gets the room.
         if (window.innerWidth < 760) contentInner.querySelector('#mathsNotesView').classList.add('sidebar-collapsed');
