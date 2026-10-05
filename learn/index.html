@@ -4107,7 +4107,7 @@
     .nb-toolbar .maths-notes-kbd-switch button { color: #F1EAD6; }
     .nb-toolbar .maths-notes-kbd-switch button[aria-pressed="true"] { background: #F1EAD6; color: #1A232D; }
 
-    .nb-canvas { position: relative; background: #1A232D; color: #E6D7B0; border-radius: 10px; box-shadow: 0 2px 14px rgba(26, 35, 45, 0.35); cursor: text; overflow: hidden; --text: #E6D7B0; --accent: #F3E7BE; }
+    .nb-canvas { --nb-margin: 56px; position: relative; background-color: #1A232D; background-image: linear-gradient(to right, transparent calc(var(--nb-margin) - 2px), rgba(230, 215, 176, 0.5) calc(var(--nb-margin) - 2px), rgba(230, 215, 176, 0.5) var(--nb-margin), transparent var(--nb-margin)); color: #E6D7B0; border-radius: 10px; box-shadow: 0 2px 14px rgba(26, 35, 45, 0.35); cursor: text; overflow: hidden; --text: #E6D7B0; --accent: #F3E7BE; }
     .nb-hint { position: absolute; left: 0; right: 0; top: 40px; text-align: center; color: rgba(230, 215, 176, 0.5); font-size: 15px; pointer-events: none; }
     .nb-block { position: absolute; cursor: auto; }
     .nb-text { min-width: 140px; border-radius: 6px; outline: 1px dashed transparent; }
@@ -4117,7 +4117,9 @@
     .nb-text .math-shortcut-editor { min-height: 0; padding: 6px 8px; background: transparent; border: 0; border-radius: 6px; color: #E6D7B0; caret-color: #E6D7B0; font-family: inherit; font-size: 16px; line-height: 1.6; box-shadow: none; }
     .nb-text .math-shortcut-editor h1 { font-size: 1.9em; font-weight: 800; margin: 0.1em 0; line-height: 1.2; }
     .nb-text .math-shortcut-editor h2 { font-size: 1.35em; font-weight: 700; margin: 0.1em 0; line-height: 1.25; }
-    .nb-text .math-shortcut-editor ul, .nb-text .math-shortcut-editor ol { margin: 0.2em 0; padding-left: 1.5em; }
+    /* Lists hang their bullets and numbers in the gap beside the margin line while their text lines up with the paragraphs above and below. */
+    .nb-text .math-shortcut-editor ul, .nb-text .math-shortcut-editor ol { margin: 0.2em 0; padding-left: 0; list-style-position: outside; }
+    .nb-text .math-shortcut-editor li { margin-left: 0; padding-left: 0.1em; }
     .nb-text .math-shortcut-editor ul { list-style: disc; }
     .nb-text .math-shortcut-editor ol { list-style: decimal; }
     .nb-grip { position: absolute; left: -2px; top: -22px; width: 26px; height: 20px; display: none; align-items: center; justify-content: center; font-size: 14px; line-height: 1; cursor: grab; touch-action: none; user-select: none; color: #1A232D; background: #E6D7B0; border-radius: 5px 5px 0 0; }
@@ -20460,12 +20462,19 @@ SQIDAQAB
         page.doc = page.doc && Array.isArray(page.doc.blocks) ? page.doc : { blocks: [] };
         page.doc.blocks.forEach((b) => { if (b.type === 'diagram') nbMakeDiagramBlock(page, b, canvas); else if (b.type === 'graph') nbMakeGraphBlock(page, b, canvas); else nbMakeTextBlock(page, b, canvas, false); });
         nbToggleHint(canvas, page); nbFitCanvas(canvas);
-        // Click on empty paper: a new text box starts exactly there.
+        // The sheet has a margin line. A click on or near it starts the text a fixed, comfortable distance to its right; a click anywhere
+        // else starts the text exactly where you clicked.
+        const nbMargin = () => (canvas.clientWidth < 520 ? 28 : 56);
+        const nbTextStart = () => nbMargin() + 16;
+        const nbSetMargin = () => canvas.style.setProperty('--nb-margin', nbMargin() + 'px');
+        nbSetMargin(); window.addEventListener('resize', nbSetMargin);
         canvas.addEventListener('click', (e) => {
             if (e.target !== canvas && !e.target.classList.contains('nb-hint')) return;
-            const r = canvas.getBoundingClientRect();
-            const w = Math.min(460, Math.max(140, canvas.clientWidth - 8));
-            const block = { id: notesNewId(), type: 'text', x: nbClamp(e.clientX - r.left - 6, 0, Math.max(0, canvas.clientWidth - w)), y: Math.max(0, e.clientY - r.top - 16), w, html: '' };
+            const r = canvas.getBoundingClientRect(), cw = canvas.clientWidth, localX = e.clientX - r.left;
+            const nearMargin = localX < nbTextStart() + 56;
+            const x = nearMargin ? nbTextStart() : localX - 6;
+            const w = Math.min(nearMargin ? 640 : 460, Math.max(140, cw - x - 12));
+            const block = { id: notesNewId(), type: 'text', x: nbClamp(x, 0, Math.max(0, cw - w)), y: Math.max(0, e.clientY - r.top - 16), w, html: '' };
             page.doc.blocks.push(block);
             nbToggleHint(canvas, page);
             nbMakeTextBlock(page, block, canvas, true);
@@ -20492,7 +20501,7 @@ SQIDAQAB
         canvas.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.altKey && e.code === 'KeyG') { e.preventDefault(); addGraph(); } });
         document.getElementById('nbAddDiagram').addEventListener('click', () => {
             let bottom = 0; canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
-            const block = { id: notesNewId(), type: 'diagram', x: 24, y: bottom ? bottom + 24 : 24, w: Math.min(620, Math.max(300, canvas.clientWidth - 48)), state: {}, linesOpen: true };
+            const block = { id: notesNewId(), type: 'diagram', x: (canvas.clientWidth < 520 ? 44 : 72), y: bottom ? bottom + 24 : 24, w: Math.min(620, Math.max(300, canvas.clientWidth - 48)), state: {}, linesOpen: true };
             page.doc.blocks.push(block);
             nbToggleHint(canvas, page);
             const el = nbMakeDiagramBlock(page, block, canvas);
