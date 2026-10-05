@@ -20257,6 +20257,10 @@ SQIDAQAB
     function notesPrepareMain(title) {
         selectedFolderId = null; selectedSubfolderId = null; selectedPageId = null;
         stopActiveDictation(); stopSpeaking();
+        // Quick Notes is fixed to the viewport rather than mounted inside
+        // #contentInner, so clear the previous page's instance before any
+        // Notes page/landing is rendered. notesRenderPage mounts a fresh one.
+        removeQuickNotesWidget();
         document.getElementById('topbarTitle').textContent = title;
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
@@ -20547,6 +20551,12 @@ SQIDAQAB
             nbFitCanvas(canvas); notesScheduleSave();
             el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         });
+        // The lightweight scratchpad already used by concept notes, now
+        // available on every free-canvas Notes page too. It deliberately
+        // lives outside page.doc.blocks so opening it never shifts or covers
+        // the student's arranged text/graph blocks; its text is still saved
+        // with this page in the same account-scoped browser store.
+        renderQuickNotesWidget({ save: async () => notesPersist() }, page.doc);
         notesStatus(page.doc.blocks.length ? 'Saved' : '');
     }
 
@@ -26792,7 +26802,7 @@ SQIDAQAB
                 <textarea spellcheck="true" class="km-quick-notes-textarea" placeholder="Jot down a point for later, without losing your place…">${escapeHtml(note.quickNotes || '')}</textarea>
                 <div class="km-personal-note-save-state km-quick-notes-save-state"></div>
             </div>
-            <button type="button" class="km-quick-notes-toggle">Quick Notes ▾</button>
+            <button type="button" class="km-quick-notes-toggle" aria-expanded="false">Quick Notes ▴</button>
         `;
         document.body.appendChild(widget);
 
@@ -26803,7 +26813,10 @@ SQIDAQAB
 
         toggleBtn.addEventListener('click', () => {
             panel.classList.toggle('open');
-            if (panel.classList.contains('open')) textarea.focus();
+            const open = panel.classList.contains('open');
+            toggleBtn.setAttribute('aria-expanded', String(open));
+            toggleBtn.textContent = open ? 'Quick Notes ▾' : 'Quick Notes ▴';
+            if (open) textarea.focus();
         });
 
         let saveTimer = null;
