@@ -10165,6 +10165,7 @@ SQIDAQAB
             alt: 'An imagined courtroom with a judge\'s bench, witness stand and jury box',
             simulations: [
                 { key: 'criminal-trial', title: 'Criminal trial', image: '/assets/create/criminal-trial.jpg', description: 'Take a case from preparation through trial', alt: 'A person in handcuffs in the dock of an imagined courtroom' },
+                { key: 'criminal-lawyer-career', title: 'Criminal Lawyer Career', image: '/assets/create/criminal-lawyer-career.jpg', description: 'Build a career as a criminal lawyer, case by case', alt: 'A criminal barrister in a dark suit, seen from behind, walking down a wood-panelled courthouse corridor with a briefcase' },
             ],
         },
         {
@@ -10182,6 +10183,31 @@ SQIDAQAB
             ],
         },
     ];
+    // The Criminal Lawyer Career card opens here for now: the simulation itself is not built yet, so it says so plainly instead of
+    // falling through to the projects list.
+    function renderCreateCareerPlaceholder(contentInner) {
+        const sim = CREATE_TEMPLATES.find((t) => t.key === 'law').simulations.find((t) => t.key === 'criminal-lawyer-career');
+        contentInner.innerHTML = `
+            <section class="create-view" aria-labelledby="createTitle">
+                <div class="create-hero">
+                    <h1 class="create-title" id="createTitle">LastMind Create</h1>
+                    <p class="create-slogan">Learn by doing.</p>
+                    <p class="create-intro">Build interactive simulations, and sell them to an audience.</p>
+                </div>
+                <div class="create-section-heading">
+                    <h2>${escapeHtml(sim.title)}</h2>
+                    <button type="button" class="create-back" id="createBackBtn" data-view="law">← Law</button>
+                </div>
+                <div class="create-gallery">
+                    <article class="create-card">
+                        <h3>${escapeHtml(sim.title)}</h3>
+                        <img class="create-card-image" src="${sim.image}" alt="${escapeHtml(sim.alt)}" loading="lazy">
+                        <p>This simulation is coming soon.</p>
+                    </article>
+                </div>
+            </section>`;
+        document.getElementById('createBackBtn').addEventListener('click', () => renderCreatePage('law'));
+    }
     function renderCreatePage(view = 'projects') {
         if (view === true) view = 'gallery';
         if (view === false) view = 'projects';
@@ -10195,6 +10221,7 @@ SQIDAQAB
         contentInner.classList.add('content-inner-wide');
         if (view === 'criminal-trial') { renderCreateTrialBuilder(contentInner); return; }
         if (view === 'chancellor') { renderChancellorBuilder(contentInner); return; }
+        if (view === 'criminal-lawyer-career') { renderCreateCareerPlaceholder(contentInner); return; }
         const card = (t, attrs = '') => `
                         <article class="create-card${attrs ? ' create-card-link' : ''}" ${attrs}>
                             <h3>${escapeHtml(t.title)}</h3>
