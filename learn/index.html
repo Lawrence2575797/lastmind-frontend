@@ -4068,6 +4068,74 @@
     .maths-notes-status { margin-left: auto; opacity: 0.6; font-size: 12px; }
     .maths-notes-editor-host .math-shortcut-wrap { margin-top: 0; }
     .maths-notes-editor-host .math-shortcut-editor { min-height: clamp(320px, 62vh, 900px); font-family: inherit; font-size: 16px; line-height: 1.8; }
+    /* ─── NOTES (sidebar tab + page canvas) ─── */
+    .sidebar-tabs { display: flex; }
+    .notes-panel { display: none; flex: 1; overflow-y: auto; padding: 10px 10px 20px; flex-direction: column; gap: 10px; }
+    .notes-panel-actions { display: flex; gap: 6px; }
+    .notes-panel-actions .new-chat-btn { flex: 1; }
+    .nt-row { display: flex; align-items: center; gap: 2px; border-radius: 4px; }
+    .nt-row:hover { background: rgba(230, 215, 176, 0.06); }
+    .nt-row.active { background: rgba(230, 215, 176, 0.14); }
+    .nt-caret { flex: none; width: 20px; height: 26px; background: none; border: 0; color: var(--text); opacity: 0.7; cursor: pointer; font-size: 0.8rem; padding: 0; }
+    .nt-caret-page { cursor: default; }
+    .nt-name { flex: 1; min-width: 0; text-align: left; background: none; border: 0; color: var(--text); font-family: 'Arial', sans-serif; font-size: 0.84rem; padding: 7px 4px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .nt-name.nt-folder { font-weight: 700; }
+    .nt-more { flex: none; width: 28px; height: 28px; background: none; border: 0; color: var(--text); opacity: 0.55; cursor: pointer; font-size: 1rem; border-radius: 4px; }
+    .nt-more:hover, .nt-more[aria-expanded="true"] { opacity: 1; background: rgba(230, 215, 176, 0.12); }
+    .nt-actions { display: flex; flex-wrap: wrap; gap: 4px; padding: 2px 4px 6px; }
+    .nt-actions .btn { font-size: 0.72rem; padding: 4px 9px; background: var(--panel); color: var(--text); border: 1px solid rgba(230, 215, 176, 0.35); }
+
+    .nb-landing { max-width: 520px; margin: 40px auto; text-align: center; color: var(--ink, #1A232D); }
+    .nb-landing-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+    .nb-page-wrap { max-width: 1100px; margin: 0 auto; }
+    .nb-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .nb-title { flex: 1; min-width: 0; font: inherit; font-size: 22px; font-weight: 800; color: var(--ink, #1A232D); background: transparent; border: 0; border-bottom: 2px solid rgba(26, 35, 45, 0.25); padding: 4px 2px; outline: none; }
+    .nb-title::placeholder { color: rgba(26, 35, 45, 0.45); }
+    .nb-title:focus { border-bottom-color: var(--ink, #1A232D); }
+    .nb-status { font-size: 12px; color: var(--ink, #1A232D); opacity: 0.65; white-space: nowrap; }
+    .nb-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; position: sticky; top: 0; z-index: 5; padding: 6px; border-radius: 10px; background: #1A232D; }
+    .nb-tool { font: inherit; font-size: 12.5px; font-weight: 700; padding: 6px 11px; border-radius: 8px; cursor: pointer; background: transparent; color: #F1EAD6; border: 1.5px solid rgba(241, 234, 214, 0.35); }
+    .nb-tool:hover { background: rgba(241, 234, 214, 0.14); }
+    .nb-tool-strong { background: #F1EAD6; color: #1A232D; border-color: #F1EAD6; }
+    .nb-tool-strong:hover { background: #fff; }
+    .nb-toolbar .maths-notes-kbd-switch { border-color: rgba(241, 234, 214, 0.35); }
+    .nb-toolbar .maths-notes-kbd-switch button { color: #F1EAD6; }
+    .nb-toolbar .maths-notes-kbd-switch button[aria-pressed="true"] { background: #F1EAD6; color: #1A232D; }
+
+    .nb-canvas { position: relative; background: #FFFDF7; color: #1A232D; border-radius: 10px; box-shadow: 0 2px 14px rgba(26, 35, 45, 0.18); cursor: text; overflow: hidden; --text: #1A232D; --accent: #8A4B08; }
+    .nb-hint { position: absolute; left: 0; right: 0; top: 40px; text-align: center; color: rgba(26, 35, 45, 0.4); font-size: 15px; pointer-events: none; }
+    .nb-block { position: absolute; cursor: auto; }
+    .nb-text { min-width: 140px; border-radius: 6px; outline: 1px dashed transparent; }
+    .nb-text:hover, .nb-text:focus-within { outline-color: rgba(26, 35, 45, 0.3); }
+    .nb-text .math-shortcut-wrap { margin: 0; }
+    .nb-text .math-shortcut-mode-badge { display: none; }
+    .nb-text .math-shortcut-editor { min-height: 0; padding: 6px 8px; background: transparent; border: 0; border-radius: 6px; color: #1A232D; font-family: inherit; font-size: 16px; line-height: 1.6; box-shadow: none; }
+    .nb-text .math-shortcut-editor h1 { font-size: 1.9em; font-weight: 800; margin: 0.1em 0; line-height: 1.2; }
+    .nb-text .math-shortcut-editor h2 { font-size: 1.35em; font-weight: 700; margin: 0.1em 0; line-height: 1.25; }
+    .nb-text .math-shortcut-editor ul, .nb-text .math-shortcut-editor ol { margin: 0.2em 0; padding-left: 1.5em; }
+    .nb-text .math-shortcut-editor ul { list-style: disc; }
+    .nb-text .math-shortcut-editor ol { list-style: decimal; }
+    .nb-grip { position: absolute; left: -2px; top: -22px; width: 26px; height: 20px; display: none; align-items: center; justify-content: center; font-size: 14px; line-height: 1; cursor: grab; touch-action: none; user-select: none; color: #F1EAD6; background: #1A232D; border-radius: 5px 5px 0 0; }
+    .nb-text:hover > .nb-grip, .nb-text:focus-within > .nb-grip { display: flex; }
+    .nb-del { position: absolute; right: -2px; top: -22px; width: 22px; height: 20px; display: none; align-items: center; justify-content: center; padding: 0; font-size: 15px; line-height: 1; cursor: pointer; color: #F1EAD6; background: #8A2B2B; border: 0; border-radius: 5px 5px 0 0; }
+    .nb-text:hover > .nb-del, .nb-text:focus-within > .nb-del { display: flex; }
+    .nb-resize { position: absolute; right: -4px; top: 0; bottom: 0; width: 9px; cursor: ew-resize; touch-action: none; opacity: 0; background: rgba(26, 35, 45, 0.35); border-radius: 4px; }
+    .nb-text:hover > .nb-resize, .nb-text:focus-within > .nb-resize, .nb-diagram:hover > .nb-resize { opacity: 1; }
+    @media (hover: none) {
+        .nb-text > .nb-grip, .nb-text > .nb-del { display: flex; }
+    }
+
+    .nb-diagram { background: var(--panel, #12121E); color: var(--text, #E6D7B0); border-radius: 10px; padding: 0 0 8px; --text: #E6D7B0; --accent: #E6D7B0; box-shadow: 0 2px 10px rgba(26, 35, 45, 0.3); }
+    .nb-dbar { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-bottom: 1px solid rgba(230, 215, 176, 0.18); }
+    .nb-dbar .nb-grip { position: static; display: flex; flex: 1; justify-content: flex-start; width: auto; height: 26px; padding: 0 8px; background: transparent; color: var(--text); font-size: 13px; font-weight: 700; gap: 6px; }
+    .nb-lines-btn { font: inherit; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 8px; cursor: pointer; background: transparent; color: var(--text); border: 1.5px solid rgba(230, 215, 176, 0.4); }
+    .nb-lines-btn:hover { background: rgba(230, 215, 176, 0.14); }
+    .nb-del.nb-del-inline { position: static; display: flex; width: 26px; height: 26px; border-radius: 6px; }
+    .nb-dhost { padding: 8px 10px 0; }
+    .nb-dhost.nb-lines-closed .diagram-palette { display: none; }
+    .nb-diagram .diagram-submit-btn, .nb-diagram .diagram-result { display: none; }
+    .nb-diagram .diagram-widget { max-width: 100%; }
+    .nb-shortcut-extra { margin-bottom: 6px; }
     .maths-shortcut-popup { position: fixed; right: 20px; bottom: 20px; z-index: 300; width: min(460px, calc(100vw - 32px)); max-height: min(70vh, 560px); overflow: auto; padding: 12px 14px 14px; border-radius: 10px; background: var(--panel); color: var(--text); border: 1.5px solid rgba(230, 215, 176, 0.35); box-shadow: 0 10px 34px rgba(0, 0, 0, 0.4); font-size: 12px; }
     .maths-shortcut-popup-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; font-size: 13px; }
     .maths-shortcut-popup-close { font: inherit; font-size: 20px; line-height: 1; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; background: transparent; color: var(--text); border: 1.5px solid rgba(230, 215, 176, 0.3); }
@@ -6387,8 +6455,9 @@
             </div>
 
             <div class="sidebar-tabs">
-                <button class="sidebar-tab-btn" id="cortexTabBtn" type="button">LastMind</button>
-                <button class="sidebar-tab-btn active" id="foldersTabBtn" type="button">Your Mind</button>
+                <button class="sidebar-tab-btn active" id="cortexTabBtn" type="button">LastMind</button>
+                <button class="sidebar-tab-btn" id="notesTabBtn" type="button">Notes</button>
+                <button class="sidebar-tab-btn" id="foldersTabBtn" type="button" hidden style="display:none;">Your Mind</button>
             </div>
 
             <div class="folder-list" id="folderList">
@@ -6400,6 +6469,14 @@
                 <div class="cortex-chat-list-items" id="cortexChatListItems">
                     <div class="empty-hint">No chats yet — start one with "+ New chat".</div>
                 </div>
+            </div>
+
+            <div class="notes-panel" id="notesPanel">
+                <div class="notes-panel-actions">
+                    <button type="button" class="new-chat-btn" id="notesNewFolderBtn">+ Folder</button>
+                    <button type="button" class="new-chat-btn" id="notesNewPageBtn">+ Page</button>
+                </div>
+                <div class="notes-panel-tree" id="notesTreeItems"></div>
             </div>
 
             <div class="sidebar-footer">
@@ -17833,14 +17910,18 @@ SQIDAQAB
     document.getElementById('founderTutoringTopbarBtn').addEventListener('click', renderFounderTutoringPage);
     document.getElementById('liveTutoringMenuBtn').addEventListener('click', renderFounderTutoringPage);
 
-    let sidebarTab = 'folders'; // 'folders' | 'cortex'
+    let sidebarTab = 'folders'; // 'folders' | 'cortex' | 'notes'
 
     function setSidebarTab(tab) {
         sidebarTab = tab;
         document.getElementById('foldersTabBtn').classList.toggle('active', tab === 'folders');
         document.getElementById('cortexTabBtn').classList.toggle('active', tab === 'cortex');
+        document.getElementById('notesTabBtn').classList.toggle('active', tab === 'notes');
         document.getElementById('folderList').style.display = tab === 'folders' ? 'block' : 'none';
         document.getElementById('cortexChatList').style.display = tab === 'cortex' ? 'flex' : 'none';
+        document.getElementById('notesPanel').style.display = tab === 'notes' ? 'flex' : 'none';
+        if (tab !== 'notes' && notesLoaded) notesFlush();
+        if (tab === 'notes') notesEnsureLoaded().then(renderMyNotesTree);
         if (tab === 'cortex') refreshCortexChatList();
         // Real, reported request: Home (goToMainFeed) just re-opens the
         // LastMind chat/dashboard when nothing else is selected (see
@@ -17880,6 +17961,15 @@ SQIDAQAB
         setSidebarTab('cortex');
         renderWelcome();
     });
+
+    // Notes: your own folders, subfolders and pages (see the Notes module near the Maths Tool). Opens the page you were last on.
+    document.getElementById('notesTabBtn').addEventListener('click', async () => {
+        await notesEnsureLoaded();
+        setSidebarTab('notes');
+        const last = notesNode(notes.activeId);
+        if (last && last.type === 'page') notesOpenPage(last.id, false); else notesRenderLanding();
+    });
+    wireNotesTree();
 
     // Points the dashboard's embedded Cortex iframe at a specific chat
     // (or a fresh one) and makes sure the dashboard itself is what's
@@ -19745,52 +19835,13 @@ SQIDAQAB
         return tpl.innerHTML;
     }
 
-    // ─── Maths Tool: Notes ───
-    // Pages of free writing in the same editor as the Maths Tool's questions (same maths keyboard, # or the switch for English).
-    // Saved in this browser as you type, under the signed-in account, so another account on the same computer never sees them.
-    const MATHS_NOTES_KEY = 'lastmind-maths-notes-v1';
-    let mathsNotes = { pages: [], activeId: null };
-    let mathsNotesStorageKey = MATHS_NOTES_KEY;
-    let mathsNotesEditor = null, mathsNotesSaveTimer = null, mathsNotesWriting = false, mathsNotesListening = false;
-
-    function mathsNotesNewPage() {
-        return { id: 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title: '', html: '', updatedAt: new Date().toISOString() };
-    }
-    function mathsNotesLoad() {
-        try {
-            const d = JSON.parse(localStorage.getItem(mathsNotesStorageKey) || 'null');
-            if (d && Array.isArray(d.pages)) return { pages: d.pages.filter((pg) => pg && pg.id), activeId: d.activeId || null };
-        } catch (_) { /* nothing saved yet, or unreadable: start fresh */ }
-        return { pages: [], activeId: null };
-    }
-    function mathsNotesPersist() {
-        try { localStorage.setItem(mathsNotesStorageKey, JSON.stringify(mathsNotes)); return true; } catch (_) { return false; }
-    }
-    function mathsNotesStatus(text) { const el = document.getElementById('mathsNotesStatus'); if (el) el.textContent = text; }
-    function mathsNotesPage() { return mathsNotes.pages.find((pg) => pg.id === mathsNotes.activeId) || null; }
-
-    // Writes the open page to storage now (used before switching page or leaving, and by the short delay after typing).
-    function mathsNotesFlush() {
-        if (mathsNotesSaveTimer) { clearTimeout(mathsNotesSaveTimer); mathsNotesSaveTimer = null; }
-        const page = mathsNotesPage();
-        if (!page || !mathsNotesEditor) return;
-        const html = mathsNotesEditor.getHtml();
-        if (html !== page.html) { page.html = html; page.updatedAt = new Date().toISOString(); }
-        mathsNotesStatus(mathsNotesPersist() ? 'Saved' : 'Could not save: this browser has no space left');
-    }
-    function mathsNotesScheduleSave() {
-        mathsNotesStatus('Saving…');
-        if (mathsNotesSaveTimer) clearTimeout(mathsNotesSaveTimer);
-        mathsNotesSaveTimer = setTimeout(mathsNotesFlush, 500);
-    }
-
-    function openMathsShortcutPopup() {
+    function openMathsShortcutPopup(extraHtml) {
         const old = document.getElementById('mathsShortcutPopup');
         if (old) { old.remove(); return; } // pressing the button again closes it
         const pop = document.createElement('div');
         pop.id = 'mathsShortcutPopup'; pop.className = 'maths-shortcut-popup';
         pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', 'Keyboard shortcuts');
-        pop.innerHTML = `<div class="maths-shortcut-popup-head"><strong>Keyboard shortcuts</strong><button type="button" class="maths-shortcut-popup-close" aria-label="Close the shortcuts">×</button></div><ul class="math-shortcut-list">${MATHS_SHORTCUT_ITEMS_HTML}</ul>`;
+        pop.innerHTML = `<div class="maths-shortcut-popup-head"><strong>Keyboard shortcuts</strong><button type="button" class="maths-shortcut-popup-close" aria-label="Close the shortcuts">×</button></div>${extraHtml || ''}<ul class="math-shortcut-list">${MATHS_SHORTCUT_ITEMS_HTML}</ul>`;
         document.body.appendChild(pop);
         const onKey = (e) => { if (e.key === 'Escape') close(); };
         function close() { pop.remove(); document.removeEventListener('keydown', onKey, true); }
@@ -19799,103 +19850,398 @@ SQIDAQAB
     }
     function closeMathsShortcutPopup() { const pop = document.getElementById('mathsShortcutPopup'); if (pop) pop.remove(); }
 
-    function renderMathsNotesList() {
-        const el = document.getElementById('mathsNotesList');
-        if (!el) return;
-        el.innerHTML = mathsNotes.pages.map((pg) => `<button type="button" class="maths-tool-thread-item ${pg.id === mathsNotes.activeId ? 'active' : ''}" data-id="${escapeHtml(pg.id)}">${escapeHtml(pg.title || 'Untitled page')}</button>`).join('');
-        el.querySelectorAll('.maths-tool-thread-item').forEach((btn) => btn.addEventListener('click', () => mathsNotesSelect(btn.dataset.id)));
+    // ─── Notes (sidebar) ───
+    // Your own notes: folders, folders inside folders, and pages. A page is one big sheet: click anywhere on it to start typing there
+    // (no need to begin at the left), drag a text box or diagram by its grip, and drop an Economics diagram in among the text. Text boxes
+    // use the same editor as the Maths Tool (English keyboard by default, # for the maths one). Everything is saved in this browser as
+    // you work, under the signed-in account, so another account on the same computer never sees it.
+    const NOTES_KEY = 'lastmind-notes-v2';
+    const OLD_MATHS_NOTES_KEY = 'lastmind-maths-notes-v1';
+    let notes = { nodes: [], activeId: null };
+    let notesKey = NOTES_KEY, notesLoaded = false, notesSaveTimer = null, notesListening = false;
+    let notesWriting = true;          // the keyboard: true = English, false = maths (# switches)
+    let notesActive = null;           // { ed, editable }: the text box the toolbar acts on
+    let notesMenuId = null;           // the row whose actions are showing in the tree
+    let notesResizeObs = null;
+    const nbClamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+    function notesNewId() { return 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+    function notesNode(id) { return notes.nodes.find((n) => n.id === id) || null; }
+    function notesPersist() { try { localStorage.setItem(notesKey, JSON.stringify(notes)); return true; } catch (_) { return false; } }
+    function notesStatus(text) { const el = document.getElementById('nbStatus'); if (el) el.textContent = text; }
+    function notesFlush() {
+        if (notesSaveTimer) { clearTimeout(notesSaveTimer); notesSaveTimer = null; }
+        notesStatus(notesPersist() ? 'Saved' : 'Could not save: this browser has no space left');
+    }
+    function notesScheduleSave() {
+        notesStatus('Saving…');
+        if (notesSaveTimer) clearTimeout(notesSaveTimer);
+        notesSaveTimer = setTimeout(notesFlush, 500);
     }
 
-    function mathsNotesRenderPage() {
-        const main = document.getElementById('mathsNotesMain');
-        const page = mathsNotesPage();
-        if (!main || !page) return;
-        main.innerHTML = `
-            <div class="maths-notes-head">
-                <input type="text" class="maths-notes-title" id="mathsNotesTitle" placeholder="Untitled page" maxlength="120" aria-label="Page title">
-                <button type="button" class="btn" id="mathsNotesDeleteBtn">Delete page</button>
-            </div>
-            <div class="maths-notes-bar">
-                <span class="maths-notes-kbd-switch" role="group" aria-label="Keyboard">
-                    <button type="button" id="mathsNotesKbdMaths" aria-pressed="true">Maths keyboard</button>
-                    <button type="button" id="mathsNotesKbdEnglish" aria-pressed="false">English keyboard</button>
-                </span>
-                <button type="button" class="btn" id="mathsNotesShortcutsBtn">Keyboard shortcuts</button>
-                <span class="maths-notes-status" id="mathsNotesStatus" aria-live="polite"></span>
-            </div>
-            <div class="maths-notes-editor-host" id="mathsNotesEditorHost"></div>`;
-        const syncKeyboard = (writing) => {
-            mathsNotesWriting = writing;
-            const m = document.getElementById('mathsNotesKbdMaths'), e = document.getElementById('mathsNotesKbdEnglish');
-            if (m) m.setAttribute('aria-pressed', String(!writing));
-            if (e) e.setAttribute('aria-pressed', String(writing));
-        };
-        mathsNotesEditor = createSmartAnswerEditor('Start writing here…', { hideShortcutHint: true, onModeChange: syncKeyboard });
-        document.getElementById('mathsNotesEditorHost').appendChild(mathsNotesEditor.container);
-        mathsNotesEditor.setHtml(page.html);               // before onChange is hooked up, so loading a page does not count as an edit
-        mathsNotesEditor.setWritingMode(mathsNotesWriting); // the keyboard stays as you left it from page to page
-        syncKeyboard(mathsNotesWriting);
-        mathsNotesEditor.onChange(mathsNotesScheduleSave);
-        const title = document.getElementById('mathsNotesTitle');
-        title.value = page.title || '';
-        title.addEventListener('input', () => { page.title = title.value; page.updatedAt = new Date().toISOString(); renderMathsNotesList(); mathsNotesScheduleSave(); });
-        title.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); mathsNotesEditor.focus(); } });
-        document.getElementById('mathsNotesKbdMaths').addEventListener('click', () => { mathsNotesEditor.setWritingMode(false); mathsNotesEditor.focus(); });
-        document.getElementById('mathsNotesKbdEnglish').addEventListener('click', () => { mathsNotesEditor.setWritingMode(true); mathsNotesEditor.focus(); });
-        document.getElementById('mathsNotesShortcutsBtn').addEventListener('click', openMathsShortcutPopup);
-        document.getElementById('mathsNotesDeleteBtn').addEventListener('click', mathsNotesDelete);
-        mathsNotesStatus(page.html ? 'Saved' : '');
-    }
-
-    function mathsNotesSelect(id) {
-        mathsNotesFlush();
-        mathsNotes.activeId = id;
-        mathsNotesPersist();
-        renderMathsNotesList();
-        mathsNotesRenderPage();
-    }
-    function mathsNotesAdd() {
-        mathsNotesFlush();
-        const page = mathsNotesNewPage();
-        mathsNotes.pages.unshift(page);
-        mathsNotes.activeId = page.id;
-        mathsNotesPersist();
-        renderMathsNotesList();
-        mathsNotesRenderPage();
-        const t = document.getElementById('mathsNotesTitle');
-        if (t) t.focus();
-    }
-    function mathsNotesDelete() {
-        const page = mathsNotesPage();
-        if (!page) return;
-        if (!confirm(`Delete "${page.title || 'Untitled page'}"? This cannot be undone.`)) return;
-        const at = mathsNotes.pages.indexOf(page);
-        mathsNotes.pages.splice(at, 1);
-        if (!mathsNotes.pages.length) mathsNotes.pages.push(mathsNotesNewPage());
-        mathsNotes.activeId = mathsNotes.pages[Math.min(at, mathsNotes.pages.length - 1)].id;
-        mathsNotesEditor = null; // the deleted page must not be written back by a pending save
-        if (mathsNotesSaveTimer) { clearTimeout(mathsNotesSaveTimer); mathsNotesSaveTimer = null; }
-        mathsNotesPersist();
-        renderMathsNotesList();
-        mathsNotesRenderPage();
-    }
-
-    async function openMathsNotes() {
+    // Pages written in the old Maths Tool notes tab come across into a folder of their own, once.
+    function notesMigrateMathsNotes(userSuffix) {
         try {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            mathsNotesStorageKey = session && session.user ? `${MATHS_NOTES_KEY}:${session.user.id}` : MATHS_NOTES_KEY;
-        } catch (_) { mathsNotesStorageKey = MATHS_NOTES_KEY; }
-        mathsNotes = mathsNotesLoad();
-        if (!mathsNotes.pages.length) { const first = mathsNotesNewPage(); mathsNotes.pages.push(first); mathsNotes.activeId = first.id; mathsNotesPersist(); }
-        if (!mathsNotesPage()) mathsNotes.activeId = mathsNotes.pages[0].id;
-        if (!mathsNotesListening) {
-            mathsNotesListening = true;
-            // Nothing typed is lost if the tab is closed or switched away a moment after typing.
-            window.addEventListener('beforeunload', () => mathsNotesFlush());
-            document.addEventListener('visibilitychange', () => { if (document.hidden) mathsNotesFlush(); });
+            const d = JSON.parse(localStorage.getItem(OLD_MATHS_NOTES_KEY + userSuffix) || 'null');
+            const pages = d && Array.isArray(d.pages) ? d.pages.filter((p) => p && (p.html || p.title)) : [];
+            if (!pages.length) return;
+            const folder = { id: notesNewId(), type: 'folder', parentId: null, name: 'Maths notes', open: true };
+            notes.nodes.push(folder);
+            pages.forEach((p) => notes.nodes.push({ id: notesNewId(), type: 'page', parentId: folder.id, name: p.title || 'Untitled page',
+                doc: { blocks: [{ id: notesNewId(), type: 'text', x: 24, y: 24, w: 640, html: p.html || '' }] }, updatedAt: p.updatedAt || new Date().toISOString() }));
+        } catch (_) { /* nothing to bring across */ }
+    }
+    async function notesEnsureLoaded() {
+        if (notesLoaded) return;
+        let suffix = '';
+        try { const { data: { session } } = await supabaseClient.auth.getSession(); if (session && session.user) suffix = ':' + session.user.id; } catch (_) { /* signed out: shared key */ }
+        notesKey = NOTES_KEY + suffix;
+        let d = null;
+        try { d = JSON.parse(localStorage.getItem(notesKey) || 'null'); } catch (_) { d = null; }
+        if (d && Array.isArray(d.nodes)) notes = { nodes: d.nodes.filter((n) => n && n.id && (n.type === 'folder' || n.type === 'page')), activeId: d.activeId || null };
+        else { notes = { nodes: [], activeId: null }; notesMigrateMathsNotes(suffix); notesPersist(); }
+        notesLoaded = true;
+        if (!notesListening) {
+            notesListening = true;
+            window.addEventListener('beforeunload', notesFlush);
+            document.addEventListener('visibilitychange', () => { if (document.hidden) notesFlush(); });
         }
-        renderMathsNotesList();
-        mathsNotesRenderPage();
+    }
+
+    // ----- the tree in the sidebar -----
+    function notesChildren(pid) {
+        const kids = notes.nodes.filter((n) => (n.parentId || null) === pid);
+        return kids.filter((n) => n.type === 'folder').concat(kids.filter((n) => n.type === 'page'));
+    }
+    function notesDescendants(id) {
+        const out = [];
+        notesChildren(id).forEach((c) => { out.push(c.id); notesDescendants(c.id).forEach((x) => out.push(x)); });
+        return out;
+    }
+    function renderMyNotesTree() {
+        const el = document.getElementById('notesTreeItems');
+        if (!el) return;
+        const rows = [];
+        const walk = (pid, depth) => notesChildren(pid).forEach((n) => {
+            const isFolder = n.type === 'folder';
+            const open = isFolder && n.open !== false;
+            const label = escapeHtml(n.name || (isFolder ? 'New folder' : 'Untitled page'));
+            rows.push(`<div class="nt-row ${n.id === notes.activeId ? 'active' : ''}" data-id="${escapeHtml(n.id)}" style="padding-left:${6 + depth * 14}px">
+                ${isFolder ? `<button type="button" class="nt-caret" data-act="toggle" aria-label="${open ? 'Close' : 'Open'} folder" aria-expanded="${open}">${open ? '▾' : '▸'}</button>` : '<span class="nt-caret nt-caret-page"></span>'}
+                <button type="button" class="nt-name ${isFolder ? 'nt-folder' : ''}" data-act="${isFolder ? 'toggle' : 'open'}">${label}</button>
+                <button type="button" class="nt-more" data-act="more" aria-label="Actions for ${label}" aria-expanded="${notesMenuId === n.id}">⋯</button>
+            </div>`);
+            if (notesMenuId === n.id) rows.push(`<div class="nt-actions" data-for="${escapeHtml(n.id)}" style="padding-left:${6 + depth * 14}px">
+                ${isFolder ? '<button type="button" class="btn" data-act="addpage">+ Page</button><button type="button" class="btn" data-act="addfolder">+ Folder</button>' : ''}
+                <button type="button" class="btn" data-act="rename">Rename</button><button type="button" class="btn" data-act="delete">Delete</button></div>`);
+            if (open) walk(n.id, depth + 1);
+        });
+        walk(null, 0);
+        el.innerHTML = rows.length ? rows.join('') : '<div class="empty-hint">No notes yet. Add a folder to organise them, or a page to start writing.</div>';
+    }
+    function notesAddFolder(parentId) {
+        const name = prompt(parentId ? 'Name of the new subfolder' : 'Name of the new folder', '');
+        if (name == null) return;
+        notes.nodes.push({ id: notesNewId(), type: 'folder', parentId: parentId || null, name: name.trim() || 'New folder', open: true });
+        const p = parentId && notesNode(parentId); if (p) p.open = true;
+        notesMenuId = null; notesPersist(); renderMyNotesTree();
+    }
+    function notesAddPage(parentId) {
+        const page = { id: notesNewId(), type: 'page', parentId: parentId || null, name: 'Untitled page', doc: { blocks: [] }, updatedAt: new Date().toISOString() };
+        notes.nodes.push(page);
+        const p = parentId && notesNode(parentId); if (p) p.open = true;
+        notesMenuId = null; notesPersist();
+        notesOpenPage(page.id, true);
+    }
+    function notesRename(id) {
+        const n = notesNode(id); if (!n) return;
+        const name = prompt('New name', n.name || '');
+        if (name == null || !name.trim()) return;
+        n.name = name.trim(); notesMenuId = null; notesPersist(); renderMyNotesTree();
+        if (n.id === notes.activeId) { const t = document.getElementById('nbTitle'); if (t) t.value = n.name; }
+    }
+    function notesDelete(id) {
+        const n = notesNode(id); if (!n) return;
+        const inside = notesDescendants(id);
+        if (!confirm(n.type === 'folder' && inside.length ? `Delete the folder "${n.name}" and everything inside it? This cannot be undone.` : `Delete "${n.name}"? This cannot be undone.`)) return;
+        const gone = new Set([id, ...inside]);
+        notes.nodes = notes.nodes.filter((x) => !gone.has(x.id));
+        notesMenuId = null;
+        const wasOpen = gone.has(notes.activeId);
+        if (wasOpen) notes.activeId = null;
+        notesPersist(); renderMyNotesTree();
+        if (wasOpen) notesRenderLanding();
+    }
+    function wireNotesTree() {
+        document.getElementById('notesTreeItems').addEventListener('click', (ev) => {
+            const btn = ev.target.closest('[data-act]'); if (!btn) return;
+            const holder = btn.closest('[data-id], [data-for]');
+            const id = holder && (holder.dataset.id || holder.dataset.for); if (!id) return;
+            const act = btn.dataset.act, n = notesNode(id);
+            if (act === 'toggle' && n) { n.open = n.open === false; notesPersist(); renderMyNotesTree(); }
+            else if (act === 'open') notesOpenPage(id, false);
+            else if (act === 'more') { notesMenuId = notesMenuId === id ? null : id; renderMyNotesTree(); }
+            else if (act === 'addpage') notesAddPage(id);
+            else if (act === 'addfolder') notesAddFolder(id);
+            else if (act === 'rename') notesRename(id);
+            else if (act === 'delete') notesDelete(id);
+        });
+        document.getElementById('notesNewFolderBtn').addEventListener('click', () => notesAddFolder(null));
+        document.getElementById('notesNewPageBtn').addEventListener('click', () => notesAddPage(null));
+    }
+
+    // ----- the main area -----
+    function notesPrepareMain(title) {
+        selectedFolderId = null; selectedSubfolderId = null; selectedPageId = null;
+        stopActiveDictation(); stopSpeaking();
+        document.getElementById('topbarTitle').textContent = title;
+        const contentInner = document.getElementById('contentInner');
+        contentInner.classList.add('content-inner-wide');
+        if (notesResizeObs) { notesResizeObs.disconnect(); notesResizeObs = null; }
+        notesActive = null;
+        return contentInner;
+    }
+    function notesRenderLanding() {
+        const contentInner = notesPrepareMain('Notes');
+        contentInner.innerHTML = `<div class="nb-landing"><h2>Notes</h2><p>Pick a page from the list on the left, or start a new one.</p>
+            <div class="nb-landing-actions"><button type="button" class="btn primary" id="nbLandingPage">+ New page</button><button type="button" class="btn" id="nbLandingFolder">+ New folder</button></div></div>`;
+        document.getElementById('nbLandingPage').addEventListener('click', () => notesAddPage(null));
+        document.getElementById('nbLandingFolder').addEventListener('click', () => notesAddFolder(null));
+    }
+
+    const NB_FORMATS = { h1: ['formatBlock', 'h1'], h2: ['formatBlock', 'h2'], p: ['formatBlock', 'div'], ul: ['insertUnorderedList'], ol: ['insertOrderedList'] };
+    function nbFormat(kind) {
+        if (!notesActive) { notesStatus('Click on the page and start a text box first'); return; }
+        notesActive.editable.focus();
+        const f = NB_FORMATS[kind]; if (!f) return;
+        if (f[0] === 'formatBlock') {
+            let cur = ''; try { cur = String(document.queryCommandValue('formatBlock') || '').toLowerCase().replace(/[<>]/g, ''); } catch (_) { cur = ''; }
+            document.execCommand('formatBlock', false, cur === f[1] ? 'div' : f[1]);
+        } else document.execCommand(f[0], false, null);
+    }
+    function nbSyncKeyboardButtons() {
+        const m = document.getElementById('nbKbdMaths'), e = document.getElementById('nbKbdEnglish');
+        if (m) m.setAttribute('aria-pressed', String(!notesWriting));
+        if (e) e.setAttribute('aria-pressed', String(notesWriting));
+    }
+
+    // Where a block sits and how wide it is, kept inside the page on a narrow screen without changing what is saved.
+    function nbPlace(el, block, canvas) {
+        const minW = block.type === 'diagram' ? 300 : 140, cw = canvas.clientWidth || 600;
+        const w = nbClamp(block.w || 460, minW, Math.max(minW, cw));
+        const x = nbClamp(block.x || 0, 0, Math.max(0, cw - w));
+        el.style.left = x + 'px'; el.style.top = Math.max(0, block.y || 0) + 'px'; el.style.width = w + 'px';
+    }
+    function nbFitCanvas(canvas) {
+        let bottom = 0;
+        canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
+        canvas.style.height = Math.max(Math.round(window.innerHeight * 0.68), 480, bottom + 160) + 'px';
+    }
+    function nbWireDrag(handle, el, block, canvas) {
+        handle.addEventListener('pointerdown', (e) => {
+            if (e.button !== 0) return;
+            e.preventDefault();
+            const sx = e.clientX, sy = e.clientY, ox = el.offsetLeft, oy = el.offsetTop;
+            try { handle.setPointerCapture(e.pointerId); } catch (_) { /* older browser */ }
+            const move = (ev) => {
+                block.x = nbClamp(ox + ev.clientX - sx, 0, Math.max(0, canvas.clientWidth - el.offsetWidth));
+                block.y = Math.max(0, oy + ev.clientY - sy);
+                el.style.left = block.x + 'px'; el.style.top = block.y + 'px';
+                nbFitCanvas(canvas);
+            };
+            const up = () => { handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up); handle.removeEventListener('pointercancel', up); notesScheduleSave(); };
+            handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', up); handle.addEventListener('pointercancel', up);
+        });
+    }
+    function nbWireResize(handle, el, block, canvas) {
+        handle.addEventListener('pointerdown', (e) => {
+            if (e.button !== 0) return;
+            e.preventDefault(); e.stopPropagation();
+            const sx = e.clientX, ow = el.offsetWidth, minW = block.type === 'diagram' ? 300 : 140;
+            try { handle.setPointerCapture(e.pointerId); } catch (_) { /* older browser */ }
+            const move = (ev) => { block.w = nbClamp(ow + ev.clientX - sx, minW, Math.max(minW, canvas.clientWidth - el.offsetLeft)); el.style.width = block.w + 'px'; nbFitCanvas(canvas); };
+            const up = () => { handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up); handle.removeEventListener('pointercancel', up); notesScheduleSave(); };
+            handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', up); handle.addEventListener('pointercancel', up);
+        });
+    }
+    function nbRemoveBlock(page, block, el, canvas) {
+        page.doc.blocks = page.doc.blocks.filter((b) => b !== block);
+        if (notesActive && el.contains(notesActive.editable)) notesActive = null;
+        el.remove(); nbFitCanvas(canvas); nbToggleHint(canvas, page); notesScheduleSave();
+    }
+    function nbToggleHint(canvas, page) {
+        const has = page.doc.blocks.length > 0, hint = canvas.querySelector('.nb-hint');
+        if (has && hint) hint.remove();
+        if (!has && !hint) canvas.insertAdjacentHTML('afterbegin', '<div class="nb-hint">Click anywhere on the page to start typing</div>');
+    }
+
+    function nbTextShortcuts(editable) {
+        editable.addEventListener('keydown', (e) => {
+            const mod = e.ctrlKey || e.metaKey;
+            if (mod && e.altKey && !e.shiftKey) {
+                const k = { Digit1: 'h1', Digit2: 'h2', Digit0: 'p' }[e.code];
+                if (k) { e.preventDefault(); nbFormat(k); return; }
+            }
+            if (mod && e.shiftKey && !e.altKey) {
+                const k = { Digit8: 'ul', Digit7: 'ol' }[e.code];
+                if (k) { e.preventDefault(); nbFormat(k); return; }
+            }
+            // "- " or "1. " at the very start of a line turns into a list (English keyboard only: in maths a leading minus is a minus).
+            if (e.key === ' ' && notesWriting && !mod && !e.altKey) {
+                const sel = window.getSelection();
+                if (!sel.rangeCount || !sel.isCollapsed) return;
+                const r = sel.getRangeAt(0), node = r.startContainer;
+                if (node.nodeType !== 3 || node.previousSibling) return;
+                const before = node.textContent.slice(0, r.startOffset);
+                const kind = before === '-' ? 'ul' : before === '1.' ? 'ol' : null;
+                if (!kind) return;
+                e.preventDefault();
+                node.textContent = node.textContent.slice(r.startOffset);
+                const nr = document.createRange(); nr.setStart(node, 0); nr.collapse(true); sel.removeAllRanges(); sel.addRange(nr);
+                document.execCommand(kind === 'ul' ? 'insertUnorderedList' : 'insertOrderedList', false, null);
+            }
+        });
+    }
+
+    function nbMakeTextBlock(page, block, canvas, focus) {
+        const el = document.createElement('div');
+        el.className = 'nb-block nb-text'; el.dataset.id = block.id;
+        el.innerHTML = '<div class="nb-grip" title="Drag to move" role="button" aria-label="Drag to move this text box">⠿</div><button type="button" class="nb-del" aria-label="Delete this text box" title="Delete">×</button><div class="nb-body"></div><div class="nb-resize" title="Drag to resize"></div>';
+        let ready = false;
+        const ed = createSmartAnswerEditor('Type here…', { hideShortcutHint: true, onModeChange: (w) => { if (!ready) return; notesWriting = w; nbSyncKeyboardButtons(); } });
+        el.querySelector('.nb-body').appendChild(ed.container);
+        ed.setHtml(block.html || '');
+        ed.setWritingMode(notesWriting);
+        ready = true;
+        ed.onChange(() => { block.html = ed.getHtml(); notesScheduleSave(); });
+        const editable = ed.container.querySelector('.math-shortcut-editor');
+        const activate = () => { notesActive = { ed, editable }; };
+        editable.addEventListener('focus', () => { activate(); if (ed.isWritingMode() !== notesWriting) ed.setWritingMode(notesWriting); });
+        editable.addEventListener('pointerdown', activate); editable.addEventListener('keydown', activate);
+        editable.addEventListener('blur', () => setTimeout(() => {
+            if (document.activeElement === editable || !el.isConnected || !ed.isEmpty()) return;
+            nbRemoveBlock(page, block, el, canvas);
+        }, 200));
+        nbTextShortcuts(editable);
+        canvas.appendChild(el);
+        nbPlace(el, block, canvas);
+        nbWireDrag(el.querySelector('.nb-grip'), el, block, canvas);
+        nbWireResize(el.querySelector('.nb-resize'), el, block, canvas);
+        el.querySelector('.nb-del').addEventListener('click', () => nbRemoveBlock(page, block, el, canvas));
+        if (notesResizeObs) notesResizeObs.observe(el);
+        if (focus) { activate(); editable.focus(); }
+        return el;
+    }
+
+    function nbMakeDiagramBlock(page, block, canvas) {
+        const el = document.createElement('div');
+        el.className = 'nb-block nb-diagram'; el.dataset.id = block.id;
+        el.innerHTML = `<div class="nb-dbar"><span class="nb-grip nb-dgrip" title="Drag to move" role="button" aria-label="Drag to move this diagram">⠿ Diagram</span>
+            <button type="button" class="nb-lines-btn" aria-expanded="true">Lines ▾</button><button type="button" class="nb-del nb-del-inline" aria-label="Delete this diagram" title="Delete">×</button></div>
+            <div class="nb-dhost"></div><div class="nb-resize" title="Drag to resize"></div>`;
+        canvas.appendChild(el);
+        nbPlace(el, block, canvas);
+        const host = el.querySelector('.nb-dhost');
+        const s = block.state || {};
+        const initial = { placed: s.curves || [], shades: s.shades || [], labels: s.labels || [], arrows: s.arrows || [] };
+        renderDiagramWidget(host, null, async () => ({ correct: true, savedLabel: '✓ Saved', feedback: '' }), null, initial, {
+            mode: 'save', onChange: (state) => { block.state = state; notesScheduleSave(); },
+        });
+        const linesBtn = el.querySelector('.nb-lines-btn');
+        const setLines = (open) => { block.linesOpen = open; host.classList.toggle('nb-lines-closed', !open); linesBtn.textContent = open ? 'Lines ▾' : 'Lines ▸'; linesBtn.setAttribute('aria-expanded', String(open)); };
+        setLines(block.linesOpen !== false);
+        linesBtn.addEventListener('click', () => { setLines(block.linesOpen === false); notesScheduleSave(); nbFitCanvas(canvas); });
+        nbWireDrag(el.querySelector('.nb-dgrip'), el, block, canvas);
+        nbWireResize(el.querySelector('.nb-resize'), el, block, canvas);
+        el.querySelector('.nb-del').addEventListener('click', () => { if (confirm('Delete this diagram? This cannot be undone.')) nbRemoveBlock(page, block, el, canvas); });
+        if (notesResizeObs) notesResizeObs.observe(el);
+        return el;
+    }
+
+    const NB_SHORTCUTS_HTML = `<div class="nb-shortcut-extra"><strong>On the page</strong><ul class="math-shortcut-list">
+        <li><span class="sc-keys">Click anywhere</span><span>Start typing at that spot</span></li>
+        <li><span class="sc-keys"><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>1</kbd> / <kbd>2</kbd> / <kbd>0</kbd></span><span>Title / heading / normal text</span></li>
+        <li><span class="sc-keys"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>8</kbd> / <kbd>7</kbd></span><span>Bullet points / numbered list</span></li>
+        <li><span class="sc-keys"><kbd>-</kbd> then <kbd>Space</kbd></span><span>Bullet point (English keyboard, at the start of a line)</span></li>
+        <li><span class="sc-keys"><kbd>1.</kbd> then <kbd>Space</kbd></span><span>Numbered list (English keyboard, at the start of a line)</span></li>
+        <li><span class="sc-keys">Drag <b>⠿</b></span><span>Move a text box or diagram; drag its right edge to resize</span></li></ul><strong>Maths keyboard</strong></div>`;
+
+    function notesRenderPage(page) {
+        const contentInner = notesPrepareMain('Notes');
+        contentInner.innerHTML = `
+            <div class="nb-page-wrap">
+                <div class="nb-head">
+                    <input type="text" class="nb-title" id="nbTitle" placeholder="Untitled page" maxlength="120" aria-label="Page title">
+                    <span class="nb-status" id="nbStatus" aria-live="polite"></span>
+                </div>
+                <div class="nb-toolbar" role="toolbar" aria-label="Page tools">
+                    <button type="button" class="nb-tool" data-fmt="h1" title="Title (Ctrl+Alt+1)">Title</button>
+                    <button type="button" class="nb-tool" data-fmt="h2" title="Heading (Ctrl+Alt+2)">Heading</button>
+                    <button type="button" class="nb-tool" data-fmt="p" title="Normal text (Ctrl+Alt+0)">Text</button>
+                    <button type="button" class="nb-tool" data-fmt="ul" title="Bullet points (Ctrl+Shift+8, or type - then Space)">• Bullets</button>
+                    <button type="button" class="nb-tool" data-fmt="ol" title="Numbered list (Ctrl+Shift+7, or type 1. then Space)">1. Numbers</button>
+                    <span class="maths-notes-kbd-switch" role="group" aria-label="Keyboard">
+                        <button type="button" id="nbKbdEnglish" aria-pressed="true">English keyboard</button>
+                        <button type="button" id="nbKbdMaths" aria-pressed="false">Maths keyboard</button>
+                    </span>
+                    <button type="button" class="nb-tool nb-tool-strong" id="nbAddDiagram">+ Diagram</button>
+                    <button type="button" class="nb-tool" id="nbShortcuts">Shortcuts</button>
+                </div>
+                <div class="nb-canvas" id="nbCanvas"></div>
+            </div>`;
+        const canvas = document.getElementById('nbCanvas');
+        if (typeof ResizeObserver === 'function') notesResizeObs = new ResizeObserver(() => nbFitCanvas(canvas));
+        page.doc = page.doc && Array.isArray(page.doc.blocks) ? page.doc : { blocks: [] };
+        page.doc.blocks.forEach((b) => { if (b.type === 'diagram') nbMakeDiagramBlock(page, b, canvas); else nbMakeTextBlock(page, b, canvas, false); });
+        nbToggleHint(canvas, page); nbFitCanvas(canvas);
+        // Click on empty paper: a new text box starts exactly there.
+        canvas.addEventListener('click', (e) => {
+            if (e.target !== canvas && !e.target.classList.contains('nb-hint')) return;
+            const r = canvas.getBoundingClientRect();
+            const w = Math.min(460, Math.max(140, canvas.clientWidth - 8));
+            const block = { id: notesNewId(), type: 'text', x: nbClamp(e.clientX - r.left - 6, 0, Math.max(0, canvas.clientWidth - w)), y: Math.max(0, e.clientY - r.top - 16), w, html: '' };
+            page.doc.blocks.push(block);
+            nbToggleHint(canvas, page);
+            nbMakeTextBlock(page, block, canvas, true);
+            nbFitCanvas(canvas);
+        });
+        const title = document.getElementById('nbTitle');
+        title.value = page.name === 'Untitled page' ? '' : (page.name || '');
+        title.addEventListener('input', () => { page.name = title.value.trim() || 'Untitled page'; page.updatedAt = new Date().toISOString(); renderMyNotesTree(); notesScheduleSave(); });
+        title.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); canvas.click(); } });
+        const bar = contentInner.querySelector('.nb-toolbar');
+        bar.addEventListener('mousedown', (e) => { if (e.target.closest('button')) e.preventDefault(); }); // keep the caret where it is
+        bar.querySelectorAll('[data-fmt]').forEach((b) => b.addEventListener('click', () => nbFormat(b.dataset.fmt)));
+        const setKeyboard = (writing) => { notesWriting = writing; nbSyncKeyboardButtons(); if (notesActive) { notesActive.ed.setWritingMode(writing); notesActive.editable.focus(); } };
+        document.getElementById('nbKbdEnglish').addEventListener('click', () => setKeyboard(true));
+        document.getElementById('nbKbdMaths').addEventListener('click', () => setKeyboard(false));
+        nbSyncKeyboardButtons();
+        document.getElementById('nbShortcuts').addEventListener('click', () => openMathsShortcutPopup(NB_SHORTCUTS_HTML));
+        document.getElementById('nbAddDiagram').addEventListener('click', () => {
+            let bottom = 0; canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
+            const block = { id: notesNewId(), type: 'diagram', x: 24, y: bottom ? bottom + 24 : 24, w: Math.min(620, Math.max(300, canvas.clientWidth - 48)), state: {}, linesOpen: true };
+            page.doc.blocks.push(block);
+            nbToggleHint(canvas, page);
+            const el = nbMakeDiagramBlock(page, block, canvas);
+            nbFitCanvas(canvas); notesScheduleSave();
+            el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        });
+        notesStatus(page.doc.blocks.length ? 'Saved' : '');
+    }
+
+    function notesOpenPage(id, fromNew) {
+        const page = notesNode(id);
+        if (!page || page.type !== 'page') return;
+        notesFlush();
+        notes.activeId = id; notesMenuId = null;
+        let p = page.parentId && notesNode(page.parentId);
+        while (p) { p.open = true; p = p.parentId && notesNode(p.parentId); }
+        notesPersist();
+        setSidebarTab('notes');
+        renderMyNotesTree();
+        notesRenderPage(page);
+        if (fromNew) { const t = document.getElementById('nbTitle'); if (t) t.focus(); }
+        sfCloseSidebarOnMobile();
     }
 
     function mathsToolBubbleHtml(role, content) {
@@ -20009,20 +20355,6 @@ SQIDAQAB
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
         contentInner.innerHTML = `
-            <div class="maths-tool-tabs" role="tablist" aria-label="Maths Tool sections">
-                <button type="button" class="maths-tool-tab active" role="tab" aria-selected="true" data-section="questions">Questions</button>
-                <button type="button" class="maths-tool-tab" role="tab" aria-selected="false" data-section="notes">Notes</button>
-            </div>
-            <div class="maths-tool-view" id="mathsNotesView" hidden>
-                <div class="maths-tool-sidebar">
-                    <button type="button" class="btn primary" id="mathsNotesNewBtn">+ New page</button>
-                    <div class="maths-tool-thread-list" id="mathsNotesList"></div>
-                </div>
-                <div class="maths-tool-main-wrap">
-                    <button type="button" class="btn maths-tool-sidebar-toggle-btn" id="mathsNotesSidebarToggleBtn" title="Show/hide the page list">☰ Pages</button>
-                    <div class="maths-tool-main" id="mathsNotesMain"></div>
-                </div>
-            </div>
             <div class="maths-tool-view" id="mathsToolView">
                 <div class="maths-tool-sidebar">
                     <button type="button" class="btn primary maths-tool-new-btn">+ New question</button>
@@ -20037,21 +20369,6 @@ SQIDAQAB
         contentInner.querySelector('.maths-tool-new-btn').addEventListener('click', renderMathsToolCompose);
         // On a phone the list of questions starts tucked away (the Questions button opens it) so the working area gets the width.
         if (window.innerWidth < 760) document.getElementById('mathsToolView').classList.add('sidebar-collapsed');
-        contentInner.querySelector('#mathsNotesNewBtn').addEventListener('click', mathsNotesAdd);
-        // On a narrow screen the page list starts tucked away (the Pages button opens it) so the writing area gets the room.
-        if (window.innerWidth < 760) contentInner.querySelector('#mathsNotesView').classList.add('sidebar-collapsed');
-        contentInner.querySelector('#mathsNotesSidebarToggleBtn').addEventListener('click', () => {
-            document.getElementById('mathsNotesView').classList.toggle('sidebar-collapsed');
-        });
-        let notesOpened = false;
-        contentInner.querySelectorAll('.maths-tool-tab').forEach((tab) => tab.addEventListener('click', async () => {
-            const notes = tab.dataset.section === 'notes';
-            contentInner.querySelectorAll('.maths-tool-tab').forEach((t) => { const on = t === tab; t.classList.toggle('active', on); t.setAttribute('aria-selected', String(on)); });
-            if (!notes) { mathsNotesFlush(); closeMathsShortcutPopup(); }
-            document.getElementById('mathsToolView').hidden = notes;
-            document.getElementById('mathsNotesView').hidden = !notes;
-            if (notes && !notesOpened) { notesOpened = true; await openMathsNotes(); }
-        }));
         contentInner.querySelector('#mathsToolSidebarToggleBtn').addEventListener('click', () => {
             document.getElementById('mathsToolView').classList.toggle('sidebar-collapsed');
         });
