@@ -2417,6 +2417,14 @@ SQIDAQAB
         const text = input.value.trim();
         if (!text) return;
 
+        // Show the sent message and the thinking placeholder straight away, before anything is awaited, so it is obvious the message went.
+        // The short-circuit branches below remove the placeholder again when they answer without a chat call.
+        input.value = '';
+        input.style.height = 'auto';
+        appendUserMessage(text);
+        const thinkingEl = appendAssistantMessage('…');
+        const dropThinking = () => { if (thinkingEl.parentNode) thinkingEl.parentNode.removeChild(thinkingEl); };
+
         // Guarantees activeSessionId (and, for a resumed session, its past
         // messages already loaded into chatHistory) is settled BEFORE this
         // turn touches chatHistory itself - sending fast enough to beat
@@ -2433,9 +2441,7 @@ SQIDAQAB
         // this point is the normal Q&A path.
         const teachTopic = detectTeachMeTopic(text);
         if (teachTopic) {
-            input.value = '';
-            input.style.height = 'auto';
-            appendUserMessage(text);
+            dropThinking();
             // Real, confirmed bug this fixes: every short-circuit branch below
             // showed the bubble on screen but never recorded it into
             // chatHistory, so this - the actual FIRST thing asked in the chat -
@@ -2456,9 +2462,7 @@ SQIDAQAB
         // reason - a known, specific, already-on-screen thing to redo,
         // never sent to the LLM to guess an action from.
         if (pendingLessonRetry && detectRetryIntent(text)) {
-            input.value = '';
-            input.style.height = 'auto';
-            appendUserMessage(text);
+            dropThinking();
             chatHistory.push({ role: 'user', content: text });
             saveChatHistory();
             const retry = pendingLessonRetry;
@@ -2478,9 +2482,7 @@ SQIDAQAB
         // still pick the same continuation back up.
         if (pendingLessonContinuation) {
             if (detectAffirmativeIntent(text)) {
-                input.value = '';
-                input.style.height = 'auto';
-                appendUserMessage(text);
+                dropThinking();
                 chatHistory.push({ role: 'user', content: text });
                 saveChatHistory();
                 const run = pendingLessonContinuation;
@@ -2489,9 +2491,7 @@ SQIDAQAB
                 return;
             }
             if (detectNegativeIntent(text)) {
-                input.value = '';
-                input.style.height = 'auto';
-                appendUserMessage(text);
+                dropThinking();
                 chatHistory.push({ role: 'user', content: text });
                 saveChatHistory();
                 pendingLessonContinuation = null;
@@ -2515,9 +2515,7 @@ SQIDAQAB
         // call again even after some lessons are already done or the exact
         // continuation window was already missed/dismissed earlier.
         if (detectStartLessonsIntent(text)) {
-            input.value = '';
-            input.style.height = 'auto';
-            appendUserMessage(text);
+            dropThinking();
             chatHistory.push({ role: 'user', content: text });
             saveChatHistory();
             if (pendingLessonContinuation) {
@@ -2532,15 +2530,11 @@ SQIDAQAB
             return;
         }
 
-        input.value = '';
-        input.style.height = 'auto';
-        appendUserMessage(text);
         chatHistory.push({ role: 'user', content: text });
         saveChatHistory();
 
         const sendBtn = document.getElementById('chatSendBtn');
         sendBtn.disabled = true;
-        const thinkingEl = appendAssistantMessage('…');
 
         try {
             // A lesson currently on screen gets first crack at this,
