@@ -4103,6 +4103,8 @@
     .nb-tool:hover { background: rgba(241, 234, 214, 0.14); }
     .nb-tool-strong { background: #F1EAD6; color: #1A232D; border-color: #F1EAD6; }
     .nb-tool-strong:hover { background: #fff; }
+    .nb-text-size { font: inherit; font-size: 12.5px; font-weight: 700; padding: 6px 8px; border-radius: 8px; cursor: pointer; background: #1A232D; color: #F1EAD6; border: 1.5px solid rgba(241, 234, 214, 0.35); }
+    .nb-text-size option { background: #1A232D; color: #F1EAD6; }
     .nb-toolbar .maths-notes-kbd-switch { border-color: rgba(241, 234, 214, 0.35); }
     .nb-toolbar .maths-notes-kbd-switch button { color: #F1EAD6; }
     .nb-toolbar .maths-notes-kbd-switch button[aria-pressed="true"] { background: #F1EAD6; color: #1A232D; }
@@ -4157,6 +4159,10 @@
     .coord-graph-btn:hover { background: rgba(230,215,176,.12); }
     .coord-graph-expression { flex: 1 1 310px; min-width: 150px; color: #E6D7B0; background: rgba(230,215,176,.07); border: 1px solid rgba(230,215,176,.32); border-radius: 7px; padding: 7px 9px; font: 14px ui-monospace, Consolas, monospace; }
     .coord-graph-expression:focus { outline: 2px solid rgba(230,215,176,.3); border-color: #E6D7B0; }
+    .coord-graph-expression-host { flex: 1 1 310px; min-width: 170px; }
+    .coord-graph-expression-host .math-shortcut-wrap { margin: 0; }
+    .coord-graph-expression-host .math-shortcut-editor { min-height: 34px; padding: 6px 9px; border-radius: 7px; font: 14px/1.45 ui-monospace, Consolas, monospace; }
+    .coord-graph-expression-host .math-shortcut-mode-badge { margin-top: 3px; font-size: 10px; }
     .coord-graph-range { display: flex; align-items: center; gap: 4px; font-size: 11px; opacity: .9; }
     .coord-graph-range input { width: 52px; color: #E6D7B0; background: rgba(230,215,176,.07); border: 1px solid rgba(230,215,176,.28); border-radius: 5px; padding: 5px; }
     .coord-graph-stage { position: relative; aspect-ratio: 16 / 10; min-height: 300px; background: #171827; touch-action: none; }
@@ -20113,7 +20119,7 @@ SQIDAQAB
     let notes = { nodes: [], activeId: null };
     let notesKey = NOTES_KEY, notesLoaded = false, notesSaveTimer = null, notesListening = false;
     let notesWriting = true;          // the keyboard: true = English, false = maths (# switches)
-    let notesActive = null;           // { ed, editable }: the text box the toolbar acts on
+    let notesActive = null;           // { ed, editable, block }: the text box the toolbar acts on
     let notesMenuId = null;           // the row whose actions are showing in the tree
     let notesResizeObs = null;
     const nbClamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -20420,7 +20426,12 @@ SQIDAQAB
         ready = true;
         ed.onChange(() => { block.html = ed.getHtml(); notesScheduleSave(); });
         const editable = ed.container.querySelector('.math-shortcut-editor');
-        const activate = () => { notesActive = { ed, editable }; };
+        editable.style.fontSize = `${nbClamp(Number(block.fontSize) || 16, 12, 36)}px`;
+        const activate = () => {
+            notesActive = { ed, editable, block };
+            const size = document.getElementById('nbTextSize');
+            if (size) size.value = String(nbClamp(Number(block.fontSize) || 16, 12, 36));
+        };
         editable.addEventListener('focus', () => { activate(); if (ed.isWritingMode() !== notesWriting) ed.setWritingMode(notesWriting); });
         editable.addEventListener('pointerdown', activate); editable.addEventListener('keydown', activate);
         editable.addEventListener('blur', () => setTimeout(() => {
@@ -20507,6 +20518,9 @@ SQIDAQAB
                     <button type="button" class="nb-tool" data-fmt="p" title="Normal text (Ctrl+Alt+0)">Text</button>
                     <button type="button" class="nb-tool" data-fmt="ul" title="Bullet points (Ctrl+Shift+8, or type - then Space)">• Bullets</button>
                     <button type="button" class="nb-tool" data-fmt="ol" title="Numbered list (Ctrl+Shift+7, or type 1. then Space)">1. Numbers</button>
+                    <select class="nb-text-size" id="nbTextSize" aria-label="Text size" title="Text size for the active text box">
+                        <option value="12">12px</option><option value="14">14px</option><option value="16" selected>16px</option><option value="18">18px</option><option value="22">22px</option><option value="28">28px</option><option value="36">36px</option>
+                    </select>
                     <span class="maths-notes-kbd-switch" role="group" aria-label="Keyboard">
                         <button type="button" id="nbKbdEnglish" aria-pressed="true">English keyboard</button>
                         <button type="button" id="nbKbdMaths" aria-pressed="false">Maths keyboard</button>
@@ -20547,6 +20561,13 @@ SQIDAQAB
         const bar = contentInner.querySelector('.nb-toolbar');
         bar.addEventListener('mousedown', (e) => { if (e.target.closest('button')) e.preventDefault(); }); // keep the caret where it is
         bar.querySelectorAll('[data-fmt]').forEach((b) => b.addEventListener('click', () => nbFormat(b.dataset.fmt)));
+        document.getElementById('nbTextSize').addEventListener('change', (e) => {
+            if (!notesActive) { notesStatus('Click inside a text box first'); e.target.value = '16'; return; }
+            const px = nbClamp(Number(e.target.value) || 16, 12, 36);
+            notesActive.block.fontSize = px;
+            notesActive.editable.style.fontSize = `${px}px`;
+            notesScheduleSave(); nbFitCanvas(canvas); notesActive.editable.focus();
+        });
         const setKeyboard = (writing) => { notesWriting = writing; nbSyncKeyboardButtons(); if (notesActive) { notesActive.ed.setWritingMode(writing); notesActive.editable.focus(); } };
         document.getElementById('nbKbdEnglish').addEventListener('click', () => setKeyboard(true));
         document.getElementById('nbKbdMaths').addEventListener('click', () => setKeyboard(false));
@@ -20730,7 +20751,7 @@ SQIDAQAB
     // 2D graphs y=f(x); the separate 3D view graphs z=f(x,y) as a rotatable wireframe.
     let coordinateGraphSeq = 0;
     function graphCompile(raw, variables) {
-        let expr = String(raw || '').trim().replace(/^\s*[yz]\s*=\s*/i, '').replace(/\^/g, '**');
+        let expr = String(raw || '').trim().replace(/^\s*[yz]\s*=\s*/i, '').replace(/√/g, 'sqrt').replace(/\^/g, '**');
         if (!expr) throw new Error('Enter an equation first.');
         if (!/^[0-9a-zA-Z_+\-*/().,\s*]+$/.test(expr)) throw new Error('That equation contains an unsupported character.');
         const allowed = new Set([...variables, 'pi', 'e', 'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'atan2', 'sqrt', 'abs', 'log', 'ln', 'exp', 'pow', 'min', 'max', 'floor', 'ceil', 'round']);
@@ -20754,12 +20775,22 @@ SQIDAQAB
         host.innerHTML = `<div class="coord-graph">
             <div class="coord-graph-controls">
                 <span class="coord-graph-mode" role="group" aria-label="Graph view"><button type="button" data-mode="2d">2D</button><button type="button" data-mode="3d">3D</button></span>
-                <input class="coord-graph-expression" spellcheck="false" aria-label="Equation">
+                <div class="coord-graph-expression-host"></div>
                 <span class="coord-graph-zoom" role="group" aria-label="Zoom"><button type="button" class="coord-graph-btn" data-act="zoomout" aria-label="Zoom out" title="Zoom out">−</button><button type="button" class="coord-graph-btn" data-act="zoomin" aria-label="Zoom in" title="Zoom in">+</button></span>
                 <button type="button" class="coord-graph-btn" data-act="draw">Draw</button><button type="button" class="coord-graph-btn" data-act="reset">Reset view</button>
             </div><div class="coord-graph-stage"><canvas aria-label="Coordinate graph"></canvas><span class="coord-graph-help"></span></div><div class="coord-graph-error" aria-live="polite"></div>
         </div>`;
-        const canvas = host.querySelector('canvas'), stage = host.querySelector('.coord-graph-stage'), input = host.querySelector('.coord-graph-expression'), error = host.querySelector('.coord-graph-error'), help = host.querySelector('.coord-graph-help');
+        const canvas = host.querySelector('canvas'), stage = host.querySelector('.coord-graph-stage'), expressionHost = host.querySelector('.coord-graph-expression-host'), error = host.querySelector('.coord-graph-error'), help = host.querySelector('.coord-graph-help');
+        const expressionEditor = createSmartAnswerEditor('Enter y = f(x)', { hideShortcutHint: true });
+        expressionHost.appendChild(expressionEditor.container);
+        expressionEditor.setWritingMode(false);
+        const expressionInput = expressionEditor.container.querySelector('.math-shortcut-editor');
+        function loadExpression() {
+            const html = state.mode === '3d' ? state.expression3dHtml : state.expression2dHtml;
+            expressionEditor.setHtml(html || escapeHtml(state.mode === '3d' ? state.expression3d : state.expression2d));
+            expressionInput.dataset.placeholder = state.mode === '3d' ? 'Enter z = f(x, y)' : 'Enter y = f(x)';
+        }
+        loadExpression();
         let drag = null, pinch = null, notifyTimer = null; const ptrs = new Map();
         function notify() { if (options && options.onChange) options.onChange(Object.assign({}, state)); }
         function size() { const dpr = Math.min(2, window.devicePixelRatio || 1), r = stage.getBoundingClientRect(); canvas.width = Math.max(1, Math.round(r.width*dpr)); canvas.height = Math.max(1, Math.round(r.height*dpr)); return { ctx: canvas.getContext('2d'), w:r.width, h:r.height, dpr }; }
@@ -20789,10 +20820,11 @@ SQIDAQAB
             if(fn)for(let pass=0;pass<2;pass++)for(let i=0;i<=n;i++){ctx.beginPath();let pen=false;for(let j=0;j<=n;j++){const a=lo+i/n*span,b=lo+j/n*span,x=pass?a:b,y=pass?b:a,z=val(x,y);if(!Number.isFinite(z)){pen=false;continue;}const p=project(x,y,z);if(!pen){ctx.moveTo(p.x,p.y);pen=true;}else ctx.lineTo(p.x,p.y);}ctx.strokeStyle=pass?'rgba(110,200,255,.72)':'rgba(230,215,176,.5)';ctx.stroke();}
             ctx.fillStyle='#E6D7B0';ctx.font='12px Arial';[['x',hi,0,0],['y',0,hi,0],['z',0,0,span/2]].forEach(a=>{const p=project(a[1],a[2],a[3]);ctx.fillText(a[0],p.x+4,p.y-4);});
         }
-        function draw() { error.textContent=''; input.value=state.mode==='3d'?state.expression3d:state.expression2d; input.placeholder=state.mode==='3d'?'Enter z = f(x, y)':'Enter y = f(x)'; host.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===state.mode))); help.textContent=state.mode==='3d'?'Drag to rotate, scroll or pinch to zoom':'y = f(x). Scroll or pinch to zoom, drag to move'; const {ctx,w,h,dpr}=size();ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);ctx.fillStyle='#171827';ctx.fillRect(0,0,w,h);try{state.mode==='3d'?draw3d(ctx,w,h):draw2d(ctx,w,h);}catch(e){error.textContent=e.message||'Could not draw that equation.';} }
-        function commit() { if(state.mode==='3d')state.expression3d=input.value;else state.expression2d=input.value;draw();notify();}
-        host.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>{if(state.mode===b.dataset.mode)return;if(state.mode==='3d')state.expression3d=input.value;else state.expression2d=input.value;state.mode=b.dataset.mode;draw();notify();}));
-        host.querySelector('[data-act="draw"]').addEventListener('click',commit); input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();commit();}});
+        function draw() { error.textContent=''; host.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===state.mode))); help.textContent=state.mode==='3d'?'Drag to rotate, scroll or pinch to zoom':'y = f(x). Scroll or pinch to zoom, drag to move'; const {ctx,w,h,dpr}=size();ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);ctx.fillStyle='#171827';ctx.fillRect(0,0,w,h);try{state.mode==='3d'?draw3d(ctx,w,h):draw2d(ctx,w,h);}catch(e){error.textContent=e.message||'Could not draw that equation.';} }
+        function saveExpression() { if(state.mode==='3d'){state.expression3d=expressionEditor.getValue();state.expression3dHtml=expressionEditor.getHtml();}else{state.expression2d=expressionEditor.getValue();state.expression2dHtml=expressionEditor.getHtml();} }
+        function commit() { saveExpression();draw();notify();}
+        host.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>{if(state.mode===b.dataset.mode)return;saveExpression();state.mode=b.dataset.mode;loadExpression();draw();notify();}));
+        host.querySelector('[data-act="draw"]').addEventListener('click',commit); expressionInput.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();e.stopPropagation();commit();}});
         function zoomBy(f,ax,ay){
             if(state.mode==='3d'){const sz=nbClamp((state.max-state.min)/2*f,0.05,5000);state.min=-sz;state.max=sz;}
             else{const oxs=state.xmax-state.xmin,oys=state.ymax-state.ymin,cx=state.xmin+oxs*ax,cy=state.ymax-oys*ay,nxs=nbClamp(oxs*f,1e-4,1e7),nys=nbClamp(oys*f,1e-4,1e7);
