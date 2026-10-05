@@ -20554,7 +20554,7 @@ SQIDAQAB
         document.getElementById('nbShortcuts').addEventListener('click', () => openMathsShortcutPopup(NB_SHORTCUTS_HTML));
         const addGraph = () => {
             let bottom = 0; canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
-            const block = { id: notesNewId(), type: 'graph', x: 24, y: bottom ? bottom + 24 : 24, w: Math.min(700, Math.max(300, canvas.clientWidth - 48)), state: { mode: '2d', expression2d: 'sin(x)', expression3d: 'sin(sqrt(x^2 + y^2))', min: -10, max: 10 } };
+            const block = { id: notesNewId(), type: 'graph', x: 24, y: bottom ? bottom + 24 : 24, w: Math.min(700, Math.max(300, canvas.clientWidth - 48)), state: { mode: '2d', expression2d: '', expression3d: '', min: -10, max: 10 } };
             page.doc.blocks.push(block); nbToggleHint(canvas, page); const el = nbMakeGraphBlock(page, block, canvas); nbFitCanvas(canvas); notesScheduleSave(); el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         };
         document.getElementById('nbAddGraph').addEventListener('click', addGraph);
@@ -20747,7 +20747,7 @@ SQIDAQAB
     }
     function renderCoordinateGraph(host, initialState, options) {
         const uid = `cg${coordinateGraphSeq++}`;
-        const state = Object.assign({ mode: '2d', expression2d: 'sin(x)', expression3d: 'sin(sqrt(x^2 + y^2))', min: -10, max: 10, angleX: .62, angleZ: -.72 }, initialState || {});
+        const state = Object.assign({ mode: '2d', expression2d: '', expression3d: '', min: -10, max: 10, angleX: .62, angleZ: -.72 }, initialState || {});
         // The 2D view is a window that is zoomed with the wheel or a pinch and moved by dragging (older saves start from their old range).
         if (!Number.isFinite(state.xmin)) { state.xmin = state.min; state.xmax = state.max; }
         if (!Number.isFinite(state.ymin)) { state.ymin = state.min; state.ymax = state.max; }
@@ -20764,7 +20764,7 @@ SQIDAQAB
         function notify() { if (options && options.onChange) options.onChange(Object.assign({}, state)); }
         function size() { const dpr = Math.min(2, window.devicePixelRatio || 1), r = stage.getBoundingClientRect(); canvas.width = Math.max(1, Math.round(r.width*dpr)); canvas.height = Math.max(1, Math.round(r.height*dpr)); return { ctx: canvas.getContext('2d'), w:r.width, h:r.height, dpr }; }
         function draw2d(ctx,w,h) {
-            const fn = graphCompile(state.expression2d, ['x']), xlo=state.xmin, xhi=state.xmax, ylo=state.ymin, yhi=state.ymax, xs=xhi-xlo, ys=yhi-ylo;
+            const fn = String(state.expression2d || '').trim() ? graphCompile(state.expression2d, ['x']) : null, xlo=state.xmin, xhi=state.xmax, ylo=state.ymin, yhi=state.ymax, xs=xhi-xlo, ys=yhi-ylo;
             const X=(x)=>(x-xlo)/xs*w, Y=(y)=>h-(y-ylo)/ys*h, sx=graphNiceStep(xs), sy=graphNiceStep(ys);
             const lx=nbClamp(X(0),4,w-44), ly=nbClamp(Y(0),14,h-6);
             ctx.lineWidth=1; ctx.font='11px Arial'; ctx.fillStyle='rgba(230,215,176,.62)'; ctx.strokeStyle='rgba(230,215,176,.13)';
@@ -20776,20 +20776,20 @@ SQIDAQAB
             if(Y(0)>=0&&Y(0)<=h){ctx.moveTo(0,Y(0));ctx.lineTo(w,Y(0));}
             if(X(0)>=0&&X(0)<=w){ctx.moveTo(X(0),0);ctx.lineTo(X(0),h);}
             ctx.stroke();
-            ctx.strokeStyle='#6EC8FF';ctx.lineWidth=2.4;ctx.beginPath();let pen=false;
-            for(let px=0;px<=w;px+=1){const x=xlo+px/w*xs,y=fn(x),py=Y(y);if(!Number.isFinite(y)||py < -h*3||py>h*4){pen=false;continue;}if(!pen){ctx.moveTo(px,py);pen=true;}else ctx.lineTo(px,py);}ctx.stroke();
+            if(fn){ctx.strokeStyle='#6EC8FF';ctx.lineWidth=2.4;ctx.beginPath();let pen=false;
+            for(let px=0;px<=w;px+=1){const x=xlo+px/w*xs,y=fn(x),py=Y(y);if(!Number.isFinite(y)||py < -h*3||py>h*4){pen=false;continue;}if(!pen){ctx.moveTo(px,py);pen=true;}else ctx.lineTo(px,py);}ctx.stroke();}
         }
         function draw3d(ctx,w,h) {
-            const fn=graphCompile(state.expression3d,['x','y']),lo=state.min,hi=state.max, span=hi-lo, n=25, scale=Math.min(w,h)*.38/span;
+            const fn=String(state.expression3d || '').trim()?graphCompile(state.expression3d,['x','y']):null,lo=state.min,hi=state.max, span=hi-lo, n=25, scale=Math.min(w,h)*.38/span;
             const ca=Math.cos(state.angleZ),sa=Math.sin(state.angleZ),cb=Math.cos(state.angleX),sb=Math.sin(state.angleX);
             const project=(x,y,z)=>{const rx=x*ca-y*sa, ry=x*sa+y*ca;return{x:w/2+rx*scale,y:h*.52-(ry*cb-z*sb)*scale};};
             const zCap=span*.9, val=(x,y)=>nbClamp(fn(x,y),-zCap,zCap);
             ctx.strokeStyle='rgba(230,215,176,.25)';ctx.lineWidth=1;
             const axis=[[lo,0,0,hi,0,0],[0,lo,0,0,hi,0],[0,0,-span/2,0,0,span/2]]; axis.forEach(a=>{const p=project(a[0],a[1],a[2]),q=project(a[3],a[4],a[5]);ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.stroke();});
-            for(let pass=0;pass<2;pass++)for(let i=0;i<=n;i++){ctx.beginPath();let pen=false;for(let j=0;j<=n;j++){const a=lo+i/n*span,b=lo+j/n*span,x=pass?a:b,y=pass?b:a,z=val(x,y);if(!Number.isFinite(z)){pen=false;continue;}const p=project(x,y,z);if(!pen){ctx.moveTo(p.x,p.y);pen=true;}else ctx.lineTo(p.x,p.y);}ctx.strokeStyle=pass?'rgba(110,200,255,.72)':'rgba(230,215,176,.5)';ctx.stroke();}
+            if(fn)for(let pass=0;pass<2;pass++)for(let i=0;i<=n;i++){ctx.beginPath();let pen=false;for(let j=0;j<=n;j++){const a=lo+i/n*span,b=lo+j/n*span,x=pass?a:b,y=pass?b:a,z=val(x,y);if(!Number.isFinite(z)){pen=false;continue;}const p=project(x,y,z);if(!pen){ctx.moveTo(p.x,p.y);pen=true;}else ctx.lineTo(p.x,p.y);}ctx.strokeStyle=pass?'rgba(110,200,255,.72)':'rgba(230,215,176,.5)';ctx.stroke();}
             ctx.fillStyle='#E6D7B0';ctx.font='12px Arial';[['x',hi,0,0],['y',0,hi,0],['z',0,0,span/2]].forEach(a=>{const p=project(a[1],a[2],a[3]);ctx.fillText(a[0],p.x+4,p.y-4);});
         }
-        function draw() { error.textContent=''; input.value=state.mode==='3d'?state.expression3d:state.expression2d; host.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===state.mode))); help.textContent=state.mode==='3d'?'Drag to rotate, scroll or pinch to zoom':'y = f(x). Scroll or pinch to zoom, drag to move'; const {ctx,w,h,dpr}=size();ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);ctx.fillStyle='#171827';ctx.fillRect(0,0,w,h);try{state.mode==='3d'?draw3d(ctx,w,h):draw2d(ctx,w,h);}catch(e){error.textContent=e.message||'Could not draw that equation.';} }
+        function draw() { error.textContent=''; input.value=state.mode==='3d'?state.expression3d:state.expression2d; input.placeholder=state.mode==='3d'?'Enter z = f(x, y)':'Enter y = f(x)'; host.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===state.mode))); help.textContent=state.mode==='3d'?'Drag to rotate, scroll or pinch to zoom':'y = f(x). Scroll or pinch to zoom, drag to move'; const {ctx,w,h,dpr}=size();ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);ctx.fillStyle='#171827';ctx.fillRect(0,0,w,h);try{state.mode==='3d'?draw3d(ctx,w,h):draw2d(ctx,w,h);}catch(e){error.textContent=e.message||'Could not draw that equation.';} }
         function commit() { if(state.mode==='3d')state.expression3d=input.value;else state.expression2d=input.value;draw();notify();}
         host.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>{if(state.mode===b.dataset.mode)return;if(state.mode==='3d')state.expression3d=input.value;else state.expression2d=input.value;state.mode=b.dataset.mode;draw();notify();}));
         host.querySelector('[data-act="draw"]').addEventListener('click',commit); input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();commit();}});
