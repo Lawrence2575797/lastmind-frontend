@@ -326,7 +326,10 @@
       const dx = t.x - p.x, dy = t.y - p.y;
       const dist = Math.hypot(dx, dy) || 1e-6;
       const speed = Math.min(p.maxSpeed, dist * 1.4);
-      const k = Math.min(1, dt * 4);
+      // How quickly a player changes his velocity toward the one he wants. Written so that it gives the same response however long a step is:
+      // the live match (0.1 s steps) and the background matches (0.25 s) must play out alike, and 1 - exp(-5.1 dt) is exactly the 40% a 0.1 s step
+      // always used. (It used to be min(1, 4 dt), which at 0.25 s meant no smoothing at all, so background players were far twitchier.)
+      const k = 1 - Math.exp(-5.1 * dt);
       p.vx += (dx / dist * speed - p.vx) * k;
       p.vy += (dy / dist * speed - p.vy) * k;
     });

@@ -28,6 +28,9 @@
   .sub { margin: 4px 0 0; font-size: 0.95rem; opacity: 0.75; }
   .topbar { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
   .topright { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .topgroup { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .lm-back { display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px; border-radius: 10px; background: var(--navy); color: var(--cream); font-family: var(--sans); font-weight: 700; font-size: 0.95rem; text-decoration: none; border: 2px solid var(--navy); }
+  .lm-back:hover, .lm-back:focus-visible { background: var(--cream); color: var(--navy); outline: none; }
   .nav { display: flex; gap: 6px; flex-wrap: wrap; }
   .nav button { background: transparent; color: var(--navy); border: 2px solid var(--navy); }
   .nav button.on { background: var(--navy); color: var(--cream); }
@@ -177,7 +180,10 @@
       <h1>Football Manager</h1>
       <p class="sub" id="subtitle"></p>
     </div>
-    <div class="topright" id="topRight"></div>
+    <div class="topgroup">
+      <div class="topright" id="topRight"></div>
+      <a class="lm-back" id="lmBack" href="/learn/" title="Back to the main LastMind chat" aria-label="Back to LastMind"><span aria-hidden="true">&larr;</span> LastMind</a>
+    </div>
   </header>
   <nav class="nav" id="nav" hidden></nav>
 
@@ -251,25 +257,25 @@
     <div id="tabBody"></div>
   </section>
 </div>
-<script src="/create/football/formations.js?v=20261004x"></script>
-<script src="/create/football/roles.js?v=20261004x"></script>
-<script src="/create/football/ratings.js?v=20261004x"></script>
-<script src="/create/football/names.js?v=20261004x"></script>
-<script src="/create/football/engine.js?v=20261004x"></script>
-<script src="/create/football/instructions.js?v=20261004x"></script>
-<script src="/create/football/fitness.js?v=20261004x"></script>
-<script src="/create/football/match.js?v=20261004x"></script>
-<script src="/create/football/league.js?v=20261004x"></script>
-<script src="/create/football/preseason.js?v=20261004x"></script>
-<script src="/create/football/stats_math.js?v=20261004x"></script>
-<script src="/create/football/stats.js?v=20261004x"></script>
-<script src="/create/football/stats_top.js?v=20261004x"></script>
-<script src="/create/football/news.js?v=20261004x"></script>
-<script src="/create/football/insights.js?v=20261004x"></script>
-<script src="/create/football/analysis.js?v=20261004x"></script>
-<script src="/create/football/clips.js?v=20261004x"></script>
-<script src="/create/football/reports.js?v=20261004x"></script>
-<script src="/create/football/hypotheses.js?v=20261004x"></script>
-<script src="/create/football/main.js?v=20261004x"></script>
+<script src="/create/football/formations.js?v=20261004z"></script>
+<script src="/create/football/roles.js?v=20261004z"></script>
+<script src="/create/football/ratings.js?v=20261004z"></script>
+<script src="/create/football/names.js?v=20261004z"></script>
+<script src="/create/football/engine.js?v=20261004z"></script>
+<script src="/create/football/instructions.js?v=20261004z"></script>
+<script src="/create/football/fitness.js?v=20261004z"></script>
+<script src="/create/football/match.js?v=20261004z"></script>
+<script src="/create/football/league.js?v=20261004z"></script>
+<script src="/create/football/preseason.js?v=20261004z"></script>
+<script src="/create/football/stats_math.js?v=20261004z"></script>
+<script src="/create/football/stats.js?v=20261004z"></script>
+<script src="/create/football/stats_top.js?v=20261004z"></script>
+<script src="/create/football/news.js?v=20261004z"></script>
+<script src="/create/football/insights.js?v=20261004z"></script>
+<script src="/create/football/analysis.js?v=20261004z"></script>
+<script src="/create/football/clips.js?v=20261004z"></script>
+<script src="/create/football/reports.js?v=20261004z"></script>
+<script src="/create/football/hypotheses.js?v=20261004z"></script>
+<script src="/create/football/main.js?v=20261004z"></script>
 </body>
 </html>
