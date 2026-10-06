@@ -1994,7 +1994,14 @@
     .math-shortcut-list[hidden] { display: none; }
     .math-shortcut-list li { display: grid; grid-template-columns: 12em 1fr; column-gap: 12px; align-items: baseline; line-height: 1.4; }
     .math-shortcut-list li > span:last-child { opacity: 0.8; }
-    .math-shortcut-list kbd { display: inline-block; min-width: 1.5em; text-align: center; padding: 1px 6px; border: 1px solid rgba(230, 215, 176, 0.4); border-bottom-width: 2px; border-radius: 4px; background: rgba(230, 215, 176, 0.1); font: 700 11px Arial, sans-serif; }
+    .sc-table { width: 100%; border-collapse: separate; border-spacing: 0; margin: 0 0 16px; font-size: 13px; line-height: 1.5; border: 1px solid rgba(230, 215, 176, 0.28); border-radius: 8px; overflow: hidden; }
+    .sc-table caption { caption-side: top; text-align: left; font-weight: 800; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; padding: 0 2px 6px; opacity: 0.9; }
+    .sc-table thead th { text-align: left; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; padding: 6px 10px; background: rgba(230, 215, 176, 0.14); opacity: 0.85; }
+    .sc-table tbody th { width: 34%; text-align: left; vertical-align: top; font-weight: 600; padding: 8px 10px; border-top: 1px solid rgba(230, 215, 176, 0.18); }
+    .sc-table tbody td { vertical-align: top; padding: 8px 10px; border-top: 1px solid rgba(230, 215, 176, 0.18); border-left: 1px solid rgba(230, 215, 176, 0.18); }
+    .sc-table tbody tr:nth-child(even) > * { background: rgba(230, 215, 176, 0.05); }
+    .sc-table kbd { margin: 0 1px; }
+    .math-shortcut-list kbd, .sc-table kbd { display: inline-block; min-width: 1.6em; text-align: center; padding: 2px 7px; border: 1px solid rgba(230, 215, 176, 0.4); border-bottom-width: 2px; border-radius: 4px; background: rgba(230, 215, 176, 0.1); font: 700 12px Arial, sans-serif; }
     /* nth-root with an index box, and matrices (Maths Tool editor) */
     .math-shortcut-editor .root-n { display: inline-flex; align-items: flex-start; }
     .math-shortcut-editor .root-index { font-size: 0.6em; min-width: 0.8em; padding: 0 0.15em; margin-right: -0.1em; line-height: 1.15; border: 1px dashed var(--accent); border-radius: 3px; color: var(--accent); }
@@ -4347,7 +4354,9 @@
     .cr-paper-btn.primary { background: #1A232D; color: #F3E7BE; border-color: #1A232D; }
     .cr-paper-btn:disabled { opacity: 0.6; cursor: wait; }
     @media (max-width: 760px) { .cr-desk { grid-template-columns: 1fr; padding: 22px 14px 16px; } .cr-file.new { width: 200px; height: 140px; } .cr-paper { padding: 24px 20px 20px; } .cr-role { margin-left: 0; text-align: left; } }
-    .maths-shortcut-popup { position: fixed; right: 20px; bottom: 20px; z-index: 300; width: min(460px, calc(100vw - 32px)); max-height: min(70vh, 560px); overflow: auto; padding: 12px 14px 14px; border-radius: 10px; background: var(--panel); color: var(--text); border: 1.5px solid rgba(230, 215, 176, 0.35); box-shadow: 0 10px 34px rgba(0, 0, 0, 0.4); font-size: 12px; }
+    .maths-shortcut-popup { position: fixed; right: 20px; bottom: 20px; z-index: 300; width: min(680px, calc(100vw - 32px)); max-height: min(82vh, 760px); overflow: auto; padding: 14px 16px 6px; border-radius: 10px; background: var(--panel); color: var(--text); border: 1.5px solid rgba(230, 215, 176, 0.35); box-shadow: 0 10px 34px rgba(0, 0, 0, 0.4); font-size: 13px; }
+    .maths-shortcut-popup-head { position: sticky; top: -14px; z-index: 1; margin: -14px -16px 10px; padding: 12px 16px 10px; background: var(--panel); border-bottom: 1px solid rgba(230, 215, 176, 0.25); }
+    .maths-shortcut-popup-sub { margin-right: auto; margin-left: 4px; font-size: 11px; opacity: 0.6; }
     .maths-shortcut-popup-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; font-size: 13px; }
     .maths-shortcut-popup-close { font: inherit; font-size: 20px; line-height: 1; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; background: transparent; color: var(--text); border: 1.5px solid rgba(230, 215, 176, 0.3); }
     .maths-shortcut-popup-close:hover { background: rgba(230, 215, 176, 0.12); }
@@ -19731,20 +19740,31 @@ SQIDAQAB
     // keystrokes themselves are consumed (preventDefault) and never
     // inserted, so they never show up in the answer.
     // The shortcut list, shared by the editor's own collapsible hint and the Notes page's closable popup, so the two can never differ.
-    const MATHS_SHORTCUT_ITEMS_HTML = `
-                <li><span class="sc-keys"><kbd>^</kbd></span><span>Power (press <kbd>Space</kbd> or <kbd>→</kbd> to leave it)</span></li>
-                <li><span class="sc-keys"><kbd>_</kbd></span><span>Subscript</span></li>
-                <li><span class="sc-keys"><kbd>/</kbd></span><span>Fraction, after a number (e.g. 3/ )</span></li>
-                <li><span class="sc-keys"><kbd>]</kbd></span><span>Evaluate between limits</span></li>
-                <li><span class="sc-keys"><kbd>*</kbd></span><span>Multiply sign ×</span></li>
-                <li><span class="sc-keys"><kbd>~</kbd></span><span>Square root √</span></li>
-                <li><span class="sc-keys"><kbd>Caps Lock</kbd> + <kbd>~</kbd></span><span>Root with a small box for the index, e.g. cube root (<kbd>Space</kbd> to leave the box)</span></li>
-                <li><span class="sc-keys"><kbd>Shift</kbd> + letter</span><span>Greek letter (with Caps Lock on, a capital)</span></li>
-                <li><span class="sc-keys"><kbd>f</kbd></span><span>Function f(x); press <kbd>'</kbd> for primes</span></li>
-                <li><span class="sc-keys"><kbd>Shift</kbd> + <kbd>I</kbd></span><span>Integral (then <kbd>d</kbd> for limits)</span></li>
-                <li><span class="sc-keys"><kbd>Shift</kbd> + <kbd>M</kbd></span><span>Matrix: type the size as (rows*columns), e.g. (3*3), then <kbd>)</kbd> or <kbd>Enter</kbd>. Move with <kbd>Tab</kbd> or the arrow keys; <kbd>→</kbd> from the last cell leaves it, then <kbd>^</kbd> for a power such as -1</span></li>
-                <li><span class="sc-keys"><kbd>#</kbd></span><span>Switch between maths and normal writing</span></li>
-`;
+    const K = (t) => `<kbd>${t}</kbd>`;
+    const SC_MATHS_SYMBOLS = ['Maths keyboard: symbols', [
+        [K('^'), 'Starts a power, such as x². Press ' + K('Space') + ' or ' + K('→') + ' to leave the power and carry on at normal size.'],
+        [K('_'), 'Starts a subscript, such as x₁. Leave it the same way as a power.'],
+        [K('/'), 'Makes a fraction. After a number it uses that number as the top (3/ gives 3 over a box). After a closing bracket it uses everything inside the brackets as the top.'],
+        [K('*'), 'Types a multiplication sign ×.'],
+        [K('~'), 'Types a square root √.'],
+        [K('Caps Lock') + ' + ' + K('~'), 'Types a root with a small box for the index, such as a cube root. Press ' + K('Space') + ' to leave the box.'],
+        [K('Shift') + ' + a letter', 'Types the Greek letter for it (Shift+A gives α). With Caps Lock on you get the capital.'],
+        [K('&lt;=') + ' ' + K('&gt;=') + ' ' + K('!='), 'Typed as two keys, these turn into ≤, ≥ and ≠.'],
+        [K('f'), 'Types f(x). Press ' + K("'") + ' straight after it for f′(x), and again for f″(x).'],
+        [K('Shift') + ' + ' + K('I'), 'Types an integral sign. Then press ' + K('d') + ' to add the limits.'],
+        [K(']'), 'Evaluates between limits, such as [x²] from 0 to 2.'],
+    ]];
+    const SC_MATHS_LAYOUT = ['Maths keyboard: layout and switching', [
+        [K('Space') + ' on a new line', 'If the line above has an equals sign, the new line lines up under the right-hand side of it. This keeps working lines neat.'],
+        [K('Shift') + ' + ' + K('M'), 'Starts a matrix. Type the size as (rows*columns), for example (3*3), then press ' + K(')') + ' or ' + K('Enter') + '.'],
+        [K('Tab') + ' or arrows', 'Move between the cells of a matrix. ' + K('→') + ' from the last cell leaves it, and then ' + K('^') + ' gives a power such as −1.'],
+        [K('#'), 'Switches this text box between the maths keyboard and normal writing. Each text box remembers its own setting.'],
+    ]];
+    // One table builder for every shortcut list, so the Notes popup and the Maths Tool hint look and read the same.
+    function shortcutTableHtml(sections) {
+        return sections.map(([title, rows]) => `<table class="sc-table"><caption>${title}</caption><thead><tr><th scope="col">You press</th><th scope="col">What happens</th></tr></thead><tbody>${rows.map(([k, d]) => `<tr><th scope="row">${k}</th><td>${d}</td></tr>`).join('')}</tbody></table>`).join('');
+    }
+    const MATHS_SHORTCUT_ITEMS_HTML = shortcutTableHtml([SC_MATHS_SYMBOLS, SC_MATHS_LAYOUT]);
 
     // opts (all optional): onModeChange(writingMode) when the keyboard switches between maths and English; hideShortcutHint to leave the
     // inline shortcut list out (the Notes page shows it as a popup instead).
@@ -19860,7 +19880,7 @@ SQIDAQAB
         const hint = document.createElement('div');
         hint.className = 'math-shortcut-hint';
         hint.innerHTML = `<button type="button" class="math-shortcut-toggle" aria-expanded="false">Keyboard shortcuts <span class="math-shortcut-caret">▸</span></button>
-            <ul class="math-shortcut-list" hidden>${MATHS_SHORTCUT_ITEMS_HTML}</ul>`;
+            <div class="math-shortcut-list" hidden>${MATHS_SHORTCUT_ITEMS_HTML}</div>`;
         if (!opts.hideShortcutHint) wrap.appendChild(hint);
         // Collapsible: the list is long, so it opens and closes on demand (and
         // remembers which the student last chose).
@@ -20439,13 +20459,13 @@ SQIDAQAB
         return tpl.innerHTML;
     }
 
-    function openMathsShortcutPopup(extraHtml) {
+    function openMathsShortcutPopup(html, replaceMaths) {
         const old = document.getElementById('mathsShortcutPopup');
         if (old) { old.remove(); return; } // pressing the button again closes it
         const pop = document.createElement('div');
         pop.id = 'mathsShortcutPopup'; pop.className = 'maths-shortcut-popup';
         pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', 'Keyboard shortcuts');
-        pop.innerHTML = `<div class="maths-shortcut-popup-head"><strong>Keyboard shortcuts</strong><button type="button" class="maths-shortcut-popup-close" aria-label="Close the shortcuts">×</button></div>${extraHtml || ''}<ul class="math-shortcut-list">${MATHS_SHORTCUT_ITEMS_HTML}</ul>`;
+        pop.innerHTML = `<div class="maths-shortcut-popup-head"><strong>Keyboard shortcuts</strong><span class="maths-shortcut-popup-sub">Press Esc or × to close</span><button type="button" class="maths-shortcut-popup-close" aria-label="Close the shortcuts">×</button></div><div class="maths-shortcut-popup-body">${replaceMaths ? html : (html || '') + MATHS_SHORTCUT_ITEMS_HTML}</div>`;
         document.body.appendChild(pop);
         const onKey = (e) => { if (e.key === 'Escape') close(); };
         function close() { pop.remove(); document.removeEventListener('keydown', onKey, true); }
@@ -21068,19 +21088,31 @@ SQIDAQAB
         if (notesResizeObs) notesResizeObs.observe(el); return el;
     }
 
-    const NB_SHORTCUTS_HTML = `<div class="nb-shortcut-extra"><strong>On the page</strong><ul class="math-shortcut-list">
-        <li><span class="sc-keys">Click anywhere</span><span>Start typing at that spot</span></li>
-        <li><span class="sc-keys"><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>1</kbd> / <kbd>2</kbd> / <kbd>0</kbd></span><span>Title / heading / normal text</span></li>
-        <li><span class="sc-keys"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>8</kbd> / <kbd>7</kbd></span><span>Bullet points / numbered list</span></li>
-        <li><span class="sc-keys"><kbd>-</kbd> then <kbd>Space</kbd></span><span>Bullet point (English keyboard, at the start of a line)</span></li>
-        <li><span class="sc-keys"><kbd>.</kbd><kbd>.</kbd></span><span>Bullet point (English keyboard, at the start of a line)</span></li>
-        <li><span class="sc-keys"><kbd>1.</kbd> then <kbd>Space</kbd></span><span>Numbered list (English keyboard, at the start of a line)</span></li>
-        <li><span class="sc-keys"><kbd>-</kbd><kbd>-</kbd></span><span>Insert a long dash (English keyboard)</span></li>
-        <li><span class="sc-keys"><kbd>Shift</kbd> + <kbd>Enter</kbd></span><span>Add an indented follow-on line with an arrow</span></li>
-        <li><span class="sc-keys"><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>G</kbd></span><span>Add a coordinate graph</span></li>
-        <li><span class="sc-keys">One-finger drag</span><span>Move a coordinate graph; use two fingers to zoom it</span></li>
-        <li><span class="sc-keys"><b>⇤</b> then <b>⇤</b></span><span>Align the left edges of two text boxes</span></li>
-        <li><span class="sc-keys">Drag <b>⠿</b></span><span>Move a text box or economics diagram</span></li></ul><strong>Maths keyboard</strong></div>`;
+    const NB_SHORTCUTS_HTML = shortcutTableHtml([
+        ['Writing and lists', [
+            ['Click anywhere', 'Starts a new line of text at the spot you clicked.'],
+            [K('Ctrl') + ' + ' + K('Alt') + ' + ' + K('1') + ' / ' + K('2') + ' / ' + K('0'), 'Turns the line into a title, a heading, or normal text.'],
+            [K('-') + ' then ' + K('Space'), 'At the start of a line, turns it into a bullet point (English keyboard).'],
+            [K('.') + K('.'), 'At the start of a line, also turns it into a bullet point (English keyboard).'],
+            [K('1.') + ' then ' + K('Space'), 'At the start of a line, starts a numbered list (English keyboard).'],
+            [K('Ctrl') + ' + ' + K('Shift') + ' + ' + K('8') + ' / ' + K('7'), 'Turns the selected lines into bullet points or a numbered list.'],
+            [K('-') + K('-'), 'Types a large long dash — in the same weight as a bullet point (English keyboard).'],
+            [K('Shift') + ' + ' + K('Enter'), 'Adds an indented follow-on line that starts with an arrow.'],
+        ]],
+        ['Moving things around the page', [
+            ['Drag ' + K('⠿'), 'Picks up a text box or an economics diagram and moves it.'],
+            [K('⇤') + ' on one box, then ' + K('⇤') + ' on another', 'Lines up the left edges of the two text boxes.'],
+        ]],
+        ['Coordinate graphs', [
+            [K('Ctrl') + ' + ' + K('Alt') + ' + ' + K('G'), 'Adds a coordinate graph at the cursor.'],
+            ['Drag the graph with the mouse', 'Moves the whole graph block to somewhere else on the page.'],
+            [K('⤢') + ' / ' + K('⤡'), 'Expands the graph to the middle of the page for editing, and shrinks it back. ' + K('Esc') + ' also shrinks it.'],
+            ['Curves tab (expanded graph)', 'Open the tab on the right and drag a line or curve onto the graph. Drag the circles on its ends to change its direction or shape. A straight line stays straight.'],
+            ['Drag inside the expanded graph', 'Pans the axes so you can look at a different part.'],
+            ['Two fingers (touch)', 'Pinch to zoom the axes and slide to pan them. A single finger only moves the graph block.'],
+        ]],
+        SC_MATHS_SYMBOLS, SC_MATHS_LAYOUT,
+    ]);
 
     function notesRenderPage(page) {
         const contentInner = notesPrepareMain('Notes');
@@ -21188,7 +21220,7 @@ SQIDAQAB
         document.getElementById('nbKbdEnglish').addEventListener('click', () => setKeyboard(true));
         document.getElementById('nbKbdMaths').addEventListener('click', () => setKeyboard(false));
         nbSyncKeyboardButtons();
-        document.getElementById('nbShortcuts').addEventListener('click', () => openMathsShortcutPopup(NB_SHORTCUTS_HTML));
+        document.getElementById('nbShortcuts').addEventListener('click', () => openMathsShortcutPopup(NB_SHORTCUTS_HTML, true));
         const addGraph = () => {
             let bottom = 0; canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
             const block = { id: notesNewId(), type: 'graph', x: 24, y: bottom ? bottom + 24 : 24, w: Math.min(700, Math.max(300, canvas.clientWidth - 48)), state: { mode: '2d', expression2d: '', expression3d: '', min: -10, max: 10 } };
