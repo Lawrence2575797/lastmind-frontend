@@ -49,6 +49,22 @@
 
   function holder(match) { return FM.holderOf(match); }
 
+  // How the ball was lost: the last thing that went wrong for the user's side in the ten seconds before the opposition had it.
+  function causeOf(match, u, o, entries, t) {
+    const evs = match.events, who = (n) => u.players.find((p) => p.number === n);
+    const following = (n) => entries.some((en) => en.q && en.q.number === n && t < en.until + 4);
+    for (let i = evs.length - 1; i >= 0; i--) {
+      const e = evs[i]; if (t - e.t > 10) break;
+      if (e.type === 'pass' && e.team === u.id && (!e.ok || e.outcome === 'offside')) {
+        const a = who(e.from), b = who(e.to);
+        return { kind: e.ok ? 'offside' : (e.outcome === 'intercepted' ? 'intercepted' : 'loose'), from: e.from, name: a ? a.name : '', group: a ? a.group : '', toName: b ? b.name : '', dist: e.dist, lane: e.lane, press: e.press, followed: following(e.from) || following(e.to) };
+      }
+      if (e.type === 'dribble' && e.team === u.id && !e.ok) { const a = who(e.player); return { kind: 'dribble', from: e.player, name: a ? a.name : '', group: a ? a.group : '', press: e.defDist, followed: following(e.player) }; }
+      if (e.type === 'tackle' && e.team === o.id && e.ok) { const a = who(e.vs); return { kind: 'tackle', from: e.vs, name: a ? a.name : '', group: a ? a.group : '', followed: following(e.vs) }; }
+    }
+    return { kind: 'other' };
+  }
+
   // One trial. Returns { outcome, time, passes, bigChance, goal }.
   LAB.trial = function (league, userTeam, oppTeam, oppTactics, seed, opts) {
     const u = clone(userTeam), o = clone(oppTeam);
@@ -75,7 +91,7 @@
       });
     };
     roll(0, true);
-    let nextRoll = RESPOND_EVERY, lostAt = null, lostZone = null, result = null, passes = 0, evSeen = 0;
+    let nextRoll = RESPOND_EVERY, lostAt = null, lostZone = null, lostCause = null, result = null, passes = 0, evSeen = 0;
     let guard = 0;
     while (!result && guard++ < 4000) {
       FM.stepMatch(match, STEP);
@@ -84,7 +100,7 @@
       const d = FM.toTeamSpace(dir, match.ball.x, match.ball.y).d;
       if (lostAt == null) {
         if (h === u && d >= 0.5) { result = { outcome: 'beat', time: t }; break; }
-        if (h === o) { const dg = Math.hypot(match.ball.x - (dir === 1 ? 0 : L), match.ball.y - 34); lostAt = t; lostZone = dg < NEAR_GOAL ? 'lostNear' : d < 0.33 ? 'lostOwn' : 'lostMid'; }
+        if (h === o) { const dg = Math.hypot(match.ball.x - (dir === 1 ? 0 : L), match.ball.y - 34); lostAt = t; lostZone = dg < NEAR_GOAL ? 'lostNear' : d < 0.33 ? 'lostOwn' : 'lostMid'; lostCause = causeOf(match, u, o, entries, t); }
         else if (t >= TRIAL_SECONDS) { result = { outcome: 'still', time: t }; break; }
       }
       if (lostAt != null) {
@@ -99,8 +115,9 @@
       }
     }
     if (!result) result = { outcome: lostAt != null ? lostZone : 'still', time: match.clock };
-    match.events.forEach((e) => { if (e.type === 'pass' && e.team === u.id && e.ok) passes++; });
-    result.passes = passes;
+    let pTot = 0, pSum = 0; match.events.forEach((e) => { if (e.type === 'pass' && e.team === u.id) { pTot++; pSum += e.p; if (e.ok) passes++; } });
+    result.passes = passes; result.passTotal = pTot; result.passP = pSum;
+    if (lostCause && result.outcome !== 'beat' && result.outcome !== 'still') result.cause = lostCause;
     return result;
   };
 
@@ -108,7 +125,7 @@
   LAB.run = function (league, opts, onProgress) {
     const n = opts.n || 100, userTeam = opts.user, oppTeam = opts.opp, base = opts.seed || (Date.now() & 0xffffff);
     let oppTactics = null; try { if (oppTeam.id !== league.userId) oppTactics = FM.aiTacticsFor(league, oppTeam, userTeam); } catch (e) { oppTactics = null; }
-    const res = { n, counts: { beat: 0, lostNear: 0, lostOwn: 0, lostMid: 0, still: 0 }, shot: 0, goal: 0, times: [], passes: [] };
+    const res = { n, counts: { beat: 0, lostNear: 0, lostOwn: 0, lostMid: 0, still: 0 }, shot: 0, goal: 0, times: [], passes: [], causes: [], passTotal: 0, passOk: 0, passP: 0 };
     let i = 0;
     return new Promise((resolve) => {
       const batch = () => {
@@ -119,7 +136,8 @@
           if (r.shot) res.shot++;
           if (r.goal) res.goal++;
           if (r.outcome === 'beat') res.times.push(r.time);
-          res.passes.push(r.passes);
+          res.passes.push(r.passes); res.passTotal += r.passTotal || 0; res.passOk += r.passes || 0; res.passP += r.passP || 0;
+          if (r.cause) res.causes.push(Object.assign({ zone: r.outcome, shot: !!r.shot }, r.cause));
         }
         if (onProgress) onProgress(i, n);
         if (i < n) setTimeout(batch, 0); else resolve(LAB.summarise(res));
@@ -135,7 +153,65 @@
     out.lost = share(res.counts.lostNear + res.counts.lostOwn + res.counts.lostMid);
     out.time = res.times.length > 1 ? { mean: S.mean(res.times), sd: S.sd(res.times, true), n: res.times.length } : null;
     out.passes = { mean: S.mean(res.passes), sd: S.sd(res.passes, true) };
+    out.passStats = { perTest: res.passTotal / n, okPerTest: res.passOk / n, rate: res.passTotal ? res.passOk / res.passTotal : 0, expected: res.passTotal ? res.passP / res.passTotal : 0 };
+    out.why = LAB.reduceCauses(res.causes || []);
     return out;
+  };
+
+  // The lost tests boiled down to a handful of counts, small enough to keep with each run.
+  LAB.reduceCauses = function (list) {
+    const w = { n: list.length, kinds: {}, zones: {}, players: {}, followed: 0, shots: 0, failedPasses: 0, distSum: 0, long: 0, laneSum: 0, pressSum: 0, tight: 0, gk: 0 };
+    list.forEach((c) => {
+      w.kinds[c.kind] = (w.kinds[c.kind] || 0) + 1; w.zones[c.zone] = (w.zones[c.zone] || 0) + 1;
+      if (c.followed) w.followed++; if (c.shot) w.shots++;
+      if (c.name) { const k = c.from; const q = w.players[k] || (w.players[k] = { name: c.name, group: c.group, n: 0 }); q.n++; }
+      if (c.group === 'GK') w.gk++;
+      if (c.kind === 'intercepted' || c.kind === 'loose') { w.failedPasses++; w.distSum += c.dist || 0; w.laneSum += c.lane || 0; w.pressSum += c.press || 0; if (c.dist > 30) w.long++; if (c.press != null && c.press < 4) w.tight++; }
+    });
+    return w;
+  };
+
+  // Elena's reading of a run: what went wrong, why, and what could be tried. Every number is from the run itself.
+  // ctx: { opp (name), changes (what was changed since the run before) }
+  LAB.explain = function (r, ctx) {
+    const w = r.why, out = [], pc = (x) => Math.round(x * 100) + '%', lost = w ? w.n : 0, nm = (c) => c.name.split(' ').pop();
+    if (!w || lost < 4) return { findings: [], lost };
+    const kindText = { intercepted: ['the pass was cut out by a defender', 'cut out by the defender nearest the lane'], loose: ['the pass went astray, or out of play', 'misplaced, with no defender needed'], dribble: ['the player tried to take on a defender and lost the ball', 'dribbles that did not come off'], tackle: ['the player was tackled while holding the ball', 'tackles that won the ball'], offside: ['the pass was fine but the receiver was offside', 'passes to a player in an offside position'], other: ['the ball was lost in another way', 'other ways'] };
+    const kinds = Object.keys(w.kinds).sort((a, b) => w.kinds[b] - w.kinds[a]);
+    const top = kinds[0], tshare = w.kinds[top] / lost;
+    const parts = kinds.slice(0, 3).map((k) => w.kinds[k] + ' ' + kindText[k][1]).join(', ');
+    // 1. How it was lost.
+    let fix = '';
+    if (top === 'intercepted') fix = 'A pass is likelier to work when it is shorter, the lane is clear and the receiver has space. Try giving the passer a closer outlet, or moving a team-mate so that a defender no longer stands on the line between them.';
+    else if (top === 'loose') fix = 'A pass that misses without anyone touching it is usually a long one from a passer who is not strong at passing. Try a shorter option, or a more patient setting for how directly the team plays out.';
+    else if (top === 'dribble' || top === 'tackle') fix = 'The player is being asked to beat a defender and sometimes will not. Try giving him a pass to a team-mate before the defender arrives, or taking dribbling freedom down.';
+    else if (top === 'offside') fix = 'The receivers are standing beyond the last defender when the ball is played. Try placing them a little deeper, or lowering the risk setting.';
+    out.push({ title: 'How the ball was lost', body: 'You lost it in ' + lost + ' of ' + r.n + ' tests. Mostly, ' + kindText[top][0] + ' (' + pc(tshare) + ' of the losses). In full: ' + parts + '.', fix });
+    // 2. One player.
+    const pl = Object.keys(w.players).map((k) => w.players[k]).sort((a, b) => b.n - a.n)[0];
+    if (pl && pl.n >= 3 && pl.n / lost >= 0.28) {
+      const gk = pl.group === 'GK';
+      out.push({ title: 'One player in the middle of it', body: pl.name + ' (' + pl.group + ') was the one who gave it away in ' + pl.n + ' of the ' + lost + ' losses (' + pc(pl.n / lost) + '). With only ' + lost + ' losses in the sample, a couple of those could be luck, but a share this big usually means something about where he stands or what he is being asked to do.',
+        fix: gk ? 'The goalkeeper starts every test with the ball, so he makes the first decision every time, and with an opponent close by he kicks it long, which is the least reliable pass there is. Give him a short, safe pass to play, such as a centre-back dropping close to him, so he is not forced to kick it away.' : 'Look at where he stands compared with his team-mates, and how many safe passes he has. If he is the only link, the opposition only have to mark him.' });
+    }
+    // 3. How far the failed passes travelled.
+    if (w.failedPasses >= 4) {
+      const md = w.distSum / w.failedPasses;
+      if (md > 26 || w.long / w.failedPasses > 0.4) out.push({ title: 'The passes that failed were long ones', body: 'The passes that went wrong averaged ' + Math.round(md) + ' m, and ' + w.long + ' of ' + w.failedPasses + ' were over 30 m. In the match engine every extra 10 m cuts the chance of a pass working by about 7 points when it starts near 80%.', fix: 'Ask for shorter passes: less direct play out from the back, or a slower tempo, or move a midfielder closer to the centre-backs.' });
+      else if (w.tight / w.failedPasses > 0.45) out.push({ title: 'The receivers had a defender close', body: w.tight + ' of the ' + w.failedPasses + ' passes that failed were to a player with a defender within 4 m. A defender right on top of the receiver takes a large bite out of the chance of the pass working, and the closer he is the bigger the bite.', fix: 'Spread the players wider or deeper so each receiver has more room, or give the player on the ball an option that is not marked.' });
+    }
+    // 4. The opposition following a moved player.
+    if (w.followed / lost >= 0.25 && w.followed >= 3) out.push({ title: 'Their players followed yours', body: 'In ' + w.followed + ' of the ' + lost + ' losses, an opposition player had followed one of the players you moved and was close to the ball when it was lost (' + pc(w.followed / lost) + '). Following is a chance, not a rule, and it is larger for a team that presses hard.', fix: 'You can accept that and use the space they leave behind, or move the player less far so that the chance of being followed falls.' });
+    // 5. The danger of where.
+    const near = (w.zones.lostNear || 0) + (w.zones.lostOwn || 0);
+    if (near / lost >= 0.6) out.push({ title: 'Most of the losses were close to your own goal', body: pc(near / lost) + ' of them were in your own third. Those are the most dangerous: the opposition had a shot in ' + w.shots + ' of the ' + lost + ' losses (' + pc(w.shots / lost) + ').', fix: w.failedPasses && w.long / w.failedPasses > 0.5 ? 'Most of the failed passes were long, so a short, safe first pass nearer the goalkeeper should help more than another long one.' : 'Build with a safe option nearer the goalkeeper, or play the ball long and early over the press, instead of passing across your own box.' });
+    // 6. A string of passes.
+    const ps = r.passStats;
+    if (ps && ps.perTest >= 4 && ps.rate > 0.5) {
+      const k = Math.round(ps.perTest), chain = Math.pow(ps.rate, k);
+      out.push({ title: 'Why a good pass success rate still loses the ball', body: 'Your players tried ' + ps.perTest.toFixed(1) + ' passes per test and completed ' + pc(ps.rate) + ' of them (the match engine had given them an average chance of ' + pc(ps.expected) + ' each, so the tests agree with the model). But a build-up is a chain: if each of ' + k + ' passes works ' + pc(ps.rate) + ' of the time, all ' + k + ' work only ' + pc(chain) + ' of the time.', fix: 'The fewer passes it takes to reach halfway, the fewer chances to lose it. A shorter route or a longer first pass cuts the chain.' });
+    }
+    return { findings: out, lost };
   };
 
   // Two runs compared on one measure: the difference in shares, its 95% interval and a two-sided test of "no real difference".
