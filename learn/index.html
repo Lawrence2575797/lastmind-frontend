@@ -20936,6 +20936,40 @@ SQIDAQAB
                     }
                 }
             }
+            // Backspace at the start of an arrow line removes the arrow as
+            // one structural item. The browser otherwise only deletes the
+            // invisible landing character, leaving the drawn arrow behind.
+            if (e.key === 'Backspace' && !e.shiftKey && !mod && !e.altKey) {
+                const sel = window.getSelection();
+                if (sel.rangeCount && sel.isCollapsed) {
+                    const range = sel.getRangeAt(0);
+                    const rangeNode = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
+                    const arrowLine = rangeNode && rangeNode.closest ? rangeNode.closest('.nb-arrow-step') : null;
+                    if (arrowLine && editable.contains(arrowLine)) {
+                        const beforeCaret = document.createRange();
+                        beforeCaret.setStart(arrowLine, 0); beforeCaret.setEnd(range.startContainer, range.startOffset);
+                        if (!beforeCaret.toString().replace(/[\u200b\s]/g, '')) {
+                            e.preventDefault();
+                            const parent = arrowLine.parentNode;
+                            const index = Array.prototype.indexOf.call(parent.childNodes, arrowLine);
+                            const content = document.createDocumentFragment();
+                            while (arrowLine.firstChild) content.appendChild(arrowLine.firstChild);
+                            const first = content.firstChild;
+                            if (first && first.nodeType === 3) first.textContent = first.textContent.replace(/^\u200b/, '');
+                            arrowLine.replaceWith(content);
+                            editable.querySelectorAll('.nb-arrow-fork').forEach((fork) => {
+                                const next = fork.nextElementSibling;
+                                if (!next || !next.classList.contains('nb-arrow-branch')) fork.classList.remove('nb-arrow-fork');
+                            });
+                            const caret = document.createRange(); caret.setStart(parent, index); caret.collapse(true);
+                            sel.removeAllRanges(); sel.addRange(caret);
+                            nbSyncArrowForks(editable);
+                            editable.dispatchEvent(new Event('input', { bubbles: true }));
+                            return;
+                        }
+                    }
+                }
+            }
             if (e.key === 'Enter' && e.shiftKey && !mod && !e.altKey) {
                 const sel = window.getSelection();
                 if (!sel.rangeCount) return;
