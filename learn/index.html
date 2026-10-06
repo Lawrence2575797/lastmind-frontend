@@ -1975,7 +1975,8 @@
     .math-shortcut-editor .frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin: 0 0.2em; font-size: 0.82em; line-height: 1.15; }
     .math-shortcut-editor .frac-num { padding: 0 0.2em 0.12em; border-bottom: 1.5px solid var(--text); }
     .math-shortcut-editor .frac-den { padding: 0.12em 0.2em 0; }
-    .math-shortcut-editor .func-primes { color: var(--text); }
+    /* The prime sits clear of the slanted f: upright, a little to the right, at the height of an exponent */
+    .func-primes, .math-shortcut-editor .func-primes { color: var(--text); font-family: "Cambria Math", "STIX Two Math", "Times New Roman", serif; font-style: normal; font-size: 1.1em; margin-left: 0.14em; letter-spacing: 0.04em; }
     .math-shortcut-editor .int-limits { display: inline-flex; flex-direction: column; align-items: flex-start; vertical-align: middle; margin-left: 0.1em; font-size: 0.65em; line-height: 1.1; }
     .math-shortcut-editor .int-upper, .math-shortcut-editor .int-lower { padding: 0 0.15em; min-width: 0.6em; color: var(--accent); }
     .math-shortcut-hint { font-size: 11.5px; color: var(--text); margin-top: 8px; padding: 10px 12px; border: 1px solid rgba(230, 215, 176, 0.22); border-radius: 8px; background: rgba(230, 215, 176, 0.05); }
