@@ -1277,6 +1277,21 @@ SQIDAQAB
             refreshTopicNodeCompletion(card, state);
         } else if (turn.kind === 'lessonDone' && turn.data) {
             appendCardMessage(`<div class="lesson-card-done">✓ Completed: ${escapeHtmlTopic(turn.data.label)}</div>`);
+        } else if (turn.kind === 'lessonActive' && turn.data && turn.data.derivation && turn.data.nodeUuid) {
+            // An open interactive lesson is part of the conversation, not
+            // disposable DOM. Rebuild the same player after a site close or
+            // reload so the student can take it again from the beginning.
+            const card = appendCardMessage('');
+            const d = turn.data;
+            mountDerivationInCard(card, d.derivation, d.nodeUuid, () => {
+                const covered = new Set(d.conceptIds || d.derivation.concepts || (d.conceptId ? [d.conceptId] : []));
+                if (topicMapState) covered.forEach((id) => topicMapState.skip.add(id));
+                turn.content = `[Completed the lesson on "${d.label}".]`;
+                turn.kind = 'lessonDone';
+                turn.data = { label: d.label, conceptIds: [...covered] };
+                saveChatHistory();
+                if (topicMapState) startTopicTeachSequence(topicMapState);
+            });
         } else if (turn.kind === 'lessonFailed' && turn.data) {
             appendCardMessage(`<div class="lesson-card-status">Couldn't generate an interactive lesson for “${escapeHtmlTopic(turn.data.label)}” at the time.</div>`);
         } else if (turn.kind === 'allDone' && turn.data) {
@@ -1546,8 +1561,10 @@ SQIDAQAB
     // restoreChatHistory renders ONLY that reconstructed card, never a
     // second, literal "[...]" chat bubble alongside it.
     function recordSilentContext(content, kind, data) {
-        chatHistory.push({ role: 'assistant', content, silent: true, kind, data });
+        const turn = { role: 'assistant', content, silent: true, kind, data };
+        chatHistory.push(turn);
         saveChatHistory();
+        return turn;
     }
 
     // Named after the actual topic/concept being loaded, not a generic
@@ -2018,6 +2035,21 @@ SQIDAQAB
                     .catch(() => {});
             }
         }
+        // Save the playable lesson before mounting it. If the browser is
+        // closed at any point during the lesson, restoreChatHistory can now
+        // reconstruct this exact card instead of restoring only the chat
+        // bubbles that happened to precede it.
+        const activeLessonTurn = recordSilentContext(
+            `[The lesson on "${node.label}" is open and ready to take.]`,
+            'lessonActive',
+            {
+                label: node.label,
+                conceptId: node.conceptId,
+                conceptIds: lessonData.derivation.concepts || [node.conceptId],
+                nodeUuid,
+                derivation: lessonData.derivation,
+            }
+        );
         mountDerivationInCard(card, lessonData.derivation, nodeUuid, () => {
             // Real, reported bug this fixes: a stage now commonly covers
             // SEVERAL map nodes at once (see plan_stages.js's subtopic-
@@ -2043,7 +2075,10 @@ SQIDAQAB
             // a real reload can rebuild this same skip set - see
             // renderRestoredSilentTurn's own 'map' branch.
             covered.forEach((id) => state.skip.add(id));
-            recordSilentContext(`[Completed the lesson on "${node.label}".]`, 'lessonDone', { label: node.label, conceptIds: [...covered] });
+            activeLessonTurn.content = `[Completed the lesson on "${node.label}".]`;
+            activeLessonTurn.kind = 'lessonDone';
+            activeLessonTurn.data = { label: node.label, conceptIds: [...covered] };
+            saveChatHistory();
             // The lesson player's own Continue button is the student's
             // explicit pacing decision. Do not ask the same question again
             // in chat; Continue advances directly to the next new stage.
