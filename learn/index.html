@@ -21149,13 +21149,34 @@ SQIDAQAB
                         if (prior.nodeName !== 'BR' && (prior.textContent || '').replace(/[\u200b\s]/g, '')) { hasVisiblePrior = true; break; }
                         prior = prior.previousSibling;
                     }
-                    if (node.nodeType === 3 && !hasVisiblePrior && visibleBefore === '.') {
+                    const alreadyInList = node.nodeType === 3 && node.parentElement && node.parentElement.closest('li');
+                    if (node.nodeType === 3 && !alreadyInList && !hasVisiblePrior && visibleBefore === '.') {
                         e.preventDefault();
                         node.textContent = node.textContent.slice(range.startOffset);
-                        const caret = document.createRange();
-                        caret.setStart(node, 0); caret.collapse(true);
+                        // Do not use execCommand('insertUnorderedList') here:
+                        // on an empty returned line browsers can apply it to
+                        // the preceding paragraph. Replace only the exact
+                        // DOM line containing the caret with a list instead.
+                        let currentLine = node;
+                        while (currentLine.parentNode && currentLine.parentNode !== editable) currentLine = currentLine.parentNode;
+                        if (currentLine === editable) return;
+                        const list = document.createElement('ul');
+                        const item = document.createElement('li');
+                        const landing = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL);
+                        item.appendChild(landing);
+                        if (currentLine.nodeType === 3) {
+                            currentLine.textContent = currentLine.textContent.replace(/^\u200b/, '');
+                            item.appendChild(currentLine);
+                        } else {
+                            while (currentLine.firstChild) item.appendChild(currentLine.firstChild);
+                        }
+                        // The full-height line may carry a placeholder <br>;
+                        // keep one only when the new bullet has no content.
+                        const meaningful = item.textContent.replace(/[\u200b\s]/g, '');
+                        item.querySelectorAll('br').forEach((br) => { if (meaningful || br !== item.lastElementChild) br.remove(); });
+                        list.appendChild(item); currentLine.replaceWith(list);
+                        const caret = document.createRange(); caret.setStart(landing, 1); caret.collapse(true);
                         sel.removeAllRanges(); sel.addRange(caret);
-                        document.execCommand('insertUnorderedList', false, null);
                         editable.dispatchEvent(new Event('input', { bubbles: true }));
                         return;
                     }
