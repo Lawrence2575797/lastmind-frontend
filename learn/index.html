@@ -21504,6 +21504,15 @@ SQIDAQAB
         nbSetMargin(); window.addEventListener('resize', nbSetMargin);
         canvas.addEventListener('click', (e) => {
             if (e.target !== canvas && !e.target.classList.contains('nb-hint')) return;
+            // Some visually empty parts of a positioned text box can expose
+            // the canvas as the click target. Check the actual on-screen
+            // bounds as well, so a new box can never be created inside or
+            // on top of an existing one.
+            const insideExistingBlock = [...canvas.querySelectorAll('.nb-block')].some((existing) => {
+                const bounds = existing.getBoundingClientRect();
+                return e.clientX >= bounds.left && e.clientX <= bounds.right && e.clientY >= bounds.top && e.clientY <= bounds.bottom;
+            });
+            if (insideExistingBlock) return;
             const r = canvas.getBoundingClientRect(), cw = canvas.clientWidth, localX = e.clientX - r.left;
             const nearMargin = localX < nbTextStart() + 56;
             const x = nearMargin ? nbTextStart() : localX - 6;
