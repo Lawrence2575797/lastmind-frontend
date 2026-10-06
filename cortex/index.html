@@ -1458,6 +1458,11 @@ SQIDAQAB
     function detectStartLessonsIntent(text) {
         const t = text.trim();
         if (/\b(?:start|begin|dive in|get going|get started|carry on|continue|build|make|generate|create|redo|rebuild|retry|try)\b/i.test(t) && /\blesson/i.test(t)) return true;
+        // "The next lesson" is itself an unambiguous continuation request
+        // when this chat already has a map. Previously it fell through to
+        // the language model, which could then incorrectly claim that the
+        // very map still visible earlier in the chat did not exist.
+        if (/\b(?:the\s+)?next lesson\b/i.test(t)) return true;
         // a bare "retry" / "try again" with no failed card left on screen means the same thing: have another go at the lessons
         if (detectRetryIntent(t)) return true;
         return /^(?:start|begin)(?: (?:the|this|it|now))?[.!]?$/i.test(t);
@@ -2512,11 +2517,40 @@ SQIDAQAB
         }
     }
 
+    // Keep the active map grounded even after a long lesson/chat sequence.
+    // The ordinary recent-history window is intentionally small, but the
+    // map is durable conversation state rather than disposable old prose.
+    // Losing its bracket note after ten turns made Cortex confidently say
+    // there was no structured map while that map was visibly higher up in
+    // the same chat.
+    function cortexConversationContext() {
+        const recent = chatHistory.slice(-10).map((turn) => ({ role: turn.role, content: turn.content }));
+        let mapIndex = -1;
+        for (let i = chatHistory.length - 1; i >= 0; i -= 1) {
+            if (chatHistory[i] && chatHistory[i].silent && chatHistory[i].kind === 'map') { mapIndex = i; break; }
+        }
+        if (mapIndex < 0) return recent;
+
+        const mapTurn = chatHistory[mapIndex];
+        if (!chatHistory.slice(-10).includes(mapTurn)) recent.unshift({ role: 'assistant', content: mapTurn.content });
+
+        const completed = chatHistory.slice(mapIndex + 1)
+            .filter((turn) => turn && turn.kind === 'lessonDone' && turn.data && turn.data.label)
+            .map((turn) => turn.data.label);
+        if (completed.length) {
+            recent.unshift({
+                role: 'assistant',
+                content: `[Current knowledge-map progress: completed lessons are ${completed.join(', ')}. Continue with the next unfinished lesson in this map.]`,
+            });
+        }
+        return recent;
+    }
+
     async function postCortexMessage(text, session, folders, dueReviews) {
         const resp = await fetch(`${COMPILE_BACKEND_URL}/cortex/message`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-            body: JSON.stringify({ message: text, history: chatHistory.slice(-10), folders, dueReviews })
+            body: JSON.stringify({ message: text, history: cortexConversationContext(), folders, dueReviews })
         });
         if (!resp.ok) {
             // Same wording as startTopicLearnFlow's own 402 handling -
