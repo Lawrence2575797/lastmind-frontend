@@ -4139,6 +4139,23 @@
     .nb-assist-actions { padding: 10px 16px; border-bottom: 1px solid rgba(241,234,214,.12); } .nb-assist-review { width: 100%; padding: 10px 14px; border: 0; border-radius: 10px; background: #E6D7B0; color: #1A232D; font: 800 .88rem Arial, sans-serif; cursor: pointer; } .nb-assist-review:disabled { opacity: .55; cursor: wait; }
     .nb-assist-body { flex: 1; overflow-y: auto; padding: 12px 16px; display: grid; align-content: start; gap: 10px; }
     .nb-msg { max-width: 92%; padding: 9px 12px; border-radius: 12px; white-space: pre-wrap; } .nb-msg.me { justify-self: end; background: rgba(230,215,176,.2); } .nb-msg.ai { justify-self: start; background: rgba(255,255,255,.07); } .nb-msg p { margin: 0 0 8px; white-space: normal; } .nb-msg p:last-child { margin: 0; }
+    .nb-tool.on { box-shadow: inset 0 -3px 0 #E6D7B0; }
+    .nb-sr-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 10px; padding: 10px 14px; border: 1px solid rgba(230,215,176,.55); border-radius: 10px; background: rgba(230,215,176,.14); font: 14px/1.4 Arial, sans-serif; }
+    .nb-sr-banner > span { flex: 1 1 260px; } .nb-sr-banner button { padding: 7px 14px; border: 0; border-radius: 8px; background: #E6D7B0; color: #1A232D; font: 800 .84rem Arial, sans-serif; cursor: pointer; }
+    .nb-sr-pop { position: fixed; z-index: 170; width: min(340px, calc(100vw - 16px)); max-height: 70vh; overflow: auto; padding: 14px; border-radius: 12px; background: #1A232D; color: #F1EAD6; border: 1px solid rgba(241,234,214,.35); box-shadow: 0 16px 40px rgba(0,0,0,.4); font: 14px/1.5 Arial, sans-serif; }
+    .nb-sr-switch { display: flex; align-items: center; gap: 10px; font-weight: 800; cursor: pointer; } .nb-sr-switch input { width: 18px; height: 18px; }
+    .nb-sr-note { margin: 8px 0; opacity: .85; font-size: .88rem; }
+    .nb-sr-days { display: grid; gap: 8px; margin-top: 10px; } .nb-sr-day { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,.07); } .nb-sr-day small { display: block; opacity: .7; } .nb-sr-day button { flex: none; padding: 6px 10px; border: 1px solid rgba(241,234,214,.5); border-radius: 8px; background: transparent; color: inherit; font: 700 .8rem Arial, sans-serif; cursor: pointer; }
+    .nb-sr-modal { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 16px; background: rgba(8,12,18,.65); }
+    .nb-sr-card { width: min(620px, 100%); max-height: 92vh; overflow: auto; padding: 20px 22px; border-radius: 14px; background: #1A232D; color: #F1EAD6; border: 1px solid rgba(241,234,214,.35); font: 15px/1.55 Arial, sans-serif; }
+    .nb-sr-top { display: flex; justify-content: space-between; align-items: center; } .nb-sr-x { border: 0; background: none; color: inherit; font-size: 1.5rem; line-height: 1; cursor: pointer; }
+    .nb-sr-bar { height: 4px; margin: 8px 0 14px; border-radius: 4px; background: rgba(255,255,255,.12); } .nb-sr-bar i { display: block; height: 100%; border-radius: 4px; background: #E6D7B0; }
+    .nb-sr-q { margin: 0 0 12px; font-size: 1.05rem; font-weight: 700; } .nb-sr-body { display: grid; gap: 8px; }
+    .nb-sr-opt { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid rgba(241,234,214,.25); border-radius: 10px; cursor: pointer; } .nb-sr-opt.right { border-color: #7fd49a; background: rgba(127,212,154,.14); } .nb-sr-opt.wrong { border-color: #ff9a8a; background: rgba(255,154,138,.14); }
+    .nb-sr-text { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(241,234,214,.35); background: rgba(255,255,255,.07); color: inherit; font: inherit; resize: vertical; }
+    .nb-sr-fb { margin-top: 12px; } .nb-sr-hint { opacity: .8; } .nb-sr-verdict { padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,.07); } .nb-sr-verdict.yes b { color: #7fd49a; } .nb-sr-verdict.no b { color: #ff9a8a; }
+    .nb-sr-foot { display: flex; justify-content: flex-end; margin-top: 14px; } .nb-sr-go { padding: 10px 20px; border: 0; border-radius: 10px; background: #E6D7B0; color: #1A232D; font: 800 .9rem Arial, sans-serif; cursor: pointer; } .nb-sr-go:disabled { opacity: .6; cursor: wait; }
+    .nb-sr-score { margin: 12px 0 0; font-size: 2.4rem; font-weight: 800; } .nb-sr-miss { margin: 4px 0 0; padding-left: 20px; }
     .nb-assist-hint { opacity: .7; font-size: .86rem; } .nb-assist-err { color: #ffb4a8; }
     .nb-review { padding: 12px 14px; border-radius: 12px; background: rgba(230,215,176,.1); border: 1px solid rgba(230,215,176,.3); } .nb-review h4 { margin: 14px 0 6px; font: 800 .74rem Arial, sans-serif; letter-spacing: .1em; text-transform: uppercase; color: #E6D7B0; } .nb-review h4:first-child { margin-top: 0; } .nb-review ul { margin: 0 0 4px 18px; padding: 0; } .nb-review li { margin-bottom: 4px; }
     .nb-issue { margin: 8px 0; padding: 9px 11px; border-radius: 10px; background: rgba(0,0,0,.22); } .nb-issue q { display: block; margin-bottom: 4px; opacity: .8; font-style: italic; } .nb-issue .fix { margin-top: 6px; padding: 7px 9px; border-radius: 8px; background: rgba(116,199,165,.16); } .nb-step { margin: 8px 0; padding: 9px 11px; border-radius: 10px; background: rgba(0,0,0,.22); } .nb-step b { display: block; }
@@ -20570,6 +20587,7 @@ SQIDAQAB
     function notesStatus(text) { const el = document.getElementById('nbStatus'); if (el) el.textContent = text; }
     function notesFlush() {
         if (notesSaveTimer) { clearTimeout(notesSaveTimer); notesSaveTimer = null; }
+        try { if (typeof nbSrCapture === 'function' && document.getElementById('nbCanvas')) nbSrCapture(notesNode(notes.activeId)); } catch (_) { /* revision bookkeeping never blocks a save */ }
         notesStatus(notesPersist() ? 'Saved' : 'Could not save: this browser has no space left');
     }
     function notesScheduleSave() {
@@ -21482,7 +21500,161 @@ SQIDAQAB
         if (notesAssist.open) setOpen(true);
         clearInterval(notesAssist.watch); notesAssist.watch = setInterval(() => { if (!document.getElementById('nbCanvas')) nbAssistTeardown(); }, 700);
     }
-    function nbAssistTeardown() { clearInterval(notesAssist.watch); document.getElementById('nbAssist')?.remove(); document.getElementById('nbAssistTab')?.remove(); const ci = document.getElementById('contentInner'); if (ci) ci.style.paddingRight = ''; }
+    function nbAssistTeardown() { clearInterval(notesAssist.watch); document.getElementById('nbSrPop')?.remove(); document.getElementById('nbSrModal')?.remove(); document.getElementById('nbAssist')?.remove(); document.getElementById('nbAssistTab')?.remove(); const ci = document.getElementById('contentInner'); if (ci) ci.style.paddingRight = ''; }
+
+    // ─── Revision: a quiz on what you wrote, the day after, then spaced by how well you did ───
+    // Every page quietly records which lines were written on which day (page.sr.days). Turning revision on adds a five-question quiz for each day
+    // of writing, due the next day for everyone (nobody has been tested yet), then rescheduled by FSRS from the score.
+    const NB_DAY_MS = 86400000;
+    const nbDayKey = (d) => { const x = d || new Date(); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); };
+    const nbDayStart = (key) => { const p = key.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); };
+    const nbDayLabel = (key) => nbDayStart(key).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+    const nbDateLabel = (iso) => new Date(iso).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+    function nbSrBlockLines(page) {
+        const out = {};
+        (page.doc && page.doc.blocks || []).forEach((b) => { if (b.type === 'text') out[b.id] = nbPlainText(b.html).split('\n').map((l) => l.trim()).filter(Boolean); });
+        return out;
+    }
+    // Called whenever notes are saved: lines that are new since the last save belong to today.
+    function nbSrCapture(page) {
+        if (!page || page.type !== 'page' || !page.doc) return;
+        const now = nbSrBlockLines(page);
+        if (!page.sr) { page.sr = { enabled: false, snap: now, days: {} }; return; }   // what was already there is not attributed to any day
+        const sr = page.sr, today = nbDayKey(); let changed = false;
+        Object.keys(now).forEach((id) => {
+            const before = new Set(sr.snap[id] || []);
+            const fresh = now[id].filter((l) => !before.has(l));
+            if (!fresh.length) return;
+            const day = sr.days[today] || (sr.days[today] = { lines: [], due: new Date(nbDayStart(today).getTime() + NB_DAY_MS).toISOString(), card: null, reps: 0 });
+            fresh.forEach((l) => { if (!day.lines.includes(l)) { day.lines.push(l); changed = true; } });
+        });
+        sr.snap = now;
+        if (changed && sr.days[today] && sr.days[today].quiz) delete sr.days[today].quiz;   // the notes moved on, so a stored quiz would be stale
+    }
+    // The lines of a day that are still on the page.
+    function nbSrDayText(page, key) {
+        const day = page.sr && page.sr.days[key]; if (!day) return '';
+        const still = new Set(Object.values(nbSrBlockLines(page)).flat());
+        return day.lines.filter((l) => still.has(l)).join('\n');
+    }
+    function nbSrSegments(page) {
+        const sr = page.sr; if (!sr) return [];
+        return Object.keys(sr.days).sort().map((key) => ({ key, day: sr.days[key], text: nbSrDayText(page, key) })).filter((s) => s.text.length >= 20);
+    }
+    const nbSrDue = (page) => (page.sr && page.sr.enabled ? nbSrSegments(page).filter((s) => new Date(s.day.due).getTime() <= Date.now()) : []);
+    function nbSrNorm(t) { return String(t == null ? '' : t).toLowerCase().replace(/[‘’]/g, "'").replace(/[^a-z0-9.%+\-\/ ]+/g, ' ').replace(/(?<!\d)\.|\.(?!\d)/g, ' ').replace(/\s+/g, ' ').trim(); }
+    function nbSrClozeOk(q, given) { const g = nbSrNorm(given); return !!g && [q.answer].concat(q.accept || []).some((a) => nbSrNorm(a) === g); }
+
+    function nbSrCloseModal() { document.getElementById('nbSrModal')?.remove(); document.removeEventListener('keydown', nbSrEsc); }
+    function nbSrEsc(e) { if (e.key === 'Escape') nbSrCloseModal(); }
+    function nbSrModal(html) {
+        let m = document.getElementById('nbSrModal');
+        if (!m) { m = document.createElement('div'); m.id = 'nbSrModal'; m.className = 'nb-sr-modal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true'); m.setAttribute('aria-label', 'Revision quiz'); document.body.appendChild(m); document.addEventListener('keydown', nbSrEsc); }
+        m.innerHTML = '<div class="nb-sr-card">' + html + '</div>';
+        return m.firstChild;
+    }
+    async function nbSrQuiz(page, key) {
+        const seg = nbSrSegments(page).find((s) => s.key === key);
+        if (!seg) return;
+        const title = page.name || '';
+        const close = '<button type="button" class="nb-sr-x" aria-label="Close">×</button>';
+        const wire = (card) => { const x = card.querySelector('.nb-sr-x'); if (x) x.addEventListener('click', nbSrCloseModal); };
+        let card = nbSrModal('<div class="nb-sr-top"><b>Revision</b>' + close + '</div><p class="nb-sr-note">Writing five questions on your notes from ' + nbAssistE(nbDayLabel(key)) + '…</p>'); wire(card);
+        let questions = seg.day.quiz && seg.day.quiz.length === 5 ? seg.day.quiz : null;
+        if (!questions) {
+            try { questions = (await nbAssistCall('/notes-assistant/quiz', { title, text: seg.text })).questions; seg.day.quiz = questions; notesScheduleSave(); }
+            catch (err) { card = nbSrModal('<div class="nb-sr-top"><b>Revision</b>' + close + '</div><p class="nb-sr-note">' + nbAssistE(err.message || 'LastMind could not make the quiz just now. Try again.') + '</p>'); wire(card); return; }
+        }
+        const results = []; let i = 0;
+        const step = () => {
+            if (i >= questions.length) return finish();
+            const q = questions[i];
+            let body = '';
+            if (q.type === 'mcq') body = q.options.map((o, n) => '<label class="nb-sr-opt"><input type="radio" name="nbSrAns" value="' + n + '"><span>' + nbAssistE(o) + '</span></label>').join('');
+            else if (q.type === 'cloze') body = '<input type="text" class="nb-sr-text" id="nbSrAns" autocomplete="off" aria-label="Your answer" placeholder="The missing word or number">';
+            else body = '<textarea class="nb-sr-text" id="nbSrAns" rows="4" aria-label="Your answer" placeholder="Answer in a sentence or two"></textarea>';
+            card = nbSrModal('<div class="nb-sr-top"><b>Revision · ' + (i + 1) + ' of 5</b>' + close + '</div><div class="nb-sr-bar"><i style="width:' + (i * 20) + '%"></i></div><p class="nb-sr-q">' + nbAssistE(q.q) + '</p><div class="nb-sr-body">' + body + '</div><div class="nb-sr-fb" id="nbSrFb" aria-live="polite"></div><div class="nb-sr-foot"><button type="button" class="nb-sr-go" id="nbSrGo">Check</button></div>');
+            wire(card);
+            const go = card.querySelector('#nbSrGo'), fb = card.querySelector('#nbSrFb');
+            const field = card.querySelector('#nbSrAns'); if (field) field.focus();
+            let checked = false;
+            go.addEventListener('click', async () => {
+                if (checked) { i += 1; return step(); }
+                let ok = false, note = '';
+                if (q.type === 'mcq') {
+                    const pick = card.querySelector('input[name="nbSrAns"]:checked'); if (!pick) { fb.innerHTML = '<span class="nb-sr-hint">Choose an answer first.</span>'; return; }
+                    ok = Number(pick.value) === q.correct;
+                    card.querySelectorAll('.nb-sr-opt').forEach((l, n) => { l.classList.toggle('right', n === q.correct); l.classList.toggle('wrong', n !== q.correct && l.querySelector('input').checked); l.querySelector('input').disabled = true; });
+                    note = q.explanation;
+                } else if (q.type === 'cloze') {
+                    const v = field.value.trim(); if (!v) { fb.innerHTML = '<span class="nb-sr-hint">Type an answer first.</span>'; return; }
+                    ok = nbSrClozeOk(q, v); field.disabled = true; note = (ok ? '' : 'The answer was: ' + q.answer + '. ') + (q.explanation || '');
+                } else {
+                    const v = field.value.trim(); if (!v) { fb.innerHTML = '<span class="nb-sr-hint">Write an answer first.</span>'; return; }
+                    go.disabled = true; go.textContent = 'Marking…'; field.disabled = true;
+                    try { const r = await nbAssistCall('/notes-assistant/check-free', { question: q.q, modelAnswer: q.modelAnswer, answer: v }); ok = !!r.correct; note = (r.feedback || '') + ' A good answer: ' + q.modelAnswer; }
+                    catch (err) { go.disabled = false; go.textContent = 'Check'; field.disabled = false; fb.innerHTML = '<span class="nb-sr-hint">' + nbAssistE(err.message || 'Could not mark that. Try again.') + '</span>'; return; }
+                }
+                results.push({ ok, q: q.q });
+                checked = true; go.disabled = false; go.textContent = i === questions.length - 1 ? 'See result' : 'Next';
+                fb.innerHTML = '<div class="nb-sr-verdict ' + (ok ? 'yes' : 'no') + '"><b>' + (ok ? 'Correct' : 'Not quite') + '</b> ' + nbAssistE(note) + '</div>';
+            });
+            if (q.type !== 'free' && field && field.tagName === 'INPUT') field.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go.click(); } });
+        };
+        const finish = async () => {
+            const score = results.filter((r) => r.ok).length;
+            card = nbSrModal('<div class="nb-sr-top"><b>Revision</b>' + close + '</div><p class="nb-sr-note">You got ' + score + ' of 5. Scheduling your next quiz…</p>'); wire(card);
+            let line = '';
+            try {
+                const out = await nbAssistCall('/notes-assistant/quiz-result', { card: seg.day.card, score });
+                seg.day.card = out.card; seg.day.due = out.due; seg.day.reps = (seg.day.reps || 0) + 1; delete seg.day.quiz; notesScheduleSave();
+                line = 'Next quiz on these notes: <b>' + nbAssistE(nbDateLabel(out.due)) + '</b> (in ' + out.days + (out.days === 1 ? ' day' : ' days') + ').';
+            } catch (err) { line = 'Your score is saved only on this screen; the next quiz could not be scheduled just now (' + nbAssistE(err.message || 'try again later') + ').'; }
+            const missed = results.filter((r) => !r.ok);
+            card = nbSrModal('<div class="nb-sr-top"><b>Revision</b>' + close + '</div><p class="nb-sr-score">' + score + ' / 5</p><p class="nb-sr-note">' + line + '</p>' + (missed.length ? '<p class="nb-sr-note"><b>Worth another look in your notes:</b></p><ul class="nb-sr-miss">' + missed.map((r) => '<li>' + nbAssistE(r.q) + '</li>').join('') + '</ul>' : '<p class="nb-sr-note">Nothing missed.</p>') + '<div class="nb-sr-foot"><button type="button" class="nb-sr-go" id="nbSrDone">Done</button></div>');
+            wire(card); card.querySelector('#nbSrDone').addEventListener('click', () => { nbSrCloseModal(); nbSrRefresh(page); });
+        };
+        step();
+    }
+    function nbSrDueText(s) {
+        const t = new Date(s.day.due).getTime(), now = Date.now();
+        if (t <= now) return 'due now';
+        const d = Math.ceil((t - now) / NB_DAY_MS);
+        return 'next quiz ' + nbDateLabel(s.day.due) + (d > 1 ? ' (in ' + d + ' days)' : '');
+    }
+    function nbSrRefresh(page) {
+        const wrap = document.querySelector('.nb-page-wrap'); if (!wrap) return;
+        let bar = document.getElementById('nbSrBanner');
+        const due = nbSrDue(page);
+        if (!due.length) { bar?.remove(); } else {
+            if (!bar) { bar = document.createElement('div'); bar.id = 'nbSrBanner'; bar.className = 'nb-sr-banner'; const tb = wrap.querySelector('.nb-toolbar'); tb.parentNode.insertBefore(bar, tb); }
+            bar.innerHTML = '<span><b>Revision due.</b> ' + (due.length === 1 ? 'Five questions on what you wrote on ' + nbAssistE(nbDayLabel(due[0].key)) + '.' : due.length + ' days of notes are due a quiz.') + '</span>' + due.map((s) => '<button type="button" data-day="' + s.key + '">' + (due.length === 1 ? 'Start quiz' : nbAssistE(nbDayStart(s.key).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }))) + '</button>').join('');
+            bar.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => nbSrQuiz(page, b.dataset.day)));
+        }
+        const pop = document.getElementById('nbSrPop'); if (pop) nbSrPopPaint(page, pop);
+        const tool = document.getElementById('nbSrBtn'); if (tool) tool.classList.toggle('on', !!(page.sr && page.sr.enabled));
+    }
+    function nbSrPopPaint(page, pop) {
+        const sr = page.sr || { enabled: false, days: {} }, segs = nbSrSegments(page);
+        pop.innerHTML = '<label class="nb-sr-switch"><input type="checkbox" id="nbSrOn"' + (sr.enabled ? ' checked' : '') + '><span>Quiz me on this page</span></label>' +
+            '<p class="nb-sr-note">The day after you write notes, you get five questions on what you wrote that day: multiple choice, fill the gap, and a short written answer. The wait after that depends on how you do. Everyone starts with one day, because you have not been tested yet.</p>' +
+            (segs.length ? '<div class="nb-sr-days">' + segs.map((s) => '<div class="nb-sr-day"><span><b>' + nbAssistE(nbDayLabel(s.key)) + '</b><small>' + s.text.split('\n').length + ' lines · ' + (sr.enabled ? nbSrDueText(s) : 'not scheduled') + '</small></span><button type="button" data-day="' + s.key + '">Quiz me now</button></div>').join('') + '</div>' : '<p class="nb-sr-note">Nothing written yet. Each day you write here is recorded as its own set of notes.</p>');
+        pop.querySelector('#nbSrOn').addEventListener('change', (e) => { if (!page.sr) page.sr = { enabled: false, snap: nbSrBlockLines(page), days: {} }; page.sr.enabled = e.target.checked; notesScheduleSave(); nbSrRefresh(page); });
+        pop.querySelectorAll('.nb-sr-day button').forEach((b) => b.addEventListener('click', () => { pop.remove(); nbSrQuiz(page, b.dataset.day); }));
+    }
+    function nbSrMount(page) {
+        const btn = document.getElementById('nbSrBtn'); if (!btn) return;
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const open = document.getElementById('nbSrPop'); if (open) { open.remove(); return; }
+            nbSrCapture(page);
+            const pop = document.createElement('div'); pop.id = 'nbSrPop'; pop.className = 'nb-sr-pop'; document.body.appendChild(pop);
+            const r = btn.getBoundingClientRect(); pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 348)) + 'px'; pop.style.top = (r.bottom + 6) + 'px';
+            nbSrPopPaint(page, pop);
+        });
+        document.addEventListener('click', (e) => { const pop = document.getElementById('nbSrPop'); if (pop && !pop.contains(e.target) && e.target !== btn) pop.remove(); });
+        nbSrCapture(page); nbSrRefresh(page);
+    }
 
     function notesRenderPage(page) {
         const contentInner = notesPrepareMain('Notes');
@@ -21510,6 +21682,7 @@ SQIDAQAB
                     <button type="button" class="nb-tool nb-tool-strong" id="nbAddGraph" title="Add coordinate graph (Ctrl+Alt+G)">+ Graph</button>
                     <button type="button" class="nb-tool" id="nbAddDiagram">+ Economics diagram</button>
                     <button type="button" class="nb-tool" id="nbShortcuts">Shortcuts</button>
+                    <button type="button" class="nb-tool" id="nbSrBtn" title="Quiz yourself on this page the day after you write it">Revision</button>
                 </div>
                 <div class="nb-canvas" id="nbCanvas"></div>
                 <div class="nb-selection-size" id="nbSelectionSize"><span>Text size</span><select class="nb-text-size" aria-label="Selected text size"><option value="12">12px</option><option value="14">14px</option><option value="16" selected>16px</option><option value="18">18px</option><option value="22">22px</option><option value="28">28px</option><option value="36">36px</option></select></div>
@@ -21620,7 +21793,7 @@ SQIDAQAB
         document.getElementById('nbKbdMaths').addEventListener('click', () => setKeyboard(false));
         nbSyncKeyboardButtons();
         document.getElementById('nbShortcuts').addEventListener('click', () => openMathsShortcutPopup(NB_SHORTCUTS_HTML, true));
-        nbAssistMount(page);
+        nbAssistMount(page); nbSrMount(page);
         const addGraph = () => {
             let bottom = 0; canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
             const block = { id: notesNewId(), type: 'graph', x: 24, y: bottom ? bottom + 24 : 24, w: Math.min(700, Math.max(300, canvas.clientWidth - 48)), state: { mode: '2d', expression2d: '', expression3d: '', min: -10, max: 10 } };
