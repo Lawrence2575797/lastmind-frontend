@@ -21241,9 +21241,12 @@ SQIDAQAB
         topSizeSelect.addEventListener('change', (e) => applyNotesTextSize(e.target.value));
         selectionSizeSelect.addEventListener('change', (e) => applyNotesTextSize(e.target.value));
         const onSelectionChange = () => {
-            const sel = window.getSelection(); if (!sel || !sel.rangeCount || sel.isCollapsed || !notesActive) return;
+            // The button only lives while text is highlighted: a collapsed or moved selection removes it (unless the student is using the size menus).
+            const keep = () => document.activeElement === selectionSizeSelect || document.activeElement === topSizeSelect;
+            const sel = window.getSelection();
+            if (!sel || !sel.rangeCount || sel.isCollapsed || !notesActive) { if (!keep()) selectionSize.classList.remove('open'); return; }
             const range = sel.getRangeAt(0), node = range.commonAncestorContainer.nodeType === 1 ? range.commonAncestorContainer : range.commonAncestorContainer.parentNode;
-            if (!notesActive.editable.contains(node)) return;
+            if (!notesActive.editable.contains(node)) { if (!keep()) selectionSize.classList.remove('open'); return; }
             savedTextRange = range.cloneRange();
             const rect = range.getBoundingClientRect(); if (!rect.width && !rect.height) return;
             const currentPx = Math.round(parseFloat(getComputedStyle(range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement).fontSize)) || 16;
@@ -21253,7 +21256,7 @@ SQIDAQAB
             selectionSize.style.top = `${Math.max(8, rect.top - 46)}px`;
             selectionSize.classList.add('open');
         };
-        const onSelectionPointerDown = (e) => { if (!selectionSize.contains(e.target) && !topSizeSelect.contains(e.target) && !(notesActive && notesActive.editable.contains(e.target))) { selectionSize.classList.remove('open'); savedTextRange = null; } };
+        const onSelectionPointerDown = (e) => { if (!selectionSize.contains(e.target) && !topSizeSelect.contains(e.target)) { selectionSize.classList.remove('open'); if (!(notesActive && notesActive.editable.contains(e.target))) savedTextRange = null; } };
         const onAlignmentPointerDown = (e) => {
             if (notesAlignSource && !e.target.closest('.nb-align-left')) { nbClearAlignment(); notesStatus('Alignment cancelled'); }
         };
