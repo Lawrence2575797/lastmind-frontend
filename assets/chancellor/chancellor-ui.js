@@ -92,6 +92,7 @@
       '.an-main { min-width: 0; padding: 16px 18px; border: 1px solid var(--chn-line); border-radius: 12px; background: var(--panel); line-height: 1.6; } .an-main h3 { margin: 16px 0 6px; font: 700 1.05rem Arial, sans-serif; } .an-main h4 { margin: 14px 0 4px; font: 700 0.9rem Arial, sans-serif; } .an-main p { margin: 0 0 10px; }',
       '.an-head { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }',
       '.an-steps, .an-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; } .an-step, .an-tab { padding: 7px 12px; border: 1px solid var(--chn-line); border-radius: 999px; background: transparent; color: inherit; font: 700 0.8rem Arial, sans-serif; cursor: pointer; } .an-step.on, .an-tab.on { background: #0f1b2d; color: #f6efdc; border-color: #0f1b2d; }',
+      '.an-outs { margin: 10px 0 6px; padding: 8px 12px 10px; border: 1px solid rgba(0,0,0,.18); border-radius: 10px; } .an-outs legend { padding: 0 6px; font: 700 .8rem Arial, sans-serif; } .an-oc { display: inline-flex; align-items: center; gap: 6px; margin: 4px 14px 4px 0; padding: 5px 11px; border: 1px solid rgba(0,0,0,.25); border-radius: 999px; font: 700 .82rem Arial, sans-serif; cursor: pointer; background: #fff; } .an-oc:has(input:checked) { background: #0a5f8f; color: #fff; border-color: #0a5f8f; } .an-orow { margin: 10px 0; padding: 4px 12px; border-radius: 10px; background: rgba(0,0,0,.04); } .an-orow h4 { margin: 8px 0 0; }',
       '.an-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin: 8px 0; } .an-form label { display: grid; gap: 4px; font: 0.8rem Arial, sans-serif; } .an-form input, .an-form select, .an-pick select { padding: 7px 9px; border: 1px solid rgba(26,26,28,0.32); border-radius: 8px; background: #fff; font: 0.9rem Arial, sans-serif; } .an-pick { margin: 6px 0 10px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font: 0.84rem Arial, sans-serif; }',
       '.an-result { margin: 10px 0 14px; padding: 12px 14px; border: 1px solid var(--chn-line); border-left: 5px solid var(--accent); border-radius: 10px; background: #fff; } .an-result .big { font: 700 1.5rem Arial, sans-serif; } .an-result .big small { font-size: 0.8rem; font-weight: 400; opacity: 0.7; } .an-result .ci { font: 0.82rem Arial, sans-serif; opacity: 0.75; margin: 2px 0 8px; } .an-result p { margin: 0; }',
       '.an-note, .an-warn { margin: 10px 0; padding: 10px 12px; border-radius: 10px; font-size: 0.9rem; } .an-note { background: rgba(11,114,133,0.10); } .an-warn { background: rgba(180,83,9,0.12); }',
@@ -271,7 +272,7 @@
   function ensurePortraits() { ui.g.people.forEach(function (p) { if (!p.resigned) requestPortrait(p.key, p.role); }); }
 
   /* ---------- the shell ---------- */
-  var TABS = [['overview', 'Overview'], ['economy', 'Economic performance'], ['policy', 'Policy'], ['analysis', 'Analysis'], ['budget', 'Budget'], ['people', 'People and polls'], ['news', 'News'], ['log', 'Record']];
+  var TABS = [['overview', 'Overview'], ['economy', 'Economic performance'], ['policy', 'Policy'], ['budget', 'Budget'], ['people', 'People and polls'], ['news', 'News'], ['log', 'Record']];
   function windowPill() {
     var w = ui.g.window || { kind: 'none' };
     if (w.kind === 'shock') return '<span class="chn-pill shock">Emergency session open</span>';
@@ -344,7 +345,7 @@
     var Ls = window.LMLessons, chs = (Ls && Ls.chapters) || [], g = ui.g; g.lessonsRead = g.lessonsRead || {};
     var cur = chs.filter(function (x) { return x.id === ui.lessonId; })[0];
     if (!cur) {
-      return '<p class="neutral">Short lessons that start from nothing and build up to the methods used in the Analysis tab. Read them in order, or open the one you need.</p>' + chs.map(function (x, i) { return '<button type="button" class="chn-chap" data-chap="' + x.id + '"><span class="n">' + (i + 1) + '</span><span><b>' + esc(x.title) + '</b><small>' + esc(x.summary) + '</small></span>' + (g.lessonsRead[x.id] ? '<span class="tick">✓</span>' : '') + '</button>'; }).join('');
+      return '<p class="neutral">Short lessons that start from nothing and build up to the methods used in an investigation. Read them in order, or open the one you need.</p>' + chs.map(function (x, i) { return '<button type="button" class="chn-chap" data-chap="' + x.id + '"><span class="n">' + (i + 1) + '</span><span><b>' + esc(x.title) + '</b><small>' + esc(x.summary) + '</small></span>' + (g.lessonsRead[x.id] ? '<span class="tick">✓</span>' : '') + '</button>'; }).join('');
     }
     g.lessonsRead[cur.id] = true;
     var i = chs.indexOf(cur), prev = chs[i - 1], next = chs[i + 1];
@@ -362,7 +363,7 @@
   function openChapter(id) { ui.guideOpen = true; ui.guideTab = 'lessons'; ui.lessonId = id; renderGuide(); var p = document.getElementById('chnEcon'); if (p) p.scrollTop = 0; }
   function coachEnv() {
     return { ui: ui, S: S, level: levelIs, metrics: metricsNow, nice: S.nice, save: save, draftCount: function () { return pendingChanges().length; },
-      setTab: function (t) { ui.tab = t; renderAll(); },
+      setTab: function (t) { goTab(t); renderAll(); },
       openGuide: function (tab) { ui.guideOpen = true; ui.guideTab = tab; renderGuide(); } };
   }
   function renderGuide() {
@@ -380,11 +381,22 @@
     var host = ui.host.querySelector('#chnAnalysis'); if (!host || !window.LMAnalysis) return;
     ui.analysisHost = host;
     window.LMAnalysis.render(host, {
-      g: ui.g, S: S, level: levelIs(), catalogue: catalogue, visibleLevers: function () { return catalogue().filter(function (e) { return !e.preset && levelOk(e); }); }, groups: function () { return visibleAreas(true); }, draftLevers: draftLevers,
+      g: ui.g, S: S, level: levelIs(), preLever: ui.invLever, catalogue: catalogue, visibleLevers: function () { return catalogue().filter(function (e) { return !e.preset && levelOk(e); }); }, groups: function () { return visibleAreas(true); }, draftLevers: draftLevers,
       save: save, toast: toast, openLesson: openChapter,
       suggestSize: function (e) { var c = e.ctl; return c.min < 0 ? Math.round(c.max * 0.25 / c.step) * c.step : Math.round(c.max * 0.35 / c.step) * c.step; },
       addDraft: function (id, v, opt) { var e = catalogue().filter(function (x) { return x.id === id; })[0]; if (!e) return; var base = enacted(id) ? enacted(id).v : 0; D()[id] = { v: clampV(e, base + 0 + v), opt: opt || undefined, dur: undefined }; save(); renderTab(); },
     });
+  }
+  // Investigating a policy happens on the Policy page itself, beside the levers and the draft, not on a tab of its own.
+  function goTab(t) { if (t === 'analysis') { ui.tab = 'policy'; ui.inv = true; } else { ui.tab = t; } }
+  function openInv(what) {
+    if (what === 'close') { ui.inv = false; renderTab(); return; }
+    ui.inv = true; ui.invLever = null;
+    if (what.indexOf('lever:') === 0) {
+      var id = what.slice(6), have = (ui.g.analyses || []).filter(function (x) { return x.leverId === id && !x.decision; })[0];
+      if (have) ui.g.analysisOpen = have.id; else { ui.g.analysisOpen = null; var dl = draftLevers().filter(function (x) { return x.id === id; })[0]; ui.invLever = { id: id, v: dl ? dl.v : null }; }
+    }
+    renderTab(); var m = ui.host.querySelector('.chn-polmain'); if (m && m.scrollIntoView) m.scrollIntoView({ block: 'start' });
   }
   function renderTab() {
     var b = ui.host.querySelector('#chnBody'); if (!b) return;
@@ -392,7 +404,10 @@
     var fn = { overview: overview, economy: economyTab, policy: policyTab, analysis: analysisTab, budget: budgetTab, people: peopleTab, news: newsTab, log: logTab }[ui.tab] || overview;
     b.innerHTML = ui.g.over ? overHtml() : fn();
     if (ui.tab === 'policy' && !ui.g.over) bindPolicy();
-    if (ui.tab === 'analysis' && !ui.g.over) mountAnalysis();
+    if (ui.tab === 'policy' && ui.inv && !ui.g.over) {
+      var pm = b.querySelector('.chn-polmain');
+      if (pm) { pm.innerHTML = '<div class="chn-focusbar"><button type="button" class="chn-btn small" data-inv="close">← Back to the policy choices</button><span>Investigating a policy. Your draft stays on the right.</span></div><div id="chnAnalysis"><p class="neutral">Loading the Treasury analysis…</p></div>'; mountAnalysis(); }
+    }
     if (ui.tab === 'budget') bindBudget();
   }
   var shellBound = null;
@@ -403,9 +418,10 @@
       if (ga) { ui.area = ga.dataset.goarea; ui.g.focusOnly = false; ui.guideOpen = false; ui.tab = 'policy'; renderAll(); return; }
       var cg = e.target.closest('[data-chap],[data-gtab]');
       if (cg) { if (cg.dataset.gtab) { ui.guideTab = cg.dataset.gtab; renderGuide(); } else { ui.lessonId = cg.dataset.chap || null; renderGuide(); var pp = document.getElementById('chnEcon'); if (pp) pp.scrollTop = 0; save(); } return; }
-      var t = e.target.closest('[data-act],[data-tab],[data-chart],[data-dismiss],[data-lesson]'); if (!t) return;
+      var t = e.target.closest('[data-act],[data-tab],[data-chart],[data-dismiss],[data-lesson],[data-inv]'); if (!t) return;
       if (t.dataset.lesson) { openLesson(t.dataset.lesson); return; }
-      if (t.dataset.tab) { ui.tab = t.dataset.tab; renderAll(); return; }
+      if (t.dataset.inv) { openInv(t.dataset.inv); return; }
+      if (t.dataset.tab) { goTab(t.dataset.tab); renderAll(); return; }
       if (t.dataset.chart) { ui.chart = t.dataset.chart; renderTab(); return; }
       if (t.dataset.dismiss != null) { ui.notices.splice(+t.dataset.dismiss, 1); renderTab(); return; }
       var a = t.dataset.act;
@@ -566,7 +582,7 @@
     var star = focusIds().indexOf(e.id) > -1 ? '<span class="chn-star" title="A good place to start in this situation">★ suggested</span> ' : '';
     var timing = e.lag ? 'Takes effect ' + e.lag + ' quarter' + (e.lag > 1 ? 's' : '') + ' after it is enacted: ' + esc(e.lagWhy) : 'Takes effect straight away';
     var impact = esc(window.LMGuide ? LMGuide.lever(e.id, e.area) : '');
-    return '<article class="chn-pol' + (drafted ? ' changed' : '') + (lock ? ' lock' : '') + '" data-card="' + e.id + '" style="--gc:' + areaColour(e.area) + '"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><span class="nm">' + star + esc(e.name) + '</span><span class="badge" data-badge="' + e.id + '">' + esc(badgeText(e, pendingValue(e))) + '</span></div>' +
+    return '<article class="chn-pol' + (drafted ? ' changed' : '') + (lock ? ' lock' : '') + '" data-card="' + e.id + '" style="--gc:' + areaColour(e.area) + '"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><span class="nm">' + star + esc(e.name) + '</span><span style="display:flex;gap:8px;align-items:center"><span class="badge" data-badge="' + e.id + '">' + esc(badgeText(e, pendingValue(e))) + '</span>' + (e.ctl.t === 'slider' && levelOk(e) ? '<button type="button" class="chn-btn small" data-inv="lever:' + e.id + '" title="Find out what the evidence says before you decide">Investigate</button>' : '') + '</span></div>' +
       (lock ? '<div class="reason">' + esc(avail.reason) + '</div>' : '') + ctlHtml(e) + (chips ? '<div>' + chips + '</div>' : '') + wait +
       '<details class="chn-more"><summary class="unit" style="cursor:pointer">Details: what it does, timing, lesson</summary>' +
       '<div class="ibody"><div class="ch">You choose: ' + esc(e.choice) + '</div><p>' + impact + '</p><p class="neutral">' + timing + '</p></div>' +
@@ -611,12 +627,12 @@
     return policyBanner() + '<div class="chn-polwrap3">' + nav +
       '<section class="chn-polmain"><div class="chn-focusbar">' + (focusOn() ? '<span>Showing <b>suggested policies only</b> (the ★ ones).</span><button type="button" class="chn-btn small" data-focus="off">Show every policy</button>' : (focusIds().length ? '<span>Showing every policy.</span><button type="button" class="chn-btn small" data-focus="on">Show suggested only</button>' : '')) + '</div><h3 class="chn-areahead">' + esc(cur.name) + '</h3>' + (window.LMGuide && LMGuide.areaNote(cur.name) ? '<div class="chn-areanote"><img alt="" src="/assets/chancellor/adviser-point.jpg"><span>' + esc(LMGuide.areaNote(cur.name)) + '</span></div>' : '') + '<p class="neutral" style="margin:0 0 10px;font-size:.86rem">' + esc(gp0 ? gp0.text : '') + (levelIs() === 'alevel' ? ' Showing the main levers; the University level has every one.' : '') + '</p><div id="chnPolList" class="chn-pollist">' + cur.list.map(policyCard).join('') + '</div></section>' +
       '<aside class="chn-side"><div class="chn-card"><h3 style="font:700 .95rem Arial">Your draft</h3><div id="chnPkg" style="font-size:.85rem;margin:6px 0">' + pkgHtml() + '</div><div class="chn-actions"><button class="chn-btn primary" data-pol="save">Save draft</button><button class="chn-btn" data-pol="clear" ' + (n ? '' : 'disabled') + '>Clear draft</button></div><p class="neutral" style="font-size:.74rem;margin:6px 0 0">Saved drafts are not enacted. You submit them on budget day.</p></div>' +
-      '<div class="chn-card"><h3 style="font:700 .95rem Arial;margin-bottom:6px">Analysis</h3><p class="neutral" style="font-size:.85rem;margin:0 0 8px">' + (levelIs() === 'alevel' ? 'Ask the Treasury analyst what the evidence says about a policy before you commit to it.' : 'Investigate a policy before you commit to it: look at what other countries found, test it, and weigh the costs and benefits.') + '</p><button class="chn-btn small" data-tab="analysis">Investigate a policy</button></div>' +
+      '<div class="chn-card"><h3 style="font:700 .95rem Arial;margin-bottom:6px">Analysis</h3><p class="neutral" style="font-size:.85rem;margin:0 0 8px">' + (levelIs() === 'alevel' ? 'Ask the Treasury analyst what the evidence says about a policy before you commit to it.' : 'Investigate a policy before you commit to it: look at what other countries found, test it, and weigh the costs and benefits.') + '</p><button class="chn-btn small" data-inv="open">Investigate a policy</button></div>' +
       '<div class="chn-card"><h3 style="font:700 .95rem Arial;margin-bottom:6px">Emergency budget packages</h3><div class="chn-actions">' + packs + '</div><p class="neutral" style="font-size:.74rem;margin:6px 0 0">Adds a ready-made set of changes to your draft. Edit them afterwards.</p></div></aside></div>';
   }
   function bindPolicy() {
     var host = ui.host;
-    host.querySelectorAll('[data-area]').forEach(function (b) { b.onclick = function () { ui.area = b.dataset.area; renderTab(); }; });
+    host.querySelectorAll('[data-area]').forEach(function (b) { b.onclick = function () { ui.area = b.dataset.area; ui.inv = false; renderTab(); }; });
     host.querySelectorAll('[data-focus]').forEach(function (b) { b.onclick = function () { ui.g.focusOnly = b.dataset.focus === 'on'; save(); renderTab(); }; });
     host.querySelectorAll('[data-pack]').forEach(function (b) { b.onclick = function () { var p = L.PRESETS[b.dataset.pack]; if (!p) return; Object.keys(p.set).forEach(function (id) { var e = catalogue().filter(function (x) { return x.id === id; })[0]; if (!e) return; var base = enacted(id) ? enacted(id).v : 0; D()[id] = { v: clampV(e, e.ctl.pickOpts ? p.set[id] : p.set[id]), opt: e.ctl.pickOpts ? e.ctl.pickOpts[0].v : null, dur: null }; }); save(); toast(p.name + ' added to your draft.'); renderTab(); }; });
     var list = host.querySelector('#chnPolList');

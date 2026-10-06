@@ -106,6 +106,9 @@
 
   /* ---------- plain-English readings of results ---------- */
   function unitText(key) { return OUT[key][1]; }
+  function outcomesOf(a) { return a.outcomes && a.outcomes.length ? a.outcomes : [a.outcome]; }
+  function listNames(keys) { var n = keys.map(function (k) { return /^GDP/.test(OUT[k][0]) ? OUT[k][0] : OUT[k][0].toLowerCase(); }); return n.length < 2 ? n.join('') : n.slice(0, -1).join(', ') + ' and ' + n[n.length - 1]; }
+  function outSelect(a, cur) { return '<select id="anOutShow">' + outcomesOf(a).map(function (k) { return '<option value="' + k + '"' + (k === cur ? ' selected' : '') + '>' + OUT[k][0] + '</option>'; }).join('') + '</select>'; }
   function readEffect(res, key, what) {
     var lo = res.ci[0], hi = res.ci[1], zero = lo <= 0 && hi >= 0, dir = res.est > 0 ? 'higher' : 'lower';
     return '<b>' + OUT[key][0] + ' was about ' + f2(Math.abs(res.est)) + ' ' + unitText(key) + ' ' + dir + '</b> in countries that adopted it (' + what + '). The 95% confidence interval runs from ' + sg(lo) + ' to ' + sg(hi) + ', and ' + pfmt(res.p) + '. ' +
@@ -126,6 +129,7 @@
     else body = workspace(a);
     host.innerHTML = layout(list + '<section class="an-main">' + body + '</section>');
     bind(host);
+    if (!a && ctx.preLever) { var ps = host.querySelector('#anLever'), pv = host.querySelector('#anV'); if (ps) { ps.value = ctx.preLever.id; fillUnit(host); if (ctx.preLever.v) pv.value = ctx.preLever.v; } ctx.preLever = null; }
   }
 
   function newForm() {
@@ -133,8 +137,8 @@
     var opts = groups.map(function (gp) { return '<optgroup label="' + esc(gp.name) + '">' + gp.areas.map(function (ar) { return ar.list.filter(function (e) { return e.ctl.t === 'slider'; }).map(function (e) { return '<option value="' + e.id + '">' + esc(e.name) + '</option>'; }).join(''); }).join('') + '</optgroup>'; }).join('');
     var fromDraft = d.length ? '<p class="neutral" style="font-size:.86rem">In your draft: ' + d.map(function (x) { return '<button type="button" class="chn-btn small" data-an-from="' + x.id + '|' + x.v + '">' + esc(x.name) + ' (' + esc(x.badge) + ')</button>'; }).join(' ') + '</p>' : '';
     return '<h2 style="margin:0 0 6px">Investigate a policy</h2><p class="neutral" style="margin:0 0 12px">' + (ctx.level === 'alevel' ? 'Choose a policy and the Treasury analyst will study what happened in other countries that tried it, and bring you a briefing.' : 'You are the analyst. Choose a policy and a size, and you will work out what it would do, using evidence from countries that have already tried something like it.') + '</p>' + fromDraft +
-      '<div class="an-form"><label>Policy<select id="anLever">' + opts + '</select></label><label>Size you are considering<input type="number" id="anV" step="0.5"></label><label>The outcome you care most about<select id="anOut">' + Object.keys(OUT).map(function (k) { return '<option value="' + k + '">' + OUT[k][0] + '</option>'; }).join('') + '</select></label></div>' +
-      '<p id="anUnit" class="neutral" style="font-size:.84rem;margin:6px 0 12px"></p><button type="button" class="chn-btn primary" data-an="create">Open the investigation</button>';
+      '<div class="an-form"><label>Policy<select id="anLever">' + opts + '</select></label><label>Size you are considering<input type="number" id="anV" step="0.5"></label></div><fieldset class="an-outs"><legend>What matters to you here? Tick every outcome you care about</legend>' + Object.keys(OUT).map(function (k, n) { return '<label class="an-oc"><input type="checkbox" name="anOutc" value="' + k + '"' + (n === 0 ? ' checked' : '') + '><span>' + OUT[k][0] + '</span></label>'; }).join('') + '</fieldset>' +
+      '<p id="anUnit" class="neutral" style="font-size:.84rem;margin:6px 0 12px"></p><p class="neutral" style="font-size:.84rem;margin:0 0 12px">A policy rarely moves just one thing. You will see the evidence for each outcome you tick, and weigh them together.</p><button type="button" class="chn-btn primary" data-an="create">Open the investigation</button>';
   }
 
   function steps(a) { return [['question', '1 Question'], ['data', '2 Data'], ['evidence', '3 Evidence'], ['cba', '4 Cost and benefit'], ['decide', '5 Decide']]; }
@@ -153,7 +157,7 @@
 
   function stepQuestion(a) {
     var e = leverMeta(a.leverId), p = panelFor(a), nT = p.units.filter(function (u) { return u.treated; }).length;
-    return '<h3>The question</h3><p>If the government makes this change, <b>what will happen to ' + OUT[a.outcome][0].toLowerCase() + '</b>, and is it worth the cost?</p>' +
+    return '<h3>The question</h3><p>If the government makes this change, <b>what will happen to ' + listNames(outcomesOf(a)) + '</b>, and is it worth the cost?</p>' +
       '<p>You cannot test it on your own country first. What you can do is learn from other countries that did something similar. The Treasury has assembled a record of <b>' + p.units.length + ' countries over ' + p.Q + ' quarters</b>; <b>' + nT + '</b> of them adopted this kind of policy at different times, and the rest did not. Their economies resemble yours, but they are not identical, and they were hit by their own shocks as well as shocks the whole world shared.</p>' +
       '<div class="an-note"><b>The problem of cause.</b> Countries that adopt a policy often differ from those that do not, and they often adopt it because of what was happening to them. A simple comparison can therefore mislead. Choosing a method that handles this is the whole craft.</div>' +
       '<h3>What do you expect?</h3><div class="an-form"><label>I expect it to<select id="anExpect"><option value="">Choose…</option><option value="up"' + (a.expect === 'up' ? ' selected' : '') + '>raise it</option><option value="down"' + (a.expect === 'down' ? ' selected' : '') + '>lower it</option><option value="none"' + (a.expect === 'none' ? ' selected' : '') + '>make little difference</option></select></label></div>' +
@@ -164,7 +168,7 @@
   function stepData(a) {
     var p = panelFor(a), rows = p.units.map(function (u) { return '<tr><td>' + esc(u.name) + '</td><td>' + (u.treated ? 'Adopted in quarter ' + u.tq : 'Did not adopt') + '</td><td class="n">' + (u.treated ? (u.dose > 0 ? '+' : '') + u.dose : '·') + '</td></tr>'; }).join('');
     return '<h3>The data</h3><p>One row per country per quarter: ' + Object.keys(OUT).map(function (k) { return OUT[k][0].toLowerCase(); }).join(', ') + '. These are the official statistics, so they contain measurement error. The dotted lines mark when each country adopted.</p>' +
-      '<div class="an-pick"><label>Outcome <select id="anOutShow">' + Object.keys(OUT).map(function (k) { return '<option value="' + k + '"' + (k === (a.show || a.outcome) ? ' selected' : '') + '>' + OUT[k][0] + '</option>'; }).join('') + '</select></label></div>' +
+      '<div class="an-pick"><label>Outcome ' + outSelect(a, a.show || a.outcome) + '</label></div>' +
       panelChart(p, a.show || a.outcome) + '<p class="neutral" style="font-size:.86rem">Average across countries that adopted and across those that did not. Notice that they were not following identical paths even before anyone adopted. That gap is what a careful method has to take into account.</p>' +
       '<details class="an-det"><summary>The countries and when they acted</summary><div class="chn-scroll"><table class="chn-table"><tr><th>Country</th><th>Policy</th><th class="n">Size</th></tr>' + rows + '</table></div></details>' +
       '<div class="an-actions">' + learnBtn('stats', 'Learn: averages and uncertainty') + '<button type="button" class="chn-btn primary" data-an-step="evidence">On to the evidence →</button></div>';
@@ -174,7 +178,7 @@
     var m = a.method || 'before', key = a.show || a.outcome, p = panelFor(a), meta = METHODS.filter(function (x) { return x[0] === m; })[0], res, h = '';
     h += '<div class="an-tabs">' + METHODS.map(function (x) { return '<button type="button" class="an-tab' + (x[0] === m ? ' on' : '') + '" data-an-method="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>';
     h += coachNote(root.LMGuide ? LMGuide.methodNote(m) : '');
-    h += '<div class="an-pick"><label>Outcome <select id="anOutShow">' + Object.keys(OUT).map(function (k) { return '<option value="' + k + '"' + (k === key ? ' selected' : '') + '>' + OUT[k][0] + '</option>'; }).join('') + '</select></label> ' + learnBtn(meta[2], 'Learn: ' + meta[1].toLowerCase()) + '</div>';
+    h += '<div class="an-pick"><label>Outcome ' + outSelect(a, key) + '</label> ' + learnBtn(meta[2], 'Learn: ' + meta[1].toLowerCase()) + '</div>';
     if (m === 'before') {
       res = run(a, 'before', key);
       h += '<p>Compare each adopting country with <b>itself</b>: the six quarters before adoption against the six quarters after the policy took effect.</p>' + readCard(res, key, 'before versus after') +
@@ -235,21 +239,29 @@
   function cbaInput(label, k, v, step) { return '<label>' + esc(label) + '<input type="number" data-cba="' + k + '" value="' + v + '" step="' + step + '" min="0"></label>'; }
 
   function stepDecide(a) {
-    var p = panelFor(a), key = a.outcome, d = a.decision, h = '<h3>Your conclusion</h3>';
+    var p = panelFor(a), keys = outcomesOf(a), d = a.decision, h = '<h3>Your conclusion</h3>';
     if (!d) {
-      var last = a.lastMethod ? ' Your last estimate was ' + sg(a.lastMethod.est) + '.' : '';
-      h += '<p>Commit to an estimate of the <b>average effect of this policy on ' + OUT[key][0].toLowerCase() + '</b> in a country that adopts it, over the first ten quarters after it takes effect, in ' + unitText(key) + ', with a 95% interval. Then say what you would do. Once you commit, the truth is revealed.</p>' +
-        '<div class="an-form"><label>Your estimate<input type="number" id="anEst" step="0.05" value="' + (a.draftEst != null ? a.draftEst : '') + '"></label><label>Interval, low<input type="number" id="anLo" step="0.05" value="' + (a.draftLo != null ? a.draftLo : '') + '"></label><label>Interval, high<input type="number" id="anHi" step="0.05" value="' + (a.draftHi != null ? a.draftHi : '') + '"></label><label>Your recommendation<select id="anRec"><option value="1">Adopt it as proposed</option><option value="0.5">Adopt half the size</option><option value="1.5">Adopt a larger version</option><option value="0">Do not adopt it</option></select></label></div>' +
+      var last = a.lastMethod ? ' Your last estimate was ' + sg(a.lastMethod.est) + '.' : '', dr = a.draftBy || {};
+      var val = function (k, f) { return dr[k] && dr[k][f] != null ? dr[k][f] : ''; };
+      h += '<p>Commit to an estimate of the <b>average effect of this policy on ' + listNames(keys) + '</b> in a country that adopts it, over the first ten quarters after it takes effect, each with a 95% interval. Then say what you would do, weighing all of them. Once you commit, the truth is revealed.</p>' +
+        keys.map(function (k) {
+          return '<div class="an-orow"><h4>' + esc(OUT[k][0]) + ' <small>(' + esc(unitText(k)) + ')</small></h4><div class="an-form"><label>Your estimate<input type="number" step="0.05" data-ok="' + k + '" data-dk="est" value="' + val(k, 'est') + '"></label><label>Interval, low<input type="number" step="0.05" data-ok="' + k + '" data-dk="lo" value="' + val(k, 'lo') + '"></label><label>Interval, high<input type="number" step="0.05" data-ok="' + k + '" data-dk="hi" value="' + val(k, 'hi') + '"></label></div></div>';
+        }).join('') +
+        '<div class="an-form"><label>Your recommendation<select id="anRec"><option value="1">Adopt it as proposed</option><option value="0.5">Adopt half the size</option><option value="1.5">Adopt a larger version</option><option value="0">Do not adopt it</option></select></label></div>' +
         '<p class="neutral" style="font-size:.86rem">' + esc(last) + ' Choose the method you trust most, and say how sure you are: an interval that is too narrow is a mistake, and so is one so wide that it says nothing.</p>' +
         '<div class="an-actions">' + learnBtn('decide', 'Learn: from evidence to a decision') + '<button type="button" class="chn-btn" data-an-step="cba">← Cost and benefit</button><button type="button" class="chn-btn primary" data-an="commit">Commit and see the truth</button></div>';
       return h;
     }
-    var truth = p.truth.att[key], inside = truth >= d.lo && truth <= d.hi, err = d.est - truth, width = d.hi - d.lo;
-    var verdict = inside ? (width < Math.abs(truth) * 3 + 0.4 ? '<span class="good">Your interval contained the truth, and it was informative.</span>' : '<span class="neutral">Your interval contained the truth, but it was very wide.</span>') : '<span class="bad">Your interval missed the truth.</span>';
-    var exp = a.expect ? (a.expect === 'up' && truth > 0.03 || a.expect === 'down' && truth < -0.03 || a.expect === 'none' && Math.abs(truth) <= 0.03 ? 'Your first prediction was right about the direction.' : 'Your first prediction was wrong about the direction, which is exactly why the evidence is worth collecting.') : '';
+    var per = d.per || (function () { var o = {}; o[keys[0]] = { est: d.est, lo: d.lo, hi: d.hi }; return o; })();
+    keys.forEach(function (k) {
+      var q = per[k]; if (!q) return;
+      var truth = p.truth.att[k], inside = truth >= q.lo && truth <= q.hi, err = q.est - truth, width = q.hi - q.lo;
+      var verdict = inside ? (width < Math.abs(truth) * 3 + 0.4 ? '<span class="good">Your interval contained the truth, and it was informative.</span>' : '<span class="neutral">Your interval contained the truth, but it was very wide.</span>') : '<span class="bad">Your interval missed the truth.</span>';
+      var exp = a.expect && k === keys[0] ? (a.expect === 'up' && truth > 0.03 || a.expect === 'down' && truth < -0.03 || a.expect === 'none' && Math.abs(truth) <= 0.03 ? 'Your first prediction was right about the direction.' : 'Your first prediction was wrong about the direction, which is exactly why the evidence is worth collecting.') : '';
+      h += '<div class="an-result"><h4 style="margin:0 0 4px">' + esc(OUT[k][0]) + '</h4><div class="big">Truth: ' + sg(truth) + '<small> ' + unitText(k) + '</small></div><div class="ci">You said ' + sg(q.est) + ' (' + sg(q.lo) + ' to ' + sg(q.hi) + ') · error ' + sg(err) + '</div><p>' + verdict + ' ' + esc(exp) + '</p></div>';
+    });
     var sel = p.units.filter(function (u) { return u.treated; }).length ? 'Behind the scenes, the countries that adopted had been in a slide before they acted' + (a.selection > 0.3 ? ', which is why before-and-after comparisons overstated the effect.' : ' only mildly in this data set.') : '';
-    h += '<div class="an-result"><div class="big">Truth: ' + sg(truth) + '<small> ' + unitText(key) + '</small></div><div class="ci">You said ' + sg(d.est) + ' (' + sg(d.lo) + ' to ' + sg(d.hi) + ') · error ' + sg(err) + '</div><p>' + verdict + ' ' + esc(exp) + '</p></div>' +
-      '<p>The "truth" is the average effect on the countries that adopted, found by running each of them again with no policy and the same shocks. Real economists never get to see this, which is why the checks you used matter.</p><p class="neutral" style="font-size:.86rem">' + esc(sel) + '</p>' +
+    h += '<p>The "truth" is the average effect on the countries that adopted, found by running each of them again with no policy and the same shocks. Real economists never get to see this, which is why the checks you used matter.</p><p class="neutral" style="font-size:.86rem">' + esc(sel) + '</p>' +
       '<p>Your recommendation: <b>' + (d.rec === 0 ? 'do not adopt' : d.rec === 1 ? 'adopt as proposed' : d.rec === 0.5 ? 'adopt half the size' : 'adopt a larger version') + '</b>.</p><div class="an-actions">' + (d.rec > 0 ? '<button type="button" class="chn-btn primary" data-an="todraft">Add it to my draft budget</button>' : '') + '<button type="button" class="chn-btn" data-an="new">Investigate something else</button></div>';
     return h;
   }
@@ -264,6 +276,7 @@
     return '<div class="an-head"><div><div class="neutral" style="font-size:.74rem;letter-spacing:.08em;text-transform:uppercase">Treasury analyst\'s briefing</div><h2 style="margin:0">' + esc(e ? e.name : a.leverId) + ' <span class="neutral" style="font-weight:400">(' + (a.v > 0 ? '+' : '') + a.v + ' ' + esc(e && e.ctl ? e.ctl.unit : '') + ')</span></h2></div><button type="button" class="chn-btn small" data-an-del="' + a.id + '">Close</button></div>' +
       '<div class="an-result"><div class="big">' + esc(recText) + '</div><div class="ci">Net benefit ' + sg(r.mean) + '% of a year\'s GDP · positive in ' + Math.round(r.probPositive * 100) + '% of simulations</div></div>' +
       '<h3>What we found</h3><p>We looked at ' + p.units.length + ' countries over ' + p.Q + ' quarters, of which ' + adopt + ' adopted a similar policy. Compared with countries that did not, <b>' + OUT[key][0].toLowerCase() + ' was ' + f2(Math.abs(cl.att)) + ' ' + unitText(key) + ' ' + (cl.att > 0 ? 'higher' : 'lower') + '</b> after adoption' + (zero ? ', but that is within the range of chance, so we cannot be confident there was any effect' : '') + '. We are 95% sure the true figure lies between ' + sg(cl.attCi[0]) + ' and ' + sg(cl.attCi[1]) + '.</p>' +
+      (outcomesOf(a).length > 1 ? '<h3>Effect on each outcome you care about</h3><div class="chn-scroll"><table class="chn-table"><tr><th>Outcome</th><th class="n">Effect</th><th class="n">95% range</th></tr>' + outcomesOf(a).map(function (k) { var q = run(a, 'event', k).clean; return '<tr><td>' + esc(OUT[k][0]) + ' <small>(' + esc(unitText(k)) + ')</small></td><td class="n">' + sg(q.att) + '</td><td class="n">' + sg(q.attCi[0]) + ' to ' + sg(q.attCi[1]) + '</td></tr>'; }).join('') + '</table></div><p class="neutral" style="font-size:.86rem">A good policy for one of these can be a poor one for another, so read down the whole column before you decide.</p>' : '') +
       (flagged ? '<div class="an-warn"><b>A warning.</b> The countries that adopted were already doing differently before they acted, so these figures may flatter or unfairly damn the policy. We used the more careful comparison, not the simple before-and-after figure of ' + sg(ba.est) + ', which would have misled.</div>' : '<div class="an-note">The adopting countries were following similar paths before they acted, which makes the comparison fairer. A simple before-and-after would have given ' + sg(ba.est) + ', against our careful figure of ' + sg(cl.att) + '.</div>') +
       '<h3>What it costs against what it brings</h3><p>Running the Treasury\'s model of your economy 200 times with and without the change: ' + sayOutput(r.output) + ', and ' + sayFiscal(r.fiscal) + ' (both as a % of one year\'s GDP). ' + (r.mean > 0 ? 'The benefits outweigh the costs' : 'The costs outweigh the benefits') + ', and the answer is the same sign in ' + Math.round((r.mean > 0 ? r.probPositive : 1 - r.probPositive) * 100) + '% of the simulations.</p>' + histogram(r.draws, r.mean, { xlab: 'Net benefit across 200 simulations' }) +
       '<details class="an-det"><summary>How the analyst reached this</summary><ol class="an-how"><li><b>Peer countries.</b> We compared your policy with countries that already tried it, because we cannot test it on your own. ' + learnBtn('causal', 'Why this works') + '</li><li><b>Not just before and after.</b> Things change for many reasons at once. ' + learnBtn('beforeafter', 'Why it misleads') + '</li><li><b>Difference-in-differences.</b> We subtracted the change in countries that did not adopt from the change in those that did. ' + learnBtn('did', 'How it works') + '</li><li><b>A check on the assumption.</b> We tested whether the countries were on the same path before adoption. ' + learnBtn('event', 'How it works') + '</li><li><b>Cost and benefit.</b> We set extra output against extra borrowing, in today\'s money. ' + learnBtn('cba', 'How it works') + '</li></ol></details>' +
@@ -299,7 +312,7 @@
       if (t.id === 'anExpect') { a.expect = t.value; ctx.save(); return; }
       if (t.dataset && t.dataset.cba) { a.cbaParams = a.cbaParams || {}; a.cbaParams[t.dataset.cba] = +t.value; ctx.save(); render(host, ctx); return; }
     };
-    host.oninput = function (ev) { var t = ev.target, a = cur(); if (!a) return; if (t.id === 'anEst') a.draftEst = t.value === '' ? null : +t.value; if (t.id === 'anLo') a.draftLo = t.value === '' ? null : +t.value; if (t.id === 'anHi') a.draftHi = t.value === '' ? null : +t.value; };
+    host.oninput = function (ev) { var t = ev.target, a = cur(); if (!a) return; if (t.dataset && t.dataset.ok) { a.draftBy = a.draftBy || {}; (a.draftBy[t.dataset.ok] = a.draftBy[t.dataset.ok] || {})[t.dataset.dk] = t.value === '' ? null : +t.value; } };
     if (host.querySelector('#anLever')) fillUnit(host);
   }
   function fillUnit(host) {
@@ -310,17 +323,26 @@
     u.textContent = 'Unit: ' + c.unit + ' (from ' + c.min + ' to ' + c.max + '). ' + (e.now ? 'Today: ' + e.now + '.' : '');
   }
   function create(host) {
-    var g = ctx.g, id = 'an' + Date.now().toString(36), lever = host.querySelector('#anLever').value, v = +host.querySelector('#anV').value, out = host.querySelector('#anOut').value;
+    var g = ctx.g, id = 'an' + Date.now().toString(36), lever = host.querySelector('#anLever').value, v = +host.querySelector('#anV').value, outs = [].slice.call(host.querySelectorAll('input[name="anOutc"]:checked')).map(function (x) { return x.value; });
+    if (!outs.length) { ctx.toast('Tick at least one outcome you care about.'); return; }
+    var out = outs[0];
     var seed = ((g.seed0 || 1) + g.analyses.length * 9973 + lever.length * 131 + Math.round(Math.abs(v) * 10)) >>> 0;
-    g.analyses.push({ id: id, leverId: lever, v: v, outcome: out, seed: seed, noise: ctx.level === 'alevel' ? 0.8 : 1.1, selection: ctx.level === 'alevel' ? 0.3 : 0.5, step: 'question', method: 'before', created: g.date });
+    g.analyses.push({ id: id, leverId: lever, v: v, outcome: out, outcomes: outs, seed: seed, noise: ctx.level === 'alevel' ? 0.8 : 1.1, selection: ctx.level === 'alevel' ? 0.3 : 0.5, step: 'question', method: 'before', created: g.date });
     g.analysisOpen = id; ctx.save(); render(host, ctx);
   }
   function commit(host, a) {
-    var est = host.querySelector('#anEst').value, lo = host.querySelector('#anLo').value, hi = host.querySelector('#anHi').value;
-    if (est === '' || lo === '' || hi === '') { ctx.toast('Fill in your estimate and both ends of your interval.'); return; }
-    est = +est; lo = +lo; hi = +hi; if (lo > hi) { var t = lo; lo = hi; hi = t; }
-    a.decision = { est: est, lo: lo, hi: hi, rec: +host.querySelector('#anRec').value, date: ctx.g.date };
-    var truth = panelFor(a).truth.att[a.outcome]; ctx.g.log.push({ key: 'analysis', date: ctx.g.date, title: 'Analysis: ' + a.leverId, choice: (truth >= lo && truth <= hi ? 'Interval contained the truth' : 'Interval missed the truth'), note: '' });
+    var keys = outcomesOf(a), per = {}, ok = true;
+    keys.forEach(function (k) {
+      var g = function (f) { var el = host.querySelector('[data-ok="' + k + '"][data-dk="' + f + '"]'); return el ? el.value : ''; };
+      var est = g('est'), lo = g('lo'), hi = g('hi'); if (est === '' || lo === '' || hi === '') { ok = false; return; }
+      est = +est; lo = +lo; hi = +hi; if (lo > hi) { var t = lo; lo = hi; hi = t; }
+      per[k] = { est: est, lo: lo, hi: hi };
+    });
+    if (!ok) { ctx.toast('Fill in your estimate and both ends of your interval for every outcome.'); return; }
+    var first = per[keys[0]];
+    a.decision = { est: first.est, lo: first.lo, hi: first.hi, per: per, rec: +host.querySelector('#anRec').value, date: ctx.g.date };
+    var tr = panelFor(a).truth.att, hit = keys.filter(function (k) { return tr[k] >= per[k].lo && tr[k] <= per[k].hi; }).length;
+    ctx.g.log.push({ key: 'analysis', date: ctx.g.date, title: 'Analysis: ' + a.leverId, choice: hit === keys.length ? 'Every interval contained the truth' : hit ? hit + ' of ' + keys.length + ' intervals contained the truth' : 'Interval missed the truth', note: '' });
     ctx.save(); render(host, ctx);
   }
 

@@ -1,5 +1,5 @@
 /*
- * Be the Chancellor: the lessons behind the Analysis tab.
+ * Be the Chancellor: the lessons behind an investigation.
  * Written from scratch for someone who has never done any of this, and built up chapter by chapter: what a cause is, how to describe
  * data, regression, why a before-and-after comparison misleads, difference-in-differences, fixed effects, event studies, synthetic
  * control, inference with few countries, cost-benefit analysis, and turning evidence into a decision.
@@ -31,7 +31,7 @@
     ] },
     { h: 'What would make a comparison fair?', b: [
       'Imagine we could choose, by tossing a coin, which countries got the policy. Then the countries that got it and the ones that did not would be alike in every other way on average, apart from luck. Any difference in outcomes afterwards would be caused by the policy. This is a **randomised experiment**, and it is the gold standard.',
-      'Governments cannot toss coins over whole economies. So economists look for situations that come close to a fair comparison, or they use methods that correct for the unfairness. Difference-in-differences, event studies and synthetic control, which you will use in the Analysis tab, are three of the most important.',
+      'Governments cannot toss coins over whole economies. So economists look for situations that come close to a fair comparison, or they use methods that correct for the unfairness. Difference-in-differences, event studies and synthetic control, which you will use in an investigation, are three of the most important.',
       { check: ['Why can we not simply compare countries that cut taxes with those that did not?', 'Because the countries may differ in other ways that affect growth (confounding), and governments often cut taxes in response to how the economy is doing (reverse causation). The difference you see mixes the effect of the policy with those other differences.'] },
     ] },
   ]);
@@ -93,7 +93,7 @@
     { h: 'When errors are not nicely behaved', b: [
       'The simple standard-error formula assumes the errors are scattered evenly and are unrelated across observations. In panel data from countries, that is almost never true. A country that is hit by a shock this quarter is likely to still be affected next quarter, so its errors are **correlated over time**.',
       'The fix is **cluster-robust standard errors**: allow the errors to be related within each country, and treat each country, not each quarter, as one independent piece of evidence. Ignoring this makes standard errors far too small and your results look more certain than they are.',
-      'Clustering has a price. With only 20 countries you have 20 clusters, so the estimate of the standard error is itself noisy, and we use a t distribution with 19 degrees of freedom rather than the normal curve. That is why the Analysis tab reports "clusters", not "observations".',
+      'Clustering has a price. With only 20 countries you have 20 clusters, so the estimate of the standard error is itself noisy, and we use a t distribution with 19 degrees of freedom rather than the normal curve. That is why an investigation reports "clusters", not "observations".',
       { check: ['A panel has 20 countries over 36 quarters, which is 720 observations. How many independent pieces of information do the clustered standard errors treat it as having?', 'About 20, the number of countries. The 36 quarters of one country are not independent of each other, so they do not count as 36 separate pieces of evidence.'] },
     ] },
   ]);
@@ -113,7 +113,7 @@
     { h: 'Reason 3: governments act when things are bad', b: [
       'Governments rarely change policy at random. They cut taxes, spend more or change rules when the economy is weak. Weak spells tend to end by themselves: a country that has had several bad quarters is likely to do better next quarter simply because bad luck rarely lasts. This is called **mean reversion**.',
       'So the quarters just before a policy are often unusually bad, and the quarters afterwards bounce back. A before-and-after comparison credits the bounce to the policy. Economists call the dip before the policy the **Ashenfelter dip**, after the labour economist who noticed it in training programmes: people enrol when their earnings have just fallen.',
-      { ex: 'In the Analysis tab, the countries that adopted a policy often show a slide before they act. A before-and-after estimate overstates the effect, because it compares the policy quarters with the worst of the slide.' },
+      { ex: 'In an investigation, the countries that adopted a policy often show a slide before they act. A before-and-after estimate overstates the effect, because it compares the policy quarters with the worst of the slide.' },
     ] },
     { h: 'What to do about it', b: [
       'The remedy for all three is the same idea: find a **comparison group** that experienced the same common shocks and trends but did not get the policy, and use it to estimate what would have happened to the adopting countries without it. That is the logic of difference-in-differences, the next lesson.',
@@ -137,7 +137,7 @@
     ] },
     { h: 'Reading the estimate', b: [
       'A difference-in-differences estimate is the average effect on the countries that adopted, over the period after the policy took effect. It does not tell you what the effect would be for a country that did not adopt, and it can hide big differences between countries.',
-      'Remember too that policies take time. A tax change may have no effect for two quarters while it is legislated. The Analysis tab measures the "after" period from when the policy actually came into force, using the lags shown on each policy card.',
+      'Remember too that policies take time. A tax change may have no effect for two quarters while it is legislated. The investigation measures the "after" period from when the policy actually came into force, using the lags shown on each policy card.',
       { check: ['Adopters\' unemployment rose by 1.0 point, and non-adopters\' rose by 0.7. What is the difference-in-differences estimate, and what is the main assumption behind it?', '+0.3 points. It assumes that, without the policy, the adopters\' unemployment would have risen by the same 0.7 as the others, that is, the two groups would have followed parallel trends.'] },
     ] },
   ]);
@@ -153,7 +153,7 @@
       'In practice we do not need to estimate hundreds of dummy variables. Subtracting each country\'s average and each quarter\'s average from every variable (the "within" transformation) gives the same b.',
     ] },
     { h: 'Standard errors, again', b: [
-      'Because a country\'s quarters are linked, we cluster the standard errors by country. With 20 countries we have 20 clusters and rely on the t distribution with 19 degrees of freedom. The Analysis tab shows both the naive and the clustered standard error: notice how different they are.',
+      'Because a country\'s quarters are linked, we cluster the standard errors by country. With 20 countries we have 20 clusters and rely on the t distribution with 19 degrees of freedom. The investigation shows both the naive and the clustered standard error: notice how different they are.',
     ] },
     { h: 'A hidden problem with staggered adoption', b: [
       'When countries adopt at different dates, TWFE has a flaw that took economists decades to notice. The regression uses **every** comparison it can find, and that includes comparing a country that adopts late with one that adopted early and is still feeling the effect. In effect, early adopters serve as the control group for late adopters, even though they are treated.',
@@ -178,7 +178,7 @@
       'Treat the test with care. With few countries it has little power, so passing it does not prove the assumption. And with many tests, some will fail by luck. Look at the whole picture.',
     ] },
     { h: 'Two versions of the chart', b: [
-      'The Analysis tab shows the event study two ways. The **clean comparison** uses only never-adopters as the comparison, one adoption cohort at a time. The **regression version** uses all countries in a single TWFE regression.',
+      'The investigation shows the event study two ways. The **clean comparison** uses only never-adopters as the comparison, one adoption cohort at a time. The **regression version** uses all countries in a single TWFE regression.',
       'With staggered adoption they can differ, and the regression version can show differences before adoption that are an artefact of the method. If the two disagree, the clean version is the better guide.',
       { check: ['What would you conclude if the leads in an event study were clearly sloping down before adoption?', 'That the adopting countries were already on a different, worsening path before they acted, so the parallel-trends assumption is doubtful, and any later improvement may be a recovery rather than an effect of the policy.'] },
     ] },
@@ -217,7 +217,7 @@
     ] },
     { h: 'The bootstrap', b: [
       'The **bootstrap** estimates uncertainty by resampling. Draw countries from your sample with replacement, to make a new panel the same size (some countries appear twice, some not at all), recompute the estimate, and repeat hundreds of times. The spread of the estimates is a measure of the standard error.',
-      'We resample whole countries, not single quarters, so that each country\'s time-linked errors move together. The Analysis tab uses this for the clean event study and for the pre-trend test.',
+      'We resample whole countries, not single quarters, so that each country\'s time-linked errors move together. The investigation uses this for the clean event study and for the pre-trend test.',
     ] },
     { h: 'What these tests do not do', b: [
       'A randomisation or bootstrap test tells you how likely an estimate is to be a fluke. It does **not** tell you whether the comparison was fair. A badly biased comparison, say one where adopters were already recovering from a slump, can give a "significant" answer every time. Significance answers "is it luck?" The earlier lessons answer "is it fair?" You need both.',
