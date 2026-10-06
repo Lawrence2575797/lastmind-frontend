@@ -20920,6 +20920,61 @@ SQIDAQAB
     }
     function nbTextShortcuts(editable) {
         const syncForks = () => nbSyncArrowForks(editable);
+        let applyingDotShortcut = false;
+        const noteLineAt = (node) => {
+            const element = node.nodeType === 1 ? node : node.parentElement;
+            let line = element && element.closest ? element.closest('.nb-plain-line, p, li, div') : null;
+            if (!line || line === editable || !editable.contains(line)) {
+                line = node;
+                while (line && line.parentNode && line.parentNode !== editable) line = line.parentNode;
+            }
+            return line && line !== editable ? line : null;
+        };
+        const dispatchDotChange = () => {
+            applyingDotShortcut = true;
+            editable.dispatchEvent(new Event('input', { bubbles: true }));
+            applyingDotShortcut = false;
+        };
+        const handleDotShortcutAfterInput = () => {
+            if (applyingDotShortcut) return;
+            const sel = window.getSelection(); if (!sel || !sel.rangeCount || !sel.isCollapsed) return;
+            const caretRange = sel.getRangeAt(0), node = caretRange.startContainer;
+            const line = noteLineAt(node); if (!line) return;
+            const element = node.nodeType === 1 ? node : node.parentElement;
+            const prefix = document.createRange(); prefix.setStart(line, 0); prefix.setEnd(node, caretRange.startOffset);
+            const visibleBefore = prefix.toString().replace(/[\u200b\s]/g, '');
+
+            const dotItem = element && element.closest ? element.closest('ul.nb-dot-list > li') : null;
+            if (dotItem && visibleBefore === '.') {
+                const dotList = dotItem.parentElement;
+                const suffix = document.createRange(); suffix.setStart(node, caretRange.startOffset); suffix.setEnd(dotItem, dotItem.childNodes.length);
+                const trailing = suffix.extractContents();
+                const plain = document.createElement('div'); plain.className = 'nb-plain-line';
+                const ellipsis = document.createTextNode('...'); plain.appendChild(ellipsis); plain.appendChild(trailing);
+                plain.querySelectorAll('br').forEach((br) => { if (plain.textContent.replace(/[\u200b\s]/g, '')) br.remove(); });
+                dotList.replaceWith(plain);
+                const caret = document.createRange(); caret.setStart(ellipsis, 3); caret.collapse(true);
+                sel.removeAllRanges(); sel.addRange(caret); dispatchDotChange();
+                return;
+            }
+            if ((element && element.closest && element.closest('li')) || visibleBefore !== '..') return;
+
+            prefix.deleteContents();
+            const list = document.createElement('ul'); list.className = 'nb-dot-list';
+            const item = document.createElement('li');
+            const landing = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL); item.appendChild(landing);
+            const textLineParent = line.nodeType === 3 ? line.parentNode : null;
+            const textLineNext = line.nodeType === 3 ? line.nextSibling : null;
+            if (line.nodeType === 3) item.appendChild(line);
+            else while (line.firstChild) item.appendChild(line.firstChild);
+            const meaningful = item.textContent.replace(/[\u200b\s]/g, '');
+            item.querySelectorAll('br').forEach((br) => { if (meaningful || br !== item.lastElementChild) br.remove(); });
+            list.appendChild(item);
+            if (textLineParent) textLineParent.insertBefore(list, textLineNext);
+            else line.replaceWith(list);
+            const caret = document.createRange(); caret.setStart(landing, 1); caret.collapse(true);
+            sel.removeAllRanges(); sel.addRange(caret); dispatchDotChange();
+        };
         const ensureReturnedLine = () => requestAnimationFrame(() => {
             const sel = window.getSelection(); if (!sel || !sel.rangeCount || !sel.isCollapsed) return;
             const range = sel.getRangeAt(0);
@@ -20954,7 +21009,7 @@ SQIDAQAB
             sel.removeAllRanges(); sel.addRange(caret);
             editable.dispatchEvent(new Event('input', { bubbles: true }));
         });
-        editable.addEventListener('input', syncForks);
+        editable.addEventListener('input', () => { syncForks(); handleDotShortcutAfterInput(); });
         if (typeof ResizeObserver === 'function') new ResizeObserver(syncForks).observe(editable);
         requestAnimationFrame(syncForks);
         editable.addEventListener('keyup', (e) => {
@@ -21132,72 +21187,6 @@ SQIDAQAB
             if (mod && e.shiftKey && !e.altKey) {
                 const k = { Digit8: 'ul', Digit7: 'ol' }[e.code];
                 if (k) { e.preventDefault(); nbFormat(k); return; }
-            }
-            // Two full stops at the very start of a writing line are a
-            // quick, space-free way to start the existing bullet list.
-            if (e.key === '.' && notesWriting && !mod && !e.altKey) {
-                const sel = window.getSelection();
-                if (sel.rangeCount && sel.isCollapsed) {
-                    const range = sel.getRangeAt(0), node = range.startContainer;
-                    if (node.nodeType !== 3) return;
-                    const element = node.parentElement;
-                    let currentLine = element.closest('.nb-plain-line, p, li, div');
-                    if (!currentLine || currentLine === editable || !editable.contains(currentLine)) {
-                        currentLine = node;
-                        while (currentLine.parentNode && currentLine.parentNode !== editable) currentLine = currentLine.parentNode;
-                    }
-                    if (!currentLine || currentLine === editable) return;
-                    const prefix = document.createRange(); prefix.setStart(currentLine, 0); prefix.setEnd(range.startContainer, range.startOffset);
-                    const visibleBefore = prefix.toString().replace(/[\u200b\s]/g, '');
-
-                    // A third dot immediately after `..` means the student
-                    // wanted an ellipsis, not a bullet. Only lists created
-                    // by this shortcut carry nb-dot-list, so ordinary lists
-                    // can never be accidentally converted.
-                    const dotItem = element.closest('ul.nb-dot-list > li');
-                    if (dotItem && visibleBefore === '') {
-                        e.preventDefault();
-                        const dotList = dotItem.parentElement;
-                        const suffix = document.createRange(); suffix.setStart(range.startContainer, range.startOffset); suffix.setEnd(dotItem, dotItem.childNodes.length);
-                        const trailing = suffix.extractContents();
-                        const plain = document.createElement('div'); plain.className = 'nb-plain-line';
-                        const ellipsis = document.createTextNode('...'); plain.appendChild(ellipsis); plain.appendChild(trailing);
-                        plain.querySelectorAll('br').forEach((br) => { if (plain.textContent.replace(/[\u200b\s]/g, '')) br.remove(); });
-                        dotList.replaceWith(plain);
-                        const caret = document.createRange(); caret.setStart(ellipsis, 3); caret.collapse(true);
-                        sel.removeAllRanges(); sel.addRange(caret);
-                        editable.dispatchEvent(new Event('input', { bubbles: true }));
-                        return;
-                    }
-
-                    if (!element.closest('li') && visibleBefore === '.') {
-                        e.preventDefault();
-                        prefix.deleteContents();
-                        // Do not use execCommand('insertUnorderedList') here:
-                        // on an empty returned line browsers can apply it to
-                        // the preceding paragraph. Replace only the exact
-                        // DOM line containing the caret with a list instead.
-                        const list = document.createElement('ul'); list.className = 'nb-dot-list';
-                        const item = document.createElement('li');
-                        const landing = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL);
-                        item.appendChild(landing);
-                        if (currentLine.nodeType === 3) {
-                            currentLine.textContent = currentLine.textContent.replace(/^\u200b/, '');
-                            item.appendChild(currentLine);
-                        } else {
-                            while (currentLine.firstChild) item.appendChild(currentLine.firstChild);
-                        }
-                        // The full-height line may carry a placeholder <br>;
-                        // keep one only when the new bullet has no content.
-                        const meaningful = item.textContent.replace(/[\u200b\s]/g, '');
-                        item.querySelectorAll('br').forEach((br) => { if (meaningful || br !== item.lastElementChild) br.remove(); });
-                        list.appendChild(item); currentLine.replaceWith(list);
-                        const caret = document.createRange(); caret.setStart(landing, 1); caret.collapse(true);
-                        sel.removeAllRanges(); sel.addRange(caret);
-                        editable.dispatchEvent(new Event('input', { bubbles: true }));
-                        return;
-                    }
-                }
             }
             // "- " or "1. " at the very start of a line turns into a list (English keyboard only: in maths a leading minus is a minus).
             if (e.key === ' ' && notesWriting && !mod && !e.altKey) {
