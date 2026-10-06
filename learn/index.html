@@ -21139,7 +21139,17 @@ SQIDAQAB
                 if (sel.rangeCount && sel.isCollapsed) {
                     const range = sel.getRangeAt(0), node = range.startContainer;
                     const before = node.nodeType === 3 ? node.textContent.slice(0, range.startOffset) : '';
-                    if (node.nodeType === 3 && !node.previousSibling && before === '.') {
+                    // Returned lines begin with an invisible zero-width
+                    // caret marker (and may contain an empty <br>). Ignore
+                    // those structural characters when deciding whether
+                    // this really is the second dot at the start of a line.
+                    const visibleBefore = before.replace(/[\u200b\s]/g, '');
+                    let prior = node.nodeType === 3 ? node.previousSibling : null, hasVisiblePrior = false;
+                    while (prior) {
+                        if (prior.nodeName !== 'BR' && (prior.textContent || '').replace(/[\u200b\s]/g, '')) { hasVisiblePrior = true; break; }
+                        prior = prior.previousSibling;
+                    }
+                    if (node.nodeType === 3 && !hasVisiblePrior && visibleBefore === '.') {
                         e.preventDefault();
                         node.textContent = node.textContent.slice(range.startOffset);
                         const caret = document.createRange();
