@@ -4133,6 +4133,11 @@
     .nb-text .math-shortcut-editor { min-height: 0; padding: 6px 8px; background: transparent; border: 0; border-radius: 6px; color: #E6D7B0; caret-color: #E6D7B0; font-family: inherit; font-size: 16px; line-height: 1.6; box-shadow: none; }
     .nb-text .math-shortcut-editor h1 { font-size: 1.9em; font-weight: 800; margin: 0.1em 0; line-height: 1.2; }
     .nb-text .math-shortcut-editor h2 { font-size: 1.35em; font-weight: 700; margin: 0.1em 0; line-height: 1.25; }
+    /* Shift+Enter adds a connected, indented follow-on line. The arrow is
+       decoration rather than typed text, so it cannot be accidentally edited. */
+    .nb-text .math-shortcut-editor .nb-arrow-step { display: block; position: relative; min-height: 1.6em; margin-left: 48px; padding-left: 10px; }
+    .nb-text .math-shortcut-editor .nb-arrow-step::before { content: ''; position: absolute; left: -38px; top: -0.8em; width: 28px; height: 1.48em; border-left: 2px solid currentColor; border-bottom: 2px solid currentColor; border-radius: 0 0 0 3px; opacity: 0.85; pointer-events: none; }
+    .nb-text .math-shortcut-editor .nb-arrow-step::after { content: ''; position: absolute; left: -10px; top: calc(0.68em - 4px); border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 7px solid currentColor; opacity: 0.85; pointer-events: none; }
     /* Lists hang their bullets and numbers in the gap beside the margin line while their text lines up with the paragraphs above and below. */
     .nb-text .math-shortcut-editor ul, .nb-text .math-shortcut-editor ol { margin: 0.2em 0; padding-left: 0; list-style-position: outside; }
     .nb-text .math-shortcut-editor li { margin-left: 0; padding-left: 0.1em; }
@@ -20727,6 +20732,25 @@ SQIDAQAB
     function nbTextShortcuts(editable) {
         editable.addEventListener('keydown', (e) => {
             const mod = e.ctrlKey || e.metaKey;
+            if (e.key === 'Enter' && e.shiftKey && !mod && !e.altKey) {
+                const sel = window.getSelection();
+                if (!sel.rangeCount) return;
+                const range = sel.getRangeAt(0);
+                const rangeNode = range.commonAncestorContainer.nodeType === 1 ? range.commonAncestorContainer : range.commonAncestorContainer.parentElement;
+                if (!rangeNode || !editable.contains(rangeNode)) return;
+                e.preventDefault();
+                range.deleteContents();
+                const arrowLine = document.createElement('span');
+                arrowLine.className = 'nb-arrow-step';
+                const landing = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL);
+                arrowLine.appendChild(landing);
+                range.insertNode(arrowLine);
+                const caret = document.createRange();
+                caret.setStart(landing, 1); caret.collapse(true);
+                sel.removeAllRanges(); sel.addRange(caret);
+                editable.dispatchEvent(new Event('input', { bubbles: true }));
+                return;
+            }
             if (mod && e.altKey && !e.shiftKey) {
                 const k = { Digit1: 'h1', Digit2: 'h2', Digit0: 'p' }[e.code];
                 if (k) { e.preventDefault(); nbFormat(k); return; }
@@ -20893,6 +20917,7 @@ SQIDAQAB
         <li><span class="sc-keys"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>8</kbd> / <kbd>7</kbd></span><span>Bullet points / numbered list</span></li>
         <li><span class="sc-keys"><kbd>-</kbd> then <kbd>Space</kbd></span><span>Bullet point (English keyboard, at the start of a line)</span></li>
         <li><span class="sc-keys"><kbd>1.</kbd> then <kbd>Space</kbd></span><span>Numbered list (English keyboard, at the start of a line)</span></li>
+        <li><span class="sc-keys"><kbd>Shift</kbd> + <kbd>Enter</kbd></span><span>Add an indented follow-on line with an arrow</span></li>
         <li><span class="sc-keys"><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>G</kbd></span><span>Add a coordinate graph</span></li>
         <li><span class="sc-keys">One-finger drag</span><span>Move a coordinate graph; use two fingers to zoom it</span></li>
         <li><span class="sc-keys"><b>⇤</b> then <b>⇤</b></span><span>Align the left edges of two text boxes</span></li>
