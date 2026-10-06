@@ -20859,6 +20859,25 @@ SQIDAQAB
                 const k = { Digit8: 'ul', Digit7: 'ol' }[e.code];
                 if (k) { e.preventDefault(); nbFormat(k); return; }
             }
+            // Two full stops at the very start of a writing line are a
+            // quick, space-free way to start the existing bullet list.
+            if (e.key === '.' && notesWriting && !mod && !e.altKey) {
+                const sel = window.getSelection();
+                if (sel.rangeCount && sel.isCollapsed) {
+                    const range = sel.getRangeAt(0), node = range.startContainer;
+                    const before = node.nodeType === 3 ? node.textContent.slice(0, range.startOffset) : '';
+                    if (node.nodeType === 3 && !node.previousSibling && before === '.') {
+                        e.preventDefault();
+                        node.textContent = node.textContent.slice(range.startOffset);
+                        const caret = document.createRange();
+                        caret.setStart(node, 0); caret.collapse(true);
+                        sel.removeAllRanges(); sel.addRange(caret);
+                        document.execCommand('insertUnorderedList', false, null);
+                        editable.dispatchEvent(new Event('input', { bubbles: true }));
+                        return;
+                    }
+                }
+            }
             // "- " or "1. " at the very start of a line turns into a list (English keyboard only: in maths a leading minus is a minus).
             if (e.key === ' ' && notesWriting && !mod && !e.altKey) {
                 const sel = window.getSelection();
@@ -21027,6 +21046,7 @@ SQIDAQAB
         <li><span class="sc-keys"><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>1</kbd> / <kbd>2</kbd> / <kbd>0</kbd></span><span>Title / heading / normal text</span></li>
         <li><span class="sc-keys"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>8</kbd> / <kbd>7</kbd></span><span>Bullet points / numbered list</span></li>
         <li><span class="sc-keys"><kbd>-</kbd> then <kbd>Space</kbd></span><span>Bullet point (English keyboard, at the start of a line)</span></li>
+        <li><span class="sc-keys"><kbd>.</kbd><kbd>.</kbd></span><span>Bullet point (English keyboard, at the start of a line)</span></li>
         <li><span class="sc-keys"><kbd>1.</kbd> then <kbd>Space</kbd></span><span>Numbered list (English keyboard, at the start of a line)</span></li>
         <li><span class="sc-keys"><kbd>-</kbd><kbd>-</kbd></span><span>Insert a long dash (English keyboard)</span></li>
         <li><span class="sc-keys"><kbd>Shift</kbd> + <kbd>Enter</kbd></span><span>Add an indented follow-on line with an arrow</span></li>
