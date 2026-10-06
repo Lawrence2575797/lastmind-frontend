@@ -27,7 +27,20 @@
         { title: 'Specialty registrar', place: 'Working towards consultant', need: 2 },
         { title: 'Consultant', place: 'Leading the team', need: 0 },
       ] },
+    psych: { title: 'A-level', short: 'A-level', career: 'Psychology Career', board: 'AQA A-level Psychology (7182)', bg: '/assets/psych/bg-clinic.jpg',
+      ranks: [
+        { title: 'Assistant psychologist', place: 'On placement with a community mental health team', need: 2 },
+        { title: 'Trainee clinical psychologist', place: 'Training on a clinical doctorate', need: 2 },
+        { title: 'Clinical psychologist', place: 'Seeing patients in your own clinic', need: 2 },
+        { title: 'Senior clinical psychologist', place: 'Supervising the team and the hardest referrals', need: 2 },
+        { title: 'Consultant clinical psychologist', place: 'Leading the service', need: 0 },
+      ],
+      mentor: { name: 'Dr Imani Clarke', img: { hello: '/assets/psych/mentor-hello.jpg', point: '/assets/psych/mentor-point.jpg', think: '/assets/psych/mentor-think.jpg' } },
+      text: { back: '← Psychology', careerTitle: 'Psychology Career', testsTab: 'Assessments', testsH: 'Assessments', testsMeter: 'Every assessment takes time and some are intrusive, so choose only what will change your mind.', onToTests: 'On to the assessments →', result: 'Finding: ', review: 'Go back over the psychology', reviewBody: 'The notes from Dr Imani Clarke on the right still have the lessons for every explanation in this case. Read them again with this result in mind.', welcome: '<b>Pick a patient from the files.</b> Each takes about ten minutes. For every patient: read the file and the lessons, ask your questions, choose a few assessments, then decide. I will give you a short note at each step. I will never give you the answer, but I will tell you what the decision is really about.', afterCase: '<b>Now look at the twist.</b> Go back over the lessons for every disorder in the case and ask yourself which finding you should have trusted, and which one you let mislead you.', role: 'the consultant clinical psychologist supervising you', stepTests: 'Step 3 of 4: assessments', teachIntro: 'I will take you through the psychology for this patient. Read it in order, and slow down at the boxes marked <b>Easily confused</b>: those are where clinicians go wrong.', coachAria: 'Your senior psychologist', background: 'is going through the psychology for this patient' },
+    },
   };
+  var TEXT_DEFAULT = { back: '← Biology', careerTitle: 'Doctor Career', testsTab: 'Tests', testsH: 'Tests', testsMeter: 'Every test takes time and some are uncomfortable or risky, so order only what will change your mind.', onToTests: 'On to the tests →', result: 'Result: ', review: 'Go back over the biology', reviewBody: 'The notes from Dr Hartley on the right still have the lessons for both illnesses. Read them again with this result in mind.', welcome: '<b>Pick a patient from the files.</b> Each takes about ten minutes. For every patient: read the file and the lessons, ask your questions, order a few tests, then decide. I will give you a short note at each step. I will never give you the answer, but I will tell you what the decision is really about.', afterCase: '<b>Now look at the twist.</b> Go back over the lessons for both illnesses and ask yourself which finding you should have trusted, and which one you let mislead you.', role: 'the consultant supervising you', stepTests: 'Step 3 of 4: tests', teachIntro: 'I will take you through the science for this patient. Read it in order, and slow down at the boxes marked <b>Easily confused</b>: those are where doctors go wrong.', coachAria: 'Your senior doctor', background: 'is going through the science for this patient' };
+  function TXT(k) { var T = D.tracks[track]; return (T && T.text && T.text[k]) || TEXT_DEFAULT[k]; }
   var PASS = 60, ASKS = 6, TESTS = 3;
   D.ASKS = ASKS; D.TESTS = TESTS;
 
@@ -83,7 +96,7 @@
     var tr = track;
     pushTimer = setTimeout(function () {
       var d = D.load(tr);
-      env.remote.post({ id: d.projectId || undefined, title: 'Doctor Career: ' + D.tracks[tr].short, kind: 'doctor-career-' + tr, data: { doctor: { results: d.results, started: d.started } } }).then(function (id) {
+      env.remote.post({ id: d.projectId || undefined, title: (D.tracks[tr].career || 'Doctor Career') + ': ' + D.tracks[tr].short, kind: 'doctor-career-' + tr, data: { doctor: { results: d.results, started: d.started } } }).then(function (id) {
         if (id && d.projectId !== id) { var d2 = D.load(tr); d2.projectId = id; D.save(tr, d2); }
       }).catch(function () { /* it stays in this browser and is sent on the next save */ });
     }, 400);
@@ -160,7 +173,7 @@
     css(); var d = D.load(track);
     if (cur) { renderCase(d); return; }
     var R = ranksInfo(d), cases = D.casesFor(track), avg = D.average(d.results), n = Object.keys(d.results).length;
-    host.innerHTML = '<div class="dc" style="background-image:url(' + R.T.bg + ')"><div class="dc-top"><div><button type="button" class="dc-back" data-dc="back">← Biology</button><h1 style="margin-top:12px">Doctor Career: ' + esc(R.T.title) + '</h1><div class="sub">' + esc(R.T.board) + ' · every case follows the specification</div></div><div class="dc-role"><b>' + esc(R.rank.title) + '</b><span>' + esc(R.rank.place) + '</span></div></div>' +
+    host.innerHTML = '<div class="dc" style="background-image:url(' + R.T.bg + ')"><div class="dc-top"><div><button type="button" class="dc-back" data-dc="back">' + esc(TXT('back')) + '</button><h1 style="margin-top:12px">' + esc(R.T.career || 'Doctor Career') + ': ' + esc(R.T.title) + '</h1><div class="sub">' + esc(R.T.board) + ' · every case follows the specification</div></div><div class="dc-role"><b>' + esc(R.rank.title) + '</b><span>' + esc(R.rank.place) + '</span></div></div>' +
       '<div class="dc-stats"><span class="dc-stat">Patients seen: ' + n + '</span><span class="dc-stat">Average score: ' + (avg == null ? '·' : avg + '%') + '</span></div><div class="dc-files">' +
       cases.map(function (c, i) {
         var locked = c.rank > R.ri, res = d.results[c.id];
@@ -178,7 +191,7 @@
   }
   function renderCase(d) {
     var c = cur.c, run = cur.run, T = D.tracks[track], P = c.patient;
-    var tabs = [['file', 'The file'], ['ask', 'Ask'], ['tests', 'Tests'], ['decide', 'Your decision']];
+    var tabs = [['file', 'The file'], ['ask', 'Ask'], ['tests', TXT('testsTab')], ['decide', 'Your decision']];
     var left = '<aside class="dc-pt"><img src="' + esc(P.image) + '" alt="' + esc(P.name) + '"><div class="name">' + esc(P.name) + '</div><div class="meta">' + esc(P.age) + ' · ' + esc(P.job) + '<br>' + esc(P.setting) + '</div><div class="dc-bubble">' + esc(cur.say || c.opening) + '</div></aside>';
     var body = '';
     if (run.done) body = outcomeHtml(c, run);
@@ -193,7 +206,7 @@
       '<h3>Observations</h3><div class="dc-obs">' + c.obs.map(function (o) { return '<div><small>' + esc(o[0]) + '</small><b>' + esc(o[1]) + '</b></div>'; }).join('') + '</div>' +
       '<h3>What the notes say</h3><ul style="margin:0 0 10px 18px;padding:0">' + c.notes.map(function (n) { return '<li>' + bold(n) + '</li>'; }).join('') + '</ul>' +
       (c.infoCard ? '<h3>' + esc(c.infoCard.title) + '</h3><div class="dc-note">' + c.infoCard.body.map(function (p) { return '<p>' + bold(p) + '</p>'; }).join('') + '</div>' : '') +
-      '<div class="dc-note"><b>Background.</b> Dr Hartley is going through the science for this patient in the panel on the right. Read it before you call the patient in' + (c.twist ? ', all of it: first impressions can mislead' : '') + '.</div>' +
+      '<div class="dc-note"><b>Background.</b> ' + esc(mentor().name) + ' ' + TXT('background') + ' in the panel on the right. Read it before you call the patient in' + (c.twist ? ', all of it: first impressions can mislead' : '') + '.</div>' +
       '<div class="dc-learn" style="margin-top:14px"><button type="button" class="dc-btn primary" data-tab="ask">Call the patient in →</button></div>';
   }
   function askHtml(c, run) {
@@ -201,14 +214,14 @@
     return '<h2>Talk to ' + esc(c.patient.name.split(' ')[0]) + '</h2><div class="dc-meter">You have time for ' + left + ' more question' + (left === 1 ? '' : 's') + '. Choose the ones that will tell you most.</div><div class="dc-qs">' +
       c.questions.map(function (q) { var used = run.asked.indexOf(q.id) > -1; return '<button type="button" class="dc-q' + (used ? ' used' : '') + '" data-ask="' + q.id + '"' + (!used && left <= 0 ? ' disabled' : '') + '>' + esc(q.q) + '</button>'; }).join('') + '</div>' +
       '<div class="dc-log">' + run.asked.map(function (id) { var q = c.questions.filter(function (x) { return x.id === id; })[0]; return '<div><div class="me">You: ' + esc(q.q) + '</div><div class="them">' + bold(q.a) + '</div></div>'; }).join('') + '</div>' +
-      '<div class="dc-learn" style="margin-top:14px"><button type="button" class="dc-btn primary" data-tab="tests">On to the tests →</button></div>';
+      '<div class="dc-learn" style="margin-top:14px"><button type="button" class="dc-btn primary" data-tab="tests">' + TXT('onToTests') + '</button></div>';
   }
   function resultTable(t) { return t.table ? '<table class="dc-table">' + t.table.map(function (r, i) { return '<tr>' + r.map(function (x) { return i === 0 ? '<th>' + esc(x) + '</th>' : '<td>' + esc(x) + '</td>'; }).join('') + '</tr>'; }).join('') + '</table>' : ''; }
   function testsHtml(c, run) {
     var left = TESTS - run.tests.length;
-    return '<h2>Tests</h2><div class="dc-meter">You can order ' + left + ' more test' + (left === 1 ? '' : 's') + '. Every test takes time and some are uncomfortable or risky, so order only what will change your mind.</div><div class="dc-qs">' +
+    return '<h2>' + esc(TXT('testsH')) + '</h2><div class="dc-meter">You can order ' + left + ' more ' + (track === 'psych' ? 'assessment' : 'test') + (left === 1 ? '' : 's') + '. ' + TXT('testsMeter') + '</div><div class="dc-qs">' +
       c.tests.map(function (t) { var used = run.tests.indexOf(t.id) > -1; return '<button type="button" class="dc-q' + (used ? ' used' : '') + '" data-test="' + t.id + '"' + (!used && left <= 0 ? ' disabled' : '') + '><b>' + esc(t.name) + '</b>' + (t.note ? '<br><small>' + esc(t.note) + '</small>' : '') + '</button>'; }).join('') + '</div>' +
-      '<div class="dc-log">' + run.tests.map(function (id) { var t = c.tests.filter(function (x) { return x.id === id; })[0]; return '<div><div class="me">Result: ' + esc(t.name) + '</div><div class="them">' + bold(t.result) + resultTable(t) + '</div></div>'; }).join('') + '</div>' +
+      '<div class="dc-log">' + run.tests.map(function (id) { var t = c.tests.filter(function (x) { return x.id === id; })[0]; return '<div><div class="me">' + esc(TXT('result')) + esc(t.name) + '</div><div class="them">' + bold(t.result) + resultTable(t) + '</div></div>'; }).join('') + '</div>' +
       '<div class="dc-learn" style="margin-top:14px"><button type="button" class="dc-btn primary" data-tab="decide">Make your decision →</button></div>';
   }
   function decideHtml(c, run) {
@@ -227,21 +240,22 @@
       (c.twist ? '<div class="dc-warn"><b>The twist.</b> ' + bold(c.twist) + '</div>' : '') +
       '<h3>Your treatment choice</h3><p><b>' + esc(tx ? tx.label : '') + '</b><br>' + bold(tx ? tx.why : '') + '</p>' +
       '<h3>The facts that gave it away</h3><ul style="margin:0 0 10px 18px;padding:0">' + (c.decisive || []).map(function (f) { return '<li' + (run.evidence.indexOf(f) > -1 ? ' class="good"' : '') + '>' + esc(c.facts[f]) + (run.evidence.indexOf(f) > -1 ? ' ✓' : '') + '</li>'; }).join('') + '</ul>' +
-      '<h3>Go back over the biology</h3><p>The notes from Dr Hartley on the right still have the lessons for both illnesses. Read them again with this result in mind.</p>' + '<p style="opacity:.7;font-size:.82rem">Specification: ' + esc(c.spec.board) + ' ' + esc(c.spec.code) + ', ' + esc(c.spec.refs.join(', ')) + '</p>' +
+      '<h3>' + esc(TXT('review')) + '</h3><p>' + esc(TXT('reviewBody')) + '</p>' + '<p style="opacity:.7;font-size:.82rem">Specification: ' + esc(c.spec.board) + ' ' + esc(c.spec.code) + ', ' + esc(c.spec.refs.join(', ')) + '</p>' +
       '<div class="dc-learn" style="margin-top:14px"><button type="button" class="dc-btn primary" data-dc="files">Next patient →</button></div>';
   }
 
 
   /* ---------- the senior doctor: short notes at each step, never the answer ---------- */
-  var MENTOR = { name: 'Dr Hartley', img: { hello: '/assets/doctor/mentor-hello.jpg', point: '/assets/doctor/mentor-point.jpg', think: '/assets/doctor/mentor-think.jpg' } };
+  var MENTOR_DEFAULT = { name: 'Dr Hartley', img: { hello: '/assets/doctor/mentor-hello.jpg', point: '/assets/doctor/mentor-point.jpg', think: '/assets/doctor/mentor-think.jpg' } };
+  function mentor() { var T = D.tracks[track]; return (T && T.mentor) || MENTOR_DEFAULT; }
   var coachEl = null, coachBtn = null, coachOpen = true, coachTimer = null, lastStep = null;
   var STEP_IMG = { file: 'hello', ask: 'point', tests: 'point', decide: 'think' };
-  var STEP_NAME = { file: 'Step 1 of 4: the file', ask: 'Step 2 of 4: ask', tests: 'Step 3 of 4: tests', decide: 'Step 4 of 4: decide' };
+  var STEP_NAME = { file: 'Step 1 of 4: the file', ask: 'Step 2 of 4: ask', get tests() { return TXT('stepTests'); }, decide: 'Step 4 of 4: decide' };
   function coachState() { var d = D.load(track); d.coach = d.coach || { seen: false, muted: false }; return d; }
   function coachMessage() {
-    if (!cur) return { img: 'hello', label: 'Welcome to the clinic', html: '<b>Pick a patient from the files.</b> Each takes about ten minutes. For every patient: read the file and the lessons, ask your questions, order a few tests, then decide. I will give you a short note at each step. I will never give you the answer, but I will tell you what the decision is really about.' };
+    if (!cur) return { img: 'hello', label: 'Welcome to the clinic', html: TXT('welcome') };
     var c = cur.c, run = cur.run, g = (D.guide || {})[c.id];
-    if (run.done) return { img: 'hello', label: 'After the case', html: '<b>Now look at the twist.</b> Go back over the lessons for both illnesses and ask yourself which finding you should have trusted, and which one you let mislead you.', ideas: g ? g.ideas : null };
+    if (run.done) return { img: 'hello', label: 'After the case', html: TXT('afterCase'), ideas: g ? g.ideas : null };
     var tab = run.tab || 'file';
     if (!g) return { img: STEP_IMG[tab], label: STEP_NAME[tab], html: 'Take your time with this one.' };
     var extra = '';
@@ -255,8 +269,8 @@
     var st = coachState(), m = coachMessage(), stepKey = cur ? (cur.c.id + ':' + (cur.run.done ? 'done' : cur.run.tab)) : 'files';
     if (!coachTimer) coachTimer = setInterval(function () { if (!host || !host.isConnected) coachDestroy(); }, 1000);
     if (!coachBtn) {
-      coachBtn = document.createElement('button'); coachBtn.type = 'button'; coachBtn.className = 'dc-coach-btn'; coachBtn.setAttribute('aria-label', 'Your senior doctor: open or close the notes');
-      coachBtn.innerHTML = '<img alt="" src="' + MENTOR.img.hello + '"><span class="lab">' + esc(MENTOR.name) + '</span><i class="dot"></i>';
+      coachBtn = document.createElement('button'); coachBtn.type = 'button'; coachBtn.className = 'dc-coach-btn'; coachBtn.setAttribute('aria-label', TXT('coachAria') + ': open or close the notes');
+      coachBtn.innerHTML = '<img alt="" src="' + mentor().img.hello + '"><span class="lab">' + esc(mentor().name) + '</span><i class="dot"></i>';
       coachBtn.addEventListener('click', function () { coachOpen = !coachOpen; lastStep = null; coachDraw(); });
       document.body.appendChild(coachBtn);
     }
@@ -268,10 +282,10 @@
     if (coachEl) { coachEl.remove(); coachEl = null; }
     host.style.paddingRight = cur && coachOpen && window.innerWidth > 1000 ? 'min(470px, 38vw)' : '';
     if (!coachOpen) return;
-    coachEl = document.createElement('div'); coachEl.className = 'dc-coach'; coachEl.setAttribute('role', 'dialog'); coachEl.setAttribute('aria-label', 'Notes from your senior doctor');
-    var intro = firstEver && !cur ? '<p class="intro"><b>I am ' + esc(MENTOR.name) + ', the consultant supervising you.</b> I am here to help you think, not to hand over answers.</p>' : '';
+    coachEl = document.createElement('div'); coachEl.className = 'dc-coach'; coachEl.setAttribute('role', 'dialog'); coachEl.setAttribute('aria-label', 'Notes from ' + mentor().name);
+    var intro = firstEver && !cur ? '<p class="intro"><b>I am ' + esc(mentor().name) + ', ' + esc(TXT('role')) + '.</b> I am here to help you think, not to hand over answers.</p>' : '';
     var ideas = (m.ideas || []).map(function (i) { return '<div class="idea"><b>' + esc(i.t) + '</b><p>' + esc(i.b) + '</p></div>'; }).join('');
-    coachEl.innerHTML = '<button type="button" class="x" data-coach-close="1" aria-label="Hide the notes">✕</button><div class="who"><img alt="" src="' + MENTOR.img[m.img || 'hello'] + '"><div><b>' + esc(MENTOR.name) + '</b><small>' + esc(m.label) + '</small></div></div>' + intro + '<div class="say">' + m.html + '</div>' + (ideas ? '<div class="ideas-h">Worth knowing for this decision</div>' + ideas : '') + '<label class="mute"><input type="checkbox" data-coach-mute="1"' + (st.coach.muted ? ' checked' : '') + '> Keep my notes closed unless I open them</label>';
+    coachEl.innerHTML = '<button type="button" class="x" data-coach-close="1" aria-label="Hide the notes">✕</button><div class="who"><img alt="" src="' + mentor().img[m.img || 'hello'] + '"><div><b>' + esc(mentor().name) + '</b><small>' + esc(m.label) + '</small></div></div>' + intro + '<div class="say">' + m.html + '</div>' + (ideas ? '<div class="ideas-h">Worth knowing for this decision</div>' + ideas : '') + '<label class="mute"><input type="checkbox" data-coach-mute="1"' + (st.coach.muted ? ' checked' : '') + '> Keep my notes closed unless I open them</label>';
     // On a case, the notes sit under the patient so they never cover what you are reading; on the files screen they float.
     if (cur) { coachEl.classList.add('side'); coachEl.insertAdjacentHTML('beforeend', teachHtml(cur.c)); }
     document.body.appendChild(coachEl);
@@ -283,7 +297,7 @@
     if (firstEver && fresh) { var d0 = D.load(track); d0.coach = d0.coach || {}; d0.coach.seen = true; D.save(track, d0); }
   }
 
-  /* ---------- the lessons, taught by Dr Hartley in the right-hand panel ---------- */
+  /* ---------- the lessons, taught by the senior clinician in the right-hand panel ---------- */
   function lessonBlock(b) {
     if (typeof b === 'string') return '<p>' + bold(b) + '</p>';
     if (b.ex) return '<div class="ex"><b>Example.</b> ' + bold(b.ex) + '</div>';
@@ -296,7 +310,7 @@
   function teachHtml(c) {
     var ids = (c.lessons || []).filter(function (id) { return D.lessons[id]; });
     if (!ids.length) return '';
-    var out = '<div class="teach-h">What you need to know</div><p class="teach-in">I will take you through the science for this patient. Read it in order, and slow down at the boxes marked <b>Easily confused</b>: those are where doctors go wrong.</p>';
+    var out = '<div class="teach-h">What you need to know</div><p class="teach-in">' + TXT('teachIntro') + '</p>';
     ids.forEach(function (id, n) {
       var L = D.lessons[id];
       out += '<section class="teach"><h3><span class="lead">' + esc(LEAD[Math.min(n, LEAD.length - 1)]) + '</span> ' + esc(L.title) + '</h3><span class="spec">' + esc(L.spec) + '</span>' +

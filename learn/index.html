@@ -10496,6 +10496,13 @@ SQIDAQAB
             ],
         },
         {
+            key: 'psychology', title: 'Psychology', image: '/assets/create/psychology.jpg', description: 'Assess patients and climb the ranks of clinical psychology',
+            alt: 'Two empty armchairs facing each other in a quiet therapy room, with a notebook and glasses on a small table',
+            simulations: [
+                { key: 'doctor-psych', title: 'Psychology Career: A-level', image: '/assets/create/psychology-career.jpg', description: 'Assess patients with PTSD, schizophrenia, OCD and more, on the AQA A-level Psychology specification', alt: 'A clinical psychologist seen from behind at a desk by a window, writing in a notebook beside patient files' },
+            ],
+        },
+        {
             key: 'economics', title: 'Economics', image: '/assets/create/economics.jpg', description: 'Run an economy and live with the consequences',
             alt: 'An imagined treasury boardroom with a long table and a city skyline at dusk',
             simulations: [
@@ -10524,7 +10531,7 @@ SQIDAQAB
         if (view === 'criminal-trial') { renderCreateTrialBuilder(contentInner); return; }
         if (view === 'chancellor') { renderChancellorBuilder(contentInner); return; }
         if (view === 'criminal-lawyer-career') { renderCareerHome(contentInner); return; }
-        if (view === 'doctor-gcse' || view === 'doctor-alevel') { renderDoctorCareer(contentInner, view === 'doctor-gcse' ? 'gcse' : 'alevel'); return; }
+        if (/^doctor-(gcse|alevel|psych)$/.test(view)) { renderDoctorCareer(contentInner, view.slice(7)); return; }
         const card = (t, attrs = '') => `
                         <article class="create-card${attrs ? ' create-card-link' : ''}" ${attrs}>
                             <h3>${escapeHtml(t.title)}</h3>
@@ -11493,8 +11500,8 @@ SQIDAQAB
         } catch (err) { return null; }
     }
     // ─── Doctor Career (Biology): GCSE and A-level tracks. The cases, lessons and rules are written in advance (create/doctor-career/). ───
-    const DOCTOR_VERSION = '20261007d';
-    const DOCTOR_FILES = ['doctor', 'lessons-gcse', 'lessons-gcse-2', 'lessons-alevel', 'lessons-alevel-2', 'cases-gcse', 'cases-gcse-2', 'cases-alevel', 'cases-alevel-2', 'guide-gcse', 'guide-alevel'];
+    const DOCTOR_VERSION = '20261007e';
+    const DOCTOR_FILES = ['doctor', 'lessons-gcse', 'lessons-gcse-2', 'lessons-alevel', 'lessons-alevel-2', 'cases-gcse', 'cases-gcse-2', 'cases-alevel', 'cases-alevel-2', 'guide-gcse', 'guide-alevel', 'lessons-psych', 'lessons-psych-2', 'cases-psych', 'cases-psych-2', 'guide-psych'];
     let doctorUid = 'guest', doctorFilesPromise = null;
     function doctorLoadFiles() {
         if (doctorFilesPromise) return doctorFilesPromise;
@@ -11512,12 +11519,12 @@ SQIDAQAB
             get: async (id) => { const { resp, body } = await createAuthedFetch(`/create/projects/${encodeURIComponent(id)}`); return resp.ok ? body : null; },
             post: async (payload) => { const { resp, body } = await createAuthedFetch('/create/projects', { method: 'POST', body: JSON.stringify(payload) }); if (!resp.ok || body.unavailable) throw new Error('not saved'); return body.id; },
         };
-        window.DOCTOR.mount(document.getElementById('doctorCareerHost'), track, { userId: doctorUid, back: () => renderCreatePage('biology'), remote: doctorUid === 'guest' ? null : remote });
+        window.DOCTOR.mount(document.getElementById('doctorCareerHost'), track, { userId: doctorUid, back: () => renderCreatePage(track === 'psych' ? 'psychology' : 'biology'), remote: doctorUid === 'guest' ? null : remote });
     }
     // The projects list reads the save directly, so the career shows up even before the clinic has been opened this visit.
     function doctorProjects() {
         const out = [];
-        [['gcse', 'Doctor Career: GCSE'], ['alevel', 'Doctor Career: A-level']].forEach(([track, title]) => {
+        [['gcse', 'Doctor Career: GCSE'], ['alevel', 'Doctor Career: A-level'], ['psych', 'Psychology Career: A-level']].forEach(([track, title]) => {
             try {
                 const d = JSON.parse(localStorage.getItem(`lastmind-doctor-career-v1:${track}:${doctorUid}`) || 'null'); const ids = d && d.results ? Object.keys(d.results) : [];
                 if (!ids.length) return;
