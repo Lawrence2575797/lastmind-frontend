@@ -20849,6 +20849,33 @@ SQIDAQAB
                         editable.dispatchEvent(new Event('input', { bubbles: true }));
                         return;
                     }
+                    const listItem = rangeNode && rangeNode.closest ? rangeNode.closest('li') : null;
+                    if (listItem && editable.contains(listItem)) {
+                        e.preventDefault();
+                        range.deleteContents();
+                        const remainder = document.createRange();
+                        remainder.setStart(range.startContainer, range.startOffset);
+                        remainder.setEnd(listItem, listItem.childNodes.length);
+                        const trailingContent = remainder.extractContents();
+                        const nextLine = document.createElement('div');
+                        const landing = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL);
+                        nextLine.appendChild(landing); nextLine.appendChild(trailingContent);
+                        const list = listItem.parentElement;
+                        list.after(nextLine);
+                        // Preserve any older bullet items that were already
+                        // below this one, while keeping the new plain line
+                        // directly after the item where Enter was pressed.
+                        if (listItem.nextSibling) {
+                            const remainingList = list.cloneNode(false);
+                            while (listItem.nextSibling) remainingList.appendChild(listItem.nextSibling);
+                            nextLine.after(remainingList);
+                        }
+                        const caret = document.createRange();
+                        caret.setStart(landing, 1); caret.collapse(true);
+                        sel.removeAllRanges(); sel.addRange(caret);
+                        editable.dispatchEvent(new Event('input', { bubbles: true }));
+                        return;
+                    }
                 }
             }
             if (mod && e.altKey && !e.shiftKey) {
