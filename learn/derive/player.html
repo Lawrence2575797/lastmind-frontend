@@ -388,7 +388,7 @@ window.__runDerive = function (D, CP) {
     } else {
       readBody = '<p class="readtext">' + mathify(step.text) + termHtmlAs(step.term, labelAfter(step.text, TERMS[step.term].t), 'pop') + '.</p>';
     }
-    var wrap = stack('<div class="eyebrow">Read</div><div class="readcard' + (LANGUAGE_LESSON ? ' language-readcard' : '') + '">' + readBody + '</div><button type="button" class="nextbtn">Next ↓</button>');
+    var wrap = stack('<div class="readcard' + (LANGUAGE_LESSON ? ' language-readcard' : '') + '">' + readBody + '</div><button type="button" class="nextbtn">Next ↓</button>');
     var s = slide(wrap), done = false;
     var advance = function () { if (done) return; done = true; io.disconnect(); chunk(step.term); next(false); };
     var io = new IntersectionObserver(function (es) {

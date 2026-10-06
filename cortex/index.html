@@ -1302,6 +1302,7 @@ SQIDAQAB
             // exists), so no real generation cost either way.
             refreshTopicNodeCompletion(card, state);
         } else if (turn.kind === 'lessonDone' && turn.data) {
+            if (topicMapState) skipConcepts(topicMapState, turn.data.conceptIds || []);
             appendCardMessage(`<div class="lesson-card-done">✓ Completed: ${escapeHtmlTopic(turn.data.label)}</div>`);
         } else if (turn.kind === 'lessonActive' && turn.data && turn.data.derivation && turn.data.nodeUuid) {
             // An open interactive lesson is part of the conversation, not
@@ -1311,7 +1312,7 @@ SQIDAQAB
             const d = turn.data;
             mountDerivationInCard(card, d.derivation, d.nodeUuid, () => {
                 const covered = new Set(d.conceptIds || d.derivation.concepts || (d.conceptId ? [d.conceptId] : []));
-                if (topicMapState) covered.forEach((id) => topicMapState.skip.add(id));
+                if (topicMapState) skipConcepts(topicMapState, covered);
                 turn.content = `[Completed the lesson on "${d.label}".]`;
                 turn.kind = 'lessonDone';
                 turn.data = { label: d.label, conceptIds: [...covered] };
@@ -1321,7 +1322,7 @@ SQIDAQAB
         } else if (turn.kind === 'lessonFailed' && turn.data) {
             appendCardMessage(`<div class="lesson-card-status">Couldn't generate an interactive lesson for “${escapeHtmlTopic(turn.data.label)}” at the time.</div>`);
         } else if (turn.kind === 'lessonSkipped' && turn.data) {
-            if (topicMapState) (turn.data.conceptIds || []).forEach((id) => topicMapState.skip.add(id));
+            if (topicMapState) skipConcepts(topicMapState, turn.data.conceptIds || []);
             appendCardMessage(`<div class="lesson-card-status">Skipped for now: “${escapeHtmlTopic(turn.data.label)}”.</div>`);
         } else if (turn.kind === 'allDone' && turn.data) {
             appendCardMessage(`<div class="lesson-card-done">Finished every lesson for “${escapeHtmlTopic(turn.data.subject)}”.</div>`);
@@ -1545,6 +1546,12 @@ SQIDAQAB
         return seen;
     }
 
+    // state.skip holds node ids, but a finished lesson reports concept ids (a different string), so the two must be matched up. Adding the
+    // concept ids straight to the set meant a lesson you had just finished was never skipped, and "next lesson" started again from the first.
+    function skipConcepts(state, ids) {
+        const set = new Set(ids);
+        (state.nodes || []).forEach((n) => { if (set.has(n.conceptId) || set.has(n.id)) state.skip.add(n.id); });
+    }
     function topicComputeTeachSet(state) {
         const closure = topicAncestorsOf(state.nodes, state.edges, state.target);
         return state.nodes.filter((n) => closure.has(n.id) && !state.skip.has(n.id));
@@ -1944,10 +1951,10 @@ SQIDAQAB
             statusEl.querySelector('#lessonRetryBtn').addEventListener('click', () => { const retry = pendingLessonRetry; pendingLessonRetry = null; retry(); });
             // Moving past a lesson that will not build, so one stuck concept never blocks everything after it.
             statusEl.querySelector('#lessonSkipBtn').addEventListener('click', () => {
-                pendingLessonRetry = null; state.skip.add(node.conceptId);
+                pendingLessonRetry = null; skipConcepts(state, [node.conceptId]);
                 recordSilentContext(`[The lesson on "${node.label}" could not be built and was skipped for now.]`, 'lessonSkipped', { label: node.label, conceptIds: [node.conceptId] });
                 statusEl.textContent = 'Skipped for now. Moving on to the next lesson.';
-                let nextIndex = index + 1; while (nextIndex < queue.length && state.skip.has(queue[nextIndex].conceptId)) nextIndex++;
+                let nextIndex = index + 1; while (nextIndex < queue.length && state.skip.has(queue[nextIndex].id)) nextIndex++;
                 if (nextIndex >= queue.length) { appendCardMessage(`<div class="lesson-card-done">That was the last lesson in “${escapeHtmlTopic(state.subject)}” for now.</div>`); return; }
                 teachNextInQueue(state, queue, nextIndex, uuidByConceptId);
             });
@@ -2113,7 +2120,7 @@ SQIDAQAB
             // recorded into chatHistory (not just label) so a restore across
             // a real reload can rebuild this same skip set - see
             // renderRestoredSilentTurn's own 'map' branch.
-            covered.forEach((id) => state.skip.add(id));
+            skipConcepts(state, covered);
             activeLessonTurn.content = `[Completed the lesson on "${node.label}".]`;
             activeLessonTurn.kind = 'lessonDone';
             activeLessonTurn.data = { label: node.label, conceptIds: [...covered] };
