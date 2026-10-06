@@ -68,13 +68,13 @@
     var treatedSet = idx.slice(0, K);
     for (i = 0; i < N; i++) {
       var treated = treatedSet.indexOf(i) > -1;
-      var pf = jitter(o.pf, rng, 0.08), own = {}, tq = treated ? 10 + Math.floor(rng() * (Q - 18)) : null;
+      var pf = jitter(o.pf, rng, o.heterogeneity == null ? 0.03 : o.heterogeneity), own = {}, tq = treated ? 10 + Math.floor(rng() * (Q - 18)) : null;
       var dose = treated ? clamp(lever.v * (0.6 + 0.8 * rng()), e && e.ctl && e.ctl.min != null ? e.ctl.min : -1e9, e && e.ctl && e.ctl.max != null ? e.ctl.max : 1e9) : 0;
       if (e && e.ctl && step) dose = Math.round(dose / step) * step;
       for (t = 1; t <= Q; t++) {
         var n = noise(rng, scale * 0.7);
         // Selection: a country that is about to adopt has been doing badly for a few quarters, which is why it acts.
-        if (treated && sel > 0 && t > tq - 6 && t <= tq) { n.demand = (n.demand || 0) - 0.22 * sel; n.hh = (n.hh || 0) - 0.12 * sel; }
+        if (treated && sel > 0 && t > tq - 10 && t <= tq) { var ramp = (t - (tq - 10)) / 10; n.demand = (n.demand || 0) - 1.6 * sel * ramp; n.hh = (n.hh || 0) - 1.0 * sel * ramp; }   // a worsening slide that ends in adoption
         own[t] = n;
       }
       units.push({ id: 'C' + (i + 1), name: 'Country ' + String.fromCharCode(65 + i), treated: treated, tq: tq, dose: dose, pf: pf, own: own });
