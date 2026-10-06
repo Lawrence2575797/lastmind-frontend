@@ -4193,6 +4193,19 @@
     .nb-graph .nb-dbar .coord-graph-expression-host .math-shortcut-mode-badge { display: none; }
     .nb-graph .coord-graph { border: 0; border-top: 1px solid rgba(230,215,176,.18); border-radius: 0; box-shadow: none; }
     .nb-graph .coord-graph-stage { min-height: 0; }
+    .nb-expand { flex: none; width: 28px; height: 28px; margin-right: 4px; border: 1px solid rgba(230,215,176,.38); border-radius: 7px; background: transparent; color: #E6D7B0; font-size: 15px; line-height: 1; cursor: pointer; } .nb-expand:hover { background: rgba(230,215,176,.14); }
+    .nb-graph .nb-dbar { gap: 6px; padding: 6px 8px; }
+    .nb-gx-overlay { position: fixed; inset: 0; z-index: 400; display: flex; align-items: center; justify-content: center; padding: 3vh 3vw; background: rgba(5,8,16,.74); }
+    .nb-gx-modal { width: min(1100px, 100%); max-height: 100%; display: flex; flex-direction: column; }
+    .nb-graph.nb-expanded { position: relative !important; left: auto !important; top: auto !important; width: 100% !important; height: auto !important; max-height: 94vh; display: flex; flex-direction: column; box-shadow: 0 20px 70px rgba(0,0,0,.6); }
+    .nb-graph.nb-expanded .nb-graph-host { overflow: auto; } .nb-graph.nb-expanded .coord-graph-stage { aspect-ratio: auto; height: min(58vh, 620px); }
+    .nb-graph.nb-expanded .nb-resize, .nb-graph.nb-expanded > .nb-corner, .nb-graph.nb-expanded .nb-del { display: none; }
+    .cg-palette { padding: 8px 10px; border-bottom: 1px solid rgba(230,215,176,.18); background: rgba(230,215,176,.05); }
+    .cg-title { font: 700 12px Arial, sans-serif; margin-bottom: 6px; } .cg-title small { font-weight: 400; opacity: .7; margin-left: 6px; }
+    .cg-fns { display: flex; flex-wrap: wrap; gap: 6px; } .cg-fn { padding: 6px 11px; border: 1px solid rgba(230,215,176,.45); border-radius: 999px; background: rgba(230,215,176,.08); color: #E6D7B0; font: 700 12px Arial, sans-serif; cursor: grab; touch-action: none; user-select: none; } .cg-fn:hover { background: rgba(230,215,176,.2); }
+    .cg-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; font: 12px Arial, sans-serif; } .cg-hint { opacity: .65; }
+    .cg-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 8px; border: 1px solid rgba(230,215,176,.3); border-radius: 999px; } .cg-chip i { width: 10px; height: 10px; border-radius: 50%; } .cg-chip button { width: 20px; height: 20px; border: 0; border-radius: 50%; background: rgba(230,215,176,.15); color: #E6D7B0; cursor: pointer; }
+    .cg-ghost { position: fixed; z-index: 500; display: none; padding: 6px 11px; border: 1px solid #E6D7B0; border-radius: 999px; background: #1A232D; color: #E6D7B0; font: 700 12px Arial, sans-serif; pointer-events: none; }
     .nb-corner { position: absolute; width: 14px; height: 14px; z-index: 4; background: #E6D7B0; border: 2px solid #1A232D; border-radius: 4px; opacity: 0; touch-action: none; }
     .nb-corner-nw { left: 3px; top: 3px; cursor: nwse-resize; } .nb-corner-se { right: 3px; bottom: 3px; cursor: nwse-resize; }
     .nb-corner-ne { right: 3px; top: 3px; cursor: nesw-resize; } .nb-corner-sw { left: 3px; bottom: 3px; cursor: nesw-resize; }
@@ -20622,7 +20635,7 @@ SQIDAQAB
         const touches = new Set();
         let moveState = null, moved = false;
         surface.addEventListener('pointerdown', (e) => {
-            if (e.pointerType === 'mouse') return;
+            if (e.pointerType === 'mouse' || el.classList.contains('nb-expanded')) return;
             touches.add(e.pointerId);
             if (touches.size === 1) {
                 moveState = { id: e.pointerId, sx: e.clientX, sy: e.clientY, ox: el.offsetLeft, oy: el.offsetTop };
@@ -20816,20 +20829,38 @@ SQIDAQAB
     function nbMakeGraphBlock(page, block, canvas) {
         const el = document.createElement('div');
         el.className = 'nb-block nb-graph'; el.dataset.id = block.id;
-        el.innerHTML = `<div class="nb-dbar"><span class="nb-graph-title">Coordinate graph</span>
+        el.innerHTML = `<div class="nb-dbar"><button type="button" class="nb-expand" aria-label="Expand this graph" title="Expand">⤢</button>
             <button type="button" class="nb-del nb-del-inline" aria-label="Delete this graph" title="Delete">×</button></div><div class="nb-graph-host"></div><div class="nb-resize" title="Drag to resize"></div>`;
         canvas.appendChild(el); nbPlace(el, block, canvas);
         const graphHost = el.querySelector('.nb-graph-host');
-        renderCoordinateGraph(graphHost, block.state || {}, { onChange: (state) => { block.state = state; notesScheduleSave(); nbFitCanvas(canvas); } });
+        const gapi = renderCoordinateGraph(graphHost, block.state || {}, { only2d: true, onChange: (state) => { block.state = state; notesScheduleSave(); if (!el.classList.contains('nb-expanded')) nbFitCanvas(canvas); } });
         // Notes graphs use a single compact header. Move the two controls
         // that remain useful into it and remove the redundant second row
         // (including +/- zoom, Draw and Reset view). Enter or the arrow
         // inside the equation field draws the graph instead.
         const innerControls = graphHost.querySelector('.coord-graph-controls');
         const deleteBtn = el.querySelector('.nb-del');
-        el.querySelector('.nb-dbar').insertBefore(innerControls.querySelector('.coord-graph-mode'), deleteBtn);
-        el.querySelector('.nb-dbar').insertBefore(innerControls.querySelector('.coord-graph-expression-host'), deleteBtn);
+        const expandBtn = el.querySelector('.nb-expand');
+        el.querySelector('.nb-dbar').insertBefore(innerControls.querySelector('.coord-graph-expression-host'), expandBtn);
         innerControls.remove();
+        // Expand: the graph moves to a large preview in the middle of the page, where the standard curves can be dropped on it. The same
+        // button puts it back in its place at its old size.
+        let placeholder = null, overlay = null;
+        const closeExpanded = () => {
+            if (!overlay) return;
+            placeholder.parentNode.insertBefore(el, placeholder); placeholder.remove(); overlay.remove(); overlay = null; placeholder = null;
+            el.classList.remove('nb-expanded'); expandBtn.textContent = '⤢'; expandBtn.title = 'Expand'; expandBtn.setAttribute('aria-label', 'Expand this graph');
+            gapi.showPalette(false); document.removeEventListener('keydown', onKey, true); nbFitCanvas(canvas); notesScheduleSave();
+        };
+        const onKey = (ev) => { if (ev.key === 'Escape') { ev.stopPropagation(); closeExpanded(); } };
+        expandBtn.addEventListener('click', () => {
+            if (overlay) { closeExpanded(); return; }
+            placeholder = document.createComment('graph'); el.parentNode.insertBefore(placeholder, el);
+            overlay = document.createElement('div'); overlay.className = 'nb-gx-overlay'; const modal = document.createElement('div'); modal.className = 'nb-gx-modal'; modal.appendChild(el); overlay.appendChild(modal); document.body.appendChild(overlay);
+            el.classList.add('nb-expanded'); expandBtn.textContent = '⤡'; expandBtn.title = 'Shrink'; expandBtn.setAttribute('aria-label', 'Shrink this graph back into the page');
+            overlay.addEventListener('pointerdown', (ev) => { if (ev.target === overlay) closeExpanded(); });
+            document.addEventListener('keydown', onKey, true); gapi.showPalette(true);
+        });
         // A one-finger gesture moves the whole Notes block. The graph itself
         // only handles two-finger pinch zoom on touch screens; mouse dragging
         // still pans or rotates it on a laptop.
@@ -21151,9 +21182,70 @@ SQIDAQAB
         const rough = span / 10, p = Math.pow(10, Math.floor(Math.log10(rough))), n = rough / p;
         return (n < 2 ? 1 : n < 5 ? 2 : 5) * p;
     }
+    // Standard curves that can be dropped on a graph. Each has two round handles and always stays in its family: dragging a handle changes where
+    // the curve sits and how steep it is, but a line stays straight and a parabola stays a parabola.
+    const CG_FAMILIES = {
+        line:  { name: 'Linear',      make: (c, s) => [[c[0] - 2 * s, c[1] - s], [c[0] + 2 * s, c[1] + s]] },
+        quad:  { name: 'Quadratic',   make: (c, s) => [[c[0], c[1] - s], [c[0] + 2 * s, c[1]]] },
+        cubic: { name: 'Cubic',       make: (c, s) => [[c[0], c[1]], [c[0] + 1.5 * s, c[1] + 1.5 * s]] },
+        quart: { name: 'Quartic',     make: (c, s) => [[c[0], c[1] - s], [c[0] + 1.5 * s, c[1]]] },
+        log:   { name: 'Logarithmic', make: (c, s) => [[c[0] - s, c[1]], [c[0] + 3 * s, c[1] + s]] },
+        exp:   { name: 'Exponential', make: (c, s) => [[c[0] - 2 * s, c[1] + 0.5 * s], [c[0] + s, c[1] + 3 * s]], k: (c) => c[1] },
+        recip: { name: 'Reciprocal',  make: (c, s) => [[c[0], c[1]], [c[0] + s, c[1] + 2 * s]] },
+        sqrt:  { name: 'Square root', make: (c, s) => [[c[0] - 2 * s, c[1] - s], [c[0] + 2 * s, c[1] + s]] },
+        sin:   { name: 'Sine',        make: (c, s) => [[c[0] - 2 * s, c[1]], [c[0] - s, c[1] + s]] },
+        abs:   { name: 'Absolute value', make: (c, s) => [[c[0], c[1] - s], [c[0] + 2 * s, c[1] + s]] },
+    };
+    const CG_COLOURS = ['#6EC8FF', '#FF9F7A', '#9BE37D', '#E8A8FF', '#FFD166', '#7FE0D0'];
+    // The function a curve draws, from its two handle points p (and its asymptote k for the exponential).
+    function cgCurveFn(cv) {
+        const p = cv.pts, h = p[0][0], k0 = p[0][1], x2 = p[1][0], y2 = p[1][1], eps = 1e-6;
+        const dx = (Math.abs(x2 - h) < eps ? eps : x2 - h);
+        switch (cv.type) {
+            case 'line': { const m = (p[1][1] - p[0][1]) / ((p[1][0] - p[0][0]) || eps); return (x) => p[0][1] + m * (x - p[0][0]); }
+            case 'quad': { const a = (y2 - k0) / (dx * dx); return (x) => a * (x - h) * (x - h) + k0; }
+            case 'cubic': { const a = (y2 - k0) / (dx * dx * dx); return (x) => a * Math.pow(x - h, 3) + k0; }
+            case 'quart': { const a = (y2 - k0) / Math.pow(dx, 4); return (x) => a * Math.pow(x - h, 4) + k0; }
+            case 'log': { const hh = h - 1, a = (y2 - k0) / Math.log(Math.max(1.0001, x2 - hh)); return (x) => (x > hh ? a * Math.log(x - hh) + k0 : NaN); }
+            case 'exp': { const k = cv.k, A = p[0][1] - k, B = p[1][1] - k, r = Math.log(Math.abs(B / (A || eps))) / ((x2 - h) || eps); return (x) => k + A * Math.exp(r * (x - h)); }
+            case 'recip': { const a = (y2 - k0) * dx; return (x) => (Math.abs(x - h) < eps ? NaN : a / (x - h) + k0); }
+            case 'sqrt': { const a = (y2 - k0) / Math.sqrt(Math.max(eps, Math.abs(dx))), sg = dx >= 0 ? 1 : -1; return (x) => (sg * (x - h) >= 0 ? a * Math.sqrt(sg * (x - h)) + k0 : NaN); }
+            case 'sin': { const a = y2 - k0, b = Math.PI / (2 * dx); return (x) => a * Math.sin(b * (x - h)) + k0; }
+            case 'abs': { const a = (y2 - k0) / Math.abs(dx); return (x) => a * Math.abs(x - h) + k0; }
+        }
+        return () => NaN;
+    }
+    // Keeps the second handle where the curve is still defined (not on top of the first, on the right side of an asymptote, and so on).
+    function cgKeepValid(cv, scaleX) {
+        const p = cv.pts, min = 0.05 * scaleX;
+        if (cv.type === 'line') { if (Math.abs(p[1][0] - p[0][0]) < min) p[1][0] = p[0][0] + (p[1][0] >= p[0][0] ? min : -min); return; }
+        if (cv.type === 'log') { if (p[1][0] < p[0][0] + 0.3) p[1][0] = p[0][0] + 0.3; return; }
+        if (cv.type === 'exp') { if (Math.abs(p[1][0] - p[0][0]) < min) p[1][0] = p[0][0] + min; const sgn = (p[0][1] - cv.k) >= 0 ? 1 : -1; if (Math.abs(p[0][1] - cv.k) < 0.05 * scaleX) p[0][1] = cv.k + sgn * 0.05 * scaleX; if (sgn * (p[1][1] - cv.k) < 0.05 * scaleX) p[1][1] = cv.k + sgn * 0.05 * scaleX; return; }
+        if (Math.abs(p[1][0] - p[0][0]) < min) p[1][0] = p[0][0] + (p[1][0] >= p[0][0] ? min : -min);
+    }
+    function cgNum(v) { const r = Math.round(v * 100) / 100; return String(Object.is(r, -0) ? 0 : r); }
+    function cgEquation(cv) {
+        const p = cv.pts, h = p[0][0], k0 = p[0][1], dx = (Math.abs(p[1][0] - h) < 1e-6 ? 1e-6 : p[1][0] - h), n = cgNum, sgn = (v) => (v < 0 ? ' − ' : ' + ') + n(Math.abs(v));
+        const shift = (v) => (Math.abs(v) < 0.005 ? 'x' : '(x' + (v > 0 ? ' − ' : ' + ') + n(Math.abs(v)) + ')');
+        switch (cv.type) {
+            case 'line': { const m = (p[1][1] - p[0][1]) / ((p[1][0] - p[0][0]) || 1e-6); return 'y = ' + n(m) + 'x' + sgn(p[0][1] - m * p[0][0]); }
+            case 'quad': return 'y = ' + n((p[1][1] - k0) / (dx * dx)) + shift(h) + '²' + sgn(k0);
+            case 'cubic': return 'y = ' + n((p[1][1] - k0) / (dx * dx * dx)) + shift(h) + '³' + sgn(k0);
+            case 'quart': return 'y = ' + n((p[1][1] - k0) / Math.pow(dx, 4)) + shift(h) + '⁴' + sgn(k0);
+            case 'log': return 'y = ' + n((p[1][1] - k0) / Math.log(Math.max(1.0001, p[1][0] - (h - 1)))) + ' ln' + shift(h - 1) + sgn(k0);
+            case 'exp': { const k = cv.k, A = p[0][1] - k, r = Math.log(Math.abs((p[1][1] - k) / (A || 1e-6))) / dx; return 'y = ' + n(A * Math.exp(-r * h)) + 'e^(' + n(r) + 'x)' + sgn(k); }
+            case 'recip': return 'y = ' + n((p[1][1] - k0) * dx) + '/' + shift(h) + sgn(k0);
+            case 'sqrt': return 'y = ' + n((p[1][1] - k0) / Math.sqrt(Math.abs(dx))) + '√' + shift(h) + sgn(k0);
+            case 'sin': return 'y = ' + n(p[1][1] - k0) + ' sin(' + n(Math.PI / (2 * dx)) + shift(h) + ')' + sgn(k0);
+            case 'abs': return 'y = ' + n((p[1][1] - k0) / Math.abs(dx)) + '|' + shift(h).replace(/^\(|\)$/g, '') + '|' + sgn(k0);
+        }
+        return '';
+    }
     function renderCoordinateGraph(host, initialState, options) {
         const uid = `cg${coordinateGraphSeq++}`;
-        const state = Object.assign({ mode: '2d', expression2d: '', expression3d: '', min: -10, max: 10, angleX: .62, angleZ: -.72 }, initialState || {});
+        const state = Object.assign({ mode: '2d', expression2d: '', expression3d: '', min: -10, max: 10, angleX: .62, angleZ: -.72, curves: [] }, initialState || {});
+        if (!Array.isArray(state.curves)) state.curves = [];
+        if (options && options.only2d) state.mode = '2d';                // the notes graph is a flat graph: no 3D
         // The 2D view is a window that is zoomed with the wheel or a pinch and moved by dragging (older saves start from their old range).
         if (!Number.isFinite(state.xmin)) { state.xmin = state.min; state.xmax = state.max; }
         if (!Number.isFinite(state.ymin)) { state.ymin = state.min; state.ymax = state.max; }
@@ -21165,6 +21257,8 @@ SQIDAQAB
                 <button type="button" class="coord-graph-btn" data-act="draw">Draw</button><button type="button" class="coord-graph-btn" data-act="reset">Reset view</button>
             </div><div class="coord-graph-stage"><canvas aria-label="Coordinate graph"></canvas><span class="coord-graph-help"></span></div><div class="coord-graph-error" aria-live="polite"></div>
         </div>`;
+        if (options && options.only2d) { const mg = host.querySelector('.coord-graph-mode'); if (mg) mg.remove(); }
+        let editing = false, hd = null, curveSeq = 1;
         const canvas = host.querySelector('canvas'), stage = host.querySelector('.coord-graph-stage'), expressionHost = host.querySelector('.coord-graph-expression-host'), error = host.querySelector('.coord-graph-error'), help = host.querySelector('.coord-graph-help');
         const expressionEditor = createSmartAnswerEditor('Enter y = f(x)', { hideShortcutHint: true });
         expressionHost.appendChild(expressionEditor.container);
@@ -21195,6 +21289,11 @@ SQIDAQAB
             ctx.stroke();
             if(fn){ctx.strokeStyle='#6EC8FF';ctx.lineWidth=2.4;ctx.beginPath();let pen=false;
             for(let px=0;px<=w;px+=1){const x=xlo+px/w*xs,y=fn(x),py=Y(y);if(!Number.isFinite(y)||py < -h*3||py>h*4){pen=false;continue;}if(!pen){ctx.moveTo(px,py);pen=true;}else ctx.lineTo(px,py);}ctx.stroke();}
+            // dropped standard curves, with their round handles while editing
+            state.curves.forEach((cv,ci)=>{const f=cgCurveFn(cv),col=CG_COLOURS[ci%CG_COLOURS.length];ctx.strokeStyle=col;ctx.lineWidth=2.6;ctx.beginPath();let pen2=false,lastY=null;
+                for(let px=0;px<=w;px+=1){const x=xlo+px/w*xs,y=f(x),py=Y(y);if(!Number.isFinite(y)||py<-h*3||py>h*4||(lastY!=null&&Math.abs(py-lastY)>h*1.5&&cv.type==='recip')){pen2=false;lastY=Number.isFinite(py)?py:null;continue;}lastY=py;if(!pen2){ctx.moveTo(px,py);pen2=true;}else ctx.lineTo(px,py);}ctx.stroke();
+                if(cv.type==='exp'){ctx.setLineDash([5,5]);ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,Y(cv.k));ctx.lineTo(w,Y(cv.k));ctx.stroke();ctx.setLineDash([]);}
+                if(editing)cv.pts.forEach((pt,hi)=>{ctx.beginPath();ctx.arc(X(pt[0]),Y(pt[1]),hi?7:8,0,Math.PI*2);ctx.fillStyle=hi?'#12121E':col;ctx.fill();ctx.lineWidth=2.4;ctx.strokeStyle=hi?col:'#12121E';ctx.stroke();});});
         }
         function draw3d(ctx,w,h) {
             const fn=String(state.expression3d || '').trim()?graphCompile(state.expression3d,['x','y']):null,lo=state.min,hi=state.max, span=hi-lo, n=25, scale=Math.min(w,h)*.38/span;
@@ -21221,11 +21320,14 @@ SQIDAQAB
         host.querySelector('[data-act="zoomout"]').addEventListener('click',()=>zoomBy(1.25,.5,.5));
         host.querySelector('[data-act="reset"]').addEventListener('click',()=>{state.angleX=.62;state.angleZ=-.72;state.min=-10;state.max=10;state.xmin=-10;state.xmax=10;state.ymin=-10;state.ymax=10;draw();notify();});
         stage.addEventListener('wheel',e=>{e.preventDefault();const r=canvas.getBoundingClientRect();zoomBy(Math.exp(e.deltaY*0.0016),(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height);},{passive:false});
-        canvas.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button!==0)return;ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});try{canvas.setPointerCapture(e.pointerId);}catch(_){}
+        function toPx(x,y){const r=canvas.getBoundingClientRect(),xs=state.xmax-state.xmin,ys=state.ymax-state.ymin;return[(x-state.xmin)/xs*r.width,r.height-(y-state.ymin)/ys*r.height];}
+        function toGraph(cx,cy){const r=canvas.getBoundingClientRect(),xs=state.xmax-state.xmin,ys=state.ymax-state.ymin;return[state.xmin+(cx-r.left)/r.width*xs,state.ymax-(cy-r.top)/r.height*ys];}
+        function hitHandle(e){if(!editing||state.mode==='3d')return null;const r=canvas.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;let best=null,bd=18;state.curves.forEach((cv,ci)=>cv.pts.forEach((pt,hi)=>{const q=toPx(pt[0],pt[1]),d=Math.hypot(q[0]-mx,q[1]-my);if(d<bd){bd=d;best={ci,hi};}}));return best;}
+        canvas.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button!==0)return;const hh=hitHandle(e);if(hh){hd=hh;e.preventDefault();e.stopPropagation();try{canvas.setPointerCapture(e.pointerId);}catch(_){}return;}ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});try{canvas.setPointerCapture(e.pointerId);}catch(_){}
             if(ptrs.size===2){const v=[...ptrs.values()];pinch={d:Math.hypot(v[0].x-v[1].x,v[0].y-v[1].y)||1,mx:(v[0].x+v[1].x)/2,my:(v[0].y+v[1].y)/2};drag=null;}
             else if(ptrs.size===1&&e.pointerType==='mouse'){drag=state.mode==='3d'?{x:e.clientX,y:e.clientY,ax:state.angleX,az:state.angleZ}:{x:e.clientX,y:e.clientY,xmin:state.xmin,xmax:state.xmax,ymin:state.ymin,ymax:state.ymax};}
             else drag=null;});
-        canvas.addEventListener('pointermove',e=>{if(!ptrs.has(e.pointerId))return;ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+        canvas.addEventListener('pointermove',e=>{if(hd){const cv=state.curves[hd.ci];if(!cv)return;const g2=toGraph(e.clientX,e.clientY);cv.pts[hd.hi]=g2;cgKeepValid(cv,state.xmax-state.xmin);draw();refreshList();return;}if(!ptrs.has(e.pointerId))return;ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
             if(pinch&&ptrs.size===2){const v=[...ptrs.values()],d=Math.hypot(v[0].x-v[1].x,v[0].y-v[1].y)||1,r=canvas.getBoundingClientRect();const mx=(v[0].x+v[1].x)/2,my=(v[0].y+v[1].y)/2;
                 // two fingers navigate: the pinch zooms and moving both together pans (2D) or turns (3D) the graph
                 if(state.mode==='3d'){state.angleZ+=(mx-pinch.mx)*.009;state.angleX=nbClamp(state.angleX+(my-pinch.my)*.009,-1.35,1.35);}
@@ -21235,8 +21337,41 @@ SQIDAQAB
             if(!drag)return;
             if(state.mode==='3d'){state.angleZ=drag.az+(e.clientX-drag.x)*.009;state.angleX=nbClamp(drag.ax+(e.clientY-drag.y)*.009,-1.35,1.35);draw();}
             else{const r=canvas.getBoundingClientRect(),dx=(e.clientX-drag.x)/r.width*(drag.xmax-drag.xmin),dy=(e.clientY-drag.y)/r.height*(drag.ymax-drag.ymin);state.xmin=drag.xmin-dx;state.xmax=drag.xmax-dx;state.ymin=drag.ymin+dy;state.ymax=drag.ymax+dy;draw();}});
-        const endDrag=e=>{ptrs.delete(e.pointerId);if(ptrs.size<2){if(pinch)notify();pinch=null;}if(ptrs.size===0&&drag){drag=null;notify();}};canvas.addEventListener('pointerup',endDrag);canvas.addEventListener('pointercancel',endDrag);
-        const ro=typeof ResizeObserver==='function'?new ResizeObserver(draw):null;if(ro)ro.observe(stage);draw();return{getState:()=>Object.assign({},state),destroy:()=>ro&&ro.disconnect()};
+        const endDrag=e=>{if(hd){hd=null;saveExpression();notify();return;}ptrs.delete(e.pointerId);if(ptrs.size<2){if(pinch)notify();pinch=null;}if(ptrs.size===0&&drag){drag=null;notify();}};canvas.addEventListener('pointerup',endDrag);canvas.addEventListener('pointercancel',endDrag);
+
+        // ---- the palette of standard curves (shown when the graph is expanded) ----
+        let paletteEl = null;
+        function placeCurve(type, at) {
+            const xs = state.xmax - state.xmin, s = xs / 8, c = at || [(state.xmin + state.xmax) / 2, (state.ymin + state.ymax) / 2], F = CG_FAMILIES[type];
+            const cv = { id: 'c' + Date.now().toString(36) + (curveSeq++), type, pts: F.make(c, s) }; if (F.k) cv.k = F.k(c);
+            cgKeepValid(cv, xs); state.curves.push(cv); draw(); refreshList(); saveExpression(); notify();
+        }
+        function refreshList() {
+            if (!paletteEl) return; const list = paletteEl.querySelector('.cg-list'); if (!list) return;
+            list.innerHTML = state.curves.length ? state.curves.map((cv, i) => '<span class="cg-chip"><i style="background:' + CG_COLOURS[i % CG_COLOURS.length] + '"></i><span>' + escapeHtml(CG_FAMILIES[cv.type].name) + ': ' + escapeHtml(cgEquation(cv)) + '</span><button type="button" data-cgdel="' + cv.id + '" aria-label="Remove this curve">×</button></span>').join('') : '<span class="cg-hint">Drag a curve onto the graph. Drag its round handles to change it.</span>';
+        }
+        function showPalette(on) {
+            editing = !!on; if (paletteEl) { paletteEl.remove(); paletteEl = null; }
+            if (on) {
+                paletteEl = document.createElement('div'); paletteEl.className = 'cg-palette';
+                paletteEl.innerHTML = '<div class="cg-title">Standard curves <small>drag onto the graph, or click to add</small></div><div class="cg-fns">' + Object.keys(CG_FAMILIES).map(k => '<button type="button" class="cg-fn" data-fn="' + k + '">' + escapeHtml(CG_FAMILIES[k].name) + '</button>').join('') + '</div><div class="cg-list"></div>';
+                host.querySelector('.coord-graph').insertBefore(paletteEl, host.querySelector('.coord-graph-stage'));
+                refreshList();
+                paletteEl.addEventListener('click', ev => { const d = ev.target.closest('[data-cgdel]'); if (d) { state.curves = state.curves.filter(c2 => c2.id !== d.dataset.cgdel); draw(); refreshList(); saveExpression(); notify(); } });
+                paletteEl.querySelectorAll('[data-fn]').forEach(btn => btn.addEventListener('pointerdown', ev => {
+                    if (ev.button != null && ev.button !== 0) return; ev.preventDefault();
+                    const type = btn.dataset.fn, ghost = document.createElement('div'); ghost.className = 'cg-ghost'; ghost.textContent = CG_FAMILIES[type].name; document.body.appendChild(ghost);
+                    let moved = false; const sx = ev.clientX, sy = ev.clientY;
+                    const mv = e2 => { if (Math.hypot(e2.clientX - sx, e2.clientY - sy) > 5) moved = true; ghost.style.left = e2.clientX + 10 + 'px'; ghost.style.top = e2.clientY + 10 + 'px'; ghost.style.display = moved ? 'block' : 'none'; };
+                    const up = e2 => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); ghost.remove();
+                        if (!moved) { placeCurve(type); return; }
+                        const r = canvas.getBoundingClientRect(); if (e2.clientX >= r.left && e2.clientX <= r.right && e2.clientY >= r.top && e2.clientY <= r.bottom) placeCurve(type, toGraph(e2.clientX, e2.clientY)); };
+                    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up); mv(ev);
+                }));
+            }
+            draw();
+        }
+        const ro=typeof ResizeObserver==='function'?new ResizeObserver(draw):null;if(ro)ro.observe(stage);draw();return{getState:()=>Object.assign({},state),showPalette,destroy:()=>ro&&ro.disconnect()};
     }
     function openCoordinateGraphTool() {
         stopActiveDictation(); stopSpeaking(); document.getElementById('topbarTitle').textContent='Coordinate Graph Drawer';
