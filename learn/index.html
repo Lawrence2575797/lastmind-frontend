@@ -4129,6 +4129,17 @@
     .nb-text-size { font: inherit; font-size: 12.5px; font-weight: 700; padding: 6px 8px; border-radius: 8px; cursor: pointer; background: #1A232D; color: #F1EAD6; border: 1.5px solid rgba(241, 234, 214, 0.35); }
     .nb-text-size option { background: #1A232D; color: #F1EAD6; }
     .nb-text-size-wrap { display: inline-flex; align-items: center; gap: 6px; color: #F1EAD6; font: 700 12px Arial, sans-serif; }
+    /* LastMind beside the notes: a panel on the right that opens and closes, with a chat about concepts and a review of the page. */
+    .nb-assist { position: fixed; top: 0; right: 0; bottom: 0; z-index: 160; width: min(430px, 94vw); display: flex; flex-direction: column; background: #1A232D; color: #F1EAD6; border-left: 1px solid rgba(241,234,214,.3); box-shadow: -16px 0 44px rgba(0,0,0,.4); font: 14px/1.55 Arial, sans-serif; }
+    .nb-assist-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 14px 16px 10px; border-bottom: 1px solid rgba(241,234,214,.18); } .nb-assist-head b { font: 700 1.1rem 'Lora', Georgia, serif; display: block; } .nb-assist-head small { opacity: .7; }
+    .nb-assist-x { width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(241,234,214,.4); background: transparent; color: inherit; font-size: 18px; line-height: 1; cursor: pointer; }
+    .nb-assist-actions { padding: 10px 16px; border-bottom: 1px solid rgba(241,234,214,.12); } .nb-assist-review { width: 100%; padding: 10px 14px; border: 0; border-radius: 10px; background: #E6D7B0; color: #1A232D; font: 800 .88rem Arial, sans-serif; cursor: pointer; } .nb-assist-review:disabled { opacity: .55; cursor: wait; }
+    .nb-assist-body { flex: 1; overflow-y: auto; padding: 12px 16px; display: grid; align-content: start; gap: 10px; }
+    .nb-msg { max-width: 92%; padding: 9px 12px; border-radius: 12px; white-space: pre-wrap; } .nb-msg.me { justify-self: end; background: rgba(230,215,176,.2); } .nb-msg.ai { justify-self: start; background: rgba(255,255,255,.07); } .nb-msg p { margin: 0 0 8px; white-space: normal; } .nb-msg p:last-child { margin: 0; }
+    .nb-assist-hint { opacity: .7; font-size: .86rem; } .nb-assist-err { color: #ffb4a8; }
+    .nb-review { padding: 12px 14px; border-radius: 12px; background: rgba(230,215,176,.1); border: 1px solid rgba(230,215,176,.3); } .nb-review h4 { margin: 14px 0 6px; font: 800 .74rem Arial, sans-serif; letter-spacing: .1em; text-transform: uppercase; color: #E6D7B0; } .nb-review h4:first-child { margin-top: 0; } .nb-review ul { margin: 0 0 4px 18px; padding: 0; } .nb-review li { margin-bottom: 4px; }
+    .nb-issue { margin: 8px 0; padding: 9px 11px; border-radius: 10px; background: rgba(0,0,0,.22); } .nb-issue q { display: block; margin-bottom: 4px; opacity: .8; font-style: italic; } .nb-issue .fix { margin-top: 6px; padding: 7px 9px; border-radius: 8px; background: rgba(116,199,165,.16); } .nb-step { margin: 8px 0; padding: 9px 11px; border-radius: 10px; background: rgba(0,0,0,.22); } .nb-step b { display: block; }
+    .nb-assist-form { display: flex; gap: 8px; padding: 10px 16px 14px; border-top: 1px solid rgba(241,234,214,.18); } .nb-assist-form textarea { flex: 1; min-height: 42px; max-height: 120px; resize: vertical; padding: 9px 11px; border-radius: 10px; border: 1px solid rgba(241,234,214,.35); background: rgba(255,255,255,.06); color: inherit; font: inherit; } .nb-assist-form button { align-self: flex-end; padding: 10px 16px; border: 0; border-radius: 10px; background: #E6D7B0; color: #1A232D; font: 800 .86rem Arial, sans-serif; cursor: pointer; } .nb-assist-form button:disabled { opacity: .5; cursor: wait; }
     .nb-selection-size { display: none; position: fixed; z-index: 145; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 9px; background: #1A232D; color: #F1EAD6; border: 1px solid rgba(241,234,214,.35); box-shadow: 0 8px 24px rgba(0,0,0,.35); font: 700 11px Arial, sans-serif; }
     .nb-selection-size.open { display: flex; }
     .nb-selection-size .nb-text-size { padding: 4px 7px; }
@@ -20709,6 +20720,7 @@ SQIDAQAB
         // Notes page/landing is rendered. notesRenderPage mounts a fresh one.
         removeQuickNotesWidget();
         if (notesSelectionSizeCleanup) { notesSelectionSizeCleanup(); notesSelectionSizeCleanup = null; }
+        nbAssistTeardown();
         document.getElementById('topbarTitle').textContent = title;
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
@@ -21204,6 +21216,106 @@ SQIDAQAB
         SC_MATHS_SYMBOLS, SC_MATHS_LAYOUT,
     ]);
 
+    // ─── LastMind beside your notes: chat about concepts, and a review of the page ───
+    const NB_ASSIST_STORE = 'lastmind-notes-assist-v1';
+    let notesAssist = { open: false, busy: false, store: null };
+    const nbAssistE = (t) => String(t == null ? '' : t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const nbAssistRich = (t) => nbAssistE(t).split(/\n{2,}/).map((para) => '<p>' + para.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>') + '</p>').join('');
+    // The page as plain text: block order down the page, with fractions, powers and roots written out.
+    function nbPlainText(html) {
+        const box = document.createElement('div'); box.innerHTML = html || '';
+        const walk = (n) => {
+            if (n.nodeType === 3) return n.textContent.replace(/\u200b/g, '');
+            if (n.nodeType !== 1) return '';
+            const cl = n.classList, kids = () => Array.from(n.childNodes).map(walk).join('');
+            if (cl && cl.contains('frac')) { const a = n.querySelector('.frac-num'), b = n.querySelector('.frac-den'); const x = a ? walk(a) : '', y = b ? walk(b) : ''; return x || y ? '(' + x + ')/(' + y + ')' : ''; }
+            if (cl && cl.contains('int-limits')) { const u = n.querySelector('.int-upper'), l = n.querySelector('.int-lower'); return '[' + (l ? walk(l) : '') + ', ' + (u ? walk(u) : '') + ']'; }
+            if (n.tagName === 'SUP') { const i = kids(); return i ? '^(' + i + ')' : ''; }
+            if (n.tagName === 'SUB') { const i = kids(); return i ? '_(' + i + ')' : ''; }
+            if (cl && cl.contains('root-n')) { const r = n.querySelector('.root-index'); const i = r ? walk(r) : ''; return (i ? '^(' + i + ')' : '') + '\u221a'; }
+            if (n.tagName === 'BR') return '\n';
+            if (n.tagName === 'LI') return '- ' + kids() + '\n';
+            if (n.tagName === 'SPAN' && cl && cl.contains('nb-arrow-step')) return '\n  -> ' + kids();
+            const inner = kids();
+            return /^(DIV|P|H1|H2|H3|UL|OL)$/.test(n.tagName) ? inner + '\n' : inner;
+        };
+        return walk(box).replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+    }
+    function nbPageText(page) {
+        const blocks = (page.doc && page.doc.blocks || []).filter((b) => b.type === 'text').slice().sort((a, b) => (a.y || 0) - (b.y || 0) || (a.x || 0) - (b.x || 0));
+        const live = notesActive && notesActive.block ? notesActive : null;
+        return blocks.map((b) => nbPlainText(live && live.block === b ? live.ed.getHtml() : b.html)).filter(Boolean).join('\n\n');
+    }
+    function nbAssistState(page) {
+        try { const all = JSON.parse(localStorage.getItem(NB_ASSIST_STORE) || '{}'); return all[page.id] || { chat: [], review: null }; } catch (_) { return { chat: [], review: null }; }
+    }
+    function nbAssistSave(page, st) {
+        try { const all = JSON.parse(localStorage.getItem(NB_ASSIST_STORE) || '{}'); st.chat = st.chat.slice(-30); all[page.id] = st; localStorage.setItem(NB_ASSIST_STORE, JSON.stringify(all)); } catch (_) { /* a convenience only */ }
+    }
+    function nbAssistReviewHtml(r) {
+        const list = (a, f) => (a && a.length ? a.map(f).join('') : '');
+        return '<div class="nb-review"><h4>Overall</h4><p style="margin:0">' + nbAssistE(r.summary) + '</p>' +
+            (r.strengths && r.strengths.length ? '<h4>What works</h4><ul>' + list(r.strengths, (x) => '<li>' + nbAssistE(x) + '</li>') + '</ul>' : '') +
+            '<h4>Issues and how to fix them</h4>' + (r.issues && r.issues.length ? list(r.issues, (i, n) => '<div class="nb-issue">' + (i.where ? '<q>' + nbAssistE(i.where) + '</q>' : '') + '<b>' + (n + 1) + '. ' + nbAssistE(i.problem) + '</b><div class="fix"><b>Improvement:</b> ' + nbAssistE(i.improvement) + '</div></div>') : '<p class="nb-assist-hint" style="margin:0">Nothing important to fix on this page.</p>') +
+            '<h4>Next steps</h4>' + list(r.nextSteps, (x, n) => '<div class="nb-step"><b>' + (n + 1) + '. ' + nbAssistE(x.topic) + '</b>' + (x.why ? nbAssistE(x.why) + '<br>' : '') + (x.action ? '<i>' + nbAssistE(x.action) + '</i>' : '') + '</div>') + '</div>';
+    }
+    function nbAssistPaint(page) {
+        const body = document.getElementById('nbAssistBody'); if (!body) return;
+        const st = notesAssist.store;
+        body.innerHTML = (st.review ? nbAssistReviewHtml(st.review) : '') +
+            (st.chat.length ? st.chat.map((m) => '<div class="nb-msg ' + (m.role === 'user' ? 'me' : 'ai') + '">' + (m.role === 'user' ? nbAssistE(m.content) : nbAssistRich(m.content)) + '</div>').join('') : (st.review ? '' : '<p class="nb-assist-hint">Ask about any concept you are unsure of in these notes, or press <b>Review my notes</b> for a list of issues, improvements and what to learn next.</p>')) +
+            (notesAssist.busy ? '<div class="nb-msg ai nb-assist-hint">LastMind is thinking…</div>' : '') + (notesAssist.error ? '<p class="nb-assist-err">' + nbAssistE(notesAssist.error) + '</p>' : '');
+        body.scrollTop = body.scrollHeight;
+        const rv = document.querySelector('.nb-assist-review'), send = document.querySelector('.nb-assist-form button');
+        if (rv) rv.disabled = notesAssist.busy; if (send) send.disabled = notesAssist.busy;
+    }
+    async function nbAssistCall(path, payload) {
+        const { resp, body } = await createAuthedFetch(path, { method: 'POST', body: JSON.stringify(payload) });
+        if (!resp.ok) throw new Error(body && (body.detail || body.error) || 'LastMind could not answer just now. Try again.');
+        return body;
+    }
+    function nbAssistMount(page) {
+        document.getElementById('nbAssist')?.remove();
+        const wide = () => window.innerWidth > 1180;
+        const pad = (on) => { const ci = document.getElementById('contentInner'); if (ci) ci.style.paddingRight = on && wide() ? '450px' : ''; };
+        const btn = document.getElementById('nbAssistBtn');
+        const setOpen = (on) => { notesAssist.open = on; if (btn) btn.setAttribute('aria-expanded', String(on)); pad(on); if (!on) document.getElementById('nbAssist')?.remove(); else build(); };
+        const build = () => {
+            document.getElementById('nbAssist')?.remove();
+            notesAssist.store = nbAssistState(page); notesAssist.error = '';
+            const el = document.createElement('aside'); el.id = 'nbAssist'; el.className = 'nb-assist'; el.setAttribute('aria-label', 'LastMind');
+            el.innerHTML = '<div class="nb-assist-head"><div><b>LastMind</b><small>Ask about a concept, or have your notes reviewed</small></div><button type="button" class="nb-assist-x" aria-label="Close LastMind">×</button></div><div class="nb-assist-actions"><button type="button" class="nb-assist-review">Review my notes</button></div><div class="nb-assist-body" id="nbAssistBody"></div><form class="nb-assist-form"><textarea id="nbAssistInput" rows="2" placeholder="Ask about any concept in your notes…" aria-label="Ask LastMind"></textarea><button type="submit">Send</button></form>';
+            document.body.appendChild(el); pad(true); nbAssistPaint(page);
+            el.querySelector('.nb-assist-x').addEventListener('click', () => setOpen(false));
+            const input = el.querySelector('#nbAssistInput');
+            const send = async () => {
+                const text = input.value.trim(); if (!text || notesAssist.busy) return;
+                const st = notesAssist.store; st.chat.push({ role: 'user', content: text }); input.value = ''; notesAssist.busy = true; notesAssist.error = ''; nbAssistPaint(page);
+                try {
+                    const out = await nbAssistCall('/notes-assistant/chat', { message: text, history: st.chat.slice(0, -1).slice(-10), notes: nbPageText(page), title: page.name || '' });
+                    st.chat.push({ role: 'assistant', content: out.reply });
+                } catch (err) { notesAssist.error = err.message || 'LastMind could not answer just now. Try again.'; }
+                notesAssist.busy = false; nbAssistSave(page, st); nbAssistPaint(page);
+            };
+            el.querySelector('form').addEventListener('submit', (e) => { e.preventDefault(); send(); });
+            input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
+            el.querySelector('.nb-assist-review').addEventListener('click', async () => {
+                if (notesAssist.busy) return; const st = notesAssist.store, notes = nbPageText(page);
+                if (!notes) { notesAssist.error = 'There is nothing to review yet. Write some notes on this page first.'; nbAssistPaint(page); return; }
+                notesAssist.busy = true; notesAssist.error = ''; nbAssistPaint(page);
+                try { st.review = await nbAssistCall('/notes-assistant/review', { notes, title: page.name || '' }); }
+                catch (err) { notesAssist.error = err.message || 'LastMind could not review these notes just now. Try again.'; }
+                notesAssist.busy = false; nbAssistSave(page, st); nbAssistPaint(page);
+                const b = document.getElementById('nbAssistBody'); if (b && st.review) b.scrollTop = 0;
+            });
+        };
+        if (btn) btn.addEventListener('click', () => setOpen(!notesAssist.open));
+        window.addEventListener('resize', () => pad(notesAssist.open));
+        if (notesAssist.open) setOpen(true);
+        clearInterval(notesAssist.watch); notesAssist.watch = setInterval(() => { if (!document.getElementById('nbCanvas')) nbAssistTeardown(); }, 700);
+    }
+    function nbAssistTeardown() { clearInterval(notesAssist.watch); document.getElementById('nbAssist')?.remove(); const ci = document.getElementById('contentInner'); if (ci) ci.style.paddingRight = ''; }
+
     function notesRenderPage(page) {
         const contentInner = notesPrepareMain('Notes');
         contentInner.innerHTML = `
@@ -21230,6 +21342,7 @@ SQIDAQAB
                     <button type="button" class="nb-tool nb-tool-strong" id="nbAddGraph" title="Add coordinate graph (Ctrl+Alt+G)">+ Graph</button>
                     <button type="button" class="nb-tool" id="nbAddDiagram">+ Economics diagram</button>
                     <button type="button" class="nb-tool" id="nbShortcuts">Shortcuts</button>
+                    <button type="button" class="nb-tool nb-tool-strong" id="nbAssistBtn" aria-expanded="false" title="Ask LastMind about your notes">Ask LastMind</button>
                 </div>
                 <div class="nb-canvas" id="nbCanvas"></div>
                 <div class="nb-selection-size" id="nbSelectionSize"><span>Text size</span><select class="nb-text-size" aria-label="Selected text size"><option value="12">12px</option><option value="14">14px</option><option value="16" selected>16px</option><option value="18">18px</option><option value="22">22px</option><option value="28">28px</option><option value="36">36px</option></select></div>
@@ -21317,6 +21430,7 @@ SQIDAQAB
         document.getElementById('nbKbdMaths').addEventListener('click', () => setKeyboard(false));
         nbSyncKeyboardButtons();
         document.getElementById('nbShortcuts').addEventListener('click', () => openMathsShortcutPopup(NB_SHORTCUTS_HTML, true));
+        nbAssistMount(page);
         const addGraph = () => {
             let bottom = 0; canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
             const block = { id: notesNewId(), type: 'graph', x: 24, y: bottom ? bottom + 24 : 24, w: Math.min(700, Math.max(300, canvas.clientWidth - 48)), state: { mode: '2d', expression2d: '', expression3d: '', min: -10, max: 10 } };
