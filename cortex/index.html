@@ -313,6 +313,12 @@
     .lesson-card-frame-wrap { height: 560px; border-radius: 10px; overflow: hidden; background: var(--panel); }
     .lesson-card-frame-wrap iframe { width: 100%; height: 100%; border: 0; display: block; }
     .lesson-card-status { align-self: flex-start; background: var(--panel); color: var(--text); border-radius: 10px; padding: 10px 16px; font-size: 0.85rem; }
+    .covered-btn { position: fixed; top: 10px; right: 14px; z-index: 40; padding: 7px 13px; border-radius: 999px; border: 1.5px solid rgba(230,215,176,.45); background: var(--panel); color: var(--text); font: 700 12.5px Arial, sans-serif; cursor: pointer; }
+    .covered-panel { position: fixed; top: 48px; right: 14px; z-index: 41; width: min(380px, calc(100vw - 28px)); max-height: min(70vh, 520px); overflow-y: auto; padding: 14px 16px; border-radius: 12px; background: var(--panel); color: var(--text); border: 1.5px solid rgba(230,215,176,.35); box-shadow: 0 12px 36px rgba(0,0,0,.45); font-size: 14px; line-height: 1.5; }
+    .covered-panel h3 { margin: 0 0 8px; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; opacity: .75; }
+    .covered-panel ol { margin: 0 0 10px; padding: 0; list-style: none; display: grid; gap: 6px; }
+    .covered-panel li { display: grid; grid-template-columns: 1.6em 1fr; gap: 6px; } .covered-panel li small { opacity: .65; }
+    .covered-panel .none { opacity: .7; margin: 0 0 8px; }
     .lesson-card-done { align-self: flex-start; background: var(--panel); color: var(--text); border-radius: 10px; padding: 10px 16px; font-size: 0.9rem; font-weight: 700; }
 
     /* The time-of-day greeting and the rotating quote (see
@@ -563,6 +569,9 @@
             </div>
         </div>
     </div>
+
+    <button type="button" class="covered-btn" id="coveredBtn" aria-expanded="false">Covered so far</button>
+    <div class="covered-panel" id="coveredPanel" role="dialog" aria-label="Lessons you have covered" hidden></div>
 
     <div class="chat-input-row">
         <textarea spellcheck="true" id="chatInput" placeholder="Try 'teach me basic supply and demand'…" autocomplete="off" rows="1"></textarea>
@@ -1187,7 +1196,24 @@ SQIDAQAB
         return title.charAt(0).toUpperCase() + title.slice(1, 48);
     }
 
+    // The lessons covered in this chat, in the order they happened, so "next lesson" is never a mystery about where you are.
+    function renderCovered() {
+        const btn = document.getElementById('coveredBtn'), panel = document.getElementById('coveredPanel'); if (!btn || !panel) return;
+        const done = chatHistory.filter((t) => t && t.kind === 'lessonDone' && t.data && t.data.label);
+        const skipped = chatHistory.filter((t) => t && t.kind === 'lessonSkipped' && t.data && t.data.label);
+        btn.textContent = 'Covered so far' + (done.length ? ' (' + done.length + ')' : '');
+        const item = (t, mark, note) => '<li><span>' + mark + '</span><span>' + escapeHtmlTopic(t.data.label) + (note ? '<br><small>' + note + '</small>' : '') + '</span></li>';
+        panel.innerHTML = '<h3>Lessons you have covered</h3>' + (done.length ? '<ol>' + done.map((t) => item(t, '✓')).join('') + '</ol>' : '<p class="none">Nothing yet. Finish a lesson and it will appear here.</p>') +
+            (skipped.length ? '<h3>Skipped for now</h3><ol>' + skipped.map((t) => item(t, '↷', 'could not be built; say "build the lesson again" after moving on')).join('') + '</ol>' : '') +
+            '<p class="none">Saying "generate the next lesson" carries on after the last one here; it never starts again from the beginning.</p>';
+    }
+    document.addEventListener('click', (ev) => {
+        const btn = document.getElementById('coveredBtn'), panel = document.getElementById('coveredPanel'); if (!btn || !panel) return;
+        if (ev.target.closest('#coveredBtn')) { renderCovered(); panel.hidden = !panel.hidden; btn.setAttribute('aria-expanded', String(!panel.hidden)); return; }
+        if (!ev.target.closest('#coveredPanel')) { panel.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
+    });
     async function saveChatHistory() {
+        try { renderCovered(); } catch (_) { /* the list is only a convenience */ }
         await ensureSessionReady();
         if (!activeSessionId) return;
         try {
@@ -1294,6 +1320,9 @@ SQIDAQAB
             });
         } else if (turn.kind === 'lessonFailed' && turn.data) {
             appendCardMessage(`<div class="lesson-card-status">Couldn't generate an interactive lesson for “${escapeHtmlTopic(turn.data.label)}” at the time.</div>`);
+        } else if (turn.kind === 'lessonSkipped' && turn.data) {
+            if (topicMapState) (turn.data.conceptIds || []).forEach((id) => topicMapState.skip.add(id));
+            appendCardMessage(`<div class="lesson-card-status">Skipped for now: “${escapeHtmlTopic(turn.data.label)}”.</div>`);
         } else if (turn.kind === 'allDone' && turn.data) {
             appendCardMessage(`<div class="lesson-card-done">Finished every lesson for “${escapeHtmlTopic(turn.data.subject)}”.</div>`);
         }
@@ -1306,6 +1335,7 @@ SQIDAQAB
         if (!session.messages || !session.messages.length) return;
         chatHistory = session.messages;
         clearEmptyHint();
+        renderCovered();
         // Real, reported bug: appendUserMessage/appendAssistantMessage/
         // appendCardMessage each call scrollIntoView({behavior:'smooth'})
         // on their own element - fine one at a time for a live chat, but
@@ -1909,9 +1939,18 @@ SQIDAQAB
         function showRetryable(message) {
             stopLessonRotator();
             const statusEl = card.querySelector('.lesson-card-status');
-            statusEl.innerHTML = `${escapeHtmlTopic(message)} <button type="button" class="topic-map-start" id="lessonRetryBtn">Try again</button>`;
+            statusEl.innerHTML = `${escapeHtmlTopic(message)} <button type="button" class="topic-map-start" id="lessonRetryBtn">Try again</button> <button type="button" class="topic-map-start" id="lessonSkipBtn">Skip this one for now</button>`;
             pendingLessonRetry = () => { card.remove(); teachNextInQueue(state, queue, index, uuidByConceptId); };
             statusEl.querySelector('#lessonRetryBtn').addEventListener('click', () => { const retry = pendingLessonRetry; pendingLessonRetry = null; retry(); });
+            // Moving past a lesson that will not build, so one stuck concept never blocks everything after it.
+            statusEl.querySelector('#lessonSkipBtn').addEventListener('click', () => {
+                pendingLessonRetry = null; state.skip.add(node.conceptId);
+                recordSilentContext(`[The lesson on "${node.label}" could not be built and was skipped for now.]`, 'lessonSkipped', { label: node.label, conceptIds: [node.conceptId] });
+                statusEl.textContent = 'Skipped for now. Moving on to the next lesson.';
+                let nextIndex = index + 1; while (nextIndex < queue.length && state.skip.has(queue[nextIndex].conceptId)) nextIndex++;
+                if (nextIndex >= queue.length) { appendCardMessage(`<div class="lesson-card-done">That was the last lesson in “${escapeHtmlTopic(state.subject)}” for now.</div>`); return; }
+                teachNextInQueue(state, queue, nextIndex, uuidByConceptId);
+            });
         }
 
         // The request can now be stopped: Cancel, or running out of time, aborts it, and the server stops generating (and stops spending)
