@@ -45,6 +45,9 @@ button { font: inherit; color: inherit; }
    reads like a passage in a box rather than a giant headline sprawled across the page. */
 .readcard { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 26px 30px; max-width: 620px; }
 .readtext { font-size: 19px; line-height: 1.65; margin: 0; text-align: left; font-weight: 400; }
+.language-readcard { max-width: 720px; }
+.language-read-lines { display: grid; gap: 18px; }
+.language-read-line { font-size: clamp(19px, 2.5vw, 23px); line-height: 1.5; margin: 0; text-align: left; font-weight: 400; }
 .hint { font: 500 13px var(--sans); color: var(--muted); }
 .hint b { color: var(--accent); }
 .down { font: 600 13px var(--sans); color: var(--muted); animation: nudge 1.6s ease-in-out infinite; }
@@ -375,7 +378,18 @@ window.__runDerive = function (D, CP) {
   }
 
   function buildRead(step) {
-    var wrap = stack('<div class="eyebrow">Read</div><div class="readcard"><p class="readtext">' + mathify(step.text) + termHtmlAs(step.term, labelAfter(step.text, TERMS[step.term].t), 'pop') + '.</p></div><button type="button" class="nextbtn">Next ↓</button>');
+    var readBody;
+    if (LANGUAGE_LESSON) {
+      var lines = String(step.text || '').split(/\n+/).map(function (line) { return line.trim(); }).filter(Boolean);
+      // V3 language generations supply deliberate line breaks. This
+      // fallback also opens up an older one-paragraph card if it is ever
+      // restored from a saved lesson while the refreshed stage is loading.
+      if (lines.length < 2) lines = String(step.text || '').split(/(?<=[.!?])\s+(?=[A-Z'“])/).map(function (line) { return line.trim(); }).filter(Boolean);
+      readBody = '<div class="language-read-lines">' + lines.map(function (line) { return '<p class="language-read-line">' + mathify(line) + '</p>'; }).join('') + '</div>';
+    } else {
+      readBody = '<p class="readtext">' + mathify(step.text) + termHtmlAs(step.term, labelAfter(step.text, TERMS[step.term].t), 'pop') + '.</p>';
+    }
+    var wrap = stack('<div class="eyebrow">Read</div><div class="readcard' + (LANGUAGE_LESSON ? ' language-readcard' : '') + '">' + readBody + '</div><button type="button" class="nextbtn">Next ↓</button>');
     var s = slide(wrap), done = false;
     var advance = function () { if (done) return; done = true; io.disconnect(); chunk(step.term); next(false); };
     var io = new IntersectionObserver(function (es) {
