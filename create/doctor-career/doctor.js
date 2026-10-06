@@ -136,6 +136,13 @@
       '.dc-opts { display: grid; gap: 8px; margin: 8px 0; } .dc-opt { display: block; width: 100%; padding: 10px 13px; border: 2px solid rgba(31,26,16,.25); border-radius: 10px; background: #fff; text-align: left; font: .92rem/1.45 Arial, sans-serif; cursor: pointer; color: inherit; } .dc-opt.on { border-color: #0a5f8f; background: rgba(10,95,143,.1); } .dc-opt small { display: block; opacity: .7; }',
       '.dc-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; } .dc-chip { padding: 7px 12px; border: 2px solid rgba(31,26,16,.25); border-radius: 999px; background: #fff; font: .84rem/1.35 Arial, sans-serif; cursor: pointer; color: inherit; text-align: left; } .dc-chip.on { border-color: #b45309; background: rgba(251,191,36,.25); }',
       '.dc-big { font: 700 2.4rem Georgia, serif; } .dc-parts { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin: 10px 0; } .dc-parts div { padding: 8px 10px; border-radius: 8px; background: #fff; border: 1px solid rgba(31,26,16,.2); } .dc-parts small { display: block; opacity: .65; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; } .good { color: #1f7a4d; font-weight: 700; } .bad { color: #b42318; font-weight: 700; }',
+      '.dc-coach-btn { position: fixed; right: 16px; bottom: 16px; z-index: 80; display: flex; align-items: center; gap: 8px; padding: 4px 14px 4px 4px; border: 2px solid #fbbf24; border-radius: 999px; background: #0f1b2d; color: #f4ecd8; font: 700 .82rem Arial, sans-serif; cursor: pointer; box-shadow: 0 8px 26px rgba(0,0,0,.45); }',
+      '.dc-coach-btn img { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; object-position: 50% 15%; } .dc-coach-btn .dot { position: absolute; top: 2px; left: 44px; width: 12px; height: 12px; border-radius: 50%; background: #ef4444; border: 2px solid #0f1b2d; }',
+      '.dc-coach { position: fixed; right: 16px; bottom: 84px; z-index: 80; width: min(390px, calc(100vw - 32px)); max-height: calc(100vh - 110px); overflow-y: auto; padding: 14px 16px 12px; border-radius: 16px; background: #f4ecd8; color: #1f1a10; border: 2px solid #0f1b2d; box-shadow: 0 18px 54px rgba(0,0,0,.5); font: .9rem/1.55 Arial, sans-serif; }',
+      '.dc-coach.inline { position: static; width: auto; max-height: none; margin-top: 14px; box-shadow: none; border-width: 1px; }',
+      '.dc-coach .x { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border: 1px solid rgba(0,0,0,.25); border-radius: 50%; background: transparent; cursor: pointer; } .dc-coach .who { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; padding-right: 30px; } .dc-coach .who img { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; object-position: 50% 15%; border: 2px solid #0f1b2d; } .dc-coach .who small { display: block; opacity: .65; }',
+      '.dc-coach .say { margin-bottom: 10px; } .dc-coach .intro { margin: 0 0 8px; padding: 8px 10px; border-radius: 10px; background: rgba(251,191,36,.25); } .dc-coach .ideas-h { margin: 6px 0; font: 700 .68rem Arial, sans-serif; letter-spacing: .08em; text-transform: uppercase; opacity: .65; }',
+      '.dc-coach .idea { margin: 6px 0; padding: 8px 10px; border-radius: 10px; background: #fff; border: 1px solid rgba(31,26,16,.18); } .dc-coach .idea b { display: block; } .dc-coach .idea p { margin: 2px 0 4px; font-size: .86rem; } .dc-coach .idea button { padding: 0; border: 0; background: none; color: #0a4a70; font: 700 .8rem Arial, sans-serif; cursor: pointer; text-decoration: underline; } .dc-coach .mute { display: block; margin-top: 8px; font-size: .76rem; opacity: .75; }',
       '.dc-drawer { position: fixed; top: 0; right: 0; bottom: 0; z-index: 90; width: min(460px, 94vw); overflow-y: auto; padding: 18px 20px 40px; background: #eef6fd; color: #0b0b0b; border-left: 1px solid rgba(0,0,0,.3); box-shadow: -18px 0 50px rgba(0,0,0,.45); font: .94rem/1.65 Arial, sans-serif; } .dc-drawer h2 { margin: 0 0 4px; font: 700 1.25rem Georgia, serif; } .dc-drawer h4 { margin: 18px 0 4px; font-size: 1rem; } .dc-drawer p { margin: 0 0 10px; } .dc-drawer .x { float: right; padding: 3px 10px; border: 1px solid rgba(0,0,0,.3); border-radius: 8px; background: transparent; cursor: pointer; }',
       '.dc-drawer .spec { display: inline-block; margin: 4px 0 10px; padding: 2px 9px; border-radius: 999px; background: #0f1b2d; color: #f4ecd8; font: 700 .7rem Arial, sans-serif; } .dc-drawer .ex { margin: 8px 0 12px; padding: 8px 12px; background: rgba(11,114,133,.1); border-radius: 8px; } .dc-drawer .tw { margin: 8px 0 12px; padding: 8px 12px; background: rgba(180,83,9,.12); border-radius: 8px; } .dc-drawer ul { margin: 0 0 10px 18px; padding: 0; } .dc-drawer .chk { margin: 8px 0; }',
     ].join('\n');
@@ -143,7 +150,8 @@
   }
 
   function ranksInfo(d) { var T = D.tracks[track], ri = D.rankIndex(track, d.results); return { T: T, ri: ri, rank: T.ranks[ri] }; }
-  function render() {
+  function render() { renderInner(); coachDraw(); }
+  function renderInner() {
     css(); var d = D.load(track);
     if (cur) { renderCase(d); return; }
     var R = ranksInfo(d), cases = D.casesFor(track), avg = D.average(d.results), n = Object.keys(d.results).length;
@@ -221,6 +229,58 @@
       '<div class="dc-learn" style="margin-top:14px"><button type="button" class="dc-btn primary" data-dc="files">Next patient →</button></div>';
   }
 
+
+  /* ---------- the senior doctor: short notes at each step, never the answer ---------- */
+  var MENTOR = { name: 'Dr Hartley', img: { hello: '/assets/doctor/mentor-hello.jpg', point: '/assets/doctor/mentor-point.jpg', think: '/assets/doctor/mentor-think.jpg' } };
+  var coachEl = null, coachBtn = null, coachOpen = true, coachTimer = null, lastStep = null;
+  var STEP_IMG = { file: 'hello', ask: 'point', tests: 'point', decide: 'think' };
+  var STEP_NAME = { file: 'Step 1 of 4: the file', ask: 'Step 2 of 4: ask', tests: 'Step 3 of 4: tests', decide: 'Step 4 of 4: decide' };
+  function coachState() { var d = D.load(track); d.coach = d.coach || { seen: false, muted: false }; return d; }
+  function coachMessage() {
+    if (!cur) return { img: 'hello', label: 'Welcome to the clinic', html: '<b>Pick a patient from the files.</b> Each takes about ten minutes. For every patient: read the file and the lessons, ask your questions, order a few tests, then decide. I will give you a short note at each step. I will never give you the answer, but I will tell you what the decision is really about.' };
+    var c = cur.c, run = cur.run, g = (D.guide || {})[c.id];
+    if (run.done) return { img: 'hello', label: 'After the case', html: '<b>Now look at the twist.</b> Go back over the lessons for both illnesses and ask yourself which finding you should have trusted, and which one you let mislead you.', ideas: g ? g.ideas : null };
+    var tab = run.tab || 'file';
+    if (!g) return { img: STEP_IMG[tab], label: STEP_NAME[tab], html: 'Take your time with this one.' };
+    var extra = '';
+    if (tab === 'ask') extra = ' <i>You have ' + (ASKS - run.asked.length) + ' question' + (ASKS - run.asked.length === 1 ? '' : 's') + ' left.</i>';
+    if (tab === 'tests') extra = ' <i>You can order ' + (TESTS - run.tests.length) + ' more test' + (TESTS - run.tests.length === 1 ? '' : 's') + '.</i>';
+    return { img: STEP_IMG[tab], label: STEP_NAME[tab], html: esc(g[tab]) + extra, ideas: g.ideas };
+  }
+  function coachDestroy() { if (coachEl) coachEl.remove(); if (coachBtn) coachBtn.remove(); coachEl = coachBtn = null; clearInterval(coachTimer); coachTimer = null; lastStep = null; }
+  function coachDraw() {
+    if (!host || !host.isConnected) { coachDestroy(); return; }
+    var st = coachState(), m = coachMessage(), stepKey = cur ? (cur.c.id + ':' + (cur.run.done ? 'done' : cur.run.tab)) : 'files';
+    if (!coachTimer) coachTimer = setInterval(function () { if (!host || !host.isConnected) coachDestroy(); }, 1000);
+    if (!coachBtn) {
+      coachBtn = document.createElement('button'); coachBtn.type = 'button'; coachBtn.className = 'dc-coach-btn'; coachBtn.setAttribute('aria-label', 'Your senior doctor: open or close the notes');
+      coachBtn.innerHTML = '<img alt="" src="' + MENTOR.img.hello + '"><span class="lab">' + esc(MENTOR.name) + '</span><i class="dot"></i>';
+      coachBtn.addEventListener('click', function () { coachOpen = !coachOpen; lastStep = null; coachDraw(); });
+      document.body.appendChild(coachBtn);
+    }
+    var fresh = stepKey !== lastStep; lastStep = stepKey;
+    var firstEver = !st.coach.seen;
+    if (fresh && firstEver) coachOpen = true;
+    coachBtn.style.display = st.coach.muted && !coachOpen ? 'none' : '';
+    coachBtn.querySelector('.dot').style.display = !coachOpen && fresh ? '' : 'none';
+    if (coachEl) { coachEl.remove(); coachEl = null; }
+    if (!coachOpen) return;
+    coachEl = document.createElement('div'); coachEl.className = 'dc-coach'; coachEl.setAttribute('role', 'dialog'); coachEl.setAttribute('aria-label', 'Notes from your senior doctor');
+    var intro = firstEver && !cur ? '<p class="intro"><b>I am ' + esc(MENTOR.name) + ', the consultant supervising you.</b> I am here to help you think, not to hand over answers.</p>' : '';
+    var ideas = (m.ideas || []).map(function (i) { return '<div class="idea"><b>' + esc(i.t) + '</b><p>' + esc(i.b) + '</p><button type="button" data-coach-lesson="' + esc(i.lesson) + '">Read the full lesson →</button></div>'; }).join('');
+    coachEl.innerHTML = '<button type="button" class="x" data-coach-close="1" aria-label="Hide the notes">✕</button><div class="who"><img alt="" src="' + MENTOR.img[m.img || 'hello'] + '"><div><b>' + esc(MENTOR.name) + '</b><small>' + esc(m.label) + '</small></div></div>' + intro + '<div class="say">' + m.html + '</div>' + (ideas ? '<div class="ideas-h">Worth knowing for this decision</div>' + ideas : '') + '<label class="mute"><input type="checkbox" data-coach-mute="1"' + (st.coach.muted ? ' checked' : '') + '> Keep my notes closed unless I open them</label>';
+    // On a case, the notes sit under the patient so they never cover what you are reading; on the files screen they float.
+    var slot = cur && host.querySelector('.dc-pt');
+    if (slot) { coachEl.classList.add('inline'); slot.appendChild(coachEl); } else document.body.appendChild(coachEl);
+    coachEl.addEventListener('click', function (ev) {
+      var t = ev.target.closest('[data-coach-close],[data-coach-lesson]'); if (!t) return;
+      if (t.dataset.coachLesson) { openLesson(t.dataset.coachLesson); return; }
+      var d = D.load(track); d.coach = d.coach || {}; d.coach.seen = true; D.save(track, d); coachOpen = false; coachDraw();
+    });
+    var mute = coachEl.querySelector('[data-coach-mute]'); if (mute) mute.addEventListener('change', function () { var d = D.load(track); d.coach = d.coach || {}; d.coach.muted = mute.checked; d.coach.seen = true; D.save(track, d); if (mute.checked) { coachOpen = false; coachDraw(); } });
+    if (firstEver && fresh) { var d0 = D.load(track); d0.coach = d0.coach || {}; d0.coach.seen = true; D.save(track, d0); }
+  }
+
   /* ---------- lessons drawer ---------- */
   function openLesson(id) {
     var L = D.lessons[id]; if (!L) return; closeDrawer();
@@ -245,7 +305,7 @@
       var t = e.target.closest('[data-dc],[data-open],[data-tab],[data-ask],[data-test],[data-dx],[data-ev],[data-tx],[data-act],[data-lesson]'); if (!t) return;
       var d = D.load(track), run = cur && cur.run;
       if (t.dataset.lesson) { openLesson(t.dataset.lesson); return; }
-      if (t.dataset.dc === 'back') { closeDrawer(); if (env && env.back) env.back(); return; }
+      if (t.dataset.dc === 'back') { closeDrawer(); coachDestroy(); if (env && env.back) env.back(); return; }
       if (t.dataset.dc === 'files') { cur = null; closeDrawer(); render(); return; }
       if (t.dataset.open) { var c = D.cases.filter(function (x) { return x.id === t.dataset.open; })[0]; cur = { c: c, run: blankRun(c), say: null }; render(); window.scrollTo(0, 0); return; }
       if (!cur || !run) return;
@@ -264,7 +324,7 @@
     });
   }
   D.mount = function (el, tr, e) {
-    host = el; track = tr; env = e || {}; cur = null; uid = (e && e.userId) || 'guest'; closeDrawer();
+    coachDestroy(); coachOpen = true; host = el; track = tr; env = e || {}; cur = null; uid = (e && e.userId) || 'guest'; closeDrawer();
     if (!host.__dcBound) { host.__dcBound = true; bind(); }
     render(); pullRemote();
   };
