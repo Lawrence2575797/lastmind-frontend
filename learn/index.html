@@ -4301,6 +4301,12 @@
     .cr-exh small { display: block; font: 700 0.58rem Arial, sans-serif; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.6; }
     .cr-exh:hover, .cr-exh.on { background: #1A232D; color: #F3E7BE; }
     .cr-exhibit-view { margin-top: 12px; }
+    .cr-lesson-view { margin: 10px 0 4px; color: #1A232D; }
+    .cr-lesson-view:empty { display: none; }
+    .cr-lesson-view h5 { margin: 0; font: 700 1.05rem 'Lora', Georgia, serif; }
+    .cr-lesson-sub { margin: 2px 0 10px; font: 700 0.62rem Arial, sans-serif; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.6; }
+    .cr-lesson-view p { margin: 0 0 10px; font: 0.95rem/1.7 'Lora', Georgia, serif; color: #1A232D; }
+    .pl-guid-body .think { padding: 10px 12px; border-left: 3px solid var(--text, #E6D7B0); background: rgba(230,215,176,0.1); }
     /* The exhibits sit on the birch desk, so their text is navy there (the dark CCTV, phone and map exhibits keep their own light text) */
     .cr-exhibit-view { color: #1A232D; }
     .cr-exhibit-view .pl-bag { color: #1A232D; background: linear-gradient(160deg, rgba(255,255,255,0.55), rgba(255,255,255,0.3)); border-color: rgba(26, 35, 45, 0.55); }
@@ -11589,8 +11595,8 @@ SQIDAQAB
     // standard reached (the rules live in career-base.js: LAW_CAREER.ranks). One career per account, kept in the account's projects
     // (kind 'criminal-lawyer-career') and mirrored in this browser.
     // ═══════════════════════════════════════════════════════════════════════════
-    const CAREER_FILES = ['case-01-pryce', 'case-02-okafor', 'case-03-hale', 'case-04-mensah', 'case-05-calloway', 'case-06-vance', 'case-07-dunmore', 'case-08-salter', 'case-09-kiplagat', 'case-10-fenwick', 'case-11-bright', 'case-12-ashworth', 'case-13-reid', 'case-14-tolland', 'case-15-hargreaves', 'case-16-mbeki', 'case-17-penhale', 'case-18-sato', 'case-19-donnelly', 'case-20-karimi', 'case-21-vasquez', 'case-22-wetherby', 'case-23-adeyinka', 'case-24-marlow', 'case-25-ellison', 'case-26-marchetti'];
-    const CAREER_VERSION = '20261006a';
+    const CAREER_FILES = ['lessons', 'case-01-pryce', 'case-02-okafor', 'case-03-hale', 'case-04-mensah', 'case-05-calloway', 'case-06-vance', 'case-07-dunmore', 'case-08-salter', 'case-09-kiplagat', 'case-10-fenwick', 'case-11-bright', 'case-12-ashworth', 'case-13-reid', 'case-14-tolland', 'case-15-hargreaves', 'case-16-mbeki', 'case-17-penhale', 'case-18-sato', 'case-19-donnelly', 'case-20-karimi', 'case-21-vasquez', 'case-22-wetherby', 'case-23-adeyinka', 'case-24-marlow', 'case-25-ellison', 'case-26-marchetti'];
+    const CAREER_VERSION = '20261006b';
     const CAREER_LOCAL_KEY = 'lastmind-law-career-v1';
     let career = null, careerLocalKey = CAREER_LOCAL_KEY, careerSaveTimer = null, careerFilesPromise = null;
 
@@ -11737,6 +11743,7 @@ SQIDAQAB
                 <h4>Your instructions</h4><p>${careerE(c.briefing)}</p>
                 <h4>Summary of the case</h4><p>${careerE(g.caseFile.summary)}</p>
                 ${g.caseFile.agreedFacts.length ? `<h4>Agreed facts</h4><ul>${g.caseFile.agreedFacts.map((f) => `<li>${careerE(f)}</li>`).join('')}</ul>` : ''}
+                ${(c.concepts || []).length ? `<h4>Read up on the law</h4><p class="cr-paper-hint">Short lessons on what this case turns on. They are also open to you in court.</p><div class="cr-exhibits">${c.concepts.map((k, i) => `<button type="button" class="cr-exh" data-lesson="${i}"><small>Lesson</small>${careerE(k.label)}</button>`).join('')}</div><div class="cr-lesson-view" id="crLesson"></div>` : ''}
                 <h4>Exhibits</h4><p class="cr-paper-hint">Click an exhibit to read it.</p>
                 <div class="cr-exhibits">${g.evidence.map((e) => `<button type="button" class="cr-exh" data-ev="${careerE(e.id)}"><small>${careerE(e.kind)}</small>${careerE(e.title)}</button>`).join('')}</div>
                 <div class="cr-exhibit-view" id="crExhibit"></div>
@@ -11756,6 +11763,13 @@ SQIDAQAB
                 const ev = g.evidence.find((x) => x.id === b.dataset.ev); const view = wrap.querySelector('#crExhibit');
                 wrap.querySelectorAll('.cr-exh').forEach((x) => x.classList.toggle('on', x === b));
                 view.innerHTML = ptArtifactHtml(ev); view.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }));
+            wrap.querySelectorAll('[data-lesson]').forEach((b) => b.addEventListener('click', () => {
+                const k = c.concepts[+b.dataset.lesson], view = wrap.querySelector('#crLesson');
+                wrap.querySelectorAll('[data-lesson]').forEach((x) => x.classList.toggle('on', x === b));
+                const html = LAW_CAREER.lessonHtml ? LAW_CAREER.lessonHtml(k.label) : null;
+                view.innerHTML = `<h5>${careerE(k.label)}</h5><div class="cr-lesson-sub">${careerE(k.subtopic || '')}</div>${html || '<p>No reading for this topic yet.</p>'}`;
+                view.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
             }));
             const take = wrap.querySelector('#crTake');
             take.addEventListener('click', () => {
@@ -12706,7 +12720,6 @@ SQIDAQAB
         if (tab) tab.style.display = has && pt.hudOn !== false && !document.getElementById('plGuidance') ? '' : 'none';
     }
     function ptCallUpon(concepts) {
-        if (pt && pt.career) return; // written career cases are not linked to the knowledge map, so there is no lesson to open
         const fresh = concepts.filter((c) => !pt.triggered.includes(c.label));
         if (!fresh.length) { ptUpdateGuidancePill(); return; }
         fresh.forEach((c) => pt.triggered.push(c.label));
@@ -12716,6 +12729,13 @@ SQIDAQAB
     }
     async function ptLoadLesson(label) {
         if (pt.lessons[label]) return pt.lessons[label];
+        if (pt.career) {
+            // A career case's lessons are written in advance (create/law-career/lessons.js): nothing is generated or bought.
+            const html = window.LAW_CAREER && LAW_CAREER.lessonHtml ? LAW_CAREER.lessonHtml(label) : null;
+            const concept = pt.concepts.find((c) => c.label === label);
+            if (html) return { html, subtopic: concept && concept.subtopic, career: true };
+            return { message: 'There is no reading for this topic yet.' };
+        }
         const concept = pt.concepts.find((c) => c.label === label);
         if (!concept || !concept.id || String(concept.id).startsWith('n')) return { message: 'This lesson is not linked to your knowledge map.' };
         const lesson = await fetchNodeLesson(concept.id);
@@ -12750,7 +12770,7 @@ SQIDAQAB
             const r = await ptLoadLesson(current);
             if (!panel.isConnected || shownFor !== current) return;
             body.innerHTML = r.html
-                ? `<h3>${ptE(current)}</h3><div class="eyebrow">${ptE(r.subtopic || 'LastMind lesson')}</div>${r.html}<p class="hint">${ptE(PT_LESSON_HINT)}</p>`
+                ? `<h3>${ptE(current)}</h3><div class="eyebrow">${ptE(r.subtopic || 'LastMind lesson')}</div>${r.html}<p class="hint">${ptE(r.career ? 'A short read on the law this case calls on. Nothing here is marked or recorded.' : PT_LESSON_HINT)}</p>`
                 : `<p class="pl-p">${ptE(r.message)}</p>${r.retry ? '<div class="pl-actions"><button type="button" class="pl-btn" id="plGuidRetry">Try again</button></div>' : ''}`;
             body.querySelector('#plGuidRetry')?.addEventListener('click', draw);
         };
