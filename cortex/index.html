@@ -1380,8 +1380,9 @@ SQIDAQAB
     let pendingLessonRetry = null;
 
     // A pending confirm-to-continue closure - set whenever Cortex is
-    // waiting on a plain "shall I go ahead?" about building a lesson: the
-    // map's first lesson, or the next one once a lesson just finished.
+    // waiting on a plain "shall I go ahead?" about building the map's
+    // first lesson. Later lessons advance through the player's own Continue
+    // button, so they deliberately do not create another chat checkpoint.
     // Distinct from pendingLessonRetry above (a known FAILURE to redo);
     // this is an ordinary, non-failure checkpoint that replaces what used
     // to be a "Start the lesson" button - the student answers in their own
@@ -1393,7 +1394,10 @@ SQIDAQAB
     let pendingLessonContinuation = null;
 
     function detectAffirmativeIntent(text) {
-        return /^(?:yes|yeah|yep|yup|sure|ok(?:ay)?|go(?: on| ahead)?|do it|please(?: do)?|sounds good|let'?s (?:go|do it)|start|build it|go for it|why not|absolutely|definitely|of course)[.!]?$/i.test(text.trim());
+        // Keep the action tied to the pending question, but accept the
+        // ordinary polite forms students actually use (the old matcher
+        // accepted "yes" and "please" separately, yet missed "yes please").
+        return /^(?:(?:yes|yeah|yep|yup|sure|ok(?:ay)?|absolutely|definitely|of course)(?:,?\s+please)?|go(?: on| ahead)(?:,?\s+please)?|do it(?:,?\s+please)?|please(?: do| go ahead)?|sounds good|let'?s (?:go|do it)|start(?: it)?|build it|go for it|why not)[.!]?$/i.test(text.trim());
     }
     function detectNegativeIntent(text) {
         return /^(?:no|nah|nope|not (?:now|yet|really)|hold on|wait|later|maybe later)[.!]?$/i.test(text.trim());
@@ -1425,14 +1429,6 @@ SQIDAQAB
         "Say the word and I'll get the first lesson going.",
         "I can build the first lesson whenever you're ready.",
     ];
-    const LESSON_NEXT_PROMPTS = [
-        'Shall I build the next one?',
-        'Ready for the next lesson?',
-        'Want me to carry on to the next concept?',
-        'Nice work - build the next lesson?',
-        "Onwards? I can get the next one ready.",
-    ];
-
     // Posts a warm, varying nudge as an ordinary chat message and arms
     // pendingLessonContinuation with `run` - see sendChatMessage's own
     // handling of it for how a plain yes/no (or anything else) resolves.
@@ -2048,12 +2044,9 @@ SQIDAQAB
             // renderRestoredSilentTurn's own 'map' branch.
             covered.forEach((id) => state.skip.add(id));
             recordSilentContext(`[Completed the lesson on "${node.label}".]`, 'lessonDone', { label: node.label, conceptIds: [...covered] });
-            // Was an automatic cascade straight into the next node - now
-            // asks first, same as the map's own "shall I build the first
-            // lesson" nudge, so the student stays in control of pacing
-            // instead of the next lesson just appearing. The background
-            // prefetch above already kicked off before this point, so
-            // saying yes here is still near-instant either way.
+            // The lesson player's own Continue button is the student's
+            // explicit pacing decision. Do not ask the same question again
+            // in chat; Continue advances directly to the next new stage.
             let nextIndex = index + 1;
             while (nextIndex < queue.length && covered.has(queue[nextIndex].conceptId)) nextIndex++;
             if (nextIndex >= queue.length) {
@@ -2061,7 +2054,7 @@ SQIDAQAB
                 recordSilentContext(`[The student just finished every lesson in the "${state.subject}" knowledge map.]`, 'allDone', { subject: state.subject });
                 return;
             }
-            promptLessonContinuation(LESSON_NEXT_PROMPTS, () => teachNextInQueue(state, queue, nextIndex, uuidByConceptId));
+            teachNextInQueue(state, queue, nextIndex, uuidByConceptId);
         });
     }
 
