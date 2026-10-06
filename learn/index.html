@@ -21523,7 +21523,9 @@ SQIDAQAB
             for(let px=0;px<=w;px+=1){const x=xlo+px/w*xs,y=fn(x),py=Y(y);if(!Number.isFinite(y)||py < -h*3||py>h*4){pen=false;continue;}if(!pen){ctx.moveTo(px,py);pen=true;}else ctx.lineTo(px,py);}ctx.stroke();}
             // dropped standard curves, with their round handles while editing
             state.curves.forEach((cv,ci)=>{const f=cgCurveFn(cv),col=CG_COLOURS[ci%CG_COLOURS.length];ctx.strokeStyle=col;ctx.lineWidth=2.6;ctx.beginPath();let pen2=false,lastY=null;
-                for(let px=0;px<=w;px+=1){const x=xlo+px/w*xs,y=f(x),py=Y(y);if(!Number.isFinite(y)||py<-h*3||py>h*4||(lastY!=null&&Math.abs(py-lastY)>h*1.5&&cv.type==='recip')){pen2=false;lastY=Number.isFinite(py)?py:null;continue;}lastY=py;if(!pen2){ctx.moveTo(px,py);pen2=true;}else ctx.lineTo(px,py);}ctx.stroke();
+                const curveStart=cv.type==='line'?nbClamp(Math.min(X(cv.pts[0][0]),X(cv.pts[1][0])),0,w):0;
+                const curveEnd=cv.type==='line'?nbClamp(Math.max(X(cv.pts[0][0]),X(cv.pts[1][0])),0,w):w;
+                for(let px=curveStart;px<=curveEnd;px+=1){const x=xlo+px/w*xs,y=f(x),py=Y(y);if(!Number.isFinite(y)||py<-h*3||py>h*4||(lastY!=null&&Math.abs(py-lastY)>h*1.5&&cv.type==='recip')){pen2=false;lastY=Number.isFinite(py)?py:null;continue;}lastY=py;if(!pen2){ctx.moveTo(px,py);pen2=true;}else ctx.lineTo(px,py);}ctx.stroke();
                 if(cv.type==='exp'){ctx.setLineDash([5,5]);ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,Y(cv.k));ctx.lineTo(w,Y(cv.k));ctx.stroke();ctx.setLineDash([]);}
                 if(editing)cv.pts.forEach((pt,hi)=>{ctx.beginPath();ctx.arc(X(pt[0]),Y(pt[1]),hi?7:8,0,Math.PI*2);ctx.fillStyle=hi?'#12121E':col;ctx.fill();ctx.lineWidth=2.4;ctx.strokeStyle=hi?col:'#12121E';ctx.stroke();});});
         }
