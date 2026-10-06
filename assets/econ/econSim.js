@@ -809,7 +809,29 @@
     return out;
   }
 
-  var api = { speculation: speculation, resolveSpeculation: resolveSpeculation, evaluateStatements: evaluateStatements, causes: causes, draftSet: draftSet, draftClear: draftClear, submitDraft: submitDraft, forecast: forecast, STAGES: STAGES, SITUATIONS: SITUATIONS, SHOCK_MENU: SHOCK_MENU, GROUPS: GROUPS, CABINET_ROLES: CABINET_ROLES, OPPOSITION_ROLES: OPPOSITION_ROLES, RISING_ROLES: RISING_ROLES,
+  // Many versions of the next n quarters, for the analysis lab: today's policies, with and without `extra` changes, each run with the same random
+  // shocks to demand, confidence and risk (so the difference between the two is the policy and nothing else). Returns { base: [run][quarter], policy: [run][quarter] }.
+  function ensemble(g, n, extra, runs, seed, scale) {
+    scale = scale == null ? 1 : scale;
+    var rng0 = E.mulberry((seed || 1) >>> 0), gs = function (r) { var u = 0, v = 0; while (u === 0) u = r(); while (v === 0) v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+    var out = { base: [], policy: [], quarters: n };
+    for (var k = 0; k < runs; k++) {
+      var noise = []; for (var i = 0; i <= n; i++) noise.push({ hh: 0.22 * scale * gs(rng0), biz: 0.22 * scale * gs(rng0), demand: 0.16 * scale * gs(rng0), risk: 0.03 * scale * gs(rng0) });
+      ['base', 'policy'].forEach(function (which) {
+        var c = { pf: g.pf, decisions: g.decisions.slice(), shocksByQ: g.shocksByQ, q: g.q, drivers: JSON.parse(JSON.stringify(g.drivers || [])), def0: g.def0, investConf: g.investConf }, s2 = JSON.parse(JSON.stringify(g.s)), rows = [];
+        if (which === 'policy') (extra || []).forEach(function (d) { c.decisions.push({ id: d.id, at: g.q + 1, v: d.v, opt: d.opt || null, dur: d.dur || null }); });
+        for (var j = 1; j <= n; j++) {
+          var t = g.q + j, pol = polFor(c, t) || {}, sh = shocksFor(c, t), nz = noise[j];
+          Object.keys(nz).forEach(function (key) { sh[key] = (sh[key] || 0) + nz[key]; });
+          E.step(s2, g.pf, pol, sh, null); var sn = E.snapshot(s2, g.pf); stepDrivers(c.drivers, pol, driverMetrics(c, sn)); rows.push(sn);
+        }
+        out[which].push(rows);
+      });
+    }
+    return out;
+  }
+
+  var api = { ensemble: ensemble, speculation: speculation, resolveSpeculation: resolveSpeculation, evaluateStatements: evaluateStatements, causes: causes, draftSet: draftSet, draftClear: draftClear, submitDraft: submitDraft, forecast: forecast, STAGES: STAGES, SITUATIONS: SITUATIONS, SHOCK_MENU: SHOCK_MENU, GROUPS: GROUPS, CABINET_ROLES: CABINET_ROLES, OPPOSITION_ROLES: OPPOSITION_ROLES, RISING_ROLES: RISING_ROLES,
     newGame: newGame, advance: advance, decide: decide, canDecide: canDecide, resolveEvent: resolveEvent, rescheduleBudget: rescheduleBudget, currentMetrics: currentMetrics, spendingNow: spendingNow, person: person, cabinetAverage: cabinetAverage,
     nice: nice, niceMonth: niceMonth, addDays: addDays, iso: iso, latestValue: latestValue, settingsAt: settingsAt, describe: describe, proj: proj, policyPulse: policyPulse };
   root.LMSim = api;

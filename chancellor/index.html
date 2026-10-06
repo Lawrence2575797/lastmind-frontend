@@ -107,7 +107,7 @@
     const fresh = params.get('new') === '1';
     if (fresh && !cfg) { gate('No scenario yet', 'Choose a country in LastMind (Create, Economics, Be the Chancellor), then take office from there.', ['/learn/', 'Back to LastMind']); return; }
     if (!fresh && !saved && !cfg) { gate('No scenario yet', 'Choose a country in LastMind (Create, Economics, Be the Chancellor), then take office from there.', ['/learn/', 'Back to LastMind']); return; }
-    try { for (const f of ['/assets/econ/econModel.js', '/assets/econ/econPolicy.js', '/assets/econ/econSim.js', '/assets/chancellor/chancellor-interviews.js', '/assets/chancellor/chancellor-guide.js', '/assets/chancellor/chancellor-ui.js']) await load(f); }
+    try { for (const f of ['/assets/econ/econModel.js', '/assets/econ/econPolicy.js', '/assets/econ/econSim.js', '/assets/econ/econLab.js', '/assets/chancellor/chancellor-interviews.js', '/assets/chancellor/chancellor-guide.js', '/assets/chancellor/chancellor-ui.js']) await load(f); }
     catch (err) { gate('The simulation could not load', 'Check your connection and reload the page.'); return; }
     document.getElementById('app').innerHTML = '';
     window.LMChancellorUI.launch(document.getElementById('app'), cfg || {}, { resume: !fresh && !!saved, exitLabel: 'Back to LastMind', onExit: () => { window.location.href = '/learn/'; } });
