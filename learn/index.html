@@ -20812,6 +20812,34 @@ SQIDAQAB
                 editable.dispatchEvent(new Event('input', { bubbles: true }));
                 return;
             }
+            // Browsers clone the current block's class when Enter is pressed.
+            // An arrow line must not therefore create another arrow unless the
+            // student explicitly uses Shift+Enter again.
+            if (e.key === 'Enter' && !e.shiftKey && !mod && !e.altKey) {
+                const sel = window.getSelection();
+                if (sel.rangeCount) {
+                    const range = sel.getRangeAt(0);
+                    const rangeNode = range.commonAncestorContainer.nodeType === 1 ? range.commonAncestorContainer : range.commonAncestorContainer.parentElement;
+                    const arrowLine = rangeNode && rangeNode.closest ? rangeNode.closest('.nb-arrow-step') : null;
+                    if (arrowLine && editable.contains(arrowLine)) {
+                        e.preventDefault();
+                        range.deleteContents();
+                        const remainder = document.createRange();
+                        remainder.setStart(range.startContainer, range.startOffset);
+                        remainder.setEnd(arrowLine, arrowLine.childNodes.length);
+                        const trailingContent = remainder.extractContents();
+                        const nextLine = document.createElement('div');
+                        const landing = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL);
+                        nextLine.appendChild(landing); nextLine.appendChild(trailingContent);
+                        arrowLine.after(nextLine);
+                        const caret = document.createRange();
+                        caret.setStart(landing, 1); caret.collapse(true);
+                        sel.removeAllRanges(); sel.addRange(caret);
+                        editable.dispatchEvent(new Event('input', { bubbles: true }));
+                        return;
+                    }
+                }
+            }
             if (mod && e.altKey && !e.shiftKey) {
                 const k = { Digit1: 'h1', Digit2: 'h2', Digit0: 'p' }[e.code];
                 if (k) { e.preventDefault(); nbFormat(k); return; }
