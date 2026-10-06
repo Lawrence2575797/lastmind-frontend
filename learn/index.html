@@ -4176,6 +4176,9 @@
     .nb-text .math-shortcut-editor .nb-arrow-fork::before { border-radius: 0; }
     .nb-text .math-shortcut-editor .nb-arrow-branch::before { top: calc(1.22em - var(--fork-h, 2.2em)); height: var(--fork-h, 2.2em); border-radius: 0 0 0 3px; }
     .nb-text .math-shortcut-editor .nb-arrow-branch.nb-arrow-fork::before { border-radius: 0; }
+    /* A normal Return after an arrow exits the entire arrow structure into
+       a genuine line box, so later content is always pushed down. */
+    .nb-text .math-shortcut-editor .nb-plain-line { display: block; min-height: 1.55em; }
     /* Lists hang their bullets and numbers in the gap beside the margin line while their text lines up with the paragraphs above and below. */
     .nb-text .math-shortcut-editor ul, .nb-text .math-shortcut-editor ol { margin: 0.2em 0; padding-left: 0; list-style-position: outside; }
     .nb-text .math-shortcut-editor li { margin-left: 0; padding-left: 0.1em; }
@@ -21033,9 +21036,21 @@ SQIDAQAB
                         remainder.setEnd(arrowLine, arrowLine.childNodes.length);
                         const trailingContent = remainder.extractContents();
                         const nextLine = document.createElement('div');
+                        nextLine.className = 'nb-plain-line';
                         const landing = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL);
                         nextLine.appendChild(landing); nextLine.appendChild(trailingContent);
-                        arrowLine.after(nextLine);
+                        // Nested arrows are visually one structure. Putting
+                        // the new div beside only the innermost span can fit
+                        // it inside the parent's existing height, so nothing
+                        // below appears to move. Exit after the outermost
+                        // arrow instead and create a real new line there.
+                        let outerArrow = arrowLine;
+                        while (outerArrow.parentElement) {
+                            const parentArrow = outerArrow.parentElement.closest('.nb-arrow-step');
+                            if (!parentArrow || !editable.contains(parentArrow)) break;
+                            outerArrow = parentArrow;
+                        }
+                        outerArrow.after(nextLine);
                         const caret = document.createRange();
                         caret.setStart(landing, 1); caret.collapse(true);
                         sel.removeAllRanges(); sel.addRange(caret);
@@ -21051,6 +21066,7 @@ SQIDAQAB
                         remainder.setEnd(listItem, listItem.childNodes.length);
                         const trailingContent = remainder.extractContents();
                         const nextLine = document.createElement('div');
+                        nextLine.className = 'nb-plain-line';
                         const landing = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL);
                         nextLine.appendChild(landing); nextLine.appendChild(trailingContent);
                         const list = listItem.parentElement;
