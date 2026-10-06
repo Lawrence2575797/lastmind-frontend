@@ -368,10 +368,9 @@ window.__runDerive = function (D, CP) {
   }
 
   function buildTitle() {
-    var st = STAGES[stageIdx], count = script().filter(function (s) { return (s.type === 'read' || s.type === 'ask' || s.type === 'calc' || s.type === 'explain') && s.term; }).length;
-    var builds = st.builds.length ? st.builds.map(function (k) { return termHtml(k); }).join(' ') : '<span class="hint">nothing: this is where the course starts</span>';
+    var st = STAGES[stageIdx];
     var wrap = stack('<span class="milestone">Lesson' + '</span><h2 class="title">' + st.title + '</h2><p class="big sub">' + st.sub + '</p>' +
-      '<div class="facts"><div><span class="eyebrow">Builds on</span><div class="chips">' + builds + '</div></div><div><span class="eyebrow">' + (LANGUAGE_LESSON ? 'You will practise' : 'You will derive') + '</span><div class="hint">' + (LANGUAGE_LESSON ? count + ' useful language items, then questions' : count + ' key terms, in chunks of no more than four') + '</div></div></div><div class="down">Scroll ↓</div>');
+      '<div class="down">Scroll ↓</div>');
     var s = slide(wrap), done = false;
     var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting && e.intersectionRatio > 0.6 && !done) { done = true; io.disconnect(); next(false); } }); }, { root: feed, threshold: [0.6] });
     io.observe(s);
@@ -939,10 +938,9 @@ window.__runDerive = function (D, CP) {
 
 
   function buildTitle() {
-    var st = STAGES[stageIdx], count = Object.keys(st.graph.nodes).length - st.graph.given.length;
-    var builds = st.builds.length ? st.builds.map(function (k) { return termHtml(k); }).join(' ') : '<span class="hint">nothing: this is where the course starts</span>';
+    var st = STAGES[stageIdx];
     var wrap = stack('<span class="milestone">Lesson' + '</span><h2 class="title">' + st.title + '</h2><p class="big sub">' + st.sub + '</p>' +
-      '<div class="facts"><div><span class="eyebrow">Builds on</span><div class="chips">' + builds + '</div></div><div><span class="eyebrow">' + (LANGUAGE_LESSON ? 'You will practise' : 'You will derive') + '</span><div class="hint">' + (LANGUAGE_LESSON ? count + ' useful language items, then questions' : count + ' key terms, in chunks of no more than four') + '</div></div></div><button type="button" class="nextbtn">Start ↓</button>');
+      '<button type="button" class="nextbtn">Start ↓</button>');
     var s = slide(wrap), done = false;
     var advance = function () { if (done) return; done = true; io.disconnect(); next(false); };
     var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting && e.intersectionRatio > 0.4) advance(); }); }, { root: feed, threshold: [0.4] });
