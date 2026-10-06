@@ -20764,6 +20764,27 @@ SQIDAQAB
         canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
         canvas.style.height = Math.max(Math.round(window.innerHeight * 0.68), 480, bottom + 160) + 'px';
     }
+    // Text boxes are freely positioned, but a box directly below another
+    // should still make room when the upper box gains a line. Move every
+    // horizontally-overlapping block that starts below the upper box by
+    // exactly the amount it grew, preserving the student's spacing.
+    function nbFlowBlocksBelow(page, canvas, sourceEl, previousHeight, growth) {
+        if (!(growth > 0)) return false;
+        const oldBottom = sourceEl.offsetTop + previousHeight;
+        const sourceLeft = sourceEl.offsetLeft, sourceRight = sourceLeft + sourceEl.offsetWidth;
+        let moved = false;
+        canvas.querySelectorAll('.nb-block').forEach((candidate) => {
+            if (candidate === sourceEl || candidate.offsetTop < oldBottom - 2) return;
+            const candidateLeft = candidate.offsetLeft, candidateRight = candidateLeft + candidate.offsetWidth;
+            if (candidateRight <= sourceLeft || candidateLeft >= sourceRight) return;
+            const candidateBlock = page.doc.blocks.find((item) => item.id === candidate.dataset.id);
+            if (!candidateBlock) return;
+            candidateBlock.y = Math.max(0, candidate.offsetTop + growth);
+            candidate.style.top = candidateBlock.y + 'px';
+            moved = true;
+        });
+        return moved;
+    }
     function nbWireDrag(handle, el, block, canvas) {
         handle.addEventListener('pointerdown', (e) => {
             if (e.button !== 0) return;
@@ -21110,6 +21131,7 @@ SQIDAQAB
             notesStatus('Text boxes aligned');
         });
         el.querySelector('.nb-del').addEventListener('click', () => nbRemoveBlock(page, block, el, canvas));
+        el._nbFlowHeight = el.offsetHeight;
         if (notesResizeObs) notesResizeObs.observe(el);
         if (focus) { activate(); editable.focus(); }
         return el;
@@ -21350,7 +21372,20 @@ SQIDAQAB
                 <div class="nb-selection-size" id="nbSelectionSize"><span>Text size</span><select class="nb-text-size" aria-label="Selected text size"><option value="12">12px</option><option value="14">14px</option><option value="16" selected>16px</option><option value="18">18px</option><option value="22">22px</option><option value="28">28px</option><option value="36">36px</option></select></div>
             </div>`;
         const canvas = document.getElementById('nbCanvas');
-        if (typeof ResizeObserver === 'function') notesResizeObs = new ResizeObserver(() => { canvas.querySelectorAll('.nb-graph, .nb-diagram').forEach(nbSyncCompact); nbFitCanvas(canvas); });
+        if (typeof ResizeObserver === 'function') notesResizeObs = new ResizeObserver((entries) => {
+            let flowed = false;
+            entries.forEach((entry) => {
+                const el = entry.target;
+                if (!el.classList.contains('nb-text')) return;
+                const height = el.offsetHeight;
+                const previousHeight = Number(el._nbFlowHeight) || height;
+                el._nbFlowHeight = height;
+                if (height > previousHeight) flowed = nbFlowBlocksBelow(page, canvas, el, previousHeight, height - previousHeight) || flowed;
+            });
+            canvas.querySelectorAll('.nb-graph, .nb-diagram').forEach(nbSyncCompact);
+            nbFitCanvas(canvas);
+            if (flowed) notesScheduleSave();
+        });
         page.doc = page.doc && Array.isArray(page.doc.blocks) ? page.doc : { blocks: [] };
         page.doc.blocks.forEach((b) => { if (b.type === 'diagram') nbMakeDiagramBlock(page, b, canvas); else if (b.type === 'graph') nbMakeGraphBlock(page, b, canvas); else nbMakeTextBlock(page, b, canvas, false); });
         nbToggleHint(canvas, page); nbFitCanvas(canvas);
