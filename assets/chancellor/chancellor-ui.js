@@ -78,6 +78,13 @@
       '.chn-budget.warn { border-color: var(--chn-warn); color: var(--chn-warn); }',
       '.chn-modal.wide { width: min(1080px, 100%); } .chn-iv { display: grid; gap: 16px; grid-template-columns: 1fr; } @media (min-width: 940px) { .chn-iv { grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); align-items: start; } .chn-iv .chn-ref { position: sticky; top: 8px; max-height: calc(100vh - 80px); overflow-y: auto; } }',
       '.chn-ref { border: 1px solid var(--chn-line); border-radius: 12px; padding: 10px 12px; background: rgba(255,255,255,0.35); font-size: 0.86rem; } .chn-ref h3 { font: 700 0.95rem Arial, sans-serif; margin: 0 0 6px; } .chn-ref .chn-sec { margin-top: 10px; } .chn-ref ul { margin: 4px 0 0 18px; padding: 0; }',
+      '.chn-impact { border-top: 1px solid var(--chn-line); padding-top: 6px; } .chn-impact .ibody { font-size: 0.86rem; line-height: 1.6; padding: 4px 0 6px; }',
+      '.chn-gtab { position: fixed; right: 0; top: 38%; z-index: 40; padding: 14px 8px; writing-mode: vertical-rl; border: 1px solid rgba(0,0,0,0.3); border-right: 0; border-radius: 12px 0 0 12px; background: #0f1b2d; color: #f6efdc; font: 700 0.78rem Arial, sans-serif; letter-spacing: 0.08em; cursor: pointer; }',
+      '.chn-gtab:hover { background: #17294a; }',
+      '.chn-econ { position: fixed; top: 0; right: 0; bottom: 0; z-index: 60; width: min(440px, 94vw); overflow: auto; padding: 18px 20px 40px; background: #eef6fd; color: #0b0b0b; border-left: 1px solid rgba(0,0,0,0.3); box-shadow: -18px 0 50px rgba(0,0,0,0.4); font-size: 0.9rem; line-height: 1.6; }',
+      '.chn-econ h2 { font-size: 1.15rem; } .chn-econ h3 { font-size: 0.74rem; letter-spacing: 0.1em; text-transform: uppercase; margin: 18px 0 6px; opacity: 0.7; } .chn-econ p { margin: 0 0 10px; } .chn-econ ul { margin: 0 0 8px 18px; padding: 0; }',
+      '.chn-econ .x { float: right; font: inherit; font-size: 1.1rem; background: transparent; border: 1px solid rgba(0,0,0,0.3); border-radius: 8px; padding: 2px 10px; cursor: pointer; }',
+      '.chn-econ details { border-top: 1px solid rgba(0,0,0,0.15); padding: 6px 0; } .chn-econ summary { cursor: pointer; font-weight: 700; }',
       '.chn-lesson { border-top: 1px solid var(--chn-line); padding-top: 6px; } .chn-lesson .lbody { font-size: 0.86rem; line-height: 1.6; padding: 4px 0 6px; } .chn-lesson .lbody p { margin: 0 0 8px; }',
       '.chn-fc { position: fixed; top: 60px; right: 10px; bottom: 10px; width: min(500px, 94vw); overflow-y: auto; z-index: 2400; background: var(--panel); color: var(--text); border: 1px solid var(--chn-line); border-radius: 16px; box-shadow: -10px 0 40px rgba(0,0,0,0.35); padding: 14px 16px 16px; } .chn-fc .hd { position: sticky; top: -14px; background: var(--panel); z-index: 2; padding: 4px 0 8px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--chn-line); margin-bottom: 8px; } .chn-fc .col { display: grid; gap: 14px; } .chn-fc h4 { font: 700 0.92rem Arial, sans-serif; margin: 0 0 4px; } .chn-fc .legend2 { font-size: 0.78rem; display: inline-flex; align-items: center; gap: 6px; } .chn-fc .legend2 i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; } .chn-fc .legend { display: none !important; }',
       '.chn-fctab { position: fixed; right: 0; top: 46%; z-index: 2400; border: 0; border-radius: 12px 0 0 12px; background: #f4b400; color: #1a1206; font: 700 0.85rem Arial, sans-serif; padding: 12px 10px; cursor: pointer; writing-mode: vertical-rl; box-shadow: -4px 0 16px rgba(0,0,0,0.3); }',
@@ -280,6 +287,33 @@
       '<div id="chnBody" class="chn-shell"></div></div>';
     renderTab();
     bindShell();
+    renderGuide();
+  }
+
+  // The economics panel: what is going on in this country's situation and why, written out, openable and closable from the right edge.
+  function econPanelHtml() {
+    var g = ui.g, G = window.LMGuide && LMGuide.situation(g.sit), cs = S.causes(g);
+    var h = '<aside class="chn-econ" id="chnEcon" aria-label="The economics of the situation"><button class="x" data-act="guide" aria-label="Close this panel">✕</button><h2>The economics of ' + esc(g.cfg.country) + '</h2>';
+    if (G) {
+      h += '<h3>' + esc(G.title) + '</h3>' + G.how.map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('');
+    }
+    h += '<h3>Where the numbers stand</h3>' + numbersTable();
+    if (cs.length) {
+      h += '<h3>The lasting causes, live</h3>' + cs.map(function (c) { var pct = Math.round(Math.max(0, Math.min(1, c.level)) * 100); return '<div style="margin:6px 0"><b>' + esc(c.label) + '</b> <span class="neutral">(' + pct + '% as bad as at the start)</span><div class="chn-bar" style="margin:3px 0"><i style="width:' + pct + '%;background:' + (pct > 55 ? 'var(--chn-bad)' : 'var(--accent)') + '"></i></div><div style="font-size:.84rem">' + esc(c.text) + '</div></div>'; }).join('');
+    }
+    if (G) {
+      h += '<h3>What to keep an eye on</h3><ul>' + G.watch.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul>';
+      h += '<h3>Where to look in the Policy tab</h3><ul>' + G.levers.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul><p class="neutral" style="font-size:.84rem">Each policy card has a &ldquo;How this works&rdquo; section that explains what it does to the economy.</p>';
+    }
+    h += '<h3>Ideas used in this game</h3>' + (window.LMGuide ? LMGuide.GLOSSARY : []).map(function (x) { return '<details><summary>' + esc(x[0]) + '</summary><p style="margin-top:4px">' + esc(x[1]) + '</p></details>'; }).join('');
+    return h + '</aside>';
+  }
+  function renderGuide() {
+    var old = document.getElementById('chnEcon'); if (old) old.remove();
+    var tab = ui.host.querySelector('.chn-gtab'); if (tab) tab.remove();
+    if (!ui.g) return;
+    if (ui.guideOpen) { ui.host.querySelector('.chn').insertAdjacentHTML('beforeend', econPanelHtml()); }
+    else { ui.host.querySelector('.chn').insertAdjacentHTML('beforeend', '<button class="chn-gtab" data-act="guide" aria-label="Open the economics panel" title="What is going on in this economy, and why">The economics</button>'); }
   }
   function renderTab() {
     var b = ui.host.querySelector('#chnBody'); if (!b) return;
@@ -299,6 +333,7 @@
       if (t.dataset.chart) { ui.chart = t.dataset.chart; renderTab(); return; }
       if (t.dataset.dismiss != null) { ui.notices.splice(+t.dataset.dismiss, 1); renderTab(); return; }
       var a = t.dataset.act;
+      if (a === 'guide') { ui.guideOpen = !ui.guideOpen; renderGuide(); return; }
       if (a === 'advance') doAdvance(false); else if (a === 'ff') doAdvance(true);
       else if (a === 'exit') { save(); ui.onExit && ui.onExit(); }
       else if (a === 'newgame') { try { localStorage.removeItem(STORE); } catch (x) { /* fine */ } ui.onExit && ui.onExit(); }
@@ -453,6 +488,7 @@
     return '<article class="chn-pol' + (drafted ? ' changed' : '') + (lock ? ' lock' : '') + '" data-card="' + e.id + '" style="--gc:' + areaColour(e.area) + '"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><span class="nm">' + esc(e.name) + '</span><span class="badge" data-badge="' + e.id + '">' + esc(badgeText(e, pendingValue(e))) + '</span></div><div class="ch">You choose: ' + esc(e.choice) + '</div>' +
       (lock ? '<div class="reason">' + esc(avail.reason) + '</div>' : '') + ctlHtml(e) +
       '<div class="unit">' + (e.lag ? 'Takes effect ' + e.lag + ' quarter' + (e.lag > 1 ? 's' : '') + ' after it is enacted · ' + esc(e.lagWhy) : 'Takes effect straight away') + '</div>' + (chips ? '<div>' + chips + '</div>' : '') + wait +
+      '<details class="chn-impact"><summary class="unit" style="cursor:pointer">How this works: its economic impact</summary><div class="ibody">' + esc(window.LMGuide ? LMGuide.lever(e.id, e.area) : '') + (e.lag ? ' <span class="neutral">It takes ' + e.lag + ' quarter' + (e.lag > 1 ? 's' : '') + ' to feed through: ' + esc(e.lagWhy) + '</span>' : '') + '</div></details>' +
       '<details class="chn-lesson" data-lesson-id="' + e.id + '"><summary class="unit" style="cursor:pointer">LastMind lesson (untracked: no questions, nothing recorded)</summary><div class="lbody"></div></details></article>';
   }
   function areaWaitText(e) { return BIG_ONLY_UI.indexOf(e.area) > -1 ? 'Held in your draft until the main Budget.' : 'Held in your draft until a budget.'; }

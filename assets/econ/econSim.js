@@ -197,7 +197,7 @@
     g.mhistBefore = g.mhist.length;
   }
   function outletsFor(country) { return [{ name: country + OUTLET_FORMS.left, slant: 'left' }, { name: country + OUTLET_FORMS.right, slant: 'right' }, { name: country + OUTLET_FORMS.business, slant: 'business' }]; }
-  function defaultBudgetDate(start) { return addDays(start, 30); }
+  function defaultBudgetDate(start) { return addDays(start, 6); }   // the first Budget comes in the first week: that is when a new Chancellor sets the course
 
   function setupPeople(g, cfg) {
     var gov = cfg.government || {}, opp = cfg.opposition || {}, ris = cfg.rising || {};
@@ -417,9 +417,9 @@
   }
   function scheduleBigBudget(g) {
     g.events = g.events.filter(function (e) { return !(e.big && !e.done); });
-    var d = g.bigBudget.date;
-    addEvent(g, { kind: 'interview', needsAction: true, speculation: true, big: true, date: addDays(d, -5), budgetDate: d, title: 'Budget speculation interview', journalist: pickOne(g, JOURNALISTS), outlet: pickOne(g, BROADCASTERS) });
-    addEvent(g, { kind: 'budget-prep', needsAction: true, big: true, date: addDays(d, -14), title: 'Preparing the Budget', text: 'The big annual Budget is two weeks away. The Treasury forecast is ready and every department is lobbying.', budgetDate: d });
+    var d = g.bigBudget.date, first = d <= addDays(g.startDate, 10);      // the opening Budget: no time for the usual two weeks of preparation
+    addEvent(g, { kind: 'interview', needsAction: true, speculation: true, big: true, date: first ? addDays(g.startDate, 3) : addDays(d, -5), budgetDate: d, title: 'Budget speculation interview', journalist: pickOne(g, JOURNALISTS), outlet: pickOne(g, BROADCASTERS) });
+    addEvent(g, { kind: 'budget-prep', needsAction: true, big: true, date: first ? addDays(g.startDate, 1) : addDays(d, -14), title: 'Preparing the Budget', text: first ? 'Your first Budget is only days away. The Treasury forecast is ready and every department is lobbying.' : 'The big annual Budget is two weeks away. The Treasury forecast is ready and every department is lobbying.', budgetDate: d });
     addEvent(g, { kind: 'budget', needsAction: true, big: true, date: d, title: 'The Budget', text: 'The main annual Budget. Every lever is on the table: taxes, spending, welfare, and structural reforms.' });
   }
   function rescheduleBudget(g, newDate) {
