@@ -21386,7 +21386,7 @@ SQIDAQAB
                 const text = input.value.trim(); if (!text || notesAssist.busy) return;
                 const st = notesAssist.store; st.chat.push({ role: 'user', content: text }); input.value = ''; notesAssist.busy = true; notesAssist.error = ''; nbAssistPaint(page);
                 try {
-                    const out = await nbAssistCall('/notes-assistant/chat', { message: text, history: st.chat.slice(0, -1).slice(-10), notes: nbPageText(page), title: page.name || '' });
+                    const out = await nbAssistCall('/notes-assistant/chat', { message: text, history: st.chat.slice(0, -1).slice(-4), notes: nbPageText(page), title: page.name || '' });
                     st.chat.push({ role: 'assistant', content: out.reply });
                 } catch (err) { notesAssist.error = err.message || 'LastMind could not answer just now. Try again.'; }
                 notesAssist.busy = false; nbAssistSave(page, st); nbAssistPaint(page);
