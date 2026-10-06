@@ -21139,29 +21139,45 @@ SQIDAQAB
                 const sel = window.getSelection();
                 if (sel.rangeCount && sel.isCollapsed) {
                     const range = sel.getRangeAt(0), node = range.startContainer;
-                    const before = node.nodeType === 3 ? node.textContent.slice(0, range.startOffset) : '';
-                    // Returned lines begin with an invisible zero-width
-                    // caret marker (and may contain an empty <br>). Ignore
-                    // those structural characters when deciding whether
-                    // this really is the second dot at the start of a line.
-                    const visibleBefore = before.replace(/[\u200b\s]/g, '');
-                    let prior = node.nodeType === 3 ? node.previousSibling : null, hasVisiblePrior = false;
-                    while (prior) {
-                        if (prior.nodeName !== 'BR' && (prior.textContent || '').replace(/[\u200b\s]/g, '')) { hasVisiblePrior = true; break; }
-                        prior = prior.previousSibling;
+                    if (node.nodeType !== 3) return;
+                    const element = node.parentElement;
+                    let currentLine = element.closest('.nb-plain-line, p, li, div');
+                    if (!currentLine || currentLine === editable || !editable.contains(currentLine)) {
+                        currentLine = node;
+                        while (currentLine.parentNode && currentLine.parentNode !== editable) currentLine = currentLine.parentNode;
                     }
-                    const alreadyInList = node.nodeType === 3 && node.parentElement && node.parentElement.closest('li');
-                    if (node.nodeType === 3 && !alreadyInList && !hasVisiblePrior && visibleBefore === '.') {
+                    if (!currentLine || currentLine === editable) return;
+                    const prefix = document.createRange(); prefix.setStart(currentLine, 0); prefix.setEnd(range.startContainer, range.startOffset);
+                    const visibleBefore = prefix.toString().replace(/[\u200b\s]/g, '');
+
+                    // A third dot immediately after `..` means the student
+                    // wanted an ellipsis, not a bullet. Only lists created
+                    // by this shortcut carry nb-dot-list, so ordinary lists
+                    // can never be accidentally converted.
+                    const dotItem = element.closest('ul.nb-dot-list > li');
+                    if (dotItem && visibleBefore === '') {
                         e.preventDefault();
-                        node.textContent = node.textContent.slice(range.startOffset);
+                        const dotList = dotItem.parentElement;
+                        const suffix = document.createRange(); suffix.setStart(range.startContainer, range.startOffset); suffix.setEnd(dotItem, dotItem.childNodes.length);
+                        const trailing = suffix.extractContents();
+                        const plain = document.createElement('div'); plain.className = 'nb-plain-line';
+                        const ellipsis = document.createTextNode('...'); plain.appendChild(ellipsis); plain.appendChild(trailing);
+                        plain.querySelectorAll('br').forEach((br) => { if (plain.textContent.replace(/[\u200b\s]/g, '')) br.remove(); });
+                        dotList.replaceWith(plain);
+                        const caret = document.createRange(); caret.setStart(ellipsis, 3); caret.collapse(true);
+                        sel.removeAllRanges(); sel.addRange(caret);
+                        editable.dispatchEvent(new Event('input', { bubbles: true }));
+                        return;
+                    }
+
+                    if (!element.closest('li') && visibleBefore === '.') {
+                        e.preventDefault();
+                        prefix.deleteContents();
                         // Do not use execCommand('insertUnorderedList') here:
                         // on an empty returned line browsers can apply it to
                         // the preceding paragraph. Replace only the exact
                         // DOM line containing the caret with a list instead.
-                        let currentLine = node;
-                        while (currentLine.parentNode && currentLine.parentNode !== editable) currentLine = currentLine.parentNode;
-                        if (currentLine === editable) return;
-                        const list = document.createElement('ul');
+                        const list = document.createElement('ul'); list.className = 'nb-dot-list';
                         const item = document.createElement('li');
                         const landing = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL);
                         item.appendChild(landing);
