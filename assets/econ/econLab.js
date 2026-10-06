@@ -74,7 +74,7 @@
       for (t = 1; t <= Q; t++) {
         var n = noise(rng, scale * 0.7);
         // Selection: a country that is about to adopt has been doing badly for a few quarters, which is why it acts.
-        if (treated && sel > 0 && t > tq - 10 && t <= tq) { var ramp = (t - (tq - 10)) / 10; n.demand = (n.demand || 0) - 1.6 * sel * ramp; n.hh = (n.hh || 0) - 1.0 * sel * ramp; }   // a worsening slide that ends in adoption
+        if (treated && sel > 0 && t > tq - 10 && t <= tq) { var ramp = (t - (tq - 10)) / 10; n.demand = (n.demand || 0) - 1.0 * sel * ramp; n.hh = (n.hh || 0) - 0.6 * sel * ramp; }   // a worsening slide that ends in adoption
         own[t] = n;
       }
       units.push({ id: 'C' + (i + 1), name: 'Country ' + String.fromCharCode(65 + i), treated: treated, tq: tq, dose: dose, pf: pf, own: own });
@@ -96,7 +96,7 @@
     });
     Object.keys(truth.byK).forEach(function (kk) { OUTCOMES.forEach(function (oc) { truth.byK[kk][oc[0]] /= truth.byK[kk].n; }); });
     // The true average effect over the whole post-adoption period, per outcome.
-    var ks = Object.keys(truth.byK).map(Number).filter(function (x) { return x >= (e ? L.lagOf(e.area) : 0); });
+    var ks = Object.keys(truth.byK).map(Number).filter(function (x) { return x >= (e ? L.lagOf(e.area) : 0) && x <= 10; });   // the first ten quarters after the policy takes effect
     OUTCOMES.forEach(function (oc) { truth.att = truth.att || {}; var sum = 0, n = 0; ks.forEach(function (x) { sum += truth.byK[x][oc[0]] * truth.byK[x].n; n += truth.byK[x].n; }); truth.att[oc[0]] = n ? sum / n : 0; });
     return { rows: rows, outcomes: OUTCOMES, Q: Q, lever: lever, units: units.map(function (u) { return { id: u.id, name: u.name, treated: u.treated, tq: u.tq, dose: u.dose }; }), truth: truth, lag: e ? L.lagOf(e.area) : 0 };
   }

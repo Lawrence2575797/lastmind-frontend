@@ -86,6 +86,21 @@
       '.chn-areahead { margin: 0 0 2px; font: 700 1.2rem Arial, sans-serif; } .chn-pollist { display: grid; gap: 10px; }',
       '.chn-pollist .chn-pol { transform: none; } .chn-pollist .chn-pol:hover { transform: none; box-shadow: none; }',
       '.chn-more { border-top: 1px solid var(--chn-line); padding-top: 6px; } .chn-more > .ibody { font-size: 0.86rem; line-height: 1.6; padding: 4px 0 2px; } .chn-more > .ibody p { margin: 4px 0; }',
+      '.an-wrap { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 16px; align-items: start; } @media (max-width: 860px) { .an-wrap { grid-template-columns: 1fr; } }',
+      '.an-list { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--chn-line); border-radius: 12px; background: var(--panel); } .an-list .gh { margin: 8px 4px 2px; font: 700 0.64rem Arial, sans-serif; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.6; }',
+      '.an-item { display: grid; text-align: left; padding: 8px 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: inherit; font: 0.86rem Arial, sans-serif; cursor: pointer; } .an-item small { opacity: 0.6; } .an-item:hover { background: rgba(11,114,133,0.10); } .an-item.on { background: #0f1b2d; color: #f6efdc; }',
+      '.an-main { min-width: 0; padding: 16px 18px; border: 1px solid var(--chn-line); border-radius: 12px; background: var(--panel); line-height: 1.6; } .an-main h3 { margin: 16px 0 6px; font: 700 1.05rem Arial, sans-serif; } .an-main h4 { margin: 14px 0 4px; font: 700 0.9rem Arial, sans-serif; } .an-main p { margin: 0 0 10px; }',
+      '.an-head { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }',
+      '.an-steps, .an-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; } .an-step, .an-tab { padding: 7px 12px; border: 1px solid var(--chn-line); border-radius: 999px; background: transparent; color: inherit; font: 700 0.8rem Arial, sans-serif; cursor: pointer; } .an-step.on, .an-tab.on { background: #0f1b2d; color: #f6efdc; border-color: #0f1b2d; }',
+      '.an-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin: 8px 0; } .an-form label { display: grid; gap: 4px; font: 0.8rem Arial, sans-serif; } .an-form input, .an-form select, .an-pick select { padding: 7px 9px; border: 1px solid rgba(26,26,28,0.32); border-radius: 8px; background: #fff; font: 0.9rem Arial, sans-serif; } .an-pick { margin: 6px 0 10px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font: 0.84rem Arial, sans-serif; }',
+      '.an-result { margin: 10px 0 14px; padding: 12px 14px; border: 1px solid var(--chn-line); border-left: 5px solid var(--accent); border-radius: 10px; background: #fff; } .an-result .big { font: 700 1.5rem Arial, sans-serif; } .an-result .big small { font-size: 0.8rem; font-weight: 400; opacity: 0.7; } .an-result .ci { font: 0.82rem Arial, sans-serif; opacity: 0.75; margin: 2px 0 8px; } .an-result p { margin: 0; }',
+      '.an-note, .an-warn { margin: 10px 0; padding: 10px 12px; border-radius: 10px; font-size: 0.9rem; } .an-note { background: rgba(11,114,133,0.10); } .an-warn { background: rgba(180,83,9,0.12); }',
+      '.an-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--chn-line); }',
+      '.an-det { margin: 10px 0; border-top: 1px solid var(--chn-line); padding-top: 6px; } .an-det summary { cursor: pointer; font-weight: 700; } .an-how { padding-left: 20px; } .an-how li { margin: 6px 0; }',
+      '.an-main .good { color: var(--chn-good); font-weight: 700; } .an-main .bad { color: var(--chn-bad); font-weight: 700; }',
+      '.chn-econ .gtabs { display: flex; gap: 6px; margin: 10px 0 12px; } .chn-econ .gtabs button { flex: 1; padding: 7px 8px; border: 1px solid rgba(0,0,0,0.25); border-radius: 8px; background: transparent; font: 700 0.76rem Arial, sans-serif; cursor: pointer; } .chn-econ .gtabs button.on { background: #0f1b2d; color: #f6efdc; border-color: #0f1b2d; }',
+      '.chn-chap { display: flex; gap: 10px; align-items: flex-start; width: 100%; margin: 6px 0; padding: 10px 12px; border: 1px solid rgba(0,0,0,0.2); border-radius: 10px; background: #fff; text-align: left; font: 0.9rem Arial, sans-serif; cursor: pointer; } .chn-chap .n { flex: none; width: 24px; height: 24px; border-radius: 50%; background: #0f1b2d; color: #f6efdc; display: grid; place-items: center; font: 700 0.76rem Arial, sans-serif; } .chn-chap small { display: block; font-weight: 400; opacity: 0.75; margin-top: 2px; } .chn-chap .tick { margin-left: auto; color: var(--chn-good); font-weight: 700; }',
+      '.chn-econ h4 { margin: 18px 0 4px; font-size: 1rem; } .chn-econ .eq { margin: 8px 0; padding: 8px 12px; background: #fff; border-left: 4px solid var(--accent); font: 0.95rem Consolas, monospace; overflow-x: auto; white-space: pre; } .chn-econ .ex { margin: 8px 0 12px; padding: 8px 12px; background: rgba(11,114,133,0.10); border-radius: 8px; } .chn-econ .chk { margin: 8px 0; }',
       '.chn-impact { border-top: 1px solid var(--chn-line); padding-top: 6px; } .chn-impact .ibody { font-size: 0.86rem; line-height: 1.6; padding: 4px 0 6px; }',
       '.chn-gtab { position: fixed; right: 0; top: 38%; z-index: 40; padding: 14px 8px; writing-mode: vertical-rl; border: 1px solid rgba(0,0,0,0.3); border-right: 0; border-radius: 12px 0 0 12px; background: #0f1b2d; color: #f6efdc; font: 700 0.78rem Arial, sans-serif; letter-spacing: 0.08em; cursor: pointer; }',
       '.chn-gtab:hover { background: #17294a; }',
@@ -252,7 +267,7 @@
   function ensurePortraits() { ui.g.people.forEach(function (p) { if (!p.resigned) requestPortrait(p.key, p.role); }); }
 
   /* ---------- the shell ---------- */
-  var TABS = [['overview', 'Overview'], ['economy', 'Economic performance'], ['policy', 'Policy'], ['budget', 'Budget'], ['people', 'People and polls'], ['news', 'News'], ['log', 'Record']];
+  var TABS = [['overview', 'Overview'], ['economy', 'Economic performance'], ['policy', 'Policy'], ['analysis', 'Analysis'], ['budget', 'Budget'], ['people', 'People and polls'], ['news', 'News'], ['log', 'Record']];
   function windowPill() {
     var w = ui.g.window || { kind: 'none' };
     if (w.kind === 'shock') return '<span class="chn-pill shock">Emergency session open</span>';
@@ -302,7 +317,9 @@
   // The economics panel: what is going on in this country's situation and why, written out, openable and closable from the right edge.
   function econPanelHtml() {
     var g = ui.g, G = window.LMGuide && LMGuide.situation(g.sit), cs = S.causes(g);
-    var h = '<aside class="chn-econ" id="chnEcon" aria-label="The economics of the situation"><button class="x" data-act="guide" aria-label="Close this panel">✕</button><h2>The economics of ' + esc(g.cfg.country) + '</h2>';
+    var tabs = '<div class="gtabs"><button type="button" data-gtab="economy" class="' + (ui.guideTab !== 'lessons' ? 'on' : '') + '">The economy</button><button type="button" data-gtab="lessons" class="' + (ui.guideTab === 'lessons' ? 'on' : '') + '">Lessons: how economists find out</button></div>';
+    if (ui.guideTab === 'lessons') return '<aside class="chn-econ" id="chnEcon" aria-label="Lessons"><button class="x" data-act="guide" aria-label="Close this panel">✕</button><h2>Lessons</h2>' + tabs + lessonsHtml() + '</aside>';
+    var h = '<aside class="chn-econ" id="chnEcon" aria-label="The economics of the situation"><button class="x" data-act="guide" aria-label="Close this panel">✕</button><h2>The economics of ' + esc(g.cfg.country) + '</h2>' + tabs;
     if (G) {
       h += '<h3>' + esc(G.title) + '</h3>' + G.how.map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('');
     }
@@ -317,6 +334,28 @@
     h += '<h3>Ideas used in this game</h3>' + (window.LMGuide ? LMGuide.GLOSSARY : []).map(function (x) { return '<details><summary>' + esc(x[0]) + '</summary><p style="margin-top:4px">' + esc(x[1]) + '</p></details>'; }).join('');
     return h + '</aside>';
   }
+
+  // The lessons: written from scratch, one chapter at a time, in the right-hand panel (chancellor-lessons.js).
+  function lessonsHtml() {
+    var Ls = window.LMLessons, chs = (Ls && Ls.chapters) || [], g = ui.g; g.lessonsRead = g.lessonsRead || {};
+    var cur = chs.filter(function (x) { return x.id === ui.lessonId; })[0];
+    if (!cur) {
+      return '<p class="neutral">Short lessons that start from nothing and build up to the methods used in the Analysis tab. Read them in order, or open the one you need.</p>' + chs.map(function (x, i) { return '<button type="button" class="chn-chap" data-chap="' + x.id + '"><span class="n">' + (i + 1) + '</span><span><b>' + esc(x.title) + '</b><small>' + esc(x.summary) + '</small></span>' + (g.lessonsRead[x.id] ? '<span class="tick">✓</span>' : '') + '</button>'; }).join('');
+    }
+    g.lessonsRead[cur.id] = true;
+    var i = chs.indexOf(cur), prev = chs[i - 1], next = chs[i + 1];
+    var block = function (b) {
+      if (typeof b === 'string') return '<p>' + esc(b).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>') + '</p>';
+      if (b.eq) return '<div class="eq">' + esc(b.eq) + '</div>';
+      if (b.ex) return '<div class="ex"><b>Example.</b> ' + esc(b.ex).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>') + '</div>';
+      if (b.list) return '<ul>' + b.list.map(function (x) { return '<li>' + esc(x).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>') + '</li>'; }).join('') + '</ul>';
+      if (b.check) return '<details class="chk"><summary>Check yourself: ' + esc(b.check[0]) + '</summary><p>' + esc(b.check[1]).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>') + '</p></details>';
+      return '';
+    };
+    return '<button type="button" class="chn-btn small" data-chap="">← All lessons</button><h3 style="margin:12px 0 4px;font-size:1.2rem;text-transform:none;letter-spacing:0;opacity:1">' + (i + 1) + '. ' + esc(cur.title) + '</h3>' + cur.sections.map(function (sec) { return (sec.h ? '<h4>' + esc(sec.h) + '</h4>' : '') + sec.b.map(block).join(''); }).join('') +
+      '<div class="an-actions">' + (prev ? '<button type="button" class="chn-btn small" data-chap="' + prev.id + '">← ' + esc(prev.title) + '</button>' : '') + (next ? '<button type="button" class="chn-btn small primary" data-chap="' + next.id + '">Next: ' + esc(next.title) + ' →</button>' : '') + '</div>';
+  }
+  function openChapter(id) { ui.guideOpen = true; ui.guideTab = 'lessons'; ui.lessonId = id; renderGuide(); var p = document.getElementById('chnEcon'); if (p) p.scrollTop = 0; }
   function renderGuide() {
     var old = document.getElementById('chnEcon'); if (old) old.remove();
     var tab = ui.host.querySelector('.chn-gtab'); if (tab) tab.remove();
@@ -324,18 +363,35 @@
     if (ui.guideOpen) { ui.host.querySelector('.chn').insertAdjacentHTML('beforeend', econPanelHtml()); }
     else { ui.host.querySelector('.chn').insertAdjacentHTML('beforeend', '<button class="chn-gtab" data-act="guide" aria-label="Open the economics panel" title="What is going on in this economy, and why">The economics</button>'); }
   }
+
+  // The Treasury analysis unit (chancellor-analysis.js). It replaces the old forecast overlay.
+  function analysisTab() { return '<div id="chnAnalysis"><p class="neutral">Loading the Treasury analysis…</p></div>'; }
+  function draftLevers() { return pendingChanges().filter(function (e) { return e.ctl.t === 'slider' && levelOk(e); }).map(function (e) { var p = D()[e.id]; return { id: e.id, v: +p.v, name: e.name, badge: badgeText(e, p) }; }); }
+  function mountAnalysis() {
+    var host = ui.host.querySelector('#chnAnalysis'); if (!host || !window.LMAnalysis) return;
+    ui.analysisHost = host;
+    window.LMAnalysis.render(host, {
+      g: ui.g, S: S, level: levelIs(), catalogue: catalogue, visibleLevers: function () { return catalogue().filter(function (e) { return !e.preset && levelOk(e); }); }, groups: visibleAreas, draftLevers: draftLevers,
+      save: save, toast: toast, openLesson: openChapter,
+      suggestSize: function (e) { var c = e.ctl; return c.min < 0 ? Math.round(c.max * 0.25 / c.step) * c.step : Math.round(c.max * 0.35 / c.step) * c.step; },
+      addDraft: function (id, v, opt) { var e = catalogue().filter(function (x) { return x.id === id; })[0]; if (!e) return; var base = enacted(id) ? enacted(id).v : 0; D()[id] = { v: clampV(e, base + 0 + v), opt: opt || undefined, dur: undefined }; save(); renderTab(); },
+    });
+  }
   function renderTab() {
     var b = ui.host.querySelector('#chnBody'); if (!b) return;
-    if (ui.tab !== 'policy') hideForecast(false);
-    var fn = { overview: overview, economy: economyTab, policy: policyTab, budget: budgetTab, people: peopleTab, news: newsTab, log: logTab }[ui.tab] || overview;
+    hideForecast(false);
+    var fn = { overview: overview, economy: economyTab, policy: policyTab, analysis: analysisTab, budget: budgetTab, people: peopleTab, news: newsTab, log: logTab }[ui.tab] || overview;
     b.innerHTML = ui.g.over ? overHtml() : fn();
     if (ui.tab === 'policy' && !ui.g.over) bindPolicy();
+    if (ui.tab === 'analysis' && !ui.g.over) mountAnalysis();
     if (ui.tab === 'budget') bindBudget();
   }
   var shellBound = null;
   function bindShell() {
     if (shellBound === ui.host) return; shellBound = ui.host;
     ui.host.addEventListener('click', function (e) {
+      var cg = e.target.closest('[data-chap],[data-gtab]');
+      if (cg) { if (cg.dataset.gtab) { ui.guideTab = cg.dataset.gtab; renderGuide(); } else { ui.lessonId = cg.dataset.chap || null; renderGuide(); var pp = document.getElementById('chnEcon'); if (pp) pp.scrollTop = 0; save(); } return; }
       var t = e.target.closest('[data-act],[data-tab],[data-chart],[data-dismiss],[data-lesson]'); if (!t) return;
       if (t.dataset.lesson) { openLesson(t.dataset.lesson); return; }
       if (t.dataset.tab) { ui.tab = t.dataset.tab; renderAll(); return; }
@@ -351,7 +407,6 @@
       else if (a === 'enactnow') enactChanges();
       else if (a === 'lessons' && ui.lessonCtx) openLesson(ui.lessonCtx.id);
       else if (a === 'restart') restartGame();
-      else if (a === 'fc') { ui.fcClosed = false; ui.fcMode = 'all'; updateForecast(true); }
     });
   }
 
@@ -543,7 +598,7 @@
     return policyBanner() + '<div class="chn-polwrap3">' + nav +
       '<section class="chn-polmain"><h3 class="chn-areahead">' + esc(cur.name) + '</h3><p class="neutral" style="margin:0 0 10px;font-size:.86rem">' + esc(gp0 ? gp0.text : '') + (levelIs() === 'alevel' ? ' Showing the main levers; the University level has every one.' : '') + '</p><div id="chnPolList" class="chn-pollist">' + cur.list.map(policyCard).join('') + '</div></section>' +
       '<aside class="chn-side"><div class="chn-card"><h3 style="font:700 .95rem Arial">Your draft</h3><div id="chnPkg" style="font-size:.85rem;margin:6px 0">' + pkgHtml() + '</div><div class="chn-actions"><button class="chn-btn primary" data-pol="save">Save draft</button><button class="chn-btn" data-pol="clear" ' + (n ? '' : 'disabled') + '>Clear draft</button></div><p class="neutral" style="font-size:.74rem;margin:6px 0 0">Saved drafts are not enacted. You submit them on budget day.</p></div>' +
-      '<div class="chn-card"><h3 style="font:700 .95rem Arial;margin-bottom:6px">Forecast</h3><p class="neutral" style="font-size:.85rem;margin:0 0 8px">See what your whole draft would do to growth, inflation, jobs and the public finances.</p><button class="chn-btn small" data-fcall="1">Forecast my whole budget</button></div>' +
+      '<div class="chn-card"><h3 style="font:700 .95rem Arial;margin-bottom:6px">Analysis</h3><p class="neutral" style="font-size:.85rem;margin:0 0 8px">' + (levelIs() === 'alevel' ? 'Ask the Treasury analyst what the evidence says about a policy before you commit to it.' : 'Investigate a policy before you commit to it: look at what other countries found, test it, and weigh the costs and benefits.') + '</p><button class="chn-btn small" data-tab="analysis">Investigate a policy</button></div>' +
       '<div class="chn-card"><h3 style="font:700 .95rem Arial;margin-bottom:6px">Emergency budget packages</h3><div class="chn-actions">' + packs + '</div><p class="neutral" style="font-size:.74rem;margin:6px 0 0">Adds a ready-made set of changes to your draft. Edit them afterwards.</p></div></aside></div>';
   }
   function bindPolicy() {
@@ -562,7 +617,7 @@
         else { p.v = clampV(e, t.value); var card = t.closest('.chn-pol'); card.querySelectorAll('input[data-k="v"]').forEach(function (x) { if (x !== t) x.value = p.v; }); }
         if (!differs(e)) delete D()[e.id];
         var card2 = t.closest('.chn-pol'); if (card2) { card2.classList.toggle('changed', differs(e)); var rg = card2.querySelector('input[type=range]'); if (rg && e.ctl.t !== 'select') rg.style.setProperty('--fill', fillPct(e, p.v) + '%'); var bd = card2.querySelector('[data-badge]'); if (bd) { bd.textContent = badgeText(e, p); bd.classList.remove('pop'); void bd.offsetWidth; bd.classList.add('pop'); } }
-        ui.fcFocus = e.id; ui.fcClosed = false; saveSoon(); refreshSide();
+        saveSoon(); refreshSide();
       };
       list.addEventListener('input', onInput); list.addEventListener('change', onInput);
       list.addEventListener('toggle', function (ev) { var d = ev.target; if (d && d.dataset && d.dataset.areaname) ui.openAreas[d.dataset.areaname] = d.open; if (d && d.dataset && d.dataset.lessonId && d.open) fillLesson(d); }, true);
@@ -575,7 +630,7 @@
     clearTimeout(ui.previewTimer);
     ui.previewTimer = setTimeout(function () {
       var pk = ui.host.querySelector('#chnPkg'); if (!pk) return;
-      pk.innerHTML = pkgHtml(); updateForecast();
+      pk.innerHTML = pkgHtml();
       var n = pendingChanges().length, cl = ui.host.querySelector('[data-pol="clear"]'), en = ui.host.querySelector('[data-act="enactnow"]');
       if (cl) cl.disabled = !n; if (en) { en.disabled = !n; en.textContent = 'Enact ' + n + ' drafted change' + (n === 1 ? '' : 's') + ' now'; }
     }, 160);

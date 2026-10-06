@@ -132,7 +132,7 @@
   // Staggered adoption: the effect for each adoption quarter g and each quarter t, using never-treated countries as the comparison and the
   // quarter before adoption as the base. Averaged by event time, weighting cohorts by size. Standard errors by bootstrap over countries.
   function groupTime(rows, outcome, opts) {
-    opts = opts || {}; var reps = opts.reps == null ? 200 : opts.reps, rng = opts.rng || Math.random, maxK = opts.maxK || 10, minK = opts.minK || -6;
+    opts = opts || {}; var reps = opts.reps == null ? 200 : opts.reps, rng = opts.rng || Math.random, maxK = opts.maxK || 10, baseK = opts.baseK == null ? -1 : opts.baseK, minK = opts.minK || Math.min(-6, baseK - 2);   // baseK: the quarter everything is measured against
     function est(rs) {
       var byU = {}; rs.forEach(function (r) { (byU[r.unit] = byU[r.unit] || {})[r.q] = r; });
       var units = Object.keys(byU), never = units.filter(function (u) { return !byU[u][Object.keys(byU[u])[0]].cohort; });
@@ -140,7 +140,7 @@
       var agg = {};
       cohorts.forEach(function (g) {
         var tr = units.filter(function (u) { return byU[u][Object.keys(byU[u])[0]].cohort === g; }); if (!tr.length || !never.length) return;
-        for (var k = minK; k <= maxK; k++) { var t = g + k; if (k === -1 || t < 1) continue; var base = g - 1; if (base < 1) continue;
+        for (var k = minK; k <= maxK; k++) { var t = g + k; if (k === baseK || t < 1) continue; var base = g + baseK; if (base < 1) continue;
           var dT = [], dC = []; tr.forEach(function (u) { if (byU[u][t] && byU[u][base]) dT.push(byU[u][t][outcome] - byU[u][base][outcome]); }); never.forEach(function (u) { if (byU[u][t] && byU[u][base]) dC.push(byU[u][t][outcome] - byU[u][base][outcome]); });
           if (!dT.length || !dC.length) continue; agg[k] = agg[k] || { s: 0, w: 0 }; agg[k].s += tr.length * (mean(dT) - mean(dC)); agg[k].w += tr.length; }
       });
@@ -153,13 +153,13 @@
       var e = est(rs); Object.keys(e).forEach(function (k) { (draws[k] = draws[k] || []).push(e[k]); });
     }
     var points = Object.keys(point).map(Number).sort(function (a, b) { return a - b; }).map(function (k) { var s = draws[k] ? sd(draws[k]) : NaN; return { k: k, est: point[k], se: s, ci: [point[k] - 1.96 * s, point[k] + 1.96 * s] }; });
-    points.push({ k: -1, est: 0, se: 0, ci: [0, 0], ref: true }); points.sort(function (a, b) { return a.k - b.k; });
+    points.push({ k: baseK, est: 0, se: 0, ci: [0, 0], ref: true }); points.sort(function (a, b) { return a.k - b.k; });
     var post = points.filter(function (p) { return p.k >= (opts.lag || 0) && !p.ref; }), att = mean(post.map(function (p) { return p.est; }));
     var attDraws = []; for (b = 0; b < reps; b++) { var vals = []; post.forEach(function (p) { if (draws[p.k] && draws[p.k][b] != null) vals.push(draws[p.k][b]); }); if (vals.length) attDraws.push(mean(vals)); }
     var attSe = sd(attDraws);
     // Pre-trend test: are all the lead effects (before adoption) jointly zero? The statistic is the sum of squared standardised leads; how large it
     // would be by chance comes from the same bootstrap draws re-centred on zero.
-    var leads = points.filter(function (p) { return p.k <= -2 && draws[p.k] && draws[p.k].length === reps; }).map(function (p) { return p.k; }), preTest = { stat: null, df: leads.length, p: null };
+    var leads = points.filter(function (p) { return p.k < -1 && p.k !== baseK && draws[p.k] && draws[p.k].length === reps; }).map(function (p) { return p.k; }), preTest = { stat: null, df: leads.length, p: null };
     if (leads.length && reps >= 50) {
       var mu = {}, va = {}; leads.forEach(function (k) { mu[k] = mean(draws[k]); va[k] = Math.pow(sd(draws[k]), 2) + 1e-12; });
       var stat = 0; leads.forEach(function (k) { stat += point[k] * point[k] / va[k]; });
