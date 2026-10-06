@@ -259,6 +259,7 @@
     event: 'Shows the effect quarter by quarter. Look to the left of the dotted line first: before adoption it should be flat.',
     synth: 'Builds a stand-in country from the ones that did nothing. Check how well it fits before adoption.',
     ri: 'Asks how often chance alone gives a result this big. It says nothing about whether the comparison was fair.',
+    home: 'Your own country has tried this before. Compare it with itself, then with the countries that did nothing, and ask whether it agrees with them.',
   };
   // The situation, as short cards. `area` links to the part of the Policy tab the card is about.
   var CARDS = {

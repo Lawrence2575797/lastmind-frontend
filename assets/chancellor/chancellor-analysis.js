@@ -15,7 +15,7 @@
   var OUT = { g: ['GDP growth', 'percentage points'], pi: ['Inflation', 'percentage points'], u: ['Unemployment', 'percentage points'], deficit: ['Budget deficit', '% of GDP'], debtGDP: ['Public debt', '% of GDP'], T: ['Tax revenue', '% of GDP'] };
   var METHODS = [
     ['before', 'Before and after', 'beforeafter'], ['did22', 'Adopters vs the rest (2×2)', 'did'], ['twfe', 'Fixed-effects regression', 'twfe'],
-    ['event', 'Event study and pre-trends', 'event'], ['synth', 'Synthetic control', 'synth'], ['ri', 'Randomisation test', 'inference'],
+    ['event', 'Event study and pre-trends', 'event'], ['synth', 'Synthetic control', 'synth'], ['ri', 'Randomisation test', 'inference'], ['home', 'Your own record', 'homecase'],
   ];
   var cache = {};                                                   // panels and results are rebuilt from the seed, never saved
   var ctx = null;                                                   // what the page gives us: the game, the helpers and callbacks
@@ -43,6 +43,34 @@
     var marks = p.units.filter(function (u) { return u.treated; }).map(function (u) { return '<line x1="' + fr.X(u.tq) + '" x2="' + fr.X(u.tq) + '" y1="' + m.t + '" y2="' + (h - m.b) + '" stroke="#b45309" stroke-dasharray="2 4" opacity=".55"/>'; }).join('');
     return svgWrap(w, h, fr.g + marks + line(ct, fr.X, fr.Y, '#64748b') + line(tr, fr.X, fr.Y, '#0a5f8f', { w: 2.6 }) + legend([['Countries that adopted', '#0a5f8f'], ['Countries that did not', '#64748b']], m.l, 14), 'Average ' + OUT[key][0] + ' for adopting and non-adopting countries; dotted lines mark adoption dates');
   }
+
+  /* ---------- your own country's record ---------- */
+  function dateOfQ(p, q) {
+    var d = new Date(ctx.g.startDate || Date.now()); if (isNaN(d.getTime())) return 'quarter ' + q;
+    d.setMonth(d.getMonth() - 3 * (p.Q - q)); return d.toLocaleString('en-GB', { month: 'long', year: 'numeric' });
+  }
+  function homeChart(p, key) {
+    var hp = p.home, w = 640, h = 260, m = { l: 46, r: 12, t: 28, b: 38 }, qs = []; for (var q = 1; q <= p.Q; q++) qs.push(q);
+    var own = hp.rows.map(function (r) { return [r.q, r[key]]; }), ct = qs.map(function (q) { var rs = p.rows.filter(function (r) { return r.q === q && !r.cohort; }); return [q, rs.reduce(function (s, r) { return s + r[key]; }, 0) / (rs.length || 1)]; });
+    var all = own.concat(ct).map(function (x) { return x[1]; }), lo = Math.min.apply(null, all), hi = Math.max.apply(null, all), pad = (hi - lo) * 0.12 || 0.5, fr = frame(w, h, m, 1, p.Q, lo - pad, hi + pad, 'Quarter (the last is the quarter before you took office)', OUT[key][0]);
+    var mk = function (q, dash) { return '<line x1="' + fr.X(q) + '" x2="' + fr.X(q) + '" y1="' + m.t + '" y2="' + (h - m.b) + '" stroke="#b45309" stroke-dasharray="' + dash + '" opacity=".7"/>'; };
+    return svgWrap(w, h, fr.g + mk(hp.tq, '3 4') + mk(hp.tq + hp.lag, '1 3') + line(ct, fr.X, fr.Y, '#64748b') + line(own, fr.X, fr.Y, '#0a5f8f', { w: 2.8 }) + legend([[(ctx.g.cfg && ctx.g.cfg.country) || 'Your country', '#0a5f8f'], ['Similar countries that did not adopt (average)', '#64748b']], m.l, 14), 'Your own country ' + OUT[key][0] + ' over its recorded history, with the date it made this change marked');
+  }
+  function variance(xs) { var mu = St().mean(xs), s = 0; xs.forEach(function (x) { s += (x - mu) * (x - mu); }); return xs.length > 1 ? s / (xs.length - 1) : 0; }
+  // Three ways to read the same single episode, from the naive to the careful. Never saved: rebuilt from the seed.
+  function homeStats(a, key) {
+    var ck = 'h:' + a.id + ':' + key; if (cache[ck]) return cache[ck];
+    var p = panelFor(a), hp = p.home, s = St(), tq = hp.tq, lag = hp.lag, rows = hp.rows;
+    var pre = rows.filter(function (r) { return r.q < tq && r.q >= tq - 6; }).map(function (r) { return r[key]; }), post = rows.filter(function (r) { return r.q >= tq + lag && r.q < tq + lag + 6; }).map(function (r) { return r[key]; });
+    var est = s.mean(post) - s.mean(pre), se = Math.sqrt(variance(pre) / pre.length + variance(post) / post.length), df = pre.length + post.length - 2;
+    var ba = { est: est, se: se, ci: s.ci(est, se, df), p: s.pTwoSided(est / (se || 1e-9), df) };
+    var never = p.rows.filter(function (r) { return !r.cohort; }), all = rows.concat(never), did = s.did2x2(all, key, 6), ids = []; never.forEach(function (r) { if (ids.indexOf(r.unit) < 0) ids.push(r.unit); });
+    var plac = ids.map(function (u) { var rr = never.map(function (r) { return r.unit === u ? Object.assign({}, r, { cohort: tq, post: r.q >= tq + lag ? 1 : 0 }) : r; }); return s.did2x2(rr, key, 6).est; });
+    var bigger = plac.filter(function (x) { return Math.abs(x) >= Math.abs(did.est); }).length;
+    var synth = s.syntheticControl(all, key, 'HOME', { lag: lag });
+    return (cache[ck] = { ba: ba, did: { est: did.est, change: did.change, controlChange: did.controlChange, placebos: plac, p: (bigger + 1) / (plac.length + 1) }, synth: synth });
+  }
+  function agree(x, y) { return (x > 0.03 && y > 0.03) || (x < -0.03 && y < -0.03) ? 'in the same direction as' : Math.abs(x) <= 0.03 || Math.abs(y) <= 0.03 ? 'close to nothing, unlike' : 'the opposite direction to'; }
   function dotWhisker(points, opts) {
     opts = opts || {}; var w = 640, h = 270, m = { l: 50, r: 14, t: 18, b: 40 }, xs = points.map(function (p) { return p.k; }), lo = Math.min.apply(null, points.map(function (p) { return p.ci[0]; }).concat([0])), hi = Math.max.apply(null, points.map(function (p) { return p.ci[1]; }).concat([0])), pad = (hi - lo) * 0.1 || 0.3;
     var fr = frame(w, h, m, Math.min.apply(null, xs) - 0.5, Math.max.apply(null, xs) + 0.5, lo - pad, hi + pad, 'Quarters since adoption', opts.ylab || 'Effect'), g = fr.g;
@@ -81,7 +109,7 @@
   function leverMeta(id) { return ctx.catalogue().filter(function (e) { return e.id === id; })[0]; }
   function panelFor(a) {
     var key = 'p:' + a.id; if (cache[key]) return cache[key];
-    cache[key] = Lab().peerPanel({ pf: ctx.g.pf, lever: { id: a.leverId, v: a.v, opt: a.opt || null }, units: 20, treated: 8, Q: 36, noise: a.noise, selection: a.selection, seed: a.seed });
+    cache[key] = Lab().peerPanel({ pf: ctx.g.pf, lever: { id: a.leverId, v: a.v, opt: a.opt || null }, units: 20, treated: 8, Q: 36, noise: a.noise, selection: a.selection, seed: a.seed, home: true, homeName: (ctx.g.cfg && ctx.g.cfg.country) || 'Your country' });
     return cache[key];
   }
   function rngFor(a, tag) { var h = 0; String(a.seed + tag).split('').forEach(function (c) { h = (h * 31 + c.charCodeAt(0)) >>> 0; }); return E().mulberry(h); }
@@ -165,11 +193,19 @@
       '<div class="an-actions">' + learnBtn('causal', 'Learn: what is a causal effect?') + '<button type="button" class="chn-btn primary" data-an-step="data">On to the data →</button></div>';
   }
 
+  function lcName(k) { var n = OUT[k][0]; return /^GDP/.test(n) ? n : n.toLowerCase(); }
+  function homeDataHtml(a, p) {
+    var e = leverMeta(a.leverId), hp = p.home, key = a.show || a.outcome, unit = e && e.ctl ? e.ctl.unit : '', nm = (ctx.g.cfg && ctx.g.cfg.country) || 'Your country';
+    if (!hp) return '';
+    return '<h3>' + esc(nm) + '\'s own record</h3><p>The countries above are not the only evidence. <b>' + esc(nm) + '</b> has a history too, and it has tried this kind of policy before: in <b>' + esc(dateOfQ(p, hp.tq)) + '</b> the government changed it by <b>' + (hp.dose > 0 ? '+' : '') + hp.dose + ' ' + esc(unit) + '</b>, and it took effect in ' + esc(dateOfQ(p, hp.tq + hp.lag)) + '. It is one episode in one country, so it is noisy, but it is the same economy as the one you now run.</p>' + homeChart(p, key) +
+      '<p class="neutral" style="font-size:.86rem">The dotted lines mark when the change was made and when it took effect. The grey line is the average of similar countries that did not adopt. Look at how ' + esc(nm) + ' was doing in the quarters <i>before</i> the change.</p>';
+  }
   function stepData(a) {
     var p = panelFor(a), rows = p.units.map(function (u) { return '<tr><td>' + esc(u.name) + '</td><td>' + (u.treated ? 'Adopted in quarter ' + u.tq : 'Did not adopt') + '</td><td class="n">' + (u.treated ? (u.dose > 0 ? '+' : '') + u.dose : '·') + '</td></tr>'; }).join('');
     return '<h3>The data</h3><p>One row per country per quarter: ' + Object.keys(OUT).map(function (k) { return OUT[k][0].toLowerCase(); }).join(', ') + '. These are the official statistics, so they contain measurement error. The dotted lines mark when each country adopted.</p>' +
       '<div class="an-pick"><label>Outcome ' + outSelect(a, a.show || a.outcome) + '</label></div>' +
       panelChart(p, a.show || a.outcome) + '<p class="neutral" style="font-size:.86rem">Average across countries that adopted and across those that did not. Notice that they were not following identical paths even before anyone adopted. That gap is what a careful method has to take into account.</p>' +
+      homeDataHtml(a, p) +
       '<details class="an-det"><summary>The countries and when they acted</summary><div class="chn-scroll"><table class="chn-table"><tr><th>Country</th><th>Policy</th><th class="n">Size</th></tr>' + rows + '</table></div></details>' +
       '<div class="an-actions">' + learnBtn('stats', 'Learn: averages and uncertainty') + '<button type="button" class="chn-btn primary" data-an-step="evidence">On to the evidence →</button></div>';
   }
@@ -209,6 +245,14 @@
         synthChart(res, key) + '<p>Average gap after adoption: <b>' + sg(res.avgEffect) + ' ' + unitText(key) + '</b>. How well did the stand-in fit before adoption? Average error <b>' + f2(res.preRmspe) + '</b>.</p>' +
         '<p><b>Placebo test.</b> Pretend each country that did not adopt had done so, and build a synthetic control for it. If the real gap is larger than most of these fake ones, it is unlikely to be chance.</p>' + placeboChart(res) +
         '<p>The real country has the ' + ordinal(Math.round(res.pValue * (res.placebos.length + 1))) + ' largest post-to-pre error ratio of ' + (res.placebos.length + 1) + ', so the placebo p-value is <b>' + f2(res.pValue) + '</b>. Weights: ' + res.weights.filter(function (w) { return w.w > 0.02; }).map(function (w) { return esc(countryName(w.unit)) + ' ' + Math.round(w.w * 100) + '%'; }).join(', ') + '.</p>';
+    } else if (m === 'home') {
+      var HS = homeStats(a, key), hp2 = p.home, nm2 = (ctx.g.cfg && ctx.g.cfg.country) || 'Your country', cl2 = run(a, 'event', key).clean;
+      h += '<p>In <b>' + esc(dateOfQ(p, hp2.tq)) + '</b> ' + esc(nm2) + ' made this change itself (by ' + (hp2.dose > 0 ? '+' : '') + hp2.dose + ' ' + esc(leverMeta(a.leverId).ctl.unit) + '). With one country and one episode there is no group to average, so each reading below needs a way of finding what <i>would</i> have happened without it.</p>' + homeChart(p, key) +
+        '<h4>1. Before and after, in your own country</h4>' + readCard({ est: HS.ba.est, ci: HS.ba.ci, p: HS.ba.p }, key, 'before versus after').replace('in countries that adopted it', 'in ' + esc(nm2) + ' afterwards') + '<div class="an-warn"><b>The weak one.</b> It compares your country with itself six quarters before and six after, so anything else that changed in the world is credited to the policy, and governments tend to act after a slide, which makes the "before" unusually low.</div>' +
+        '<h4>2. Against similar countries that did nothing</h4><p>Your country moved <b>' + sg(HS.did.change) + '</b> over the same quarters; similar countries that did not adopt moved <b>' + sg(HS.did.controlChange) + '</b>. The difference, <b>' + sg(HS.did.est) + ' ' + unitText(key) + '</b>, is a difference-in-differences. To judge whether that is more than chance, the same calculation was run for each of the ' + HS.did.placebos.length + ' countries that did nothing, as if each had adopted at the same date: ' + Math.round(HS.did.p * (HS.did.placebos.length + 1)) + ' of ' + (HS.did.placebos.length + 1) + ' (counting yours) showed a gap as large, so the placebo p-value is <b>' + f2(HS.did.p) + '</b>.</p>' +
+        '<h4>3. A synthetic stand-in for your own country</h4>' + synthChart(HS.synth, key) + '<p>A weighted blend of countries that did nothing, chosen to follow your country closely before the change, opens a gap of <b>' + sg(HS.synth.avgEffect) + ' ' + unitText(key) + '</b> afterwards (average error before the change: ' + f2(HS.synth.preRmspe) + '). The placebo p-value is <b>' + f2(HS.synth.pValue) + '</b>. Weights: ' + HS.synth.weights.filter(function (w) { return w.w > 0.02; }).map(function (w) { return esc(countryName(w.unit)) + ' ' + Math.round(w.w * 100) + '%'; }).join(', ') + '.</p>' +
+        '<h4>Does your own record agree with the other countries?</h4><p>Across the countries that adopted, the careful estimate was <b>' + sg(cl2.att) + '</b> (95% CI ' + sg(cl2.attCi[0]) + ' to ' + sg(cl2.attCi[1]) + '). Your own country\'s careful readings, <b>' + sg(HS.did.est) + '</b> and <b>' + sg(HS.synth.avgEffect) + '</b>, are, on average, ' + agree((HS.did.est + HS.synth.avgEffect) / 2, cl2.att) + ' that.</p>' +
+        '<div class="an-note"><b>What each can and cannot tell you.</b> The other countries give many episodes, but they are not your economy. Your own record is your economy, but it is one episode, in a world that has changed since. When they agree, you can be more confident. When they disagree, ask what was different then (the size of the change, how the economy was doing, what else was happening) before you trust either.</div>';
     } else if (m === 'ri') {
       res = run(a, 'ri', key);
       h += '<p>With few countries, the usual standard errors can be unreliable. <b>Randomisation inference</b> asks: if the policy had been handed to a random set of countries instead, how often would we see an estimate as large as ours? The p-value is the share of random assignments that match or beat what we found.</p>' +
@@ -260,6 +304,7 @@
       var exp = a.expect && k === keys[0] ? (a.expect === 'up' && truth > 0.03 || a.expect === 'down' && truth < -0.03 || a.expect === 'none' && Math.abs(truth) <= 0.03 ? 'Your first prediction was right about the direction.' : 'Your first prediction was wrong about the direction, which is exactly why the evidence is worth collecting.') : '';
       h += '<div class="an-result"><h4 style="margin:0 0 4px">' + esc(OUT[k][0]) + '</h4><div class="big">Truth: ' + sg(truth) + '<small> ' + unitText(k) + '</small></div><div class="ci">You said ' + sg(q.est) + ' (' + sg(q.lo) + ' to ' + sg(q.hi) + ') · error ' + sg(err) + '</div><p>' + verdict + ' ' + esc(exp) + '</p></div>';
     });
+    if (p.home) h += '<div class="an-note"><b>' + esc((ctx.g.cfg && ctx.g.cfg.country) || 'Your country') + '\'s own past episode.</b> What really happened there, effect by effect: ' + keys.map(function (k) { return lcName(k) + ' ' + sg(p.home.truth.att[k]) + ' ' + unitText(k); }).join('; ') + '. That is the true effect of the change it made, but the economy has moved on since, so it is a guide, not a promise.</div>';
     var sel = p.units.filter(function (u) { return u.treated; }).length ? 'Behind the scenes, the countries that adopted had been in a slide before they acted' + (a.selection > 0.3 ? ', which is why before-and-after comparisons overstated the effect.' : ' only mildly in this data set.') : '';
     h += '<p>The "truth" is the average effect on the countries that adopted, found by running each of them again with no policy and the same shocks. Real economists never get to see this, which is why the checks you used matter.</p><p class="neutral" style="font-size:.86rem">' + esc(sel) + '</p>' +
       '<p>Your recommendation: <b>' + (d.rec === 0 ? 'do not adopt' : d.rec === 1 ? 'adopt as proposed' : d.rec === 0.5 ? 'adopt half the size' : 'adopt a larger version') + '</b>.</p><div class="an-actions">' + (d.rec > 0 ? '<button type="button" class="chn-btn primary" data-an="todraft">Add it to my draft budget</button>' : '') + '<button type="button" class="chn-btn" data-an="new">Investigate something else</button></div>';
@@ -267,6 +312,10 @@
   }
 
   /* ---------- A-level: the analyst's briefing ---------- */
+  function briefHome(a, p, key, cl) {
+    var H = homeStats(a, key), nm = (ctx.g.cfg && ctx.g.cfg.country) || 'Your country', same = agree((H.did.est + H.synth.avgEffect) / 2, cl.att);
+    return '<h3>What ' + esc(nm) + '\'s own history says</h3><p>' + esc(nm) + ' tried this itself in ' + esc(dateOfQ(p, p.home.tq)) + '. Against similar countries that did nothing, <b>' + lcName(key) + ' was ' + f2(Math.abs(H.did.est)) + ' ' + unitText(key) + ' ' + (H.did.est > 0 ? 'higher' : 'lower') + '</b> afterwards, and a synthetic stand-in built from those countries gives <b>' + sg(H.synth.avgEffect) + '</b>. That is ' + same + ' the evidence from the other countries, so ' + (/same direction/.test(same) ? 'it adds to our confidence.' : 'treat the overall result with a little more caution: one country\'s single episode is noisy, but it is your economy.') + '</p>';
+  }
   function briefing(a) {
     var key = a.outcome, p = panelFor(a), e = leverMeta(a.leverId), tw = run(a, 'twfe', key), ev = run(a, 'event', key), ba = run(a, 'before', key), cl = ev.clean, P = cbaParams(a), r = cbaRun(a, P);
     var name = e ? e.name.toLowerCase() : a.leverId, adopt = p.units.filter(function (u) { return u.treated; }).length;
@@ -276,6 +325,7 @@
     return '<div class="an-head"><div><div class="neutral" style="font-size:.74rem;letter-spacing:.08em;text-transform:uppercase">Treasury analyst\'s briefing</div><h2 style="margin:0">' + esc(e ? e.name : a.leverId) + ' <span class="neutral" style="font-weight:400">(' + (a.v > 0 ? '+' : '') + a.v + ' ' + esc(e && e.ctl ? e.ctl.unit : '') + ')</span></h2></div><button type="button" class="chn-btn small" data-an-del="' + a.id + '">Close</button></div>' +
       '<div class="an-result"><div class="big">' + esc(recText) + '</div><div class="ci">Net benefit ' + sg(r.mean) + '% of a year\'s GDP · positive in ' + Math.round(r.probPositive * 100) + '% of simulations</div></div>' +
       '<h3>What we found</h3><p>We looked at ' + p.units.length + ' countries over ' + p.Q + ' quarters, of which ' + adopt + ' adopted a similar policy. Compared with countries that did not, <b>' + OUT[key][0].toLowerCase() + ' was ' + f2(Math.abs(cl.att)) + ' ' + unitText(key) + ' ' + (cl.att > 0 ? 'higher' : 'lower') + '</b> after adoption' + (zero ? ', but that is within the range of chance, so we cannot be confident there was any effect' : '') + '. We are 95% sure the true figure lies between ' + sg(cl.attCi[0]) + ' and ' + sg(cl.attCi[1]) + '.</p>' +
+      (p.home ? briefHome(a, p, key, cl) : '') +
       (outcomesOf(a).length > 1 ? '<h3>Effect on each outcome you care about</h3><div class="chn-scroll"><table class="chn-table"><tr><th>Outcome</th><th class="n">Effect</th><th class="n">95% range</th></tr>' + outcomesOf(a).map(function (k) { var q = run(a, 'event', k).clean; return '<tr><td>' + esc(OUT[k][0]) + ' <small>(' + esc(unitText(k)) + ')</small></td><td class="n">' + sg(q.att) + '</td><td class="n">' + sg(q.attCi[0]) + ' to ' + sg(q.attCi[1]) + '</td></tr>'; }).join('') + '</table></div><p class="neutral" style="font-size:.86rem">A good policy for one of these can be a poor one for another, so read down the whole column before you decide.</p>' : '') +
       (flagged ? '<div class="an-warn"><b>A warning.</b> The countries that adopted were already doing differently before they acted, so these figures may flatter or unfairly damn the policy. We used the more careful comparison, not the simple before-and-after figure of ' + sg(ba.est) + ', which would have misled.</div>' : '<div class="an-note">The adopting countries were following similar paths before they acted, which makes the comparison fairer. A simple before-and-after would have given ' + sg(ba.est) + ', against our careful figure of ' + sg(cl.att) + '.</div>') +
       '<h3>What it costs against what it brings</h3><p>Running the Treasury\'s model of your economy 200 times with and without the change: ' + sayOutput(r.output) + ', and ' + sayFiscal(r.fiscal) + ' (both as a % of one year\'s GDP). ' + (r.mean > 0 ? 'The benefits outweigh the costs' : 'The costs outweigh the benefits') + ', and the answer is the same sign in ' + Math.round((r.mean > 0 ? r.probPositive : 1 - r.probPositive) * 100) + '% of the simulations.</p>' + histogram(r.draws, r.mean, { xlab: 'Net benefit across 200 simulations' }) +

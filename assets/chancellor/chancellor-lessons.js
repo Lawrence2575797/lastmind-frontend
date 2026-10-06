@@ -205,6 +205,34 @@
     ] },
   ]);
 
+  chap('homecase', 'Using your own country\'s history', 'One country, one past episode, and what it can and cannot tell you', [
+    { h: 'Your country has a record too', b: [
+      'The other countries in an investigation are other economies. But the country you run has a history as well, and it has probably tried things before: a tax rate that was raised, a spending programme that was cut, a rule that was changed. That record is evidence, and it has one great advantage: it is **your own economy**, with the same institutions, the same firms and the same households.',
+    ] },
+    { h: 'The difficulty: one country, one episode', b: [
+      'With one country and one past change you cannot average anything. You only have a single line on a chart and a date where something happened. Reading it takes care, for the same three reasons as before.',
+      { list: [
+        '**Other things changed.** The world economy was moving as well, so some of what followed the change was not the change.',
+        '**Trends.** The economy may already have been speeding up or slowing down.',
+        '**Why did the government act then?** Governments often change policy after a bad spell. Bad spells tend to end by themselves (**mean reversion**), so the quarters after the change look better than the quarters before it, whatever the policy did.',
+      ] },
+      'This is why a plain before-and-after comparison on your own record is the weakest reading you can make of it.',
+    ] },
+    { h: 'Borrowing the other countries as a comparison', b: [
+      'The other countries that did nothing give you a picture of what the world was doing over the same quarters. Subtract their change from yours and you have a **difference-in-differences** for a single country. A **synthetic control** goes further: it blends those countries, with weights chosen so the blend followed yours closely before the change, and any gap afterwards is the estimate of the effect.',
+      'How sure can you be of a single estimate? **Placebos** help. Pretend each country that did nothing had made the change at the same date and run the same calculation. If your country\'s gap is larger than most of the placebo gaps, chance alone is an unlikely explanation.',
+      { ex: 'Suppose your country\'s unemployment fell by 0.3 points after a change, while the countries that did nothing saw it fall by 0.2. The difference-in-differences is a fall of 0.1, not 0.3: most of the fall was the world, not the policy.' },
+    ] },
+    { h: 'Which should you trust?', b: [
+      'Neither is perfect. The other countries give you many episodes, but none of them is your economy. Your own record is your economy, but it is one episode, in a world that has changed since. A sensible reader asks whether they **agree**.',
+      { list: [
+        'If they point the same way, you can be more confident.',
+        'If they disagree, ask what was different then: the size of the change, how the economy was doing, what else the government did at the same time. That difference may be the real lesson.',
+      ] },
+      { twist: 'A true effect in the past is not a promise for the future. The economy has moved on since, so use your own record as a guide to the direction and rough size, not as a forecast.' },
+    ] },
+  ]);
+
   chap('inference', 'Doubt with few countries', 'Why ordinary p-values can mislead, and the bootstrap and randomisation tests', [
     { h: 'The small-sample problem', b: [
       'Our panels have about twenty countries, eight of which adopt. That is far fewer than the hundreds or thousands that standard formulas assume. With so few independent units, the usual p-values can be too optimistic, and an effect that looks clearly real may not be.',

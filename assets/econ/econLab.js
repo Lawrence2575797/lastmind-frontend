@@ -98,7 +98,23 @@
     // The true average effect over the whole post-adoption period, per outcome.
     var ks = Object.keys(truth.byK).map(Number).filter(function (x) { return x >= (e ? L.lagOf(e.area) : 0) && x <= 10; });   // the first ten quarters after the policy takes effect
     OUTCOMES.forEach(function (oc) { truth.att = truth.att || {}; var sum = 0, n = 0; ks.forEach(function (x) { sum += truth.byK[x][oc[0]] * truth.byK[x].n; n += truth.byK[x].n; }); truth.att[oc[0]] = n ? sum / n : 0; });
-    return { rows: rows, outcomes: OUTCOMES, Q: Q, lever: lever, units: units.map(function (u) { return { id: u.id, name: u.name, treated: u.treated, tq: u.tq, dose: u.dose }; }), truth: truth, lag: e ? L.lagOf(e.area) : 0 };
+    // The player's own country, which has also tried this policy once in its past. It shares the world's shocks with the peers but has its own, and
+    // like the adopting peers it acted after a slide. It is kept apart from the peer rows so that the peer panel itself is unchanged.
+    var home = null;
+    if (o.home) {
+      var hr = E.mulberry((((o.seed || 1) * 104729) + 17) >>> 0), htq = 11 + Math.floor(hr() * (Q - 24)), lo0 = e && e.ctl && e.ctl.min != null ? e.ctl.min : -1e9, hi0 = e && e.ctl && e.ctl.max != null ? e.ctl.max : 1e9;
+      var hdose = clamp(lever.v * (0.7 + 0.5 * hr()), lo0, hi0); if (e && e.ctl && step) hdose = Math.round(hdose / step) * step;
+      var hown = {}; for (t = 1; t <= Q; t++) { var hn = noise(hr, scale * 0.7); if (sel > 0 && t > htq - 10 && t <= htq) { var hramp = (t - (htq - 10)) / 10; hn.demand = (hn.demand || 0) - 1.0 * sel * hramp; hn.hh = (hn.hh || 0) - 0.6 * sel * hramp; } hown[t] = hn; }
+      var hdec = [{ id: lever.id, at: htq, v: hdose, opt: lever.opt || null, dur: lever.dur || null }], hact = simulate(o.pf, hdec, Q, world, hown), hcf = simulate(o.pf, [], Q, world, hown), hlag = e ? L.lagOf(e.area) : 0, hobs = E.mulberry((((o.seed || 1) * 7919) + 31) >>> 0), hrows = [];
+      for (var hq = 0; hq < Q; hq++) {
+        var hrw = { unit: 'HOME', name: o.homeName || 'Your country', q: hq + 1, cohort: htq, post: hq + 1 >= htq + hlag ? 1 : 0, rel: hq + 1 - htq };
+        OUTCOMES.forEach(function (oc) { hrw[oc[0]] = hact[hq][oc[0]] + (oc[0] === 'g' || oc[0] === 'pi' || oc[0] === 'u' ? 0.12 * scale * gauss(hobs) : 0.08 * scale * gauss(hobs)); hrw['true_' + oc[0]] = hact[hq][oc[0]]; });
+        hrows.push(hrw);
+      }
+      var hatt = {}; OUTCOMES.forEach(function (oc) { var sum = 0, n = 0; for (var x = hlag; x <= 10; x++) { var ix = htq - 1 + x; if (ix < Q) { sum += hact[ix][oc[0]] - hcf[ix][oc[0]]; n++; } } hatt[oc[0]] = n ? sum / n : 0; });
+      home = { rows: hrows, tq: htq, dose: hdose, lag: hlag, truth: { att: hatt } };
+    }
+    return { home: home, rows: rows, outcomes: OUTCOMES, Q: Q, lever: lever, units: units.map(function (u) { return { id: u.id, name: u.name, treated: u.treated, tq: u.tq, dose: u.dose }; }), truth: truth, lag: e ? L.lagOf(e.area) : 0 };
   }
 
   var api = { OUTCOMES: OUTCOMES, settingsAt: settingsAt, policyAt: policyAt, simulate: simulate, peerPanel: peerPanel, noise: noise, gauss: gauss };
