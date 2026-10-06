@@ -20919,9 +20919,46 @@ SQIDAQAB
     }
     function nbTextShortcuts(editable) {
         const syncForks = () => nbSyncArrowForks(editable);
+        const ensureReturnedLine = () => requestAnimationFrame(() => {
+            const sel = window.getSelection(); if (!sel || !sel.rangeCount || !sel.isCollapsed) return;
+            const range = sel.getRangeAt(0);
+            const node = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
+            if (!node || !editable.contains(node)) return;
+
+            let line = node.closest ? node.closest('.nb-plain-line, div, p') : null;
+            if (line && line !== editable && editable.contains(line)) {
+                line.classList.add('nb-plain-line');
+                if (!line.textContent.replace(/[\u200b\s]/g, '') && !line.querySelector('br')) line.appendChild(document.createElement('br'));
+                return;
+            }
+
+            // Fallback for browsers that leave the caret inside the arrow
+            // span (or directly in the editor) instead of making a block.
+            // Insert a concrete blank line and move the caret into it.
+            const arrow = node.closest ? node.closest('.nb-arrow-step') : null;
+            const newLine = document.createElement('div'); newLine.className = 'nb-plain-line';
+            const landing = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL); newLine.append(landing, document.createElement('br'));
+            if (arrow && editable.contains(arrow)) {
+                let outerArrow = arrow;
+                while (outerArrow.parentElement) {
+                    const parentArrow = outerArrow.parentElement.closest('.nb-arrow-step');
+                    if (!parentArrow || !editable.contains(parentArrow)) break;
+                    outerArrow = parentArrow;
+                }
+                outerArrow.after(newLine);
+            } else {
+                range.insertNode(newLine);
+            }
+            const caret = document.createRange(); caret.setStart(landing, 1); caret.collapse(true);
+            sel.removeAllRanges(); sel.addRange(caret);
+            editable.dispatchEvent(new Event('input', { bubbles: true }));
+        });
         editable.addEventListener('input', syncForks);
         if (typeof ResizeObserver === 'function') new ResizeObserver(syncForks).observe(editable);
         requestAnimationFrame(syncForks);
+        editable.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) ensureReturnedLine();
+        });
         editable.addEventListener('keydown', (e) => {
             const mod = e.ctrlKey || e.metaKey;
             // In writing mode, a pair of ordinary hyphens becomes a single,
