@@ -144,10 +144,11 @@
       '<div class="an-steps">' + steps(a).map(function (s) { return '<button type="button" class="an-step' + (cur2 === s[0] ? ' on' : '') + '" data-an-step="' + s[0] + '">' + s[1] + '</button>'; }).join('') + '</div>';
   }
 
+  function coachNote(text) { return text ? '<div class="an-coach"><img alt="" src="/assets/chancellor/adviser-point.jpg"><span>' + esc(text) + '</span></div>' : ''; }
   function workspace(a) {
     var s = a.step || 'question', body = '';
     if (s === 'question') body = stepQuestion(a); else if (s === 'data') body = stepData(a); else if (s === 'evidence') body = stepEvidence(a); else if (s === 'cba') body = stepCba(a); else body = stepDecide(a);
-    return header(a) + '<div class="an-body">' + body + '</div>';
+    return header(a) + coachNote(root.LMGuide && s !== 'evidence' ? LMGuide.stepNote(s) : '') + '<div class="an-body">' + body + '</div>';
   }
 
   function stepQuestion(a) {
@@ -172,6 +173,7 @@
   function stepEvidence(a) {
     var m = a.method || 'before', key = a.show || a.outcome, p = panelFor(a), meta = METHODS.filter(function (x) { return x[0] === m; })[0], res, h = '';
     h += '<div class="an-tabs">' + METHODS.map(function (x) { return '<button type="button" class="an-tab' + (x[0] === m ? ' on' : '') + '" data-an-method="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>';
+    h += coachNote(root.LMGuide ? LMGuide.methodNote(m) : '');
     h += '<div class="an-pick"><label>Outcome <select id="anOutShow">' + Object.keys(OUT).map(function (k) { return '<option value="' + k + '"' + (k === key ? ' selected' : '') + '>' + OUT[k][0] + '</option>'; }).join('') + '</select></label> ' + learnBtn(meta[2], 'Learn: ' + meta[1].toLowerCase()) + '</div>';
     if (m === 'before') {
       res = run(a, 'before', key);

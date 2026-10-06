@@ -102,6 +102,9 @@
       '.chn-chap { display: flex; gap: 10px; align-items: flex-start; width: 100%; margin: 6px 0; padding: 10px 12px; border: 1px solid rgba(0,0,0,0.2); border-radius: 10px; background: #fff; text-align: left; font: 0.9rem Arial, sans-serif; cursor: pointer; } .chn-chap .n { flex: none; width: 24px; height: 24px; border-radius: 50%; background: #0f1b2d; color: #f6efdc; display: grid; place-items: center; font: 700 0.76rem Arial, sans-serif; } .chn-chap small { display: block; font-weight: 400; opacity: 0.75; margin-top: 2px; } .chn-chap .tick { margin-left: auto; color: var(--chn-good); font-weight: 700; }',
       '.chn-econ h4 { margin: 18px 0 4px; font-size: 1rem; } .chn-econ .eq { margin: 8px 0; padding: 8px 12px; background: #fff; border-left: 4px solid var(--accent); font: 0.95rem Consolas, monospace; overflow-x: auto; white-space: pre; } .chn-econ .ex { margin: 8px 0 12px; padding: 8px 12px; background: rgba(11,114,133,0.10); border-radius: 8px; } .chn-econ .chk { margin: 8px 0; }',
       '.chn-focusbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; margin: 0 0 10px; padding: 8px 12px; border-radius: 10px; background: rgba(251,191,36,0.16); font-size: 0.86rem; }',
+      '.chn-ecard { margin: 8px 0; padding: 9px 12px; border-radius: 10px; background: #fff; border: 1px solid rgba(0,0,0,0.14); } .chn-ecard b { display: block; } .chn-ecard p { margin: 2px 0 6px; font-size: .86rem; }',
+      '.chn-areanote { display: flex; gap: 10px; align-items: center; margin: 6px 0 10px; padding: 8px 12px; border-radius: 12px; background: rgba(251,191,36,0.16); font-size: .86rem; line-height: 1.5; } .chn-areanote img { flex: none; width: 40px; height: 40px; border-radius: 50%; object-fit: cover; object-position: 50% 20%; border: 2px solid #0f1b2d; }',
+      '.an-coach { display: flex; gap: 10px; align-items: center; margin: 4px 0 10px; padding: 8px 12px; border-radius: 12px; background: rgba(251,191,36,0.16); font-size: .86rem; line-height: 1.5; } .an-coach img { flex: none; width: 40px; height: 40px; border-radius: 50%; object-fit: cover; object-position: 50% 20%; border: 2px solid #0f1b2d; }',
       '.chn-impact { border-top: 1px solid var(--chn-line); padding-top: 6px; } .chn-impact .ibody { font-size: 0.86rem; line-height: 1.6; padding: 4px 0 6px; }',
       '.chn-gtab { position: fixed; right: 0; top: 38%; z-index: 40; padding: 14px 8px; writing-mode: vertical-rl; border: 1px solid rgba(0,0,0,0.3); border-right: 0; border-radius: 12px 0 0 12px; background: #0f1b2d; color: #f6efdc; font: 700 0.78rem Arial, sans-serif; letter-spacing: 0.08em; cursor: pointer; }',
       '.chn-gtab:hover { background: #17294a; }',
@@ -322,16 +325,15 @@
     var tabs = '<div class="gtabs"><button type="button" data-gtab="economy" class="' + (ui.guideTab !== 'lessons' ? 'on' : '') + '">The economy</button><button type="button" data-gtab="lessons" class="' + (ui.guideTab === 'lessons' ? 'on' : '') + '">Lessons: how economists find out</button></div>';
     if (ui.guideTab === 'lessons') return '<aside class="chn-econ" id="chnEcon" aria-label="Lessons"><button class="x" data-act="guide" aria-label="Close this panel">✕</button><h2>Lessons</h2>' + tabs + lessonsHtml() + '</aside>';
     var h = '<aside class="chn-econ" id="chnEcon" aria-label="The economics of the situation"><button class="x" data-act="guide" aria-label="Close this panel">✕</button><h2>The economics of ' + esc(g.cfg.country) + '</h2>' + tabs;
-    if (G) {
+    var cards = window.LMGuide && LMGuide.cards(g.sit);
+    if (cards) {
+      h += '<h3>' + esc(G ? G.title : 'Your situation') + '</h3>' + cards.map(function (cd) { return '<div class="chn-ecard"><b>' + esc(cd.t) + '</b><p>' + esc(cd.b) + '</p>' + (cd.area ? '<button type="button" class="chn-btn small" data-goarea="' + esc(cd.area) + '">Look at: ' + esc(cd.area) + ' →</button>' : '') + '</div>'; }).join('');
+    } else if (G) {
       h += '<h3>' + esc(G.title) + '</h3>' + G.how.map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('');
     }
     h += '<h3>Where the numbers stand</h3>' + numbersTable();
     if (cs.length) {
       h += '<h3>The lasting causes, live</h3>' + cs.map(function (c) { var pct = Math.round(Math.max(0, Math.min(1, c.level)) * 100); return '<div style="margin:6px 0"><b>' + esc(c.label) + '</b> <span class="neutral">(' + pct + '% as bad as at the start)</span><div class="chn-bar" style="margin:3px 0"><i style="width:' + pct + '%;background:' + (pct > 55 ? 'var(--chn-bad)' : 'var(--accent)') + '"></i></div><div style="font-size:.84rem">' + esc(c.text) + '</div></div>'; }).join('');
-    }
-    if (G) {
-      h += '<h3>What to keep an eye on</h3><ul>' + G.watch.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul>';
-      h += '<h3>Where to look in the Policy tab</h3><ul>' + G.levers.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul><p class="neutral" style="font-size:.84rem">Each policy card has a &ldquo;How this works&rdquo; section that explains what it does to the economy.</p>';
     }
     h += '<h3>Ideas used in this game</h3>' + (window.LMGuide ? LMGuide.GLOSSARY : []).map(function (x) { return '<details><summary>' + esc(x[0]) + '</summary><p style="margin-top:4px">' + esc(x[1]) + '</p></details>'; }).join('');
     return h + '</aside>';
@@ -397,6 +399,8 @@
   function bindShell() {
     if (shellBound === ui.host) return; shellBound = ui.host;
     ui.host.addEventListener('click', function (e) {
+      var ga = e.target.closest('[data-goarea]');
+      if (ga) { ui.area = ga.dataset.goarea; ui.g.focusOnly = false; ui.guideOpen = false; ui.tab = 'policy'; renderAll(); return; }
       var cg = e.target.closest('[data-chap],[data-gtab]');
       if (cg) { if (cg.dataset.gtab) { ui.guideTab = cg.dataset.gtab; renderGuide(); } else { ui.lessonId = cg.dataset.chap || null; renderGuide(); var pp = document.getElementById('chnEcon'); if (pp) pp.scrollTop = 0; save(); } return; }
       var t = e.target.closest('[data-act],[data-tab],[data-chart],[data-dismiss],[data-lesson]'); if (!t) return;
@@ -605,7 +609,7 @@
     var n = pendingChanges().length;
     var packs = Object.keys(L.PRESETS).map(function (k) { return '<button class="chn-btn small" data-pack="' + k + '">' + esc(L.PRESETS[k].name) + '</button>'; }).join(' ');
     return policyBanner() + '<div class="chn-polwrap3">' + nav +
-      '<section class="chn-polmain"><div class="chn-focusbar">' + (focusOn() ? '<span>Showing <b>suggested policies only</b> (the ★ ones).</span><button type="button" class="chn-btn small" data-focus="off">Show every policy</button>' : (focusIds().length ? '<span>Showing every policy.</span><button type="button" class="chn-btn small" data-focus="on">Show suggested only</button>' : '')) + '</div><h3 class="chn-areahead">' + esc(cur.name) + '</h3><p class="neutral" style="margin:0 0 10px;font-size:.86rem">' + esc(gp0 ? gp0.text : '') + (levelIs() === 'alevel' ? ' Showing the main levers; the University level has every one.' : '') + '</p><div id="chnPolList" class="chn-pollist">' + cur.list.map(policyCard).join('') + '</div></section>' +
+      '<section class="chn-polmain"><div class="chn-focusbar">' + (focusOn() ? '<span>Showing <b>suggested policies only</b> (the ★ ones).</span><button type="button" class="chn-btn small" data-focus="off">Show every policy</button>' : (focusIds().length ? '<span>Showing every policy.</span><button type="button" class="chn-btn small" data-focus="on">Show suggested only</button>' : '')) + '</div><h3 class="chn-areahead">' + esc(cur.name) + '</h3>' + (window.LMGuide && LMGuide.areaNote(cur.name) ? '<div class="chn-areanote"><img alt="" src="/assets/chancellor/adviser-point.jpg"><span>' + esc(LMGuide.areaNote(cur.name)) + '</span></div>' : '') + '<p class="neutral" style="margin:0 0 10px;font-size:.86rem">' + esc(gp0 ? gp0.text : '') + (levelIs() === 'alevel' ? ' Showing the main levers; the University level has every one.' : '') + '</p><div id="chnPolList" class="chn-pollist">' + cur.list.map(policyCard).join('') + '</div></section>' +
       '<aside class="chn-side"><div class="chn-card"><h3 style="font:700 .95rem Arial">Your draft</h3><div id="chnPkg" style="font-size:.85rem;margin:6px 0">' + pkgHtml() + '</div><div class="chn-actions"><button class="chn-btn primary" data-pol="save">Save draft</button><button class="chn-btn" data-pol="clear" ' + (n ? '' : 'disabled') + '>Clear draft</button></div><p class="neutral" style="font-size:.74rem;margin:6px 0 0">Saved drafts are not enacted. You submit them on budget day.</p></div>' +
       '<div class="chn-card"><h3 style="font:700 .95rem Arial;margin-bottom:6px">Analysis</h3><p class="neutral" style="font-size:.85rem;margin:0 0 8px">' + (levelIs() === 'alevel' ? 'Ask the Treasury analyst what the evidence says about a policy before you commit to it.' : 'Investigate a policy before you commit to it: look at what other countries found, test it, and weigh the costs and benefits.') + '</p><button class="chn-btn small" data-tab="analysis">Investigate a policy</button></div>' +
       '<div class="chn-card"><h3 style="font:700 .95rem Arial;margin-bottom:6px">Emergency budget packages</h3><div class="chn-actions">' + packs + '</div><p class="neutral" style="font-size:.74rem;margin:6px 0 0">Adds a ready-made set of changes to your draft. Edit them afterwards.</p></div></aside></div>';

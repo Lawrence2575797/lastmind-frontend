@@ -214,10 +214,110 @@
     ['Expectations', 'What people expect to happen shapes what they do. If they expect high inflation, they ask for higher wages and raise prices, and it comes true. Credible policy changes expectations.'],
   ];
 
+
+  // Short notes tied to the decision in front of the student: one question to ask, and what moves. Never the answer.
+  var AREA_NOTES = {
+    'Income tax': 'Ask: is spending too weak, or too strong? Cutting income tax lifts demand and costs revenue; raising it does the reverse. It takes about two quarters to bite.',
+    'Business tax': 'Ask: do you want firms to invest, or to pay more? Lower taxes can raise investment and cost revenue. The gain comes over years, not quarters.',
+    'Consumption tax': 'Ask: do you need revenue fast, or lower prices? VAT raises a lot quickly, but pushes prices up and takes more from poorer households.',
+    'Wealth and property': 'Ask: who can afford to pay, and does it cool a housing boom? These taxes are hard to dodge but raise money slowly and are politically sensitive.',
+    'Government spending': 'Ask: is there spare capacity? In a slump spending lifts output; in a boom it mostly lifts prices. Check the deficit before you commit.',
+    'Welfare': 'Ask: who spends the money? Low-income households spend most of what they get, so welfare supports demand. It is hard to reverse.',
+    'Human capital': 'Ask: how patient can you be? Skills and schooling raise growth for decades, but cost money now and show up after the election.',
+    'Infrastructure': 'Ask: do you need jobs now, or productivity later? Building creates work quickly and lowers costs for years, but projects take time to start.',
+    'Energy': 'Ask: how exposed are you to energy prices? Investment shields you from future spikes. Subsidies ease today\'s bills but cost money and keep demand high.',
+    'Environment': 'Ask: who pays? A carbon tax cuts emissions but raises energy prices, which feeds inflation and hits poorer households unless you compensate them.',
+    'Housing': 'Ask: is supply or demand the problem? More homes ease prices slowly. Helping buyers with money often just lifts prices.',
+    'Labour market': 'Ask: do you want jobs, or pay, to rise? A higher wage floor helps low earners but can cost jobs. Strong protection makes jobs secure but hiring slower.',
+    'Migration and labour supply': 'Ask: are firms short of workers? More workers ease wage pressure, but add demand for housing and services.',
+    'Regional': 'Ask: is the gap between places the problem? Regional money creates local jobs but may earn less than spending where firms already cluster.',
+    'Business and supply side': 'Ask: what is holding firms back? Cutting red tape and boosting competition raise growth slowly. Subsidies cost money now.',
+    'Innovation': 'Ask: do you have ten years? Research spending raises productivity, with almost no effect inside this term.',
+    'Trade': 'Ask: who gains and who loses? Tariffs protect some jobs but raise prices and invite retaliation. Trade deals help exporters over years.',
+    'Foreign investment': 'Ask: do you need capital more than control? Incentives bring investment and jobs but cost revenue. Restrictions protect key firms.',
+    'Industrial policy': 'Ask: can a government pick winners? Backing industries builds skills but is expensive and risks backing the wrong ones.',
+    'Monetary': 'Ask: is inflation or growth the bigger worry? Higher rates cool prices and demand, with a delay of a year or more. Printing money is a last resort and feeds inflation.',
+    'Exchange rate': 'Ask: what does a weaker currency do to you? It helps exporters, but raises import prices and the cost of any foreign-currency debt.',
+    'Banking and finance': 'Ask: is the problem lending, or confidence? Rescues stop panic but cost taxpayers. Tighter rules make banks safer but slow lending.',
+    'Fiscal framework': 'Ask: do lenders trust you? Rules and targets reassure markets but limit what you can do in a slump unless they allow exceptions.',
+    'Debt management': 'Ask: when does the debt fall due, and in which currency? Longer, home-currency debt is safer. Restructuring cuts the burden but shuts you out of markets for a while.',
+    'Development': 'Ask: where are the biggest gaps? Basic services pay back most in poorer economies, but over years.',
+    'Agriculture and food': 'Ask: is the problem prices or supply? Subsidies hold prices down but cost money. Reserves smooth out bad harvests.',
+    'Crisis controls': 'Ask: will this pass? One-off help (payments, grants, furlough) cushions a shock for less than a permanent measure. Price caps risk shortages.',
+  };
+  var STEP_NOTES = {
+    question: 'Before you look at any data, write down what you expect, and what would change your mind. Ask what you could compare this policy with.',
+    data: 'Look at how the adopting countries differed before they acted, not only after. That gap is what a fair method has to deal with.',
+    evidence: 'Several methods beat one. Start with the simplest, then ask what each one assumes.',
+    cba: 'Ask what you are weighing: extra output against the cost of extra borrowing, in today\'s money. Change one assumption and see whether the answer flips.',
+    decide: 'Give a best guess and a range. A range that is too narrow is overconfidence; one that is too wide says nothing.',
+  };
+  var METHOD_NOTES = {
+    before: 'Compares each country with itself. Ask what else changed over that time.',
+    did22: 'Compares adopters with non-adopters. It assumes they would have moved in parallel without the policy.',
+    twfe: 'The same idea as a regression, with standard errors. Ask whether the countries adopted at different dates.',
+    event: 'Shows the effect quarter by quarter. Look to the left of the dotted line first: before adoption it should be flat.',
+    synth: 'Builds a stand-in country from the ones that did nothing. Check how well it fits before adoption.',
+    ri: 'Asks how often chance alone gives a result this big. It says nothing about whether the comparison was fair.',
+  };
+  // The situation, as short cards. `area` links to the part of the Policy tab the card is about.
+  var CARDS = {
+    overheating: [
+      { t: 'What is happening', b: 'Spending is growing faster than the economy can produce. Credit is cheap, house prices are climbing, and wages and prices are being pushed up.' },
+      { t: 'Your real choice', b: 'Cool it gently now, or risk a crash later. Cooling is unpopular while times feel good, which is why booms are hard to stop.' },
+      { t: 'Where the pressure comes from', b: 'Look at credit and housing first. It is easier to tighten lending than to change everyone\'s taxes.', area: 'Banking and finance' },
+      { t: 'Tools that cool demand', b: 'Higher taxes or lower spending cool demand, but take a couple of quarters to work and cost votes.', area: 'Income tax' },
+      { t: 'Keep an eye on', b: 'Inflation against the target, and the budget deficit, which should be falling in a boom, not growing.' },
+    ],
+    stable: [
+      { t: 'What is happening', b: 'Growth is steady, prices are on target and unemployment is low. There is no emergency.' },
+      { t: 'The risk', b: 'Complacency. Debt is high and the population is ageing, so a shock would be costly.' },
+      { t: 'Prepare for later', b: 'Spending on skills, roads and research raises long-run growth, but the results arrive after the election. Weigh that.', area: 'Infrastructure' },
+      { t: 'Keep room to respond', b: 'A fiscal rule, or falling debt, gives you room to act in a future crisis.', area: 'Fiscal framework' },
+      { t: 'Keep an eye on', b: 'Debt as a share of GDP, and whether growth is outpacing the interest you pay.' },
+    ],
+    slump: [
+      { t: 'What is happening', b: 'Spending has fallen after a shock, firms have stopped investing and workers are losing jobs, which cuts spending further.' },
+      { t: 'Your real choice', b: 'Do you let it mend slowly, or step in with spending and take on debt? Stepping in works best when there is spare capacity.' },
+      { t: 'Help that acts fast', b: 'Payments to households and grants to firms work quickly. Building takes longer but lasts.', area: 'Crisis controls' },
+      { t: 'The cost', b: 'Debt is already high. For each pound of help, ask what it buys in jobs.', area: 'Government spending' },
+      { t: 'Keep an eye on', b: 'Unemployment, and what it costs the government to borrow.' },
+    ],
+    'banking-crisis': [
+      { t: 'What is happening', b: 'Banks have lent to people who cannot repay. Nobody knows which banks are safe, so lending is freezing.' },
+      { t: 'The first job', b: 'Stop the panic. Savers need to believe their deposits are safe.', area: 'Banking and finance' },
+      { t: 'The trade-off', b: 'Rescuing banks costs taxpayers and can reward bad lending. Letting them fail can freeze the whole economy.' },
+      { t: 'After the rescue', b: 'Tighter rules make banks safer but slow lending, so time them.' },
+      { t: 'Keep an eye on', b: 'Lending, unemployment and confidence among savers and investors.' },
+    ],
+    'debt-crisis': [
+      { t: 'What is happening', b: 'The government owes a lot, much of it in foreign currency, and reserves are thin. A weak currency makes the debt heavier.' },
+      { t: 'Why it feeds itself', b: 'Lenders worry, charge more, and the interest bill grows, which worries them more.' },
+      { t: 'Rebuilding trust', b: 'A credible budget and a fiscal rule matter more than any single cut.', area: 'Fiscal framework' },
+      { t: 'Debt tools', b: 'Longer maturities, less foreign borrowing, or restructuring: each has a price.', area: 'Debt management' },
+      { t: 'Keep an eye on', b: 'Interest costs, the currency, and reserves.' },
+    ],
+    'commodity-bust': [
+      { t: 'What is happening', b: 'One export has collapsed in price, so incomes, tax revenue and the currency are all falling together.' },
+      { t: 'In the short term', b: 'Protect the budget without starving growth. A weaker currency helps other exporters but raises prices.', area: 'Exchange rate' },
+      { t: 'In the long term', b: 'Diversify: other industries, skills, infrastructure.', area: 'Industrial policy' },
+      { t: 'Save next time', b: 'Rules that save in the good years protect you in the next bust.', area: 'Fiscal framework' },
+      { t: 'Keep an eye on', b: 'The deficit, the currency, and jobs outside the commodity sector.' },
+    ],
+    hyperinflation: [
+      { t: 'What is happening', b: 'Prices rise by the month, and people spend their wages the day they are paid.' },
+      { t: 'The engine', b: 'The government cannot borrow, so the central bank prints money to pay its bills. That creates more inflation.', area: 'Monetary' },
+      { t: 'What must happen together', b: 'Stop printing, close the deficit, and make people believe it. Partial measures fail.', area: 'Fiscal framework' },
+      { t: 'An anchor for trust', b: 'A stable currency or an independent central bank helps people trust prices again.', area: 'Exchange rate' },
+      { t: 'Keep an eye on', b: 'Inflation, how much money is being printed, and the deficit.' },
+    ],
+  };
+
   root.LMGuide = {
     lever: function (id, area) { return LEVERS[id] || AREA_FALLBACK; },
     hasLever: function (id) { return !!LEVERS[id]; },
     situation: function (key) { return SITUATIONS[key] || null; },
+    areaNote: function (area) { return AREA_NOTES[area] || ''; }, stepNote: function (k) { return STEP_NOTES[k] || ''; }, methodNote: function (k) { return METHOD_NOTES[k] || ''; }, cards: function (key) { return CARDS[key] || null; },
     ALEVEL: ['inc_basic', 'inc_top', 'allowance', 'corp', 'inv_allow', 'vat', 'duties', 'property', 'health', 'education', 'defence', 'policing', 'pay', 'unemp_ben', 'pensions', 'child_ben', 'inf_roads', 'inf_rail', 'inf_digital', 'renew', 'hh_energy_sub', 'min_wage', 'emp_sub', 'hire_credit', 'hc_vocational', 'dereg', 'compete', 'housebuild', 'plan_lib', 'tariff', 'tariff_cut', 'fta', 'carbon', 'rate', 'cb_indep', 'qe', 'fx_int', 'devalue', 'guarantee', 'bailout', 'mortgage', 'fiscal_rule', 'def_target', 'emerg_budget', 'debt_issue', 'restructure', 'maturity', 'fx_borrow', 'temp_tax', 'hh_payments', 'furlough', 'loan_guar', 'price_cap', 'fdi_inc', 'mig_skilled', 'bank_cap', 'fin_reg', 'fixed_fx', 'mfg', 'inf_ports'],
     GLOSSARY: GLOSSARY,
   };
