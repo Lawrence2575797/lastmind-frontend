@@ -2059,6 +2059,19 @@ SQIDAQAB
     }
 
     async function startTopicTeachSequence(state) {
+        // Put the lesson card on screen before the first network request.
+        // sendChatMessage hands off to this function by removing its generic
+        // thinking bubble, so waiting until after refreshTopicNodeCompletion
+        // left a very visible several-second gap on a cold backend.
+        const card = appendCardMessage(`<div class="lesson-card-status"></div>`);
+        const statusEl = card.querySelector('.lesson-card-status');
+        const stopStartingRotator = startLoadingRotator(statusEl, [
+            'Starting your lesson…',
+            'Checking your progress…',
+            'Finding the right lesson stage…',
+            'Preparing the lesson…',
+            'Still working — your lesson is on its way…',
+        ]);
         // Real, reported bug this fixes: a restored map's completion status
         // refreshes in the background (see renderRestoredSilentTurn) and
         // isn't awaited there - fine for painting the map itself, but a
@@ -2070,20 +2083,29 @@ SQIDAQAB
         // before the one decision that actually depends on it being
         // current - a plain cache hit either way, so this costs nothing,
         // just a moment's real network round trip instead of a guess.
-        await refreshTopicNodeCompletion(null, state);
+        try {
+            await refreshTopicNodeCompletion(null, state);
+        } catch (err) {
+            // Completion refresh is helpful for choosing the next untouched
+            // stage, but a temporary failure must not strand the visible
+            // loader or stop an otherwise available lesson from opening.
+            console.error('LastMind: could not refresh lesson progress before starting.', err);
+        }
         const teach = topicComputeTeachSet(state);
         if (!teach.length) {
-            appendCardMessage(`<div class="lesson-card-done">You already know everything needed for this target.</div>`);
+            stopStartingRotator();
+            card.innerHTML = `<div class="lesson-card-done">You already know everything needed for this target.</div>`;
             return;
         }
-        const card = appendCardMessage(`<div class="lesson-card-status">Getting your first lesson ready…</div>`);
         let uuidByConceptId;
         try {
             uuidByConceptId = await fetchTopicNodeUuids(state.subject, state.qualification, state.examBoard);
         } catch (err) {
-            card.querySelector('.lesson-card-status').textContent = 'Could not start the lesson - try again.';
+            stopStartingRotator();
+            statusEl.textContent = 'Could not start the lesson - try again.';
             return;
         }
+        stopStartingRotator();
         card.remove();
         teachNextInQueue(state, teach, 0, uuidByConceptId);
     }
