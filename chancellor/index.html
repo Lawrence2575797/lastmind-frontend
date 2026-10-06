@@ -105,8 +105,8 @@
     try { cfg = JSON.parse(localStorage.getItem(CHN_CONFIG_KEY) || 'null'); } catch (err) { /* none */ }
     try { saved = localStorage.getItem(CHN_GAME_KEY); } catch (err) { /* none */ }
     const fresh = params.get('new') === '1';
-    if (fresh && !cfg) { gate('No scenario yet', 'Create your scenario in LastMind Create, then start the simulation from there.', ['/learn/', 'Back to LastMind']); return; }
-    if (!fresh && !saved && !cfg) { gate('No scenario yet', 'Create your scenario in LastMind Create (Create, Economics, Be the Chancellor), then start the simulation from there.', ['/learn/', 'Back to LastMind']); return; }
+    if (fresh && !cfg) { gate('No scenario yet', 'Choose a country in LastMind (Create, Economics, Be the Chancellor), then take office from there.', ['/learn/', 'Back to LastMind']); return; }
+    if (!fresh && !saved && !cfg) { gate('No scenario yet', 'Choose a country in LastMind (Create, Economics, Be the Chancellor), then take office from there.', ['/learn/', 'Back to LastMind']); return; }
     try { for (const f of ['/assets/econ/econModel.js', '/assets/econ/econPolicy.js', '/assets/econ/econSim.js', '/assets/chancellor/chancellor-ui.js']) await load(f); }
     catch (err) { gate('The simulation could not load', 'Check your connection and reload the page.'); return; }
     document.getElementById('app').innerHTML = '';

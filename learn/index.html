@@ -10581,13 +10581,10 @@ SQIDAQAB
         return Math.max(1e5, Math.min(2e9, n * mult));
     }
     const CHN_CONFIG_KEY = 'lastmind-chancellor-config', CHN_GAME_KEY = 'lastmind-chancellor-game';
-    function chnBuildConfig(ch) {
-        return { country: ch.country.trim(), currency: ch.currency.trim(), population: ch.population.trim(), populationNumber: chancellorParseNumber(ch.population), stage: ch.stage, sectors: ch.sectors, exports: ch.exports, imports: ch.imports, situation: ch.situation, history: ch.history, shocks: ch.shocks, government: ch.government, opposition: ch.opposition, rising: ch.rising };
-    }
     // The simulation runs on its own page (/chancellor/) so it has the whole window. This hands it the scenario.
     function chnStartSimulation(contentInner, ch, resume) {
         try {
-            if (!resume) { localStorage.setItem(CHN_CONFIG_KEY, JSON.stringify(chnBuildConfig(ch))); localStorage.removeItem(CHN_GAME_KEY); }
+            if (!resume) { localStorage.setItem(CHN_CONFIG_KEY, JSON.stringify(ch)); localStorage.removeItem(CHN_GAME_KEY); }
         } catch (err) { /* private mode: the page will say it has no scenario */ }
         window.location.href = resume ? '/chancellor/' : '/chancellor/?new=1';
     }
@@ -10602,56 +10599,6 @@ SQIDAQAB
         window.location.href = '/chancellor/?new=1';
     }
     function chnSavedGameExists() { try { return !!localStorage.getItem(CHN_GAME_KEY); } catch (err) { return false; } }
-
-    function renderChancellorGovernment(body, ch, goTo, rerender, contentInner) {
-        const block = (title, sub, key, roles, prefix) => `
-            <section class="chn-party-block" aria-label="${escapeHtml(title)}">
-                <h3>${escapeHtml(title)}</h3>
-                <p class="create-step-help" style="margin-top:0;">${escapeHtml(sub)}</p>
-                <div class="create-detail-field"><label for="chP-${prefix}-party">Party name</label><input spellcheck="true" class="create-line" id="chP-${prefix}-party" type="text" maxlength="50" placeholder="${escapeHtml(key === 'government' ? 'e.g. National Unity Party' : key === 'opposition' ? 'e.g. Progress Alliance' : 'e.g. Green Dawn')}" value="${escapeHtml(ch[key].party || '')}"></div>
-                <div class="chn-people-grid">${roles.map(([k, label]) => `<div class="create-detail-field"><label for="chP-${prefix}-${k}">${escapeHtml(label)}</label><input spellcheck="true" class="create-line" id="chP-${prefix}-${k}" data-key="${key}" data-role="${k}" type="text" maxlength="50" placeholder="${k === 'chancellor' ? 'Your name' : k === 'adviser' ? 'Full name (optional: one is named for you if blank)' : 'Full name'}" value="${escapeHtml((ch[key].people || {})[k] || '')}"></div>`).join('')}</div>
-            </section>`;
-        const ready = chancellorGovComplete(ch), scenarioDone = !!(ch.country.trim() && ch.currency.trim() && ch.population.trim() && ch.stage && ch.situation);
-        body.innerHTML = `
-            <h2>Government and politics</h2>
-            <p class="create-step-help">Name the parties and the people the student will work with, and against. Everyone here will appear in the simulation with their own portrait and their own opinion of the Chancellor.</p>
-            ${block('Your government', 'The governing party and its cabinet. You are the Chancellor.', 'government', CHANCELLOR_GOV_ROLES, 'g')}
-            ${block('The opposition', 'The main opposition party and its front bench.', 'opposition', CHANCELLOR_OPP_ROLES, 'o')}
-            ${block('The rising party', 'A newer party gaining ground. It grows when voters are unhappy with both of the others.', 'rising', CHANCELLOR_RISING_ROLES, 'r')}
-            <div class="create-detail-actions" style="margin-top:6px;"><button type="button" class="create-secondary" id="chSuggest">Suggest names for anyone left blank</button><span class="create-warn" style="margin:0;">Names are fictional. Please do not use the names of real people.</span></div>
-            <div class="create-next-row" style="gap:12px;flex-wrap:wrap;">
-                <button type="button" class="create-secondary" id="chPrev">← Back to your scenario</button>
-                <button type="button" class="create-cta" id="chStart" ${ready && scenarioDone ? '' : 'disabled'}>Start the simulation →</button>
-                ${chnSavedGameExists() ? '<button type="button" class="create-secondary" id="chResume">Continue your saved game</button><button type="button" class="create-secondary" id="chReset">Reset the saved game to its start</button>' : ''}
-            </div>
-            ${ready && scenarioDone ? '' : `<p class="create-step-help" id="chStartHelp">${scenarioDone ? 'Fill in every name and party to start.' : 'Finish the scenario step first.'}</p>`}`;
-        const setName = (el) => {
-            const key = el.dataset.key, role = el.dataset.role;
-            if (!key) return;
-            ch[key].people = ch[key].people || {}; ch[key].people[role] = el.value;
-        };
-        body.querySelectorAll('input[data-role]').forEach((el) => el.addEventListener('input', () => { setName(el); saveCreateChancellor(); refresh(); }));
-        [['g', 'government'], ['o', 'opposition'], ['r', 'rising']].forEach(([p, key]) => body.querySelector('#chP-' + p + '-party').addEventListener('input', (e) => { ch[key].party = e.target.value; saveCreateChancellor(); refresh(); }));
-        const refresh = () => {
-            const ok = chancellorGovComplete(ch) && scenarioDone && ![...body.querySelectorAll('input.create-line')].some((i) => lmIsVulgar(i.value));
-            const btn = body.querySelector('#chStart'); if (btn) btn.disabled = !ok;
-            const help = body.querySelector('#chStartHelp'); if (help) help.hidden = ok;
-        };
-        body.querySelector('#chSuggest').addEventListener('click', () => {
-            const used = new Set(); let n = Math.floor(Math.random() * 20);
-            const name = () => { let s; do { s = CHANCELLOR_FIRST[(n++) % CHANCELLOR_FIRST.length] + ' ' + CHANCELLOR_LAST[(n * 7 + 3) % CHANCELLOR_LAST.length]; } while (used.has(s)); used.add(s); return s; };
-            [['government', CHANCELLOR_GOV_ROLES], ['opposition', CHANCELLOR_OPP_ROLES], ['rising', CHANCELLOR_RISING_ROLES]].forEach(([key, roles]) => {
-                ch[key].people = ch[key].people || {};
-                if (!(ch[key].party || '').trim()) ch[key].party = { government: 'National Unity Party', opposition: 'Progress Alliance', rising: 'Green Dawn' }[key];
-                roles.forEach(([k]) => { if (!(ch[key].people[k] || '').trim()) ch[key].people[k] = name(); });
-            });
-            saveCreateChancellor(); rerender();
-        });
-        body.querySelector('#chPrev').addEventListener('click', () => goTo('scenario'));
-        body.querySelector('#chStart').addEventListener('click', () => chnStartSimulation(contentInner, ch, false));
-        const resume = body.querySelector('#chResume'); if (resume) resume.addEventListener('click', () => chnStartSimulation(contentInner, ch, true));
-        const reset = body.querySelector('#chReset'); if (reset) reset.addEventListener('click', chnResetSavedGame);
-    }
 
     // ─── Create > Economics > Be the Chancellor builder ───
     // Steps down the left: 1 Create your scenario, 2 Government and politics. The draft is kept in the browser.
@@ -10689,110 +10636,83 @@ SQIDAQAB
         try { localStorage.setItem(CREATE_CHANCELLOR_KEY, JSON.stringify(createChancellor)); } catch (err) { /* draft just isn't kept */ }
     }
 
+    // The countries are written in advance: each is one starting situation with its own country, currency, parties and people, so the
+    // student chooses a challenge and nothing has to be designed or named. Everyone gets a name drawn from the pools above.
+    const CHANCELLOR_SCENARIOS = [
+        { key: 'westmarch', situation: 'stable', stage: 'advanced', level: 'Gentle', country: 'Westmarch', currency: 'Westmarch pound (WMP)', population: '38 million',
+          blurb: 'A rich, well-run economy where nothing is on fire. The danger is complacency: debt is high, the population is ageing and voters expect more every year.',
+          exports: ['Machinery', 'Pharmaceuticals', 'Financial services'], imports: ['Energy', 'Electronics', 'Food'], shocks: ['tradeWar', 'productivity', 'globalRate'],
+          history: 'Westmarch has had thirty years of steady growth under governments of both main parties. The last decade was spent borrowing to protect public services after a financial crash, and the debt has never fully come down.',
+          parties: ['Civic Alliance', 'Reform Party', 'Green Horizon'], offset: 2 },
+        { key: 'norvane', situation: 'slump', stage: 'advanced', level: 'Medium', country: 'Norvane', currency: 'Norvane krone (NVK)', population: '9 million',
+          blurb: 'Output has fallen sharply after its biggest export market collapsed. Unemployment is climbing and firms have stopped investing. How hard do you push, and how much debt do you take on?',
+          exports: ['Shipping services', 'Paper and timber', 'Specialist machinery'], imports: ['Oil', 'Cars', 'Consumer goods'], shocks: ['foreignRecession', 'hhConfidence', 'investmentBoom'],
+          history: 'Norvane built its wealth on trade. When its largest customer fell into recession, orders dried up almost overnight, and a proud, small country is now asking whether the government should have seen it coming.',
+          parties: ['Norvane Democrats', 'Freedom and Enterprise', 'The Common Ground'], offset: 6 },
+        { key: 'varuna', situation: 'overheating', stage: 'emerging', level: 'Medium', country: 'Varuna', currency: 'Varunan dollar (VRD)', population: '24 million',
+          blurb: 'A boom: credit and house prices are racing ahead, wages are rising and everyone is happy, for now. Cooling it down is unpopular, but waiting is how booms end badly.',
+          exports: ['Coffee', 'Copper', 'Garments'], imports: ['Oil', 'Machinery', 'Wheat'], shocks: ['oil', 'bankingCrisis', 'capitalFlight'],
+          history: 'Varuna won independence in 1974, spent a decade under military rule and has grown fast since a currency reform in 2011. Cheap credit has built shopping malls, tower blocks and a lot of debt.',
+          parties: ['National Renewal', 'Democratic Union', 'People First'], offset: 11 },
+        { key: 'sarnova', situation: 'banking-crisis', stage: 'emerging', level: 'Hard', country: 'Sarnova', currency: 'Sarnovan lira (SNL)', population: '52 million',
+          blurb: 'Bad loans are piling up in the banks and depositors are nervous. Rescue the banks and the bill lands on taxpayers; let them fail and the whole economy can seize up.',
+          exports: ['Textiles', 'Cars', 'Olive oil'], imports: ['Gas', 'Steel', 'Computers'], shocks: ['bankingCrisis', 'capitalFlight', 'politicalCrisis'],
+          history: 'A decade of easy lending funded a construction boom. When property prices turned, the banks discovered how much they had lent to people who could not repay, and nobody is sure which of them is safe.',
+          parties: ['Sarnova First', 'Social Democratic League', 'New Century'], offset: 15 },
+        { key: 'bellara', situation: 'debt-crisis', stage: 'emerging', level: 'Hard', country: 'Bellara', currency: 'Bellaran peso (BLP)', population: '31 million',
+          blurb: 'The government owes a fortune in foreign currency, reserves are thin and lenders are getting nervous. Every month the currency weakens, the debt gets heavier.',
+          exports: ['Soya', 'Iron ore', 'Fruit'], imports: ['Fuel', 'Chemicals', 'Vehicles'], shocks: ['globalRate', 'capitalFlight', 'drought'],
+          history: 'Bellara borrowed heavily in dollars in the good years. When global interest rates rose and its currency slid, repaying that debt got dearer by the week, and the lenders have started to ask questions.',
+          parties: ['Movement for Bellara', 'Liberal Front', 'Citizens\' Voice'], offset: 4 },
+        { key: 'ouran', situation: 'commodity-bust', stage: 'low', level: 'Hard', country: 'Ouran', currency: 'Ouran franc (OUF)', population: '14 million',
+          blurb: 'Almost everything the country sells is one metal, and its price has collapsed. Tax revenue, wages and the currency are all falling together, and the budget has nothing in reserve.',
+          exports: ['Copper', 'Cobalt', 'Cotton'], imports: ['Fuel', 'Machinery', 'Rice'], shocks: ['oil', 'drought', 'pandemic'],
+          history: 'Ouran\'s copper mines paid for roads, schools and a lot of government jobs. Nobody saved for a bad year, and now the price has fallen to half what the budget assumed.',
+          parties: ['Ouran National Congress', 'Union for Change', 'Land and Dignity'], offset: 9 },
+        { key: 'tarsis', situation: 'hyperinflation', stage: 'low', level: 'Very hard', country: 'Tarsis', currency: 'Tarsian dinar (TSD)', population: '17 million',
+          blurb: 'Prices are rising by the month, savings have been wiped out and nobody trusts the currency. The central bank is printing money to pay the government\'s bills. Can you break the spiral?',
+          exports: ['Cocoa', 'Gold', 'Fish'], imports: ['Fuel', 'Medicine', 'Wheat'], shocks: ['drought', 'politicalCrisis', 'capitalFlight'],
+          history: 'After a war and a collapse in tax collection, the government began paying its bills with newly printed money. Every year since, prices have risen faster, and people now spend their wages the day they are paid.',
+          parties: ['Tarsian Unity Party', 'Democratic Reconstruction', 'The Bread and Peace Movement'], offset: 13 },
+    ];
+    function chancellorScenarioConfig(sc) {
+        const used = new Set(); let n = sc.offset;
+        const name = () => { let t; do { t = CHANCELLOR_FIRST[(n++) % CHANCELLOR_FIRST.length] + ' ' + CHANCELLOR_LAST[(n * 7 + sc.offset) % CHANCELLOR_LAST.length]; } while (used.has(t)); used.add(t); return t; };
+        const fill = (roles) => { const o = {}; roles.forEach(([k]) => { o[k] = name(); }); return o; };
+        return {
+            country: sc.country, currency: sc.currency, population: sc.population, populationNumber: chancellorParseNumber(sc.population), stage: sc.stage,
+            sectors: CHANCELLOR_SECTORS[sc.stage].slice(), exports: sc.exports.slice(), imports: sc.imports.slice(), situation: sc.situation, history: sc.history, shocks: sc.shocks.slice(),
+            government: { party: sc.parties[0], people: fill(CHANCELLOR_GOV_ROLES) }, opposition: { party: sc.parties[1], people: fill(CHANCELLOR_OPP_ROLES) }, rising: { party: sc.parties[2], people: fill(CHANCELLOR_RISING_ROLES) },
+        };
+    }
     function renderChancellorBuilder(contentInner) {
-        const ch = loadCreateChancellor();
-        const steps = [
-            { key: 'scenario', label: 'Create your scenario', done: () => !!(ch.country.trim() && ch.currency.trim() && ch.population.trim() && ch.stage && ch.situation) },
-            { key: 'government', label: 'Government and politics', done: () => chancellorGovComplete(ch) },
-        ];
+        const stageLabel = (k) => (CHANCELLOR_STAGES.find((s) => s.key === k) || {}).label || k;
+        const sitTitle = (k) => (CHANCELLOR_SITUATIONS.find((s) => s.key === k) || {}).title || k;
+        const saved = chnSavedGameExists();
         contentInner.innerHTML = `
             <section class="create-view" aria-labelledby="createChTitle">
                 <div class="create-builder-head">
                     <button type="button" class="create-back" id="createChBack">← Economics</button>
                     <h1 class="create-builder-title" id="createChTitle">Be the Chancellor</h1>
                 </div>
-                <div class="create-builder-layout">
-                    <nav class="create-steps" aria-label="Simulation steps">
-                        ${steps.map((st, i) => `<button type="button" class="create-step${ch.step === st.key ? ' active' : ''}${st.done() ? ' done' : ''}" data-step="${st.key}"><span class="create-step-num">${i + 1}</span><span class="create-step-label">${st.label}</span><span class="create-step-check" aria-hidden="true">✓</span></button>`).join('')}
-                    </nav>
-                    <div class="create-step-body" id="createChBody"></div>
-                </div>
+                <p class="create-step-help">You are the Chancellor of a country in trouble, or in danger of it. Choose which one to run. Each has its own economy, parties and people, and your decisions shape what happens next.</p>
+                ${saved ? '<div class="create-detail-actions" style="margin:6px 0 16px;"><button type="button" class="create-cta" id="chResume">Continue your saved game</button><button type="button" class="create-secondary" id="chReset">Reset your saved game to the start</button></div>' : ''}
+                <div class="create-gallery">${CHANCELLOR_SCENARIOS.map((sc) => `
+                    <article class="create-proj">
+                        <h3>${escapeHtml(sc.country)}</h3>
+                        <div class="meta">${escapeHtml(sitTitle(sc.situation))} · ${escapeHtml(stageLabel(sc.stage))} · ${escapeHtml(sc.level)}</div>
+                        <p style="margin:6px 0 0;font:0.88rem/1.55 Arial,sans-serif;">${escapeHtml(sc.blurb)}</p>
+                        <div class="row"><button type="button" class="create-cta" data-scenario="${sc.key}" style="padding:8px 18px;font-size:0.85rem;">${saved ? 'Start over here' : 'Take office'}</button></div>
+                    </article>`).join('')}</div>
             </section>`;
-        const body = contentInner.querySelector('#createChBody');
-        const goTo = (key) => { ch.step = key; saveCreateChancellor(); renderChancellorBuilder(contentInner); };
         contentInner.querySelector('#createChBack').addEventListener('click', () => renderCreatePage('economics'));
-        contentInner.querySelectorAll('.create-step').forEach((b) => b.addEventListener('click', () => goTo(b.dataset.step)));
-        if (ch.step === 'government') renderChancellorGovernment(body, ch, goTo, () => renderChancellorBuilder(contentInner), contentInner);
-        else renderChancellorScenario(body, ch, goTo, () => renderChancellorBuilder(contentInner));
-    }
-
-    function renderChancellorScenario(body, ch, goTo, rerender) {
-        const tagField = (key, label, help, placeholder) => `
-            <div class="create-field-label">${label}</div>
-            <p class="create-step-help" style="margin-top:0;">${help}</p>
-            <div class="create-tags" id="tags-${key}"></div>
-            <div class="create-tag-add"><input spellcheck="true" type="text" id="tagIn-${key}" maxlength="60" placeholder="${escapeHtml(placeholder)}" aria-label="Add to ${label}"><button type="button" class="create-secondary" data-add="${key}">Add</button></div>`;
-        body.innerHTML = `
-            <h2>Create your scenario</h2>
-            <p class="create-step-help">Describe the country the student will run.</p>
-            <div class="create-ch-grid">
-                <div class="create-detail-field"><label for="chCountry">Name of country</label><input spellcheck="true" class="create-line" id="chCountry" type="text" maxlength="60" placeholder="e.g. Varuna" value="${escapeHtml(ch.country)}"></div>
-                <div class="create-detail-field"><label for="chCurrency">Currency</label><input spellcheck="true" class="create-line" id="chCurrency" type="text" maxlength="60" placeholder="e.g. Varunan dollar (VRD)" value="${escapeHtml(ch.currency)}"></div>
-                <div class="create-detail-field"><label for="chPop">Population</label><input spellcheck="true" class="create-line" id="chPop" type="text" maxlength="40" placeholder="e.g. 24 million" value="${escapeHtml(ch.population)}"></div>
-            </div>
-            <div class="create-field-label">Stage of development</div>
-            <div class="create-options" role="radiogroup" aria-label="Stage of development">
-                ${CHANCELLOR_STAGES.map((s) => `<button type="button" class="create-option${ch.stage === s.key ? ' selected' : ''}" role="radio" aria-checked="${ch.stage === s.key}" data-stage="${s.key}"><strong>${s.label}</strong><span>${s.help}</span></button>`).join('')}
-            </div>
-            <div id="chSectorsHost">${ch.stage ? tagField('sectors', 'Sectors the economy operates in', 'Suggested for this stage. Remove any that do not fit and add your own.', 'Add a sector') : '<p class="create-step-help">Choose a stage of development to see the sectors this kind of economy usually has.</p>'}</div>
-            ${tagField('exports', 'Key exports', 'What the country sells abroad.', 'e.g. Coffee, copper, garments')}
-            ${tagField('imports', 'Key imports', 'What the country depends on buying from abroad.', 'e.g. Oil, machinery, wheat')}
-            <div class="create-field-label">What situation is the economy in?</div>
-            <div class="create-options create-options-situations" role="radiogroup" aria-label="Starting situation">
-                ${CHANCELLOR_SITUATIONS.map((s) => `<button type="button" class="create-option${ch.situation === s.key ? ' selected' : ''}" role="radio" aria-checked="${ch.situation === s.key}" data-situation="${s.key}"><strong>${s.title}</strong><span>${s.text}</span></button>`).join('')}
-            </div>
-            <div class="create-field-label">Shocks <span class="create-optional">optional</span></div>
-            <p class="create-step-help" style="margin-top:0;">Choose events that may hit the economy during the simulation. They arrive at random times, so the student cannot plan for them.</p>
-            <button type="button" class="create-secondary" id="chShockBtn" aria-expanded="${ch.shocks.length ? 'true' : 'false'}">Shocks (${ch.shocks.length} selected) ${ch.shocks.length ? '▴' : '▾'}</button>
-            <div class="chn-shock-panel" id="chShockPanel" ${ch.shocks.length ? '' : 'hidden'}>
-                ${CHANCELLOR_SHOCKS.map(([k, label, text]) => `<label class="chn-shock-item"><input type="checkbox" data-shock="${k}" ${ch.shocks.includes(k) ? 'checked' : ''}><span><strong>${escapeHtml(label)}</strong><small>${escapeHtml(text)}</small></span></label>`).join('')}
-            </div>
-            <div class="create-field-label">Add your own history <span class="create-optional">optional</span></div>
-            <textarea spellcheck="true" class="create-idea" id="chHistory" rows="5" maxlength="2000" placeholder="e.g. Independence in 1974, a decade of military rule that ended in 2003, a currency reform in 2011, and a large loan from a neighbouring country that falls due in two years." aria-label="Your own history">${escapeHtml(ch.history)}</textarea>
-            <div class="create-next-row"><button type="button" class="create-cta" id="chNext">Next: Government and politics →</button></div>`;
-        const paintTags = (key) => {
-            const host = body.querySelector('#tags-' + key);
-            if (!host) return;
-            host.innerHTML = ch[key].length
-                ? ch[key].map((t, i) => `<span class="create-tag">${escapeHtml(t)}<button type="button" data-remove="${key}:${i}" aria-label="Remove ${escapeHtml(t)}">×</button></span>`).join('')
-                : '<span class="create-tags-empty">None yet</span>';
-        };
-        const addTag = (key) => {
-            const input = body.querySelector('#tagIn-' + key);
-            const value = (input.value || '').trim();
-            if (!value) return;
-            if (!ch[key].some((t) => t.toLowerCase() === value.toLowerCase())) ch[key].push(value);
-            if (key === 'sectors') ch.sectorsEdited = true;
-            input.value = ''; saveCreateChancellor(); paintTags(key); input.focus();
-        };
-        ['sectors', 'exports', 'imports'].forEach(paintTags);
-        body.querySelector('#chCountry').addEventListener('input', (e) => { ch.country = e.target.value; saveCreateChancellor(); });
-        body.querySelector('#chCurrency').addEventListener('input', (e) => { ch.currency = e.target.value; saveCreateChancellor(); });
-        body.querySelector('#chPop').addEventListener('input', (e) => { ch.population = e.target.value; saveCreateChancellor(); });
-        body.querySelector('#chHistory').addEventListener('input', (e) => { ch.history = e.target.value; saveCreateChancellor(); });
-        body.querySelectorAll('[data-stage]').forEach((b) => b.addEventListener('click', () => {
-            const changed = ch.stage !== b.dataset.stage;
-            ch.stage = b.dataset.stage;
-            if (changed && (!ch.sectorsEdited || !ch.sectors.length)) { ch.sectors = CHANCELLOR_SECTORS[ch.stage].slice(); ch.sectorsEdited = false; }
-            else if (changed && ch.sectorsEdited && window.confirm('Replace your edited sectors with the suggestions for this stage?')) { ch.sectors = CHANCELLOR_SECTORS[ch.stage].slice(); ch.sectorsEdited = false; }
-            saveCreateChancellor(); rerender();
+        contentInner.querySelectorAll('[data-scenario]').forEach((b) => b.addEventListener('click', () => {
+            const sc = CHANCELLOR_SCENARIOS.find((x) => x.key === b.dataset.scenario);
+            if (saved && !window.confirm('Start a new game? Your saved Chancellor game will be replaced.')) return;
+            chnStartSimulation(contentInner, chancellorScenarioConfig(sc), false);
         }));
-        body.querySelectorAll('[data-situation]').forEach((b) => b.addEventListener('click', () => { ch.situation = b.dataset.situation; saveCreateChancellor(); rerender(); }));
-        body.addEventListener('click', (e) => {
-            const add = e.target.closest('[data-add]');
-            if (add) { addTag(add.dataset.add); return; }
-            const rm = e.target.closest('[data-remove]');
-            if (rm) { const [key, idx] = rm.dataset.remove.split(':'); ch[key].splice(Number(idx), 1); if (key === 'sectors') ch.sectorsEdited = true; saveCreateChancellor(); paintTags(key); }
-        });
-        body.querySelectorAll('.create-tag-add input').forEach((input) => input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(input.id.replace('tagIn-', '')); } }));
-        body.querySelector('#chNext').addEventListener('click', () => goTo('government'));
-        const shockBtn = body.querySelector('#chShockBtn'), shockPanel = body.querySelector('#chShockPanel');
-        shockBtn.addEventListener('click', () => { shockPanel.hidden = !shockPanel.hidden; shockBtn.setAttribute('aria-expanded', String(!shockPanel.hidden)); });
-        body.querySelectorAll('[data-shock]').forEach((cb) => cb.addEventListener('change', () => {
-            const k = cb.dataset.shock, i = ch.shocks.indexOf(k);
-            if (cb.checked && i === -1) ch.shocks.push(k); else if (!cb.checked && i > -1) ch.shocks.splice(i, 1);
-            shockBtn.textContent = `Shocks (${ch.shocks.length} selected) ${shockPanel.hidden ? '▾' : '▴'}`; saveCreateChancellor();
-        }));
+        const resume = contentInner.querySelector('#chResume'); if (resume) resume.addEventListener('click', () => chnStartSimulation(contentInner, null, true));
+        const reset = contentInner.querySelector('#chReset'); if (reset) reset.addEventListener('click', chnResetSavedGame);
     }
 
     // ─── Create > Law > Criminal trial builder ───
