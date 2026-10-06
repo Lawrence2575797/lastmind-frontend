@@ -11463,6 +11463,22 @@ SQIDAQAB
                 meta: 'Season ' + d.season + ' · ' + (mine >= 14 ? 'season complete' : mine + ' of 14 played') + (mine ? ' · ' + ord(pos) + ' in the table' : '') + ' · ' + tier + ' statistics' };
         } catch (err) { return null; }
     }
+    // Be the Chancellor also runs on its own full-window page. Its real
+    // game save is the source of truth, just like the football season, so
+    // expose it as a resumable Create project whenever that save exists.
+    function createChancellorProject() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(CHN_GAME_KEY) || 'null');
+            const g = saved && saved.g;
+            if (!g || !g.cfg) return null;
+            const country = g.cfg.country || 'your country';
+            const level = g.cfg.level === 'alevel' ? 'A-level' : 'University';
+            const date = g.date ? new Date(g.date + 'T00:00:00').toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : '';
+            const approval = Number.isFinite(Number(g.approval)) ? ` · ${Math.round(Number(g.approval))}% approval` : '';
+            return { id: 'local-chancellor', title: 'Be the Chancellor: ' + country, kind: 'chancellor', href: '/chancellor/', isReference: false, local: true,
+                updatedAt: new Date().toISOString(), meta: [date, level + ' economics'].filter(Boolean).join(' · ') + approval };
+        } catch (err) { return null; }
+    }
     // ─── Doctor Career (Biology): GCSE and A-level tracks. The cases, lessons and rules are written in advance (create/doctor-career/). ───
     const DOCTOR_VERSION = '20261007c';
     const DOCTOR_FILES = ['doctor', 'lessons-gcse', 'lessons-gcse-2', 'lessons-alevel', 'lessons-alevel-2', 'cases-gcse', 'cases-gcse-2', 'cases-alevel', 'cases-alevel-2', 'guide-gcse', 'guide-alevel'];
@@ -11504,7 +11520,7 @@ SQIDAQAB
         const meta = careerLocalSummary();
         return had || meta ? [{ id: 'local-law-career', title: 'Criminal Lawyer Career', kind: 'criminal-lawyer-career', meta: meta || '', isReference: false, updatedAt: new Date().toISOString() }, ...rest] : rest;
     }
-    const createWithFootball = (list0) => { let list = list0; try { list = createWithCareer(list0); } catch (err) { console.error('LastMind: career entry failed.', err); } try { const local = doctorProjects(), have = new Set(local.map((p) => p.track)), isDoc = (p) => String(p.kind || '').startsWith('doctor-career'); const remote = list.filter((p) => isDoc(p) && p.kind !== 'doctor-career').map((p) => ({ id: p.id, title: p.title, kind: 'doctor-career', track: String(p.kind).replace('doctor-career-', ''), meta: 'Saved to your account', isReference: false, updatedAt: p.updatedAt })).filter((p) => !have.has(p.track)); list = [...local, ...remote, ...list.filter((p) => !isDoc(p))]; } catch (err) { console.error('LastMind: doctor entry failed.', err); } const fp = createFootballProject(); return fp ? [fp, ...list.filter((p) => p.id !== 'local-football-manager')] : list.filter((p) => p.id !== 'local-football-manager'); };
+    const createWithFootball = (list0) => { let list = list0; try { list = createWithCareer(list0); } catch (err) { console.error('LastMind: career entry failed.', err); } try { const local = doctorProjects(), have = new Set(local.map((p) => p.track)), isDoc = (p) => String(p.kind || '').startsWith('doctor-career'); const remote = list.filter((p) => isDoc(p) && p.kind !== 'doctor-career').map((p) => ({ id: p.id, title: p.title, kind: 'doctor-career', track: String(p.kind).replace('doctor-career-', ''), meta: 'Saved to your account', isReference: false, updatedAt: p.updatedAt })).filter((p) => !have.has(p.track)); list = [...local, ...remote, ...list.filter((p) => !isDoc(p))]; } catch (err) { console.error('LastMind: doctor entry failed.', err); } const fp = createFootballProject(), cp = createChancellorProject(); list = list.filter((p) => p.id !== 'local-football-manager' && p.id !== 'local-chancellor'); if (cp) list.unshift(cp); if (fp) list.unshift(fp); return list; };
     async function createLoadProjects() {
         // The career is saved under a per-account key that is only worked out once the career is opened, so settle it here first or a
         // fresh visit to the list reads the wrong key and the career never shows.
@@ -11553,6 +11569,7 @@ SQIDAQAB
     }
     async function createDeleteProject(id) {
         if (id === 'local-football-manager') { try { localStorage.removeItem('lm_football_save_v1'); } catch (err) { /* nothing to remove */ } }
+        if (id === 'local-chancellor') { try { localStorage.removeItem(CHN_GAME_KEY); } catch (err) { /* nothing to remove */ } }
         if (String(id).startsWith('local-')) { createSetLocalProjects(createLocalProjects().filter((p) => p.id !== id)); return; }
         await createAuthedFetch(`/create/projects/${encodeURIComponent(id)}`, { method: 'DELETE' });
     }
@@ -11573,6 +11590,8 @@ SQIDAQAB
             ? `<article class="create-proj"><h3>Criminal Lawyer Career</h3><div class="meta">Career${p.meta ? ' · ' + escapeHtml(p.meta) : ''}</div><div class="row"><button type="button" class="create-cta" data-career style="padding:8px 18px;font-size:0.85rem;">Resume career</button></div></article>`
             : p.kind === 'football-manager'
             ? `<article class="create-proj"><h3>${escapeHtml(p.title)}</h3><div class="meta">Football manager${p.meta ? ' · ' + escapeHtml(p.meta) : ''} · saved in this browser</div><div class="row"><a class="create-cta" href="${escapeHtml(p.href || '/create/football/')}" style="padding:8px 18px;font-size:0.85rem;text-decoration:none;">Resume</a><button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button></div></article>`
+            : p.kind === 'chancellor'
+            ? `<article class="create-proj"><h3>${escapeHtml(p.title)}</h3><div class="meta">Economics simulation${p.meta ? ' · ' + escapeHtml(p.meta) : ''} · saved in this browser</div><div class="row"><a class="create-cta" href="${escapeHtml(p.href || '/chancellor/')}" style="padding:8px 18px;font-size:0.85rem;text-decoration:none;">Resume</a><button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button></div></article>`
             : `<article class="create-proj"><h3>${escapeHtml(p.title)}</h3>${p.isReference ? '<span class="badge">Reference example</span>' : ''}<div class="meta">Criminal trial${p.role ? ` · ${p.role === 'prosecution' ? 'Prosecution' : 'Defence'}` : ''}${p.minutes ? ` · ${p.minutes} min` : ''}${p.local ? ' · saved in this browser' : ''}</div><div class="row"><button type="button" class="create-secondary" data-open="${escapeHtml(p.id)}">${isRef ? 'Open a copy' : 'Open'}</button><button type="button" class="create-secondary" data-play="${escapeHtml(p.id)}">Playtest</button><button type="button" class="create-secondary" data-duel="${escapeHtml(p.id)}" title="Play one side while a friend plays the other">Two-player</button>${isRef ? '' : `<button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button>`}</div></article>`;
         host.innerHTML = `
             ${createDuelBoxHtml()}
