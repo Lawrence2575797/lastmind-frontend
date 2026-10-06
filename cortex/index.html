@@ -406,6 +406,11 @@
        than a couple of sentences. */
     .chat-msg-text p { margin: 0 0 12px; }
     .chat-msg-text p:last-child { margin-bottom: 0; }
+    .chat-msg-working { align-items: center; min-width: min(300px, 78vw); }
+    .chat-working-spinner { width: 16px; height: 16px; flex: 0 0 16px; border: 2px solid rgba(230, 215, 176, 0.28); border-top-color: var(--text); border-radius: 50%; animation: chat-working-spin 0.8s linear infinite; }
+    .chat-msg-working .chat-msg-text { opacity: 0.82; }
+    @keyframes chat-working-spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .chat-working-spinner { animation-duration: 1.8s; } }
 
     .chat-confirm-card, .chat-answer-card {
         align-self: stretch;
@@ -2278,6 +2283,22 @@ SQIDAQAB
         if (textEl) renderChatText(textEl, text);
     }
 
+    // Starts before any session/history/network await, so sending a message
+    // always gets an immediate, unmistakable response. Lesson-shaped asks
+    // receive lesson-specific wording; the normal map/lesson loading card
+    // takes over as soon as the intent has been resolved.
+    function startAssistantWorking(el, messages) {
+        const textEl = el.querySelector('.chat-msg-text');
+        const spinner = document.createElement('span');
+        spinner.className = 'chat-working-spinner'; spinner.setAttribute('aria-hidden', 'true');
+        el.classList.add('chat-msg-working'); el.insertBefore(spinner, textEl);
+        let i = 0;
+        const show = () => { if (textEl) renderChatText(textEl, messages[i]); };
+        show();
+        const timer = setInterval(() => { i = Math.min(i + 1, messages.length - 1); show(); }, 1800);
+        return () => { clearInterval(timer); spinner.remove(); el.classList.remove('chat-msg-working'); };
+    }
+
     // Real, confirmed cost problem this fixes: sending every subfolder's
     // every page TITLE on every single Cortex message - regardless of
     // whether that message had anything to do with any subject - was the
@@ -2417,13 +2438,27 @@ SQIDAQAB
         const text = input.value.trim();
         if (!text) return;
 
-        // Show the sent message and the thinking placeholder straight away, before anything is awaited, so it is obvious the message went.
-        // The short-circuit branches below remove the placeholder again when they answer without a chat call.
+        // Show the sent message and a real animated working state straight
+        // away, before anything is awaited. The old bare ellipsis was easy
+        // to miss during the several seconds before lesson intent resolved.
         input.value = '';
         input.style.height = 'auto';
         appendUserMessage(text);
-        const thinkingEl = appendAssistantMessage('…');
-        const dropThinking = () => { if (thinkingEl.parentNode) thinkingEl.parentNode.removeChild(thinkingEl); };
+        const directTeachTopic = detectTeachMeTopic(text);
+        const looksLikeLessonRequest = !!directTeachTopic || detectStartLessonsIntent(text) || /\b(?:generate|build|make|create|start|begin)\b[^.!?]{0,45}\blesson\b/i.test(text);
+        const thinkingEl = appendAssistantMessage('');
+        const stopThinking = startAssistantWorking(thinkingEl, looksLikeLessonRequest ? [
+            'LastMind received your lesson request…',
+            'Checking what the lesson needs to cover…',
+            'Preparing the lesson generator…',
+            'Still working — your request is active…',
+        ] : [
+            'LastMind received your message…',
+            'Working out what you need…',
+            'Preparing a response…',
+            'Still working — your message is active…',
+        ]);
+        const dropThinking = () => { stopThinking(); if (thinkingEl.parentNode) thinkingEl.parentNode.removeChild(thinkingEl); };
 
         // Guarantees activeSessionId (and, for a resumed session, its past
         // messages already loaded into chatHistory) is settled BEFORE this
@@ -2439,7 +2474,7 @@ SQIDAQAB
         // topic-map flow instead of an ordinary chat turn - see
         // detectTeachMeTopic/startTopicLearnFlow above. Everything past
         // this point is the normal Q&A path.
-        const teachTopic = detectTeachMeTopic(text);
+        const teachTopic = directTeachTopic;
         if (teachTopic) {
             dropThinking();
             // Real, confirmed bug this fixes: every short-circuit branch below
@@ -2543,6 +2578,7 @@ SQIDAQAB
             // general chat, which has no idea what "this sentence" is.
             const lessonAnswer = await tryAnswerFromActiveLesson(text);
             if (lessonAnswer) {
+                stopThinking();
                 setAssistantMessageText(thinkingEl, lessonAnswer);
                 chatHistory.push({ role: 'assistant', content: lessonAnswer });
                 saveChatHistory();
@@ -2564,6 +2600,7 @@ SQIDAQAB
                 if (err.message !== CORTEX_TRUNCATED_MESSAGE) throw err;
                 result = await postCortexMessage(text, session, folders, dueReviews);
             }
+            stopThinking();
             setAssistantMessageText(thinkingEl, result.reply);
             chatHistory.push({ role: 'assistant', content: result.reply });
             saveChatHistory();
@@ -2653,6 +2690,7 @@ SQIDAQAB
             // By the time this shows, a same-message retry already happened
             // once and failed again too - so it's a genuinely repeated
             // problem, not the usual one-off blip.
+            stopThinking();
             setAssistantMessageText(thinkingEl, (err && err.message) ? err.message : 'Sorry, could not reach the server. Please try again.');
         } finally {
             sendBtn.disabled = false;
