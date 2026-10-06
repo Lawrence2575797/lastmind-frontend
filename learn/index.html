@@ -4119,7 +4119,14 @@
     .nb-canvas { --nb-margin: 56px; position: relative; background-color: #1A232D; background-image: linear-gradient(to right, transparent calc(var(--nb-margin) - 2px), rgba(230, 215, 176, 0.5) calc(var(--nb-margin) - 2px), rgba(230, 215, 176, 0.5) var(--nb-margin), transparent var(--nb-margin)); color: #E6D7B0; border-radius: 10px; box-shadow: 0 2px 14px rgba(26, 35, 45, 0.35); cursor: text; overflow: hidden; --text: #E6D7B0; --accent: #F3E7BE; }
     .nb-hint { position: absolute; left: 0; right: 0; top: 40px; text-align: center; color: rgba(230, 215, 176, 0.5); font-size: 15px; pointer-events: none; }
     .nb-block { position: absolute; cursor: auto; }
-    .nb-text { min-width: 140px; border-radius: 6px; outline: 1px dashed transparent; }
+    .nb-text { min-width: 140px; border-radius: 6px; outline: 1px dashed transparent; z-index: 1; }
+    /* Controls sit above the box, so a nearby/later text block used to
+       cover them and receive the click as editable text. Keep whichever
+       box the student is using above its neighbours; a chosen alignment
+       reference stays uppermost until the operation ends. */
+    .nb-text:hover { z-index: 20; }
+    .nb-text:focus-within { z-index: 30; }
+    .nb-text:has(> .nb-align-left[aria-pressed="true"]) { z-index: 40; }
     .nb-text:hover, .nb-text:focus-within { outline-color: rgba(230, 215, 176, 0.35); }
     .nb-text .math-shortcut-wrap { margin: 0; }
     .nb-text .math-shortcut-mode-badge { display: none; }
@@ -20778,6 +20785,7 @@ SQIDAQAB
         nbWireDrag(el.querySelector('.nb-grip'), el, block, canvas);
         nbWireResize(el.querySelector('.nb-resize'), el, block, canvas);
         const alignBtn = el.querySelector('.nb-align-left');
+        alignBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); });
         alignBtn.addEventListener('click', (e) => {
             e.preventDefault(); e.stopPropagation();
             if (!notesAlignSource) {
