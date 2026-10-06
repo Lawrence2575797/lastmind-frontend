@@ -11452,8 +11452,8 @@ SQIDAQAB
         } catch (err) { return null; }
     }
     // ─── Doctor Career (Biology): GCSE and A-level tracks. The cases, lessons and rules are written in advance (create/doctor-career/). ───
-    const DOCTOR_VERSION = '20261007a';
-    const DOCTOR_FILES = ['doctor', 'lessons-gcse', 'lessons-alevel', 'cases-gcse', 'cases-alevel'];
+    const DOCTOR_VERSION = '20261007b';
+    const DOCTOR_FILES = ['doctor', 'lessons-gcse', 'lessons-gcse-2', 'lessons-alevel', 'lessons-alevel-2', 'cases-gcse', 'cases-gcse-2', 'cases-alevel', 'cases-alevel-2'];
     let doctorUid = 'guest', doctorFilesPromise = null;
     function doctorLoadFiles() {
         if (doctorFilesPromise) return doctorFilesPromise;
@@ -11466,7 +11466,12 @@ SQIDAQAB
         try { const { data: { session } } = await supabaseClient.auth.getSession(); doctorUid = session && session.user ? session.user.id : 'guest'; } catch (_) { doctorUid = 'guest'; }
         try { await doctorLoadFiles(); } catch (err) { contentInner.innerHTML = '<div class="mt-empty">The clinic could not open. Check your connection and try again.</div>'; return; }
         contentInner.innerHTML = '<div id="doctorCareerHost"></div>';
-        window.DOCTOR.mount(document.getElementById('doctorCareerHost'), track, { userId: doctorUid, back: () => renderCreatePage('biology') });
+        const remote = {
+            list: async () => { const { resp, body } = await createAuthedFetch('/create/projects'); return resp.ok && !body.unavailable ? (body.projects || []) : []; },
+            get: async (id) => { const { resp, body } = await createAuthedFetch(`/create/projects/${encodeURIComponent(id)}`); return resp.ok ? body : null; },
+            post: async (payload) => { const { resp, body } = await createAuthedFetch('/create/projects', { method: 'POST', body: JSON.stringify(payload) }); if (!resp.ok || body.unavailable) throw new Error('not saved'); return body.id; },
+        };
+        window.DOCTOR.mount(document.getElementById('doctorCareerHost'), track, { userId: doctorUid, back: () => renderCreatePage('biology'), remote: doctorUid === 'guest' ? null : remote });
     }
     // The projects list reads the save directly, so the career shows up even before the clinic has been opened this visit.
     function doctorProjects() {
@@ -11487,7 +11492,7 @@ SQIDAQAB
         const meta = careerLocalSummary();
         return had || meta ? [{ id: 'local-law-career', title: 'Criminal Lawyer Career', kind: 'criminal-lawyer-career', meta: meta || '', isReference: false, updatedAt: new Date().toISOString() }, ...rest] : rest;
     }
-    const createWithFootball = (list0) => { let list = list0; try { list = createWithCareer(list0); } catch (err) { console.error('LastMind: career entry failed.', err); } try { list = [...doctorProjects(), ...list.filter((p) => p.kind !== 'doctor-career')]; } catch (err) { console.error('LastMind: doctor entry failed.', err); } const fp = createFootballProject(); return fp ? [fp, ...list.filter((p) => p.id !== 'local-football-manager')] : list.filter((p) => p.id !== 'local-football-manager'); };
+    const createWithFootball = (list0) => { let list = list0; try { list = createWithCareer(list0); } catch (err) { console.error('LastMind: career entry failed.', err); } try { const local = doctorProjects(), have = new Set(local.map((p) => p.track)), isDoc = (p) => String(p.kind || '').startsWith('doctor-career'); const remote = list.filter((p) => isDoc(p) && p.kind !== 'doctor-career').map((p) => ({ id: p.id, title: p.title, kind: 'doctor-career', track: String(p.kind).replace('doctor-career-', ''), meta: 'Saved to your account', isReference: false, updatedAt: p.updatedAt })).filter((p) => !have.has(p.track)); list = [...local, ...remote, ...list.filter((p) => !isDoc(p))]; } catch (err) { console.error('LastMind: doctor entry failed.', err); } const fp = createFootballProject(); return fp ? [fp, ...list.filter((p) => p.id !== 'local-football-manager')] : list.filter((p) => p.id !== 'local-football-manager'); };
     async function createLoadProjects() {
         // The career is saved under a per-account key that is only worked out once the career is opened, so settle it here first or a
         // fresh visit to the list reads the wrong key and the career never shows.

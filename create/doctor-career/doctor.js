@@ -69,6 +69,38 @@
     try { var d = D.load(track), n = Object.keys(d.results).length; if (!n) return null; var r = D.rankIndex(track, d.results); return D.tracks[track].ranks[r].title + ' · ' + n + ' patient' + (n === 1 ? '' : 's') + ' seen · average ' + D.average(d.results) + '%'; } finally { uid = old; }
   };
 
+
+  /* ---------- keeping the save on the account (when the page provides env.remote), as well as in this browser ---------- */
+  // Results from two devices are merged: for each patient the best score wins and the latest date is kept.
+  function mergeResults(a, b) {
+    var out = {}, k; a = a || {}; b = b || {};
+    Object.keys(a).concat(Object.keys(b)).forEach(function (id) { if (out[id]) return; var x = a[id], y = b[id]; out[id] = !x ? y : !y ? x : { best: Math.max(x.best, y.best), last: (x.date || '') >= (y.date || '') ? x.last : y.last, date: (x.date || '') >= (y.date || '') ? x.date : y.date }; });
+    return out;
+  }
+  var pushTimer = null;
+  function pushRemote() {
+    if (!env || !env.remote) return; clearTimeout(pushTimer);
+    var tr = track;
+    pushTimer = setTimeout(function () {
+      var d = D.load(tr);
+      env.remote.post({ id: d.projectId || undefined, title: 'Doctor Career: ' + D.tracks[tr].short, kind: 'doctor-career-' + tr, data: { doctor: { results: d.results, started: d.started } } }).then(function (id) {
+        if (id && d.projectId !== id) { var d2 = D.load(tr); d2.projectId = id; D.save(tr, d2); }
+      }).catch(function () { /* it stays in this browser and is sent on the next save */ });
+    }, 400);
+  }
+  function pullRemote() {
+    if (!env || !env.remote) return; var tr = track;
+    env.remote.list().then(function (rows) {
+      var row = (rows || []).filter(function (r) { return r.kind === 'doctor-career-' + tr; })[0];
+      if (!row) { if (Object.keys(D.load(tr).results).length) pushRemote(); return null; }
+      return env.remote.get(row.id).then(function (got) {
+        var rd = got && got.data && got.data.doctor, d = D.load(tr), before = JSON.stringify(d.results);
+        d.projectId = row.id; if (rd && rd.results) d.results = mergeResults(d.results, rd.results); if (rd && rd.started && rd.started < d.started) d.started = rd.started; D.save(tr, d);
+        if (JSON.stringify(d.results) !== before) { if (track === tr && !cur && host && host.isConnected) render(); pushRemote(); }
+      });
+    }).catch(function () { /* offline or not signed in: the browser copy is used */ });
+  }
+
   /* ---------- the screens ---------- */
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var bold = function (s) { return esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>'); };
@@ -225,7 +257,7 @@
       if (t.dataset.tx) { run.tx = t.dataset.tx; render(); return; }
       if (t.dataset.act === 'submit') {
         var s = D.score(cur.c, { dx: run.dx, evidence: run.evidence, tx: run.tx, tests: run.tests, asked: run.asked }); run.done = s;
-        var prev = d.results[cur.c.id], bestScore = prev ? Math.max(prev.best, s.total) : s.total; d.results[cur.c.id] = { best: bestScore, last: s.total, date: new Date().toISOString().slice(0, 10) }; D.save(track, d);
+        var prev = d.results[cur.c.id], bestScore = prev ? Math.max(prev.best, s.total) : s.total; d.results[cur.c.id] = { best: bestScore, last: s.total, date: new Date().toISOString().slice(0, 10) }; D.save(track, d); pushRemote();
         if (env && env.saved) env.saved();
         render(); window.scrollTo(0, 0);
       }
@@ -234,6 +266,6 @@
   D.mount = function (el, tr, e) {
     host = el; track = tr; env = e || {}; cur = null; uid = (e && e.userId) || 'guest'; closeDrawer();
     if (!host.__dcBound) { host.__dcBound = true; bind(); }
-    render();
+    render(); pullRemote();
   };
 })(typeof window !== 'undefined' ? window : globalThis);
