@@ -189,7 +189,7 @@
         // still holding it. Closed down, or already in the box, he holds the ball where he is (a man backing away from a defender can never be
         // tackled, which breaks the game: 30+ goals a match).
         const nd = nearestOpponent(match, c.team, c.player).d, toward = FM.toTeamSpace(c.team.attackDir, c.player.x, c.player.y).d;
-        if (nd > 5 && toward < 0.84) ov.set(c.player, { x: clamp(c.player.x + c.team.attackDir * 3.2, 1, L - 1), y: clamp(c.player.y + (W / 2 - c.player.y) * 0.04, 1, W - 1) });
+        if (nd > 5 && toward < 0.84) ov.set(c.player, { x: clamp(c.player.x + c.team.attackDir * (nd > 10 ? 8 : 3.2), 1, L - 1), y: clamp(c.player.y + (W / 2 - c.player.y) * 0.04, 1, W - 1) });
       }
       // Defending the man on the ball. Most of the time one defender goes to him, and he closes down rather than charging in: how
       // tightly depends on the team's pressing instruction (a hard press gets right on top of him, a soft one holds off and jockeys).
@@ -402,6 +402,7 @@
     const temp = 0.22 + 0.25 * (1 - carrier.ratings.composure / 100);
     let pool = options;
     if (match.forcePass) { const only = options.filter((o) => o.kind === 'pass' && o.d < 40); if (only.length) pool = only; }
+    if (carrier.group === 'GK' && nearNow < 6) { const longs = options.filter((o) => o.kind === 'pass' && o.d >= 26); if (longs.length) pool = longs; }
     const maxScore = Math.max.apply(null, pool.map((o) => o.score));
     const weights = pool.map((o) => Math.exp((o.score - maxScore) / temp));
     const total = weights.reduce((a, b) => a + b, 0);
@@ -441,6 +442,8 @@
         const spread = (2 + opt.d * 0.12) * (rng() < 0.45 ? 3 : 1);
         flight.ex = clamp(opt.tx + (rng() - 0.5) * 2 * spread, -4, L + 4);
         flight.ey = clamp(opt.ty + (rng() - 0.5) * 2 * spread, -4, W + 4);
+        const gx0 = team.attackDir === 1 ? L : 0;
+        if (Math.hypot(opt.tx - gx0, opt.ty - W / 2) < 24 && rng() < 0.85) { flight.ex = clamp(flight.ex, 2, L - 2); flight.ey = clamp(flight.ey, 2, W - 2); }
       }
     }
     record(match, { type: 'pass', team: team.id, from: carrier.number, to: opt.target.number, p: opt.p, ok, outcome: flight.outcome, dist: opt.d, lane: opt.lane, press: opt.press, x: carrier.x, y: carrier.y, tx: flight.ex, ty: flight.ey });
@@ -724,6 +727,15 @@
         wall.forEach((p, k) => { const o = (k - (wall.length - 1) / 2) * 0.9; ov.set(p, { x: r.x + ux * 9.15 - uy * o, y: r.y + uy * 9.15 + ux * o }); });
       }
     }
+    if (r.kind === 'goalkick') {
+      const own = goalX === L ? 0 : L, inward = own === 0 ? 1 : -1;
+      outfield(opp).forEach((p) => {
+        const t = FM.targetFor(opp, p, match.ball, false);
+        const depth = (t.x - own) * inward;
+        if (depth < 20 && Math.abs(t.y - W / 2) < 23) ov.set(p, { x: own + inward * 20, y: t.y });
+        else ov.set(p, t);
+      });
+    }
     if (r.kind === 'penalty') {
       const inward = team.attackDir === 1 ? -1 : 1;
       let k = 0;
@@ -868,7 +880,7 @@
   }
   function extractClip(match, spec) {
     const r = match.rec, d1 = (v) => Math.round(v * 10);
-    const frames = r.buf.filter((f) => f.t >= spec.from && f.t <= spec.to + 1e-6);
+    const frames = r.buf.filter((f) => f.t >= spec.from && f.t <= spec.to + 1e-6).concat(spec.tail || []);
     if (frames.length < 4) return;
     const roster = [[], []];
     frames.forEach((f) => { f.h.forEach((q) => { if (roster[0].indexOf(q[0]) < 0) roster[0].push(q[0]); }); f.a.forEach((q) => { if (roster[1].indexOf(q[0]) < 0) roster[1].push(q[0]); }); });
@@ -895,7 +907,44 @@
   }
   function clipGoal(match, team, shooter) {
     const t = match.clock, mine = team.id === match.userId;
-    match.rec.pending.push({ kind: mine ? 'goal' : 'conceded', label: (mine ? 'Goal: ' : 'Goal conceded: ') + shooter.name + ' (' + team.name + ')', from: t - 14, to: t + 3.5, until: t + 3.5, event: t });
+    const spec = { kind: mine ? 'goal' : 'conceded', label: (mine ? 'Goal: ' : 'Goal conceded: ') + shooter.name + ' (' + team.name + ')', from: t - 14, to: t, until: t + 0.05, event: t };
+    match.rec.pending.push(spec);
+    return spec;
+  }
+  function snapTeams(match) { const snap = (team) => team.players.map((p) => [p.number, p.x, p.y]); return { h: snap(match.home), a: snap(match.away) }; }
+  // The seconds after a goal, built from the positions at the moment it went in and the kick-off positions: a pause with the ball in the net while
+  // the scoring side run to the scorer, then everyone walks back to the centre circle and the ball is placed on the spot.
+  function goalTail(match, spec, team, shooter) {
+    const dt = CLIP_DT, t0 = spec.event, goalX = team.attackDir === 1 ? L : 0, pre = spec.pre, post = snapTeams(match);
+    const net = [goalX === L ? L - 0.5 : 0.5, clamp(spec.ballAt[1], W / 2 - 3.5, W / 2 + 3.5)];
+    const sk = team === match.home ? 'h' : 'a';
+    const gk = new Set(); match.teams.forEach((t) => t.players.forEach((p) => { if (p.group === 'GK') gk.add(t.id + ':' + p.number); }));
+    const sc = pre[sk].find((q) => q[0] === shooter.number) || [0, spec.ballAt[0], spec.ballAt[1]];
+    const run = [clamp(sc[1] - team.attackDir * 9, 4, L - 4), sc[2] < W / 2 ? 4 : W - 4];
+    const A = 2.6, Bt = 3.4, ease = (k) => k * k * (3 - 2 * k), lerp = (a, b, k) => a + (b - a) * k;
+    const mid = {}; // where everyone is when the celebration ends
+    const tail = [];
+    for (let t = dt; t <= A + Bt + 1e-6; t += dt) {
+      const row = { t: t0 + t, b: null, h: [], a: [] };
+      const inA = t <= A, kA = ease(Math.min(1, t / (A * 0.8))), kB = ease(Math.min(1, Math.max(0, (t - A) / Bt)));
+      ['h', 'a'].forEach((k) => {
+        const tid = k === 'h' ? match.home.id : match.away.id;
+        pre[k].forEach((q, i) => {
+          const n = q[0], key = k + n; let x = q[1], y = q[2];
+          if (k === sk && !gk.has(tid + ':' + n)) {
+            const ring = (i % 5) * 1.3 - 2.6, tx = n === shooter.number ? run[0] : run[0] - team.attackDir * (1.8 + (i % 3) * 1.2), ty = n === shooter.number ? run[1] : run[1] + (run[1] < W / 2 ? 1 : -1) * (1.5 + (i % 4) * 1.1) + ring * 0.3;
+            x = lerp(q[1], clamp(tx, 1, L - 1), kA); y = lerp(q[2], clamp(ty, 1, W - 1), kA);
+          }
+          mid[key] = mid[key] || [x, y];
+          if (inA) mid[key] = [x, y];
+          else { const p = post[k].find((z) => z[0] === n) || q; x = lerp(mid[key][0], p[1], kB); y = lerp(mid[key][1], p[2], kB); }
+          row[k].push([n, x, y]);
+        });
+      });
+      row.b = inA ? net : [L / 2, W / 2];
+      tail.push(row);
+    }
+    return tail;
   }
   function clipChance(match, team, shooter, xg) {
     const t = match.clock, mine = team.id === match.userId;
@@ -1231,7 +1280,7 @@
       if (f.outcome === 'complete') giveBall(match, f.team, f.target, 0.3 + delayBeforeNextDecision(match, f.team, f.target));
       else if (f.outcome === 'intercepted' && match.rng() < 0.15) startRestart(match, 'throw', f.team, clamp(match.ball.x, 1, L - 1), match.ball.y < W / 2 ? 0.5 : W - 0.5);
       else if (f.outcome === 'intercepted') giveBall(match, other(match, f.team), f.interceptor, 0.6 + delayBeforeNextDecision(match, other(match, f.team), f.interceptor) * 0.5);
-      else if (match.ball.x < 0 || match.ball.x > L || match.ball.y < 0 || match.ball.y > W) handleOut(match, f.team, match.ball.x, match.ball.y);
+      else if (match.ball.x < 1 || match.ball.x > L - 1 || match.ball.y < 1 || match.ball.y > W - 1) handleOut(match, f.team, match.ball.x < 1 ? Math.min(match.ball.x, -0.1) : match.ball.x > L - 1 ? Math.max(match.ball.x, L + 0.1) : match.ball.x, match.ball.y < 1 ? Math.min(match.ball.y, -0.1) : match.ball.y > W - 1 ? Math.max(match.ball.y, W + 0.1) : match.ball.y);
       else { match.ball.state = 'loose'; match.lastTeam = f.team; }
       return;
     }
@@ -1242,8 +1291,10 @@
       const st = statsOf(match, team); st.goals++;
       match.score[team.id]++;
       record(match, { type: 'goal', team: team.id, player: f.shooter.number });
-      if (match.rec) clipGoal(match, team, f.shooter);
+      const goalSpec = match.rec ? clipGoal(match, team, f.shooter) : null;
+      if (goalSpec) { goalSpec.pre = snapTeams(match); goalSpec.ballAt = [match.ball.x, match.ball.y]; }
       FM.beginKickoff(match, opp);
+      if (goalSpec) goalSpec.tail = goalTail(match, goalSpec, team, f.shooter);
     } else if (f.outcome === 'saved') {
       if (match.rng() < 0.45) startRestart(match, 'corner', team, team.attackDir === 1 ? L - 0.5 : 0.5, f.ey < W / 2 ? 0.5 : W - 0.5);
       else giveBall(match, opp, f.gk, 1.6);

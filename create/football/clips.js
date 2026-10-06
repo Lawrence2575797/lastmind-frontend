@@ -61,6 +61,12 @@
       const kit = kitOf[p0.side];
       s += `<circle cx="${X(x)}" cy="${Y(y)}" r="11" fill="${kit.shirt}" stroke="${kit.number}" stroke-width="2.5"/><text x="${X(x)}" y="${(y * PS + 4.5).toFixed(1)}" text-anchor="middle" font-size="13" font-weight="700" fill="${kit.number}" font-family="sans-serif">${p0.num}</text>`;
     });
+    data.ev.forEach((e) => {
+      if (e.type !== 'goal') return;
+      const age = t - e.t; if (age < 0 || age > 4) return;
+      const sc = 1 + Math.max(0, 0.35 - age) * 1.2;
+      s += `<text x="${(PW / 2).toFixed(0)}" y="${(PH * 0.47).toFixed(0)}" text-anchor="middle" font-size="${(78 * sc).toFixed(0)}" font-weight="900" fill="#fff" stroke="#000" stroke-width="7" style="paint-order:stroke" fill-opacity="${Math.min(1, (4 - age) / 1.2).toFixed(2)}" font-family="sans-serif">GOAL!</text>`;
+    });
     const bx = lerp(f0.b[0], f1.b[0], k), by = lerp(f0.b[1], f1.b[1], k);
     s += `<circle cx="${X(bx)}" cy="${Y(by)}" r="6.5" fill="#fff" stroke="#000" stroke-width="2"/>`;
     s += `<text x="${PW - 12}" y="${PH - 12}" text-anchor="end" font-size="20" fill="#fff" stroke="#000" stroke-width="4" style="paint-order:stroke">your team attacks &#8594;</text>`;
