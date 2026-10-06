@@ -4131,6 +4131,8 @@
     .nb-text-size-wrap { display: inline-flex; align-items: center; gap: 6px; color: #F1EAD6; font: 700 12px Arial, sans-serif; }
     /* LastMind beside the notes: a panel on the right that opens and closes, with a chat about concepts and a review of the page. */
     .nb-assist { position: fixed; top: 0; right: 0; bottom: 0; z-index: 160; width: min(430px, 94vw); display: flex; flex-direction: column; background: #1A232D; color: #F1EAD6; border-left: 1px solid rgba(241,234,214,.3); box-shadow: -16px 0 44px rgba(0,0,0,.4); font: 14px/1.55 Arial, sans-serif; }
+    .nb-assist-tab { position: fixed; right: 0; top: 42%; z-index: 161; padding: 14px 8px; writing-mode: vertical-rl; border: 1px solid rgba(241,234,214,.55); border-right: 0; border-radius: 12px 0 0 12px; background: #E6D7B0; color: #1A232D; font: 800 .86rem Arial, sans-serif; letter-spacing: .08em; cursor: pointer; box-shadow: -6px 6px 20px rgba(0,0,0,.35); transition: right .15s; }
+    .nb-assist-tab.open { right: min(430px, 94vw); background: #1A232D; color: #F1EAD6; border-color: rgba(241,234,214,.4); }
     .nb-assist-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 14px 16px 10px; border-bottom: 1px solid rgba(241,234,214,.18); } .nb-assist-head b { font: 700 1.1rem 'Lora', Georgia, serif; display: block; } .nb-assist-head small { opacity: .7; }
     .nb-assist-x { width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(241,234,214,.4); background: transparent; color: inherit; font-size: 18px; line-height: 1; cursor: pointer; }
     .nb-assist-actions { padding: 10px 16px; border-bottom: 1px solid rgba(241,234,214,.12); } .nb-assist-review { width: 100%; padding: 10px 14px; border: 0; border-radius: 10px; background: #E6D7B0; color: #1A232D; font: 800 .88rem Arial, sans-serif; cursor: pointer; } .nb-assist-review:disabled { opacity: .55; cursor: wait; }
@@ -21278,8 +21280,9 @@ SQIDAQAB
         document.getElementById('nbAssist')?.remove();
         const wide = () => window.innerWidth > 1180;
         const pad = (on) => { const ci = document.getElementById('contentInner'); if (ci) ci.style.paddingRight = on && wide() ? '450px' : ''; };
-        const btn = document.getElementById('nbAssistBtn');
-        const setOpen = (on) => { notesAssist.open = on; if (btn) btn.setAttribute('aria-expanded', String(on)); pad(on); if (!on) document.getElementById('nbAssist')?.remove(); else build(); };
+        document.getElementById('nbAssistTab')?.remove();
+        const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'nbAssistTab'; btn.className = 'nb-assist-tab'; btn.setAttribute('aria-expanded', 'false'); btn.setAttribute('aria-label', 'Open LastMind beside your notes'); btn.textContent = 'LastMind'; document.body.appendChild(btn);
+        const setOpen = (on) => { notesAssist.open = on; btn.classList.toggle('open', on); btn.textContent = on ? 'Close ›' : 'LastMind'; btn.setAttribute('aria-expanded', String(on)); pad(on); if (!on) document.getElementById('nbAssist')?.remove(); else build(); };
         const build = () => {
             document.getElementById('nbAssist')?.remove();
             notesAssist.store = nbAssistState(page); notesAssist.error = '';
@@ -21309,12 +21312,12 @@ SQIDAQAB
                 const b = document.getElementById('nbAssistBody'); if (b && st.review) b.scrollTop = 0;
             });
         };
-        if (btn) btn.addEventListener('click', () => setOpen(!notesAssist.open));
+        btn.addEventListener('click', () => setOpen(!notesAssist.open));
         window.addEventListener('resize', () => pad(notesAssist.open));
         if (notesAssist.open) setOpen(true);
         clearInterval(notesAssist.watch); notesAssist.watch = setInterval(() => { if (!document.getElementById('nbCanvas')) nbAssistTeardown(); }, 700);
     }
-    function nbAssistTeardown() { clearInterval(notesAssist.watch); document.getElementById('nbAssist')?.remove(); const ci = document.getElementById('contentInner'); if (ci) ci.style.paddingRight = ''; }
+    function nbAssistTeardown() { clearInterval(notesAssist.watch); document.getElementById('nbAssist')?.remove(); document.getElementById('nbAssistTab')?.remove(); const ci = document.getElementById('contentInner'); if (ci) ci.style.paddingRight = ''; }
 
     function notesRenderPage(page) {
         const contentInner = notesPrepareMain('Notes');
@@ -21342,7 +21345,6 @@ SQIDAQAB
                     <button type="button" class="nb-tool nb-tool-strong" id="nbAddGraph" title="Add coordinate graph (Ctrl+Alt+G)">+ Graph</button>
                     <button type="button" class="nb-tool" id="nbAddDiagram">+ Economics diagram</button>
                     <button type="button" class="nb-tool" id="nbShortcuts">Shortcuts</button>
-                    <button type="button" class="nb-tool nb-tool-strong" id="nbAssistBtn" aria-expanded="false" title="Ask LastMind about your notes">Ask LastMind</button>
                 </div>
                 <div class="nb-canvas" id="nbCanvas"></div>
                 <div class="nb-selection-size" id="nbSelectionSize"><span>Text size</span><select class="nb-text-size" aria-label="Selected text size"><option value="12">12px</option><option value="14">14px</option><option value="16" selected>16px</option><option value="18">18px</option><option value="22">22px</option><option value="28">28px</option><option value="36">36px</option></select></div>
