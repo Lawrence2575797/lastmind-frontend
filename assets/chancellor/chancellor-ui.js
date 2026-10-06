@@ -886,62 +886,44 @@
   }
   async function interviewFlow(ev) { await advisorBriefing(ev); if (ev.speculation) await runSpeculation(ev); else await runInterview(ev); }
 
+  // Interviews are a choice of five written answers to each question (see chancellor-interviews.js): nothing is typed and nothing is sent to the AI.
+  function ivContext(ev) {
+    var g = ui.g;
+    return { m: metricsNow(), target: g.pf.target, firstUnemployment: g.startSnap.u, pollGov: g.pop.polls.gov, pollOpp: g.pop.polls.opp, oppName: g.parties.opp.name,
+      recent: g.recent[0] ? String(g.recent[0]).replace(/\s*\([^)]*\)\s*$/, '') : '', goals: g.goals || '', pledges: g.pledges || 0, country: g.cfg.country, currency: g.cfg.currency,
+      topics: briefingPoints(ev).map(function (x) { return x[0]; }), lastTopic: (g.interviewAngles || []).slice(-1)[0] };
+  }
   async function runInterview(ev) {
     var g = ui.g, key = 'j:' + ev.journalist; requestPortrait(key, 'a television news interviewer');
-    var MAX_FOLLOWUPS = 3;
-    var ex = [], cur = null, busy = false;
+    var ctx = ivContext(ev), steps = window.LMInterviews.plan(ctx, ev), picks = [], ex = [], n = 0;
     var head = '<div style="display:flex;gap:14px;align-items:center;margin:4px 0 10px">' + avatar(key, ev.journalist, true) + '<div><h2 style="margin:0">' + (ev.goals ? 'First interview: your goals' : 'Interview: ' + esc(ev.outlet)) + '</h2><div class="neutral">with ' + esc(ev.journalist) + '</div></div></div>';
-    var res = await modal(head + '<div class="chn-iv"><div class="chn-iv-main"><div id="chnConv"></div><div id="chnQ" class="chn-quote neutral">The interviewer is finding a question…</div><div id="chnQArea"></div><div class="btns" id="chnIvBtns"><button class="chn-btn" data-m="skip">Skip the interview</button></div></div>' + refPanel(ev) + '</div>', {
+    var res = await modal(head + '<div class="chn-iv"><div class="chn-iv-main"><div id="chnConv"></div><div id="chnQ" class="chn-quote"></div><div id="chnQArea"></div><div class="btns" id="chnIvBtns"></div></div>' + refPanel(ev) + '</div>', {
       wide: true, img: '/assets/chancellor/interview-studio.jpg',
       onOpen: function (ov, close) {
-        var qEl = function () { return ov.querySelector('#chnQ'); };
-        var say = function (t) { var e = qEl(); if (e) { e.className = 'chn-quote neutral'; e.textContent = t; } };
+        var chosen = -1;
         var paint = function () {
-          var conv = ov.querySelector('#chnConv'); if (!conv) return;
-          conv.innerHTML = ex.map(function (x) { return '<div class="chn-quote neutral" style="margin:6px 0">“' + esc(x.question) + '”</div><div style="margin:2px 0 10px 16px;font-size:.88rem"><b>You:</b> ' + esc(x.answer) + '</div>'; }).join('');
-          var q = qEl(); if (q && cur) { q.className = 'chn-quote'; q.textContent = '“' + cur + '”'; }
-          var n = ex.length;   // 0 = opening question, then follow-ups 1..3
-          var label = n === 0 ? 'Answer' : 'Answer follow-up (' + n + ' of ' + MAX_FOLLOWUPS + ')';
-          ov.querySelector('#chnQArea').innerHTML = '<textarea class="chn-ans" id="chnAnswer" maxlength="2500" placeholder="' + (ev.goals && n === 0 ? 'Set out your goals in your own words: what you want for jobs, prices, growth, public finances and fairness, and how you will judge success. You will be held to this.' : 'Answer in your own words. Be honest about the figures, and say what you will do.') + '"></textarea><div class="neutral" style="font-size:.78rem;margin-top:4px">' + (n === 0 ? 'The interviewer may ask up to ' + MAX_FOLLOWUPS + ' follow-up questions. ' : '') + 'Judged on accuracy against the real figures, directness, empathy and consistency. Keep it civil: offensive language is blocked.</div>';
-          ov.querySelector('#chnIvBtns').innerHTML = '<button class="chn-btn primary" data-go="answer">' + label + '</button>' + (n >= 1 ? '<button class="chn-btn" data-go="end">End the interview here</button>' : '<button class="chn-btn" data-m="skip">Skip</button>');
+          var st = steps[n];
+          ov.querySelector('#chnConv').innerHTML = ex.map(function (x) { return '<div class="chn-quote neutral" style="margin:6px 0">“' + esc(x.question) + '”</div><div style="margin:2px 0 10px 16px;font-size:.88rem"><b>You:</b> ' + esc(x.answer) + '</div>'; }).join('');
+          ov.querySelector('#chnQ').textContent = '“' + st.question + '”';
+          chosen = -1;
+          ov.querySelector('#chnQArea').innerHTML = '<div class="neutral" style="font-size:.8rem;margin:6px 0 4px">' + (ev.goals ? 'Choose the answer closest to what you want to tell the country. You will be held to it.' : 'Question ' + (n + 1) + ' of ' + steps.length + '. Choose how you answer. Think about what the figures really say.') + '</div>' +
+            st.answers.map(function (a, i) { return '<button type="button" class="chn-btn" data-opt="' + i + '" aria-pressed="false" style="display:block;width:100%;text-align:left;white-space:normal;margin:6px 0;line-height:1.45;padding:10px 12px">' + esc(a.text) + '</button>'; }).join('');
+          ov.querySelector('#chnIvBtns').innerHTML = '<button class="chn-btn primary" data-go="answer" disabled>' + (n + 1 < steps.length ? 'Give this answer' : 'Give this answer and finish') + '</button><button class="chn-btn" data-m="skip">Skip the interview</button>';
         };
-        var finish = function () {
-          busy = true; say('The interview is being judged…'); ov.querySelector('#chnQArea').innerHTML = ''; ov.querySelector('#chnIvBtns').innerHTML = '';
-          createAuthedFetch('/chancellor/interview/assess', { method: 'POST', body: JSON.stringify({ context: aiContext({ journalist: ev.journalist, outlet: ev.outlet }), exchanges: ex, mode: ev.goals ? 'goals' : undefined, clientUsedUsd: createSpend.usedUsd }) }).then(function (r) {
-            if (r.body && r.body.locks) noteLocks(r.body.locks);
-            if (!r.resp.ok) { busy = false; toast(r.body.error || 'The interview could not be judged.'); ex.pop(); cur = ex.length ? cur : cur; paint(); return; }
-            close({ assessment: r.body, exchanges: ex });
-          }).catch(function () { busy = false; toast('Something went wrong. Try again.'); paint(); });
-        };
-        var followUp = function () {
-          busy = true; say('The interviewer is thinking of a follow-up…'); ov.querySelector('#chnQArea').innerHTML = ''; ov.querySelector('#chnIvBtns').innerHTML = '';
-          createAuthedFetch('/chancellor/interview/question', { method: 'POST', body: JSON.stringify({ context: aiContext({ journalist: ev.journalist, outlet: ev.outlet }), previousAngles: g.interviewAngles.slice(-6), transcript: ex, clientUsedUsd: createSpend.usedUsd }) }).then(function (r) {
-            if (r.body && r.body.locks) noteLocks(r.body.locks);
-            busy = false;
-            if (!r.resp.ok) { toast(r.body.error || 'No follow-up.'); finish(); return; }
-            if (r.body.done || !r.body.question) { finish(); return; }
-            cur = r.body.question; paint();
-          }).catch(function () { busy = false; finish(); });
-        };
-        // the opening question
-        (ev.goals ? Promise.resolve({ resp: { ok: true }, body: { question: 'Congratulations on taking office, Chancellor. Before we get into the detail: what are your goals for the economy over this term, and what would count as success?', angle: 'Your goals' } }) : createAuthedFetch('/chancellor/interview/question', { method: 'POST', body: JSON.stringify({ context: aiContext({ journalist: ev.journalist, outlet: ev.outlet }), previousAngles: g.interviewAngles.slice(-6), clientUsedUsd: createSpend.usedUsd }) })).then(function (r) {
-          if (r.body && r.body.locks) noteLocks(r.body.locks);
-          if (!qEl()) return;
-          if (!r.resp.ok) { say(r.body.error || 'The interviewer could not be reached.'); return; }
-          g.interviewAngles.push(r.body.angle || ''); cur = r.body.question; paint();
-        }).catch(function () { say('The interviewer could not be reached.'); });
         ov.addEventListener('click', function (e) {
-          var t = e.target.closest('[data-go]'); if (!t) return;
+          var o = e.target.closest('[data-opt]');
+          if (o) { e.stopPropagation(); chosen = +o.dataset.opt; ov.querySelectorAll('[data-opt]').forEach(function (b) { var on = b === o; b.setAttribute('aria-pressed', String(on)); b.style.outline = on ? '2px solid var(--chn-accent, #0a5f8f)' : ''; b.style.background = on ? 'rgba(10,95,143,.12)' : ''; }); var go0 = ov.querySelector('[data-go="answer"]'); if (go0) go0.disabled = false; return; }
+          var go = e.target.closest('[data-go="answer"]');
+          if (!go || chosen < 0) return;
           e.stopPropagation();
-          if (busy) return;
-          if (t.dataset.go === 'end') { if (ex.length) finish(); return; }
-          var ta = ov.querySelector('#chnAnswer'), text = ta ? ta.value.trim() : '';
-          if (!text) { toast('Write an answer first.'); return; }
-          if (typeof lmScreenText === 'function' && lmScreenText(text).vulgar) { toast('Please keep it civil: offensive language cannot be sent.'); return; }
-          ex.push({ question: cur, answer: text });
-          if (ex.length >= 1 + MAX_FOLLOWUPS) { finish(); return; }
-          paint(); followUp();
+          var st = steps[n], a = st.answers[chosen];
+          ex.push({ question: st.question, answer: a.text });
+          if (st.topic === 'goals') picks.push({ topic: 'goals', goal: chosen }); else { picks.push({ topic: st.topic, style: a.style, sev: st.sev }); g.interviewAngles.push(st.topic); if (a.style === 'promise') g.pledges = (g.pledges || 0) + 1; }
+          n++;
+          if (n >= steps.length) { close({ assessment: window.LMInterviews.assess(ctx, picks), exchanges: ex }); return; }
+          paint();
         }, true);
+        paint();
       },
     });
     if (res && res.assessment) {
