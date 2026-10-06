@@ -4158,6 +4158,11 @@
     .nb-text .math-shortcut-editor .nb-arrow-step { display: block; position: relative; min-height: 2.05em; margin-left: 48px; padding: 0.45em 0 0 10px; }
     .nb-text .math-shortcut-editor .nb-arrow-step::before { content: ''; position: absolute; left: -38px; top: 0.12em; width: 28px; height: 1.1em; border-left: 2px solid currentColor; border-bottom: 2px solid currentColor; border-radius: 0 0 0 3px; opacity: 0.85; pointer-events: none; }
     .nb-text .math-shortcut-editor .nb-arrow-step::after { content: ''; position: absolute; left: -10px; top: calc(1.22em - 4px); border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 7px solid currentColor; opacity: 0.85; pointer-events: none; }
+    /* Branches: Shift+Enter inside an arrow line that already has text adds another arrow below it, from the same starting point. The
+       vertical line grows to reach it (--fork-h is the distance from the arrow above, kept up to date by nbSyncArrowForks), and every arrow has its own head. */
+    .nb-text .math-shortcut-editor .nb-arrow-fork::before { border-radius: 0; }
+    .nb-text .math-shortcut-editor .nb-arrow-branch::before { top: calc(1.22em - var(--fork-h, 2.2em)); height: var(--fork-h, 2.2em); border-radius: 0 0 0 3px; }
+    .nb-text .math-shortcut-editor .nb-arrow-branch.nb-arrow-fork::before { border-radius: 0; }
     /* Lists hang their bullets and numbers in the gap beside the margin line while their text lines up with the paragraphs above and below. */
     .nb-text .math-shortcut-editor ul, .nb-text .math-shortcut-editor ol { margin: 0.2em 0; padding-left: 0; list-style-position: outside; }
     .nb-text .math-shortcut-editor li { margin-left: 0; padding-left: 0.1em; }
@@ -20840,7 +20845,18 @@ SQIDAQAB
         if (!has && !hint) canvas.insertAdjacentHTML('afterbegin', '<div class="nb-hint">Click anywhere on the page to start typing</div>');
     }
 
+    // Keeps each branch's vertical line the right length: the distance from the arrow above it to its own row.
+    function nbSyncArrowForks(editable) {
+        editable.querySelectorAll('.nb-arrow-branch').forEach((b) => {
+            const prev = b.previousElementSibling; if (!prev || !prev.classList.contains('nb-arrow-step')) return;
+            const h = b.offsetTop - prev.offsetTop; if (h > 0) b.style.setProperty('--fork-h', h + 'px');
+        });
+    }
     function nbTextShortcuts(editable) {
+        const syncForks = () => nbSyncArrowForks(editable);
+        editable.addEventListener('input', syncForks);
+        if (typeof ResizeObserver === 'function') new ResizeObserver(syncForks).observe(editable);
+        requestAnimationFrame(syncForks);
         editable.addEventListener('keydown', (e) => {
             const mod = e.ctrlKey || e.metaKey;
             // In writing mode, a pair of ordinary hyphens becomes a single,
@@ -20872,6 +20888,26 @@ SQIDAQAB
                 const rangeNode = range.commonAncestorContainer.nodeType === 1 ? range.commonAncestorContainer : range.commonAncestorContainer.parentElement;
                 if (!rangeNode || !editable.contains(rangeNode)) return;
                 e.preventDefault();
+                const inArrow = rangeNode.closest ? rangeNode.closest('.nb-arrow-step') : null;
+                if (inArrow && editable.contains(inArrow)) {
+                    // A written point already: start a second arrow from the same place (an empty arrow just waits for its text).
+                    if (!inArrow.textContent.replace(/[​\s]/g, '')) return;
+                    range.deleteContents();
+                    const tail = document.createRange();
+                    tail.setStart(range.startContainer, range.startOffset); tail.setEnd(inArrow, inArrow.childNodes.length);
+                    const trailing = tail.extractContents();
+                    const branch = document.createElement('span');
+                    branch.className = 'nb-arrow-step nb-arrow-branch';
+                    const landing2 = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL);
+                    branch.appendChild(landing2); branch.appendChild(trailing);
+                    inArrow.classList.add('nb-arrow-fork');
+                    inArrow.after(branch);
+                    nbSyncArrowForks(editable);
+                    const c2 = document.createRange(); c2.setStart(landing2, 1); c2.collapse(true);
+                    sel.removeAllRanges(); sel.addRange(c2);
+                    editable.dispatchEvent(new Event('input', { bubbles: true }));
+                    return;
+                }
                 range.deleteContents();
                 const arrowLine = document.createElement('span');
                 arrowLine.className = 'nb-arrow-step';
@@ -21141,7 +21177,7 @@ SQIDAQAB
             [K('1.') + ' then ' + K('Space'), 'At the start of a line, starts a numbered list (English keyboard).'],
             [K('Ctrl') + ' + ' + K('Shift') + ' + ' + K('8') + ' / ' + K('7'), 'Turns the selected lines into bullet points or a numbered list.'],
             [K('-') + K('-'), 'Types a large long dash — in the same weight as a bullet point (English keyboard).'],
-            [K('Shift') + ' + ' + K('Enter'), 'Adds an indented follow-on line that starts with an arrow.'],
+            [K('Shift') + ' + ' + K('Enter'), 'Adds an indented follow-on line that starts with an arrow. Press it again after writing your first point and the arrow grows a longer vertical line with a second arrow below, so two points can come from the same place.'],
         ]],
         ['Moving things around the page', [
             ['Drag ' + K('⠿'), 'Picks up a text box or an economics diagram and moves it.'],
