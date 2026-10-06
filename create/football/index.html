@@ -58,6 +58,22 @@
   .desc { font-size: 0.9rem; line-height: 1.5; color: var(--cream); margin: 0; }
   .hint, .note { font-size: 0.82rem; color: var(--cream-soft); font-family: var(--sans); line-height: 1.5; margin: 0; }
   .check { display: flex; align-items: center; gap: 8px; flex-direction: row; }
+  /* The build-up lab: run the phase many times and read the shares. */
+  .lab { display: grid; gap: 12px; margin-top: 18px; padding: 16px; border-radius: 12px; border: 1px solid var(--line); background: rgba(241,234,214,.05); }
+  .lab h2 { margin: 0; }
+  .lab table { width: 100%; border-collapse: collapse; font-family: var(--sans); font-size: 0.84rem; }
+  .lab th, .lab td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  .lab th { font-weight: 700; color: var(--cream-soft); font-size: 0.74rem; letter-spacing: .05em; text-transform: uppercase; }
+  .lab td.n, .lab th.n { text-align: right; white-space: nowrap; }
+  .lab .bar { position: relative; height: 12px; min-width: 90px; border-radius: 6px; background: rgba(241,234,214,.12); }
+  .lab .bar i { position: absolute; top: 0; bottom: 0; border-radius: 6px; background: var(--gold); opacity: .85; }
+  .lab .bar b { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--cream); opacity: .9; }
+  .lab input[type="number"], .lab textarea { width: 100%; font: inherit; font-family: var(--sans); background: var(--navy-raise); color: var(--cream); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  .lab textarea { min-height: 54px; resize: vertical; }
+  .lab .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; } @media (max-width: 560px) { .lab .two { grid-template-columns: 1fr; } }
+  .lab .verdict { padding: 9px 12px; border-radius: 10px; background: rgba(242,193,78,.15); font-family: var(--sans); font-size: 0.86rem; line-height: 1.5; }
+  .lab details { font-family: var(--sans); font-size: 0.84rem; color: var(--cream-soft); } .lab details summary { cursor: pointer; font-weight: 700; color: var(--cream); }
+  .lab .runs { display: flex; gap: 6px; flex-wrap: wrap; } .lab .runs button { padding: 6px 10px; font-size: 0.8rem; }
   .score { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--navy); color: var(--cream); border-radius: 14px; padding: 12px 18px; font-family: var(--sans); flex-wrap: wrap; }
   .score .team { display: flex; align-items: center; gap: 8px; font-weight: 700; }
   .score .big { font-family: var(--serif); font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -276,6 +292,7 @@
 <script src="/create/football/clips.js?v=20261005b"></script>
 <script src="/create/football/reports.js?v=20261005b"></script>
 <script src="/create/football/hypotheses.js?v=20261005b"></script>
+<script src="/create/football/lab.js?v=20261007a"></script>
 <script src="/create/football/main.js?v=20261005b"></script>
 </body>
 </html>

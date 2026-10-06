@@ -169,6 +169,21 @@
     match.carry = null;
   }
 
+  // The build-up lab: one short, repeatable trial. Both sides stand where their own phase positions put them, with the ball beside the keeper.
+  FM.startBuildUpTrial = function (match, team, kind) {
+    const opp = other(match, team), dir = team.attackDir;
+    match.phase = 'play'; match.kickoffTimer = 0; match.clock = 0; match.restart = null; match.flight = null; match.carry = null; match.events = [];
+    match.teams.forEach((t) => { t.phaseCtx = {}; t.offsideLine = null; });
+    const gk = team.players.find((p) => p.group === 'GK') || team.players[0];
+    const spot = FM.toMetres(dir, kind === 'goalkick' ? 0.05 : 0.07, 0.6);
+    match.ball.x = spot.x; match.ball.y = spot.y; match.ball.state = 'carried';
+    [team, opp].forEach((t) => t.players.forEach((p) => { const q = FM.targetFor(t, p, match.ball, t === team); p.x = q.x; p.y = q.y; p.vx = 0; p.vy = 0; }));
+    gk.x = spot.x - dir * 0.7; gk.y = spot.y;
+    match.lastTeam = team; match.lastChange = null;
+    giveBall(match, team, gk, 1.2);
+    if (kind === 'goalkick') { match.forcePass = true; match.noOffside = true; }
+  };
+  FM.holderOf = function (match) { return possessionTeam(match); };
   function possessionTeam(match) {
     if (match.restart) return match.restart.team;
     if (match.carrier) return match.carrier.team;
@@ -1191,6 +1206,7 @@
     setOffsideLines(match);
     setPhaseContext(match);
     const ov = buildOverrides(match);
+    if (match.extraOv) match.extraOv.forEach((v, p) => { if (!ov.has(p)) ov.set(p, v); });   // the lab: opponents following a player who has moved
     match.teams.forEach((t) => FM.stepTeam(t, match.ball, t === poss, dt, ov));
     fitnessTick(match, dt);
 

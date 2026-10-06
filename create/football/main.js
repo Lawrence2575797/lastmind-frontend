@@ -496,6 +496,86 @@
     else renderBoardTab(team, world.tab);
   }
 
+
+  // ---------- the build-up lab ----------
+  // Runs the first 40 seconds of your build-up many times (a Monte Carlo experiment) and reports the share of tests that end each way, each with
+  // a 95% interval. The student predicts first, runs it, then changes one thing and runs it again to see whether the difference is real.
+  const LAB_ROWS = [
+    ['beat', 'Beat the press', 'Reached the halfway line with the ball'],
+    ['lostNear', 'Lost it near your own goal', 'Within 25 m of your goal'],
+    ['lostOwn', 'Lost it in your own third', 'Between 25 m and the edge of the third'],
+    ['lostMid', 'Lost it in midfield', 'Before reaching halfway'],
+    ['still', 'Still building at 40 seconds', 'Neither won nor lost'],
+  ];
+  const lpct = (x) => Math.round(x * 100) + '%';
+  const pct1 = (x) => (Math.round(x * 1000) / 10) + '%';
+  function labBar(v) { return `<div class="bar"><i style="left:${(v.lo * 100).toFixed(1)}%;width:${Math.max(1, (v.hi - v.lo) * 100).toFixed(1)}%"></i><b style="left:${(v.p * 100).toFixed(1)}%"></b></div>`; }
+  function labTable(r) {
+    const row = (label, note, v) => `<tr><td><b>${label}</b><br><span class="note">${note}</span></td><td class="n">${v.k} of ${r.n}</td><td class="n"><b>${lpct(v.p)}</b></td><td class="n">${lpct(v.lo)} to ${lpct(v.hi)}</td><td>${labBar(v)}</td></tr>`;
+    return `<table><tr><th>Outcome</th><th class="n">Tests</th><th class="n">Share</th><th class="n">95% interval</th><th>Range</th></tr>${LAB_ROWS.map(([k, l, n]) => row(l, n, r[k])).join('')}${row('Opposition shot within 15 s of winning it', 'Of all the tests, not just the ones you lost it in', r.shot)}</table>`;
+  }
+  function renderLab(team, host) {
+    const lg = world.league, opp = nextOpponent(); if (!lg || !opp) { host.innerHTML = ''; return; }
+    lg.labRuns = lg.labRuns || [];
+    const st = world.lab = world.lab || { start: 'keeper', n: 100, pred: '', hyp: '', busy: false, prog: 0, a: null, b: null, err: '' };
+    const runs = lg.labRuns, last = runs[runs.length - 1];
+    let tac = null; try { tac = FM.aiTacticsFor(lg, opp, team); } catch (e) { tac = null; }
+    const resp = FM.lab.responses(team, opp, tac);
+    const resHtml = resp.length
+      ? `<table><tr><th>Your player</th><th>Their player</th><th class="n">Chance they react</th></tr>${resp.map((x) => `<tr><td>${esc(boardName(x.attacker))} ${x.kind === 'high' ? 'pushed up' : 'dropped back'} ${Math.abs(Math.round(x.dev))} m</td><td>${esc(boardName(x.defender))} (${x.defender.group}) ${x.kind === 'high' ? 'follows him' : 'steps up to press him'}</td><td class="n"><b>${lpct(x.prob)}</b></td></tr>`).join('')}</table>`
+      : '<p class="note">Nobody is placed far from his usual build-up position, so the opposition simply press as their own settings say. Move a player up or back by more than about 4 m and a reaction chance appears here.</p>';
+    const cmpRuns = runs.length >= 2 ? runs : [];
+    const a = st.a != null && runs[st.a] ? st.a : Math.max(0, runs.length - 2), b = st.b != null && runs[st.b] ? st.b : runs.length - 1;
+    host.innerHTML = `<div class="lab">
+      <h2>Test this build-up</h2>
+      <p class="note">This plays the first 40 seconds of your build-up against ${esc(opp.name)} again and again, with the ball starting beside your goalkeeper. The players decide differently every time, and so do the opposition: a player you have moved may or may not be followed. Each test ends when you reach the halfway line with the ball, or lose it (and then we watch 15 seconds to see whether they get a shot). The share of tests ending each way is the result.</p>
+      <details><summary>How the opposition may react to your set-up</summary>${resHtml}<p class="note">These chances come from how hard ${esc(opp.name)} press (their settings for pressing your build-up and pressing generally) and how far you have moved the player. They are redrawn in every test, so the same set-up never plays out the same way twice.</p></details>
+      <div class="two"><label>Start from<select id="labStart"><option value="keeper"${st.start === 'keeper' ? ' selected' : ''}>The goalkeeper has the ball in open play</option><option value="goalkick"${st.start === 'goalkick' ? ' selected' : ''}>A goal kick (short pass compulsory)</option></select></label>
+        <label>Number of tests<select id="labN">${[100, 400, 1000].map((n) => `<option value="${n}"${st.n === n ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>
+      <label>Before you run it: what do you predict? (the share of tests that beat the press, %)<input type="number" id="labPred" min="0" max="100" step="1" value="${esc(st.pred)}" placeholder="e.g. 60"></label>
+      <label>Your hypothesis (what you changed, and what you expect it to do)<textarea id="labHyp" placeholder="e.g. Pushing both full-backs higher will pull their wingers out of position, so more build-ups should beat the press.">${esc(st.hyp)}</textarea></label>
+      <div class="row"><button class="primary" id="labRun"${st.busy ? ' disabled' : ''}>${st.busy ? 'Running… ' + st.prog + ' of ' + st.n : 'Run ' + st.n + ' tests'}</button></div>
+      <p class="err">${esc(st.err)}</p>
+      ${last ? `<div><h2 style="margin-bottom:8px">Latest result: run ${runs.length}</h2>${labTable(last.result)}
+        <p class="note" style="margin-top:8px">${last.result.n} tests. The bar shows the 95% interval and the white line the share found. ${last.result.time ? `When the ball did reach halfway, it took ${last.result.time.mean.toFixed(1)} s on average (standard deviation ${last.result.time.sd.toFixed(1)} s, ${last.result.time.n} tests). ` : ''}Your players completed ${last.result.passes.mean.toFixed(1)} passes per test on average.</p>
+        ${last.pred !== '' && last.pred != null ? (() => { const v = last.result.beat, ok = last.pred / 100 >= v.lo && last.pred / 100 <= v.hi; return `<div class="verdict">You predicted <b>${last.pred}%</b> would beat the press. The test found <b>${lpct(v.p)}</b>, with a 95% interval of ${lpct(v.lo)} to ${lpct(v.hi)}. Your prediction was <b>${ok ? 'inside' : 'outside'}</b> that interval${ok ? ', so the test gives no reason to doubt it.' : ', so your picture of how this build-up behaves was off by more than chance alone would explain.'}</div>`; })() : ''}
+        ${last.hyp ? `<p class="note"><b>Your hypothesis then:</b> ${esc(last.hyp)}</p>` : ''}
+        ${last.changes && last.changes.length ? `<p class="note"><b>Changed since the run before:</b> ${esc(last.changes.join('; '))}.</p>` : ''}
+        <p class="note">Why an interval and not one number? Every test is partly luck, so ${last.result.n} tests give an estimate with error. With ${last.result.n} tests the interval on a share near 50% is about ±${Math.round(98 / Math.sqrt(last.result.n))} percentage points, and to halve it you need four times as many tests.</p></div>` : ''}
+      ${cmpRuns.length ? `<div><h2 style="margin-bottom:8px">Is the difference real?</h2>
+        <div class="two"><label>Run<select id="labA">${runs.map((r, i) => `<option value="${i}"${i === a ? ' selected' : ''}>Run ${i + 1}: ${lpct(r.result.beat.p)} beat the press</option>`).join('')}</select></label>
+          <label>Compared with<select id="labB">${runs.map((r, i) => `<option value="${i}"${i === b ? ' selected' : ''}>Run ${i + 1}: ${lpct(r.result.beat.p)} beat the press</option>`).join('')}</select></label></div>
+        ${a !== b ? (() => {
+          const A = runs[a].result, Bq = runs[b].result;
+          const rows = [['beat', 'Beat the press'], ['lost', 'Lost possession (anywhere)'], ['lostNear', 'Lost it near your own goal'], ['shot', 'Opposition shot']].map(([k, l]) => { const c2 = FM.lab.compare(A, Bq, k); return `<tr><td>${l}</td><td class="n">${lpct(A[k].p)}</td><td class="n">${lpct(Bq[k].p)}</td><td class="n"><b>${c2.diff >= 0 ? '+' : ''}${Math.round(c2.diff * 100)}</b> points</td><td class="n">${Math.round(c2.lo * 100)} to ${Math.round(c2.hi * 100)}</td><td class="n">${c2.p < 0.001 ? '< 0.001' : c2.p.toFixed(3)}</td></tr>`; });
+          const cb = FM.lab.compare(A, Bq, 'beat'), sig = cb.p < 0.05;
+          return `<table><tr><th>Measure</th><th class="n">Run ${a + 1}</th><th class="n">Run ${b + 1}</th><th class="n">Difference</th><th class="n">95% interval for the difference</th><th class="n">p-value</th></tr>${rows.join('')}</table>
+            <div class="verdict">For beating the press, the difference is <b>${cb.diff >= 0 ? '+' : ''}${Math.round(cb.diff * 100)} points</b> (95% interval ${Math.round(cb.lo * 100)} to ${Math.round(cb.hi * 100)}). The p-value is <b>${cb.p.toFixed(3)}</b>: if the two set-ups were really identical, a gap this big would turn up by luck about ${Math.round(cb.p * 100)}% of the time. ${sig ? 'That is below 5%, so this is evidence of a real difference. Check that you changed one thing only, and that the change makes football sense.' : 'That is not below 5%, so these tests do not show a real difference.' + (cb.need ? ' If the gap is real and this size, you would need about <b>' + cb.need + '</b> tests of each set-up to see it reliably.' : '')}</div>
+            <p class="note">An interval that includes zero means "could be no difference at all". Running the same set-up twice will not give the same share, which is the best way to see how much chance alone moves the number.</p>`;
+        })() : '<p class="note">Choose two different runs to compare.</p>'}</div>` : '<p class="note">Run it once, change one thing on the board or the sliders, then run it again: the lab compares the two for you.</p>'}
+      ${runs.length ? `<div class="runs">${runs.map((r, i) => `<span class="note">Run ${i + 1}: ${r.n} tests · ${lpct(r.result.beat.p)} beat the press</span>`).join(' · ')}<button id="labClear">Clear the runs</button></div>` : ''}
+    </div>`;
+    const q = (id) => host.querySelector(id);
+    q('#labStart').addEventListener('change', (e) => { st.start = e.target.value; });
+    q('#labN').addEventListener('change', (e) => { st.n = +e.target.value; renderLab(team, host); });
+    q('#labPred').addEventListener('input', (e) => { st.pred = e.target.value; });
+    q('#labHyp').addEventListener('input', (e) => { st.hyp = e.target.value; });
+    if (q('#labA')) { q('#labA').addEventListener('change', (e) => { st.a = +e.target.value; renderLab(team, host); }); q('#labB').addEventListener('change', (e) => { st.b = +e.target.value; renderLab(team, host); }); }
+    if (q('#labClear')) q('#labClear').addEventListener('click', () => { lg.labRuns = []; st.a = st.b = null; saveSoon(); renderLab(team, host); });
+    q('#labRun').addEventListener('click', async () => {
+      if (st.busy) return;
+      st.busy = true; st.prog = 0; st.err = ''; renderLab(team, host);
+      const snap = FM.lab.snapshot(team), pred = st.pred === '' ? '' : Math.max(0, Math.min(100, +st.pred));
+      try {
+        const result = await FM.lab.run(lg, { n: st.n, user: team, opp, start: st.start }, (d) => { st.prog = d; const b2 = host.querySelector('#labRun'); if (b2) b2.textContent = 'Running… ' + d + ' of ' + st.n; });
+        runs.push({ id: 'r' + (runs.length + 1), n: st.n, start: st.start, opp: opp.name, pred, hyp: st.hyp, snap, changes: FM.lab.changes(last && last.snap, snap), result });
+        st.a = Math.max(0, runs.length - 2); st.b = runs.length - 1; st.pred = ''; saveSoon();
+      } catch (err) { st.err = 'The test could not run: ' + (err && err.message ? err.message : 'unknown error'); }
+      st.busy = false;
+      if (document.body.contains(host)) renderLab(team, host);
+    });
+  }
+
   function takerSelect(team, key, label) {
     const opts = ['<option value="">Automatic (best on the pitch)</option>'].concat(team.players.filter((p) => p.group !== 'GK').map((p) =>
       `<option value="${p.id}"${team.tactics[key] === p.id ? ' selected' : ''}>${esc(shortName(p))} (${p.slotKey}): passing ${FM.shown(p.ratings.passing)}, finishing ${FM.shown(p.ratings.finishing)}</option>`)).join('');
@@ -733,6 +813,7 @@
         </div>
         <div class="tb-right">
           <div id="phaseSliders"></div>
+          ${key === 'build' ? '<div id="labPanel"></div>' : ''}
           ${isShape ? `<div><h2 style="margin-bottom:8px">Bench</h2><div class="bench" id="bench">${bench}</div><p class="note" style="margin-top:8px">To substitute, click a bench player and then click the shirt he replaces.</p></div>` : ''}
           <div id="rolePanel"></div>
           <div id="warnPanel"></div>
@@ -754,6 +835,7 @@
       }
     }
     if (SLIDER_TABS[tab]) renderSliderTab(team, SLIDER_TABS[tab], host.querySelector('#phaseSliders'));
+    if (key === 'build' && host.querySelector('#labPanel')) renderLab(team, host.querySelector('#labPanel'));
     const err = (msg) => { host.querySelector('#subErr').textContent = msg || ''; };
     const sel = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
     if (sel && !isShape) {
