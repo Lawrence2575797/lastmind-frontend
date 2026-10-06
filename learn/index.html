@@ -4200,11 +4200,12 @@
     .nb-graph.nb-expanded { position: relative !important; left: auto !important; top: auto !important; width: 100% !important; height: auto !important; max-height: 94vh; display: flex; flex-direction: column; box-shadow: 0 20px 70px rgba(0,0,0,.6); }
     .nb-graph.nb-expanded .nb-graph-host { overflow: auto; } .nb-graph.nb-expanded .coord-graph-stage { aspect-ratio: auto; height: min(58vh, 620px); }
     .nb-graph.nb-expanded .nb-resize, .nb-graph.nb-expanded > .nb-corner, .nb-graph.nb-expanded .nb-del { display: none; }
-    .cg-palette { padding: 8px 10px; border-bottom: 1px solid rgba(230,215,176,.18); background: rgba(230,215,176,.05); }
-    .cg-title { font: 700 12px Arial, sans-serif; margin-bottom: 6px; } .cg-title small { font-weight: 400; opacity: .7; margin-left: 6px; }
-    .cg-fns { display: flex; flex-wrap: wrap; gap: 6px; } .cg-fn { padding: 6px 11px; border: 1px solid rgba(230,215,176,.45); border-radius: 999px; background: rgba(230,215,176,.08); color: #E6D7B0; font: 700 12px Arial, sans-serif; cursor: grab; touch-action: none; user-select: none; } .cg-fn:hover { background: rgba(230,215,176,.2); }
-    .cg-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; font: 12px Arial, sans-serif; } .cg-hint { opacity: .65; }
-    .cg-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 8px; border: 1px solid rgba(230,215,176,.3); border-radius: 999px; } .cg-chip i { width: 10px; height: 10px; border-radius: 50%; } .cg-chip button { width: 20px; height: 20px; border: 0; border-radius: 50%; background: rgba(230,215,176,.15); color: #E6D7B0; cursor: pointer; }
+    .cg-palette { position: absolute; z-index: 5; top: 0; right: 0; bottom: 0; width: 236px; padding: 12px 12px 14px; overflow-y: auto; background: rgba(18,18,30,.95); border-left: 1px solid rgba(230,215,176,.3); }
+    .cg-tab { position: absolute; z-index: 6; top: 14px; right: 236px; padding: 10px 7px; writing-mode: vertical-rl; border: 1px solid rgba(230,215,176,.45); border-right: 0; border-radius: 10px 0 0 10px; background: #1A232D; color: #E6D7B0; font: 700 12px Arial, sans-serif; cursor: pointer; } .cg-tab.closed { right: 0; }
+    .cg-title { font: 700 13px Arial, sans-serif; margin-bottom: 8px; } .cg-title small { display: block; font-weight: 400; opacity: .7; margin-top: 2px; }
+    .cg-fns { display: grid; gap: 6px; } .cg-fn { padding: 8px 12px; border: 1px solid rgba(230,215,176,.45); border-radius: 10px; background: rgba(230,215,176,.08); color: #E6D7B0; font: 700 13px Arial, sans-serif; text-align: left; cursor: grab; touch-action: none; user-select: none; } .cg-fn:hover { background: rgba(230,215,176,.2); }
+    .cg-list { display: grid; gap: 6px; margin-top: 14px; font: 12px Arial, sans-serif; } .cg-hint { opacity: .65; line-height: 1.5; }
+    .cg-chip { display: flex; align-items: center; gap: 6px; padding: 5px 5px 5px 8px; border: 1px solid rgba(230,215,176,.3); border-radius: 10px; } .cg-chip i { flex: none; width: 10px; height: 10px; border-radius: 50%; } .cg-chip span { flex: 1; min-width: 0; overflow-wrap: anywhere; } .cg-chip button { flex: none; width: 22px; height: 22px; border: 0; border-radius: 50%; background: rgba(230,215,176,.15); color: #E6D7B0; cursor: pointer; }
     .cg-ghost { position: fixed; z-index: 500; display: none; padding: 6px 11px; border: 1px solid #E6D7B0; border-radius: 999px; background: #1A232D; color: #E6D7B0; font: 700 12px Arial, sans-serif; pointer-events: none; }
     .nb-corner { position: absolute; width: 14px; height: 14px; z-index: 4; background: #E6D7B0; border: 2px solid #1A232D; border-radius: 4px; opacity: 0; touch-action: none; }
     .nb-corner-nw { left: 3px; top: 3px; cursor: nwse-resize; } .nb-corner-se { right: 3px; bottom: 3px; cursor: nwse-resize; }
@@ -21347,7 +21348,7 @@ SQIDAQAB
         const endDrag=e=>{if(hd){hd=null;saveExpression();notify();return;}ptrs.delete(e.pointerId);if(ptrs.size<2){if(pinch)notify();pinch=null;}if(ptrs.size===0&&drag){drag=null;notify();}};canvas.addEventListener('pointerup',endDrag);canvas.addEventListener('pointercancel',endDrag);
 
         // ---- the palette of standard curves (shown when the graph is expanded) ----
-        let paletteEl = null;
+        let paletteEl = null, paletteTab = null, paletteOpen = true;
         function placeCurve(type, at) {
             const xs = state.xmax - state.xmin, s = xs / 8, c = at || [(state.xmin + state.xmax) / 2, (state.ymin + state.ymax) / 2], F = CG_FAMILIES[type];
             const cv = { id: 'c' + Date.now().toString(36) + (curveSeq++), type, pts: F.make(c, s) }; if (F.k) cv.k = F.k(c);
@@ -21358,11 +21359,15 @@ SQIDAQAB
             list.innerHTML = state.curves.length ? state.curves.map((cv, i) => '<span class="cg-chip"><i style="background:' + CG_COLOURS[i % CG_COLOURS.length] + '"></i><span>' + escapeHtml(CG_FAMILIES[cv.type].name) + ': ' + escapeHtml(cgEquation(cv)) + '</span><button type="button" data-cgdel="' + cv.id + '" aria-label="Remove this curve">×</button></span>').join('') : '<span class="cg-hint">Drag a curve onto the graph. Drag its round handles to change it.</span>';
         }
         function showPalette(on) {
-            editing = !!on; if (paletteEl) { paletteEl.remove(); paletteEl = null; }
+            editing = !!on; if (paletteEl) { paletteEl.remove(); paletteEl = null; } if (paletteTab) { paletteTab.remove(); paletteTab = null; }
             if (on) {
                 paletteEl = document.createElement('div'); paletteEl.className = 'cg-palette';
+                paletteTab = document.createElement('button'); paletteTab.type = 'button'; paletteTab.className = 'cg-tab'; paletteTab.setAttribute('aria-label', 'Show or hide the curves panel');
+                const syncTab = () => { paletteEl.style.display = paletteOpen ? '' : 'none'; paletteTab.classList.toggle('closed', !paletteOpen); paletteTab.textContent = paletteOpen ? 'Curves ▸' : '◂ Curves'; };
+                paletteTab.addEventListener('click', () => { paletteOpen = !paletteOpen; syncTab(); });
                 paletteEl.innerHTML = '<div class="cg-title">Standard curves <small>drag onto the graph, or click to add</small></div><div class="cg-fns">' + Object.keys(CG_FAMILIES).map(k => '<button type="button" class="cg-fn" data-fn="' + k + '">' + escapeHtml(CG_FAMILIES[k].name) + '</button>').join('') + '</div><div class="cg-list"></div>';
-                host.querySelector('.coord-graph').insertBefore(paletteEl, host.querySelector('.coord-graph-stage'));
+                stage.appendChild(paletteEl); stage.appendChild(paletteTab); syncTab();
+                paletteEl.addEventListener('wheel', ev => ev.stopPropagation(), { passive: true });
                 refreshList();
                 paletteEl.addEventListener('click', ev => { const d = ev.target.closest('[data-cgdel]'); if (d) { state.curves = state.curves.filter(c2 => c2.id !== d.dataset.cgdel); draw(); refreshList(); saveExpression(); notify(); } });
                 paletteEl.querySelectorAll('[data-fn]').forEach(btn => btn.addEventListener('pointerdown', ev => {
