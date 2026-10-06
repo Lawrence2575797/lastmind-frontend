@@ -23,7 +23,8 @@
     // Where their players stand at the start (the phase that answers your build-up), in pitch metres.
     const ball = FM.toMetres(dir, 0.07, 0.6);
     opp.phaseCtx = {}; user.phaseCtx = {};
-    const where = new Map(); opp.players.forEach((p) => where.set(p, FM.targetFor(Object.assign({}, opp, { tactics: tac }), p, ball, false)));
+    const oppDefault = Object.assign({}, opp, { tactics: tac, phasePos: null });
+    const where = new Map(); opp.players.forEach((p) => where.set(p, FM.targetFor(oppDefault, p, ball, false)));
     const list = [];
     outfield(user).forEach((q) => {
       const pos = FM.phasePos(user, q, 'build'), def = FM.defaultPhasePos(user, q, 'build');
@@ -51,6 +52,7 @@
   // One trial. Returns { outcome, time, passes, bigChance, goal }.
   LAB.trial = function (league, userTeam, oppTeam, oppTactics, seed, opts) {
     const u = clone(userTeam), o = clone(oppTeam);
+    o.phasePos = null;   // the test is always against the opposition as they normally set up, wherever their shirts were dragged on the board
     if (oppTactics) o.tactics = Object.assign({}, o.tactics, oppTactics);
     const match = FM.createMatch(u, o, seed);
     match.userId = u.id;
