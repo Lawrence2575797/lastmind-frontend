@@ -4142,6 +4142,8 @@
     .nb-text .math-shortcut-editor ul, .nb-text .math-shortcut-editor ol { margin: 0.2em 0; padding-left: 0; list-style-position: outside; }
     .nb-text .math-shortcut-editor li { margin-left: 0; padding-left: 0.1em; }
     .nb-text .math-shortcut-editor ul { list-style: disc; }
+    /* The long dash from typing two hyphens: larger and heavier, to match the weight of a bullet point */
+    .nb-text .math-shortcut-editor .nb-dash { display: inline-block; font-size: 1.7em; font-weight: 800; line-height: 0.5; vertical-align: -0.1em; margin: 0 0.08em; color: inherit; }
     .nb-text .math-shortcut-editor ol { list-style: decimal; }
     .nb-grip { position: absolute; left: -2px; top: -22px; width: 26px; height: 20px; display: none; align-items: center; justify-content: center; font-size: 14px; line-height: 1; cursor: grab; touch-action: none; user-select: none; color: #1A232D; background: #E6D7B0; border-radius: 5px 5px 0 0; }
     .nb-text:hover > .nb-grip, .nb-text:focus-within > .nb-grip { display: flex; }
@@ -20788,10 +20790,14 @@ SQIDAQAB
                     const range = sel.getRangeAt(0), node = range.startContainer;
                     if (node.nodeType === 3 && range.startOffset > 0 && node.textContent.charAt(range.startOffset - 1) === '-') {
                         e.preventDefault();
-                        const offset = range.startOffset;
-                        node.textContent = node.textContent.slice(0, offset - 1) + '—' + node.textContent.slice(offset);
+                        // The long dash is drawn larger and bolder, in the same style as a bullet point, so it is a small span of its own.
+                        const offset = range.startOffset, text = node.textContent;
+                        node.textContent = text.slice(0, offset - 1);
+                        const dash = document.createElement('span'); dash.className = 'nb-dash'; dash.textContent = '—';
+                        const after = document.createTextNode(text.slice(offset) || '​');
+                        node.parentNode.insertBefore(dash, node.nextSibling); node.parentNode.insertBefore(after, dash.nextSibling);
                         const caret = document.createRange();
-                        caret.setStart(node, offset); caret.collapse(true);
+                        caret.setStart(after, text.slice(offset) ? 0 : 1); caret.collapse(true);
                         sel.removeAllRanges(); sel.addRange(caret);
                         editable.dispatchEvent(new Event('input', { bubbles: true }));
                         return;
