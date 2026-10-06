@@ -4127,7 +4127,7 @@
     .nb-text:hover { z-index: 20; }
     .nb-text:focus-within { z-index: 30; }
     .nb-text:has(> .nb-align-left[aria-pressed="true"]) { z-index: 40; }
-    .nb-text:hover, .nb-text:focus-within { outline-color: rgba(230, 215, 176, 0.35); }
+    .nb-text.nb-frame-open { outline-color: rgba(230, 215, 176, 0.45); }
     .nb-text .math-shortcut-wrap { margin: 0; }
     .nb-text .math-shortcut-mode-badge { display: none; }
     .nb-text .math-shortcut-editor { min-height: 0; padding: 6px 8px; background: transparent; border: 0; border-radius: 6px; color: #E6D7B0; caret-color: #E6D7B0; font-family: inherit; font-size: 16px; line-height: 1.6; box-shadow: none; }
@@ -20774,6 +20774,24 @@ SQIDAQAB
     function nbTextShortcuts(editable) {
         editable.addEventListener('keydown', (e) => {
             const mod = e.ctrlKey || e.metaKey;
+            // In writing mode, a pair of ordinary hyphens becomes a single,
+            // wider em dash without affecting minus signs on the maths keyboard.
+            if (e.key === '-' && notesWriting && !mod && !e.altKey) {
+                const sel = window.getSelection();
+                if (sel.rangeCount && sel.isCollapsed) {
+                    const range = sel.getRangeAt(0), node = range.startContainer;
+                    if (node.nodeType === 3 && range.startOffset > 0 && node.textContent.charAt(range.startOffset - 1) === '-') {
+                        e.preventDefault();
+                        const offset = range.startOffset;
+                        node.textContent = node.textContent.slice(0, offset - 1) + '—' + node.textContent.slice(offset);
+                        const caret = document.createRange();
+                        caret.setStart(node, offset); caret.collapse(true);
+                        sel.removeAllRanges(); sel.addRange(caret);
+                        editable.dispatchEvent(new Event('input', { bubbles: true }));
+                        return;
+                    }
+                }
+            }
             if (e.key === 'Enter' && e.shiftKey && !mod && !e.altKey) {
                 const sel = window.getSelection();
                 if (!sel.rangeCount) return;
@@ -20841,6 +20859,7 @@ SQIDAQAB
         };
         editable.addEventListener('focus', () => { activate(); notesWriting = ed.isWritingMode(); nbSyncKeyboardButtons(); });
         editable.addEventListener('pointerdown', activate); editable.addEventListener('keydown', activate);
+        editable.addEventListener('dblclick', () => el.classList.toggle('nb-frame-open'));
         editable.addEventListener('blur', () => setTimeout(() => {
             if (document.activeElement === editable || !el.isConnected || !ed.isEmpty()) return;
             nbRemoveBlock(page, block, el, canvas);
@@ -20959,6 +20978,7 @@ SQIDAQAB
         <li><span class="sc-keys"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>8</kbd> / <kbd>7</kbd></span><span>Bullet points / numbered list</span></li>
         <li><span class="sc-keys"><kbd>-</kbd> then <kbd>Space</kbd></span><span>Bullet point (English keyboard, at the start of a line)</span></li>
         <li><span class="sc-keys"><kbd>1.</kbd> then <kbd>Space</kbd></span><span>Numbered list (English keyboard, at the start of a line)</span></li>
+        <li><span class="sc-keys"><kbd>-</kbd><kbd>-</kbd></span><span>Insert a long dash (English keyboard)</span></li>
         <li><span class="sc-keys"><kbd>Shift</kbd> + <kbd>Enter</kbd></span><span>Add an indented follow-on line with an arrow</span></li>
         <li><span class="sc-keys"><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>G</kbd></span><span>Add a coordinate graph</span></li>
         <li><span class="sc-keys">One-finger drag</span><span>Move a coordinate graph; use two fingers to zoom it</span></li>
