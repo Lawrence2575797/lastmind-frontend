@@ -10463,6 +10463,14 @@ SQIDAQAB
             ],
         },
         {
+            key: 'biology', title: 'Biology', image: '/assets/create/biology.jpg', description: 'Diagnose patients and climb the ranks of medicine',
+            alt: 'A microscope and a stethoscope on a wooden desk beside a model of DNA',
+            simulations: [
+                { key: 'doctor-gcse', title: 'Doctor Career: GCSE', image: '/assets/create/doctor-career-gcse.jpg', description: 'See patients, work out what is wrong, and learn the AQA GCSE Biology on the way', alt: 'A young doctor in a white coat seen from behind in a bright hospital corridor' },
+                { key: 'doctor-alevel', title: 'Doctor Career: A-level', image: '/assets/create/doctor-career-alevel.jpg', description: 'Harder cases on the AQA A-level Biology specification', alt: 'A doctor in scrubs reviewing a patient file at a hospital nurses station' },
+            ],
+        },
+        {
             key: 'economics', title: 'Economics', image: '/assets/create/economics.jpg', description: 'Run an economy and live with the consequences',
             alt: 'An imagined treasury boardroom with a long table and a city skyline at dusk',
             simulations: [
@@ -10491,6 +10499,7 @@ SQIDAQAB
         if (view === 'criminal-trial') { renderCreateTrialBuilder(contentInner); return; }
         if (view === 'chancellor') { renderChancellorBuilder(contentInner); return; }
         if (view === 'criminal-lawyer-career') { renderCareerHome(contentInner); return; }
+        if (view === 'doctor-gcse' || view === 'doctor-alevel') { renderDoctorCareer(contentInner, view === 'doctor-gcse' ? 'gcse' : 'alevel'); return; }
         const card = (t, attrs = '') => `
                         <article class="create-card${attrs ? ' create-card-link' : ''}" ${attrs}>
                             <h3>${escapeHtml(t.title)}</h3>
@@ -11442,17 +11451,47 @@ SQIDAQAB
                 meta: 'Season ' + d.season + ' · ' + (mine >= 14 ? 'season complete' : mine + ' of 14 played') + (mine ? ' · ' + ord(pos) + ' in the table' : '') + ' · ' + tier + ' statistics' };
         } catch (err) { return null; }
     }
+    // ─── Doctor Career (Biology): GCSE and A-level tracks. The cases, lessons and rules are written in advance (create/doctor-career/). ───
+    const DOCTOR_VERSION = '20261007a';
+    const DOCTOR_FILES = ['doctor', 'lessons-gcse', 'lessons-alevel', 'cases-gcse', 'cases-alevel'];
+    let doctorUid = 'guest', doctorFilesPromise = null;
+    function doctorLoadFiles() {
+        if (doctorFilesPromise) return doctorFilesPromise;
+        const load = (name) => new Promise((resolve, reject) => { const el = document.createElement('script'); el.src = `/create/doctor-career/${name}.js?v=${DOCTOR_VERSION}`; el.onload = resolve; el.onerror = () => reject(new Error('Could not load ' + name)); document.head.appendChild(el); });
+        doctorFilesPromise = (async () => { for (const f of DOCTOR_FILES) await load(f); })().catch((err) => { doctorFilesPromise = null; throw err; });
+        return doctorFilesPromise;
+    }
+    async function renderDoctorCareer(contentInner, track) {
+        contentInner.innerHTML = '<div class="mt-empty">Opening the clinic…</div>';
+        try { const { data: { session } } = await supabaseClient.auth.getSession(); doctorUid = session && session.user ? session.user.id : 'guest'; } catch (_) { doctorUid = 'guest'; }
+        try { await doctorLoadFiles(); } catch (err) { contentInner.innerHTML = '<div class="mt-empty">The clinic could not open. Check your connection and try again.</div>'; return; }
+        contentInner.innerHTML = '<div id="doctorCareerHost"></div>';
+        window.DOCTOR.mount(document.getElementById('doctorCareerHost'), track, { userId: doctorUid, back: () => renderCreatePage('biology') });
+    }
+    // The projects list reads the save directly, so the career shows up even before the clinic has been opened this visit.
+    function doctorProjects() {
+        const out = [];
+        [['gcse', 'Doctor Career: GCSE'], ['alevel', 'Doctor Career: A-level']].forEach(([track, title]) => {
+            try {
+                const d = JSON.parse(localStorage.getItem(`lastmind-doctor-career-v1:${track}:${doctorUid}`) || 'null'); const ids = d && d.results ? Object.keys(d.results) : [];
+                if (!ids.length) return;
+                const avg = Math.round(ids.reduce((sum, k) => sum + d.results[k].best, 0) / ids.length);
+                out.push({ id: 'local-doctor-' + track, title, kind: 'doctor-career', track, meta: `${ids.length} patient${ids.length === 1 ? '' : 's'} seen · average ${avg}%`, isReference: false, updatedAt: new Date().toISOString() });
+            } catch (_) { /* no save yet */ }
+        });
+        return out;
+    }
     function createWithCareer(list) {
         const had = list.some((p) => p.kind === 'criminal-lawyer-career');
         const rest = list.filter((p) => p.kind !== 'criminal-lawyer-career');
         const meta = careerLocalSummary();
         return had || meta ? [{ id: 'local-law-career', title: 'Criminal Lawyer Career', kind: 'criminal-lawyer-career', meta: meta || '', isReference: false, updatedAt: new Date().toISOString() }, ...rest] : rest;
     }
-    const createWithFootball = (list0) => { let list = list0; try { list = createWithCareer(list0); } catch (err) { console.error('LastMind: career entry failed.', err); } const fp = createFootballProject(); return fp ? [fp, ...list.filter((p) => p.id !== 'local-football-manager')] : list.filter((p) => p.id !== 'local-football-manager'); };
+    const createWithFootball = (list0) => { let list = list0; try { list = createWithCareer(list0); } catch (err) { console.error('LastMind: career entry failed.', err); } try { list = [...doctorProjects(), ...list.filter((p) => p.kind !== 'doctor-career')]; } catch (err) { console.error('LastMind: doctor entry failed.', err); } const fp = createFootballProject(); return fp ? [fp, ...list.filter((p) => p.id !== 'local-football-manager')] : list.filter((p) => p.id !== 'local-football-manager'); };
     async function createLoadProjects() {
         // The career is saved under a per-account key that is only worked out once the career is opened, so settle it here first or a
         // fresh visit to the list reads the wrong key and the career never shows.
-        try { const { data: { session } } = await supabaseClient.auth.getSession(); careerLocalKey = session && session.user ? `${CAREER_LOCAL_KEY}:${session.user.id}` : CAREER_LOCAL_KEY; } catch (_) { /* signed out: the plain key */ }
+        try { const { data: { session } } = await supabaseClient.auth.getSession(); careerLocalKey = session && session.user ? `${CAREER_LOCAL_KEY}:${session.user.id}` : CAREER_LOCAL_KEY; doctorUid = session && session.user ? session.user.id : 'guest'; } catch (_) { /* signed out: the plain key */ }
         try {
             const { resp, body } = await createAuthedFetch('/create/projects');
             if (resp.ok && !body.unavailable) {
@@ -11511,7 +11550,9 @@ SQIDAQAB
             createBindDuelBox(host);
             return;
         }
-        const card = (p, isRef) => p.kind === 'criminal-lawyer-career'
+        const card = (p, isRef) => p.kind === 'doctor-career'
+            ? `<article class="create-proj"><h3>${escapeHtml(p.title)}</h3><div class="meta">Career${p.meta ? ' · ' + escapeHtml(p.meta) : ''}</div><div class="row"><button type="button" class="create-cta" data-doctor="${p.track}" style="padding:8px 18px;font-size:0.85rem;">Resume career</button></div></article>`
+            : p.kind === 'criminal-lawyer-career'
             ? `<article class="create-proj"><h3>Criminal Lawyer Career</h3><div class="meta">Career${p.meta ? ' · ' + escapeHtml(p.meta) : ''}</div><div class="row"><button type="button" class="create-cta" data-career style="padding:8px 18px;font-size:0.85rem;">Resume career</button></div></article>`
             : p.kind === 'football-manager'
             ? `<article class="create-proj"><h3>${escapeHtml(p.title)}</h3><div class="meta">Football manager${p.meta ? ' · ' + escapeHtml(p.meta) : ''} · saved in this browser</div><div class="row"><a class="create-cta" href="${escapeHtml(p.href || '/create/football/')}" style="padding:8px 18px;font-size:0.85rem;text-decoration:none;">Resume</a><button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button></div></article>`
@@ -11523,6 +11564,7 @@ SQIDAQAB
             ${references.length ? `<div class="create-section-heading" style="margin-top:30px;"><h2>Reference examples</h2></div><p class="create-step-help" style="margin-top:-8px;">Finished cases to learn from. Open one to see how a complete case is put together.</p><div class="create-gallery">${references.map((p) => card(p, true)).join('')}</div>` : ''}`;
         host.querySelector('#createProjectBtn').addEventListener('click', () => renderCreatePage('gallery'));
         host.querySelectorAll('[data-career]').forEach((b) => b.addEventListener('click', () => renderCreatePage('criminal-lawyer-career')));
+        host.querySelectorAll('[data-doctor]').forEach((b) => b.addEventListener('click', () => renderCreatePage('doctor-' + b.dataset.doctor)));
         host.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => createOpenProject(b.dataset.open)));
         host.querySelectorAll('[data-play]').forEach((b) => b.addEventListener('click', () => createOpenProject(b.dataset.play, { playtest: true })));
         host.querySelectorAll('[data-duel]').forEach((b) => b.addEventListener('click', () => createOpenProject(b.dataset.duel, { duel: true })));
