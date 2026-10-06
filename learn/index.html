@@ -20615,7 +20615,11 @@ SQIDAQAB
     function nbWireDrag(handle, el, block, canvas) {
         handle.addEventListener('pointerdown', (e) => {
             if (e.button !== 0) return;
-            e.preventDefault();
+            e.preventDefault(); nbDragStart(e, handle, el, block, canvas);
+        });
+    }
+    function nbDragStart(e, handle, el, block, canvas) {
+        {
             const sx = e.clientX, sy = e.clientY, ox = el.offsetLeft, oy = el.offsetTop;
             try { handle.setPointerCapture(e.pointerId); } catch (_) { /* older browser */ }
             const move = (ev) => {
@@ -20626,7 +20630,7 @@ SQIDAQAB
             };
             const up = () => { handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up); handle.removeEventListener('pointercancel', up); notesScheduleSave(); };
             handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', up); handle.addEventListener('pointercancel', up);
-        });
+        }
     }
     // On touch screens the graph itself is the natural, large drag handle for
     // moving a Notes block. A second finger cancels that block drag so the
@@ -20635,7 +20639,8 @@ SQIDAQAB
         const touches = new Set();
         let moveState = null, moved = false;
         surface.addEventListener('pointerdown', (e) => {
-            if (e.pointerType === 'mouse' || el.classList.contains('nb-expanded')) return;
+            if (el.classList.contains('nb-expanded') || (e.pointerType === 'mouse' && e.button !== 0)) return;
+            if (e.pointerType === 'mouse') { try { surface.setPointerCapture(e.pointerId); } catch (_) { /* older browser */ } }
             touches.add(e.pointerId);
             if (touches.size === 1) {
                 moveState = { id: e.pointerId, sx: e.clientX, sy: e.clientY, ox: el.offsetLeft, oy: el.offsetTop };
@@ -20833,7 +20838,7 @@ SQIDAQAB
             <button type="button" class="nb-del nb-del-inline" aria-label="Delete this graph" title="Delete">×</button></div><div class="nb-graph-host"></div><div class="nb-resize" title="Drag to resize"></div>`;
         canvas.appendChild(el); nbPlace(el, block, canvas);
         const graphHost = el.querySelector('.nb-graph-host');
-        const gapi = renderCoordinateGraph(graphHost, block.state || {}, { only2d: true, onChange: (state) => { block.state = state; notesScheduleSave(); if (!el.classList.contains('nb-expanded')) nbFitCanvas(canvas); } });
+        const gapi = renderCoordinateGraph(graphHost, block.state || {}, { only2d: true, canPan: () => el.classList.contains('nb-expanded'), onChange: (state) => { block.state = state; notesScheduleSave(); if (!el.classList.contains('nb-expanded')) nbFitCanvas(canvas); } });
         // Notes graphs use a single compact header. Move the two controls
         // that remain useful into it and remove the redundant second row
         // (including +/- zoom, Draw and Reset view). Enter or the arrow
@@ -20865,6 +20870,8 @@ SQIDAQAB
         // only handles two-finger pinch zoom on touch screens; mouse dragging
         // still pans or rotates it on a laptop.
         nbWireGraphTouchDrag(graphHost.querySelector('canvas'), el, block, canvas);
+        const dbarEl = el.querySelector('.nb-dbar'); dbarEl.style.cursor = 'grab';
+        dbarEl.addEventListener('pointerdown', (e) => { if (e.target !== dbarEl || e.button !== 0 || el.classList.contains('nb-expanded')) return; e.preventDefault(); nbDragStart(e, dbarEl, el, block, canvas); });
         nbWireResize(el.querySelector('.nb-resize'), el, block, canvas); nbWireCorners(el, block, canvas);
         const delBtn = deleteBtn; let armed = null;
         delBtn.addEventListener('click', () => { if (armed) { clearTimeout(armed); nbRemoveBlock(page, block, el, canvas); return; } delBtn.textContent='Sure?';delBtn.style.width='auto';delBtn.style.padding='0 8px';armed=setTimeout(()=>{armed=null;delBtn.textContent='×';delBtn.style.width='';delBtn.style.padding='';},3000); });
@@ -21305,7 +21312,7 @@ SQIDAQAB
             if(fn)for(let pass=0;pass<2;pass++)for(let i=0;i<=n;i++){ctx.beginPath();let pen=false;for(let j=0;j<=n;j++){const a=lo+i/n*span,b=lo+j/n*span,x=pass?a:b,y=pass?b:a,z=val(x,y);if(!Number.isFinite(z)){pen=false;continue;}const p=project(x,y,z);if(!pen){ctx.moveTo(p.x,p.y);pen=true;}else ctx.lineTo(p.x,p.y);}ctx.strokeStyle=pass?'rgba(110,200,255,.72)':'rgba(230,215,176,.5)';ctx.stroke();}
             ctx.fillStyle='#E6D7B0';ctx.font='12px Arial';[['x',hi,0,0],['y',0,hi,0],['z',0,0,span/2]].forEach(a=>{const p=project(a[1],a[2],a[3]);ctx.fillText(a[0],p.x+4,p.y-4);});
         }
-        function draw() { error.textContent=''; host.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===state.mode))); help.textContent=state.mode==='3d'?'Drag to rotate, scroll or pinch to zoom':'y = f(x). Scroll or pinch to zoom, drag to move'; const {ctx,w,h,dpr}=size();ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);ctx.fillStyle='#171827';ctx.fillRect(0,0,w,h);try{state.mode==='3d'?draw3d(ctx,w,h):draw2d(ctx,w,h);}catch(e){error.textContent=e.message||'Could not draw that equation.';} }
+        function draw() { error.textContent=''; host.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===state.mode))); help.textContent=state.mode==='3d'?'Drag to rotate, scroll or pinch to zoom':(options&&options.canPan&&!options.canPan()?'Drag to move this graph. Expand it to move around the axes.':'y = f(x). Scroll or pinch to zoom, drag to move'); const {ctx,w,h,dpr}=size();ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);ctx.fillStyle='#171827';ctx.fillRect(0,0,w,h);try{state.mode==='3d'?draw3d(ctx,w,h):draw2d(ctx,w,h);}catch(e){error.textContent=e.message||'Could not draw that equation.';} }
         function saveExpression() { if(state.mode==='3d'){state.expression3d=expressionEditor.getValue();state.expression3dHtml=expressionEditor.getHtml();}else{state.expression2d=expressionEditor.getValue();state.expression2dHtml=expressionEditor.getHtml();} }
         function commit() { saveExpression();draw();notify();}
         host.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>{if(state.mode===b.dataset.mode)return;saveExpression();state.mode=b.dataset.mode;loadExpression();draw();notify();}));
@@ -21323,7 +21330,7 @@ SQIDAQAB
         function toPx(x,y){const r=canvas.getBoundingClientRect(),xs=state.xmax-state.xmin,ys=state.ymax-state.ymin;return[(x-state.xmin)/xs*r.width,r.height-(y-state.ymin)/ys*r.height];}
         function toGraph(cx,cy){const r=canvas.getBoundingClientRect(),xs=state.xmax-state.xmin,ys=state.ymax-state.ymin;return[state.xmin+(cx-r.left)/r.width*xs,state.ymax-(cy-r.top)/r.height*ys];}
         function hitHandle(e){if(!editing||state.mode==='3d')return null;const r=canvas.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;let best=null,bd=18;state.curves.forEach((cv,ci)=>cv.pts.forEach((pt,hi)=>{const q=toPx(pt[0],pt[1]),d=Math.hypot(q[0]-mx,q[1]-my);if(d<bd){bd=d;best={ci,hi};}}));return best;}
-        canvas.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button!==0)return;const hh=hitHandle(e);if(hh){hd=hh;e.preventDefault();e.stopPropagation();try{canvas.setPointerCapture(e.pointerId);}catch(_){}return;}ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});try{canvas.setPointerCapture(e.pointerId);}catch(_){}
+        canvas.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button!==0)return;const hh=hitHandle(e);if(hh){hd=hh;e.preventDefault();e.stopPropagation();try{canvas.setPointerCapture(e.pointerId);}catch(_){}return;}if(e.pointerType==='mouse'&&options&&options.canPan&&!options.canPan())return;ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});try{canvas.setPointerCapture(e.pointerId);}catch(_){}
             if(ptrs.size===2){const v=[...ptrs.values()];pinch={d:Math.hypot(v[0].x-v[1].x,v[0].y-v[1].y)||1,mx:(v[0].x+v[1].x)/2,my:(v[0].y+v[1].y)/2};drag=null;}
             else if(ptrs.size===1&&e.pointerType==='mouse'){drag=state.mode==='3d'?{x:e.clientX,y:e.clientY,ax:state.angleX,az:state.angleZ}:{x:e.clientX,y:e.clientY,xmin:state.xmin,xmax:state.xmax,ymin:state.ymin,ymax:state.ymax};}
             else drag=null;});
