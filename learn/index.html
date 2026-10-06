@@ -1193,6 +1193,19 @@
        laid out as clusters (one per subject/topic) of rows rather than an
        SVG canvas - see renderUnifiedKnowledgeMap's own comment on why
        clustering by subject IS the graph's real connected-component shape. */
+    /* Your Mind: the real knowledge map of a subject, covered concepts lit and the rest dimmed, under a banner of its own. */
+    .ym-bar { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; margin: 0 0 14px; padding: 16px 24px 14px; border-radius: 14px; background: linear-gradient(135deg, #131c27 0%, #1d2a38 100%); color: #F3E9CF; border: 1px solid rgba(230, 215, 176, 0.3); box-shadow: 0 6px 22px rgba(0,0,0,.28); }
+    .ym-eyebrow { font: 700 11px/1 Arial, sans-serif; letter-spacing: .22em; text-transform: uppercase; color: #D9B65F; margin: 0 0 6px; }
+    .ym-title { margin: 0; font-family: 'Cormorant Garamond', 'Lora', Georgia, serif; font-style: italic; font-weight: 700; font-size: clamp(2.4rem, 5.4vw, 3.6rem); line-height: 1; letter-spacing: .01em; background: linear-gradient(180deg, #FFF3CF 0%, #E3BE63 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .ym-sub { margin: 8px 0 0; font: 14px/1.4 'Lora', Georgia, serif; color: rgba(243, 233, 207, .78); }
+    .ym-key { display: inline-flex; align-items: center; gap: 6px; margin-right: 14px; } .ym-key i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+    .ym-subjects { display: flex; flex-wrap: wrap; gap: 8px; }
+    .ym-chip { padding: 7px 13px; border-radius: 999px; border: 1.5px solid rgba(230, 215, 176, .4); background: transparent; color: #F3E9CF; font: 700 12.5px Arial, sans-serif; cursor: pointer; }
+    .ym-chip[aria-pressed="true"] { background: #E3BE63; color: #131c27; border-color: #E3BE63; }
+    .km-yourmind .km-node-group.state-0 { opacity: .4; filter: brightness(.5) saturate(.35); }
+    .km-yourmind .km-node-group:not(.state-0) { filter: brightness(1.3) saturate(1.2) drop-shadow(0 0 6px rgba(230, 215, 176, .4)); }
+    .km-yourmind .km-link.state-0 { stroke-opacity: .12 !important; }
+    .km-yourmind .km-link:not(.state-0) { stroke-opacity: .9 !important; }
     .um-view { max-width: 920px; margin: 0 auto; padding: 28px 20px 60px; }
     .um-empty { text-align: center; padding-top: 80px; }
     .um-empty .um-sub { background: var(--panel); color: var(--text); opacity: 1; display: inline-block; max-width: 480px; padding: 18px 24px; border-radius: 12px; font-size: 1.15rem; line-height: 1.5; }
@@ -6648,7 +6661,7 @@
 <!-- Renders the "Your Progress" knowledge map (see openKnowledgeMap) —
      force-directed layout of the student's own dependency graph. -->
 <script src="https://d3js.org/d3.v7.min.js"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600&family=IBM+Plex+Sans:wght@500;600&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600&family=IBM+Plex+Sans:wght@500;600&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
 <link rel="prefetch" href="/learn/derive/player.html" as="document">
 </head>
 <body>
@@ -26551,11 +26564,12 @@ SQIDAQAB
         sfRenderCortexOnboarding();
     }
 
-    async function renderKnowledgeMapForFolder(folder) {
+    async function renderKnowledgeMapForFolder(folder, opts) {
         stopActiveDictation();
         stopSpeaking();
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
+        contentInner.classList.toggle('km-yourmind', !!(opts && opts.yourMind));
 
         function showCenterMessage(message, retryable, extraClass) {
             contentInner.innerHTML = `<div class="km-inline-detail-empty"></div>`;
@@ -26716,7 +26730,7 @@ SQIDAQAB
         if (!data.nodes || !data.nodes.length) {
             contentInner.innerHTML = `
                 <div class="um-view um-empty">
-                    <h1 class="um-title">Your Mind</h1>
+                    <div class="ym-bar" style="justify-content:center;text-align:center"><div><p class="ym-eyebrow">Knowledge map</p><h1 class="ym-title">Your Mind</h1></div></div>
                     <p class="um-sub">No concepts covered yet — complete a lesson to get started. Everything you learn shows up here, linked to whatever it actually builds on.</p>
                 </div>`;
             return;
@@ -26727,37 +26741,32 @@ SQIDAQAB
             if (!bySubject.has(n.subject)) bySubject.set(n.subject, []);
             bySubject.get(n.subject).push(n);
         });
-
         const subjects = Array.from(bySubject.keys()).sort((a, b) => a.localeCompare(b));
-        const clusters = subjects.map((subject, i) => `
-            <div class="um-cluster">
-                <div class="um-cluster-title">${escapeHtml(subject)}</div>
-                <div class="um-graph-wrap" data-cluster-id="um-cluster-${i}"><svg class="um-graph-svg"></svg><div class="um-graph-cols"></div></div>
-            </div>`).join('');
+        await showYourMind(subjects, bySubject, data.nodes.length, myToken, ymSubject && bySubject.has(ymSubject) ? ymSubject : null);
+    }
 
-        contentInner.innerHTML = `
-            <div class="um-view">
-                <div class="um-header">
-                    <h1 class="um-title">Your Mind</h1>
-                    <p class="um-sub">Everything you've covered so far, across every subject — click any concept to continue it.</p>
-                </div>
-                <div class="um-clusters">${clusters}</div>
-            </div>`;
-
-        const nodeById = new Map(data.nodes.map((n) => [n.id, n]));
-        const edgesBySourceSubject = data.edges.filter((e) => nodeById.has(e.source) && nodeById.has(e.target));
-        contentInner.querySelectorAll('.um-graph-wrap').forEach((wrapEl, i) => {
-            const subject = subjects[i];
-            const subjNodes = bySubject.get(subject);
-            const subjIds = new Set(subjNodes.map((n) => n.id));
-            // Prerequisite edges genuinely stay within one subject in
-            // practice (this unified view's own backend query never
-            // crosses subjects - see getUnifiedKnowledgeMapForUser) -
-            // scoped here anyway rather than assumed, same defensive
-            // habit as renderKmInlineGraph's own edge filtering.
-            const subjEdges = edgesBySourceSubject.filter((e) => subjIds.has(e.source) && subjIds.has(e.target));
-            renderUnifiedClusterGraph(wrapEl, subjNodes, subjEdges, data.masteryDetail, nodeById);
-        });
+    // The real knowledge map of one subject, with what the student has covered lit up and the rest dimmed, under a Your Mind banner.
+    let ymSubject = null;
+    async function showYourMind(subjects, bySubject, total, myToken, pick) {
+        await refreshFolderList();
+        const current = folders.find((f) => f.id === selectedFolderId);
+        const subject = pick || (current && bySubject.has(current.subject) ? current.subject : subjects[0]);
+        ymSubject = subject;
+        const nodes = bySubject.get(subject), node = nodes[nodes.length - 1];
+        let folder = folders.find((f) => f.subject === node.subject && (f.qualification || '') === (node.qualification || '') && (f.examBoard || '') === (node.examBoard || ''));
+        if (!folder) { folder = await createFolder(node.subject, node.qualification || '', node.examBoard || '', '', '', '', '', null, true); await refreshFolderList(); }
+        if (myToken !== unifiedMapRenderToken) return;
+        selectedFolderId = folder.id;
+        selectedSidebarLessonNodeId = node.id;
+        await renderKnowledgeMapForFolder(folder, { yourMind: true });
+        if (myToken !== unifiedMapRenderToken) return;
+        const contentInner = document.getElementById('contentInner');
+        const bar = document.createElement('div');
+        bar.className = 'ym-bar';
+        bar.innerHTML = `<div><p class="ym-eyebrow">Knowledge map</p><h1 class="ym-title">Your Mind</h1><p class="ym-sub">${total} concept${total === 1 ? '' : 's'} covered across ${subjects.length} subject${subjects.length === 1 ? '' : 's'}.</p><p class="ym-sub"><span class="ym-key"><i style="background:#E3BE63"></i>Covered</span><span class="ym-key"><i style="background:#4a453e"></i>Still ahead</span></p></div>
+            ${subjects.length > 1 ? `<div class="ym-subjects" role="group" aria-label="Subjects">${subjects.map((sj) => `<button type="button" class="ym-chip" data-subject="${escapeHtml(sj)}" aria-pressed="${sj === subject}">${escapeHtml(sj)}</button>`).join('')}</div>` : ''}`;
+        contentInner.insertBefore(bar, contentInner.firstChild);
+        bar.querySelectorAll('.ym-chip').forEach((b) => b.addEventListener('click', () => { ymSubject = b.dataset.subject; renderUnifiedKnowledgeMap(); }));
     }
 
     // Lays one subject's covered concepts out the same way the rest of
