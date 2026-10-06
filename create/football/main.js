@@ -514,34 +514,8 @@
     const row = (label, note, v) => `<tr><td><b>${label}</b><br><span class="note">${note}</span></td><td class="n">${v.k} of ${r.n}</td><td class="n"><b>${lpct(v.p)}</b></td><td class="n">${lpct(v.lo)} to ${lpct(v.hi)}</td><td>${labBar(v)}</td></tr>`;
     return `<table><tr><th>Outcome</th><th class="n">Tests</th><th class="n">Share</th><th class="n">95% interval</th><th>Range</th></tr>${LAB_ROWS.map(([k, l, n]) => row(l, n, r[k])).join('')}${row('Opposition shot within 15 s of winning it', 'Of all the tests, not just the ones you lost it in', r.shot)}</table>`;
   }
-  // Elena Marsh, the club's performance analyst, who explains the tests: what the statistics mean and why the failures happened. Written in advance.
-  const ELENA = { hello: '/assets/football/elena-hello.jpg', point: '/assets/football/elena-point.jpg', think: '/assets/football/elena-think.jpg' };
-  function elenaBox(img, inner) {
-    return `<div class="elena"><img src="${ELENA[img]}" alt="" width="72" height="72"><div class="say"><b>Elena Marsh</b><small>Performance analyst</small>${inner}</div></div>`;
-  }
-  function elenaIntro(opp) {
-    return elenaBox('hello', `<p>I am Elena, the club analyst. Nobody can say how a build-up will go from one attempt: on any one try a pass might work or not, and a defender might step up or not. So we play the same set-up many times and count how often each thing happens.</p>
-      <p>Before you run anything, make a prediction. How many out of 100 do you think will reach the halfway line with the ball against ${esc(opp.name)}?</p>
-      <details><summary>How each decision is made, and why that needs many tests</summary>
-        <p>Every pass has its own chance of working. It comes from the passer's passing rating, the distance, how clear the lane is, and how close a defender is to the receiver. As a rough guide, a 10 m pass to a free team-mate works about nine times in ten, and a 35 m pass through traffic nearer six in ten.</p>
-        <p>Which pass a player chooses is a weighted choice too. Your settings make some options more likely, but nothing is certain, and a calmer player (higher composure) picks the favoured option more reliably.</p>
-        <p>One test is one chain of those chances. A build-up of eight passes that each work nine times in ten works all the way only about 43% of the time (0.9 multiplied by itself eight times). That is why one test tells you almost nothing, and why we count over many tests and give a range, not one number.</p></details>`);
-  }
-  function elenaRead(r, last, hasPrev) {
-    const ex = FM.lab.explain(r, {}), w = r.why;
-    let body = '';
-    const lostN = r.lost.k;
-    if (!w) body = `<p>This run was saved before I could break the losses down. Run it again and I will explain what went wrong.</p>`;
-    else if (!lostN) body = `<p>You kept the ball in every test, so there are no losses to explain. That can change with a harder opponent or more tests: a failure that happens one time in fifty will not show up in a run of 20.</p>`;
-    else if (ex.findings.length === 0) body = `<p>You lost it in ${lostN} of ${r.n} tests. That is too few to find a pattern: with so few losses, one or two unlucky tests can look like a reason. Run it again with more tests, and the pattern will either appear or fade.</p>`;
-    else body = `<p>Here is why the ${lostN} build-ups went wrong. Each reason below comes from those ${lostN} tests, so the numbers can differ from one run to the next.</p>` + ex.findings.map((f) => `<div class="finding"><b>${esc(f.title)}</b><p>${esc(f.body)}</p><p class="tryit"><b>What you could try:</b> ${esc(f.fix)}</p></div>`).join('');
-    body += `<p>${hasPrev ? 'Change one thing from the run before, then run it again, and compare the two below.' : 'Pick one of those ideas, change only that on the board or the sliders, and write what you expect to happen.'}</p>
-      <label>Your hypothesis for the next run (what you will change, and what you expect it to do)<textarea id="labHyp" placeholder="e.g. Moving a centre-back close to the goalkeeper gives him a short pass, so fewer long balls will be cut out and more build-ups will reach halfway."></textarea></label>`;
-    return elenaBox(lostN && ex.findings.length ? 'point' : 'think', `<p><b>My reading of run ${last}.</b></p>` + body);
-  }
-
   function renderLab(team, host) {
-    const lg = world.league, opp = nextOpponent(); if (!lg || !opp) { host.innerHTML = ''; return; }
+    const lg = world.league, opp = nextOpponent(); if (!lg || !opp) { host.innerHTML = ''; if (FM.elena) FM.elena.hide(); return; }
     lg.labRuns = lg.labRuns || [];
     const st = world.lab = world.lab || { start: 'keeper', n: 100, pred: '', hyp: '', busy: false, prog: 0, a: null, b: null, err: '' };
     const runs = lg.labRuns, last = runs[runs.length - 1];
@@ -554,7 +528,6 @@
     const a = st.a != null && runs[st.a] ? st.a : Math.max(0, runs.length - 2), b = st.b != null && runs[st.b] ? st.b : runs.length - 1;
     host.innerHTML = `<div class="lab">
       <h2>Test this build-up</h2>
-      ${runs.length ? '' : elenaIntro(opp)}
       <p class="note">This plays the first 40 seconds of your build-up against ${esc(opp.name)} again and again, with the ball starting beside your goalkeeper. The players decide differently every time, and so do the opposition: a player you have moved may or may not be followed. Each test ends when you reach the halfway line with the ball, or lose it (and then we watch 15 seconds to see whether they get a shot). The share of tests ending each way is the result.</p>
       <details><summary>How the opposition may react to your set-up</summary>${resHtml}<p class="note">These chances come from how hard ${esc(opp.name)} press (their settings for pressing your build-up and pressing generally) and how far you have moved the player. They are redrawn in every test, so the same set-up never plays out the same way twice.</p></details>
       <div class="two"><label>Start from<select id="labStart"><option value="keeper"${st.start === 'keeper' ? ' selected' : ''}>The goalkeeper has the ball in open play</option><option value="goalkick"${st.start === 'goalkick' ? ' selected' : ''}>A goal kick (short pass compulsory)</option></select></label>
@@ -563,22 +536,18 @@
       <div class="row"><button class="primary" id="labRun"${st.busy ? ' disabled' : ''}>${st.busy ? 'Running… ' + st.prog + ' of ' + st.n : 'Run ' + st.n + ' tests'}</button></div>
       <p class="err">${esc(st.err)}</p>
       ${last ? `<div><h2 style="margin-bottom:8px">Latest result: run ${runs.length}</h2>${labTable(last.result)}
-        <p class="note" style="margin-top:8px">${last.result.n} tests. The bar shows the 95% interval and the white line the share found. ${last.result.time ? `When the ball did reach halfway, it took ${last.result.time.mean.toFixed(1)} s on average (standard deviation ${last.result.time.sd.toFixed(1)} s, ${last.result.time.n} tests). ` : ''}Your players completed ${last.result.passes.mean.toFixed(1)} passes per test on average.</p>
-        ${last.pred !== '' && last.pred != null ? (() => { const v = last.result.beat, ok = last.pred / 100 >= v.lo && last.pred / 100 <= v.hi; return `<div class="verdict">You predicted <b>${last.pred}%</b> would beat the press. The test found <b>${lpct(v.p)}</b>, with a 95% interval of ${lpct(v.lo)} to ${lpct(v.hi)}. Your prediction was <b>${ok ? 'inside' : 'outside'}</b> that interval${ok ? ', so the test gives no reason to doubt it.' : ', so your picture of how this build-up behaves was off by more than chance alone would explain.'}</div>`; })() : ''}
+        <p class="note" style="margin-top:8px">${last.result.n} tests. The bar shows the 95% interval and the white line the share found. ${last.result.time ? `When the ball did reach halfway, it took ${last.result.time.mean.toFixed(1)} s on average. ` : ''}Your players completed ${last.result.passes.mean.toFixed(1)} passes per test on average. Elena Marsh, on the right, explains what these numbers mean.</p>
         ${last.hyp ? `<p class="note"><b>Your hypothesis then:</b> ${esc(last.hyp)}</p>` : ''}
-        ${elenaRead(last.result, runs.length, runs.length > 1)}
         ${last.changes && last.changes.length ? `<p class="note"><b>Changed since the run before:</b> ${esc(last.changes.join('; '))}.</p>` : ''}
-        <p class="note">Why an interval and not one number? Every test is partly luck, so ${last.result.n} tests give an estimate with error. With ${last.result.n} tests the interval on a share near 50% is about ±${Math.round(98 / Math.sqrt(last.result.n))} percentage points, and to halve it you need four times as many tests.</p></div>` : ''}
+</div>` : ''}
       ${cmpRuns.length ? `<div><h2 style="margin-bottom:8px">Is the difference real?</h2>
         <div class="two"><label>Run<select id="labA">${runs.map((r, i) => `<option value="${i}"${i === a ? ' selected' : ''}>Run ${i + 1}: ${lpct(r.result.beat.p)} beat the press</option>`).join('')}</select></label>
           <label>Compared with<select id="labB">${runs.map((r, i) => `<option value="${i}"${i === b ? ' selected' : ''}>Run ${i + 1}: ${lpct(r.result.beat.p)} beat the press</option>`).join('')}</select></label></div>
         ${a !== b ? (() => {
           const A = runs[a].result, Bq = runs[b].result;
           const rows = [['beat', 'Beat the press'], ['lost', 'Lost possession (anywhere)'], ['lostNear', 'Lost it near your own goal'], ['shot', 'Opposition shot']].map(([k, l]) => { const c2 = FM.lab.compare(A, Bq, k); return `<tr><td>${l}</td><td class="n">${lpct(A[k].p)}</td><td class="n">${lpct(Bq[k].p)}</td><td class="n"><b>${c2.diff >= 0 ? '+' : ''}${Math.round(c2.diff * 100)}</b> points</td><td class="n">${Math.round(c2.lo * 100)} to ${Math.round(c2.hi * 100)}</td><td class="n">${c2.p < 0.001 ? '< 0.001' : c2.p.toFixed(3)}</td></tr>`; });
-          const cb = FM.lab.compare(A, Bq, 'beat'), sig = cb.p < 0.05;
           return `<table><tr><th>Measure</th><th class="n">Run ${a + 1}</th><th class="n">Run ${b + 1}</th><th class="n">Difference</th><th class="n">95% interval for the difference</th><th class="n">p-value</th></tr>${rows.join('')}</table>
-            <div class="verdict">For beating the press, the difference is <b>${cb.diff >= 0 ? '+' : ''}${Math.round(cb.diff * 100)} points</b> (95% interval ${Math.round(cb.lo * 100)} to ${Math.round(cb.hi * 100)}). The p-value is <b>${cb.p.toFixed(3)}</b>: if the two set-ups were really identical, a gap this big would turn up by luck about ${Math.round(cb.p * 100)}% of the time. ${sig ? 'That is below 5%, so this is evidence of a real difference. Check that you changed one thing only, and that the change makes football sense.' : 'That is not below 5%, so these tests do not show a real difference.' + (cb.need ? ' If the gap is real and this size, you would need about <b>' + cb.need + '</b> tests of each set-up to see it reliably.' : '')}</div>
-            <p class="note">An interval that includes zero means "could be no difference at all". Running the same set-up twice will not give the same share, which is the best way to see how much chance alone moves the number.</p>`;
+            <p class="note">What this comparison means is explained by Elena Marsh on the right.</p>`;
         })() : '<p class="note">Choose two different runs to compare.</p>'}</div>` : '<p class="note">Run it once, change one thing on the board or the sliders, then run it again: the lab compares the two for you.</p>'}
       ${runs.length ? `<div class="runs">${runs.map((r, i) => `<span class="note">Run ${i + 1}: ${r.n} tests · ${lpct(r.result.beat.p)} beat the press</span>`).join(' · ')}<button id="labClear">Clear the runs</button></div>` : ''}
     </div>`;
@@ -586,7 +555,6 @@
     q('#labStart').addEventListener('change', (e) => { st.start = e.target.value; });
     q('#labN').addEventListener('change', (e) => { st.n = +e.target.value; renderLab(team, host); });
     q('#labPred').addEventListener('input', (e) => { st.pred = e.target.value; });
-    if (q('#labHyp')) { q('#labHyp').value = st.hyp || ''; q('#labHyp').addEventListener('input', (e) => { st.hyp = e.target.value; }); }
     if (q('#labA')) { q('#labA').addEventListener('change', (e) => { st.a = +e.target.value; renderLab(team, host); }); q('#labB').addEventListener('change', (e) => { st.b = +e.target.value; renderLab(team, host); }); }
     if (q('#labClear')) q('#labClear').addEventListener('click', () => { lg.labRuns = []; st.a = st.b = null; saveSoon(); renderLab(team, host); });
     q('#labRun').addEventListener('click', async () => {
@@ -601,6 +569,7 @@
       st.busy = false;
       if (document.body.contains(host)) renderLab(team, host);
     });
+    FM.elena.sync({ opp, runs, a, b, st });
   }
 
   function takerSelect(team, key, label) {
