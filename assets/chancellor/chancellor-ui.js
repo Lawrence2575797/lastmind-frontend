@@ -101,6 +101,7 @@
       '.chn-econ .gtabs { display: flex; gap: 6px; margin: 10px 0 12px; } .chn-econ .gtabs button { flex: 1; padding: 7px 8px; border: 1px solid rgba(0,0,0,0.25); border-radius: 8px; background: transparent; font: 700 0.76rem Arial, sans-serif; cursor: pointer; } .chn-econ .gtabs button.on { background: #0f1b2d; color: #f6efdc; border-color: #0f1b2d; }',
       '.chn-chap { display: flex; gap: 10px; align-items: flex-start; width: 100%; margin: 6px 0; padding: 10px 12px; border: 1px solid rgba(0,0,0,0.2); border-radius: 10px; background: #fff; text-align: left; font: 0.9rem Arial, sans-serif; cursor: pointer; } .chn-chap .n { flex: none; width: 24px; height: 24px; border-radius: 50%; background: #0f1b2d; color: #f6efdc; display: grid; place-items: center; font: 700 0.76rem Arial, sans-serif; } .chn-chap small { display: block; font-weight: 400; opacity: 0.75; margin-top: 2px; } .chn-chap .tick { margin-left: auto; color: var(--chn-good); font-weight: 700; }',
       '.chn-econ h4 { margin: 18px 0 4px; font-size: 1rem; } .chn-econ .eq { margin: 8px 0; padding: 8px 12px; background: #fff; border-left: 4px solid var(--accent); font: 0.95rem Consolas, monospace; overflow-x: auto; white-space: pre; } .chn-econ .ex { margin: 8px 0 12px; padding: 8px 12px; background: rgba(11,114,133,0.10); border-radius: 8px; } .chn-econ .chk { margin: 8px 0; }',
+      '.chn-focusbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; margin: 0 0 10px; padding: 8px 12px; border-radius: 10px; background: rgba(251,191,36,0.16); font-size: 0.86rem; }',
       '.chn-impact { border-top: 1px solid var(--chn-line); padding-top: 6px; } .chn-impact .ibody { font-size: 0.86rem; line-height: 1.6; padding: 4px 0 6px; }',
       '.chn-gtab { position: fixed; right: 0; top: 38%; z-index: 40; padding: 14px 8px; writing-mode: vertical-rl; border: 1px solid rgba(0,0,0,0.3); border-right: 0; border-radius: 12px 0 0 12px; background: #0f1b2d; color: #f6efdc; font: 700 0.78rem Arial, sans-serif; letter-spacing: 0.08em; cursor: pointer; }',
       '.chn-gtab:hover { background: #17294a; }',
@@ -312,6 +313,7 @@
     renderTab();
     bindShell();
     renderGuide();
+    if (window.LMCoach) { LMCoach.init(coachEnv()); LMCoach.refresh(); }
   }
 
   // The economics panel: what is going on in this country's situation and why, written out, openable and closable from the right edge.
@@ -356,6 +358,11 @@
       '<div class="an-actions">' + (prev ? '<button type="button" class="chn-btn small" data-chap="' + prev.id + '">← ' + esc(prev.title) + '</button>' : '') + (next ? '<button type="button" class="chn-btn small primary" data-chap="' + next.id + '">Next: ' + esc(next.title) + ' →</button>' : '') + '</div>';
   }
   function openChapter(id) { ui.guideOpen = true; ui.guideTab = 'lessons'; ui.lessonId = id; renderGuide(); var p = document.getElementById('chnEcon'); if (p) p.scrollTop = 0; }
+  function coachEnv() {
+    return { ui: ui, S: S, level: levelIs, metrics: metricsNow, nice: S.nice, save: save, draftCount: function () { return pendingChanges().length; },
+      setTab: function (t) { ui.tab = t; renderAll(); },
+      openGuide: function (tab) { ui.guideOpen = true; ui.guideTab = tab; renderGuide(); } };
+  }
   function renderGuide() {
     var old = document.getElementById('chnEcon'); if (old) old.remove();
     var tab = ui.host.querySelector('.chn-gtab'); if (tab) tab.remove();
@@ -371,7 +378,7 @@
     var host = ui.host.querySelector('#chnAnalysis'); if (!host || !window.LMAnalysis) return;
     ui.analysisHost = host;
     window.LMAnalysis.render(host, {
-      g: ui.g, S: S, level: levelIs(), catalogue: catalogue, visibleLevers: function () { return catalogue().filter(function (e) { return !e.preset && levelOk(e); }); }, groups: visibleAreas, draftLevers: draftLevers,
+      g: ui.g, S: S, level: levelIs(), catalogue: catalogue, visibleLevers: function () { return catalogue().filter(function (e) { return !e.preset && levelOk(e); }); }, groups: function () { return visibleAreas(true); }, draftLevers: draftLevers,
       save: save, toast: toast, openLesson: openChapter,
       suggestSize: function (e) { var c = e.ctl; return c.min < 0 ? Math.round(c.max * 0.25 / c.step) * c.step : Math.round(c.max * 0.35 / c.step) * c.step; },
       addDraft: function (id, v, opt) { var e = catalogue().filter(function (x) { return x.id === id; })[0]; if (!e) return; var base = enacted(id) ? enacted(id).v : 0; D()[id] = { v: clampV(e, base + 0 + v), opt: opt || undefined, dur: undefined }; save(); renderTab(); },
@@ -525,7 +532,7 @@
     if (w.kind === 'shock') return '<div class="chn-banner shock"><span><b>Emergency session.</b> Taxes, spending, crisis measures, banking, money and debt can be enacted now. Structural reforms wait for the Budget.</span><span class="chn-actions"><button class="chn-btn" data-act="enactnow" ' + (n ? '' : 'disabled') + '>Enact ' + n + ' drafted change' + (n === 1 ? '' : 's') + ' now</button><button class="chn-btn" data-act="endsession">End the session</button></span></div>';
     if (w.kind === 'budget' || w.kind === 'bigBudget') { var big = w.kind === 'bigBudget'; return '<div class="chn-banner open"><span><b>' + (big ? 'Budget day.' : 'Budget statement day.') + '</b> Your saved draft is ready. Adjust it, then submit: ' + n + ' change' + (n === 1 ? '' : 's') + ' will be enacted.' + (big ? '' : ' Structural reforms stay in your draft for the main Budget.') + '</span><button class="chn-btn primary" data-act="submitbudget">Submit the ' + (big ? 'Budget' : 'statement') + '</button></div>'; }
     var nb = g.events.filter(function (e) { return !e.done && e.kind === 'budget'; })[0];
-    return '<div class="chn-banner info"><span><b>Preparing.</b> Choose policies, see their forecast and save them as a draft. Nothing takes effect until you submit them on budget day' + (nb ? ': <b>' + esc(nb.title) + ', ' + esc(S.nice(nb.date)) + '</b>' : '') + '.</span></div>';
+    return '<div class="chn-banner info"><span><b>Preparing.</b> Choose policies and save them as a draft. Nothing takes effect until you submit them on budget day' + (nb ? ': <b>' + esc(nb.title) + ', ' + esc(S.nice(nb.date)) + '</b>' : '') + '.</span></div>';
   }
   function ctlHtml(e) {
     var p = pendingValue(e), c = e.ctl, id = e.id, h = '';
@@ -576,8 +583,10 @@
     if (!ch.length) return '<span class="neutral">No changes drafted.</span>';
     return ch.map(function (e) { var p = D()[e.id], c = S.canDecide(ui.g, e.id); return '<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0;align-items:center"><span>' + esc(e.name) + '</span><span><b>' + esc(e.ctl.t === 'select' ? p.v : (+p.v > 0 ? '+' : '') + p.v) + '</b> <button class="chn-btn small" data-fcpol="' + e.id + '" title="Forecast this policy on its own">Forecast</button></span></div>'; }).join('') + '<div style="padding-top:6px"><button class="chn-btn small" data-fcall="1">Forecast the whole budget</button></div>';
   }
-  function visibleAreas() {
-    var cat = catalogue().filter(function (e) { return !e.preset && levelOk(e); });
+  function focusOn() { var g = ui.g; if (g.focusOnly === undefined) g.focusOnly = true; return g.focusOnly && focusIds().length > 0; }
+  function visibleAreas(all) {
+    var foc = focusIds(), only = !all && focusOn();
+    var cat = catalogue().filter(function (e) { return !e.preset && levelOk(e) && (!only || foc.indexOf(e.id) > -1 || differs(e) || enacted(e.id)); });
     return POLICY_GROUPS.map(function (gp) { return { name: gp.name, areas: gp.areas.map(function (a) { return { name: a, list: cat.filter(function (e) { return e.area === a; }) }; }).filter(function (x) { return x.list.length; }) }; }).filter(function (gp) { return gp.areas.length; });
   }
   function policyTab() {
@@ -596,7 +605,7 @@
     var n = pendingChanges().length;
     var packs = Object.keys(L.PRESETS).map(function (k) { return '<button class="chn-btn small" data-pack="' + k + '">' + esc(L.PRESETS[k].name) + '</button>'; }).join(' ');
     return policyBanner() + '<div class="chn-polwrap3">' + nav +
-      '<section class="chn-polmain"><h3 class="chn-areahead">' + esc(cur.name) + '</h3><p class="neutral" style="margin:0 0 10px;font-size:.86rem">' + esc(gp0 ? gp0.text : '') + (levelIs() === 'alevel' ? ' Showing the main levers; the University level has every one.' : '') + '</p><div id="chnPolList" class="chn-pollist">' + cur.list.map(policyCard).join('') + '</div></section>' +
+      '<section class="chn-polmain"><div class="chn-focusbar">' + (focusOn() ? '<span>Showing <b>suggested policies only</b> (the ★ ones).</span><button type="button" class="chn-btn small" data-focus="off">Show every policy</button>' : (focusIds().length ? '<span>Showing every policy.</span><button type="button" class="chn-btn small" data-focus="on">Show suggested only</button>' : '')) + '</div><h3 class="chn-areahead">' + esc(cur.name) + '</h3><p class="neutral" style="margin:0 0 10px;font-size:.86rem">' + esc(gp0 ? gp0.text : '') + (levelIs() === 'alevel' ? ' Showing the main levers; the University level has every one.' : '') + '</p><div id="chnPolList" class="chn-pollist">' + cur.list.map(policyCard).join('') + '</div></section>' +
       '<aside class="chn-side"><div class="chn-card"><h3 style="font:700 .95rem Arial">Your draft</h3><div id="chnPkg" style="font-size:.85rem;margin:6px 0">' + pkgHtml() + '</div><div class="chn-actions"><button class="chn-btn primary" data-pol="save">Save draft</button><button class="chn-btn" data-pol="clear" ' + (n ? '' : 'disabled') + '>Clear draft</button></div><p class="neutral" style="font-size:.74rem;margin:6px 0 0">Saved drafts are not enacted. You submit them on budget day.</p></div>' +
       '<div class="chn-card"><h3 style="font:700 .95rem Arial;margin-bottom:6px">Analysis</h3><p class="neutral" style="font-size:.85rem;margin:0 0 8px">' + (levelIs() === 'alevel' ? 'Ask the Treasury analyst what the evidence says about a policy before you commit to it.' : 'Investigate a policy before you commit to it: look at what other countries found, test it, and weigh the costs and benefits.') + '</p><button class="chn-btn small" data-tab="analysis">Investigate a policy</button></div>' +
       '<div class="chn-card"><h3 style="font:700 .95rem Arial;margin-bottom:6px">Emergency budget packages</h3><div class="chn-actions">' + packs + '</div><p class="neutral" style="font-size:.74rem;margin:6px 0 0">Adds a ready-made set of changes to your draft. Edit them afterwards.</p></div></aside></div>';
@@ -604,6 +613,7 @@
   function bindPolicy() {
     var host = ui.host;
     host.querySelectorAll('[data-area]').forEach(function (b) { b.onclick = function () { ui.area = b.dataset.area; renderTab(); }; });
+    host.querySelectorAll('[data-focus]').forEach(function (b) { b.onclick = function () { ui.g.focusOnly = b.dataset.focus === 'on'; save(); renderTab(); }; });
     host.querySelectorAll('[data-pack]').forEach(function (b) { b.onclick = function () { var p = L.PRESETS[b.dataset.pack]; if (!p) return; Object.keys(p.set).forEach(function (id) { var e = catalogue().filter(function (x) { return x.id === id; })[0]; if (!e) return; var base = enacted(id) ? enacted(id).v : 0; D()[id] = { v: clampV(e, e.ctl.pickOpts ? p.set[id] : p.set[id]), opt: e.ctl.pickOpts ? e.ctl.pickOpts[0].v : null, dur: null }; }); save(); toast(p.name + ' added to your draft.'); renderTab(); }; });
     var list = host.querySelector('#chnPolList');
     if (list) {
