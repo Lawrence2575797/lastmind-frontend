@@ -10496,15 +10496,15 @@ SQIDAQAB
             key: 'biology', title: 'Biology', image: '/assets/create/biology.jpg', description: 'Diagnose patients and climb the ranks of medicine',
             alt: 'A microscope and a stethoscope on a wooden desk beside a model of DNA',
             simulations: [
-                { key: 'doctor-gcse', title: 'Doctor Career: GCSE', image: '/assets/create/doctor-career-gcse.jpg', description: 'See patients, work out what is wrong, and learn the AQA GCSE Biology on the way', alt: 'A young doctor in a white coat seen from behind in a bright hospital corridor' },
-                { key: 'doctor-alevel', title: 'Doctor Career: A-level', image: '/assets/create/doctor-career-alevel.jpg', description: 'Harder cases on the AQA A-level Biology specification', alt: 'A doctor in scrubs reviewing a patient file at a hospital nurses station' },
+                { key: 'doctor-gcse', title: 'Doctor Career: GCSE', image: '/assets/create/doctor-career-gcse.jpg', description: 'See patients, work out what is wrong, and learn the biology on the way', alt: 'A young doctor in a white coat seen from behind in a bright hospital corridor' },
+                { key: 'doctor-alevel', title: 'Doctor Career: A-level', image: '/assets/create/doctor-career-alevel.jpg', description: 'Harder cases at A-level Biology', alt: 'A doctor in scrubs reviewing a patient file at a hospital nurses station' },
             ],
         },
         {
             key: 'psychology', title: 'Psychology', image: '/assets/create/psychology.jpg', description: 'Assess patients and climb the ranks of clinical psychology',
             alt: 'Two empty armchairs facing each other in a quiet therapy room, with a notebook and glasses on a small table',
             simulations: [
-                { key: 'doctor-psych', title: 'Psychology Career: A-level', image: '/assets/create/psychology-career.jpg', description: 'Assess patients with PTSD, schizophrenia, OCD and more, on the AQA A-level Psychology specification', alt: 'A clinical psychologist seen from behind at a desk by a window, writing in a notebook beside patient files' },
+                { key: 'doctor-psych', title: 'Psychology Career: A-level', image: '/assets/create/psychology-career.jpg', description: 'Assess patients with PTSD, schizophrenia, OCD and more, at A-level', alt: 'A clinical psychologist seen from behind at a desk by a window, writing in a notebook beside patient files' },
             ],
         },
         {
@@ -11653,8 +11653,8 @@ SQIDAQAB
     // standard reached (the rules live in career-base.js: LAW_CAREER.ranks). One career per account, kept in the account's projects
     // (kind 'criminal-lawyer-career') and mirrored in this browser.
     // ═══════════════════════════════════════════════════════════════════════════
-    const CAREER_FILES = ['lessons', 'case-01-pryce', 'case-02-okafor', 'case-03-hale', 'case-04-mensah', 'case-05-calloway', 'case-06-vance', 'case-07-dunmore', 'case-08-salter', 'case-09-kiplagat', 'case-10-fenwick', 'case-11-bright', 'case-12-ashworth', 'case-13-reid', 'case-14-tolland', 'case-15-hargreaves', 'case-16-mbeki', 'case-17-penhale', 'case-18-sato', 'case-19-donnelly', 'case-20-karimi', 'case-21-vasquez', 'case-22-wetherby', 'case-23-adeyinka', 'case-24-marlow', 'case-25-ellison', 'case-26-marchetti'];
-    const CAREER_VERSION = '20261006b';
+    const CAREER_FILES = ['lessons', 'guide', 'case-01-pryce', 'case-02-okafor', 'case-03-hale', 'case-04-mensah', 'case-05-calloway', 'case-06-vance', 'case-07-dunmore', 'case-08-salter', 'case-09-kiplagat', 'case-10-fenwick', 'case-11-bright', 'case-12-ashworth', 'case-13-reid', 'case-14-tolland', 'case-15-hargreaves', 'case-16-mbeki', 'case-17-penhale', 'case-18-sato', 'case-19-donnelly', 'case-20-karimi', 'case-21-vasquez', 'case-22-wetherby', 'case-23-adeyinka', 'case-24-marlow', 'case-25-ellison', 'case-26-marchetti'];
+    const CAREER_VERSION = '20261007c';
     const CAREER_LOCAL_KEY = 'lastmind-law-career-v1';
     let career = null, careerLocalKey = CAREER_LOCAL_KEY, careerSaveTimer = null, careerFilesPromise = null;
 
@@ -12116,6 +12116,7 @@ SQIDAQAB
         ptUpdateGuidancePill();
     }
     function ptUnmount() {
+        if (window.LAW_CAREER && LAW_CAREER.coachDestroy) LAW_CAREER.coachDestroy();
         document.getElementById('ptRoot')?.remove();
         document.body.classList.remove('pl-open');
         document.removeEventListener('keydown', ptEscHandler);
@@ -12381,9 +12382,19 @@ SQIDAQAB
         ptRender();
     }
     const ptNext = () => ptGo(pt.idx + 1);
+    // Ruth Adebayo, the junior in chambers, gives a short note at each stage of a career case (create/law-career/guide.js).
+    function careerCoachDraw() {
+        if (!pt || !pt.career || !pt.plan || !window.LAW_CAREER || !LAW_CAREER.coachDraw) return;
+        const s = pt.plan[pt.idx], w = pt.w, stage = s.t === 'chambers' || s.t === 'interview' ? 'interview' : s.t, ch = s.t === 'witness' ? ptById(s.id) : null;
+        const key = s.t === 'chambers' ? 'interview' : s.t === 'opening' ? 'opening' : s.t === 'closing' ? 'closing' : s.t === 'witness' ? 'witness' : null;
+        let concepts = []; try { concepts = key ? ptConceptsFor(key, ch ? ch.id : undefined) : []; } catch (_) { concepts = []; }
+        LAW_CAREER.coachDraw(document.getElementById('ptRoot'), { stage: s.t, by: s.by, side: pt.side, phase: s.t === 'witness' ? (w && w.id === s.id ? w.phase : 'intro') : undefined, name: ch ? ch.name : '', title: pt.title, concepts,
+            openLesson: (label) => { if (!pt.triggered.includes(label)) { pt.triggered.push(label); ptUpdateGuidancePill(); ptSave(); } ptShowGuidance(label); } });
+    }
     function ptRender() {
         const s = pt.plan[pt.idx];
         ptHud(true, true);
+        careerCoachDraw();
         createPaintBudget();
         if (s.t === 'chambers') return ptRenderChambers();
         if (s.t === 'arrival') return ptRenderArrival();
@@ -12605,6 +12616,7 @@ SQIDAQAB
         ptCastIn(ch);
         if (!pt.w || pt.w.id !== ch.id) pt.w = { id: ch.id, phase: 'intro', chiefHist: [], crossHist: [], shown: [] };
         const w = pt.w;
+        careerCoachDraw();
         const scripted = (list, questioner, onDone) => {
             if (!list.length) { onDone(); return; }
             const lines = [];

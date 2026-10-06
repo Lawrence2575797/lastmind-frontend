@@ -32,7 +32,7 @@
   L('p-phobias', 'Phobias: how they feel, how they are learned and how they are treated', 'AQA 7182 · Psychopathology: phobias', [
     { h: 'What a phobia is', b: [
       'A **phobia** is an anxiety disorder in which a person has an **irrational, intense fear** of an object or situation. The three types are **specific phobias** (animals, injury, situations such as lifts or heights), **social anxiety disorder** (social situations) and **agoraphobia** (public or open places, or places where escape would be hard).',
-      'The specification lists the characteristics under three headings.',
+      'The characteristics fall under three headings.',
       { list: [
         '**Behavioural**: **panic** (crying, screaming, freezing, running away), **avoidance** (staying away from the feared thing, which makes daily life harder) and **endurance** (staying with the feared thing but with high anxiety).',
         '**Emotional**: **anxiety and fear** that are out of proportion to the real danger, which are **unreasonable** and which the person cannot easily control.',
@@ -56,7 +56,7 @@
 
   L('p-depression', 'Depression: what it looks like and how thinking keeps it going', 'AQA 7182 · Psychopathology: depression', [
     { h: 'Characteristics', b: [
-      '**Depression** is a mood disorder. The specification lists characteristics in three groups.',
+      '**Depression** is a mood disorder. The characteristics fall into three groups.',
       { list: [
         '**Behavioural**: changes in **activity levels** (low energy, withdrawing from people and from things that were enjoyed; sometimes restless), **disruption to sleep and eating** (sleeping too much or too little, appetite going up or down), and sometimes **aggression** or **self-harm**.',
         '**Emotional**: **lowered mood** (feeling worthless or empty), **loss of enjoyment**, **anger** (even directed at other people), and **lowered self-esteem**.',

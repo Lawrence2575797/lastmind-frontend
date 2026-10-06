@@ -276,7 +276,7 @@
       mood: 'His mood is low and flat, mostly because of the lack of sleep and guilt', after: 'None of this began until after the collision', fam: 'There is no family history of mental illness',
     },
     infoCard: { title: 'How post-traumatic stress is defined', body: [
-      'The specification does not name **post-traumatic stress disorder (PTSD)**, so here is the definition you need.',
+      'Here is the definition of **post-traumatic stress disorder (PTSD)** that you need for this case.',
       'PTSD can follow **exposure to a real, threatening or traumatic event**. For **more than a month** afterwards the person has **intrusive re-experiencing** (flashbacks and nightmares), **avoidance** of reminders, **negative changes in mood and beliefs**, and **hyperarousal** (always on guard, easily startled, unable to sleep).',
     ] },
     questions: [

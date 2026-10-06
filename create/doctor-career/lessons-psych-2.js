@@ -91,7 +91,7 @@
 
   L('p-trauma', 'After trauma: when the past replays', 'AQA 7182 · Stress; Psychopathology (the case file gives the definition)', [
     { h: 'What the case file tells you', b: [
-      'The specification does not name **post-traumatic stress disorder (PTSD)**, so a case file that features it **defines it** for you, as an exam would. In brief: a person was **exposed to a real traumatic event** and, for **more than a month** afterwards, has **intrusive re-experiencing** (**flashbacks** and **nightmares**), **avoidance** of reminders, **negative changes in mood and thinking**, and **hyperarousal** (always on guard, startled, unable to sleep).',
+      'A case file that features **post-traumatic stress disorder (PTSD)** **defines it** for you. In brief: a person was **exposed to a real traumatic event** and, for **more than a month** afterwards, has **intrusive re-experiencing** (**flashbacks** and **nightmares**), **avoidance** of reminders, **negative changes in mood and thinking**, and **hyperarousal** (always on guard, startled, unable to sleep).',
     ] },
     { h: 'Using what you do know', b: [
       { list: [

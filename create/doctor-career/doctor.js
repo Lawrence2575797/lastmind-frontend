@@ -174,7 +174,7 @@
     css(); var d = D.load(track);
     if (cur) { renderCase(d); return; }
     var R = ranksInfo(d), cases = D.casesFor(track), avg = D.average(d.results), n = Object.keys(d.results).length;
-    host.innerHTML = '<div class="dc" style="background-image:url(' + R.T.bg + ')"><div class="dc-top"><div><button type="button" class="dc-back" data-dc="back">' + esc(TXT('back')) + '</button><h1 style="margin-top:12px">' + esc(R.T.career || 'Doctor Career') + ': ' + esc(R.T.title) + '</h1><div class="sub">' + esc(R.T.board) + ' · every case follows the specification</div></div><div class="dc-role"><b>' + esc(R.rank.title) + '</b><span>' + esc(R.rank.place) + '</span></div></div>' +
+    host.innerHTML = '<div class="dc" style="background-image:url(' + R.T.bg + ')"><div class="dc-top"><div><button type="button" class="dc-back" data-dc="back">' + esc(TXT('back')) + '</button><h1 style="margin-top:12px">' + esc(R.T.career || 'Doctor Career') + ': ' + esc(R.T.title) + '</h1><div class="sub">' + cases.length + ' patients, from ' + esc(R.T.ranks[0].title.toLowerCase()) + ' to ' + esc(R.T.ranks[R.T.ranks.length - 1].title.toLowerCase()) + '</div></div><div class="dc-role"><b>' + esc(R.rank.title) + '</b><span>' + esc(R.rank.place) + '</span></div></div>' +
       '<div class="dc-stats"><span class="dc-stat">Patients seen: ' + n + '</span><span class="dc-stat">Average score: ' + (avg == null ? '·' : avg + '%') + '</span></div><div class="dc-files">' +
       cases.map(function (c, i) {
         var locked = c.rank > R.ri, res = d.results[c.id];
@@ -259,7 +259,7 @@
       (c.twist ? '<div class="dc-warn"><b>The twist.</b> ' + bold(c.twist) + '</div>' : '') +
       '<h3>Your treatment choice</h3><p><b>' + esc(tx ? tx.label : '') + '</b><br>' + bold(tx ? tx.why : '') + '</p>' +
       evidenceFeedback(c, run) +
-      '<h3>' + esc(TXT('review')) + '</h3><p>' + esc(TXT('reviewBody')) + '</p>' + '<p style="opacity:.7;font-size:.82rem">Specification: ' + esc(c.spec.board) + ' ' + esc(c.spec.code) + ', ' + esc(c.spec.refs.join(', ')) + '</p>' +
+      '<h3>' + esc(TXT('review')) + '</h3><p>' + esc(TXT('reviewBody')) + '</p>' +
       '<div class="dc-learn" style="margin-top:14px"><button type="button" class="dc-btn primary" data-dc="files">Next patient →</button></div>';
   }
 
@@ -344,7 +344,7 @@
     tabs.forEach(function (t, k) {
       out += '<div class="teach-pane" data-tpane="' + k + '"' + (k === on ? '' : ' hidden') + '>' + t.lessons.map(function (id) {
         var L = D.lessons[id];
-        return '<section class="teach"><h3>' + esc(L.title) + '</h3><span class="spec">' + esc(L.spec) + '</span>' + L.sections.map(function (sec) { return (sec.h ? '<h4>' + esc(sec.h) + '</h4>' : '') + sec.b.map(lessonBlock).join(''); }).join('') + '</section>';
+        return '<section class="teach"><h3>' + esc(L.title) + '</h3>' + L.sections.map(function (sec) { return (sec.h ? '<h4>' + esc(sec.h) + '</h4>' : '') + sec.b.map(lessonBlock).join(''); }).join('') + '</section>';
       }).join('') + '</div>';
     });
     return out;

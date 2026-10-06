@@ -11,7 +11,7 @@
   G('p02', { file: 'Washing is the symptom everyone sees. Ask what is going on underneath it: what he thinks before, what he feels after, and how it has changed over time.',
     ask: 'The content of the thoughts, what he feels after the ritual, whether he sees it as reasonable, and whether the habits have spread.',
     tests: 'One assessment looks at obsessions and compulsions; another measures severity. Skin swabs only show what the washing has done.',
-    decide: 'Pick facts that show a cycle of thoughts and rituals. For treatment, think about the brain chemistry and the circuits the specification names for this disorder.',
+    decide: 'Pick facts that show a cycle of thoughts and rituals. For treatment, think about the brain chemistry and the circuits linked to this disorder.',
     ideas: [{ t: 'The cycle', b: 'Obsessions cause anxiety; compulsions reduce it briefly; the anxiety returns. Most people know their rituals are excessive.', lesson: 'p-ocd' }, { t: 'Serotonin and the brain', b: 'An overactive orbitofrontal cortex, a caudate nucleus that fails to filter worries and low serotonin are linked to OCD. SSRIs keep more serotonin in the synapse.', lesson: 'p-ocd' }] });
   G('p03', { file: 'A silent, withdrawn man could fit more than one picture. Look at what he says when he does speak, and at what is missing from the file.',
     ask: 'His mood in his own words, his view of himself and his future, his sleep and appetite, and anything unusual about his experiences.',
@@ -21,7 +21,7 @@
   G('p04', { file: 'Notice how he describes the voices: where they seem to come from, and whether he thinks they are his own. That matters more than how loud they are.',
     ask: 'What the voices say and where they seem to be, what he believes about the cause, whether he thinks he is unwell, and how long this has lasted.',
     tests: 'Interview about his experiences and the timeline, and ask about compulsions. A whole-body scan is not a psychology test, and it carries a risk.',
-    decide: 'Pick the symptoms that make one diagnosis stand apart. For treatment, think about the neurotransmitter the specification links to these symptoms.',
+    decide: 'Pick the symptoms that make one diagnosis stand apart. For treatment, think about the neurotransmitter linked to these symptoms.',
     ideas: [{ t: 'Hallucinations and delusions', b: 'Positive symptoms are additions: voices with no source and fixed false beliefs. Negative symptoms are losses: avolition and speech poverty.', lesson: 'p-schiz-class' }, { t: 'Blocking dopamine', b: 'Typical antipsychotics such as chlorpromazine block D2 receptors, which reduces excess dopamine and the positive symptoms.', lesson: 'p-schiz-treat' }] });
   G('p05', { file: 'He is hearing and seeing things that are not there now. Ask what sets them off, whether he knows what they are, and when they began.',
     ask: 'What triggers it, whether he knows it is a memory, whether it happens without a trigger, what he avoids and how he sleeps.',

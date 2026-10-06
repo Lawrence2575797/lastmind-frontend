@@ -38,7 +38,7 @@
   L('allergy', 'Allergies and the immune system', 'AQA 8461 · 4.2.2.5 Health issues', [
     { h: 'When the immune system overreacts', b: [
       'Your immune system normally attacks pathogens. Sometimes it overreacts to something harmless, such as a food or pollen. This is an **allergy**. Skin rashes and asthma are two common signs.',
-      'The specification puts it this way: **immune reactions initially caused by a pathogen can trigger allergies such as skin rashes and asthma**. So a rash can be the result of an infection (the body reacting to it) as well as a direct allergy to something eaten or touched.',
+      'In short: **immune reactions initially caused by a pathogen can trigger allergies such as skin rashes and asthma**. So a rash can be the result of an infection (the body reacting to it) as well as a direct allergy to something eaten or touched.',
     ] },
     { h: 'Telling it apart', b: [
       'There is no single sign that settles it, so doctors weigh several things together: **was there a fever first**, **is the rash itchy**, **was there a clear trigger** (a new food, a new product), **is anyone else ill**, and **what do the tests show**.',

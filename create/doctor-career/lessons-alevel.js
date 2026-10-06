@@ -24,7 +24,7 @@
       '**Type II** diabetes: insulin is made, but the **target cells become less responsive to it** (their insulin receptors no longer respond properly), so glucose is not taken up. It is linked to **obesity, a diet high in sugar and fat, and lack of exercise**, and is controlled by **manipulating the diet**, sometimes with insulin or other drugs later.',
       'This is why an insulin measurement is so useful. **Low insulin with high glucose points to Type I; plenty of insulin with high glucose points to Type II.**',
       { twist: 'Age and weight do not decide it. An overweight middle-aged adult can have **Type I**, and a thin young person can have **Type II**. The **insulin response** and **how fast** the illness came on are the better clues.' },
-      'The spec also asks you to evaluate the positions of **health advisers** (who stress diet and exercise) and the **food industry** (which sells sugary and fatty foods) in the rise of Type II.',
+      'It is also worth weighing the positions of **health advisers** (who stress diet and exercise) and the **food industry** (which sells sugary and fatty foods) in the rise of Type II.',
       { check: ['After a glucose drink, glucose stays high and insulin stays high. Which type, and what has failed?', 'Type II. Insulin is made, but target cells no longer respond properly to it, so glucose is not taken up.'] },
     ] },
   ]);
@@ -99,7 +99,7 @@
       '**Tidal volume** is the volume of air in one normal breath. If a lung stiffens so each breath is smaller, the person compensates with a **faster rate**.',
     ] },
     { h: 'Reading lung disease', b: [
-      'The spec asks you to **interpret information** about how lung disease affects **gas exchange and/or ventilation**. So ask three questions:',
+      'You may be asked to **interpret information** about how lung disease affects **gas exchange and/or ventilation**. So ask three questions:',
       { list: [
         '**Is the surface area reduced?** (alveolar walls broken down: fewer, larger air spaces.)',
         '**Is the diffusion distance longer?** (alveolar walls thickened or scarred, so oxygen crosses more slowly and the lung is stiffer, giving small breaths.)',
