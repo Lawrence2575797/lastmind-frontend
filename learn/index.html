@@ -20769,7 +20769,14 @@ SQIDAQAB
         el.style.left = x + 'px'; el.style.top = Math.max(0, block.y || 0) + 'px'; el.style.width = w + 'px';
         nbSyncCompact(el);
     }
+    // When the page gets narrower (the LastMind panel opens beside it), text boxes narrow with it and their lines wrap, instead of running under the panel.
+    // Only the display is limited: the width the box was given is kept, so closing the panel puts everything back.
+    function nbClampBlocksToCanvas(canvas) {
+        const cw = canvas.clientWidth; if (!cw) return;
+        canvas.querySelectorAll('.nb-text').forEach((el) => { el.style.maxWidth = Math.max(160, cw - el.offsetLeft - 16) + 'px'; });
+    }
     function nbFitCanvas(canvas) {
+        nbClampBlocksToCanvas(canvas);
         let bottom = 0;
         canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
         canvas.style.height = Math.max(Math.round(window.innerHeight * 0.68), 480, bottom + 160) + 'px';
@@ -21347,7 +21354,7 @@ SQIDAQAB
     function nbAssistMount(page) {
         document.getElementById('nbAssist')?.remove();
         const wide = () => window.innerWidth > 1180;
-        const pad = (on) => { const ci = document.getElementById('contentInner'); if (ci) ci.style.paddingRight = on && wide() ? '450px' : ''; };
+        const pad = (on) => { const ci = document.getElementById('contentInner'); if (ci) ci.style.paddingRight = on && wide() ? '450px' : ''; [0, 80, 300].forEach((ms) => setTimeout(() => { const c = document.getElementById('nbCanvas'); if (c) nbClampBlocksToCanvas(c); }, ms)); };
         document.getElementById('nbAssistTab')?.remove();
         const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'nbAssistTab'; btn.className = 'nb-assist-tab'; btn.setAttribute('aria-expanded', 'false'); btn.setAttribute('aria-label', 'Open LastMind beside your notes'); btn.textContent = 'LastMind'; document.body.appendChild(btn);
         const setOpen = (on) => { notesAssist.open = on; btn.classList.toggle('open', on); btn.textContent = on ? 'Close ›' : 'LastMind'; btn.setAttribute('aria-expanded', String(on)); pad(on); if (!on) document.getElementById('nbAssist')?.remove(); else build(); };
@@ -21418,6 +21425,7 @@ SQIDAQAB
                 <div class="nb-selection-size" id="nbSelectionSize"><span>Text size</span><select class="nb-text-size" aria-label="Selected text size"><option value="12">12px</option><option value="14">14px</option><option value="16" selected>16px</option><option value="18">18px</option><option value="22">22px</option><option value="28">28px</option><option value="36">36px</option></select></div>
             </div>`;
         const canvas = document.getElementById('nbCanvas');
+        if (typeof ResizeObserver === 'function') new ResizeObserver(() => nbClampBlocksToCanvas(canvas)).observe(canvas);
         if (typeof ResizeObserver === 'function') notesResizeObs = new ResizeObserver((entries) => {
             let flowed = false;
             entries.forEach((entry) => {
