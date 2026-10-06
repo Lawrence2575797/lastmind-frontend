@@ -4171,17 +4171,15 @@
     .nb-text .math-shortcut-editor .nb-dash { display: inline-block; font-size: 1.7em; font-weight: 800; line-height: 0.5; vertical-align: -0.1em; margin: 0 0.08em; color: inherit; }
     .nb-text .math-shortcut-editor ol { list-style: decimal; }
     .nb-grip { position: absolute; left: -2px; top: -22px; width: 26px; height: 20px; display: none; align-items: center; justify-content: center; font-size: 14px; line-height: 1; cursor: grab; touch-action: none; user-select: none; color: #1A232D; background: #E6D7B0; border-radius: 5px 5px 0 0; }
-    .nb-text:hover > .nb-grip { display: flex; }
+    /* The box's controls appear when the box is opened with a double click (see .nb-frame-open), and not on hover. */
+    .nb-text.nb-frame-open > .nb-grip { display: flex; }
     .nb-align-left { position: absolute; left: 25px; top: -22px; width: 26px; height: 20px; display: none; align-items: center; justify-content: center; padding: 0; border: 0; border-left: 1px solid rgba(26,35,45,.25); border-radius: 0 5px 0 0; background: #E6D7B0; color: #1A232D; font: 800 15px/1 Arial, sans-serif; cursor: pointer; }
-    .nb-text:hover > .nb-align-left, .nb-align-left[aria-pressed="true"] { display: flex; }
+    .nb-text.nb-frame-open > .nb-align-left, .nb-align-left[aria-pressed="true"], .nb-aligning .nb-text:hover > .nb-align-left { display: flex; }
     .nb-align-left[aria-pressed="true"] { background: #74C7A5; color: #10251D; box-shadow: 0 0 0 2px rgba(116,199,165,.4); }
     .nb-del { position: absolute; right: -2px; top: -22px; width: 22px; height: 20px; display: none; align-items: center; justify-content: center; padding: 0; font-size: 15px; line-height: 1; cursor: pointer; color: #F1EAD6; background: #8A2B2B; border: 0; border-radius: 5px 5px 0 0; }
-    .nb-text:hover > .nb-del, .nb-text:focus-within > .nb-del { display: flex; }
+    .nb-text.nb-frame-open > .nb-del { display: flex; }
     .nb-resize { position: absolute; right: -4px; top: 0; bottom: 0; width: 9px; cursor: ew-resize; touch-action: none; opacity: 0; background: rgba(230, 215, 176, 0.45); border-radius: 4px; }
-    .nb-text:hover > .nb-resize, .nb-text:focus-within > .nb-resize, .nb-diagram:hover > .nb-resize { opacity: 1; }
-    @media (hover: none) {
-        .nb-text > .nb-grip, .nb-text > .nb-align-left, .nb-text > .nb-del { display: flex; }
-    }
+    .nb-text.nb-frame-open > .nb-resize, .nb-diagram:hover > .nb-resize { opacity: 1; }
 
     .nb-diagram { background: var(--panel, #12121E); color: var(--text, #E6D7B0); border-radius: 10px; padding: 0 0 8px; --text: #E6D7B0; --accent: #E6D7B0; border: 1px solid rgba(230, 215, 176, 0.3); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35); }
     .nb-dbar { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-bottom: 1px solid rgba(230, 215, 176, 0.18); }
@@ -20564,7 +20562,7 @@ SQIDAQAB
     }
     function nbClearAlignment() {
         if (notesAlignSource && notesAlignSource.button) notesAlignSource.button.setAttribute('aria-pressed', 'false');
-        notesAlignSource = null;
+        notesAlignSource = null; document.body.classList.remove('nb-aligning');
     }
 
     // Pages written in the old Maths Tool notes tab come across into a folder of their own, once.
@@ -21082,7 +21080,7 @@ SQIDAQAB
         alignBtn.addEventListener('click', (e) => {
             e.preventDefault(); e.stopPropagation();
             if (!notesAlignSource) {
-                notesAlignSource = { el, block, button: alignBtn };
+                notesAlignSource = { el, block, button: alignBtn }; document.body.classList.add('nb-aligning');
                 alignBtn.setAttribute('aria-pressed', 'true');
                 notesStatus('Now choose the align symbol on another text box');
                 return;
@@ -21308,10 +21306,12 @@ SQIDAQAB
         const onAlignmentPointerDown = (e) => {
             if (notesAlignSource && !e.target.closest('.nb-align-left')) { nbClearAlignment(); notesStatus('Alignment cancelled'); }
         };
+        const onFramePointerDown = (e) => { canvas.querySelectorAll('.nb-text.nb-frame-open').forEach((b) => { if (!b.contains(e.target)) b.classList.remove('nb-frame-open'); }); };
+        document.addEventListener('pointerdown', onFramePointerDown, true);
         document.addEventListener('selectionchange', onSelectionChange);
         document.addEventListener('pointerdown', onSelectionPointerDown, true);
         document.addEventListener('pointerdown', onAlignmentPointerDown, true);
-        notesSelectionSizeCleanup = () => { document.removeEventListener('selectionchange', onSelectionChange); document.removeEventListener('pointerdown', onSelectionPointerDown, true); document.removeEventListener('pointerdown', onAlignmentPointerDown, true); notesSelectionSizeDismiss = null; selectionSize.remove(); };
+        notesSelectionSizeCleanup = () => { document.removeEventListener('pointerdown', onFramePointerDown, true); document.removeEventListener('selectionchange', onSelectionChange); document.removeEventListener('pointerdown', onSelectionPointerDown, true); document.removeEventListener('pointerdown', onAlignmentPointerDown, true); notesSelectionSizeDismiss = null; selectionSize.remove(); };
         const setKeyboard = (writing) => { notesWriting = writing; nbSyncKeyboardButtons(); if (notesActive) { notesActive.ed.setWritingMode(writing); notesActive.editable.focus(); } };
         document.getElementById('nbKbdEnglish').addEventListener('click', () => setKeyboard(true));
         document.getElementById('nbKbdMaths').addEventListener('click', () => setKeyboard(false));
