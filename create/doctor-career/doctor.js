@@ -143,6 +143,11 @@
       '.dc-coach .x { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border: 1px solid rgba(0,0,0,.25); border-radius: 50%; background: transparent; cursor: pointer; } .dc-coach .who { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; padding-right: 30px; } .dc-coach .who img { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; object-position: 50% 15%; border: 2px solid #0f1b2d; } .dc-coach .who small { display: block; opacity: .65; }',
       '.dc-coach .say { margin-bottom: 10px; } .dc-coach .intro { margin: 0 0 8px; padding: 8px 10px; border-radius: 10px; background: rgba(251,191,36,.25); } .dc-coach .ideas-h { margin: 6px 0; font: 700 .68rem Arial, sans-serif; letter-spacing: .08em; text-transform: uppercase; opacity: .65; }',
       '.dc-coach .idea { margin: 6px 0; padding: 8px 10px; border-radius: 10px; background: #fff; border: 1px solid rgba(31,26,16,.18); } .dc-coach .idea b { display: block; } .dc-coach .idea p { margin: 2px 0 4px; font-size: .86rem; } .dc-coach .idea button { padding: 0; border: 0; background: none; color: #0a4a70; font: 700 .8rem Arial, sans-serif; cursor: pointer; text-decoration: underline; } .dc-coach .mute { display: block; margin-top: 8px; font-size: .76rem; opacity: .75; }',
+      '.dc-coach.side { top: 0; right: 0; bottom: 0; width: min(470px, 94vw); max-height: none; border-radius: 0; border-width: 0 0 0 2px; padding: 18px 22px 40px; z-index: 90; font-size: .95rem; line-height: 1.7; } .dc-coach.side .say { font-size: 1rem; }',
+      '.dc-coach .teach-h { margin: 22px 0 6px; padding-top: 14px; border-top: 2px solid #0f1b2d; font: 700 .72rem Arial, sans-serif; letter-spacing: .1em; text-transform: uppercase; } .dc-coach .teach-in { margin: 0 0 6px; opacity: .85; }',
+      '.dc-coach .teach { margin: 18px 0 8px; padding-bottom: 8px; } .dc-coach .teach + .teach { border-top: 1px solid rgba(31,26,16,.2); padding-top: 14px; } .dc-coach .teach h3 { margin: 0 0 4px; font: 700 1.2rem/1.3 Georgia, serif; } .dc-coach .teach h3 .lead { display: block; font: 700 .7rem Arial, sans-serif; letter-spacing: .08em; text-transform: uppercase; opacity: .6; }',
+      '.dc-coach .teach .spec { display: inline-block; margin: 4px 0 8px; padding: 2px 9px; border-radius: 999px; background: #0f1b2d; color: #f4ecd8; font: 700 .68rem Arial, sans-serif; } .dc-coach .teach h4 { margin: 22px 0 6px; font-size: 1.02rem; } .dc-coach .teach p { margin: 0 0 14px; } .dc-coach .teach ul { margin: 0 0 14px 20px; padding: 0; } .dc-coach .teach li { margin-bottom: 6px; }',
+      '.dc-coach .teach .ex, .dc-coach .teach .tw { margin: 4px 0 16px; padding: 10px 14px; border-radius: 10px; } .dc-coach .teach .ex { background: rgba(11,114,133,.12); } .dc-coach .teach .tw { background: rgba(180,83,9,.14); } .dc-coach .teach .eq { padding: 8px 12px; background: #fff; border-left: 4px solid #0a5f8f; font-family: Consolas, monospace; overflow-x: auto; }',
       '.dc-drawer { position: fixed; top: 0; right: 0; bottom: 0; z-index: 90; width: min(460px, 94vw); overflow-y: auto; padding: 18px 20px 40px; background: #eef6fd; color: #0b0b0b; border-left: 1px solid rgba(0,0,0,.3); box-shadow: -18px 0 50px rgba(0,0,0,.45); font: .94rem/1.65 Arial, sans-serif; } .dc-drawer h2 { margin: 0 0 4px; font: 700 1.25rem Georgia, serif; } .dc-drawer h4 { margin: 18px 0 4px; font-size: 1rem; } .dc-drawer p { margin: 0 0 10px; } .dc-drawer .x { float: right; padding: 3px 10px; border: 1px solid rgba(0,0,0,.3); border-radius: 8px; background: transparent; cursor: pointer; }',
       '.dc-drawer .spec { display: inline-block; margin: 4px 0 10px; padding: 2px 9px; border-radius: 999px; background: #0f1b2d; color: #f4ecd8; font: 700 .7rem Arial, sans-serif; } .dc-drawer .ex { margin: 8px 0 12px; padding: 8px 12px; background: rgba(11,114,133,.1); border-radius: 8px; } .dc-drawer .tw { margin: 8px 0 12px; padding: 8px 12px; background: rgba(180,83,9,.12); border-radius: 8px; } .dc-drawer ul { margin: 0 0 10px 18px; padding: 0; } .dc-drawer .chk { margin: 8px 0; }',
     ].join('\n');
@@ -183,15 +188,12 @@
     }
     host.innerHTML = '<div class="dc" style="background-image:url(' + T.bg + ')"><div class="dc-top"><div><button type="button" class="dc-back" data-dc="files">← Back to the files</button></div><div class="dc-role"><b>' + esc(D.tracks[track].ranks[D.rankIndex(track, d.results)].title) + '</b><span>About ' + (c.minutes || 10) + ' minutes</span></div></div><div class="dc-case">' + left + '<section class="dc-main">' + body + '</section></div></div>';
   }
-  function lessonBtns(c) {
-    return '<div class="dc-learn">' + c.lessons.map(function (id) { var L = D.lessons[id]; return L ? '<button type="button" class="dc-btn lesson" data-lesson="' + id + '">📖 ' + esc(L.title) + '</button>' : ''; }).join('') + '</div>';
-  }
   function fileHtml(c) {
     return '<h2>' + esc(c.title) + '</h2><p style="opacity:.75;margin:0 0 8px">' + esc(c.tagline) + '</p><div class="dc-note"><b>Referral.</b> ' + bold(c.referral) + '</div>' +
       '<h3>Observations</h3><div class="dc-obs">' + c.obs.map(function (o) { return '<div><small>' + esc(o[0]) + '</small><b>' + esc(o[1]) + '</b></div>'; }).join('') + '</div>' +
       '<h3>What the notes say</h3><ul style="margin:0 0 10px 18px;padding:0">' + c.notes.map(function (n) { return '<li>' + bold(n) + '</li>'; }).join('') + '</ul>' +
       (c.infoCard ? '<h3>' + esc(c.infoCard.title) + '</h3><div class="dc-note">' + c.infoCard.body.map(function (p) { return '<p>' + bold(p) + '</p>'; }).join('') + '</div>' : '') +
-      '<h3>Read up first</h3><p style="margin:0 0 4px">These lessons cover what you need for this patient. ' + (c.twist ? 'Read all of them: first impressions can mislead.' : '') + '</p>' + lessonBtns(c) +
+      '<div class="dc-note"><b>Background.</b> Dr Hartley is going through the science for this patient in the panel on the right. Read it before you call the patient in' + (c.twist ? ', all of it: first impressions can mislead' : '') + '.</div>' +
       '<div class="dc-learn" style="margin-top:14px"><button type="button" class="dc-btn primary" data-tab="ask">Call the patient in →</button></div>';
   }
   function askHtml(c, run) {
@@ -225,7 +227,7 @@
       (c.twist ? '<div class="dc-warn"><b>The twist.</b> ' + bold(c.twist) + '</div>' : '') +
       '<h3>Your treatment choice</h3><p><b>' + esc(tx ? tx.label : '') + '</b><br>' + bold(tx ? tx.why : '') + '</p>' +
       '<h3>The facts that gave it away</h3><ul style="margin:0 0 10px 18px;padding:0">' + (c.decisive || []).map(function (f) { return '<li' + (run.evidence.indexOf(f) > -1 ? ' class="good"' : '') + '>' + esc(c.facts[f]) + (run.evidence.indexOf(f) > -1 ? ' ✓' : '') + '</li>'; }).join('') + '</ul>' +
-      '<h3>Go back over the biology</h3>' + lessonBtns(c) + '<p style="opacity:.7;font-size:.82rem">Specification: ' + esc(c.spec.board) + ' ' + esc(c.spec.code) + ', ' + esc(c.spec.refs.join(', ')) + '</p>' +
+      '<h3>Go back over the biology</h3><p>The notes from Dr Hartley on the right still have the lessons for both illnesses. Read them again with this result in mind.</p>' + '<p style="opacity:.7;font-size:.82rem">Specification: ' + esc(c.spec.board) + ' ' + esc(c.spec.code) + ', ' + esc(c.spec.refs.join(', ')) + '</p>' +
       '<div class="dc-learn" style="margin-top:14px"><button type="button" class="dc-btn primary" data-dc="files">Next patient →</button></div>';
   }
 
@@ -247,7 +249,7 @@
     if (tab === 'tests') extra = ' <i>You can order ' + (TESTS - run.tests.length) + ' more test' + (TESTS - run.tests.length === 1 ? '' : 's') + '.</i>';
     return { img: STEP_IMG[tab], label: STEP_NAME[tab], html: esc(g[tab]) + extra, ideas: g.ideas };
   }
-  function coachDestroy() { if (coachEl) coachEl.remove(); if (coachBtn) coachBtn.remove(); coachEl = coachBtn = null; clearInterval(coachTimer); coachTimer = null; lastStep = null; }
+  function coachDestroy() { if (host) host.style.paddingRight = ''; if (coachEl) coachEl.remove(); if (coachBtn) coachBtn.remove(); coachEl = coachBtn = null; clearInterval(coachTimer); coachTimer = null; lastStep = null; }
   function coachDraw() {
     if (!host || !host.isConnected) { coachDestroy(); return; }
     var st = coachState(), m = coachMessage(), stepKey = cur ? (cur.c.id + ':' + (cur.run.done ? 'done' : cur.run.tab)) : 'files';
@@ -264,40 +266,47 @@
     coachBtn.style.display = st.coach.muted && !coachOpen ? 'none' : '';
     coachBtn.querySelector('.dot').style.display = !coachOpen && fresh ? '' : 'none';
     if (coachEl) { coachEl.remove(); coachEl = null; }
+    host.style.paddingRight = cur && coachOpen && window.innerWidth > 1000 ? 'min(470px, 38vw)' : '';
     if (!coachOpen) return;
     coachEl = document.createElement('div'); coachEl.className = 'dc-coach'; coachEl.setAttribute('role', 'dialog'); coachEl.setAttribute('aria-label', 'Notes from your senior doctor');
     var intro = firstEver && !cur ? '<p class="intro"><b>I am ' + esc(MENTOR.name) + ', the consultant supervising you.</b> I am here to help you think, not to hand over answers.</p>' : '';
-    var ideas = (m.ideas || []).map(function (i) { return '<div class="idea"><b>' + esc(i.t) + '</b><p>' + esc(i.b) + '</p><button type="button" data-coach-lesson="' + esc(i.lesson) + '">Read the full lesson →</button></div>'; }).join('');
+    var ideas = (m.ideas || []).map(function (i) { return '<div class="idea"><b>' + esc(i.t) + '</b><p>' + esc(i.b) + '</p></div>'; }).join('');
     coachEl.innerHTML = '<button type="button" class="x" data-coach-close="1" aria-label="Hide the notes">✕</button><div class="who"><img alt="" src="' + MENTOR.img[m.img || 'hello'] + '"><div><b>' + esc(MENTOR.name) + '</b><small>' + esc(m.label) + '</small></div></div>' + intro + '<div class="say">' + m.html + '</div>' + (ideas ? '<div class="ideas-h">Worth knowing for this decision</div>' + ideas : '') + '<label class="mute"><input type="checkbox" data-coach-mute="1"' + (st.coach.muted ? ' checked' : '') + '> Keep my notes closed unless I open them</label>';
     // On a case, the notes sit under the patient so they never cover what you are reading; on the files screen they float.
-    var slot = cur && host.querySelector('.dc-pt');
-    if (slot) { coachEl.classList.add('inline'); slot.appendChild(coachEl); } else document.body.appendChild(coachEl);
+    if (cur) { coachEl.classList.add('side'); coachEl.insertAdjacentHTML('beforeend', teachHtml(cur.c)); }
+    document.body.appendChild(coachEl);
     coachEl.addEventListener('click', function (ev) {
-      var t = ev.target.closest('[data-coach-close],[data-coach-lesson]'); if (!t) return;
-      if (t.dataset.coachLesson) { openLesson(t.dataset.coachLesson); return; }
+      var t = ev.target.closest('[data-coach-close]'); if (!t) return;
       var d = D.load(track); d.coach = d.coach || {}; d.coach.seen = true; D.save(track, d); coachOpen = false; coachDraw();
     });
     var mute = coachEl.querySelector('[data-coach-mute]'); if (mute) mute.addEventListener('change', function () { var d = D.load(track); d.coach = d.coach || {}; d.coach.muted = mute.checked; d.coach.seen = true; D.save(track, d); if (mute.checked) { coachOpen = false; coachDraw(); } });
     if (firstEver && fresh) { var d0 = D.load(track); d0.coach = d0.coach || {}; d0.coach.seen = true; D.save(track, d0); }
   }
 
-  /* ---------- lessons drawer ---------- */
-  function openLesson(id) {
-    var L = D.lessons[id]; if (!L) return; closeDrawer();
-    var block = function (b) {
-      if (typeof b === 'string') return '<p>' + bold(b) + '</p>';
-      if (b.ex) return '<div class="ex"><b>Example.</b> ' + bold(b.ex) + '</div>';
-      if (b.eq) return '<p style="padding:6px 10px;background:#fff;border-left:4px solid #0a5f8f;font-family:Consolas,monospace;overflow-x:auto">' + esc(b.eq) + '</p>';
-      if (b.twist) return '<div class="tw"><b>Easily confused.</b> ' + bold(b.twist) + '</div>';
-      if (b.list) return '<ul>' + b.list.map(function (x) { return '<li>' + bold(x) + '</li>'; }).join('') + '</ul>';
-      if (b.check) return '<details class="chk"><summary>Check yourself: ' + esc(b.check[0]) + '</summary><p>' + bold(b.check[1]) + '</p></details>';
-      return '';
-    };
-    drawer = document.createElement('aside'); drawer.className = 'dc-drawer'; drawer.setAttribute('aria-label', 'Lesson');
-    drawer.innerHTML = '<button type="button" class="x" aria-label="Close the lesson">✕</button><h2>' + esc(L.title) + '</h2><span class="spec">' + esc(L.spec) + '</span>' + L.sections.map(function (s) { return (s.h ? '<h4>' + esc(s.h) + '</h4>' : '') + s.b.map(block).join(''); }).join('');
-    drawer.querySelector('.x').addEventListener('click', closeDrawer); document.body.appendChild(drawer);
+  /* ---------- the lessons, taught by Dr Hartley in the right-hand panel ---------- */
+  function lessonBlock(b) {
+    if (typeof b === 'string') return '<p>' + bold(b) + '</p>';
+    if (b.ex) return '<div class="ex"><b>Example.</b> ' + bold(b.ex) + '</div>';
+    if (b.eq) return '<p class="eq">' + esc(b.eq) + '</p>';
+    if (b.twist) return '<div class="tw"><b>Easily confused.</b> ' + bold(b.twist) + '</div>';
+    if (b.list) return '<ul>' + b.list.map(function (x) { return '<li>' + bold(x) + '</li>'; }).join('') + '</ul>';
+    return ''; /* no "check yourself" questions here: the case itself is the test */
   }
-  function closeDrawer() { if (drawer) { drawer.remove(); drawer = null; } }
+  var LEAD = ['Let us begin with', 'Next, a look at', 'Then', 'Finally, make sure you understand'];
+  function teachHtml(c) {
+    var ids = (c.lessons || []).filter(function (id) { return D.lessons[id]; });
+    if (!ids.length) return '';
+    var out = '<div class="teach-h">What you need to know</div><p class="teach-in">I will take you through the science for this patient. Read it in order, and slow down at the boxes marked <b>Easily confused</b>: those are where doctors go wrong.</p>';
+    ids.forEach(function (id, n) {
+      var L = D.lessons[id];
+      out += '<section class="teach"><h3><span class="lead">' + esc(LEAD[Math.min(n, LEAD.length - 1)]) + '</span> ' + esc(L.title) + '</h3><span class="spec">' + esc(L.spec) + '</span>' +
+        L.sections.map(function (sec) { return (sec.h ? '<h4>' + esc(sec.h) + '</h4>' : '') + sec.b.map(lessonBlock).join(''); }).join('') + '</section>';
+    });
+    return out;
+  }
+  function openLesson() { coachOpen = true; lastStep = null; coachDraw(); }
+  function closeDrawer() {}
+
 
   /* ---------- events ---------- */
   function bind() {
