@@ -60,6 +60,7 @@
     },
     twist: 'Exhaustion, poor sleep and constant illness sound like **depression**, and chest tightness sounds like a **heart problem**. But Fiona\'s **mood is good** away from work, her **heart tests are normal**, and her symptoms **follow the working week**, with a **high workload** and **low control**. This is **stress**, with **cortisol** suppressing her **immune system**.',
     lessons: ['p-stress-body', 'p-stress-sources', 'p-stress-manage', 'p-depression'],
+    teach: [{ tab: 'Work-related stress', lessons: ['p-stress-body', 'p-stress-sources', 'p-stress-manage'] }, { tab: 'Depression', lessons: ['p-depression'] }],
     spec: { board: 'AQA', code: '7182', refs: ['Stress: SAM and HPA, and stress and illness', 'Stress: workplace stress (workload and control)', 'Stress: personality types and hardiness', 'Stress: stress inoculation training and drugs'] },
   });
 
@@ -120,6 +121,7 @@
     },
     twist: 'The wife\'s mother is a **red herring**: **high expressed emotion** is linked to **relapse**, so it sounds like the cause. But the **family climate is warm**, the symptoms began **a week after he stopped his drug**, and they are **the same as before**. The **dopamine hypothesis** and the effect of **antipsychotics** explain it.',
     lessons: ['p-schiz-bio', 'p-schiz-psych', 'p-schiz-treat'],
+    teach: [{ tab: 'Stopping the drug', lessons: ['p-schiz-bio', 'p-schiz-treat'] }, { tab: 'Family climate', lessons: ['p-schiz-psych'] }, { tab: 'Depression', lessons: ['p-depression'] }],
     spec: { board: 'AQA', code: '7182', refs: ['Schizophrenia: the dopamine hypothesis', 'Schizophrenia: family dysfunction and expressed emotion', 'Schizophrenia: antipsychotics, CBT and family therapy'] },
   });
 
@@ -180,6 +182,7 @@
     },
     twist: 'Rigid food rituals and perfectionism sound like **OCD**, and low mood sounds like **depression**. But Isla\'s rituals are **only about food and weight**, driven by a **fear of weight gain** and a **distorted body image**, with a **dangerously low BMI**. Her low mood **follows** the weight loss. That is **anorexia nervosa**.',
     lessons: ['p-eating', 'p-ocd', 'p-depression'],
+    teach: [{ tab: 'Anorexia nervosa', lessons: ['p-eating'] }, { tab: 'OCD', lessons: ['p-ocd'] }, { tab: 'Depression', lessons: ['p-depression'] }],
     spec: { board: 'AQA', code: '7182', refs: ['Eating behaviour: anorexia nervosa (genetic and neural explanations)', 'Eating behaviour: family systems, social learning and cognitive explanations', 'Psychopathology: OCD and depression compared'] },
   });
 
@@ -241,6 +244,7 @@
     },
     twist: '**Hearing a voice** is a **positive symptom of schizophrenia**, so the first doctor applied the label. But **hallucinations** only suggest schizophrenia when they cause **distress**, come with **other symptoms** and **impair functioning**. Winston\'s experience is **valued in his culture**, he is **fully functioning** and has **no other symptoms**. This is **culture bias** in diagnosis.',
     lessons: ['p-abnormal', 'p-schiz-class', 'p-schiz-bio'],
+    teach: [{ tab: 'Schizophrenia', lessons: ['p-schiz-class', 'p-schiz-bio'] }, { tab: 'Normal, within a culture', lessons: ['p-abnormal'] }, { tab: 'Depression', lessons: ['p-depression'] }],
     spec: { board: 'AQA', code: '7182', refs: ['Psychopathology: definitions of abnormality (social norms, failure to function, ideal mental health)', 'Schizophrenia: reliability and validity of diagnosis (culture bias)', 'Schizophrenia: classification (hallucinations)'] },
   });
 
@@ -300,6 +304,7 @@
     },
     twist: 'Cannabis can produce **psychotic symptoms**, and exam stress is real, so it is easy to blame them. But if it were the drug alone, the symptoms would **fade after it was stopped**. Ayesha is **five weeks clean**, her **screen is negative**, her symptoms have lasted **over a month**, there is a **family history** and she had been **withdrawn for a year**. Several factors combined in a vulnerable person: **diathesis-stress**.',
     lessons: ['p-schiz-psych', 'p-schiz-bio', 'p-schiz-treat', 'p-schiz-class'],
+    teach: [{ tab: 'Schizophrenia: vulnerability and stress', lessons: ['p-schiz-psych', 'p-schiz-bio', 'p-schiz-treat', 'p-schiz-class'] }, { tab: 'Stress', lessons: ['p-stress-body', 'p-stress-sources'] }],
     spec: { board: 'AQA', code: '7182', refs: ['Schizophrenia: the interactionist approach (diathesis-stress)', 'Schizophrenia: genetic basis and the dopamine hypothesis', 'Schizophrenia: antipsychotics, CBT and family therapy'] },
   });
 

@@ -12,7 +12,7 @@
     title: 'Eleven floors', tagline: 'She climbs the stairs rather than ride a lift',
     complaint: 'Panic around lifts, and a daily climb of eleven flights',
     patient: { name: 'Hannah Doyle', age: 29, job: 'Accounts assistant', setting: 'Community mental health clinic', image: P + 'p01.jpg',
-      look: 'a twenty-nine-year-old white woman with shoulder-length brown hair, in a smart work blouse and cardigan, looking tense and a little embarrassed, sitting upright in a bright clinic waiting room holding her handbag on her lap' },
+      look: 'a twenty-nine-year-old white woman with shoulder-length brown hair, in a smart work blouse and cardigan, looking tense and a little embarrassed, sitting upright in a bright clinic waiting room with her hands clasped in her lap, wearing only a blouse and a plain knitted cardigan, nothing else on her shoulders or chest' },
     opening: 'Hannah laughs nervously and says she is sure this is a waste of your time.',
     referral: 'Referred by her GP. Hannah has **avoided lifts for two years**. Her new office is on the **eleventh floor** and she now **climbs the stairs every morning** and arrives exhausted and late. When a colleague pulled her into a lift last month she **panicked, shook and cried** and had to be helped out. She wants it to stop.',
     obs: [['Appearance', 'Tidy, tense, fidgeting'], ['Speech', 'Normal pace and clear'], ['Mood (her words)', '"Fine, apart from this"'], ['Sleep and appetite', 'Normal']],
@@ -66,6 +66,7 @@
     },
     twist: 'Strong **avoidance** and a **racing heart** can look like **OCD** (avoiding triggers) or a **mood disorder** (withdrawing). But Hannah has **no obsessions or rituals**, her **mood is good**, and the fear began with **one frightening event** and is **kept alive by avoiding lifts**. That is a **phobia**, learned in **two steps**.',
     lessons: ['p-phobias', 'p-ocd', 'p-abnormal'],
+    teach: [{ tab: 'A specific phobia', lessons: ['p-phobias'] }, { tab: 'OCD', lessons: ['p-ocd'] }, { tab: 'Depression', lessons: ['p-depression'] }, { tab: 'Background: what counts as abnormal', lessons: ['p-abnormal'] }],
     spec: { board: 'AQA', code: '7182', refs: ['Psychopathology: characteristics of phobias', 'Psychopathology: behavioural approach (two-process model)', 'Psychopathology: systematic desensitisation and flooding'] },
   });
 
@@ -128,6 +129,7 @@
     },
     twist: 'Hand-washing and fear of contamination sound like a **phobia of germs**. But a phobia is a **fear of an object**, relieved by avoiding it. Daniel has **intrusive thoughts (obsessions)** and **repetitive rituals (compulsions)** that give only **brief relief**, and the rituals **spread** to other areas. He also has **insight**. That is **OCD**.',
     lessons: ['p-ocd', 'p-phobias', 'p-depression'],
+    teach: [{ tab: 'OCD', lessons: ['p-ocd'] }, { tab: 'A specific phobia', lessons: ['p-phobias'] }, { tab: 'Depression', lessons: ['p-depression'] }],
     spec: { board: 'AQA', code: '7182', refs: ['Psychopathology: characteristics of OCD', 'Psychopathology: biological explanations for OCD (genetic and neural)', 'Psychopathology: drug therapy (SSRIs)'] },
   });
 
@@ -190,6 +192,7 @@
     },
     twist: 'Silence, withdrawal and a flat face look like the **negative symptoms of schizophrenia** (speech poverty and avolition). But Marcus **speaks fully when asked**, has **no hallucinations or delusions**, and describes **lowered mood, worthlessness** and the **negative triad**. The silence is **sadness**, not a loss of speech.',
     lessons: ['p-depression', 'p-schiz-class', 'p-abnormal'],
+    teach: [{ tab: 'Depression', lessons: ['p-depression'] }, { tab: 'Schizophrenia', lessons: ['p-schiz-class'] }, { tab: 'OCD', lessons: ['p-ocd'] }, { tab: 'Background: what counts as abnormal', lessons: ['p-abnormal'] }],
     spec: { board: 'AQA', code: '7182', refs: ['Psychopathology: characteristics of depression', 'Psychopathology: Beck\'s cognitive theory and Ellis\'s ABC model', 'Psychopathology: CBT', 'Schizophrenia: classification (positive and negative symptoms)'] },
   });
 
@@ -251,6 +254,7 @@
     },
     twist: 'Thoughts he cannot stop might sound like **OCD**. But in OCD the person recognises the thoughts as **their own** and knows they are **excessive**. Jordan hears **voices he believes come from outside**, holds **fixed false beliefs** and has **no insight**: those are **hallucinations and delusions**, so **schizophrenia**.',
     lessons: ['p-schiz-class', 'p-ocd', 'p-schiz-bio'],
+    teach: [{ tab: 'Schizophrenia', lessons: ['p-schiz-class', 'p-schiz-bio', 'p-schiz-treat'] }, { tab: 'OCD', lessons: ['p-ocd'] }, { tab: 'Depression', lessons: ['p-depression'] }],
     spec: { board: 'AQA', code: '7182', refs: ['Schizophrenia: classification (hallucinations, delusions, negative symptoms)', 'Schizophrenia: the dopamine hypothesis', 'Schizophrenia: antipsychotic drugs'] },
   });
 
@@ -315,6 +319,7 @@
     },
     twist: 'Hearing explosions and seeing things that are not there sounds like **psychosis**. But a **flashback** is a **memory of a real event**, set off by a **cue**, and he **knows it is a memory**. There are **no delusions**, and it began **after a trauma**, with **avoidance** and **hyperarousal**. That is **post-traumatic stress**.',
     lessons: ['p-trauma', 'p-schiz-class', 'p-stress-body'],
+    teach: [{ tab: 'Post-traumatic stress', lessons: ['p-trauma', 'p-stress-body'] }, { tab: 'Schizophrenia', lessons: ['p-schiz-class'] }, { tab: 'A specific phobia', lessons: ['p-phobias'] }],
     spec: { board: 'AQA', code: '7182', refs: ['Stress: the physiology of stress (SAM and HPA)', 'Psychopathology: behavioural approach (conditioning)', 'Schizophrenia: classification (hallucinations)', 'Post-traumatic stress is defined in the case file'] },
   });
 

@@ -158,6 +158,7 @@
       '.dc-coach .idea { margin: 6px 0; padding: 8px 10px; border-radius: 10px; background: #fff; border: 1px solid rgba(31,26,16,.18); } .dc-coach .idea b { display: block; } .dc-coach .idea p { margin: 2px 0 4px; font-size: .86rem; } .dc-coach .idea button { padding: 0; border: 0; background: none; color: #0a4a70; font: 700 .8rem Arial, sans-serif; cursor: pointer; text-decoration: underline; } .dc-coach .mute { display: block; margin-top: 8px; font-size: .76rem; opacity: .75; }',
       '.dc-coach.side { top: 0; right: 0; bottom: 0; width: min(470px, 94vw); max-height: none; border-radius: 0; border-width: 0 0 0 2px; padding: 18px 22px 40px; z-index: 90; font-size: .95rem; line-height: 1.7; } .dc-coach.side .say { font-size: 1rem; }',
       '.dc-coach .teach-h { margin: 22px 0 6px; padding-top: 14px; border-top: 2px solid #0f1b2d; font: 700 .72rem Arial, sans-serif; letter-spacing: .1em; text-transform: uppercase; } .dc-coach .teach-in { margin: 0 0 6px; opacity: .85; }',
+      '.dc-coach .teach-tabs { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px; margin: 4px -22px 10px; padding: 10px 22px; background: #f4ecd8; border-bottom: 1px solid rgba(31,26,16,.18); } .dc-coach .teach-tab { padding: 7px 12px; border: 1.5px solid #0f1b2d; border-radius: 999px; background: transparent; color: #0f1b2d; font: 700 .8rem Arial, sans-serif; cursor: pointer; } .dc-coach .teach-tab.on { background: #0f1b2d; color: #f4ecd8; } .dc-coach .teach-pane[hidden] { display: none; }',
       '.dc-coach .teach { margin: 18px 0 8px; padding-bottom: 8px; } .dc-coach .teach + .teach { border-top: 1px solid rgba(31,26,16,.2); padding-top: 14px; } .dc-coach .teach h3 { margin: 0 0 4px; font: 700 1.2rem/1.3 Georgia, serif; } .dc-coach .teach h3 .lead { display: block; font: 700 .7rem Arial, sans-serif; letter-spacing: .08em; text-transform: uppercase; opacity: .6; }',
       '.dc-coach .teach .spec { display: inline-block; margin: 4px 0 8px; padding: 2px 9px; border-radius: 999px; background: #0f1b2d; color: #f4ecd8; font: 700 .68rem Arial, sans-serif; } .dc-coach .teach h4 { margin: 22px 0 6px; font-size: 1.02rem; } .dc-coach .teach p { margin: 0 0 14px; } .dc-coach .teach ul { margin: 0 0 14px 20px; padding: 0; } .dc-coach .teach li { margin-bottom: 6px; }',
       '.dc-coach .teach .ex, .dc-coach .teach .tw { margin: 4px 0 16px; padding: 10px 14px; border-radius: 10px; } .dc-coach .teach .ex { background: rgba(11,114,133,.12); } .dc-coach .teach .tw { background: rgba(180,83,9,.14); } .dc-coach .teach .eq { padding: 8px 12px; background: #fff; border-left: 4px solid #0a5f8f; font-family: Consolas, monospace; overflow-x: auto; }',
@@ -231,6 +232,24 @@
       '<h3>3. What do you do now?</h3><div class="dc-opts">' + c.treatments.map(function (t) { return '<button type="button" class="dc-opt' + (run.tx === t.id ? ' on' : '') + '" data-tx="' + t.id + '">' + esc(t.label) + '</button>'; }).join('') + '</div>' +
       '<div class="dc-learn" style="margin-top:14px"><button type="button" class="dc-btn primary" data-act="submit"' + (ready ? '' : ' disabled') + '>Send the patient home with my decision</button>' + (ready ? '' : '<span class="dc-meter" style="align-self:center">Choose a diagnosis, two pieces of evidence and what to do.</span>') + '</div>';
   }
+  // After the case: what the two chosen facts did, what would have settled it, and where each missing fact could have been found.
+  function evidenceFeedback(c, run) {
+    var dec = c.decisive || [], chosen = run.evidence || [], found = factsFound(c, run), li = function (t, cls) { return '<li' + (cls ? ' class="' + cls + '"' : '') + '>' + t + '</li>'; };
+    var good = chosen.filter(function (f) { return dec.indexOf(f) > -1; }), weak = chosen.filter(function (f) { return dec.indexOf(f) < 0; });
+    var unpicked = dec.filter(function (f) { return chosen.indexOf(f) < 0 && found.indexOf(f) > -1; }), missed = dec.filter(function (f) { return found.indexOf(f) < 0; });
+    var source = function (f) {
+      var q = (c.questions || []).filter(function (x) { return x.fact === f; })[0], t = (c.tests || []).filter(function (x) { return x.fact === f; })[0];
+      return q ? 'You could have found it by asking: "' + esc(q.q) + '"' : t ? 'You could have found it with: ' + esc(t.name) : '';
+    };
+    var out = '<h3>Your evidence: ' + good.length + ' of 2 picks settled it</h3><p>The best evidence is a fact that is easy to explain with the right answer and hard to explain with the others. A fact that fits all the options settles nothing, however true it is.</p><ul style="margin:0 0 10px 18px;padding:0">';
+    good.forEach(function (f) { out += li('<b>Good pick:</b> ' + esc(c.facts[f]) + ' ✓', 'good'); });
+    weak.forEach(function (f) { out += li('<b>Weaker pick:</b> ' + esc(c.facts[f]) + '. This is true, but it does not separate the options, so it earns nothing here.'); });
+    out += '</ul>';
+    if (unpicked.length) out += '<p><b>You had these and passed them over:</b></p><ul style="margin:0 0 10px 18px;padding:0">' + unpicked.map(function (f) { return li(esc(c.facts[f])); }).join('') + '</ul>';
+    if (missed.length) out += '<p><b>You never found these, and they would have helped:</b></p><ul style="margin:0 0 10px 18px;padding:0">' + missed.map(function (f) { return li(esc(c.facts[f]) + '<br><small>' + source(f) + '</small>'); }).join('') + '</ul>';
+    if (good.length === 2 && !weak.length) out += '<p>Both of your picks were decisive. Well chosen.</p>';
+    return out;
+  }
   function outcomeHtml(c, run) {
     var s = run.done, right = run.dx === c.truth, tx = c.treatments.filter(function (t) { return t.id === run.tx; })[0], T = c.options.filter(function (o) { return o.id === c.truth; })[0], chosen = c.options.filter(function (o) { return o.id === run.dx; })[0];
     return '<h2>' + (right ? 'Diagnosis confirmed' : 'Not quite') + '</h2><div class="dc-big">' + s.total + '%</div>' +
@@ -239,7 +258,7 @@
       '<h3>What happened</h3><p>' + bold(right ? c.outcome.right : c.outcome.wrong) + '</p>' +
       (c.twist ? '<div class="dc-warn"><b>The twist.</b> ' + bold(c.twist) + '</div>' : '') +
       '<h3>Your treatment choice</h3><p><b>' + esc(tx ? tx.label : '') + '</b><br>' + bold(tx ? tx.why : '') + '</p>' +
-      '<h3>The facts that gave it away</h3><ul style="margin:0 0 10px 18px;padding:0">' + (c.decisive || []).map(function (f) { return '<li' + (run.evidence.indexOf(f) > -1 ? ' class="good"' : '') + '>' + esc(c.facts[f]) + (run.evidence.indexOf(f) > -1 ? ' ✓' : '') + '</li>'; }).join('') + '</ul>' +
+      evidenceFeedback(c, run) +
       '<h3>' + esc(TXT('review')) + '</h3><p>' + esc(TXT('reviewBody')) + '</p>' + '<p style="opacity:.7;font-size:.82rem">Specification: ' + esc(c.spec.board) + ' ' + esc(c.spec.code) + ', ' + esc(c.spec.refs.join(', ')) + '</p>' +
       '<div class="dc-learn" style="margin-top:14px"><button type="button" class="dc-btn primary" data-dc="files">Next patient →</button></div>';
   }
@@ -290,6 +309,8 @@
     if (cur) { coachEl.classList.add('side'); coachEl.insertAdjacentHTML('beforeend', teachHtml(cur.c)); }
     document.body.appendChild(coachEl);
     coachEl.addEventListener('click', function (ev) {
+      var tt = ev.target.closest('[data-ttab]');
+      if (tt) { var k = +tt.dataset.ttab; if (cur) cur.teachTab = k; coachEl.querySelectorAll('.teach-tab').forEach(function (b) { var is = +b.dataset.ttab === k; b.classList.toggle('on', is); b.setAttribute('aria-selected', String(is)); }); coachEl.querySelectorAll('.teach-pane').forEach(function (p) { p.hidden = +p.dataset.tpane !== k; }); var bar = coachEl.querySelector('.teach-tabs'); if (bar && coachEl.scrollTop > bar.offsetTop) coachEl.scrollTop = bar.offsetTop; return; }
       var t = ev.target.closest('[data-coach-close]'); if (!t) return;
       var d = D.load(track); d.coach = d.coach || {}; d.coach.seen = true; D.save(track, d); coachOpen = false; coachDraw();
     });
@@ -306,15 +327,25 @@
     if (b.list) return '<ul>' + b.list.map(function (x) { return '<li>' + bold(x) + '</li>'; }).join('') + '</ul>';
     return ''; /* no "check yourself" questions here: the case itself is the test */
   }
-  var LEAD = ['Let us begin with', 'Next, a look at', 'Then', 'Finally, make sure you understand'];
+  // The teaching is one tab per possible explanation, so no one explanation is read before another just by position. The order is fixed
+  // per case but not the order of the answers, so the first tab is no clue.
+  function stableShuffle(list, seed) { var h = 0; for (var k = 0; k < seed.length; k++) h = (h * 31 + seed.charCodeAt(k)) >>> 0; return list.map(function (x, n) { return { x: x, r: ((h + n * 2654435761) >>> 0) % 997 }; }).sort(function (a, b) { return a.r - b.r; }).map(function (o) { return o.x; }); }
+  function teachTabs(c) {
+    var tabs = (c.teach || null) ? c.teach.map(function (t) { return { tab: t.tab, lessons: t.lessons.filter(function (id) { return D.lessons[id]; }) }; }) : (c.lessons || []).filter(function (id) { return D.lessons[id]; }).map(function (id) { return { tab: D.lessons[id].title.split(':')[0], lessons: [id] }; });
+    tabs = tabs.filter(function (t) { return t.lessons.length; });
+    var main = tabs.filter(function (t) { return !/^Background/.test(t.tab); }), extra = tabs.filter(function (t) { return /^Background/.test(t.tab); });
+    return stableShuffle(main, c.id).concat(extra);
+  }
   function teachHtml(c) {
-    var ids = (c.lessons || []).filter(function (id) { return D.lessons[id]; });
-    if (!ids.length) return '';
-    var out = '<div class="teach-h">What you need to know</div><p class="teach-in">' + TXT('teachIntro') + '</p>';
-    ids.forEach(function (id, n) {
-      var L = D.lessons[id];
-      out += '<section class="teach"><h3><span class="lead">' + esc(LEAD[Math.min(n, LEAD.length - 1)]) + '</span> ' + esc(L.title) + '</h3><span class="spec">' + esc(L.spec) + '</span>' +
-        L.sections.map(function (sec) { return (sec.h ? '<h4>' + esc(sec.h) + '</h4>' : '') + sec.b.map(lessonBlock).join(''); }).join('') + '</section>';
+    var tabs = teachTabs(c); if (!tabs.length) return '';
+    var on = Math.min(cur.teachTab || 0, tabs.length - 1), words = ['no', 'one', 'two', 'three', 'four', 'five', 'six'], n = tabs.filter(function (t) { return !/^Background/.test(t.tab); }).length;
+    var out = '<div class="teach-h">What you need to know</div><p class="teach-in">' + (track === 'psych' ? 'There are ' + (words[n] || n) + ' separate explanations to weigh for this patient. Each has its own tab: open them in any order and compare them.' : TXT('teachIntro')) + '</p>' +
+      '<div class="teach-tabs" role="tablist">' + tabs.map(function (t, k) { return '<button type="button" role="tab" class="teach-tab' + (k === on ? ' on' : '') + '" data-ttab="' + k + '" aria-selected="' + (k === on) + '">' + esc(t.tab) + '</button>'; }).join('') + '</div>';
+    tabs.forEach(function (t, k) {
+      out += '<div class="teach-pane" data-tpane="' + k + '"' + (k === on ? '' : ' hidden') + '>' + t.lessons.map(function (id) {
+        var L = D.lessons[id];
+        return '<section class="teach"><h3>' + esc(L.title) + '</h3><span class="spec">' + esc(L.spec) + '</span>' + L.sections.map(function (sec) { return (sec.h ? '<h4>' + esc(sec.h) + '</h4>' : '') + sec.b.map(lessonBlock).join(''); }).join('') + '</section>';
+      }).join('') + '</div>';
     });
     return out;
   }
