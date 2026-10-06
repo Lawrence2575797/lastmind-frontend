@@ -78,6 +78,14 @@
       '.chn-budget.warn { border-color: var(--chn-warn); color: var(--chn-warn); }',
       '.chn-modal.wide { width: min(1080px, 100%); } .chn-iv { display: grid; gap: 16px; grid-template-columns: 1fr; } @media (min-width: 940px) { .chn-iv { grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); align-items: start; } .chn-iv .chn-ref { position: sticky; top: 8px; max-height: calc(100vh - 80px); overflow-y: auto; } }',
       '.chn-ref { border: 1px solid var(--chn-line); border-radius: 12px; padding: 10px 12px; background: rgba(255,255,255,0.35); font-size: 0.86rem; } .chn-ref h3 { font: 700 0.95rem Arial, sans-serif; margin: 0 0 6px; } .chn-ref .chn-sec { margin-top: 10px; } .chn-ref ul { margin: 4px 0 0 18px; padding: 0; }',
+      '.chn-polwrap3 { display: grid; gap: 16px; grid-template-columns: 220px minmax(0, 1fr) 320px; align-items: start; } @media (max-width: 1180px) { .chn-polwrap3 { grid-template-columns: 200px minmax(0, 1fr); } .chn-polwrap3 .chn-side { grid-column: 1 / -1; } } @media (max-width: 760px) { .chn-polwrap3 { grid-template-columns: 1fr; } }',
+      '.chn-nav { position: sticky; top: 8px; display: grid; gap: 2px; padding: 8px; border: 1px solid var(--chn-line); border-radius: 12px; background: var(--panel); max-height: calc(100vh - 24px); overflow: auto; }',
+      '.chn-nav .gh { margin: 10px 6px 3px; font: 700 0.64rem Arial, sans-serif; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.6; } .chn-nav .gh:first-child { margin-top: 2px; }',
+      '.chn-nav .an { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; padding: 7px 9px; border: 0; border-radius: 8px; background: transparent; color: inherit; font: 0.86rem Arial, sans-serif; text-align: left; cursor: pointer; } .chn-nav .an:hover { background: rgba(11,114,133,0.10); } .chn-nav .an.on { background: #0f1b2d; color: #f6efdc; font-weight: 700; } .chn-nav .an small { opacity: 0.6; margin-left: auto; } .chn-nav .dot { width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; }',
+      '.chn-star { font-size: 0.7rem; font-weight: 700; color: #b45309; } .chn-nav .an.on .chn-star { color: #fbbf24; }',
+      '.chn-areahead { margin: 0 0 2px; font: 700 1.2rem Arial, sans-serif; } .chn-pollist { display: grid; gap: 10px; }',
+      '.chn-pollist .chn-pol { transform: none; } .chn-pollist .chn-pol:hover { transform: none; box-shadow: none; }',
+      '.chn-more { border-top: 1px solid var(--chn-line); padding-top: 6px; } .chn-more > .ibody { font-size: 0.86rem; line-height: 1.6; padding: 4px 0 2px; } .chn-more > .ibody p { margin: 4px 0; }',
       '.chn-impact { border-top: 1px solid var(--chn-line); padding-top: 6px; } .chn-impact .ibody { font-size: 0.86rem; line-height: 1.6; padding: 4px 0 6px; }',
       '.chn-gtab { position: fixed; right: 0; top: 38%; z-index: 40; padding: 14px 8px; writing-mode: vertical-rl; border: 1px solid rgba(0,0,0,0.3); border-right: 0; border-radius: 12px 0 0 12px; background: #0f1b2d; color: #f6efdc; font: 700 0.78rem Arial, sans-serif; letter-spacing: 0.08em; cursor: pointer; }',
       '.chn-gtab:hover { background: #17294a; }',
@@ -257,7 +265,7 @@
   function refreshBalance() { createAuthedFetch('/locks/balance').then(function (r) { if (r.resp.ok && typeof r.body.balance === 'number') { ui.locks = { balance: r.body.balance }; if (window.chnPaintBudget) window.chnPaintBudget(); } }).catch(function () { /* the chip just shows what was used */ }); }
   function headerActions() {
     var g = ui.g, st = nextStop(), P = g.pop;
-    return windowPill() + '<span class="chn-pill" title="Your approval with the public">Approval ' + f0(P.groups.public) + '%</span>' +
+    return levelPill() + windowPill() + '<span class="chn-pill" title="Your approval with the public">Approval ' + f0(P.groups.public) + '%</span>' +
       '<button class="chn-btn primary" data-act="advance" ' + (g.over ? 'disabled' : '') + ' title="Move on to the next event or the next month-end">Advance to ' + esc(S.nice(st.date).replace(/ \d{4}$/, '')) + ' ▸</button>' +
       '<button class="chn-btn" data-act="ff" ' + (g.over ? 'disabled' : '') + ' title="Skip quiet stretches. Stops when something needs a decision.">Fast forward ▸▸</button>' +
       (ui.lessonCtx && !document.getElementById('chnGuid') ? '<button class="chn-btn" data-act="lessons" title="Reopen the lesson panel">Lessons</button>' : '') +
@@ -265,6 +273,7 @@
       '<button class="chn-btn" data-act="exit">' + esc(ui.exitLabel) + '</button>' +
       '<span class="chn-pill chn-budget" title="Everything Cortex does here (interview questions, marking, newspapers and portraits) is charged to your Locks">' + esc(budgetLabel()) + '</span>';
   }
+  function levelPill() { return '<span class="chn-pill" title="Set when you took office">' + (levelIs() === 'alevel' ? 'A-level' : 'University') + '</span>'; }
   function renderHeaderOnly() { var el = ui.host.querySelector('#chnHeadActions'); if (el) el.innerHTML = headerActions(); }
   window.chnPaintBudget = function () { document.querySelectorAll('.chn-budget').forEach(function (el) { el.textContent = budgetLabel(); el.classList.toggle('warn', ui.locks && ui.locks.balance != null && ui.locks.balance < 2000); }); };
   function moodOf(a) { return a >= 65 ? ['Riding high', '#1f7a4d'] : a >= 50 ? ['Steady', '#0a5f8f'] : a >= 35 ? ['Under pressure', '#b45309'] : ['In trouble', '#b42318']; }
@@ -441,6 +450,9 @@
     { name: 'Money, banking and debt', text: 'Interest rates, the currency, banks and government borrowing.', areas: ['Monetary', 'Exchange rate', 'Banking and finance', 'Fiscal framework', 'Debt management'] },
     { name: 'Development, food and crisis', text: 'Poorer-country programmes, food, and emergency measures.', areas: ['Development', 'Agriculture and food', 'Crisis controls'] },
   ];
+  function levelIs() { return (ui.g && ui.g.cfg && ui.g.cfg.level) === 'alevel' ? 'alevel' : 'university'; }
+  function levelOk(e) { return levelIs() === 'university' || !window.LMGuide || LMGuide.ALEVEL.indexOf(e.id) > -1 || !!enacted(e.id); }
+  function focusIds() { var G = window.LMGuide && LMGuide.situation(ui.g.sit); return (G && G.focus) || []; }
   function catalogue() { if (!ui.cat) ui.cat = L.catalogue(ui.g.pf); return ui.cat; }
   function D() { ui.g.draft = ui.g.draft || {}; return ui.g.draft; }
   function enacted(id) { var last = ui.g.decisions.filter(function (d) { return d.id === id; }).pop(); return last || null; }
@@ -485,11 +497,14 @@
     var en = enacted(e.id), avail = gateOk(e), lock = !avail.ok, drafted = differs(e);
     var chips = (drafted ? '<span class="chn-tag" style="background:rgba(11,114,133,.18)">Drafted</span> ' : '') + (en ? '<span class="chn-tag">In force: ' + esc(S.describe(e, en.v, en.opt, en.dur)) + '</span>' : '');
     var wait = drafted && !S.canDecide(ui.g, e.id).ok && S.canDecide(ui.g, e.id).reason ? '<div class="unit">' + esc(areaWaitText(e)) + '</div>' : '';
-    return '<article class="chn-pol' + (drafted ? ' changed' : '') + (lock ? ' lock' : '') + '" data-card="' + e.id + '" style="--gc:' + areaColour(e.area) + '"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><span class="nm">' + esc(e.name) + '</span><span class="badge" data-badge="' + e.id + '">' + esc(badgeText(e, pendingValue(e))) + '</span></div><div class="ch">You choose: ' + esc(e.choice) + '</div>' +
-      (lock ? '<div class="reason">' + esc(avail.reason) + '</div>' : '') + ctlHtml(e) +
-      '<div class="unit">' + (e.lag ? 'Takes effect ' + e.lag + ' quarter' + (e.lag > 1 ? 's' : '') + ' after it is enacted · ' + esc(e.lagWhy) : 'Takes effect straight away') + '</div>' + (chips ? '<div>' + chips + '</div>' : '') + wait +
-      '<details class="chn-impact"><summary class="unit" style="cursor:pointer">How this works: its economic impact</summary><div class="ibody">' + esc(window.LMGuide ? LMGuide.lever(e.id, e.area) : '') + (e.lag ? ' <span class="neutral">It takes ' + e.lag + ' quarter' + (e.lag > 1 ? 's' : '') + ' to feed through: ' + esc(e.lagWhy) + '</span>' : '') + '</div></details>' +
-      '<details class="chn-lesson" data-lesson-id="' + e.id + '"><summary class="unit" style="cursor:pointer">LastMind lesson (untracked: no questions, nothing recorded)</summary><div class="lbody"></div></details></article>';
+    var star = focusIds().indexOf(e.id) > -1 ? '<span class="chn-star" title="A good place to start in this situation">★ suggested</span> ' : '';
+    var timing = e.lag ? 'Takes effect ' + e.lag + ' quarter' + (e.lag > 1 ? 's' : '') + ' after it is enacted: ' + esc(e.lagWhy) : 'Takes effect straight away';
+    var impact = esc(window.LMGuide ? LMGuide.lever(e.id, e.area) : '');
+    return '<article class="chn-pol' + (drafted ? ' changed' : '') + (lock ? ' lock' : '') + '" data-card="' + e.id + '" style="--gc:' + areaColour(e.area) + '"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><span class="nm">' + star + esc(e.name) + '</span><span class="badge" data-badge="' + e.id + '">' + esc(badgeText(e, pendingValue(e))) + '</span></div>' +
+      (lock ? '<div class="reason">' + esc(avail.reason) + '</div>' : '') + ctlHtml(e) + (chips ? '<div>' + chips + '</div>' : '') + wait +
+      '<details class="chn-more"><summary class="unit" style="cursor:pointer">Details: what it does, timing, lesson</summary>' +
+      '<div class="ibody"><div class="ch">You choose: ' + esc(e.choice) + '</div><p>' + impact + '</p><p class="neutral">' + timing + '</p></div>' +
+      '<details class="chn-lesson" data-lesson-id="' + e.id + '"><summary class="unit" style="cursor:pointer">LastMind lesson (untracked: no questions, nothing recorded)</summary><div class="lbody"></div></details></details></article>';
   }
   function areaWaitText(e) { return BIG_ONLY_UI.indexOf(e.area) > -1 ? 'Held in your draft until the main Budget.' : 'Held in your draft until a budget.'; }
   var BIG_ONLY_UI = ['Labour market', 'Business and supply side', 'Trade', 'Foreign investment', 'Industrial policy', 'Environment', 'Regional', 'Migration and labour supply', 'Banking and finance', 'Fiscal framework', 'Innovation'];
@@ -506,26 +521,34 @@
     if (!ch.length) return '<span class="neutral">No changes drafted.</span>';
     return ch.map(function (e) { var p = D()[e.id], c = S.canDecide(ui.g, e.id); return '<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0;align-items:center"><span>' + esc(e.name) + '</span><span><b>' + esc(e.ctl.t === 'select' ? p.v : (+p.v > 0 ? '+' : '') + p.v) + '</b> <button class="chn-btn small" data-fcpol="' + e.id + '" title="Forecast this policy on its own">Forecast</button></span></div>'; }).join('') + '<div style="padding-top:6px"><button class="chn-btn small" data-fcall="1">Forecast the whole budget</button></div>';
   }
+  function visibleAreas() {
+    var cat = catalogue().filter(function (e) { return !e.preset && levelOk(e); });
+    return POLICY_GROUPS.map(function (gp) { return { name: gp.name, areas: gp.areas.map(function (a) { return { name: a, list: cat.filter(function (e) { return e.area === a; }) }; }).filter(function (x) { return x.list.length; }) }; }).filter(function (gp) { return gp.areas.length; });
+  }
   function policyTab() {
-    var g = ui.g, cat = catalogue(), pg = POLICY_GROUPS.filter(function (x) { return x.name === ui.group; })[0] || POLICY_GROUPS[0];
-    var count = function (areas) { return cat.filter(function (e) { return areas.indexOf(e.area) > -1 && (D()[e.id] && differs(e) || g.decisions.some(function (d) { return d.id === e.id; })); }).length; };
-    var tabs = '<div class="chn-tabs">' + POLICY_GROUPS.map(function (x) { var c = count(x.areas); return '<button class="chn-tab" data-group="' + esc(x.name) + '" aria-selected="' + (pg.name === x.name) + '">' + esc(x.name) + (c ? ' · ' + c : '') + '</button>'; }).join('') + '</div>';
-    var sections = pg.areas.map(function (area, i) {
-      var list = cat.filter(function (e) { return e.area === area && !e.preset; });
-      var any = list.some(function (e) { return differs(e) || enacted(e.id); });
-      var open = ui.openAreas[area] === undefined ? (i === 0 || any) : ui.openAreas[area];
-      return '<details class="chn-area" data-areaname="' + esc(area) + '" ' + (open ? 'open' : '') + '><summary><b>' + esc(area) + '</b> <span class="neutral">' + list.length + ' polic' + (list.length === 1 ? 'y' : 'ies') + '</span></summary><div class="chn-grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr));margin-top:10px">' + list.map(policyCard).join('') + '</div></details>';
-    }).join('');
-    var n = pendingChanges().length, w = g.window && g.window.kind !== 'none';
+    var g = ui.g, groups = visibleAreas(), all = [].concat.apply([], groups.map(function (gp) { return gp.areas; }));
+    var cur = all.filter(function (x) { return x.name === ui.area; })[0] || all[0];
+    ui.area = cur.name;
+    var foc = focusIds();
+    var mark = function (x) { return x.list.some(function (e) { return differs(e) || enacted(e.id); }) ? '<span class="dot" title="Something here is drafted or in force"></span>' : ''; };
+    var nav = '<nav class="chn-nav" aria-label="Policy areas">' + groups.map(function (gp) {
+      return '<div class="gh">' + esc(gp.name) + '</div>' + gp.areas.map(function (x) {
+        var hasFocus = x.list.some(function (e) { return foc.indexOf(e.id) > -1; });
+        return '<button type="button" class="an' + (x.name === cur.name ? ' on' : '') + '" data-area="' + esc(x.name) + '"><span>' + esc(x.name) + (hasFocus ? ' <span class="chn-star">★</span>' : '') + '</span>' + mark(x) + '<small>' + x.list.length + '</small></button>';
+      }).join('');
+    }).join('') + '</nav>';
+    var gp0 = POLICY_GROUPS.filter(function (gp) { return gp.areas.indexOf(cur.name) > -1; })[0];
+    var n = pendingChanges().length;
     var packs = Object.keys(L.PRESETS).map(function (k) { return '<button class="chn-btn small" data-pack="' + k + '">' + esc(L.PRESETS[k].name) + '</button>'; }).join(' ');
-    return policyBanner() + '<div class="chn-polwrap"><div><p class="neutral" style="margin:0 0 8px;font-size:.86rem">' + esc(pg.text) + '</p>' + tabs + '<div id="chnPolList">' + sections + '</div></div>' +
-      '<aside class="chn-side"><div class="chn-card"><h3 style="font:700 .95rem Arial">Your draft</h3><div id="chnPkg" style="font-size:.85rem;margin:6px 0">' + pkgHtml() + '</div><div class="chn-actions"><button class="chn-btn primary" data-pol="save">Save draft</button><button class="chn-btn" data-pol="clear" ' + (n ? '' : 'disabled') + '>Clear draft</button></div><p class="neutral" style="font-size:.76rem;margin:8px 0 0">Saved drafts are not enacted. ' + (w ? 'The session is open: submit them with the button above.' : 'You submit them on budget day.') + '</p></div>' +
-      '<div class="chn-card"><h3 style="font:700 .95rem Arial;margin-bottom:6px">Forecast</h3><p class="neutral" style="font-size:.85rem;margin:0 0 8px">Slide any policy and a forecast of growth, inflation, jobs and the public finances opens on the right. See it for your whole draft budget together, or for one policy on its own.</p><button class="chn-btn small" data-act="fc">Forecast my whole budget</button></div>' +
+    return policyBanner() + '<div class="chn-polwrap3">' + nav +
+      '<section class="chn-polmain"><h3 class="chn-areahead">' + esc(cur.name) + '</h3><p class="neutral" style="margin:0 0 10px;font-size:.86rem">' + esc(gp0 ? gp0.text : '') + (levelIs() === 'alevel' ? ' Showing the main levers; the University level has every one.' : '') + '</p><div id="chnPolList" class="chn-pollist">' + cur.list.map(policyCard).join('') + '</div></section>' +
+      '<aside class="chn-side"><div class="chn-card"><h3 style="font:700 .95rem Arial">Your draft</h3><div id="chnPkg" style="font-size:.85rem;margin:6px 0">' + pkgHtml() + '</div><div class="chn-actions"><button class="chn-btn primary" data-pol="save">Save draft</button><button class="chn-btn" data-pol="clear" ' + (n ? '' : 'disabled') + '>Clear draft</button></div><p class="neutral" style="font-size:.74rem;margin:6px 0 0">Saved drafts are not enacted. You submit them on budget day.</p></div>' +
+      '<div class="chn-card"><h3 style="font:700 .95rem Arial;margin-bottom:6px">Forecast</h3><p class="neutral" style="font-size:.85rem;margin:0 0 8px">See what your whole draft would do to growth, inflation, jobs and the public finances.</p><button class="chn-btn small" data-fcall="1">Forecast my whole budget</button></div>' +
       '<div class="chn-card"><h3 style="font:700 .95rem Arial;margin-bottom:6px">Emergency budget packages</h3><div class="chn-actions">' + packs + '</div><p class="neutral" style="font-size:.74rem;margin:6px 0 0">Adds a ready-made set of changes to your draft. Edit them afterwards.</p></div></aside></div>';
   }
   function bindPolicy() {
     var host = ui.host;
-    host.querySelectorAll('[data-group]').forEach(function (b) { b.onclick = function () { ui.group = b.dataset.group; renderTab(); }; });
+    host.querySelectorAll('[data-area]').forEach(function (b) { b.onclick = function () { ui.area = b.dataset.area; renderTab(); }; });
     host.querySelectorAll('[data-pack]').forEach(function (b) { b.onclick = function () { var p = L.PRESETS[b.dataset.pack]; if (!p) return; Object.keys(p.set).forEach(function (id) { var e = catalogue().filter(function (x) { return x.id === id; })[0]; if (!e) return; var base = enacted(id) ? enacted(id).v : 0; D()[id] = { v: clampV(e, e.ctl.pickOpts ? p.set[id] : p.set[id]), opt: e.ctl.pickOpts ? e.ctl.pickOpts[0].v : null, dur: null }; }); save(); toast(p.name + ' added to your draft.'); renderTab(); }; });
     var list = host.querySelector('#chnPolList');
     if (list) {

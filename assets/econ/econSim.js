@@ -391,14 +391,16 @@
   function scheduleAll(g) { scheduleTerm(g, g.startDate); scheduleBigBudget(g); }
   // everything that is scheduled in advance for one parliamentary term: shocks, budget statements, interviews, the election
   function scheduleTerm(g, from) {
-    var cfg = g.cfg, chosen = (cfg.shocks || []).filter(function (id) { return E.SHOCKS[id]; }), used = [];
+    var cfg = g.cfg, alevel = cfg.level === 'alevel', chosen = (cfg.shocks || []).filter(function (id) { return E.SHOCKS[id]; }), used = [];
+    if (alevel) chosen = chosen.slice(0, 1);                       // A-level: one possible shock, and a milder one
+
     var span = Math.round((ms(g.electionDate) - ms(from)) / 864e5);
     chosen.forEach(function (id) {
-      var n = rnd(g) < 0.6 ? 2 : 1;
+      var n = rnd(g) < 0.6 ? 2 : 1; if (alevel) n = 1;
       for (var i = 0; i < n; i++) {
         for (var tries = 0; tries < 20; tries++) {
           var d = addDays(from, Math.round(between(g, 75, Math.max(120, span - 90))));
-          if (used.every(function (u) { return Math.abs(ms(u) - ms(d)) > 60 * 864e5; })) { used.push(d); var menu = SHOCK_MENU.filter(function (s) { return s.id === id; })[0]; addEvent(g, { kind: 'shock', needsAction: true, date: d, shock: id, magnitude: round(between(g, 0.7, 1.5), 2), title: menu ? menu.label : id, text: menu ? menu.text : '' }); break; }
+          if (used.every(function (u) { return Math.abs(ms(u) - ms(d)) > 60 * 864e5; })) { used.push(d); var menu = SHOCK_MENU.filter(function (s) { return s.id === id; })[0]; addEvent(g, { kind: 'shock', needsAction: true, date: d, shock: id, magnitude: round(between(g, 0.7, 1.5) * (alevel ? 0.7 : 1), 2), title: menu ? menu.label : id, text: menu ? menu.text : '' }); break; }
         }
       }
     });

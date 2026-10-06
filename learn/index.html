@@ -10675,12 +10675,14 @@ SQIDAQAB
           history: 'After a war and a collapse in tax collection, the government began paying its bills with newly printed money. Every year since, prices have risen faster, and people now spend their wages the day they are paid.',
           parties: ['Tarsian Unity Party', 'Democratic Reconstruction', 'The Bread and Peace Movement'], offset: 13 },
     ];
+    const CHN_LEVEL_KEY = 'lastmind-chancellor-level';
+    const chnLevel = () => { try { return localStorage.getItem(CHN_LEVEL_KEY) === 'alevel' ? 'alevel' : 'university'; } catch (err) { return 'university'; } };
     function chancellorScenarioConfig(sc) {
         const used = new Set(); let n = sc.offset;
         const name = () => { let t; do { t = CHANCELLOR_FIRST[(n++) % CHANCELLOR_FIRST.length] + ' ' + CHANCELLOR_LAST[(n * 7 + sc.offset) % CHANCELLOR_LAST.length]; } while (used.has(t)); used.add(t); return t; };
         const fill = (roles) => { const o = {}; roles.forEach(([k]) => { o[k] = name(); }); return o; };
         return {
-            country: sc.country, currency: sc.currency, population: sc.population, populationNumber: chancellorParseNumber(sc.population), stage: sc.stage,
+            level: chnLevel(), country: sc.country, currency: sc.currency, population: sc.population, populationNumber: chancellorParseNumber(sc.population), stage: sc.stage,
             sectors: CHANCELLOR_SECTORS[sc.stage].slice(), exports: sc.exports.slice(), imports: sc.imports.slice(), situation: sc.situation, history: sc.history, shocks: sc.shocks.slice(),
             government: { party: sc.parties[0], people: fill(CHANCELLOR_GOV_ROLES) }, opposition: { party: sc.parties[1], people: fill(CHANCELLOR_OPP_ROLES) }, rising: { party: sc.parties[2], people: fill(CHANCELLOR_RISING_ROLES) },
         };
@@ -10696,6 +10698,11 @@ SQIDAQAB
                     <h1 class="create-builder-title" id="createChTitle">Be the Chancellor</h1>
                 </div>
                 <p class="create-step-help">You are the Chancellor of a country in trouble, or in danger of it. Choose which one to run. Each has its own economy, parties and people, and your decisions shape what happens next.</p>
+                <div class="create-field-label">Your level</div>
+                <div class="create-options" role="radiogroup" aria-label="Level" style="margin-bottom:14px;">
+                    <button type="button" class="create-option${chnLevel() === 'alevel' ? ' selected' : ''}" role="radio" aria-checked="${chnLevel() === 'alevel'}" data-level="alevel"><strong>A-level</strong><span>About 55 key policies, one milder shock, and the Treasury analyst brings you results to read.</span></button>
+                    <button type="button" class="create-option${chnLevel() === 'university' ? ' selected' : ''}" role="radio" aria-checked="${chnLevel() === 'university'}" data-level="university"><strong>University</strong><span>Every policy, the full set of shocks, and you do the analysis yourself: cost-benefit, difference-in-differences and econometrics.</span></button>
+                </div>
                 ${saved ? '<div class="create-detail-actions" style="margin:6px 0 16px;"><button type="button" class="create-cta" id="chResume">Continue your saved game</button><button type="button" class="create-secondary" id="chReset">Reset your saved game to the start</button></div>' : ''}
                 <div class="create-gallery">${CHANCELLOR_SCENARIOS.map((sc) => `
                     <article class="create-proj">
@@ -10706,6 +10713,7 @@ SQIDAQAB
                     </article>`).join('')}</div>
             </section>`;
         contentInner.querySelector('#createChBack').addEventListener('click', () => renderCreatePage('economics'));
+        contentInner.querySelectorAll('[data-level]').forEach((b) => b.addEventListener('click', () => { try { localStorage.setItem(CHN_LEVEL_KEY, b.dataset.level); } catch (err) { /* fine */ } renderChancellorBuilder(contentInner); }));
         contentInner.querySelectorAll('[data-scenario]').forEach((b) => b.addEventListener('click', () => {
             const sc = CHANCELLOR_SCENARIOS.find((x) => x.key === b.dataset.scenario);
             if (saved && !window.confirm('Start a new game? Your saved Chancellor game will be replaced.')) return;

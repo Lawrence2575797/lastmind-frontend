@@ -175,31 +175,31 @@
     stable: { title: 'A well-run economy', how: [
       'Growth is steady, prices are close to target and unemployment is low. There is no emergency, so the risk is drift: debts creeping up, services stretching and voters getting restless.',
       'In calm times the job is to prepare. Keep the public finances in a state where you could afford to respond to a shock, and invest in things that raise long-run growth, such as skills, infrastructure and research.' ],
-      watch: ['Debt as a share of GDP', 'The gap between growth and interest rates', 'Whether wages are keeping up with prices'], levers: ['Infrastructure', 'Human capital', 'Fiscal framework'] },
+      watch: ['Debt as a share of GDP', 'The gap between growth and interest rates', 'Whether wages are keeping up with prices'], levers: ['Infrastructure', 'Human capital', 'Fiscal framework'], focus: ['inf_roads', 'hc_vocational', 'fiscal_rule', 'inv_allow'] },
     slump: { title: 'Deep slump', how: [
       'A shock has cut spending and output. Firms stop investing, workers lose jobs, and falling incomes cut spending further, so the slump feeds itself.',
       'When private spending falls, government spending can fill the gap. Extra spending or tax cuts raise output by more than they cost when there is spare capacity, because the money is spent and re-spent. The worry is debt, so spending that creates jobs now and lasts is best.' ],
-      watch: ['Unemployment and the output gap', 'Debt and the cost of borrowing', 'Business confidence'], levers: ['Government spending', 'Infrastructure', 'Crisis controls', 'Labour market'] },
+      watch: ['Unemployment and the output gap', 'Debt and the cost of borrowing', 'Business confidence'], levers: ['Government spending', 'Infrastructure', 'Crisis controls', 'Labour market'], focus: ['hh_payments', 'inf_roads', 'emp_sub', 'emerg_budget', 'hire_credit'] },
     overheating: { title: 'Overheating boom', how: [
       'Spending is growing faster than the economy can produce. Credit is cheap, house prices are racing and firms struggle to hire. That pushes wages and prices up.',
       'Booms end in one of two ways: you cool demand in a controlled way, or it bursts. Higher taxes, lower spending and tighter lending cool the economy, which is unpopular in good times, but cheaper than a crash.' ],
-      watch: ['Inflation against target', 'House prices and credit growth', 'The budget deficit in a boom'], levers: ['Banking and finance (mortgage rules)', 'Income tax', 'Government spending', 'Monetary'] },
+      watch: ['Inflation against target', 'House prices and credit growth', 'The budget deficit in a boom'], levers: ['Banking and finance (mortgage rules)', 'Income tax', 'Government spending', 'Monetary'], focus: ['mortgage', 'vat', 'inc_basic', 'health', 'fiscal_rule'] },
     'banking-crisis': { title: 'Banking crisis', how: [
       'Banks have lent to people and firms who cannot repay. Nobody knows which banks are safe, so they stop lending, and savers may start withdrawing. Without credit, firms cannot invest and the economy shrinks.',
       'The first job is to stop panic: guarantee deposits and show that failing banks will be dealt with. Bailing out banks costs taxpayers and rewards mistakes, but letting the system collapse costs far more. After the rescue, tighten the rules.' ],
-      watch: ['Lending and unemployment', 'The cost of the rescue', 'Confidence of savers and investors'], levers: ['Banking and finance', 'Crisis controls', 'Fiscal framework'] },
+      watch: ['Lending and unemployment', 'The cost of the rescue', 'Confidence of savers and investors'], levers: ['Banking and finance', 'Crisis controls', 'Fiscal framework'], focus: ['guarantee', 'bailout', 'bank_cap', 'loan_guar', 'fin_reg'] },
     'debt-crisis': { title: 'External debt crisis', how: [
       'The government owes a lot, much of it in foreign currency, and reserves are thin. When the currency falls, the debt gets heavier. Lenders worry, charge more, and the interest bill grows, so the problem feeds itself.',
       'You have to restore trust. That can mean cutting the deficit, restructuring the debt, lengthening repayments or borrowing in your own currency. Every step has a cost, and the quicker you act, the cheaper it is.' ],
-      watch: ['Interest costs', 'The currency', 'Reserves and the size of the deficit'], levers: ['Debt management', 'Fiscal framework', 'Exchange rate', 'Government spending'] },
+      watch: ['Interest costs', 'The currency', 'Reserves and the size of the deficit'], levers: ['Debt management', 'Fiscal framework', 'Exchange rate', 'Government spending'], focus: ['restructure', 'maturity', 'def_target', 'emerg_budget', 'fx_borrow'] },
     'commodity-bust': { title: 'Commodity bust', how: [
       'The country depends on one export, and its price has collapsed. Incomes, tax revenue and the currency all fall together. Imports become dearer just as the budget shrinks.',
       'A weaker currency helps other exports, but raises inflation. In the long run the answer is to diversify: invest in other industries, skills and infrastructure, and build savings for the next bust. In the short run you must protect the budget without starving growth.' ],
-      watch: ['The budget deficit', 'The currency', 'Jobs outside the commodity sector'], levers: ['Exchange rate', 'Industrial policy', 'Infrastructure', 'Fiscal framework'] },
+      watch: ['The budget deficit', 'The currency', 'Jobs outside the commodity sector'], levers: ['Exchange rate', 'Industrial policy', 'Infrastructure', 'Fiscal framework'], focus: ['devalue', 'fx_int', 'mfg', 'inf_ports', 'def_target'] },
     hyperinflation: { title: 'Hyperinflation', how: [
       'Prices rise by the month. The government cannot borrow, so the central bank prints money to pay its bills, and that creates more inflation. People spend money the day they get it, which makes prices rise faster.',
       'To stop it, three things must happen together: the government must stop financing its deficit with printed money, the deficit must close, and people must believe it. An independent central bank, a credible budget and a stable currency are the heart of any stabilisation. Partial measures fail.' ],
-      watch: ['Inflation and money printing', 'The deficit', 'The currency'], levers: ['Monetary (central bank independence)', 'Fiscal framework', 'Exchange rate', 'Crisis controls'] },
+      watch: ['Inflation and money printing', 'The deficit', 'The currency'], levers: ['Monetary (central bank independence)', 'Fiscal framework', 'Exchange rate', 'Crisis controls'], focus: ['cb_indep', 'emerg_budget', 'rate', 'fixed_fx', 'def_target'] },
   };
 
   var GLOSSARY = [
@@ -218,6 +218,7 @@
     lever: function (id, area) { return LEVERS[id] || AREA_FALLBACK; },
     hasLever: function (id) { return !!LEVERS[id]; },
     situation: function (key) { return SITUATIONS[key] || null; },
+    ALEVEL: ['inc_basic', 'inc_top', 'allowance', 'corp', 'inv_allow', 'vat', 'duties', 'property', 'health', 'education', 'defence', 'policing', 'pay', 'unemp_ben', 'pensions', 'child_ben', 'inf_roads', 'inf_rail', 'inf_digital', 'renew', 'hh_energy_sub', 'min_wage', 'emp_sub', 'hire_credit', 'hc_vocational', 'dereg', 'compete', 'housebuild', 'plan_lib', 'tariff', 'tariff_cut', 'fta', 'carbon', 'rate', 'cb_indep', 'qe', 'fx_int', 'devalue', 'guarantee', 'bailout', 'mortgage', 'fiscal_rule', 'def_target', 'emerg_budget', 'debt_issue', 'restructure', 'maturity', 'fx_borrow', 'temp_tax', 'hh_payments', 'furlough', 'loan_guar', 'price_cap', 'fdi_inc', 'mig_skilled', 'bank_cap', 'fin_reg', 'fixed_fx', 'mfg', 'inf_ports'],
     GLOSSARY: GLOSSARY,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.LMGuide;
