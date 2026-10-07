@@ -19,6 +19,12 @@ async function fetchLockBalance() {
 }
 // Create upgrade checkout session
 async function createUpgradeSession(tier) {
+  const client = window.supabaseClient;
+  const { data: sessionData } = client ? await client.auth.getSession() : { data: {} };
+  if (sessionData?.session?.user?.is_anonymous) {
+    window.location.href = '/account/?mode=signup';
+    return;
+  }
   const token = await getAuthToken();
   if (!token) {
     showLoginRequired();
@@ -100,12 +106,8 @@ function showUpgradeModal() {
   });
 
   // Upgrade buttons
-  modal.querySelector('[data-tier="light"]').addEventListener('click', () => {
-    createUpgradeSession('light');
-  });
-
-  modal.querySelector('[data-tier="max"]').addEventListener('click', () => {
-    createUpgradeSession('max');
+  modal.querySelector('[data-tier="premium"]').addEventListener('click', () => {
+    createUpgradeSession('premium');
   });
 }
 
@@ -151,24 +153,16 @@ function createUpgradeModalHTML() {
   div.innerHTML = `
     <div class="upgrade-modal">
       <button class="upgrade-close" aria-label="Close">x</button>
-      <h2>Upgrade LastMind</h2>
+      <h2>Unlock LastMind+</h2>
 
       <div class="upgrade-plans">
-        <div class="upgrade-plan">
-          <h3>Lastmind Light</h3>
-          <div class="price">&pound;1.99<span>/month</span></div>
-          <div class="feature">6x more locks than Free</div>
-          <div class="locks-amount">15,000 locks</div>
-          <button data-tier="light" class="upgrade-btn">Upgrade to Light</button>
-        </div>
-
         <div class="upgrade-plan featured">
-          <div class="badge">Most Popular</div>
-          <h3>Lastmind Max</h3>
+          <div class="badge">Everything unlocked</div>
+          <h3>LastMind+</h3>
           <div class="price">&pound;4.99<span>/month</span></div>
-          <div class="feature">2x more locks than Light</div>
-          <div class="locks-amount">30,000 locks</div>
-          <button data-tier="max" class="upgrade-btn featured-btn">Upgrade to Max</button>
+          <div class="feature">All learning tools, simulations and AI features</div>
+          <div class="locks-amount">50,000 locks each month</div>
+          <button data-tier="premium" class="upgrade-btn featured-btn">Upgrade to LastMind+</button>
           <div class="bonus">+ Buy extra locks anytime</div>
         </div>
       </div>
@@ -227,7 +221,7 @@ function createUpgradeModalHTML() {
 
     .upgrade-plans {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr;
       gap: 20px;
       margin-bottom: 20px;
     }

@@ -606,7 +606,7 @@
                     <h1 class="chat-empty-logo">
                         <img class="chat-empty-logo-icon" src="/icons/lastmind-logo.png" alt="LastMind" width="110" height="110" />
                         <span>LastMind</span>
-                        <span class="chat-empty-slogan">Anyone can learn anything.</span>
+                        <span class="chat-empty-slogan">Anyone can learn anything</span>
                         <span class="chat-empty-slogan-sub">And enjoy doing it</span>
                     </h1>
                 </div>
@@ -2172,6 +2172,7 @@ SQIDAQAB
             skipConcepts(state, covered);
             activeLessonTurn.content = `[Completed the lesson on "${node.label}".]`;
             activeLessonTurn.kind = 'lessonDone';
+            if (window.parent !== window) window.parent.postMessage({ type: 'lm-first-meaningful-action' }, window.location.origin);
             activeLessonTurn.data = { label: node.label, conceptIds: [...covered] };
             saveChatHistory();
             // The lesson player's own Continue button is the student's
@@ -2286,7 +2287,11 @@ SQIDAQAB
             stopRotator();
             if (resp.status === 402) { card.innerHTML = "<div class=\"topic-map-error\">You're out of Locks for now - come back once they refresh.</div>"; return; }
             if (resp.status === 429) { card.innerHTML = '<div class="topic-map-error">Too many lessons requested at once - try again shortly.</div>'; return; }
-            if (!resp.ok) { card.innerHTML = '<div class="topic-map-error">Could not build a knowledge map for that topic. Try rephrasing it.</div>'; return; }
+            if (!resp.ok) {
+                const body = await resp.json().catch(() => ({}));
+                card.innerHTML = `<div class="topic-map-error">${escapeHtmlTopic(body.error || 'Could not build a knowledge map for that topic. Try rephrasing it.')}</div>`;
+                return;
+            }
             const data = await resp.json();
             if (!data.nodes || !data.nodes.length) { card.innerHTML = '<div class="topic-map-error">No usable map came back for that topic. Try rephrasing it.</div>'; return; }
             const taskNode = data.nodes.find((n) => n.isFinalTask) || data.nodes[data.nodes.length - 1];
@@ -2298,8 +2303,9 @@ SQIDAQAB
             // and shown as done on the map from the very first render, not
             // just after a manual tick.
             const skip = new Set(data.nodes.filter((n) => n.completed).map((n) => n.id));
-            const state = { subject: data.subject, qualification: data.qualification, examBoard: data.examBoard, nodes: topicTopologicalOrder(data.nodes, data.edges), edges: data.edges, skip, target: taskNode.id };
+            const state = { subject: data.subject, qualification: data.qualification, examBoard: data.examBoard, nodes: topicTopologicalOrder(data.nodes, data.edges), edges: data.edges, skip, target: taskNode.id, freeLimited: !!data.freeLimited };
             renderTopicMap(card, state);
+            if (state.freeLimited) card.insertAdjacentHTML('beforeend', '<div class="topic-map-summary">The Free plan keeps this map to three concepts and includes three new lessons each month. LastMind+ unlocks the full map and unlimited lessons.</div>');
             topicMapState = state; // kept as "most recently shown map", for reference only - every card's own interactivity closes over its own `state`, never this
             recordSilentContext(
                 `[Built a knowledge map for "${state.subject}": ${state.nodes.length} concepts - ${state.nodes.map((n) => n.label).join(', ')}.]`,
@@ -2896,6 +2902,7 @@ SQIDAQAB
             }
             stopThinking();
             setAssistantMessageText(thinkingEl, result.reply);
+            if (window.parent !== window) window.parent.postMessage({ type: 'lm-first-meaningful-action' }, window.location.origin);
             chatHistory.push({ role: 'assistant', content: result.reply });
             saveChatHistory();
 

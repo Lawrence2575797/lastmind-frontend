@@ -425,15 +425,20 @@
             }
 
             if (mode === 'signup') {
-                const { data, error } = await signUp(email, password, firstName, dateOfBirth);
+                const { data: current } = await getSession();
+                const result = current.session?.user?.is_anonymous
+                    ? await supabaseClient.auth.updateUser({ email, password, data: { first_name: firstName, date_of_birth: dateOfBirth } })
+                    : await signUp(email, password, firstName, dateOfBirth);
+                const { data, error } = result;
                 if (error) {
                     setStatus(authStatus, error.message, true);
                     return;
                 }
-                if (data.session) {
+                if (data.session || data.user) {
                     // Email confirmation is off in your Supabase project settings —
                     // the user is already signed in.
-                    renderSession(data.session);
+                    if (data.session) renderSession(data.session);
+                    else window.location.href = '/learn/';
                 } else {
                     setStatus(authStatus, 'Check your email to confirm your account before logging in.');
                 }
@@ -517,8 +522,12 @@
 
     (async function boot() {
         const { data } = await getSession();
-        if (data.session) {
+        const requestedMode = new URLSearchParams(window.location.search).get('mode');
+        if (requestedMode === 'signup' || requestedMode === 'login') setMode(requestedMode);
+        if (data.session && !data.session.user?.is_anonymous) {
             renderSession(data.session);
+        } else {
+            showView(authView);
         }
     })();
 </script>

@@ -155,6 +155,14 @@
     /* .manage-subscription-btn (defined later) sets width:100%, which made this button
        stretch over the logo - the higher specificity here keeps it compact on the right. */
     .sidebar-header .sidebar-header-upgrade { width: auto; flex: none; margin-left: auto; white-space: nowrap; }
+    .lm-plus-locked { position: relative; filter: grayscale(.85); opacity: .48; }
+    .lm-plus-locked::after { content: '⛓'; margin-left: 7px; font-size: .82em; opacity: .95; }
+    .guest-save-overlay { position:fixed; inset:0; z-index:10020; display:flex; align-items:center; justify-content:center; padding:20px; background:rgba(10,14,18,.68); }
+    .guest-save-card { width:min(480px,100%); padding:30px; border-radius:16px; border:1px solid rgba(230,215,176,.28); background:var(--panel); color:var(--text); text-align:center; box-shadow:0 24px 70px rgba(0,0,0,.38); }
+    .guest-save-card h2 { margin:0 0 10px; } .guest-save-card p { margin:0 0 20px; line-height:1.55; }
+    .guest-save-actions { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+    .guest-save-actions a, .guest-save-actions button { padding:11px 18px; border-radius:8px; border:1px solid var(--accent); text-decoration:none; font-weight:700; }
+    .guest-save-actions a { background:var(--accent); color:var(--bg); } .guest-save-actions button { background:transparent; color:var(--text); }
     .specialist-tools-wrap { position: relative; flex: none; }
     .specialist-tools-menu { position: fixed; z-index: 160; min-width: 190px; padding: 6px; border-radius: 8px; background: var(--panel); border: 1px solid rgba(230,215,176,0.28); box-shadow: 0 10px 28px rgba(0,0,0,0.32); display: none; }
     .specialist-tools-menu.open { display: flex; flex-direction: column; gap: 5px; }
@@ -7036,7 +7044,7 @@
                      living inside Cortex's own iframe (which sits lower, and not
                      level with anything else). Same goToMainFeed handler either way. -->
                 <button class="cortex-btn-topbar" id="dashboardTopbarBtn" type="button" title="Back to feed">Home</button>
-                <button class="cortex-btn-topbar" id="upgradeTopbarBtn" type="button" style="display:none;">Upgrade</button>
+                <button class="cortex-btn-topbar upgrade-topbar-btn" id="upgradeTopbarBtn" type="button" style="display:none;">Upgrade to LastMind+</button>
                 <span class="topbar-title" id="topbarTitle"></span>
                 <!-- Locks used to sit outside this scrollable row, in
                      the outer (non-scrolling) topbar flex line — on a
@@ -7478,7 +7486,7 @@
     // a free account still gets the free tier's own Locks amount exactly
     // as asked. Flip back to false (or delete this + its one gate() call
     // site) once premium gating should resume.
-    const TEMP_ALL_FEATURES_FREE = true;
+    const TEMP_ALL_FEATURES_FREE = false;
 
     // Used ONLY to obtain the current session's access token, which the
     // backend verifies cryptographically before trusting anything — the
@@ -8479,6 +8487,7 @@ SQIDAQAB
 
     let folders = [];
     let isPaidUser = false; // set by gate() — controls whether Compile shows in the editor
+    let isGuestUser = false;
 
     // Per-subject knowledge-map completion, for the sidebar's %-complete bar
     // under each subject row (see buildFolderRow/buildFolderCompletionBar).
@@ -10366,24 +10375,6 @@ SQIDAQAB
         // shows the same LastMind logo + rotating motivational quote the
         // paid dashboard's own empty state shows (just the chat itself
         // swapped for an upgrade card), so the free landing page isn't bare.
-        if (!isPaidUser) {
-            // Same look as the premium empty state (logo + rotating quote),
-            // just no chat underneath it and no upsell copy — the Upgrade
-            // button already lives in the topbar, so this page doesn't need
-            // to repeat "Cortex is Premium" back at the student every time
-            // they land here.
-            contentInner.innerHTML = `
-                <div class="dashboard-view dashboard-locked">
-                    <h1 class="dashboard-locked-logo">Last<span>Mind</span></h1>
-                    <p class="dashboard-locked-quote" id="dashboardLockedQuote"></p>
-                </div>
-            `;
-            pickNextQuote().then((quote) => {
-                document.getElementById('dashboardLockedQuote').textContent = quote;
-            });
-            return;
-        }
-
         contentInner.innerHTML = `
             <div class="dashboard-view">
                 <iframe class="cortex-embed-frame" id="cortexEmbedFrame" allow="microphone" title="LastMind"></iframe>
@@ -17810,8 +17801,8 @@ SQIDAQAB
 
     const PREMIUM_TOUR_STEPS = [
         ...TOUR_INTRO_STEPS,
-        { selector: null, title: "Welcome to Premium", body: "Premium unlocks diagnostic learning — LastMind finds the root cause of what you don't understand, not just where you went wrong. Your learning becomes smarter and faster." },
-        { selector: null, title: 'Instant learning verification', body: 'Each lesson you complete is verified immediately on Premium. No waiting, no separate step — progress is locked in the moment you demonstrate understanding.' },
+        { selector: null, title: "Welcome to LastMind+", body: "LastMind+ unlocks diagnostic learning — LastMind finds the root cause of what you don't understand, not just where you went wrong. Your learning becomes smarter and faster." },
+        { selector: null, title: 'Instant learning verification', body: 'Each lesson you complete is verified immediately on LastMind+. No waiting, no separate step — progress is locked in the moment you demonstrate understanding.' },
         { selector: '#specialistToolsBtn', title: 'Specialist Tools', body: "Open Specialist Tools for the Maths Tool and Economics Drawing Tool — focused help without crowding the main navigation." },
         // The "Tutoring bookings" step that used to point at
         // calendarTopbarBtn was removed along with hiding that button - same
@@ -21682,7 +21673,14 @@ SQIDAQAB
                 const b = document.getElementById('nbAssistBody'); if (b && st.review) b.scrollTop = 0;
             });
         };
-        btn.addEventListener('click', () => setOpen(!notesAssist.open));
+        if (!isPaidUser) {
+            btn.classList.add('lm-plus-locked');
+            btn.title = 'AI help with notes is included with LastMind+';
+        }
+        btn.addEventListener('click', () => {
+            if (!isPaidUser) { window.LastMindPricing.showUpgradeModal(); return; }
+            setOpen(!notesAssist.open);
+        });
         window.addEventListener('resize', () => pad(notesAssist.open));
         if (notesAssist.open) setOpen(true);
         clearInterval(notesAssist.watch); notesAssist.watch = setInterval(() => { if (!document.getElementById('nbCanvas')) nbAssistTeardown(); }, 700);
@@ -23195,6 +23193,10 @@ SQIDAQAB
                     headers: { Authorization: `Bearer ${session.access_token}` }
                 });
                 if (resp.status === 404) return { notFound: true };
+                if (resp.status === 403) {
+                    const body = await resp.json().catch(() => ({}));
+                    if (body.code === 'FREE_LESSON_LIMIT') return { freeLessonLimited: true, detail: body.error };
+                }
                 if (resp.status === 429 || resp.status === 402) {
                     const body = await resp.json().catch(() => ({}));
                     if (body.code === 'GENERATION_RATE_LIMIT') return { generationRateLimited: true, window: body.window, limit: body.limit };
@@ -25112,7 +25114,7 @@ SQIDAQAB
             sfLastLoadProblem = [lesson.status ? `server said ${lesson.status}` : 'no reply from the server', lesson.detail].filter(Boolean).join(': ');
             throw new Error('lesson load failed: ' + sfLastLoadProblem);
         }
-        if (!lesson || lesson.notFound || lesson.loadError || lesson.generationRateLimited || lesson.lockLimitReached || !lesson.explanation) {
+        if (!lesson || lesson.notFound || lesson.loadError || lesson.freeLessonLimited || lesson.generationRateLimited || lesson.lockLimitReached || !lesson.explanation) {
             // lockLimitReached/generationRateLimited are real, specific,
             // actionable reasons (see renderLockLimitReachedCard/
             // renderGenerationRateLimitCard's own use elsewhere in this
@@ -25129,6 +25131,8 @@ SQIDAQAB
                 showBuyMoreBtn = true;
             } else if (lesson && lesson.generationRateLimited) {
                 bodyText = generationRateLimitMessage(lesson.window, lesson.limit);
+            } else if (lesson && lesson.freeLessonLimited) {
+                bodyText = lesson.detail || 'The Free plan includes three new lessons each month. Upgrade to LastMind+ to keep learning.';
             }
             const el = document.createElement('div');
             el.className = 'sf-feed-slide';
@@ -26190,6 +26194,7 @@ SQIDAQAB
                     if (!result) { meta.answered = false; return false; }
                     (result.schedules || []).forEach((sch) => sfUpsertScheduleCache(sch));
                     meta.canAdvance = true;
+                    showGuestSavePrompt();
                     // Replace any early lookahead with one computed from the
                     // now-authoritative completed-stage schedules. This also
                     // guarantees Continue cannot consume a stale duplicate.
@@ -34317,9 +34322,37 @@ SQIDAQAB
         // coming back after being explicitly hidden).
         document.getElementById('specialistToolsWrap').style.display = '';
         document.getElementById('upgradeTopbarBtn').style.display = paid ? 'none' : '';
+        [document.getElementById('createTopbarBtn'), document.getElementById('mathsToolTopbarBtn')].forEach((el) => {
+            if (!el) return;
+            el.classList.toggle('lm-plus-locked', !paid);
+            el.setAttribute('aria-disabled', String(!paid));
+            el.title = paid ? '' : 'Unlock with LastMind+';
+        });
         updateTopbarScrollHint();
-        refreshLocksChip();
+        const locks = document.getElementById('minLocks');
+        if (locks) locks.style.display = paid ? '' : 'none';
+        if (paid) refreshLocksChip();
     }
+    function showGuestSavePrompt() {
+        if (!isGuestUser || sessionStorage.getItem('lm-guest-save-prompted')) return;
+        sessionStorage.setItem('lm-guest-save-prompted', '1');
+        const overlay = document.createElement('div');
+        overlay.className = 'guest-save-overlay';
+        overlay.innerHTML = `<div class="guest-save-card"><h2>Keep what you’ve started</h2><p>Log in or create a free account to save your progress and continue it on any device.</p><div class="guest-save-actions"><a href="/account/?mode=signup">Create an account</a><a href="/account/?mode=login">Log in</a><button type="button">Not now</button></div></div>`;
+        overlay.querySelector('button').addEventListener('click', () => overlay.remove());
+        document.body.appendChild(overlay);
+    }
+    window.addEventListener('message', (event) => {
+        if (event.data && event.data.type === 'lm-first-meaningful-action') showGuestSavePrompt();
+    });
+    document.addEventListener('click', (event) => {
+        if (isPaidUser) return;
+        const locked = event.target.closest('#createTopbarBtn, #mathsToolTopbarBtn');
+        if (!locked) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        window.LastMindPricing.showUpgradeModal();
+    }, true);
     function upgradeToPaid() {
         if (isPaidUser) return;
         isPaidUser = true;
@@ -34600,10 +34633,18 @@ SQIDAQAB
         }
 
         if (!supabaseSession) {
-            // Not logged in at all — nothing to offer, send them to create an
-            // account (still free at this point; paying is optional there too).
-            window.location.href = '/';
-            return;
+            try {
+                const { data, error } = await supabaseClient.auth.signInAnonymously();
+                if (error || !data.session) throw error || new Error('anonymous session unavailable');
+                supabaseSession = data.session;
+                isGuestUser = true;
+            } catch (err) {
+                console.error('LastMind: guest session could not be created.', err);
+                await enterOnce(false);
+                return;
+            }
+        } else {
+            isGuestUser = !!supabaseSession.user?.is_anonymous;
         }
 
         const userId = supabaseSession.user.id;
