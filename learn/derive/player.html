@@ -1207,7 +1207,7 @@ window.__runDerive = function (D, CP) {
     document.addEventListener('pointerdown', function (e) { var t = e.target.closest ? e.target.closest(SEL) : null; if (t && !t.disabled) sfxPress(); });
   })();
   (function slightScroll() {
-    var lock = false, startY = null;
+    var lock = false, startY = null, unlockTimer = null;
     function topOf(s) { return s.getBoundingClientRect().top - feed.getBoundingClientRect().top + feed.scrollTop; }
     function slidesNow() { return [].slice.call(feed.querySelectorAll('.slide')); }
     function current() {
@@ -1227,7 +1227,18 @@ window.__runDerive = function (D, CP) {
       if (i > 0) { a[i - 1].scrollIntoView({ behavior: 'smooth', block: 'start' }); return true; }
       return false;
     }
-    function throttled(dir) { if (lock) return true; if (!go(dir)) return false; lock = true; setTimeout(function () { lock = false; }, 450); return true; }
+    // One physical wheel/trackpad gesture can emit events for well beyond
+    // the old fixed 450ms lock. Re-arm only once the stream itself has been
+    // quiet, so its momentum can never carry the learner over two cards.
+    function keepLockedUntilGestureEnds() {
+      clearTimeout(unlockTimer);
+      unlockTimer = setTimeout(function () { lock = false; }, 320);
+    }
+    function throttled(dir) {
+      if (lock) { keepLockedUntilGestureEnds(); return true; }
+      if (!go(dir)) return false;
+      lock = true; keepLockedUntilGestureEnds(); return true;
+    }
     feed.addEventListener('wheel', function (e) { if (Math.abs(e.deltaY) < 4) return; if (throttled(e.deltaY > 0 ? 1 : -1)) e.preventDefault(); }, { passive: false });
     feed.addEventListener('touchstart', function (e) { startY = e.touches[0].clientY; }, { passive: true });
     feed.addEventListener('touchend', function (e) { if (startY == null) return; var dy = startY - e.changedTouches[0].clientY; startY = null; if (Math.abs(dy) > 24) throttled(dy > 0 ? 1 : -1); });

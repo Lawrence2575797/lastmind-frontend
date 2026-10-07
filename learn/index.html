@@ -26159,7 +26159,7 @@ SQIDAQAB
             return [{ el, meta: { canAdvance: true, kind: 'handoff' } }];
         }
         // the version in the address makes a browser fetch the current player after each change instead of reusing an old copy
-        const DERIVE_PLAYER_VERSION = '20260923a';
+        const DERIVE_PLAYER_VERSION = '20261007b';
         el.innerHTML = `<iframe class="sf-derive-frame" src="/learn/derive/player.html?v=${DERIVE_PLAYER_VERSION}" title="Lesson"></iframe>`;
         const frame = el.querySelector('iframe');
         const meta = { canAdvance: false, kind: 'question', answered: false, nodeId: rec.node.id, derive: true };
@@ -26363,6 +26363,33 @@ SQIDAQAB
                 sfCheckDueRecalls();
             }
         }, { passive: true });
+
+        // A trackpad sends a long stream of wheel events for one physical
+        // swipe. Native viewport scrolling could carry that momentum across
+        // two or three lesson slides before the student had read them. Treat
+        // the whole stream as one gesture: it may move one slide only, and
+        // it is re-armed only after wheel input has gone quiet. A genuinely
+        // tall slide still scrolls inside itself before another gesture can
+        // advance to the following slide.
+        let wheelGestureLatched = false;
+        let wheelGestureReleaseTimer = null;
+        viewportEl.addEventListener('wheel', (e) => {
+            if (sfEventTargetIsTextInput(e) || Math.abs(e.deltaY) < 3) return;
+            e.preventDefault();
+            clearTimeout(wheelGestureReleaseTimer);
+            wheelGestureReleaseTimer = setTimeout(() => { wheelGestureLatched = false; }, 320);
+            if (wheelGestureLatched || !sfFeed) return;
+            wheelGestureLatched = true;
+
+            const direction = e.deltaY > 0 ? 1 : -1;
+            const slideEl = sfFeed.slides[sfFeed.currentIndex];
+            const state = sfCurrentSlideScrollState();
+            if (slideEl && state.scrollable && ((direction > 0 && !state.atBottom) || (direction < 0 && !state.atTop))) {
+                slideEl.scrollBy({ top: direction * Math.max(160, slideEl.clientHeight * 0.72), behavior: 'smooth' });
+                return;
+            }
+            sfTryAdvance(direction, false);
+        }, { passive: false });
 
         // Horizontal swipes remain a convenient mobile shortcut. Vertical
         // touch movement is left entirely to the shared native scrollbar.
