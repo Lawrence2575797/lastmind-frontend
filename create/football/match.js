@@ -409,7 +409,7 @@
     const lossFactor = 1 + 1.3 * (1 - ownDepth); // losing the ball deep in your own half costs more
     const options = [];
     // Through on goal: no defender is goal-side of him in his channel, so he is past the last line.
-    const throughDef = other(match, team).players.filter((o) => o.group !== 'GK' && (o.x - carrier.x) * team.attackDir > -1 && Math.abs(o.y - carrier.y) < 16).length;
+    const throughDef = other(match, team).players.filter((o) => o.group !== 'GK' && (o.x - carrier.x) * team.attackDir > -1 && Math.abs(o.y - carrier.y) < 24).length;
     const through = carrier.group !== 'GK' && throughDef === 0 && ownDepth0 > 0.55;
     const nearNow = nearestOpponent(match, team, carrier).d;
     // The manager's own instructions, for this player in this situation.
@@ -441,6 +441,7 @@
       // well away) is favoured, more so for a pass that goes forward or across than one that goes back; a marked one is not.
       adj += (FM.OPEN_BONUS == null ? 0.5 : FM.OPEN_BONUS) * clamp((press - 3) / 9, 0, 1) * (back < -3 ? 1 : back < 3 ? 0.7 : 0.3);
       if (through && back > 3) adj = -2.0;
+      else if (through && back > -3) adj = -(FM.SQUARE_PEN == null ? 1.4 : FM.SQUARE_PEN);   // past the last defender he goes on, he does not square it
       else if (ownDepth0 > 0.66 && back > 8) adj = (nearNow < 2.5 ? 0.45 : 1) * -(FM.BACK_PEN == null ? 0 : FM.BACK_PEN);
       // Playing out short. A team set to build patiently does not send the ball a long way when it has a shorter pass: the longer the pass, and the
       // more patient the setting, the less the player wants it. (A team set to go long has no such penalty.)
@@ -480,9 +481,11 @@
     }
 
     const { opp: nearOpp, d: nearD } = nearestOpponent(match, team, carrier);
-    const dp = FM.dribbleProb(carrier, nearD, nearOpp);
+    // A defender who is behind the ball-carrier has been beaten: he is chasing, he is not in the way.
+    const nearBehind = !!nearOpp && (nearOpp.x - carrier.x) * team.attackDir < -0.5;
+    const dp = FM.dribbleProb(carrier, nearBehind ? nearD * 2.4 : nearD, nearOpp);
     const dribbleBias = (GROUP_DRIBBLE[carrier.group] || 0) + (ROLE_DRIBBLE[role] || 0);
-    options.push({ kind: 'dribble', p: dp, nearOpp, nearD, score: dp * (0.3 + 0.9 * directness * 0.4 + (dribbleBias + mods.dribble + (tac.dribbleFreedom - 0.5) * 0.9 + (zone === 'final' && nearD > 3.5 ? 0.45 : 0) + (through ? (FM.THROUGH_DRIB == null ? 0.4 : FM.THROUGH_DRIB) : 0))) - (1 - dp) * 0.55 * (1 - risk) * lossFactor });
+    options.push({ kind: 'dribble', p: dp, nearOpp, nearD, behind: nearBehind, score: dp * (0.3 + 0.9 * directness * 0.4 + (dribbleBias + mods.dribble + (tac.dribbleFreedom - 0.5) * 0.9 + (zone === 'final' && nearD > 3.5 ? 0.45 : 0) + (through ? (FM.THROUGH_DRIB == null ? 0.4 : FM.THROUGH_DRIB) : 0))) - (1 - dp) * 0.55 * (1 - risk) * lossFactor });
 
     if (RE) options[options.length - 1].score += 0.45 * RE.dribble;
     // In his own third with a defender close, taking the man on is the last thing a defender wants to do.
@@ -500,7 +503,7 @@
     let pool = options;
     if (match.forcePass) { const only = options.filter((o) => o.kind === 'pass' && o.d < 40); if (only.length) pool = only; }
     if (carrier.group === 'GK' && nearNow < 6 && directness >= 0.45) { const longs = options.filter((o) => o.kind === 'pass' && o.d >= 26); if (longs.length) pool = longs; }
-    if (FM.debugChoose) FM.debugChoose(carrier, options, pool, directness, risk);
+    if (FM.debugChoose) FM.debugChoose(carrier, options, pool, directness, risk, { through, ownDepth0, throughDef });
     const maxScore = Math.max.apply(null, pool.map((o) => o.score));
     const weights = pool.map((o) => Math.exp((o.score - maxScore) / temp));
     const total = weights.reduce((a, b) => a + b, 0);
@@ -565,7 +568,7 @@
     const st = statsOf(match, team);
     st.dribbles++;
     const ok = match.rng() < opt.p;
-    if (!ok && opt.nearOpp && opt.nearD < 4) {
+    if (!ok && opt.nearOpp && opt.nearD < 4 && !opt.behind) {
       record(match, { type: 'dribble', team: team.id, player: carrier.number, p: opt.p, ok: false, defDist: opt.nearD, x: carrier.x, y: carrier.y });
       giveBall(match, other(match, team), opt.nearOpp, 0.6);
       return;
@@ -1315,6 +1318,7 @@
       for (const d of opp.players) {
         if (d.group === 'GK') continue;
         if (dist(d, c.player) > 1.8) continue;
+        if ((d.x - c.player.x) * team.attackDir < -0.6 && match.rng() > 0.12) continue;   // beaten: a defender chasing from behind rarely gets the ball
         const rate = (0.05 + 0.08 * opp.tactics.pressing + (d.roleId === 'ball_winning_midfielder' ? 0.06 : 0)) * (0.6 + 0.8 * opp.tactics.tackleAggression) * (1 + 0.35 * (FM.instrMods(d).tackle + FM.rulesDelta(opp, d, 'tackle', match.ball, false)));
         if (match.clock >= (match.tackleLock || 0) && match.rng() < rate * dt) {
           match.tackleLock = match.clock + 1.2;
