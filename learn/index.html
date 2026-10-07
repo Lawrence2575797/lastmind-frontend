@@ -30790,7 +30790,6 @@ SQIDAQAB
                 <div class="km-inline-detail-meta">${d.externallyCovered ? 'Covered before LastMind · no FSRS score yet' : stateLabel[d.state]}</div>
                 ${progressHtml}
                 <div class="km-inline-detail-actions">
-                    <button class="btn km-inline-untracked-btn" title="Try this lesson without it being tracked or scheduled">LastMind Untracked</button>
                     ${contentInner.dataset.askForHelp ? '<button class="btn primary km-inline-request-help-btn">Request help</button>' : ''}
                     ${startBtnHtml}
                 </div>
@@ -30815,7 +30814,6 @@ SQIDAQAB
                     selectKmInlineNode(graphNode);
                 });
             });
-            detailEl.querySelector('.km-inline-untracked-btn').addEventListener('click', () => renderUntrackedLesson(contentInner, d));
             detailEl.querySelector('.km-inline-request-help-btn')?.addEventListener('click', () => {
                 openBrowseTutors({ conceptId: d.conceptId, subject: folder.subject, topic: d.subtopic || null, label: d.label });
             });
@@ -34419,7 +34417,6 @@ SQIDAQAB
             ['#cortexTabBtn', 'Ask LastMind for learning help and explanations.'],
             ['#foldersTabBtn', 'Browse your subjects, themes, and lessons.'],
             ['#createFolderBtn', 'Add another subject to your LastMind account.'],
-            ['.km-inline-untracked-btn', 'Try this lesson without changing its progress or review schedule.'],
             ['.km-inline-start-lesson-btn', 'Start this lesson or its currently due review.'],
             ['.sf-mobile-practice-btn', 'Open this subject’s exam practice questions on a smaller screen.'],
             ['.sf-side-practice-type-btn', 'Generate this exam-style question for the current lesson.'],
