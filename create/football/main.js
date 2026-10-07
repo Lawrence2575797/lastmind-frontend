@@ -640,7 +640,7 @@
     if (key === 'shape') return null;                // the line follows their scouted defence whether or not their shirts are shown
     const sc = scoutFor(), cells = sc && sc.shape.phases[OPP_PHASE[key]];
     if (!cells) return null;
-    const moved = (world.showOpp && world.oppMoved && world.oppMoved[key]) || {};
+    const moved = (world.oppMoved && world.oppMoved[key]) || {};
     let min = 1, any = false;
     Object.keys(cells).forEach((slot) => {
       if (/^GK/.test(slot)) return;
@@ -665,7 +665,7 @@
     }
     // The next opponent as scouted: where their players have stood in the phase that answers this one (when you build, they press).
     let opp = '';
-    const sc = key !== 'shape' && world.showOpp ? scoutFor() : null;
+    const sc = key !== 'shape' ? scoutFor() : null;
     if (sc && sc.shape.phases[OPP_PHASE[key]]) {
       const cells = sc.shape.phases[OPP_PHASE[key]];
       const kit = FM.kitAgainst(sc.opp, FM.teamById(world.league, world.league.userId));
@@ -784,12 +784,12 @@
       <div class="tb-grid">
         <div class="tb-left">
           ${isShape ? `<label>Formation<select id="formSel">${Object.keys(FM.FORMATIONS).map((k) => `<option value="${k}"${k === team.formationKey ? ' selected' : ''}>${k}</option>`).join('')}</select></label>` : `<h2>${FM.PHASE_NAMES[key]}</h2>`}
-          ${isShape || !nextOpponent() ? '' : `<label class="chk"><input type="checkbox" id="showOpp"${world.showOpp ? ' checked' : ''}/> Show how ${esc(nextOpponent().name)} set up in the matching phase (scouted)</label><p class="note" id="oppNote"></p>`}
           <div id="board"></div>
           <div class="row"><button id="resetPhase">${isShape ? 'Reset the shape to the formation' : 'Reset this phase to the role defaults'}</button></div>
           <p class="err" id="subErr"></p>
         </div>
         <div class="tb-right">
+          ${isShape ? '' : '<div id="phaseOppReport"></div>'}
           <div id="phaseSliders"></div>
           ${isShape ? '' : '<div id="phaseInstr"></div>'}
           ${key === 'build' ? '<div id="labPanel"></div>' : ''}
@@ -800,17 +800,15 @@
       </div>`;
     const board = host.querySelector('#board');
     drawBoard(board, team, key);
-    const oppBox = host.querySelector('#showOpp');
-    if (oppBox) {
-      oppBox.addEventListener('change', () => { world.showOpp = oppBox.checked; renderTactics(); });
-      const sc = scoutFor(), note = host.querySelector('#oppNote');
-      const movedAny = world.oppMoved && world.oppMoved[key] && Object.keys(world.oppMoved[key]).length;
-      if (!world.showOpp) note.textContent = '';
-      else if (!sc) note.textContent = 'Nothing is known about how they line up yet: they have not played.';
-      else {
-        const cells = sc.shape.phases[OPP_PHASE[key]], n = cells ? Math.max.apply(null, Object.keys(cells).map((k) => cells[k].n)) : 0;
-        note.textContent = `Dashed shirts, in their kit, are where ${sc.opp.name} have stood in their ${FM.PHASE_NAMES[OPP_PHASE[key]].toLowerCase()} phase, when you are in yours, drawn as they stand facing you. From ${sc.shape.matches} match${sc.shape.matches > 1 ? 'es' : ''} (${sc.shape.friendlies} pre-season friendl${sc.shape.friendlies === 1 ? 'y' : 'ies'}, which count half; newer matches count more), in their ${sc.shape.formation}. ${cells ? 'This phase has up to ' + n + ' samples a player, taken every two seconds.' : 'They have not been seen in this phase yet.'} It shows what they did, and they may change. Drag their shirts to try out where they might stand instead (these moves are not saved).`;
-        if (movedAny) { const b = document.createElement('button'); b.textContent = 'Put their shirts back where they were scouted'; b.style.marginLeft = '8px'; b.addEventListener('click', () => { delete world.oppMoved[key]; renderTactics(); }); note.appendChild(b); }
+    if (!isShape) {
+      const report = host.querySelector('#phaseOppReport'), opponent = nextOpponent();
+      if (report && opponent && FM.tacticsPhaseReportHtml) {
+        report.innerHTML = FM.tacticsPhaseReportHtml(world.league, opponent.id, key);
+        const movedAny = world.oppMoved && world.oppMoved[key] && Object.keys(world.oppMoved[key]).length;
+        if (movedAny) {
+          const b = document.createElement('button'); b.className = 'phase-report-reset'; b.textContent = 'Reset their shirts to the scouted positions';
+          b.addEventListener('click', () => { delete world.oppMoved[key]; renderTactics(); }); report.appendChild(b);
+        }
       }
     }
     if (SLIDER_TABS[tab]) renderSliderTab(team, SLIDER_TABS[tab], host.querySelector('#phaseSliders'));
