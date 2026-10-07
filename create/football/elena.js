@@ -38,9 +38,9 @@
         why: ['The share you found is one draw from a spread of results that luck produces.', 'It is the best single guess, and it needs a range around it.'] },
     ] },
     { id: 'range', title: 'Giving a share a range', steps: [
-      { say: ['A set-up is tested 100 times. 58 reach halfway.', 'A student says: "So the real share is 58%."'],
+      { say: ['You test a set-up 100 times. It reaches halfway in 58 of them.', 'It is tempting to call 58% the true success rate.'],
         q: 'Using the last lesson, what is wrong with that?',
-        options: [{ t: 'Nothing, 58% is what was measured', hint: 'Measured in these 100 tests. Would the next 100 agree exactly?' }, { t: 'Another 100 tests would probably give a different number, so 58% is a best guess and not the truth', ok: true }, { t: 'The student should have rounded to 60%', hint: 'Rounding does not deal with luck.' }],
+        options: [{ t: 'Nothing, 58% is what was measured', hint: 'Measured in these 100 tests. Would the next 100 agree exactly?' }, { t: 'Another 100 tests would probably give a different number, so 58% is a best guess and not the truth', ok: true }, { t: 'Round it to 60% instead', hint: 'Rounding does not deal with luck.' }],
         why: ['58% describes these 100 tests. It estimates the true share, and the estimate will wobble a little each time you repeat the experiment.', 'So what we want to report is a best guess plus how far it could plausibly be out.'] },
       { say: ['Here is how far out the estimate could plausibly be, for different numbers of tests:', '100 tests: about 10 points either way.', '400 tests: about 5 points either way.', '1600 tests: about 2.5 points either way.'],
         q: 'Following the pattern, how many tests would bring it down to about 1.25 points either way?',
@@ -48,9 +48,9 @@
         why: ['Each time the range halves, the tests needed multiply by four: 100, 400, 1600, 6400.', 'So accuracy gets expensive. Twice as precise costs four times the tests, and ten times as precise costs a hundred times the tests.'],
         matters: ['This is why a national opinion poll of about a thousand people is accurate to about three points, and why polls rarely bother with ten times that to get one.'] },
       { say: ['The range around a share, built to be wrong only about 1 time in 20, has a name.'],
-        q: 'A student predicted 70% would reach halfway. The test of 100 gave 58%, with a range of 48% to 67%. What does that tell the student?',
+        q: 'You predicted 70% would reach halfway. The test gives 58%, with a range of 48% to 67%. What does that tell you?',
         options: [{ t: 'The prediction was outside the range, so luck alone is unlikely to explain the gap', ok: true }, { t: 'The prediction was wrong by 12 points, which is a lot but could easily be luck', hint: 'The range already includes how far luck could move the share.' }, { t: 'Nothing, because 58% is below 70%', hint: 'Compare 70% with the range, not just with 58%.' }],
-        why: ['The range says where the true share plausibly lies. 70% is outside it, so the student pictured this build-up as better than it is.', 'That is useful: the test has taught the student something, even though it was only a prediction.'],
+        why: ['The range shows where the true share plausibly lies. Since 70% sits outside it, this build-up is probably weaker than you pictured.', 'That is worth knowing. A prediction can be wrong and still lead you to a better decision.'],
         name: ['This range is called a **95% interval**. If you repeated the whole experiment many times, about 95 of every 100 intervals made this way would contain the true share.'] },
       { final: true, say: ['A different set-up: 400 tests, 160 reach halfway. The 95% interval is 35% to 45%.'],
         q: 'Which sentence is the best reading?',
@@ -92,9 +92,9 @@
         q: 'How different is the evidence in the two cases?',
         options: [{ t: 'The first is real and the second is not', hint: 'The two p-values differ by 0.002.' }, { t: 'Almost the same strength of evidence: the line is a convention, not a switch', ok: true }, { t: 'The second is much weaker', hint: 'Compare the two numbers again.' }],
         why: ['The p-value is a smooth measure of how surprising the data are. It does not jump at 0.05.', 'Treat 0.049 and 0.051 as nearly the same, and treat 0.0001 as much stronger than either.'] },
-      { final: true, say: ['A student looks at a result, sees p = 0.07, and says: "If I use 0.10 as my line, it counts."'],
+      { final: true, say: ['You see p = 0.07 and think: "If I use 0.10 as my line, it counts."'],
         q: 'What is wrong with choosing the line after seeing the result?',
-        options: [{ t: 'Nothing, 0.10 is a perfectly good level', hint: 'The level itself is not the problem. When it was chosen is.' }, { t: 'You could move the line until any result passes, so the line has to be set before looking', ok: true }, { t: 'A p-value can never be above 0.05', hint: 'It can be anything from 0 to 1.' }, { t: 'The student should use 0.01 whatever the result', hint: 'There is no one level that is right for everything.' }],
+        options: [{ t: 'Nothing, 0.10 is a perfectly good level', hint: 'The level itself is not the problem. When it was chosen is.' }, { t: 'You could move the line until any result passes, so the line has to be set before looking', ok: true }, { t: 'A p-value can never be above 0.05', hint: 'It can be anything from 0 to 1.' }, { t: 'Always use 0.01 instead', hint: 'There is no one level that is right for everything.' }],
         why: ['If the line can be moved after the result, it no longer guards against luck.', 'Deciding the level first, and how many things you will look at, keeps the false-positive rate where you said it was.'] },
     ] },
     { id: 'matters', title: 'Significant is not the same as important', steps: [
@@ -226,7 +226,7 @@
   // What their manager made of you and what he did about it, for the run on screen.
   function theirPlanText(last) {
     const p = last.oppPlan; if (!p) return '';
-    return '<h4>Their manager</h4><div class="el-box"><p><b>' + (p.source === 'ai' ? 'Their manager studied you:' : 'From the figures on you:') + '</b> ' + esc(p.rationale || 'No change to how they play.') + '</p>' +
+    return '<h4>Their manager</h4><div class="el-box"><p><b>' + (p.source === 'ai' ? 'They have prepared for you:' : 'The figures suggest:') + '</b> ' + esc(p.rationale || 'They are sticking with their plan.') + '</p>' +
       (p.scouted && p.scouted.length ? '<p>' + p.scouted.map(esc).join('<br>') + '</p>' : '') +
       (p.rules && p.rules.length ? '<p><b>Their instructions for this run</b></p>' + p.rules.map((r) => '<p class="el-small">' + esc(r) + '</p>').join('') : '<p class="el-small">No special instructions: they set up as they normally do.</p>') +
       (p.note ? '<p class="el-small">' + esc(p.note) + '</p>' : '') + '</div>';

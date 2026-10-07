@@ -863,7 +863,7 @@
   }
   function newsTab() {
     var g = ui.g, a = g.news.slice(0, 40);
-    return causesCard() + '<div class="chn-actions" style="margin-bottom:10px"><button class="chn-btn" id="chnNewsBtn">Write this quarter\'s front pages (AI)</button><span class="neutral" style="font-size:.8rem">Three papers, three angles, written from what has really happened. Passive news also appears every month.</span></div>' +
+    return causesCard() + '<div class="chn-actions" style="margin-bottom:10px"><button class="chn-btn" id="chnNewsBtn">Read this quarter\'s front pages</button><span class="neutral" style="font-size:.8rem">Three papers see the same events from three different angles. New stories also appear each month.</span></div>' +
       '<div class="chn-news">' + (a.map(function (x) { return '<article class="chn-card chn-article"><div class="meta"><b>' + esc(x.outlet) + '</b><span class="chn-tag">' + esc(SLANT[x.slant] || 'Interview') + '</span>' + (KIND_TAG[x.kind] ? '<span class="chn-tag" style="background:rgba(180,83,9,.18)">' + esc(KIND_TAG[x.kind]) + '</span>' : '') + '<span>' + esc(S.nice(x.date)) + '</span></div><h4>' + esc(x.headline) + '</h4>' + (x.standfirst ? '<p><i>' + esc(x.standfirst) + '</i></p>' : '') + '<p>' + esc(x.body) + '</p></article>'; }).join('') || '<div class="neutral">No stories yet. Advance the calendar.</div>') + '</div>' + (setTimeout(function () { var b = ui.host.querySelector('#chnNewsBtn'); if (b) b.onclick = function () { fetchNews(true); }; }, 0) && '');
   }
   function logTab() {
