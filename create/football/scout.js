@@ -33,27 +33,48 @@
   };
 
   // ---------- Layer 1: a plan by rule ----------
+  // Pressing you is one answer to a team that builds from the back. Sitting off is the other: if they are good at it, pressing only gets the press
+  // beaten and leaves space behind it, so the manager keeps his shape in the middle of the pitch, shuts the lanes to the full-backs and the middle,
+  // and lets the keeper and the centre-backs have the ball. He weighs the two, and says which he chose and why not the other.
   S.plan1 = function (profile) {
     const mk = (scope, when, effects) => FM.rulesClean({ scope, when, effects, source: 'scout' });
     const rules = [], scouted = [], tactics = {}, said = [];
     const b = profile.build;
-    if (!profile.matches) return { source: 'scout', rules, tactics, scouted: ['They have not seen you play yet.'], rationale: 'We have not seen them play, so we will play our normal game and learn as we go.' };
+    if (!profile.matches) return { source: 'scout', rules, tactics, scouted: ['They have not seen you play yet.'], rationale: 'We have not seen them play, so we will play our normal game and learn as we go.', alternative: '' };
+    let plan = 'normal', alternative = '';
     if (b && b.n >= 8) {
       scouted.push('In their own third they played ' + Math.round(b.short * 100) + '% of their passes short (under 22 m) and ' + Math.round(b.long * 100) + '% long (over 30 m), completing ' + Math.round(b.ok * 100) + '%.');
       if (b.short >= 0.65) {
-        rules.push(mk({ kind: 'line', line: 'attack' }, { stage: ['press'] }, [{ type: 'closeDown', delta: 0.6 }]), mk({ kind: 'line', line: 'midfield' }, { stage: ['press'] }, [{ type: 'closeDown', delta: 0.4 }]));
-        tactics.pressBuildUp = 0.2; said.push('They like to play out short, so we will press them high and close the short passes down.');
+        // They build out a lot. Press them if they struggle with it; sit off if they are good at it or keep most of the ball.
+        const good = b.ok >= 0.8 || (profile.possession != null && profile.possession >= 55);
+        plan = good ? 'sitOff' : 'press';
+        if (plan === 'press') {
+          rules.push(mk({ kind: 'line', line: 'attack' }, { stage: ['press'] }, [{ type: 'closeDown', delta: 0.6 }]), mk({ kind: 'line', line: 'midfield' }, { stage: ['press'] }, [{ type: 'closeDown', delta: 0.4 }]));
+          tactics.pressBuildUp = 0.2;
+          said.push('They like to play out short and they do lose it under pressure, so we will press them high and close the short passes down.');
+          alternative = 'We thought about sitting off them, but they give it away too often when pressed to let them settle.';
+        } else {
+          rules.push(
+            mk({ kind: 'line', line: 'attack' }, { stage: ['press'] }, [{ type: 'closeDown', delta: -0.8 }, { type: 'position', forward: -10, wide: 0, phase: 'without' }]),
+            mk({ kind: 'line', line: 'midfield' }, { stage: ['press'] }, [{ type: 'closeDown', delta: -0.3 }, { type: 'position', forward: -6, wide: 0, phase: 'without' }]),
+            mk({ kind: 'line', line: 'midfield' }, { stage: ['press'] }, [{ type: 'place', wm: { op: 'clamp', args: [{ attr: 'wm', of: { e: 'me' } }, 18, 50] }, weight: 0.6, phase: 'without' }]));
+          tactics.pressBuildUp = -0.3;
+          said.push('They build out well, so pressing them would only get us beaten and leave space behind. We will sit off, keep the middle shut and the lanes to their full-backs closed, and let the keeper and centre-backs have it.');
+          alternative = 'We thought about pressing them, but they pass their way out of pressure too well to risk it.';
+        }
       } else if (b.long >= 0.35) {
+        plan = 'deep';
         rules.push(mk({ kind: 'line', line: 'defence' }, {}, [{ type: 'stepUp', on: true }]), mk({ kind: 'line', line: 'attack' }, { stage: ['press'] }, [{ type: 'closeDown', delta: -0.3 }]));
         tactics.lineHeight = -0.12; said.push('They go long a lot, so we will not press the goalkeeper. We will keep a deeper line and win the second balls.');
+        alternative = 'We could have pressed them, but there is nothing to press when the ball goes over the top.';
       }
-      if (b.ok < 0.78 && b.short >= 0.5) { rules.push(mk({ kind: 'line', line: 'midfield' }, { stage: ['press'] }, [{ type: 'closeDown', delta: 0.3 }])); said.push('They lose it fairly often when pressed in their own third, which is a reason to press.'); }
+      if (plan === 'press' && b.ok < 0.78 && b.short >= 0.5) { rules.push(mk({ kind: 'line', line: 'midfield' }, { stage: ['press'] }, [{ type: 'closeDown', delta: 0.3 }])); }
     } else scouted.push('We have only a few matches to go on for how they build, so we are not changing much.');
     if (profile.possession != null) {
       scouted.push('They average ' + Math.round(profile.possession) + '% of the ball and ' + profile.shots + ' shots a match.');
       if (profile.possession > 55) { rules.push(mk({ kind: 'line', line: 'midfield' }, { possession: 'without', zone: ['middle_third'] }, [{ type: 'tackle', delta: 0.3 }, { type: 'closeDown', delta: 0.3 }])); said.push('They keep the ball well, so our midfield will challenge them in the middle of the pitch.'); }
     }
-    return { source: 'scout', rules, tactics, scouted: scouted.slice(0, 4), rationale: said.length ? said.join(' ') : 'Nothing in what we have seen suggests changing how we play.' };
+    return { source: 'scout', plan, rules, tactics, scouted: scouted.slice(0, 4), rationale: said.length ? said.join(' ') : 'Nothing in what we have seen suggests changing how we play.', alternative };
   };
 
   // Rules for the AI club go on its team object for the match; its tactics are re-prepared before every fixture, so a nudge there does not last.
@@ -75,7 +96,7 @@
     const profile = ctx.profile || S.profile(league);
     const body = { stage: ctx.stage || 'prematch', minute: ctx.minute || 0, score: ctx.score || { us: 0, them: 0 }, scout: profile, squad: squadOf(aiTeam), opponent: squadOf(userTeam).map((p) => ({ number: p.number, name: p.name })), recent: ctx.recent || [], current: S.describe(aiTeam.rules || [], aiTeam, userTeam) };
     const out = await FM.api('/football/opponent-plan', body);
-    return { source: 'ai', rules: out.rules || [], tactics: {}, rationale: out.rationale || '', scouted: out.scouted || [] };
+    return { source: 'ai', rules: out.rules || [], tactics: {}, rationale: out.rationale || '', alternative: out.alternative || '', scouted: out.scouted || [] };
   };
   const hash = (s) => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
 
@@ -99,7 +120,7 @@
     match.scoutProfile = profile; match.oppLog = [];
     match.aiTeams.forEach((t) => {
       const plan = S.plan1(profile); S.apply(t, plan);
-      match.oppLog.push({ minute: 0, stage: 'prematch', source: 'scout', rationale: plan.rationale, scouted: plan.scouted, rules: S.describe(t.rules, t, user) });
+      match.oppLog.push({ minute: 0, stage: 'prematch', source: 'scout', rationale: plan.rationale, alternative: plan.alternative, scouted: plan.scouted, rules: S.describe(t.rules, t, user) });
     });
   };
   const recentLines = (match, aiTeam) => match.events.filter((e) => e.type === 'goal' || (e.type === 'shot' && e.xg >= 0.25)).slice(-6).map((e) => Math.floor(e.t / 60) + "' " + (e.type === 'goal' ? 'goal for ' : 'big chance for ') + (e.team === aiTeam.id ? 'us' : 'them'));
@@ -124,7 +145,7 @@
     S.request(league, ai, user, { stage: stage.indexOf('checkin') === 0 ? 'checkin' : stage, minute: Math.round(minute), score: { us, them }, profile: match.scoutProfile, recent: recentLines(match, ai) }).then((plan) => {
       sc.busy = false;
       if (plan.rules.length || stage === 'prematch') { S.apply(ai, Object.assign({}, plan, { tactics: {} })); }
-      match.oppLog.push({ minute: Math.round(minute), stage, source: 'ai', rationale: plan.rationale, scouted: plan.scouted, rules: S.describe(ai.rules, ai, user), unchanged: !plan.rules.length && stage !== 'prematch' });
+      match.oppLog.push({ minute: Math.round(minute), stage, source: 'ai', rationale: plan.rationale, alternative: plan.alternative, scouted: plan.scouted, rules: S.describe(ai.rules, ai, user), unchanged: !plan.rules.length && stage !== 'prematch' });
       match.oppLogDirty = true;
     }).catch((err) => {
       sc.busy = false; sc.offline = true;

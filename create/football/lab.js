@@ -257,48 +257,45 @@
 
   // Elena's reading of a run: what went wrong, why, and what could be tried. Every number is from the run itself.
   // ctx: { opp (name), changes (what was changed since the run before) }
+  // What went wrong in a run, in Elena's own voice and as little as possible: a line on what she saw, and a line on what she would try. The
+  // concepts behind the words (a lane, a free man, the press) are explained by the little ? buttons in the panel, not here.
   LAB.explain = function (r, ctx) {
-    const w = r.why, out = [], pc = (x) => Math.round(x * 100) + '%', lost = w ? w.n : 0, nm = (c) => c.name.split(' ').pop();
+    const w = r.why, out = [], pc = (x) => Math.round(x * 100) + '%', lost = w ? w.n : 0;
     if (!w || lost < 4) return { findings: [], lost };
-    const kindText = { intercepted: ['the pass was cut out by a defender', 'cut out by the defender nearest the lane'], loose: ['the pass went astray, or out of play', 'misplaced, with no defender needed'], dribble: ['the player tried to take on a defender and lost the ball', 'dribbles that did not come off'], tackle: ['the player was tackled while holding the ball', 'tackles that won the ball'], offside: ['the pass was fine but the receiver was offside', 'passes to a player in an offside position'], other: ['the ball was lost in another way', 'other ways'] };
-    const kinds = Object.keys(w.kinds).sort((a, b) => w.kinds[b] - w.kinds[a]);
-    const top = kinds[0], tshare = w.kinds[top] / lost;
-    const parts = kinds.slice(0, 3).map((k) => w.kinds[k] + ' ' + kindText[k][1]).join(', ');
+    const kinds = Object.keys(w.kinds).sort((a, b) => w.kinds[b] - w.kinds[a]), top = kinds[0], k = w.kinds[top];
     // 1. How it was lost.
-    let fix = '';
-    if (top === 'intercepted') fix = 'A pass is likelier to work when it is shorter, the lane is clear and the receiver has space. Try giving the passer a closer outlet, or moving a team-mate so that a defender no longer stands on the line between them.';
-    else if (top === 'loose') fix = 'A pass that misses without anyone touching it is usually a long one from a passer who is not strong at passing. Try a shorter option, or a more patient setting for how directly the team plays out.';
-    else if (top === 'dribble' || top === 'tackle') fix = 'The player is being asked to beat a defender and sometimes will not. Try giving him a pass to a team-mate before the defender arrives, or taking dribbling freedom down.';
-    else if (top === 'offside') fix = 'The receivers are standing beyond the last defender when the ball is played. Try placing them a little deeper, or lowering the risk setting.';
-    const topExample = top === 'intercepted' ? 'Picture the goalkeeper finding a centre-back, but the nearest forward is already between that defender and the next pass. The centre-back plays through the narrow lane and the forward steps across it.'
-      : top === 'loose' ? 'Picture a defender looking up with no short option, sending a long diagonal toward the touchline, and the ball running beyond the receiver before anyone challenges for it.'
-        : top === 'dribble' || top === 'tackle' ? 'Picture the receiver taking his first touch toward the press instead of away from it. His next passing lane closes, so he carries the ball and the defender meets him before support arrives.'
-          : top === 'offside' ? 'Picture the forward moving beyond the back line a moment before the passer releases the ball. The pass itself reaches him, but the move is already stopped.'
-            : 'Picture the move reaching a point where the ball carrier has no clean next action; that is the moment to inspect in a match replay.';
-    out.push({ title: 'How the ball was lost', body: 'You lost it in ' + lost + ' of ' + r.n + ' tests. Mostly, ' + kindText[top][0] + ' (' + pc(tshare) + ' of the losses). In full: ' + parts + '.', example: topExample, fix });
+    const say1 = {
+      intercepted: k + ' of the ' + lost + ' were passes that got cut out. Someone was always standing in the lane.',
+      loose: k + ' of the ' + lost + ' were passes that just went astray, with nobody even touching them.',
+      dribble: k + ' of the ' + lost + ' were players trying to take someone on and losing it. That is a brave thing to do in your own third.',
+      tackle: k + ' of the ' + lost + ' were players getting tackled with the ball. Nobody got rid of it in time.',
+      offside: k + ' of the ' + lost + ' were passes to someone who was offside.',
+      other: 'The ball went in ways I could not put one name to, ' + lost + ' times.',
+    }[top];
+    const fix1 = { intercepted: 'Give the player on the ball a nearer outlet, or move someone so the defender is not stood on the line between them.', loose: 'Ask for a shorter pass, or someone who is better with the ball at his feet.', dribble: 'Give him a quick pass to play before the defender gets there.', tackle: 'He needs one more option, or a team-mate closer to him.', offside: 'Hold the runners a few metres deeper until the ball is played.', other: 'Watch one of the replays below to see what is happening.' }[top];
+    out.push({ title: 'You lost it ' + lost + ' times out of ' + r.n, body: say1, fix: fix1 });
     // 2. One player.
-    const pl = Object.keys(w.players).map((k) => w.players[k]).sort((a, b) => b.n - a.n)[0];
+    const pl = Object.keys(w.players).map((q) => w.players[q]).sort((a, b) => b.n - a.n)[0];
     if (pl && pl.n >= 3 && pl.n / lost >= 0.28) {
-      const gk = pl.group === 'GK';
-      out.push({ title: 'One player in the middle of it', body: pl.name + ' (' + pl.group + ') was the one who gave it away in ' + pl.n + ' of the ' + lost + ' losses (' + pc(pl.n / lost) + '). With only ' + lost + ' losses in the sample, a couple of those could be luck, but a share this big usually means something about where he stands or what he is being asked to do.', example: gk ? 'A realistic repeat is the goalkeeper receiving the restart, waiting for a short option that never opens, then kicking under pressure toward an isolated attacker.' : 'A realistic repeat is ' + nm(pl) + ' receiving with his back to play while two nearby team-mates are on the same line, leaving no forward angle before the defender arrives.',
-        fix: gk ? 'The goalkeeper starts every test with the ball, so he makes the first decision every time, and with an opponent close by he kicks it long, which is the least reliable pass there is. Give him a short, safe pass to play, such as a centre-back dropping close to him, so he is not forced to kick it away.' : 'Look at where he stands compared with his team-mates, and how many safe passes he has. If he is the only link, the opposition only have to mark him.' });
+      const gk = pl.group === 'GK', sn = pl.name.split(' ').pop();
+      out.push({ title: sn + ' keeps giving it away', body: 'He lost it ' + pl.n + ' times out of ' + lost + '.' + (gk ? ' He has the ball first every time, and when someone is close he kicks it long.' : ' I would look at where he stands, and how many safe passes he has.'), fix: gk ? 'Put a centre-back close beside him, so there is a short pass to play.' : 'Give him an easier pass, or take the marker away from him.' });
     }
-    // 3. How far the failed passes travelled.
+    // 3. How far the failed passes travelled, or how marked the receivers were.
     if (w.failedPasses >= 4) {
       const md = w.distSum / w.failedPasses;
-      if (md > 26 || w.long / w.failedPasses > 0.4) out.push({ title: 'The passes that failed were long ones', body: 'The passes that went wrong averaged ' + Math.round(md) + ' m, and ' + w.long + ' of ' + w.failedPasses + ' were over 30 m. In the match engine every extra 10 m cuts the chance of a pass working by about 7 points when it starts near 80%.', example: 'Think of a centre-back bypassing midfield with a 35 m ball to a winger. Even when the direction is right, the receiver must control it while a full-back can attack the flight, so the move fails in several different ways.', fix: 'Ask for shorter passes: less direct play out from the back, or a slower tempo, or move a midfielder closer to the centre-backs.' });
-      else if (w.tight / w.failedPasses > 0.45) out.push({ title: 'The receivers had a defender close', body: w.tight + ' of the ' + w.failedPasses + ' passes that failed were to a player with a defender within 4 m. A defender right on top of the receiver takes a large bite out of the chance of the pass working, and the closer he is the bigger the bite.', example: 'Think of a midfielder checking toward the ball with an opponent on his shoulder. A pass to his feet looks available, but he has no room to turn and the defender can tackle on his first touch.', fix: 'Spread the players wider or deeper so each receiver has more room, or give the player on the ball an option that is not marked.' });
+      if (md > 26 || w.long / w.failedPasses > 0.4) out.push({ title: 'Long balls are costing you', body: w.long + ' of the ' + w.failedPasses + ' passes that failed went over 30 m, ' + Math.round(md) + ' m on average. The further it goes, the likelier it fails.', fix: 'Shorter passes, or a midfielder dropping closer to the back line.' });
+      else if (w.tight / w.failedPasses > 0.45) out.push({ title: 'Your receivers were marked', body: w.tight + ' of the ' + w.failedPasses + ' failed passes went to someone with a defender within 4 m.', fix: 'Spread out, or find the player who is not marked.' });
     }
     // 4. The opposition following a moved player.
-    if (w.followed / lost >= 0.25 && w.followed >= 3) out.push({ title: 'Their players followed yours', body: 'In ' + w.followed + ' of the ' + lost + ' losses, an opposition player had followed one of the players you moved and was close to the ball when it was lost (' + pc(w.followed / lost) + '). Following is a chance, not a rule, and it is larger for a team that presses hard.', example: 'Imagine your midfielder dropping beside the centre-backs. Their marker follows him, so the short pass is no longer free—but the space the marker left behind is now open for somebody else.', fix: 'You can accept that and use the space they leave behind, or move the player less far so that the chance of being followed falls.' });
-    // 5. The danger of where.
+    if (w.followed / lost >= 0.25 && w.followed >= 3) out.push({ title: 'They followed your moved players', body: 'In ' + w.followed + ' of the ' + lost + ' losses a defender had followed one of the players you moved, and he was right there when it went wrong.', fix: 'Move him less far, or use the space the defender leaves behind.' });
+    // 5. Where it hurts.
     const near = (w.zones.lostNear || 0) + (w.zones.lostOwn || 0);
-    if (near / lost >= 0.6) out.push({ title: 'Most of the losses were close to your own goal', body: pc(near / lost) + ' of them were in your own third. Those are the most dangerous: the opposition had a shot in ' + w.shots + ' of the ' + lost + ' losses (' + pc(w.shots / lost) + ').', example: 'The dangerous pattern is a square pass across the edge of your own box being intercepted. The opponent then receives facing goal, with your defenders spread for possession rather than set to defend.', fix: w.failedPasses && w.long / w.failedPasses > 0.5 ? 'Most of the failed passes were long, so a short, safe first pass nearer the goalkeeper should help more than another long one.' : 'Build with a safe option nearer the goalkeeper, or play the ball long and early over the press, instead of passing across your own box.' });
+    if (near / lost >= 0.6) out.push({ title: 'It hurts where it happens', body: pc(near / lost) + ' of the losses were in your own third, and they got a shot after ' + w.shots + ' of them.', fix: 'Play a safe short pass near the keeper, so the first pass is not a gamble.' });
     // 6. A string of passes.
     const ps = r.passStats;
     if (ps && ps.perTest >= 4 && ps.rate > 0.5) {
-      const k = Math.round(ps.perTest), chain = Math.pow(ps.rate, k);
-      out.push({ title: 'Why a good pass success rate still loses the ball', body: 'Your players tried ' + ps.perTest.toFixed(1) + ' passes per test and completed ' + pc(ps.rate) + ' of them (the match engine had given them an average chance of ' + pc(ps.expected) + ' each, so the tests agree with the model). But a build-up is a chain: if each of ' + k + ' passes works ' + pc(ps.rate) + ' of the time, all ' + k + ' work only ' + pc(chain) + ' of the time.', example: 'A familiar match pattern is goalkeeper to centre-back, across to the other centre-back, into midfield, back out to a full-back, and then forward. Every pass looks sensible, but asking the move to survive all five gives the press five chances to stop it.', fix: 'The fewer passes it takes to reach halfway, the fewer chances to lose it. A shorter route or a longer first pass cuts the chain.' });
+      const n = Math.round(ps.perTest), chain = Math.pow(ps.rate, n);
+      out.push({ title: 'Even good passing leaks', body: 'You complete ' + pc(ps.rate) + ' of your passes, but you play about ' + n + ' a test. All ' + n + ' working is only ' + pc(chain) + '.', fix: 'Fewer passes to get out means fewer chances to lose it.' });
     }
     return { findings: out, lost };
   };

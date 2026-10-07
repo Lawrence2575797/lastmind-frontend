@@ -80,7 +80,7 @@
       moved.forEach((p) => { const a = posB(p), b = pos(p); s += `<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="#F2C14E" stroke-width="3" marker-end="url(#ivA)"/>`; });
       // passing preferences, for a player who has any, as if he had the ball where he stands
       if (SCEN[stage].has) {
-        const seen = {};
+        const seen = {}, passLines = [];
         team.players.forEach((p) => {
           const ctx = FM.rulesCtx(team, P.now.get(p), true, true);   // drawn as if he is being pressed, which is when passing instructions matter most
           const eff = FM.rulesActive(team, p, ctx); if (!eff.some((e) => /^pass|freeMan/.test(e.type))) return;
@@ -96,9 +96,11 @@
             out.push({ t, adj });
           });
           out.sort((a, b) => b.adj - a.adj);
-          out.filter((o) => o.adj > 0.4).slice(0, 2).forEach((o) => { const a = pos(p), b = pos(o.t); s += `<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="#7fd49a" stroke-width="2.4" marker-end="url(#ivG)"/>`; seen[p.number + '>' + o.t.number] = 1; lines.push(surname(p) + ' looks for ' + surname(o.t) + ' first.'); });
-          out.slice().reverse().filter((o) => o.adj < -0.8).slice(0, 2).forEach((o) => { const a = pos(p), b = pos(o.t); s += `<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="#ff7a5c" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#ivR)"/>`; lines.push(surname(p) + ' is steered away from passing to ' + surname(o.t) + '.'); });
+          out.filter((o) => o.adj > 0.4).slice(0, 2).forEach((o) => { const a = pos(p), b = pos(o.t); s += `<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="#7fd49a" stroke-width="2.4" marker-end="url(#ivG)"/>`; seen[p.number + '>' + o.t.number] = 1; passLines.push(surname(p) + ' looks for ' + surname(o.t) + ' first.'); });
+          out.slice().reverse().filter((o) => o.adj < -0.8).slice(0, 2).forEach((o) => { const a = pos(p), b = pos(o.t); s += `<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="#ff7a5c" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#ivR)"/>`; passLines.push(surname(p) + ' is steered away from passing to ' + surname(o.t) + '.'); });
         });
+        passLines.slice(0, 3).forEach((l) => lines.push(l));
+        if (passLines.length > 3) lines.push('And ' + (passLines.length - 3) + ' more passes like those.');
       }
       // everyone: our players (moved ones brighter), then the opponents who are mentioned
       team.players.forEach((p) => { const a = pos(p), mv = moved.indexOf(p) >= 0; s += `<circle cx="${a.x.toFixed(1)}" cy="${a.y.toFixed(1)}" r="${mv ? 10 : 8}" fill="${team.kit ? team.kit.shirt : '#c0392b'}" stroke="${mv ? '#F2C14E' : (team.kit ? team.kit.number : '#fff')}" stroke-width="${mv ? 3 : 1.5}" opacity="${mv ? 1 : 0.8}"/><text x="${a.x.toFixed(1)}" y="${(a.y + 4).toFixed(1)}" text-anchor="middle" font-size="10.5" font-weight="800" fill="${team.kit ? team.kit.number : '#fff'}" font-family="sans-serif">${p.number}</text>`; });

@@ -171,7 +171,7 @@
     const box = el('oppMind'); if (!box) return;
     const log = m.oppLog || [], stageName = { prematch: 'Before kick-off', halftime: 'Half-time', goal_for: 'After their goal', goal_against: 'After your goal', checkin: 'Check-in' };
     box.parentNode.hidden = !log.length;
-    box.innerHTML = log.slice().reverse().map((e, i) => `<div class="om${i ? ' old' : ''}"><b>${e.minute}' ${esc(stageName[e.stage] || 'Check-in')}</b><span class="omsrc">${e.source === 'ai' ? 'their manager' : 'from the figures'}</span><p>${esc(e.rationale || '')}</p>${e.unchanged ? '<p class="omsub">No change to their plan.</p>' : ''}${e.scouted && e.scouted.length && i === log.length - 1 ? '<ul>' + e.scouted.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul>' : ''}${e.rules && e.rules.length ? '<details><summary>Their instructions</summary>' + e.rules.map((r) => '<p class="omsub">' + esc(r) + '</p>').join('') + '</details>' : ''}</div>`).join('');
+    box.innerHTML = log.slice().reverse().map((e, i) => `<div class="om${i ? ' old' : ''}"><b>${e.minute}' ${esc(stageName[e.stage] || 'Check-in')}</b><span class="omsrc">${e.source === 'ai' ? 'their manager' : 'from the figures'}</span><p>${esc(e.rationale || '')}</p>${e.alternative ? '<p class="omsub">' + esc(e.alternative) + '</p>' : ''}${e.unchanged ? '<p class="omsub">No change to their plan.</p>' : ''}${e.scouted && e.scouted.length && i === log.length - 1 ? '<ul>' + e.scouted.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul>' : ''}${e.rules && e.rules.length ? '<details><summary>Their instructions</summary>' + e.rules.map((r) => '<p class="omsub">' + esc(r) + '</p>').join('') + '</details>' : ''}</div>`).join('');
   }
   function updateHud() {
     const m = world.match, home = m.home, away = m.away;

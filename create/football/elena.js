@@ -150,56 +150,80 @@
       '.iv-pitch { display: block; width: 100%; max-width: 360px; margin: 6px auto; height: auto; border-radius: 10px; } .iv-chips { display: flex; flex-wrap: wrap; gap: 6px; } .iv-chips .el-go { width: auto; margin: 0; padding: 7px 12px; }',
       '.iv-key { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: .74rem; opacity: .85; margin: 4px 0 8px; } .iv-key .k { display: inline-block; width: 16px; height: 0; margin-right: 4px; vertical-align: middle; border-top: 3px solid #F2C14E; } .iv-key .k.g { border-color: #7fd49a; } .iv-key .k.r { border-top: 3px dashed #ff7a5c; } .iv-key .k.o { border-top: 3px dashed #FF9F43; } .iv-key .k.p { border-top: 3px dotted #c8a2ff; }',
       '.iv-lines { margin: 0 0 10px; padding-left: 18px; font-size: .86rem; } .iv-lines li { margin-bottom: 4px; }',
+      '.el-term { border: 0; border-bottom: 1px dotted #F2C14E; background: transparent; color: #F2C14E; font: inherit; padding: 0; cursor: pointer; } .el-term i { margin-left: 3px; padding: 0 4px; font-size: .68em; font-style: normal; border: 1px solid currentColor; border-radius: 50%; opacity: .85; vertical-align: 2px; }',
+      '.el-defbox { margin: 4px 0 12px; padding: 9px 12px; border-left: 3px solid #F2C14E; border-radius: 0 8px 8px 0; background: rgba(242,193,78,.1); font-size: .85rem; line-height: 1.5; } .el-link { border: 0; background: transparent; color: #F2C14E; font: inherit; text-decoration: underline; cursor: pointer; padding: 0 4px; }',
+      '.el-big { font-size: 1.02rem; line-height: 1.5; } .el-rows { margin: 4px 0; } .el-more { margin: 6px 0; font-size: .86rem; } .el-more summary { cursor: pointer; opacity: .85; }',
       'body.el-open { padding-right: min(456px, 100vw); } @media (max-width: 1000px) { body.el-open { padding-right: 16px; } }',
     ].join('\n');
     document.head.appendChild(e);
   }
 
+  // ---------- the little ? buttons: concepts are explained next to the word, on request, not taught in the middle of what she says ----------
+  const TERMS = {
+    sample: ['sampling variation', 'Two sets of tests never come out the same, even with nothing changed, because luck moves a few passes each time. That wobble is sampling variation.', 'chance'],
+    interval: ['95% interval', 'The range the true share most likely sits in. Run it again and you would land somewhere else inside it, which is why one number on its own would overpromise. Wider means less sure; four times the tests halves it.', 'range'],
+    pvalue: ['p-value', 'How often luck alone would give a gap this big if nothing had really changed. Small means "probably not luck". It is not the chance that you are right.', 'real'],
+    free: ['free man', 'A team-mate with nobody close to him. A pass to him is the one the press cannot cut out.', null],
+    press: ['press', 'Players closing the ball down quickly, to win it back high up the pitch before the other side settles.', null],
+    sitoff: ['sit off', 'The opposite of pressing: keep a compact shape, shut the middle of the pitch and the lanes to the full-backs, and let the other side have the ball in their own half.', null],
+    lane: ['lane', 'The line between the passer and the receiver. If a defender is stood on it, the pass is much harder to complete.', null],
+    chain: ['pass chain', 'A build-up is several passes in a row and every one has to work. Nine in ten, eight times over, is only 43%.', null],
+    midblock: ['mid-block', 'A defence that waits around the halfway line in a tight shape, not chasing the ball but closing the middle.', null],
+    overload: ['overload', 'More of your players than theirs in one area, so someone is always free.', null],
+    shadow: ['cover shadow', 'The space behind a defender that he hides from the ball by standing in the passing line.', null],
+  };
+  const TERM_RE = [['pvalue', /p-value/i], ['interval', /95% interval|\binterval\b/i], ['sample', /sampling variation/i], ['free', /free man|unmarked player/i], ['sitoff', /sit(?:s|ting)? off/i], ['midblock', /mid-block/i], ['shadow', /cover shadow/i], ['overload', /overload/i], ['chain', /pass chain|string of passes/i], ['lane', /\blanes?\b/i], ['press', /\bpress(?:ing|es)?\b/i]];
+  const T = (id, label) => '<button type="button" class="el-term" data-term="' + id + '">' + esc(label || TERMS[id][0]) + '<i>?</i></button>';
+  // Puts a ? button on the first use of each concept in a piece of already-escaped text (never inside a tag or an existing button).
+  function termify(html, used) {
+    used = used || {};
+    let inBtn = false;
+    return html.split(/(<[^>]+>)/).map((seg) => {
+      if (seg.charAt(0) === '<') { if (/^<button/i.test(seg)) inBtn = true; else if (/^<\/button/i.test(seg)) inBtn = false; return seg; }
+      if (inBtn) return seg;
+      TERM_RE.forEach(([id, re]) => { if (used[id]) return; seg = seg.replace(re, (m) => { used[id] = 1; return T(id, m); }); });
+      return seg;
+    }).join('');
+  }
+  const P = (text, used) => termify(esc(text), used);
+
   // ---------- what she says about the run on screen ----------
   const go = (id, label) => '<button type="button" class="el-go" data-lesson="' + id + '">Lesson: ' + esc(label) + '</button>';
-  // ---------- the press and the free man ----------
   const WORD = () => FM.lab.words, PLU = () => FM.lab.plural;
   const nm = (p) => { try { return FM.shortName(p); } catch (e) { return p.name; } };
-  const level = (x) => (x < 0.35 ? 'lightly' : x < 0.6 ? 'moderately' : 'hard');
+  const level = (x) => (x < 0.35 ? 'lightly' : x < 0.6 ? 'fairly hard' : 'very hard');
   const list = (a) => (a.length <= 1 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]);
-  const who = (p) => WORD()[p.group] + ' ' + nm(p) + ' (#' + p.number + ')';
+  const sur = (p) => nm(p);
   // Before any test: what their press would do to the way you have set up, and where your spare man is.
   function setupText(c) {
     if (!c.team) return '';
     let s; try { s = FM.lab.setup(c.team, c.opp, c.tac); } catch (e) { return ''; }
-    const tac = c.tac || c.opp.tactics, pb = tac.pressBuildUp == null ? 0.4 : tac.pressBuildUp, pg = tac.pressing == null ? 0.5 : tac.pressing;
-    let h = '<h4>Your plan against their press</h4>';
-    h += '<p>' + esc(c.opp.name) + ' press your build-up ' + level(pb) + ' and press ' + level(pg) + ' in general, so I expect about ' + (s.nPress + 1) + ' of their players to be involved in it.</p>';
-    h += '<div class="el-box"><p><b>Who I expect to go to whom</b></p><p>Closing down the ball: their ' + who(s.chaser) + '.</p>' + s.pairs.map((x) => '<p>Their ' + who(x.def) + ' goes to your ' + who(x.att) + '.</p>').join('') + '</div>';
-    const live = (c.team.rules || []).filter((r) => !r.off);
-    if (live.length) h += '<div class="el-box"><p><b>Your instructions</b></p>' + live.map((r) => '<p><b>' + esc(FM.rulesWho(r)) + ':</b> ' + esc(FM.rulesText(r)) + '</p>').join('') + '</div>';
-    if (s.freeAtt.length) h += '<p><b>Left free:</b> your ' + list(s.freeAtt.map(who)) + '. A pass to any of them has no one on top of him.</p>';
-    if (s.freeDef.length) h += '<p><b>Not pressing anyone:</b> their ' + list(s.freeDef.map(who)) + '. To mark one of your free players they would have to leave their own positions, which opens space behind them.</p>';
+    const tac = c.tac || c.opp.tactics, pb = tac.pressBuildUp == null ? 0.4 : tac.pressBuildUp;
+    const used = {};
+    let h = '<h4>How they might come at you</h4>';
+    h += '<p>' + P(c.opp.name + ' press your build-up ' + level(pb) + '. If they stick to their jobs, ' + sur(s.chaser) + ' goes to the ball' + (s.pairs.length ? ', ' + list(s.pairs.slice(0, 3).map((x) => sur(x.def) + ' picks up ' + sur(x.att))) : '') + '.', used) + '</p>';
     const B = s.back.length, K = s.backPressers.length;
-    h += '<p>In your own third it is <b>' + B + ' of yours against ' + K + ' of theirs</b>' + (B > K ? ', so you have ' + (B - K === 1 ? 'a spare man' : (B - K) + ' spare men') + ' there if the press goes to plan.' : B === K ? ', so they have one for each of you.' : ', so they outnumber you there.') + '</p>';
-    h += '<p>None of this is certain. A player on a press does not always follow his job, and a team that presses harder follows its jobs more often. Each test draws that again every few seconds, which is what the run will count.</p>';
+    if (s.freeAtt.length) h += '<p>' + P('That leaves ' + list(s.freeAtt.slice(0, 4).map(sur)) + ' as a free man. In your own third it is ' + B + ' of yours against ' + K + ' of theirs' + (B > K ? ', so you should have ' + (B - K === 1 ? 'a spare one' : (B - K) + ' spare') + '.' : '.'), used) + '</p>';
+    const live = (c.team.rules || []).filter((r) => !r.off && (!r.when || !r.when.stage || r.when.stage.indexOf('build') >= 0));
+    if (live.length) h += '<p class="el-small">Your build-up instructions: ' + live.map((r) => esc(FM.rulesText(r))).join(' ') + '</p>';
+    h += '<p class="el-small">Players do not always do what they are told, so each test draws it again.</p>';
     return h;
   }
-  // After a run: what the tests did with that plan.
+  // After a run: what the tests did with that plan, in a couple of lines.
   function pressText(r, c) {
     const p = r.press; if (!p || !p.n) return '';
-    const jobs = Object.keys(p.jobs).map((k) => ({ k, n: p.jobs[k] })).filter((x) => x.n >= p.n * 0.15).sort((a, b) => b.n - a.n).slice(0, 4);
-    const W = WORD();
-    let h = '<h4>The press and your free man</h4>';
-    h += '<p>You played the first pass under 30 m in <b>' + pc(p.shortFirst / p.n) + '</b> of tests (' + p.shortFirst + ' of ' + p.n + ')' + (p.longFirst ? ', and over 30 m in ' + p.longFirst + '.' : '.') + '</p>';
-    if (jobs.length) h += '<p>Their jobs, at the moment of the first pass: ' + list(jobs.map((x) => { const a = x.k.split('>'); return 'a ' + W[a[0]] + ' went to your ' + W[a[1]] + ' in ' + pc(x.n / p.n) + ' of tests'; })) + '.</p>';
-    if (p.freeSeen + p.noFree) h += '<p>At the first pass you had at least one unmarked player available in <b>' + pc(p.freeSeen / (p.freeSeen + p.noFree)) + '</b> of tests.</p>';
-    const nF = p.toFree, nM = p.toMarked;
+    const used = {}, nF = p.toFree, nM = p.toMarked;
+    let h = '<h4>The free man</h4>';
+    h += '<p>' + P('You went short with the first pass ' + pc(p.shortFirst / p.n) + ' of the time' + (p.freeSeen + p.noFree ? ', and a free man was there in ' + pc(p.freeSeen / (p.freeSeen + p.noFree)) + ' of the tests.' : '.'), used) + '</p>';
     if (nF + nM >= 10) {
       const rf = nF ? p.beatFree / nF : 0, rm = nM ? p.beatMarked / nM : 0;
-      h += '<div class="el-box"><p>The first pass went to an unmarked player in <b>' + nF + '</b> tests and to a marked one in <b>' + nM + '</b>.</p>' +
-        '<p>When it went to an unmarked player the ball reached halfway in <b>' + pc(rf) + '</b> (' + p.beatFree + ' of ' + nF + '). When it went to a marked player: <b>' + pc(rm) + '</b> (' + p.beatMarked + ' of ' + nM + ').</p>';
+      let s = 'When you found him, ' + pc(rf) + ' got out (' + p.beatFree + ' of ' + nF + '). When you passed to a marked player, ' + pc(rm) + ' did (' + p.beatMarked + ' of ' + nM + ').';
+      let sig = '';
       if (nF >= 8 && nM >= 8) {
-        const mk = (k, n) => ({ n, f: { k, p: k / n } });
-        const cm = FM.lab.compare(mk(p.beatFree, nF), mk(p.beatMarked, nM), 'f');
-        h += '<p>' + (cm.p < 0.05 ? 'That gap is bigger than luck usually makes it (p = ' + cm.p.toFixed(3) + '), so the free man really helped.' : 'With only ' + nM + ' tests in the smaller group, that gap could easily be luck (p = ' + cm.p.toFixed(3) + '). Run more tests to find out.') + '</p>';
+        const mk = (k, n) => ({ n, f: { k, p: k / n } }), cm = FM.lab.compare(mk(p.beatFree, nF), mk(p.beatMarked, nM), 'f');
+        sig = cm.p < 0.05 ? ' That gap is real: the p-value is ' + cm.p.toFixed(3) + '. The free man helps.' : ' But with this few tests that could just be luck (p-value ' + cm.p.toFixed(2) + ').';
       }
-      h += '</div>' + go('real', 'Is the difference real?');
+      h += '<p>' + P(s + sig, used) + '</p>';
     }
     return h;
   }
@@ -207,80 +231,69 @@
   function replayText(r) {
     if (!r.clips || !r.clips.length) return '';
     if (!E.clipKey || !r.clips.find((x) => x.key === E.clipKey)) E.clipKey = r.clips[0].key;
-    return '<h4>Watch it happen</h4><p>These are real tests from this run, kept exactly as they played out. Yellow arrows are passes that came off, red dashed ones are passes that were lost, orange dashed lines show who their players had gone to, and a green ring marks one of your players with nobody on him.</p>' +
-      '<div class="rp-pick">' + r.clips.map((x) => '<button type="button" class="el-go' + (x.key === E.clipKey ? ' primary' : '') + '" data-clip="' + x.key + '">' + esc(x.label) + '</button>').join('') + '</div><div id="elReplay" class="rp"></div>';
+    return '<h4>Watch it happen</h4><div class="rp-pick">' + r.clips.map((x) => '<button type="button" class="el-go' + (x.key === E.clipKey ? ' primary' : '') + '" data-clip="' + x.key + '">' + esc(x.label) + '</button>').join('') + '</div><div id="elReplay" class="rp"></div>';
   }
-  const OUT_ROWS = [['beat', 'Beat the press', 'Reached the halfway line with the ball'], ['lostNear', 'Lost it near your own goal', 'Within 25 m of your goal'], ['lostOwn', 'Lost it in your own third', 'Between 25 m and the edge of the third'], ['lostMid', 'Lost it in midfield', 'Before reaching halfway'], ['still', 'Still building at 40 seconds', 'Neither won nor lost'], ['shot', 'Opposition shot within 15 s of winning it', 'Of all the tests, not just the ones you lost it in']];
+  const OUT_ROWS = [['beat', 'Got out clean', 'Reached halfway with the ball'], ['lostNear', 'Lost it near your goal', 'Within 25 m'], ['lostOwn', 'Lost it in your third', 'Out to the edge of it'], ['lostMid', 'Lost it in midfield', 'Before halfway'], ['still', 'Still going at 40 s', 'Neither won nor lost'], ['shot', 'They had a shot', 'Within 15 s of winning it']];
   const bar = (v) => '<div class="el-bar"><i style="left:' + (v.lo * 100).toFixed(1) + '%;width:' + Math.max(1, (v.hi - v.lo) * 100).toFixed(1) + '%"></i><b style="left:' + (v.p * 100).toFixed(1) + '%"></b></div>';
   function resultsText(r, last, n) {
-    let h = '<h4>The results of run ' + n + '</h4>' + OUT_ROWS.map(([k, l, note]) => { const v = r[k]; return '<div class="el-row"><div class="el-rl"><b>' + esc(l) + '</b><small>' + esc(note) + '</small></div><div class="el-rv"><b>' + pc(v.p) + '</b><small>' + v.k + ' of ' + r.n + ' · ' + pc(v.lo) + ' to ' + pc(v.hi) + '</small></div>' + bar(v) + '</div>'; }).join('');
-    h += '<p class="el-small">' + r.n + ' tests. The bar is the 95% interval and the white line is the share found.' + (r.time ? ' When the ball did reach halfway it took ' + r.time.mean.toFixed(1) + ' s on average (standard deviation ' + r.time.sd.toFixed(1) + ' s over ' + r.time.n + ' tests: how far a typical test sits from that average).' : '') + ' Your players completed ' + r.passes.mean.toFixed(1) + ' passes per test.</p>';
-    if (last.hyp) h += '<p><b>Your hypothesis then:</b> ' + esc(last.hyp) + '</p>';
-    if (last.changes && last.changes.length) h += '<p><b>Changed since the run before:</b> ' + esc(last.changes.join('; ')) + '.</p>';
+    const p = r.beat.p, used = {};
+    const say = p >= 0.75 ? 'Lovely. ' : p >= 0.55 ? 'Not bad. ' : p >= 0.4 ? 'Hmm, that is close to a coin flip. ' : 'Ouch. ';
+    let h = '<p class="el-big">' + esc(say) + r.beat.k + ' out of ' + r.n + ' got out clean' + (r.time ? ', in ' + r.time.mean.toFixed(1) + ' seconds on average' : '') + '.</p>';
+    if (last.pred !== '' && last.pred != null) {
+      const v = r.beat, q = last.pred / 100, ok = q >= v.lo && q <= v.hi;
+      h += '<p>' + P(ok ? 'You said ' + last.pred + '%. That is inside the 95% interval (' + pc(v.lo) + ' to ' + pc(v.hi) + '), so I cannot say you were wrong.' : 'You said ' + last.pred + '%. We found ' + pc(v.p) + ', and that is outside the 95% interval (' + pc(v.lo) + ' to ' + pc(v.hi) + '). Your picture of this build-up was off, and the reasons are just below.', used) + '</p>';
+    }
+    h += '<div class="el-rows">' + OUT_ROWS.map(([k, l, note]) => { const v = r[k]; return '<div class="el-row"><div class="el-rl"><b>' + esc(l) + '</b><small>' + esc(note) + '</small></div><div class="el-rv"><b>' + pc(v.p) + '</b><small>' + v.k + ' of ' + r.n + '</small></div>' + bar(v) + '</div>'; }).join('') + '</div>';
+    h += '<p class="el-small">' + P('The bar is the 95% interval, and the white line is the share we found.', used) + '</p>';
+    if (last.hyp) h += '<p><b>You said:</b> ' + esc(last.hyp) + '</p>';
+    if (last.changes && last.changes.length) h += '<p class="el-small"><b>Changed since last time:</b> ' + esc(last.changes.join('; ')) + '.</p>';
     return h;
   }
   function compareTable(A, B, a, b) {
-    const rows = [['beat', 'Beat the press'], ['lost', 'Lost possession (anywhere)'], ['lostNear', 'Lost it near your own goal'], ['shot', 'Opposition shot']];
-    return '<table class="el-tbl"><tr><th>Measure</th><th>Run ' + (a + 1) + '</th><th>Run ' + (b + 1) + '</th><th>Difference</th><th>p</th></tr>' + rows.map(([k, l]) => { const c2 = FM.lab.compare(A, B, k); return '<tr><td>' + l + '</td><td>' + pc(A[k].p) + '</td><td>' + pc(B[k].p) + '</td><td><b>' + (c2.diff >= 0 ? '+' : '') + Math.round(c2.diff * 100) + '</b><small>' + Math.round(c2.lo * 100) + ' to ' + Math.round(c2.hi * 100) + '</small></td><td>' + (c2.p < 0.001 ? '&lt; 0.001' : c2.p.toFixed(3)) + '</td></tr>'; }).join('') + '</table>';
+    const rows = [['beat', 'Got out clean'], ['lost', 'Lost it'], ['lostNear', 'Lost it near your goal'], ['shot', 'They had a shot']];
+    return '<table class="el-tbl"><tr><th></th><th>Run ' + (a + 1) + '</th><th>Run ' + (b + 1) + '</th><th>Change</th><th>p</th></tr>' + rows.map(([k, l]) => { const c2 = FM.lab.compare(A, B, k); return '<tr><td>' + l + '</td><td>' + pc(A[k].p) + '</td><td>' + pc(B[k].p) + '</td><td><b>' + (c2.diff >= 0 ? '+' : '') + Math.round(c2.diff * 100) + '</b><small>' + Math.round(c2.lo * 100) + ' to ' + Math.round(c2.hi * 100) + '</small></td><td>' + (c2.p < 0.001 ? '&lt; 0.001' : c2.p.toFixed(3)) + '</td></tr>'; }).join('') + '</table>';
   }
-  // What their manager made of you and what he did about it, for the run on screen.
+  // What their manager made of you, as Elena would tell it.
   function theirPlanText(last) {
     const p = last.oppPlan; if (!p) return '';
-    return '<h4>Their manager</h4><div class="el-box"><p><b>' + (p.source === 'ai' ? 'They have prepared for you:' : 'The figures suggest:') + '</b> ' + esc(p.rationale || 'They are sticking with their plan.') + '</p>' +
-      (p.scouted && p.scouted.length ? '<p>' + p.scouted.map(esc).join('<br>') + '</p>' : '') +
-      (p.rules && p.rules.length ? '<p><b>Their instructions for this run</b></p>' + p.rules.map((r) => '<p class="el-small">' + esc(r) + '</p>').join('') : '<p class="el-small">No special instructions: they set up as they normally do.</p>') +
-      (p.note ? '<p class="el-small">' + esc(p.note) + '</p>' : '') + '</div>';
+    const used = {};
+    let h = '<h4>What their manager is thinking</h4><p>He is telling himself: "' + P(p.rationale || 'Stick with how we normally play.', used) + '"</p>';
+    if (p.alternative) h += '<p class="el-small">' + P(p.alternative, used) + '</p>';
+    if (p.note) h += '<p class="el-small">' + esc(p.note) + '</p>';
+    if (p.rules && p.rules.length) h += '<details class="el-more"><summary>His instructions</summary>' + p.rules.map((r) => '<p class="el-small">' + esc(r) + '</p>').join('') + '</details>';
+    return h;
   }
   function intro(c) {
-    const opp = c.opp;
-    return '<p>I am Elena, the club analyst. Nobody can say how a build-up will go from one attempt: on any one try a pass might work or not, and a defender might step up or not. So we play the same set-up many times and count how often each thing happens.</p>' +
+    const used = {};
+    return '<p class="el-big">Hi, I am Elena. Let us find out how your build-up really does.</p>' +
+      '<p>' + P('One try tells us nothing: a pass comes off or it does not, a defender steps up or he does not. So we play the same set-up 100 times and count. That is how we get past sampling variation.', used) + '</p>' +
       setupText(c) +
-      '<p>Before you run anything, make a prediction. Out of 100 tests against ' + esc(opp.name) + ', how many do you think will reach the halfway line with the ball?</p>' +
-      '<h4>How each decision is made</h4>' +
-      '<p>Every pass has its own chance of working. It comes from the passer\'s passing rating, the distance, how clear the lane is, and how close a defender is to the receiver. As a rough guide, a 10 m pass to a free team-mate works about nine times in ten, and a 35 m pass through traffic nearer six in ten.</p>' +
-      '<p>Which pass a player chooses is a weighted choice too. Your settings make some options more likely, but nothing is certain, and a calmer player (higher composure) picks the favoured option more reliably.</p>' +
-      '<p>One test is one chain of those chances. A build-up of eight passes that each work nine times in ten works all the way only about 43% of the time. So one test tells you almost nothing, and we count over many tests and give a range, not one number.</p>' +
-      go('chance', 'Why one try tells you almost nothing');
+      '<p><b>Before you press Run, have a guess:</b> out of 100 tries against ' + esc(c.opp.name) + ', how many get out of your half with the ball?</p>';
   }
   function reading(c) {
-    const runs = c.runs, last = runs[runs.length - 1], r = last.result, n = runs.length;
-    let h = '<p><b>My reading of run ' + n + '.</b></p>' + resultsText(r, last, n);
-    // the prediction
-    if (last.pred !== '' && last.pred != null) {
-      const v = r.beat, p = last.pred / 100, ok = p >= v.lo && p <= v.hi;
-      h += '<h4>Your prediction</h4><div class="el-box"><p>You predicted <b>' + last.pred + '%</b>. The tests found <b>' + pc(v.p) + '</b>, with a 95% interval of ' + pc(v.lo) + ' to ' + pc(v.hi) + '.</p>' +
-        '<p>' + (ok ? 'Your prediction is inside that range, so these tests give no reason to doubt it. It does not prove it was right: other numbers inside the range would pass the same way.' : 'Your prediction is outside that range, so luck alone is unlikely to explain the gap. Your picture of how this build-up behaves was off, and the findings below may show where.') + '</p></div>' + go('range', 'Giving a share a range');
-    }
-    h += theirPlanText(last) + pressText(r, c) + replayText(r);
-    // why it went wrong
+    const runs = c.runs, last = runs[runs.length - 1], r = last.result, n = runs.length, used = {};
+    let h = resultsText(r, last, n);
+    // what went wrong: three things at most, each a sentence and something to try
     const ex = FM.lab.explain(r, {}), w = r.why, lostN = r.lost.k;
-    h += '<h4>What went wrong</h4>';
-    if (!w) h += '<p>This run was saved before I could break the losses down. Run it again and I will explain what went wrong.</p>';
-    else if (!lostN) h += '<p>You kept the ball in every test, so there are no losses to explain. A failure that happens one time in fifty will not show up in a run of 20, so a harder opponent or more tests may show some.</p>';
-    else if (!ex.findings.length) h += '<p>You lost it in ' + lostN + ' of ' + r.n + ' tests. That is too few to find a pattern: with so few losses, one or two unlucky tests can look like a reason. Run it with more tests and the pattern will appear or fade.</p>';
-    else h += '<p>Here is why the ' + lostN + ' build-ups went wrong. Each reason comes from those ' + lostN + ' tests, so the numbers can differ from one run to the next.</p>' + ex.findings.map((f) => '<div class="el-box"><p><b>' + esc(f.title) + '</b></p><p>' + esc(f.body) + '</p>' + (f.example ? '<p><b>What that looks like in a match:</b> ' + esc(f.example) + '</p>' : '') + '<p class="el-try"><b>What you could try:</b> ' + esc(f.fix) + '</p></div>').join('');
-    // how sure
-    const half = Math.round(98 / Math.sqrt(r.n));
-    h += '<h4>How sure the number is</h4><p>With ' + r.n + ' tests the range on a share near 50% is about ' + half + ' points either way. To halve it you would need four times as many tests.</p>' + (r.time ? '<p>When the ball did reach halfway it took ' + r.time.mean.toFixed(1) + ' s on average (standard deviation ' + r.time.sd.toFixed(1) + ' s over ' + r.time.n + ' tests). The standard deviation is how far a typical test sits from that average.</p>' : '');
+    if (!w) h += '<p>This run was saved before I could break the losses down. Run it again and I will tell you what happened.</p>';
+    else if (!lostN) h += '<p>You kept it every time. A failure that happens one in fifty will not show in a run of 20, so a harder opponent or more tests might find some.</p>';
+    else if (!ex.findings.length) h += '<p>You only lost it ' + lostN + ' times, which is too few for me to see a pattern. A couple of unlucky tests can look like a reason. Run more and it will show or fade.</p>';
+    else h += '<h4>What I saw</h4>' + ex.findings.slice(0, 3).map((f) => '<div class="el-box"><p><b>' + esc(f.title) + '.</b> ' + P(f.body, used) + '</p><p class="el-try">Try: ' + P(f.fix, used) + '</p></div>').join('');
+    h += theirPlanText(last) + pressText(r, c) + replayText(r);
     // the comparison
-    if (n >= 2) h += '<h4>Is the difference real?</h4><div class="el-cmp"><label>Run<select id="elA">' + runs.map((x, i) => '<option value="' + i + '"' + (i === c.a ? ' selected' : '') + '>Run ' + (i + 1) + ': ' + pc(x.result.beat.p) + ' beat the press</option>').join('') + '</select></label><label>Compared with<select id="elB">' + runs.map((x, i) => '<option value="' + i + '"' + (i === c.b ? ' selected' : '') + '>Run ' + (i + 1) + ': ' + pc(x.result.beat.p) + ' beat the press</option>').join('') + '</select></label></div>';
+    if (n >= 2) h += '<h4>Has anything really changed?</h4><div class="el-cmp"><label>Run<select id="elA">' + runs.map((x, i) => '<option value="' + i + '"' + (i === c.a ? ' selected' : '') + '>Run ' + (i + 1) + ': ' + pc(x.result.beat.p) + ' got out</option>').join('') + '</select></label><label>against<select id="elB">' + runs.map((x, i) => '<option value="' + i + '"' + (i === c.b ? ' selected' : '') + '>Run ' + (i + 1) + ': ' + pc(x.result.beat.p) + ' got out</option>').join('') + '</select></label></div>';
     if (n >= 2 && c.a !== c.b && runs[c.a] && runs[c.b]) {
-      const A = runs[c.a].result, B = runs[c.b].result, cb = FM.lab.compare(A, B, 'beat'), sig = cb.p < 0.05;
-      h += compareTable(A, B, c.a, c.b) + '<div class="el-box"><p>Between run ' + (c.a + 1) + ' and run ' + (c.b + 1) + ', beating the press moved by <b>' + (cb.diff >= 0 ? '+' : '') + Math.round(cb.diff * 100) + ' points</b>. The 95% interval for that difference is ' + Math.round(cb.lo * 100) + ' to ' + Math.round(cb.hi * 100) + ', and the p-value is <b>' + cb.p.toFixed(3) + '</b>.</p>' +
-        '<p>' + (cb.lo < 0 && cb.hi > 0 ? 'The interval runs from below zero to above it, so "no difference at all" is one of the plausible answers. ' : 'The interval does not include zero. ') +
-        'If the two set-ups were really the same, luck alone would give a gap this big in about ' + Math.round(cb.p * 100) + '% of pairs of runs. ' + (sig ? 'That is below the 5% line, so this is evidence of a real difference. Check that you changed one thing only, and that the change makes football sense.' : 'That is not below the 5% line, so these runs do not show a real difference. That is not the same as showing there is none.' + (cb.need ? ' If the gap is real and this size, about ' + cb.need + ' tests of each set-up would show it reliably.' : '')) + '</p></div>' +
-        go('real', 'Is the difference real?') + go('level', 'How small must the p-value be?') + go('matters', 'Significant is not the same as important') +
-        '<p style="margin-top:10px">You can compare four measures in that table. The more of them you look at, the likelier it is that one crosses the line by luck, so decide which one you are testing before you look.</p>';
-    } else if (n >= 2) h += '<p>Choose two different runs above and I will tell you what the comparison shows.</p>';
-    else h += '<p>Pick one of those ideas, change only that on the board or the sliders, and write what you expect to happen. Then run it again and we can ask whether the difference is real.</p>';
-    h += '<p>Write your hypothesis in the box above the Run button: what you will change, and what you think will happen because of it.</p>';
-    h += '<h4>All your runs</h4><p class="el-small">' + runs.map((x, i) => 'Run ' + (i + 1) + ': ' + x.n + ' tests, ' + pc(x.result.beat.p) + ' beat the press').join('<br>') + '</p><button type="button" class="el-go" data-clear="1">Clear the runs</button>';
+      const A = runs[c.a].result, B = runs[c.b].result, cb = FM.lab.compare(A, B, 'beat'), sig = cb.p < 0.05, d = Math.round(cb.diff * 100), u2 = {};
+      h += compareTable(A, B, c.a, c.b) + '<p>' + P((d === 0 ? 'No movement at all between them. ' : 'Run ' + (c.b + 1) + ' is ' + Math.abs(d) + ' points ' + (d > 0 ? 'better' : 'worse') + '. ') + (sig ? 'And that is real: the p-value is ' + cb.p.toFixed(3) + ', so luck alone would rarely do that.' : 'But I would not read much into it: the p-value is ' + cb.p.toFixed(2) + ', and luck alone does that about ' + Math.round(cb.p * 100) + '% of the time.' + (cb.need ? ' You would want about ' + cb.need + ' tests of each to be sure.' : '')), u2) + '</p>' + go('real', 'Is the difference real?');
+    } else if (n >= 2) h += '<p>Pick two different runs and I will tell you what changed.</p>';
+    else h += '<p>Next: change one thing, say what you expect in the box above Run, and run it again. Then we can see if it made a difference.</p>';
+    h += '<p class="el-small">' + runs.map((x, i) => 'Run ' + (i + 1) + ': ' + pc(x.result.beat.p)).join(' · ') + '</p><button type="button" class="el-go" data-clear="1">Clear the runs</button>';
     return h;
   }
   // ---------- the lessons, one step at a time ----------
   function lessonList() {
     const done = loadDone();
-    return '<p>Each lesson starts with a question about a coach called Dani. Work out the answer first and I will explain it after.</p>' + LESSONS.map((L, i) => '<button type="button" class="el-go" data-lesson="' + L.id + '">' + (i + 1) + '. ' + esc(L.title) + (done[L.id] ? '<span class="el-tick">✓ done</span>' : '') + '</button>').join('');
+    return '<p>Each one starts with a question about a coach called Dani. Have a proper go before I say anything: you will remember it better.</p>' + LESSONS.map((L, i) => '<button type="button" class="el-go" data-lesson="' + L.id + '">' + (i + 1) + '. ' + esc(L.title) + (done[L.id] ? '<span class="el-tick">✓ done</span>' : '') + '</button>').join('');
   }
   function lessonStep() {
     const L = LESSONS.find((x) => x.id === E.lesson), s = L.steps[E.step], S = E.state;
@@ -296,44 +309,47 @@
     }
     return h;
   }
-  // ---------- the instructions: what they do, drawn, and the assistant's review ----------
+  // ---------- the instructions: what they do, drawn, and what Elena honestly thinks ----------
   const hashOf = (t) => { let h = 5381; for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
   const liveRules = (team) => (team.rules || []).filter((r) => !r.off);
-  const ruleLines = (team) => liveRules(team).map((r) => FM.rulesWho(r) + ': ' + FM.rulesText(r));
+  // Only what applies in this stage (an instruction with no stage applies in all of them).
+  const forStage = (team, stage) => liveRules(team).filter((r) => !r.when || !r.when.stage || r.when.stage.indexOf(stage) >= 0);
+  const ruleLines = (team, stage) => forStage(team, stage).map((r) => FM.rulesWho(r) + ': ' + FM.rulesText(r));
+  const STAGE_WORD = { build: 'the build-up', final: 'the final third', transAtt: 'winning the ball', transDef: 'losing the ball', press: 'pressing them', without: 'defending' };
   function instrReading(c) {
-    const team = c.team, live = liveRules(team);
-    if (!live.length) return '<p>I am Elena, the club analyst. Write how you want the team to play in this stage in the box on the left, about any players, ours or theirs.</p><p>When you add them, I will draw what they do on the pitch, stage by stage: who stands where, who follows whom, where the ball is steered. Then I will tell you where they clash, where they leave you exposed, and what to try next.</p><p class="el-small">Instructions you write are also played by the opposition when you test your build-up, so anything you add here shows up in the lab.</p>';
-    const stage = c.stage || 'build', viz = FM.instrViz.draw(team, c.opp, stage);
-    let h = '<h4>What your instructions do in ' + esc(FM.instrViz.name(stage)) + '</h4>' + viz.svg +
-      '<div class="iv-key"><span><i class="k a"></i> moves here instead</span><span><i class="k g"></i> passes he looks for</span><span><i class="k r"></i> passes he avoids</span><span><i class="k o"></i> follows</span><span><i class="k p"></i> draws in</span></div>';
-    h += viz.lines.length ? '<ul class="iv-lines">' + viz.lines.map((l) => '<li>' + esc(l) + '</li>').join('') + '</ul>' : '<p class="el-small">In this stage your instructions do not move anyone from where he would have stood, so there is nothing to draw. The review below still covers the whole set.</p>';
-    // the review
-    const key = hashOf(ruleLines(team).join('|') + '|' + (c.opp ? c.opp.name : '')), rv = E.review && E.review.key === key ? E.review : null;
-    h += '<h4>My review</h4>';
-    if (rv && rv.busy) h += '<p>Reading your instructions…</p>';
+    const team = c.team, stage = c.stage || 'build', live = forStage(team, stage), name = STAGE_WORD[stage] || stage;
+    if (!live.length) return '<p class="el-big">Nothing written for ' + esc(name) + ' yet.</p><p>Tell the team what you want in the box. I will draw it on the pitch, and then I will tell you honestly what I think of it.</p><p class="el-small">Whatever you write here also plays out in the lab.</p>';
+    const viz = FM.instrViz.draw(team, c.opp, stage);
+    let h = '<h4>What it does in ' + esc(name) + '</h4>' + viz.svg +
+      '<div class="iv-key"><span><i class="k a"></i> moves here instead</span><span><i class="k g"></i> pass he looks for</span><span><i class="k r"></i> pass he avoids</span><span><i class="k o"></i> follows</span><span><i class="k p"></i> draws in</span></div>';
+    h += viz.lines.length ? '<ul class="iv-lines">' + viz.lines.slice(0, 5).map((l) => '<li>' + esc(l) + '</li>').join('') + '</ul>' : '<p class="el-small">In this stage nobody ends up anywhere different from where he would have stood, so there is nothing to draw. My notes below still count.</p>';
+    const key = hashOf(stage + '|' + ruleLines(team, stage).join('|') + '|' + (c.opp ? c.opp.name : '')), rv = E.review && E.review.key === key ? E.review : null;
+    h += '<h4>What I think</h4>';
+    if (rv && rv.busy) h += '<p>Hang on, I am reading through it…</p>';
     else if (rv && rv.err) h += '<p class="el-hint">' + esc(rv.err) + '</p><button type="button" class="el-go" data-review="1">Try again</button>';
     else if (rv && rv.data) {
-      const d = rv.data;
-      h += '<p>' + esc(d.summary) + '</p>';
-      if (d.effects.length) h += '<div class="el-box"><p><b>What each change does</b></p>' + d.effects.map((x) => '<p><b>' + esc(x.who) + ':</b> ' + esc(x.what) + '</p>').join('') + '</div>';
-      if (d.concerns.length) h += '<h4>Where it could go wrong</h4>' + d.concerns.map((x) => '<div class="el-box"><p><b>' + esc(x.title) + '</b></p><p>' + esc(x.why) + '</p><p class="el-try"><b>What you could change:</b> ' + esc(x.fix) + '</p></div>').join('');
-      else h += '<p class="el-small">I could not find a clash or a gap worth warning you about.</p>';
-      if (d.improvements.length) h += '<h4>What to try next</h4>' + d.improvements.map((x, i) => '<div class="el-box"><p><b>' + esc(x.title) + '</b></p><p>' + esc(x.suggestion) + '</p>' + (x.instruction ? '<p class="el-try">' + esc(x.instruction) + '</p><button type="button" class="el-go" data-use="' + i + '">Put this in the box</button>' : '') + '</div>').join('');
-      h += '<p class="el-small">Test it in the build-up lab to see whether it really works: the numbers decide, not my opinion.</p>';
-    } else h += '<button type="button" class="el-go primary" data-review="1">Ask Elena to review these instructions</button><p class="el-small">I read the whole set together, against ' + esc(c.opp ? c.opp.name : 'the next opponent') + '. It uses a few Locks.</p>';
+      const d = rv.data, used = {}, uses = [];
+      h += '<p class="el-big">' + P(d.summary, used) + '</p>';
+      h += d.concerns.map((x) => '<div class="el-box"><p><b>' + P(x.title, used) + '.</b> ' + P(x.why, used) + '</p>' + (x.fix ? '<p class="el-try">Try: ' + P(x.fix, used) + '</p>' : '') + '</div>').join('');
+      if (!d.concerns.length) h += '<p class="el-small">I could not find anything in it that worries me. Test it in the lab and let the numbers decide.</p>';
+      if (d.ifOpposite && d.ifOpposite.what) { if (d.ifOpposite.instruction) uses.push(d.ifOpposite.instruction); h += '<div class="el-box"><p><b>And if they do the opposite?</b> ' + P(d.ifOpposite.what, used) + '</p>' + (d.ifOpposite.instruction ? '<p class="el-try">' + esc(d.ifOpposite.instruction) + '</p><button type="button" class="el-go" data-use="' + (uses.length - 1) + '">Put this in the box</button>' : '') + '</div>'; }
+      d.improvements.forEach((x) => { if (x.instruction) uses.push(x.instruction); h += '<div class="el-box"><p><b>' + P(x.title, used) + '.</b> ' + P(x.suggestion, used) + '</p>' + (x.instruction ? '<p class="el-try">' + esc(x.instruction) + '</p><button type="button" class="el-go" data-use="' + (uses.length - 1) + '">Put this in the box</button>' : '') + '</div>'; });
+      rv.uses = uses;
+    } else h += '<button type="button" class="el-go primary" data-review="1">Ask Elena what she thinks</button><p class="el-small">I will read it against ' + esc(c.opp ? c.opp.name : 'the next opponent') + ', for ' + esc(name) + ' only. It costs a few Locks.</p>';
     return h;
   }
   async function requestReview() {
     const c = E.ctx; if (!c || !FM.api || (c.mode !== 'instr' && !c.instrStage)) return;
-    const lines = ruleLines(c.team); if (!lines.length) return;
-    const key = hashOf(lines.join('|') + '|' + (c.opp ? c.opp.name : ''));
+    const stage = c.mode === 'instr' ? c.stage : c.instrStage, lines = ruleLines(c.team, stage); if (!lines.length) return;
+    const key = hashOf(stage + '|' + lines.join('|') + '|' + (c.opp ? c.opp.name : ''));
     if (E.review && E.review.key === key && (E.review.busy || E.review.data)) return;
     E.review = { key, busy: true };
     if (E.open) paint();
+    let plan = null; try { if (FM.scout && window.FM_WORLD && FM_WORLD.league) { const p = FM.scout.plan1(FM.scout.profile(FM_WORLD.league)); plan = { plan: p.plan || '', rationale: p.rationale, alternative: p.alternative || '' }; } } catch (e) { plan = null; }
     try {
-      const data = await FM.api('/football/review-instructions', { formation: c.team.formationKey, squad: FM.squadOf(c.team), opponent: c.opp ? { name: c.opp.name, squad: FM.squadOf(c.opp) } : null, instructions: lines });
+      const data = await FM.api('/football/review-instructions', { stage, stageName: STAGE_WORD[stage] || stage, formation: c.team.formationKey, squad: FM.squadOf(c.team), opponent: c.opp ? { name: c.opp.name, squad: FM.squadOf(c.opp), plan } : null, instructions: lines });
       E.review = { key, data };
-    } catch (err) { E.review = { key, err: err.message || 'I could not review those just now.' }; }
+    } catch (err) { E.review = { key, err: err.message || 'I could not read through that just now.' }; }
     if (E.open && E.el) paint();
   }
   function body() {
@@ -370,7 +386,15 @@
       if (t.dataset.clip) { E.clipKey = t.dataset.clip; return paint(); }
       if (t.dataset.istage) { E.istage = t.dataset.istage; return paint(); }
       if (t.dataset.review) return requestReview();
-      if (t.dataset.use != null) { const x = E.review && E.review.data && E.review.data.improvements[+t.dataset.use]; if (x && FM.instrBox) FM.instrBox.fill(x.instruction); return; }
+      if (t.dataset.use != null) { const x = E.review && E.review.uses && E.review.uses[+t.dataset.use]; if (x && FM.instrBox) FM.instrBox.fill(x); return; }
+      if (t.dataset.term) {
+        const id = t.dataset.term, block = t.closest('p, li, .el-box, h4') || t, nxt = block.nextElementSibling;
+        if (nxt && nxt.classList.contains('el-defbox') && nxt.dataset.t === id) { nxt.remove(); return; }
+        el.querySelectorAll('.el-defbox').forEach((d) => d.remove());
+        const d = document.createElement('div'); d.className = 'el-defbox'; d.dataset.t = id; const T0 = TERMS[id];
+        d.innerHTML = '<b>' + esc(T0[0]) + '</b> ' + esc(T0[1]) + (T0[2] ? ' <button type="button" class="el-link" data-lesson="' + T0[2] + '">Teach me this</button>' : '');
+        block.parentNode.insertBefore(d, block.nextSibling); return;
+      }
       if (t.dataset.clear) { if (E.ctx.clearRuns) E.ctx.clearRuns(); return; }
       if (t.dataset.back) { E.lesson = null; return paint(); }
       const L = E.lesson && LESSONS.find((x) => x.id === E.lesson), s = L && L.steps[E.step];
