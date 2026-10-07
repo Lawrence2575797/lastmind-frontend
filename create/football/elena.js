@@ -253,14 +253,24 @@
     const rows = [['beat', 'Got out clean'], ['lost', 'Lost it'], ['lostNear', 'Lost it near your goal'], ['shot', 'They had a shot']];
     return '<table class="el-tbl"><tr><th></th><th>Run ' + (a + 1) + '</th><th>Run ' + (b + 1) + '</th><th>Change</th><th>p</th></tr>' + rows.map(([k, l]) => { const c2 = FM.lab.compare(A, B, k); return '<tr><td>' + l + '</td><td>' + pc(A[k].p) + '</td><td>' + pc(B[k].p) + '</td><td><b>' + (c2.diff >= 0 ? '+' : '') + Math.round(c2.diff * 100) + '</b><small>' + Math.round(c2.lo * 100) + ' to ' + Math.round(c2.hi * 100) + '</small></td><td>' + (c2.p < 0.001 ? '&lt; 0.001' : c2.p.toFixed(3)) + '</td></tr>'; }).join('') + '</table>';
   }
-  // What their manager made of you, as Elena would tell it.
-  function theirPlanText(last) {
-    const p = last.oppPlan; if (!p) return '';
-    const used = {};
-    let h = '<h4>What their manager is thinking</h4><p>He is telling himself: "' + P(p.rationale || 'Stick with how we normally play.', used) + '"</p>';
-    if (p.alternative) h += '<p class="el-small">' + P(p.alternative, used) + '</p>';
-    if (p.note) h += '<p class="el-small">' + esc(p.note) + '</p>';
-    if (p.rules && p.rules.length) h += '<details class="el-more"><summary>His instructions</summary>' + p.rules.map((r) => '<p class="el-small">' + esc(r) + '</p>').join('') + '</details>';
+  // How they set up the press against you, as it showed in the tests. Only what can be seen on the pitch: where they stood, who went to whom, and
+  // how you did against each way of pressing. Their manager's reasons, and his instructions, are never shown: you would not know them in real life.
+  const KIND_TEXT = { high: ['pressed high', 'their forwards up on your back line'], mid: ['sat in a mid-block', 'a compact shape around the halfway line'], low: ['dropped right off', 'deep in their own half'] };
+  function pressShapeText(r) {
+    const p = r.press; if (!p || !p.shapeN) return '';
+    const used = {}, N = p.shapeN, sh = p.shape, W = WORD();
+    const order = ['high', 'mid', 'low'].filter((k) => sh[k].n > 0).sort((a, b) => sh[b].n - sh[a].n);
+    let h = '<h4>How they pressed you</h4>';
+    h += '<p>' + P('They ' + order.map((k, i) => KIND_TEXT[k][0] + ' in ' + pc(sh[k].n / N) + ' of the tests' + (i === 0 ? ' (' + KIND_TEXT[k][1] + ')' : '')).join(', ' ).replace(/, ([^,]*)$/, ' and $1') + '.', used) + '</p>';
+    h += '<p>' + P('When you first played it, ' + (p.nearSum / N).toFixed(1) + ' of their players were within 25 m of the ball and the nearest was ' + (p.nearestSum / N).toFixed(1) + ' m away. Their last defender stood ' + Math.round(p.lastSum / N) + ' m from your goal.', used) + '</p>';
+    const jobs = Object.keys(p.jobs).map((k) => ({ k, n: p.jobs[k] })).filter((x) => x.n >= p.n * 0.3).sort((a, b) => b.n - a.n).slice(0, 2);
+    if (jobs.length) h += '<p>' + P('Who went to whom: ' + jobs.map((x) => { const a = x.k.split('>'); return 'a ' + W[a[0]] + ' went to your ' + W[a[1]] + ' in ' + pc(x.n / p.n) + ' of the tests'; }).join(', and ') + '.', used) + '</p>';
+    const seen = order.filter((k) => sh[k].n >= 8);
+    if (seen.length >= 2) {
+      const rates = seen.map((k) => KIND_TEXT[k][0].replace('pressed', 'the high press').replace('sat in a', 'the').replace('dropped right off', 'them dropping off') + ': ' + pc(sh[k].beat / sh[k].n)).join('; ');
+      const mk = (k) => ({ n: sh[k].n, f: { k: sh[k].beat, p: sh[k].beat / sh[k].n } }), cm = FM.lab.compare(mk(seen[0]), mk(seen[1]), 'f');
+      h += '<p>' + P('How often you got out against each: ' + rates + '. ' + (cm.p < 0.05 ? 'That difference is real (p-value ' + cm.p.toFixed(3) + ').' : 'But the p-value is ' + cm.p.toFixed(2) + ', so that could be luck.'), used) + '</p>';
+    }
     return h;
   }
   function intro(c) {
@@ -279,7 +289,7 @@
     else if (!lostN) h += '<p>You kept it every time. A failure that happens one in fifty will not show in a run of 20, so a harder opponent or more tests might find some.</p>';
     else if (!ex.findings.length) h += '<p>You only lost it ' + lostN + ' times, which is too few for me to see a pattern. A couple of unlucky tests can look like a reason. Run more and it will show or fade.</p>';
     else h += '<h4>What I saw</h4>' + ex.findings.slice(0, 3).map((f) => '<div class="el-box"><p><b>' + esc(f.title) + '.</b> ' + P(f.body, used) + '</p><p class="el-try">Try: ' + P(f.fix, used) + '</p></div>').join('');
-    h += theirPlanText(last) + pressText(r, c) + replayText(r);
+    h += pressShapeText(r) + pressText(r, c) + replayText(r);
     // the comparison
     if (n >= 2) h += '<h4>Has anything really changed?</h4><div class="el-cmp"><label>Run<select id="elA">' + runs.map((x, i) => '<option value="' + i + '"' + (i === c.a ? ' selected' : '') + '>Run ' + (i + 1) + ': ' + pc(x.result.beat.p) + ' got out</option>').join('') + '</select></label><label>against<select id="elB">' + runs.map((x, i) => '<option value="' + i + '"' + (i === c.b ? ' selected' : '') + '>Run ' + (i + 1) + ': ' + pc(x.result.beat.p) + ' got out</option>').join('') + '</select></label></div>';
     if (n >= 2 && c.a !== c.b && runs[c.a] && runs[c.b]) {
@@ -345,7 +355,11 @@
     if (E.review && E.review.key === key && (E.review.busy || E.review.data)) return;
     E.review = { key, busy: true };
     if (E.open) paint();
-    let plan = null; try { if (FM.scout && window.FM_WORLD && FM_WORLD.league) { const p = FM.scout.plan1(FM.scout.profile(FM_WORLD.league)); plan = { plan: p.plan || '', rationale: p.rationale, alternative: p.alternative || '' }; } } catch (e) { plan = null; }
+    let plan = null;
+    try {
+      const lr = (window.FM_WORLD && FM_WORLD.league && FM_WORLD.league.labRuns) || [], last = lr.length ? lr[lr.length - 1].result : null, p = last && last.press;
+      if (p && p.shapeN) { const sh = p.shape; plan = { rationale: 'In your last build-up test run they pressed high in ' + pc(sh.high.n / p.shapeN) + ' of the tests, sat in a mid-block in ' + pc(sh.mid.n / p.shapeN) + ' and dropped off in ' + pc(sh.low.n / p.shapeN) + '. Their last defender stood about ' + Math.round(p.lastSum / p.shapeN) + ' m from your goal.', alternative: '' }; }
+    } catch (e) { plan = null; }
     try {
       const data = await FM.api('/football/review-instructions', { stage, stageName: STAGE_WORD[stage] || stage, formation: c.team.formationKey, squad: FM.squadOf(c.team), opponent: c.opp ? { name: c.opp.name, squad: FM.squadOf(c.opp), plan } : null, instructions: lines });
       E.review = { key, data };

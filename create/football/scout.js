@@ -55,9 +55,9 @@
           alternative = 'We thought about sitting off them, but they give it away too often when pressed to let them settle.';
         } else {
           rules.push(
-            mk({ kind: 'line', line: 'attack' }, { stage: ['press'] }, [{ type: 'closeDown', delta: -0.8 }, { type: 'position', forward: -10, wide: 0, phase: 'without' }]),
-            mk({ kind: 'line', line: 'midfield' }, { stage: ['press'] }, [{ type: 'closeDown', delta: -0.3 }, { type: 'position', forward: -6, wide: 0, phase: 'without' }]),
-            mk({ kind: 'line', line: 'midfield' }, { stage: ['press'] }, [{ type: 'place', wm: { op: 'clamp', args: [{ attr: 'wm', of: { e: 'me' } }, 18, 50] }, weight: 0.6, phase: 'without' }]));
+            // While the ball is deep in the other half: the forwards wait at about the halfway line and the midfield behind them, and nobody chases.
+            mk({ kind: 'line', line: 'attack' }, { possession: 'without', zone: ['final_third'] }, [{ type: 'closeDown', delta: -0.8 }, { type: 'place', dm: { op: 'min', args: [{ attr: 'dm', of: { e: 'me' } }, 56] }, weight: 0.9, phase: 'without' }]),
+            mk({ kind: 'line', line: 'midfield' }, { possession: 'without', zone: ['final_third'] }, [{ type: 'closeDown', delta: -0.3 }, { type: 'place', dm: { op: 'min', args: [{ attr: 'dm', of: { e: 'me' } }, 46] }, weight: 0.85, phase: 'without' }, { type: 'place', wm: { op: 'clamp', args: [{ attr: 'wm', of: { e: 'me' } }, 18, 50] }, weight: 0.6, phase: 'without' }]));
           tactics.pressBuildUp = -0.3;
           said.push('They build out well, so pressing them would only get us beaten and leave space behind. We will sit off, keep the middle shut and the lanes to their full-backs closed, and let the keeper and centre-backs have it.');
           alternative = 'We thought about pressing them, but they pass their way out of pressure too well to risk it.';

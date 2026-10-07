@@ -69,12 +69,23 @@
     return { kind: 'other' };
   }
 
+  // Where their players stood when your first pass was played: how high they were pressing, and how many of them were near the ball.
+  // Distances are metres from YOUR goal line, so a small number means they are close to your goal.
+  function pressShape(match, u, o) {
+    const dir = u.attackDir, ball = match.ball;
+    const opps = o.players.filter((p) => p.group !== 'GK').map((p) => FM.toTeamSpace(dir, p.x, p.y).d * L).sort((a, b) => a - b);
+    const front = (opps[0] + opps[1]) / 2, last = opps[opps.length - 1];
+    const dists = o.players.map((p) => Math.hypot(p.x - ball.x, p.y - ball.y));
+    return { front: Math.round(front), last: Math.round(last), near: dists.filter((d) => d < 25).length, nearest: Math.round(Math.min.apply(null, dists) * 10) / 10, kind: front < 38 ? 'high' : front < 58 ? 'mid' : 'low' };
+  }
+
   // One trial. Returns { outcome, time, passes, bigChance, goal }.
   LAB.trial = function (league, userTeam, oppTeam, oppTactics, seed, opts) {
     const u = clone(userTeam), o = clone(oppTeam);
     o.rules = (opts.oppRules || []).map((r) => JSON.parse(JSON.stringify(r)));   // their manager's plan for this run
     o.phasePos = null;   // the test is always against the opposition as they normally set up, wherever their shirts were dragged on the board
     if (oppTactics) o.tactics = Object.assign({}, o.tactics, oppTactics);
+    Object.keys(opts.oppNudge || {}).forEach((k) => { if (o.tactics[k] != null) o.tactics[k] = clamp(o.tactics[k] + opts.oppNudge[k], 0, 1); });   // their manager's plan for the run (how hard they press)
     const match = FM.createMatch(u, o, seed);
     match.userId = u.id;
     FM.startBuildUpTrial(match, u, opts.start);
@@ -106,7 +117,7 @@
       FM.stepMatch(match, STEP);
       if (match.plan) planNow = match.plan;
       if (rec) { if (match.plan && match.plan.t !== planLogged) { planLogged = match.plan.t; rec.plan.push({ t: Math.round(match.plan.t * 100) / 100, pairs: match.plan.pairs.slice() }); } snap(); }
-      if (!firstPass) for (; firstSeen < match.events.length; firstSeen++) { const e = match.events[firstSeen]; if (e.type === 'pass' && e.team === u.id) { firstPass = { e, plan: planNow ? planNow.pairs.slice() : null, chase: null }; firstSeen++; break; } }
+      if (!firstPass) for (; firstSeen < match.events.length; firstSeen++) { const e = match.events[firstSeen]; if (e.type === 'pass' && e.team === u.id) { firstPass = { e, plan: planNow ? planNow.pairs.slice() : null, chase: null, shape: pressShape(match, u, o) }; firstSeen++; break; } }
       if (match.clock >= nextRoll) { roll(match.clock, false); nextRoll += RESPOND_EVERY; }
       const h = holder(match), t = match.clock;
       const d = FM.toTeamSpace(dir, match.ball.x, match.ball.y).d;
@@ -133,7 +144,7 @@
     if (firstPass) {
       const e = firstPass.e, to = byNum(u, e.to), from = byNum(u, e.from), pairs = firstPass.plan;
       const g = (team, n) => { const p = byNum(team, n); return p ? p.group : '?'; };
-      result.first = { dist: e.dist, ok: !!e.ok, toGroup: to ? to.group : '?', fromGroup: from ? from.group : '?', toNum: e.to, planned: !!pairs };
+      result.first = { dist: e.dist, ok: !!e.ok, toGroup: to ? to.group : '?', fromGroup: from ? from.group : '?', toNum: e.to, planned: !!pairs, shape: firstPass.shape };
       if (pairs) {
         result.first.toFree = !pairs.some((pr) => pr[1] === e.to);
         result.first.jobs = pairs.map((pr) => g(o, pr[0]) + '>' + g(u, pr[1]));
@@ -218,8 +229,9 @@
 
   // What happened at the first pass in every test: who the opposition had gone to, whether a free man was there, and whether he was used.
   LAB.reduceFirsts = function (list, n) {
-    const w = { n: list.length, jobs: {}, freeSeen: 0, toFree: 0, toMarked: 0, beatFree: 0, beatMarked: 0, shortFirst: 0, longFirst: 0, shortOk: 0, longOk: 0, freeGroups: {}, noFree: 0 };
+    const w = { n: list.length, jobs: {}, freeSeen: 0, toFree: 0, toMarked: 0, beatFree: 0, beatMarked: 0, shortFirst: 0, longFirst: 0, shortOk: 0, longOk: 0, freeGroups: {}, noFree: 0, shape: { high: { n: 0, beat: 0 }, mid: { n: 0, beat: 0 }, low: { n: 0, beat: 0 } }, shapeN: 0, frontSum: 0, lastSum: 0, nearSum: 0, nearestSum: 0 };
     list.forEach((f) => {
+      if (f.shape) { const sh = w.shape[f.shape.kind]; sh.n++; if (f.outcome === 'beat') sh.beat++; w.shapeN++; w.frontSum += f.shape.front; w.lastSum += f.shape.last; w.nearSum += f.shape.near; w.nearestSum += f.shape.nearest; }
       if (f.dist > 30) { w.longFirst++; if (f.ok) w.longOk++; } else { w.shortFirst++; if (f.ok) w.shortOk++; }
       if (!f.planned) return;
       const uniq = {}; (f.jobs || []).forEach((j) => { uniq[j] = (uniq[j] || 0) + 1; });
