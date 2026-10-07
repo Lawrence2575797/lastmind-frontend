@@ -5150,6 +5150,15 @@
     .create-proj .meta { font: 0.75rem Arial, sans-serif; opacity: 0.7; }
     .create-proj .badge { align-self: flex-start; padding: 2px 9px; border-radius: 999px; border: 1px solid currentColor; font: 800 0.62rem Arial, sans-serif; letter-spacing: 0.1em; text-transform: uppercase; }
     .create-proj .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    /* Saved projects use the same image-led cards as their Create gallery
+       starting points, so a Chancellor save still looks like the Economics
+       simulation it came from instead of turning into a plain text tile. */
+    .create-proj.create-proj-with-image { padding: 0; gap: 0; overflow: hidden; }
+    .create-proj.create-proj-with-image h3 { padding: 14px 16px 12px; }
+    .create-proj-image { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: rgba(128,128,128,.08); }
+    .create-proj.create-proj-with-image .meta { padding: 12px 16px 0; }
+    .create-proj.create-proj-with-image .badge { margin: 12px 16px 0; }
+    .create-proj.create-proj-with-image .row { padding: 0 16px 16px; margin-top: 12px; }
     .create-budget { margin-left: auto; padding: 6px 12px; border-radius: 999px; background: var(--panel); color: var(--text); font: 700 0.7rem Arial, sans-serif; letter-spacing: 0.04em; }
     .create-budget.warn { outline: 2px solid #c8664a; }
     .create-savebar { display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap; margin-top: 22px; }
@@ -11667,15 +11676,25 @@ SQIDAQAB
             createBindDuelBox(host);
             return;
         }
+        const projectImage = (p) => {
+            if (p.kind === 'chancellor') return { src: '/assets/create/chancellor.jpg', alt: 'A finance minister at a desk overlooking a city skyline at dusk' };
+            if (p.kind === 'football-manager') return { src: '/assets/create/football-manager.svg', alt: 'A football pitch seen from above with two teams in formation' };
+            if (p.kind === 'criminal-lawyer-career') return { src: '/assets/create/criminal-lawyer-career.jpg', alt: 'A criminal barrister walking through a wood-panelled courthouse corridor' };
+            if (p.kind === 'doctor-career' && p.track === 'psych') return { src: '/assets/create/psychology-career.jpg', alt: 'A clinical psychologist writing beside patient files' };
+            if (p.kind === 'doctor-career' && p.track === 'alevel') return { src: '/assets/create/doctor-career-alevel.jpg', alt: 'A doctor reviewing a patient file at a hospital nurses station' };
+            if (p.kind === 'doctor-career') return { src: '/assets/create/doctor-career-gcse.jpg', alt: 'A young doctor walking through a bright hospital corridor' };
+            return { src: '/assets/create/criminal-trial.jpg', alt: 'A defendant in the dock of an imagined courtroom' };
+        };
+        const projectImageHtml = (p) => { const image = projectImage(p); return `<img class="create-proj-image" src="${image.src}" alt="${escapeHtml(image.alt)}" loading="lazy">`; };
         const card = (p, isRef) => p.kind === 'doctor-career'
-            ? `<article class="create-proj"><h3>${escapeHtml(p.title)}</h3><div class="meta">Career${p.meta ? ' · ' + escapeHtml(p.meta) : ''}</div><div class="row"><button type="button" class="create-cta" data-doctor="${p.track}" style="padding:8px 18px;font-size:0.85rem;">Resume career</button></div></article>`
+            ? `<article class="create-proj create-proj-with-image"><h3>${escapeHtml(p.title)}</h3>${projectImageHtml(p)}<div class="meta">Career${p.meta ? ' · ' + escapeHtml(p.meta) : ''}</div><div class="row"><button type="button" class="create-cta" data-doctor="${p.track}" style="padding:8px 18px;font-size:0.85rem;">Resume career</button></div></article>`
             : p.kind === 'criminal-lawyer-career'
-            ? `<article class="create-proj"><h3>Criminal Lawyer Career</h3><div class="meta">Career${p.meta ? ' · ' + escapeHtml(p.meta) : ''}</div><div class="row"><button type="button" class="create-cta" data-career style="padding:8px 18px;font-size:0.85rem;">Resume career</button></div></article>`
+            ? `<article class="create-proj create-proj-with-image"><h3>Criminal Lawyer Career</h3>${projectImageHtml(p)}<div class="meta">Career${p.meta ? ' · ' + escapeHtml(p.meta) : ''}</div><div class="row"><button type="button" class="create-cta" data-career style="padding:8px 18px;font-size:0.85rem;">Resume career</button></div></article>`
             : p.kind === 'football-manager'
-            ? `<article class="create-proj"><h3>${escapeHtml(p.title)}</h3><div class="meta">Football manager${p.meta ? ' · ' + escapeHtml(p.meta) : ''} · saved in this browser</div><div class="row"><a class="create-cta" href="${escapeHtml(p.href || '/create/football/')}" style="padding:8px 18px;font-size:0.85rem;text-decoration:none;">Resume</a><button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button></div></article>`
+            ? `<article class="create-proj create-proj-with-image"><h3>${escapeHtml(p.title)}</h3>${projectImageHtml(p)}<div class="meta">Football manager${p.meta ? ' · ' + escapeHtml(p.meta) : ''} · saved in this browser</div><div class="row"><a class="create-cta" href="${escapeHtml(p.href || '/create/football/')}" style="padding:8px 18px;font-size:0.85rem;text-decoration:none;">Resume</a><button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button></div></article>`
             : p.kind === 'chancellor'
-            ? `<article class="create-proj"><h3>${escapeHtml(p.title)}</h3><div class="meta">Economics simulation${p.meta ? ' · ' + escapeHtml(p.meta) : ''} · saved in this browser</div><div class="row"><a class="create-cta" href="${escapeHtml(p.href || '/chancellor/')}" style="padding:8px 18px;font-size:0.85rem;text-decoration:none;">Resume</a><button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button></div></article>`
-            : `<article class="create-proj"><h3>${escapeHtml(p.title)}</h3>${p.isReference ? '<span class="badge">Reference example</span>' : ''}<div class="meta">Criminal trial${p.role ? ` · ${p.role === 'prosecution' ? 'Prosecution' : 'Defence'}` : ''}${p.minutes ? ` · ${p.minutes} min` : ''}${p.local ? ' · saved in this browser' : ''}</div><div class="row"><button type="button" class="create-secondary" data-open="${escapeHtml(p.id)}">${isRef ? 'Open a copy' : 'Open'}</button><button type="button" class="create-secondary" data-play="${escapeHtml(p.id)}">Playtest</button><button type="button" class="create-secondary" data-duel="${escapeHtml(p.id)}" title="Play one side while a friend plays the other">Two-player</button>${isRef ? '' : `<button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button>`}</div></article>`;
+            ? `<article class="create-proj create-proj-with-image"><h3>${escapeHtml(p.title)}</h3>${projectImageHtml(p)}<div class="meta">Economics simulation${p.meta ? ' · ' + escapeHtml(p.meta) : ''} · saved in this browser</div><div class="row"><a class="create-cta" href="${escapeHtml(p.href || '/chancellor/')}" style="padding:8px 18px;font-size:0.85rem;text-decoration:none;">Resume</a><button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button></div></article>`
+            : `<article class="create-proj create-proj-with-image"><h3>${escapeHtml(p.title)}</h3>${projectImageHtml(p)}${p.isReference ? '<span class="badge">Reference example</span>' : ''}<div class="meta">Criminal trial${p.role ? ` · ${p.role === 'prosecution' ? 'Prosecution' : 'Defence'}` : ''}${p.minutes ? ` · ${p.minutes} min` : ''}${p.local ? ' · saved in this browser' : ''}</div><div class="row"><button type="button" class="create-secondary" data-open="${escapeHtml(p.id)}">${isRef ? 'Open a copy' : 'Open'}</button><button type="button" class="create-secondary" data-play="${escapeHtml(p.id)}">Playtest</button><button type="button" class="create-secondary" data-duel="${escapeHtml(p.id)}" title="Play one side while a friend plays the other">Two-player</button>${isRef ? '' : `<button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button>`}</div></article>`;
         host.innerHTML = `
             ${createDuelBoxHtml()}
             <div class="create-projects-head"><span></span><button type="button" class="create-cta" id="createProjectBtn" style="padding:10px 22px;font-size:0.9rem;">+ Create project</button></div>
