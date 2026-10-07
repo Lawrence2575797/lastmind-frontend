@@ -464,7 +464,19 @@
       const beat = tac.beatPress == null ? 0.5 : tac.beatPress, ot = other(match, team).tactics;
       const oppPress = 0.6 * (ot.pressBuildUp == null ? 0.4 : ot.pressBuildUp) + 0.4 * pressingNow(match, other(match, team));
       const pressure = clamp((oppPress - 0.4) / 0.45, 0, 1);
-      if (pressure > 0) options.forEach((o) => { if (o.kind === 'pass' && o.d >= 28 && (o.tx - carrier.x) * team.attackDir > 15 && o.score > -3) o.score += beat * (FM.BEAT_K || 2.5) * pressure * (0.4 + o.p) * (0.4 + 0.6 * directness); });
+      // ...but nobody hoofs it away while a team-mate is standing in the clear close by: the long ball is for when the short ones are closed.
+      const freeClose = options.some((o) => o.kind === 'pass' && o.d < 26 && o.p >= 0.82 && o.press >= 6 && o.score > -3);
+      if (pressure > 0) options.forEach((o) => { if (o.kind === 'pass' && o.d >= 28 && (o.tx - carrier.x) * team.attackDir > 15 && o.score > -3) o.score += beat * (FM.BEAT_K || 2.5) * pressure * (0.4 + o.p) * (0.4 + 0.6 * directness) * (freeClose ? 0.25 : 1); });
+    }
+    // The sensible pass. With a team-mate open and safe close by, a long pass that is much less likely to arrive is not the choice a player
+    // makes, whatever the team's settings: the settings decide between sensible passes, they do not make a bad one good.
+    {
+      let bestOpen = null;
+      options.forEach((o) => { if (o.kind === 'pass' && o.d < 28 && o.p >= 0.8 && o.press >= 6 && o.score > -3 && (!bestOpen || o.p > bestOpen.p)) bestOpen = o; });
+      if (bestOpen) options.forEach((o) => {
+        if (o.kind !== 'pass' || o.d < bestOpen.d + 10 || o.p > bestOpen.p - 0.08) return;
+        o.score -= (FM.SENSIBLE_PEN == null ? 1.6 : FM.SENSIBLE_PEN) * clamp((o.d - bestOpen.d - 8) / 14, 0, 1) * clamp((bestOpen.p - o.p) / 0.3 + 0.35, 0, 1) * (1 - 0.5 * directness);
+      });
     }
 
     const { opp: nearOpp, d: nearD } = nearestOpponent(match, team, carrier);
