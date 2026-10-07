@@ -1988,6 +1988,9 @@
     .math-shortcut-editor .frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin: 0 0.2em; font-size: 0.82em; line-height: 1.15; }
     .math-shortcut-editor .frac-num { padding: 0 0.2em 0.12em; border-bottom: 1.5px solid var(--text); }
     .math-shortcut-editor .frac-den { padding: 0.12em 0.2em 0; }
+    .math-shortcut-editor .root { display: inline-flex; align-items: flex-start; vertical-align: baseline; white-space: nowrap; }
+    .math-shortcut-editor .root-symbol { flex: none; font-family: "Cambria Math", "STIX Two Math", "Times New Roman", serif; font-style: normal; color: var(--accent); line-height: 1.15; }
+    .math-shortcut-editor .root-radicand { display: inline-block; min-width: 0.45em; min-height: 1em; margin-left: -0.04em; padding: 0.02em 0.1em 0; border-top: 1.5px solid var(--text); font-family: inherit; font-size: 1em; font-style: normal; line-height: inherit; color: inherit; }
     /* The prime sits clear of the slanted f: upright, a little to the right, at the height of an exponent */
     .func-primes, .math-shortcut-editor .func-primes { color: var(--text); font-family: "Cambria Math", "STIX Two Math", "Times New Roman", serif; font-style: normal; font-size: 1.1em; margin-left: 0.14em; letter-spacing: 0.04em; }
     .math-shortcut-editor .int-limits { display: inline-flex; flex-direction: column; align-items: flex-start; vertical-align: middle; margin-left: 0.1em; font-size: 0.65em; line-height: 1.1; }
@@ -4140,7 +4143,8 @@
     .nb-assist-body { flex: 1; overflow-y: auto; padding: 12px 16px; display: grid; align-content: start; gap: 10px; }
     .nb-msg { max-width: 92%; padding: 9px 12px; border-radius: 12px; white-space: pre-wrap; } .nb-msg.me { justify-self: end; background: rgba(230,215,176,.2); } .nb-msg.ai { justify-self: start; background: rgba(255,255,255,.07); } .nb-msg p { margin: 0 0 8px; white-space: normal; } .nb-msg p:last-child { margin: 0; }
     .nb-tool.on { box-shadow: inset 0 -3px 0 #E6D7B0; }
-    .nb-sr-btn, .nb-sr-btn:hover { margin-left: auto; flex: none; background: #1A232D; color: #F1EAD6; border: 1px solid #1A232D; font-weight: 800; }
+    #nbHistBtn { margin-left: auto; } #nbSrBtn, #nbSrBtn:hover { margin-left: 0; }
+    .nb-sr-btn, .nb-sr-btn:hover { flex: none; background: #1A232D; color: #F1EAD6; border: 1px solid #1A232D; font-weight: 800; }
     .nb-sr-btn:hover { background: #26333f; }
     .nb-tool.nb-sr-btn.on { box-shadow: 0 0 0 2px #E6D7B0, 0 0 0 4px #1A232D; }
     .nb-sr-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 10px; padding: 10px 14px; border: 1px solid rgba(230,215,176,.55); border-radius: 10px; background: rgba(230,215,176,.14); font: 14px/1.4 Arial, sans-serif; }
@@ -19857,7 +19861,7 @@ SQIDAQAB
         [K('_'), 'Starts a subscript, such as x₁. Leave it the same way as a power.'],
         [K('/'), 'Makes a fraction. After a number it uses that number as the top (3/ gives 3 over a box). After a closing bracket it uses everything inside the brackets as the top.'],
         [K('*'), 'Types a multiplication sign ×.'],
-        [K('~'), 'Types a square root √.'],
+        [K('~'), 'Starts a square root. Its top line grows across anything typed inside it; press ' + K('→') + ' or ' + K('Tab') + ' to leave it.'],
         [K('Caps Lock') + ' + ' + K('~'), 'Types a root with a small box for the index, such as a cube root. Press ' + K('Space') + ' to leave the box.'],
         [K('Shift') + ' + a letter', 'Types the Greek letter for it (Shift+A gives α). With Caps Lock on you get the capital.'],
         [K('&lt;=') + ' ' + K('&gt;=') + ' ' + K('!='), 'Typed as two keys, these turn into ≤, ≥ and ≠.'],
@@ -19882,7 +19886,7 @@ SQIDAQAB
     // ─── Maths layout helpers, shared by both maths editors (Notes and the Maths Tool use createSmartAnswerEditor; lesson answer boxes use
     // createMathShortcutEditor). A new line that starts with a Space lines its first character up with the right-hand side of the "=" on the line
     // directly above, so a derivation reads down the page; only that one line above is looked at, never any earlier line.
-    const MATHS_ZONES = 'sup, sub, .frac, .mx, .int-limits, .root-n';
+    const MATHS_ZONES = 'sup, sub, .frac, .mx, .int-limits, .root, .root-n';
     const MATHS_BLOCK = /^(DIV|P|UL|OL|H1|H2|H3|LI)$/;
     function mathsAlignToEquals(editor) {
         const sel = window.getSelection();
@@ -20103,8 +20107,15 @@ SQIDAQAB
             const sel = window.getSelection();
             if (!sel.rangeCount || !sel.isCollapsed) return null;
             const caret = sel.getRangeAt(0);
+            const caretHost = caret.startContainer.nodeType === 1 ? caret.startContainer : caret.startContainer.parentElement;
+            // A wrapped visual line does not necessarily insert whitespace in
+            // Range#toString. Restrict the search to the current structural
+            // line so a fraction on a child arrow can never absorb the arrow
+            // or the final word on its parent line.
+            let lineRoot = caretHost && caretHost.closest ? caretHost.closest('.nb-arrow-step, .nb-plain-line, li, p, h1, h2, h3, div') : null;
+            if (!lineRoot || lineRoot === editor || !editor.contains(lineRoot)) lineRoot = editor;
             const before = document.createRange();
-            before.selectNodeContents(editor); before.setEnd(caret.startContainer, caret.startOffset);
+            before.selectNodeContents(lineRoot); before.setEnd(caret.startContainer, caret.startOffset);
             const text = before.toString();
             // A numerator is the full uninterrupted term. Zero-width caret
             // landing characters and separate styled spans must not split 5y,
@@ -20112,7 +20123,7 @@ SQIDAQAB
             const match = text.match(/[0-9A-Za-zΑ-ω.\u200b]+$/);
             if (!match || !match[0].replace(/\u200b/g, '')) return null;
             let remaining = text.length - match[0].length, startNode = null, startOffset = 0;
-            const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+            const walker = document.createTreeWalker(lineRoot, NodeFilter.SHOW_TEXT);
             for (let node = walker.nextNode(); node; node = walker.nextNode()) {
                 if (remaining <= node.textContent.length) { startNode = node; startOffset = remaining; break; }
                 remaining -= node.textContent.length;
@@ -20138,6 +20149,20 @@ SQIDAQAB
             const inner = document.createRange();
             if (hasNum) inner.setStart(den.firstChild, 1); else inner.setStart(num.firstChild, 1);
             inner.collapse(true);
+            sel.removeAllRanges(); sel.addRange(inner);
+        }
+        function insertSquareRoot() {
+            const sel = window.getSelection();
+            if (!sel.rangeCount) return;
+            const range = sel.getRangeAt(0); range.deleteContents();
+            const root = document.createElement('span'); root.className = 'root';
+            const symbol = document.createElement('span'); symbol.className = 'root-symbol'; symbol.textContent = '√';
+            const radicand = document.createElement('span'); radicand.className = 'root-radicand';
+            const inside = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL); radicand.appendChild(inside);
+            root.appendChild(symbol); root.appendChild(radicand);
+            const landing = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL);
+            const frag = document.createDocumentFragment(); frag.appendChild(root); frag.appendChild(landing); range.insertNode(frag);
+            const inner = document.createRange(); inner.setStart(inside, 1); inner.collapse(true);
             sel.removeAllRanges(); sel.addRange(inner);
         }
         function currentFracPart() {
@@ -20409,7 +20434,21 @@ SQIDAQAB
                 return;
             }
 
-            if (writingMode) return; // plain typing — every key behaves like an ordinary textarea.
+            if (writingMode) {
+                // English text can be entered inside a square root. At the
+                // right edge, Right Arrow/Tab leaves the root instead of
+                // extending its overbar into the text that follows.
+                const writingRoot = closestClass('root-radicand');
+                if (writingRoot && (ev.key === 'ArrowRight' || ev.key === 'Tab')) {
+                    const selection = window.getSelection();
+                    if (selection.rangeCount && selection.isCollapsed) {
+                        const remainder = document.createRange(); remainder.selectNodeContents(writingRoot);
+                        const caret = selection.getRangeAt(0); remainder.setStart(caret.startContainer, caret.startOffset);
+                        if (!remainder.toString().replace(/\u200b/g, '')) { ev.preventDefault(); caretAfterNode(writingRoot.parentNode); }
+                    }
+                }
+                return; // otherwise plain typing behaves like an ordinary textarea.
+            }
             if (ev.key === 'Enter' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) mathsClearClonedAlign(editor);
             if (ev.key === ' ' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && mathsAlignToEquals(editor)) { ev.preventDefault(); return; }
 
@@ -20450,7 +20489,7 @@ SQIDAQAB
             if (ev.key === '~') {
                 ev.preventDefault();
                 const capsOn = ev.getModifierState && ev.getModifierState('CapsLock');
-                if (capsOn) insertRootWithIndex(); else insertStyledSymbol('√');
+                if (capsOn) insertRootWithIndex(); else insertSquareRoot();
                 return;
             }
             if (ev.key === '(' || ev.key === ')') { ev.preventDefault(); insertMathBracket(ev.key); return; }
@@ -20480,6 +20519,10 @@ SQIDAQAB
                 if (zw && zw.nodeType === 3 && zw.textContent.length > 1 && zw.textContent.charAt(0) === MATH_SHORTCUT_ZWS_GLOBAL) zw.textContent = zw.textContent.slice(1);
                 caretAfterNode(rootIndex.parentNode);
                 return;
+            }
+            const rootRadicand = closestClass('root-radicand');
+            if (rootRadicand && (ev.key === 'ArrowRight' || ev.key === 'Tab')) {
+                ev.preventDefault(); caretAfterNode(rootRadicand.parentNode); return;
             }
             const zone = currentZone();
             if (zone && (ev.key === 'ArrowRight' || ev.key === ' ')) { ev.preventDefault(); exitZoneAfter(zone); return; }
@@ -20527,6 +20570,10 @@ SQIDAQAB
             if (node.classList && node.classList.contains('root-n')) {
                 const index = serializeChildren(node.querySelector('.root-index'));
                 return index ? `^(${index})√` : '√';
+            }
+            if (node.classList && node.classList.contains('root')) {
+                const radicand = serializeChildren(node.querySelector('.root-radicand'));
+                return radicand ? `√(${radicand})` : '√';
             }
             if (node.classList && node.classList.contains('mx')) {
                 const cols = Number(node.dataset.cols) || 1;
@@ -20609,7 +20656,7 @@ SQIDAQAB
     function notesStatus(text) { const el = document.getElementById('nbStatus'); if (el) el.textContent = text; }
     function notesFlush() {
         if (notesSaveTimer) { clearTimeout(notesSaveTimer); notesSaveTimer = null; }
-        try { if (typeof nbSrCapture === 'function' && document.getElementById('nbCanvas')) nbSrCapture(notesNode(notes.activeId)); } catch (_) { /* revision bookkeeping never blocks a save */ }
+        try { if (typeof nbSrCapture === 'function' && document.getElementById('nbCanvas')) { const pg = notesNode(notes.activeId); nbHistoryCapture(pg); nbSrCapture(pg); } } catch (_) { /* revision bookkeeping never blocks a save */ }
         notesStatus(notesPersist() ? 'Saved' : 'Could not save: this browser has no space left');
     }
     function notesScheduleSave() {
@@ -20960,6 +21007,7 @@ SQIDAQAB
         });
     }
     function nbTextShortcuts(editable) {
+        nbGuardEditable(editable);
         const syncForks = () => nbSyncArrowForks(editable);
         let applyingDotShortcut = false;
         const noteLineAt = (node) => {
@@ -21266,7 +21314,7 @@ SQIDAQAB
         el.querySelector('.nb-body').appendChild(ed.container);
         ed.setHtml(block.html || '');
         // Each box remembers its own keyboard. A box with maths in it opens on the maths keyboard, so it is never spell-checked as prose.
-        const hasMaths = /math-symbol|class="frac|<sup|<sub|root-n|class="mx|int-limits/.test(block.html || '');
+        const hasMaths = /math-symbol|class="frac|<sup|<sub|class="root|class="mx|int-limits/.test(block.html || '');
         ed.setWritingMode(typeof block.writing === 'boolean' ? block.writing : hasMaths ? false : notesWriting);
         ready = true;
         if (typeof block.writing !== 'boolean') block.writing = ed.isWritingMode();
@@ -21612,7 +21660,7 @@ SQIDAQAB
         if (notesAssist.open) setOpen(true);
         clearInterval(notesAssist.watch); notesAssist.watch = setInterval(() => { if (!document.getElementById('nbCanvas')) nbAssistTeardown(); }, 700);
     }
-    function nbAssistTeardown() { clearInterval(notesAssist.watch); document.getElementById('nbSrPop')?.remove(); document.getElementById('nbSrModal')?.remove(); document.getElementById('nbAssist')?.remove(); document.getElementById('nbAssistTab')?.remove(); const ci = document.getElementById('contentInner'); if (ci) ci.style.paddingRight = ''; }
+    function nbAssistTeardown() { clearInterval(notesAssist.watch); document.getElementById('nbSrPop')?.remove(); document.getElementById('nbHistPop')?.remove(); document.getElementById('nbSrModal')?.remove(); document.getElementById('nbAssist')?.remove(); document.getElementById('nbAssistTab')?.remove(); const ci = document.getElementById('contentInner'); if (ci) ci.style.paddingRight = ''; }
 
     // ─── Revision: a quiz on what you wrote, the day after, then spaced by how well you did ───
     // Every page quietly records which lines were written on which day (page.sr.days). Turning revision on adds a five-question quiz for each day
@@ -21768,6 +21816,103 @@ SQIDAQAB
         nbSrCapture(page); nbSrRefresh(page);
     }
 
+    // ─── Keeping notes safe ───
+    // Layer 1: a typing shortcut must never wipe a text box. If one keystroke (with nothing selected) makes a box lose most of its writing, the box is put back
+    // exactly as it was a moment before and a message says so. Layer 2: every page keeps earlier versions, taken before any big loss and every ten minutes of
+    // writing, which can be restored from the History button beside the page title.
+    function nbPlainLen(el) { return (el.textContent || '').replace(/[​\s]/g, '').length; }
+    function nbGuardEditable(editable) {
+        if (editable._nbGuard) return; editable._nbGuard = true;
+        let stable = { html: editable.innerHTML, len: nbPlainLen(editable) }, allow = 0, restoring = false;
+        const allowFor = () => { allow = Date.now() + 600; };
+        editable.addEventListener('beforeinput', (e) => {
+            const s = window.getSelection();
+            if (/^(delete|history|insertFrom|insertReplacement)/.test(e.inputType || '') || (s && s.rangeCount && !s.isCollapsed)) allowFor();
+        });
+        editable.addEventListener('keydown', (e) => { if (/^(Backspace|Delete)$/.test(e.key) || ((e.ctrlKey || e.metaKey) && /^[xzy]$/i.test(e.key))) allowFor(); });
+        editable.addEventListener('cut', allowFor); editable.addEventListener('drop', allowFor);
+        new MutationObserver(() => {
+            if (restoring) return;
+            const len = nbPlainLen(editable);
+            const lost = stable.len - len;
+            if (lost >= 40 && lost >= stable.len * 0.3 && Date.now() > allow) {
+                restoring = true;
+                editable.innerHTML = stable.html;
+                const r = document.createRange(), walker = document.createTreeWalker(editable, NodeFilter.SHOW_TEXT); let last = null; while (walker.nextNode()) last = walker.currentNode;
+                if (last) { r.setStart(last, last.length); r.collapse(true); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r); }
+                setTimeout(() => { restoring = false; editable.dispatchEvent(new Event('input', { bubbles: true })); }, 0);
+                notesStatus('That shortcut would have removed your writing, so it was undone');
+                return;
+            }
+            stable = { html: editable.innerHTML, len };
+        }).observe(editable, { childList: true, subtree: true, characterData: true });
+    }
+
+    const NB_HIST_KEY = 'lastmind-notes-history-v1', NB_HIST_PER_PAGE = 8, NB_HIST_MAX_BYTES = 1500000;
+    const nbHistLoad = () => { try { return JSON.parse(localStorage.getItem(NB_HIST_KEY) || '{}'); } catch (_) { return {}; } };
+    function nbHistSave(all) {
+        try {
+            let text = JSON.stringify(all);
+            while (text.length > NB_HIST_MAX_BYTES) {   // drop the oldest snapshot anywhere until it fits
+                let oldest = null; Object.keys(all).forEach((id) => { const a = all[id]; if (a.length && (!oldest || a[0].t < all[oldest][0].t)) oldest = id; });
+                if (!oldest) break; all[oldest].shift(); if (!all[oldest].length) delete all[oldest]; text = JSON.stringify(all);
+            }
+            localStorage.setItem(NB_HIST_KEY, text);
+        } catch (_) { /* history is a safety net; the notes themselves still save */ }
+    }
+    const nbDocChars = (blocks) => blocks.reduce((n, b) => n + (b.type === 'text' ? nbPlainText(b.html).replace(/\s/g, '').length : 0), 0);
+    const nbHistLast = {};   // page id -> { json, chars, savedAt } of the last state seen
+    function nbHistoryCapture(page) {
+        if (!page || page.type !== 'page' || !page.doc) return;
+        const blocks = page.doc.blocks, chars = nbDocChars(blocks), json = JSON.stringify(blocks), prev = nbHistLast[page.id];
+        if (!prev) { nbHistLast[page.id] = { json, chars, savedAt: Date.now() }; if (chars) nbHistPush(page, blocks, chars, 'Opened'); return; }
+        if (json === prev.json) return;
+        const big = prev.chars - chars >= 40 && prev.chars - chars >= prev.chars * 0.3;
+        if (big) nbHistPush(page, JSON.parse(prev.json), prev.chars, 'Before a large deletion');
+        else if (chars && Date.now() - prev.savedAt > 600000) { nbHistPush(page, blocks, chars, 'Autosaved'); prev.savedAt = Date.now(); }
+        prev.json = json; prev.chars = chars;
+        if (big) prev.savedAt = Date.now();
+    }
+    function nbHistPush(page, blocks, chars, why) {
+        const all = nbHistLoad(), list = all[page.id] || (all[page.id] = []);
+        if (list.length && JSON.stringify(list[list.length - 1].blocks) === JSON.stringify(blocks)) return;
+        list.push({ t: Date.now(), chars, why, blocks: JSON.parse(JSON.stringify(blocks)) });
+        while (list.length > NB_HIST_PER_PAGE) list.shift();
+        nbHistSave(all);
+    }
+    function nbHistPreview(blocks) { const t = blocks.filter((b) => b.type === 'text').map((b) => nbPlainText(b.html)).filter(Boolean).join(' · '); return t.length > 110 ? t.slice(0, 110) + '…' : t; }
+    function nbHistoryRestore(page, snap) {
+        nbHistPush(page, page.doc.blocks, nbDocChars(page.doc.blocks), 'Before a restore');
+        page.doc.blocks = JSON.parse(JSON.stringify(snap.blocks));
+        nbHistLast[page.id] = { json: JSON.stringify(page.doc.blocks), chars: nbDocChars(page.doc.blocks), savedAt: Date.now() };
+        notesFlush(); notesRenderPage(page);
+    }
+    function nbHistoryAddLines(page, lines) {
+        const canvas = document.getElementById('nbCanvas'), y = canvas ? canvas.scrollHeight + 8 : 40;
+        const esc = (t) => t.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+        page.doc.blocks.push({ id: notesNewId(), type: 'text', x: 72, y, w: 600, html: lines.map((l) => '<div>' + esc(l) + '</div>').join('') });
+        notesFlush(); notesRenderPage(page);
+    }
+    function nbHistoryMount(page) {
+        const btn = document.getElementById('nbHistBtn'); if (!btn) return;
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const open = document.getElementById('nbHistPop'); if (open) { open.remove(); return; }
+            nbSrCapture(page); nbHistoryCapture(page);
+            const pop = document.createElement('div'); pop.id = 'nbHistPop'; pop.className = 'nb-sr-pop'; document.body.appendChild(pop);
+            const r = btn.getBoundingClientRect(); pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 368)) + 'px'; pop.style.top = (r.bottom + 6) + 'px'; pop.style.width = 'min(360px, calc(100vw - 16px))';
+            const versions = (nbHistLoad()[page.id] || []).slice().reverse();
+            const days = page.sr ? Object.keys(page.sr.days).sort().reverse().filter((k) => page.sr.days[k].lines.length) : [];
+            pop.innerHTML = '<b>Earlier versions of this page</b><p class="nb-sr-note">Versions are saved automatically, and always just before a large part of the page disappears.</p>' +
+                (versions.length ? '<div class="nb-sr-days">' + versions.map((v, i) => '<div class="nb-sr-day"><span><b>' + new Date(v.t).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + '</b><small>' + nbAssistE(v.why) + ' · ' + v.chars + ' characters</small><small>' + nbAssistE(nbHistPreview(v.blocks)) + '</small></span><button type="button" data-v="' + i + '">Restore</button></div>').join('') + '</div>' : '<p class="nb-sr-note">No earlier versions yet.</p>') +
+                (days.length ? '<p class="nb-sr-note" style="margin-top:12px"><b>Lines written on this page, by day</b><br>The page records what you wrote each day. If text was lost, you can put a day\'s lines back as a new text box at the bottom (plain text: maths layout and arrows are not kept).</p><div class="nb-sr-days">' + days.map((k) => '<div class="nb-sr-day"><span><b>' + nbAssistE(nbDayLabel(k)) + '</b><small>' + page.sr.days[k].lines.length + ' lines</small></span><button type="button" data-d="' + k + '">Add back</button></div>').join('') + '</div>' : '');
+            pop.querySelectorAll('[data-v]').forEach((b) => b.addEventListener('click', () => { pop.remove(); nbHistoryRestore(page, versions[+b.dataset.v]); }));
+            pop.querySelectorAll('[data-d]').forEach((b) => b.addEventListener('click', () => { pop.remove(); nbHistoryAddLines(page, page.sr.days[b.dataset.d].lines); }));
+        });
+        document.addEventListener('click', (e) => { const pop = document.getElementById('nbHistPop'); if (pop && !pop.contains(e.target) && e.target !== btn) pop.remove(); });
+        nbHistoryCapture(page);
+    }
+
     function notesRenderPage(page) {
         const contentInner = notesPrepareMain('Notes');
         contentInner.innerHTML = `
@@ -21775,6 +21920,7 @@ SQIDAQAB
                 <div class="nb-head">
                     <input type="text" class="nb-title" id="nbTitle" placeholder="Untitled page" maxlength="120" aria-label="Page title">
                     <span class="nb-status" id="nbStatus" aria-live="polite"></span>
+                    <button type="button" class="nb-tool nb-sr-btn" id="nbHistBtn" title="Earlier versions of this page, and a way to get lost writing back">History</button>
                     <button type="button" class="nb-tool nb-sr-btn" id="nbSrBtn" title="Quiz yourself on this page the day after you write it">Revision</button>
                 </div>
                 <div class="nb-toolbar" role="toolbar" aria-label="Page tools">
@@ -21940,7 +22086,7 @@ SQIDAQAB
         document.getElementById('nbTableCreate').addEventListener('click', () => addTable(document.getElementById('nbTableRows').value, document.getElementById('nbTableCols').value));
         document.getElementById('nbTableCancel').addEventListener('click', closeTablePicker);
         tablePicker.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); addTable(document.getElementById('nbTableRows').value, document.getElementById('nbTableCols').value); } else if (event.key === 'Escape') closeTablePicker(); });
-        nbAssistMount(page); nbSrMount(page);
+        nbAssistMount(page); nbSrMount(page); nbHistoryMount(page);
         const addGraph = () => {
             let bottom = 0; canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
             const block = { id: notesNewId(), type: 'graph', x: 24, y: bottom ? bottom + 24 : 24, w: Math.min(700, Math.max(300, canvas.clientWidth - 48)), state: { mode: '2d', expression2d: '', expression3d: '', min: -10, max: 10 } };
