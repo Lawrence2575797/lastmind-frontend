@@ -90,7 +90,7 @@
             const back = (me.x - tp.x) * dir; let adj = 0;
             if (RE.short) adj -= RE.short * 3 * clamp((d - 18) / 22, 0, 1);
             if (RE.long) adj -= RE.long * 3 * clamp((24 - d) / 14, 0, 1);
-            RE.passTo.forEach((pt) => { if (FM.rulesReceiver(pt.to, Object.assign({ x: tp.x, y: tp.y, group: t.group, number: t.number }, {}), Object.assign({ x: me.x, y: me.y }, {}), team)) adj += pt.w * 1.1; });
+            RE.passTo.forEach((pt) => { if (FM.rulesReceiver(pt.to, Object.assign({ x: tp.x, y: tp.y, group: t.group, number: t.number, slotKey: t.slotKey }, {}), Object.assign({ x: me.x, y: me.y }, {}), team)) adj += pt.w * 1.1; });
             adj += (RE.dir[back < -3 ? 'forward' : back > 3 ? 'backward' : 'sideways'] || 0) * 0.9;
             if (RE.passScore.length) { ev.me = p; ev.receiver = t; RE.passScore.forEach((ps) => { if (FM.rulesPred(ps.where, ev)) adj += ps.w * 1.1; }); }
             out.push({ t, adj });

@@ -14,7 +14,7 @@
   const lineOf = (g) => (LINES.defence.indexOf(g) >= 0 ? 'defence' : LINES.midfield.indexOf(g) >= 0 ? 'midfield' : LINES.attack.indexOf(g) >= 0 ? 'attack' : 'goalkeeper');
 
   // ---------- who a rule is for, when it holds ----------
-  const scopeMatches = (scope, p) => !scope || scope.kind === 'team' || (scope.kind === 'line' && LINES[scope.line] && LINES[scope.line].indexOf(p.group) >= 0) || (scope.kind === 'group' && scope.group === p.group) || (scope.kind === 'player' && scope.number === p.number);
+  const scopeMatches = (scope, p) => !scope || scope.kind === 'team' || (scope.kind === 'line' && LINES[scope.line] && LINES[scope.line].indexOf(p.group) >= 0) || (scope.kind === 'group' && scope.group === p.group) || (scope.kind === 'slot' && scope.slot === p.slotKey) || (scope.kind === 'player' && scope.number === p.number);
   const zoneOf = (d) => (d < 0.34 ? 'own_third' : d < 0.67 ? 'middle_third' : 'final_third');
   const sideOf = (w) => (w < 0.38 ? 'left' : w > 0.62 ? 'right' : 'centre');
   // The situation a rule is checked against. ball is in pitch metres; pressed is only known for the side with the ball.
@@ -45,6 +45,14 @@
       case 'their_goal': return { p: null, dm: L, wm: W / 2 };
       case 'centre': return { p: null, dm: L / 2, wm: W / 2 };
       case 'opp_last': { if (!ev.opp) return null; let best = null; ev.opp.players.forEach((q) => { if (q.group === 'GK') return; const o = pl2(ev, q); if (!best || o.dm > best.dm) best = o; }); return best; }
+      case 'slot': { const team = e.side === 'opp' ? ev.opp : ev.team; if (!team) return null; return pl2(ev, team.players.find((q) => q.slotKey === e.slot)); }
+      case 'group': case 'line': {
+        const team = e.side === 'opp' ? ev.opp : ev.team; if (!team) return null;
+        const mine = team.players.filter((q) => (e.e === 'group' ? q.group === e.group : LINES[e.line] && LINES[e.line].indexOf(q.group) >= 0));
+        if (!mine.length) return null;
+        const pts = mine.map((q) => pl2(ev, q)), f = (k) => (e.agg === 'min' ? Math.min.apply(null, pts.map((o) => o[k])) : e.agg === 'max' ? Math.max.apply(null, pts.map((o) => o[k])) : pts.reduce((a, o) => a + o[k], 0) / pts.length);
+        return { p: mine.length === 1 ? mine[0] : null, dm: f('dm'), wm: f('wm') };
+      }
       case 'player': { const team = e.side === 'opp' ? ev.opp : ev.team; if (!team) return null; return pl2(ev, team.players.find((q) => nameMatch(q, e))); }
       case 'nearest': {
         const team = e.side === 'own' ? ev.team : ev.opp; if (!team) return null;
@@ -85,6 +93,7 @@
     if (x.op === 'not') return !pred((x.args || [])[0], ev);
     if (x.cmp) { const a = expr(x.a, ev), b = expr(x.b, ev); if (a == null || b == null) return false; return x.cmp === 'lt' ? a < b : x.cmp === 'gt' ? a > b : x.cmp === 'lte' ? a <= b : x.cmp === 'gte' ? a >= b : Math.abs(a - b) < 1e-6; }
     if (x.is === 'group') { const a = entity(x.of, ev); return !!(a && a.p && a.p.group === x.value); }
+    if (x.is === 'slot') { const a = entity(x.of, ev); return !!(a && a.p && a.p.slotKey === x.value); }
     if (x.is === 'player') { const a = entity(x.of, ev); return !!(a && a.p && nameMatch(a.p, x)); }
     return false;
   }
@@ -133,6 +142,7 @@
     if (to.group && t.group !== to.group) return false;
     if (to.line && LINES[to.line].indexOf(t.group) < 0) return false;
     if (to.number != null && t.number !== to.number) return false;
+    if (to.slot && t.slotKey !== to.slot) return false;
     if (to.side) {
       const tw = FM.toTeamSpace(team.attackDir, t.x, t.y).w, cw = FM.toTeamSpace(team.attackDir, passer.x, passer.y).w;
       if (to.side === 'same' && !((tw - 0.5) * (cw - 0.5) >= 0 && Math.abs(tw - cw) < 0.3)) return false;
@@ -176,13 +186,14 @@
     const e = FM.rulesActive(team, p, FM.rulesCtx(team, ball, false, false)).filter((x) => x.type === 'mark')[0];
     return e ? e.target : null;
   };
-  FM.rulesAttackerOf = (target, q) => (target.name ? q.name === target.name : target.number == null || q.number === target.number) && (!target.group || q.group === target.group) && (!target.line || LINES[target.line].indexOf(q.group) >= 0);
+  FM.rulesAttackerOf = (target, q) => (target.name ? q.name === target.name : target.number == null || q.number === target.number) && (!target.slot || q.slotKey === target.slot) && (!target.group || q.group === target.group) && (!target.line || LINES[target.line].indexOf(q.group) >= 0);
 
   // ---------- plain words ----------
   // The shirt numbers and names of both clubs (filled in by the pages that show rules), so a rule reads "Dubois (#18)" and not "player #18".
   FM.rulesRoster = FM.rulesRoster || { own: {}, opp: {} };
   const nameOf = (side, n) => { const nm = FM.rulesRoster[side] && FM.rulesRoster[side][n]; return nm ? nm + ' (#' + n + ')' : 'player #' + n; };
-  const who = (s) => (!s || s.kind === 'team' ? 'The team' : s.kind === 'line' ? LINE_WORD[s.line].replace(/^the /, 'The ') : s.kind === 'group' ? 'The ' + GROUP_WORD[s.group] : nameOf('own', s.number).replace(/^player/, 'Player'));
+  const SLOT_WORD = { LB: 'left back', RB: 'right back', LCB: 'left centre-back', RCB: 'right centre-back', CCB: 'central centre-back', LWB: 'left wing-back', RWB: 'right wing-back', DM: 'defensive midfielder', LDM: 'left defensive midfielder', RDM: 'right defensive midfielder', CM: 'central midfielder', LCM: 'left central midfielder', RCM: 'right central midfielder', CAM: 'attacking midfielder', LAM: 'left attacking midfielder', RAM: 'right attacking midfielder', LM: 'left midfielder', RM: 'right midfielder', LW: 'left winger', RW: 'right winger', ST: 'striker', LST: 'left striker', RST: 'right striker', GK: 'goalkeeper' };
+  const who = (s) => (!s || s.kind === 'team' ? 'The team' : s.kind === 'slot' ? 'The ' + (SLOT_WORD[s.slot] || s.slot) : s.kind === 'line' ? LINE_WORD[s.line].replace(/^the /, 'The ') : s.kind === 'group' ? 'The ' + GROUP_WORD[s.group] : nameOf('own', s.number).replace(/^player/, 'Player'));
   const whenText = (w) => {
     const bits = [];
     if (w.possession === 'with') bits.push('with the ball'); if (w.possession === 'without') bits.push('without the ball');
@@ -194,7 +205,7 @@
     if (w.minFrom != null || w.minTo != null) bits.push('from minute ' + (w.minFrom || 0) + (w.minTo != null ? ' to ' + w.minTo : ' on'));
     return bits.join(', ');
   };
-  const recv = (t) => [t.number != null ? nameOf('own', t.number) : '', t.group ? GROUP_WORD[t.group] : '', t.line ? LINE_WORD[t.line] : '', t.side ? ({ same: 'on the same side', opposite: 'on the opposite side', left: 'on the left', right: 'on the right', centre: 'in the middle', wide: 'out wide' }[t.side]) : ''].filter(Boolean).join(' ');
+  const recv = (t) => [t.number != null ? nameOf('own', t.number) : '', t.slot ? 'the ' + (SLOT_WORD[t.slot] || t.slot) : '', t.group ? GROUP_WORD[t.group] : '', t.line ? LINE_WORD[t.line] : '', t.side ? ({ same: 'on the same side', opposite: 'on the opposite side', left: 'on the left', right: 'on the right', centre: 'in the middle', wide: 'out wide' }[t.side]) : ''].filter(Boolean).join(' ');
   const strong = (x) => (Math.abs(x) >= 0.75 ? ' strongly' : Math.abs(x) >= 0.4 ? '' : ' slightly');
   FM.rulesEffectText = function (e) {
     switch (e.type) {
@@ -265,7 +276,7 @@
     });
     if (!ok.length) return null;
     const s = r.scope || { kind: 'team' };
-    const scope = s.kind === 'team' ? { kind: 'team' } : s.kind === 'line' && LINES[s.line] ? { kind: 'line', line: s.line } : s.kind === 'group' && GROUPS.indexOf(s.group) >= 0 ? { kind: 'group', group: s.group } : s.kind === 'player' && (!numbers || numbers.indexOf(+s.number) >= 0) ? { kind: 'player', number: +s.number } : null;
+    const scope = s.kind === 'team' ? { kind: 'team' } : s.kind === 'slot' && s.slot ? { kind: 'slot', slot: String(s.slot) } : s.kind === 'line' && LINES[s.line] ? { kind: 'line', line: s.line } : s.kind === 'group' && GROUPS.indexOf(s.group) >= 0 ? { kind: 'group', group: s.group } : s.kind === 'player' && (!numbers || numbers.indexOf(+s.number) >= 0) ? { kind: 'player', number: +s.number } : null;
     if (!scope) return null;
     return { id: r.id || 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), text: String(r.text || '').slice(0, 300), scope, when: r.when || {}, effects: ok, off: !!r.off, source: r.source || 'builder' };
   };
