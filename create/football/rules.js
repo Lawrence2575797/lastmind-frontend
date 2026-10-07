@@ -93,10 +93,13 @@
     const e = FM.rulesActive(team, p, FM.rulesCtx(team, ball, false, false)).filter((x) => x.type === 'mark')[0];
     return e ? e.target : null;
   };
-  FM.rulesAttackerOf = (target, q) => (!target.group || q.group === target.group) && (!target.line || LINES[target.line].indexOf(q.group) >= 0);
+  FM.rulesAttackerOf = (target, q) => (target.name ? q.name === target.name : target.number == null || q.number === target.number) && (!target.group || q.group === target.group) && (!target.line || LINES[target.line].indexOf(q.group) >= 0);
 
   // ---------- plain words ----------
-  const who = (s) => (!s || s.kind === 'team' ? 'The team' : s.kind === 'line' ? LINE_WORD[s.line].replace(/^the /, 'The ') : s.kind === 'group' ? 'The ' + GROUP_WORD[s.group] : 'Player #' + s.number);
+  // The shirt numbers and names of both clubs (filled in by the pages that show rules), so a rule reads "Dubois (#18)" and not "player #18".
+  FM.rulesRoster = FM.rulesRoster || { own: {}, opp: {} };
+  const nameOf = (side, n) => { const nm = FM.rulesRoster[side] && FM.rulesRoster[side][n]; return nm ? nm + ' (#' + n + ')' : 'player #' + n; };
+  const who = (s) => (!s || s.kind === 'team' ? 'The team' : s.kind === 'line' ? LINE_WORD[s.line].replace(/^the /, 'The ') : s.kind === 'group' ? 'The ' + GROUP_WORD[s.group] : nameOf('own', s.number).replace(/^player/, 'Player'));
   const whenText = (w) => {
     const bits = [];
     if (w.possession === 'with') bits.push('with the ball'); if (w.possession === 'without') bits.push('without the ball');
@@ -108,7 +111,7 @@
     if (w.minFrom != null || w.minTo != null) bits.push('from minute ' + (w.minFrom || 0) + (w.minTo != null ? ' to ' + w.minTo : ' on'));
     return bits.join(', ');
   };
-  const recv = (t) => [t.number != null ? 'player #' + t.number : '', t.group ? GROUP_WORD[t.group] : '', t.line ? LINE_WORD[t.line] : '', t.side ? ({ same: 'on the same side', opposite: 'on the opposite side', left: 'on the left', right: 'on the right', centre: 'in the middle', wide: 'out wide' }[t.side]) : ''].filter(Boolean).join(' ');
+  const recv = (t) => [t.number != null ? nameOf('own', t.number) : '', t.group ? GROUP_WORD[t.group] : '', t.line ? LINE_WORD[t.line] : '', t.side ? ({ same: 'on the same side', opposite: 'on the opposite side', left: 'on the left', right: 'on the right', centre: 'in the middle', wide: 'out wide' }[t.side]) : ''].filter(Boolean).join(' ');
   const strong = (x) => (Math.abs(x) >= 0.75 ? ' strongly' : Math.abs(x) >= 0.4 ? '' : ' slightly');
   FM.rulesEffectText = function (e) {
     switch (e.type) {
@@ -126,7 +129,7 @@
       case 'holdUp': return 'hold the ball up';
       case 'stepUp': return 'step up to follow a forward who drops';
       case 'position': return 'stand ' + [e.forward ? Math.abs(e.forward) + ' m ' + (e.forward > 0 ? 'further forward' : 'deeper') : '', e.wide ? Math.abs(e.wide) + ' m ' + (e.wide > 0 ? 'wider' : 'narrower') : ''].filter(Boolean).join(' and ') + (e.phase === 'with' ? ' with the ball' : e.phase === 'without' ? ' without the ball' : '');
-      case 'mark': return 'follow the nearest ' + (e.target.group ? GROUP_WORD[e.target.group] : e.target.line ? 'player in their ' + e.target.line : 'attacker') + ' closely';
+      case 'mark': return e.target.number != null ? 'follow ' + (e.target.name ? e.target.name + ' (#' + e.target.number + ')' : nameOf('opp', e.target.number)) + ' closely, wherever he goes' : 'follow the nearest ' + (e.target.group ? GROUP_WORD[e.target.group].replace(/s$/, '') : e.target.line ? 'player in their ' + e.target.line : 'attacker') + ' closely';
       default: return e.type;
     }
   };
@@ -150,7 +153,7 @@
       else if (['risk', 'dribble', 'shoot', 'tempo', 'runs', 'closeDown', 'tackle'].indexOf(t) >= 0 && num(e.delta, -1, 1) != null) ok.push({ type: t, delta: r2(num(e.delta, -1, 1)) });
       else if (t === 'holdUp' || t === 'stepUp') ok.push({ type: t, on: e.on !== false });
       else if (t === 'position') { const f = num(e.forward || 0, -15, 15), w = num(e.wide || 0, -12, 12); if (f != null && w != null && (f || w)) ok.push({ type: t, forward: r2(f), wide: r2(w), phase: ['with', 'without', 'both'].indexOf(e.phase) >= 0 ? e.phase : 'both' }); }
-      else if (t === 'mark' && e.target && (e.target.group || e.target.line)) ok.push({ type: t, target: e.target, tight: true });
+      else if (t === 'mark' && e.target && (e.target.group || e.target.line || e.target.number != null)) ok.push({ type: t, target: e.target.number != null ? { number: +e.target.number, name: String(e.target.name || '') } : e.target, tight: true });
     });
     if (!ok.length) return null;
     const s = r.scope || { kind: 'team' };

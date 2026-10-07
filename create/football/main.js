@@ -498,7 +498,7 @@
     el('tabs').innerHTML = TABS.map(([k, label]) => `<button data-tab="${k}" class="${world.tab === k ? 'on' : ''}">${label}${k === 'instr' && (team.rules || []).filter((r) => !r.off).length ? ' (' + (team.rules || []).filter((r) => !r.off).length + ')' : ''}</button>`).join('');
     el('tabs').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { world.tab = b.dataset.tab; renderTactics(); }));
     if (world.tab === 'setpieces') renderSetPieces(team);
-    else if (world.tab === 'instr') FM.renderInstructions(el('tabBody'), team, { save: saveSoon });
+    else if (world.tab === 'instr') FM.renderInstructions(el('tabBody'), team, { save: saveSoon, opp: nextOpponent });
     else renderBoardTab(team, world.tab);
   }
 
@@ -867,7 +867,7 @@
       const pl = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null, stageKey = BOARD_KEY[world.tab];
       if (!pl) { host.innerHTML = '<div class="pi-hint"><b>Instructions for a player</b><p>Click a shirt on the board to give that player instructions for this stage of play.</p></div>'; return; }
       host.innerHTML = `<h2 style="margin-bottom:4px">${esc(pl.name)}, number ${pl.number}</h2><p class="note">${esc(FM.PHASE_NAMES[stageKey])}: instructions for him that apply only while the team is in this stage.</p><div id="plIns"></div>`;
-      FM.renderInstructions(host.querySelector('#plIns'), team, { save: saveSoon }, { key: 'board', compact: true, scope: { kind: 'player', number: pl.number }, stage: stageKey });
+      FM.renderInstructions(host.querySelector('#plIns'), team, { save: saveSoon, opp: nextOpponent }, { key: 'board', compact: true, scope: { kind: 'player', number: pl.number }, stage: stageKey });
       return;
     }
     // A substitute picked from the bench: show his profile, with how to bring him on.
@@ -906,7 +906,7 @@
     host.querySelectorAll('[data-opt]').forEach((o) => o.addEventListener('change', () => {
       player.options[o.dataset.opt] = o.type === 'checkbox' ? o.checked : o.value; saveSoon(); renderTactics();
     }));
-    FM.renderInstructions(host.querySelector('#plIns'), team, { save: saveSoon }, { key: 'board', compact: true, scope: { kind: 'player', number: player.number }, stage: null });
+    FM.renderInstructions(host.querySelector('#plIns'), team, { save: saveSoon, opp: nextOpponent }, { key: 'board', compact: true, scope: { kind: 'player', number: player.number }, stage: null });
     host.querySelector('#resetPlayer').addEventListener('click', () => { FM.clearPlayerPositions(team, player); saveSoon(); renderTactics(); });
     host.querySelector('#playerNote').addEventListener('input', (e) => { player.note = e.target.value; saveSoon(); });
   }

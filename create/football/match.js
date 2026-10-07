@@ -234,7 +234,7 @@
         const mm = FM.instrMods(p);
         let target = null, reach = 0;
         const rm = FM.rulesMark(opp, p, match.ball), rStep = FM.rulesDelta(opp, p, 'stepUp', match.ball, false) > 0;
-        if (rm) { reach = 18; target = att.filter((q) => FM.rulesAttackerOf(rm, q)); }
+        if (rm) { reach = rm.number != null || rm.name ? 40 : 18; target = att.filter((q) => FM.rulesAttackerOf(rm, q)); }
         else if (mm.marking > 0) { reach = 14; target = att; }
         else if ((mm.stepUp > 0 || rStep) && (p.group === 'CB' || p.group === 'DM')) { reach = 24; target = att.filter((q) => q.group === 'ST' || q.group === 'AM'); }
         if (!target) return;
