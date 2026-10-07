@@ -506,20 +506,7 @@
   // ---------- the build-up lab ----------
   // Runs the first 40 seconds of your build-up many times (a Monte Carlo experiment) and reports the share of tests that end each way, each with
   // a 95% interval. The student predicts first, runs it, then changes one thing and runs it again to see whether the difference is real.
-  const LAB_ROWS = [
-    ['beat', 'Beat the press', 'Reached the halfway line with the ball'],
-    ['lostNear', 'Lost it near your own goal', 'Within 25 m of your goal'],
-    ['lostOwn', 'Lost it in your own third', 'Between 25 m and the edge of the third'],
-    ['lostMid', 'Lost it in midfield', 'Before reaching halfway'],
-    ['still', 'Still building at 40 seconds', 'Neither won nor lost'],
-  ];
   const lpct = (x) => Math.round(x * 100) + '%';
-  const pct1 = (x) => (Math.round(x * 1000) / 10) + '%';
-  function labBar(v) { return `<div class="bar"><i style="left:${(v.lo * 100).toFixed(1)}%;width:${Math.max(1, (v.hi - v.lo) * 100).toFixed(1)}%"></i><b style="left:${(v.p * 100).toFixed(1)}%"></b></div>`; }
-  function labTable(r) {
-    const row = (label, note, v) => `<tr><td><b>${label}</b><br><span class="note">${note}</span></td><td class="n">${v.k} of ${r.n}</td><td class="n"><b>${lpct(v.p)}</b></td><td class="n">${lpct(v.lo)} to ${lpct(v.hi)}</td><td>${labBar(v)}</td></tr>`;
-    return `<table><tr><th>Outcome</th><th class="n">Tests</th><th class="n">Share</th><th class="n">95% interval</th><th>Range</th></tr>${LAB_ROWS.map(([k, l, n]) => row(l, n, r[k])).join('')}${row('Opposition shot within 15 s of winning it', 'Of all the tests, not just the ones you lost it in', r.shot)}</table>`;
-  }
   function renderLab(team, host) {
     const lg = world.league, opp = nextOpponent(); if (!lg || !opp) { host.innerHTML = ''; if (FM.elena) FM.elena.hide(); return; }
     lg.labRuns = lg.labRuns || [];
@@ -535,27 +522,13 @@
       ${runs.length ? `<label>Your hypothesis for this run: what you changed, and what you think will happen because of it<textarea id="labHyp" placeholder="e.g. Moving a centre-back close to the goalkeeper gives him a short pass, so fewer long balls will be cut out and more build-ups will reach halfway.">${esc(st.hyp)}</textarea></label>` : ''}
       <div class="row"><button class="primary" id="labRun"${st.busy ? ' disabled' : ''}>${st.busy ? 'Running… ' + st.prog + ' of ' + st.n : 'Run ' + st.n + ' tests'}</button></div>
       <p class="err">${esc(st.err)}</p>
-      ${last ? `<div><h2 style="margin-bottom:8px">Latest result: run ${runs.length}</h2>${labTable(last.result)}
-        ${last.hyp ? `<p class="note"><b>Your hypothesis then:</b> ${esc(last.hyp)}</p>` : ''}
-        ${last.changes && last.changes.length ? `<p class="note"><b>Changed since the run before:</b> ${esc(last.changes.join('; '))}.</p>` : ''}
-</div>` : ''}
-      ${cmpRuns.length ? `<div><h2 style="margin-bottom:8px">Is the difference real?</h2>
-        <div class="two"><label>Run<select id="labA">${runs.map((r, i) => `<option value="${i}"${i === a ? ' selected' : ''}>Run ${i + 1}: ${lpct(r.result.beat.p)} beat the press</option>`).join('')}</select></label>
-          <label>Compared with<select id="labB">${runs.map((r, i) => `<option value="${i}"${i === b ? ' selected' : ''}>Run ${i + 1}: ${lpct(r.result.beat.p)} beat the press</option>`).join('')}</select></label></div>
-        ${a !== b ? (() => {
-          const A = runs[a].result, Bq = runs[b].result;
-          const rows = [['beat', 'Beat the press'], ['lost', 'Lost possession (anywhere)'], ['lostNear', 'Lost it near your own goal'], ['shot', 'Opposition shot']].map(([k, l]) => { const c2 = FM.lab.compare(A, Bq, k); return `<tr><td>${l}</td><td class="n">${lpct(A[k].p)}</td><td class="n">${lpct(Bq[k].p)}</td><td class="n"><b>${c2.diff >= 0 ? '+' : ''}${Math.round(c2.diff * 100)}</b> points</td><td class="n">${Math.round(c2.lo * 100)} to ${Math.round(c2.hi * 100)}</td><td class="n">${c2.p < 0.001 ? '< 0.001' : c2.p.toFixed(3)}</td></tr>`; });
-          return `<table><tr><th>Measure</th><th class="n">Run ${a + 1}</th><th class="n">Run ${b + 1}</th><th class="n">Difference</th><th class="n">95% interval for the difference</th><th class="n">p-value</th></tr>${rows.join('')}</table>`;
-        })() : '<p class="note">Choose two different runs to compare.</p>'}</div>` : '<p class="note">Run it once, change one thing on the board or the sliders, then run it again: the lab compares the two for you.</p>'}
-      ${runs.length ? `<div class="runs">${runs.map((r, i) => `<span class="note">Run ${i + 1}: ${r.n} tests · ${lpct(r.result.beat.p)} beat the press</span>`).join(' · ')}<button id="labClear">Clear the runs</button></div>` : ''}
+      ${last ? `<p class="note">Run ${runs.length} is done. Elena Marsh, on the right, lays out the results, why the ball was lost, and what the difference between runs means.</p>` : ''}
     </div>`;
     const q = (id) => host.querySelector(id);
     q('#labStart').addEventListener('change', (e) => { st.start = e.target.value; });
     q('#labN').addEventListener('change', (e) => { st.n = +e.target.value; renderLab(team, host); });
     q('#labPred').addEventListener('input', (e) => { st.pred = e.target.value; });
     if (q('#labHyp')) q('#labHyp').addEventListener('input', (e) => { st.hyp = e.target.value; });
-    if (q('#labA')) { q('#labA').addEventListener('change', (e) => { st.a = +e.target.value; renderLab(team, host); }); q('#labB').addEventListener('change', (e) => { st.b = +e.target.value; renderLab(team, host); }); }
-    if (q('#labClear')) q('#labClear').addEventListener('click', () => { lg.labRuns = []; st.a = st.b = null; saveSoon(); renderLab(team, host); });
     q('#labRun').addEventListener('click', async () => {
       if (st.busy) return;
       st.busy = true; st.prog = 0; st.err = ''; renderLab(team, host);
@@ -570,7 +543,9 @@
       if (document.body.contains(host)) renderLab(team, host);
     });
     let tac = null; try { tac = FM.aiTacticsFor(lg, opp, team); } catch (e) { tac = null; }
-    FM.elena.sync({ opp, runs, a, b, st, team, tac });
+    const setCompare = (x, y) => { st.a = x; st.b = y; renderLab(team, host); };
+    const clearRuns = () => { lg.labRuns = []; st.a = st.b = null; saveSoon(); renderLab(team, host); };
+    FM.elena.sync({ opp, runs, a, b, st, team, tac, setCompare, clearRuns });
   }
 
   function takerSelect(team, key, label) {
@@ -806,10 +781,8 @@
       <div class="tb-grid">
         <div class="tb-left">
           ${isShape ? `<label>Formation<select id="formSel">${Object.keys(FM.FORMATIONS).map((k) => `<option value="${k}"${k === team.formationKey ? ' selected' : ''}>${k}</option>`).join('')}</select></label>` : `<h2>${FM.PHASE_NAMES[key]}</h2>`}
-          <p class="note">${PHASE_TEXT[key]}</p>
           ${isShape || !nextOpponent() ? '' : `<label class="chk"><input type="checkbox" id="showOpp"${world.showOpp ? ' checked' : ''}/> Show how ${esc(nextOpponent().name)} set up in the matching phase (scouted)</label><p class="note" id="oppNote"></p>`}
           <div id="board"></div>
-          <p class="note" id="reachNote"></p>
           <div class="row"><button id="resetPhase">${isShape ? 'Reset the shape to the formation' : 'Reset this phase to the role defaults'}</button></div>
           <p class="err" id="subErr"></p>
         </div>
@@ -839,13 +812,6 @@
     if (SLIDER_TABS[tab]) renderSliderTab(team, SLIDER_TABS[tab], host.querySelector('#phaseSliders'));
     if (key === 'build' && host.querySelector('#labPanel')) renderLab(team, host.querySelector('#labPanel'));
     const err = (msg) => { host.querySelector('#subErr').textContent = msg || ''; };
-    const sel = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
-    if (sel && !isShape) {
-      const here = FM.phasePos(team, sel, key), slow = FM.PHASES.filter((ph) => ph !== key).map((ph) => ({ ph, s: FM.trueDist(here, FM.phasePos(team, sel, ph)) / sel.maxSpeed })).filter((x) => x.s >= 4).sort((a, b) => b.s - a.s);
-      host.querySelector('#reachNote').textContent = `${sel.name} cannot get from one side of the pitch to the other between phases, which is why he cannot be placed too far across the pitch from his position in the other phases. Up and down the pitch he can go anywhere, but the further apart his positions are, the longer he takes to get from one to the other at his top speed (${sel.maxSpeed.toFixed(1)} m/s).` + (slow.length ? ' From here he needs ' + slow.map((x) => 'about ' + Math.round(x.s) + ' s to reach his ' + FM.PHASE_NAMES[x.ph].toLowerCase() + ' position').join(', ') + '.' : '');
-    }
-    else host.querySelector('#reachNote').textContent = isShape ? '' : 'Click a shirt to see how far that player can move between phases.';
-
     if (isShape) host.querySelector('#formSel').addEventListener('change', (e) => { FM.setFormation(team, e.target.value); world.selSlot = null; saveSoon(); renderTactics(); });
     host.querySelector('#resetPhase').addEventListener('click', () => { FM.clearPhase(team, key); saveSoon(); renderTactics(); });
 
@@ -897,7 +863,13 @@
   function renderRolePanel(team) {
     const host = el('rolePanel');
     // A player's role and instructions belong to the player, so they are set here on Squad and formation, not on each phase's page.
-    if (world.tab !== 'squad') { host.innerHTML = '<p class="note">The role and instructions for a player (dribbling, shooting, closing down and so on) are set on the Squad and formation tab, because they belong to the player, not to one phase.</p>'; return; }
+    if (world.tab !== 'squad') {
+      const pl = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null, stageKey = BOARD_KEY[world.tab];
+      if (!pl) { host.innerHTML = '<div class="pi-hint"><b>Instructions for a player</b><p>Click a shirt on the board to give that player instructions for this stage of play.</p></div>'; return; }
+      host.innerHTML = `<h2 style="margin-bottom:4px">${esc(pl.name)}, number ${pl.number}</h2><p class="note">${esc(FM.PHASE_NAMES[stageKey])}: instructions for him that apply only while the team is in this stage.</p><div id="plIns"></div>`;
+      FM.renderInstructions(host.querySelector('#plIns'), team, { save: saveSoon }, { key: 'board', compact: true, scope: { kind: 'player', number: pl.number }, stage: stageKey });
+      return;
+    }
     // A substitute picked from the bench: show his profile, with how to bring him on.
     if (world.selBench && team.bench.includes(world.selBench)) {
       const b = world.selBench;
@@ -917,14 +889,6 @@
       if (o.type === 'choice') extra += `<label>${o.label}<select data-opt="${k}">${o.choices.map(([v, t]) => `<option value="${v}"${player.options[k] === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>`;
       else extra += `<label class="check"><input type="checkbox" data-opt="${k}"${player.options[k] ? ' checked' : ''}> ${o.label}</label>`;
     });
-    const r = player.ratings;
-    const list = FM.instructionsFor(player.group);
-    const sections = ['Movement', 'On the ball', 'Off the ball', 'Set pieces'];
-    const ins = sections.map((sec) => {
-      const items = list.filter((i) => i.section === sec);
-      if (!items.length) return '';
-      return `<div class="ins"><h3>${sec}</h3>` + items.map((i) => { const fromRole = (FM.roleInstr(player.roleId)[i.key] || 0) !== 0 && (+(player.instr || {})[i.key] || 0) === FM.roleInstr(player.roleId)[i.key]; return `<label title="${esc(i.desc)}">${i.label}${fromRole ? ' <span class="pm">(from his role)</span>' : ''}<select data-ins="${i.key}">${i.options.map(([v, t]) => `<option value="${v}"${(+(player.instr || {})[i.key] || 0) === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>`; }).join('') + '</div>';
-    }).join('');
     host.innerHTML = `
       <h2 style="margin-bottom:8px">${esc(player.name)}, number ${player.number}</h2>
       <div style="display:grid;gap:10px">
@@ -932,22 +896,17 @@
         <label>Role<select data-k="role">${roleOptions}</select></label>
         <p class="desc">${role.desc}</p>
         ${extra}
-        <h2>Instructions <span class="note" style="text-transform:none;letter-spacing:0">(${FM.countInstructions(player)} set, they hold in every phase)</span></h2>
-        <div class="ins-grid">${ins}</div>
-        <p class="note">Choosing a role sets the instructions that role usually carries (marked "from his role"). Change any of them freely; choosing a different role resets them.</p>
-        <div class="row"><button id="resetInstr">Reset instructions to this role's usual</button><button id="resetPlayer">Reset his positions in every phase</button></div>
+        <h2>Instructions for every stage</h2>
+        <p class="note">These hold whatever the stage of play. To give him an instruction for just one stage, open that stage's tab and click his shirt there.</p>
+        <div id="plIns"></div>
+        <div class="row"><button id="resetPlayer">Reset his positions in every phase</button></div>
         <label>Your notes on him (these do not change how he plays)<textarea id="playerNote" rows="2">${esc(player.note || '')}</textarea></label>
       </div>`;
     host.querySelector('[data-k="role"]').addEventListener('change', (e) => { FM.setRole(team, player, e.target.value); FM.fixSlot(team, player); saveSoon(); renderTactics(); });
     host.querySelectorAll('[data-opt]').forEach((o) => o.addEventListener('change', () => {
       player.options[o.dataset.opt] = o.type === 'checkbox' ? o.checked : o.value; saveSoon(); renderTactics();
     }));
-    host.querySelectorAll('[data-ins]').forEach((o) => o.addEventListener('change', () => {
-      player.instr = player.instr || {};
-      player.instr[o.dataset.ins] = +o.value;
-      FM.fixSlot(team, player); saveSoon(); renderTactics();
-    }));
-    host.querySelector('#resetInstr').addEventListener('click', () => { player.instr = FM.roleInstr(player.roleId); FM.fixSlot(team, player); saveSoon(); renderTactics(); });
+    FM.renderInstructions(host.querySelector('#plIns'), team, { save: saveSoon }, { key: 'board', compact: true, scope: { kind: 'player', number: player.number }, stage: null });
     host.querySelector('#resetPlayer').addEventListener('click', () => { FM.clearPlayerPositions(team, player); saveSoon(); renderTactics(); });
     host.querySelector('#playerNote').addEventListener('input', (e) => { player.note = e.target.value; saveSoon(); });
   }

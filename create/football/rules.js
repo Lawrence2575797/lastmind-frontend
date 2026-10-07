@@ -19,14 +19,17 @@
   const sideOf = (w) => (w < 0.38 ? 'left' : w > 0.62 ? 'right' : 'centre');
   // The situation a rule is checked against. ball is in pitch metres; pressed is only known for the side with the ball.
   FM.rulesCtx = function (team, ball, hasBall, pressed) {
-    const b = FM.toTeamSpace(team.attackDir, ball.x, ball.y), rc = team.ruleCtx || {};
-    return { hasBall: !!hasBall, zone: zoneOf(b.d), side: sideOf(b.w), pressed: !!pressed, scoreDiff: rc.scoreDiff || 0, minute: rc.minute || 0 };
+    const b = FM.toTeamSpace(team.attackDir, ball.x, ball.y), rc = team.ruleCtx || {}, pc = team.phaseCtx || {};
+    // The stage of play, as the tactics board names them: the same five the manager sets positions for, plus pressing their build-up.
+    const stage = hasBall ? ((pc.transAtt || 0) > 0.35 ? 'transAtt' : b.d < 0.5 ? 'build' : 'final') : ((pc.transDef || 0) > 0.35 ? 'transDef' : (b.d > 0.6 && (team.tactics.pressBuildUp == null ? 0.4 : team.tactics.pressBuildUp) > 0.2) ? 'press' : 'without');
+    return { hasBall: !!hasBall, zone: zoneOf(b.d), side: sideOf(b.w), pressed: !!pressed, stage, scoreDiff: rc.scoreDiff || 0, minute: rc.minute || 0 };
   };
   const whenHolds = (when, c) => {
     if (!when) return true;
     if (when.possession === 'with' && !c.hasBall) return false;
     if (when.possession === 'without' && c.hasBall) return false;
     if (when.zone && when.zone.indexOf(c.zone) < 0) return false;
+    if (when.stage && when.stage.indexOf(c.stage) < 0) return false;
     if (when.pressed === 'pressed' && !c.pressed) return false;
     if (when.pressed === 'free' && c.pressed) return false;
     if (when.side === 'wide' ? c.side === 'centre' : when.side && when.side !== c.side) return false;
@@ -98,6 +101,7 @@
     const bits = [];
     if (w.possession === 'with') bits.push('with the ball'); if (w.possession === 'without') bits.push('without the ball');
     if (w.zone) bits.push('when the ball is in ' + w.zone.map((z) => ({ own_third: 'our own third', middle_third: 'the middle third', final_third: 'their third' }[z])).join(' or '));
+    if (w.stage) bits.push('in ' + w.stage.map((z) => ({ build: 'build-up', final: 'the final third', transAtt: 'the transition to attack', transDef: 'the transition to defence', press: 'the press on their build-up', without: 'defending' }[z])).join(' and '));
     if (w.pressed === 'pressed') bits.push('when pressed'); if (w.pressed === 'free') bits.push('when not pressed');
     if (w.side) bits.push('when the ball is ' + (w.side === 'wide' ? 'out wide' : 'on the ' + w.side));
     if (w.score) bits.push('when ' + w.score);

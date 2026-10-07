@@ -5,7 +5,8 @@
   const FM = (window.FM = window.FM || {});
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const R = () => FM.RULES;
-  const st = { scope: { kind: 'team' }, mode: 'write', text: '', busy: false, err: '', draft: null, build: { when: {}, effects: [] }, added: '' };
+  const states = {};
+  const STAGES = [['build', 'Build-up'], ['final', 'Final third'], ['transAtt', 'Winning the ball'], ['transDef', 'Losing the ball'], ['press', 'Pressing them'], ['without', 'Defending']];
 
   const same = (a, b) => a.kind === b.kind && (a.line || a.group || a.number || '') === (b.line || b.group || b.number || '');
   const surname = (p) => p.name.split(' ').slice(1).join(' ') || p.name;
@@ -143,15 +144,21 @@
   }
 
   // ---------- the tab ----------
-  FM.renderInstructions = function (host, team, hooks) {
+  // opts: { key, compact, scope, stage }. On the tab (default) you choose who it is for; on the board it is one player, for the stage that board shows.
+  FM.renderInstructions = function (host, team, hooks, opts) {
+    opts = opts || {};
+    const compact = !!opts.compact, stage = opts.stage || null, key = opts.key || 'tab';
+    const st = states[key] || (states[key] = { scope: { kind: 'team' }, mode: 'ideas', text: '', busy: false, err: '', draft: null, build: { when: {}, effects: [] }, added: '' });
+    if (compact) st.scope = opts.scope;
     team.rules = team.rules || [];
     const players = team.players.slice().sort((a, b) => a.number - b.number);
     const countFor = (scope) => team.rules.filter((r) => !r.off && same(r.scope, scope)).length;
     const scopes = [{ kind: 'team' }, ...Object.keys(R().LINES).map((l) => ({ kind: 'line', line: l }))];
+    const positions = R().GROUPS.filter((g) => g !== 'GK').map((g) => ({ kind: 'group', group: g }));
     const scopeLabel = (s) => (s.kind === 'team' ? 'Whole team' : s.kind === 'line' ? R().LINE_WORD[s.line].replace(/^the /, '').replace(/^./, (c) => c.toUpperCase()) : s.kind === 'group' ? groupLabel[s.group] : (() => { const p = players.find((q) => q.number === s.number); return p ? '#' + p.number + ' ' + p.name : '#' + s.number; })());
     const who = (s) => {
       if (s.kind === 'team') return 'Applies to all ' + players.length + ' players on the pitch.';
-      if (s.kind === 'line') return 'Applies to ' + players.filter((p) => R().scopeMatches(s, p)).map((p) => esc(surname(p))).join(', ') + '.';
+      if (s.kind === 'line' || s.kind === 'group') return 'Applies to ' + players.filter((p) => R().scopeMatches(s, p)).map((p) => esc(surname(p))).join(', ') + '.';
       const p = players.find((q) => q.number === s.number); return p ? esc(groupLabel[p.group] + ', ' + (p.roleId || '').replace(/_/g, ' ')) + '.' : '';
     };
     // Rules from wider scopes that also reach the chosen one.
@@ -165,13 +172,16 @@
         <div class="in-rt"><b>${esc(FM.rulesText(r))}</b>${r.source === 'ai' && r.text && r.text !== FM.rulesText(r) ? `<small>You wrote: ${esc(r.text)}</small>` : ''}</div>
         <button type="button" class="in-del" data-del="${r.id}" aria-label="Delete this instruction">×</button></div>`;
 
-    const mine = team.rules.filter((r) => same(r.scope, st.scope));
+    const forStage = (r) => !stage || (r.when && r.when.stage && r.when.stage.indexOf(stage) >= 0);
+    const mine = team.rules.filter((r) => same(r.scope, st.scope) && (!compact || forStage(r)));
+    const everyStage = compact && stage ? team.rules.filter((r) => same(r.scope, st.scope) && !(r.when && r.when.stage)) : [];
+    const playerRules = compact ? [] : team.rules.filter((r) => r.scope.kind === 'player');
     const inh = inherited();
     const side = `<aside class="in-side" aria-label="Who the instruction is for">
         <h3>Who</h3>
         ${scopes.map((s) => `<button type="button" class="in-sc${same(s, st.scope) ? ' on' : ''}" data-scope='${JSON.stringify(s)}'><span>${esc(scopeLabel(s))}</span>${countFor(s) ? `<em>${countFor(s)}</em>` : ''}</button>`).join('')}
-        <h3>Players</h3>
-        ${players.map((p) => { const s = { kind: 'player', number: p.number }; return `<button type="button" class="in-sc${same(s, st.scope) ? ' on' : ''}" data-scope='${JSON.stringify(s)}'><span><b class="in-num">${p.number}</b> ${esc(surname(p))}<small>${p.group}</small></span>${countFor(s) ? `<em>${countFor(s)}</em>` : ''}</button>`; }).join('')}
+        <h3>Positions</h3>
+        ${positions.map((sc) => `<button type="button" class="in-sc${same(sc, st.scope) ? ' on' : ''}" data-scope='${JSON.stringify(sc)}'><span>${esc(scopeLabel(sc))}</span>${countFor(sc) ? `<em>${countFor(sc)}</em>` : ''}</button>`).join('')}
       </aside>`;
 
     const modeTabs = [['write', 'Write it'], ['build', 'Build it'], ['ideas', 'Ready-made ideas']].map(([k, l]) => `<button type="button" class="in-mode${st.mode === k ? ' on' : ''}" data-mode="${k}">${l}</button>`).join('');
@@ -191,6 +201,7 @@
       const chip = (grp, v, l, on) => `<button type="button" class="in-chip${on ? ' on' : ''}" data-when="${grp}:${v}">${l}</button>`;
       body = `<h4>When does it apply?</h4><p class="in-note">Leave everything off and it applies all the time.</p>
         <div class="in-wh"><b>Ball</b>${chip('possession', 'with', 'We have it', w.possession === 'with')}${chip('possession', 'without', 'We do not', w.possession === 'without')}</div>
+        ${stage ? '' : `<div class="in-wh"><b>Stage</b>${STAGES.map(([v, l]) => chip('stage', v, l, (w.stage || []).indexOf(v) >= 0)).join('')}</div>`}
         <div class="in-wh"><b>Where</b>${[['own_third', 'Our third'], ['middle_third', 'Middle third'], ['final_third', 'Their third']].map(([v, l]) => chip('zone', v, l, (w.zone || []).indexOf(v) >= 0)).join('')}</div>
         <div class="in-wh"><b>Pressure</b>${chip('pressed', 'pressed', 'Pressed', w.pressed === 'pressed')}${chip('pressed', 'free', 'Not pressed', w.pressed === 'free')}</div>
         <div class="in-wh"><b>Side</b>${[['left', 'Left'], ['centre', 'Middle'], ['right', 'Right'], ['wide', 'Out wide']].map(([v, l]) => chip('side', v, l, w.side === v)).join('')}</div>
@@ -202,42 +213,44 @@
         ${b.effects.length ? `<div class="in-draft"><h4>This will read</h4><div class="in-rule"><div class="in-rt"><b>${esc(FM.rulesText({ scope: st.scope, when: cleanWhen(w), effects: b.effects }))}</b></div></div><div class="in-act"><button type="button" class="in-go" id="inAddBuilt">Add this instruction</button></div></div>` : ''}`;
     } else {
       const ps = presetsFor(st.scope, team);
-      body = ps.length ? `<p class="in-note">One click adds it for ${esc(scopeLabel(st.scope).toLowerCase())}. You can switch it off or delete it afterwards.</p><div class="in-ideas">${ps.map((p, i) => `<button type="button" class="in-idea" data-idea="${i}"><b>${esc(p.label)}</b><span>${esc(p.desc)}</span><small>${esc(FM.rulesText({ scope: st.scope, when: p.when, effects: p.effects }))}</small></button>`).join('')}</div>` : '<p class="in-note">No ready-made ideas for this one. Write it or build it.</p>';
+      body = ps.length ? `<p class="in-note">One click adds it for ${esc(compact ? 'him' : scopeLabel(st.scope).toLowerCase())}${stage ? ' at this stage' : ''}. You can switch it off or delete it afterwards.</p><div class="in-ideas">${ps.map((p, i) => `<button type="button" class="in-idea" data-idea="${i}"><b>${esc(p.label)}</b><span>${esc(p.desc)}</span><small>${esc(FM.rulesText({ scope: st.scope, when: p.when, effects: p.effects }))}</small></button>`).join('')}</div>` : '<p class="in-note">No ready-made ideas for this one. Write it or build it.</p>';
     }
 
-    host.innerHTML = `<div class="in-wrap">${side}<div class="in-main">
-        <div class="in-head"><h2>${esc(scopeLabel(st.scope))}</h2><p>${who(st.scope)}</p></div>
+    host.innerHTML = `<div class="in-wrap${compact ? ' compact' : ''}">${compact ? '' : side}<div class="in-main">
+        ${compact ? '' : `<div class="in-head"><h2>${esc(scopeLabel(st.scope))}</h2><p>${who(st.scope)}</p></div>`}
         ${inh.length ? `<div class="in-inh"><b>Also reaching ${esc(scopeLabel(st.scope).toLowerCase())}</b>${inh.map((r) => `<div><b>${esc(FM.rulesWho(r))}:</b> ${esc(FM.rulesText(r))}</div>`).join('')}</div>` : ''}
-        <div class="in-list">${mine.length ? mine.map(ruleCard).join('') : '<p class="in-empty">No instructions here yet. Everyone plays to their role and the team settings until you add some.</p>'}</div>
+        <div class="in-list">${mine.length ? mine.map(ruleCard).join('') : `<p class="in-empty">${compact ? 'No instructions for this player' + (stage ? ' at this stage' : '') + ' yet. He plays to his role and the team settings.' : 'No instructions here yet. Everyone plays to their role and the team settings until you add some.'}</p>`}</div>
+        ${everyStage.length ? `<div class="in-inh"><b>Also in every stage</b>${everyStage.map((r) => `<div>${esc(FM.rulesText(r))} <button type="button" class="in-link" data-del="${r.id}">remove</button></div>`).join('')}</div>` : ''}
         ${st.added ? `<p class="in-ok" role="status">${esc(st.added)}</p>` : ''}
         <div class="in-add"><div class="in-modes">${modeTabs}</div><div class="in-body">${body}</div></div>
+        ${playerRules.length ? `<div class="in-pl"><h3>Instructions given to individual players</h3><p class="in-note">These are set by clicking a player's shirt on the tactics board, for one stage at a time.</p>${playerRules.map((r) => { const p = players.find((q) => q.number === r.scope.number); return `<div class="in-rule${r.off ? ' off' : ''}"><label class="in-sw"><input type="checkbox" data-toggle="${r.id}"${r.off ? '' : ' checked'} aria-label="On or off"><i></i></label><div class="in-rt"><b>${esc(p ? '#' + p.number + ' ' + p.name : 'Player #' + r.scope.number)}</b><small>${esc(FM.rulesText(r))}</small></div><button type="button" class="in-del" data-del="${r.id}" aria-label="Delete">×</button></div>`; }).join('')}</div>` : ''}
       </div></div>`;
-    wire(host, team, hooks);
+    wire(host, team, hooks, st, opts, () => FM.renderInstructions(host, team, hooks, opts));
   };
 
   function cleanWhen(w) {
     const o = {}; ['possession', 'pressed', 'side', 'score'].forEach((k) => { if (w[k]) o[k] = w[k]; });
     if (w.zone && w.zone.length && w.zone.length < 3) o.zone = w.zone.slice();
+    if (w.stage && w.stage.length && w.stage.length < 6) o.stage = w.stage.slice();
     if (w.minFrom != null) o.minFrom = w.minFrom; if (w.minTo != null) o.minTo = w.minTo;
     return o;
   }
-  function addRules(team, hooks, rules, note) {
+  function addRules(team, hooks, rules, st, opts) {
     const numbers = team.players.map((p) => p.number);
     let n = 0;
-    rules.forEach((r) => { const c = FM.rulesClean(r, numbers); if (c) { team.rules.push(c); n++; } });
-    st.added = n ? (n === 1 ? 'Added.' : n + ' instructions added.') + (note || '') : 'Nothing could be added.';
+    rules.forEach((r) => { if (opts && opts.stage) r.when = Object.assign({}, r.when, { stage: [opts.stage] }); if (opts && opts.compact) r.scope = opts.scope; const c = FM.rulesClean(r, numbers); if (c) { team.rules.push(c); n++; } });
+    st.added = n ? (n === 1 ? 'Added.' : n + ' instructions added.') : 'Nothing could be added.';
     if (hooks.save) hooks.save();
   }
 
-  function wire(host, team, hooks) {
-    const redraw = () => FM.renderInstructions(host, team, hooks);
+  function wire(host, team, hooks, st, opts, redraw) {
     const q = (s) => host.querySelector(s), qa = (s) => host.querySelectorAll(s);
     qa('[data-scope]').forEach((b) => b.addEventListener('click', () => { st.scope = JSON.parse(b.dataset.scope); st.added = ''; st.draft = null; st.err = ''; st.build = { when: {}, effects: [] }; redraw(); }));
     qa('[data-mode]').forEach((b) => b.addEventListener('click', () => { st.mode = b.dataset.mode; st.added = ''; redraw(); }));
     qa('[data-toggle]').forEach((c) => c.addEventListener('change', () => { const r = team.rules.find((x) => x.id === c.dataset.toggle); if (r) { r.off = !c.checked; if (hooks.save) hooks.save(); redraw(); } }));
     qa('[data-del]').forEach((b) => b.addEventListener('click', () => { team.rules = team.rules.filter((x) => x.id !== b.dataset.del); st.added = ''; if (hooks.save) hooks.save(); redraw(); }));
     // ready-made
-    qa('[data-idea]').forEach((b) => b.addEventListener('click', () => { const p = presetsFor(st.scope, team)[+b.dataset.idea]; addRules(team, hooks, [{ scope: st.scope, when: p.when, effects: JSON.parse(JSON.stringify(p.effects)), text: p.label, source: 'idea' }]); redraw(); }));
+    qa('[data-idea]').forEach((b) => b.addEventListener('click', () => { const p = presetsFor(st.scope, team)[+b.dataset.idea]; addRules(team, hooks, [{ scope: st.scope, when: Object.assign({}, p.when), effects: JSON.parse(JSON.stringify(p.effects)), text: p.label, source: 'idea' }], st, opts); redraw(); }));
     // written
     const ta = q('#inText'); if (ta) ta.addEventListener('input', () => { st.text = ta.value; });
     qa('[data-eg]').forEach((b) => b.addEventListener('click', () => { st.text = b.textContent; redraw(); }));
@@ -248,17 +261,17 @@
       st.busy = true; redraw();
       try {
         const out = await FM.api('/football/compile-instruction', { text, scope: st.scope, squad: team.players.map((p) => ({ number: p.number, name: p.name, group: p.group, role: (p.roleId || '').replace(/_/g, ' ') })) });
-        const rules = (out.rules || []).map((r) => FM.rulesClean(Object.assign({}, r, { text, source: 'ai' }), team.players.map((p) => p.number))).filter(Boolean);
+        const rules = (out.rules || []).map((r) => FM.rulesClean(Object.assign({}, r, { text, source: 'ai' }, opts && opts.compact ? { scope: opts.scope } : {}), team.players.map((p) => p.number))).filter(Boolean);
         st.draft = { rules, notIncluded: out.notIncluded || [] };
       } catch (err) { st.err = err.message || 'LastMind could not read that just now.'; }
       st.busy = false; redraw();
     });
-    const ad = q('#inAddDraft'); if (ad) ad.addEventListener('click', () => { const rs = st.draft.rules; st.draft = null; st.text = ''; addRules(team, hooks, rs); redraw(); });
+    const ad = q('#inAddDraft'); if (ad) ad.addEventListener('click', () => { const rs = st.draft.rules; st.draft = null; st.text = ''; addRules(team, hooks, rs, st, opts); redraw(); });
     const dd = q('#inDropDraft'); if (dd) dd.addEventListener('click', () => { st.draft = null; redraw(); });
     // built
     qa('[data-when]').forEach((b) => b.addEventListener('click', () => {
       const [g, v] = b.dataset.when.split(':'), w = st.build.when;
-      if (g === 'zone') { w.zone = w.zone || []; const i = w.zone.indexOf(v); if (i >= 0) w.zone.splice(i, 1); else w.zone.push(v); if (!w.zone.length) delete w.zone; }
+      if (g === 'zone' || g === 'stage') { w[g] = w[g] || []; const i = w[g].indexOf(v); if (i >= 0) w[g].splice(i, 1); else w[g].push(v); if (!w[g].length) delete w[g]; }
       else if (w[g] === v) delete w[g]; else w[g] = v;
       redraw();
     }));
@@ -273,6 +286,6 @@
         redraw();
       }));
     });
-    const ab = q('#inAddBuilt'); if (ab) ab.addEventListener('click', () => { addRules(team, hooks, [{ scope: st.scope, when: cleanWhen(st.build.when), effects: st.build.effects, text: '', source: 'builder' }]); st.build = { when: {}, effects: [] }; redraw(); });
+    const ab = q('#inAddBuilt'); if (ab) ab.addEventListener('click', () => { addRules(team, hooks, [{ scope: st.scope, when: cleanWhen(st.build.when), effects: st.build.effects, text: '', source: 'builder' }], st, opts); st.build = { when: {}, effects: [] }; redraw(); });
   }
 })();

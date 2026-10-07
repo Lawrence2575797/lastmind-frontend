@@ -143,6 +143,10 @@
       '.rp-pitch { display: block; width: 100%; height: auto; border-radius: 10px; background: #2A7539; } .rp-bar { display: flex; gap: 8px; align-items: center; margin-top: 8px; } .rp-bar .el-go { width: auto; margin: 0; flex: none; padding: 7px 14px; } .rp-seek { flex: 1; min-width: 0; } .rp-speed { flex: none; padding: 6px; border-radius: 8px; border: 1px solid rgba(241,234,214,.35); background: rgba(255,255,255,.07); color: inherit; }',
       '.rp-key { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 8px 0; font-size: .76rem; opacity: .85; } .rp-k { display: inline-block; width: 14px; height: 0; margin-right: 4px; vertical-align: middle; border-top: 3px solid #FFE27A; } .rp-k.no { border-top: 3px dashed #FF5A36; } .rp-k.job { border-top: 2.5px dashed #FF9F43; } .rp-k.free { width: 12px; height: 12px; border: 2px dashed #7fd49a; border-radius: 50%; }',
       '.rp-say p { margin: 0 0 8px; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,.07); font-size: .86rem; } .rp-pick { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; } .rp-pick .el-go { width: auto; margin: 0; }',
+      '.el-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 8px 0; border-bottom: 1px solid rgba(241,234,214,.12); } .el-rl small, .el-rv small { display: block; opacity: .7; font-size: .76rem; } .el-rv { text-align: right; } .el-rv b { font-size: 1.05rem; } .el-row .el-bar { grid-column: 1 / -1; }',
+      '.el-bar { position: relative; height: 10px; border-radius: 5px; background: rgba(241,234,214,.12); } .el-bar i { position: absolute; top: 0; bottom: 0; border-radius: 5px; background: #F2C14E; opacity: .85; } .el-bar b { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #F1EAD6; }',
+      '.el-small { font-size: .8rem; opacity: .8; } .el-cmp { display: grid; gap: 8px; margin: 6px 0 10px; } .el-cmp label { display: grid; gap: 4px; font-size: .8rem; opacity: .9; } .el-cmp select { padding: 8px; border-radius: 8px; border: 1px solid rgba(241,234,214,.35); background: rgba(255,255,255,.07); color: inherit; font: inherit; }',
+      '.el-tbl { width: 100%; border-collapse: collapse; font-size: .8rem; margin: 6px 0 10px; } .el-tbl th, .el-tbl td { padding: 6px 4px; text-align: left; border-bottom: 1px solid rgba(241,234,214,.12); } .el-tbl th { font-size: .7rem; letter-spacing: .05em; text-transform: uppercase; opacity: .7; } .el-tbl td small { display: block; opacity: .65; }',
       'body.el-open { padding-right: min(456px, 100vw); } @media (max-width: 1000px) { body.el-open { padding-right: 16px; } }',
     ].join('\n');
     document.head.appendChild(e);
@@ -203,6 +207,19 @@
     return '<h4>Watch it happen</h4><p>These are real tests from this run, kept exactly as they played out. Yellow arrows are passes that came off, red dashed ones are passes that were lost, orange dashed lines show who their players had gone to, and a green ring marks one of your players with nobody on him.</p>' +
       '<div class="rp-pick">' + r.clips.map((x) => '<button type="button" class="el-go' + (x.key === E.clipKey ? ' primary' : '') + '" data-clip="' + x.key + '">' + esc(x.label) + '</button>').join('') + '</div><div id="elReplay" class="rp"></div>';
   }
+  const OUT_ROWS = [['beat', 'Beat the press', 'Reached the halfway line with the ball'], ['lostNear', 'Lost it near your own goal', 'Within 25 m of your goal'], ['lostOwn', 'Lost it in your own third', 'Between 25 m and the edge of the third'], ['lostMid', 'Lost it in midfield', 'Before reaching halfway'], ['still', 'Still building at 40 seconds', 'Neither won nor lost'], ['shot', 'Opposition shot within 15 s of winning it', 'Of all the tests, not just the ones you lost it in']];
+  const bar = (v) => '<div class="el-bar"><i style="left:' + (v.lo * 100).toFixed(1) + '%;width:' + Math.max(1, (v.hi - v.lo) * 100).toFixed(1) + '%"></i><b style="left:' + (v.p * 100).toFixed(1) + '%"></b></div>';
+  function resultsText(r, last, n) {
+    let h = '<h4>The results of run ' + n + '</h4>' + OUT_ROWS.map(([k, l, note]) => { const v = r[k]; return '<div class="el-row"><div class="el-rl"><b>' + esc(l) + '</b><small>' + esc(note) + '</small></div><div class="el-rv"><b>' + pc(v.p) + '</b><small>' + v.k + ' of ' + r.n + ' · ' + pc(v.lo) + ' to ' + pc(v.hi) + '</small></div>' + bar(v) + '</div>'; }).join('');
+    h += '<p class="el-small">' + r.n + ' tests. The bar is the 95% interval and the white line is the share found.' + (r.time ? ' When the ball did reach halfway it took ' + r.time.mean.toFixed(1) + ' s on average (standard deviation ' + r.time.sd.toFixed(1) + ' s over ' + r.time.n + ' tests: how far a typical test sits from that average).' : '') + ' Your players completed ' + r.passes.mean.toFixed(1) + ' passes per test.</p>';
+    if (last.hyp) h += '<p><b>Your hypothesis then:</b> ' + esc(last.hyp) + '</p>';
+    if (last.changes && last.changes.length) h += '<p><b>Changed since the run before:</b> ' + esc(last.changes.join('; ')) + '.</p>';
+    return h;
+  }
+  function compareTable(A, B, a, b) {
+    const rows = [['beat', 'Beat the press'], ['lost', 'Lost possession (anywhere)'], ['lostNear', 'Lost it near your own goal'], ['shot', 'Opposition shot']];
+    return '<table class="el-tbl"><tr><th>Measure</th><th>Run ' + (a + 1) + '</th><th>Run ' + (b + 1) + '</th><th>Difference</th><th>p</th></tr>' + rows.map(([k, l]) => { const c2 = FM.lab.compare(A, B, k); return '<tr><td>' + l + '</td><td>' + pc(A[k].p) + '</td><td>' + pc(B[k].p) + '</td><td><b>' + (c2.diff >= 0 ? '+' : '') + Math.round(c2.diff * 100) + '</b><small>' + Math.round(c2.lo * 100) + ' to ' + Math.round(c2.hi * 100) + '</small></td><td>' + (c2.p < 0.001 ? '&lt; 0.001' : c2.p.toFixed(3)) + '</td></tr>'; }).join('') + '</table>';
+  }
   function intro(c) {
     const opp = c.opp;
     return '<p>I am Elena, the club analyst. Nobody can say how a build-up will go from one attempt: on any one try a pass might work or not, and a defender might step up or not. So we play the same set-up many times and count how often each thing happens.</p>' +
@@ -216,7 +233,7 @@
   }
   function reading(c) {
     const runs = c.runs, last = runs[runs.length - 1], r = last.result, n = runs.length;
-    let h = '<p><b>My reading of run ' + n + '.</b></p>';
+    let h = '<p><b>My reading of run ' + n + '.</b></p>' + resultsText(r, last, n);
     // the prediction
     if (last.pred !== '' && last.pred != null) {
       const v = r.beat, p = last.pred / 100, ok = p >= v.lo && p <= v.hi;
@@ -235,16 +252,18 @@
     const half = Math.round(98 / Math.sqrt(r.n));
     h += '<h4>How sure the number is</h4><p>With ' + r.n + ' tests the range on a share near 50% is about ' + half + ' points either way. To halve it you would need four times as many tests.</p>' + (r.time ? '<p>When the ball did reach halfway it took ' + r.time.mean.toFixed(1) + ' s on average (standard deviation ' + r.time.sd.toFixed(1) + ' s over ' + r.time.n + ' tests). The standard deviation is how far a typical test sits from that average.</p>' : '');
     // the comparison
+    if (n >= 2) h += '<h4>Is the difference real?</h4><div class="el-cmp"><label>Run<select id="elA">' + runs.map((x, i) => '<option value="' + i + '"' + (i === c.a ? ' selected' : '') + '>Run ' + (i + 1) + ': ' + pc(x.result.beat.p) + ' beat the press</option>').join('') + '</select></label><label>Compared with<select id="elB">' + runs.map((x, i) => '<option value="' + i + '"' + (i === c.b ? ' selected' : '') + '>Run ' + (i + 1) + ': ' + pc(x.result.beat.p) + ' beat the press</option>').join('') + '</select></label></div>';
     if (n >= 2 && c.a !== c.b && runs[c.a] && runs[c.b]) {
       const A = runs[c.a].result, B = runs[c.b].result, cb = FM.lab.compare(A, B, 'beat'), sig = cb.p < 0.05;
-      h += '<h4>Is the difference real?</h4><div class="el-box"><p>Between run ' + (c.a + 1) + ' and run ' + (c.b + 1) + ', beating the press moved by <b>' + (cb.diff >= 0 ? '+' : '') + Math.round(cb.diff * 100) + ' points</b>. The 95% interval for that difference is ' + Math.round(cb.lo * 100) + ' to ' + Math.round(cb.hi * 100) + ', and the p-value is <b>' + cb.p.toFixed(3) + '</b>.</p>' +
+      h += compareTable(A, B, c.a, c.b) + '<div class="el-box"><p>Between run ' + (c.a + 1) + ' and run ' + (c.b + 1) + ', beating the press moved by <b>' + (cb.diff >= 0 ? '+' : '') + Math.round(cb.diff * 100) + ' points</b>. The 95% interval for that difference is ' + Math.round(cb.lo * 100) + ' to ' + Math.round(cb.hi * 100) + ', and the p-value is <b>' + cb.p.toFixed(3) + '</b>.</p>' +
         '<p>' + (cb.lo < 0 && cb.hi > 0 ? 'The interval runs from below zero to above it, so "no difference at all" is one of the plausible answers. ' : 'The interval does not include zero. ') +
         'If the two set-ups were really the same, luck alone would give a gap this big in about ' + Math.round(cb.p * 100) + '% of pairs of runs. ' + (sig ? 'That is below the 5% line, so this is evidence of a real difference. Check that you changed one thing only, and that the change makes football sense.' : 'That is not below the 5% line, so these runs do not show a real difference. That is not the same as showing there is none.' + (cb.need ? ' If the gap is real and this size, about ' + cb.need + ' tests of each set-up would show it reliably.' : '')) + '</p></div>' +
         go('real', 'Is the difference real?') + go('level', 'How small must the p-value be?') + go('matters', 'Significant is not the same as important') +
         '<p style="margin-top:10px">You can compare four measures in that table. The more of them you look at, the likelier it is that one crosses the line by luck, so decide which one you are testing before you look.</p>';
-    } else if (n >= 2) h += '<h4>Is the difference real?</h4><p>Choose two different runs under "Is the difference real?" on the page and I will tell you what the comparison shows.</p>';
+    } else if (n >= 2) h += '<p>Choose two different runs above and I will tell you what the comparison shows.</p>';
     else h += '<p>Pick one of those ideas, change only that on the board or the sliders, and write what you expect to happen. Then run it again and we can ask whether the difference is real.</p>';
     h += '<p>Write your hypothesis in the box above the Run button: what you will change, and what you think will happen because of it.</p>';
+    h += '<h4>All your runs</h4><p class="el-small">' + runs.map((x, i) => 'Run ' + (i + 1) + ': ' + x.n + ' tests, ' + pc(x.result.beat.p) + ' beat the press').join('<br>') + '</p><button type="button" class="el-go" data-clear="1">Clear the runs</button>';
     return h;
   }
   // ---------- the lessons, one step at a time ----------
@@ -288,12 +307,14 @@
     const el = document.createElement('aside'); el.className = 'el-panel'; el.setAttribute('aria-label', 'Elena Marsh, performance analyst');
     el.innerHTML = '<div class="el-head"><img alt="" src="' + IMG.hello + '"><div><b>Elena Marsh</b><small>Performance analyst</small></div><button type="button" class="x" aria-label="Close Elena">×</button></div><div class="el-tabs"><button type="button" data-t="read">My reading</button><button type="button" data-t="lessons">Lessons</button></div><div class="el-body"></div>';
     document.body.appendChild(el); E.el = el;
+    el.addEventListener('change', (e) => { if ((e.target.id === 'elA' || e.target.id === 'elB') && E.ctx.setCompare) E.ctx.setCompare(+el.querySelector('#elA').value, +el.querySelector('#elB').value); });
     el.addEventListener('click', (e) => {
       const t = e.target.closest('button'); if (!t) return;
       if (t.classList.contains('x')) return setOpen(false);
       if (t.dataset.t) { E.tab = t.dataset.t; if (E.tab === 'lessons') E.lesson = null; return paint(); }
       if (t.dataset.lesson) return openLesson(t.dataset.lesson);
       if (t.dataset.clip) { E.clipKey = t.dataset.clip; return paint(); }
+      if (t.dataset.clear) { if (E.ctx.clearRuns) E.ctx.clearRuns(); return; }
       if (t.dataset.back) { E.lesson = null; return paint(); }
       const L = E.lesson && LESSONS.find((x) => x.id === E.lesson), s = L && L.steps[E.step];
       if (t.dataset.opt != null && s) { const i = +t.dataset.opt, o = s.options[i]; if (o.ok) E.state.right = true; else { if (!E.state.wrong.includes(i)) E.state.wrong.push(i); E.state.hint = o.hint || 'Not quite. Read the question again.'; } if (E.state.right) E.state.hint = ''; return paint(); }
@@ -313,7 +334,7 @@
         E.btn.addEventListener('click', () => setOpen(!E.open)); document.body.appendChild(E.btn);
         clearInterval(E.watch); E.watch = setInterval(() => { if (!document.querySelector('.lab')) FM.elena.hide(); }, 700);
       }
-      if (E.open == null) setOpen(true);                         // the first time, she is there to introduce herself
+      if (E.open == null || (E.open && !E.el)) setOpen(true);                         // the first time, she is there to introduce herself
       else if (E.open) { if (fresh && E.tab === 'lessons' && !E.lesson) E.tab = 'read'; paint(); if (fresh && E.tab !== 'lessons') { const b = E.el && E.el.querySelector('.el-body'); if (b) b.scrollTop = 0; } }
       else if (fresh) E.btn.querySelector('.dot').style.display = '';
     },
