@@ -4285,7 +4285,7 @@
     .nb-corner { position: absolute; width: 14px; height: 14px; z-index: 4; background: #E6D7B0; border: 2px solid #1A232D; border-radius: 4px; opacity: 0; touch-action: none; }
     .nb-corner-nw { left: 3px; top: 3px; cursor: nwse-resize; } .nb-corner-se { right: 3px; bottom: 3px; cursor: nwse-resize; }
     .nb-corner-ne { right: 3px; top: 3px; cursor: nesw-resize; } .nb-corner-sw { left: 3px; bottom: 3px; cursor: nesw-resize; }
-    .nb-graph:hover > .nb-corner, .nb-diagram:hover > .nb-corner, .nb-graph:focus-within > .nb-corner, .nb-diagram:focus-within > .nb-corner { opacity: 0.95; }
+    .nb-graph:hover > .nb-corner, .nb-diagram:hover > .nb-corner, .nb-table:hover > .nb-corner, .nb-graph:focus-within > .nb-corner, .nb-diagram:focus-within > .nb-corner, .nb-table:focus-within > .nb-corner { opacity: 0.95; }
     @media (hover: none) { .nb-corner { opacity: 0.85; } }
     /* Shrunk right down: just the picture, with the grip and delete button; its tool rows return when it is enlarged. */
     .nb-compact .coord-graph-controls, .nb-compact .coord-graph-error, .nb-compact .coord-graph-help, .nb-compact .nb-lines-btn,
@@ -4304,10 +4304,13 @@
     .nb-table { z-index: 50; min-width: 220px; overflow: visible; background: #12121E; color: #E6D7B0; border: 1px solid rgba(230,215,176,.38); border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.42); }
     .nb-table:hover, .nb-table:focus-within { z-index: 70; }
     .nb-table-wrap { overflow-x: auto; padding: 0 8px 8px; }
-    .nb-table table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-    .nb-table td { min-width: 72px; height: 30px; padding: 7px 9px; border: 1px solid rgba(230,215,176,.55); vertical-align: top; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; line-height: 1.4; outline: none; background: rgba(230,215,176,.035); }
+    .nb-table table { width: max-content; min-width: 100%; border-collapse: collapse; table-layout: auto; }
+    .nb-table td { min-width: 72px; height: 30px; padding: 7px 9px; border: 1px solid rgba(230,215,176,.55); vertical-align: top; white-space: pre-wrap; overflow-wrap: normal; word-break: normal; hyphens: none; line-height: 1.4; outline: none; background: rgba(230,215,176,.035); }
     .nb-table td:focus { background: rgba(230,215,176,.12); box-shadow: inset 0 0 0 2px #E6D7B0; }
     .nb-table:hover > .nb-resize, .nb-table:focus-within > .nb-resize { opacity: 1; }
+    .nb-table-dims { display: flex; align-items: center; gap: 6px; font: 700 11px Arial,sans-serif; }
+    .nb-table-dims label { display: flex; align-items: center; gap: 3px; }
+    .nb-table-dims input { width: 40px; box-sizing: border-box; padding: 4px 3px; border: 1px solid rgba(230,215,176,.38); border-radius: 6px; background: #1A232D; color: #E6D7B0; font: inherit; text-align: center; }
     .nb-table-picker { position: fixed; z-index: 180; display: flex; align-items: flex-end; gap: 9px; padding: 12px; border: 1px solid rgba(241,234,214,.4); border-radius: 11px; background: #1A232D; color: #F1EAD6; box-shadow: 0 14px 36px rgba(0,0,0,.48); font: 700 12px Arial,sans-serif; }
     .nb-table-picker[hidden] { display: none; }
     .nb-table-picker label { display: grid; gap: 4px; }
@@ -20924,7 +20927,8 @@ SQIDAQAB
                 const move = (ev) => {
                     const dx = (ev.clientX - px) * sx, dy = (ev.clientY - py) * sy * ratio;
                     const room = sx > 0 ? canvas.clientWidth - ox : ox + ow;
-                    const w = nbClamp(ow + (Math.abs(dx) >= Math.abs(dy) ? dx : dy), NB_MIN_FIGURE, Math.max(NB_MIN_FIGURE, room));
+                    const minW = block.type === 'table' ? 220 : NB_MIN_FIGURE;
+                    const w = nbClamp(ow + (Math.abs(dx) >= Math.abs(dy) ? dx : dy), minW, Math.max(minW, room));
                     block.w = Math.round(w); el.style.width = block.w + 'px'; nbSyncCompact(el);
                     if (sx < 0) { block.x = Math.max(0, ox + ow - block.w); el.style.left = block.x + 'px'; }
                     if (sy < 0) { block.y = Math.max(0, oy + oh - el.offsetHeight); el.style.top = block.y + 'px'; }
@@ -21329,49 +21333,71 @@ SQIDAQAB
     }
 
     function nbMakeTableBlock(page, block, canvas, focus) {
-        const rows = nbClamp(Math.round(Number(block.rows) || 2), 1, 12);
-        const cols = nbClamp(Math.round(Number(block.cols) || 2), 1, 12);
-        block.rows = rows; block.cols = cols;
-        block.cells = Array.from({ length: rows }, (_, r) => Array.from({ length: cols }, (_, c) => String(block.cells && block.cells[r] && block.cells[r][c] || '')));
+        block.rows = nbClamp(Math.round(Number(block.rows) || 2), 1, 12);
+        block.cols = nbClamp(Math.round(Number(block.cols) || 2), 1, 12);
+        block.cells = Array.from({ length: block.rows }, (_, r) => Array.from({ length: block.cols }, (_, c) => String(block.cells && block.cells[r] && block.cells[r][c] || '')));
 
         const el = document.createElement('div');
         el.className = 'nb-block nb-table'; el.dataset.id = block.id;
-        el.innerHTML = `<div class="nb-dbar"><span class="nb-grip nb-table-grip" title="Drag to move" role="button" aria-label="Drag to move this table">⠿ Table ${rows} × ${cols}</span><button type="button" class="nb-del nb-del-inline" aria-label="Delete this table" title="Delete">×</button></div><div class="nb-table-wrap"><table><tbody></tbody></table></div><div class="nb-resize" title="Drag to resize"></div>`;
+        el.innerHTML = `<div class="nb-dbar"><span class="nb-grip nb-table-grip" title="Drag to move" role="button" aria-label="Drag to move this table">⠿ Table</span><span class="nb-table-dims"><label>Rows <input type="number" min="1" max="12" value="${block.rows}" aria-label="Table rows"></label><label>Columns <input type="number" min="1" max="12" value="${block.cols}" aria-label="Table columns"></label></span><button type="button" class="nb-del nb-del-inline" aria-label="Delete this table" title="Delete">×</button></div><div class="nb-table-wrap"><table><tbody></tbody></table></div><div class="nb-resize" title="Drag to resize"></div>`;
         canvas.appendChild(el); nbPlace(el, block, canvas);
         const body = el.querySelector('tbody');
-        let firstCell = null;
-        for (let r = 0; r < rows; r += 1) {
-            const tr = document.createElement('tr');
-            for (let c = 0; c < cols; c += 1) {
-                const td = document.createElement('td');
-                td.contentEditable = 'true'; td.spellcheck = true;
-                td.setAttribute('aria-label', `Row ${r + 1}, column ${c + 1}`);
-                td.textContent = block.cells[r][c];
-                td.addEventListener('input', () => {
-                    block.cells[r][c] = td.innerText.replace(/\n$/, '');
-                    notesScheduleSave(); requestAnimationFrame(() => nbFitCanvas(canvas));
-                });
-                td.addEventListener('keydown', (event) => {
-                    if (event.key !== 'Tab') return;
-                    event.preventDefault();
-                    const cells = [...el.querySelectorAll('td')], index = cells.indexOf(td);
-                    const next = cells[index + (event.shiftKey ? -1 : 1)];
-                    if (next) next.focus();
-                });
-                tr.appendChild(td); if (!firstCell) firstCell = td;
+        const rowInput = el.querySelector('[aria-label="Table rows"]');
+        const colInput = el.querySelector('[aria-label="Table columns"]');
+        const focusCell = (r, c) => {
+            const td = body.rows[r] && body.rows[r].cells[c]; if (!td) return;
+            td.focus(); const selection = window.getSelection(), caret = document.createRange();
+            caret.selectNodeContents(td); caret.collapse(false); selection.removeAllRanges(); selection.addRange(caret);
+        };
+        const renderCells = () => {
+            body.innerHTML = '';
+            for (let r = 0; r < block.rows; r += 1) {
+                const tr = document.createElement('tr');
+                for (let c = 0; c < block.cols; c += 1) {
+                    const td = document.createElement('td');
+                    td.contentEditable = 'true'; td.spellcheck = true;
+                    td.setAttribute('aria-label', `Row ${r + 1}, column ${c + 1}`);
+                    td.textContent = block.cells[r][c];
+                    td.addEventListener('input', () => {
+                        block.cells[r][c] = td.innerText.replace(/\n$/, '');
+                        notesScheduleSave(); requestAnimationFrame(() => nbFitCanvas(canvas));
+                    });
+                    td.addEventListener('keydown', (event) => {
+                        const arrows = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
+                        if (event.key === 'Tab') {
+                            event.preventDefault();
+                            const index = r * block.cols + c + (event.shiftKey ? -1 : 1);
+                            focusCell(Math.floor(index / block.cols), ((index % block.cols) + block.cols) % block.cols);
+                            return;
+                        }
+                        const step = arrows[event.key]; if (!step) return;
+                        event.preventDefault(); focusCell(nbClamp(r + step[0], 0, block.rows - 1), nbClamp(c + step[1], 0, block.cols - 1));
+                    });
+                    tr.appendChild(td);
+                }
+                body.appendChild(tr);
             }
-            body.appendChild(tr);
-        }
+        };
+        const resizeGrid = () => {
+            const nextRows = nbClamp(Math.round(Number(rowInput.value) || block.rows), 1, 12);
+            const nextCols = nbClamp(Math.round(Number(colInput.value) || block.cols), 1, 12);
+            const old = block.cells;
+            block.cells = Array.from({ length: nextRows }, (_, r) => Array.from({ length: nextCols }, (_, c) => String(old[r] && old[r][c] || '')));
+            block.rows = nextRows; block.cols = nextCols; rowInput.value = nextRows; colInput.value = nextCols;
+            renderCells(); notesScheduleSave(); requestAnimationFrame(() => nbFitCanvas(canvas));
+        };
+        rowInput.addEventListener('change', resizeGrid); colInput.addEventListener('change', resizeGrid);
+        [rowInput, colInput].forEach((input) => input.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); resizeGrid(); } }));
+        renderCells();
         nbWireDrag(el.querySelector('.nb-table-grip'), el, block, canvas);
-        nbWireResize(el.querySelector('.nb-resize'), el, block, canvas);
+        nbWireResize(el.querySelector('.nb-resize'), el, block, canvas); nbWireCorners(el, block, canvas);
         const delBtn = el.querySelector('.nb-del'); let armed = null;
         delBtn.addEventListener('click', () => {
             if (armed) { clearTimeout(armed); nbRemoveBlock(page, block, el, canvas); return; }
             delBtn.textContent = 'Sure?'; delBtn.style.width = 'auto'; delBtn.style.padding = '0 8px';
             armed = setTimeout(() => { armed = null; delBtn.textContent = '×'; delBtn.style.width = ''; delBtn.style.padding = ''; }, 3000);
         });
-        if (notesResizeObs) notesResizeObs.observe(el);
-        if (focus && firstCell) firstCell.focus();
+        if (focus) focusCell(0, 0);
         return el;
     }
 
@@ -21469,8 +21495,9 @@ SQIDAQAB
         ]],
         ['Tables', [
             ['+ Table', 'Choose the number of rows and columns, then add an editable table to the page.'],
-            [K('Tab') + ' / ' + K('Shift') + ' + ' + K('Tab'), 'Moves to the next or previous table cell.'],
-            ['Drag ' + K('⠿ Table'), 'Moves the whole table. Longer cell text wraps and grows its row automatically.'],
+            ['Rows / Columns', 'Change either number in the table header at any time; existing cell contents are preserved.'],
+            [K('Arrow keys') + ' or ' + K('Tab'), 'Moves between table cells.'],
+            ['Drag ' + K('⠿ Table'), 'Moves the whole table. Drag any corner to resize it; longer cell text grows its row without splitting words.'],
         ]],
         ['Coordinate graphs', [
             [K('Ctrl') + ' + ' + K('Alt') + ' + ' + K('G'), 'Adds a coordinate graph at the cursor.'],
