@@ -147,6 +147,9 @@
       '.el-bar { position: relative; height: 10px; border-radius: 5px; background: rgba(241,234,214,.12); } .el-bar i { position: absolute; top: 0; bottom: 0; border-radius: 5px; background: #F2C14E; opacity: .85; } .el-bar b { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #F1EAD6; }',
       '.el-small { font-size: .8rem; opacity: .8; } .el-cmp { display: grid; gap: 8px; margin: 6px 0 10px; } .el-cmp label { display: grid; gap: 4px; font-size: .8rem; opacity: .9; } .el-cmp select { padding: 8px; border-radius: 8px; border: 1px solid rgba(241,234,214,.35); background: rgba(255,255,255,.07); color: inherit; font: inherit; }',
       '.el-tbl { width: 100%; border-collapse: collapse; font-size: .8rem; margin: 6px 0 10px; } .el-tbl th, .el-tbl td { padding: 6px 4px; text-align: left; border-bottom: 1px solid rgba(241,234,214,.12); } .el-tbl th { font-size: .7rem; letter-spacing: .05em; text-transform: uppercase; opacity: .7; } .el-tbl td small { display: block; opacity: .65; }',
+      '.iv-pitch { display: block; width: 100%; max-width: 360px; margin: 6px auto; height: auto; border-radius: 10px; } .iv-chips { display: flex; flex-wrap: wrap; gap: 6px; } .iv-chips .el-go { width: auto; margin: 0; padding: 7px 12px; }',
+      '.iv-key { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: .74rem; opacity: .85; margin: 4px 0 8px; } .iv-key .k { display: inline-block; width: 16px; height: 0; margin-right: 4px; vertical-align: middle; border-top: 3px solid #F2C14E; } .iv-key .k.g { border-color: #7fd49a; } .iv-key .k.r { border-top: 3px dashed #ff7a5c; } .iv-key .k.o { border-top: 3px dashed #FF9F43; } .iv-key .k.p { border-top: 3px dotted #c8a2ff; }',
+      '.iv-lines { margin: 0 0 10px; padding-left: 18px; font-size: .86rem; } .iv-lines li { margin-bottom: 4px; }',
       'body.el-open { padding-right: min(456px, 100vw); } @media (max-width: 1000px) { body.el-open { padding-right: 16px; } }',
     ].join('\n');
     document.head.appendChild(e);
@@ -293,18 +296,60 @@
     }
     return h;
   }
+  // ---------- the instructions: what they do, drawn, and the assistant's review ----------
+  const hashOf = (t) => { let h = 5381; for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
+  const liveRules = (team) => (team.rules || []).filter((r) => !r.off);
+  const ruleLines = (team) => liveRules(team).map((r) => FM.rulesWho(r) + ': ' + FM.rulesText(r));
+  function instrReading(c) {
+    const team = c.team, live = liveRules(team);
+    if (!live.length) return '<p>I am Elena, the club analyst. Write how you want the team to play in the box on the left, about any players, ours or theirs, in any stage of play.</p><p>When you add them, I will draw what they do on the pitch, stage by stage: who stands where, who follows whom, where the ball is steered. Then I will tell you where they clash, where they leave you exposed, and what to try next.</p><p class="el-small">Instructions you write are also played by the opposition when you test your build-up, so anything you add here shows up in the lab.</p>';
+    const stage = E.istage || 'build', viz = FM.instrViz.draw(team, c.opp, stage);
+    let h = '<h4>What your instructions do</h4><div class="iv-chips">' + FM.instrViz.stages.map(([k, l]) => '<button type="button" class="el-go' + (k === stage ? ' primary' : '') + '" data-istage="' + k + '">' + l + '</button>').join('') + '</div>' + viz.svg +
+      '<div class="iv-key"><span><i class="k a"></i> moves here instead</span><span><i class="k g"></i> passes he looks for</span><span><i class="k r"></i> passes he avoids</span><span><i class="k o"></i> follows</span><span><i class="k p"></i> draws in</span></div>';
+    h += viz.lines.length ? '<ul class="iv-lines">' + viz.lines.map((l) => '<li>' + esc(l) + '</li>').join('') + '</ul>' : '<p class="el-small">In this stage your instructions do not move anyone from where he would have stood. Try another stage above.</p>';
+    // the review
+    const key = hashOf(ruleLines(team).join('|') + '|' + (c.opp ? c.opp.name : '')), rv = E.review && E.review.key === key ? E.review : null;
+    h += '<h4>My review</h4>';
+    if (rv && rv.busy) h += '<p>Reading your instructions…</p>';
+    else if (rv && rv.err) h += '<p class="el-hint">' + esc(rv.err) + '</p><button type="button" class="el-go" data-review="1">Try again</button>';
+    else if (rv && rv.data) {
+      const d = rv.data;
+      h += '<p>' + esc(d.summary) + '</p>';
+      if (d.effects.length) h += '<div class="el-box"><p><b>What each change does</b></p>' + d.effects.map((x) => '<p><b>' + esc(x.who) + ':</b> ' + esc(x.what) + '</p>').join('') + '</div>';
+      if (d.concerns.length) h += '<h4>Where it could go wrong</h4>' + d.concerns.map((x) => '<div class="el-box"><p><b>' + esc(x.title) + '</b></p><p>' + esc(x.why) + '</p><p class="el-try"><b>What you could change:</b> ' + esc(x.fix) + '</p></div>').join('');
+      else h += '<p class="el-small">I could not find a clash or a gap worth warning you about.</p>';
+      if (d.improvements.length) h += '<h4>What to try next</h4>' + d.improvements.map((x, i) => '<div class="el-box"><p><b>' + esc(x.title) + '</b></p><p>' + esc(x.suggestion) + '</p>' + (x.instruction ? '<p class="el-try">' + esc(x.instruction) + '</p><button type="button" class="el-go" data-use="' + i + '">Put this in the box</button>' : '') + '</div>').join('');
+      h += '<p class="el-small">Test it in the build-up lab to see whether it really works: the numbers decide, not my opinion.</p>';
+    } else h += '<button type="button" class="el-go primary" data-review="1">Ask Elena to review these instructions</button><p class="el-small">I read the whole set together, against ' + esc(c.opp ? c.opp.name : 'the next opponent') + '. It uses a few Locks.</p>';
+    return h;
+  }
+  async function requestReview() {
+    const c = E.ctx; if (!c || c.mode !== 'instr' || !FM.api) return;
+    const lines = ruleLines(c.team); if (!lines.length) return;
+    const key = hashOf(lines.join('|') + '|' + (c.opp ? c.opp.name : ''));
+    if (E.review && E.review.key === key && (E.review.busy || E.review.data)) return;
+    E.review = { key, busy: true };
+    if (E.open) paint();
+    try {
+      const data = await FM.api('/football/review-instructions', { formation: c.team.formationKey, squad: FM.squadOf(c.team), opponent: c.opp ? { name: c.opp.name, squad: FM.squadOf(c.opp) } : null, instructions: lines });
+      E.review = { key, data };
+    } catch (err) { E.review = { key, err: err.message || 'I could not review those just now.' }; }
+    if (E.open && E.el) paint();
+  }
   function body() {
     if (E.tab === 'lessons') return E.lesson ? lessonStep() : lessonList();
-    const c = E.ctx; return c.runs.length ? reading(c) : intro(c);
+    const c = E.ctx; if (c.mode === 'instr') return instrReading(c);
+    return c.runs.length ? reading(c) : intro(c);
   }
   function paint() {
     if (!E.el) return;
     const b = E.el.querySelector('.el-body'), keep = null, top = b.scrollTop;
     b.innerHTML = body();
+    E.el.querySelectorAll('.el-tabs button').forEach((t) => { if (t.dataset.t === 'read') t.textContent = E.ctx.mode === 'instr' ? 'My review' : 'My reading'; });
     E.el.querySelectorAll('.el-tabs button').forEach((t) => t.setAttribute('aria-pressed', String(t.dataset.t === E.tab)));
     b.scrollTop = top;
     if (FM.labReplay) { FM.labReplay.stop(); const rh = b.querySelector('#elReplay'); if (rh && E.ctx.runs.length) { const last = E.ctx.runs[E.ctx.runs.length - 1].result, cl = last.clips && last.clips.find((x) => x.key === E.clipKey); if (cl) FM.labReplay.mount(rh, cl.clip, { team: E.ctx.team, opp: E.ctx.opp }); } }
-    const who = E.el.querySelector('.el-head img'); if (who) who.src = E.tab === 'lessons' ? IMG.think : (E.ctx.runs.length ? IMG.point : IMG.hello);
+    const face = E.el.querySelector('.el-head img'); if (face) face.src = E.tab === 'lessons' ? IMG.think : ((E.ctx.runs.length || E.ctx.mode === 'instr') ? IMG.point : IMG.hello);
   }
   function openLesson(id) { E.tab = 'lessons'; E.lesson = id; E.step = 0; E.state = { right: false, wrong: [], hint: '' }; if (!E.open) setOpen(true); else paint(); const b = E.el && E.el.querySelector('.el-body'); if (b) b.scrollTop = 0; }
   function setOpen(on) {
@@ -322,6 +367,9 @@
       if (t.dataset.t) { E.tab = t.dataset.t; if (E.tab === 'lessons') E.lesson = null; return paint(); }
       if (t.dataset.lesson) return openLesson(t.dataset.lesson);
       if (t.dataset.clip) { E.clipKey = t.dataset.clip; return paint(); }
+      if (t.dataset.istage) { E.istage = t.dataset.istage; return paint(); }
+      if (t.dataset.review) return requestReview();
+      if (t.dataset.use != null) { const x = E.review && E.review.data && E.review.data.improvements[+t.dataset.use]; if (x && FM.instrBox) FM.instrBox.fill(x.instruction); return; }
       if (t.dataset.clear) { if (E.ctx.clearRuns) E.ctx.clearRuns(); return; }
       if (t.dataset.back) { E.lesson = null; return paint(); }
       const L = E.lesson && LESSONS.find((x) => x.id === E.lesson), s = L && L.steps[E.step];
@@ -335,17 +383,18 @@
   FM.elena = {
     lessons: LESSONS,
     sync(ctx) {
-      css(); const fresh = !E.ctx || E.ctx.runs.length !== ctx.runs.length; E.ctx = ctx;
+      css(); ctx.runs = ctx.runs || []; const fresh = !E.ctx || E.ctx.runs.length !== ctx.runs.length || E.ctx.mode !== ctx.mode; E.ctx = ctx; if (fresh) E.tab = 'read';
       if (!E.btn || !E.btn.isConnected) {
         E.btn = document.createElement('button'); E.btn.type = 'button'; E.btn.className = 'el-tab'; E.btn.setAttribute('aria-expanded', 'false'); E.btn.setAttribute('aria-label', 'Open Elena Marsh, performance analyst');
         E.btn.innerHTML = '<img alt="" src="' + IMG.hello + '"><span>ELENA</span><i class="dot"></i>';
         E.btn.addEventListener('click', () => setOpen(!E.open)); document.body.appendChild(E.btn);
-        clearInterval(E.watch); E.watch = setInterval(() => { if (!document.querySelector('.lab')) FM.elena.hide(); }, 700);
+        clearInterval(E.watch); E.watch = setInterval(() => { if (!document.querySelector(E.ctx && E.ctx.mode === 'instr' ? '.in-wrap' : '.lab')) FM.elena.hide(); }, 700);
       }
       if (E.open == null || (E.open && !E.el)) setOpen(true);                         // the first time, she is there to introduce herself
       else if (E.open) { if (fresh && E.tab === 'lessons' && !E.lesson) E.tab = 'read'; paint(); if (fresh && E.tab !== 'lessons') { const b = E.el && E.el.querySelector('.el-body'); if (b) b.scrollTop = 0; } }
       else if (fresh) E.btn.querySelector('.dot').style.display = '';
     },
+    review: requestReview,
     hide() { if (FM.labReplay) FM.labReplay.stop(); clearInterval(E.watch); if (E.el) E.el.remove(); if (E.btn) E.btn.remove(); E.el = E.btn = null; document.body.classList.remove('el-open'); },
   };
 })();

@@ -302,7 +302,16 @@
     const pressers = opp.players.filter((p) => PRESS_ROLES.indexOf(p.group) >= 0 && !chasers.has(p) && (cd.get(p) || 0) > -0.5)
       .sort((a, b) => (b.x * opp.attackDir) - (a.x * opp.attackDir)).slice(0, nPress);
     const taken = new Set(), assign = new Map();
+    // A player told to draw a named opponent in: that opponent comes to him, in the proportion the instruction says.
+    att.players.forEach((q) => {
+      if (q === carrier || !(att.rules && att.rules.length)) return;
+      FM.rulesAttract(att, q, match.ball).forEach((e) => {
+        const x = pressers.find((p) => !assign.has(p) && (e.target.name ? p.name === e.target.name : p.number === e.target.number));
+        if (x && !taken.has(q) && rng() < e.strength) { assign.set(x, q); taken.add(q); }
+      });
+    });
     pressers.forEach((p) => {
+      if (assign.has(p)) return;
       const cands = att.players.filter((q) => q !== carrier && !taken.has(q)).map((q) => ({ q, d: dist(p, q) })).filter((o) => o.d < 45).sort((a, b) => a.d - b.d);
       if (!cands.length) return;
       let pick = 0;
@@ -406,6 +415,7 @@
     // The manager's own instructions, for this player in this situation.
     const RE = team.rules && team.rules.length ? FM.rulesFold(FM.rulesActive(team, carrier, FM.rulesCtx(team, match.ball, true, nearNow < 4))) : null;
     if (RE) risk = clamp(risk + 0.35 * RE.risk, 0, 1);
+    const evPass = RE && RE.passScore.length ? FM.rulesEv(team, carrier, match.ball, true) : null;
 
     team.players.forEach((t) => {
       if (t === carrier) return;
@@ -441,6 +451,7 @@
         RE.passTo.forEach((pt) => { if (FM.rulesReceiver(pt.to, t, carrier, team)) adj += pt.w * 1.1; });
         adj += (RE.dir[back < -3 ? 'forward' : back > 3 ? 'backward' : 'sideways'] || 0) * 0.9;
         adj += RE.freeMan * clamp((press - 3) / 9, 0, 1);
+        if (RE.passScore.length) { evPass.receiver = t; RE.passScore.forEach((ps) => { if (FM.rulesPred(ps.where, evPass)) adj += ps.w * 1.1; }); }
       }
       options.push({ kind: 'pass', target: t, tx, ty, d, lane, press, p, score: off === 'off' ? -4 : score + adj });
     });
@@ -1265,7 +1276,7 @@
 
     if (match.aiTeams.length && match.carrier && match.clock >= match.nextAiCheck) { match.nextAiCheck += AI_CHECK_SECONDS; aiTick(match); }
 
-    match.teams.forEach((t) => { const oo = other(match, t); t.ruleCtx = { scoreDiff: (match.score[t.id] || 0) - (match.score[oo.id] || 0), minute: match.clock / 60 }; });
+    match.teams.forEach((t) => { const oo = other(match, t); t.oppRef = oo; t.ruleCtx = { scoreDiff: (match.score[t.id] || 0) - (match.score[oo.id] || 0), minute: match.clock / 60, carrier: match.carrier ? match.carrier.player : null, pressed: false }; });
     setOffsideLines(match);
     setPhaseContext(match);
     const ov = buildOverrides(match);

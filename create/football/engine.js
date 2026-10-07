@@ -299,6 +299,8 @@
     // The manager's own instructions can move him further forward or wider, in the situations they name.
     const rs = FM.rulesShift ? FM.rulesShift(team, player, ball, hasBall) : null;
     if (rs) { d += rs.d; w += (w >= 0.5 ? 1 : -1) * rs.w; }
+    const pl = FM.rulesPlace ? FM.rulesPlace(team, player, ball, hasBall) : null;   // 'stand where this says', for the situations the manager named
+    if (pl) pl.forEach((e) => { if (e.dm != null) d += (e.dm / L - d) * e.k; if (e.wm != null) w += (e.wm / W - w) * e.k; });
 
     // Width instruction: spreads or squeezes the whole shape around the centre line.
     w = 0.5 + (w - 0.5) * (hasBall ? team.tactics.attackWidth : team.tactics.defWidth);

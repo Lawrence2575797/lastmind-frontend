@@ -22,8 +22,74 @@
     const b = FM.toTeamSpace(team.attackDir, ball.x, ball.y), rc = team.ruleCtx || {}, pc = team.phaseCtx || {};
     // The stage of play, as the tactics board names them: the same five the manager sets positions for, plus pressing their build-up.
     const stage = hasBall ? ((pc.transAtt || 0) > 0.35 ? 'transAtt' : b.d < 0.5 ? 'build' : 'final') : ((pc.transDef || 0) > 0.35 ? 'transDef' : (b.d > 0.6 && (team.tactics.pressBuildUp == null ? 0.4 : team.tactics.pressBuildUp) > 0.2) ? 'press' : 'without');
-    return { hasBall: !!hasBall, zone: zoneOf(b.d), side: sideOf(b.w), pressed: !!pressed, stage, scoreDiff: rc.scoreDiff || 0, minute: rc.minute || 0 };
+    return { team, ball, hasBall: !!hasBall, zone: zoneOf(b.d), side: sideOf(b.w), pressed: !!pressed, stage, scoreDiff: rc.scoreDiff || 0, minute: rc.minute || 0 };
   };
+  // ---------- expressions and conditions (see the backend's footballRules.ts for the form they arrive in) ----------
+  // The things a rule can talk about, with their positions in metres in the evaluating team's own space: dm is the distance from its own goal line
+  // towards the opposition's goal (0 to 105), wm the distance from its left touchline (0 to 68).
+  FM.rulesEv = function (team, me, ball, hasBall) {
+    const rc = team.ruleCtx || {};
+    return { team, opp: team.oppRef || null, me, ball, hasBall: !!hasBall, carrier: rc.carrier || null, minute: rc.minute || 0, scoreDiff: rc.scoreDiff || 0, pressed: rc.pressed ? 1 : 0, receiver: null };
+  };
+  const posOf = (team, x, y) => { const s = FM.toTeamSpace(team.attackDir, x, y); return { dm: s.d * L, wm: s.w * W }; };
+  const pl2 = (ev, p) => (p ? Object.assign({ p }, posOf(ev.team, p.x, p.y)) : null);
+  const nameMatch = (p, e) => (e.name ? p.name === e.name : e.number == null || p.number === e.number);
+  function entity(e, ev, depth) {
+    if (!e || (depth || 0) > 2) return null;
+    switch (e.e) {
+      case 'me': return pl2(ev, ev.me);
+      case 'ball': return ev.ball ? Object.assign({ p: null }, posOf(ev.team, ev.ball.x, ev.ball.y)) : null;
+      case 'carrier': return pl2(ev, ev.carrier);
+      case 'receiver': return pl2(ev, ev.receiver);
+      case 'own_goal': return { p: null, dm: 0, wm: W / 2 };
+      case 'their_goal': return { p: null, dm: L, wm: W / 2 };
+      case 'centre': return { p: null, dm: L / 2, wm: W / 2 };
+      case 'opp_last': { if (!ev.opp) return null; let best = null; ev.opp.players.forEach((q) => { if (q.group === 'GK') return; const o = pl2(ev, q); if (!best || o.dm > best.dm) best = o; }); return best; }
+      case 'player': { const team = e.side === 'opp' ? ev.opp : ev.team; if (!team) return null; return pl2(ev, team.players.find((q) => nameMatch(q, e))); }
+      case 'nearest': {
+        const team = e.side === 'own' ? ev.team : ev.opp; if (!team) return null;
+        const to = e.to ? entity(e.to, ev, (depth || 0) + 1) : pl2(ev, ev.me); if (!to) return null;
+        let best = null, bd = 1e9;
+        team.players.forEach((q) => { if (q === (to.p || null) || (e.group && q.group !== e.group)) return; const o = pl2(ev, q), d = Math.hypot(o.dm - to.dm, o.wm - to.wm); if (d < bd) { bd = d; best = o; } });
+        return best;
+      }
+      default: return null;
+    }
+  }
+  const fin = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
+  function expr(x, ev) {
+    if (typeof x === 'number') return fin(x);
+    if (!x || typeof x !== 'object') return null;
+    if (x.var) return x.var === 'minute' ? ev.minute : x.var === 'scoreDiff' ? ev.scoreDiff : x.var === 'pressed' ? ev.pressed : null;
+    if (x.attr) {
+      const a = entity(x.of, ev); if (!a) return null;
+      if (x.attr === 'dm' || x.attr === 'wm') return fin(a[x.attr]);
+      if (x.attr === 'dist') { const b = x.to ? entity(x.to, ev) : pl2(ev, ev.me); return b ? fin(Math.hypot(a.dm - b.dm, a.wm - b.wm)) : null; }
+      if (x.attr === 'press') { if (!ev.opp) return null; let bd = 1e9; ev.opp.players.forEach((q) => { const o = posOf(ev.team, q.x, q.y), d = Math.hypot(o.dm - a.dm, o.wm - a.wm); if (d < bd) bd = d; }); return fin(bd); }
+      return null;
+    }
+    const args = (x.args || []).map((y) => expr(y, ev));
+    if (args.some((v) => v == null)) return null;
+    switch (x.op) {
+      case 'add': return fin(args[0] + args[1]); case 'sub': return fin(args[0] - args[1]); case 'mul': return fin(args[0] * args[1]);
+      case 'div': return args[1] ? fin(args[0] / args[1]) : null;
+      case 'min': return Math.min(args[0], args[1]); case 'max': return Math.max(args[0], args[1]); case 'abs': return Math.abs(args[0]);
+      case 'clamp': return clamp(args[0], Math.min(args[1], args[2]), Math.max(args[1], args[2]));
+      default: return null;
+    }
+  }
+  function pred(x, ev) {
+    if (!x || typeof x !== 'object') return false;
+    if (x.op === 'and') return (x.args || []).every((y) => pred(y, ev));
+    if (x.op === 'or') return (x.args || []).some((y) => pred(y, ev));
+    if (x.op === 'not') return !pred((x.args || [])[0], ev);
+    if (x.cmp) { const a = expr(x.a, ev), b = expr(x.b, ev); if (a == null || b == null) return false; return x.cmp === 'lt' ? a < b : x.cmp === 'gt' ? a > b : x.cmp === 'lte' ? a <= b : x.cmp === 'gte' ? a >= b : Math.abs(a - b) < 1e-6; }
+    if (x.is === 'group') { const a = entity(x.of, ev); return !!(a && a.p && a.p.group === x.value); }
+    if (x.is === 'player') { const a = entity(x.of, ev); return !!(a && a.p && nameMatch(a.p, x)); }
+    return false;
+  }
+  FM.rulesExpr = expr; FM.rulesPred = pred;
+
   const whenHolds = (when, c) => {
     if (!when) return true;
     if (when.possession === 'with' && !c.hasBall) return false;
@@ -38,20 +104,23 @@
     if (when.score === 'drawing' && c.scoreDiff !== 0) return false;
     if (when.minFrom != null && c.minute < when.minFrom) return false;
     if (when.minTo != null && c.minute > when.minTo) return false;
+    if (when.expr && !pred(when.expr, FM.rulesEv(c.team, c.me, c.ball, c.hasBall))) return false;
     return true;
   };
   // Every effect, from every rule that is for this player and holds now.
   FM.rulesActive = function (team, p, c) {
     const out = [];
+    c.me = p;
     (team.rules || []).forEach((r) => { if (r.off || !scopeMatches(r.scope, p) || !whenHolds(r.when, c)) return; r.effects.forEach((e) => out.push(e)); });
     return out;
   };
   // A passer's rules folded into the numbers the decision uses.
   FM.rulesFold = function (effects) {
-    const f = { short: 0, long: 0, passTo: [], dir: { forward: 0, sideways: 0, backward: 0 }, freeMan: 0, risk: 0, dribble: 0, shoot: 0, holdUp: false, tempo: 0 };
+    const f = { short: 0, long: 0, passTo: [], passScore: [], dir: { forward: 0, sideways: 0, backward: 0 }, freeMan: 0, risk: 0, dribble: 0, shoot: 0, holdUp: false, tempo: 0 };
     effects.forEach((e) => {
       if (e.type === 'passLength') f[e.pref] = clamp(f[e.pref] + e.strength, 0, 1);
       else if (e.type === 'passTarget') f.passTo.push({ to: e.to, w: e.weight });
+      else if (e.type === 'passScore') f.passScore.push({ where: e.where, w: e.weight });
       else if (e.type === 'passDirection') f.dir[e.dir] = clamp(f.dir[e.dir] + e.weight, -1, 1);
       else if (e.type === 'freeMan') f.freeMan = clamp(f.freeMan + e.weight, 0, 1);
       else if (e.type === 'holdUp') f.holdUp = f.holdUp || e.on;
@@ -86,6 +155,20 @@
     let df = 0, dw = 0;
     FM.rulesActive(team, p, FM.rulesCtx(team, ball, hasBall, false)).forEach((e) => { if (e.type === 'position' && (e.phase === 'both' || (e.phase === 'with') === !!hasBall)) { df += e.forward; dw += e.wide; } });
     return df || dw ? { d: df / L, w: dw / W } : null;
+  };
+  // 'place' effects: where an expression says he should stand. Returns metres for each axis it controls, with how strongly he is pulled there.
+  FM.rulesPlace = function (team, p, ball, hasBall) {
+    if (!team.rules || !team.rules.length) return null;
+    const eff = FM.rulesActive(team, p, FM.rulesCtx(team, ball, hasBall, false)).filter((e) => e.type === 'place' && (e.phase === 'both' || (e.phase === 'with') === !!hasBall));
+    if (!eff.length) return null;
+    const ev = FM.rulesEv(team, p, ball, hasBall), out = [];
+    eff.forEach((e) => { const dm = e.dm != null ? expr(e.dm, ev) : null, wm = e.wm != null ? expr(e.wm, ev) : null; if (dm != null || wm != null) out.push({ dm, wm, k: e.weight }); });
+    return out.length ? out : null;
+  };
+  // 'attract' effects: the opposition players this player is meant to draw, with how strongly.
+  FM.rulesAttract = function (team, p, ball) {
+    if (!team.rules || !team.rules.length) return [];
+    return FM.rulesActive(team, p, FM.rulesCtx(team, ball, true, false)).filter((e) => e.type === 'attract');
   };
   // Who he is told to follow (a defender), as the groups of attacker he may follow.
   FM.rulesMark = function (team, p, ball) {
@@ -130,16 +213,38 @@
       case 'stepUp': return 'step up to follow a forward who drops';
       case 'position': return 'stand ' + [e.forward ? Math.abs(e.forward) + ' m ' + (e.forward > 0 ? 'further forward' : 'deeper') : '', e.wide ? Math.abs(e.wide) + ' m ' + (e.wide > 0 ? 'wider' : 'narrower') : ''].filter(Boolean).join(' and ') + (e.phase === 'with' ? ' with the ball' : e.phase === 'without' ? ' without the ball' : '');
       case 'mark': return e.target.number != null ? 'follow ' + (e.target.name ? e.target.name + ' (#' + e.target.number + ')' : nameOf('opp', e.target.number)) + ' closely, wherever he goes' : 'follow the nearest ' + (e.target.group ? GROUP_WORD[e.target.group].replace(/s$/, '') : e.target.line ? 'player in their ' + e.target.line : 'attacker') + ' closely';
+      case 'place': return 'stand where the manager has set (' + placeText(e) + ')';
+      case 'passScore': return (e.weight > 0 ? 'favour' : 'avoid') + ' passes to players who meet a condition set by the manager' + strong(e.weight);
+      case 'attract': return 'draw ' + (e.target.name ? e.target.name + ' (#' + e.target.number + ')' : 'player #' + e.target.number) + ' towards him';
       default: return e.type;
     }
   };
-  FM.rulesText = function (r) { const w = whenText(r.when || {}), t = r.effects.map(FM.rulesEffectText).join(', and '); return t.charAt(0).toUpperCase() + t.slice(1) + (w ? ', ' + w : '') + '.'; };
+  // A simple description of a placement: level with someone, behind someone, between limits.
+  const entText = (e) => (!e ? 'a point' : e.e === 'player' ? (e.name || '#' + e.number) : e.e === 'me' ? 'his own position' : e.e === 'ball' ? 'the ball' : e.e === 'carrier' ? 'the ball carrier' : e.e === 'own_goal' ? 'our goal' : e.e === 'their_goal' ? 'their goal' : e.e === 'centre' ? 'the centre of the pitch' : e.e === 'opp_last' ? 'their last defender' : e.e === 'nearest' ? 'the nearest ' + (e.side === 'own' ? 'team-mate' : 'opponent') : 'a player');
+  function placeText(e) {
+    const bits = [];
+    const one = (x, axis) => {
+      if (!x) return;
+      if (x.attr === axis && x.of) bits.push((axis === 'dm' ? 'as far up the pitch as ' : 'as far across as ') + entText(x.of));
+      else if (x.op === 'clamp' && x.args[0].attr === axis && x.args[0].of && x.args[0].of.e === 'me') bits.push((axis === 'wm' ? 'between ' + x.args[1] + ' and ' + x.args[2] + ' m from our left touchline' : 'between ' + x.args[1] + ' and ' + x.args[2] + ' m from our goal line'));
+      else if (x.op && (x.op === 'add' || x.op === 'sub') && x.args[0].attr === axis && typeof x.args[1] === 'number') bits.push(Math.abs(x.args[1]) + ' m ' + ((x.op === 'add') === (axis === 'dm') ? 'ahead of ' : 'behind ') + entText(x.args[0].of));
+      else bits.push(axis === 'dm' ? 'at a depth set by a formula' : 'at a width set by a formula');
+    };
+    one(e.dm, 'dm'); one(e.wm, 'wm');
+    return bits.join(', ') + (e.phase === 'with' ? ', with the ball' : e.phase === 'without' ? ', without it' : '');
+  }
+  const complex = (r) => r.effects.some((e) => e.type === 'place' || e.type === 'passScore' || e.type === 'attract') || (r.when && r.when.expr);
+  FM.rulesText = function (r) {
+    if (r.source === 'ai' && r.text && complex(r)) return r.text.replace(/\.?$/, '.');
+    const w = whenText(r.when || {}), t = r.effects.map(FM.rulesEffectText).join(', and '); return t.charAt(0).toUpperCase() + t.slice(1) + (w ? ', ' + w : '') + '.';
+  };
   FM.rulesWho = (r) => who(r.scope);
   FM.RULES = { LINES, GROUPS, GROUP_WORD, LINE_WORD, lineOf, scopeMatches, who };
 
   // ---------- checking what comes from the builder or the backend ----------
   const num = (v, lo, hi) => { const n = Number(v); return Number.isFinite(n) ? clamp(n, lo, hi) : null; };
   const r2 = (n) => Math.round(n * 100) / 100;
+  const sizeOf = (x, d) => (x && typeof x === 'object' ? 1 + Object.keys(x).reduce((n, k) => n + (k === 'name' || k === 'value' ? 0 : sizeOf(x[k], (d || 0) + 1)), 0) : 0) + ((d || 0) > 8 ? 999 : 0);
   FM.rulesClean = function (r, numbers) {
     if (!r || !Array.isArray(r.effects)) return null;
     const ok = [];
@@ -153,6 +258,9 @@
       else if (['risk', 'dribble', 'shoot', 'tempo', 'runs', 'closeDown', 'tackle'].indexOf(t) >= 0 && num(e.delta, -1, 1) != null) ok.push({ type: t, delta: r2(num(e.delta, -1, 1)) });
       else if (t === 'holdUp' || t === 'stepUp') ok.push({ type: t, on: e.on !== false });
       else if (t === 'position') { const f = num(e.forward || 0, -15, 15), w = num(e.wide || 0, -12, 12); if (f != null && w != null && (f || w)) ok.push({ type: t, forward: r2(f), wide: r2(w), phase: ['with', 'without', 'both'].indexOf(e.phase) >= 0 ? e.phase : 'both' }); }
+      else if (t === 'place' && (e.dm != null || e.wm != null) && sizeOf(e) < 120) ok.push({ type: t, dm: e.dm, wm: e.wm, weight: r2(num(e.weight == null ? 0.85 : e.weight, 0.1, 1)), phase: ['with', 'without', 'both'].indexOf(e.phase) >= 0 ? e.phase : 'both' });
+      else if (t === 'passScore' && e.where && num(e.weight, -1, 1) != null && sizeOf(e) < 120) ok.push({ type: t, where: e.where, weight: r2(num(e.weight, -1, 1)) });
+      else if (t === 'attract' && e.target && (e.target.number != null || e.target.name)) ok.push({ type: t, target: { number: +e.target.number, name: String(e.target.name || '') }, strength: r2(num(e.strength == null ? 0.7 : e.strength, 0.1, 1)) });
       else if (t === 'mark' && e.target && (e.target.group || e.target.line || e.target.number != null)) ok.push({ type: t, target: e.target.number != null ? { number: +e.target.number, name: String(e.target.name || '') } : e.target, tight: true });
     });
     if (!ok.length) return null;

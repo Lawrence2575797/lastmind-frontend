@@ -506,7 +506,7 @@
     el('tabs').innerHTML = TABS.map(([k, label]) => `<button data-tab="${k}" class="${world.tab === k ? 'on' : ''}">${label}${k === 'instr' && (team.rules || []).filter((r) => !r.off).length ? ' (' + (team.rules || []).filter((r) => !r.off).length + ')' : ''}</button>`).join('');
     el('tabs').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { world.tab = b.dataset.tab; renderTactics(); }));
     if (world.tab === 'setpieces') renderSetPieces(team);
-    else if (world.tab === 'instr') FM.renderInstructions(el('tabBody'), team, { save: saveSoon, opp: nextOpponent });
+    else if (world.tab === 'instr') { const hooks = { save: saveSoon, opp: nextOpponent, changed: () => FM.elena.sync({ mode: 'instr', team, opp: nextOpponent() }), afterAdd: () => { FM.elena.sync({ mode: 'instr', team, opp: nextOpponent() }); FM.elena.review(); } }; FM.renderInstructions(el('tabBody'), team, hooks); FM.elena.sync({ mode: 'instr', team, opp: nextOpponent() }); }
     else renderBoardTab(team, world.tab);
   }
 
@@ -873,13 +873,7 @@
   function renderRolePanel(team) {
     const host = el('rolePanel');
     // A player's role and instructions belong to the player, so they are set here on Squad and formation, not on each phase's page.
-    if (world.tab !== 'squad') {
-      const pl = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null, stageKey = BOARD_KEY[world.tab];
-      if (!pl) { host.innerHTML = '<div class="pi-hint"><b>Instructions for a player</b><p>Click a shirt on the board to give that player instructions for this stage of play.</p></div>'; return; }
-      host.innerHTML = `<h2 style="margin-bottom:4px">${esc(pl.name)}, number ${pl.number}</h2><p class="note">${esc(FM.PHASE_NAMES[stageKey])}: instructions for him that apply only while the team is in this stage.</p><div id="plIns"></div>`;
-      FM.renderInstructions(host.querySelector('#plIns'), team, { save: saveSoon, opp: nextOpponent }, { key: 'board', compact: true, scope: { kind: 'player', number: pl.number }, stage: stageKey });
-      return;
-    }
+    if (world.tab !== 'squad') { host.innerHTML = ''; return; }
     // A substitute picked from the bench: show his profile, with how to bring him on.
     if (world.selBench && team.bench.includes(world.selBench)) {
       const b = world.selBench;
@@ -890,7 +884,7 @@
       return;
     }
     const player = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
-    if (!player) { host.innerHTML = '<p class="note">Click a shirt to see that player, set his role and give him instructions.</p>'; return; }
+    if (!player) { host.innerHTML = '<p class="note">Click a shirt to see that player and set his role. Instructions are written on the Instructions tab.</p>'; return; }
     const role = FM.ROLES[player.roleId];
     const roleOptions = FM.rolesForGroup(player.group).map((id) => `<option value="${id}"${id === player.roleId ? ' selected' : ''}>${FM.ROLES[id].name}</option>`).join('');
     let extra = '';
@@ -906,9 +900,6 @@
         <label>Role<select data-k="role">${roleOptions}</select></label>
         <p class="desc">${role.desc}</p>
         ${extra}
-        <h2>Instructions for every stage</h2>
-        <p class="note">These hold whatever the stage of play. To give him an instruction for just one stage, open that stage's tab and click his shirt there.</p>
-        <div id="plIns"></div>
         <div class="row"><button id="resetPlayer">Reset his positions in every phase</button></div>
         <label>Your notes on him (these do not change how he plays)<textarea id="playerNote" rows="2">${esc(player.note || '')}</textarea></label>
       </div>`;
@@ -916,7 +907,6 @@
     host.querySelectorAll('[data-opt]').forEach((o) => o.addEventListener('change', () => {
       player.options[o.dataset.opt] = o.type === 'checkbox' ? o.checked : o.value; saveSoon(); renderTactics();
     }));
-    FM.renderInstructions(host.querySelector('#plIns'), team, { save: saveSoon, opp: nextOpponent }, { key: 'board', compact: true, scope: { kind: 'player', number: player.number }, stage: null });
     host.querySelector('#resetPlayer').addEventListener('click', () => { FM.clearPlayerPositions(team, player); saveSoon(); renderTactics(); });
     host.querySelector('#playerNote').addEventListener('input', (e) => { player.note = e.target.value; saveSoon(); });
   }
