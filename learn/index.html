@@ -4298,6 +4298,22 @@
     .nb-compact .nb-dbar .nb-grip::before { content: '⠿'; font-size: 13px; }
     .nb-compact .nb-dhost { padding: 4px 6px 0; }
     .nb-graph:hover > .nb-resize { opacity: 1; }
+    /* Draggable Notes tables sit above prose blocks, like coordinate graphs.
+       Cells wrap and grow vertically, so longer entries expand the table
+       instead of being clipped or spilling into neighbouring cells. */
+    .nb-table { z-index: 50; min-width: 220px; overflow: visible; background: #12121E; color: #E6D7B0; border: 1px solid rgba(230,215,176,.38); border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.42); }
+    .nb-table:hover, .nb-table:focus-within { z-index: 70; }
+    .nb-table-wrap { overflow-x: auto; padding: 0 8px 8px; }
+    .nb-table table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    .nb-table td { min-width: 72px; height: 30px; padding: 7px 9px; border: 1px solid rgba(230,215,176,.55); vertical-align: top; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; line-height: 1.4; outline: none; background: rgba(230,215,176,.035); }
+    .nb-table td:focus { background: rgba(230,215,176,.12); box-shadow: inset 0 0 0 2px #E6D7B0; }
+    .nb-table:hover > .nb-resize, .nb-table:focus-within > .nb-resize { opacity: 1; }
+    .nb-table-picker { position: fixed; z-index: 180; display: flex; align-items: flex-end; gap: 9px; padding: 12px; border: 1px solid rgba(241,234,214,.4); border-radius: 11px; background: #1A232D; color: #F1EAD6; box-shadow: 0 14px 36px rgba(0,0,0,.48); font: 700 12px Arial,sans-serif; }
+    .nb-table-picker[hidden] { display: none; }
+    .nb-table-picker label { display: grid; gap: 4px; }
+    .nb-table-picker input { width: 58px; box-sizing: border-box; padding: 6px 7px; border: 1px solid rgba(241,234,214,.4); border-radius: 7px; background: #12121E; color: #F1EAD6; font: inherit; }
+    .nb-table-picker button { padding: 7px 11px; border: 1px solid rgba(241,234,214,.4); border-radius: 7px; background: transparent; color: #F1EAD6; font: inherit; cursor: pointer; }
+    .nb-table-picker .primary { background: #E6D7B0; color: #1A232D; border-color: #E6D7B0; }
     @media (max-width: 620px) { .coord-graph-stage { min-height: 260px; } .coord-graph-range { display: none; } }
     /* ─── CRIMINAL LAWYER CAREER ─── */
     .cr-wrap { display: flex; flex-direction: column; gap: 16px; max-width: 980px; margin: 0 auto; width: 100%; }
@@ -20788,7 +20804,7 @@ SQIDAQAB
 
     // Where a block sits and how wide it is, kept inside the page on a narrow screen without changing what is saved.
     function nbPlace(el, block, canvas) {
-        const minW = (block.type === 'diagram' || block.type === 'graph') ? NB_MIN_FIGURE : 140, cw = canvas.clientWidth || 600;
+        const minW = block.type === 'table' ? 220 : (block.type === 'diagram' || block.type === 'graph') ? NB_MIN_FIGURE : 140, cw = canvas.clientWidth || 600;
         const w = nbClamp(block.w || 460, minW, Math.max(minW, cw));
         const x = nbClamp(block.x || 0, 0, Math.max(0, cw - w));
         el.style.left = x + 'px'; el.style.top = Math.max(0, block.y || 0) + 'px'; el.style.width = w + 'px';
@@ -20886,7 +20902,7 @@ SQIDAQAB
         handle.addEventListener('pointerdown', (e) => {
             if (e.button !== 0) return;
             e.preventDefault(); e.stopPropagation();
-            const sx = e.clientX, ow = el.offsetWidth, minW = (block.type === 'diagram' || block.type === 'graph') ? NB_MIN_FIGURE : 140;
+            const sx = e.clientX, ow = el.offsetWidth, minW = block.type === 'table' ? 220 : (block.type === 'diagram' || block.type === 'graph') ? NB_MIN_FIGURE : 140;
             try { handle.setPointerCapture(e.pointerId); } catch (_) { /* older browser */ }
             const move = (ev) => { block.w = nbClamp(ow + ev.clientX - sx, minW, Math.max(minW, canvas.clientWidth - el.offsetLeft)); el.style.width = block.w + 'px'; nbSyncCompact(el); nbFitCanvas(canvas); };
             const up = () => { handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up); handle.removeEventListener('pointercancel', up); notesScheduleSave(); };
@@ -21312,6 +21328,53 @@ SQIDAQAB
         return el;
     }
 
+    function nbMakeTableBlock(page, block, canvas, focus) {
+        const rows = nbClamp(Math.round(Number(block.rows) || 2), 1, 12);
+        const cols = nbClamp(Math.round(Number(block.cols) || 2), 1, 12);
+        block.rows = rows; block.cols = cols;
+        block.cells = Array.from({ length: rows }, (_, r) => Array.from({ length: cols }, (_, c) => String(block.cells && block.cells[r] && block.cells[r][c] || '')));
+
+        const el = document.createElement('div');
+        el.className = 'nb-block nb-table'; el.dataset.id = block.id;
+        el.innerHTML = `<div class="nb-dbar"><span class="nb-grip nb-table-grip" title="Drag to move" role="button" aria-label="Drag to move this table">⠿ Table ${rows} × ${cols}</span><button type="button" class="nb-del nb-del-inline" aria-label="Delete this table" title="Delete">×</button></div><div class="nb-table-wrap"><table><tbody></tbody></table></div><div class="nb-resize" title="Drag to resize"></div>`;
+        canvas.appendChild(el); nbPlace(el, block, canvas);
+        const body = el.querySelector('tbody');
+        let firstCell = null;
+        for (let r = 0; r < rows; r += 1) {
+            const tr = document.createElement('tr');
+            for (let c = 0; c < cols; c += 1) {
+                const td = document.createElement('td');
+                td.contentEditable = 'true'; td.spellcheck = true;
+                td.setAttribute('aria-label', `Row ${r + 1}, column ${c + 1}`);
+                td.textContent = block.cells[r][c];
+                td.addEventListener('input', () => {
+                    block.cells[r][c] = td.innerText.replace(/\n$/, '');
+                    notesScheduleSave(); requestAnimationFrame(() => nbFitCanvas(canvas));
+                });
+                td.addEventListener('keydown', (event) => {
+                    if (event.key !== 'Tab') return;
+                    event.preventDefault();
+                    const cells = [...el.querySelectorAll('td')], index = cells.indexOf(td);
+                    const next = cells[index + (event.shiftKey ? -1 : 1)];
+                    if (next) next.focus();
+                });
+                tr.appendChild(td); if (!firstCell) firstCell = td;
+            }
+            body.appendChild(tr);
+        }
+        nbWireDrag(el.querySelector('.nb-table-grip'), el, block, canvas);
+        nbWireResize(el.querySelector('.nb-resize'), el, block, canvas);
+        const delBtn = el.querySelector('.nb-del'); let armed = null;
+        delBtn.addEventListener('click', () => {
+            if (armed) { clearTimeout(armed); nbRemoveBlock(page, block, el, canvas); return; }
+            delBtn.textContent = 'Sure?'; delBtn.style.width = 'auto'; delBtn.style.padding = '0 8px';
+            armed = setTimeout(() => { armed = null; delBtn.textContent = '×'; delBtn.style.width = ''; delBtn.style.padding = ''; }, 3000);
+        });
+        if (notesResizeObs) notesResizeObs.observe(el);
+        if (focus && firstCell) firstCell.focus();
+        return el;
+    }
+
     function nbMakeDiagramBlock(page, block, canvas) {
         const el = document.createElement('div');
         el.className = 'nb-block nb-diagram'; el.dataset.id = block.id;
@@ -21404,6 +21467,11 @@ SQIDAQAB
             ['Drag ' + K('⠿'), 'Picks up a text box or an economics diagram and moves it.'],
             [K('⇤') + ' on one box, then ' + K('⇤') + ' on another', 'Lines up the left edges of the two text boxes.'],
         ]],
+        ['Tables', [
+            ['+ Table', 'Choose the number of rows and columns, then add an editable table to the page.'],
+            [K('Tab') + ' / ' + K('Shift') + ' + ' + K('Tab'), 'Moves to the next or previous table cell.'],
+            ['Drag ' + K('⠿ Table'), 'Moves the whole table. Longer cell text wraps and grows its row automatically.'],
+        ]],
         ['Coordinate graphs', [
             [K('Ctrl') + ' + ' + K('Alt') + ' + ' + K('G'), 'Adds a coordinate graph at the cursor.'],
             ['Drag the graph with the mouse', 'Moves the whole graph block to somewhere else on the page.'],
@@ -21441,9 +21509,12 @@ SQIDAQAB
         return walk(box).replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
     }
     function nbPageText(page) {
-        const blocks = (page.doc && page.doc.blocks || []).filter((b) => b.type === 'text').slice().sort((a, b) => (a.y || 0) - (b.y || 0) || (a.x || 0) - (b.x || 0));
+        const blocks = (page.doc && page.doc.blocks || []).filter((b) => b.type === 'text' || b.type === 'table').slice().sort((a, b) => (a.y || 0) - (b.y || 0) || (a.x || 0) - (b.x || 0));
         const live = notesActive && notesActive.block ? notesActive : null;
-        return blocks.map((b) => nbPlainText(live && live.block === b ? live.ed.getHtml() : b.html)).filter(Boolean).join('\n\n');
+        return blocks.map((b) => {
+            if (b.type === 'table') return (b.cells || []).map((row) => (row || []).map((cell) => String(cell || '').replace(/\s+/g, ' ').trim()).join(' | ')).join('\n');
+            return nbPlainText(live && live.block === b ? live.ed.getHtml() : b.html);
+        }).filter(Boolean).join('\n\n');
     }
     function nbAssistState(page) {
         try { const all = JSON.parse(localStorage.getItem(NB_ASSIST_STORE) || '{}'); return all[page.id] || { chat: [], review: null }; } catch (_) { return { chat: [], review: null }; }
@@ -21695,11 +21766,18 @@ SQIDAQAB
                         <button type="button" id="nbKbdMaths" aria-pressed="false">Maths keyboard</button>
                     </span>
                     <button type="button" class="nb-tool nb-tool-strong" id="nbAddGraph" title="Add coordinate graph (Ctrl+Alt+G)">+ Graph</button>
+                    <button type="button" class="nb-tool" id="nbAddTable">+ Table</button>
                     <button type="button" class="nb-tool" id="nbAddDiagram">+ Economics diagram</button>
                     <button type="button" class="nb-tool" id="nbShortcuts">Shortcuts</button>
                 </div>
                 <div class="nb-canvas" id="nbCanvas"></div>
                 <div class="nb-selection-size" id="nbSelectionSize"><span>Text size</span><select class="nb-text-size" aria-label="Selected text size"><option value="12">12px</option><option value="14">14px</option><option value="16" selected>16px</option><option value="18">18px</option><option value="22">22px</option><option value="28">28px</option><option value="36">36px</option></select></div>
+                <div class="nb-table-picker" id="nbTablePicker" hidden>
+                    <label>Rows<input type="number" id="nbTableRows" min="1" max="12" value="3"></label>
+                    <label>Columns<input type="number" id="nbTableCols" min="1" max="12" value="3"></label>
+                    <button type="button" class="primary" id="nbTableCreate">Add table</button>
+                    <button type="button" id="nbTableCancel">Cancel</button>
+                </div>
             </div>`;
         const canvas = document.getElementById('nbCanvas');
         if (typeof ResizeObserver === 'function') new ResizeObserver(() => nbClampBlocksToCanvas(canvas)).observe(canvas);
@@ -21718,7 +21796,7 @@ SQIDAQAB
             if (flowed) notesScheduleSave();
         });
         page.doc = page.doc && Array.isArray(page.doc.blocks) ? page.doc : { blocks: [] };
-        page.doc.blocks.forEach((b) => { if (b.type === 'diagram') nbMakeDiagramBlock(page, b, canvas); else if (b.type === 'graph') nbMakeGraphBlock(page, b, canvas); else nbMakeTextBlock(page, b, canvas, false); });
+        page.doc.blocks.forEach((b) => { if (b.type === 'diagram') nbMakeDiagramBlock(page, b, canvas); else if (b.type === 'graph') nbMakeGraphBlock(page, b, canvas); else if (b.type === 'table') nbMakeTableBlock(page, b, canvas, false); else nbMakeTextBlock(page, b, canvas, false); });
         nbToggleHint(canvas, page); nbFitCanvas(canvas);
         // The sheet has a margin line. A click on or near it starts the text a fixed, comfortable distance to its right; a click anywhere
         // else starts the text exactly where you clicked.
@@ -21757,6 +21835,13 @@ SQIDAQAB
         const topSizeSelect = document.getElementById('nbTextSize');
         const selectionSize = document.getElementById('nbSelectionSize');
         const selectionSizeSelect = selectionSize.querySelector('select');
+        const tableButton = document.getElementById('nbAddTable');
+        const tablePicker = document.getElementById('nbTablePicker');
+        const closeTablePicker = () => { tablePicker.hidden = true; };
+        const onTablePickerPointerDown = (event) => {
+            if (!tablePicker.hidden && !tablePicker.contains(event.target) && event.target !== tableButton) closeTablePicker();
+        };
+        document.addEventListener('pointerdown', onTablePickerPointerDown, true);
         let savedTextRange = null;
         notesSelectionSizeDismiss = () => { selectionSize.classList.remove('open'); savedTextRange = null; };
         function applyNotesTextSize(px) {
@@ -21801,12 +21886,33 @@ SQIDAQAB
         document.addEventListener('selectionchange', onSelectionChange);
         document.addEventListener('pointerdown', onSelectionPointerDown, true);
         document.addEventListener('pointerdown', onAlignmentPointerDown, true);
-        notesSelectionSizeCleanup = () => { document.removeEventListener('pointerdown', onFramePointerDown, true); document.removeEventListener('selectionchange', onSelectionChange); document.removeEventListener('pointerdown', onSelectionPointerDown, true); document.removeEventListener('pointerdown', onAlignmentPointerDown, true); notesSelectionSizeDismiss = null; selectionSize.remove(); };
+        notesSelectionSizeCleanup = () => { document.removeEventListener('pointerdown', onFramePointerDown, true); document.removeEventListener('selectionchange', onSelectionChange); document.removeEventListener('pointerdown', onSelectionPointerDown, true); document.removeEventListener('pointerdown', onAlignmentPointerDown, true); document.removeEventListener('pointerdown', onTablePickerPointerDown, true); notesSelectionSizeDismiss = null; selectionSize.remove(); };
         const setKeyboard = (writing) => { notesWriting = writing; nbSyncKeyboardButtons(); if (notesActive) { notesActive.ed.setWritingMode(writing); notesActive.editable.focus(); } };
         document.getElementById('nbKbdEnglish').addEventListener('click', () => setKeyboard(true));
         document.getElementById('nbKbdMaths').addEventListener('click', () => setKeyboard(false));
         nbSyncKeyboardButtons();
         document.getElementById('nbShortcuts').addEventListener('click', () => openMathsShortcutPopup(NB_SHORTCUTS_HTML, true));
+        const addTable = (rows, cols) => {
+            rows = nbClamp(Math.round(Number(rows) || 3), 1, 12); cols = nbClamp(Math.round(Number(cols) || 3), 1, 12);
+            let bottom = 0; canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
+            const x = canvas.clientWidth < 520 ? 44 : 72;
+            const block = { id: notesNewId(), type: 'table', x, y: bottom ? bottom + 24 : 24, w: Math.min(680, Math.max(260, canvas.clientWidth - x - 24)), rows, cols, cells: Array.from({ length: rows }, () => Array(cols).fill('')) };
+            page.doc.blocks.push(block); nbToggleHint(canvas, page);
+            const el = nbMakeTableBlock(page, block, canvas, true);
+            nbFitCanvas(canvas); notesScheduleSave(); closeTablePicker();
+            el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        };
+        tableButton.addEventListener('click', () => {
+            tablePicker.hidden = !tablePicker.hidden;
+            if (tablePicker.hidden) return;
+            const rect = tableButton.getBoundingClientRect();
+            tablePicker.style.left = `${nbClamp(rect.left, 8, window.innerWidth - 310)}px`;
+            tablePicker.style.top = `${Math.min(window.innerHeight - 90, rect.bottom + 7)}px`;
+            document.getElementById('nbTableRows').focus();
+        });
+        document.getElementById('nbTableCreate').addEventListener('click', () => addTable(document.getElementById('nbTableRows').value, document.getElementById('nbTableCols').value));
+        document.getElementById('nbTableCancel').addEventListener('click', closeTablePicker);
+        tablePicker.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); addTable(document.getElementById('nbTableRows').value, document.getElementById('nbTableCols').value); } else if (event.key === 'Escape') closeTablePicker(); });
         nbAssistMount(page); nbSrMount(page);
         const addGraph = () => {
             let bottom = 0; canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
