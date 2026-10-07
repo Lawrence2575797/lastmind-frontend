@@ -321,12 +321,15 @@
     const keys = ['buildDirect', 'directness', 'tempo', 'risk', 'beatPress', 'attackWidth', 'lineHeight'];
     const tac = {}; keys.forEach((k) => { tac[k] = Math.round(team.tactics[k] * 100) / 100; });
     const pos = {}; team.players.forEach((p) => { const q = FM.phasePos(team, p, 'build'); pos[p.number] = [Math.round(q.d * 1000) / 1000, Math.round(q.w * 1000) / 1000, p.name]; });
-    return { tac, pos };
+    return { tac, pos, rules: (team.rules || []).filter((r) => !r.off).map((r) => FM.rulesWho(r) + ': ' + FM.rulesText(r)) };
   };
   LAB.changes = function (before, after) {
     if (!before) return [];
     const out = [], names = { buildDirect: 'Playing out from the back', directness: 'Progressing through midfield', tempo: 'Tempo', risk: 'Risk', beatPress: 'Beating the press', attackWidth: 'Width', lineHeight: 'Defensive line' };
     Object.keys(after.tac).forEach((k) => { if (before.tac[k] !== after.tac[k]) out.push(names[k] + ': ' + before.tac[k] + ' to ' + after.tac[k]); });
+    const rb = before.rules || [], ra = after.rules || [];
+    ra.forEach((t) => { if (rb.indexOf(t) < 0) out.push('Instruction added: ' + t.replace(/\.$/, '')); });
+    rb.forEach((t) => { if (ra.indexOf(t) < 0) out.push('Instruction removed: ' + t.replace(/\.$/, '')); });
     Object.keys(after.pos).forEach((n) => {
       const a = after.pos[n], b = before.pos[n]; if (!b) return;
       const dx = (a[0] - b[0]) * L, dy = (a[1] - b[1]) * 68;

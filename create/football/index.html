@@ -73,6 +73,29 @@
   .lab .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; } @media (max-width: 560px) { .lab .two { grid-template-columns: 1fr; } }
   .lab .verdict { padding: 9px 12px; border-radius: 10px; background: rgba(242,193,78,.15); font-family: var(--sans); font-size: 0.86rem; line-height: 1.5; }
   .lab details { font-family: var(--sans); font-size: 0.84rem; color: var(--cream-soft); } .lab details summary { cursor: pointer; font-weight: 700; color: var(--cream); }
+  /* ---------- the Instructions tab ---------- */
+  .in-wrap { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 18px; margin-top: 8px; font-family: var(--sans); color: var(--cream); } @media (max-width: 760px) { .in-wrap { grid-template-columns: 1fr; } }
+  .in-side { display: grid; align-content: start; gap: 6px; max-height: 78vh; overflow: auto; padding-right: 4px; } .in-side h3 { margin: 10px 0 2px; font-size: .72rem; letter-spacing: .09em; text-transform: uppercase; color: var(--gold); } .in-side h3:first-child { margin-top: 0; }
+  .in-sc { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: rgba(241,234,214,.05); color: var(--cream); font: 600 .86rem var(--sans); text-align: left; cursor: pointer; } .in-sc:hover { background: rgba(241,234,214,.12); } .in-sc.on { background: var(--cream); color: var(--navy); border-color: var(--cream); }
+  .in-sc small { margin-left: 6px; opacity: .65; font-weight: 500; } .in-sc em { flex: none; min-width: 22px; padding: 1px 7px; border-radius: 999px; background: var(--gold); color: var(--navy); font: 800 .74rem var(--sans); font-style: normal; text-align: center; } .in-num { display: inline-block; min-width: 20px; opacity: .8; }
+  .in-main { min-width: 0; display: grid; gap: 14px; align-content: start; } .in-head h2 { margin: 0 0 2px; } .in-head p { margin: 0; color: var(--cream-soft); font-size: .88rem; }
+  .in-inh { padding: 10px 12px; border-radius: 10px; border: 1px dashed var(--line); font-size: .84rem; color: var(--cream-soft); display: grid; gap: 4px; } .in-inh b { color: var(--cream); font-size: .76rem; letter-spacing: .06em; text-transform: uppercase; }
+  .in-list { display: grid; gap: 8px; } .in-empty { margin: 0; padding: 14px; border-radius: 10px; border: 1px dashed var(--line); color: var(--cream-soft); font-size: .88rem; }
+  .in-rule { display: flex; align-items: center; gap: 12px; padding: 11px 12px; border-radius: 12px; background: rgba(241,234,214,.08); border: 1px solid var(--line); } .in-rule.off { opacity: .5; } .in-rt { flex: 1; min-width: 0; line-height: 1.45; font-size: .9rem; } .in-rt small { display: block; margin-top: 2px; color: var(--cream-soft); font-style: italic; }
+  .in-sw { position: relative; flex: none; width: 38px; height: 22px; cursor: pointer; } .in-sw input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; } .in-sw i { position: absolute; inset: 0; border-radius: 999px; background: rgba(241,234,214,.25); transition: background .15s; } .in-sw i::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--cream); transition: transform .15s; } .in-sw input:checked + i { background: var(--gold); } .in-sw input:checked + i::after { transform: translateX(16px); background: var(--navy); } .in-sw input:focus-visible + i { outline: 2px solid var(--cream); outline-offset: 2px; }
+  .in-del { flex: none; width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 50%; background: transparent; color: var(--cream); font-size: 1.1rem; line-height: 1; cursor: pointer; } .in-del:hover { background: rgba(255,90,54,.25); }
+  .in-ok { margin: 0; color: #7fd49a; font-size: .86rem; } .in-err { margin: 8px 0 0; color: #ffb4a8; font-size: .88rem; }
+  .in-add { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: rgba(241,234,214,.04); } .in-modes { display: flex; border-bottom: 1px solid var(--line); } .in-mode { flex: 1; padding: 11px 8px; border: 0; background: transparent; color: var(--cream-soft); font: 700 .86rem var(--sans); cursor: pointer; border-bottom: 3px solid transparent; } .in-mode.on { color: var(--cream); border-bottom-color: var(--gold); background: rgba(241,234,214,.07); }
+  .in-body { padding: 14px; display: grid; gap: 10px; } .in-body h4 { margin: 4px 0 0; font-size: .78rem; letter-spacing: .07em; text-transform: uppercase; color: var(--gold); } .in-note { color: var(--cream-soft); font-size: .82rem; margin: 0; }
+  .in-lab { font-weight: 700; font-size: .88rem; } .in-body textarea, .in-body input[type="number"], .in-body select { width: 100%; box-sizing: border-box; font: inherit; font-family: var(--sans); font-size: .9rem; background: var(--navy-raise); color: var(--cream); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; } .in-body textarea { resize: vertical; min-height: 84px; line-height: 1.5; }
+  .in-eg { display: flex; flex-wrap: wrap; gap: 6px; } .in-chip { padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: rgba(241,234,214,.06); color: var(--cream); font: 600 .8rem var(--sans); cursor: pointer; text-align: left; } .in-chip:hover { background: rgba(241,234,214,.14); } .in-chip.on { background: var(--gold); color: var(--navy); border-color: var(--gold); }
+  .in-act { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; } .in-act select { width: auto; min-width: 220px; }
+  .in-go { padding: 10px 18px; border: 0; border-radius: 10px; background: var(--gold); color: var(--navy); font: 800 .9rem var(--sans); cursor: pointer; } .in-go:disabled { opacity: .55; cursor: wait; } .in-ghost { padding: 10px 16px; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: var(--cream); font: 700 .88rem var(--sans); cursor: pointer; }
+  .in-draft { display: grid; gap: 8px; padding: 12px; border-radius: 12px; background: rgba(242,193,78,.1); border: 1px solid rgba(242,193,78,.35); } .in-ni { font-size: .84rem; color: var(--cream-soft); } .in-ni ul { margin: 4px 0 0; padding-left: 18px; }
+  .in-wh { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; } .in-wh > b { flex: none; width: 74px; font-size: .8rem; color: var(--cream-soft); } .in-wh input[type="number"] { width: 84px; } .in-wh span { color: var(--cream-soft); font-size: .84rem; }
+  .in-eff { display: grid; gap: 8px; padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: rgba(241,234,214,.06); } .in-eh { display: flex; justify-content: space-between; align-items: center; }
+  .in-slide { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; font-size: .8rem; color: var(--cream-soft); } .in-slide input { min-width: 0; accent-color: var(--gold); } .in-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; } .in-two label { display: grid; gap: 4px; font-size: .8rem; color: var(--cream-soft); }
+  .in-ideas { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; } .in-idea { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(241,234,214,.06); color: var(--cream); font-family: var(--sans); text-align: left; cursor: pointer; } .in-idea:hover { background: rgba(241,234,214,.14); border-color: var(--gold); } .in-idea b { font-size: .92rem; } .in-idea span { font-size: .82rem; color: var(--cream-soft); } .in-idea small { font-size: .74rem; color: var(--gold); line-height: 1.4; }
   .lab .runs { display: flex; gap: 6px; flex-wrap: wrap; } .lab .runs button { padding: 6px 10px; font-size: 0.8rem; }
   .score { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--navy); color: var(--cream); border-radius: 14px; padding: 12px 18px; font-family: var(--sans); flex-wrap: wrap; }
   .score .team { display: flex; align-items: center; gap: 8px; font-weight: 700; }
@@ -273,29 +296,32 @@
     <div id="tabBody"></div>
   </section>
 </div>
-<script src="/create/football/formations.js?v=20261007g"></script>
-<script src="/create/football/roles.js?v=20261007g"></script>
-<script src="/create/football/ratings.js?v=20261007g"></script>
-<script src="/create/football/names.js?v=20261007g"></script>
-<script src="/create/football/engine.js?v=20261007g"></script>
-<script src="/create/football/rules.js?v=20261007g"></script>
-<script src="/create/football/instructions.js?v=20261007g"></script>
-<script src="/create/football/fitness.js?v=20261007g"></script>
-<script src="/create/football/match.js?v=20261007g"></script>
-<script src="/create/football/league.js?v=20261007g"></script>
-<script src="/create/football/preseason.js?v=20261007g"></script>
-<script src="/create/football/stats_math.js?v=20261007g"></script>
-<script src="/create/football/stats.js?v=20261007g"></script>
-<script src="/create/football/stats_top.js?v=20261007g"></script>
-<script src="/create/football/news.js?v=20261007g"></script>
-<script src="/create/football/insights.js?v=20261007g"></script>
-<script src="/create/football/analysis.js?v=20261007g"></script>
-<script src="/create/football/clips.js?v=20261007g"></script>
-<script src="/create/football/reports.js?v=20261007g"></script>
-<script src="/create/football/hypotheses.js?v=20261007g"></script>
-<script src="/create/football/lab.js?v=20261007g"></script>
-<script src="/create/football/lab_replay.js?v=20261007g"></script>
-<script src="/create/football/elena.js?v=20261007g"></script>
-<script src="/create/football/main.js?v=20261007g"></script>
+<script src="/create/football/formations.js?v=20261007i"></script>
+<script src="/create/football/roles.js?v=20261007i"></script>
+<script src="/create/football/ratings.js?v=20261007i"></script>
+<script src="/create/football/names.js?v=20261007i"></script>
+<script src="/create/football/engine.js?v=20261007i"></script>
+<script src="/create/football/rules.js?v=20261007i"></script>
+<script src="/create/football/instructions.js?v=20261007i"></script>
+<script src="/create/football/fitness.js?v=20261007i"></script>
+<script src="/create/football/match.js?v=20261007i"></script>
+<script src="/create/football/league.js?v=20261007i"></script>
+<script src="/create/football/preseason.js?v=20261007i"></script>
+<script src="/create/football/stats_math.js?v=20261007i"></script>
+<script src="/create/football/stats.js?v=20261007i"></script>
+<script src="/create/football/stats_top.js?v=20261007i"></script>
+<script src="/create/football/news.js?v=20261007i"></script>
+<script src="/create/football/insights.js?v=20261007i"></script>
+<script src="/create/football/analysis.js?v=20261007i"></script>
+<script src="/create/football/clips.js?v=20261007i"></script>
+<script src="/create/football/reports.js?v=20261007i"></script>
+<script src="/create/football/hypotheses.js?v=20261007i"></script>
+<script src="/create/football/lab.js?v=20261007i"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/create/football/api.js?v=20261007i"></script>
+<script src="/create/football/instructions_ui.js?v=20261007i"></script>
+<script src="/create/football/lab_replay.js?v=20261007i"></script>
+<script src="/create/football/elena.js?v=20261007i"></script>
+<script src="/create/football/main.js?v=20261007i"></script>
 </body>
 </html>

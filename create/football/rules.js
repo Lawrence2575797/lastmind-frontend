@@ -97,7 +97,7 @@
   const whenText = (w) => {
     const bits = [];
     if (w.possession === 'with') bits.push('with the ball'); if (w.possession === 'without') bits.push('without the ball');
-    if (w.zone) bits.push('when the ball is in ' + w.zone.map((z) => ({ own_third: 'their own third', middle_third: 'the middle third', final_third: 'the final third' }[z])).join(' or '));
+    if (w.zone) bits.push('when the ball is in ' + w.zone.map((z) => ({ own_third: 'our own third', middle_third: 'the middle third', final_third: 'their third' }[z])).join(' or '));
     if (w.pressed === 'pressed') bits.push('when pressed'); if (w.pressed === 'free') bits.push('when not pressed');
     if (w.side) bits.push('when the ball is ' + (w.side === 'wide' ? 'out wide' : 'on the ' + w.side));
     if (w.score) bits.push('when ' + w.score);
@@ -105,13 +105,13 @@
     return bits.join(', ');
   };
   const recv = (t) => [t.number != null ? 'player #' + t.number : '', t.group ? GROUP_WORD[t.group] : '', t.line ? LINE_WORD[t.line] : '', t.side ? ({ same: 'on the same side', opposite: 'on the opposite side', left: 'on the left', right: 'on the right', centre: 'in the middle', wide: 'out wide' }[t.side]) : ''].filter(Boolean).join(' ');
-  const strong = (x) => (Math.abs(x) >= 0.75 ? 'strongly' : Math.abs(x) >= 0.4 ? 'preferably' : 'slightly');
+  const strong = (x) => (Math.abs(x) >= 0.75 ? ' strongly' : Math.abs(x) >= 0.4 ? '' : ' slightly');
   FM.rulesEffectText = function (e) {
     switch (e.type) {
-      case 'passLength': return e.pref === 'short' ? 'prefer short passes (' + strong(e.strength) + ')' : 'prefer long passes (' + strong(e.strength) + ')';
-      case 'passTarget': return (e.weight > 0 ? 'look for passes to ' : 'avoid passes to ') + recv(e.to) + ' (' + strong(e.weight) + ')';
-      case 'passDirection': return (e.weight > 0 ? 'favour ' : 'avoid ') + ({ forward: 'forward', sideways: 'sideways', backward: 'backward' }[e.dir]) + ' passes (' + strong(e.weight) + ')';
-      case 'freeMan': return 'look for the unmarked player (' + strong(e.weight) + ')';
+      case 'passLength': return (e.pref === 'short' ? 'prefer short passes' : 'prefer long passes') + strong(e.strength);
+      case 'passTarget': return (e.weight > 0 ? 'look for passes to ' : 'avoid passes to ') + recv(e.to) + strong(e.weight);
+      case 'passDirection': return (e.weight > 0 ? 'favour ' : 'avoid ') + ({ forward: 'forward', sideways: 'sideways', backward: 'backward' }[e.dir]) + ' passes' + strong(e.weight);
+      case 'freeMan': return 'look for the unmarked player' + strong(e.weight);
       case 'risk': return e.delta > 0 ? 'try more ambitious passes' : 'play safer passes';
       case 'dribble': return e.delta > 0 ? 'dribble more' : 'dribble less';
       case 'shoot': return e.delta > 0 ? 'shoot more readily' : 'shoot less';
@@ -126,7 +126,8 @@
       default: return e.type;
     }
   };
-  FM.rulesText = function (r) { const w = whenText(r.when || {}); return who(r.scope) + ' ' + r.effects.map(FM.rulesEffectText).join(', and ') + (w ? ', ' + w : '') + '.'; };
+  FM.rulesText = function (r) { const w = whenText(r.when || {}), t = r.effects.map(FM.rulesEffectText).join(', and '); return t.charAt(0).toUpperCase() + t.slice(1) + (w ? ', ' + w : '') + '.'; };
+  FM.rulesWho = (r) => who(r.scope);
   FM.RULES = { LINES, GROUPS, GROUP_WORD, LINE_WORD, lineOf, scopeMatches, who };
 
   // ---------- checking what comes from the builder or the backend ----------

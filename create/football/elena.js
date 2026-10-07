@@ -164,6 +164,8 @@
     let h = '<h4>Your plan against their press</h4>';
     h += '<p>' + esc(c.opp.name) + ' press your build-up ' + level(pb) + ' and press ' + level(pg) + ' in general, so I expect about ' + (s.nPress + 1) + ' of their players to be involved in it.</p>';
     h += '<div class="el-box"><p><b>Who I expect to go to whom</b></p><p>Closing down the ball: their ' + who(s.chaser) + '.</p>' + s.pairs.map((x) => '<p>Their ' + who(x.def) + ' goes to your ' + who(x.att) + '.</p>').join('') + '</div>';
+    const live = (c.team.rules || []).filter((r) => !r.off);
+    if (live.length) h += '<div class="el-box"><p><b>Your instructions</b></p>' + live.map((r) => '<p><b>' + esc(FM.rulesWho(r)) + ':</b> ' + esc(FM.rulesText(r)) + '</p>').join('') + '</div>';
     if (s.freeAtt.length) h += '<p><b>Left free:</b> your ' + list(s.freeAtt.map(who)) + '. A pass to any of them has no one on top of him.</p>';
     if (s.freeDef.length) h += '<p><b>Not pressing anyone:</b> their ' + list(s.freeDef.map(who)) + '. To mark one of your free players they would have to leave their own positions, which opens space behind them.</p>';
     const B = s.back.length, K = s.backPressers.length;

@@ -440,7 +440,7 @@
   // ---------- the tactics page ----------
   // One page, used on any preparation day and again when the match is paused. Changes apply to the rest of the match.
   const TABS = [
-    ['squad', 'Squad and formation'], ['build', 'Build-up'], ['final', 'Final third'],
+    ['squad', 'Squad and formation'], ['instr', 'Instructions'], ['build', 'Build-up'], ['final', 'Final third'],
     ['transatt', 'Transition to attack'], ['transdef', 'Transition to defence'], ['press', 'Pressing'], ['without', 'Without the ball'], ['setpieces', 'Set pieces'],
   ];
   // Each tab with a board shows the team in that phase of play.
@@ -463,17 +463,9 @@
       ['lineHeight', 'Height of the defensive line', 'Deep', 'High', 0, 1, 'A team setting for every phase. A high line squeezes the space between the lines but leaves room behind it; a deep one is harder to run in behind. It moves the default positions of the whole team, the back line most, in every phase (a shirt you have placed by hand stays where you put it).'],
     ],
     build: [
-      ['buildDirect', 'Playing out from the back', 'Short and patient', 'Long and direct', 0, 1, 'In your own third: short passes to feet, or the ball sent forward early.'],
-      ['directness', 'Progressing through midfield', 'Patient', 'Direct', 0, 1, 'In the middle third: how much the carrier looks for the forward pass over the safe one.'],
-      ['tempo', 'Tempo', 'Slow', 'Fast', 0, 1, 'How quickly the ball is moved on. Quicker means more actions and less time for the opposition to set.'],
-      ['risk', 'Risk in possession', 'Safe', 'Ambitious', 0, 1, 'How willing players are to try a pass that might be lost.'],
-      ['beatPress', 'Beating the press', 'Keep playing short', 'Go long over the top', 0, 1, 'Depends on how they press. When they press high and tightly, your short passes are shut off, and the higher this is the sooner the ball goes long up the pitch. When they are not pressing like that, short passes stay open and this changes nothing: your build-up settings above decide.'],
       ['attackWidth', 'Width when attacking', 'Narrow', 'Wide', 0.7, 1.25, 'Spreads or squeezes your whole shape across the pitch with the ball.'],
     ],
     final: [
-      ['finalRisk', 'Risk in the final third', 'Patient', 'Gamble', 0, 1, 'Near the opposition goal: wait for a clear chance, or force the issue.'],
-      ['shootFreedom', 'Shooting', 'Work it into a better position', 'Shoot on sight', 0, 1, 'How readily a player shoots when he has a chance.'],
-      ['dribbleFreedom', 'Take-ons', 'Pass it', 'Take players on', 0, 1, 'How much carriers are encouraged to dribble at defenders.'],
     ],
     transatt: [
       ['counterAttack', 'After winning the ball', 'Hold shape and build', 'Counter at once', 0, 1, 'For about eight seconds after a win, passes go forward faster and with more risk, before things settle.'],
@@ -503,9 +495,10 @@
     if (!world.league) return;
     const team = userTeam();
     el('subInfo').textContent = 'Substitutions used: ' + team.subsUsed + ' of ' + team.maxSubs + (inLive() ? '' : ' (changes before kick-off are free)');
-    el('tabs').innerHTML = TABS.map(([k, label]) => `<button data-tab="${k}" class="${world.tab === k ? 'on' : ''}">${label}</button>`).join('');
+    el('tabs').innerHTML = TABS.map(([k, label]) => `<button data-tab="${k}" class="${world.tab === k ? 'on' : ''}">${label}${k === 'instr' && (team.rules || []).filter((r) => !r.off).length ? ' (' + (team.rules || []).filter((r) => !r.off).length + ')' : ''}</button>`).join('');
     el('tabs').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { world.tab = b.dataset.tab; renderTactics(); }));
     if (world.tab === 'setpieces') renderSetPieces(team);
+    else if (world.tab === 'instr') FM.renderInstructions(el('tabBody'), team, { save: saveSoon });
     else renderBoardTab(team, world.tab);
   }
 
