@@ -597,6 +597,7 @@
         <span class="note">${why}</span>
       </label>`).join('') + '</div>';
     list.forEach(([k]) => host.querySelector(`input[data-k="${k}"]`).addEventListener('input', (e) => {
+      if (k === 'lineHeight') FM.shiftLine(team, team.tactics.lineHeight, parseFloat(e.target.value));
       team.tactics[k] = parseFloat(e.target.value);
       host.querySelector(`[data-v="${k}"]`).textContent = team.tactics[k].toFixed(2);
       saveSoon();

@@ -263,6 +263,21 @@
   FM.fixSlot = function (team, p, opp, lineFor) {
     FM.PHASES.forEach((ph) => { if (FM.isManual(team, p, ph)) FM.setPhasePos(team, p, ph, FM.clampOffside(team, p, ph, FM.clampToReach(team, p, ph, FM.phasePos(team, p, ph)), opp, lineFor ? lineFor(ph) : null)); });
   };
+  // Moving the defensive line moves every player's default position (see defaultPhasePos), and it must move the ones the manager has placed by hand
+  // as well: a full-back dragged to a spot on the Defending board still goes up and down with the line, by the same amount as everyone else.
+  FM.shiftLine = function (team, from, to) {
+    const k = (to - from) * 0.28;
+    team.players.forEach((p) => {
+      const wgt = FM.GROUP_LINE_WEIGHT[p.group] || 0; if (!wgt) return;
+      let moved = false;
+      FM.PHASES.forEach((ph) => {
+        if (!FM.isManual(team, p, ph)) return;
+        const pos = FM.phasePos(team, p, ph), f = (ph === 'build' || ph === 'final' || ph === 'transAtt') ? 0.6 : 1;
+        FM.setPhasePos(team, p, ph, { d: clamp(pos.d + k * wgt * f, 0.02, 0.97), w: pos.w }); moved = true;
+      });
+      if (moved) FM.fixSlot(team, p);
+    });
+  };
   FM.clearPhase = function (team, phase) { if (phase === 'shape') team.shape = {}; else if (team.phasePos) delete team.phasePos[phase]; };
   FM.clearPlayerPositions = function (team, p) {
     delete team.shape[p.index];

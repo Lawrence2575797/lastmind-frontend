@@ -83,7 +83,7 @@
     qa('[data-toggle]').forEach((c) => c.addEventListener('change', () => { const r = rules.find((x) => x.id === c.dataset.toggle); if (r) { r.off = !c.checked; if (hooks.save) hooks.save(); if (hooks.changed) hooks.changed(); redraw(); } }));
     qa('[data-del]').forEach((b) => b.addEventListener('click', () => { team.rules = rules.filter((x) => x.id !== b.dataset.del); st.added = ''; if (hooks.save) hooks.save(); if (hooks.changed) hooks.changed(); redraw(); }));
     const line = q('#inLine');
-    if (line) { paintLine(host, team); let timer = 0; line.addEventListener('input', () => { team.tactics.lineHeight = +line.value; paintLine(host, team); clearTimeout(timer); timer = setTimeout(() => { if (hooks.save) hooks.save(); if (hooks.changed) hooks.changed(); }, 400); }); }
+    if (line) { paintLine(host, team); let timer = 0; line.addEventListener('input', () => { FM.shiftLine(team, team.tactics.lineHeight, +line.value); team.tactics.lineHeight = +line.value; paintLine(host, team); clearTimeout(timer); timer = setTimeout(() => { if (hooks.save) hooks.save(); if (hooks.changed) hooks.changed(); }, 400); }); }
     const ta = q('#inText'); if (ta) ta.addEventListener('input', () => { st.text = ta.value; });
     const u = q('#inUnderstand');
     if (u) u.addEventListener('click', async () => {
