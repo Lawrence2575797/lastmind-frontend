@@ -302,11 +302,11 @@
   const ruleLines = (team) => liveRules(team).map((r) => FM.rulesWho(r) + ': ' + FM.rulesText(r));
   function instrReading(c) {
     const team = c.team, live = liveRules(team);
-    if (!live.length) return '<p>I am Elena, the club analyst. Write how you want the team to play in the box on the left, about any players, ours or theirs, in any stage of play.</p><p>When you add them, I will draw what they do on the pitch, stage by stage: who stands where, who follows whom, where the ball is steered. Then I will tell you where they clash, where they leave you exposed, and what to try next.</p><p class="el-small">Instructions you write are also played by the opposition when you test your build-up, so anything you add here shows up in the lab.</p>';
-    const stage = E.istage || 'build', viz = FM.instrViz.draw(team, c.opp, stage);
-    let h = '<h4>What your instructions do</h4><div class="iv-chips">' + FM.instrViz.stages.map(([k, l]) => '<button type="button" class="el-go' + (k === stage ? ' primary' : '') + '" data-istage="' + k + '">' + l + '</button>').join('') + '</div>' + viz.svg +
+    if (!live.length) return '<p>I am Elena, the club analyst. Write how you want the team to play in this stage in the box on the left, about any players, ours or theirs.</p><p>When you add them, I will draw what they do on the pitch, stage by stage: who stands where, who follows whom, where the ball is steered. Then I will tell you where they clash, where they leave you exposed, and what to try next.</p><p class="el-small">Instructions you write are also played by the opposition when you test your build-up, so anything you add here shows up in the lab.</p>';
+    const stage = c.stage || 'build', viz = FM.instrViz.draw(team, c.opp, stage);
+    let h = '<h4>What your instructions do in ' + esc(FM.instrViz.name(stage)) + '</h4>' + viz.svg +
       '<div class="iv-key"><span><i class="k a"></i> moves here instead</span><span><i class="k g"></i> passes he looks for</span><span><i class="k r"></i> passes he avoids</span><span><i class="k o"></i> follows</span><span><i class="k p"></i> draws in</span></div>';
-    h += viz.lines.length ? '<ul class="iv-lines">' + viz.lines.map((l) => '<li>' + esc(l) + '</li>').join('') + '</ul>' : '<p class="el-small">In this stage your instructions do not move anyone from where he would have stood. Try another stage above.</p>';
+    h += viz.lines.length ? '<ul class="iv-lines">' + viz.lines.map((l) => '<li>' + esc(l) + '</li>').join('') + '</ul>' : '<p class="el-small">In this stage your instructions do not move anyone from where he would have stood, so there is nothing to draw. The review below still covers the whole set.</p>';
     // the review
     const key = hashOf(ruleLines(team).join('|') + '|' + (c.opp ? c.opp.name : '')), rv = E.review && E.review.key === key ? E.review : null;
     h += '<h4>My review</h4>';
@@ -324,7 +324,7 @@
     return h;
   }
   async function requestReview() {
-    const c = E.ctx; if (!c || c.mode !== 'instr' || !FM.api) return;
+    const c = E.ctx; if (!c || !FM.api || (c.mode !== 'instr' && !c.instrStage)) return;
     const lines = ruleLines(c.team); if (!lines.length) return;
     const key = hashOf(lines.join('|') + '|' + (c.opp ? c.opp.name : ''));
     if (E.review && E.review.key === key && (E.review.busy || E.review.data)) return;
@@ -339,13 +339,14 @@
   function body() {
     if (E.tab === 'lessons') return E.lesson ? lessonStep() : lessonList();
     const c = E.ctx; if (c.mode === 'instr') return instrReading(c);
+    if (E.tab === 'instr') return instrReading(Object.assign({}, c, { stage: c.instrStage || 'build' }));
     return c.runs.length ? reading(c) : intro(c);
   }
   function paint() {
     if (!E.el) return;
     const b = E.el.querySelector('.el-body'), keep = null, top = b.scrollTop;
     b.innerHTML = body();
-    E.el.querySelectorAll('.el-tabs button').forEach((t) => { if (t.dataset.t === 'read') t.textContent = E.ctx.mode === 'instr' ? 'My review' : 'My reading'; });
+    E.el.querySelectorAll('.el-tabs button').forEach((t) => { if (t.dataset.t === 'read') t.textContent = E.ctx.mode === 'instr' ? 'My review' : 'My reading'; if (t.dataset.t === 'instr') t.hidden = !E.ctx.instrStage; });
     E.el.querySelectorAll('.el-tabs button').forEach((t) => t.setAttribute('aria-pressed', String(t.dataset.t === E.tab)));
     b.scrollTop = top;
     if (FM.labReplay) { FM.labReplay.stop(); const rh = b.querySelector('#elReplay'); if (rh && E.ctx.runs.length) { const last = E.ctx.runs[E.ctx.runs.length - 1].result, cl = last.clips && last.clips.find((x) => x.key === E.clipKey); if (cl) FM.labReplay.mount(rh, cl.clip, { team: E.ctx.team, opp: E.ctx.opp }); } }
@@ -358,7 +359,7 @@
     if (E.el) { E.el.remove(); E.el = null; }
     if (!on) return;
     const el = document.createElement('aside'); el.className = 'el-panel'; el.setAttribute('aria-label', 'Elena Marsh, performance analyst');
-    el.innerHTML = '<div class="el-head"><img alt="" src="' + IMG.hello + '"><div><b>Elena Marsh</b><small>Performance analyst</small></div><button type="button" class="x" aria-label="Close Elena">×</button></div><div class="el-tabs"><button type="button" data-t="read">My reading</button><button type="button" data-t="lessons">Lessons</button></div><div class="el-body"></div>';
+    el.innerHTML = '<div class="el-head"><img alt="" src="' + IMG.hello + '"><div><b>Elena Marsh</b><small>Performance analyst</small></div><button type="button" class="x" aria-label="Close Elena">×</button></div><div class="el-tabs"><button type="button" data-t="read">My reading</button><button type="button" data-t="instr" hidden>Instructions</button><button type="button" data-t="lessons">Lessons</button></div><div class="el-body"></div>';
     document.body.appendChild(el); E.el = el;
     el.addEventListener('change', (e) => { if ((e.target.id === 'elA' || e.target.id === 'elB') && E.ctx.setCompare) E.ctx.setCompare(+el.querySelector('#elA').value, +el.querySelector('#elB').value); });
     el.addEventListener('click', (e) => {
@@ -395,6 +396,8 @@
       else if (fresh) E.btn.querySelector('.dot').style.display = '';
     },
     review: requestReview,
+    refresh() { if (E.open && E.el) paint(); },
+    show(tab) { E.tab = tab; if (E.open && E.el) paint(); },
     hide() { if (FM.labReplay) FM.labReplay.stop(); clearInterval(E.watch); if (E.el) E.el.remove(); if (E.btn) E.btn.remove(); E.el = E.btn = null; document.body.classList.remove('el-open'); },
   };
 })();

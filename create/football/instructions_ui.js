@@ -5,7 +5,16 @@
 (function () {
   const FM = (window.FM = window.FM || {});
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const st = { text: '', busy: false, err: '', draft: null, added: '' };
+  const states = {};
+  const STAGE_NAME = { build: 'the build-up', final: 'the final third', transAtt: 'the moment after we win the ball', transDef: 'the moment after we lose the ball', press: 'pressing them while they build', without: 'defending' };
+  const STAGE_EG = {
+    build: 'Sarpong stays level with Thorne and very central, to draw their left attacking midfielder in. When we are pressed the defenders never go long: they play to the nearest midfielder.',
+    final: 'The right winger stays wide and the striker plays on the last defender. Nobody shoots from outside the box unless it is Thorne.',
+    transAtt: 'As soon as we win it, Shin runs in behind and the first pass goes forward to the striker.',
+    transDef: 'When we lose it, the nearest two players close the ball down at once and the rest drop back into shape.',
+    press: 'Both strikers press the centre-backs, the attacking midfielders mark their full-backs, and nobody follows the keeper.',
+    without: 'The defensive midfielder shadows their number 10 and the full-backs tuck in when the ball is on the other side.',
+  };
   const everyone = (t) => { const seen = {}, out = []; (t.squad || []).concat(t.players || [], t.bench || []).forEach((p) => { if (p && !seen[p.number]) { seen[p.number] = 1; out.push(p); } }); return out; };
   FM.squadOf = (t) => everyone(t).map((p) => ({ number: p.number, name: p.name, group: p.group || p.natural, role: (p.roleId || '').replace(/_/g, ' '), slot: p.slotKey || '' }));
 
@@ -41,18 +50,22 @@
     const t = host.querySelector('#inLineTxt'); if (t) t.textContent = team.tactics.lineHeight < 0.35 ? 'A deep line: they sit close to their own goal.' : team.tactics.lineHeight > 0.65 ? 'A high line: they push up towards halfway and leave space behind.' : 'A medium line.';
   }
 
-  FM.renderInstructions = function (host, team, hooks) {
+  // opts.stage: the stage of play this box is for. Everything written in it applies to that stage only.
+  FM.renderInstructions = function (host, team, hooks, opts) {
+    opts = opts || {};
+    const stage = opts.stage || null, st = states[stage || 'all'] || (states[stage || 'all'] = { text: '', busy: false, err: '', draft: null, added: '' });
     team.rules = team.rules || [];
     const roster = setRoster(team, hooks);
-    const rules = team.rules;
+    const inStage = (r) => !stage || (r.when && r.when.stage && r.when.stage.indexOf(stage) >= 0);
+    const rules = team.rules.filter(inStage), everyStage = stage ? team.rules.filter((r) => !(r.when && r.when.stage)) : [];
     const card = (r) => `<div class="in-rule${r.off ? ' off' : ''}">
         <label class="in-sw"><input type="checkbox" data-toggle="${r.id}"${r.off ? '' : ' checked'} aria-label="Instruction on or off"><i></i></label>
         <div class="in-rt"><small class="in-who">${esc(FM.rulesWho(r))}</small><b>${esc(FM.rulesText(r))}</b></div>
         <button type="button" class="in-del" data-del="${r.id}" aria-label="Delete this instruction">×</button></div>`;
     host.innerHTML = `<div class="in-wrap"><div class="in-main">
         <div class="in-add"><div class="in-body">
-          <label class="in-lab" for="inText">Tell the team how to play</label>
-          <textarea id="inText" maxlength="3000" rows="9" placeholder="Write as much as you like, about any players, ours or theirs, in any stage of play.&#10;&#10;e.g. Sarpong stays level with Thorne and very central, to draw their left attacking midfielder in. When we are pressed in our own third the defenders never go long: they play to the nearest midfielder. In the second half, if we are winning, Shin does not go past halfway.">${esc(st.text)}</textarea>
+          <label class="in-lab" for="inText">${stage ? 'Tell the team how to play in ' + STAGE_NAME[stage] + ' <small>(applies to this stage only)</small>' : 'Tell the team how to play'}</label>
+          <textarea id="inText" maxlength="3000" rows="9" placeholder="Write as much as you like, about any players, ours or theirs.&#10;&#10;e.g. ${esc(STAGE_EG[stage] || STAGE_EG.build)}">${esc(st.text)}</textarea>
           <div class="in-act"><button type="button" class="in-go" id="inUnderstand"${st.busy ? ' disabled' : ''}>${st.busy ? 'Reading it…' : 'Turn this into instructions'}</button><span class="in-note">LastMind reads it once and shows you what it understood before anything is added. Names or shirt numbers both work. Anything you do not mention stays as the game would play it.</span></div>
           ${st.err ? `<p class="in-err">${esc(st.err)}</p>` : ''}
           ${st.draft ? `<div class="in-draft"><h4>Here is how I understood it</h4>${st.draft.rules.length ? st.draft.rules.map((r) => `<div class="in-rule"><div class="in-rt"><small class="in-who">${esc(FM.rulesWho(r))}</small><b>${esc(FM.rulesText(r))}</b></div></div>`).join('') : '<p class="in-note">I could not turn that into anything the game can run.</p>'}
@@ -60,12 +73,13 @@
             <div class="in-act">${st.draft.rules.length ? '<button type="button" class="in-go" id="inAddDraft">Add ' + (st.draft.rules.length > 1 ? 'these ' + st.draft.rules.length : 'this') + '</button>' : ''}<button type="button" class="in-ghost" id="inDropDraft">Change the wording</button></div></div>` : ''}
         </div></div>
         ${st.added ? `<p class="in-ok" role="status">${esc(st.added)}</p>` : ''}
-        <div class="in-head"><h2>Your instructions${rules.length ? ' (' + rules.filter((r) => !r.off).length + ')' : ''}</h2></div>
-        <div class="in-list">${rules.length ? rules.map(card).join('') : '<p class="in-empty">None yet. Everyone plays to their role and the team settings until you add some.</p>'}</div>
-        ${lineCard(team)}
+        <div class="in-head"><h2>Instructions${stage ? ' for ' + STAGE_NAME[stage] : ''}${rules.length ? ' (' + rules.filter((r) => !r.off).length + ')' : ''}</h2></div>
+        <div class="in-list">${rules.length ? rules.map(card).join('') : `<p class="in-empty">None yet${stage ? ' for this stage' : ''}. Everyone plays to their role and the team settings until you add some.</p>`}</div>
+        ${everyStage.length ? `<div class="in-inh"><b>Instructions that apply in every stage</b>${everyStage.map((r) => `<div>${esc(FM.rulesWho(r))}: ${esc(FM.rulesText(r))} <button type="button" class="in-link" data-del="${r.id}">remove</button></div>`).join('')}</div>` : ''}
+        ${stage === 'without' ? lineCard(team) : ''}
       </div></div>`;
     const q = (s) => host.querySelector(s), qa = (s) => host.querySelectorAll(s);
-    const redraw = () => FM.renderInstructions(host, team, hooks);
+    const redraw = () => FM.renderInstructions(host, team, hooks, opts);
     qa('[data-toggle]').forEach((c) => c.addEventListener('change', () => { const r = rules.find((x) => x.id === c.dataset.toggle); if (r) { r.off = !c.checked; if (hooks.save) hooks.save(); if (hooks.changed) hooks.changed(); redraw(); } }));
     qa('[data-del]').forEach((b) => b.addEventListener('click', () => { team.rules = rules.filter((x) => x.id !== b.dataset.del); st.added = ''; if (hooks.save) hooks.save(); if (hooks.changed) hooks.changed(); redraw(); }));
     const line = q('#inLine');
@@ -77,9 +91,9 @@
       if (text.length < 3) { st.err = 'Write the instructions first.'; return redraw(); }
       st.busy = true; redraw();
       try {
-        const out = await FM.api('/football/compile-instruction', { text, squad: FM.squadOf(team), opponent: roster.oppTeam ? FM.squadOf(roster.oppTeam) : [] });
+        const out = await FM.api('/football/compile-instruction', { text, stage, squad: FM.squadOf(team), opponent: roster.oppTeam ? FM.squadOf(roster.oppTeam) : [] });
         const nums = roster.own.map((p) => p.number);
-        st.draft = { rules: (out.rules || []).map((r) => FM.rulesClean(Object.assign({}, r, { text: r.text || r.summary || text, source: 'ai' }), nums)).filter(Boolean), notIncluded: out.notIncluded || [] };
+        st.draft = { rules: (out.rules || []).map((r) => FM.rulesClean(Object.assign({}, r, { text: r.text || r.summary || text, source: 'ai' }, stage ? { when: Object.assign({}, r.when, { stage: [stage] }) } : {}), nums)).filter(Boolean), notIncluded: out.notIncluded || [] };
       } catch (err) { st.err = err.message || 'LastMind could not read that just now.'; }
       st.busy = false; redraw();
     });

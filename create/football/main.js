@@ -448,7 +448,7 @@
   // ---------- the tactics page ----------
   // One page, used on any preparation day and again when the match is paused. Changes apply to the rest of the match.
   const TABS = [
-    ['squad', 'Squad and formation'], ['instr', 'Instructions'], ['build', 'Build-up'], ['final', 'Final third'],
+    ['squad', 'Squad and formation'], ['build', 'Build-up'], ['final', 'Final third'],
     ['transatt', 'Transition to attack'], ['transdef', 'Transition to defence'], ['press', 'Pressing'], ['without', 'Without the ball'], ['setpieces', 'Set pieces'],
   ];
   // Each tab with a board shows the team in that phase of play.
@@ -506,7 +506,6 @@
     el('tabs').innerHTML = TABS.map(([k, label]) => `<button data-tab="${k}" class="${world.tab === k ? 'on' : ''}">${label}${k === 'instr' && (team.rules || []).filter((r) => !r.off).length ? ' (' + (team.rules || []).filter((r) => !r.off).length + ')' : ''}</button>`).join('');
     el('tabs').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { world.tab = b.dataset.tab; renderTactics(); }));
     if (world.tab === 'setpieces') renderSetPieces(team);
-    else if (world.tab === 'instr') { const hooks = { save: saveSoon, opp: nextOpponent, changed: () => FM.elena.sync({ mode: 'instr', team, opp: nextOpponent() }), afterAdd: () => { FM.elena.sync({ mode: 'instr', team, opp: nextOpponent() }); FM.elena.review(); } }; FM.renderInstructions(el('tabBody'), team, hooks); FM.elena.sync({ mode: 'instr', team, opp: nextOpponent() }); }
     else renderBoardTab(team, world.tab);
   }
 
@@ -555,7 +554,7 @@
     let tac = null; try { tac = FM.aiTacticsFor(lg, opp, team); } catch (e) { tac = null; }
     const setCompare = (x, y) => { st.a = x; st.b = y; renderLab(team, host); };
     const clearRuns = () => { lg.labRuns = []; st.a = st.b = null; saveSoon(); renderLab(team, host); };
-    FM.elena.sync({ opp, runs, a, b, st, team, tac, setCompare, clearRuns });
+    FM.elena.sync({ opp, runs, a, b, st, team, tac, setCompare, clearRuns, instrStage: 'build' });
   }
 
   function takerSelect(team, key, label) {
@@ -798,6 +797,7 @@
         </div>
         <div class="tb-right">
           <div id="phaseSliders"></div>
+          ${isShape ? '' : '<div id="phaseInstr"></div>'}
           ${key === 'build' ? '<div id="labPanel"></div>' : ''}
           ${isShape ? `<div><h2 style="margin-bottom:8px">Bench</h2><div class="bench" id="bench">${bench}</div><p class="note" style="margin-top:8px">To substitute, click a bench player and then click the shirt he replaces.</p></div>` : ''}
           <div id="rolePanel"></div>
@@ -820,6 +820,13 @@
       }
     }
     if (SLIDER_TABS[tab]) renderSliderTab(team, SLIDER_TABS[tab], host.querySelector('#phaseSliders'));
+    if (!isShape) {
+      // The big instruction box for this stage of play, and the assistant's drawing and review of the instructions.
+      const sync = () => FM.elena.sync(key === 'build' ? null : { mode: 'instr', stage: key, team, opp: nextOpponent() });
+      const hooks = { save: saveSoon, opp: nextOpponent, changed: () => FM.elena.refresh(), afterAdd: () => { FM.elena.refresh(); if (key === 'build') FM.elena.show('instr'); FM.elena.review(); } };
+      FM.renderInstructions(host.querySelector('#phaseInstr'), team, hooks, { stage: key });
+      if (key !== 'build') sync();
+    }
     if (key === 'build' && host.querySelector('#labPanel')) renderLab(team, host.querySelector('#labPanel'));
     const err = (msg) => { host.querySelector('#subErr').textContent = msg || ''; };
     if (isShape) host.querySelector('#formSel').addEventListener('change', (e) => { FM.setFormation(team, e.target.value); world.selSlot = null; saveSoon(); renderTactics(); });

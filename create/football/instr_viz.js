@@ -6,13 +6,13 @@
   const L = 105, W = 68, PS = 4, VW = W * PS, VH = L * PS;
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-  const STAGES = [['build', 'Build-up'], ['final', 'Final third'], ['press', 'Pressing them'], ['without', 'Defending']];
-  const SCEN = { build: { has: true, d: 0.16 }, final: { has: true, d: 0.82 }, press: { has: false, d: 0.9 }, without: { has: false, d: 0.42 } };
+  const STAGES = [['build', 'Build-up'], ['final', 'Final third'], ['transAtt', 'Winning the ball'], ['transDef', 'Losing the ball'], ['press', 'Pressing them'], ['without', 'Defending']];
+  const SCEN = { build: { has: true, d: 0.16 }, final: { has: true, d: 0.82 }, transAtt: { has: true, d: 0.45, ph: { transAtt: 1 } }, transDef: { has: false, d: 0.55, ph: { transDef: 1 } }, press: { has: false, d: 0.9 }, without: { has: false, d: 0.42 } };
   const surname = (p) => p.name.split(' ').slice(1).join(' ') || p.name;
 
   function positions(team, opp, stage) {
     const sc = SCEN[stage], ball = FM.toMetres(team.attackDir, sc.d, 0.5);
-    team.oppRef = opp; opp.oppRef = team; team.phaseCtx = {}; opp.phaseCtx = {};
+    team.oppRef = opp; opp.oppRef = team; team.phaseCtx = Object.assign({}, sc.ph || {}); opp.phaseCtx = {};
     team.ruleCtx = { scoreDiff: 0, minute: 30, carrier: null }; opp.ruleCtx = { scoreDiff: 0, minute: 30, carrier: null };
     const oppRules = opp.rules; opp.rules = [];    // their manager's own rules are not what is being drawn
     const mk = (t, has, withRules) => { const keep = t.rules; if (!withRules) t.rules = []; const m = new Map(); t.players.forEach((p) => { m.set(p, FM.targetFor(t, p, ball, has)); }); t.rules = keep; return m; };
@@ -36,6 +36,7 @@
 
   FM.instrViz = {
     stages: STAGES,
+    name: (k) => (STAGES.find((x) => x[0] === k) || [0, k])[1].toLowerCase(),
     // Returns { svg, lines } for one stage.
     draw(team, opp, stage) {
       const P = positions(team, opp, stage), dir = team.attackDir;
