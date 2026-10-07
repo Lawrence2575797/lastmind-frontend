@@ -412,6 +412,16 @@
        than a couple of sentences. */
     .chat-msg-text p { margin: 0 0 12px; }
     .chat-msg-text p:last-child { margin-bottom: 0; }
+    .conv-extras { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; font-size: 0.84rem; line-height: 1.5; white-space: normal; }
+    .conv-extras:empty { display: none; }
+    .conv-english { opacity: 0.8; font-style: italic; }
+    .conv-toggle { align-self: flex-start; background: none; border: 0; padding: 0; color: inherit; opacity: 0.65; font: inherit; text-decoration: underline; cursor: pointer; }
+    .conv-toggle:hover, .conv-toggle:focus-visible { opacity: 1; }
+    .conv-fix { border-left: 2px solid rgba(230, 215, 176, 0.45); padding-left: 10px; }
+    .conv-words { display: flex; flex-wrap: wrap; gap: 6px; }
+    .conv-word { background: rgba(230, 215, 176, 0.14); border-radius: 999px; padding: 2px 10px; }
+    .conv-word b { font-weight: 700; }
+    .conv-hint { opacity: 0.55; font-size: 0.78rem; }
     .chat-msg-working { align-items: center; min-width: min(300px, 78vw); }
     .chat-working-spinner { width: 16px; height: 16px; flex: 0 0 16px; border: 2px solid rgba(230, 215, 176, 0.28); border-top-color: var(--text); border-radius: 50%; animation: chat-working-spin 0.8s linear infinite; }
     .chat-msg-working .chat-msg-text { opacity: 0.82; }
@@ -2584,6 +2594,99 @@ SQIDAQAB
         return resp.json();
     }
 
+
+    // ---- Practice conversation in a language being learned ----
+    // Held inside this chat: once one is open, what the student types goes to /cortex/conversation (built from the lessons they have
+    // completed in that language) instead of general chat, until they end it. The turns live here, like the rest of the chat.
+    let conversationMode = null;   // { language, turns: [{ role, content }], busy }
+    const CONVERSATION_LANGUAGES = 'italian|spanish|french|german|portuguese|japanese|mandarin|chinese|latin|arabic|korean|russian|dutch|welsh|greek|polish|turkish|hindi|swedish';
+    function detectConversationRequest(text) {
+        const lang = text.match(new RegExp('\\b(' + CONVERSATION_LANGUAGES + ')\\b', 'i'));
+        if (!lang) return null;
+        if (!/\b(conversation|converse|chat|talk|speak|speaking|practi[sc]e|role-?play|dialogue)\b/i.test(text)) return null;
+        if (!/\b(can we|could we|can you|let'?s|i want to|i'?d like to|i would like to|set up|start|have|practi[sc]e|talk to me|speak with me|speak to me|chat with me|test me)\b/i.test(text)) return null;
+        if (/\b(teach me|explain|translate|how do (?:i|you) say|what does)\b/i.test(text)) return null;
+        return lang[1].charAt(0).toUpperCase() + lang[1].slice(1).toLowerCase();
+    }
+    function detectConversationEnd(text) {
+        return /^\s*(?:stop|end|exit|quit|finish|leave)(?:\s+the)?(?:\s+(?:conversation|practice|chat))?\s*[.!]?\s*$/i.test(text) || /\b(?:end|stop|finish|leave)\s+(?:the\s+|this\s+)?(?:conversation|practice)\b/i.test(text);
+    }
+    function renderConversationReply(holder, r, opening) {
+        const textEl = holder.querySelector('.chat-msg-text');
+        renderChatText(textEl, r.reply);
+        const extras = document.createElement('div');
+        extras.className = 'conv-extras';
+        if (r.translation) {
+            const en = document.createElement('div');
+            en.className = 'conv-english'; en.textContent = r.translation; en.hidden = true;
+            const toggle = document.createElement('button');
+            toggle.type = 'button'; toggle.className = 'conv-toggle'; toggle.textContent = 'Show English';
+            toggle.addEventListener('click', () => { en.hidden = !en.hidden; toggle.textContent = en.hidden ? 'Show English' : 'Hide English'; });
+            extras.appendChild(toggle); extras.appendChild(en);
+        }
+        if (r.correction) { const fix = document.createElement('div'); fix.className = 'conv-fix'; fix.textContent = r.correction; extras.appendChild(fix); }
+        if (r.note) { const note = document.createElement('div'); note.textContent = r.note; extras.appendChild(note); }
+        if (r.newWords && r.newWords.length) {
+            const row = document.createElement('div');
+            row.className = 'conv-words';
+            r.newWords.forEach((w) => {
+                const chip = document.createElement('span');
+                chip.className = 'conv-word';
+                const b = document.createElement('b'); b.textContent = w.word;
+                chip.appendChild(b); chip.appendChild(document.createTextNode(' = ' + w.meaning));
+                row.appendChild(chip);
+            });
+            extras.appendChild(row);
+        }
+        if (opening) {
+            const hint = document.createElement('div');
+            hint.className = 'conv-hint';
+            hint.textContent = r.known ? 'Built from what you have learned so far. Ask me in English if you want a word or an explanation. Say "end conversation" when you are done.' : 'You have not completed any lessons in this language yet, so this starts very simply. Say "end conversation" when you are done.';
+            extras.appendChild(hint);
+        }
+        textEl.appendChild(extras);
+        if (!suppressAutoScroll) holder.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+    async function conversationRequest(holder, stopWorking, message, opening) {
+        const mode = conversationMode;
+        if (!mode) return;
+        mode.busy = true;
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) throw new Error('Not logged in.');
+            const resp = await fetch(`${COMPILE_BACKEND_URL}/cortex/conversation`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify({ language: mode.language, history: message ? mode.turns.slice(0, -1) : mode.turns, message }),
+            });
+            if (!resp.ok) {
+                if (resp.status === 402) throw new Error("You're out of Locks for now - come back once they refresh.");
+                const body = await resp.json().catch(() => ({}));
+                throw new Error(body.error || `Server returned ${resp.status}`);
+            }
+            const r = await resp.json();
+            stopWorking();
+            if (conversationMode !== mode) { holder.remove(); return; }
+            renderConversationReply(holder, r, opening);
+            mode.turns.push({ role: 'assistant', content: r.reply });
+            chatHistory.push({ role: 'assistant', content: r.translation ? `${r.reply}\n\n(${r.translation})` : r.reply });
+            saveChatHistory();
+        } catch (err) {
+            stopWorking();
+            setAssistantMessageText(holder, err && err.message ? err.message : 'The conversation could not continue. Try sending that again.');
+            if (opening && conversationMode === mode) conversationMode = null;
+            else if (mode.turns.length && mode.turns[mode.turns.length - 1].role === 'user') mode.turns.pop();
+        } finally {
+            mode.busy = false;
+        }
+    }
+    function startConversationMode(language) {
+        conversationMode = { language, turns: [], busy: false };
+        const holder = appendAssistantMessage('');
+        const stop = startAssistantWorking(holder, [`Setting up your ${language} conversation…`, 'Checking what you already know…', 'Writing the first line…', 'Still working…']);
+        conversationRequest(holder, stop, '', true);
+    }
+
     async function sendChatMessage() {
         const input = document.getElementById('chatInput');
         const text = input.value.trim();
@@ -2620,6 +2723,33 @@ SQIDAQAB
         // practice this resolves near-instantly (a local IndexedDB read,
         // already kicked off well before this could ever be called).
         await ensureSessionReady();
+
+        // A practice conversation in a language: while one is open every message belongs to it; asking for one opens it.
+        if (conversationMode) {
+            dropThinking();
+            chatHistory.push({ role: 'user', content: text });
+            saveChatHistory();
+            if (detectConversationEnd(text)) {
+                const language = conversationMode.language;
+                conversationMode = null;
+                appendAssistantMessage(`That's the ${language} conversation finished. Ask for another whenever you like, and it will use whatever you have learned by then.`);
+                return;
+            }
+            if (conversationMode.busy) return;
+            conversationMode.turns.push({ role: 'user', content: text });
+            const holder = appendAssistantMessage('');
+            const stop = startAssistantWorking(holder, ['Reading what you wrote…', 'Working out a reply…', 'Still working…']);
+            conversationRequest(holder, stop, text, false);
+            return;
+        }
+        const conversationLanguage = detectConversationRequest(text);
+        if (conversationLanguage) {
+            dropThinking();
+            chatHistory.push({ role: 'user', content: text });
+            saveChatHistory();
+            startConversationMode(conversationLanguage);
+            return;
+        }
 
         // "teach me X" (or a close variant) short-circuits into the
         // topic-map flow instead of an ordinary chat turn - see
@@ -2767,7 +2897,9 @@ SQIDAQAB
             // and narrow as the regex short-circuits above - Cortex only
             // ever flags the intent, this code decides what that means and
             // does it, same as a button click.
-            if (result.startTopic) {
+            if (result.startConversation) {
+                startConversationMode(result.startConversation);
+            } else if (result.startTopic) {
                 pendingLessonContinuation = null; // starting a different topic supersedes any earlier "shall I build..." still waiting on an answer
                 startTopicLearnFlow(result.startTopic);
             } else if (result.beginQueuedLessons) {
