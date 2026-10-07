@@ -539,6 +539,27 @@
         justify-content: center;
     }
     #chatSendBtn:hover { opacity: 0.85; }
+
+    /* Chrome extension: mirror the Notes page's LastMind side panel rather
+       than the full birch Cortex page. These values deliberately match the
+       nb-assist components in /learn. */
+    body.notes-assist-embed { background: #1A232D; color: #F1EAD6; font: 14px/1.55 Arial, sans-serif; }
+    body.notes-assist-embed .cortex-header { display: flex; align-items: flex-start; gap: 10px; padding: 14px 16px 10px; border-bottom: 1px solid rgba(241,234,214,.18); }
+    body.notes-assist-embed .cortex-back-link { display: none; }
+    body.notes-assist-embed .cortex-header-title { color: #F1EAD6; font: 700 1.1rem 'Lora', Georgia, serif; }
+    body.notes-assist-embed .cortex-header-sub { color: #F1EAD6; opacity: .7; font: 12px/1.4 Arial, sans-serif; }
+    body.notes-assist-embed .chat-scroll { padding: 12px 16px; }
+    body.notes-assist-embed .chat-inner { max-width: none; gap: 10px; }
+    body.notes-assist-embed #chatMessages.chat-empty-active { min-height: 0; }
+    body.notes-assist-embed .chat-empty-hint::before { content: 'Ask about the highlighted concept, or continue exploring it with LastMind.'; color: #F1EAD6; opacity: .7; font-size: .86rem; }
+    body.notes-assist-embed .chat-empty-hint > * { display: none; }
+    body.notes-assist-embed .chat-msg { max-width: 92%; padding: 9px 12px; border-radius: 12px; font: 14px/1.55 Arial, sans-serif; }
+    body.notes-assist-embed .chat-msg-user { background: rgba(230,215,176,.2); color: #F1EAD6; }
+    body.notes-assist-embed .chat-msg-assistant { background: rgba(255,255,255,.07); color: #F1EAD6; border: 0; }
+    body.notes-assist-embed .covered-btn, body.notes-assist-embed .covered-panel { display: none !important; }
+    body.notes-assist-embed .chat-input-row { max-width: none; gap: 8px; padding: 10px 16px 14px; border-top: 1px solid rgba(241,234,214,.18); }
+    body.notes-assist-embed #chatInput { min-height: 42px; padding: 9px 11px; border-radius: 10px; border: 1px solid rgba(241,234,214,.35); background: rgba(255,255,255,.06); color: #F1EAD6; font: 14px/1.55 Arial, sans-serif; }
+    body.notes-assist-embed #chatSendBtn { width: auto; height: auto; align-self: flex-end; padding: 10px 16px; border-radius: 10px; background: #E6D7B0; color: #1A232D; font: 800 .86rem Arial, sans-serif; }
 </style>
 </head>
 <body>
@@ -2859,6 +2880,12 @@ SQIDAQAB
         // own topbar/sidebar are already visible around it.
         if (new URLSearchParams(window.location.search).get('embed') === '1') {
             document.body.classList.add('cortex-embed');
+        }
+        if (new URLSearchParams(window.location.search).get('notesPanel') === '1') {
+            document.body.classList.add('notes-assist-embed');
+            document.querySelector('.cortex-header-sub').textContent = 'Ask about a concept, or have it explained';
+            document.getElementById('chatInput').placeholder = 'Ask about the highlighted concept…';
+            document.getElementById('chatSendBtn').textContent = 'Send';
         }
 
         // Fire-and-forget rather than awaited — Cortex reads folders fresh
