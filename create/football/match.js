@@ -498,12 +498,16 @@
   }
 
   function delayBeforeNextDecision(match, team, carrier) {
-    const base = 3.9 - 1.5 * clamp(team.tactics.tempo + 0.4 * counterNow(match, team), 0, 1);
+    // Out of the final third a player is quick: about a second and a half in space, under a second with a defender on him. Near goal the old, slower
+    // pace stays: every extra decision there is a chance to shoot, and the number of chances in a match is what the game is balanced on.
+    const quick = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d < 0.66;
+    const tempoK = clamp(team.tactics.tempo + 0.4 * counterNow(match, team), 0, 1);
+    const base = quick ? (FM.HOLD_BASE == null ? 2.1 : FM.HOLD_BASE) - 0.9 * tempoK : 3.9 - 1.5 * tempoK;
     const { d } = nearestOpponent(match, team, carrier);
-    const pressureFactor = d < 3 ? 0.55 : d < 6 ? 0.8 : 1;
+    const pressureFactor = quick ? (d < 3 ? 0.5 : d < 6 ? 0.68 : d < 10 ? 0.85 : 1) : (d < 3 ? 0.55 : d < 6 ? 0.8 : 1);
     let tempoD = 0, hold = false;
     if (team.rules && team.rules.length) { const f = FM.rulesFold(FM.rulesActive(team, carrier, FM.rulesCtx(team, match.ball, true, d < 4))); tempoD = f.tempo; hold = f.holdUp; }
-    return (base * (1 - 0.35 * tempoD) * pressureFactor + (FM.instrMods(carrier).holdUp || hold ? 0.9 : 0)) * (0.8 + 0.4 * match.rng());
+    return (base * (1 - 0.35 * tempoD) * pressureFactor + (FM.instrMods(carrier).holdUp || hold ? 0.9 : 0)) * (0.8 + 0.4 * match.rng()) + (quick ? 0 : 0.18);
   }
 
   // ---------- performing an action ----------
@@ -512,7 +516,7 @@
     const st = statsOf(match, team);
     st.passes++;
     const ok = rng() < opt.p;
-    const speed = clamp(10 + opt.d * 0.5, 12, 26);
+    const speed = clamp(13 + opt.d * 0.55, 15, 29);
     const flight = { kind: 'pass', team, passer: carrier, speed, target: null, ex: opt.tx, ey: opt.ty, outcome: 'complete' };
     if (ok) {
       flight.target = opt.target;
@@ -1308,6 +1312,11 @@
         }
       }
     }
+    // A player with the ball sees a defender coming and plays before he arrives, as in a real match, instead of waiting to be closed down.
+    if (match.carrier && !match.carry && match.nextDecision - match.clock > 0.4 && match.nextDecision - match.clock < 9 && FM.toTeamSpace(match.carrier.team.attackDir, match.carrier.player.x, match.carrier.player.y).d < 0.66) {
+      const nd = nearestOpponent(match, match.carrier.team, match.carrier.player).d;
+      if (nd < (FM.RELEASE_AT == null ? 9 : FM.RELEASE_AT)) match.nextDecision = match.clock + 0.2 + 0.25 * match.rng();
+    }
     if (match.carrier && match.clock >= match.nextDecision) {
       const { team, player } = match.carrier;
       const opt = chooseAction(match, team, player);
@@ -1367,9 +1376,9 @@
         startRestart(match, 'freekick', other(match, f.team), clamp(match.ball.x, 0.5, L - 0.5), clamp(match.ball.y, 0.5, W - 0.5), { indirect: true });
         return;
       }
-      if (f.outcome === 'complete') giveBall(match, f.team, f.target, 0.3 + delayBeforeNextDecision(match, f.team, f.target));
+      if (f.outcome === 'complete') giveBall(match, f.team, f.target, 0.12 + delayBeforeNextDecision(match, f.team, f.target));
       else if (f.outcome === 'intercepted' && match.rng() < 0.15) startRestart(match, 'throw', f.team, clamp(match.ball.x, 1, L - 1), match.ball.y < W / 2 ? 0.5 : W - 0.5);
-      else if (f.outcome === 'intercepted') giveBall(match, other(match, f.team), f.interceptor, 0.6 + delayBeforeNextDecision(match, other(match, f.team), f.interceptor) * 0.5);
+      else if (f.outcome === 'intercepted') giveBall(match, other(match, f.team), f.interceptor, 0.4 + delayBeforeNextDecision(match, other(match, f.team), f.interceptor) * 0.5);
       else if (match.ball.x < 1 || match.ball.x > L - 1 || match.ball.y < 1 || match.ball.y > W - 1) handleOut(match, f.team, match.ball.x < 1 ? Math.min(match.ball.x, -0.1) : match.ball.x > L - 1 ? Math.max(match.ball.x, L + 0.1) : match.ball.x, match.ball.y < 1 ? Math.min(match.ball.y, -0.1) : match.ball.y > W - 1 ? Math.max(match.ball.y, W + 0.1) : match.ball.y);
       else { match.ball.state = 'loose'; match.lastTeam = f.team; }
       return;
