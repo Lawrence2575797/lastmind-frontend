@@ -194,7 +194,7 @@
 
   // Clear through on goal: close to goal, in the middle of the pitch, with every outfield defender at least 2.5 m behind him.
   function clearThrough(match, team, p) {
-    return p.group !== 'GK' && FM.toTeamSpace(team.attackDir, p.x, p.y).d > (FM.CLEAR_D == null ? 0.92 : FM.CLEAR_D) && Math.abs(p.y - W / 2) < 24 && !other(match, team).players.some((o) => o.group !== 'GK' && (o.x - p.x) * team.attackDir > -(FM.CLEAR_GAP == null ? 6 : FM.CLEAR_GAP));
+    return p.group !== 'GK' && FM.toTeamSpace(team.attackDir, p.x, p.y).d > (FM.CLEAR_D == null ? 0.92 : FM.CLEAR_D) && Math.abs(p.y - W / 2) < 24 && !other(match, team).players.some((o) => o.group !== 'GK' && (o.x - p.x) * team.attackDir > -(FM.CLEAR_GAP == null ? 4 : FM.CLEAR_GAP));
   }
   // ---------- target overrides: carrying, pressing, chasing the ball ----------
   function buildOverrides(match) {
@@ -457,6 +457,14 @@
       const prog = clamp((dGoal - Math.hypot(tx - goal.x, ty - goal.y)) / 25, -0.6, 1.2);
       const boxBonus = Math.hypot(tx - goal.x, ty - goal.y) < 19 && Math.abs(ty - W / 2) < 18 ? 0.45 * (0.5 + risk) : 0;
       const score = p * (0.35 + directness * 0.9 * prog + 0.5 * prog * risk + boxBonus) - (1 - p) * 0.6 * (1 - risk) * lossFactor;
+      // The chance it creates. A pass that puts a team-mate somewhere he is clearly likelier to score from than the man on the ball is the
+      // pass a player looks for: it counts for what the receiver could do with it, whoever he is.
+      let chance = 0;
+      if (t.group !== 'GK' && Math.hypot(tx - goal.x, ty - goal.y) < 32) {
+        const rx = sig(FM.xgLogit(t, tx, ty, team.attackDir, press));
+        const cx = sig(FM.xgLogit(carrier, carrier.x, carrier.y, team.attackDir, nearNow));
+        chance = (FM.CHANCE_BONUS == null ? 2.5 : FM.CHANCE_BONUS) * p * Math.max(0, rx - cx);
+      }
       const off = match.noOffside ? 'on' : offsideStatus(match, team, carrier, t.x);
       // A player through on goal does not turn and play it back, and near the opposition box a pass backwards is a last resort
       // (when he is being closed down hard) rather than the usual choice.
@@ -479,7 +487,7 @@
         adj += RE.freeMan * clamp((press - 3) / 9, 0, 1);
         if (RE.passScore.length) { evPass.receiver = t; RE.passScore.forEach((ps) => { if (FM.rulesPred(ps.where, evPass)) adj += ps.w * 1.1; }); }
       }
-      options.push({ kind: 'pass', target: t, tx, ty, d, lane, press, p, score: off === 'off' ? -4 : score + adj });
+      options.push({ kind: 'pass', target: t, tx, ty, d, lane, press, p, score: off === 'off' ? -4 : score + adj + chance });
     });
 
     // Beating the press. How likely a team is to go long depends on how the other side press its build-up. Against a side that press high
@@ -519,7 +527,7 @@
     const attackingThird = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d > 0.6;
     if (((dGoal < 28 && attackingThird) || (through && dGoal < 42)) && carrier.group !== 'GK') {
       const xg = sig(FM.xgLogit(carrier, carrier.x, carrier.y, team.attackDir, nearD) - 0.55 * crowd(match, team, carrier));
-      options.push({ kind: 'shoot', xg, score: xg * 3.2 * (0.5 + risk * 0.9) * (0.4 + 1.2 * tac.shootFreedom) * mods.shoot - (1 - xg) * 0.12 - Math.max(0, 0.09 - xg) * 8 * (1.2 - tac.shootFreedom) + 0.35 * clamp((nearD - 1.2) / 2.5, 0, 1) * clamp((28 - dGoal) / 14, 0, 1) + (through ? (FM.THROUGH_SHOOT == null ? 0.7 : FM.THROUGH_SHOOT) * clamp((42 - dGoal) / 22, 0, 1) : 0) });
+      options.push({ kind: 'shoot', xg, score: xg * 3.2 * (0.5 + risk * 0.9) * (0.4 + 1.2 * tac.shootFreedom) * mods.shoot - (1 - xg) * 0.12 - Math.max(0, 0.09 - xg) * 8 * (1.2 - tac.shootFreedom) * (['AM', 'WF', 'CM'].indexOf(carrier.group) >= 0 ? (FM.MID_LOWXG == null ? 0.2 : FM.MID_LOWXG) : 1) + 0.35 * clamp((nearD - 1.2) / 2.5, 0, 1) * clamp((28 - dGoal) / 14, 0, 1) + (through ? (FM.THROUGH_SHOOT == null ? 0.7 : FM.THROUGH_SHOOT) * clamp((42 - dGoal) / 22, 0, 1) : 0) + (FM.LONG_SHOT == null ? 3 : FM.LONG_SHOT) * (({ ST: 0.5, WF: 1, AM: 1.4, CM: 1.2, DM: 0.5, FB: 0.4, CB: 0.2 })[carrier.group] || 0.5) * clamp((27 - dGoal) / 8, 0, 1) * clamp((nearD - 1.2) / 2.5, 0, 1) });
     }
 
     if (RE && RE.shoot) options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= clamp(1 + 0.9 * RE.shoot, 0.1, 2); });
