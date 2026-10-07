@@ -92,9 +92,11 @@
     };
     roll(0, true);
     let nextRoll = RESPOND_EVERY, lostAt = null, lostZone = null, lostCause = null, result = null, passes = 0, evSeen = 0;
-    let guard = 0;
+    let guard = 0, planNow = null, firstPass = null, firstSeen = 0;
     while (!result && guard++ < 4000) {
       FM.stepMatch(match, STEP);
+      if (match.plan && match.plan.carrier && match.plan.carrier.team !== undefined || match.plan) planNow = match.plan;
+      if (!firstPass) for (; firstSeen < match.events.length; firstSeen++) { const e = match.events[firstSeen]; if (e.type === 'pass' && e.team === u.id) { firstPass = { e, plan: planNow ? planNow.pairs.slice() : null, chase: null }; firstSeen++; break; } }
       if (match.clock >= nextRoll) { roll(match.clock, false); nextRoll += RESPOND_EVERY; }
       const h = holder(match), t = match.clock;
       const d = FM.toTeamSpace(dir, match.ball.x, match.ball.y).d;
@@ -118,6 +120,16 @@
     let pTot = 0, pSum = 0; match.events.forEach((e) => { if (e.type === 'pass' && e.team === u.id) { pTot++; pSum += e.p; if (e.ok) passes++; } });
     result.passes = passes; result.passTotal = pTot; result.passP = pSum;
     if (lostCause && result.outcome !== 'beat' && result.outcome !== 'still') result.cause = lostCause;
+    if (firstPass) {
+      const e = firstPass.e, to = byNum(u, e.to), from = byNum(u, e.from), pairs = firstPass.plan;
+      const g = (team, n) => { const p = byNum(team, n); return p ? p.group : '?'; };
+      result.first = { dist: e.dist, ok: !!e.ok, toGroup: to ? to.group : '?', fromGroup: from ? from.group : '?', toNum: e.to, planned: !!pairs };
+      if (pairs) {
+        result.first.toFree = !pairs.some((pr) => pr[1] === e.to);
+        result.first.jobs = pairs.map((pr) => g(o, pr[0]) + '>' + g(u, pr[1]));
+        result.first.free = u.players.filter((p) => p.number !== e.from && !pairs.some((pr) => pr[1] === p.number)).map((p) => p.group);
+      }
+    }
     return result;
   };
 
@@ -125,7 +137,7 @@
   LAB.run = function (league, opts, onProgress) {
     const n = opts.n || 100, userTeam = opts.user, oppTeam = opts.opp, base = opts.seed || (Date.now() & 0xffffff);
     let oppTactics = null; try { if (oppTeam.id !== league.userId) oppTactics = FM.aiTacticsFor(league, oppTeam, userTeam); } catch (e) { oppTactics = null; }
-    const res = { n, counts: { beat: 0, lostNear: 0, lostOwn: 0, lostMid: 0, still: 0 }, shot: 0, goal: 0, times: [], passes: [], causes: [], passTotal: 0, passOk: 0, passP: 0 };
+    const res = { n, counts: { beat: 0, lostNear: 0, lostOwn: 0, lostMid: 0, still: 0 }, shot: 0, goal: 0, times: [], passes: [], causes: [], passTotal: 0, passOk: 0, passP: 0, firsts: [] };
     let i = 0;
     return new Promise((resolve) => {
       const batch = () => {
@@ -138,6 +150,7 @@
           if (r.outcome === 'beat') res.times.push(r.time);
           res.passes.push(r.passes); res.passTotal += r.passTotal || 0; res.passOk += r.passes || 0; res.passP += r.passP || 0;
           if (r.cause) res.causes.push(Object.assign({ zone: r.outcome, shot: !!r.shot }, r.cause));
+          if (r.first) res.firsts.push(Object.assign({ outcome: r.outcome }, r.first));
         }
         if (onProgress) onProgress(i, n);
         if (i < n) setTimeout(batch, 0); else resolve(LAB.summarise(res));
@@ -155,6 +168,7 @@
     out.passes = { mean: S.mean(res.passes), sd: S.sd(res.passes, true) };
     out.passStats = { perTest: res.passTotal / n, okPerTest: res.passOk / n, rate: res.passTotal ? res.passOk / res.passTotal : 0, expected: res.passTotal ? res.passP / res.passTotal : 0 };
     out.why = LAB.reduceCauses(res.causes || []);
+    out.press = LAB.reduceFirsts(res.firsts || [], n);
     return out;
   };
 
@@ -169,6 +183,49 @@
       if (c.kind === 'intercepted' || c.kind === 'loose') { w.failedPasses++; w.distSum += c.dist || 0; w.laneSum += c.lane || 0; w.pressSum += c.press || 0; if (c.dist > 30) w.long++; if (c.press != null && c.press < 4) w.tight++; }
     });
     return w;
+  };
+
+  // What happened at the first pass in every test: who the opposition had gone to, whether a free man was there, and whether he was used.
+  LAB.reduceFirsts = function (list, n) {
+    const w = { n: list.length, jobs: {}, freeSeen: 0, toFree: 0, toMarked: 0, beatFree: 0, beatMarked: 0, shortFirst: 0, longFirst: 0, shortOk: 0, longOk: 0, freeGroups: {}, noFree: 0 };
+    list.forEach((f) => {
+      if (f.dist > 30) { w.longFirst++; if (f.ok) w.longOk++; } else { w.shortFirst++; if (f.ok) w.shortOk++; }
+      if (!f.planned) return;
+      const uniq = {}; (f.jobs || []).forEach((j) => { uniq[j] = (uniq[j] || 0) + 1; });
+      Object.keys(uniq).forEach((j) => { w.jobs[j] = (w.jobs[j] || 0) + 1; });
+      if (f.free && f.free.length) { w.freeSeen++; f.free.forEach((g) => { w.freeGroups[g] = (w.freeGroups[g] || 0) + 1; }); } else w.noFree++;
+      if (f.toFree) { w.toFree++; if (f.outcome === 'beat') w.beatFree++; } else { w.toMarked++; if (f.outcome === 'beat') w.beatMarked++; }
+    });
+    return w;
+  };
+
+  const WORD = { GK: 'goalkeeper', CB: 'centre-back', FB: 'full-back', DM: 'defensive midfielder', CM: 'central midfielder', AM: 'attacking midfielder', WF: 'winger', ST: 'striker' };
+  const PLURAL = { GK: 'goalkeepers', CB: 'centre-backs', FB: 'full-backs', DM: 'defensive midfielders', CM: 'central midfielders', AM: 'attacking midfielders', WF: 'wingers', ST: 'strikers' };
+  LAB.words = WORD; LAB.plural = PLURAL;
+
+  // The set-up before anything is run: who their press would go to, with every one of them doing his job, and who is left over on each side.
+  // This is the same plan the engine draws in a test, without the chance of a player not following it.
+  LAB.setup = function (user, opp, oppTactics) {
+    const tac = oppTactics || opp.tactics, press = oppPressOf(tac), dir = user.attackDir;
+    const ball = FM.toMetres(dir, 0.07, 0.6);
+    const u = clone(user), o = clone(opp); o.tactics = Object.assign({}, o.tactics, tac); o.phasePos = null;
+    u.phaseCtx = {}; o.phaseCtx = {}; o.attackDir = -u.attackDir;
+    [[u, true], [o, false]].forEach(([t, has]) => t.players.forEach((p) => { const q = FM.targetFor(t, p, ball, has); p.x = q.x; p.y = q.y; }));
+    const gk = u.players.find((p) => p.group === 'GK'); gk.x = ball.x - dir * 0.7; gk.y = ball.y;
+    const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    const chaser = o.players.filter((p) => p.group !== 'GK').sort((a, b) => dist(a, gk) - dist(b, gk))[0];
+    const nPress = clamp(Math.round(1 + 5 * press), 2, 6), roles = ['ST', 'WF', 'AM', 'CM', 'DM'];
+    const pressers = o.players.filter((p) => roles.indexOf(p.group) >= 0 && p !== chaser).sort((a, b) => (b.x * o.attackDir) - (a.x * o.attackDir)).slice(0, nPress);
+    const taken = new Set(), pairs = [];
+    pressers.forEach((p) => {
+      const c = u.players.filter((q) => q !== gk && !taken.has(q)).map((q) => ({ q, d: dist(p, q) })).filter((x) => x.d < 45).sort((a, b) => a.d - b.d)[0];
+      if (c) { taken.add(c.q); pairs.push({ def: p, att: c.q }); }
+    });
+    const busy = new Set(pairs.map((x) => x.def)); busy.add(chaser);
+    const freeAtt = u.players.filter((q) => q !== gk && !taken.has(q)), freeDef = o.players.filter((p) => p.group !== 'GK' && !busy.has(p));
+    const depth = (q) => FM.toTeamSpace(dir, q.x, q.y).d;
+    const back = u.players.filter((q) => depth(q) < 0.3), backPressers = [chaser].concat(pairs.filter((x) => depth(x.att) < 0.3).map((x) => x.def));
+    return { press, nPress, chaser, pairs, freeAtt, freeDef, back, backPressers, user: u, opp: o };
   };
 
   // Elena's reading of a run: what went wrong, why, and what could be tried. Every number is from the run itself.

@@ -181,6 +181,7 @@
     gk.x = spot.x - dir * 0.7; gk.y = spot.y;
     match.lastTeam = team; match.lastChange = null;
     giveBall(match, team, gk, 1.2);
+    match.lastChange = null;   // the keeper has the ball in open play or from a goal kick: nobody has just lost it, so there is no counter-press to begin with
     if (kind === 'goalkick') { match.forcePass = true; match.noOffside = true; }
   };
   FM.holderOf = function (match) { return possessionTeam(match); };
@@ -239,6 +240,19 @@
         target.forEach((q) => { const dd = dist(p, q); if (dd < bd) { bd = dd; best = q; } });
         if (best) ov.set(p, { x: best.x - opp.attackDir * 1.5, y: best.y });
       });
+      // The press on a build-up as a plan. Their forwards go to the deepest of your players, their attacking midfielders to the next, and so on, each
+      // taking the nearest of your players not already taken. Whether a player follows his job is a chance, drawn again every few seconds: a team that
+      // presses hard mostly sticks to it, and one that presses lightly often does not. The ones left over (usually their full-backs and centre-backs)
+      // mark nobody, which is what leaves your man free.
+      const plan = press >= 0.3 && FM.toTeamSpace(c.team.attackDir, c.player.x, c.player.y).d < 0.5 ? pressPlan(match, opp, c.team, c.player, press, ov) : null;
+      if (plan) {
+        const stand = 1.2 + 2.6 * (1 - press);
+        plan.assign.forEach((q, p) => {
+          if (ov.has(p)) return;
+          const dx = c.player.x - q.x, dy = c.player.y - q.y, dd = Math.max(Math.hypot(dx, dy), 0.1);
+          ov.set(p, { x: clamp(q.x + dx / dd * stand, 1, L - 1), y: clamp(q.y + dy / dd * stand, 1, W - 1) });
+        });
+      }
       // Cutting the passing lanes. Defenders nearest the likeliest passes stand between the carrier and the receiver, so the pass is
       // hard to make and easy to intercept, instead of every defender running at the ball. Most advanced receivers first, a few at a time.
       const goalPt = { x: c.team.attackDir === 1 ? L : 0, y: W / 2 };
@@ -271,6 +285,28 @@
       });
     }
     return ov;
+  }
+  // Who presses whom. Redrawn every three seconds, or when the ball changes hands.
+  const PRESS_ROLES = ['ST', 'WF', 'AM', 'CM', 'DM'];
+  function pressPlan(match, opp, att, carrier, press, ov) {
+    const pl = match.plan;
+    if (pl && pl.def === opp.id && pl.carrier === carrier && match.clock - pl.t < 3) return pl;
+    const rng = match.rng, follow = clamp(0.5 + 0.45 * press, 0.4, 0.95);
+    const nPress = clamp(Math.round(1 + 5 * press), 2, 6);
+    const chasers = new Set(); ov.forEach((v, p) => chasers.add(p));
+    const pressers = opp.players.filter((p) => PRESS_ROLES.indexOf(p.group) >= 0 && !chasers.has(p))
+      .sort((a, b) => (b.x * opp.attackDir) - (a.x * opp.attackDir)).slice(0, nPress);
+    const taken = new Set(), assign = new Map();
+    pressers.forEach((p) => {
+      const cands = att.players.filter((q) => q !== carrier && !taken.has(q)).map((q) => ({ q, d: dist(p, q) })).filter((o) => o.d < 45).sort((a, b) => a.d - b.d);
+      if (!cands.length) return;
+      let pick = 0;
+      if (rng() > follow) pick = rng() < 0.3 ? -1 : Math.min(1, cands.length - 1);   // not this time: he takes the next one, or sits
+      if (pick < 0) return;
+      taken.add(cands[pick].q); assign.set(p, cands[pick].q);
+    });
+    match.plan = { def: opp.id, carrier, t: match.clock, assign, pairs: Array.from(assign.entries()).map(([p, q]) => [p.number, q.number]) };
+    return match.plan;
   }
   function pressTrigger(team, player, press) {
     const role = player.roleId;
@@ -388,6 +424,9 @@
       adj += (FM.OPEN_BONUS == null ? 0.5 : FM.OPEN_BONUS) * clamp((press - 3) / 9, 0, 1) * (back < -3 ? 1 : back < 3 ? 0.7 : 0.3);
       if (through && back > 3) adj = -2.0;
       else if (ownDepth0 > 0.66 && back > 8) adj = (nearNow < 2.5 ? 0.45 : 1) * -(FM.BACK_PEN == null ? 0 : FM.BACK_PEN);
+      // Playing out short. A team set to build patiently does not send the ball a long way when it has a shorter pass: the longer the pass, and the
+      // more patient the setting, the less the player wants it. (A team set to go long has no such penalty.)
+      if (zone === 'build' && tac.buildDirect < 0.5) adj -= Math.pow(0.5 - tac.buildDirect, 2) * (FM.SHORT_PREF == null ? 14 : FM.SHORT_PREF) * clamp((d - 12) / 20, 0, 1);
       options.push({ kind: 'pass', target: t, tx, ty, d, lane, press, p, score: off === 'off' ? -4 : score + adj });
     });
 
@@ -399,7 +438,7 @@
       const beat = tac.beatPress == null ? 0.5 : tac.beatPress, ot = other(match, team).tactics;
       const oppPress = 0.6 * (ot.pressBuildUp == null ? 0.4 : ot.pressBuildUp) + 0.4 * pressingNow(match, other(match, team));
       const pressure = clamp((oppPress - 0.4) / 0.45, 0, 1);
-      if (pressure > 0) options.forEach((o) => { if (o.kind === 'pass' && o.d >= 28 && (o.tx - carrier.x) * team.attackDir > 15 && o.score > -3) o.score += beat * (FM.BEAT_K || 2.5) * pressure * (0.4 + o.p); });
+      if (pressure > 0) options.forEach((o) => { if (o.kind === 'pass' && o.d >= 28 && (o.tx - carrier.x) * team.attackDir > 15 && o.score > -3) o.score += beat * (FM.BEAT_K || 2.5) * pressure * (0.4 + o.p) * (0.4 + 0.6 * directness); });
     }
 
     const { opp: nearOpp, d: nearD } = nearestOpponent(match, team, carrier);
@@ -407,6 +446,8 @@
     const dribbleBias = (GROUP_DRIBBLE[carrier.group] || 0) + (ROLE_DRIBBLE[role] || 0);
     options.push({ kind: 'dribble', p: dp, nearOpp, nearD, score: dp * (0.3 + 0.9 * directness * 0.4 + (dribbleBias + mods.dribble + (tac.dribbleFreedom - 0.5) * 0.9 + (zone === 'final' && nearD > 3.5 ? 0.45 : 0) + (through ? (FM.THROUGH_DRIB == null ? 0.4 : FM.THROUGH_DRIB) : 0))) - (1 - dp) * 0.55 * (1 - risk) * lossFactor });
 
+    // In his own third with a defender close, taking the man on is the last thing a defender wants to do.
+    if (zone === 'build' && nearD < 3) { const dr = options[options.length - 1]; dr.score -= 0.5 * (1 - nearD / 3) * (1 + (1 - risk)) * (FM.DRIBBLE_BUILD_PEN == null ? 1 : FM.DRIBBLE_BUILD_PEN); }
     const attackingThird = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d > 0.6;
     if (((dGoal < 28 && attackingThird) || (through && dGoal < 42)) && carrier.group !== 'GK') {
       const xg = sig(FM.xgLogit(carrier, carrier.x, carrier.y, team.attackDir, nearD) - 0.55 * crowd(match, team, carrier));
@@ -417,7 +458,8 @@
     const temp = 0.22 + 0.25 * (1 - carrier.ratings.composure / 100);
     let pool = options;
     if (match.forcePass) { const only = options.filter((o) => o.kind === 'pass' && o.d < 40); if (only.length) pool = only; }
-    if (carrier.group === 'GK' && nearNow < 6) { const longs = options.filter((o) => o.kind === 'pass' && o.d >= 26); if (longs.length) pool = longs; }
+    if (carrier.group === 'GK' && nearNow < 6 && directness >= 0.45) { const longs = options.filter((o) => o.kind === 'pass' && o.d >= 26); if (longs.length) pool = longs; }
+    if (FM.debugChoose) FM.debugChoose(carrier, options, pool, directness, risk);
     const maxScore = Math.max.apply(null, pool.map((o) => o.score));
     const weights = pool.map((o) => Math.exp((o.score - maxScore) / temp));
     const total = weights.reduce((a, b) => a + b, 0);
@@ -461,7 +503,7 @@
         if (Math.hypot(opt.tx - gx0, opt.ty - W / 2) < 24 && rng() < 0.85) { flight.ex = clamp(flight.ex, 2, L - 2); flight.ey = clamp(flight.ey, 2, W - 2); }
       }
     }
-    record(match, { type: 'pass', team: team.id, from: carrier.number, to: opt.target.number, p: opt.p, ok, outcome: flight.outcome, dist: opt.d, lane: opt.lane, press: opt.press, x: carrier.x, y: carrier.y, tx: flight.ex, ty: flight.ey });
+    record(match, { type: 'pass', team: team.id, from: carrier.number, to: opt.target.number, by: flight.interceptor ? flight.interceptor.number : undefined, p: opt.p, ok, outcome: flight.outcome, dist: opt.d, lane: opt.lane, press: opt.press, x: carrier.x, y: carrier.y, tx: flight.ex, ty: flight.ey });
     match.carrier = null; match.carry = null;
     match.flight = flight;
     match.ball.state = 'flight';
