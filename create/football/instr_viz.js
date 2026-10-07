@@ -12,16 +12,21 @@
 
   function positions(team, opp, stage) {
     const sc = SCEN[stage], ball = FM.toMetres(team.attackDir, sc.d, 0.5);
-    team.oppRef = opp; opp.oppRef = team; team.phaseCtx = Object.assign({}, sc.ph || {}); opp.phaseCtx = {};
-    team.ruleCtx = { scoreDiff: 0, minute: 30, carrier: null }; opp.ruleCtx = { scoreDiff: 0, minute: 30, carrier: null };
-    const oppRules = opp.rules; opp.rules = [];    // their manager's own rules are not what is being drawn
+    // Work with temporary team shells. The old version wrote oppRef onto
+    // the real teams and left team -> opponent -> team behind, which made
+    // the next lab run impossible to clone or save as JSON.
+    const viewTeam = Object.assign({}, team), viewOpp = Object.assign({}, opp);
+    viewTeam.oppRef = viewOpp; viewOpp.oppRef = viewTeam;
+    viewTeam.phaseCtx = Object.assign({}, sc.ph || {}); viewOpp.phaseCtx = {};
+    viewTeam.ruleCtx = { scoreDiff: 0, minute: 30, carrier: null }; viewOpp.ruleCtx = { scoreDiff: 0, minute: 30, carrier: null };
+    const oppRules = viewOpp.rules; viewOpp.rules = [];    // their manager's own rules are not what is being drawn
     const mk = (t, has, withRules) => { const keep = t.rules; if (!withRules) t.rules = []; const m = new Map(); t.players.forEach((p) => { m.set(p, FM.targetFor(t, p, ball, has)); }); t.rules = keep; return m; };
-    const base = mk(team, sc.has, false), baseO = mk(opp, !sc.has, false);
+    const base = mk(viewTeam, sc.has, false), baseO = mk(viewOpp, !sc.has, false);
     const near = (m) => { let best = null, bd = 1e9; m.forEach((q, p) => { const d = Math.hypot(q.x - ball.x, q.y - ball.y); if (d < bd) { bd = d; best = p; } }); return best; };
     const carrier = near(sc.has ? base : baseO);
-    team.ruleCtx.carrier = carrier; opp.ruleCtx.carrier = carrier;
-    const now = mk(team, sc.has, true);
-    opp.rules = oppRules;
+    viewTeam.ruleCtx.carrier = carrier; viewOpp.ruleCtx.carrier = carrier;
+    const now = mk(viewTeam, sc.has, true);
+    viewOpp.rules = oppRules;
     return { sc, ball, base, now, baseO, carrier };
   }
 

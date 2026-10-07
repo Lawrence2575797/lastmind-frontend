@@ -10,7 +10,11 @@
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   LAB.CONSTANTS = { TRIAL_SECONDS, AFTER_LOSS, NEAR_GOAL };
 
-  const clone = (t) => JSON.parse(JSON.stringify(t));       // teams are plain data
+  // Match and visualisation code can attach short-lived object references
+  // (team -> opponent -> team). They are runtime context, not team data,
+  // and must never enter a lab copy or saved project.
+  const TRANSIENT = new Set(['oppRef', 'ruleCtx', 'phaseCtx', 'extraOv']);
+  const clone = (t) => JSON.parse(JSON.stringify(t, (key, value) => TRANSIENT.has(key) ? undefined : value));
   const outfield = (t) => t.players.filter((p) => p.group !== 'GK');
   const oppPressOf = (tac) => clamp(0.5 * (tac.pressBuildUp == null ? 0.4 : tac.pressBuildUp) + 0.5 * (tac.pressing == null ? 0.5 : tac.pressing), 0, 1);
 
