@@ -279,6 +279,7 @@
     match.day = league.day; match.userId = league.userId; match.interactive = !!(opts && opts.interactive); match.friendly = friendly;
     match.aiTeams = [home, away].filter((t) => t.id !== league.userId);
     match.fixture = fx;
+    if (FM.scout) FM.scout.startMatch(league, match);   // computer-run clubs read your recent matches and set their rules
     // Clips are cut from your own matches (not friendlies, and not matches between other clubs).
     if (!friendly && (home.id === league.userId || away.id === league.userId)) { match.clips = []; match.rec = { buf: [], next: 0, pending: [], cands: [], chain: null }; }
     match.starters = { [home.id]: home.players.map((p) => p.id), [away.id]: away.players.map((p) => p.id) };
@@ -296,6 +297,8 @@
       fx.stats[t.id].tactics = Object.assign({}, t.tactics);
     });
     fx.scout = FM.scoutSummary(match);
+    if (match.oppLog) fx.oppLog = match.oppLog.slice(-8);
+    [home, away].forEach((t) => { if (t.id !== league.userId) t.rules = []; });   // an opposing manager's rules are for this match only
     // A friendly leaves everything else alone: only the result and team figures are kept (with the goalscorers, for the reports).
     if (fx.friendly) {
       if (FM.summariseMatch) fx.summary = FM.summariseMatch(league, fx, match);

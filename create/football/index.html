@@ -97,6 +97,7 @@
   .in-slide { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; font-size: .8rem; color: var(--cream-soft); } .in-slide input { min-width: 0; accent-color: var(--gold); } .in-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; } .in-two label { display: grid; gap: 4px; font-size: .8rem; color: var(--cream-soft); }
   .in-line { display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: 16px; align-items: center; padding: 14px; border-radius: 14px; border: 1px solid var(--line); background: rgba(241,234,214,.05); } @media (max-width: 560px) { .in-line { grid-template-columns: 1fr; } } .in-lc { display: grid; gap: 8px; } .in-line svg { width: 100%; height: auto; max-height: 320px; border-radius: 8px; }
   .in-link { border: 0; background: transparent; color: var(--gold); font: inherit; text-decoration: underline; cursor: pointer; padding: 0 4px; } .in-pl { display: grid; gap: 8px; } .in-pl h3 { margin: 0; font-size: .78rem; letter-spacing: .07em; text-transform: uppercase; color: var(--gold); }
+  #oppMind { display: grid; gap: 8px; font-family: var(--sans); font-size: .84rem; line-height: 1.5; } #oppMind .om { padding: 8px 10px; border-radius: 10px; background: rgba(241,234,214,.08); } #oppMind .om.old { opacity: .65; } #oppMind .om p { margin: 4px 0 0; } #oppMind .omsrc { margin-left: 8px; font-size: .72rem; opacity: .7; } #oppMind .omsub { opacity: .8; font-size: .8rem; } #oppMind ul { margin: 4px 0 0; padding-left: 18px; } #oppMind details summary { cursor: pointer; margin-top: 4px; opacity: .85; }
   .in-ideas { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; } .in-idea { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(241,234,214,.06); color: var(--cream); font-family: var(--sans); text-align: left; cursor: pointer; } .in-idea:hover { background: rgba(241,234,214,.14); border-color: var(--gold); } .in-idea b { font-size: .92rem; } .in-idea span { font-size: .82rem; color: var(--cream-soft); } .in-idea small { font-size: .74rem; color: var(--gold); line-height: 1.4; }
   .lab .runs { display: flex; gap: 6px; flex-wrap: wrap; } .lab .runs button { padding: 6px 10px; font-size: 0.8rem; }
   .score { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--navy); color: var(--cream); border-radius: 14px; padding: 12px 18px; font-family: var(--sans); flex-wrap: wrap; }
@@ -275,6 +276,7 @@
         </div>
         <aside class="panel">
           <div class="group"><h2>Match</h2><table class="stats" id="stats"></table></div>
+          <div class="group" hidden><h2>Their manager</h2><div id="oppMind"></div></div>
           <div class="group"><h2>Events</h2><div class="feed" id="feed"></div></div>
           <div class="group" id="injuryBox" hidden>
             <p class="desc" id="injuryText"></p>
@@ -298,32 +300,33 @@
     <div id="tabBody"></div>
   </section>
 </div>
-<script src="/create/football/formations.js?v=20261007l"></script>
-<script src="/create/football/roles.js?v=20261007l"></script>
-<script src="/create/football/ratings.js?v=20261007l"></script>
-<script src="/create/football/names.js?v=20261007l"></script>
-<script src="/create/football/engine.js?v=20261007l"></script>
-<script src="/create/football/rules.js?v=20261007l"></script>
-<script src="/create/football/instructions.js?v=20261007l"></script>
-<script src="/create/football/fitness.js?v=20261007l"></script>
-<script src="/create/football/match.js?v=20261007l"></script>
-<script src="/create/football/league.js?v=20261007l"></script>
-<script src="/create/football/preseason.js?v=20261007l"></script>
-<script src="/create/football/stats_math.js?v=20261007l"></script>
-<script src="/create/football/stats.js?v=20261007l"></script>
-<script src="/create/football/stats_top.js?v=20261007l"></script>
-<script src="/create/football/news.js?v=20261007l"></script>
-<script src="/create/football/insights.js?v=20261007l"></script>
-<script src="/create/football/analysis.js?v=20261007l"></script>
-<script src="/create/football/clips.js?v=20261007l"></script>
-<script src="/create/football/reports.js?v=20261007l"></script>
-<script src="/create/football/hypotheses.js?v=20261007l"></script>
-<script src="/create/football/lab.js?v=20261007l"></script>
+<script src="/create/football/formations.js?v=20261007n"></script>
+<script src="/create/football/roles.js?v=20261007n"></script>
+<script src="/create/football/ratings.js?v=20261007n"></script>
+<script src="/create/football/names.js?v=20261007n"></script>
+<script src="/create/football/engine.js?v=20261007n"></script>
+<script src="/create/football/rules.js?v=20261007n"></script>
+<script src="/create/football/instructions.js?v=20261007n"></script>
+<script src="/create/football/fitness.js?v=20261007n"></script>
+<script src="/create/football/match.js?v=20261007n"></script>
+<script src="/create/football/league.js?v=20261007n"></script>
+<script src="/create/football/preseason.js?v=20261007n"></script>
+<script src="/create/football/stats_math.js?v=20261007n"></script>
+<script src="/create/football/stats.js?v=20261007n"></script>
+<script src="/create/football/stats_top.js?v=20261007n"></script>
+<script src="/create/football/news.js?v=20261007n"></script>
+<script src="/create/football/insights.js?v=20261007n"></script>
+<script src="/create/football/analysis.js?v=20261007n"></script>
+<script src="/create/football/clips.js?v=20261007n"></script>
+<script src="/create/football/reports.js?v=20261007n"></script>
+<script src="/create/football/hypotheses.js?v=20261007n"></script>
+<script src="/create/football/lab.js?v=20261007n"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="/create/football/api.js?v=20261007l"></script>
-<script src="/create/football/instructions_ui.js?v=20261007l"></script>
-<script src="/create/football/lab_replay.js?v=20261007l"></script>
-<script src="/create/football/elena.js?v=20261007l"></script>
-<script src="/create/football/main.js?v=20261007l"></script>
+<script src="/create/football/api.js?v=20261007n"></script>
+<script src="/create/football/scout.js?v=20261007n"></script>
+<script src="/create/football/instructions_ui.js?v=20261007n"></script>
+<script src="/create/football/lab_replay.js?v=20261007n"></script>
+<script src="/create/football/elena.js?v=20261007n"></script>
+<script src="/create/football/main.js?v=20261007n"></script>
 </body>
 </html>

@@ -220,6 +220,14 @@
     const rows = [['beat', 'Beat the press'], ['lost', 'Lost possession (anywhere)'], ['lostNear', 'Lost it near your own goal'], ['shot', 'Opposition shot']];
     return '<table class="el-tbl"><tr><th>Measure</th><th>Run ' + (a + 1) + '</th><th>Run ' + (b + 1) + '</th><th>Difference</th><th>p</th></tr>' + rows.map(([k, l]) => { const c2 = FM.lab.compare(A, B, k); return '<tr><td>' + l + '</td><td>' + pc(A[k].p) + '</td><td>' + pc(B[k].p) + '</td><td><b>' + (c2.diff >= 0 ? '+' : '') + Math.round(c2.diff * 100) + '</b><small>' + Math.round(c2.lo * 100) + ' to ' + Math.round(c2.hi * 100) + '</small></td><td>' + (c2.p < 0.001 ? '&lt; 0.001' : c2.p.toFixed(3)) + '</td></tr>'; }).join('') + '</table>';
   }
+  // What their manager made of you and what he did about it, for the run on screen.
+  function theirPlanText(last) {
+    const p = last.oppPlan; if (!p) return '';
+    return '<h4>Their manager</h4><div class="el-box"><p><b>' + (p.source === 'ai' ? 'Their manager studied you:' : 'From the figures on you:') + '</b> ' + esc(p.rationale || 'No change to how they play.') + '</p>' +
+      (p.scouted && p.scouted.length ? '<p>' + p.scouted.map(esc).join('<br>') + '</p>' : '') +
+      (p.rules && p.rules.length ? '<p><b>Their instructions for this run</b></p>' + p.rules.map((r) => '<p class="el-small">' + esc(r) + '</p>').join('') : '<p class="el-small">No special instructions: they set up as they normally do.</p>') +
+      (p.note ? '<p class="el-small">' + esc(p.note) + '</p>' : '') + '</div>';
+  }
   function intro(c) {
     const opp = c.opp;
     return '<p>I am Elena, the club analyst. Nobody can say how a build-up will go from one attempt: on any one try a pass might work or not, and a defender might step up or not. So we play the same set-up many times and count how often each thing happens.</p>' +
@@ -240,7 +248,7 @@
       h += '<h4>Your prediction</h4><div class="el-box"><p>You predicted <b>' + last.pred + '%</b>. The tests found <b>' + pc(v.p) + '</b>, with a 95% interval of ' + pc(v.lo) + ' to ' + pc(v.hi) + '.</p>' +
         '<p>' + (ok ? 'Your prediction is inside that range, so these tests give no reason to doubt it. It does not prove it was right: other numbers inside the range would pass the same way.' : 'Your prediction is outside that range, so luck alone is unlikely to explain the gap. Your picture of how this build-up behaves was off, and the findings below may show where.') + '</p></div>' + go('range', 'Giving a share a range');
     }
-    h += pressText(r, c) + replayText(r);
+    h += theirPlanText(last) + pressText(r, c) + replayText(r);
     // why it went wrong
     const ex = FM.lab.explain(r, {}), w = r.why, lostN = r.lost.k;
     h += '<h4>What went wrong</h4>';

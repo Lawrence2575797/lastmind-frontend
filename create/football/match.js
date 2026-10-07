@@ -252,7 +252,8 @@
         plan.assign.forEach((q, p) => {
           if (ov.has(p)) return;
           const dx = c.player.x - q.x, dy = c.player.y - q.y, dd = Math.max(Math.hypot(dx, dy), 0.1);
-          ov.set(p, { x: clamp(q.x + dx / dd * stand, 1, L - 1), y: clamp(q.y + dy / dd * stand, 1, W - 1) });
+          const sd = stand * (1 - 0.4 * (plan.cd ? plan.cd.get(p) || 0 : 0));
+          ov.set(p, { x: clamp(q.x + dx / dd * sd, 1, L - 1), y: clamp(q.y + dy / dd * sd, 1, W - 1) });
         });
       }
       // Cutting the passing lanes. Defenders nearest the likeliest passes stand between the carrier and the receiver, so the pass is
@@ -294,9 +295,11 @@
     const pl = match.plan;
     if (pl && pl.def === opp.id && pl.carrier === carrier && match.clock - pl.t < 3) return pl;
     const rng = match.rng, follow = clamp(0.5 + 0.45 * press, 0.4, 0.95);
-    const nPress = clamp(Math.round(1 + 5 * press), 2, 6);
+    const cd = new Map(); opp.players.forEach((p) => { if (p.group !== 'GK') cd.set(p, FM.rulesDelta(opp, p, 'closeDown', match.ball, false)); });
+    let more = 0, fewer = 0; cd.forEach((v) => { if (v > 0) more += v; else fewer -= v; });
+    const nPress = clamp(Math.round(1 + 5 * press + 0.8 * more - 0.8 * fewer), 1, 8);
     const chasers = new Set(); ov.forEach((v, p) => chasers.add(p));
-    const pressers = opp.players.filter((p) => PRESS_ROLES.indexOf(p.group) >= 0 && !chasers.has(p))
+    const pressers = opp.players.filter((p) => PRESS_ROLES.indexOf(p.group) >= 0 && !chasers.has(p) && (cd.get(p) || 0) > -0.5)
       .sort((a, b) => (b.x * opp.attackDir) - (a.x * opp.attackDir)).slice(0, nPress);
     const taken = new Set(), assign = new Map();
     pressers.forEach((p) => {
@@ -307,7 +310,7 @@
       if (pick < 0) return;
       taken.add(cands[pick].q); assign.set(p, cands[pick].q);
     });
-    match.plan = { def: opp.id, carrier, t: match.clock, assign, pairs: Array.from(assign.entries()).map(([p, q]) => [p.number, q.number]) };
+    match.plan = { def: opp.id, carrier, t: match.clock, assign, cd, pairs: Array.from(assign.entries()).map(([p, q]) => [p.number, q.number]) };
     return match.plan;
   }
   function pressTrigger(team, player, press, match) {

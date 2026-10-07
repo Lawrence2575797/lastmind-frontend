@@ -68,6 +68,7 @@
   // One trial. Returns { outcome, time, passes, bigChance, goal }.
   LAB.trial = function (league, userTeam, oppTeam, oppTactics, seed, opts) {
     const u = clone(userTeam), o = clone(oppTeam);
+    o.rules = (opts.oppRules || []).map((r) => JSON.parse(JSON.stringify(r)));   // their manager's plan for this run
     o.phasePos = null;   // the test is always against the opposition as they normally set up, wherever their shirts were dragged on the board
     if (oppTactics) o.tactics = Object.assign({}, o.tactics, oppTactics);
     const match = FM.createMatch(u, o, seed);

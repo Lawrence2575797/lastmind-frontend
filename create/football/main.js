@@ -135,6 +135,7 @@
     last = now;
     const m = world.match;
     if (world.view === 'match' && m) {
+      if (FM.scout && world.league) { FM.scout.watch(world.league, m); if (m.oppLogDirty) { m.oppLogDirty = false; paintOppMind(m); } }
       if (world.skipTo) { skipSlice(m); if (!world.skipTo) world.trails = []; }
       else if (world.running && m.phase !== 'halftime' && m.phase !== 'fulltime') {
         // One steady pace throughout: the match does not speed up or slow down for passes, shots or restarts.
@@ -165,6 +166,13 @@
 
   const pct = (a, b) => (b ? Math.round(100 * a / b) + '%' : '-');
   const RESTART_NAMES = { throw: 'Throw-in', goalkick: 'Goal kick', corner: 'Corner', freekick: 'Free kick', penalty: 'Penalty' };
+  // What their manager has made of you, and what he is doing about it, beside the match.
+  function paintOppMind(m) {
+    const box = el('oppMind'); if (!box) return;
+    const log = m.oppLog || [], stageName = { prematch: 'Before kick-off', halftime: 'Half-time', goal_for: 'After their goal', goal_against: 'After your goal', checkin: 'Check-in' };
+    box.parentNode.hidden = !log.length;
+    box.innerHTML = log.slice().reverse().map((e, i) => `<div class="om${i ? ' old' : ''}"><b>${e.minute}' ${esc(stageName[e.stage] || 'Check-in')}</b><span class="omsrc">${e.source === 'ai' ? 'their manager' : 'from the figures'}</span><p>${esc(e.rationale || '')}</p>${e.unchanged ? '<p class="omsub">No change to their plan.</p>' : ''}${e.scouted && e.scouted.length && i === log.length - 1 ? '<ul>' + e.scouted.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul>' : ''}${e.rules && e.rules.length ? '<details><summary>Their instructions</summary>' + e.rules.map((r) => '<p class="omsub">' + esc(r) + '</p>').join('') + '</details>' : ''}</div>`).join('');
+  }
   function updateHud() {
     const m = world.match, home = m.home, away = m.away;
     el('scHome').textContent = m.score[home.id]; el('scAway').textContent = m.score[away.id];
@@ -520,7 +528,7 @@
         <label>Number of tests<select id="labN">${[100, 400, 1000].map((n) => `<option value="${n}"${st.n === n ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>
       <label>Before you run it: what do you predict? (the share of tests that beat the press, %)<input type="number" id="labPred" min="0" max="100" step="1" value="${esc(st.pred)}" placeholder="e.g. 60"></label>
       ${runs.length ? `<label>Your hypothesis for this run: what you changed, and what you think will happen because of it<textarea id="labHyp" placeholder="e.g. Moving a centre-back close to the goalkeeper gives him a short pass, so fewer long balls will be cut out and more build-ups will reach halfway.">${esc(st.hyp)}</textarea></label>` : ''}
-      <div class="row"><button class="primary" id="labRun"${st.busy ? ' disabled' : ''}>${st.busy ? 'Running… ' + st.prog + ' of ' + st.n : 'Run ' + st.n + ' tests'}</button></div>
+      <div class="row"><button class="primary" id="labRun"${st.busy ? ' disabled' : ''}>${st.busy ? (st.planning ? 'Their manager is preparing…' : 'Running… ' + st.prog + ' of ' + st.n) : 'Run ' + st.n + ' tests'}</button></div>
       <p class="err">${esc(st.err)}</p>
       ${last ? `<p class="note">Run ${runs.length} is done. Elena Marsh, on the right, lays out the results, why the ball was lost, and what the difference between runs means.</p>` : ''}
     </div>`;
@@ -531,11 +539,13 @@
     if (q('#labHyp')) q('#labHyp').addEventListener('input', (e) => { st.hyp = e.target.value; });
     q('#labRun').addEventListener('click', async () => {
       if (st.busy) return;
-      st.busy = true; st.prog = 0; st.err = ''; renderLab(team, host);
+      st.busy = true; st.prog = 0; st.err = ''; st.planning = true; renderLab(team, host);
+      let oppPlan = null; try { oppPlan = await FM.scout.labPlan(lg, team, opp); } catch (e) { oppPlan = FM.scout.plan1(FM.scout.profile(lg)); }
+      st.planning = false;
       const snap = FM.lab.snapshot(team), pred = st.pred === '' ? '' : Math.max(0, Math.min(100, +st.pred));
       try {
-        const result = await FM.lab.run(lg, { n: st.n, user: team, opp, start: st.start, record: true }, (d) => { st.prog = d; const b2 = host.querySelector('#labRun'); if (b2) b2.textContent = 'Running… ' + d + ' of ' + st.n; });
-        runs.push({ id: 'r' + (runs.length + 1), n: st.n, start: st.start, opp: opp.name, pred, hyp: st.hyp, snap, changes: FM.lab.changes(last && last.snap, snap), result });
+        const result = await FM.lab.run(lg, { n: st.n, user: team, opp, start: st.start, record: true, oppRules: oppPlan.rules }, (d) => { st.prog = d; const b2 = host.querySelector('#labRun'); if (b2) b2.textContent = 'Running… ' + d + ' of ' + st.n; });
+        runs.push({ id: 'r' + (runs.length + 1), oppPlan: { source: oppPlan.source, rationale: oppPlan.rationale, scouted: oppPlan.scouted, note: oppPlan.note || '', rules: FM.scout.describe(oppPlan.rules, opp, team) }, n: st.n, start: st.start, opp: opp.name, pred, hyp: st.hyp, snap, changes: FM.lab.changes(last && last.snap, snap), result });
         runs.forEach((r, i) => { if (i < runs.length - 2 && r.result) delete r.result.clips; });
         st.a = Math.max(0, runs.length - 2); st.b = runs.length - 1; st.pred = ''; st.hyp = ''; saveSoon();
       } catch (err) { st.err = 'The test could not run: ' + (err && err.message ? err.message : 'unknown error'); }
