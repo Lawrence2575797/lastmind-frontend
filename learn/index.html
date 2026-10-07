@@ -4307,9 +4307,9 @@
        instead of being clipped or spilling into neighbouring cells. */
     .nb-table { z-index: 50; min-width: 220px; overflow: visible; background: #12121E; color: #E6D7B0; border: 1px solid rgba(230,215,176,.38); border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.42); }
     .nb-table:hover, .nb-table:focus-within { z-index: 70; }
-    .nb-table-wrap { overflow-x: auto; padding: 0 8px 8px; }
-    .nb-table table { width: max-content; min-width: 100%; border-collapse: collapse; table-layout: auto; }
-    .nb-table td { min-width: 72px; height: 30px; padding: 7px 9px; border: 1px solid rgba(230,215,176,.55); vertical-align: top; white-space: pre-wrap; overflow-wrap: normal; word-break: normal; hyphens: none; line-height: 1.4; outline: none; background: rgba(230,215,176,.035); }
+    .nb-table-wrap { overflow: hidden; padding: 0 8px 8px; }
+    .nb-table table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    .nb-table td { min-width: 0; height: 30px; padding: 7px 9px; border: 1px solid rgba(230,215,176,.55); vertical-align: top; white-space: pre-wrap; overflow-wrap: normal; word-break: normal; hyphens: none; line-height: 1.4; outline: none; background: rgba(230,215,176,.035); }
     .nb-table td:focus { background: rgba(230,215,176,.12); box-shadow: inset 0 0 0 2px #E6D7B0; }
     .nb-table:hover > .nb-resize, .nb-table:focus-within > .nb-resize { opacity: 1; }
     .nb-table-dims { display: flex; align-items: center; gap: 6px; font: 700 11px Arial,sans-serif; }
