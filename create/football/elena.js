@@ -185,7 +185,7 @@
         '<p style="margin-top:10px">You can compare four measures in that table. The more of them you look at, the likelier it is that one crosses the line by luck, so decide which one you are testing before you look.</p>';
     } else if (n >= 2) h += '<h4>Is the difference real?</h4><p>Choose two different runs under "Is the difference real?" on the page and I will tell you what the comparison shows.</p>';
     else h += '<p>Pick one of those ideas, change only that on the board or the sliders, and write what you expect to happen. Then run it again and we can ask whether the difference is real.</p>';
-    h += '<label class="el-lab-hyp">Your hypothesis for the next run (what you will change, and what you expect it to do)<textarea id="elHyp" placeholder="e.g. Moving a centre-back close to the goalkeeper gives him a short pass, so fewer long balls will be cut out and more build-ups will reach halfway."></textarea></label>';
+    h += '<p>Write your hypothesis in the box above the Run button: what you will change, and what you think will happen because of it.</p>';
     return h;
   }
   // ---------- the lessons, one step at a time ----------
@@ -213,10 +213,9 @@
   }
   function paint() {
     if (!E.el) return;
-    const b = E.el.querySelector('.el-body'), keep = E.tab === 'read' && E.ctx.runs.length ? (document.getElementById('elHyp') || {}).value : null, top = b.scrollTop;
+    const b = E.el.querySelector('.el-body'), keep = null, top = b.scrollTop;
     b.innerHTML = body();
     E.el.querySelectorAll('.el-tabs button').forEach((t) => t.setAttribute('aria-pressed', String(t.dataset.t === E.tab)));
-    const hy = b.querySelector('#elHyp'); if (hy) { hy.value = keep != null ? keep : (E.ctx.st.hyp || ''); hy.addEventListener('input', () => { E.ctx.st.hyp = hy.value; }); }
     b.scrollTop = top;
     const who = E.el.querySelector('.el-head img'); if (who) who.src = E.tab === 'lessons' ? IMG.think : (E.ctx.runs.length ? IMG.point : IMG.hello);
   }

@@ -539,6 +539,7 @@
       <div class="two"><label>Start from<select id="labStart"><option value="keeper"${st.start === 'keeper' ? ' selected' : ''}>The goalkeeper has the ball in open play</option><option value="goalkick"${st.start === 'goalkick' ? ' selected' : ''}>A goal kick (short pass compulsory)</option></select></label>
         <label>Number of tests<select id="labN">${[100, 400, 1000].map((n) => `<option value="${n}"${st.n === n ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>
       <label>Before you run it: what do you predict? (the share of tests that beat the press, %)<input type="number" id="labPred" min="0" max="100" step="1" value="${esc(st.pred)}" placeholder="e.g. 60"></label>
+      ${runs.length ? `<label>Your hypothesis for this run: what you changed, and what you think will happen because of it<textarea id="labHyp" placeholder="e.g. Moving a centre-back close to the goalkeeper gives him a short pass, so fewer long balls will be cut out and more build-ups will reach halfway.">${esc(st.hyp)}</textarea></label>` : ''}
       <div class="row"><button class="primary" id="labRun"${st.busy ? ' disabled' : ''}>${st.busy ? 'Running… ' + st.prog + ' of ' + st.n : 'Run ' + st.n + ' tests'}</button></div>
       <p class="err">${esc(st.err)}</p>
       ${last ? `<div><h2 style="margin-bottom:8px">Latest result: run ${runs.length}</h2>${labTable(last.result)}
@@ -559,6 +560,7 @@
     q('#labStart').addEventListener('change', (e) => { st.start = e.target.value; });
     q('#labN').addEventListener('change', (e) => { st.n = +e.target.value; renderLab(team, host); });
     q('#labPred').addEventListener('input', (e) => { st.pred = e.target.value; });
+    if (q('#labHyp')) q('#labHyp').addEventListener('input', (e) => { st.hyp = e.target.value; });
     if (q('#labA')) { q('#labA').addEventListener('change', (e) => { st.a = +e.target.value; renderLab(team, host); }); q('#labB').addEventListener('change', (e) => { st.b = +e.target.value; renderLab(team, host); }); }
     if (q('#labClear')) q('#labClear').addEventListener('click', () => { lg.labRuns = []; st.a = st.b = null; saveSoon(); renderLab(team, host); });
     q('#labRun').addEventListener('click', async () => {
