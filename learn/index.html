@@ -1637,6 +1637,10 @@
     .sf-advance-hint { font-size: 12.5px; opacity: 0.55; margin-top: 4px; }
     .sf-handoff { align-items: flex-start; }
     .sf-handoff-text { font-size: 16px; line-height: 1.7; }
+    .sf-handoff-sub { font-size: 14px; line-height: 1.6; opacity: 0.7; margin: 0 0 14px; }
+    .sf-loading-dots::after { content: ''; animation: sfLoadingDots 1.4s steps(4, end) infinite; }
+    @keyframes sfLoadingDots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75%, 100% { content: '...'; } }
+    @media (prefers-reduced-motion: reduce) { .sf-loading-dots::after { animation: none; content: '...'; } }
     @keyframes sf-shake {
         10%, 90% { transform: translateX(-4px); }
         20%, 80% { transform: translateX(7px); }
@@ -23182,7 +23186,7 @@ SQIDAQAB
     // failure (not a transient one) still costs nothing extra to retry -
     // this is exactly what the existing manual "Try again" button already
     // did, just saving the student that one click for the common case.
-    async function fetchNodeLesson(nodeId, retries = 1) {
+    async function fetchNodeLesson(nodeId, retries = 2) {
         for (let attempt = 0; ; attempt++) {
             try {
                 const { data: { session } } = await supabaseClient.auth.getSession();
@@ -23196,16 +23200,22 @@ SQIDAQAB
                     if (body.code === 'GENERATION_RATE_LIMIT') return { generationRateLimited: true, window: body.window, limit: body.limit };
                     if (body.code === 'LOCK_LIMIT_REACHED') return { lockLimitReached: true };
                 }
-                if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+                if (!resp.ok) {
+                    const body = await resp.json().catch(() => ({}));
+                    const failure = new Error(`Server returned ${resp.status}`);
+                    failure.status = resp.status;
+                    failure.detail = body.detail || body.error || '';
+                    throw failure;
+                }
                 return await resp.json();
             } catch (err) {
                 if (attempt < retries) {
                     console.warn(`LastMind: lesson fetch failed, retrying (attempt ${attempt + 1}/${retries}).`, err);
-                    await new Promise((resolve) => setTimeout(resolve, 1500));
+                    await new Promise((resolve) => setTimeout(resolve, 2000 * (attempt + 1)));
                     continue;
                 }
                 console.error('LastMind: failed to load this lesson.', err);
-                return { loadError: true };
+                return { loadError: true, status: err && err.status, detail: err && err.detail };
             }
         }
     }
@@ -25037,6 +25047,7 @@ SQIDAQAB
     // Builds the explanation+question slide pair for a 'lesson'
     // recommendation, or the ported spaced-review flow above for a
     // 'review' one.
+    let sfLastLoadProblem = '';
     async function sfBuildSlidesForRecommendation(rec, options = {}) {
         // A lesson built by the one-ahead prefetch must not start another
         // prefetch of its own. Without this guard, generating N+1 could
@@ -25097,6 +25108,10 @@ SQIDAQAB
         }
 
         const lesson = await fetchNodeLesson(rec.node.id);
+        if (lesson && lesson.loadError && options.throwOnLoadError) {
+            sfLastLoadProblem = [lesson.status ? `server said ${lesson.status}` : 'no reply from the server', lesson.detail].filter(Boolean).join(': ');
+            throw new Error('lesson load failed: ' + sfLastLoadProblem);
+        }
         if (!lesson || lesson.notFound || lesson.loadError || lesson.generationRateLimited || lesson.lockLimitReached || !lesson.explanation) {
             // lockLimitReached/generationRateLimited are real, specific,
             // actionable reasons (see renderLockLimitReachedCard/
@@ -25934,7 +25949,7 @@ SQIDAQAB
                 if (!rec) return { rec: null, built: null };
                 // Strictly one lesson ahead: constructing this prefetched
                 // item cannot recursively schedule another one.
-                const built = await sfBuildSlidesForRecommendation(rec, { prefetchNext: false });
+                const built = await sfBuildSlidesForRecommendation(rec, { prefetchNext: false, throwOnLoadError: true });
                 return { rec, built };
             } catch (err) {
                 // Never leave a rejected promise behind: the append step would
@@ -25961,10 +25976,35 @@ SQIDAQAB
         sfFeed.appending = true;
         const pending = sfFeed.prefetchPromise;
         sfFeed.prefetchPromise = null;
+        // Straight away: a slide that says the next lesson is being made, so the wait never looks like nothing happening. The
+        // result replaces it in place.
+        const loadingEl = document.createElement('div');
+        loadingEl.className = 'sf-feed-slide';
+        loadingEl.innerHTML = `
+            <div class="sf-slide-inner sf-handoff">
+                <div class="sf-speaker-label">LastMind</div>
+                <p class="sf-handoff-text sf-loading-text">Building your next lesson<span class="sf-loading-dots"></span></p>
+                <p class="sf-handoff-sub">A new lesson is written for you each time, so this can take up to a minute.</p>
+            </div>`;
+        sfFeed.trackEl.appendChild(loadingEl);
+        sfFeed.slides.push(loadingEl);
+        sfFeed.meta.push({ canAdvance: false, kind: 'loading' });
+        const loadingIndex = sfFeed.slides.length - 1;
+        sfForceMoveToIndex(loadingIndex);
+        const settleLoading = (items) => {
+            const at = sfFeed.slides.indexOf(loadingEl);
+            if (at === -1) { items.forEach(({ el, meta }) => { meta.index = sfFeed.slides.length; sfFeed.trackEl.appendChild(el); sfFeed.slides.push(el); sfFeed.meta.push(meta); }); return; }
+            items.forEach(({ el, meta }, i) => {
+                meta.index = at + i;
+                if (i === 0) { loadingEl.replaceWith(el); sfFeed.slides[at] = el; sfFeed.meta[at] = meta; }
+                else { sfFeed.trackEl.insertBefore(el, sfFeed.slides[at + i] || null); sfFeed.slides.splice(at + i, 0, el); sfFeed.meta.splice(at + i, 0, meta); }
+            });
+            sfUpdateProgress();
+        };
         const computeFresh = async () => {
             try {
                 const rec = await sfNextRecommendationForCurrentFeed();
-                return rec ? { rec, built: await sfBuildSlidesForRecommendation(rec) } : { rec: null, built: null };
+                return rec ? { rec, built: await sfBuildSlidesForRecommendation(rec, { throwOnLoadError: true }) } : { rec: null, built: null };
             } catch (err) {
                 console.error('LastMind: could not work out the next lesson.', err);
                 return { rec: null, built: null, failed: true };
@@ -25981,7 +26021,8 @@ SQIDAQAB
             el.innerHTML = `
                 <div class="sf-slide-inner sf-handoff">
                     <div class="sf-speaker-label">LastMind</div>
-                    <p class="sf-handoff-text">Couldn't load your next item just now.</p>
+                    <p class="sf-handoff-text">Couldn't load your next lesson just now.</p>
+                    ${sfLastLoadProblem ? `<p class="sf-handoff-sub">${escapeHtml(sfLastLoadProblem)}</p>` : ''}
                     <button type="button" class="btn primary sf-handoff-btn">Try again</button>
                 </div>`;
             el.querySelector('.sf-handoff-btn').addEventListener('click', () => {
@@ -25993,10 +26034,7 @@ SQIDAQAB
                 if (target) sfFeed.viewportEl.scrollTo({ top: target.offsetTop, behavior: 'auto' });
                 sfAppendNextRecommendation();
             });
-            sfFeed.trackEl.appendChild(el);
-            sfFeed.slides.push(el);
-            sfFeed.meta.push({ canAdvance: false, kind: 'retry' });
-            sfForceMoveToIndex(sfFeed.currentIndex + 1);
+            settleLoading([{ el, meta: { canAdvance: false, kind: 'retry' } }]);
             return;
         }
         if (!result.rec) {
@@ -26009,18 +26047,10 @@ SQIDAQAB
                     <button type="button" class="btn sf-handoff-btn">Back to LastMind</button>
                 </div>`;
             el.querySelector('.sf-handoff-btn').addEventListener('click', sfCloseFeed);
-            sfFeed.trackEl.appendChild(el);
-            sfFeed.slides.push(el);
-            sfFeed.meta.push({ canAdvance: false, kind: 'end' });
-            sfForceMoveToIndex(sfFeed.currentIndex + 1);
+            settleLoading([{ el, meta: { canAdvance: false, kind: 'end' } }]);
             return;
         }
-        result.built.forEach(({ el, meta }) => {
-            meta.index = sfFeed.slides.length;
-            sfFeed.trackEl.appendChild(el);
-            sfFeed.slides.push(el);
-            sfFeed.meta.push(meta);
-        });
+        settleLoading(result.built);
         // sfForceMoveToIndex, not sfMoveToIndex - this is called both from
         // the manual swipe/scroll path (sfTryAdvance, already unlocked) and
         // from the auto-advance-after-correct-answer path
@@ -26031,7 +26061,7 @@ SQIDAQAB
         // the student manually scrolled/swiped (which worked because the
         // lock had been released by then, in sfAdvanceAfterCorrectAnswer's
         // own finally block, well after this call had already been a no-op).
-        sfForceMoveToIndex(sfFeed.currentIndex + 1);
+        sfForceMoveToIndex(loadingIndex);
     }
 
     // Plain manual navigation only - never submits anything. An
