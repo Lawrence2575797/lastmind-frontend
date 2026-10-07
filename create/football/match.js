@@ -222,7 +222,7 @@
       const n = 1 + (press > 0.65 && (lostIt || nearGoal || (deep && pbu > 0.6)) ? 1 : 0);
       const ranked = opp.players.filter((p) => p.group !== 'GK').map((p) => ({ p, d: dist(p, c.player) })).sort((a, b) => a.d - b.d);
       ranked.slice(0, n).forEach(({ p, d }, i) => {
-        if (d >= pressTrigger(opp, p, press)) return;
+        if (d >= pressTrigger(opp, p, press, match)) return;
         const stand = 0.5 + 2.2 * (1 - press) + 0.8 * i; // how far off the carrier he stops, in metres
         const dx = p.x - c.player.x, dy = p.y - c.player.y, dd = Math.max(d, 0.1);
         ov.set(p, { x: c.player.x + c.player.vx * 0.4 + dx / dd * stand, y: c.player.y + c.player.vy * 0.4 + dy / dd * stand });
@@ -233,8 +233,10 @@
         if (p.group === 'GK' || ov.has(p)) return;
         const mm = FM.instrMods(p);
         let target = null, reach = 0;
-        if (mm.marking > 0) { reach = 14; target = att; }
-        else if (mm.stepUp > 0 && (p.group === 'CB' || p.group === 'DM')) { reach = 24; target = att.filter((q) => q.group === 'ST' || q.group === 'AM'); }
+        const rm = FM.rulesMark(opp, p, match.ball), rStep = FM.rulesDelta(opp, p, 'stepUp', match.ball, false) > 0;
+        if (rm) { reach = 18; target = att.filter((q) => FM.rulesAttackerOf(rm, q)); }
+        else if (mm.marking > 0) { reach = 14; target = att; }
+        else if ((mm.stepUp > 0 || rStep) && (p.group === 'CB' || p.group === 'DM')) { reach = 24; target = att.filter((q) => q.group === 'ST' || q.group === 'AM'); }
         if (!target) return;
         let best = null, bd = reach;
         target.forEach((q) => { const dd = dist(p, q); if (dd < bd) { bd = dd; best = q; } });
@@ -308,10 +310,10 @@
     match.plan = { def: opp.id, carrier, t: match.clock, assign, pairs: Array.from(assign.entries()).map(([p, q]) => [p.number, q.number]) };
     return match.plan;
   }
-  function pressTrigger(team, player, press) {
+  function pressTrigger(team, player, press, match) {
     const role = player.roleId;
     const bonus = role === 'pressing_forward' ? 8 : role === 'ball_winning_midfielder' ? 6 : 0;
-    return 9 + 11 * press + bonus + 5 * FM.instrMods(player).closeDown;
+    return 9 + 11 * press + bonus + 5 * (FM.instrMods(player).closeDown + (match ? FM.rulesDelta(team, player, 'closeDown', match.ball, false) : 0));
   }
   // Pressing as the manager set it, adjusted for the seconds just after losing the ball:
   // a high counter-press instruction hunts it back at once, a low one drops into shape first.
@@ -388,7 +390,7 @@
     const mods = FM.instrMods(carrier);
     const directness = clamp((zone === 'build' ? tac.buildDirect : tac.directness) + 0.5 * counter + mods.passDirect - (mods.holdUp ? 0.2 : 0) + (carrier.group === 'GK' ? 0.4 * mods.distribution : 0), 0, 1);
     const baseRisk = zone === 'final' ? tac.finalRisk : tac.risk;
-    const risk = clamp(baseRisk + (ROLE_RISK[role] || 0) + 0.25 * counter + mods.risk, 0, 1);
+    let risk = clamp(baseRisk + (ROLE_RISK[role] || 0) + 0.25 * counter + mods.risk, 0, 1);
     const goal = { x: team.attackDir === 1 ? L : 0, y: W / 2 };
     const dGoal = dist(carrier, goal);
     const ownDepth = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d;
@@ -398,6 +400,9 @@
     const throughDef = other(match, team).players.filter((o) => o.group !== 'GK' && (o.x - carrier.x) * team.attackDir > -1 && Math.abs(o.y - carrier.y) < 16).length;
     const through = carrier.group !== 'GK' && throughDef === 0 && ownDepth0 > 0.55;
     const nearNow = nearestOpponent(match, team, carrier).d;
+    // The manager's own instructions, for this player in this situation.
+    const RE = team.rules && team.rules.length ? FM.rulesFold(FM.rulesActive(team, carrier, FM.rulesCtx(team, match.ball, true, nearNow < 4))) : null;
+    if (RE) risk = clamp(risk + 0.35 * RE.risk, 0, 1);
 
     team.players.forEach((t) => {
       if (t === carrier) return;
@@ -427,6 +432,13 @@
       // Playing out short. A team set to build patiently does not send the ball a long way when it has a shorter pass: the longer the pass, and the
       // more patient the setting, the less the player wants it. (A team set to go long has no such penalty.)
       if (zone === 'build' && tac.buildDirect < 0.5) adj -= Math.pow(0.5 - tac.buildDirect, 2) * (FM.SHORT_PREF == null ? 14 : FM.SHORT_PREF) * clamp((d - 12) / 20, 0, 1);
+      if (RE) {
+        if (RE.short) adj -= RE.short * 3 * clamp((d - 18) / 22, 0, 1);
+        if (RE.long) adj -= RE.long * 3.2 * clamp((24 - d) / 14, 0, 1);
+        RE.passTo.forEach((pt) => { if (FM.rulesReceiver(pt.to, t, carrier, team)) adj += pt.w * 1.1; });
+        adj += (RE.dir[back < -3 ? 'forward' : back > 3 ? 'backward' : 'sideways'] || 0) * 0.9;
+        adj += RE.freeMan * clamp((press - 3) / 9, 0, 1);
+      }
       options.push({ kind: 'pass', target: t, tx, ty, d, lane, press, p, score: off === 'off' ? -4 : score + adj });
     });
 
@@ -446,13 +458,16 @@
     const dribbleBias = (GROUP_DRIBBLE[carrier.group] || 0) + (ROLE_DRIBBLE[role] || 0);
     options.push({ kind: 'dribble', p: dp, nearOpp, nearD, score: dp * (0.3 + 0.9 * directness * 0.4 + (dribbleBias + mods.dribble + (tac.dribbleFreedom - 0.5) * 0.9 + (zone === 'final' && nearD > 3.5 ? 0.45 : 0) + (through ? (FM.THROUGH_DRIB == null ? 0.4 : FM.THROUGH_DRIB) : 0))) - (1 - dp) * 0.55 * (1 - risk) * lossFactor });
 
+    if (RE) options[options.length - 1].score += 0.45 * RE.dribble;
     // In his own third with a defender close, taking the man on is the last thing a defender wants to do.
-    if (zone === 'build' && nearD < 3) { const dr = options[options.length - 1]; dr.score -= 0.5 * (1 - nearD / 3) * (1 + (1 - risk)) * (FM.DRIBBLE_BUILD_PEN == null ? 1 : FM.DRIBBLE_BUILD_PEN); }
+    if (zone === 'build' && nearD < 3.5) { const dr = options[options.length - 1]; dr.score -= 0.5 * (1 - nearD / 3.5) * (1 + (1 - risk)) * (['GK', 'CB', 'FB'].indexOf(carrier.group) >= 0 ? 2.4 : ['DM', 'CM'].indexOf(carrier.group) >= 0 ? 1.5 : 1) * (FM.DRIBBLE_BUILD_PEN == null ? 1 : FM.DRIBBLE_BUILD_PEN); }
     const attackingThird = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d > 0.6;
     if (((dGoal < 28 && attackingThird) || (through && dGoal < 42)) && carrier.group !== 'GK') {
       const xg = sig(FM.xgLogit(carrier, carrier.x, carrier.y, team.attackDir, nearD) - 0.55 * crowd(match, team, carrier));
       options.push({ kind: 'shoot', xg, score: xg * 3.2 * (0.5 + risk * 0.9) * (0.4 + 1.2 * tac.shootFreedom) * mods.shoot - (1 - xg) * 0.12 - Math.max(0, 0.09 - xg) * 8 * (1.2 - tac.shootFreedom) + 0.35 * clamp((nearD - 1.2) / 2.5, 0, 1) * clamp((28 - dGoal) / 14, 0, 1) + (through ? (FM.THROUGH_SHOOT == null ? 0.7 : FM.THROUGH_SHOOT) * clamp((42 - dGoal) / 22, 0, 1) : 0) });
     }
+
+    if (RE && RE.shoot) options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= clamp(1 + 0.9 * RE.shoot, 0.1, 2); });
 
     // Softmax: the manager's settings favour an action, but nothing is certain.
     const temp = 0.22 + 0.25 * (1 - carrier.ratings.composure / 100);
@@ -472,7 +487,9 @@
     const base = 3.9 - 1.5 * clamp(team.tactics.tempo + 0.4 * counterNow(match, team), 0, 1);
     const { d } = nearestOpponent(match, team, carrier);
     const pressureFactor = d < 3 ? 0.55 : d < 6 ? 0.8 : 1;
-    return (base * pressureFactor + (FM.instrMods(carrier).holdUp ? 0.9 : 0)) * (0.8 + 0.4 * match.rng());
+    let tempoD = 0, hold = false;
+    if (team.rules && team.rules.length) { const f = FM.rulesFold(FM.rulesActive(team, carrier, FM.rulesCtx(team, match.ball, true, d < 4))); tempoD = f.tempo; hold = f.holdUp; }
+    return (base * (1 - 0.35 * tempoD) * pressureFactor + (FM.instrMods(carrier).holdUp || hold ? 0.9 : 0)) * (0.8 + 0.4 * match.rng());
   }
 
   // ---------- performing an action ----------
@@ -1245,6 +1262,7 @@
 
     if (match.aiTeams.length && match.carrier && match.clock >= match.nextAiCheck) { match.nextAiCheck += AI_CHECK_SECONDS; aiTick(match); }
 
+    match.teams.forEach((t) => { const oo = other(match, t); t.ruleCtx = { scoreDiff: (match.score[t.id] || 0) - (match.score[oo.id] || 0), minute: match.clock / 60 }; });
     setOffsideLines(match);
     setPhaseContext(match);
     const ov = buildOverrides(match);
@@ -1261,7 +1279,7 @@
       for (const d of opp.players) {
         if (d.group === 'GK') continue;
         if (dist(d, c.player) > 1.8) continue;
-        const rate = (0.05 + 0.08 * opp.tactics.pressing + (d.roleId === 'ball_winning_midfielder' ? 0.06 : 0)) * (0.6 + 0.8 * opp.tactics.tackleAggression) * (1 + 0.35 * FM.instrMods(d).tackle);
+        const rate = (0.05 + 0.08 * opp.tactics.pressing + (d.roleId === 'ball_winning_midfielder' ? 0.06 : 0)) * (0.6 + 0.8 * opp.tactics.tackleAggression) * (1 + 0.35 * (FM.instrMods(d).tackle + FM.rulesDelta(opp, d, 'tackle', match.ball, false)));
         if (match.clock >= (match.tackleLock || 0) && match.rng() < rate * dt) {
           match.tackleLock = match.clock + 1.2;
           const p = FM.tackleProb(d, c.player);

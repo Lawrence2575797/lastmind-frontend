@@ -296,6 +296,9 @@
     const pull = clamp((FM.GROUP_BALL_PULL[player.group] || 0.4) + phase.ballPull + 0.25 * m.roam, 0, 1);
     d += (b.d - d) * pull * 0.3;
     w += (b.w - w) * pull * 0.22;
+    // The manager's own instructions can move him further forward or wider, in the situations they name.
+    const rs = FM.rulesShift ? FM.rulesShift(team, player, ball, hasBall) : null;
+    if (rs) { d += rs.d; w += (w >= 0.5 ? 1 : -1) * rs.w; }
 
     // Width instruction: spreads or squeezes the whole shape around the centre line.
     w = 0.5 + (w - 0.5) * (hasBall ? team.tactics.attackWidth : team.tactics.defWidth);
@@ -315,7 +318,7 @@
       if (o) return o;
       const t = FM.targetFor(team, p, ball, hasBall);
       if (lim != null && p.group !== 'GK') {
-        const runs = FM.instrMods(p).runs;
+        const runs = FM.instrMods(p).runs + (FM.rulesDelta ? FM.rulesDelta(team, p, 'runs', ball, hasBall) : 0);
         const l = lim + team.attackDir * (runs > 0 ? 0.5 : runs < 0 ? -1.2 : 0);
         t.x = team.attackDir === 1 ? Math.min(t.x, l) : Math.max(t.x, l);
       }
