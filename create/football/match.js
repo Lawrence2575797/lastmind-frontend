@@ -810,8 +810,8 @@
     r.extra.attackers = attackers; r.extra.targets = targets; r.extra.marks = marks; r.extra.short = short; r.extra.nearSign = nearSign;
   }
 
-  function restartOverrides(match) {
-    const r = match.restart, ov = new Map();
+  function restartOverrides(match, held) {
+    const r = held || match.restart, ov = new Map();
     const team = r.team, opp = other(match, team);
     ov.set(r.taker, { x: r.x, y: r.y });
     const goalX = team.attackDir === 1 ? L : 0;
@@ -877,11 +877,12 @@
       const dg = Math.hypot(goalX - r.x, W / 2 - r.y);
       const attackingHalf = FM.toTeamSpace(team.attackDir, r.x, r.y).d > 0.55;
       if (t.fkStyle === 'shoot' && dg <= 30 && !r.extra.indirect) { takeFreeKickShot(match, team, taker, dg); return; }
-      if (t.fkStyle !== 'short' && attackingHalf && r.extra.attackers) { const zones = ['near', 'far', 'centre']; deliverCross(match, team, taker, r, zones[Math.floor(match.rng() * 3)]); return; }
+      if (t.fkStyle !== 'short' && attackingHalf && r.extra.attackers) { match.crossHold = r; const zones = ['near', 'far', 'centre']; deliverCross(match, team, taker, r, zones[Math.floor(match.rng() * 3)]); return; }
       match.forcePass = true; giveBall(match, team, taker, 0.4); return;
     }
     // corner
     if (t.cornerDelivery === 'short' && r.extra.short) { match.forcePass = true; match.noOffside = true; giveBall(match, team, taker, 0.2); return; }
+    match.crossHold = r;   // while the ball is in the air the box stays as it was set: nobody wanders out as the kick is taken
     deliverCross(match, team, taker, r, t.cornerDelivery === 'short' ? 'near' : t.cornerDelivery);
   }
 
@@ -1305,6 +1306,10 @@
     setOffsideLines(match);
     setPhaseContext(match);
     const ov = buildOverrides(match);
+    if (match.crossHold) {
+      if (match.flight && match.flight.kind === 'cross') restartOverrides(match, match.crossHold).forEach((v, p) => ov.set(p, v));
+      else match.crossHold = null;
+    }
     if (match.extraOv) match.extraOv.forEach((v, p) => { if (!ov.has(p)) ov.set(p, v); });   // the lab: opponents following a player who has moved
     match.teams.forEach((t) => FM.stepTeam(t, match.ball, t === poss, dt, ov));
     fitnessTick(match, dt);

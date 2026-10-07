@@ -6,7 +6,7 @@
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const world = { league: null, view: 'home', match: null, fixture: null, running: true, speed: 1, shownEvents: 0, lastStats: '', trails: [], vt: 0, tab: 'squad', selSlot: null, selBench: null, saveTimer: null };
   const REAL_SECONDS_FOR_MATCH = 600; // a full 90 minutes takes about ten real minutes at 1x
-  const MATCH_SPEED = 5400 / REAL_SECONDS_FOR_MATCH;
+  const MATCH_SPEED = 5400 / REAL_SECONDS_FOR_MATCH / 6;   // speeds are shown against a pace six times slower than the first version's
   const SUBSTEP = 0.1;
   const TIER_NAMES = { gcse: 'GCSE', alevel: 'A-level', above: 'Beyond A-level' };
 
@@ -266,9 +266,9 @@
     if (!fx || fx.played) return;
     world.fixture = fx;
     world.match = FM.startFixture(world.league, fx, { interactive: true });
-    world.running = true; world.speed = 0.5; world.shownEvents = 0; world.lastStats = ''; world.trails = []; world.vt = 0;
+    world.running = true; world.speed = 1; world.shownEvents = 0; world.lastStats = ''; world.trails = []; world.vt = 0;
     world.selSlot = null; world.selBench = null; world.tab = 'squad';
-    document.querySelectorAll('[data-speed]').forEach((x) => x.classList.toggle('on', x.dataset.speed === '0.5'));
+    document.querySelectorAll('[data-speed]').forEach((x) => x.classList.toggle('on', x.dataset.speed === '1'));
     const m = world.match;
     el('feed').innerHTML = '';
     el('nmHome').textContent = m.home.name; el('nmAway').textContent = m.away.name;
