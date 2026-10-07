@@ -21034,7 +21034,11 @@ SQIDAQAB
             const visibleBefore = prefix.toString().replace(/[\u200b\s]/g, '');
 
             const dotItem = element && element.closest ? element.closest('ul.nb-dot-list > li') : null;
-            if (dotItem && visibleBefore === '.') {
+            // Typing a lone "." at the start of a bullet turns it back into plain text. That only applies when the bullet holds nothing before the caret
+            // except that dot. A line below an arrow sits inside the bullet it hangs from, so the whole bullet, arrows and all, must never be swapped for the dots.
+            const itemBefore = dotItem ? document.createRange() : null;
+            if (itemBefore) { itemBefore.setStart(dotItem, 0); itemBefore.setEnd(node, caretRange.startOffset); }
+            if (dotItem && visibleBefore === '.' && itemBefore.toString().replace(/[​\s]/g, '') === '.') {
                 const dotList = dotItem.parentElement;
                 const suffix = document.createRange(); suffix.setStart(node, caretRange.startOffset); suffix.setEnd(dotItem, dotItem.childNodes.length);
                 const trailing = suffix.extractContents();
