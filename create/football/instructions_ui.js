@@ -53,7 +53,12 @@
   // opts.stage: the stage of play this box is for. Everything written in it applies to that stage only.
   FM.renderInstructions = function (host, team, hooks, opts) {
     opts = opts || {};
-    const stage = opts.stage || null, st = states[stage || 'all'] || (states[stage || 'all'] = { text: '', busy: false, err: '', draft: null, added: '' });
+    const stage = opts.stage || null, st = states[stage || 'all'] || (states[stage || 'all'] = { text: '', busy: false, err: '', draft: null, added: '', collapsed: false });
+    if (stage && st.collapsed) {
+      host.innerHTML = `<button type="button" class="in-reopen" id="inReopen">Show instructions for ${esc(STAGE_NAME[stage])}</button>`;
+      host.querySelector('#inReopen').addEventListener('click', () => { st.collapsed = false; FM.renderInstructions(host, team, hooks, opts); });
+      return;
+    }
     team.rules = team.rules || [];
     const roster = setRoster(team, hooks);
     const inStage = (r) => !stage || (r.when && r.when.stage && r.when.stage.indexOf(stage) >= 0);
@@ -63,6 +68,7 @@
         <div class="in-rt"><small class="in-who">${esc(FM.rulesWho(r))}</small><b>${esc(FM.rulesText(r))}</b></div>
         <button type="button" class="in-del" data-del="${r.id}" aria-label="Delete this instruction">×</button></div>`;
     host.innerHTML = `<div class="in-wrap"><div class="in-main">
+        ${stage ? '<div class="in-panel-bar"><button type="button" class="in-panel-close" id="inPanelClose" aria-label="Close instructions" title="Close instructions">×</button></div>' : ''}
         <div class="in-add"><div class="in-body">
           <label class="in-lab" for="inText">${stage ? 'Tell the team how to play in ' + STAGE_NAME[stage] + ' <small>(applies to this stage only)</small>' : 'Tell the team how to play'}</label>
           <textarea id="inText" maxlength="3000" rows="9" placeholder="Write as much as you like, about any players, ours or theirs.&#10;&#10;e.g. ${esc(STAGE_EG[stage] || STAGE_EG.build)}">${esc(st.text)}</textarea>
@@ -80,6 +86,7 @@
       </div></div>`;
     const q = (s) => host.querySelector(s), qa = (s) => host.querySelectorAll(s);
     const redraw = () => FM.renderInstructions(host, team, hooks, opts);
+    const close = q('#inPanelClose'); if (close) close.addEventListener('click', () => { st.collapsed = true; redraw(); });
     qa('[data-toggle]').forEach((c) => c.addEventListener('change', () => { const r = rules.find((x) => x.id === c.dataset.toggle); if (r) { r.off = !c.checked; if (hooks.save) hooks.save(); if (hooks.changed) hooks.changed(); redraw(); } }));
     qa('[data-del]').forEach((b) => b.addEventListener('click', () => { team.rules = rules.filter((x) => x.id !== b.dataset.del); st.added = ''; if (hooks.save) hooks.save(); if (hooks.changed) hooks.changed(); redraw(); }));
     const line = q('#inLine');

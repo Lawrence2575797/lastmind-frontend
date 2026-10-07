@@ -246,7 +246,6 @@
     h += '<div class="el-rows">' + OUT_ROWS.map(([k, l, note]) => { const v = r[k]; return '<div class="el-row"><div class="el-rl"><b>' + esc(l) + '</b><small>' + esc(note) + '</small></div><div class="el-rv"><b>' + pc(v.p) + '</b><small>' + v.k + ' of ' + r.n + '</small></div>' + bar(v) + '</div>'; }).join('') + '</div>';
     h += '<p class="el-small">' + P('The bar is the 95% interval, and the white line is the share we found.', used) + '</p>';
     if (last.hyp) h += '<p><b>You said:</b> ' + esc(last.hyp) + '</p>';
-    if (last.changes && last.changes.length) h += '<p class="el-small"><b>Changed since last time:</b> ' + esc(last.changes.join('; ')) + '.</p>';
     return h;
   }
   function compareTable(A, B, a, b) {
