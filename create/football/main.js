@@ -62,6 +62,19 @@
       ctx.stroke();
       ctx.strokeRect(px(side === 0 ? -2 : L), py(W / 2 - 3.66), 2 * scale, 7.32 * scale);
     });
+    // Real-metre scale, kept inside the touchline so it remains visible at
+    // every responsive canvas size without increasing the pitch footprint.
+    ctx.save();
+    ctx.font = `700 ${Math.max(9, Math.round(scale * 1.15))}px Arial, sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.strokeStyle = 'rgba(0,0,0,.72)'; ctx.lineWidth = Math.max(2, scale * .28);
+    ctx.textBaseline = 'bottom';
+    [0, 25, 50, 75, 100, 105].forEach((m) => {
+      const x = px(m); ctx.textAlign = m === 0 ? 'left' : m === 105 ? 'right' : 'center';
+      const label = m + 'm'; ctx.strokeText(label, x, py(W) - 4); ctx.fillText(label, x, py(W) - 4);
+    });
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    [0, 17, 34, 51, 68].forEach((m) => { const label = m + 'm', x = px(0) + 5, y = py(m); ctx.strokeText(label, x, y); ctx.fillText(label, x, y); });
+    ctx.restore();
   }
 
   function drawPlayers() {
@@ -519,24 +532,16 @@
     lg.labRuns = lg.labRuns || [];
     const st = world.lab = world.lab || { start: 'keeper', n: 100, pred: '', hyp: '', busy: false, prog: 0, a: null, b: null, err: '' };
     const runs = lg.labRuns, last = runs[runs.length - 1];
-    let tac = null; try { tac = FM.aiTacticsFor(lg, opp, team); } catch (e) { tac = null; }
-    const resp = FM.lab.responses(team, opp, tac);
-    const resHtml = resp.length
-      ? `<table><tr><th>Your player</th><th>Their player</th><th class="n">Chance they react</th></tr>${resp.map((x) => `<tr><td>${esc(boardName(x.attacker))} ${x.kind === 'high' ? 'pushed up' : 'dropped back'} ${Math.abs(Math.round(x.dev))} m</td><td>${esc(boardName(x.defender))} (${x.defender.group}) ${x.kind === 'high' ? 'follows him' : 'steps up to press him'}</td><td class="n"><b>${lpct(x.prob)}</b></td></tr>`).join('')}</table>`
-      : '<p class="note">Nobody is placed far from his usual build-up position, so the opposition simply press as their own settings say. Move a player up or back by more than about 4 m and a reaction chance appears here.</p>';
     const cmpRuns = runs.length >= 2 ? runs : [];
     const a = st.a != null && runs[st.a] ? st.a : Math.max(0, runs.length - 2), b = st.b != null && runs[st.b] ? st.b : runs.length - 1;
     host.innerHTML = `<div class="lab">
       <h2>Test this build-up</h2>
-      <p class="note">This plays the first 40 seconds of your build-up against ${esc(opp.name)} again and again, with the ball starting beside your goalkeeper. The players decide differently every time, and so do the opposition: a player you have moved may or may not be followed. Each test ends when you reach the halfway line with the ball, or lose it (and then we watch 15 seconds to see whether they get a shot). The share of tests ending each way is the result.</p>
-      <details><summary>How the opposition may react to your set-up</summary>${resHtml}<p class="note">These chances come from how hard ${esc(opp.name)} press (their settings for pressing your build-up and pressing generally) and how far you have moved the player. They are redrawn in every test, so the same set-up never plays out the same way twice.</p></details>
       <div class="two"><label>Start from<select id="labStart"><option value="keeper"${st.start === 'keeper' ? ' selected' : ''}>The goalkeeper has the ball in open play</option><option value="goalkick"${st.start === 'goalkick' ? ' selected' : ''}>A goal kick (short pass compulsory)</option></select></label>
         <label>Number of tests<select id="labN">${[100, 400, 1000].map((n) => `<option value="${n}"${st.n === n ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>
       <label>Before you run it: what do you predict? (the share of tests that beat the press, %)<input type="number" id="labPred" min="0" max="100" step="1" value="${esc(st.pred)}" placeholder="e.g. 60"></label>
       <div class="row"><button class="primary" id="labRun"${st.busy ? ' disabled' : ''}>${st.busy ? 'Running… ' + st.prog + ' of ' + st.n : 'Run ' + st.n + ' tests'}</button></div>
       <p class="err">${esc(st.err)}</p>
       ${last ? `<div><h2 style="margin-bottom:8px">Latest result: run ${runs.length}</h2>${labTable(last.result)}
-        <p class="note" style="margin-top:8px">${last.result.n} tests. The bar shows the 95% interval and the white line the share found. ${last.result.time ? `When the ball did reach halfway, it took ${last.result.time.mean.toFixed(1)} s on average. ` : ''}Your players completed ${last.result.passes.mean.toFixed(1)} passes per test on average. Elena Marsh, on the right, explains what these numbers mean.</p>
         ${last.hyp ? `<p class="note"><b>Your hypothesis then:</b> ${esc(last.hyp)}</p>` : ''}
         ${last.changes && last.changes.length ? `<p class="note"><b>Changed since the run before:</b> ${esc(last.changes.join('; '))}.</p>` : ''}
 </div>` : ''}
@@ -546,8 +551,7 @@
         ${a !== b ? (() => {
           const A = runs[a].result, Bq = runs[b].result;
           const rows = [['beat', 'Beat the press'], ['lost', 'Lost possession (anywhere)'], ['lostNear', 'Lost it near your own goal'], ['shot', 'Opposition shot']].map(([k, l]) => { const c2 = FM.lab.compare(A, Bq, k); return `<tr><td>${l}</td><td class="n">${lpct(A[k].p)}</td><td class="n">${lpct(Bq[k].p)}</td><td class="n"><b>${c2.diff >= 0 ? '+' : ''}${Math.round(c2.diff * 100)}</b> points</td><td class="n">${Math.round(c2.lo * 100)} to ${Math.round(c2.hi * 100)}</td><td class="n">${c2.p < 0.001 ? '< 0.001' : c2.p.toFixed(3)}</td></tr>`; });
-          return `<table><tr><th>Measure</th><th class="n">Run ${a + 1}</th><th class="n">Run ${b + 1}</th><th class="n">Difference</th><th class="n">95% interval for the difference</th><th class="n">p-value</th></tr>${rows.join('')}</table>
-            <p class="note">What this comparison means is explained by Elena Marsh on the right.</p>`;
+          return `<table><tr><th>Measure</th><th class="n">Run ${a + 1}</th><th class="n">Run ${b + 1}</th><th class="n">Difference</th><th class="n">95% interval for the difference</th><th class="n">p-value</th></tr>${rows.join('')}</table>`;
         })() : '<p class="note">Choose two different runs to compare.</p>'}</div>` : '<p class="note">Run it once, change one thing on the board or the sliders, then run it again: the lab compares the two for you.</p>'}
       ${runs.length ? `<div class="runs">${runs.map((r, i) => `<span class="note">Run ${i + 1}: ${r.n} tests · ${lpct(r.result.beat.p)} beat the press</span>`).join(' · ')}<button id="labClear">Clear the runs</button></div>` : ''}
     </div>`;
@@ -640,6 +644,11 @@
       s += `<circle cx="${cx}" cy="${y(11)}" r="3" fill="rgba(255,255,255,0.85)"/>`;
       s += `<path d="M ${cx - 7.31 * S} ${y(16.5)} A ${9.15 * S} ${9.15 * S} 0 0 ${dir > 0 ? 0 : 1} ${cx + 7.31 * S} ${y(16.5)}" ${ln}/>`;
     });
+    const scaleText = 'font-family="Arial,sans-serif" font-size="12" font-weight="700" fill="rgba(255,255,255,.9)" stroke="rgba(0,0,0,.72)" stroke-width="3" style="paint-order:stroke;pointer-events:none"';
+    s += '<g aria-hidden="true">';
+    [0, 17, 34, 51, 68].forEach((m) => { const x = m * S; s += `<line x1="${x}" y1="${BH}" x2="${x}" y2="${BH + 8}" stroke="rgba(255,255,255,.75)" stroke-width="2"/><text x="${x}" y="${BH + 24}" text-anchor="middle" ${scaleText}>${m}m</text>`; });
+    [0, 25, 50, 75, 100, 105].forEach((m) => { const y = BH - m * S, yy = Math.max(13, Math.min(BH - 5, y + 4)); s += `<line x1="0" y1="${y}" x2="9" y2="${y}" stroke="rgba(255,255,255,.75)" stroke-width="2"/><text x="12" y="${yy}" text-anchor="start" ${scaleText}>${m}m</text>`; });
+    s += '</g>';
     return s;
   }
 

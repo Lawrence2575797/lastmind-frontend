@@ -60,6 +60,19 @@
 
   // ---------- pitch drawing (horizontal, the selected team attacking to the right) ----------
   const PS = 6, PW = L * PS, PH = W * PS;
+  function pitchScale() {
+    const txt = 'font-family="Arial,sans-serif" font-size="10" font-weight="700" fill="rgba(255,255,255,.88)" stroke="rgba(0,0,0,.72)" stroke-width="2.5" style="paint-order:stroke;pointer-events:none"';
+    let s = '<g aria-hidden="true">';
+    [0, 25, 50, 75, 100, 105].forEach((m) => {
+      const x = m * PS, anchor = m === 0 ? 'start' : m === 105 ? 'end' : 'middle';
+      s += `<line x1="${x}" y1="${PH - 7}" x2="${x}" y2="${PH}" stroke="rgba(255,255,255,.7)" stroke-width="1.5"/><text x="${x + (m === 0 ? 3 : m === 105 ? -3 : 0)}" y="${PH - 10}" text-anchor="${anchor}" ${txt}>${m}m</text>`;
+    });
+    [0, 17, 34, 51, 68].forEach((m) => {
+      const y = m * PS, yy = Math.max(11, Math.min(PH - 3, y + 3));
+      s += `<line x1="0" y1="${y}" x2="7" y2="${y}" stroke="rgba(255,255,255,.7)" stroke-width="1.5"/><text x="10" y="${yy}" ${txt}>${m}m</text>`;
+    });
+    return s + '</g>';
+  }
   function pitchLines() {
     const ln = 'stroke="rgba(255,255,255,0.8)" stroke-width="2" fill="none"';
     let s = `<rect x="0" y="0" width="${PW}" height="${PH}" fill="#2E7D3E"/><rect x="0" y="0" width="${PW}" height="${PH}" ${ln}/><line x1="${PW / 2}" y1="0" x2="${PW / 2}" y2="${PH}" ${ln}/>`;
@@ -69,7 +82,7 @@
       s += `<rect x="${side ? PW - 16.5 * PS : 0}" y="${PH / 2 - 20.16 * PS}" width="${16.5 * PS}" height="${40.32 * PS}" ${ln}/>`;
       s += `<rect x="${side ? PW - 5.5 * PS : 0}" y="${PH / 2 - 9.16 * PS}" width="${5.5 * PS}" height="${18.32 * PS}" ${ln}/>`;
     });
-    return s;
+    return s + pitchScale();
   }
   const toSvg = (d, w) => ({ x: d * PW, y: w * PH });
   FM.ANALYSIS_DRAW = { pitchLines, PW, PH, PS };

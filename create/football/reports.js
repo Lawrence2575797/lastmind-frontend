@@ -104,6 +104,9 @@
     const PW = 136, PH = 210, ln = 'stroke="rgba(255,255,255,0.7)" stroke-width="1" fill="none"';
     let s = `<rect x="0" y="0" width="${PW}" height="${PH}" fill="#2E7D3E"/><rect x="0.5" y="0.5" width="${PW - 1}" height="${PH - 1}" ${ln}/><line x1="0" y1="${PH / 2}" x2="${PW}" y2="${PH / 2}" ${ln}/><circle cx="${PW / 2}" cy="${PH / 2}" r="18" ${ln}/>`;
     s += `<rect x="${PW / 2 - 40}" y="0" width="80" height="32" ${ln}/><rect x="${PW / 2 - 40}" y="${PH - 32}" width="80" height="32" ${ln}/>`;
+    const st = 'font-family="Arial,sans-serif" font-size="5.5" font-weight="700" fill="rgba(255,255,255,.9)" stroke="rgba(0,0,0,.7)" stroke-width="1.4" style="paint-order:stroke"';
+    [0, 34, 68].forEach((m) => { const x = m / 68 * PW, anchor = m === 0 ? 'start' : m === 68 ? 'end' : 'middle'; s += `<text x="${x + (m === 0 ? 2 : m === 68 ? -2 : 0)}" y="${PH - 3}" text-anchor="${anchor}" ${st}>${m}m</text>`; });
+    [0, 25, 50, 75, 105].forEach((m) => { const y = PH - m / 105 * PH; s += `<text x="3" y="${Math.max(6, Math.min(PH - 3, y + 2))}" ${st}>${m}m</text>`; });
     if (cells) Object.keys(cells).forEach((slot) => {
       const c = cells[slot], x = c.w * PW, y = (1 - c.d) * PH;
       s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="9.5" fill="${kit.shirt}" stroke="${kit.number}" stroke-width="1.4"/><text x="${x.toFixed(1)}" y="${(y + 3).toFixed(1)}" text-anchor="middle" font-size="7.5" font-weight="700" fill="${kit.number}" font-family="sans-serif">${slot}</text>`;
