@@ -92,10 +92,15 @@
     };
     roll(0, true);
     let nextRoll = RESPOND_EVERY, lostAt = null, lostZone = null, lostCause = null, result = null, passes = 0, evSeen = 0;
-    let guard = 0, planNow = null, firstPass = null, firstSeen = 0;
+    let guard = 0, planNow = null, firstPass = null, firstSeen = 0, planLogged = null;
+    // For the replays: where everyone was (players every half second, the ball every quarter), and who the opposition were going to.
+    const rec = opts.record ? { b: [], f: [], plan: [] } : null, d1 = (v) => Math.round(v * 10), tick = { n: 0 };
+    const snap = () => { if (!rec) return; rec.b.push([d1(match.ball.x), d1(match.ball.y)]); if (tick.n % 2 === 0) { const row = []; u.players.concat(o.players).forEach((p) => { row.push(d1(p.x), d1(p.y)); }); rec.f.push(row); } tick.n++; };
+    snap();
     while (!result && guard++ < 4000) {
       FM.stepMatch(match, STEP);
-      if (match.plan && match.plan.carrier && match.plan.carrier.team !== undefined || match.plan) planNow = match.plan;
+      if (match.plan) planNow = match.plan;
+      if (rec) { if (match.plan && match.plan.t !== planLogged) { planLogged = match.plan.t; rec.plan.push({ t: Math.round(match.plan.t * 100) / 100, pairs: match.plan.pairs.slice() }); } snap(); }
       if (!firstPass) for (; firstSeen < match.events.length; firstSeen++) { const e = match.events[firstSeen]; if (e.type === 'pass' && e.team === u.id) { firstPass = { e, plan: planNow ? planNow.pairs.slice() : null, chase: null }; firstSeen++; break; } }
       if (match.clock >= nextRoll) { roll(match.clock, false); nextRoll += RESPOND_EVERY; }
       const h = holder(match), t = match.clock;
@@ -130,14 +135,30 @@
         result.first.free = u.players.filter((p) => p.number !== e.from && !pairs.some((pr) => pr[1] === p.number)).map((p) => p.group);
       }
     }
+    if (rec) result.clip = LAB.makeClip(match, u, o, rec, result, lostAt, lostCause);
     return result;
+  };
+
+  // The test as a clip: frames cut off a few seconds after the ball is lost (or just after it reaches halfway), with the passes and the jobs.
+  LAB.makeClip = function (match, u, o, rec, result, lostAt, lostCause) {
+    const end = Math.min(result.outcome === 'beat' ? result.time + 1.5 : (lostAt == null ? result.time : lostAt + 4.5), match.clock), d1 = (v) => Math.round(v * 10);
+    const nb = Math.min(rec.b.length, Math.floor(end / 0.25) + 1), nf = Math.min(rec.f.length, Math.floor(end / 0.5) + 2);
+    const ev = [];
+    match.events.forEach((e) => {
+      if (e.t > end) return;
+      if (e.type === 'pass' && e.team === u.id && e.tx != null) ev.push({ type: 'pass', t: Math.round(e.t * 10) / 10, from: e.from, to: e.to, ok: !!e.ok && e.outcome !== 'offside', outcome: e.outcome, by: e.by, p: Math.round(e.p * 100) / 100, dist: Math.round(e.dist), lane: Math.round(Math.min(e.lane, 30) * 10) / 10, press: Math.round(Math.min(e.press, 30) * 10) / 10, x: d1(e.x), y: d1(e.y), tx: d1(e.tx), ty: d1(e.ty) });
+      else if (e.type === 'dribble' && e.team === u.id) ev.push({ type: 'dribble', t: Math.round(e.t * 10) / 10, player: e.player, ok: !!e.ok, x: d1(e.x), y: d1(e.y) });
+      else if (e.type === 'tackle' && e.team === o.id) ev.push({ type: 'tackle', t: Math.round(e.t * 10) / 10, player: e.player, vs: e.vs, ok: !!e.ok, x: d1(e.x), y: d1(e.y) });
+    });
+    const names = { u: {}, o: {} }; u.players.forEach((p) => { names.u[p.number] = p.name; }); o.players.forEach((p) => { names.o[p.number] = p.name; });
+    return { dt: 0.5, dtb: 0.25, end: Math.round(end * 100) / 100, mirror: u.attackDir === -1, ru: u.players.map((p) => p.number), ro: o.players.map((p) => p.number), f: rec.f.slice(0, nf), b: rec.b.slice(0, nb), plan: rec.plan.filter((p) => p.t <= end), ev, names, outcome: result.outcome === 'beat' ? 'beat' : 'lost', lost: lostAt != null ? Math.round(lostAt * 100) / 100 : null, kind: lostCause ? lostCause.kind : null };
   };
 
   // Many trials. onProgress(done, n) lets the page show how far it has got; the work is done in small batches so the page stays alive.
   LAB.run = function (league, opts, onProgress) {
     const n = opts.n || 100, userTeam = opts.user, oppTeam = opts.opp, base = opts.seed || (Date.now() & 0xffffff);
     let oppTactics = null; try { if (oppTeam.id !== league.userId) oppTactics = FM.aiTacticsFor(league, oppTeam, userTeam); } catch (e) { oppTactics = null; }
-    const res = { n, counts: { beat: 0, lostNear: 0, lostOwn: 0, lostMid: 0, still: 0 }, shot: 0, goal: 0, times: [], passes: [], causes: [], passTotal: 0, passOk: 0, passP: 0, firsts: [] };
+    const res = { n, counts: { beat: 0, lostNear: 0, lostOwn: 0, lostMid: 0, still: 0 }, shot: 0, goal: 0, times: [], passes: [], causes: [], passTotal: 0, passOk: 0, passP: 0, firsts: [], clips: {} };
     let i = 0;
     return new Promise((resolve) => {
       const batch = () => {
@@ -151,6 +172,7 @@
           res.passes.push(r.passes); res.passTotal += r.passTotal || 0; res.passOk += r.passes || 0; res.passP += r.passP || 0;
           if (r.cause) res.causes.push(Object.assign({ zone: r.outcome, shot: !!r.shot }, r.cause));
           if (r.first) res.firsts.push(Object.assign({ outcome: r.outcome }, r.first));
+          if (r.clip) { const key = r.outcome === 'beat' ? 'beat' : (r.cause && r.cause.kind) || 'other'; const pool = res.clips[key] || (res.clips[key] = []); if (pool.length < 7 && r.clip.f.length > 3) pool.push(r.clip); }
         }
         if (onProgress) onProgress(i, n);
         if (i < n) setTimeout(batch, 0); else resolve(LAB.summarise(res));
@@ -169,6 +191,10 @@
     out.passStats = { perTest: res.passTotal / n, okPerTest: res.passOk / n, rate: res.passTotal ? res.passOk / res.passTotal : 0, expected: res.passTotal ? res.passP / res.passTotal : 0 };
     out.why = LAB.reduceCauses(res.causes || []);
     out.press = LAB.reduceFirsts(res.firsts || [], n);
+    const LABEL = { beat: 'A build-up that worked', intercepted: 'A pass cut out', dribble: 'A dribble that lost the ball', tackle: 'Tackled on the ball', loose: 'A pass that went astray', offside: 'A pass to a player offside', other: 'Another way of losing it' };
+    // Of the tests of each kind, show a typical one: the one whose number of passes is the middle one, not the luckiest or the strangest.
+    const typical = (pool) => { const n = (c) => c.ev.filter((e) => e.type === 'pass').length, sorted = pool.slice().sort((x, y) => n(x) - n(y)); return sorted[Math.floor(sorted.length / 2)]; };
+    out.clips = ['beat', 'intercepted', 'dribble', 'tackle', 'loose', 'offside', 'other'].filter((k) => res.clips && res.clips[k] && res.clips[k].length).map((k) => ({ key: k, label: LABEL[k], clip: typical(res.clips[k]) }));
     return out;
   };
 

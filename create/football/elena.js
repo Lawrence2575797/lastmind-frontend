@@ -140,6 +140,9 @@
       '.el-hint { margin: 8px 0 0; color: #ffb4a8; } .el-num { display: flex; gap: 8px; margin-top: 8px; } .el-num input { flex: 1; min-width: 0; padding: 9px 10px; border-radius: 10px; border: 1px solid rgba(241,234,214,.35); background: rgba(255,255,255,.07); color: inherit; font: inherit; } .el-num button { flex: none; width: auto; margin: 0; }',
       '.el-q { margin: 14px 0 0; font-weight: 700; } .el-progress { opacity: .7; font-size: .8rem; margin-bottom: 8px; } .el-tick { float: right; color: #7fd49a; }',
       '.el-lab-hyp { display: grid; gap: 6px; margin-top: 12px; font-weight: 700; } .el-lab-hyp textarea { min-height: 70px; padding: 9px 10px; border-radius: 10px; border: 1px solid rgba(241,234,214,.35); background: rgba(255,255,255,.07); color: inherit; font: inherit; resize: vertical; }',
+      '.rp-pitch { display: block; width: 100%; height: auto; border-radius: 10px; background: #2A7539; } .rp-bar { display: flex; gap: 8px; align-items: center; margin-top: 8px; } .rp-bar .el-go { width: auto; margin: 0; flex: none; padding: 7px 14px; } .rp-seek { flex: 1; min-width: 0; } .rp-speed { flex: none; padding: 6px; border-radius: 8px; border: 1px solid rgba(241,234,214,.35); background: rgba(255,255,255,.07); color: inherit; }',
+      '.rp-key { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 8px 0; font-size: .76rem; opacity: .85; } .rp-k { display: inline-block; width: 14px; height: 0; margin-right: 4px; vertical-align: middle; border-top: 3px solid #FFE27A; } .rp-k.no { border-top: 3px dashed #FF5A36; } .rp-k.job { border-top: 2.5px dashed #FF9F43; } .rp-k.free { width: 12px; height: 12px; border: 2px dashed #7fd49a; border-radius: 50%; }',
+      '.rp-say p { margin: 0 0 8px; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,.07); font-size: .86rem; } .rp-pick { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; } .rp-pick .el-go { width: auto; margin: 0; }',
       'body.el-open { padding-right: min(456px, 100vw); } @media (max-width: 1000px) { body.el-open { padding-right: 16px; } }',
     ].join('\n');
     document.head.appendChild(e);
@@ -191,6 +194,13 @@
     }
     return h;
   }
+  // The replays: tests from this run, kept as they happened, drawn with arrows.
+  function replayText(r) {
+    if (!r.clips || !r.clips.length) return '';
+    if (!E.clipKey || !r.clips.find((x) => x.key === E.clipKey)) E.clipKey = r.clips[0].key;
+    return '<h4>Watch it happen</h4><p>These are real tests from this run, kept exactly as they played out. Yellow arrows are passes that came off, red dashed ones are passes that were lost, orange dashed lines show who their players had gone to, and a green ring marks one of your players with nobody on him.</p>' +
+      '<div class="rp-pick">' + r.clips.map((x) => '<button type="button" class="el-go' + (x.key === E.clipKey ? ' primary' : '') + '" data-clip="' + x.key + '">' + esc(x.label) + '</button>').join('') + '</div><div id="elReplay" class="rp"></div>';
+  }
   function intro(c) {
     const opp = c.opp;
     return '<p>I am Elena, the club analyst. Nobody can say how a build-up will go from one attempt: on any one try a pass might work or not, and a defender might step up or not. So we play the same set-up many times and count how often each thing happens.</p>' +
@@ -211,7 +221,7 @@
       h += '<h4>Your prediction</h4><div class="el-box"><p>You predicted <b>' + last.pred + '%</b>. The tests found <b>' + pc(v.p) + '</b>, with a 95% interval of ' + pc(v.lo) + ' to ' + pc(v.hi) + '.</p>' +
         '<p>' + (ok ? 'Your prediction is inside that range, so these tests give no reason to doubt it. It does not prove it was right: other numbers inside the range would pass the same way.' : 'Your prediction is outside that range, so luck alone is unlikely to explain the gap. Your picture of how this build-up behaves was off, and the findings below may show where.') + '</p></div>' + go('range', 'Giving a share a range');
     }
-    h += pressText(r, c);
+    h += pressText(r, c) + replayText(r);
     // why it went wrong
     const ex = FM.lab.explain(r, {}), w = r.why, lostN = r.lost.k;
     h += '<h4>What went wrong</h4>';
@@ -264,6 +274,7 @@
     b.innerHTML = body();
     E.el.querySelectorAll('.el-tabs button').forEach((t) => t.setAttribute('aria-pressed', String(t.dataset.t === E.tab)));
     b.scrollTop = top;
+    if (FM.labReplay) { FM.labReplay.stop(); const rh = b.querySelector('#elReplay'); if (rh && E.ctx.runs.length) { const last = E.ctx.runs[E.ctx.runs.length - 1].result, cl = last.clips && last.clips.find((x) => x.key === E.clipKey); if (cl) FM.labReplay.mount(rh, cl.clip, { team: E.ctx.team, opp: E.ctx.opp }); } }
     const who = E.el.querySelector('.el-head img'); if (who) who.src = E.tab === 'lessons' ? IMG.think : (E.ctx.runs.length ? IMG.point : IMG.hello);
   }
   function openLesson(id) { E.tab = 'lessons'; E.lesson = id; E.step = 0; E.state = { right: false, wrong: [], hint: '' }; if (!E.open) setOpen(true); else paint(); const b = E.el && E.el.querySelector('.el-body'); if (b) b.scrollTop = 0; }
@@ -280,6 +291,7 @@
       if (t.classList.contains('x')) return setOpen(false);
       if (t.dataset.t) { E.tab = t.dataset.t; if (E.tab === 'lessons') E.lesson = null; return paint(); }
       if (t.dataset.lesson) return openLesson(t.dataset.lesson);
+      if (t.dataset.clip) { E.clipKey = t.dataset.clip; return paint(); }
       if (t.dataset.back) { E.lesson = null; return paint(); }
       const L = E.lesson && LESSONS.find((x) => x.id === E.lesson), s = L && L.steps[E.step];
       if (t.dataset.opt != null && s) { const i = +t.dataset.opt, o = s.options[i]; if (o.ok) E.state.right = true; else { if (!E.state.wrong.includes(i)) E.state.wrong.push(i); E.state.hint = o.hint || 'Not quite. Read the question again.'; } if (E.state.right) E.state.hint = ''; return paint(); }
@@ -303,6 +315,6 @@
       else if (E.open) { if (fresh && E.tab === 'lessons' && !E.lesson) E.tab = 'read'; paint(); if (fresh && E.tab !== 'lessons') { const b = E.el && E.el.querySelector('.el-body'); if (b) b.scrollTop = 0; } }
       else if (fresh) E.btn.querySelector('.dot').style.display = '';
     },
-    hide() { clearInterval(E.watch); if (E.el) E.el.remove(); if (E.btn) E.btn.remove(); E.el = E.btn = null; document.body.classList.remove('el-open'); },
+    hide() { if (FM.labReplay) FM.labReplay.stop(); clearInterval(E.watch); if (E.el) E.el.remove(); if (E.btn) E.btn.remove(); E.el = E.btn = null; document.body.classList.remove('el-open'); },
   };
 })();

@@ -568,8 +568,9 @@
       st.busy = true; st.prog = 0; st.err = ''; renderLab(team, host);
       const snap = FM.lab.snapshot(team), pred = st.pred === '' ? '' : Math.max(0, Math.min(100, +st.pred));
       try {
-        const result = await FM.lab.run(lg, { n: st.n, user: team, opp, start: st.start }, (d) => { st.prog = d; const b2 = host.querySelector('#labRun'); if (b2) b2.textContent = 'Running… ' + d + ' of ' + st.n; });
+        const result = await FM.lab.run(lg, { n: st.n, user: team, opp, start: st.start, record: true }, (d) => { st.prog = d; const b2 = host.querySelector('#labRun'); if (b2) b2.textContent = 'Running… ' + d + ' of ' + st.n; });
         runs.push({ id: 'r' + (runs.length + 1), n: st.n, start: st.start, opp: opp.name, pred, hyp: st.hyp, snap, changes: FM.lab.changes(last && last.snap, snap), result });
+        runs.forEach((r, i) => { if (i < runs.length - 2 && r.result) delete r.result.clips; });
         st.a = Math.max(0, runs.length - 2); st.b = runs.length - 1; st.pred = ''; st.hyp = ''; saveSoon();
       } catch (err) { st.err = 'The test could not run: ' + (err && err.message ? err.message : 'unknown error'); }
       st.busy = false;
