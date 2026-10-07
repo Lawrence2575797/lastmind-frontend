@@ -21675,6 +21675,20 @@ SQIDAQAB
         (page.doc && page.doc.blocks || []).forEach((b) => { if (b.type === 'text') out[b.id] = nbPlainText(b.html).split('\n').map((l) => l.trim()).filter(Boolean); });
         return out;
     }
+    // The page is saved as you type, so a line is recorded at every stage of being typed ("M", "Measurin", "Measuring illegal..."). Only the last stage of each
+    // line is wanted: drop any line that a later line continues, or nearly continues (a typo corrected on the way), and lines with no words in them.
+    function nbSrDedupe(lines) {
+        const out = [];
+        lines.forEach((L, i) => {
+            if (!/[A-Za-z0-9À-￿]/.test(L)) return;
+            for (let j = i + 1; j < lines.length; j++) {
+                const M = lines[j]; let k = 0; while (k < L.length && k < M.length && L[k] === M[k]) k++;
+                if (M.length > L.length - 3 && k >= L.length - 3 && M !== L) return;
+            }
+            out.push(L);
+        });
+        return out;
+    }
     // Called whenever notes are saved: lines that are new since the last save belong to today.
     function nbSrCapture(page) {
         if (!page || page.type !== 'page' || !page.doc) return;
@@ -21689,6 +21703,7 @@ SQIDAQAB
             fresh.forEach((l) => { if (!day.lines.includes(l)) { day.lines.push(l); changed = true; } });
         });
         sr.snap = now;
+        if (changed && sr.days[today]) sr.days[today].lines = nbSrDedupe(sr.days[today].lines);
         if (changed && sr.days[today] && sr.days[today].quiz) delete sr.days[today].quiz;   // the notes moved on, so a stored quiz would be stale
     }
     // The lines of a day that are still on the page.
@@ -21902,12 +21917,12 @@ SQIDAQAB
             const pop = document.createElement('div'); pop.id = 'nbHistPop'; pop.className = 'nb-sr-pop'; document.body.appendChild(pop);
             const r = btn.getBoundingClientRect(); pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 368)) + 'px'; pop.style.top = (r.bottom + 6) + 'px'; pop.style.width = 'min(360px, calc(100vw - 16px))';
             const versions = (nbHistLoad()[page.id] || []).slice().reverse();
-            const days = page.sr ? Object.keys(page.sr.days).sort().reverse().filter((k) => page.sr.days[k].lines.length) : [];
+            const days = page.sr ? Object.keys(page.sr.days).sort().reverse().filter((k) => nbSrDedupe(page.sr.days[k].lines).length) : [];
             pop.innerHTML = '<b>Earlier versions of this page</b><p class="nb-sr-note">Versions are saved automatically, and always just before a large part of the page disappears.</p>' +
                 (versions.length ? '<div class="nb-sr-days">' + versions.map((v, i) => '<div class="nb-sr-day"><span><b>' + new Date(v.t).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + '</b><small>' + nbAssistE(v.why) + ' · ' + v.chars + ' characters</small><small>' + nbAssistE(nbHistPreview(v.blocks)) + '</small></span><button type="button" data-v="' + i + '">Restore</button></div>').join('') + '</div>' : '<p class="nb-sr-note">No earlier versions yet.</p>') +
-                (days.length ? '<p class="nb-sr-note" style="margin-top:12px"><b>Lines written on this page, by day</b><br>The page records what you wrote each day. If text was lost, you can put a day\'s lines back as a new text box at the bottom (plain text: maths layout and arrows are not kept).</p><div class="nb-sr-days">' + days.map((k) => '<div class="nb-sr-day"><span><b>' + nbAssistE(nbDayLabel(k)) + '</b><small>' + page.sr.days[k].lines.length + ' lines</small></span><button type="button" data-d="' + k + '">Add back</button></div>').join('') + '</div>' : '');
+                (days.length ? '<p class="nb-sr-note" style="margin-top:12px"><b>Lines written on this page, by day</b><br>The page records what you wrote each day. If text was lost, you can put a day\'s lines back as a new text box at the bottom (plain text: maths layout and arrows are not kept).</p><div class="nb-sr-days">' + days.map((k) => '<div class="nb-sr-day"><span><b>' + nbAssistE(nbDayLabel(k)) + '</b><small>' + nbSrDedupe(page.sr.days[k].lines).length + ' lines</small></span><button type="button" data-d="' + k + '">Add back</button></div>').join('') + '</div>' : '');
             pop.querySelectorAll('[data-v]').forEach((b) => b.addEventListener('click', () => { pop.remove(); nbHistoryRestore(page, versions[+b.dataset.v]); }));
-            pop.querySelectorAll('[data-d]').forEach((b) => b.addEventListener('click', () => { pop.remove(); nbHistoryAddLines(page, page.sr.days[b.dataset.d].lines); }));
+            pop.querySelectorAll('[data-d]').forEach((b) => b.addEventListener('click', () => { pop.remove(); nbHistoryAddLines(page, nbSrDedupe(page.sr.days[b.dataset.d].lines)); }));
         });
         document.addEventListener('click', (e) => { const pop = document.getElementById('nbHistPop'); if (pop && !pop.contains(e.target) && e.target !== btn) pop.remove(); });
         nbHistoryCapture(page);
