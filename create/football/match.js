@@ -1280,7 +1280,13 @@
 
     if (match.aiTeams.length && match.carrier && match.clock >= match.nextAiCheck) { match.nextAiCheck += AI_CHECK_SECONDS; aiTick(match); }
 
-    match.teams.forEach((t) => { const oo = other(match, t); t.oppRef = oo; t.ruleCtx = { scoreDiff: (match.score[t.id] || 0) - (match.score[oo.id] || 0), minute: match.clock / 60, carrier: match.carrier ? match.carrier.player : null, pressed: false }; });
+    // Runtime context for the instruction rules. Set as hidden (non-enumerable) properties: team -> opponent -> team is a cycle, and it must never be
+    // visible to JSON.stringify, which clones teams for the build-up lab and saves them.
+    match.teams.forEach((t) => {
+      const oo = other(match, t), ctx = { scoreDiff: (match.score[t.id] || 0) - (match.score[oo.id] || 0), minute: match.clock / 60, carrier: match.carrier ? match.carrier.player : null, pressed: false };
+      Object.defineProperty(t, 'oppRef', { value: oo, writable: true, configurable: true, enumerable: false });
+      Object.defineProperty(t, 'ruleCtx', { value: ctx, writable: true, configurable: true, enumerable: false });
+    });
     setOffsideLines(match);
     setPhaseContext(match);
     const ov = buildOverrides(match);
