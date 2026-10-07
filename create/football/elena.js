@@ -147,8 +147,54 @@
 
   // ---------- what she says about the run on screen ----------
   const go = (id, label) => '<button type="button" class="el-go" data-lesson="' + id + '">Lesson: ' + esc(label) + '</button>';
-  function intro(opp) {
+  // ---------- the press and the free man ----------
+  const WORD = () => FM.lab.words, PLU = () => FM.lab.plural;
+  const nm = (p) => { try { return FM.shortName(p); } catch (e) { return p.name; } };
+  const level = (x) => (x < 0.35 ? 'lightly' : x < 0.6 ? 'moderately' : 'hard');
+  const list = (a) => (a.length <= 1 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]);
+  const who = (p) => WORD()[p.group] + ' ' + nm(p) + ' (#' + p.number + ')';
+  // Before any test: what their press would do to the way you have set up, and where your spare man is.
+  function setupText(c) {
+    if (!c.team) return '';
+    let s; try { s = FM.lab.setup(c.team, c.opp, c.tac); } catch (e) { return ''; }
+    const tac = c.tac || c.opp.tactics, pb = tac.pressBuildUp == null ? 0.4 : tac.pressBuildUp, pg = tac.pressing == null ? 0.5 : tac.pressing;
+    let h = '<h4>Your plan against their press</h4>';
+    h += '<p>' + esc(c.opp.name) + ' press your build-up ' + level(pb) + ' and press ' + level(pg) + ' in general, so I expect about ' + (s.nPress + 1) + ' of their players to be involved in it.</p>';
+    h += '<div class="el-box"><p><b>Who I expect to go to whom</b></p><p>Closing down the ball: their ' + who(s.chaser) + '.</p>' + s.pairs.map((x) => '<p>Their ' + who(x.def) + ' goes to your ' + who(x.att) + '.</p>').join('') + '</div>';
+    if (s.freeAtt.length) h += '<p><b>Left free:</b> your ' + list(s.freeAtt.map(who)) + '. A pass to any of them has no one on top of him.</p>';
+    if (s.freeDef.length) h += '<p><b>Not pressing anyone:</b> their ' + list(s.freeDef.map(who)) + '. To mark one of your free players they would have to leave their own positions, which opens space behind them.</p>';
+    const B = s.back.length, K = s.backPressers.length;
+    h += '<p>In your own third it is <b>' + B + ' of yours against ' + K + ' of theirs</b>' + (B > K ? ', so you have ' + (B - K === 1 ? 'a spare man' : (B - K) + ' spare men') + ' there if the press goes to plan.' : B === K ? ', so they have one for each of you.' : ', so they outnumber you there.') + '</p>';
+    h += '<p>None of this is certain. A player on a press does not always follow his job, and a team that presses harder follows its jobs more often. Each test draws that again every few seconds, which is what the run will count.</p>';
+    return h;
+  }
+  // After a run: what the tests did with that plan.
+  function pressText(r, c) {
+    const p = r.press; if (!p || !p.n) return '';
+    const jobs = Object.keys(p.jobs).map((k) => ({ k, n: p.jobs[k] })).filter((x) => x.n >= p.n * 0.15).sort((a, b) => b.n - a.n).slice(0, 4);
+    const W = WORD();
+    let h = '<h4>The press and your free man</h4>';
+    h += '<p>You played the first pass under 30 m in <b>' + pc(p.shortFirst / p.n) + '</b> of tests (' + p.shortFirst + ' of ' + p.n + ')' + (p.longFirst ? ', and over 30 m in ' + p.longFirst + '.' : '.') + '</p>';
+    if (jobs.length) h += '<p>Their jobs, at the moment of the first pass: ' + list(jobs.map((x) => { const a = x.k.split('>'); return 'a ' + W[a[0]] + ' went to your ' + W[a[1]] + ' in ' + pc(x.n / p.n) + ' of tests'; })) + '.</p>';
+    if (p.freeSeen + p.noFree) h += '<p>At the first pass you had at least one unmarked player available in <b>' + pc(p.freeSeen / (p.freeSeen + p.noFree)) + '</b> of tests.</p>';
+    const nF = p.toFree, nM = p.toMarked;
+    if (nF + nM >= 10) {
+      const rf = nF ? p.beatFree / nF : 0, rm = nM ? p.beatMarked / nM : 0;
+      h += '<div class="el-box"><p>The first pass went to an unmarked player in <b>' + nF + '</b> tests and to a marked one in <b>' + nM + '</b>.</p>' +
+        '<p>When it went to an unmarked player the ball reached halfway in <b>' + pc(rf) + '</b> (' + p.beatFree + ' of ' + nF + '). When it went to a marked player: <b>' + pc(rm) + '</b> (' + p.beatMarked + ' of ' + nM + ').</p>';
+      if (nF >= 8 && nM >= 8) {
+        const mk = (k, n) => ({ n, f: { k, p: k / n } });
+        const cm = FM.lab.compare(mk(p.beatFree, nF), mk(p.beatMarked, nM), 'f');
+        h += '<p>' + (cm.p < 0.05 ? 'That gap is bigger than luck usually makes it (p = ' + cm.p.toFixed(3) + '), so the free man really helped.' : 'With only ' + nM + ' tests in the smaller group, that gap could easily be luck (p = ' + cm.p.toFixed(3) + '). Run more tests to find out.') + '</p>';
+      }
+      h += '</div>' + go('real', 'Is the difference real?');
+    }
+    return h;
+  }
+  function intro(c) {
+    const opp = c.opp;
     return '<p>I am Elena, the club analyst. Nobody can say how a build-up will go from one attempt: on any one try a pass might work or not, and a defender might step up or not. So we play the same set-up many times and count how often each thing happens.</p>' +
+      setupText(c) +
       '<p>Before you run anything, make a prediction. Out of 100 tests against ' + esc(opp.name) + ', how many do you think will reach the halfway line with the ball?</p>' +
       '<h4>How each decision is made</h4>' +
       '<p>Every pass has its own chance of working. It comes from the passer\'s passing rating, the distance, how clear the lane is, and how close a defender is to the receiver. As a rough guide, a 10 m pass to a free team-mate works about nine times in ten, and a 35 m pass through traffic nearer six in ten.</p>' +
@@ -165,6 +211,7 @@
       h += '<h4>Your prediction</h4><div class="el-box"><p>You predicted <b>' + last.pred + '%</b>. The tests found <b>' + pc(v.p) + '</b>, with a 95% interval of ' + pc(v.lo) + ' to ' + pc(v.hi) + '.</p>' +
         '<p>' + (ok ? 'Your prediction is inside that range, so these tests give no reason to doubt it. It does not prove it was right: other numbers inside the range would pass the same way.' : 'Your prediction is outside that range, so luck alone is unlikely to explain the gap. Your picture of how this build-up behaves was off, and the findings below may show where.') + '</p></div>' + go('range', 'Giving a share a range');
     }
+    h += pressText(r, c);
     // why it went wrong
     const ex = FM.lab.explain(r, {}), w = r.why, lostN = r.lost.k;
     h += '<h4>What went wrong</h4>';
@@ -209,7 +256,7 @@
   }
   function body() {
     if (E.tab === 'lessons') return E.lesson ? lessonStep() : lessonList();
-    const c = E.ctx; return c.runs.length ? reading(c) : intro(c.opp);
+    const c = E.ctx; return c.runs.length ? reading(c) : intro(c);
   }
   function paint() {
     if (!E.el) return;

@@ -575,7 +575,8 @@
       st.busy = false;
       if (document.body.contains(host)) renderLab(team, host);
     });
-    FM.elena.sync({ opp, runs, a, b, st });
+    let tac = null; try { tac = FM.aiTacticsFor(lg, opp, team); } catch (e) { tac = null; }
+    FM.elena.sync({ opp, runs, a, b, st, team, tac });
   }
 
   function takerSelect(team, key, label) {

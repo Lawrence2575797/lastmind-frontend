@@ -222,7 +222,7 @@
       if (c) { taken.add(c.q); pairs.push({ def: p, att: c.q }); }
     });
     const busy = new Set(pairs.map((x) => x.def)); busy.add(chaser);
-    const freeAtt = u.players.filter((q) => q !== gk && !taken.has(q)), freeDef = o.players.filter((p) => p.group !== 'GK' && !busy.has(p));
+    const freeAtt = u.players.filter((q) => q !== gk && !taken.has(q) && dist(q, gk) < 45), freeDef = o.players.filter((p) => p.group !== 'GK' && !busy.has(p));
     const depth = (q) => FM.toTeamSpace(dir, q.x, q.y).d;
     const back = u.players.filter((q) => depth(q) < 0.3), backPressers = [chaser].concat(pairs.filter((x) => depth(x.att) < 0.3).map((x) => x.def));
     return { press, nPress, chaser, pairs, freeAtt, freeDef, back, backPressers, user: u, opp: o };
