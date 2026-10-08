@@ -171,6 +171,7 @@ html[data-look="glass"] .svgwrap, html[data-look="glass"] .bank { background: rg
 .opt { display: flex; align-items: center; gap: 14px; }
 .opt::before { counter-increment: opt; content: counter(opt, upper-alpha); flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; font: 700 13px var(--sans); color: var(--accent-ink); background: var(--accent); }
 .opt.right::before { background: var(--good); color: #fff; } .opt.wrong::before { background: var(--bad); color: #fff; }
+.sayinput { width: 100%; max-width: 460px; box-sizing: border-box; font: 500 20px var(--sans); padding: 14px 16px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--panel); color: var(--ink); outline: none; } .sayinput:focus { border-color: var(--accent); } .sayinput.right { border-color: var(--good); } .sayinput.wrong { border-color: #c0504d; }
 .nextbtn { justify-self: start; border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 999px; padding: 8px 16px; font: 600 13px var(--sans); cursor: pointer; } .nextbtn:hover { border-color: var(--accent); color: var(--ink); } .tray { display: none !important; } .feed { padding-bottom: 0; overflow-x: hidden; scroll-snap-type: y proximity; } html, body { overflow: hidden; height: 100%; } .svgwrap, .bank, .slots, .lanes { scrollbar-width: none; } .svgwrap::-webkit-scrollbar, .bank::-webkit-scrollbar, .slots::-webkit-scrollbar, .lanes::-webkit-scrollbar { display: none; }
 
 /* the question text's own typeset fraction (from mathify()'s dQ/dK -> stacked-fraction conversion) - distinct from
@@ -624,6 +625,46 @@ window.__runDerive = function (D, CP) {
     setTimeout(function () { mathEditor.focus(); }, 50);
   }
 
+
+  /* a typed answer in the language being learned ("How do you say Monday in Italian?"). Accents and capital letters are forgiven (the right
+     spelling is shown with the answer); after two misses it hints at the first letter, and after three it will show the answer. */
+  function sayNorm(t) { return String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[’‘`´]/g, "'").replace(/[.,!?¿¡"“”;:]/g, '').replace(/\s+/g, ' ').trim(); }
+  function buildSay(step) {
+    var wrap = stack('<div class="eyebrow">' + (step.eyebrow || 'Say it in Italian') + '</div><div class="qbox"><p class="big">' + mathify(step.q) + '</p></div>');
+    var input = el('input', 'sayinput'); input.type = 'text'; input.placeholder = step.placeholder || 'Type it in Italian…';
+    input.setAttribute('autocomplete', 'off'); input.setAttribute('autocapitalize', 'off'); input.setAttribute('spellcheck', 'false');
+    var go = el('button', 'mathgo', 'Check'); go.type = 'button';
+    var reveal = el('button', 'nextbtn', 'Show me the answer'); reveal.type = 'button'; reveal.hidden = true;
+    var note = el('div', 'note'), out = el('div', 'reveal'); out.hidden = true;
+    var solved = false, tries = 0, answers = step.answer || [];
+    function finish(text, ok) {
+      solved = true; input.disabled = true; go.disabled = true; reveal.hidden = true;
+      out.hidden = false; out.textContent = text;
+      setTimeout(function () { next(ok); }, ok ? 1300 : 2200);
+    }
+    function check() {
+      if (solved) return;
+      var v = sayNorm(input.value); if (!v) return;
+      var hit = answers.filter(function (a) { return sayNorm(a) === v; })[0];
+      if (hit !== undefined) {
+        sfxOk(); input.classList.remove('wrong'); input.classList.add('right'); note.textContent = '';
+        var exact = answers.some(function (a) { return String(a).trim().toLowerCase() === input.value.trim().toLowerCase(); });
+        finish(exact ? answers[0] : answers[0] + (answers[0].toLowerCase() !== input.value.trim().toLowerCase() ? '  (watch the spelling and accents)' : ''), true);
+        return;
+      }
+      tries++; sfxBad(); input.classList.add('wrong'); setTimeout(function () { input.classList.remove('wrong'); }, 500);
+      if (tries === 1) note.textContent = step.hint || 'Not quite. Have another go.';
+      else { note.textContent = 'It starts with “' + answers[0].charAt(0) + '” and has ' + answers[0].replace(/[^A-Za-zÀ-ÿ]/g, '').length + ' letters.'; }
+      if (tries >= 3) reveal.hidden = false;
+    }
+    go.addEventListener('click', check);
+    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); check(); } });
+    reveal.addEventListener('click', function () { if (!solved) { sfxBad(); finish(answers[0], true); } });
+    wrap.appendChild(input); wrap.appendChild(go); wrap.appendChild(reveal); wrap.appendChild(note); wrap.appendChild(out);
+    slide(wrap);
+    setTimeout(function () { input.focus(); }, 50);
+  }
+
   /* ---- a shared board: tap a term then a box, or drag it across; every box knows what it expects ---- */
   function board(cfg) {
     var placed = {}, locked = {}, sel = null, chips = {};
@@ -879,8 +920,9 @@ window.__runDerive = function (D, CP) {
   function buildRecap(step) {
     var wrap = stack('<div class="eyebrow">Quick check</div><div class="qbox"><p class="big">' + mathify(step.q) + '</p></div>');
     var opts = el('div', 'opts'), note = el('div', 'note'), out = el('div', 'reveal'); out.hidden = true;
-    var options = [step.right, step.wrong];
-    (Math.random() < 0.5 ? [0, 1] : [1, 0]).forEach(function (i) {
+    var options = [step.right].concat(step.wrongs && step.wrongs.length ? step.wrongs : [step.wrong]);
+    var order = options.map(function (_, k) { return k; }).sort(function () { return Math.random() - 0.5; });
+    order.forEach(function (i) {
       var b = el('button', 'opt', mathify(options[i])); b.type = 'button';
       b.addEventListener('click', function () {
         if (i !== 0) { sfxBad(); b.classList.add('wrong'); note.textContent = step.hint; setTimeout(function () { b.classList.remove('wrong'); }, 500); return; }
@@ -1148,7 +1190,7 @@ window.__runDerive = function (D, CP) {
     if (!window.__reported) { window.__reported = true; try { parent.postMessage({ type: 'lm-derive-complete' }, location.origin); } catch (e) { /* standalone */ } }
   }
 
-  var BUILDERS = { title: buildTitle, read: buildRead, ask: buildAsk, calc: buildCalc, order: buildOrder, chains: buildChains, recap: buildRecap, derive: buildDerive, explain: buildExplain, done: buildDone };
+  var BUILDERS = { title: buildTitle, read: buildRead, ask: buildAsk, calc: buildCalc, say: buildSay, order: buildOrder, chains: buildChains, recap: buildRecap, derive: buildDerive, explain: buildExplain, done: buildDone };
   if (typeof buildShow === 'function') BUILDERS.show = buildShow;
   if (typeof buildDraw === 'function') BUILDERS.draw = buildDraw;
   function startStage(n) {
