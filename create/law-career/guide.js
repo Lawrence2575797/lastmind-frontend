@@ -78,7 +78,7 @@
     if (st.el) { st.el.remove(); st.el = null; }
     if (!st.open) return;
     var c = document.createElement('div'); c.className = 'lc-card'; c.setAttribute('role', 'dialog'); c.setAttribute('aria-label', 'Notes from ' + RUTH.name);
-    var intro = !st.seen ? '<p class="intro"><b>I am ' + esc(RUTH.name) + ', a junior in chambers.</b> Sir Nigel has asked me to sit behind you, so I will say a few words at each stage.</p>' : '';
+    var intro = !st.seen ? '<p class="intro"><b>I’m ' + esc(RUTH.name) + '.</b> I’ll stay beside you through the case.</p>' : '';
     var reads = (ctx.concepts || []).slice(0, 3).map(function (k, i) { return '<button type="button" class="read" data-read="' + i + '">Read: ' + esc(k.label) + '</button>'; }).join('');
     c.innerHTML = '<button type="button" class="x" aria-label="Hide her notes">✕</button><div class="who"><img alt="" src="' + RUTH.img[n.img || 'hello'] + '"><div><b>' + esc(RUTH.name) + '</b><small>' + esc(n.label) + '</small></div></div>' + intro + '<div class="say">' + n.html + '</div>' + reads;
     st.seen = true;

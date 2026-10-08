@@ -353,7 +353,7 @@
     const cls = (r, i) => [r.id === me ? 'me' : '', started && i >= n - 2 ? 'rel' : '', started && i === n - 2 ? 'rel-first' : '', started && i === 0 ? 'champ' : ''].filter(Boolean).join(' ');
     return `<div class="tablewrap"><table class="data"><thead><tr><th class="l">#</th><th class="l">Club</th><th>P</th><th>W</th><th>D</th><th>L</th>${head}<th>GD</th><th>Pts</th>${compact ? '' : '<th class="l">Form</th>'}</tr></thead><tbody>` +
       rows.map((r, i) => `<tr class="${cls(r, i)}"><td class="l">${i + 1}</td><td class="l">${esc(r.name)}${compact ? '' : ` <span class="pm">${esc(FM.clubProfile(r).tag)}</span>`}</td><td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td>${compact ? '' : `<td>${r.gf}</td><td>${r.ga}</td>`}<td>${r.gf - r.ga > 0 ? '+' : ''}${r.gf - r.ga}</td><td><b>${r.pts}</b></td>${compact ? '' : `<td class="l">${r.form.slice(-5).map((f) => `<span class="pill ${f}">${f}</span>`).join('')}</td>`}</tr>`).join('') +
-      '</tbody></table></div>' + (started ? '<p class="note"><span class="zone"></span>Relegation zone: the bottom two clubs go down at the end of the season. The club top of the table wins the league.</p>' : '');
+      '</tbody></table></div>' + (started ? '<p class="note"><span class="zone"></span>Top wins the league. The bottom two go down.</p>' : '');
   }
   function renderHome() {
     const lg = world.league, host = el('view-home'), me = lg.userId;
@@ -374,7 +374,7 @@
       next = `<h2>Next match</h2>
         <div class="fixture-big">${esc(home.name)} <span style="opacity:.6">v</span> ${esc(away.name)}</div>
         <p class="desc">${when} · Round ${nextFx.round + 1} of 14 · ${home.id === me ? 'Home' : 'Away'} against ${esc(opp.name)} (${FM.clubProfile(opp).tag ? FM.clubProfile(opp).tag + ', ' : ''}${{ balanced: 'a balanced side', possession: 'keeping the ball', counter: 'attacking on the counter', press: 'pressing high up the pitch', direct: 'playing long and direct' }[opp.style] ? 'known for ' + { balanced: 'being well balanced', possession: 'keeping possession', counter: 'counter-attacking', press: 'pressing high up the pitch', direct: 'playing long and direct' }[opp.style] : ''})</p>
-        ${today && !today.played ? '<div class="banner">It is matchday. Check your tactics, then play the match.</div>' : '<p class="note">Use the days before the match to adjust your tactics. Advance the calendar when you are ready.</p>'}`;
+        ${today && !today.played ? '<div class="banner">Matchday. Settle the tactics, then play.</div>' : '<p class="note">Prepare, then advance when you are ready.</p>'}`;
     }
     const played = lg.fixtures.filter((f) => f.played && (f.homeId === me || f.awayId === me)).sort((a, b) => b.round - a.round);
     const myFriendlies = (lg.friendlies || []).filter((f) => f.played && (f.homeId === me || f.awayId === me));
@@ -390,7 +390,7 @@
     const hurtXI = team.players.filter(FM.isInjured);
     const fitCard = '<h2>Squad fitness</h2>' + (hurt.length ? '<div class="tablewrap"><table class="data"><tbody>' + hurt.map((p) => `<tr class="out"><td class="l">${esc(p.name)} (${p.natural})</td><td class="l">${esc(injuryText(p))}</td></tr>`).join('') + '</tbody></table></div>' : '<p class="desc">No injuries.</p>') +
       (hurtXI.length ? `<p class="note warnnote">${hurtXI.map((p) => esc(p.name)).join(', ')} ${hurtXI.length > 1 ? 'are' : 'is'} in your starting line-up but injured. The best available replacement will start unless you change it on the Tactics page.</p>` : '') +
-      (tired.length ? `<p class="desc">Tired starters, still short of full fitness from recent matches: ${tired.map((p) => esc(shortName(p)) + ' ' + Math.round(100 * FM.conditionOf(p)) + '%').join(', ')}.</p><p class="note">A tired player runs slower and makes more mistakes, and is likelier to be injured. Players recover a little each day, and fully if rested.</p>` : '<p class="note">Nobody in the starting line-up is carrying fatigue.</p>');
+      (tired.length ? `<p class="desc">Tired starters: ${tired.map((p) => esc(shortName(p)) + ' ' + Math.round(100 * FM.conditionOf(p)) + '%').join(', ')}.</p><p class="note">Tired players slow down, make more mistakes and risk injury. Rest helps.</p>` : '<p class="note">The starting eleven is fresh.</p>');
     const latest = (world.league.news || []).slice(-3).reverse();
     const newsCard = '<h2>Latest news</h2>' + (latest.length ? latest.map((n) => `<div class="hyp"><div class="hyp-head"><span class="lvl ${n.mine ? 'alevel' : 'gcse'}">${esc(n.kind)}</span> <b>${esc(n.headline)}</b></div></div>`).join('') + '<div class="row"><button data-nav-news>All the news</button></div>' : '<p class="note">News appears after the first round of matches.</p>');
     host.innerHTML = `<div class="two">
@@ -435,7 +435,7 @@
       <td>${p.stats.apps}</td><td>${p.stats.goals}</td><td>${p.stats.shots}</td><td>${p.stats.yellows}</td><td>${p.stats.reds}</td></tr>`;
     host.innerHTML = `<div class="card"><h2>${esc(team.name)}: squad of ${all.length}</h2>
       <div class="tablewrap"><table class="data"><thead><tr><th class="l">#</th><th class="l">Name</th><th class="l">Nation</th><th class="l">Pos</th><th class="l">Now</th><th class="l">Foot</th><th title="Height in cm. Taller players are better in the air.">Ht</th><th>Cond</th><th class="l">Fitness</th><th title="Overall rating out of 10 in his natural position">Rating</th><th>Pac</th><th>Dri</th><th>Pas</th><th>Fin</th><th>Tck</th><th>Hea</th><th>Com</th><th>Sta</th><th>GK</th><th>Apps</th><th>Goals</th><th>Shots</th><th>YC</th><th>RC</th></tr></thead><tbody>${all.map(row).join('')}</tbody></table></div>
-      <p class="note">Height (in cm) feeds a player's heading: a taller player is better in the air than a shorter one in the same position. The Rating column is one number out of 10 for his natural position, worked out from the ratings that matter most there; the individual ratings are beside it. Ratings run from about 55 to 99, where 60 is a poor player and 80 is about average, and they change the odds of what a player tries: a better dribbler wins more dribbles, a better finisher scores more of the same chances.</p></div>`;
+      <p class="note">Height affects heading. The overall rating fits the player's natural position; the individual ratings show why. Better attributes improve the odds, never guarantee the outcome.</p></div>`;
   }
 
   // ---------- the tactics page ----------
@@ -522,7 +522,7 @@
       ${runs.length ? `<label>Your hypothesis for this run: what you changed, and what you think will happen because of it<textarea id="labHyp" placeholder="e.g. Moving a centre-back close to the goalkeeper gives him a short pass, so fewer long balls will be cut out and more build-ups will reach halfway.">${esc(st.hyp)}</textarea></label>` : ''}
       <div class="row"><button class="primary" id="labRun"${st.busy ? ' disabled' : ''}>${st.busy ? (st.planning ? 'Their manager is preparing…' : 'Running… ' + st.prog + ' of ' + st.n) : 'Run ' + st.n + ' tests'}</button></div>
       <p class="err">${esc(st.err)}</p>
-      ${last ? `<p class="note">Run ${runs.length} is done. Elena Marsh, on the right, lays out the results, why the ball was lost, and what the difference between runs means.</p>` : ''}
+      ${last ? `<p class="note">Run ${runs.length} is done. Elena has the useful details on the right.</p>` : ''}
     </div>`;
     const q = (id) => host.querySelector(id);
     q('#labStart').addEventListener('change', (e) => { st.start = e.target.value; });

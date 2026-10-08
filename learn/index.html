@@ -6788,13 +6788,13 @@
             </div>
 
             <div class="folder-list" id="folderList">
-                <div class="empty-hint">Nothing covered yet — ask LastMind to teach you something new to get started.</div>
+                <div class="empty-hint">Ready when you are — ask LastMind to begin.</div>
             </div>
 
             <div class="cortex-chat-list" id="cortexChatList">
                 <button type="button" class="new-chat-btn" id="newChatBtn">+ New chat</button>
                 <div class="cortex-chat-list-items" id="cortexChatListItems">
-                    <div class="empty-hint">No chats yet — start one with "+ New chat".</div>
+                    <div class="empty-hint">Your conversations will appear here.</div>
                 </div>
             </div>
 
@@ -10634,7 +10634,7 @@ SQIDAQAB
                 <div class="create-hero">
                     <h1 class="create-title" id="createTitle">LastMind Simulate</h1>
                     <p class="create-slogan">Learn by doing.</p>
-                    <p class="create-intro">Build interactive simulations, and sell them to an audience.</p>
+                    <p class="create-intro">Build, play and share learning simulations.</p>
                 </div>
                 <div class="create-section-heading">
                     <h2>${escapeHtml(heading)}</h2>
@@ -10841,7 +10841,7 @@ SQIDAQAB
                     <button type="button" class="create-back" id="createChBack">← Economics</button>
                     <h1 class="create-builder-title" id="createChTitle">Be the Chancellor</h1>
                 </div>
-                <p class="create-step-help">You are the Chancellor of a country in trouble, or in danger of it. Choose which one to run. Each has its own economy, parties and people, and your decisions shape what happens next.</p>
+                <p class="create-step-help">Choose a country, take office and shape what happens next.</p>
                 <div class="create-field-label">Your level</div>
                 <div class="create-options" role="radiogroup" aria-label="Level" style="margin-bottom:14px;">
                     <button type="button" class="create-option${chnLevel() === 'alevel' ? ' selected' : ''}" role="radio" aria-checked="${chnLevel() === 'alevel'}" data-level="alevel"><strong>A-level</strong><span>About 55 key policies, one milder shock, and the Treasury analyst brings you results to read.</span></button>
@@ -11003,14 +11003,14 @@ SQIDAQAB
     function renderCreateExperience(body, trial, goTo, rerender) {
         body.innerHTML = `
             <h2>Experience</h2>
-            <p class="create-step-help">Decide who plays it, how, and roughly how long the simulation should take.</p>
+            <p class="create-step-help">Choose the players, roles and length.</p>
             <div class="create-field-label">How will this be played?</div>
             <div class="create-options" role="radiogroup" aria-label="How will this be played?">
                 <button type="button" class="create-option${!trial.duel ? ' selected' : ''}" role="radio" aria-checked="${!trial.duel}" data-duel="0"><strong>One student</strong><span>Plays the whole case alone, as the role below.</span></button>
-                <button type="button" class="create-option${trial.duel ? ' selected' : ''}" role="radio" aria-checked="${!!trial.duel}" data-duel="1"><strong>Two-player duel</strong><span>One student takes each side, in turns, using a code you share between them. Same full courtroom simulation either way - the jury weighs what both of them achieved.</span></button>
+                <button type="button" class="create-option${trial.duel ? ' selected' : ''}" role="radio" aria-checked="${!!trial.duel}" data-duel="1"><strong>Two-player duel</strong><span>One student takes each side using a shared code.</span></button>
             </div>
             <div class="create-field-label">${trial.duel ? 'Which side will you build the case from?' : 'Student role'}</div>
-            <p class="create-step-help" style="margin-top:-8px;">${trial.duel ? 'Just a starting point - whoever creates the duel picks their own side then, and their opponent automatically gets the other one when they join with the code.' : ''}</p>
+            <p class="create-step-help" style="margin-top:-8px;">${trial.duel ? 'Choose the first side. The other player gets the opposite one.' : ''}</p>
             <div class="create-options" role="radiogroup" aria-label="Student role">
                 <button type="button" class="create-option${trial.role === 'defence' ? ' selected' : ''}" role="radio" aria-checked="${trial.role === 'defence'}" data-role="defence"><strong>Defence</strong><span>Represents the defendant.</span></button>
                 <button type="button" class="create-option${trial.role === 'prosecution' ? ' selected' : ''}" role="radio" aria-checked="${trial.role === 'prosecution'}" data-role="prosecution"><strong>Prosecution</strong><span>Represents the Crown.</span></button>
@@ -11029,7 +11029,7 @@ SQIDAQAB
     function renderCreateCurriculum(body, trial, goTo) {
         body.innerHTML = `
             <h2>What should students learn from this simulation?</h2>
-            <p class="create-step-help">Click concepts on the knowledge map to select them. Your selection appears on the right.</p>
+            <p class="create-step-help">Pick the concepts this case should teach.</p>
             <div class="create-curriculum">
                 <div id="createMapHost"><div class="mt-empty">Loading the knowledge map…</div></div>
                 <aside class="create-selected" aria-label="Selected concepts"><h3 id="createSelectedTitle"></h3><div id="createSelectedList"></div></aside>
@@ -11094,7 +11094,7 @@ SQIDAQAB
             </div>` : '';
         body.innerHTML = `
             <h2>What's your idea?</h2>
-            <p class="create-step-help">Describe the case you want students to work through. A sentence or two is plenty.</p>
+            <p class="create-step-help">Give LastMind the heart of the case. A sentence or two is plenty.</p>
             <textarea spellcheck="true" class="create-idea" id="createIdea" rows="5" placeholder="${escapeHtml(CREATE_IDEA_PLACEHOLDER)}" aria-label="What's your idea?">${escapeHtml(trial.idea || '')}</textarea>
             <div class="create-detail-row">
                 <button type="button" class="create-secondary" id="createMoreDetail">${trial.showDetails ? '− Hide detail' : '+ Add more detail'}</button>
@@ -17787,11 +17787,11 @@ SQIDAQAB
     // setup - see cortexPrompts.ts's own top comment on why that
     // capability was removed).
     const TOUR_INTRO_STEPS = [
-        { selector: '#createFolderBtn', title: 'Create a subject', body: "Click here to add each subject you're studying. LastMind builds your personalized learning path inside it, starting from your current knowledge level." },
-        { selector: null, title: 'Your learning feed', body: 'When you select a subject, lessons appear in a scrolling feed. Each lesson teaches you a concept, then tests your understanding. Work through them at your own pace.' },
-        { selector: null, title: 'Spaced repetition', body: 'After you learn something, LastMind brings it back periodically to cement it in memory. The schedule adapts based on how confident you feel, so harder topics come up more often.' },
-        { selector: '#knowledgeMapTopbarBtn', title: 'Explore the map', body: "Open Your Mind to see every concept in a subject and how they connect. This is your complete learning roadmap — you can jump to any topic, but your feed always suggests the best next step." },
-        { selector: '#cortexTabBtn', title: 'Get help anytime', body: "Stuck on something? Ask LastMind for explanations, exam tips, or just to talk through a tricky concept. It understands what you're learning and can help you think it through." },
+        { selector: '#createFolderBtn', title: 'Add a subject', body: 'Start with something you want to learn.' },
+        { selector: null, title: 'Learn at your pace', body: 'Short lessons teach one idea, then check it.' },
+        { selector: null, title: 'Remember it', body: 'Reviews return when they will help most.' },
+        { selector: '#knowledgeMapTopbarBtn', title: 'See the whole picture', body: 'Your Mind shows what connects and what comes next.' },
+        { selector: '#cortexTabBtn', title: 'Ask LastMind', body: 'Talk through anything that still feels unclear.' },
         // The "Exam preparation" step that used to point at
         // #practiceQuestionsTopbarBtn was removed along with keeping that
         // button genuinely hidden (see applyPlanChrome's own comment) -
@@ -17799,46 +17799,46 @@ SQIDAQAB
         // and reads a zero-size rect off it, which would have spotlighted
         // a broken empty box in the corner of the screen instead of
         // skipping to a centered tooltip the way a null selector does.
-        { selector: '#rewardsTopbarBtn', title: 'Earn rewards', body: 'Visit Rewards to see your Keys and discover backgrounds you can unlock through genuine learning progress.' },
-        { selector: null, title: 'Help is always nearby', body: 'Hover over or keyboard-focus buttons and controls throughout LastMind for a short explanation of what they do before you use them.' }
+        { selector: '#rewardsTopbarBtn', title: 'Make it yours', body: 'Learning earns Keys for new backgrounds.' },
+        { selector: null, title: 'That is everything', body: 'Take your time. LastMind is here when you need it.' }
     ];
 
     const FREE_TOUR_STEPS = [
         ...TOUR_INTRO_STEPS,
-        { selector: '#locksChip', title: 'Locks', body: 'Locks cover AI usage. Your plan includes a fresh allowance each calendar month.' },
+        { selector: '#locksChip', title: 'Locks', body: 'Your monthly allowance for LastMind’s AI tools.' },
     ];
 
     const PREMIUM_TOUR_STEPS = [
         ...TOUR_INTRO_STEPS,
-        { selector: null, title: "Welcome to LastMind+", body: "LastMind+ unlocks diagnostic learning — LastMind finds the root cause of what you don't understand, not just where you went wrong. Your learning becomes smarter and faster." },
-        { selector: null, title: 'Instant learning verification', body: 'Each lesson you complete is verified immediately on LastMind+. No waiting, no separate step — progress is locked in the moment you demonstrate understanding.' },
-        { selector: '#specialistToolsBtn', title: 'Specialist Tools', body: "Open Specialist Tools for the Maths Tool and Economics Drawing Tool — focused help without crowding the main navigation." },
+        { selector: null, title: "Welcome to LastMind+", body: 'Deeper checks find the gap behind a wrong answer.' },
+        { selector: null, title: 'Progress that means something', body: 'Understanding is checked as each lesson finishes.' },
+        { selector: '#specialistToolsBtn', title: 'Specialist Tools', body: 'Focused spaces for maths and economics.' },
         // The "Tutoring bookings" step that used to point at
         // calendarTopbarBtn was removed along with hiding that button - same
         // reasoning as the earlier Exam Preparation tour-step removal
         // (showTourStep's querySelector still finds a display:none element
         // and reads a zero-size rect off it instead of skipping to a
         // centered tooltip).
-        { selector: null, title: 'Tutoring bookings', body: 'Schedule time with our founder for personalized 1:1 help through Tutoring in the topbar.' }
+        { selector: null, title: 'Tutoring', body: 'Book a one-to-one session whenever it would help.' }
     ];
 
     const FEATURE_TUTORIALS = {
         knowledgeMap: [
-            { selector: null, title: 'Your Mind', body: 'This shows every concept in the subject. Boxes are individual topics, lines connect related ideas. Colored boxes show your progress — blue for mastered, grey for still learning.' },
-            { selector: null, title: 'Navigate the map', body: 'Click any box to jump directly to that lesson. The map updates as you learn, so you can always see what\'s next and how concepts fit together.' },
-            { selector: null, title: 'Plan your study', body: 'See prerequisites before attempting harder topics. Your feed suggests the best order, but the map lets you explore and plan your own path through the material.' }
+            { selector: null, title: 'Your Mind', body: 'See every idea and how it connects.' },
+            { selector: null, title: 'Open any concept', body: 'Choose a box to learn or review it.' },
+            { selector: null, title: 'Find the next step', body: 'Follow the links, or let the feed guide you.' }
         ],
         examPrep: [
-            { selector: null, title: 'Exam Preparation', body: 'Practice under real exam conditions. Questions are timed, drawn from mixed topics across the subject, and presented in random order.' },
-            { selector: null, title: 'Track performance', body: 'Each quiz shows your score, time taken, and detailed feedback. See which topics need more work and focus your revision accordingly.' }
+            { selector: null, title: 'Exam Preparation', body: 'Timed questions from across the subject.' },
+            { selector: null, title: 'See what to revisit', body: 'Scores and feedback point to the next useful step.' }
         ],
         mathsTool: [
-            { selector: null, title: 'Maths Tool', body: 'Stuck on a maths problem? Describe it here and get help. This is separate from graded lessons — pure learning support, no pressure.' },
-            { selector: null, title: 'Work through problems', body: 'The tool explains step-by-step, asks questions to check your understanding, and adapts to your level. Use it anytime you\'re stuck.' }
+            { selector: null, title: 'Maths Tool', body: 'Bring a problem and work through it calmly.' },
+            { selector: null, title: 'One step at a time', body: 'LastMind explains, checks and adapts as you go.' }
         ],
         calendar: [
-            { selector: null, title: 'Tutoring Bookings', body: 'Schedule 1:1 sessions with LastMind\'s founder. Browse available time slots and book what works for you.' },
-            { selector: null, title: 'Get personalized help', body: 'Use tutoring to work through tricky topics, prepare for exams, or just talk through your learning. Each session is tailored to your needs.' }
+            { selector: null, title: 'Tutoring', body: 'Choose a time that suits you.' },
+            { selector: null, title: 'A little extra help', body: 'Bring a topic, an exam or anything you want to untangle.' }
         ]
     };
 
@@ -21641,14 +21641,14 @@ SQIDAQAB
         const list = (a, f) => (a && a.length ? a.map(f).join('') : '');
         return '<div class="nb-review"><h4>Overall</h4><p style="margin:0">' + nbAssistE(r.summary) + '</p>' +
             (r.strengths && r.strengths.length ? '<h4>What works</h4><ul>' + list(r.strengths, (x) => '<li>' + nbAssistE(x) + '</li>') + '</ul>' : '') +
-            '<h4>Issues and how to fix them</h4>' + (r.issues && r.issues.length ? list(r.issues, (i, n) => '<div class="nb-issue">' + (i.where ? '<q>' + nbAssistE(i.where) + '</q>' : '') + '<b>' + (n + 1) + '. ' + nbAssistE(i.problem) + '</b><div class="fix"><b>Improvement:</b> ' + nbAssistE(i.improvement) + '</div></div>') : '<p class="nb-assist-hint" style="margin:0">Nothing important to fix on this page.</p>') +
+            '<h4>Worth improving</h4>' + (r.issues && r.issues.length ? list(r.issues, (i, n) => '<div class="nb-issue">' + (i.where ? '<q>' + nbAssistE(i.where) + '</q>' : '') + '<b>' + (n + 1) + '. ' + nbAssistE(i.problem) + '</b><div class="fix"><b>Try:</b> ' + nbAssistE(i.improvement) + '</div></div>') : '<p class="nb-assist-hint" style="margin:0">This page is in good shape.</p>') +
             '<h4>Next steps</h4>' + list(r.nextSteps, (x, n) => '<div class="nb-step"><b>' + (n + 1) + '. ' + nbAssistE(x.topic) + '</b>' + (x.why ? nbAssistE(x.why) + '<br>' : '') + (x.action ? '<i>' + nbAssistE(x.action) + '</i>' : '') + '</div>') + '</div>';
     }
     function nbAssistPaint(page) {
         const body = document.getElementById('nbAssistBody'); if (!body) return;
         const st = notesAssist.store;
         body.innerHTML = (st.review ? nbAssistReviewHtml(st.review) : '') +
-            (st.chat.length ? st.chat.map((m) => '<div class="nb-msg ' + (m.role === 'user' ? 'me' : 'ai') + '">' + (m.role === 'user' ? nbAssistE(m.content) : nbAssistRich(m.content)) + '</div>').join('') : (st.review ? '' : '<p class="nb-assist-hint">Ask about any concept you are unsure of in these notes, or press <b>Review my notes</b> for a list of issues, improvements and what to learn next.</p>')) +
+            (st.chat.length ? st.chat.map((m) => '<div class="nb-msg ' + (m.role === 'user' ? 'me' : 'ai') + '">' + (m.role === 'user' ? nbAssistE(m.content) : nbAssistRich(m.content)) + '</div>').join('') : (st.review ? '' : '<p class="nb-assist-hint">Ask about the page, or choose <b>Review my notes</b>.</p>')) +
             (notesAssist.busy ? '<div class="nb-msg ai nb-assist-hint">LastMind is thinking…</div>' : '') + (notesAssist.error ? '<p class="nb-assist-err">' + nbAssistE(notesAssist.error) + '</p>' : '');
         body.scrollTop = body.scrollHeight;
         const rv = document.querySelector('.nb-assist-review'), send = document.querySelector('.nb-assist-form button');
@@ -21670,7 +21670,7 @@ SQIDAQAB
             document.getElementById('nbAssist')?.remove();
             notesAssist.store = nbAssistState(page); notesAssist.error = '';
             const el = document.createElement('aside'); el.id = 'nbAssist'; el.className = 'nb-assist'; el.setAttribute('aria-label', 'LastMind');
-            el.innerHTML = '<div class="nb-assist-head"><div><b>LastMind</b><small>Ask about a concept, or have your notes reviewed</small></div><button type="button" class="nb-assist-x" aria-label="Close LastMind">×</button></div><div class="nb-assist-actions"><div class="nb-assist-revision" id="nbSrPanel"></div><button type="button" class="nb-assist-review">Review my notes</button></div><div class="nb-assist-body" id="nbAssistBody"></div><form class="nb-assist-form"><textarea id="nbAssistInput" rows="2" placeholder="Ask about any concept in your notes…" aria-label="Ask LastMind"></textarea><button type="submit">Send</button></form>';
+            el.innerHTML = '<div class="nb-assist-head"><div><b>LastMind</b><small>Here beside your notes</small></div><button type="button" class="nb-assist-x" aria-label="Close LastMind">×</button></div><div class="nb-assist-actions"><div class="nb-assist-revision" id="nbSrPanel"></div><button type="button" class="nb-assist-review">Review my notes</button></div><div class="nb-assist-body" id="nbAssistBody"></div><form class="nb-assist-form"><textarea id="nbAssistInput" rows="2" placeholder="Ask about this page…" aria-label="Ask LastMind"></textarea><button type="submit">Send</button></form>';
             document.body.appendChild(el); pad(true); nbSrPopPaint(page, el.querySelector('#nbSrPanel')); nbAssistPaint(page);
             el.querySelector('.nb-assist-x').addEventListener('click', () => setOpen(false));
             const input = el.querySelector('#nbAssistInput');
