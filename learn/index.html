@@ -4318,6 +4318,11 @@
        Cells wrap and grow vertically, so longer entries expand the table
        instead of being clipped or spilling into neighbouring cells. */
     .nb-table { z-index: 50; min-width: 220px; overflow: visible; background: #12121E; color: #E6D7B0; border: 1px solid rgba(230,215,176,.38); border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.42); }
+    /* A table's corner handles scale one logical table instead of forcing
+       the same-size text into narrower columns. `zoom` participates in
+       Chromium layout, so the outer block also gets the scaled height and
+       every row/column remains visible rather than being clipped. */
+    .nb-table-scale { width: var(--nb-table-base-w, 560px); zoom: var(--nb-table-scale, 1); }
     .nb-table:hover, .nb-table:focus-within { z-index: 70; }
     .nb-table-wrap { overflow: hidden; padding: 0 8px 8px; }
     .nb-table table { width: 100%; border-collapse: collapse; table-layout: fixed; }
@@ -20968,7 +20973,7 @@ SQIDAQAB
             e.preventDefault(); e.stopPropagation();
             const sx = e.clientX, ow = el.offsetWidth, minW = block.type === 'table' ? 220 : (block.type === 'diagram' || block.type === 'graph') ? NB_MIN_FIGURE : 140;
             try { handle.setPointerCapture(e.pointerId); } catch (_) { /* older browser */ }
-            const move = (ev) => { block.w = nbClamp(ow + ev.clientX - sx, minW, Math.max(minW, canvas.clientWidth - el.offsetLeft)); el.style.width = block.w + 'px'; nbSyncCompact(el); nbFitCanvas(canvas); };
+            const move = (ev) => { block.w = nbClamp(ow + ev.clientX - sx, minW, Math.max(minW, canvas.clientWidth - el.offsetLeft)); el.style.width = block.w + 'px'; nbSyncTableScale(el, block); nbSyncCompact(el); nbFitCanvas(canvas); };
             const up = () => { handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up); handle.removeEventListener('pointercancel', up); notesScheduleSave(); };
             handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', up); handle.addEventListener('pointercancel', up);
         });
@@ -20976,6 +20981,13 @@ SQIDAQAB
     // A graph or diagram can be shrunk to the picture itself: below this width its tool rows fold away (enlarge it again to edit).
     const NB_MIN_FIGURE = 150, NB_COMPACT_BELOW = 340;
     function nbSyncCompact(el) { if (el.classList.contains('nb-graph') || el.classList.contains('nb-diagram')) el.classList.toggle('nb-compact', el.offsetWidth < NB_COMPACT_BELOW); }
+    function nbSyncTableScale(el, block) {
+        if (!el.classList.contains('nb-table')) return;
+        const base = Math.max(1, Number(block.tableBaseW) || Number(block.w) || 560);
+        block.tableBaseW = base;
+        el.style.setProperty('--nb-table-base-w', base + 'px');
+        el.style.setProperty('--nb-table-scale', String((Number(block.w) || base) / base));
+    }
     // Four corner handles. The picture scales with the width, so a corner drag changes the size while keeping the opposite corner still.
     function nbWireCorners(el, block, canvas) {
         [['nw', -1, -1], ['ne', 1, -1], ['sw', -1, 1], ['se', 1, 1]].forEach(([name, sx, sy]) => {
@@ -20990,7 +21002,7 @@ SQIDAQAB
                     const room = sx > 0 ? canvas.clientWidth - ox : ox + ow;
                     const minW = block.type === 'table' ? 220 : NB_MIN_FIGURE;
                     const w = nbClamp(ow + (Math.abs(dx) >= Math.abs(dy) ? dx : dy), minW, Math.max(minW, room));
-                    block.w = Math.round(w); el.style.width = block.w + 'px'; nbSyncCompact(el);
+                    block.w = Math.round(w); el.style.width = block.w + 'px'; nbSyncTableScale(el, block); nbSyncCompact(el);
                     if (sx < 0) { block.x = Math.max(0, ox + ow - block.w); el.style.left = block.x + 'px'; }
                     if (sy < 0) { block.y = Math.max(0, oy + oh - el.offsetHeight); el.style.top = block.y + 'px'; }
                     nbFitCanvas(canvas);
@@ -21403,10 +21415,15 @@ SQIDAQAB
         block.cols = nbClamp(Math.round(Number(block.cols) || 2), 1, 12);
         block.cells = Array.from({ length: block.rows }, (_, r) => Array.from({ length: block.cols }, (_, c) => String(block.cells && block.cells[r] && block.cells[r][c] || '')));
 
+        // The logical width stays large enough for every column. Corner
+        // resizing changes only the displayed scale, so shrinking preserves
+        // the full grid instead of crushing its right-hand columns together.
+        block.tableBaseW = Math.max(Number(block.tableBaseW) || 0, Number(block.w) || 0, block.cols * 140, 420);
+
         const el = document.createElement('div');
         el.className = 'nb-block nb-table'; el.dataset.id = block.id;
-        el.innerHTML = `<div class="nb-dbar"><span class="nb-grip nb-table-grip" title="Drag to move" role="button" aria-label="Drag to move this table">⠿ Table</span><span class="nb-table-dims"><label>Rows <input type="number" min="1" max="12" value="${block.rows}" aria-label="Table rows"></label><label>Columns <input type="number" min="1" max="12" value="${block.cols}" aria-label="Table columns"></label></span><button type="button" class="nb-del nb-del-inline" aria-label="Delete this table" title="Delete">×</button></div><div class="nb-table-wrap"><table><tbody></tbody></table></div><div class="nb-resize" title="Drag to resize"></div>`;
-        canvas.appendChild(el); nbPlace(el, block, canvas);
+        el.innerHTML = `<div class="nb-table-scale"><div class="nb-dbar"><span class="nb-grip nb-table-grip" title="Drag to move" role="button" aria-label="Drag to move this table">⠿ Table</span><span class="nb-table-dims"><label>Rows <input type="number" min="1" max="12" value="${block.rows}" aria-label="Table rows"></label><label>Columns <input type="number" min="1" max="12" value="${block.cols}" aria-label="Table columns"></label></span><button type="button" class="nb-del nb-del-inline" aria-label="Delete this table" title="Delete">×</button></div><div class="nb-table-wrap"><table><tbody></tbody></table></div></div><div class="nb-resize" title="Drag to resize"></div>`;
+        canvas.appendChild(el); nbPlace(el, block, canvas); nbSyncTableScale(el, block);
         const body = el.querySelector('tbody');
         const rowInput = el.querySelector('[aria-label="Table rows"]');
         const colInput = el.querySelector('[aria-label="Table columns"]');
@@ -21450,7 +21467,8 @@ SQIDAQAB
             const old = block.cells;
             block.cells = Array.from({ length: nextRows }, (_, r) => Array.from({ length: nextCols }, (_, c) => String(old[r] && old[r][c] || '')));
             block.rows = nextRows; block.cols = nextCols; rowInput.value = nextRows; colInput.value = nextCols;
-            renderCells(); notesScheduleSave(); requestAnimationFrame(() => nbFitCanvas(canvas));
+            block.tableBaseW = Math.max(Number(block.tableBaseW) || 0, nextCols * 140, 420);
+            renderCells(); nbSyncTableScale(el, block); notesScheduleSave(); requestAnimationFrame(() => nbFitCanvas(canvas));
         };
         rowInput.addEventListener('change', resizeGrid); colInput.addEventListener('change', resizeGrid);
         [rowInput, colInput].forEach((input) => input.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); resizeGrid(); } }));
