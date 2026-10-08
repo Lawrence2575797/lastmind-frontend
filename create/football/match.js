@@ -301,6 +301,26 @@
         free.forEach((m) => { if (taken.has(m)) return; const dd = Math.hypot(m.x - lx, m.y - ly); if (dd < bd) { bd = dd; who = m; } });
         if (who) { taken.add(who); used++; ov.set(who, { x: lx, y: ly }); }
       }
+
+      // Several independent defensive jobs can point into the same patch of
+      // grass: the primary press, a marker and two lane cutters. Without a
+      // final team-shape check those individually sensible assignments make
+      // the whole side swarm the carrier. Keep one presser plus support close
+      // (three only during a genuine counter-press or emergency near goal),
+      // and hold everybody else outside the immediate pressure circle.
+      const closeLimit = (lostIt && press > .68) || nearGoal ? 3 : 2;
+      const projected = opp.players.filter((p) => p.group !== 'GK').map((p) => {
+        const target = ov.get(p) || { x: p.x, y: p.y };
+        return { p, target, d: Math.hypot(target.x - c.player.x, target.y - c.player.y) };
+      }).sort((a, b) => a.d - b.d);
+      projected.slice(closeLimit).forEach(({ p, target, d }, index) => {
+        if (d >= 11.5) return;
+        let dx = target.x - c.player.x, dy = target.y - c.player.y;
+        let len = Math.hypot(dx, dy);
+        if (len < .1) { dx = p.x - c.player.x; dy = p.y - c.player.y; len = Math.hypot(dx, dy) || 1; }
+        const radius = 11.5 + Math.min(3, index * .3);
+        ov.set(p, { x: clamp(c.player.x + dx / len * radius, 1, L - 1), y: clamp(c.player.y + dy / len * radius, 1, W - 1) });
+      });
     } else if (match.flight && match.flight.target) {
       const f = match.flight;
       ov.set(f.target, f.outcome === 'complete' ? { x: f.ex, y: f.ey } : { x: f.target.x, y: f.target.y });
