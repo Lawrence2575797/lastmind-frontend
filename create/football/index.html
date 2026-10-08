@@ -100,7 +100,7 @@
   .in-link { border: 0; background: transparent; color: var(--gold); font: inherit; text-decoration: underline; cursor: pointer; padding: 0 4px; } .in-pl { display: grid; gap: 8px; } .in-pl h3 { margin: 0; font-size: .78rem; letter-spacing: .07em; text-transform: uppercase; color: var(--gold); }
   #oppMind { display: grid; gap: 8px; font-family: var(--sans); font-size: .84rem; line-height: 1.5; } #oppMind .om { padding: 8px 10px; border-radius: 10px; background: rgba(241,234,214,.08); } #oppMind .om.old { opacity: .65; } #oppMind .om p { margin: 4px 0 0; } #oppMind .omsrc { margin-left: 8px; font-size: .72rem; opacity: .7; } #oppMind .omsub { opacity: .8; font-size: .8rem; } #oppMind ul { margin: 4px 0 0; padding-left: 18px; } #oppMind details summary { cursor: pointer; margin-top: 4px; opacity: .85; }
   .in-main .in-add textarea { min-height: 220px; font-size: .95rem; line-height: 1.55; } .in-who { display: block; font-size: .72rem; letter-spacing: .05em; text-transform: uppercase; color: var(--gold); margin-bottom: 2px; } .in-wrap { grid-template-columns: minmax(0, 1fr) !important; }
-  #phaseInstr { margin-top: 16px; } #phaseInstr .in-add textarea { min-height: 150px; } #phaseInstr .in-wrap { margin-top: 0; } .in-lab small { font-weight: 500; opacity: .75; }
+  .in-scope { display: grid; gap: 12px; padding: 14px 0 6px; } .in-scope + .in-scope, .in-inh + .in-scope { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 18px; } .in-scope-game .in-add { border-color: var(--gold); } .in-scope .in-head h2 { font-size: 1.05rem; } #phaseInstr { margin-top: 16px; } #phaseInstr .in-add textarea { min-height: 150px; } #phaseInstr .in-wrap { margin-top: 0; } .in-lab small { font-weight: 500; opacity: .75; }
   .phase-report { border: 1px solid var(--line); border-left: 4px solid var(--gold); border-radius: 14px; padding: 15px 16px; background: rgba(255,255,255,.035); display: grid; gap: 9px; margin-bottom: 16px; }
   .phase-report h3, .phase-report p { margin: 0; } .phase-report h3 { font-size: 1.05rem; }
   .phase-report-kicker { color: var(--gold); font: 700 .72rem/1.2 var(--sans); letter-spacing: .08em; text-transform: uppercase; }
@@ -311,34 +311,34 @@
     <div id="tabBody"></div>
   </section>
 </div>
-<script src="/create/football/formations.js?v=20261007zc"></script>
-<script src="/create/football/roles.js?v=20261007zc"></script>
-<script src="/create/football/ratings.js?v=20261007zc"></script>
-<script src="/create/football/names.js?v=20261007zc"></script>
-<script src="/create/football/engine.js?v=20261007zc"></script>
-<script src="/create/football/rules.js?v=20261007zc"></script>
-<script src="/create/football/instructions.js?v=20261007zc"></script>
-<script src="/create/football/fitness.js?v=20261007zc"></script>
-<script src="/create/football/match.js?v=20261007zc"></script>
-<script src="/create/football/league.js?v=20261007zc"></script>
-<script src="/create/football/preseason.js?v=20261007zc"></script>
-<script src="/create/football/stats_math.js?v=20261007zc"></script>
-<script src="/create/football/stats.js?v=20261007zc"></script>
-<script src="/create/football/stats_top.js?v=20261007zc"></script>
-<script src="/create/football/news.js?v=20261007zc"></script>
-<script src="/create/football/insights.js?v=20261007zc"></script>
-<script src="/create/football/analysis.js?v=20261007zc"></script>
-<script src="/create/football/clips.js?v=20261007zc"></script>
-<script src="/create/football/reports.js?v=20261007zc"></script>
-<script src="/create/football/hypotheses.js?v=20261007zc"></script>
-<script src="/create/football/lab.js?v=20261007zc"></script>
+<script src="/create/football/formations.js?v=20261008a"></script>
+<script src="/create/football/roles.js?v=20261008a"></script>
+<script src="/create/football/ratings.js?v=20261008a"></script>
+<script src="/create/football/names.js?v=20261008a"></script>
+<script src="/create/football/engine.js?v=20261008a"></script>
+<script src="/create/football/rules.js?v=20261008a"></script>
+<script src="/create/football/instructions.js?v=20261008a"></script>
+<script src="/create/football/fitness.js?v=20261008a"></script>
+<script src="/create/football/match.js?v=20261008a"></script>
+<script src="/create/football/league.js?v=20261008a"></script>
+<script src="/create/football/preseason.js?v=20261008a"></script>
+<script src="/create/football/stats_math.js?v=20261008a"></script>
+<script src="/create/football/stats.js?v=20261008a"></script>
+<script src="/create/football/stats_top.js?v=20261008a"></script>
+<script src="/create/football/news.js?v=20261008a"></script>
+<script src="/create/football/insights.js?v=20261008a"></script>
+<script src="/create/football/analysis.js?v=20261008a"></script>
+<script src="/create/football/clips.js?v=20261008a"></script>
+<script src="/create/football/reports.js?v=20261008a"></script>
+<script src="/create/football/hypotheses.js?v=20261008a"></script>
+<script src="/create/football/lab.js?v=20261008a"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="/create/football/api.js?v=20261007zc"></script>
-<script src="/create/football/scout.js?v=20261007zc"></script>
-<script src="/create/football/instr_viz.js?v=20261007zc"></script>
-<script src="/create/football/instructions_ui.js?v=20261007zc"></script>
-<script src="/create/football/lab_replay.js?v=20261007zc"></script>
-<script src="/create/football/elena.js?v=20261007zc"></script>
-<script src="/create/football/main.js?v=20261007zc"></script>
+<script src="/create/football/api.js?v=20261008a"></script>
+<script src="/create/football/scout.js?v=20261008a"></script>
+<script src="/create/football/instr_viz.js?v=20261008a"></script>
+<script src="/create/football/instructions_ui.js?v=20261008a"></script>
+<script src="/create/football/lab_replay.js?v=20261008a"></script>
+<script src="/create/football/elena.js?v=20261008a"></script>
+<script src="/create/football/main.js?v=20261008a"></script>
 </body>
 </html>

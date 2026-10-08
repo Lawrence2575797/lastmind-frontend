@@ -120,7 +120,8 @@
   FM.rulesActive = function (team, p, c) {
     const out = [];
     c.me = p;
-    (team.rules || []).forEach((r) => { if (r.off || !scopeMatches(r.scope, p) || !whenHolds(r.when, c)) return; r.effects.forEach((e) => out.push(e)); });
+    const oppId = team.oppRef ? String(team.oppRef.id || '') : '';   // an instruction for one game applies only against that opponent
+    (team.rules || []).forEach((r) => { if (r.off || (r.game && r.game.vs && oppId && r.game.vs !== oppId) || !scopeMatches(r.scope, p) || !whenHolds(r.when, c)) return; r.effects.forEach((e) => out.push(e)); });
     return out;
   };
   // A passer's rules folded into the numbers the decision uses.
@@ -278,6 +279,6 @@
     const s = r.scope || { kind: 'team' };
     const scope = s.kind === 'team' ? { kind: 'team' } : s.kind === 'slot' && s.slot ? { kind: 'slot', slot: String(s.slot) } : s.kind === 'line' && LINES[s.line] ? { kind: 'line', line: s.line } : s.kind === 'group' && GROUPS.indexOf(s.group) >= 0 ? { kind: 'group', group: s.group } : s.kind === 'player' && (!numbers || numbers.indexOf(+s.number) >= 0) ? { kind: 'player', number: +s.number } : null;
     if (!scope) return null;
-    return { id: r.id || 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), text: String(r.text || '').slice(0, 300), scope, when: r.when || {}, effects: ok, off: !!r.off, source: r.source || 'builder' };
+    return { id: r.id || 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), text: String(r.text || '').slice(0, 300), scope, when: r.when || {}, effects: ok, off: !!r.off, source: r.source || 'builder', ...(r.game ? { game: { vs: String(r.game.vs || '').slice(0, 60), name: String(r.game.name || '').slice(0, 60) } } : {}) };
   };
 })();

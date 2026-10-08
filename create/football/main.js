@@ -253,6 +253,7 @@
     btn.disabled = true; btn.textContent = 'Playing the other matches...';
     setTimeout(() => {
       FM.completeRound(world.league, world.fixture, world.match);
+      { const mine = FM.teamById(world.league, world.league.userId); if (mine && mine.rules) mine.rules = mine.rules.filter((r) => !r.game); }   // instructions for that one game are done with
       world.match = null; world.fixture = null;
       FM.saveLeague(world.league);
       btn.disabled = false; btn.textContent = 'Finish and see the table';
