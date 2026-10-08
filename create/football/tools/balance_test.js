@@ -24,7 +24,7 @@ vm.createContext(sandbox);
 
 const FM = sandbox.window.FM;
 const runs = Math.max(1, Number(process.argv[2]) || 20);
-const totals = { goals: 0, shots: 0, xg: 0, passes: 0, earlyShots: 0, maxGoals: 0, strikerGoals: 0, deepPassGap: 0, deepPassGapCount: 0, unpressuredDeepHold: 0, unpressuredDeepHoldCount: 0, progressivePasses: 0 };
+const totals = { goals: 0, shots: 0, xg: 0, passes: 0, earlyShots: 0, maxGoals: 0, strikerGoals: 0, deepPassGap: 0, deepPassGapCount: 0, unpressuredDeepHold: 0, unpressuredDeepHoldSq: 0, unpressuredDeepHoldCount: 0, progressivePasses: 0 };
 const scores = [];
 const shotsByGroup = {}, xgByGroup = {}, goalsByGroup = {};
 
@@ -49,6 +49,7 @@ for (let seed = 1; seed <= runs; seed++) {
     if ((event.tx - event.x) * team.attackDir > 5) totals.progressivePasses++;
     if (event.receivedDepth < .38 && !event.forced && event.minCarrierPressure >= 5.5 && event.plannedHold > 4) {
       totals.unpressuredDeepHold += event.held || 0;
+      totals.unpressuredDeepHoldSq += (event.held || 0) * (event.held || 0);
       totals.unpressuredDeepHoldCount++;
     }
     if (depth < .38 && event.ok && next && next.team === event.team && next.t > event.t && next.t - event.t < 20) {
@@ -72,6 +73,8 @@ for (let seed = 1; seed <= runs; seed++) {
 }
 
 const avg = (value) => (value / runs).toFixed(2);
+const deepHoldMean = totals.unpressuredDeepHoldCount ? totals.unpressuredDeepHold / totals.unpressuredDeepHoldCount : 0;
+const deepHoldVariance = totals.unpressuredDeepHoldCount ? Math.max(0, totals.unpressuredDeepHoldSq / totals.unpressuredDeepHoldCount - deepHoldMean * deepHoldMean) : 0;
 const report = {
   matches: runs,
   goalsPerMatch: avg(totals.goals),
@@ -80,6 +83,7 @@ const report = {
   passesPerMatch: avg(totals.passes),
   averageSecondsBetweenDeepBuildUpPasses: totals.deepPassGapCount ? (totals.deepPassGap / totals.deepPassGapCount).toFixed(2) : '0.00',
   averageUnpressuredDeepHoldSeconds: totals.unpressuredDeepHoldCount ? (totals.unpressuredDeepHold / totals.unpressuredDeepHoldCount).toFixed(2) : '0.00',
+  unpressuredDeepHoldStdDev: Math.sqrt(deepHoldVariance).toFixed(2),
   progressivePassShare: totals.passes ? (totals.progressivePasses / totals.passes).toFixed(3) : '0.000',
   shotsInFirstTwoMinutesPerMatch: avg(totals.earlyShots),
   strikerShareOfGoals: totals.goals ? (totals.strikerGoals / totals.goals).toFixed(3) : '0.000',

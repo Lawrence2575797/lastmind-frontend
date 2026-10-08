@@ -420,21 +420,50 @@
     return { opp: best, d: bd };
   }
 
+  // Live context changes while the player is on the ball. This is deliberately
+  // separate from the manager's underlying tactic: tempo and directness set a
+  // preference, while pressure, an opening and match state decide whether this
+  // particular moment should be played faster or more vertically.
+  function liveBallContext(match, team, carrier) {
+    const depth = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d;
+    const pressureD = nearestOpponent(match, team, carrier).d;
+    const pressure = clamp((8 - pressureD) / 6, 0, 1);
+    let forwardOpening = 0;
+    team.players.forEach((mate) => {
+      if (mate === carrier || mate.group === 'GK') return;
+      const forward = (mate.x - carrier.x) * team.attackDir;
+      if (forward < 5 || forward > 38) return;
+      const receiverSpace = nearestOpponent(match, team, mate).d;
+      if (receiverSpace < 5) return;
+      const lane = laneInfo(match, team, carrier, mate.x, mate.y).lane;
+      forwardOpening = Math.max(forwardOpening, clamp((receiverSpace - 5) / 8, 0, 1) * clamp(lane / 5, 0, 1));
+    });
+    const minute = match.clock / 60;
+    const deficit = Math.max(0, (match.score[other(match, team).id] || 0) - (match.score[team.id] || 0));
+    const chase = deficit ? clamp((minute - 55) / 30, 0, 1) * clamp(deficit / 2, 0, 1) : 0;
+    const counter = counterNow(match, team);
+    const directBoost = clamp(.3 * counter + .24 * chase + .15 * pressure * forwardOpening, 0, .42);
+    const urgency = clamp(.55 * pressure + .42 * counter + .22 * forwardOpening + .38 * chase, 0, 1.35);
+    const patience = clamp((1 - pressure) * (1 - counter) * (1 - .7 * chase) * (depth < .42 ? 1 : .45), 0, 1);
+    return { pressure, forwardOpening, chase, counter, directBoost, urgency, patience };
+  }
+
   function chooseAction(match, team, carrier) {
     const tac = team.tactics;
     const rng = match.rng;
     const role = carrier.roleId;
     const ownDepth0 = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d;
     const counter = counterNow(match, team);
+    const live = liveBallContext(match, team, carrier);
     // Which phase the ball is in decides which of the manager's instructions apply.
     const zone = ownDepth0 < 0.38 ? 'build' : ownDepth0 > 0.68 ? 'final' : 'mid';
     const mods = FM.instrMods(carrier);
     // A side that is well ahead plays the game out: it keeps the ball, takes fewer risks and does not keep shooting. Without this a lopsided match feeds on itself.
     const lead = (match.score[team.id] || 0) - (match.score[other(match, team).id] || 0);
     const coast = clamp((lead - 1) / 3, 0, 1) * (FM.COAST == null ? 1 : FM.COAST);
-    const directness = clamp((zone === 'build' ? tac.buildDirect : tac.directness) + 0.5 * counter + mods.passDirect - (mods.holdUp ? 0.2 : 0) + (carrier.group === 'GK' ? 0.4 * mods.distribution : 0) - 0.25 * coast, 0, 1);
+    const directness = clamp((zone === 'build' ? tac.buildDirect : tac.directness) + 0.5 * counter + live.directBoost + mods.passDirect - (mods.holdUp ? 0.2 : 0) + (carrier.group === 'GK' ? 0.4 * mods.distribution : 0) - 0.25 * coast, 0, 1);
     const baseRisk = zone === 'final' ? tac.finalRisk : tac.risk;
-    let risk = clamp(baseRisk + (ROLE_RISK[role] || 0) + 0.25 * counter + mods.risk - 0.3 * coast, 0, 1);
+    let risk = clamp(baseRisk + (ROLE_RISK[role] || 0) + 0.25 * counter + .18 * live.chase + mods.risk - 0.3 * coast, 0, 1);
     const goal = { x: team.attackDir === 1 ? L : 0, y: W / 2 };
     const dGoal = dist(carrier, goal);
     const ownDepth = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d;
@@ -601,6 +630,27 @@
     if (team.rules && team.rules.length) { const f = FM.rulesFold(FM.rulesActive(team, carrier, FM.rulesCtx(team, match.ball, true, d < 4))); tempoD = f.tempo; hold = f.holdUp; }
     const clear = clearThrough(match, team, carrier) ? 0.3 : 1;   // one on one with the keeper there is no time to think
     return (base * clear * (1 - 0.35 * tempoD) * pressureFactor + (FM.instrMods(carrier).holdUp || hold ? 0.9 : 0)) * (0.82 + 0.36 * match.rng()) + (midfield ? 0 : 0.18);
+  }
+
+  function reassessDecisionTiming(match, dt) {
+    if (!match.carrier || match.carry || match.forcePass) return;
+    const { team, player } = match.carrier;
+    const elapsed = match.clock - (match.possessionReceivedAt == null ? match.clock : match.possessionReceivedAt);
+    if (elapsed < .3) return; // control the pass before reading the next action
+    const live = liveBallContext(match, team, player);
+    // Urgency continuously consumes the remaining thinking time; calm deep
+    // possession adds a little patience, but only up to a bounded ceiling.
+    // Thus the same player can wait, release, or suddenly go vertical as the
+    // picture around him changes rather than obeying one receive-time timer.
+    if (live.urgency > .12) match.nextDecision -= dt * .42 * live.urgency;
+    if (live.patience > .05 && live.forwardOpening < .35) {
+      const receivedAt = match.possessionReceivedAt == null ? match.clock : match.possessionReceivedAt;
+      const ceiling = receivedAt + 9;
+      match.nextDecision = Math.min(ceiling, match.nextDecision + dt * .6 * live.patience);
+    }
+    // Close pressure always wins over patience, but a player still needs a
+    // readable touch rather than releasing in the same animation frame.
+    if (live.pressure > .7) match.nextDecision = Math.min(match.nextDecision, match.clock + .45 + .45 * (1 - live.pressure));
   }
 
   // ---------- performing an action ----------
@@ -1428,11 +1478,7 @@
       const currentPressure = nearestOpponent(match, match.carrier.team, match.carrier.player).d;
       match.possessionMinPressure = Math.min(match.possessionMinPressure == null ? currentPressure : match.possessionMinPressure, currentPressure);
     }
-    // A player with the ball sees a defender coming and plays before he arrives, as in a real match, instead of waiting to be closed down.
-    if (match.carrier && !match.carry && match.nextDecision - match.clock > 0.4 && match.nextDecision - match.clock < 9 && FM.toTeamSpace(match.carrier.team.attackDir, match.carrier.player.x, match.carrier.player.y).d < 0.66) {
-      const nd = nearestOpponent(match, match.carrier.team, match.carrier.player).d;
-      if (nd < (FM.RELEASE_AT == null ? 5.5 : FM.RELEASE_AT)) match.nextDecision = match.clock + 0.25 + 0.3 * match.rng();
-    }
+    reassessDecisionTiming(match, dt);
     if (match.carrier && match.clock >= match.nextDecision) {
       const { team, player } = match.carrier;
       const opt = chooseAction(match, team, player);
