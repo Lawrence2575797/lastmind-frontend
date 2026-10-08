@@ -1175,7 +1175,10 @@
     .km-inline-legend { display: flex; gap: 16px; padding: 10px 0 4px; font-size: 11px; opacity: 0.7; align-items: center; flex-wrap: wrap; }
     .km-inline-legend-item { display: inline-flex; align-items: center; gap: 6px; }
     .km-inline-empty { padding: 40px 10px; text-align: center; opacity: 0.55; font-size: 13px; }
-    .km-inline-workspace { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, min(300px, 32%)); gap: 14px; min-height: 0; margin-top: 8px; }
+    /* The lesson groups belong after the map in the page flow; they must not
+       compete with it for the remaining height of this flex column. Give the
+       graph its own readable viewport, then let the groups follow below. */
+    .km-inline-workspace { flex: 0 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, min(300px, 32%)); gap: 14px; height: clamp(500px, 65vh, 720px); min-height: 500px; margin-top: 8px; }
     .km-lesson-groups { margin-top: 14px; padding: 14px; border-radius: 8px; background: var(--panel); color: var(--text); border: 1px solid rgba(230, 215, 176, 0.16); }
     .km-lesson-groups[hidden] { display: none; }
     .km-lesson-groups-title { margin: 0 0 10px; font: 700 14px 'Lora', Georgia, serif; color: var(--accent); }
@@ -1324,7 +1327,7 @@
        what actually made the map look like it "doesn't show up" rather
        than just being cramped. */
     @media (max-width: 900px) {
-        .km-inline-workspace { grid-template-columns: 1fr; flex: none; }
+        .km-inline-workspace { grid-template-columns: 1fr; flex: none; height: auto; min-height: 0; }
         .km-inline-svg { min-height: 340px; }
         .km-inline-topbar { flex-wrap: wrap; }
         .km-inline-search { margin-left: 0; width: 100%; }
