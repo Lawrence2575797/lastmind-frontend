@@ -25098,8 +25098,8 @@ SQIDAQAB
             el.innerHTML = `
                 <div class="sf-slide-inner sf-handoff">
                     <div class="sf-speaker-label">LastMind</div>
-                    <p class="sf-handoff-text">Couldn't load the spaced review for <strong>${escapeHtml(rec.node.label)}</strong> right now - open ${escapeHtml(folderLabel(rec.folder))} directly instead.</p>
-                    <button type="button" class="btn primary sf-handoff-btn">Open ${escapeHtml(folderLabel(rec.folder))} →</button>
+                    <p class="sf-handoff-text">Couldn't load the spaced review for <strong>${escapeHtml(rec.node.label)}</strong> right now.</p>
+                    <button type="button" class="btn primary sf-handoff-btn">Back to ${escapeHtml(folderLabel(rec.folder))}</button>
                 </div>`;
             el.querySelector('.sf-handoff-btn').addEventListener('click', () => {
                 sfCloseFeed();
@@ -25124,13 +25124,19 @@ SQIDAQAB
             // what actually happened (out of Locks, or today's brand-new-
             // content generation cap). Checked and messaged explicitly
             // here too rather than left to the generic fallback below.
-            let bodyText = `Couldn't load the next lesson right now - open ${escapeHtml(folderLabel(rec.folder))} directly instead.`;
+            let bodyText = lesson && lesson.notFound
+                ? `This lesson is not available yet.`
+                : `This lesson could not be prepared just now.`;
+            const problem = lesson && lesson.loadError ? [lesson.status ? `server said ${lesson.status}` : 'no reply from the server', lesson.detail].filter(Boolean).join(': ') : '';
             let showBuyMoreBtn = false;
+            let limitCase = false;
             if (lesson && lesson.lockLimitReached) {
-                bodyText = "You've used up your Locks for now - open the subject directly to buy more, or wait for next month's refresh.";
+                bodyText = "You've used up your Locks for now. Buy more, or wait for next month's refresh.";
                 showBuyMoreBtn = true;
+                limitCase = true;
             } else if (lesson && lesson.generationRateLimited) {
                 bodyText = generationRateLimitMessage(lesson.window, lesson.limit);
+                limitCase = true;
             } else if (lesson && lesson.freeLessonLimited) {
                 bodyText = lesson.detail || 'The Free plan includes three new lessons each month. Upgrade to LastMind+ to keep learning.';
             }
@@ -25140,11 +25146,13 @@ SQIDAQAB
                 <div class="sf-slide-inner sf-handoff">
                     <div class="sf-speaker-label">LastMind</div>
                     <p class="sf-handoff-text">${bodyText}</p>
-                    <button type="button" class="btn primary sf-handoff-btn">Open ${escapeHtml(folderLabel(rec.folder))} →</button>
+                    ${problem ? `<p class="sf-handoff-sub">${escapeHtml(problem)}</p>` : ''}
+                    <button type="button" class="btn primary sf-handoff-btn">${limitCase ? 'Back to ' + escapeHtml(folderLabel(rec.folder)) : 'Try again'}</button>
                 </div>`;
             el.querySelector('.sf-handoff-btn').addEventListener('click', () => {
                 sfCloseFeed();
-                selectFolder(rec.folder.id);
+                if (limitCase) selectFolder(rec.folder.id);
+                else sfOpenNodeLessonInFeed(rec.folder, rec.node);
             });
             return [{ el, meta: { canAdvance: true, kind: 'handoff' } }];
         }
@@ -26152,10 +26160,10 @@ SQIDAQAB
             el.innerHTML = `
                 <div class="sf-slide-inner sf-handoff">
                     <div class="sf-speaker-label">LastMind</div>
-                    <p class="sf-handoff-text">Couldn't load the next lesson right now - open ${escapeHtml(folderLabel(rec.folder))} directly instead.</p>
-                    <button type="button" class="btn primary sf-handoff-btn">Open ${escapeHtml(folderLabel(rec.folder))} →</button>
+                    <p class="sf-handoff-text">This lesson could not be prepared just now.</p>
+                    <button type="button" class="btn primary sf-handoff-btn">Try again</button>
                 </div>`;
-            el.querySelector('.sf-handoff-btn').addEventListener('click', () => { sfCloseFeed(); selectFolder(rec.folder.id); });
+            el.querySelector('.sf-handoff-btn').addEventListener('click', () => { sfCloseFeed(); sfOpenNodeLessonInFeed(rec.folder, rec.node); });
             return [{ el, meta: { canAdvance: true, kind: 'handoff' } }];
         }
         // the version in the address makes a browser fetch the current player after each change instead of reusing an old copy
@@ -26796,7 +26804,7 @@ SQIDAQAB
             const practiceConceptId = rec.node?.conceptId || rec.check?.conceptId;
             sfLoadSidePracticePanel(rec.folder || scopeFolder, practiceConceptId, practiceLabel);
             trackEl.querySelector('[role="status"]').textContent = 'Preparing ' + (rec.node?.label || 'your lesson') + '...';
-            const built = await sfBuildSlidesForRecommendation(rec);
+            const built = await sfBuildSlidesForRecommendation(rec, { throwOnLoadError: true });
             if (sfFeed !== activeFeed || !trackEl.isConnected) return true;
             trackEl.innerHTML = '';
             sfAppendBuiltSlides(built);
@@ -26805,7 +26813,7 @@ SQIDAQAB
         } catch (err) {
             console.error('LastMind: lesson feed failed to open.', err);
             if (sfFeed !== activeFeed || !trackEl.isConnected) return true;
-            trackEl.innerHTML = '<div class="sf-feed-slide"><div class="sf-slide-inner"><p>Could not load this lesson. Please try again.</p><button type="button" class="btn primary sf-retry-feed">Try again</button></div></div>';
+            trackEl.innerHTML = `<div class="sf-feed-slide"><div class="sf-slide-inner"><p>This lesson could not be prepared just now.</p>${sfLastLoadProblem ? `<p class="sf-handoff-sub">${escapeHtml(sfLastLoadProblem)}</p>` : ''}<button type="button" class="btn primary sf-retry-feed">Try again</button></div></div>`;
             trackEl.querySelector('.sf-retry-feed').addEventListener('click', () => sfMaybeShowFeed(scopeFolder));
         }
         return true;
@@ -26854,7 +26862,7 @@ SQIDAQAB
         trackEl.innerHTML = '<div class="sf-feed-slide"><div class="sf-slide-inner"><p role="status">Preparing your lesson...</p></div></div>';
         try {
             sfLoadSidePracticePanel(folder, node.conceptId, node.label);
-            const built = await sfBuildSlidesForRecommendation({ node, folder });
+            const built = await sfBuildSlidesForRecommendation({ node, folder }, { throwOnLoadError: true });
             if (sfFeed !== activeFeed || !trackEl.isConnected) return;
             trackEl.innerHTML = '';
             sfAppendBuiltSlides(built);
@@ -26863,7 +26871,7 @@ SQIDAQAB
         } catch (err) {
             console.error('LastMind: could not open lesson.', err);
             if (sfFeed !== activeFeed || !trackEl.isConnected) return;
-            trackEl.innerHTML = '<div class="sf-feed-slide"><div class="sf-slide-inner"><p>Could not load this lesson.</p><button type="button" class="btn primary sf-retry-feed">Try again</button></div></div>';
+            trackEl.innerHTML = `<div class="sf-feed-slide"><div class="sf-slide-inner"><p>This lesson could not be prepared just now.</p>${sfLastLoadProblem ? `<p class="sf-handoff-sub">${escapeHtml(sfLastLoadProblem)}</p>` : ''}<button type="button" class="btn primary sf-retry-feed">Try again</button></div></div>`;
             trackEl.querySelector('.sf-retry-feed').addEventListener('click', () => sfOpenNodeLessonInFeed(folder, node, returnToKnowledgeMap));
         }
     }
