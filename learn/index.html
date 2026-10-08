@@ -22323,12 +22323,31 @@ SQIDAQAB
     // 2D graphs y=f(x); the separate 3D view graphs z=f(x,y) as a rotatable wireframe.
     let coordinateGraphSeq = 0;
     function graphCompile(raw, variables) {
-        let expr = String(raw || '').trim().replace(/^\s*[yz]\s*=\s*/i, '').replace(/√/g, 'sqrt').replace(/\^/g, '**');
+        let expr = String(raw || '').trim().replace(/^\s*[yz]\s*=\s*/i, '').replace(/√/g, 'sqrt').replace(/π/g, ' pi ').replace(/\^/g, '**')
+            .replace(/[−–—]/g, '-').replace(/[×·]/g, '*').replace(/÷/g, '/');
         if (!expr) throw new Error('Enter an equation first.');
         if (!/^[0-9a-zA-Z_+\-*/().,\s*]+$/.test(expr)) throw new Error('That equation contains an unsupported character.');
         const allowed = new Set([...variables, 'pi', 'e', 'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'atan2', 'sqrt', 'abs', 'log', 'ln', 'exp', 'pow', 'min', 'max', 'floor', 'ceil', 'round']);
+        // Normal written maths omits multiplication signs: 2x, 3(x+1),
+        // x sin(x), xy. JavaScript does not, which previously sent a valid
+        // equation such as y=40-2x into Function() as invalid source and
+        // surfaced the unhelpful "Invalid or unexpected token" message.
+        // Split a run made solely from graph variables, then insert * only
+        // between adjacent value-producing tokens. Function calls such as
+        // sin(x) remain untouched because function names are not left-side
+        // values in this rule.
+        expr = expr.replace(/[A-Za-z_][A-Za-z0-9_]*/g, (word) => {
+            const lower = word.toLowerCase();
+            if (allowed.has(lower)) return lower;
+            return lower.length > 1 && [...lower].every((ch) => variables.includes(ch)) ? [...lower].join('*') : word;
+        });
         const words = expr.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
         if (words.some((w) => !allowed.has(w.toLowerCase()))) throw new Error('Use x and y with standard functions such as sin, cos, sqrt and abs.');
+        const rightValue = `(?:${[...variables, 'pi', 'e', 'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'atan2', 'sqrt', 'abs', 'log', 'ln', 'exp', 'pow', 'min', 'max', 'floor', 'ceil', 'round'].join('|')})`;
+        const leftValue = `(?:${[...variables, 'pi', 'e'].join('|')})`;
+        expr = expr
+            .replace(new RegExp(`(\\d|\\)|\\b${leftValue})\\s*(?=${rightValue}\\b|\\()`, 'gi'), '$1*')
+            .replace(/\)\s*(?=\d)/g, ')*');
         expr = expr.replace(/\bpi\b/gi, 'Math.PI').replace(/\be\b/g, 'Math.E').replace(/\bln\b/gi, 'Math.log');
         ['sin','cos','tan','asin','acos','atan','atan2','sqrt','abs','log','exp','pow','min','max','floor','ceil','round'].forEach((n) => { expr = expr.replace(new RegExp(`\\b${n}\\b`, 'gi'), `Math.${n}`); });
         const fn = Function(...variables, `"use strict"; return (${expr});`);
