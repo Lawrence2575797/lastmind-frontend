@@ -719,6 +719,16 @@
     .km-node-group {
         transition: opacity 0.2s ease;
     }
+    .km-lesson-group-shape {
+      fill: rgba(230, 215, 176, .035);
+      stroke: rgba(230, 215, 176, .48);
+      stroke-width: 1.5px;
+      stroke-dasharray: 7 5;
+      cursor: pointer;
+    }
+    .km-lesson-group:hover .km-lesson-group-shape,
+    .km-lesson-group:focus .km-lesson-group-shape { fill: rgba(230, 215, 176, .09); stroke: #E6D7B0; }
+    .km-lesson-group-label { color: #E6D7B0; font: 700 12px/1.2 Georgia, serif; pointer-events:none; }
     .km-node-group.km-selected .km-node-shape {
         stroke: var(--accent);
         stroke-width: 3px;
@@ -26932,6 +26942,34 @@ SQIDAQAB
         }
     }
 
+    // Opens every short lesson inside a knowledge-map topic bubble in one
+    // continuous feed. Individual nodes still keep their own progress and
+    // review schedule; the bubble is a convenient teaching route, not a
+    // replacement for the underlying concepts.
+    async function sfOpenLessonGroupInFeed(folder, groupTitle, nodes) {
+        const closeLabel = 'Back to Your Mind';
+        const { viewportEl, trackEl } = sfMountFeedShell(closeLabel, () => renderKnowledgeMapForFolder(folder), folder, true);
+        const activeFeed = sfFeed;
+        trackEl.innerHTML = `<div class="sf-feed-slide"><div class="sf-slide-inner"><p role="status">Preparing ${escapeHtml(groupTitle)}...</p></div></div>`;
+        try {
+            const batches = [];
+            for (const node of nodes) {
+                const built = await sfBuildSlidesForRecommendation({ node, folder }, { throwOnLoadError: true, prefetchNext: false });
+                batches.push(...built);
+            }
+            if (sfFeed !== activeFeed || !trackEl.isConnected) return;
+            trackEl.innerHTML = '';
+            sfAppendBuiltSlides(batches);
+            viewportEl.focus();
+            sfRefreshImmediateRecalls();
+        } catch (err) {
+            console.error('LastMind: could not open lesson group.', err);
+            if (sfFeed !== activeFeed || !trackEl.isConnected) return;
+            trackEl.innerHTML = `<div class="sf-feed-slide"><div class="sf-slide-inner"><p>This group could not be prepared just now.</p><button type="button" class="btn primary sf-retry-feed">Try again</button></div></div>`;
+            trackEl.querySelector('.sf-retry-feed').addEventListener('click', () => sfOpenLessonGroupInFeed(folder, groupTitle, nodes));
+        }
+    }
+
     // ---- Exam Preparation's own Corrections feed ----
     //
     // A personalized correction (mistake -> explanation -> follow-up
@@ -30259,6 +30297,37 @@ SQIDAQAB
             });
         });
 
+        // Authored language courses may split one friendly topic into
+        // several small lessons. Keep the lessons independently trackable,
+        // but draw one clickable bubble around them so the map reads as
+        // "Days of the week", not four unrelated boxes.
+        const lessonGroups = Array.from(d3.group(nodes.filter((n) => n.lessonGroup), (n) => n.lessonGroup).entries())
+            .filter(([, members]) => members.length > 1)
+            .map(([title, members]) => {
+                const padX = 18, padTop = 28, padBottom = 14;
+                const left = Math.min(...members.map((n) => n.x - n.halfW)) - padX;
+                const right = Math.max(...members.map((n) => n.x + n.halfW)) + padX;
+                const top = Math.min(...members.map((n) => n.y - n.halfH)) - padTop;
+                const bottom = Math.max(...members.map((n) => n.y + n.halfH)) + padBottom;
+                return { title, members, left, top, width: right - left, height: bottom - top };
+            });
+        const lessonGroupSelection = zoomLayer.append('g').selectAll('g')
+            .data(lessonGroups).join('g')
+            .attr('class', 'km-lesson-group').attr('role', 'button').attr('tabindex', 0)
+            .attr('aria-label', (d) => `${d.title}. ${d.members.length} lessons.`)
+            .on('click', (event, d) => { event.stopPropagation(); selectKmLessonGroup(d); })
+            .on('keydown', (event, d) => {
+                if (event.key !== 'Enter' && event.key !== ' ') return;
+                event.preventDefault(); event.stopPropagation(); selectKmLessonGroup(d);
+            });
+        lessonGroupSelection.append('rect').attr('class', 'km-lesson-group-shape')
+            .attr('x', (d) => d.left).attr('y', (d) => d.top)
+            .attr('width', (d) => d.width).attr('height', (d) => d.height).attr('rx', 16);
+        lessonGroupSelection.append('foreignObject')
+            .attr('x', (d) => d.left + 12).attr('y', (d) => d.top + 7)
+            .attr('width', (d) => d.width - 24).attr('height', 18)
+            .append('xhtml:div').attr('class', 'km-lesson-group-label').text((d) => d.title);
+
         function fitKmGraphToView() {
             let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
             nodes.forEach((n) => {
@@ -30807,6 +30876,28 @@ SQIDAQAB
                 });
             }
             container.querySelector('.km-finish-lesson-btn').addEventListener('click', () => showKmWorkspace(contentInner));
+        }
+
+        function selectKmLessonGroup(group) {
+            clearKmHighlight();
+            detailEl.dataset.nodeId = '';
+            const schedule = fullData.scheduleByConceptId || new Map();
+            const rows = group.members.map((node, index) => {
+                const done = schedule.has(node.conceptId);
+                return `<div class="km-inline-detail-item km-inline-detail-item-action"><span>${index + 1}. ${escapeHtml(node.label)}</span><span class="km-inline-detail-meta">${done ? '✓ Learned' : 'Still ahead'}</span></div>`;
+            }).join('');
+            const firstUnfinished = group.members.find((node) => !schedule.has(node.conceptId));
+            detailEl.innerHTML = `
+                <div class="km-inline-detail-eyebrow">Lesson group</div>
+                <div class="km-inline-detail-label">${escapeHtml(group.title)}</div>
+                <div class="km-inline-detail-meta">${group.members.length} short lessons, kept together as one topic.</div>
+                <div class="km-inline-detail-section">${rows}</div>
+                <div class="km-inline-detail-actions">
+                    <button class="btn primary km-start-lesson-group-btn">${firstUnfinished ? `Take all ${group.members.length} lessons` : `Take the group again`}</button>
+                </div>`;
+            detailEl.querySelector('.km-start-lesson-group-btn').addEventListener('click', () => {
+                sfOpenLessonGroupInFeed(folder, group.title, group.members);
+            });
         }
 
         function selectKmInlineNode(d) {
