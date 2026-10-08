@@ -62,7 +62,7 @@
   FM.renderInstructions = function (host, team, hooks, opts) {
     opts = opts || {};
     const stage = opts.stage || null, key = stage || 'all';
-    const stateOf = (scope) => states[key + ':' + scope] || (states[key + ':' + scope] = { text: '', busy: false, err: '', draft: null, added: '', collapsed: false });
+    const stateOf = (scope) => states[key + ':' + scope] || (states[key + ':' + scope] = { text: '', busy: false, err: '', draft: null, added: '', collapsed: false, listOpen: true });
     const head = stateOf('general');
     if (stage && head.collapsed) {
       host.innerHTML = `<button type="button" class="in-reopen" id="inReopen">Show instructions for ${esc(STAGE_NAME[stage])}</button>`;
@@ -77,6 +77,7 @@
     const card = (r) => `<div class="in-rule${r.off ? ' off' : ''}">
         <label class="in-sw"><input type="checkbox" data-toggle="${r.id}"${r.off ? '' : ' checked'} aria-label="Instruction on or off"><i></i></label>
         <div class="in-rt"><small class="in-who">${esc(FM.rulesWho(r))}</small><b>${esc(FM.rulesText(r))}</b></div>
+        <button type="button" class="in-move" data-move="${r.id}" title="${FM.isGameRule(r) ? 'Keep this for every match' : 'Use this for the next game only'}">${FM.isGameRule(r) ? 'Make general' : 'Move to this game'}</button>
         <button type="button" class="in-del" data-del="${r.id}" aria-label="Delete this instruction">×</button></div>`;
     const box = (scope) => {
       const st = stateOf(scope), S = SCOPES[scope];
@@ -96,7 +97,8 @@
             <div class="in-act">${st.draft.rules.length ? '<button type="button" class="in-go" data-add="' + scope + '">Add ' + (st.draft.rules.length > 1 ? 'these ' + st.draft.rules.length : 'this') + '</button>' : ''}<button type="button" class="in-ghost" data-drop="${scope}">Change the wording</button></div></div>` : ''}
         </div></div>
         ${st.added ? `<p class="in-ok" role="status">${esc(st.added)}</p>` : ''}
-        <div class="in-list">${rules.length ? rules.map(card).join('') : `<p class="in-empty">${esc(S.empty)}</p>`}</div>
+        <button type="button" class="in-listbar" data-list="${scope}" aria-expanded="${st.listOpen ? 'true' : 'false'}"><span>${st.listOpen ? 'Hide' : 'Show'} the list${rules.length ? ' (' + rules.length + ')' : ''}</span><i aria-hidden="true">${st.listOpen ? '▴' : '▾'}</i></button>
+        <div class="in-list"${st.listOpen ? '' : ' hidden'}>${rules.length ? rules.map(card).join('') : `<p class="in-empty">${esc(S.empty)}</p>`}</div>
       </section>`;
     };
     host.innerHTML = `<div class="in-wrap"><div class="in-main">
@@ -111,6 +113,12 @@
     const touched = () => { if (hooks.save) hooks.save(); if (hooks.changed) hooks.changed(); };
     const close = q('#inPanelClose'); if (close) close.addEventListener('click', () => { head.collapsed = true; redraw(); });
     qa('[data-toggle]').forEach((c) => c.addEventListener('change', () => { const r = team.rules.find((x) => x.id === c.dataset.toggle); if (r) { r.off = !c.checked; touched(); redraw(); } }));
+    qa('[data-list]').forEach((b) => b.addEventListener('click', () => { const st = stateOf(b.dataset.list); st.listOpen = !st.listOpen; redraw(); }));
+    qa('[data-move]').forEach((b) => b.addEventListener('click', () => {
+      const r = team.rules.find((x) => x.id === b.dataset.move); if (!r) return;
+      if (FM.isGameRule(r)) delete r.game; else r.game = { vs: roster.oppTeam ? String(roster.oppTeam.id || '') : '', name: oppName };
+      stateOf('general').added = ''; stateOf('game').added = ''; touched(); redraw();
+    }));
     qa('[data-del]').forEach((b) => b.addEventListener('click', () => { team.rules = team.rules.filter((x) => x.id !== b.dataset.del); stateOf('general').added = ''; stateOf('game').added = ''; touched(); redraw(); }));
     const line = q('#inLine');
     if (line) { paintLine(host, team); let timer = 0; line.addEventListener('input', () => { FM.shiftLine(team, team.tactics.lineHeight, +line.value); team.tactics.lineHeight = +line.value; paintLine(host, team); clearTimeout(timer); timer = setTimeout(touched, 400); }); }
