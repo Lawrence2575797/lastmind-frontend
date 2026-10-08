@@ -48,7 +48,7 @@
     // Centre-forwards occupy the best areas but are also the defence's first
     // marking priority. Nearest-defender distance alone misses that attention,
     // which previously made almost every goal belong to a striker.
-    const marking = shooter.group === 'ST' ? 1.05 : (shooter.group === 'WF' || shooter.group === 'AM' ? -.08 : 0);
+    const marking = shooter.group === 'ST' ? 1.45 : (shooter.group === 'WF' || shooter.group === 'AM' ? -.08 : 0);
     return -5.35 + 7.6 * FM.shotAngle(x, y, attackDir) + 0.03 * (shooter.ratings.finishing - 60) - 0.9 * Math.exp(-defDist / 2) - marking;
   };
 
@@ -170,6 +170,10 @@
     match.lastTeam = team;
     match.ball.state = 'carried';
     match.nextDecision = match.clock + delay;
+    match.possessionReceivedAt = match.clock;
+    match.possessionPlannedDelay = delay;
+    match.possessionReceivedDepth = FM.toTeamSpace(team.attackDir, player.x, player.y).d;
+    match.possessionMinPressure = nearestOpponent(match, team, player).d;
     match.carry = null;
   }
 
@@ -346,7 +350,11 @@
   function pressTrigger(team, player, press, match) {
     const role = player.roleId;
     const bonus = role === 'pressing_forward' ? 8 : role === 'ball_winning_midfielder' ? 6 : 0;
-    return 9 + 11 * press + bonus + 5 * (FM.instrMods(player).closeDown + (match ? FM.rulesDelta(team, player, 'closeDown', match.ball, false) : 0));
+    // A mid-block should not behave like a permanent high press. At the
+    // neutral setting the nearest forward now holds the block until the ball
+    // is roughly ten metres away; aggressive pressing roles and instructions
+    // still jump much earlier.
+    return 6 + 8 * press + bonus + 5 * (FM.instrMods(player).closeDown + (match ? FM.rulesDelta(team, player, 'closeDown', match.ball, false) : 0));
   }
   // Pressing as the manager set it, adjusted for the seconds just after losing the ball:
   // a high counter-press instruction hunts it back at once, a low one drops into shape first.
@@ -470,7 +478,7 @@
       const prog = clamp((dGoal - Math.hypot(tx - goal.x, ty - goal.y)) / 25, -0.6, 1.2);
       const boxBonus = Math.hypot(tx - goal.x, ty - goal.y) < 19 && Math.abs(ty - W / 2) < 18 ? 0.45 * (0.5 + risk) : 0;
       // Outside the final third a team is patient: going forward is worth less than keeping the ball, so play is circulated and the ball is moved up in stages.
-      const progK = zone === 'final' ? 1 : (FM.PROG_K == null ? .52 : FM.PROG_K);
+      const progK = zone === 'final' ? 1 : (FM.PROG_K == null ? .2 : FM.PROG_K);
       const score = p * (0.35 + directness * 0.9 * prog * progK + 0.5 * prog * risk * progK + boxBonus) - (1 - p) * 0.6 * (1 - risk) * lossFactor;
       // The chance it creates. A pass that puts a team-mate somewhere he is clearly likelier to score from than the man on the ball is the
       // pass a player looks for: it counts for what the receiver could do with it, whoever he is.
@@ -490,7 +498,7 @@
       // (when he is being closed down hard) rather than the usual choice.
       const back = (carrier.x - t.x) * team.attackDir;
       let adj = 0;
-      if (zone !== 'final' && nearNow > 4) adj += (FM.CIRC == null ? .48 : FM.CIRC) * p * (back > 3 ? 0.7 : back > -3 ? 1 : 0.2);   // a safe pass to keep the ball when nobody is on him
+      if (zone !== 'final' && nearNow > 4) adj += (FM.CIRC == null ? 1.4 : FM.CIRC) * p * (back > 3 ? 0.8 : back > -3 ? 1 : 0.1);   // a safe pass to keep the ball when nobody is on him
       // The free man. A teammate with no defender near him is the pass a real player looks for, so an open receiver (nearest defender
       // well away) is favoured, more so for a pass that goes forward or across than one that goes back; a marked one is not.
       adj += (FM.OPEN_BONUS == null ? 0.5 : FM.OPEN_BONUS) * clamp((press - 3) / 9, 0, 1) * (back < -3 ? 1 : back < 3 ? 0.7 : 0.3);
@@ -573,17 +581,26 @@
   }
 
   function delayBeforeNextDecision(match, team, carrier) {
-    // Out of the final third a player is quick: about a second and a half in space, under a second with a defender on him. Near goal the old, slower
-    // pace stays: every extra decision there is a chance to shoot, and the number of chances in a match is what the game is balanced on.
-    const quick = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d < 0.66;
+    // Settled first-phase possession has its own rhythm. Centre-backs and the
+    // goalkeeper commonly hold the ball for several seconds while the press
+    // and passing lanes develop; midfield is quicker, and the final third is
+    // quicker still. Previously all of the first two thirds shared one short
+    // timer, which made calm circulation look like an automatic passing drill.
+    const depth = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d;
+    const build = depth < .38;
+    const midfield = depth < .66;
     const tempoK = clamp(team.tactics.tempo + 0.4 * counterNow(match, team), 0, 1);
-    const base = quick ? (FM.HOLD_BASE == null ? 4.2 : FM.HOLD_BASE) - 0.9 * tempoK : 5.2 - 1.5 * tempoK;
+    const base = build
+      ? (FM.BUILD_HOLD_BASE == null ? 7 : FM.BUILD_HOLD_BASE) - 1.1 * tempoK
+      : midfield
+        ? (FM.HOLD_BASE == null ? 5.2 : FM.HOLD_BASE) - 1.0 * tempoK
+        : 4.7 - 1.35 * tempoK;
     const { d } = nearestOpponent(match, team, carrier);
-    const pressureFactor = quick ? (d < 3 ? 0.5 : d < 6 ? 0.68 : d < 10 ? 0.85 : 1) : (d < 3 ? 0.55 : d < 6 ? 0.8 : 1);
+    const pressureFactor = midfield ? (d < 3 ? 0.58 : d < 6 ? 0.76 : d < 10 ? 0.92 : 1) : (d < 3 ? 0.62 : d < 6 ? 0.84 : 1);
     let tempoD = 0, hold = false;
     if (team.rules && team.rules.length) { const f = FM.rulesFold(FM.rulesActive(team, carrier, FM.rulesCtx(team, match.ball, true, d < 4))); tempoD = f.tempo; hold = f.holdUp; }
     const clear = clearThrough(match, team, carrier) ? 0.3 : 1;   // one on one with the keeper there is no time to think
-    return (base * clear * (1 - 0.35 * tempoD) * pressureFactor + (FM.instrMods(carrier).holdUp || hold ? 0.9 : 0)) * (0.8 + 0.4 * match.rng()) + (quick ? 0 : 0.18);
+    return (base * clear * (1 - 0.35 * tempoD) * pressureFactor + (FM.instrMods(carrier).holdUp || hold ? 0.9 : 0)) * (0.82 + 0.36 * match.rng()) + (midfield ? 0 : 0.18);
   }
 
   // ---------- performing an action ----------
@@ -592,7 +609,10 @@
     const st = statsOf(match, team);
     st.passes++;
     const ok = rng() < opt.p;
-    const speed = clamp(13 + opt.d * 0.55, 15, 29);
+    // Metres per simulated second. A routine ground pass should be readable
+    // on the pitch rather than flashing between players; only long, firmly
+    // struck passes approach the top of this range.
+    const speed = clamp(11 + opt.d * 0.4, 12, 23);
     const flight = { kind: 'pass', team, passer: carrier, speed, target: null, ex: opt.tx, ey: opt.ty, outcome: 'complete' };
     if (ok) {
       flight.target = opt.target;
@@ -614,7 +634,7 @@
         if (Math.hypot(opt.tx - gx0, opt.ty - W / 2) < 24 && rng() < 0.85) { flight.ex = clamp(flight.ex, 2, L - 2); flight.ey = clamp(flight.ey, 2, W - 2); }
       }
     }
-    record(match, { type: 'pass', team: team.id, from: carrier.number, to: opt.target.number, by: flight.interceptor ? flight.interceptor.number : undefined, p: opt.p, ok, outcome: flight.outcome, dist: opt.d, lane: opt.lane, press: opt.press, x: carrier.x, y: carrier.y, tx: flight.ex, ty: flight.ey });
+    record(match, { type: 'pass', team: team.id, from: carrier.number, to: opt.target.number, by: flight.interceptor ? flight.interceptor.number : undefined, p: opt.p, ok, outcome: flight.outcome, dist: opt.d, lane: opt.lane, press: opt.press, forced: !!match.forcePass, carrierPressure: nearestOpponent(match, team, carrier).d, minCarrierPressure: match.possessionMinPressure, plannedHold: match.possessionPlannedDelay, receivedDepth: match.possessionReceivedDepth, held: Math.max(0, match.clock - (match.possessionReceivedAt == null ? match.clock : match.possessionReceivedAt)), x: carrier.x, y: carrier.y, tx: flight.ex, ty: flight.ey });
     match.carrier = null; match.carry = null;
     match.flight = flight;
     match.ball.state = 'flight';
@@ -1404,10 +1424,14 @@
         }
       }
     }
+    if (match.carrier) {
+      const currentPressure = nearestOpponent(match, match.carrier.team, match.carrier.player).d;
+      match.possessionMinPressure = Math.min(match.possessionMinPressure == null ? currentPressure : match.possessionMinPressure, currentPressure);
+    }
     // A player with the ball sees a defender coming and plays before he arrives, as in a real match, instead of waiting to be closed down.
     if (match.carrier && !match.carry && match.nextDecision - match.clock > 0.4 && match.nextDecision - match.clock < 9 && FM.toTeamSpace(match.carrier.team.attackDir, match.carrier.player.x, match.carrier.player.y).d < 0.66) {
       const nd = nearestOpponent(match, match.carrier.team, match.carrier.player).d;
-      if (nd < (FM.RELEASE_AT == null ? 9 : FM.RELEASE_AT)) match.nextDecision = match.clock + 0.2 + 0.25 * match.rng();
+      if (nd < (FM.RELEASE_AT == null ? 5.5 : FM.RELEASE_AT)) match.nextDecision = match.clock + 0.25 + 0.3 * match.rng();
     }
     if (match.carrier && match.clock >= match.nextDecision) {
       const { team, player } = match.carrier;
