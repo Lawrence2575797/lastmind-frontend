@@ -4810,7 +4810,7 @@
     .reward-card.is-free-reward .reward-lock { display: none; }
     .reward-card.is-purchasable:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(26,26,28,0.18); }
 
-    /* LastMind Create - same look as Rewards: ink text on the page, panel-coloured cards and buttons. */
+    /* LastMind Simulate - same look as Rewards: ink text on the page, panel-coloured cards and buttons. */
     .create-view { width: 100%; padding-bottom: 44px; color: var(--ink); }
     .create-hero { margin-bottom: 44px; }
     .create-title { margin: 0; font: 700 clamp(2.1rem, 5vw, 3.7rem)/0.95 'Lora', Georgia, serif; letter-spacing: -0.035em; }
@@ -4989,7 +4989,7 @@
     @media (max-width: 1100px) { .create-case-layout { grid-template-columns: 150px minmax(0, 1fr); } .create-coverage { grid-column: 1 / -1; position: static; } }
     @media (max-width: 720px) { .create-case-layout { grid-template-columns: 1fr; } .create-case-nav { position: static; flex-direction: row; overflow-x: auto; } .create-detail-panel, .create-edit-grid2 { grid-template-columns: 1fr; } .create-edit-row { grid-template-columns: 1fr 30px; } .create-edit-row input:first-child { grid-column: 1 / -1; } }
 
-    /* ─── LastMind Create > Playtest: the scene is the world, the UI floats over it ─── */
+    /* ─── LastMind Simulate > Playtest: the scene is the world, the UI floats over it ─── */
     body.pl-open { overflow: hidden; }
     #ptRoot { position: fixed; inset: 0; z-index: 30000; background: #05050a; color: var(--text, #E6D7B0); font-family: 'Lora', Georgia, serif; overflow: hidden; }
     /* The scene frame keeps the artwork's 16:9 shape (cover-fitted to the screen) so people placed in it stay where they belong. */
@@ -7061,8 +7061,8 @@
                      here puts every topbar button in the one row that
                      actually handles overflow. -->
                 <div class="topbar-actions" id="topbarActions">
-                    <!-- LastMind Create is live for everyone again (was localhost-only while not release-ready). -->
-                    <button class="cortex-btn-topbar" id="createTopbarBtn" type="button">Create</button>
+                    <!-- LastMind Simulate is live for everyone again (was localhost-only while not release-ready). -->
+                    <button class="cortex-btn-topbar" id="createTopbarBtn" type="button">Simulate</button>
                     <!-- Rewards temporarily hidden site-wide (not localhost-gated like Create above) - code/handlers left
                          fully intact so this is a one-line revert (drop the inline style) when it's ready to come back. -->
                     <button class="cortex-btn-topbar" id="rewardsTopbarBtn" type="button" style="display:none;">Rewards <span class="rewards-topbar-keys" title="Your Keys"><span id="rewardsTopbarKeys">0</span> 🔑</span></button>
@@ -10547,7 +10547,7 @@ SQIDAQAB
         }
     }
 
-    // LastMind Create: build interactive simulations and sell them. Three views: the (empty)
+    // LastMind Simulate: build interactive simulations and sell them. Three views: the (empty)
     // project list, the gallery of starting points that "Create project" opens, and one
     // subject's own page of simulations (only Law so far, with one simulation).
     const CREATE_TEMPLATES = [
@@ -10628,7 +10628,7 @@ SQIDAQAB
         contentInner.innerHTML = `
             <section class="create-view" aria-labelledby="createTitle">
                 <div class="create-hero">
-                    <h1 class="create-title" id="createTitle">LastMind Create</h1>
+                    <h1 class="create-title" id="createTitle">LastMind Simulate</h1>
                     <p class="create-slogan">Learn by doing.</p>
                     <p class="create-intro">Build interactive simulations, and sell them to an audience.</p>
                 </div>
@@ -10920,7 +10920,7 @@ SQIDAQAB
         };
         // A hard stop: once the testing budget is gone nothing more is started (the server enforces it too).
         if (createBudgetLeft() <= 0.005) {
-            const e = new Error(`The $${createSpend.capUsd.toFixed(2)} LastMind Create testing budget is used up.`);
+            const e = new Error(`The $${createSpend.capUsd.toFixed(2)} LastMind Simulate testing budget is used up.`);
             e.code = 'CREATE_SPEND_CAP';
             throw e;
         }
@@ -10975,7 +10975,7 @@ SQIDAQAB
                 <div class="create-builder-head">
                     <button type="button" class="create-back" id="createTrialBack">← Law</button>
                     <h1 class="create-builder-title" id="createTrialTitle">Criminal trial</h1>
-                    <span class="create-budget" title="Everything LastMind does in LastMind Create counts towards a hard testing budget"></span>
+                    <span class="create-budget" title="Everything LastMind does in LastMind Simulate counts towards a hard testing budget"></span>
                 </div>
                 <div class="create-builder-layout">
                     <nav class="create-steps" aria-label="Simulation steps">
@@ -11438,7 +11438,7 @@ SQIDAQAB
         }, 500);
     }
 
-    // ─── LastMind Create: testing budget (a hard cap - the server refuses anything past it) ───
+    // ─── LastMind Simulate: testing budget (a hard cap - the server refuses anything past it) ───
     const CREATE_SPEND_KEY = 'lastmind-create-spent';
     let createSpend = { usedUsd: 0, capUsd: 2 };
     try { const v = Number(localStorage.getItem(CREATE_SPEND_KEY)); if (v > 0) createSpend.usedUsd = v; } catch (err) { /* fine */ }
@@ -11715,7 +11715,7 @@ SQIDAQAB
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // LastMind Create > Playtest
+    // LastMind Simulate > Playtest
     //
     //   CASE GRAPH   (pt.graph)  what is true in this fictional case - compiled once by Cortex, never changed while playing
     //   CROWN COURT  (PtCourt)   the procedure: stages, who speaks, what counts as heard, the verdict - plain code, no AI
@@ -12447,7 +12447,7 @@ SQIDAQAB
     }
     function ptShowBlocked(message) {
         ptHud(true, false);
-        ptStage(`<div class="pl-prep"><div class="pl-dialog"><div class="pl-speaker">LastMind</div><p class="pl-text">${ptE(message)}</p><div class="pl-actions"><span class="pl-spacer"></span><button type="button" class="pl-btn primary" id="plBlockedExit">Back to Create</button></div></div></div>`);
+        ptStage(`<div class="pl-prep"><div class="pl-dialog"><div class="pl-speaker">LastMind</div><p class="pl-text">${ptE(message)}</p><div class="pl-actions"><span class="pl-spacer"></span><button type="button" class="pl-btn primary" id="plBlockedExit">Back to Simulate</button></div></div></div>`);
         document.getElementById('plBlockedExit').addEventListener('click', ptExit);
     }
 
@@ -13038,7 +13038,7 @@ SQIDAQAB
             ${a && a.summary ? `<div class="pl-h">As an advocate</div><p class="pl-p">${ptE(a.summary)}</p>` : ''}
             ${a && a.strengths.length ? `<div class="pl-h">Strengths</div><ul class="pl-list">${a.strengths.map((s) => `<li>${ptE(s)}</li>`).join('')}</ul>` : ''}
             ${a && a.improvements.length ? `<div class="pl-h">To work on</div><ul class="pl-list">${a.improvements.map((s) => `<li>${ptE(s)}</li>`).join('')}</ul>` : ''}
-            ${pt.career ? '<div id="plCareerResult"></div><div class="pl-actions" style="margin-top:30px;"><button type="button" class="pl-btn primary" id="plDone">Back to your desk</button></div>' : pt.duel ? '<div id="plDuel"></div><div class="pl-actions" style="margin-top:30px;"><button type="button" class="pl-btn primary" id="plDone">Back to Create</button></div>' : '<div class="pl-actions" style="margin-top:30px;"><button type="button" class="pl-btn primary" id="plSave">Save this case</button><button type="button" class="pl-btn" id="plSaveRef">Save as reference example</button><button type="button" class="pl-btn" id="plAgain">Play again</button><button type="button" class="pl-btn" id="plDone">Back to Create</button></div>'}
+            ${pt.career ? '<div id="plCareerResult"></div><div class="pl-actions" style="margin-top:30px;"><button type="button" class="pl-btn primary" id="plDone">Back to your desk</button></div>' : pt.duel ? '<div id="plDuel"></div><div class="pl-actions" style="margin-top:30px;"><button type="button" class="pl-btn primary" id="plDone">Back to Simulate</button></div>' : '<div class="pl-actions" style="margin-top:30px;"><button type="button" class="pl-btn primary" id="plSave">Save this case</button><button type="button" class="pl-btn" id="plSaveRef">Save as reference example</button><button type="button" class="pl-btn" id="plAgain">Play again</button><button type="button" class="pl-btn" id="plDone">Back to Simulate</button></div>'}
             <p class="pl-note" id="plSaveNote"></p>
         </div>`;
         root.appendChild(panel);

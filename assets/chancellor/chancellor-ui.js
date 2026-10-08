@@ -1,4 +1,4 @@
-/* LastMind Create: Be the Chancellor, the playable simulation.
+/* LastMind Simulate: Be the Chancellor, the playable simulation.
  * Runs on the shared macro engine (assets/econ). Loaded on demand from learn/index.html and uses that page's helpers
  * (escapeHtml, createAuthedFetch, createNoteSpend, createSpend, createBudgetLeft, ptShrink).
  * Interviews and the AI newspapers are the only parts that call the server; the economy, polls and election are deterministic. */

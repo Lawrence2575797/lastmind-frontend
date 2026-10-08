@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Be the Chancellor · LastMind Create</title>
+<title>Be the Chancellor · LastMind Simulate</title>
 <meta name="robots" content="noindex">
 <style>
   :root { color-scheme: light; --bg: #cfe4f6; --panel: #e6f2fc; --text: #000000; --ink: #000000; --accent: #0a5f8f; --line: rgba(0, 0, 0, 0.22); }
@@ -26,7 +26,7 @@
 </head>
 <body>
 <div id="office" aria-hidden="true"></div>
-<header class="top"><a href="/learn/" id="backLink">← Back to LastMind</a><span class="brand">LastMind Create · Be the Chancellor</span></header>
+<header class="top"><a href="/learn/" id="backLink">← Back to LastMind</a><span class="brand">LastMind Simulate · Be the Chancellor</span></header>
 <main id="app"><div class="gate"><h1>Opening the Treasury…</h1><p>One moment.</p></div></main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -41,7 +41,7 @@
 
   function escapeHtml(str) { return String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
-  // The shared "testing budget" counter, same as LastMind Create's Law simulation.
+  // The shared "testing budget" counter, same as LastMind Simulate's Law simulation.
   let createSpend = { usedUsd: 0, capUsd: 2 };
   try { createSpend.usedUsd = Number(localStorage.getItem(CREATE_SPEND_KEY)) || 0; } catch (err) { /* fresh */ }
   const createBudgetLeft = () => createSpend.capUsd - createSpend.usedUsd;
@@ -97,7 +97,7 @@
     if (!supabaseClient) { gate('LastMind could not load', 'A required file did not load. Check your connection and reload the page.'); return; }
     let session = null;
     try { ({ data: { session } } = await Promise.race([supabaseClient.auth.getSession(), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000))])); } catch (err) { /* handled below */ }
-    if (!session) { gate('Sign in to continue', 'Be the Chancellor is part of LastMind Create. Sign in to LastMind first, then come back to this page.', ['/learn/', 'Go to LastMind']); return; }
+    if (!session) { gate('Sign in to continue', 'Be the Chancellor is part of LastMind Simulate. Sign in to LastMind first, then come back to this page.', ['/learn/', 'Go to LastMind']); return; }
     // Not awaited: the server can take a minute to wake up, and the game must not wait for a counter.
     createAuthedFetch('/create/spend').then((r) => { if (r.resp.ok) createNoteSpend(r.body); }).catch(() => { /* the counter just starts from what this browser remembers */ });
     const params = new URLSearchParams(location.search);

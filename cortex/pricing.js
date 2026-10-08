@@ -159,7 +159,7 @@ function createUpgradeModalHTML() {
         <div class="upgrade-plan featured">
           <div class="badge">Everything unlocked</div>
           <h3>LastMind+</h3>
-          <div class="price">&pound;4.99<span>/month</span></div>
+          <div class="price">&pound;12.99<span>/month</span></div>
           <div class="feature">All learning tools, simulations and AI features</div>
           <div class="locks-amount">50,000 locks each month</div>
           <button data-tier="premium" class="upgrade-btn featured-btn">Upgrade to LastMind+</button>
