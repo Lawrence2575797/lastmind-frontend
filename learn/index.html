@@ -25538,8 +25538,10 @@ SQIDAQAB
                 (answer) => sfPostBackend(`/day1-checks/${check.checkId}/submit`, { structured: answer, retryAfterSillyMistake: retried }),
                 async (result) => { if (result.schedule) sfUpsertScheduleCache(result.schedule); (result.schedules || []).forEach((sch) => sfUpsertScheduleCache(sch)); finish(); },
                 async (result) => {
-                    // The first miss is treated as a slip and gets one more go; the second ends the check, as a free-text one does.
-                    if (result.sillyMistake && !retried) { retried = true; return false; }
+                    // A Day-1 miss teaches the correction and stays open.
+                    // Skip remains available when the student wants to move
+                    // on and record the lapse instead.
+                    if (result.retryable) { retried = true; return false; }
                     if (result.schedule) sfUpsertScheduleCache(result.schedule); (result.schedules || []).forEach((sch) => sfUpsertScheduleCache(sch));
                     finish();
                     return true;
@@ -25603,12 +25605,11 @@ SQIDAQAB
                 if (isLastInBatch) sfPrefetchNext();
                 return true;
             }
-            if (result.sillyMistake && !awaitingSillyRetry) {
+            if (result.retryable) {
                 awaitingSillyRetry = true;
                 inputEl.disabled = false;
-                inputEl.value = '';
-                saveAnswerDraft(draftKey, '');
-                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">That looks like a slip, not a gap - try this one once more.</div>`;
+                inputEl.select();
+                feedbackEl.innerHTML = `<div class="sf-feedback-line sf-feedback-wrong">LastMind: ${escapeHtml(result.feedback || 'Not quite. Read the correction and try again.')}</div>`;
                 return false;
             }
             // Genuinely resolved as wrong (or a still-wrong retry) - the
