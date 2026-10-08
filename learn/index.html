@@ -719,16 +719,6 @@
     .km-node-group {
         transition: opacity 0.2s ease;
     }
-    .km-lesson-group-shape {
-      fill: rgba(230, 215, 176, .035);
-      stroke: rgba(230, 215, 176, .48);
-      stroke-width: 1.5px;
-      stroke-dasharray: 7 5;
-      cursor: pointer;
-    }
-    .km-lesson-group:hover .km-lesson-group-shape,
-    .km-lesson-group:focus .km-lesson-group-shape { fill: rgba(230, 215, 176, .09); stroke: #E6D7B0; }
-    .km-lesson-group-label { color: #E6D7B0; font: 700 12px/1.2 Georgia, serif; pointer-events:none; }
     .km-node-group.km-selected .km-node-shape {
         stroke: var(--accent);
         stroke-width: 3px;
@@ -1186,6 +1176,15 @@
     .km-inline-legend-item { display: inline-flex; align-items: center; gap: 6px; }
     .km-inline-empty { padding: 40px 10px; text-align: center; opacity: 0.55; font-size: 13px; }
     .km-inline-workspace { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, min(300px, 32%)); gap: 14px; min-height: 0; margin-top: 8px; }
+    .km-lesson-groups { margin-top: 14px; padding: 14px; border-radius: 8px; background: var(--panel); color: var(--text); border: 1px solid rgba(230, 215, 176, 0.16); }
+    .km-lesson-groups[hidden] { display: none; }
+    .km-lesson-groups-title { margin: 0 0 10px; font: 700 14px 'Lora', Georgia, serif; color: var(--accent); }
+    .km-lesson-groups-list { display: flex; flex-wrap: wrap; gap: 8px; }
+    .km-lesson-group-card { min-width: 150px; padding: 10px 13px; text-align: left; border-radius: 7px; border: 1px solid rgba(230, 215, 176, .28); background: rgba(230, 215, 176, .06); color: var(--text); cursor: pointer; }
+    .km-lesson-group-card:hover, .km-lesson-group-card:focus { border-color: var(--accent); background: rgba(230, 215, 176, .12); }
+    .km-lesson-group-card strong, .km-lesson-group-card span { display: block; }
+    .km-lesson-group-card strong { font: 700 13px 'Lora', Georgia, serif; }
+    .km-lesson-group-card span { margin-top: 3px; font-size: 11px; opacity: .68; }
     .km-inline-canvas-wrap { position: relative; min-height: 0; overflow: hidden; border: 1px solid rgba(230, 215, 176, 0.1); border-radius: 8px; background: var(--panel); color: var(--text); }
     .km-inline-side { display: flex; flex-direction: column; min-height: 0; }
     .km-inline-side .km-inline-detail { flex: 1; }
@@ -6923,6 +6922,10 @@
                         </div>
                     </div>
                 </div>
+                <section class="km-lesson-groups" hidden>
+                    <h3 class="km-lesson-groups-title">Lesson groups</h3>
+                    <div class="km-lesson-groups-list"></div>
+                </section>
                 <div class="km-lesson-fullpage" style="display:none;">
                     <div class="km-lesson-sticky-header">
                         <button type="button" class="btn km-lesson-back-btn">← Back to map</button>
@@ -30300,34 +30303,27 @@ SQIDAQAB
 
         // Authored language courses may split one friendly topic into
         // several small lessons. Keep the lessons independently trackable,
-        // but draw one clickable bubble around them so the map reads as
-        // "Days of the week", not four unrelated boxes.
+        // while listing their shared topic below the graph. Putting group
+        // outlines inside the SVG made them overlap unrelated nodes and
+        // edges in a large map.
         const lessonGroups = Array.from(d3.group(nodes.filter((n) => n.lessonGroup), (n) => n.lessonGroup).entries())
             .filter(([, members]) => members.length > 1)
-            .map(([title, members]) => {
-                const padX = 18, padTop = 28, padBottom = 14;
-                const left = Math.min(...members.map((n) => n.x - n.halfW)) - padX;
-                const right = Math.max(...members.map((n) => n.x + n.halfW)) + padX;
-                const top = Math.min(...members.map((n) => n.y - n.halfH)) - padTop;
-                const bottom = Math.max(...members.map((n) => n.y + n.halfH)) + padBottom;
-                return { title, members, left, top, width: right - left, height: bottom - top };
+            .map(([title, members]) => ({ title, members }));
+        const lessonGroupsEl = contentInner.querySelector('.km-lesson-groups');
+        const lessonGroupsListEl = contentInner.querySelector('.km-lesson-groups-list');
+        if (lessonGroups.length) {
+            lessonGroupsEl.hidden = false;
+            lessonGroupsListEl.innerHTML = lessonGroups.map((group, index) => `
+                <button type="button" class="km-lesson-group-card" data-group-index="${index}">
+                    <strong>${escapeHtml(group.title)}</strong>
+                    <span>${group.members.length} lessons · open group</span>
+                </button>`).join('');
+            lessonGroupsListEl.querySelectorAll('.km-lesson-group-card').forEach((button) => {
+                button.addEventListener('click', () => selectKmLessonGroup(lessonGroups[Number(button.dataset.groupIndex)]));
             });
-        const lessonGroupSelection = zoomLayer.append('g').selectAll('g')
-            .data(lessonGroups).join('g')
-            .attr('class', 'km-lesson-group').attr('role', 'button').attr('tabindex', 0)
-            .attr('aria-label', (d) => `${d.title}. ${d.members.length} lessons.`)
-            .on('click', (event, d) => { event.stopPropagation(); selectKmLessonGroup(d); })
-            .on('keydown', (event, d) => {
-                if (event.key !== 'Enter' && event.key !== ' ') return;
-                event.preventDefault(); event.stopPropagation(); selectKmLessonGroup(d);
-            });
-        lessonGroupSelection.append('rect').attr('class', 'km-lesson-group-shape')
-            .attr('x', (d) => d.left).attr('y', (d) => d.top)
-            .attr('width', (d) => d.width).attr('height', (d) => d.height).attr('rx', 16);
-        lessonGroupSelection.append('foreignObject')
-            .attr('x', (d) => d.left + 12).attr('y', (d) => d.top + 7)
-            .attr('width', (d) => d.width - 24).attr('height', 18)
-            .append('xhtml:div').attr('class', 'km-lesson-group-label').text((d) => d.title);
+        } else {
+            lessonGroupsEl.hidden = true;
+        }
 
         function fitKmGraphToView() {
             let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
