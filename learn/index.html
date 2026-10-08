@@ -4154,6 +4154,8 @@
     .nb-assist-actions { padding: 10px 16px; border-bottom: 1px solid rgba(241,234,214,.12); } .nb-assist-review { width: 100%; padding: 10px 14px; border: 0; border-radius: 10px; background: #E6D7B0; color: #1A232D; font: 800 .88rem Arial, sans-serif; cursor: pointer; } .nb-assist-review:disabled { opacity: .55; cursor: wait; }
     .nb-assist-revision { margin-bottom: 10px; padding: 10px 12px; border: 1px solid rgba(241,234,214,.22); border-radius: 10px; background: rgba(255,255,255,.05); }
     .nb-assist-revision .nb-sr-note { margin: 6px 0 0 28px; }
+    .nb-sr-status { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 0 0 28px; font-size: .82rem; font-weight: 800; }
+    .nb-sr-status button { flex: none; padding: 5px 9px; border: 1px solid rgba(241,234,214,.5); border-radius: 7px; background: #E6D7B0; color: #1A232D; font: 800 .76rem Arial, sans-serif; cursor: pointer; }
     .nb-assist-body { flex: 1; overflow-y: auto; padding: 12px 16px; display: grid; align-content: start; gap: 10px; }
     .nb-msg { max-width: 92%; padding: 9px 12px; border-radius: 12px; white-space: pre-wrap; } .nb-msg.me { justify-self: end; background: rgba(230,215,176,.2); } .nb-msg.ai { justify-self: start; background: rgba(255,255,255,.07); } .nb-msg p { margin: 0 0 8px; white-space: normal; } .nb-msg p:last-child { margin: 0; }
     .nb-tool.on { box-shadow: inset 0 -3px 0 #E6D7B0; }
@@ -21749,7 +21751,9 @@ SQIDAQAB
             const before = new Set(sr.snap[id] || []);
             const fresh = now[id].filter((l) => !before.has(l));
             if (!fresh.length) return;
-            const day = sr.days[today] || (sr.days[today] = { lines: [], due: new Date(nbDayStart(today).getTime() + NB_DAY_MS).toISOString(), card: null, reps: 0 });
+            // The first quiz is a genuine delayed-recall check: it cannot be
+            // opened until a full 24 hours after this day's note set begins.
+            const day = sr.days[today] || (sr.days[today] = { lines: [], createdAt: new Date().toISOString(), due: new Date(Date.now() + NB_DAY_MS).toISOString(), card: null, reps: 0 });
             fresh.forEach((l) => { if (!day.lines.includes(l)) { day.lines.push(l); changed = true; } });
         });
         sr.snap = now;
@@ -21781,6 +21785,9 @@ SQIDAQAB
     async function nbSrQuiz(page, key) {
         const seg = nbSrSegments(page).find((s) => s.key === key);
         if (!seg) return;
+        // Buttons normally appear only when due, but keep the rule here as
+        // well so no stale UI or direct call can start the Day-1 quiz early.
+        if (new Date(seg.day.due).getTime() > Date.now()) return;
         const title = page.name || '';
         const close = '<button type="button" class="nb-sr-x" aria-label="Close">×</button>';
         const wire = (card) => { const x = card.querySelector('.nb-sr-x'); if (x) x.addEventListener('click', nbSrCloseModal); };
@@ -21842,10 +21849,17 @@ SQIDAQAB
         step();
     }
     function nbSrDueText(s) {
-        const t = new Date(s.day.due).getTime(), now = Date.now();
-        if (t <= now) return 'due now';
-        const d = Math.ceil((t - now) / NB_DAY_MS);
-        return 'next quiz ' + nbDateLabel(s.day.due) + (d > 1 ? ' (in ' + d + ' days)' : '');
+        const due = new Date(s.day.due), now = new Date();
+        const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const calendarDays = Math.round((dueDay - today) / NB_DAY_MS);
+        if (due.getTime() <= now.getTime()) {
+            const overdueDays = Math.max(0, -calendarDays);
+            return overdueDays ? 'Overdue by ' + overdueDays + ' day' + (overdueDays === 1 ? '' : 's') : 'Due today';
+        }
+        if (calendarDays <= 0) return 'Due today';
+        if (calendarDays === 1) return 'Due tomorrow';
+        return 'Due in ' + calendarDays + ' days';
     }
     function nbSrRefresh(page) {
         const wrap = document.querySelector('.nb-page-wrap'); if (!wrap) return;
@@ -21853,7 +21867,7 @@ SQIDAQAB
         const due = nbSrDue(page);
         if (!due.length) { bar?.remove(); } else {
             if (!bar) { bar = document.createElement('div'); bar.id = 'nbSrBanner'; bar.className = 'nb-sr-banner'; const tb = wrap.querySelector('.nb-toolbar'); tb.parentNode.insertBefore(bar, tb); }
-            bar.innerHTML = '<span><b>Revision due.</b> ' + (due.length === 1 ? 'Five questions on what you wrote on ' + nbAssistE(nbDayLabel(due[0].key)) + '.' : due.length + ' days of notes are due a quiz.') + '</span>' + due.map((s) => '<button type="button" data-day="' + s.key + '">' + (due.length === 1 ? 'Start quiz' : nbAssistE(nbDayStart(s.key).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }))) + '</button>').join('');
+            bar.innerHTML = '<span><b>' + (due.length === 1 ? nbAssistE(nbSrDueText(due[0])) + '.' : 'Revision due.') + '</b> ' + (due.length === 1 ? 'Five questions on what you wrote on ' + nbAssistE(nbDayLabel(due[0].key)) + '.' : due.length + ' days of notes are due a quiz.') + '</span>' + due.map((s) => '<button type="button" data-day="' + s.key + '">' + (due.length === 1 ? 'Take now' : nbAssistE(nbDayStart(s.key).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }))) + '</button>').join('');
             bar.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => nbSrQuiz(page, b.dataset.day)));
         }
         const revisionPanel = document.getElementById('nbSrPanel'); if (revisionPanel) nbSrPopPaint(page, revisionPanel);
@@ -21861,9 +21875,13 @@ SQIDAQAB
     }
     function nbSrPopPaint(page, pop) {
         const sr = page.sr || { enabled: false, days: {} };
+        const next = nbSrSegments(page).slice().sort((a, b) => new Date(a.day.due) - new Date(b.day.due))[0];
+        const ready = next && new Date(next.day.due).getTime() <= Date.now();
         pop.innerHTML = '<label class="nb-sr-switch"><input type="checkbox" id="nbSrOn"' + (sr.enabled ? ' checked' : '') + '><span>Quiz me on this page</span></label>' +
-            '<p class="nb-sr-note">Generates 5 questions as a spaced-repetition exercise.</p>';
+            '<p class="nb-sr-note">Generates 5 questions as a spaced-repetition exercise.</p>' +
+            (sr.enabled && next ? '<div class="nb-sr-status"><span>' + nbAssistE(nbSrDueText(next)) + '</span>' + (ready ? '<button type="button" data-day="' + next.key + '">Take now</button>' : '') + '</div>' : '');
         pop.querySelector('#nbSrOn').addEventListener('change', (e) => { if (!page.sr) page.sr = { enabled: false, snap: nbSrBlockLines(page), days: {} }; page.sr.enabled = e.target.checked; notesScheduleSave(); nbSrRefresh(page); });
+        pop.querySelector('[data-day]')?.addEventListener('click', (e) => nbSrQuiz(page, e.currentTarget.dataset.day));
     }
     function nbSrMount(page) {
         const btn = document.getElementById('nbSrBtn'); if (!btn) return;
