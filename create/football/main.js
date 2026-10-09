@@ -305,13 +305,16 @@
 
   // ---------- views and navigation ----------
   const VIEWS = ['home', 'league', 'squad', 'analysis', 'reports', 'news', 'hypotheses', 'match'];
-  const NAV = [['home', 'Home'], ['tactics', 'Tactics'], ['league', 'League'], ['squad', 'Squad'], ['reports', 'Reports'], ['news', 'News'], ['analysis', 'Analysis'], ['hypotheses', 'Hypotheses']];
+  const NAV = [['home', '⌂', 'Home'], ['tactics', '◇', 'Tactics'], ['league', '▥', 'League'], ['squad', '◉', 'Squad'], ['reports', '◎', 'Reports'], ['news', '◫', 'News'], ['analysis', '⌁', 'Analysis'], ['hypotheses', '◌', 'Hypotheses']];
+  const SCREEN_TITLES = { home: 'Club overview', league: 'League centre', squad: 'First-team squad', reports: 'Opposition intelligence', news: 'Football world', analysis: 'Performance analysis', hypotheses: 'Hypothesis lab' };
   function setView(v) {
     world.view = v;
+    document.body.dataset.view = v;
     VIEWS.forEach((k) => { el('view-' + k).hidden = k !== v; });
     el('newGame').hidden = true;
     el('tactics').hidden = !(v === 'tactics' || v === 'match');
     el('nav').hidden = v === 'match';
+    VIEWS.forEach((k) => { const section = el('view-' + k); if (section) { if (SCREEN_TITLES[k]) section.dataset.screenTitle = SCREEN_TITLES[k]; else delete section.dataset.screenTitle; } });
     renderTop();
     renderNav();
     if (v === 'home') renderHome();
@@ -326,7 +329,7 @@
   }
   function renderNav() {
     const nav = el('nav');
-    nav.innerHTML = NAV.map(([k, label]) => `<button data-nav="${k}" class="${world.view === k ? 'on' : ''}">${label}</button>`).join('');
+    nav.innerHTML = NAV.map(([k, icon, label]) => `<button data-nav="${k}" class="${world.view === k ? 'on' : ''}"><span class="nav-ico" aria-hidden="true">${icon}</span><span>${label}</span></button>`).join('');
     nav.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => setView(b.dataset.nav)));
   }
   function renderTop() {
@@ -923,6 +926,7 @@
 
   // ---------- starting up ----------
   function showNewGame() {
+    document.body.dataset.view = 'new';
     ['home', 'league', 'squad', 'analysis', 'reports', 'news', 'hypotheses', 'match'].forEach((k) => { el('view-' + k).hidden = true; });
     el('tactics').hidden = true; el('nav').hidden = true; el('newGame').hidden = false;
     el('topRight').innerHTML = ''; el('subtitle').textContent = 'Eight clubs, one season, and a lot of numbers.';
