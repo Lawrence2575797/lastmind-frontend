@@ -636,20 +636,75 @@
     const team = userTeam(), host = el('view-squad');
     const onPitch = team.players.slice().sort((a, b) => a.index - b.index);
     const all = onPitch.concat(team.bench);
-    const row = (p) => `<tr class="player-row" data-player="${p.id}" tabindex="0"><td class="l">${p.number}</td><td class="l"><button class="player-link" data-player="${p.id}">${esc(p.name)}</button></td><td class="l">${esc(p.nation)}</td><td class="l">${p.natural}</td><td class="l">${p.slotKey ? p.slotKey : 'Bench'}</td><td class="l">${{ right: 'Right', left: 'Left', both: 'Both' }[p.foot] || ''}</td><td>${p.height || '-'}</td><td class="${condClass(p)}">${Math.round(100 * FM.conditionOf(p))}%</td><td class="l ${FM.isInjured(p) ? 'out' : ''}">${FM.isInjured(p) ? esc(injuryText(p)) : 'Fit'}</td>
+    const row = (p) => `<tr class="player-row" data-player="${p.id}" tabindex="0"><td>${portraitCache[p.id] ? `<img class="squad-thumb" src="${portraitCache[p.id]}" alt="">` : `<span class="squad-thumb fallback">${esc(p.name.split(/\s+/).map((x) => x[0]).slice(0, 2).join(''))}</span>`}</td><td class="l">${p.number}</td><td class="l"><button class="player-link" data-player="${p.id}">${esc(p.name)}</button></td><td class="l">${esc(p.nation)}</td><td class="l">${p.natural}</td><td class="l">${p.slotKey ? p.slotKey : 'Bench'}</td><td class="l">${{ right: 'Right', left: 'Left', both: 'Both' }[p.foot] || ''}</td><td>${p.height || '-'}</td><td class="${condClass(p)}">${Math.round(100 * FM.conditionOf(p))}%</td><td class="l ${FM.isInjured(p) ? 'out' : ''}">${FM.isInjured(p) ? esc(injuryText(p)) : 'Fit'}</td>
       <td><b>${FM.playerRating(p).toFixed(1)}</b></td><td>${FM.shown(p.ratings.pace)}</td><td>${FM.shown(p.ratings.dribbling)}</td><td>${FM.shown(p.ratings.passing)}</td><td>${FM.shown(p.ratings.finishing)}</td><td>${FM.shown(p.ratings.tackling)}</td><td>${FM.shown(p.ratings.heading)}</td><td>${FM.shown(p.ratings.composure)}</td><td>${p.ratings.stamina ? FM.shown(p.ratings.stamina) : '-'}</td><td>${p.natural === 'GK' ? FM.shown(p.ratings.gk) : '-'}</td>
       <td>${p.stats.apps}</td><td>${p.stats.goals}</td><td>${p.stats.shots}</td><td>${p.stats.yellows}</td><td>${p.stats.reds}</td></tr>`;
     const selected = all.find((p) => p.id === world.profilePlayerId) || all[0];
-    host.innerHTML = `<div id="playerProfile"></div><div class="card"><h2>${esc(team.name)}: squad of ${all.length}</h2>
-      <div class="tablewrap"><table class="data"><thead><tr><th class="l">#</th><th class="l">Name</th><th class="l">Nation</th><th class="l">Pos</th><th class="l">Now</th><th class="l">Foot</th><th title="Height in cm. Taller players are better in the air.">Ht</th><th>Cond</th><th class="l">Fitness</th><th title="Overall rating out of 10 in his natural position">Rating</th><th>Pac</th><th>Dri</th><th>Pas</th><th>Fin</th><th>Tck</th><th>Hea</th><th>Com</th><th>Sta</th><th>GK</th><th>Apps</th><th>Goals</th><th>Shots</th><th>YC</th><th>RC</th></tr></thead><tbody>${all.map(row).join('')}</tbody></table></div>
+    const missingPortraits = team.name === 'Ashford Rovers' ? all.filter((p) => !portraitCache[p.id]) : [];
+    host.innerHTML = `<div id="playerProfile"></div><div class="card"><div class="row" style="justify-content:space-between"><h2>${esc(team.name)}: squad of ${all.length}</h2>${team.name === 'Ashford Rovers' ? `<button id="makeSquadPortraits"${missingPortraits.length ? '' : ' disabled'}>${missingPortraits.length ? `Create ${missingPortraits.length} squad portrait${missingPortraits.length === 1 ? '' : 's'}` : 'All squad portraits created'}</button>` : ''}</div><p class="note" id="portraitProgress">${missingPortraits.length ? 'Portraits are generated one player at a time and completed players are kept if the process is interrupted.' : 'Every player has his club portrait.'}</p>
+      <div class="tablewrap"><table class="data"><thead><tr><th>Player</th><th class="l">#</th><th class="l">Name</th><th class="l">Nation</th><th class="l">Pos</th><th class="l">Now</th><th class="l">Foot</th><th title="Height in cm. Taller players are better in the air.">Ht</th><th>Cond</th><th class="l">Fitness</th><th title="Overall rating out of 10 in his natural position">Rating</th><th>Pac</th><th>Dri</th><th>Pas</th><th>Fin</th><th>Tck</th><th>Hea</th><th>Com</th><th>Sta</th><th>GK</th><th>Apps</th><th>Goals</th><th>Shots</th><th>YC</th><th>RC</th></tr></thead><tbody>${all.map(row).join('')}</tbody></table></div>
       <p class="note">Height affects heading. The overall rating fits the player's natural position; the individual ratings show why. Better attributes improve the odds, never guarantee the outcome.</p></div>`;
     const open = (id) => { world.profilePlayerId = id; renderSquad(); };
     host.querySelectorAll('[data-player]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); open(b.dataset.player); }));
+    const squadBtn = host.querySelector('#makeSquadPortraits');
+    if (squadBtn && missingPortraits.length) squadBtn.addEventListener('click', async () => {
+      squadBtn.disabled = true;
+      const progress = host.querySelector('#portraitProgress'); let made = 0, failed = 0; const requestTimes = [];
+      for (const player of missingPortraits) {
+        while (requestTimes.length && Date.now() - requestTimes[0] > 61000) requestTimes.shift();
+        if (requestTimes.length >= 9) {
+          const wait = Math.max(0, 61500 - (Date.now() - requestTimes[0]));
+          progress.textContent = `Keeping the image service steady… ${made + failed} of ${missingPortraits.length} complete`;
+          await new Promise((resolve) => setTimeout(resolve, wait));
+          while (requestTimes.length && Date.now() - requestTimes[0] > 61000) requestTimes.shift();
+        }
+        progress.textContent = `Creating ${player.name}… ${made + failed + 1} of ${missingPortraits.length}`;
+        requestTimes.push(Date.now());
+        try { await createFootballPortrait(player); made++; } catch (e) { failed++; }
+      }
+      renderSquad();
+      const done = el('view-squad').querySelector('#portraitProgress');
+      if (done && failed) done.textContent = `${made} portrait${made === 1 ? '' : 's'} created. ${failed} could not be created; use the button to retry only those players.`;
+    });
     renderPlayerProfile(team, selected, host.querySelector('#playerProfile'));
+    ensurePortraitsLoaded(all);
   }
 
-  const PORTRAIT_STORE = 'lm_football_ashford_portraits_v1';
+  const PORTRAIT_STORE = 'lm_football_ashford_portraits_v2';
   const portraitCache = (() => { try { return JSON.parse(localStorage.getItem(PORTRAIT_STORE) || '{}') || {}; } catch (e) { return {}; } })();
+  let portraitDbPromise = null;
+  function portraitDb() {
+    if (!window.indexedDB) return Promise.resolve(null);
+    if (!portraitDbPromise) portraitDbPromise = new Promise((resolve) => {
+      const req = indexedDB.open('lastmind-football-media', 1);
+      req.onupgradeneeded = () => { if (!req.result.objectStoreNames.contains('portraits')) req.result.createObjectStore('portraits'); };
+      req.onsuccess = () => resolve(req.result); req.onerror = () => resolve(null);
+    });
+    return portraitDbPromise;
+  }
+  async function savedPortrait(id, image) {
+    portraitCache[id] = image;
+    const db = await portraitDb(); if (!db) return;
+    await new Promise((resolve) => { const tx = db.transaction('portraits', 'readwrite'); tx.objectStore('portraits').put(image, id); tx.oncomplete = resolve; tx.onerror = resolve; });
+  }
+  async function ensurePortraitsLoaded(players) {
+    if (world.portraitsLoaded || world.portraitsLoading) return;
+    world.portraitsLoading = true;
+    const db = await portraitDb();
+    if (db) for (const p of players) if (!portraitCache[p.id]) await new Promise((resolve) => { const req = db.transaction('portraits').objectStore('portraits').get(p.id); req.onsuccess = () => { if (req.result) portraitCache[p.id] = req.result; resolve(); }; req.onerror = resolve; });
+    world.portraitsLoaded = true; world.portraitsLoading = false;
+    if (world.view === 'squad') renderSquad();
+  }
+  function footballPortraitDescription(p) {
+    const h = p.height || 180, build = h >= 190 ? 'very tall, long-limbed and powerfully athletic' : h >= 184 ? 'tall and strongly athletic' : h <= 174 ? 'shorter, compact and lean athletic' : 'medium-height, lean and athletic';
+    const role = { GK: 'goalkeeper with a broad upper-body build', CB: 'centre-back with a strong physical build', FB: 'full-back with a lean endurance-athlete build', DM: 'defensive midfielder with a sturdy athletic build', CM: 'central midfielder with a balanced athletic build', AM: 'attacking midfielder with a light agile build', WF: 'wide forward with a lean fast-sprinter build', ST: 'striker with a powerful athletic build' }[p.natural] || 'professional footballer';
+    return `${p.name}, an entirely fictional adult male professional footballer from ${p.nation}, age ${20 + (p.number % 14)}, exactly ${h} cm tall, ${build}, a ${role}. His face, hair and complexion should plausibly and respectfully reflect ${p.nation} heritage without caricature. Unique natural facial features. Ashford Rovers media day.`;
+  }
+  async function createFootballPortrait(p) {
+    const data = await FM.api('/playtest/football-portrait', { description: footballPortraitDescription(p) });
+    if (!data.image) throw new Error('No portrait was returned.');
+    await savedPortrait(p.id, data.image); return data.image;
+  }
   function portraitFallback(p) { return `<div class="player-portrait fallback">${esc(p.name.split(/\s+/).map((x) => x[0]).slice(0, 2).join(''))}</div>`; }
   function renderPlayerProfile(team, p, host) {
     if (!p || !host) return;
@@ -660,15 +715,10 @@
     btn.addEventListener('click', async () => {
       btn.disabled = true; btn.textContent = 'Creating portrait…';
       try {
-        const look = `${p.name}, fictional ${p.nation} professional footballer for Ashford Rovers, age ${20 + (p.number % 15)}, ${p.height || 180} cm, ${p.natural} player, distinctive but realistic appearance, wearing a plain red football training top with no logos, consistent front-facing head and shoulders club profile portrait, studio lighting, dark neutral background, no text`;
-        const data = await FM.api('/playtest/portrait', { description: look });
-        if (!data.image) throw new Error('No portrait was returned.');
-        portraitCache[p.id] = data.image; try { localStorage.setItem(PORTRAIT_STORE, JSON.stringify(portraitCache)); } catch (e) { /* keep it for this visit */ }
+        await createFootballPortrait(p);
         renderPlayerProfile(team, p, host);
       } catch (e) { btn.disabled = false; btn.textContent = 'Try portrait again'; btn.insertAdjacentHTML('afterend', `<p class="err">${esc(e.message)}</p>`); }
     });
-    world.portraitRequested = world.portraitRequested || {};
-    if (!world.portraitRequested[p.id]) { world.portraitRequested[p.id] = true; setTimeout(() => { if (document.body.contains(btn)) btn.click(); }, 0); }
   }
 
   // ---------- the tactics page ----------
