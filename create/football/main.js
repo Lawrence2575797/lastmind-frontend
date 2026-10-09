@@ -409,6 +409,7 @@
       const fx = world.fixture, m = world.match, me = world.league.userId;
       const mine = m.score[me], theirs = m.score[m.home.id === me ? m.away.id : m.home.id], result = mine > theirs ? 'W' : mine < theirs ? 'L' : 'D';
       FM.completeRound(world.league, world.fixture, world.match);
+      world.league.prepStep = 0; world.league.prepPhaseMax = 0; world.league.testPhaseMax = 0;
       { const mine = FM.teamById(world.league, world.league.userId); if (mine && mine.rules) mine.rules = mine.rules.filter((r) => !r.game); }   // instructions for that one game are done with
       world.match = null; world.fixture = null;
       FM.saveLeague(world.league);
@@ -453,7 +454,7 @@
 
   // ---------- views and navigation ----------
   const VIEWS = ['home', 'league', 'squad', 'analysis', 'reports', 'news', 'preview', 'match'];
-  const NAV = [['home', '⌂', 'Home'], ['tactics', '◇', 'Tactics'], ['league', '▥', 'League'], ['squad', '◉', 'Squad'], ['reports', '◎', 'Reports'], ['news', '◫', 'News'], ['analysis', '⌁', 'Analysis']];
+  const NAV = [];
   const SCREEN_TITLES = { home: 'Club overview', league: 'League centre', squad: 'First-team squad', reports: 'Opposition intelligence', news: 'Football world', analysis: 'Performance analysis', preview: 'Match preview' };
   function setView(v) {
     world.view = v;
@@ -480,23 +481,23 @@
   }
   function renderNav() {
     const nav = el('nav');
-    nav.innerHTML = NAV.map(([k, icon, label]) => `<button data-nav="${k}" class="${world.view === k ? 'on' : ''}"><span class="nav-ico" aria-hidden="true">${icon}</span><span>${label}</span></button>`).join('');
-    nav.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => setView(b.dataset.nav)));
+    nav.innerHTML = ''; nav.hidden = true;
   }
   function renderPrepFlow() {
     const host = el('prepFlow');
     if (!world.league || world.view === 'match') { host.hidden = true; return; }
-    const active = world.view === 'tactics' ? (['build','final','press','without'].includes(world.tab) ? 'test' : 'prepare') : world.view === 'analysis' ? 'analyse' : world.view === 'preview' ? 'match' : '';
-    const steps = [['prepare', 'Prepare tactics'], ['test', 'Test phases'], ['analyse', 'Read evidence'], ['match', 'Match preview'], ['review', 'Review & improve']];
+    const active = world.view === 'analysis' ? 'analysis' : world.view === 'tactics' ? (world.testing ? 'test' : 'prepare') : world.view === 'reports' ? 'evidence' : world.view === 'preview' ? 'preview' : '';
+    const steps = [['analysis', 'Analysis'], ['prepare', 'Prepare tactics'], ['test', 'Test phases'], ['evidence', 'Read evidence'], ['preview', 'Match preview']];
     host.hidden = false;
-    host.innerHTML = steps.map(([k, label], i) => `${i ? '<span class="flow-arrow">›</span>' : ''}<button data-flow="${k}" data-step="${i + 1}" class="${active === k ? 'on' : ''}">${label}</button>`).join('');
+    const max = world.league.prepStep || 0;
+    host.innerHTML = steps.map(([k, label], i) => `${i ? '<span class="flow-arrow">›</span>' : ''}<button data-flow="${k}" data-step="${i + 1}" class="${active === k ? 'on' : ''}"${i > max ? ' disabled' : ''}>${label}</button>`).join('');
     host.querySelectorAll('[data-flow]').forEach((b) => b.addEventListener('click', () => {
       const k = b.dataset.flow;
-      if (k === 'prepare') { world.tab = 'squad'; setView('tactics'); }
-      else if (k === 'test') { world.tab = 'build'; setView('tactics'); }
-      else if (k === 'analyse') setView('analysis');
-      else if (k === 'match') setView('preview');
-      else setView('analysis');
+      if (k === 'analysis') { world.league.prepStep = Math.max(world.league.prepStep || 0, 1); saveSoon(); setView('analysis'); }
+      else if (k === 'prepare') { world.testing = false; world.tab = 'squad'; world.league.prepPhaseMax = Math.max(world.league.prepPhaseMax || 0, 1); saveSoon(); setView('tactics'); }
+      else if (k === 'test') { world.testing = true; world.tab = 'build'; setView('tactics'); }
+      else if (k === 'evidence') { world.league.prepStep = Math.max(world.league.prepStep || 0, 4); saveSoon(); setView('reports'); }
+      else setView('preview');
     }));
   }
   function renderTop() {
@@ -505,22 +506,12 @@
     if (!lg) { host.innerHTML = ''; el('subtitle').textContent = ''; return; }
     const user = userTeam();
     el('subtitle').textContent = user.name + ' · Season ' + lg.season + ' · ' + TIER_NAMES[lg.tier] + ' statistics';
-    const over = FM.seasonOver(lg);
-    const todayFx = FM.userFixtureToday(lg);
-    const mustPlay = todayFx && !todayFx.played;
-    let label;
-    if (over) label = 'Season complete';
-    else if (mustPlay) label = 'Start game';
-    else label = 'Advance to matchday';
     host.innerHTML = `<span class="hint" style="color:inherit;opacity:0.8">${esc(FM.dayLabel(lg.day))}</span>
-      <button class="primary" id="advBtn"${over || world.view === 'match' ? ' disabled' : ''}>${label}</button>
+      <button data-top="home" class="${world.view === 'home' ? 'on' : ''}">Home</button>
+      <button data-top="squad" class="${world.view === 'squad' ? 'on' : ''}">Squad</button>
+      <button data-top="news" class="${world.view === 'news' ? 'on' : ''}">News</button>
       <button id="newBtn" title="Abandon this season and start again">New game</button>`;
-    el('advBtn').addEventListener('click', () => {
-      if (mustPlay) { beginPreMatchInterview(); return; }
-      let err = null, guard = 0;
-      while (!FM.userFixtureToday(lg) && !FM.seasonOver(lg) && guard++ < 8) err = FM.advanceDay(lg);
-      if (!err) { FM.saveLeague(lg); setView('home'); }
-    });
+    host.querySelectorAll('[data-top]').forEach((b) => b.addEventListener('click', () => setView(b.dataset.top)));
     el('newBtn').addEventListener('click', () => {
       if (!confirm('Abandon this season and start a new game?')) return;
       FM.clearSave(); world.league = null; world.match = null; showNewGame();
@@ -534,21 +525,25 @@
     const profile = FM.clubProfile(opp), runs = (lg.labRuns || []).filter((r) => !r.opp || r.opp === opp.name), last = runs[runs.length - 1];
     const result = last && last.result, rate = result && result.beat ? Math.round(result.beat.p * 100) : null;
     const problems = FM.teamProblems(me, opp, (ph) => oppLine(ph));
-    const today = FM.userFixtureToday(lg), canPlay = !!(today && !today.played);
+    const today = FM.userFixtureToday(lg), canPlay = !FM.seasonOver(lg);
     const findings = result ? `${last.n} build-up tests gave a ${rate}% press-beating rate${result.beat.lo != null ? `, with a ${Math.round(result.beat.lo * 100)}–${Math.round(result.beat.hi * 100)}% interval` : ''}.` : 'No phase experiment has been run for this opponent. That is optional—you can still use the current plan.';
     host.innerHTML = `<div class="match-preview">
       <div class="preview-hero"><div class="eyebrow">Round ${fx.round + 1} · ${home.id === me.id ? 'Home' : 'Away'}</div>
         <div class="preview-clubs"><div class="preview-club"><strong>${esc(home.name)}</strong><span>${home.formationKey}</span></div><div class="preview-v">VS</div><div class="preview-club"><strong>${esc(away.name)}</strong><span>${away.formationKey}</span></div></div>
-        <div class="preview-actions"><button id="previewTactics">Review tactics</button><button id="previewTest">Run an experiment</button><button class="primary" id="enterMatch"${canPlay ? '' : ' disabled'}>${canPlay ? 'Enter the match' : 'Match available on Saturday'}</button></div></div>
+        <div class="preview-actions"><button id="previewTactics">Review tactics</button><button id="previewTest">Run an experiment</button><button class="primary" id="enterMatch"${canPlay ? '' : ' disabled'}>${canPlay ? 'Play match' : 'Season complete'}</button></div></div>
       <div class="preview-grid">
         <div class="card"><h2>Your match plan</h2><p class="fixture-big">${esc(me.formationKey)}</p><p class="desc">${(me.rules || []).filter((r) => !r.off).length} active player or team instruction${(me.rules || []).filter((r) => !r.off).length === 1 ? '' : 's'}.</p><p class="note">${problems.length ? problems.length + ' positional issue' + (problems.length === 1 ? '' : 's') + ' still need attention.' : 'Every phase currently fits together.'}</p></div>
         <div class="card"><h2>Opponent</h2><p class="fixture-big">${esc(opp.name)}</p><p class="desc">${esc(profile.tag || 'Opponent')} · likely ${esc(opp.formationKey)} · ${esc({ balanced:'balanced',possession:'patient in possession',counter:'dangerous in transition',press:'aggressive without the ball',direct:'direct with the ball' }[opp.style] || opp.style)}.</p><button id="previewReport">Open scouting report</button></div>
         <div class="card"><h2>Evidence so far</h2><p class="desc">${findings}</p><p class="note">Experiments inform the decision; they never give the team a hidden bonus.</p></div>
       </div></div>`;
-    host.querySelector('#previewTactics').addEventListener('click', () => { world.tab = 'squad'; setView('tactics'); });
-    host.querySelector('#previewTest').addEventListener('click', () => { world.tab = 'build'; setView('tactics'); });
+    host.querySelector('#previewTactics').addEventListener('click', () => { world.testing = false; world.tab = 'squad'; setView('tactics'); });
+    host.querySelector('#previewTest').addEventListener('click', () => { world.testing = true; world.tab = 'build'; setView('tactics'); });
     host.querySelector('#previewReport').addEventListener('click', () => setView('reports'));
-    host.querySelector('#enterMatch').addEventListener('click', () => { if (canPlay) beginPreMatchInterview(); });
+    host.querySelector('#enterMatch').addEventListener('click', () => {
+      if (!canPlay) return;
+      let guard = 0; while (!FM.userFixtureToday(lg) && !FM.seasonOver(lg) && guard++ < 8) FM.advanceDay(lg);
+      FM.saveLeague(lg); beginPreMatchInterview();
+    });
   }
 
   // ---------- home ----------
@@ -580,7 +575,7 @@
       next = `<h2>Next match</h2>
         <div class="fixture-big">${esc(home.name)} <span style="opacity:.6">v</span> ${esc(away.name)}</div>
         <p class="desc">${when} · Round ${nextFx.round + 1} of 14 · ${home.id === me ? 'Home' : 'Away'} against ${esc(opp.name)}</p>
-        ${today && !today.played ? '<div class="banner">Matchday. Settle the tactics, then play.</div>' : '<p class="note">Prepare, then advance when you are ready.</p>'}`;
+        ${today && !today.played ? '<div class="banner">Matchday. Complete the preparation flow, then play from Match preview.</div>' : '<p class="note">Work through the preparation flow above. The match begins from Match preview.</p>'}`;
     }
     const played = lg.fixtures.filter((f) => f.played && (f.homeId === me || f.awayId === me)).sort((a, b) => b.round - a.round);
     const myFriendlies = (lg.friendlies || []).filter((f) => f.played && (f.homeId === me || f.awayId === me));
@@ -723,15 +718,17 @@
 
   // ---------- the tactics page ----------
   // One page, used on any preparation day and again when the match is paused. Changes apply to the rest of the match.
-  const TABS = [
-    ['squad', 'Squad and formation'], ['build', 'Build-up'], ['final', 'Final third'],
-    ['transatt', 'Transition to attack'], ['transdef', 'Transition to defence'], ['press', 'Pressing'], ['without', 'Defensive third'], ['setpieces', 'Set pieces'],
+  const PREP_TABS = [
+    ['squad', '1. Squad and formation'], ['build', '2. Build-up'], ['midfield', '3. Play through midfield'], ['final', '4. Final third'],
+    ['transdef', '5. Defensive transition'], ['organised', '6. Organised defending'], ['transatt', '7. Attacking transition'], ['setpieces', 'Set pieces'],
   ];
+  const TEST_TABS = [['build','Build-up'],['midfield','Midfield'],['final','Final third'],['organised','Organised defending'],['transdef','Defensive transition'],['transatt','Attacking transition']];
   // Each tab with a board shows the team in that phase of play.
-  const BOARD_KEY = { squad: 'shape', build: 'build', final: 'final', transatt: 'transAtt', transdef: 'transDef', press: 'press', without: 'without' };
+  const BOARD_KEY = { squad: 'shape', build: 'build', midfield: 'midfield', final: 'final', organised: 'without' };
   const PHASE_TEXT = {
     shape: 'The team set up in its formation. Choose the formation here, and drag one player onto another to swap them (a shirt dropped anywhere else springs back). Every other phase follows from this shape, the roles and the instructions, and is where you place players by hand.',
     build: 'The team with the ball close to its own goal, which is why the ball starts beside the goalkeeper. These positions apply while the ball is in the team\'s own third, and the team moves toward the final-third positions as the ball goes forward. The ball here is only a guide, so you can drag it to picture other situations. A shirt you drag moves for this phase only, and only as far as the player could run from his other positions. A shirt with a gold dot has been placed by hand.',
+    midfield: 'This phase starts from the positions chosen in build-up. Move the shirts again to show how the team plays through midfield; these become the starting positions for the final third.',
     final: 'The team with the ball near the opposition goal. Attackers can stand on the edge of the box or inside it, but they are held at the offside line, and the same role and instructions apply as in every other phase.',
     transAtt: 'The few seconds just after winning the ball, before the team settles. This is where the first runs are made, so positions here pull players toward where the attack will go.',
     transDef: 'The few seconds just after losing the ball. Players here are pulled toward the positions that cut the counter-attack off, or toward the ball if the team presses.',
@@ -739,12 +736,13 @@
     without: 'The team without the ball, set to defend. The positions of the back line define its height, and the spread of the shirts defines the defensive width.',
   };
   // Where the ball starts on each phase's board. It is only a picture to think with: drag it anywhere to imagine another situation.
-  const BALL_AT = { press: { d: 0.93, w: 0.5 }, build: { d: 0.07, w: 0.6 }, final: { d: 0.86, w: 0.5 }, transAtt: { d: 0.42, w: 0.5 }, transDef: { d: 0.55, w: 0.5 }, without: { d: 0.45, w: 0.5 } };
-  const PHASE_CODE = { build: 'B', final: 'F', transAtt: 'TA', transDef: 'TD', press: 'P', without: 'D' };
+  const BALL_AT = { build: { d: 0.07, w: 0.6 }, midfield: { d: 0.5, w: 0.5 }, final: { d: 0.86, w: 0.5 }, without: { d: 0.45, w: 0.5 } };
+  const PHASE_CODE = { build: 'B', midfield: 'M', final: 'F', without: 'D' };
   // [key, label, left end, right end, min, max, what it does]
   const SLIDER_TABS = {
     squad: [],
     build: [],
+    midfield: [],
     final: [
     ],
     transatt: [
@@ -799,10 +797,40 @@
     renderPlanBar(team);
     el('subInfo').textContent = '';
     el('subInfo').hidden = true;
-    el('tabs').innerHTML = TABS.map(([k, label]) => `<button data-tab="${k}" class="${world.tab === k ? 'on' : ''}">${label}${k === 'instr' && (team.rules || []).filter((r) => !r.off).length ? ' (' + (team.rules || []).filter((r) => !r.off).length + ')' : ''}</button>`).join('');
-    el('tabs').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { world.tab = b.dataset.tab; renderTactics(); }));
-    if (world.tab === 'setpieces') renderSetPieces(team);
+    const tabs = world.testing ? TEST_TABS : PREP_TABS;
+    const progressKey = world.testing ? 'testPhaseMax' : 'prepPhaseMax', maxPhase = world.league[progressKey] || 0;
+    el('tabs').innerHTML = tabs.map(([k, label], i) => `<button data-tab="${k}" data-phase-index="${i}" class="${world.tab === k ? 'on' : ''}"${i > maxPhase ? ' disabled' : ''}>${label}</button>`).join('');
+    el('tabs').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+      const i = +b.dataset.phaseIndex; world.tab = b.dataset.tab;
+      if (!world.testing) {
+        world.league[progressKey] = Math.max(world.league[progressKey] || 0, i + 1);
+        if (i >= 6) world.league.prepStep = Math.max(world.league.prepStep || 0, 2);
+      }
+      saveSoon(); renderTactics(); renderPrepFlow();
+    }));
+    if (world.testing) renderTestPhase(team, world.tab);
+    else if (world.tab === 'setpieces') renderSetPieces(team);
+    else if (world.tab === 'transdef' || world.tab === 'transatt') renderTransitionTab(team, world.tab);
     else renderBoardTab(team, world.tab);
+  }
+
+  function renderTransitionTab(team, tab) {
+    const host = el('tabBody'), defensive = tab === 'transdef', key = defensive ? 'transDefChoices' : 'transAttChoices';
+    const zones = [['defensive','Defensive third'],['middle','Middle third'],['attacking','Attacking third']];
+    const options = defensive
+      ? [['counterpress','Counterpress'],['contain','Delay and contain'],['regroup','Regroup']]
+      : [['counter','Counter quickly'],['secure','Secure possession'],['reset','Reset the attack']];
+    const fallback = defensive ? 'contain' : 'secure';
+    team.tactics[key] = team.tactics[key] || {};
+    host.innerHTML = `<div class="card transition-plan"><span class="eyebrow">${defensive ? 'Lost the ball in…' : 'Won the ball in…'}</span><h2>${defensive ? 'Defensive transition' : 'Attacking transition'}</h2><p class="desc">Choose the first response in each part of the pitch. Player roles and instructions decide the individual movements.</p><div class="transition-zones">${zones.map(([z,n]) => `<label><b>${n}</b><select data-zone="${z}">${options.map(([v,l]) => `<option value="${v}"${(team.tactics[key][z] || fallback) === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>`).join('')}</div><div id="phaseInstr"></div></div>`;
+    host.querySelectorAll('[data-zone]').forEach((s) => s.addEventListener('change', () => { team.tactics[key][s.dataset.zone] = s.value; saveSoon(); }));
+    FM.renderInstructions(host.querySelector('#phaseInstr'), team, { save: saveSoon, opp: nextOpponent, changed: () => FM.elena.refresh() }, { stage: defensive ? 'transDef' : 'transAtt' });
+    FM.elena.sync({ mode: 'instr', stage: defensive ? 'transDef' : 'transAtt', team, opp: nextOpponent() });
+  }
+
+  function renderTestPhase(team, phase) {
+    const host = el('tabBody'); host.innerHTML = '<div id="labPanel"></div>';
+    renderLab(team, host.querySelector('#labPanel'), phase);
   }
 
 
@@ -814,9 +842,9 @@
     phase = phase || 'build';
     const lg = world.league, opp = nextOpponent(); if (!lg || !opp) { host.innerHTML = ''; if (FM.elena) FM.elena.hide(); return; }
     lg.labRuns = lg.labRuns || []; lg.phaseLabRuns = lg.phaseLabRuns || {};
-    const reverse = phase === 'press' || phase === 'without';
-    const title = { build: 'Test this build-up', final: 'Test the final third', press: 'Test the press', without: 'Test the defensive third' }[phase];
-    const target = { build: 'build-ups that beat the press', final: 'attacks that produce a shot', press: 'opposition build-ups stopped before halfway', without: 'opposition attacks stopped without a shot' }[phase];
+    const reverse = phase === 'organised' || phase === 'transdef';
+    const title = { build: 'Test the build-up', midfield: 'Test playing through midfield', final: 'Test the final third', organised: 'Test organised defending', transdef: 'Test the defensive transition', transatt: 'Test the attacking transition' }[phase];
+    const target = { build: 'goal-kick build-ups that reach midfield', midfield: 'moves that play through midfield', final: 'attacks that produce a shot', organised: 'opposition attacks stopped without a shot', transdef: 'attacks stopped after losing the ball', transatt: 'ball wins that produce a shot' }[phase];
     const runs = phase === 'build' ? lg.labRuns : (lg.phaseLabRuns[phase] = lg.phaseLabRuns[phase] || []);
     world.phaseLabs = world.phaseLabs || {};
     const st = world.phaseLabs[phase] = world.phaseLabs[phase] || { start: 'keeper', n: 100, pred: '', hyp: '', busy: false, prog: 0, a: null, b: null, err: '' };
@@ -825,7 +853,7 @@
     const a = st.a != null && runs[st.a] ? st.a : Math.max(0, runs.length - 2), b = st.b != null && runs[st.b] ? st.b : runs.length - 1;
     host.innerHTML = `<div class="lab">
       <h2>${title}</h2>
-      <div class="two"><label>Scenario<select id="labStart">${phase === 'final' ? '<option value="attack">A settled attack entering the final third</option>' : phase === 'without' ? '<option value="defend">The opposition enter your defensive third</option>' : phase === 'press' ? '<option value="keeper">Their goalkeeper starts a build-up</option><option value="goalkick">Their goal kick (short pass compulsory)</option>' : `<option value="keeper"${st.start === 'keeper' ? ' selected' : ''}>The goalkeeper has the ball in open play</option><option value="goalkick"${st.start === 'goalkick' ? ' selected' : ''}>A goal kick (short pass compulsory)</option>`}</select></label>
+      <div class="two"><label>Scenario<select id="labStart">${phase === 'final' || phase === 'transatt' ? '<option value="attack">An attack entering the final third</option>' : phase === 'organised' || phase === 'transdef' ? '<option value="defend">The opposition attack your goal</option>' : `<option value="goalkick">A goal kick, played short</option>`}</select></label>
         <label>Number of tests<select id="labN">${[100, 400, 1000].map((n) => `<option value="${n}"${st.n === n ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>
       <label>Before you run it: what share will succeed? (${target}, %)<input type="number" id="labPred" min="0" max="100" step="1" value="${esc(st.pred)}" placeholder="e.g. 60"></label>
       ${runs.length ? `<label>What are you changing, and what do you expect to happen?<textarea id="labHyp" placeholder="Write one clear tactical change and the effect you expect in this phase.">${esc(st.hyp)}</textarea></label>` : ''}
@@ -845,10 +873,19 @@
       st.planning = false;
       const snap = FM.lab.snapshot(team), pred = st.pred === '' ? '' : Math.max(0, Math.min(100, +st.pred));
       try {
-        const result = await FM.lab.run(lg, { n: st.n, phase: phase === 'final' || phase === 'without' ? 'final' : 'build', user: reverse ? opp : team, opp: reverse ? team : opp, start: st.start, record: true, oppRules: reverse ? (team.rules || []) : oppPlan.rules, oppNudge: reverse ? {} : oppPlan.tactics }, (d) => { st.prog = d; const b2 = host.querySelector('#labRun'); if (b2) b2.textContent = 'Running… ' + d + ' of ' + st.n; });
+        const attackTest = ['final','transatt','organised','transdef'].includes(phase);
+        const result = await FM.lab.run(lg, { n: st.n, phase: attackTest ? 'final' : 'build', user: reverse ? opp : team, opp: reverse ? team : opp, start: st.start, record: true, oppRules: reverse ? (team.rules || []) : oppPlan.rules, oppNudge: reverse ? {} : oppPlan.tactics }, (d) => { st.prog = d; const b2 = host.querySelector('#labRun'); if (b2) b2.textContent = 'Running… ' + d + ' of ' + st.n; });
         runs.push({ id: phase[0] + 'r' + (runs.length + 1), phase, oppPlan: { source: oppPlan.source, rationale: oppPlan.rationale, scouted: oppPlan.scouted, note: oppPlan.note || '', rules: FM.scout.describe(oppPlan.rules, opp, team) }, n: st.n, start: st.start, opp: opp.name, pred, hyp: st.hyp, snap, changes: FM.lab.changes(last && last.snap, snap), result });
         runs.forEach((r, i) => { if (i < runs.length - 2 && r.result) delete r.result.clips; });
         st.a = Math.max(0, runs.length - 2); st.b = runs.length - 1; st.pred = ''; st.hyp = ''; saveSoon();
+        const phaseIndex = TEST_TABS.findIndex(([k]) => k === phase);
+        if (phaseIndex >= 0) {
+          lg.testPhaseMax = Math.max(lg.testPhaseMax || 0, phaseIndex + 1);
+          if (phaseIndex === TEST_TABS.length - 1) lg.prepStep = Math.max(lg.prepStep || 0, 3);
+          const nextTab = el('tabs').querySelector(`[data-phase-index="${phaseIndex + 1}"]`);
+          if (nextTab) nextTab.disabled = false;
+          renderPrepFlow();
+        }
       } catch (err) { st.err = 'The test could not run: ' + (err && err.message ? err.message : 'unknown error'); }
       st.busy = false;
       if (document.body.contains(host)) renderLab(team, host, phase);
@@ -864,16 +901,15 @@
     if (!r) return '';
     const pc = (x) => Math.round((x && x.p || 0) * 100) + '%';
     const xg = r.xg ? r.xg.mean.toFixed(2) : '0.00';
-    const kpis = phase === 'build' ? [['Beat the press',pc(r.beat)],['Lost it',pc(r.lost)],['Shot conceded',pc(r.shot)],['Goal conceded',pc(r.goal)]]
-      : phase === 'final' ? [['xG per attack',xg],['Shot generated',pc(r.shot)],['Goal scored',pc(r.goal)],['Attack broke down',pc(r.lost)]]
-      : phase === 'press' ? [['Build-up stopped',pc(r.lost)],['Turnover in final third',pc(r.lostNear)],['They escaped',pc(r.beat)],['Shot after escape',pc(r.shot)]]
+    const kpis = phase === 'build' || phase === 'midfield' ? [['Reached the next phase',pc(r.beat)],['Lost it',pc(r.lost)],['Shot conceded',pc(r.shot)],['Goal conceded',pc(r.goal)]]
+      : phase === 'final' || phase === 'transatt' ? [['xG per attack',xg],['Shot generated',pc(r.shot)],['Goal scored',pc(r.goal)],['Attack broke down',pc(r.lost)]]
       : [['xG conceded / attack',xg],['Attack stopped',pc(r.lost)],['Shot conceded',pc(r.shot)],['Goal conceded',pc(r.goal)]];
     return `<div class="phase-kpis">${kpis.map(([a,b]) => `<div><b>${b}</b><span>${a}</span></div>`).join('')}</div>`;
   }
 
   function phaseHistoryHtml(phase, runs) {
     if (!runs.length) return '';
-    const metric = (r) => phase === 'final' || phase === 'without' ? `${(r.result.xg && r.result.xg.mean || 0).toFixed(2)} xG` : phase === 'press' ? `${Math.round(r.result.lostNear.p * 100)}% high turnovers` : `${Math.round(r.result.beat.p * 100)}% beat the press`;
+    const metric = (r) => ['final','transatt','organised','transdef'].includes(phase) ? `${(r.result.xg && r.result.xg.mean || 0).toFixed(2)} xG` : `${Math.round(r.result.beat.p * 100)}% reached the next phase`;
     return `<div class="phase-history"><h3>Tests in this phase</h3>${runs.slice(-4).reverse().map((r, i) => `<div class="hyp"><b>Run ${runs.length - i}: ${metric(r)}</b><p class="note">${r.hyp ? esc(r.hyp) : 'Baseline run — no change was recorded.'}</p></div>`).join('')}</div>`;
   }
 
@@ -956,7 +992,7 @@
   }
 
   // When you are in one phase, the opposition are in the one that answers it.
-  const OPP_PHASE = { build: 'press', final: 'without', transAtt: 'transDef', transDef: 'transAtt', press: 'build', without: 'final' };
+  const OPP_PHASE = { build: 'press', midfield: 'without', final: 'without', press: 'build', without: 'final' };
   function nextOpponent() {
     const lg = world.league, nx = lg && FM.nextUserFixture(lg);
     return nx ? FM.teamById(lg, nx.homeId === lg.userId ? nx.awayId : nx.homeId) : null;
@@ -1124,6 +1160,7 @@
       <div class="tb-grid">
         <aside class="tb-controls">
           ${isShape ? `<label>Formation<select id="formSel">${Object.keys(FM.FORMATIONS).map((k) => `<option value="${k}"${k === team.formationKey ? ' selected' : ''}>${k}</option>`).join('')}</select></label>` : '<div id="phaseOppReport"></div>'}
+          ${tab === 'organised' ? '<div class="block-presets"><b>Defensive block</b><button data-block="low">Low block</button><button data-block="mid">Mid block</button><button data-block="high">High press</button></div>' : ''}
           <div id="phaseSliders"></div>
         </aside>
         <div class="tb-left">
@@ -1134,7 +1171,6 @@
         </div>
         <div class="tb-right">
           ${isShape ? '' : '<div id="phaseInstr"></div>'}
-          ${['build','final','press','without'].includes(key) ? '<div id="labPanel"></div>' : ''}
           ${isShape ? `<div><h2 style="margin-bottom:8px">Bench</h2><div class="bench" id="bench">${bench}</div><p class="note" style="margin-top:8px">To substitute, click a bench player and then click the shirt he replaces.</p></div>` : ''}
           <div id="rolePanel"></div>
           <div id="warnPanel"></div>
@@ -1142,6 +1178,13 @@
       </div>`;
     const board = host.querySelector('#board');
     drawBoard(board, team, key);
+    host.querySelectorAll('[data-block]').forEach((b) => b.addEventListener('click', () => {
+      const target = { low: 0.2, mid: 0.32, high: 0.46 }[b.dataset.block];
+      const backs = team.players.filter((p) => p.group === 'CB' || p.group === 'FB'), now = backs.reduce((s,p) => s + FM.phasePos(team,p,'without').d, 0) / Math.max(1, backs.length), shift = target - now;
+      team.players.forEach((p) => { const q = FM.phasePos(team,p,'without'); FM.setPhasePos(team,p,'without',{ d: Math.max(.03,Math.min(.82,q.d + shift)), w:q.w }); });
+      team.tactics.pressing = b.dataset.block === 'high' ? .82 : b.dataset.block === 'mid' ? .5 : .22;
+      FM.inferShapeTactics(team); saveSoon(); renderTactics();
+    }));
     if (!isShape) {
       const report = host.querySelector('#phaseOppReport'), opponent = nextOpponent();
       if (report && opponent && FM.tacticsPhaseReportHtml) {
@@ -1161,7 +1204,6 @@
       FM.renderInstructions(host.querySelector('#phaseInstr'), team, hooks, { stage: key });
       if (key !== 'build') sync();
     }
-    if (host.querySelector('#labPanel')) renderLab(team, host.querySelector('#labPanel'), key);
     const err = (msg) => { host.querySelector('#subErr').textContent = msg || ''; };
     if (isShape) host.querySelector('#formSel').addEventListener('change', (e) => { FM.setFormation(team, e.target.value); world.selSlot = null; saveSoon(); renderTactics(); });
     host.querySelector('#resetPhase').addEventListener('click', () => { FM.clearPhase(team, key); saveSoon(); renderTactics(); });

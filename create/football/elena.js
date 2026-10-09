@@ -334,10 +334,10 @@
   // Only what applies in this stage (an instruction with no stage applies in all of them).
   const forStage = (team, stage) => liveRules(team).filter((r) => !r.when || !r.when.stage || r.when.stage.indexOf(stage) >= 0);
   const ruleLines = (team, stage) => forStage(team, stage).map((r) => FM.rulesWho(r) + ': ' + FM.rulesText(r));
-  const STAGE_WORD = { build: 'the build-up', final: 'the final third', transAtt: 'winning the ball', transDef: 'losing the ball', press: 'pressing them', without: 'defending' };
+  const STAGE_WORD = { build: 'the build-up', midfield: 'playing through midfield', final: 'the final third', transAtt: 'winning the ball', transDef: 'losing the ball', press: 'pressing them', without: 'organised defending' };
   function instrReading(c) {
     const team = c.team, stage = c.stage || 'build', live = forStage(team, stage), name = STAGE_WORD[stage] || stage;
-    if (!live.length) return '<p class="el-big">Nothing written for ' + esc(name) + ' yet.</p><p>Tell the team what you want in the box. I will draw it on the pitch, and then I will tell you honestly what I think of it.</p><p class="el-small">Whatever you write here also plays out in the lab.</p>';
+    if (!live.length) return '<p class="el-big">Nothing written for ' + esc(name) + ' yet.</p><p>Add an instruction and I will show what it changes, where it helps and what it risks.</p><p class="el-small">The same instruction is used in the phase tests and the match.</p>';
     const viz = FM.instrViz.draw(team, c.opp, stage);
     let h = '<h4>What it does in ' + esc(name) + '</h4>' + viz.svg +
       '<div class="iv-key"><span><i class="k a"></i> moves here instead</span><span><i class="k g"></i> pass he looks for</span><span><i class="k r"></i> pass he avoids</span><span><i class="k o"></i> follows</span><span><i class="k p"></i> draws in</span></div>';

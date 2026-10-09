@@ -98,11 +98,11 @@
   }
 
   // The club's shape in each phase of play, as scouted: six small pitches, the club always attacking up the page.
-  const PHASE_ORDER = ['build', 'press', 'final', 'without', 'transAtt', 'transDef'];
-  const PHASE_BLURB = { build: 'building from the back', press: 'pressing the other side\'s build-up', final: 'attacking in the final third', without: 'defending without the ball', transAtt: 'just after winning the ball', transDef: 'just after losing the ball' };
-  const OPP_PHASE = { build: 'press', final: 'without', transAtt: 'transDef', transDef: 'transAtt', press: 'build', without: 'final' };
+  const PHASE_ORDER = ['build', 'midfield', 'press', 'final', 'without', 'transAtt', 'transDef'];
+  const PHASE_BLURB = { build: 'building from the back', midfield: 'playing through midfield', press: 'pressing the other side\'s build-up', final: 'attacking in the final third', without: 'defending without the ball', transAtt: 'just after winning the ball', transDef: 'just after losing the ball' };
+  const OPP_PHASE = { build: 'press', midfield: 'without', final: 'without', transAtt: 'transDef', transDef: 'transAtt', press: 'build', without: 'final' };
   const OPP_HEADLINE = {
-    build: 'How they press your build-up', final: 'How they defend your final-third attacks',
+    build: 'How they press your build-up', midfield: 'How they protect midfield', final: 'How they defend your final-third attacks',
     transAtt: 'How they react after losing the ball', transDef: 'How they counter after winning it',
     press: 'How they try to play through a press', without: 'How they attack your settled defence',
   };
@@ -124,8 +124,8 @@
     const sampleN = entries.length ? Math.max.apply(null, entries.map((x) => x.n || 0)) : 0;
     const frontFromGoal = fin(avg(measured, 'd')) ? Math.round((1 - avg(measured, 'd')) * 105) : null;
     const spread = outfield.length ? Math.round((Math.max.apply(null, outfield.map((x) => x.w)) - Math.min.apply(null, outfield.map((x) => x.w))) * 68) : null;
-    const press = pct(tacticOf(rep, ownPhase === 'build' ? 'pressBuildUp' : ownPhase === 'press' ? 'beatPress' : ownPhase === 'transAtt' ? 'counterPress' : ownPhase === 'transDef' ? 'counterAttack' : ownPhase === 'final' ? 'lineHeight' : 'risk'));
-    const metricLabel = ownPhase === 'build' ? 'Press intensity' : ownPhase === 'press' ? 'Long-ball tendency' : ownPhase === 'transAtt' ? 'Counter-press' : ownPhase === 'transDef' ? 'Counter speed' : ownPhase === 'final' ? 'Defensive line' : 'Attacking risk';
+    const press = pct(tacticOf(rep, ownPhase === 'build' ? 'pressBuildUp' : ownPhase === 'press' ? 'beatPress' : ownPhase === 'transAtt' ? 'counterPress' : ownPhase === 'transDef' ? 'counterAttack' : ownPhase === 'final' || ownPhase === 'midfield' ? 'lineHeight' : 'risk'));
+    const metricLabel = ownPhase === 'build' ? 'Press intensity' : ownPhase === 'press' ? 'Long-ball tendency' : ownPhase === 'transAtt' ? 'Counter-press' : ownPhase === 'transDef' ? 'Counter speed' : ownPhase === 'final' || ownPhase === 'midfield' ? 'Defensive line' : 'Attacking risk';
     const metricRead = ownPhase === 'build' ? reading(press, 'usually allow the first pass', 'mix pressing with holding shape', 'usually press the first pass') : reading(press, 'generally patient', 'change their approach', 'usually act quickly');
     const form = rep.formations.length ? rep.formations[0][0] : sh.formation;
     return `<section class="phase-report">

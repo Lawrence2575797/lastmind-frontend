@@ -88,7 +88,10 @@
     if (ctx.transAtt > 0.05) return 'transAtt';
     if (ctx.transDef > 0.05) return 'transDef';
     const mine = match.lastTeam === team;
-    if (mine) return FM.toTeamSpace(team.attackDir, match.ball.x, match.ball.y).d < 0.5 ? 'build' : 'final';
+    if (mine) {
+      const d = FM.toTeamSpace(team.attackDir, match.ball.x, match.ball.y).d;
+      return d < 0.33 ? 'build' : d < 0.7 ? 'midfield' : 'final';
+    }
     const opp = other(match, team);
     return FM.toTeamSpace(opp.attackDir, match.ball.x, match.ball.y).d < 0.33 ? 'press' : 'without';
   }

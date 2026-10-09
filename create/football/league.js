@@ -410,7 +410,7 @@
       squad: t.squad.map((p) => { const o = {}; PLAYER_KEYS.forEach((k) => { if (p[k] !== undefined) o[k] = p[k]; }); if (p.baseRatings) o.ratings = p.baseRatings; return o; }),
       players: t.players.map((p) => p.id), bench: t.bench.map((p) => p.id),
     }));
-    return JSON.stringify({ v: 1, seed: league.seed, tier: league.tier, userId: league.userId, season: league.season, day: league.day, fixtures: league.fixtures, teams, testLog: league.testLog || [], hypotheses: league.hypotheses || [], news: league.news || [], friendlies: league.friendlies || [], labRuns: league.labRuns || [], phaseLabRuns: league.phaseLabRuns || {}, interviews: league.interviews || [], tacticalPlans: league.tacticalPlans || [] });
+    return JSON.stringify({ v: 1, seed: league.seed, tier: league.tier, userId: league.userId, season: league.season, day: league.day, fixtures: league.fixtures, teams, prepStep: league.prepStep || 0, prepPhaseMax: league.prepPhaseMax || 0, testPhaseMax: league.testPhaseMax || 0, testLog: league.testLog || [], hypotheses: league.hypotheses || [], news: league.news || [], friendlies: league.friendlies || [], labRuns: league.labRuns || [], phaseLabRuns: league.phaseLabRuns || {}, interviews: league.interviews || [], tacticalPlans: league.tacticalPlans || [] });
   };
   FM.deserializeLeague = function (text) {
     const d = JSON.parse(text);
@@ -424,7 +424,7 @@
       };
       return team;
     });
-    const league = { seed: d.seed, tier: d.tier, userId: d.userId, season: d.season, day: d.day, fixtures: d.fixtures, teams, testLog: d.testLog || [], hypotheses: d.hypotheses || [], news: d.news || [], friendlies: d.friendlies || [], labRuns: d.labRuns || [], phaseLabRuns: d.phaseLabRuns || {}, interviews: d.interviews || [], tacticalPlans: d.tacticalPlans || [] };
+    const league = { seed: d.seed, tier: d.tier, userId: d.userId, season: d.season, day: d.day, fixtures: d.fixtures, teams, prepStep: d.prepStep || 0, prepPhaseMax: d.prepPhaseMax || 0, testPhaseMax: d.testPhaseMax || 0, testLog: d.testLog || [], hypotheses: d.hypotheses || [], news: d.news || [], friendlies: d.friendlies || [], labRuns: d.labRuns || [], phaseLabRuns: d.phaseLabRuns || {}, interviews: d.interviews || [], tacticalPlans: d.tacticalPlans || [] };
     FM.today = d.day;
     // A match that was abandoned part way: put the lineups back as they were before kick-off.
     league.teams.forEach((t) => { if (t.snap) { FM.restoreLineup(t, t.snap); t.snap = null; } else FM.resetToKickoff(t); });
