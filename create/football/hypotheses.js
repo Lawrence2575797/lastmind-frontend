@@ -55,7 +55,7 @@
     const mine = rows.filter((r) => r.teamId === t), others = rows.filter((r) => r.teamId !== t);
     const n = totals(mine, R[1]), k = totals(mine, R[2]), n0 = totals(others, R[1]), k0 = totals(others, R[2]);
     if (n < 10 || n0 < 10) return { decision: 'inconclusive', lines: ['There are not enough attempts yet to say anything.'], n };
-    const p0 = k0 / n0, rate = k / n, tier = RANK[league.tier] || 1, greater = h.params.dir === 'greater';
+    const p0 = k0 / n0, rate = k / n, courseTier = RANK[league.tier] || 1, tier = Math.min(3, courseTier + 1), greater = h.params.dir === 'greater';
     const lines = [`${k} of ${n} (${f2(100 * rate, 1)}%) against ${f2(100 * p0, 1)}% for the rest of the league, over ${mine.length} matches.`];
     if (tier === 1) {
       const right = greater ? rate > p0 : rate < p0, big = Math.abs(rate - p0) / p0 > 0.2;
@@ -64,12 +64,12 @@
     const p = FM.binomTest(k, n, p0, h.params.dir);
     lines.push(`Binomial test of H0: p = ${f2(p0, 3)}: p-value ${pf(p)}.`);
     if (tier === 3) { const w = S.wilson(k, n, 0.95); lines.push(`95% interval for their true rate: ${f2(100 * w.lo, 1)}% to ${f2(100 * w.hi, 1)}%.`); }
-    return { decision: p < 0.05 ? 'supported' : 'not supported (not enough evidence)', p, n, lines };
+    return { decision: p < 0.05 ? 'supported' : 'not supported (not enough evidence)', p, n, lines, assisted: courseTier < tier };
   }
   function runCorr(league, h) {
     const rows = FM.statRows(league, 'all'), a = [], b = [];
     rows.forEach((r) => { if (fin(r[h.params.x]) && fin(r[h.params.y])) { a.push(r[h.params.x]); b.push(r[h.params.y]); } });
-    const n = a.length, tier = RANK[league.tier] || 1;
+    const n = a.length, courseTier = RANK[league.tier] || 1, tier = Math.min(3, courseTier + 1);
     if (n < 8) return { decision: 'inconclusive', lines: ['There are not enough matches yet.'], n };
     const r = S.pmcc(a, b), pos = h.params.dir === 'positive', lines = [`${n} team-matches: correlation r = ${f2(r, 3)}.`];
     if (tier === 1) {
@@ -77,12 +77,13 @@
       return { decision: right && str >= 0.4 ? 'looks supported' : right && str >= 0.2 ? 'weak' : 'not supported', informal: true, n, lines: lines.concat(['At this level, judge it from the scatter graph: a correlation of 0.4 or more in the expected direction is a fair sign, under 0.2 is hardly anything.']) };
     }
     const t = S.corrTest(r, n), p1 = (pos ? r > 0 : r < 0) ? t.p / 2 : 1 - t.p / 2;
+    if (courseTier === 1) { const lr = S.linreg(a, b); lines.push(`Elena's regression line has gradient ${f2(lr.b, 3)}: each extra unit of ${metricName(h.params.x)} goes with ${f2(Math.abs(lr.b), 3)} ${lr.b < 0 ? 'fewer' : 'more'} ${metricName(h.params.y)}, on average.`); }
     lines.push(`One-tailed test of H0: no correlation: p-value ${pf(p1)}.`);
-    return { decision: p1 < 0.05 ? 'supported' : 'not supported (not enough evidence)', p: p1, n, lines };
+    return { decision: p1 < 0.05 ? 'supported' : 'not supported (not enough evidence)', p: p1, n, lines, assisted: courseTier < tier };
   }
   function runTactic(league, h) {
     const rows = FM.statRows(league, 'all').filter((r) => r.tactics && fin(r.tactics[h.params.tactic]) && fin(r[h.params.metric]));
-    const n = rows.length, tier = RANK[league.tier] || 1, hi = h.params.dir === 'higher';
+    const n = rows.length, courseTier = RANK[league.tier] || 1, tier = Math.min(3, courseTier + 1), hi = h.params.dir === 'higher';
     if (n < 10) return { decision: 'inconclusive', lines: ['There are not enough matches yet.'], n };
     const tv = rows.map((r) => r.tactics[h.params.tactic]), y = rows.map((r) => r[h.params.metric]), med = S.median(tv);
     const ga = y.filter((_, i) => tv[i] > med), gb = y.filter((_, i) => tv[i] <= med);
@@ -96,12 +97,12 @@
     if (tier === 2) {
       const r = S.pmcc(tv, y), t = S.corrTest(r, n), p1 = (hi ? r > 0 : r < 0) ? t.p / 2 : 1 - t.p / 2;
       lines.push(`Correlation between the setting and ${metricName(h.params.metric)}: r = ${f2(r, 3)}; one-tailed p-value ${pf(p1)}.`);
-      return { decision: p1 < 0.05 ? 'supported' : 'not supported (not enough evidence)', p: p1, n, lines };
+      return { decision: p1 < 0.05 ? 'supported' : 'not supported (not enough evidence)', p: p1, n, lines, assisted: courseTier < tier };
     }
     const w = S.tWelch(ga, gb, hi ? 'greater' : 'less'), tc = S.tInv(0.975, w.df);
     lines.push(`Welch t-test (one-tailed): t = ${f2(w.t, 2)} on ${f2(w.df, 1)} degrees of freedom, p-value ${pf(w.p)}. Cohen's d = ${f2(w.d, 2)}. 95% interval for the difference: ${f2(w.diff - tc * w.se)} to ${f2(w.diff + tc * w.se)}.`);
     lines.push('Clubs choose their own settings, so even a real difference may reflect which kinds of club choose them, not what the setting does.');
-    return { decision: w.p < 0.05 ? 'supported' : 'not supported (not enough evidence)', p: w.p, n, lines };
+    return { decision: w.p < 0.05 ? 'supported' : 'not supported (not enough evidence)', p: w.p, n, lines, assisted: courseTier < tier };
   }
   function runNext(league, h, fx) {
     const me = league.userId, a = FM.statRows(league, 'me').find((r) => r.fxId === fx.id), b = FM.statRows(league, 'opp').find((r) => r.fxId === fx.id);
@@ -175,7 +176,7 @@
     const card = (h, actions) => `<div class="hyp"><div class="hyp-head"><b>${h.id}</b> ${esc(h.label)} <span class="pm">${h.source === 'proposed' ? '(proposed)' : '(yours)'}</span></div>${h.note ? `<p class="note">Your note: ${esc(h.note)}</p>` : ''}${actions || ''}</div>`;
     host.innerHTML = `<div style="display:grid;gap:16px">
       <div class="card"><h2>Hypotheses</h2>
-        <p class="desc">A hypothesis is a claim you can check against the data. Write down as many as you like. Each is tested after your next match, using everything known by then. ${tier === 1 ? 'At your level the test is a plain comparison of averages.' : tier === 2 ? 'At your level the tests give p-values from binomial and correlation tests.' : 'At your level the tests give p-values, effect sizes and intervals.'}</p>
+        <p class="desc">A hypothesis is a claim you can check against the data. Write down as many as you like. Each is tested after your next match, using everything known by then. ${tier === 1 ? 'You read the rates, graph and football meaning; Elena carries out the significance test or regression when it helps.' : tier === 2 ? 'You lead the A-level test and interpretation; Elena adds effect sizes and uncertainty when a beyond-A-level method is useful.' : 'You choose and carry out the full method. Elena explains and challenges your conclusion without doing it for you.'}</p>
         <p class="note">Write the hypothesis before you look at the result. The more you test, the more will pass by chance: see "The problem of many tests" in the Analysis Centre, which collects every test with a p-value.</p>
         ${next ? '' : '<p class="note">The season is over, so there is no next match to test against.</p>'}</div>
       <div class="two">
@@ -188,7 +189,7 @@
           <div class="row"><button class="primary" id="hbAdd"${next ? '' : ' disabled'}>Add to be tested after the next match</button></div></div>
       </div>
       <div class="card"><h2>Waiting for the next match (${pending.length})</h2>${pending.length ? pending.map((h) => card(h, `<div class="row"><button data-cancel="${h.id}">Withdraw</button></div>`)).join('') : '<p class="note">None waiting.</p>'}</div>
-      <div class="card"><h2>Tested (${tested.length})</h2>${tested.length ? tested.map((h) => { const r = h.result; return card(h, `<p class="desc"><b>Round ${h.testedRound + 1}: ${esc(r.decision)}</b>${r.informal ? ' (judged by eye)' : ''}${fin(r.p) ? ' (p = ' + pf(r.p) + ')' : ''}</p>${r.lines.map((l) => `<p class="note">${esc(l)}</p>`).join('')}${h.kind !== 'next' && next ? `<div class="row"><button data-retest="${h.id}">Test again after the next match</button></div>` : ''}`); }).join('') : '<p class="note">Nothing tested yet.</p>'}</div></div>`;
+      <div class="card"><h2>Tested (${tested.length})</h2>${tested.length ? tested.map((h) => { const r = h.result; return card(h, `${r.assisted ? '<div class="analysis-owner elena"><b>Elena carried out the higher-level method</b><span>Your part is to decide what the direction, size and uncertainty mean for the team.</span></div>' : ''}<p class="desc"><b>Round ${h.testedRound + 1}: ${esc(r.decision)}</b>${r.informal ? ' (judged by eye)' : ''}${fin(r.p) ? ' (p = ' + pf(r.p) + ')' : ''}</p>${r.lines.map((l) => `<p class="note">${esc(l)}</p>`).join('')}${h.kind !== 'next' && next ? `<div class="row"><button data-retest="${h.id}">Test again after the next match</button></div>` : ''}`); }).join('') : '<p class="note">Nothing tested yet.</p>'}</div></div>`;
     const bind = (id, fn) => { const e = host.querySelector(id); if (e) e.addEventListener('change', fn); };
     const re = () => FM.renderHypotheses(host, league);
     bind('#hbKind', (e) => { b.kind = e.target.value; re(); });

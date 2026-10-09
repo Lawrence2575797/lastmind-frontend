@@ -235,16 +235,17 @@
   }
   const OUT_ROWS = [['beat', 'Got out clean', 'Reached halfway with the ball'], ['lostNear', 'Lost it near your goal', 'Within 25 m'], ['lostOwn', 'Lost it in your third', 'Out to the edge of it'], ['lostMid', 'Lost it in midfield', 'Before halfway'], ['still', 'Still going at 40 s', 'Neither won nor lost'], ['shot', 'They had a shot', 'Within 15 s of winning it']];
   const bar = (v) => '<div class="el-bar"><i style="left:' + (v.lo * 100).toFixed(1) + '%;width:' + Math.max(1, (v.hi - v.lo) * 100).toFixed(1) + '%"></i><b style="left:' + (v.p * 100).toFixed(1) + '%"></b></div>';
-  function resultsText(r, last, n) {
+  function resultsText(r, last, n, level) {
     const p = r.beat.p, used = {};
     const say = p >= 0.75 ? 'Lovely. ' : p >= 0.55 ? 'Not bad. ' : p >= 0.4 ? 'Hmm, that is close to a coin flip. ' : 'Ouch. ';
     let h = '<p class="el-big">' + esc(say) + r.beat.k + ' out of ' + r.n + ' got out clean' + (r.time ? ', in ' + r.time.mean.toFixed(1) + ' seconds on average' : '') + '.</p>';
-    if (last.pred !== '' && last.pred != null) {
+    if (last.pred !== '' && last.pred != null && level === 'gcse') {
       const v = r.beat, q = last.pred / 100, ok = q >= v.lo && q <= v.hi;
       h += '<p>' + P(ok ? 'You said ' + last.pred + '%. That is inside the 95% interval (' + pc(v.lo) + ' to ' + pc(v.hi) + '), so I cannot say you were wrong.' : 'You said ' + last.pred + '%. We found ' + pc(v.p) + ', and that is outside the 95% interval (' + pc(v.lo) + ' to ' + pc(v.hi) + '). Your picture of this build-up was off, and the reasons are just below.', used) + '</p>';
     }
-    h += '<div class="el-rows">' + OUT_ROWS.map(([k, l, note]) => { const v = r[k]; return '<div class="el-row"><div class="el-rl"><b>' + esc(l) + '</b><small>' + esc(note) + '</small></div><div class="el-rv"><b>' + pc(v.p) + '</b><small>' + v.k + ' of ' + r.n + '</small></div>' + bar(v) + '</div>'; }).join('') + '</div>';
-    h += '<p class="el-small">' + P('The bar is the 95% interval, and the white line is the share we found.', used) + '</p>';
+    h += '<div class="el-rows">' + OUT_ROWS.map(([k, l, note]) => { const v = r[k]; return '<div class="el-row"><div class="el-rl"><b>' + esc(l) + '</b><small>' + esc(note) + '</small></div><div class="el-rv"><b>' + pc(v.p) + '</b><small>' + v.k + ' of ' + r.n + '</small></div>' + (level === 'gcse' ? bar(v) : '') + '</div>'; }).join('') + '</div>';
+    if (level === 'gcse') h += '<p class="el-small">' + P('The bar is the 95% interval I calculated, and the white line is the share we found.', used) + '</p>';
+    else if (last.pred !== '' && last.pred != null) h += '<p>You predicted ' + esc(last.pred) + '%. The observed share was ' + pc(r.beat.p) + '. Decide how you will judge that gap before drawing a tactical conclusion.</p>';
     if (last.hyp) h += '<p><b>You said:</b> ' + esc(last.hyp) + '</p>';
     return h;
   }
@@ -281,7 +282,13 @@
   }
   function reading(c) {
     const runs = c.runs, last = runs[runs.length - 1], r = last.result, n = runs.length, used = {};
-    let h = resultsText(r, last, n);
+    const level = window.FM_WORLD && FM_WORLD.league ? FM_WORLD.league.tier : 'gcse';
+    let h = level === 'gcse'
+      ? '<div class="analysis-owner elena"><b>I have done the higher-level uncertainty work</b><span>You read the proportions, direction and football meaning. The intervals and significance checks are supporting evidence, not the decision itself.</span></div>'
+      : level === 'alevel'
+        ? '<div class="analysis-owner"><b>You lead this comparison</b><span>Read the probabilities and decide what test fits. I will add beyond-A-level effect sizes or uncertainty in the Analysis Centre when they are useful.</span></div>'
+        : '<div class="analysis-owner"><b>Your analysis</b><span>Choose the comparison, check its assumptions and make the conclusion. I will explain the football context, but I will not execute the statistical test for you.</span></div>';
+    h += resultsText(r, last, n, level);
     // what went wrong: three things at most, each a sentence and something to try
     const ex = FM.lab.explain(r, {}), w = r.why, lostN = r.lost.k;
     if (!w) h += '<p>This run was saved before I could break the losses down. Run it again and I will tell you what happened.</p>';
@@ -291,9 +298,12 @@
     h += pressShapeText(r) + pressText(r, c) + replayText(r);
     // the comparison
     if (n >= 2) h += '<h4>Has anything really changed?</h4><div class="el-cmp"><label>Run<select id="elA">' + runs.map((x, i) => '<option value="' + i + '"' + (i === c.a ? ' selected' : '') + '>Run ' + (i + 1) + ': ' + pc(x.result.beat.p) + ' got out</option>').join('') + '</select></label><label>against<select id="elB">' + runs.map((x, i) => '<option value="' + i + '"' + (i === c.b ? ' selected' : '') + '>Run ' + (i + 1) + ': ' + pc(x.result.beat.p) + ' got out</option>').join('') + '</select></label></div>';
-    if (n >= 2 && c.a !== c.b && runs[c.a] && runs[c.b]) {
+    if (n >= 2 && c.a !== c.b && runs[c.a] && runs[c.b] && level === 'gcse') {
       const A = runs[c.a].result, B = runs[c.b].result, cb = FM.lab.compare(A, B, 'beat'), sig = cb.p < 0.05, d = Math.round(cb.diff * 100), u2 = {};
       h += compareTable(A, B, c.a, c.b) + '<p>' + P((d === 0 ? 'No movement at all between them. ' : 'Run ' + (c.b + 1) + ' is ' + Math.abs(d) + ' points ' + (d > 0 ? 'better' : 'worse') + '. ') + (sig ? 'And that is real: the p-value is ' + cb.p.toFixed(3) + ', so luck alone would rarely do that.' : 'But I would not read much into it: the p-value is ' + cb.p.toFixed(2) + ', and luck alone does that about ' + Math.round(cb.p * 100) + '% of the time.' + (cb.need ? ' You would want about ' + cb.need + ' tests of each to be sure.' : '')), u2) + '</p>' + go('real', 'Is the difference real?');
+    } else if (n >= 2 && c.a !== c.b && runs[c.a] && runs[c.b]) {
+      const A = runs[c.a].result, B = runs[c.b].result, d = Math.round((B.beat.p - A.beat.p) * 100);
+      h += '<div class="el-box"><p><b>The raw change is ' + (d >= 0 ? '+' : '') + d + ' percentage points.</b></p><p>Decide what comparison fits, whether the samples are large enough, and what would count as a meaningful football effect. The full set of statistical tools is in the Analysis Centre.</p></div>';
     } else if (n >= 2) h += '<p>Pick two different runs and I will tell you what changed.</p>';
     else h += '<p>Next: change one thing, say what you expect in the box above Run, and run it again. Then we can see if it made a difference.</p>';
     h += '<p class="el-small">' + runs.map((x, i) => 'Run ' + (i + 1) + ': ' + pc(x.result.beat.p)).join(' · ') + '</p><button type="button" class="el-go" data-clear="1">Clear the runs</button>';

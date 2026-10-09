@@ -418,10 +418,20 @@
   const RANK = { gcse: 1, alevel: 2, above: 3 };
   FM.renderStatsTiers = function (host, league) {
     const rank = RANK[league.tier] || 1;
-    const tools = FM.STAT_TOOLS.filter((t) => RANK[t.level] <= rank);
+    // All managers may see the full evidence. The chosen level decides who owns
+    // the method: Elena carries calculations above the manager's course, while
+    // work at or below it remains theirs. Beyond A-level has no assisted tier.
+    const tools = FM.STAT_TOOLS.slice();
+    const assisted = (t) => RANK[t.level] > rank;
+    const contract = rank === 1
+      ? '<b>You read the football and the accessible maths.</b> Work with rates, probability, the shape of a graph and what a gradient means. When regression, significance tests or intervals are useful, Elena will run them and show enough working for you to judge what the result actually says.'
+      : rank === 2
+        ? '<b>You lead the GCSE and A-level analysis.</b> Choose measures, read gradients, probabilities, correlation and significance. Elena will carry the beyond-A-level modelling, effect sizes and uncertainty for you, but you still decide whether it matters in football terms.'
+        : '<b>You lead the whole analysis.</b> Choose the method, variables and assumptions, then form the conclusion. Elena explains unfamiliar ideas and challenges the interpretation, but she does not carry out a higher-level method on your behalf.';
     host.innerHTML = `<div class="card" style="gap:16px">
       <h2>Statistics workshop</h2>
-      <p class="desc">Your level is <b>${LEVEL_NAMES[league.tier]}</b>${rank > 1 ? ', which includes the levels below it' : ''}. The tools below work on this season's real matches. Look for patterns, form a guess, then test it.</p>
+      <div class="analysis-contract"><span class="eyebrow">How you and Elena work at ${LEVEL_NAMES[league.tier]}</span><p class="desc">${contract}</p></div>
+      <p class="desc">Every tool uses this season's real matches. The level changes who performs the technique, not which evidence the club is allowed to use.</p>
       <label>Use data from<select id="stScope">${SCOPES.map((s) => `<option value="${s[0]}"${s[0] === st.scope ? ' selected' : ''}>${s[1]}</option>`).join('')}</select></label>
       <p class="note" id="stN"></p>
       <div id="stTools" style="display:grid;gap:12px"></div></div>`;
@@ -436,8 +446,12 @@
     function drawAll() { tools.forEach(drawOne); host.querySelector('#stScope').value = st.scope; }
     tools.forEach((t) => {
       const d = document.createElement('details');
-      d.className = 'tool'; if (t.level === 'gcse' && t.id === 'averages') d.open = true;
-      d.innerHTML = `<summary><span class="lvl ${t.level}">${LEVEL_NAMES[t.level]}</span> ${esc(t.title)}</summary><div class="tool-body"><p class="note">${esc(t.blurb)}</p><div class="tool-box"></div></div>`;
+      const help = assisted(t);
+      d.className = 'tool' + (help ? ' elena-assisted' : ' manager-led'); if (t.level === 'gcse' && t.id === 'averages') d.open = true;
+      const role = help
+        ? `<div class="analysis-owner elena"><b>Elena runs this method</b><span>${rank === 1 ? 'You interpret the direction, size and football meaning. Do not treat her result as an automatic tactical answer.' : 'You interpret the effect, uncertainty and football meaning; Elena is only doing the mathematics above your course.'}</span></div>`
+        : `<div class="analysis-owner"><b>Your analysis</b><span>${rank === 3 ? 'Choose the variables and method, check the assumptions and make the conclusion. Elena’s notes are guidance, not a completed answer.' : 'Use what you know at your level to read this. Elena will explain a term if you need it, but the conclusion is yours.'}</span></div>`;
+      d.innerHTML = `<summary><span class="lvl ${t.level}">${LEVEL_NAMES[t.level]}</span> ${esc(t.title)}${help ? '<span class="assisted-tag">Elena-assisted</span>' : ''}</summary><div class="tool-body">${role}<p class="note">${esc(t.blurb)}</p><div class="tool-box"></div></div>`;
       toolsHost.appendChild(d);
       boxes[t.id] = d.querySelector('.tool-box');
     });

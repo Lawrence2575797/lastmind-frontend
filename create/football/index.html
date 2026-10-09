@@ -243,6 +243,12 @@
   details.tool > summary::before { content: '+'; display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--line); font-weight: 400; flex: none; }
   details.tool[open] > summary::before { content: '-'; }
   .tool-body { padding: 0 14px 16px; display: grid; gap: 12px; }
+  .analysis-contract { padding:14px 16px; border:1px solid rgba(242,193,78,.35); border-left:4px solid var(--gold); border-radius:12px; background:rgba(242,193,78,.07); }
+  .analysis-contract p { margin:5px 0 0; }
+  .analysis-owner { display:grid; gap:3px; padding:10px 12px; border-radius:10px; background:rgba(82,189,123,.09); border:1px solid rgba(82,189,123,.25); font:600 .8rem/1.45 var(--sans); }
+  .analysis-owner span { color:var(--cream-soft); }
+  .analysis-owner.elena { background:rgba(242,193,78,.09); border-color:rgba(242,193,78,.28); }
+  .assisted-tag { margin-left:auto; padding:3px 8px; border-radius:999px; background:rgba(242,193,78,.15); color:var(--gold); font-size:.66rem; letter-spacing:.05em; text-transform:uppercase; }
   .tool-box { display: grid; gap: 12px; min-width: 0; }
   .lvl { font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; color: var(--navy); flex: none; }
   .lvl.gcse { background: #7CC38A; } .lvl.alevel { background: var(--gold); } .lvl.above { background: #C7A6F2; }
