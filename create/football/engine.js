@@ -351,14 +351,23 @@
     team.players.forEach((p, i) => {
       const t = targets[i];
       const dx = t.x - p.x, dy = t.y - p.y;
-      const dist = Math.hypot(dx, dy) || 1e-6;
+      const rawDist = Math.hypot(dx, dy);
+      const dist = rawDist || 1e-6;
       const speed = Math.min(p.maxSpeed, dist * 1.4);
+      const wanted = rawDist < 0.05 && Number.isFinite(p.facing) ? p.facing : Math.atan2(dy, dx);
+      if (!Number.isFinite(p.facing)) p.facing = wanted;
+      let turn = wanted - p.facing;
+      while (turn > Math.PI) turn -= Math.PI * 2;
+      while (turn < -Math.PI) turn += Math.PI * 2;
+      const maxTurn = (p.group === 'GK' ? 3.2 : 2.5) * dt;
+      p.facing += clamp(turn, -maxTurn, maxTurn);
+      const alignment = clamp(1 - Math.abs(turn) / Math.PI, .18, 1);
       // How quickly a player changes his velocity toward the one he wants. Written so that it gives the same response however long a step is:
       // the live match (0.1 s steps) and the background matches (0.25 s) must play out alike, and 1 - exp(-5.1 dt) is exactly the 40% a 0.1 s step
       // always used. (It used to be min(1, 4 dt), which at 0.25 s meant no smoothing at all, so background players were far twitchier.)
       const k = 1 - Math.exp(-5.1 * dt);
-      p.vx += (dx / dist * speed - p.vx) * k;
-      p.vy += (dy / dist * speed - p.vy) * k;
+      p.vx += (Math.cos(p.facing) * speed * alignment - p.vx) * k;
+      p.vy += (Math.sin(p.facing) * speed * alignment - p.vy) * k;
     });
     // Teammates keep a little space from each other.
     for (let i = 0; i < team.players.length; i++) {

@@ -119,6 +119,12 @@
   .score .clock { font-variant-numeric: tabular-nums; color: var(--cream-soft); font-size: 0.95rem; text-align: center; }
   .controls { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 6px 0; }
   .controls button { padding: 7px 12px; }
+  .match-commentary { display: flex; align-items: center; min-height: 48px; margin-top: 8px; padding: 10px 16px; overflow: hidden; border-left: 4px solid var(--gold); border-radius: 7px; background: #050707; color: var(--cream); font: 800 clamp(.78rem,1.4vw,.98rem)/1.35 var(--sans); letter-spacing: .035em; text-transform: uppercase; box-shadow: inset 0 1px rgba(255,255,255,.05); }
+  .match-commentary::before { content: 'LIVE'; flex: none; margin-right: 12px; padding: 3px 7px; border-radius: 4px; background: #b93232; color: #fff; font-size: .62rem; letter-spacing: .12em; }
+  .match-commentary.hot { border-left-color: #ffcb55; color: #fff3ca; animation: commentaryBeat .55s ease-in-out infinite alternate; }
+  .match-commentary.goal { border-left-color: #60d98b; color: #8ff0b1; font-size: clamp(.9rem,1.7vw,1.12rem); }
+  .match-commentary.tackle { border-left-color: #ef8b69; }
+  @keyframes commentaryBeat { to { background: #141107; letter-spacing: .055em; } }
   table.stats { width: 100%; border-collapse: collapse; font-family: var(--sans); font-size: 0.85rem; }
   table.stats td { padding: 4px 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
   table.stats td:nth-child(1), table.stats td:nth-child(3) { width: 22%; font-weight: 700; }
@@ -549,6 +555,7 @@
         <div>
           <div class="pitch-wrap">
             <canvas id="pitch" aria-label="Football pitch seen from above with 22 numbered players"></canvas>
+            <div class="match-commentary" id="matchCommentary" role="status" aria-live="polite">The teams are ready. The match is about to begin.</div>
             <div class="controls">
               <button id="playBtn" class="on">Pause</button>
               <button data-speed="0.5">0.5x</button><button data-speed="1" class="on">1x</button><button data-speed="1.5">1.5x</button><button data-speed="3">3x</button><button data-speed="6">6x</button><button data-speed="12">12x</button><button data-speed="24">24x</button>

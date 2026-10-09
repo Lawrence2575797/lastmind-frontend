@@ -225,6 +225,10 @@
       // Whatever the moment, a man with the ball is never sent back to his usual position: past the last defender he goes on, otherwise he holds.
       // A man clear through on goal runs on at the keeper; he is never sent back toward his usual position into the men chasing him.
       if (!FM.NO_LATE && !ov.has(c.player) && clearThrough(match, c.team, c.player)) ov.set(c.player, { x: clamp(c.player.x + c.team.attackDir * 3, 1, L - 1), y: clamp(c.player.y + (W / 2 - c.player.y) * 0.08, 1, W - 1) });
+      // The carrier keeps possession where he is while turning or weighing a
+      // pass. His generic phase position must never pull him backwards with
+      // the ball simply because the rest of the team is resetting its shape.
+      if (!ov.has(c.player)) ov.set(c.player, { x: c.player.x, y: c.player.y });
       // Defending the man on the ball. Most of the time one defender goes to him, and he closes down rather than charging in: how
       // tightly depends on the team's pressing instruction (a hard press gets right on top of him, a soft one holds off and jockeys).
       // A second defender joins only for a counter-press just after losing the ball, or when the team is set to press their build-up
@@ -524,7 +528,7 @@
       }
       // The ball is played to where the receiver can meet it: a run is timed off the last defender, so the pass lands level with the line or
       // a step beyond it, not several metres behind a defence that is still goal-side.
-      if (forward) { const lastX = lastDefenderX; if (lastX != null && (tx - lastX) * team.attackDir > (FM.BEHIND_LINE == null ? 3 : FM.BEHIND_LINE)) tx = lastX + team.attackDir * (FM.BEHIND_LINE == null ? 3 : FM.BEHIND_LINE); }
+      if (forward) { const lastX = lastDefenderX; if (lastX != null && (tx - lastX) * team.attackDir > (FM.BEHIND_LINE == null ? 1.5 : FM.BEHIND_LINE)) tx = lastX + team.attackDir * (FM.BEHIND_LINE == null ? 1.5 : FM.BEHIND_LINE); }
       const { lane, press } = laneInfo(match, team, carrier, tx, ty);
       let p = FM.passProb(carrier, d, lane, press);
       // Played in behind the last defender: the ball has to be weighted and the runner has to time it, so these are hard passes to complete.
@@ -1599,7 +1603,8 @@
   function syncBall(match) {
     if (match.carrier && match.ball.state === 'carried') {
       const p = match.carrier.player;
-      match.ball.x = p.x + match.carrier.team.attackDir * 0.7; match.ball.y = p.y;
+      const face = Number.isFinite(p.facing) ? p.facing : (match.carrier.team.attackDir === 1 ? 0 : Math.PI);
+      match.ball.x = p.x + Math.cos(face) * 0.72; match.ball.y = p.y + Math.sin(face) * 0.72;
     }
   }
 
