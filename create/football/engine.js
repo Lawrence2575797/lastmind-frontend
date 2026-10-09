@@ -166,7 +166,7 @@
   // from where his slot is in the shape, his role and his instructions. The same role and instructions feed every phase,
   // so the phases agree with each other: an inverted full-back is inside in build-up AND in the final third.
   FM.PHASES = ['build', 'final', 'transAtt', 'transDef', 'press', 'without'];
-  FM.PHASE_NAMES = { build: 'Build-up', final: 'Final third', transAtt: 'Transition to attack', transDef: 'Transition to defence', press: 'Pressing their build-up', without: 'Without the ball' };
+  FM.PHASE_NAMES = { build: 'Build-up', final: 'Final third', transAtt: 'Transition to attack', transDef: 'Transition to defence', press: 'Pressing their build-up', without: 'Defensive third' };
   const PUSH = { GK: 0, CB: 0.04, FB: 0.10, DM: 0.08, CM: 0.18, AM: 0.16, WF: 0.14, ST: 0.12 };
   // How far each kind of player steps up from his defending position when the team is pressing the opposition's build-up.
   const PRESS_PUSH = { GK: 0.03, CB: 0.10, FB: 0.14, DM: 0.14, CM: 0.16, AM: 0.14, WF: 0.12, ST: 0.08 };

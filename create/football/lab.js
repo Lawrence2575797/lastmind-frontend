@@ -126,7 +126,7 @@
         if (!finalThird && h === u && d >= 0.5) { result = { outcome: 'beat', time: t }; break; }
         if (finalThird) {
           const shots = match.events.filter((e) => e.type === 'shot' && e.team === u.id);
-          if (shots.length) { const shot = shots[shots.length - 1]; result = { outcome: 'beat', time: t, shot: true, goal: shot.outcome === 'goal' }; break; }
+          if (shots.length) { const shot = shots[shots.length - 1]; result = { outcome: 'beat', time: t, shot: true, goal: shot.outcome === 'goal', xg: shot.xg || 0 }; break; }
         }
         if (h === o) { const dg = Math.hypot(match.ball.x - (dir === 1 ? 0 : L), match.ball.y - 34); lostAt = t; lostZone = dg < NEAR_GOAL ? 'lostNear' : d < 0.33 ? 'lostOwn' : 'lostMid'; lostCause = causeOf(match, u, o, entries, t); }
         else if (t >= TRIAL_SECONDS) { result = { outcome: 'still', time: t }; break; }
@@ -135,8 +135,8 @@
         const evs = match.events;
         for (; evSeen < evs.length; evSeen++) {
           const e = evs[evSeen];
-          if (e.type === 'shot' && e.team === o.id) { result = { outcome: lostZone, time: lostAt, shot: true, goal: e.outcome === 'goal' }; break; }
-          if (e.type === 'goal' && e.team === o.id) { result = { outcome: lostZone, time: lostAt, shot: true, goal: true }; break; }
+          if (e.type === 'shot' && e.team === o.id) { result = { outcome: lostZone, time: lostAt, shot: true, goal: e.outcome === 'goal', xg: e.xg || 0 }; break; }
+          if (e.type === 'goal' && e.team === o.id) { result = { outcome: lostZone, time: lostAt, shot: true, goal: true, xg: e.xg || 0 }; break; }
         }
         if (!result && t - lostAt >= AFTER_LOSS) result = { outcome: lostZone, time: lostAt };
         // The ball has been regained by us again: that counts as a loss that did no harm (it is still a loss).
@@ -179,7 +179,7 @@
   LAB.run = function (league, opts, onProgress) {
     const n = opts.n || 100, userTeam = opts.user, oppTeam = opts.opp, base = opts.seed || (Date.now() & 0xffffff);
     let oppTactics = null; try { if (oppTeam.id !== league.userId) oppTactics = FM.aiTacticsFor(league, oppTeam, userTeam); } catch (e) { oppTactics = null; }
-    const res = { n, counts: { beat: 0, lostNear: 0, lostOwn: 0, lostMid: 0, still: 0 }, shot: 0, goal: 0, times: [], passes: [], causes: [], passTotal: 0, passOk: 0, passP: 0, firsts: [], clips: {} };
+    const res = { n, counts: { beat: 0, lostNear: 0, lostOwn: 0, lostMid: 0, still: 0 }, shot: 0, goal: 0, xg: 0, times: [], passes: [], causes: [], passTotal: 0, passOk: 0, passP: 0, firsts: [], clips: {} };
     let i = 0;
     return new Promise((resolve) => {
       const batch = () => {
@@ -189,6 +189,7 @@
           res.counts[r.outcome]++;
           if (r.shot) res.shot++;
           if (r.goal) res.goal++;
+          res.xg += r.xg || 0;
           if (r.outcome === 'beat') res.times.push(r.time);
           res.passes.push(r.passes); res.passTotal += r.passTotal || 0; res.passOk += r.passes || 0; res.passP += r.passP || 0;
           if (r.cause) res.causes.push(Object.assign({ zone: r.outcome, shot: !!r.shot }, r.cause));
@@ -206,6 +207,7 @@
   LAB.summarise = function (res) {
     const n = res.n, share = (k) => { const ci = S.wilson(k, n, 0.95); return { k, p: k / n, lo: ci.lo, hi: ci.hi }; };
     const out = { n, beat: share(res.counts.beat), lostNear: share(res.counts.lostNear), lostOwn: share(res.counts.lostOwn), lostMid: share(res.counts.lostMid), still: share(res.counts.still), shot: share(res.shot), goal: share(res.goal) };
+    out.xg = { total: res.xg || 0, mean: (res.xg || 0) / n };
     out.lost = share(res.counts.lostNear + res.counts.lostOwn + res.counts.lostMid);
     out.time = res.times.length > 1 ? { mean: S.mean(res.times), sd: S.sd(res.times, true), n: res.times.length } : null;
     out.passes = { mean: S.mean(res.passes), sd: S.sd(res.passes, true) };

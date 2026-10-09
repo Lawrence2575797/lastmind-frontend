@@ -54,7 +54,25 @@
   FM.pushNews = function (league, item) {
     league.news = league.news || [];
     item.id = 'N' + (league.news.length + 1);
+    item.reporter = item.reporter || ({ Injury: 'Maya Cole', 'Player of the Match': 'Daniel Reed', Interview: 'Sofia Bennett', Preview: 'Owen Price' }[item.kind] || 'The LastMind Football desk');
+    item.publication = item.publication || 'The Touchline';
     league.news.push(item);
+  };
+
+  FM.ensurePreseasonNews = function (league) {
+    league.news = league.news || [];
+    if (league.news.some((n) => n.preseason)) return;
+    const team = FM.teamById(league, league.userId), squad = team.squad.slice().sort((a, b) => FM.playerRating(b) - FM.playerRating(a)), featured = squad[0];
+    FM.pushNews(league, { round: -1, day: 0, preseason: true, kind: 'Player profile', headline: `${featured.name}: the player at the heart of Ashford's new season`, body: `${featured.name}, Ashford Rovers' ${NOUN[featured.natural] || 'player'}, enters the season as one of the squad's key figures. His quality could shape how the side play when matches become tight.`, club: team.id, mine: true, reporter: 'Amelia Hart' });
+    FM.pushNews(league, { round: -1, day: 0, preseason: true, kind: 'Season preview', headline: 'Ashford Rovers prepare for a season of new ideas', body: 'A new campaign begins with selection decisions, tactical experiments and a squad eager to establish its identity. The first fixtures should reveal which ideas are ready for competitive football.', club: team.id, mine: true, reporter: 'Daniel Reed' });
+    FM.pushNews(league, { round: -1, day: 0, preseason: true, kind: 'Interview roundup', headline: 'Managers strike a careful tone before opening weekend', body: 'Across the league, managers have spoken about patience, preparation and the need to begin well. Confidence is growing, but nobody is giving much away before the first team sheets arrive.', club: null, mine: false, reporter: 'Sofia Bennett' });
+  };
+
+  FM.publishInterview = function (league, record, fx) {
+    if (!record.answers.length) return;
+    const team = FM.teamById(league, league.userId), opp = FM.teamById(league, fx.homeId === team.id ? fx.awayId : fx.homeId);
+    const pre = record.kind === 'pre', quote = record.answers[0].answer;
+    FM.pushNews(league, { round: record.round, day: record.day, kind: 'Interview', headline: pre ? `${team.name} manager sets the tone before ${opp.name}` : `${team.name} manager reflects after ${opp.name}`, body: `“${quote}” The manager also faced questions about ${pre ? 'the match plan and the message given to the squad' : 'where the match was decided and what comes next'}.`, club: team.id, mine: true, reporter: 'Sofia Bennett' });
   };
 
   const tableBefore = (league, round) => {
@@ -156,14 +174,15 @@
   // ---------- the page ----------
   const fstate = { mine: false };
   FM.renderNews = function (host, league) {
+    FM.ensurePreseasonNews(league);
     const all = (league.news || []).slice().reverse(), me = league.userId;
     const list = fstate.mine ? all.filter((n) => n.mine) : all;
     const rounds = {}; list.forEach((n) => { (rounds[n.round] = rounds[n.round] || []).push(n); });
     const keys = Object.keys(rounds).map(Number).sort((a, b) => b - a);
     host.innerHTML = `<div style="display:grid;gap:16px"><div class="card"><h2>News</h2>
-      <p class="desc">Every story here comes from something that actually happened in the league's matches.</p>
+      <p class="desc">Stories from the league, the training ground and the press room.</p>
       <div class="row"><button id="nwAll" class="${fstate.mine ? '' : 'on'}">Whole league</button><button id="nwMine" class="${fstate.mine ? 'on' : ''}">My club</button></div></div>
-      ${keys.length ? keys.map((r) => `<div class="card"><h2>After round ${r + 1}</h2>${rounds[r].map((n) => `<div class="hyp"><div class="hyp-head"><span class="lvl ${n.mine ? 'alevel' : 'gcse'}">${esc(n.kind)}</span> <b>${esc(n.headline)}</b></div><p class="note">${esc(n.body)}</p></div>`).join('')}</div>`).join('') : '<div class="card"><p class="note">No news yet. It appears after the first round of matches.</p></div>'}</div>`;
+      ${keys.length ? keys.map((r) => `<div class="card"><h2>${r < 0 ? 'Pre-season' : 'After round ' + (r + 1)}</h2>${rounds[r].map((n) => `<article class="hyp news-story"><div class="hyp-head"><span class="lvl ${n.mine ? 'alevel' : 'gcse'}">${esc(n.kind)}</span> <b>${esc(n.headline)}</b></div><p class="note news-byline">${esc(n.reporter || 'The LastMind Football desk')} · ${esc(n.publication || 'The Touchline')}</p><p class="desc">${esc(n.body)}</p></article>`).join('')}</div>`).join('') : '<div class="card"><p class="note">No stories yet.</p></div>'}</div>`;
     host.querySelector('#nwAll').addEventListener('click', () => { fstate.mine = false; FM.renderNews(host, league); });
     host.querySelector('#nwMine').addEventListener('click', () => { fstate.mine = true; FM.renderNews(host, league); });
     void me;

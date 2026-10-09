@@ -357,16 +357,63 @@
     world.running = false;
     world.skipTo = 'end';
   });
+
+  const INTERVIEW_ANSWERS = {
+    calm: ['We have prepared well. Now the players need to trust the work.', 'We will respect them, but we will play our own game.', 'The performance matters. If we get that right, the result can follow.', 'There is no need for a grand promise. We know what we need to do.', 'The group is ready and looking forward to it.'],
+    response: ['We were brave at the right moments and deserved the result.', 'There were good spells and difficult spells. We will learn from both.', 'The score does not tell the whole story, but we have to own the result.', 'The players gave everything. Our next job is to improve the details.', 'We will review it honestly, then move forward together.']
+  };
+  function interviewQuestions(kind, fx, result) {
+    const lg = world.league, me = userTeam(), home = FM.teamById(lg, fx.homeId), away = FM.teamById(lg, fx.awayId), opp = home.id === me.id ? away : home;
+    if (kind === 'pre') return [
+      `What do you expect from ${opp.name} today?`,
+      `What will matter most in your game plan?`,
+      `What is your message to the players before kick-off?`
+    ];
+    const lead = result === 'W' ? 'After that win' : result === 'L' ? 'After that defeat' : 'After that draw';
+    return [`${lead}, how do you assess the performance?`, 'Where was the match decided?', 'What do you want the players to take into the next game?'];
+  }
+  function runInterview(kind, fx, result, done) {
+    const room = el('interviewRoom'), body = el('pressRoomBody'), questions = interviewQuestions(kind, fx, result), answers = INTERVIEW_ANSWERS[kind === 'pre' ? 'calm' : 'response'];
+    const lg = world.league, key = kind + ':' + fx.round;
+    lg.interviews = lg.interviews || [];
+    if (lg.interviews.some((x) => x.key === key)) { done(); return; }
+    const record = { key, kind, round: fx.round, day: lg.day, answers: [] };
+    let index = 0;
+    const close = (publish) => {
+      room.hidden = true;
+      if (publish) { lg.interviews.push(record); if (FM.publishInterview) FM.publishInterview(lg, record, fx); FM.saveLeague(lg); }
+      done();
+    };
+    const draw = () => {
+      el('pressRoomKicker').textContent = kind === 'pre' ? 'Before the match' : 'After the match';
+      el('pressRoomTitle').textContent = kind === 'pre' ? 'Pre-match press conference' : 'Post-match press conference';
+      body.innerHTML = `<div class="press-progress">${questions.map((_, i) => `<i class="${i <= index ? 'on' : ''}"></i>`).join('')}</div><p class="press-question">${esc(questions[index])}</p><div class="press-answers">${answers.map((a, i) => `<button class="press-answer" data-answer="${i}">${esc(a)}</button>`).join('')}</div><button id="skipInterview">Skip interview</button>`;
+      body.querySelectorAll('[data-answer]').forEach((b) => b.addEventListener('click', () => {
+        record.answers.push({ question: questions[index], answer: answers[+b.dataset.answer] });
+        index++;
+        if (index >= questions.length) close(true); else draw();
+      }));
+      body.querySelector('#skipInterview').addEventListener('click', () => close(false));
+    };
+    room.hidden = false; draw();
+  }
+  function beginPreMatchInterview() {
+    const fx = FM.userFixtureToday(world.league);
+    if (!fx || fx.played) return;
+    runInterview('pre', fx, null, startMatch);
+  }
   el('finishBtn').addEventListener('click', () => {
     const btn = el('finishBtn');
     btn.disabled = true; btn.textContent = 'Playing the other matches...';
     setTimeout(() => {
+      const fx = world.fixture, m = world.match, me = world.league.userId;
+      const mine = m.score[me], theirs = m.score[m.home.id === me ? m.away.id : m.home.id], result = mine > theirs ? 'W' : mine < theirs ? 'L' : 'D';
       FM.completeRound(world.league, world.fixture, world.match);
       { const mine = FM.teamById(world.league, world.league.userId); if (mine && mine.rules) mine.rules = mine.rules.filter((r) => !r.game); }   // instructions for that one game are done with
       world.match = null; world.fixture = null;
       FM.saveLeague(world.league);
       btn.disabled = false; btn.textContent = 'Finish and see the table';
-      setView('home');
+      runInterview('post', fx, result, () => setView('home'));
     }, 40);
   });
 
@@ -405,9 +452,9 @@
   el('injuryTen').addEventListener('click', () => { if (world.match) FM.resolveInjury(world.match); });
 
   // ---------- views and navigation ----------
-  const VIEWS = ['home', 'league', 'squad', 'analysis', 'reports', 'news', 'hypotheses', 'preview', 'match'];
+  const VIEWS = ['home', 'league', 'squad', 'analysis', 'reports', 'news', 'preview', 'match'];
   const NAV = [['home', '⌂', 'Home'], ['tactics', '◇', 'Tactics'], ['league', '▥', 'League'], ['squad', '◉', 'Squad'], ['reports', '◎', 'Reports'], ['news', '◫', 'News'], ['analysis', '⌁', 'Analysis']];
-  const SCREEN_TITLES = { home: 'Club overview', league: 'League centre', squad: 'First-team squad', reports: 'Opposition intelligence', news: 'Football world', analysis: 'Performance analysis', hypotheses: 'Hypothesis lab', preview: 'Match preview' };
+  const SCREEN_TITLES = { home: 'Club overview', league: 'League centre', squad: 'First-team squad', reports: 'Opposition intelligence', news: 'Football world', analysis: 'Performance analysis', preview: 'Match preview' };
   function setView(v) {
     world.view = v;
     document.body.dataset.view = v;
@@ -425,7 +472,6 @@
     else if (v === 'analysis') FM.renderAnalysis(el('view-analysis'), world.league);
     else if (v === 'reports') FM.renderReports(el('view-reports'), world.league);
     else if (v === 'news') FM.renderNews(el('view-news'), world.league);
-    else if (v === 'hypotheses') FM.renderHypotheses(el('view-hypotheses'), world.league);
     else if (v === 'preview') renderPreview();
     else if (v === 'tactics' || v === 'match') renderTactics();
     const activeSection = SCREEN_TITLES[v] ? el('view-' + v) : null;
@@ -440,7 +486,7 @@
   function renderPrepFlow() {
     const host = el('prepFlow');
     if (!world.league || world.view === 'match') { host.hidden = true; return; }
-    const active = world.view === 'tactics' ? (world.tab === 'build' ? 'test' : 'prepare') : world.view === 'analysis' || world.view === 'hypotheses' ? 'analyse' : world.view === 'preview' ? 'match' : '';
+    const active = world.view === 'tactics' ? (['build','final','press','without'].includes(world.tab) ? 'test' : 'prepare') : world.view === 'analysis' ? 'analyse' : world.view === 'preview' ? 'match' : '';
     const steps = [['prepare', 'Prepare tactics'], ['test', 'Test phases'], ['analyse', 'Read evidence'], ['match', 'Match preview'], ['review', 'Review & improve']];
     host.hidden = false;
     host.innerHTML = steps.map(([k, label], i) => `${i ? '<span class="flow-arrow">›</span>' : ''}<button data-flow="${k}" data-step="${i + 1}" class="${active === k ? 'on' : ''}">${label}</button>`).join('');
@@ -464,15 +510,16 @@
     const mustPlay = todayFx && !todayFx.played;
     let label;
     if (over) label = 'Season complete';
-    else if (mustPlay) label = 'Match preview';
-    else label = 'Advance to ' + FM.weekdayName(lg.day + 1);
+    else if (mustPlay) label = 'Start game';
+    else label = 'Advance to matchday';
     host.innerHTML = `<span class="hint" style="color:inherit;opacity:0.8">${esc(FM.dayLabel(lg.day))}</span>
       <button class="primary" id="advBtn"${over || world.view === 'match' ? ' disabled' : ''}>${label}</button>
       <button id="newBtn" title="Abandon this season and start again">New game</button>`;
     el('advBtn').addEventListener('click', () => {
-      if (mustPlay) { setView('preview'); return; }
-      const err = FM.advanceDay(lg);
-      if (!err) { FM.saveLeague(lg); setView(world.view === 'tactics' ? 'tactics' : 'home'); }
+      if (mustPlay) { beginPreMatchInterview(); return; }
+      let err = null, guard = 0;
+      while (!FM.userFixtureToday(lg) && !FM.seasonOver(lg) && guard++ < 8) err = FM.advanceDay(lg);
+      if (!err) { FM.saveLeague(lg); setView('home'); }
     });
     el('newBtn').addEventListener('click', () => {
       if (!confirm('Abandon this season and start a new game?')) return;
@@ -501,7 +548,7 @@
     host.querySelector('#previewTactics').addEventListener('click', () => { world.tab = 'squad'; setView('tactics'); });
     host.querySelector('#previewTest').addEventListener('click', () => { world.tab = 'build'; setView('tactics'); });
     host.querySelector('#previewReport').addEventListener('click', () => setView('reports'));
-    host.querySelector('#enterMatch').addEventListener('click', () => { if (canPlay) startMatch(); });
+    host.querySelector('#enterMatch').addEventListener('click', () => { if (canPlay) beginPreMatchInterview(); });
   }
 
   // ---------- home ----------
@@ -532,7 +579,7 @@
       const when = days === 0 ? 'Today, matchday' : days === 1 ? 'Tomorrow' : 'In ' + days + ' days, on Saturday';
       next = `<h2>Next match</h2>
         <div class="fixture-big">${esc(home.name)} <span style="opacity:.6">v</span> ${esc(away.name)}</div>
-        <p class="desc">${when} · Round ${nextFx.round + 1} of 14 · ${home.id === me ? 'Home' : 'Away'} against ${esc(opp.name)} (${FM.clubProfile(opp).tag ? FM.clubProfile(opp).tag + ', ' : ''}${{ balanced: 'a balanced side', possession: 'keeping the ball', counter: 'attacking on the counter', press: 'pressing high up the pitch', direct: 'playing long and direct' }[opp.style] ? 'known for ' + { balanced: 'being well balanced', possession: 'keeping possession', counter: 'counter-attacking', press: 'pressing high up the pitch', direct: 'playing long and direct' }[opp.style] : ''})</p>
+        <p class="desc">${when} · Round ${nextFx.round + 1} of 14 · ${home.id === me ? 'Home' : 'Away'} against ${esc(opp.name)}</p>
         ${today && !today.played ? '<div class="banner">Matchday. Settle the tactics, then play.</div>' : '<p class="note">Prepare, then advance when you are ready.</p>'}`;
     }
     const played = lg.fixtures.filter((f) => f.played && (f.homeId === me || f.awayId === me)).sort((a, b) => b.round - a.round);
@@ -628,7 +675,7 @@
   // One page, used on any preparation day and again when the match is paused. Changes apply to the rest of the match.
   const TABS = [
     ['squad', 'Squad and formation'], ['build', 'Build-up'], ['final', 'Final third'],
-    ['transatt', 'Transition to attack'], ['transdef', 'Transition to defence'], ['press', 'Pressing'], ['without', 'Defensive third'], ['evidence', 'Tests & hypotheses'], ['setpieces', 'Set pieces'],
+    ['transatt', 'Transition to attack'], ['transdef', 'Transition to defence'], ['press', 'Pressing'], ['without', 'Defensive third'], ['setpieces', 'Set pieces'],
   ];
   // Each tab with a board shows the team in that phase of play.
   const BOARD_KEY = { squad: 'shape', build: 'build', final: 'final', transatt: 'transAtt', transdef: 'transDef', press: 'press', without: 'without' };
@@ -708,7 +755,6 @@
     el('tabs').innerHTML = TABS.map(([k, label]) => `<button data-tab="${k}" class="${world.tab === k ? 'on' : ''}">${label}${k === 'instr' && (team.rules || []).filter((r) => !r.off).length ? ' (' + (team.rules || []).filter((r) => !r.off).length + ')' : ''}</button>`).join('');
     el('tabs').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { world.tab = b.dataset.tab; renderTactics(); }));
     if (world.tab === 'setpieces') renderSetPieces(team);
-    else if (world.tab === 'evidence') FM.renderHypotheses(el('tabBody'), world.league);
     else renderBoardTab(team, world.tab);
   }
 
@@ -735,10 +781,10 @@
       <div class="two"><label>Scenario<select id="labStart">${phase === 'final' ? '<option value="attack">A settled attack entering the final third</option>' : phase === 'without' ? '<option value="defend">The opposition enter your defensive third</option>' : phase === 'press' ? '<option value="keeper">Their goalkeeper starts a build-up</option><option value="goalkick">Their goal kick (short pass compulsory)</option>' : `<option value="keeper"${st.start === 'keeper' ? ' selected' : ''}>The goalkeeper has the ball in open play</option><option value="goalkick"${st.start === 'goalkick' ? ' selected' : ''}>A goal kick (short pass compulsory)</option>`}</select></label>
         <label>Number of tests<select id="labN">${[100, 400, 1000].map((n) => `<option value="${n}"${st.n === n ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>
       <label>Before you run it: what share will succeed? (${target}, %)<input type="number" id="labPred" min="0" max="100" step="1" value="${esc(st.pred)}" placeholder="e.g. 60"></label>
-      ${runs.length ? `<label>Your hypothesis for this run: what you changed, and what you think will happen because of it<textarea id="labHyp" placeholder="e.g. Moving a centre-back close to the goalkeeper gives him a short pass, so fewer long balls will be cut out and more build-ups will reach halfway.">${esc(st.hyp)}</textarea></label>` : ''}
+      ${runs.length ? `<label>What are you changing, and what do you expect to happen?<textarea id="labHyp" placeholder="Write one clear tactical change and the effect you expect in this phase.">${esc(st.hyp)}</textarea></label>` : ''}
       <div class="row"><button class="primary" id="labRun"${st.busy ? ' disabled' : ''}>${st.busy ? (st.planning ? 'Their manager is preparing…' : 'Running… ' + st.prog + ' of ' + st.n) : 'Run ' + st.n + ' tests'}</button></div>
       <p class="err">${esc(st.err)}</p>
-      ${last ? phaseResultHtml(phase, last.result) + `<p class="note">Run ${runs.length} is done. Compare it after changing one tactical choice.</p>` : ''}
+      ${last ? phaseResultHtml(phase, last.result) + `<p class="note">Run ${runs.length} is done. Change one tactical choice, write your expectation above, then test again.</p>${phaseHistoryHtml(phase, runs)}` : ''}
     </div>`;
     const q = (id) => host.querySelector(id);
     q('#labStart').addEventListener('change', (e) => { st.start = e.target.value; });
@@ -770,11 +816,18 @@
   function phaseResultHtml(phase, r) {
     if (!r) return '';
     const pc = (x) => Math.round((x && x.p || 0) * 100) + '%';
+    const xg = r.xg ? r.xg.mean.toFixed(2) : '0.00';
     const kpis = phase === 'build' ? [['Beat the press',pc(r.beat)],['Lost it',pc(r.lost)],['Shot conceded',pc(r.shot)],['Goal conceded',pc(r.goal)]]
-      : phase === 'final' ? [['Reached attack',pc(r.beat)],['Shot generated',pc(r.shot)],['Goal scored',pc(r.goal)],['Attack broke down',pc(r.lost)]]
-      : phase === 'press' ? [['Build-up stopped',pc(r.lost)],['Won high',pc(r.lostNear)],['They escaped',pc(r.beat)],['Shot after escape',pc(r.shot)]]
-      : [['Attack stopped',pc(r.lost)],['Danger near goal',pc(r.lostNear)],['Shot conceded',pc(r.shot)],['Goal conceded',pc(r.goal)]];
+      : phase === 'final' ? [['xG per attack',xg],['Shot generated',pc(r.shot)],['Goal scored',pc(r.goal)],['Attack broke down',pc(r.lost)]]
+      : phase === 'press' ? [['Build-up stopped',pc(r.lost)],['Turnover in final third',pc(r.lostNear)],['They escaped',pc(r.beat)],['Shot after escape',pc(r.shot)]]
+      : [['xG conceded / attack',xg],['Attack stopped',pc(r.lost)],['Shot conceded',pc(r.shot)],['Goal conceded',pc(r.goal)]];
     return `<div class="phase-kpis">${kpis.map(([a,b]) => `<div><b>${b}</b><span>${a}</span></div>`).join('')}</div>`;
+  }
+
+  function phaseHistoryHtml(phase, runs) {
+    if (!runs.length) return '';
+    const metric = (r) => phase === 'final' || phase === 'without' ? `${(r.result.xg && r.result.xg.mean || 0).toFixed(2)} xG` : phase === 'press' ? `${Math.round(r.result.lostNear.p * 100)}% high turnovers` : `${Math.round(r.result.beat.p * 100)}% beat the press`;
+    return `<div class="phase-history"><h3>Tests in this phase</h3>${runs.slice(-4).reverse().map((r, i) => `<div class="hyp"><b>Run ${runs.length - i}: ${metric(r)}</b><p class="note">${r.hyp ? esc(r.hyp) : 'Baseline run — no change was recorded.'}</p></div>`).join('')}</div>`;
   }
 
   function takerSelect(team, key, label) {
@@ -1155,17 +1208,18 @@
   // ---------- starting up ----------
   function showNewGame() {
     document.body.dataset.view = 'new';
-    ['home', 'league', 'squad', 'analysis', 'reports', 'news', 'hypotheses', 'preview', 'match'].forEach((k) => { el('view-' + k).hidden = true; });
+    ['home', 'league', 'squad', 'analysis', 'reports', 'news', 'preview', 'match'].forEach((k) => { el('view-' + k).hidden = true; });
     el('tactics').hidden = true; el('nav').hidden = true; el('prepFlow').hidden = true; el('newGame').hidden = false;
     el('topRight').innerHTML = ''; el('subtitle').textContent = 'Eight clubs, one season, and a lot of numbers.';
   }
-  el('ngTeam').innerHTML = FM.TEAM_DEFS.map((d, i) => `<option value="${i}">${esc(d.name)}</option>`).join('');
+  el('ngTeam').innerHTML = `<option value="0">${esc(FM.TEAM_DEFS[0].name)}</option>`;
   el('ngTeam').value = '0'; // Ashford Rovers is the default club for the supported portrait experience.
   el('ngStart').addEventListener('click', async () => {
     const btn = el('ngStart'), tier = document.querySelector('input[name="tier"]:checked').value;
     btn.disabled = true; btn.textContent = 'Setting up the clubs...';
     await new Promise((r) => setTimeout(r, 30));
     world.league = FM.createLeague({ userIndex: +el('ngTeam').value, tier });
+    if (FM.ensurePreseasonNews) FM.ensurePreseasonNews(world.league);
     await FM.playFriendlies(world.league, (i, n) => { btn.textContent = 'Playing pre-season friendlies (' + i + ' of ' + n + ')...'; });
     FM.saveLeague(world.league);
     btn.disabled = false; btn.textContent = 'Start the season';
@@ -1176,6 +1230,7 @@
   window.addEventListener('resize', resize);
   world.league = FM.loadLeague();
   if (world.league) {
+    if (FM.ensurePreseasonNews) { FM.ensurePreseasonNews(world.league); FM.saveLeague(world.league); }
     setView('home');
     // a game saved before friendlies existed: play them now so the reports have something to read
     if (FM.ensureFriendlies(world.league)) {

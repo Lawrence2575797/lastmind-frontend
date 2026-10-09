@@ -128,6 +128,20 @@
   .attribute-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:8px 16px; }
   .attribute-grid div { display:grid; grid-template-columns:1fr auto; gap:3px 8px; font:700 .76rem var(--sans); }
   .attribute-grid i { grid-column:1/-1; height:5px; border-radius:5px; background:linear-gradient(90deg,var(--fm-green-bright) var(--v),rgba(255,255,255,.1) var(--v)); }
+  .press-room { position:fixed; inset:0; z-index:120; display:grid; place-items:center; padding:24px; background:rgba(2,7,8,.88); backdrop-filter:blur(8px); }
+  .press-room[hidden] { display:none; }
+  .press-stage { width:min(920px,100%); max-height:92vh; overflow:auto; border:1px solid var(--fm-border-strong); border-radius:22px; background:linear-gradient(150deg,#14231f,#0a1312); box-shadow:0 30px 90px rgba(0,0,0,.65); }
+  .press-backdrop { min-height:155px; display:grid; place-items:center; padding:28px; text-align:center; background:radial-gradient(circle at 50% 20%,rgba(82,189,123,.24),transparent 52%),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px); background-size:auto,54px 100%; border-bottom:1px solid var(--fm-border); }
+  .press-backdrop h2 { margin:7px 0 0; color:var(--cream); font:800 clamp(1.7rem,4vw,3rem)/1 var(--sans); text-transform:none; }
+  .press-body { display:grid; gap:18px; padding:26px; }
+  .press-question { margin:0; color:var(--cream); font:700 clamp(1.15rem,2.2vw,1.55rem)/1.4 var(--sans); }
+  .press-answers { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+  .press-answer { min-height:72px; padding:14px 16px; text-align:left; line-height:1.4; }
+  .press-answer:last-child:nth-child(odd) { grid-column:1/-1; }
+  .press-progress { display:flex; gap:7px; }
+  .press-progress i { width:32px; height:4px; border-radius:4px; background:rgba(255,255,255,.14); }
+  .press-progress i.on { background:var(--gold); }
+  @media(max-width:620px){.press-answers{grid-template-columns:1fr}.press-answer:last-child:nth-child(odd){grid-column:auto}}
   @media(max-width:900px){.player-profile{grid-template-columns:140px 1fr}.player-portrait{width:140px;height:170px}.attribute-grid{grid-column:1/-1}}
   @media(max-width:560px){.player-profile{grid-template-columns:1fr}.player-portrait{width:100%;height:auto;aspect-ratio:4/3}.attribute-grid{grid-column:auto}}
   .score { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--navy); color: var(--cream); border-radius: 14px; padding: 12px 18px; font-family: var(--sans); flex-wrap: wrap; }
@@ -327,19 +341,15 @@
     border-bottom: 1px solid var(--fm-border);
   }
   body:not([data-view="match"]) .topbar::before {
-    content: 'LM';
-    display: grid;
-    place-items: center;
+    content: '';
+    display: block;
     width: 48px;
     height: 48px;
     margin-right: 14px;
     border: 1px solid rgba(215,184,107,.4);
     border-radius: 14px;
-    color: var(--fm-gold);
-    background: linear-gradient(145deg, rgba(215,184,107,.12), rgba(47,143,91,.12));
+    background: #e6d7b0 url('/icons/lastmind-logo.png') center/82% 82% no-repeat;
     box-shadow: inset 0 1px rgba(255,255,255,.08);
-    font: 800 .78rem/1 var(--sans);
-    letter-spacing: .12em;
   }
   body:not([data-view="match"]) .topbar > div:first-of-type { margin-right: auto; }
   body:not([data-view="match"]) h1 {
@@ -591,8 +601,11 @@
   <section id="view-analysis" hidden></section>
   <section id="view-reports" hidden></section>
   <section id="view-news" hidden></section>
-  <section id="view-hypotheses" hidden></section>
   <section id="view-preview" hidden></section>
+
+  <section id="interviewRoom" class="press-room" hidden aria-modal="true" role="dialog" aria-labelledby="pressRoomTitle">
+    <div class="press-stage"><div class="press-backdrop"><div><span class="eyebrow" id="pressRoomKicker">Matchday media</span><h2 id="pressRoomTitle">Press conference</h2></div></div><div class="press-body" id="pressRoomBody"></div></div>
+  </section>
 
   <section id="view-match" hidden>
     <div style="display:grid;gap:16px">
@@ -662,7 +675,6 @@
 <script src="/create/football/analysis.js?v=20261008b"></script>
 <script src="/create/football/clips.js?v=20261008b"></script>
 <script src="/create/football/reports.js?v=20261008b"></script>
-<script src="/create/football/hypotheses.js?v=20261008b"></script>
 <script src="/create/football/lab.js?v=20261008b"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="/create/football/api.js?v=20261008b"></script>

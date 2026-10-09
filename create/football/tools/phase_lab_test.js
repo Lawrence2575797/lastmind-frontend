@@ -18,7 +18,7 @@ Promise.all([
   FM.lab.run(league, { n:20, user:home, opp:away, phase:'final', start:'attack', seed:402 })
 ]).then(([build, final]) => {
   const total = (r) => r.beat.k + r.lost.k + r.still.k;
-  const ok = total(build) === 20 && total(final) === 20 && final.shot.k === final.beat.k;
-  console.log(JSON.stringify({ ok, build: { escaped:build.beat.k, lost:build.lost.k, still:build.still.k }, final: { shots:final.shot.k, goals:final.goal.k, brokeDown:final.lost.k, still:final.still.k } }, null, 2));
+  const ok = total(build) === 20 && total(final) === 20 && final.shot.k === final.beat.k && Number.isFinite(final.xg.mean) && final.xg.mean >= 0;
+  console.log(JSON.stringify({ ok, build: { escaped:build.beat.k, lost:build.lost.k, still:build.still.k }, final: { shots:final.shot.k, goals:final.goal.k, xgPerAttack:+final.xg.mean.toFixed(3), brokeDown:final.lost.k, still:final.still.k } }, null, 2));
   if (!ok) process.exitCode = 1;
 });
