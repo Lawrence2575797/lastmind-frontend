@@ -48,8 +48,8 @@
     // Centre-forwards occupy the best areas but are also the defence's first
     // marking priority. Nearest-defender distance alone misses that attention,
     // which previously made almost every goal belong to a striker.
-    const marking = shooter.group === 'ST' ? 1.45 : (shooter.group === 'WF' || shooter.group === 'AM' ? -.08 : 0);
-    return -5.35 + 7.6 * FM.shotAngle(x, y, attackDir) + 0.03 * (shooter.ratings.finishing - 60) - 0.9 * Math.exp(-defDist / 2) - marking;
+    const marking = shooter.group === 'ST' ? 2.2 : (shooter.group === 'WF' || shooter.group === 'AM' ? -.08 : 0);
+    return -6.2 + 7.35 * FM.shotAngle(x, y, attackDir) + 0.026 * (shooter.ratings.finishing - 60) - 1.05 * Math.exp(-defDist / 2) - marking;
   };
 
   // ---------- roles' tendencies when on the ball ----------
@@ -67,6 +67,7 @@
       score: {},
       ball: { x: L / 2, y: W / 2, state: 'carried' },
       carrier: null, flight: null, carry: null, lastTeam: home,
+      fixedStepRemainder: 0,
       events: [], aiTeams: [], aiSubStep: {}, nextAiCheck: 1200,
       stats: {}, heat: { next: 0, ball: new Array(FM.HEAT.GX * FM.HEAT.GY).fill(0), teams: {}, players: {} },
     };
@@ -174,6 +175,7 @@
     match.possessionPlannedDelay = delay;
     match.possessionReceivedDepth = FM.toTeamSpace(team.attackDir, player.x, player.y).d;
     match.possessionMinPressure = nearestOpponent(match, team, player).d;
+    if (!match.possessionTeamSince || match.possessionTeamSince.team !== team) match.possessionTeamSince = { team, t: match.clock };
     match.carry = null;
   }
 
@@ -308,17 +310,17 @@
       // the whole side swarm the carrier. Keep one presser plus support close
       // (three only during a genuine counter-press or emergency near goal),
       // and hold everybody else outside the immediate pressure circle.
-      const closeLimit = (lostIt && press > .68) || nearGoal ? 3 : 2;
+      const closeLimit = lostIt && press > .78 && match.clock - match.lastChange.t < 2.5 ? 3 : 2;
       const projected = opp.players.filter((p) => p.group !== 'GK').map((p) => {
         const target = ov.get(p) || { x: p.x, y: p.y };
         return { p, target, d: Math.hypot(target.x - c.player.x, target.y - c.player.y) };
       }).sort((a, b) => a.d - b.d);
       projected.slice(closeLimit).forEach(({ p, target, d }, index) => {
-        if (d >= 11.5) return;
+        if (d >= 13.5) return;
         let dx = target.x - c.player.x, dy = target.y - c.player.y;
         let len = Math.hypot(dx, dy);
         if (len < .1) { dx = p.x - c.player.x; dy = p.y - c.player.y; len = Math.hypot(dx, dy) || 1; }
-        const radius = 11.5 + Math.min(3, index * .3);
+        const radius = 13.5 + Math.min(3, index * .35);
         ov.set(p, { x: clamp(c.player.x + dx / len * radius, 1, L - 1), y: clamp(c.player.y + dy / len * radius, 1, W - 1) });
       });
     } else if (match.flight && match.flight.target) {
@@ -334,11 +336,12 @@
     }
     return ov;
   }
-  // Who presses whom. Redrawn every three seconds, or when the ball changes hands.
+  // Who presses whom. Keep assignments long enough for a press to look like a
+  // coordinated choice rather than eleven players repeatedly retargeting the ball.
   const PRESS_ROLES = ['ST', 'WF', 'AM', 'CM', 'DM'];
   function pressPlan(match, opp, att, carrier, press, ov) {
     const pl = match.plan;
-    if (pl && pl.def === opp.id && pl.carrier === carrier && match.clock - pl.t < 3) return pl;
+    if (pl && pl.def === opp.id && match.clock - pl.t < 5 && dist(pl.carrier, carrier) < 14) return pl;
     const rng = match.rng, follow = clamp(0.5 + 0.45 * press, 0.4, 0.95);
     const cd = new Map(); opp.players.forEach((p) => { if (p.group !== 'GK') cd.set(p, FM.rulesDelta(opp, p, 'closeDown', match.ball, false)); });
     let more = 0, fewer = 0; cd.forEach((v) => { if (v > 0) more += v; else fewer -= v; });
@@ -408,7 +411,9 @@
     if (!ch || ch.team !== team) return 0;
     const since = match.clock - ch.t;
     if (since >= COUNTER_WINDOW) return 0;
-    return team.tactics.counterAttack * (1 - since / COUNTER_WINDOW);
+    const securedFor = match.possessionTeamSince && match.possessionTeamSince.team === team ? match.clock - match.possessionTeamSince.t : 0;
+    const secure = clamp(1 - Math.max(0, securedFor - 3) / 3, 0, 1);
+    return team.tactics.counterAttack * (1 - since / COUNTER_WINDOW) * secure;
   }
 
   // ---------- the decision a ball carrier makes ----------
@@ -515,7 +520,7 @@
       // diagonal runs into useful shooting lanes instead of remaining pinned
       // to a low-value angle beside the touchline.
       if (Math.hypot(tx - goal.x, ty - goal.y) < 34 && (t.group === 'WF' || t.group === 'AM')) {
-        ty += (W / 2 - ty) * (t.group === 'WF' ? .42 : .24);
+        ty += (W / 2 - ty) * (t.group === 'WF' ? .65 : .4);
       }
       // The ball is played to where the receiver can meet it: a run is timed off the last defender, so the pass lands level with the line or
       // a step beyond it, not several metres behind a defence that is still goal-side.
@@ -527,7 +532,7 @@
       const prog = clamp((dGoal - Math.hypot(tx - goal.x, ty - goal.y)) / 25, -0.6, 1.2);
       const boxBonus = Math.hypot(tx - goal.x, ty - goal.y) < 19 && Math.abs(ty - W / 2) < 18 ? 0.45 * (0.5 + risk) : 0;
       // Outside the final third a team is patient: going forward is worth less than keeping the ball, so play is circulated and the ball is moved up in stages.
-      const progK = zone === 'final' ? 1 : (FM.PROG_K == null ? .2 : FM.PROG_K);
+      const progK = zone === 'final' ? 1 : (FM.PROG_K == null ? .38 : FM.PROG_K);
       const score = p * (0.35 + directness * 0.9 * prog * progK + 0.5 * prog * risk * progK + boxBonus) - (1 - p) * 0.6 * (1 - risk) * lossFactor;
       // The chance it creates. A pass that puts a team-mate somewhere he is clearly likelier to score from than the man on the ball is the
       // pass a player looks for: it counts for what the receiver could do with it, whoever he is.
@@ -539,7 +544,7 @@
         // to the centre-forward. Wide forwards and attacking midfielders must
         // also receive the ball in scoring positions, as they do in a real
         // attack, while the striker remains the likeliest single scorer.
-        const chanceRole = ({ ST: .46, WF: 1, AM: .92, CM: .6, FB: .35, DM: .25, CB: .12 })[t.group] || .5;
+        const chanceRole = ({ ST: .28, WF: 1, AM: .95, CM: .62, FB: .35, DM: .25, CB: .12 })[t.group] || .5;
         chance = (FM.CHANCE_BONUS == null ? 1.35 : FM.CHANCE_BONUS) * chanceRole * p * Math.max(0, rx - cx);
       }
       const off = match.noOffside ? 'on' : offsideStatus(match, team, carrier, t.x);
@@ -567,7 +572,7 @@
       }
       const targetGoalD = Math.hypot(tx - goal.x, ty - goal.y);
       const attackSpread = zone === 'final' && targetGoalD < 32
-        ? (({ ST: -.72, WF: .4, AM: .42, CM: .25, FB: .08 })[t.group] || 0)
+        ? (({ ST: -1.08, WF: .58, AM: .5, CM: .28, FB: .1 })[t.group] || 0)
         : 0;
       options.push({ kind: 'pass', target: t, tx, ty, d, lane, press, p, score: off === 'off' ? -4 : score + adj + chance + attackSpread });
     });
@@ -601,16 +606,41 @@
     // Beating a man in the final third is harder than in midfield: the cover is close, and one beaten man is not the whole defence.
     const dp = FM.dribbleProb(carrier, nearBehind ? nearD * 2.4 : nearD, nearOpp) * (ownDepth0 > 0.66 ? (FM.DRIB_FINAL == null ? 1 : FM.DRIB_FINAL) : 1);
     const dribbleBias = (GROUP_DRIBBLE[carrier.group] || 0) + (ROLE_DRIBBLE[role] || 0);
-    options.push({ kind: 'dribble', p: dp, nearOpp, nearD, behind: nearBehind, score: dp * (0.3 + 0.9 * directness * 0.4 + (dribbleBias + mods.dribble + (tac.dribbleFreedom - 0.5) * 0.9 + (zone === 'final' && nearD > 3.5 ? 0.45 : 0) + (through ? (FM.THROUGH_DRIB == null ? 0.4 : FM.THROUGH_DRIB) : 0))) - (1 - dp) * 0.55 * (1 - risk) * lossFactor });
-
-    if (RE) options[options.length - 1].score += 0.45 * RE.dribble;
-    // In his own third with a defender close, taking the man on is the last thing a defender wants to do.
-    if (zone === 'build' && nearD < 3.5) { const dr = options[options.length - 1]; dr.score -= 0.5 * (1 - nearD / 3.5) * (1 + (1 - risk)) * (['GK', 'CB', 'FB'].indexOf(carrier.group) >= 0 ? 2.4 : ['DM', 'CM'].indexOf(carrier.group) >= 0 ? 1.5 : 1) * (FM.DRIBBLE_BUILD_PEN == null ? 1 : FM.DRIBBLE_BUILD_PEN); }
-    const attackingThird = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d > 0.6;
-    if (((dGoal < 28 && attackingThird) || (through && dGoal < 38)) && carrier.group !== 'GK') {
-      const xg = sig(FM.xgLogit(carrier, carrier.x, carrier.y, team.attackDir, nearD) - 0.55 * crowd(match, team, carrier));
-      options.push({ kind: 'shoot', xg, score: xg * 3.2 * (0.5 + risk * 0.9) * (0.4 + 1.2 * tac.shootFreedom) * mods.shoot - (1 - xg) * 0.12 - Math.max(0, 0.09 - xg) * 8 * (1.2 - tac.shootFreedom) * (['AM', 'WF', 'CM'].indexOf(carrier.group) >= 0 ? (FM.MID_LOWXG == null ? .85 : FM.MID_LOWXG) : 1) + 0.35 * clamp((nearD - 1.2) / 2.5, 0, 1) * clamp((28 - dGoal) / 14, 0, 1) + (through ? (FM.THROUGH_SHOOT == null ? .35 : FM.THROUGH_SHOOT) * clamp((38 - dGoal) / 22, 0, 1) : 0) + (FM.LONG_SHOT == null ? 1.35 : FM.LONG_SHOT) * (({ ST: 0.5, WF: 1, AM: 1.4, CM: 1.2, DM: 0.5, FB: 0.4, CB: 0.2 })[carrier.group] || 0.5) * clamp((28 - dGoal) / 11, 0, 1) * clamp((nearD - 1.2) / 2.5, 0, 1) - (FM.SHOT_PATIENCE == null ? .05 : FM.SHOT_PATIENCE) + (({ ST: -.32, WF: .16, AM: .14, CM: .04 })[carrier.group] || 0) });
+    // A carry into empty grass is not a take-on. Previously both used the
+    // dribble duel, producing hundreds of apparent one-v-ones per match.
+    const carrySpace = clamp((nearD - 3.5) / 8, 0, 1);
+    if (nearD > 3.5 && carrier.group !== 'GK') options.push({ kind: 'carry', nearD, score: .38 + .4 * carrySpace + .22 * directness + .18 * counter - .22 * (zone === 'build' && carrier.group === 'CB' ? 1 : 0) });
+    let dribbleOption = null;
+    const willingDribbler = ['WF', 'AM', 'ST', 'CM'].includes(carrier.group) || mods.dribble > 0 || tac.dribbleFreedom > .65;
+    if (nearD < 3.1 && willingDribbler && (zone === 'final' || mods.dribble > 0 || tac.dribbleFreedom > .72)) {
+      dribbleOption = { kind: 'dribble', p: dp, nearOpp, nearD, behind: nearBehind, score: dp * (.05 + .3 * directness + dribbleBias + mods.dribble + (tac.dribbleFreedom - .5) * .55 + (zone === 'final' ? .15 : 0) + (through ? .2 : 0)) - (1 - dp) * .9 * (1 - risk) * lossFactor - .25 };
+      options.push(dribbleOption);
     }
+
+    if (RE && dribbleOption) dribbleOption.score += 0.35 * RE.dribble;
+    // In his own third with a defender close, taking the man on is the last thing a defender wants to do.
+    if (dribbleOption && zone === 'build' && nearD < 3.5) dribbleOption.score -= 0.5 * (1 - nearD / 3.5) * (1 + (1 - risk)) * (['GK', 'CB', 'FB'].indexOf(carrier.group) >= 0 ? 2.4 : ['DM', 'CM'].indexOf(carrier.group) >= 0 ? 1.5 : 1) * (FM.DRIBBLE_BUILD_PEN == null ? 1 : FM.DRIBBLE_BUILD_PEN);
+    const attackingThird = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d > 0.6;
+    if (((dGoal < 32 && attackingThird) || (through && dGoal < 38)) && carrier.group !== 'GK') {
+      const xg = sig(FM.xgLogit(carrier, carrier.x, carrier.y, team.attackDir, nearD) - 0.55 * crowd(match, team, carrier));
+      options.push({ kind: 'shoot', xg, score: xg * 2.75 * (0.5 + risk * 0.8) * (0.45 + tac.shootFreedom) * mods.shoot - (1 - xg) * 0.2 - Math.max(0, 0.1 - xg) * 6.5 * (1.2 - tac.shootFreedom) * (['AM', 'WF', 'CM'].indexOf(carrier.group) >= 0 ? (FM.MID_LOWXG == null ? .85 : FM.MID_LOWXG) : 1) + 0.25 * clamp((nearD - 1.2) / 2.5, 0, 1) * clamp((25 - dGoal) / 13, 0, 1) + (through ? .28 * clamp((36 - dGoal) / 20, 0, 1) : 0) + .75 * (({ ST: 0.45, WF: .85, AM: 1, CM: .8, DM: .3, FB: .25, CB: .1 })[carrier.group] || 0.4) * clamp((26 - dGoal) / 12, 0, 1) * clamp((nearD - 1.2) / 2.5, 0, 1) + .32 - Math.max(0, .045 - xg) * 5 + (({ ST: -.28, WF: .12, AM: .1, CM: .02 })[carrier.group] || 0) });
+    }
+
+    // Under severe pressure near their own goal, defenders can deliberately
+    // clear rather than disguising a clearance as an ambitious normal pass.
+    const safeOutlet = options.some((o) => o.kind === 'pass' && o.d < 25 && o.p > .76 && o.press > 4.5);
+    const clearanceReady = !match.lastClearance || match.clock - (match.lastClearance[team.id] || -99) > 18;
+    if (clearanceReady && !safeOutlet && ownDepth0 < .24 && nearNow < 1.9 && ['GK', 'CB', 'FB', 'DM'].includes(carrier.group)) {
+      const forwardPasses = options.filter((o) => o.kind === 'pass' && o.d > 24 && (o.tx - carrier.x) * team.attackDir > 12);
+      if (forwardPasses.length) {
+        forwardPasses.sort((a, b) => b.d - a.d);
+        options.push({ kind: 'clear', pass: forwardPasses[0], score: .25 + .55 * (1 - risk) + .3 * live.pressure });
+      }
+    }
+
+    // Keeping the ball is a real decision. It is most attractive in settled,
+    // unpressured possession and prevents every decision clock becoming an action.
+    if (nearNow > 4 && !through) options.push({ kind: 'hold', score: .48 + .55 * live.patience - .4 * live.urgency - .2 * directness });
 
     if (coast > 0) options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= 1 - 0.45 * coast; });
     if (RE && RE.shoot) options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= clamp(1 + 0.9 * RE.shoot, 0.1, 2); });
@@ -640,16 +670,17 @@
     const midfield = depth < .66;
     const tempoK = clamp(team.tactics.tempo + 0.4 * counterNow(match, team), 0, 1);
     const base = build
-      ? (FM.BUILD_HOLD_BASE == null ? 7 : FM.BUILD_HOLD_BASE) - 1.1 * tempoK
+      ? (FM.BUILD_HOLD_BASE == null ? 10.2 : FM.BUILD_HOLD_BASE) - 1.3 * tempoK
       : midfield
-        ? (FM.HOLD_BASE == null ? 5.2 : FM.HOLD_BASE) - 1.0 * tempoK
-        : 4.7 - 1.35 * tempoK;
+        ? (FM.HOLD_BASE == null ? 7.8 : FM.HOLD_BASE) - 1.2 * tempoK
+        : 6.5 - 1.5 * tempoK;
     const { d } = nearestOpponent(match, team, carrier);
     const pressureFactor = midfield ? (d < 3 ? 0.58 : d < 6 ? 0.76 : d < 10 ? 0.92 : 1) : (d < 3 ? 0.62 : d < 6 ? 0.84 : 1);
     let tempoD = 0, hold = false;
     if (team.rules && team.rules.length) { const f = FM.rulesFold(FM.rulesActive(team, carrier, FM.rulesCtx(team, match.ball, true, d < 4))); tempoD = f.tempo; hold = f.holdUp; }
     const clear = clearThrough(match, team, carrier) ? 0.3 : 1;   // one on one with the keeper there is no time to think
-    return (base * clear * (1 - 0.35 * tempoD) * pressureFactor + (FM.instrMods(carrier).holdUp || hold ? 0.9 : 0)) * (0.82 + 0.36 * match.rng()) + (midfield ? 0 : 0.18);
+    const planned = (base * clear * (1 - 0.35 * tempoD) * pressureFactor + (FM.instrMods(carrier).holdUp || hold ? 0.9 : 0)) * (0.82 + 0.36 * match.rng()) + (midfield ? 0 : 0.18);
+    return Math.max(counterNow(match, team) > .45 || clear < 1 ? 2.1 : 3.8, planned);
   }
 
   function reassessDecisionTiming(match, dt) {
@@ -662,7 +693,7 @@
     // possession adds a little patience, but only up to a bounded ceiling.
     // Thus the same player can wait, release, or suddenly go vertical as the
     // picture around him changes rather than obeying one receive-time timer.
-    if (live.urgency > .12) match.nextDecision -= dt * .42 * live.urgency;
+    if (live.urgency > .12) match.nextDecision -= dt * .16 * live.urgency;
     if (live.patience > .05 && live.forwardOpening < .35) {
       const receivedAt = match.possessionReceivedAt == null ? match.clock : match.possessionReceivedAt;
       const ceiling = receivedAt + 9;
@@ -670,7 +701,7 @@
     }
     // Close pressure always wins over patience, but a player still needs a
     // readable touch rather than releasing in the same animation frame.
-    if (live.pressure > .7) match.nextDecision = Math.min(match.nextDecision, match.clock + .45 + .45 * (1 - live.pressure));
+    if (live.pressure > .7) match.nextDecision = Math.min(match.nextDecision, match.clock + 1.05 + .65 * (1 - live.pressure));
   }
 
   // ---------- performing an action ----------
@@ -738,6 +769,27 @@
     match.nextDecision = match.clock + delayBeforeNextDecision(match, team, carrier);
   }
 
+  function doCarry(match, team, carrier) {
+    const gx = team.attackDir === 1 ? L : 0;
+    const dx = gx - carrier.x, dy = (W / 2 - carrier.y) * (carrier.group === 'WF' ? .55 : .18);
+    const len = Math.hypot(dx, dy) || 1;
+    match.carry = { player: carrier, until: match.clock + .75, dx: dx / len, dy: dy / len };
+    match.nextDecision = match.clock + 1.1 + .9 * match.rng();
+  }
+
+  function doHold(match, team, carrier) {
+    match.carry = null;
+    match.nextDecision = match.clock + 1.2 + 1.8 * match.rng() + .7 * (1 - team.tactics.tempo);
+  }
+
+  function doClear(match, team, carrier, opt) {
+    const pass = Object.assign({}, opt.pass, { p: clamp(opt.pass.p * .82, .2, .78) });
+    record(match, { type: 'clearance', team: team.id, player: carrier.number, x: carrier.x, y: carrier.y, tx: pass.tx, ty: pass.ty });
+    if (!match.lastClearance) match.lastClearance = {};
+    match.lastClearance[team.id] = match.clock;
+    doPass(match, team, carrier, pass);
+  }
+
   function doShot(match, team, carrier, opt) {
     const rng = match.rng;
     const st = statsOf(match, team);
@@ -760,16 +812,23 @@
     // its xG, so that over many shots expected goals and goals agree (the chance the shooter weighed up beforehand, opt.xg, ignores both).
     const pBlock = blocker ? 0.8 * Math.exp(-bd / 1.5) : 0;
     const xgAdj = sig(FM.xgLogit(shooter, carrier.x, carrier.y, team.attackDir, nearD) - 0.55 * crowd(match, team, carrier) - 0.03 * ((gk ? gk.ratings.gk : 60) - 60));
-    const shotXg = (1 - pBlock) * xgAdj;
+    const pOn = sig(0.15 + 0.03 * (shooter.ratings.finishing - 60) - 0.6 * Math.exp(-nearD / 2));
+    // Record the probability the actual outcome routine uses. Previously xG
+    // could exceed the chance of even hitting the target, so match xG and
+    // long-run goals described two different models.
+    // The geometric model describes the chance before the keeper, imperfect
+    // contact and the small target inside the goal are considered.
+    const scoringChance = xgAdj * .5;
+    const conditionalGoal = clamp(scoringChance / pOn, 0.02, 0.97);
+    const shotXg = (1 - pBlock) * pOn * conditionalGoal;
     st.xg += shotXg;
     let outcome;
     if (blocker && rng() < pBlock) outcome = 'blocked';
     else {
-      const pOn = sig(0.15 + 0.03 * (shooter.ratings.finishing - 60) - 0.6 * Math.exp(-nearD / 2));
       if (rng() > pOn) outcome = 'off';
       else {
         st.onTarget++;
-        outcome = rng() < clamp(xgAdj / pOn, 0.02, 0.97) ? 'goal' : 'saved';
+        outcome = rng() < conditionalGoal ? 'goal' : 'saved';
       }
     }
     let ex = goalX, ey = aimY;
@@ -1429,7 +1488,7 @@
   }
 
   // ---------- one simulation step ----------
-  FM.stepMatch = function (match, dt) {
+  function stepMatchFixed(match, dt) {
     if (match.phase === 'halftime' || match.phase === 'fulltime') return;
     if (match.injuryPause) return;
 
@@ -1479,7 +1538,7 @@
         if (d.group === 'GK') continue;
         if (dist(d, c.player) > 1.8) continue;
         if (!FM.TACKLE_ANY && (d.x - c.player.x) * team.attackDir < -0.6 && c.player.vx * team.attackDir > 1.5) continue;   // beaten: a defender chasing a man who is running on cannot tackle him from behind
-        const rate = (0.05 + 0.08 * opp.tactics.pressing + (d.roleId === 'ball_winning_midfielder' ? 0.06 : 0)) * (0.6 + 0.8 * opp.tactics.tackleAggression) * ((FM.CLOSE_TACKLE == null ? 1 : FM.CLOSE_TACKLE) > 1 && dist(c.player, { x: opp.attackDir === 1 ? 0 : L, y: W / 2 }) < 24 ? (FM.CLOSE_TACKLE == null ? 1 : FM.CLOSE_TACKLE) : 1) * (1 + 0.35 * (FM.instrMods(d).tackle + FM.rulesDelta(opp, d, 'tackle', match.ball, false)));
+        const rate = .65 * (0.05 + 0.08 * opp.tactics.pressing + (d.roleId === 'ball_winning_midfielder' ? 0.06 : 0)) * (0.6 + 0.8 * opp.tactics.tackleAggression) * ((FM.CLOSE_TACKLE == null ? 1 : FM.CLOSE_TACKLE) > 1 && dist(c.player, { x: opp.attackDir === 1 ? 0 : L, y: W / 2 }) < 24 ? (FM.CLOSE_TACKLE == null ? 1 : FM.CLOSE_TACKLE) : 1) * (1 + 0.35 * (FM.instrMods(d).tackle + FM.rulesDelta(opp, d, 'tackle', match.ball, false)));
         if (match.clock >= (match.tackleLock || 0) && match.rng() < rate * dt) {
           match.tackleLock = match.clock + 1.2;
           const p = FM.tackleProb(d, c.player);
@@ -1504,11 +1563,27 @@
       const opt = chooseAction(match, team, player);
       if (opt.kind === 'pass') doPass(match, team, player, opt);
       else if (opt.kind === 'shoot') doShot(match, team, player, opt);
-      else doDribble(match, team, player, opt);
+      else if (opt.kind === 'dribble') doDribble(match, team, player, opt);
+      else if (opt.kind === 'carry') doCarry(match, team, player);
+      else if (opt.kind === 'clear') doClear(match, team, player, opt);
+      else doHold(match, team, player);
       match.forcePass = false; match.noOffside = false;
     }
 
     checkEnd(match);
+  }
+
+  // All callers advance the same 0.1-second simulation. Rendering, fast
+  // forwarding and background fixtures may request different chunks, but no
+  // longer change the number or ordering of random decisions.
+  FM.stepMatch = function (match, dt) {
+    if (!(dt > 0)) return;
+    match.fixedStepRemainder = (match.fixedStepRemainder || 0) + dt;
+    while (match.fixedStepRemainder >= .1 - 1e-9 && match.phase !== 'halftime' && match.phase !== 'fulltime' && !match.injuryPause) {
+      stepMatchFixed(match, .1);
+      match.fixedStepRemainder -= .1;
+    }
+    if (match.fixedStepRemainder < 1e-9) match.fixedStepRemainder = 0;
   };
   function checkEnd(match) {
     if (match.clock >= HALF_SECONDS && match.phase === 'play' && !match.firstHalfDone) { match.firstHalfDone = true; match.phase = 'halftime'; }

@@ -4,7 +4,7 @@
   const { L, W } = FM.PITCH;
   const el = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const world = { league: null, view: 'home', match: null, fixture: null, running: true, speed: 1, shownEvents: 0, lastStats: '', trails: [], vt: 0, tab: 'squad', selSlot: null, selBench: null, saveTimer: null };
+  const world = { league: null, view: 'home', match: null, fixture: null, running: true, speed: 1, shownEvents: 0, lastStats: '', trails: [], vt: 0, tab: 'squad', selSlot: null, selBench: null, saveTimer: null, renderPos: new Map(), renderBall: null, frameDt: .016 };
   const REAL_SECONDS_FOR_MATCH = 600; // a full 90 minutes takes about ten real minutes at 1x
   const MATCH_SPEED = 5400 / REAL_SECONDS_FOR_MATCH / 6;   // speeds are shown against a pace six times slower than the first version's
   const SUBSTEP = 0.1;
@@ -82,7 +82,11 @@
     const m = world.match;
     m.teams.forEach((team) => {
       team.players.forEach((p) => {
-        const cx = px(p.x), cy = py(p.y);
+        let rp = world.renderPos.get(p.id);
+        if (!rp) { rp = { x: p.x, y: p.y }; world.renderPos.set(p.id, rp); }
+        const follow = 1 - Math.exp(-10 * Math.min(.05, world.frameDt || .016));
+        rp.x += (p.x - rp.x) * follow; rp.y += (p.y - rp.y) * follow;
+        const cx = px(rp.x), cy = py(rp.y);
         ctx.beginPath(); ctx.arc(cx + 1.5, cy + 2.5, r, 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fill();
         ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fillStyle = team.kit.shirt; ctx.fill();
         if (m.carrier && m.carrier.player === p) {
@@ -100,7 +104,11 @@
         ctx.fillText(String(p.number), cx, cy + r * 0.06);
       });
     });
-    const bx = px(m.ball.x), by = py(m.ball.y);
+    if (!world.renderBall) world.renderBall = { x: m.ball.x, y: m.ball.y };
+    const ballFollow = 1 - Math.exp(-16 * Math.min(.05, world.frameDt || .016));
+    world.renderBall.x += (m.ball.x - world.renderBall.x) * ballFollow;
+    world.renderBall.y += (m.ball.y - world.renderBall.y) * ballFollow;
+    const bx = px(world.renderBall.x), by = py(world.renderBall.y);
     ctx.beginPath(); ctx.arc(bx, by, Math.max(5, scale * 0.9), 0, Math.PI * 2);
     ctx.fillStyle = '#FFFFFF'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#111'; ctx.stroke();
   }
@@ -132,6 +140,7 @@
   let last = performance.now();
   function frame(now) {
     const dt = Math.min(0.1, (now - last) / 1000);
+    world.frameDt = dt;
     last = now;
     const m = world.match;
     if (world.view === 'match' && m) {
@@ -267,6 +276,7 @@
     if (!fx || fx.played) return;
     world.fixture = fx;
     world.match = FM.startFixture(world.league, fx, { interactive: true });
+    world.renderPos.clear(); world.renderBall = null;
     world.running = true; world.speed = 1; world.shownEvents = 0; world.lastStats = ''; world.trails = []; world.vt = 0;
     world.selSlot = null; world.selBench = null; world.tab = 'squad';
     document.querySelectorAll('[data-speed]').forEach((x) => x.classList.toggle('on', x.dataset.speed === '1'));

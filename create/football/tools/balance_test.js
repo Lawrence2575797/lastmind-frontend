@@ -24,7 +24,7 @@ vm.createContext(sandbox);
 
 const FM = sandbox.window.FM;
 const runs = Math.max(1, Number(process.argv[2]) || 20);
-const totals = { goals: 0, shots: 0, xg: 0, passes: 0, earlyShots: 0, maxGoals: 0, strikerGoals: 0, deepPassGap: 0, deepPassGapCount: 0, unpressuredDeepHold: 0, unpressuredDeepHoldSq: 0, unpressuredDeepHoldCount: 0, progressivePasses: 0, carrierSamples: 0, defendersWithin8: 0, crowdedCarrierSamples: 0, maxDefendersWithin8: 0 };
+const totals = { goals: 0, shots: 0, xg: 0, passes: 0, dribbles: 0, tackles: 0, clearances: 0, earlyShots: 0, maxGoals: 0, strikerGoals: 0, deepPassGap: 0, deepPassGapCount: 0, unpressuredDeepHold: 0, unpressuredDeepHoldSq: 0, unpressuredDeepHoldCount: 0, progressivePasses: 0, carrierSamples: 0, defendersWithin8: 0, crowdedCarrierSamples: 0, maxDefendersWithin8: 0 };
 const scores = [];
 const shotsByGroup = {}, xgByGroup = {}, goalsByGroup = {};
 
@@ -35,6 +35,7 @@ for (let seed = 1; seed <= runs; seed++) {
   let nextShapeSample = 0;
   while (match.phase !== 'fulltime') {
     if (match.phase === 'halftime') FM.startSecondHalf(match);
+    if (match.injuryPause) FM.resolveInjury(match);
     FM.stepMatch(match, 0.25);
     if (match.clock >= nextShapeSample) {
       nextShapeSample += 1;
@@ -52,6 +53,8 @@ for (let seed = 1; seed <= runs; seed++) {
   const goals = hs.goals + as.goals;
   totals.goals += goals; totals.shots += hs.shots + as.shots; totals.xg += hs.xg + as.xg;
   totals.passes += hs.passes + as.passes; totals.maxGoals = Math.max(totals.maxGoals, goals);
+  totals.dribbles += hs.dribbles + as.dribbles; totals.tackles += hs.tackles + as.tackles;
+  totals.clearances += match.events.filter((event) => event.type === 'clearance').length;
   totals.earlyShots += match.events.filter((event) => event.type === 'shot' && event.t <= 120).length;
   const passEvents = match.events.filter((event) => event.type === 'pass');
   passEvents.forEach((event, index) => {
@@ -93,6 +96,9 @@ const report = {
   shotsPerMatch: avg(totals.shots),
   xgPerMatch: avg(totals.xg),
   passesPerMatch: avg(totals.passes),
+  dribblesPerMatch: avg(totals.dribbles),
+  tacklesPerMatch: avg(totals.tackles),
+  clearancesPerMatch: avg(totals.clearances),
   averageSecondsBetweenDeepBuildUpPasses: totals.deepPassGapCount ? (totals.deepPassGap / totals.deepPassGapCount).toFixed(2) : '0.00',
   averageUnpressuredDeepHoldSeconds: totals.unpressuredDeepHoldCount ? (totals.unpressuredDeepHold / totals.unpressuredDeepHoldCount).toFixed(2) : '0.00',
   unpressuredDeepHoldStdDev: Math.sqrt(deepHoldVariance).toFixed(2),

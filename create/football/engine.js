@@ -210,10 +210,10 @@
   // right in the final third.
   FM.REACH_SECONDS = 6;
   FM.reachMetres = (p) => FM.REACH_SECONDS * p.maxSpeed;
-  // Only sideways distance is limited. Running up and down the pitch is not a limit, it is a cost: a striker can drop deep to help
-  // build, and the deeper he is the later he gets forward when play moves on, because every player moves at his own top speed.
-  // (Switching sides is different: nobody gets from one touchline to the other in the time a phase lasts.)
-  FM.DEPTH_WEIGHT = 0;
+  // Phase positions must be reachable in both dimensions. Movement is still
+  // paid for through each player's speed, but the editor no longer accepts an
+  // impossible end-to-end change merely because it has no sideways component.
+  FM.DEPTH_WEIGHT = 1;
   FM.posDist = (a, b) => Math.hypot((a.d - b.d) * L * FM.DEPTH_WEIGHT, (a.w - b.w) * W);
   FM.trueDist = (a, b) => Math.hypot((a.d - b.d) * L, (a.w - b.w) * W);
   // Pulls a wished-for position back until he could reach it from where he stands in every other phase.
@@ -319,6 +319,13 @@
 
     // Width instruction: spreads or squeezes the whole shape around the centre line.
     w = 0.5 + (w - 0.5) * (hasBall ? team.tactics.attackWidth : team.tactics.defWidth);
+
+    // Preserve a rest defence while attacking. Centre-backs and holding
+    // midfielders can support play but do not all drift beyond the ball.
+    if (hasBall) {
+      const cap = player.group === 'CB' ? Math.min(.58, b.d - .08) : player.group === 'DM' ? Math.min(.7, b.d + .02) : null;
+      if (cap != null) d = Math.min(d, Math.max(.2, cap));
+    }
 
     if (player.group === 'GK') d = clamp(d, 0.02, 0.2);
     d = clamp(d, 0.02, 0.97);
