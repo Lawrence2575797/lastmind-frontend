@@ -4,7 +4,7 @@
   const { L, W } = FM.PITCH;
   const el = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const world = { league: null, view: 'home', match: null, fixture: null, running: true, speed: 1, highlightsOnly: false, highlightUntil: 0, highlightSearching: false, shownEvents: 0, lastStats: '', trails: [], impacts: [], vt: 0, commentaryUntil: 0, commentaryTurns: {}, tab: 'squad', selSlot: null, selBench: null, saveTimer: null, renderPos: new Map(), renderBall: null, frameDt: .016 };
+  const world = { league: null, view: 'home', match: null, fixture: null, running: true, speed: 1, highlightsOnly: false, highlightUntil: 0, highlightSearching: false, highlightRevealFrom: 0, shownEvents: 0, lastStats: '', trails: [], impacts: [], vt: 0, commentaryUntil: 0, commentaryTurns: {}, tab: 'squad', selSlot: null, selBench: null, saveTimer: null, renderPos: new Map(), renderBall: null, frameDt: .016 };
   const REAL_SECONDS_FOR_MATCH = 600; // a full 90 minutes takes about ten real minutes at 1x
   const MATCH_SPEED = 5400 / REAL_SECONDS_FOR_MATCH / 6;   // speeds are shown against a pace six times slower than the first version's
   const SUBSTEP = 0.1;
@@ -165,7 +165,8 @@
     world.highlightSearching = true;
     while (performance.now() - t0 < 26 && m.phase !== 'halftime' && m.phase !== 'fulltime' && !m.injuryPause) {
       FM.stepMatch(m, SUBSTEP);
-      if (isImportantMoment(m) || m.events.slice(startedAt).some(importantEvent)) { world.highlightSearching = false; return true; }
+      const added = m.events.slice(startedAt), hit = added.findIndex(importantEvent);
+      if (isImportantMoment(m) || hit >= 0) { world.highlightRevealFrom = hit >= 0 ? startedAt + hit : m.events.length; world.highlightSearching = false; return true; }
     }
     if (m.phase === 'halftime' || m.phase === 'fulltime' || m.injuryPause) world.highlightSearching = false;
     return false;
@@ -264,9 +265,10 @@
       const team = e.team === home.id ? home : e.team === away.id ? away : null;
       if (!team) continue;
       const who = (n) => { const p = playerBy(team, n); return p ? shortName(p) : 'number ' + n; };
-      if (e.type === 'pass' && e.tx != null) world.trails.push({ x0: e.x, y0: e.y, x1: e.tx, y1: e.ty, kind: e.ok ? 'pass' : 'fail', born: world.vt });
-      else if (e.type === 'shot') world.trails.push({ x0: e.x, y0: e.y, x1: team.attackDir === 1 ? L : 0, y1: W / 2, kind: e.outcome === 'goal' ? 'goal' : 'shot', born: world.vt });
-      if (e.type === 'tackle' && e.x != null) world.impacts.push({ x: e.x, y: e.y, kind: 'tackle', born: world.vt });
+      const reveal = !world.highlightsOnly || world.shownEvents >= world.highlightRevealFrom;
+      if (reveal && e.type === 'pass' && e.tx != null) world.trails.push({ x0: e.x, y0: e.y, x1: e.tx, y1: e.ty, kind: e.ok ? 'pass' : 'fail', born: world.vt });
+      else if (reveal && e.type === 'shot') world.trails.push({ x0: e.x, y0: e.y, x1: team.attackDir === 1 ? L : 0, y1: W / 2, kind: e.outcome === 'goal' ? 'goal' : 'shot', born: world.vt });
+      if (reveal && e.type === 'tackle' && e.x != null) world.impacts.push({ x: e.x, y: e.y, kind: 'tackle', born: world.vt });
       let text = null;
       if (e.type === 'goal') text = 'GOAL, ' + team.name + ': ' + who(e.player);
       else if (e.type === 'shot') text = (e.setPiece ? ({ header: 'Header', freekick: 'Free kick', penalty: 'Penalty' }[e.setPiece]) : 'Shot') + ', ' + who(e.player) + ' (' + team.name + '): ' + e.outcome + ' (xG ' + e.xg.toFixed(2) + ')';
@@ -277,24 +279,24 @@
       else if (e.type === 'injury') text = 'Injury: ' + who(e.player) + ' (' + team.name + ') with ' + e.name + ', out for ' + (e.matches === 1 ? 'one match' : e.matches + ' matches');
       else if (e.type === 'tactic') text = team.name + (e.direction === 'attack' ? ' have changed approach: more attacking' : ' have changed approach: more cautious');
       else if (e.type === 'keeperSwap') text = team.name + ' goalkeeper change: ' + who(e.on) + ' in goal' + (e.emergency ? ' (an outfield player)' : '');
-      if (e.type === 'goal') {
+      if (reveal && e.type === 'goal') {
         world.highlightUntil = world.vt + 4.5;
         say(call('goal', [() => 'GOAL! ' + who(e.player) + ' finishes it for ' + team.name + '!', () => who(e.player) + ' scores! ' + team.name + ' have their breakthrough!', () => 'It is in! ' + who(e.player) + ' makes no mistake!', () => team.name + ' strike through ' + who(e.player) + '!']), 'goal', 4.5);
-      } else if (e.type === 'shot') {
+      } else if (reveal && e.type === 'shot') {
         world.highlightUntil = world.vt + 3;
         const shooter = who(e.player), big = (e.xg || 0) >= .28;
         if (e.outcome === 'goal') say(call('shotGoal', ['It is in!', 'That finds the net!', 'A clinical finish!']), 'goal', 3.5);
         else if (e.outcome === 'saved') say(call(big ? 'bigSave' : 'save', [() => (big ? 'What a save! ' : '') + 'The goalkeeper denies ' + shooter + '!', () => shooter + ' shoots — strong hands from the keeper!', () => 'Saved! ' + shooter + ' cannot find a way through.']), 'hot', 2.8);
         else if (e.outcome === 'blocked') say(call('block', [() => shooter + ' pulls the trigger — blocked!', 'A defender throws himself in the way!', 'The shot never gets through the crowd!']), 'hot', 2.6);
         else say(call(big ? 'bigMiss' : 'miss', [() => shooter + (big ? ' has to score — but puts it wide!' : ' shoots just wide!'), 'That flashes past the post!', () => shooter + ' cannot quite find the corner.']), 'hot', 2.7);
-      } else if (e.type === 'tackle') {
+      } else if (reveal && e.type === 'tackle') {
         if (e.ok && e.x != null && (e.x < L * .22 || e.x > L * .78)) world.highlightUntil = Math.max(world.highlightUntil, world.vt + 1.8);
         say(e.ok ? call('wonTackle', [() => 'Superb challenge! ' + who(e.player) + ' wins it cleanly.', () => who(e.player) + ' times the tackle perfectly.', () => 'Brilliant defending from ' + who(e.player) + '.', () => who(e.player) + ' steps in and takes it.']) : call('lostTackle', [() => who(e.player) + ' dives in but cannot win it.', () => 'The attacker escapes ' + who(e.player) + '.', () => who(e.player) + ' mistimes the challenge.']), 'tackle', 2.2);
-      } else if (e.type === 'restart' && e.kind === 'penalty') say(call('penalty', [() => 'PENALTY TO ' + team.name + '!', 'The referee points to the spot!', () => team.name + ' have a penalty!']), 'hot', 3.2);
-      else if (e.type === 'restart' && e.kind === 'corner') say(call('corner', [() => team.name + ' force a corner.', () => 'Corner — another chance for ' + team.name + ' to load the box.', 'The pressure brings a corner.']), 'hot', 2.2);
-      else if (e.type === 'foul' && e.card === 'red') say(call('red', [() => 'RED CARD! ' + who(e.player) + ' is sent off!', () => who(e.player) + ' is dismissed — ' + team.name + ' are down to ten!']), 'hot', 4);
-      else if (e.type === 'foul' && e.card === 'yellow') say(call('yellow', [() => who(e.player) + ' goes into the book.', () => 'Yellow card for ' + who(e.player) + '.', () => who(e.player) + ' will have to be careful now.']), '', 2.2);
-      else if (e.type === 'offside') say(call('offside', [() => who(e.player) + ' went too early — offside.', 'The flag is up. The run came a fraction too soon.', () => who(e.player) + ' strays beyond the line.', 'A promising move ends with the offside flag.']), '', 2.1);
+      } else if (reveal && e.type === 'restart' && e.kind === 'penalty') say(call('penalty', [() => 'PENALTY TO ' + team.name + '!', 'The referee points to the spot!', () => team.name + ' have a penalty!']), 'hot', 3.2);
+      else if (reveal && e.type === 'restart' && e.kind === 'corner') say(call('corner', [() => team.name + ' force a corner.', () => 'Corner — another chance for ' + team.name + ' to load the box.', 'The pressure brings a corner.']), 'hot', 2.2);
+      else if (reveal && e.type === 'foul' && e.card === 'red') say(call('red', [() => 'RED CARD! ' + who(e.player) + ' is sent off!', () => who(e.player) + ' is dismissed — ' + team.name + ' are down to ten!']), 'hot', 4);
+      else if (reveal && e.type === 'foul' && e.card === 'yellow') say(call('yellow', [() => who(e.player) + ' goes into the book.', () => 'Yellow card for ' + who(e.player) + '.', () => who(e.player) + ' will have to be careful now.']), '', 2.2);
+      else if (reveal && e.type === 'offside') say(call('offside', [() => who(e.player) + ' went too early — offside.', 'The flag is up. The run came a fraction too soon.', () => who(e.player) + ' strays beyond the line.', 'A promising move ends with the offside flag.']), '', 2.1);
       if (!text) continue;
       const div = document.createElement('div');
       div.innerHTML = '<b>' + FM.formatClock(e.t) + '</b> ' + esc(text);
@@ -332,7 +334,7 @@
     const m = world.match;
     if (!m || m.phase === 'fulltime') return;
     world.highlightsOnly = !world.highlightsOnly;
-    world.highlightUntil = world.vt; world.highlightSearching = false;
+    world.highlightUntil = world.vt; world.highlightSearching = false; world.highlightRevealFrom = m.events.length;
     world.running = true;
     say(world.highlightsOnly ? 'Highlights on — moving quickly to the next dangerous moment.' : 'Full match view restored.', '', 2.2);
   });
@@ -375,7 +377,7 @@
     world.fixture = fx;
     world.match = FM.startFixture(world.league, fx, { interactive: true });
     world.renderPos.clear(); world.renderBall = null;
-    world.running = true; world.speed = 1; world.highlightsOnly = false; world.highlightUntil = 0; world.highlightSearching = false; world.shownEvents = 0; world.lastStats = ''; world.trails = []; world.impacts = []; world.vt = 0; world.commentaryUntil = 0; world.commentaryTurns = {};
+    world.running = true; world.speed = 1; world.highlightsOnly = false; world.highlightUntil = 0; world.highlightSearching = false; world.highlightRevealFrom = 0; world.shownEvents = 0; world.lastStats = ''; world.trails = []; world.impacts = []; world.vt = 0; world.commentaryUntil = 0; world.commentaryTurns = {};
     say('The teams are ready. The match is about to begin.', '', 2.5);
     world.selSlot = null; world.selBench = null; world.tab = 'squad';
     document.querySelectorAll('[data-speed]').forEach((x) => x.classList.toggle('on', x.dataset.speed === '1'));
