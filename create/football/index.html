@@ -337,9 +337,7 @@
   body:not([data-view="match"]) #tactics:not([hidden]),
   body:not([data-view="match"]) #newGame:not([hidden]) { animation: fm-rise .28s ease both; }
   @keyframes fm-rise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
-  body:not([data-view="match"]) [data-screen-title]::before {
-    content: attr(data-screen-title);
-    display: block;
+  body:not([data-view="match"]) .screen-heading {
     margin: 10px 0 20px;
     color: var(--fm-cream);
     font: 800 clamp(1.8rem, 3vw, 2.8rem)/1.05 var(--sans);

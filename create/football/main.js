@@ -325,6 +325,8 @@
     else if (v === 'news') FM.renderNews(el('view-news'), world.league);
     else if (v === 'hypotheses') FM.renderHypotheses(el('view-hypotheses'), world.league);
     else if (v === 'tactics' || v === 'match') renderTactics();
+    const activeSection = SCREEN_TITLES[v] ? el('view-' + v) : null;
+    if (activeSection && !activeSection.querySelector('.screen-heading')) activeSection.insertAdjacentHTML('afterbegin', `<div class="screen-heading">${SCREEN_TITLES[v]}</div>`);
     if (v === 'match') resize();
   }
   function renderNav() {
