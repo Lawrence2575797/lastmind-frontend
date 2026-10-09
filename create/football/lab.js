@@ -88,7 +88,8 @@
     Object.keys(opts.oppNudge || {}).forEach((k) => { if (o.tactics[k] != null) o.tactics[k] = clamp(o.tactics[k] + opts.oppNudge[k], 0, 1); });   // their manager's plan for the run (how hard they press)
     const match = FM.createMatch(u, o, seed);
     match.userId = u.id;
-    FM.startBuildUpTrial(match, u, opts.start);
+    const finalThird = opts.phase === 'final';
+    if (finalThird) FM.startFinalThirdTrial(match, u); else FM.startBuildUpTrial(match, u, opts.start);
     const dir = u.attackDir, rng = FM.mulberry32((seed * 7 + 11) >>> 0);
     const resp = LAB.responses(u, o, o.tactics);
     const state = resp.map((r) => ({ r, until: 0 }));
@@ -122,7 +123,11 @@
       const h = holder(match), t = match.clock;
       const d = FM.toTeamSpace(dir, match.ball.x, match.ball.y).d;
       if (lostAt == null) {
-        if (h === u && d >= 0.5) { result = { outcome: 'beat', time: t }; break; }
+        if (!finalThird && h === u && d >= 0.5) { result = { outcome: 'beat', time: t }; break; }
+        if (finalThird) {
+          const shots = match.events.filter((e) => e.type === 'shot' && e.team === u.id);
+          if (shots.length) { const shot = shots[shots.length - 1]; result = { outcome: 'beat', time: t, shot: true, goal: shot.outcome === 'goal' }; break; }
+        }
         if (h === o) { const dg = Math.hypot(match.ball.x - (dir === 1 ? 0 : L), match.ball.y - 34); lostAt = t; lostZone = dg < NEAR_GOAL ? 'lostNear' : d < 0.33 ? 'lostOwn' : 'lostMid'; lostCause = causeOf(match, u, o, entries, t); }
         else if (t >= TRIAL_SECONDS) { result = { outcome: 'still', time: t }; break; }
       }

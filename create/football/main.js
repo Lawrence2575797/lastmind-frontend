@@ -406,7 +406,7 @@
 
   // ---------- views and navigation ----------
   const VIEWS = ['home', 'league', 'squad', 'analysis', 'reports', 'news', 'hypotheses', 'preview', 'match'];
-  const NAV = [['home', '⌂', 'Home'], ['tactics', '◇', 'Tactics'], ['league', '▥', 'League'], ['squad', '◉', 'Squad'], ['reports', '◎', 'Reports'], ['news', '◫', 'News'], ['analysis', '⌁', 'Analysis'], ['hypotheses', '◌', 'Hypotheses']];
+  const NAV = [['home', '⌂', 'Home'], ['tactics', '◇', 'Tactics'], ['league', '▥', 'League'], ['squad', '◉', 'Squad'], ['reports', '◎', 'Reports'], ['news', '◫', 'News'], ['analysis', '⌁', 'Analysis']];
   const SCREEN_TITLES = { home: 'Club overview', league: 'League centre', squad: 'First-team squad', reports: 'Opposition intelligence', news: 'Football world', analysis: 'Performance analysis', hypotheses: 'Hypothesis lab', preview: 'Match preview' };
   function setView(v) {
     world.view = v;
@@ -448,7 +448,7 @@
       const k = b.dataset.flow;
       if (k === 'prepare') { world.tab = 'squad'; setView('tactics'); }
       else if (k === 'test') { world.tab = 'build'; setView('tactics'); }
-      else if (k === 'analyse') setView((world.league.labRuns || []).length ? 'analysis' : 'hypotheses');
+      else if (k === 'analyse') setView('analysis');
       else if (k === 'match') setView('preview');
       else setView('analysis');
     }));
@@ -589,19 +589,46 @@
     const team = userTeam(), host = el('view-squad');
     const onPitch = team.players.slice().sort((a, b) => a.index - b.index);
     const all = onPitch.concat(team.bench);
-    const row = (p) => `<tr><td class="l">${p.number}</td><td class="l">${esc(p.name)}</td><td class="l">${esc(p.nation)}</td><td class="l">${p.natural}</td><td class="l">${p.slotKey ? p.slotKey : 'Bench'}</td><td class="l">${{ right: 'Right', left: 'Left', both: 'Both' }[p.foot] || ''}</td><td>${p.height || '-'}</td><td class="${condClass(p)}">${Math.round(100 * FM.conditionOf(p))}%</td><td class="l ${FM.isInjured(p) ? 'out' : ''}">${FM.isInjured(p) ? esc(injuryText(p)) : 'Fit'}</td>
+    const row = (p) => `<tr class="player-row" data-player="${p.id}" tabindex="0"><td class="l">${p.number}</td><td class="l"><button class="player-link" data-player="${p.id}">${esc(p.name)}</button></td><td class="l">${esc(p.nation)}</td><td class="l">${p.natural}</td><td class="l">${p.slotKey ? p.slotKey : 'Bench'}</td><td class="l">${{ right: 'Right', left: 'Left', both: 'Both' }[p.foot] || ''}</td><td>${p.height || '-'}</td><td class="${condClass(p)}">${Math.round(100 * FM.conditionOf(p))}%</td><td class="l ${FM.isInjured(p) ? 'out' : ''}">${FM.isInjured(p) ? esc(injuryText(p)) : 'Fit'}</td>
       <td><b>${FM.playerRating(p).toFixed(1)}</b></td><td>${FM.shown(p.ratings.pace)}</td><td>${FM.shown(p.ratings.dribbling)}</td><td>${FM.shown(p.ratings.passing)}</td><td>${FM.shown(p.ratings.finishing)}</td><td>${FM.shown(p.ratings.tackling)}</td><td>${FM.shown(p.ratings.heading)}</td><td>${FM.shown(p.ratings.composure)}</td><td>${p.ratings.stamina ? FM.shown(p.ratings.stamina) : '-'}</td><td>${p.natural === 'GK' ? FM.shown(p.ratings.gk) : '-'}</td>
       <td>${p.stats.apps}</td><td>${p.stats.goals}</td><td>${p.stats.shots}</td><td>${p.stats.yellows}</td><td>${p.stats.reds}</td></tr>`;
-    host.innerHTML = `<div class="card"><h2>${esc(team.name)}: squad of ${all.length}</h2>
+    const selected = all.find((p) => p.id === world.profilePlayerId) || all[0];
+    host.innerHTML = `<div id="playerProfile"></div><div class="card"><h2>${esc(team.name)}: squad of ${all.length}</h2>
       <div class="tablewrap"><table class="data"><thead><tr><th class="l">#</th><th class="l">Name</th><th class="l">Nation</th><th class="l">Pos</th><th class="l">Now</th><th class="l">Foot</th><th title="Height in cm. Taller players are better in the air.">Ht</th><th>Cond</th><th class="l">Fitness</th><th title="Overall rating out of 10 in his natural position">Rating</th><th>Pac</th><th>Dri</th><th>Pas</th><th>Fin</th><th>Tck</th><th>Hea</th><th>Com</th><th>Sta</th><th>GK</th><th>Apps</th><th>Goals</th><th>Shots</th><th>YC</th><th>RC</th></tr></thead><tbody>${all.map(row).join('')}</tbody></table></div>
       <p class="note">Height affects heading. The overall rating fits the player's natural position; the individual ratings show why. Better attributes improve the odds, never guarantee the outcome.</p></div>`;
+    const open = (id) => { world.profilePlayerId = id; renderSquad(); };
+    host.querySelectorAll('[data-player]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); open(b.dataset.player); }));
+    renderPlayerProfile(team, selected, host.querySelector('#playerProfile'));
+  }
+
+  const PORTRAIT_STORE = 'lm_football_ashford_portraits_v1';
+  const portraitCache = (() => { try { return JSON.parse(localStorage.getItem(PORTRAIT_STORE) || '{}') || {}; } catch (e) { return {}; } })();
+  function portraitFallback(p) { return `<div class="player-portrait fallback">${esc(p.name.split(/\s+/).map((x) => x[0]).slice(0, 2).join(''))}</div>`; }
+  function renderPlayerProfile(team, p, host) {
+    if (!p || !host) return;
+    const ashford = team.name === 'Ashford Rovers', image = ashford && portraitCache[p.id];
+    const ratings = [['Pace',p.ratings.pace],['Dribbling',p.ratings.dribbling],['Passing',p.ratings.passing],['Finishing',p.ratings.finishing],['Tackling',p.ratings.tackling],['Heading',p.ratings.heading],['Composure',p.ratings.composure],['Stamina',p.ratings.stamina],['Goalkeeping',p.ratings.gk]].filter((x) => x[1] != null);
+    host.innerHTML = `<article class="player-profile card"><div id="profilePortrait">${image ? `<img class="player-portrait" src="${image}" alt="Portrait of ${esc(p.name)}">` : portraitFallback(p)}</div><div><span class="eyebrow">${esc(team.name)} · #${p.number}</span><h2 class="profile-name">${esc(p.name)}</h2><p class="desc">${esc(p.nation)} · ${p.natural} · ${p.height || '—'} cm · ${p.foot || '—'} foot</p><div class="profile-stats"><b>${FM.playerRating(p).toFixed(1)}<small>Overall</small></b><b>${Math.round(100 * FM.conditionOf(p))}%<small>Condition</small></b><b>${p.stats.apps}<small>Apps</small></b><b>${p.stats.goals}<small>Goals</small></b></div>${ashford && !image ? '<button id="makePortrait">Create player portrait</button>' : ''}</div><div class="attribute-grid">${ratings.map(([n,v]) => `<div><span>${n}</span><b>${FM.shown(v)}</b><i style="--v:${v}%"></i></div>`).join('')}</div></article>`;
+    const btn = host.querySelector('#makePortrait'); if (!btn) return;
+    btn.addEventListener('click', async () => {
+      btn.disabled = true; btn.textContent = 'Creating portrait…';
+      try {
+        const look = `${p.name}, fictional ${p.nation} professional footballer for Ashford Rovers, age ${20 + (p.number % 15)}, ${p.height || 180} cm, ${p.natural} player, distinctive but realistic appearance, wearing a plain red football training top with no logos, consistent front-facing head and shoulders club profile portrait, studio lighting, dark neutral background, no text`;
+        const data = await FM.api('/playtest/portrait', { description: look });
+        if (!data.image) throw new Error('No portrait was returned.');
+        portraitCache[p.id] = data.image; try { localStorage.setItem(PORTRAIT_STORE, JSON.stringify(portraitCache)); } catch (e) { /* keep it for this visit */ }
+        renderPlayerProfile(team, p, host);
+      } catch (e) { btn.disabled = false; btn.textContent = 'Try portrait again'; btn.insertAdjacentHTML('afterend', `<p class="err">${esc(e.message)}</p>`); }
+    });
+    world.portraitRequested = world.portraitRequested || {};
+    if (!world.portraitRequested[p.id]) { world.portraitRequested[p.id] = true; setTimeout(() => { if (document.body.contains(btn)) btn.click(); }, 0); }
   }
 
   // ---------- the tactics page ----------
   // One page, used on any preparation day and again when the match is paused. Changes apply to the rest of the match.
   const TABS = [
     ['squad', 'Squad and formation'], ['build', 'Build-up'], ['final', 'Final third'],
-    ['transatt', 'Transition to attack'], ['transdef', 'Transition to defence'], ['press', 'Pressing'], ['without', 'Without the ball'], ['setpieces', 'Set pieces'],
+    ['transatt', 'Transition to attack'], ['transdef', 'Transition to defence'], ['press', 'Pressing'], ['without', 'Defensive third'], ['evidence', 'Tests & hypotheses'], ['setpieces', 'Set pieces'],
   ];
   // Each tab with a board shows the team in that phase of play.
   const BOARD_KEY = { squad: 'shape', build: 'build', final: 'final', transatt: 'transAtt', transdef: 'transDef', press: 'press', without: 'without' };
@@ -681,6 +708,7 @@
     el('tabs').innerHTML = TABS.map(([k, label]) => `<button data-tab="${k}" class="${world.tab === k ? 'on' : ''}">${label}${k === 'instr' && (team.rules || []).filter((r) => !r.off).length ? ' (' + (team.rules || []).filter((r) => !r.off).length + ')' : ''}</button>`).join('');
     el('tabs').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { world.tab = b.dataset.tab; renderTactics(); }));
     if (world.tab === 'setpieces') renderSetPieces(team);
+    else if (world.tab === 'evidence') FM.renderHypotheses(el('tabBody'), world.league);
     else renderBoardTab(team, world.tab);
   }
 
@@ -689,47 +717,64 @@
   // Runs the first 40 seconds of your build-up many times (a Monte Carlo experiment) and reports the share of tests that end each way, each with
   // a 95% interval. The student predicts first, runs it, then changes one thing and runs it again to see whether the difference is real.
   const lpct = (x) => Math.round(x * 100) + '%';
-  function renderLab(team, host) {
+  function renderLab(team, host, phase) {
+    phase = phase || 'build';
     const lg = world.league, opp = nextOpponent(); if (!lg || !opp) { host.innerHTML = ''; if (FM.elena) FM.elena.hide(); return; }
-    lg.labRuns = lg.labRuns || [];
-    const st = world.lab = world.lab || { start: 'keeper', n: 100, pred: '', hyp: '', busy: false, prog: 0, a: null, b: null, err: '' };
-    const runs = lg.labRuns, last = runs[runs.length - 1];
+    lg.labRuns = lg.labRuns || []; lg.phaseLabRuns = lg.phaseLabRuns || {};
+    const reverse = phase === 'press' || phase === 'without';
+    const title = { build: 'Test this build-up', final: 'Test the final third', press: 'Test the press', without: 'Test the defensive third' }[phase];
+    const target = { build: 'build-ups that beat the press', final: 'attacks that produce a shot', press: 'opposition build-ups stopped before halfway', without: 'opposition attacks stopped without a shot' }[phase];
+    const runs = phase === 'build' ? lg.labRuns : (lg.phaseLabRuns[phase] = lg.phaseLabRuns[phase] || []);
+    world.phaseLabs = world.phaseLabs || {};
+    const st = world.phaseLabs[phase] = world.phaseLabs[phase] || { start: 'keeper', n: 100, pred: '', hyp: '', busy: false, prog: 0, a: null, b: null, err: '' };
+    const last = runs[runs.length - 1];
     const cmpRuns = runs.length >= 2 ? runs : [];
     const a = st.a != null && runs[st.a] ? st.a : Math.max(0, runs.length - 2), b = st.b != null && runs[st.b] ? st.b : runs.length - 1;
     host.innerHTML = `<div class="lab">
-      <h2>Test this build-up</h2>
-      <div class="two"><label>Start from<select id="labStart"><option value="keeper"${st.start === 'keeper' ? ' selected' : ''}>The goalkeeper has the ball in open play</option><option value="goalkick"${st.start === 'goalkick' ? ' selected' : ''}>A goal kick (short pass compulsory)</option></select></label>
+      <h2>${title}</h2>
+      <div class="two"><label>Scenario<select id="labStart">${phase === 'final' ? '<option value="attack">A settled attack entering the final third</option>' : phase === 'without' ? '<option value="defend">The opposition enter your defensive third</option>' : phase === 'press' ? '<option value="keeper">Their goalkeeper starts a build-up</option><option value="goalkick">Their goal kick (short pass compulsory)</option>' : `<option value="keeper"${st.start === 'keeper' ? ' selected' : ''}>The goalkeeper has the ball in open play</option><option value="goalkick"${st.start === 'goalkick' ? ' selected' : ''}>A goal kick (short pass compulsory)</option>`}</select></label>
         <label>Number of tests<select id="labN">${[100, 400, 1000].map((n) => `<option value="${n}"${st.n === n ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>
-      <label>Before you run it: what do you predict? (the share of tests that beat the press, %)<input type="number" id="labPred" min="0" max="100" step="1" value="${esc(st.pred)}" placeholder="e.g. 60"></label>
+      <label>Before you run it: what share will succeed? (${target}, %)<input type="number" id="labPred" min="0" max="100" step="1" value="${esc(st.pred)}" placeholder="e.g. 60"></label>
       ${runs.length ? `<label>Your hypothesis for this run: what you changed, and what you think will happen because of it<textarea id="labHyp" placeholder="e.g. Moving a centre-back close to the goalkeeper gives him a short pass, so fewer long balls will be cut out and more build-ups will reach halfway.">${esc(st.hyp)}</textarea></label>` : ''}
       <div class="row"><button class="primary" id="labRun"${st.busy ? ' disabled' : ''}>${st.busy ? (st.planning ? 'Their manager is preparing…' : 'Running… ' + st.prog + ' of ' + st.n) : 'Run ' + st.n + ' tests'}</button></div>
       <p class="err">${esc(st.err)}</p>
-      ${last ? `<p class="note">Run ${runs.length} is done. Elena has the useful details on the right.</p>` : ''}
+      ${last ? phaseResultHtml(phase, last.result) + `<p class="note">Run ${runs.length} is done. Compare it after changing one tactical choice.</p>` : ''}
     </div>`;
     const q = (id) => host.querySelector(id);
     q('#labStart').addEventListener('change', (e) => { st.start = e.target.value; });
-    q('#labN').addEventListener('change', (e) => { st.n = +e.target.value; renderLab(team, host); });
+    q('#labN').addEventListener('change', (e) => { st.n = +e.target.value; renderLab(team, host, phase); });
     q('#labPred').addEventListener('input', (e) => { st.pred = e.target.value; });
     if (q('#labHyp')) q('#labHyp').addEventListener('input', (e) => { st.hyp = e.target.value; });
     q('#labRun').addEventListener('click', async () => {
       if (st.busy) return;
-      st.busy = true; st.prog = 0; st.err = ''; st.planning = true; renderLab(team, host);
+      st.busy = true; st.prog = 0; st.err = ''; st.planning = true; renderLab(team, host, phase);
       let oppPlan = null; try { oppPlan = await FM.scout.labPlan(lg, team, opp); } catch (e) { oppPlan = FM.scout.plan1(FM.scout.profile(lg)); }
       st.planning = false;
       const snap = FM.lab.snapshot(team), pred = st.pred === '' ? '' : Math.max(0, Math.min(100, +st.pred));
       try {
-        const result = await FM.lab.run(lg, { n: st.n, user: team, opp, start: st.start, record: true, oppRules: oppPlan.rules, oppNudge: oppPlan.tactics }, (d) => { st.prog = d; const b2 = host.querySelector('#labRun'); if (b2) b2.textContent = 'Running… ' + d + ' of ' + st.n; });
-        runs.push({ id: 'r' + (runs.length + 1), oppPlan: { source: oppPlan.source, rationale: oppPlan.rationale, scouted: oppPlan.scouted, note: oppPlan.note || '', rules: FM.scout.describe(oppPlan.rules, opp, team) }, n: st.n, start: st.start, opp: opp.name, pred, hyp: st.hyp, snap, changes: FM.lab.changes(last && last.snap, snap), result });
+        const result = await FM.lab.run(lg, { n: st.n, phase: phase === 'final' || phase === 'without' ? 'final' : 'build', user: reverse ? opp : team, opp: reverse ? team : opp, start: st.start, record: true, oppRules: reverse ? (team.rules || []) : oppPlan.rules, oppNudge: reverse ? {} : oppPlan.tactics }, (d) => { st.prog = d; const b2 = host.querySelector('#labRun'); if (b2) b2.textContent = 'Running… ' + d + ' of ' + st.n; });
+        runs.push({ id: phase[0] + 'r' + (runs.length + 1), phase, oppPlan: { source: oppPlan.source, rationale: oppPlan.rationale, scouted: oppPlan.scouted, note: oppPlan.note || '', rules: FM.scout.describe(oppPlan.rules, opp, team) }, n: st.n, start: st.start, opp: opp.name, pred, hyp: st.hyp, snap, changes: FM.lab.changes(last && last.snap, snap), result });
         runs.forEach((r, i) => { if (i < runs.length - 2 && r.result) delete r.result.clips; });
         st.a = Math.max(0, runs.length - 2); st.b = runs.length - 1; st.pred = ''; st.hyp = ''; saveSoon();
       } catch (err) { st.err = 'The test could not run: ' + (err && err.message ? err.message : 'unknown error'); }
       st.busy = false;
-      if (document.body.contains(host)) renderLab(team, host);
+      if (document.body.contains(host)) renderLab(team, host, phase);
     });
     let tac = null; try { tac = FM.aiTacticsFor(lg, opp, team); } catch (e) { tac = null; }
-    const setCompare = (x, y) => { st.a = x; st.b = y; renderLab(team, host); };
-    const clearRuns = () => { lg.labRuns = []; st.a = st.b = null; saveSoon(); renderLab(team, host); };
-    FM.elena.sync({ opp, runs, a, b, st, team, tac, setCompare, clearRuns, instrStage: 'build' });
+    const setCompare = (x, y) => { st.a = x; st.b = y; renderLab(team, host, phase); };
+    const clearRuns = () => { if (phase === 'build') lg.labRuns = []; else lg.phaseLabRuns[phase] = []; st.a = st.b = null; saveSoon(); renderLab(team, host, phase); };
+    if (phase === 'build') FM.elena.sync({ opp, runs, a, b, st, team, tac, setCompare, clearRuns, instrStage: 'build' });
+    else FM.elena.sync({ mode: 'instr', stage: phase, team, opp });
+  }
+
+  function phaseResultHtml(phase, r) {
+    if (!r) return '';
+    const pc = (x) => Math.round((x && x.p || 0) * 100) + '%';
+    const kpis = phase === 'build' ? [['Beat the press',pc(r.beat)],['Lost it',pc(r.lost)],['Shot conceded',pc(r.shot)],['Goal conceded',pc(r.goal)]]
+      : phase === 'final' ? [['Reached attack',pc(r.beat)],['Shot generated',pc(r.shot)],['Goal scored',pc(r.goal)],['Attack broke down',pc(r.lost)]]
+      : phase === 'press' ? [['Build-up stopped',pc(r.lost)],['Won high',pc(r.lostNear)],['They escaped',pc(r.beat)],['Shot after escape',pc(r.shot)]]
+      : [['Attack stopped',pc(r.lost)],['Danger near goal',pc(r.lostNear)],['Shot conceded',pc(r.shot)],['Goal conceded',pc(r.goal)]];
+    return `<div class="phase-kpis">${kpis.map(([a,b]) => `<div><b>${b}</b><span>${a}</span></div>`).join('')}</div>`;
   }
 
   function takerSelect(team, key, label) {
@@ -775,6 +820,7 @@
       if (k === 'lineHeight') FM.shiftLine(team, team.tactics.lineHeight, parseFloat(e.target.value));
       team.tactics[k] = parseFloat(e.target.value);
       host.querySelector(`[data-v="${k}"]`).textContent = team.tactics[k].toFixed(2);
+      const board = document.querySelector('#board'); if (board) drawBoard(board, team, BOARD_KEY[world.tab]);
       saveSoon();
     }));
   }
@@ -856,7 +902,8 @@
       const moved = (world.oppMoved && world.oppMoved[key]) || {};
       opp = '<g>' + Object.keys(cells).map((slot) => {
         const c = moved[slot] || cells[slot], pt = bpt({ d: 1 - c.d, w: 1 - c.w });
-        return `<g class="odot" data-slot="${slot}" transform="translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})"><circle r="19" fill="${kit.shirt}" fill-opacity="0.9" stroke="${kit.number}" stroke-width="2.5" stroke-dasharray="4 3"/><text y="4.5" text-anchor="middle" font-size="12.5" font-weight="700" fill="${kit.number}" style="pointer-events:none">${slot}</text>${moved[slot] ? '<circle cx="14" cy="-14" r="5" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/>' : ''}</g>`;
+        const player = sc.opp.players.find((p) => p.slotKey === slot), name = player ? boardName(player) : slot;
+        return `<g class="odot" data-slot="${slot}" transform="translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})"><circle r="19" fill="${kit.shirt}" fill-opacity="0.9" stroke="${kit.number}" stroke-width="2.5" stroke-dasharray="4 3"/><text y="4.5" text-anchor="middle" font-size="12.5" font-weight="700" fill="${kit.number}" style="pointer-events:none">${player ? player.number : slot}</text><text y="39" text-anchor="middle" font-size="14" font-weight="700" fill="#fff" stroke="#000" stroke-width="3.5" style="paint-order:stroke">${esc(name)}</text>${moved[slot] ? '<circle cx="14" cy="-14" r="5" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/>' : ''}</g>`;
       }).join('') + '</g>';
     }
     // With the ball, nobody can stand beyond the opposition's second-last defender: show that line, which moves with their defensive line.
@@ -881,7 +928,18 @@
         <text y="65" text-anchor="middle" font-size="16" fill="${FM.isInjured(p) ? '#FF9A9A' : FM.conditionOf(p) < 0.6 ? '#F2C8A0' : '#cfe8cf'}" stroke="#000" stroke-width="3.5" style="paint-order:stroke">${FM.isInjured(p) ? 'injured' : FM.playerRating(p, p.group).toFixed(1) + ' · ' + Math.round(100 * FM.conditionOf(p)) + '%'}</text>
         ${manual ? '<circle cx="18" cy="-18" r="6.5" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/>' : ''}</g>`;
     }).join('');
-    host.innerHTML = `<svg class="board" viewBox="-24 -30 ${BW + 48} ${BH + 92}" role="img" aria-label="Tactics board">${boardPitchSvg(key)}${ghosts}${offLine}${opp}${dots}${ball}</svg>`;
+    let guides = '';
+    if (key === 'shape' || key === 'without' || key === 'press') {
+      const defenders = team.players.filter((p) => p.group === 'CB' || p.group === 'FB').map(posOf);
+      const depth = defenders.length ? defenders.reduce((a,p) => a + p.d, 0) / defenders.length : .28;
+      const y = (1 - depth) * BH;
+      guides += `<g class="tactic-guide"><line x1="4" y1="${y}" x2="${BW-4}" y2="${y}"/><text x="${BW-8}" y="${y-8}" text-anchor="end">Defensive line</text></g>`;
+    }
+    if (key === 'build' || key === 'final' || key === 'transAtt') {
+      const width = Math.min(.94, .58 * team.tactics.attackWidth), x1 = BW * (.5 - width/2), x2 = BW * (.5 + width/2);
+      guides += `<g class="tactic-guide width"><line x1="${x1}" y1="30" x2="${x1}" y2="${BH-30}"/><line x1="${x2}" y1="30" x2="${x2}" y2="${BH-30}"/><text x="${BW/2}" y="24" text-anchor="middle">Attacking width</text></g>`;
+    }
+    host.innerHTML = `<svg class="board" viewBox="-24 -30 ${BW + 48} ${BH + 92}" role="img" aria-label="Tactics board">${boardPitchSvg(key)}${guides}${ghosts}${offLine}${opp}${dots}${ball}</svg>`;
     const svg = host.firstChild;
     const toPos = (e) => {
       const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
@@ -964,17 +1022,19 @@
       </button>`).join('');
     host.innerHTML = `
       <div class="tb-grid">
+        <aside class="tb-controls">
+          ${isShape ? `<label>Formation<select id="formSel">${Object.keys(FM.FORMATIONS).map((k) => `<option value="${k}"${k === team.formationKey ? ' selected' : ''}>${k}</option>`).join('')}</select></label>` : '<div id="phaseOppReport"></div>'}
+          <div id="phaseSliders"></div>
+        </aside>
         <div class="tb-left">
-          ${isShape ? `<label>Formation<select id="formSel">${Object.keys(FM.FORMATIONS).map((k) => `<option value="${k}"${k === team.formationKey ? ' selected' : ''}>${k}</option>`).join('')}</select></label>` : `<h2>${FM.PHASE_NAMES[key]}</h2>`}
+          <h2>${isShape ? 'Team shape' : FM.PHASE_NAMES[key]}</h2>
           <div id="board"></div>
           <div class="row"><button id="resetPhase">${isShape ? 'Reset the shape to the formation' : 'Reset this phase to the role defaults'}</button></div>
           <p class="err" id="subErr"></p>
         </div>
         <div class="tb-right">
-          ${isShape ? '' : '<div id="phaseOppReport"></div>'}
-          <div id="phaseSliders"></div>
           ${isShape ? '' : '<div id="phaseInstr"></div>'}
-          ${key === 'build' ? '<div id="labPanel"></div>' : ''}
+          ${['build','final','press','without'].includes(key) ? '<div id="labPanel"></div>' : ''}
           ${isShape ? `<div><h2 style="margin-bottom:8px">Bench</h2><div class="bench" id="bench">${bench}</div><p class="note" style="margin-top:8px">To substitute, click a bench player and then click the shirt he replaces.</p></div>` : ''}
           <div id="rolePanel"></div>
           <div id="warnPanel"></div>
@@ -1001,7 +1061,7 @@
       FM.renderInstructions(host.querySelector('#phaseInstr'), team, hooks, { stage: key });
       if (key !== 'build') sync();
     }
-    if (key === 'build' && host.querySelector('#labPanel')) renderLab(team, host.querySelector('#labPanel'));
+    if (host.querySelector('#labPanel')) renderLab(team, host.querySelector('#labPanel'), key);
     const err = (msg) => { host.querySelector('#subErr').textContent = msg || ''; };
     if (isShape) host.querySelector('#formSel').addEventListener('change', (e) => { FM.setFormation(team, e.target.value); world.selSlot = null; saveSoon(); renderTactics(); });
     host.querySelector('#resetPhase').addEventListener('click', () => { FM.clearPhase(team, key); saveSoon(); renderTactics(); });
@@ -1100,6 +1160,7 @@
     el('topRight').innerHTML = ''; el('subtitle').textContent = 'Eight clubs, one season, and a lot of numbers.';
   }
   el('ngTeam').innerHTML = FM.TEAM_DEFS.map((d, i) => `<option value="${i}">${esc(d.name)}</option>`).join('');
+  el('ngTeam').value = '0'; // Ashford Rovers is the default club for the supported portrait experience.
   el('ngStart').addEventListener('click', async () => {
     const btn = el('ngStart'), tier = document.querySelector('input[name="tier"]:checked').value;
     btn.disabled = true; btn.textContent = 'Setting up the clubs...';

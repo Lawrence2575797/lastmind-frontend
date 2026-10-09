@@ -194,6 +194,20 @@
     match.lastChange = null;   // the keeper has the ball in open play or from a goal kick: nobody has just lost it, so there is no counter-press to begin with
     if (kind === 'goalkick') { match.forcePass = true; match.noOffside = true; }
   };
+  // A repeatable settled attack, used by the final-third and defensive-third tactical labs.
+  // It enters with the ball rather than skipping straight to a shot, so width, roles,
+  // opposition shape and written instructions all have time to influence the outcome.
+  FM.startFinalThirdTrial = function (match, team) {
+    const opp = other(match, team), dir = team.attackDir;
+    match.phase = 'play'; match.kickoffTimer = 0; match.clock = 0; match.restart = null; match.flight = null; match.carry = null; match.events = [];
+    match.teams.forEach((t) => { t.phaseCtx = {}; t.offsideLine = null; });
+    const spot = FM.toMetres(dir, 0.7, 0.5);
+    match.ball.x = spot.x; match.ball.y = spot.y; match.ball.state = 'carried';
+    [team, opp].forEach((t) => t.players.forEach((p) => { const q = FM.targetFor(t, p, match.ball, t === team); p.x = q.x; p.y = q.y; p.vx = 0; p.vy = 0; }));
+    const carrier = team.players.filter((p) => p.group !== 'GK').sort((a,b) => Math.hypot(a.x-spot.x,a.y-spot.y)-Math.hypot(b.x-spot.x,b.y-spot.y))[0];
+    carrier.x = spot.x - dir * 0.4; carrier.y = spot.y;
+    match.lastTeam = team; match.lastChange = null; giveBall(match, team, carrier, 0.8); match.lastChange = null;
+  };
   FM.holderOf = function (match) { return possessionTeam(match); };
   function possessionTeam(match) {
     if (match.restart) return match.restart.team;
