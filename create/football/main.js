@@ -643,7 +643,7 @@
     const missingPortraits = team.name === 'Ashford Rovers' ? all.filter((p) => !portraitCache[p.id]) : [];
     host.innerHTML = `<div id="playerProfile"></div><div class="card"><div class="row" style="justify-content:space-between"><h2>${esc(team.name)}: squad of ${all.length}</h2>${team.name === 'Ashford Rovers' ? `<button id="makeSquadPortraits"${missingPortraits.length ? '' : ' disabled'}>${missingPortraits.length ? `Create ${missingPortraits.length} squad portrait${missingPortraits.length === 1 ? '' : 's'}` : 'All squad portraits created'}</button>` : ''}</div><p class="note" id="portraitProgress">${missingPortraits.length ? 'Portraits are generated one player at a time and completed players are kept if the process is interrupted.' : 'Every player has his club portrait.'}</p>
       <div class="tablewrap"><table class="data"><thead><tr><th>Player</th><th class="l">#</th><th class="l">Name</th><th class="l">Nation</th><th class="l">Pos</th><th class="l">Now</th><th class="l">Foot</th><th title="Height in cm. Taller players are better in the air.">Ht</th><th>Cond</th><th class="l">Fitness</th><th title="Overall rating out of 10 in his natural position">Rating</th><th>Pac</th><th>Dri</th><th>Pas</th><th>Fin</th><th>Tck</th><th>Hea</th><th>Com</th><th>Sta</th><th>GK</th><th>Apps</th><th>Goals</th><th>Shots</th><th>YC</th><th>RC</th></tr></thead><tbody>${all.map(row).join('')}</tbody></table></div>
-      <p class="note">Height affects heading. The overall rating fits the player's natural position; the individual ratings show why. Better attributes improve the odds, never guarantee the outcome.</p></div>`;
+      </div>`;
     const open = (id) => { world.profilePlayerId = id; renderSquad(); };
     host.querySelectorAll('[data-player]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); open(b.dataset.player); }));
     const squadBtn = host.querySelector('#makeSquadPortraits');
@@ -735,20 +735,16 @@
     final: 'The team with the ball near the opposition goal. Attackers can stand on the edge of the box or inside it, but they are held at the offside line, and the same role and instructions apply as in every other phase.',
     transAtt: 'The few seconds just after winning the ball, before the team settles. This is where the first runs are made, so positions here pull players toward where the attack will go.',
     transDef: 'The few seconds just after losing the ball. Players here are pulled toward the positions that cut the counter-attack off, or toward the ball if the team presses.',
-    press: 'The team pressing the opposition while they build from their own end: the ball is with their goalkeeper or defenders deep in their half. Strikers and wide players step up to cut off the short passes, and the midfield and back line move up to squeeze the space behind them. The more you press, the further these positions pull the team up the pitch, and the more players chase the ball. The slider sets how much, and the shirts show where each player stands when the press is fully on.',
-    without: 'The team without the ball, set to defend. The pressing and width settings move these positions further. The height of the defensive line is set on the Squad and formation tab and moves the default positions in every phase.',
+    press: 'The team pressing the opposition while they build from their own end. Place the shirts where you want each player to engage; their positions define how high and wide the press is.',
+    without: 'The team without the ball, set to defend. The positions of the back line define its height, and the spread of the shirts defines the defensive width.',
   };
   // Where the ball starts on each phase's board. It is only a picture to think with: drag it anywhere to imagine another situation.
   const BALL_AT = { press: { d: 0.93, w: 0.5 }, build: { d: 0.07, w: 0.6 }, final: { d: 0.86, w: 0.5 }, transAtt: { d: 0.42, w: 0.5 }, transDef: { d: 0.55, w: 0.5 }, without: { d: 0.45, w: 0.5 } };
   const PHASE_CODE = { build: 'B', final: 'F', transAtt: 'TA', transDef: 'TD', press: 'P', without: 'D' };
   // [key, label, left end, right end, min, max, what it does]
   const SLIDER_TABS = {
-    squad: [
-      ['lineHeight', 'Height of the defensive line', 'Deep', 'High', 0, 1, 'A team setting for every phase. A high line squeezes the space between the lines but leaves room behind it; a deep one is harder to run in behind. It moves the default positions of the whole team, the back line most, in every phase (a shirt you have placed by hand stays where you put it).'],
-    ],
-    build: [
-      ['attackWidth', 'Width when attacking', 'Narrow', 'Wide', 0.7, 1.25, 'Spreads or squeezes your whole shape across the pitch with the ball.'],
-    ],
+    squad: [],
+    build: [],
     final: [
     ],
     transatt: [
@@ -763,7 +759,6 @@
     ],
     without: [
       ['pressing', 'Pressing', 'Stay compact, let them have it', 'Press hard', 0, 1, 'How many players close down the ball carrier, and from how far away.'],
-      ['defWidth', 'Width without the ball', 'Narrow', 'Wide', 0.7, 1.25, 'Compact through the middle, or covering the flanks.'],
       ['tackleAggression', 'Tackling', 'Stay on feet', 'Go in hard', 0, 1, 'More challenges, but more fouls and more cards.'],
       ['offsideTrap', 'Offside trap', 'Do not play it', 'Step up together', 0, 1, 'Catches more runners who are only just onside, but a mistimed step leaves a gap.'],
     ],
@@ -800,8 +795,10 @@
   function renderTactics() {
     if (!world.league) return;
     const team = userTeam();
+    if (FM.inferShapeTactics) FM.inferShapeTactics(team);
     renderPlanBar(team);
-    el('subInfo').textContent = 'Substitutions used: ' + team.subsUsed + ' of ' + team.maxSubs + (inLive() ? '' : ' (changes before kick-off are free)');
+    el('subInfo').textContent = '';
+    el('subInfo').hidden = true;
     el('tabs').innerHTML = TABS.map(([k, label]) => `<button data-tab="${k}" class="${world.tab === k ? 'on' : ''}">${label}${k === 'instr' && (team.rules || []).filter((r) => !r.off).length ? ' (' + (team.rules || []).filter((r) => !r.off).length + ')' : ''}</button>`).join('');
     el('tabs').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { world.tab = b.dataset.tab; renderTactics(); }));
     if (world.tab === 'setpieces') renderSetPieces(team);

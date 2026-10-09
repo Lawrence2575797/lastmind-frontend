@@ -193,9 +193,6 @@
     const push = PUSH[p.group] || 0;
     if (phase === 'final') d += push; else if (phase === 'transAtt') d += push * 0.6; else if (phase === 'transDef') d -= 0.03; else if (phase === 'press') d += PRESS_PUSH[p.group] || 0;
     d += m.depth;
-    // Team setting, the height of the defensive line: it moves the defaults of every phase (the back line most, the front line least),
-    // and counts for more when the team does not have the ball. A position placed by hand is left where the manager put it.
-    d += (team.tactics.lineHeight - 0.5) * 0.28 * (FM.GROUP_LINE_WEIGHT[p.group] || 0) * (inPos ? 0.6 : 1);
     if (!centre) w += (base.w < 0.5 ? -1 : 1) * m.width;
     return { d: clamp(d, 0.02, 0.97), w: clamp(w, 0.04, 0.96) };
   };
@@ -259,6 +256,21 @@
     team.shape[p.index] = { d: clamp(pos.d, 0.02, 0.98), w: clamp(pos.w, 0.03, 0.97) };
     FM.fixSlot(team, p);
   };
+  // Shape values used by the match model and reports are derived from the shirts on the phase pitches.
+  FM.inferShapeTactics = function (team) {
+    if (!team || !team.players || !team.players.length) return;
+    const positions = (phase, filter) => team.players.filter(filter || (() => true)).map((p) => FM.phasePos(team, p, phase));
+    const backs = positions('without', (p) => p.group === 'CB' || p.group === 'FB');
+    if (backs.length) team.tactics.lineHeight = clamp((backs.reduce((sum, p) => sum + p.d, 0) / backs.length - 0.14) / 0.3, 0, 1);
+    const width = (phase) => {
+      const ps = positions(phase, (p) => p.group !== 'GK');
+      if (!ps.length) return 1;
+      const span = Math.max.apply(null, ps.map((p) => p.w)) - Math.min.apply(null, ps.map((p) => p.w));
+      return clamp(span / 0.72, 0.7, 1.25);
+    };
+    team.tactics.attackWidth = width('final');
+    team.tactics.defWidth = width('without');
+  };
   // After anything moves, any hand-placed position that is now out of reach is pulled back.
   FM.fixSlot = function (team, p, opp, lineFor) {
     FM.PHASES.forEach((ph) => { if (FM.isManual(team, p, ph)) FM.setPhasePos(team, p, ph, FM.clampOffside(team, p, ph, FM.clampToReach(team, p, ph, FM.phasePos(team, p, ph)), opp, lineFor ? lineFor(ph) : null)); });
@@ -316,9 +328,6 @@
     if (rs) { d += rs.d; w += (w >= 0.5 ? 1 : -1) * rs.w; }
     const pl = FM.rulesPlace ? FM.rulesPlace(team, player, ball, hasBall) : null;   // 'stand where this says', for the situations the manager named
     if (pl) pl.forEach((e) => { if (e.dm != null) d += (e.dm / L - d) * e.k; if (e.wm != null) w += (e.wm / W - w) * e.k; });
-
-    // Width instruction: spreads or squeezes the whole shape around the centre line.
-    w = 0.5 + (w - 0.5) * (hasBall ? team.tactics.attackWidth : team.tactics.defWidth);
 
     // Preserve a rest defence while attacking. Centre-backs and holding
     // midfielders can support play but do not all drift beyond the ball.

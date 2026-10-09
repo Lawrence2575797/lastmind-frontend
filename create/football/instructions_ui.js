@@ -28,28 +28,6 @@
     return { own: everyone(team), opp: o ? everyone(o) : [], oppTeam: o };
   }
 
-  // The defensive line, drawn: a small pitch from above with your goal at the bottom. Move the slider and the defenders move with it.
-  function lineCard(team) {
-    const manual = team.players.some((p) => (p.group === 'CB' || p.group === 'FB') && FM.isManual(team, p, 'without'));
-    return `<div class="in-line"><div class="in-lc"><b>Height of the defensive line</b>
-        <p class="in-note">How far up the pitch the defence stands when you do not have the ball. A high line squeezes the space in front of it but leaves room behind it; a deep one is harder to run in behind.${manual ? ' A defender you placed by hand on the Defending board stays where you put him.' : ''}</p>
-        <div class="in-slide"><span>Deep</span><input type="range" id="inLine" min="0" max="1" step="0.05" value="${team.tactics.lineHeight}" aria-label="Height of the defensive line"><span>High</span></div>
-        <p class="in-note" id="inLineTxt"></p></div>
-        <svg id="inLineSvg" viewBox="0 0 204 315" role="img" aria-label="The defence at this line height"></svg></div>`;
-  }
-  function paintLine(host, team) {
-    const svg = host.querySelector('#inLineSvg'); if (!svg) return;
-    const W = 204, H = 315, x = (w) => (w * W).toFixed(1), y = (d) => ((1 - d) * H).toFixed(1);
-    let s = `<rect width="${W}" height="${H}" rx="6" fill="#2A7539"/><rect x="1" y="1" width="${W - 2}" height="${H - 2}" fill="none" stroke="rgba(255,255,255,.7)" stroke-width="1.5"/><line x1="0" y1="${H / 2}" x2="${W}" y2="${H / 2}" stroke="rgba(255,255,255,.7)" stroke-width="1.5"/><rect x="${W / 2 - 60}" y="${H - 50}" width="120" height="49" fill="none" stroke="rgba(255,255,255,.7)" stroke-width="1.5"/>`;
-    const pos = team.players.map((p) => ({ p, q: FM.phasePos(team, p, 'without') }));
-    const backs = pos.filter(({ p }) => p.group === 'CB' || p.group === 'FB');
-    const lineD = backs.length ? backs.reduce((a, { q }) => a + q.d, 0) / backs.length : 0.3;
-    s += `<line x1="0" y1="${y(lineD)}" x2="${W}" y2="${y(lineD)}" stroke="#F2C14E" stroke-width="2" stroke-dasharray="6 4"/><text x="${W - 6}" y="${(+y(lineD) - 5).toFixed(1)}" text-anchor="end" font-size="10" font-weight="700" fill="#F2C14E" font-family="sans-serif">${Math.round(lineD * 105)} m from your goal</text>`;
-    pos.forEach(({ p, q }) => { const back = p.group === 'CB' || p.group === 'FB'; s += `<circle cx="${x(q.w)}" cy="${y(q.d)}" r="${back ? 10 : 6.5}" fill="${back ? '#F2C14E' : 'rgba(241,234,214,.35)'}" stroke="${back ? '#1A232D' : 'rgba(0,0,0,.25)'}" stroke-width="1.5"/>${back ? `<text x="${x(q.w)}" y="${(+y(q.d) + 3.5).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="800" fill="#1A232D" font-family="sans-serif">${p.number}</text>` : ''}`; });
-    svg.innerHTML = s;
-    const t = host.querySelector('#inLineTxt'); if (t) t.textContent = team.tactics.lineHeight < 0.35 ? 'A deep line: they sit close to their own goal.' : team.tactics.lineHeight > 0.65 ? 'A high line: they push up towards halfway and leave space behind.' : 'A medium line.';
-  }
-
   // Instructions come in two kinds. General ones are how you always want the team to play and are kept from match to match. Game ones are for the next
   // match only (usually because of who you are playing): they carry a `game` mark and are removed once that match has been played.
   const SCOPES = {
@@ -106,7 +84,6 @@
         ${box('general')}
         ${everyStage.length ? `<div class="in-inh"><b>Instructions that apply in every stage</b>${everyStage.map((r) => `<div>${esc(FM.rulesWho(r))}: ${esc(FM.rulesText(r))} <button type="button" class="in-link" data-del="${r.id}">remove</button></div>`).join('')}</div>` : ''}
         ${box('game')}
-        ${stage === 'without' ? lineCard(team) : ''}
       </div></div>`;
     const q = (s) => host.querySelector(s), qa = (s) => host.querySelectorAll(s);
     const redraw = () => FM.renderInstructions(host, team, hooks, opts);
@@ -120,8 +97,6 @@
       stateOf('general').added = ''; stateOf('game').added = ''; touched(); redraw();
     }));
     qa('[data-del]').forEach((b) => b.addEventListener('click', () => { team.rules = team.rules.filter((x) => x.id !== b.dataset.del); stateOf('general').added = ''; stateOf('game').added = ''; touched(); redraw(); }));
-    const line = q('#inLine');
-    if (line) { paintLine(host, team); let timer = 0; line.addEventListener('input', () => { FM.shiftLine(team, team.tactics.lineHeight, +line.value); team.tactics.lineHeight = +line.value; paintLine(host, team); clearTimeout(timer); timer = setTimeout(touched, 400); }); }
     qa('textarea[data-scope]').forEach((ta) => ta.addEventListener('input', () => { stateOf(ta.dataset.scope).text = ta.value; }));
     qa('[data-understand]').forEach((u) => u.addEventListener('click', async () => {
       const scope = u.dataset.understand, st = stateOf(scope), ta = q('#inText_' + scope);
