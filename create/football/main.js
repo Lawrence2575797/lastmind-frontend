@@ -4,7 +4,7 @@
   const { L, W } = FM.PITCH;
   const el = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const world = { league: null, view: 'home', match: null, fixture: null, running: true, speed: 1, highlightsOnly: false, highlightUntil: 0, shownEvents: 0, lastStats: '', trails: [], impacts: [], vt: 0, commentaryUntil: 0, tab: 'squad', selSlot: null, selBench: null, saveTimer: null, renderPos: new Map(), renderBall: null, frameDt: .016 };
+  const world = { league: null, view: 'home', match: null, fixture: null, running: true, speed: 1, highlightsOnly: false, highlightUntil: 0, highlightSearching: false, shownEvents: 0, lastStats: '', trails: [], impacts: [], vt: 0, commentaryUntil: 0, commentaryTurns: {}, tab: 'squad', selSlot: null, selBench: null, saveTimer: null, renderPos: new Map(), renderBall: null, frameDt: .016 };
   const REAL_SECONDS_FOR_MATCH = 600; // a full 90 minutes takes about ten real minutes at 1x
   const MATCH_SPEED = 5400 / REAL_SECONDS_FOR_MATCH / 6;   // speeds are shown against a pace six times slower than the first version's
   const SUBSTEP = 0.1;
@@ -146,13 +146,29 @@
   }
   function isImportantMoment(m) {
     if (world.vt < world.highlightUntil) return true;
-    if (m.restart && ['corner', 'freekick', 'penalty'].includes(m.restart.kind)) return true;
+    if (m.restart && (m.restart.kind === 'corner' || m.restart.kind === 'penalty' || (m.restart.kind === 'freekick' && FM.toTeamSpace(m.restart.team.attackDir, m.restart.x, m.restart.y).d > .72))) return true;
     if (!m.carrier) return false;
     const p = m.carrier.player;
     const depth = FM.toTeamSpace(m.carrier.team.attackDir, p.x, p.y).d;
     const opponents = m.carrier.team === m.home ? m.away.players : m.home.players;
     const pressure = opponents.some((d) => d.group !== 'GK' && Math.hypot(d.x - p.x, d.y - p.y) < 4.5);
-    return depth > .69 || (depth > .62 && pressure);
+    return depth > .79 || (depth > .73 && pressure);
+  }
+  function importantEvent(e) {
+    if (e.type === 'goal' || (e.type === 'shot' && (e.xg || 0) >= .1) || (e.type === 'foul' && e.card === 'red')) return true;
+    if (e.type === 'restart' && (e.kind === 'corner' || e.kind === 'penalty')) return true;
+    if (e.type === 'tackle' && e.ok && e.x != null && (e.x < L * .22 || e.x > L * .78)) return true;
+    return false;
+  }
+  function seekHighlight(m) {
+    const startedAt = m.events.length, t0 = performance.now();
+    world.highlightSearching = true;
+    while (performance.now() - t0 < 26 && m.phase !== 'halftime' && m.phase !== 'fulltime' && !m.injuryPause) {
+      FM.stepMatch(m, SUBSTEP);
+      if (isImportantMoment(m) || m.events.slice(startedAt).some(importantEvent)) { world.highlightSearching = false; return true; }
+    }
+    if (m.phase === 'halftime' || m.phase === 'fulltime' || m.injuryPause) world.highlightSearching = false;
+    return false;
   }
   let last = performance.now();
   function frame(now) {
@@ -164,13 +180,11 @@
       if (FM.scout && world.league) FM.scout.watch(world.league, m);
       if (world.skipTo) { skipSlice(m); if (!world.skipTo) world.trails = []; }
       else if (world.running && m.phase !== 'halftime' && m.phase !== 'fulltime') {
-        // One steady pace throughout: the match does not speed up or slow down for passes, shots or restarts.
-        const viewingSpeed = world.highlightsOnly && !isImportantMoment(m) ? 24 : world.highlightsOnly ? 1 : world.speed;
-        advanceMatch(dt * MATCH_SPEED * viewingSpeed);
+        if (world.highlightsOnly && !isImportantMoment(m)) seekHighlight(m);
+        else { advanceMatch(dt * MATCH_SPEED * (world.highlightsOnly ? 1 : world.speed)); world.highlightSearching = false; }
         world.vt += dt;
       }
-      draw();
-      updateHud();
+      if (!world.highlightSearching) { draw(); updateHud(); }
     }
     requestAnimationFrame(frame);
   }
@@ -208,15 +222,25 @@
     ribbon.textContent = text; ribbon.className = 'match-commentary' + (mood ? ' ' + mood : '');
     world.commentaryUntil = world.vt + (seconds || 2.5);
   }
+  function call(key, choices) {
+    const turn = world.commentaryTurns[key] || 0;
+    world.commentaryTurns[key] = turn + 1;
+    const choice = choices[turn % choices.length];
+    return typeof choice === 'function' ? choice() : choice;
+  }
   function liveCommentary(m) {
     if (world.vt < world.commentaryUntil || !m.carrier) return;
     const c = m.carrier, p = c.player, depth = FM.toTeamSpace(c.team.attackDir, p.x, p.y).d;
     const goalSide = (c.team === m.home ? m.away : m.home).players.filter((d) => d.group !== 'GK' && (d.x - p.x) * c.team.attackDir > -1 && Math.abs(d.y - p.y) < 18).length;
     const name = shortName(p);
-    if (depth > .84 && goalSide <= 1) say(name + ' is in behind — one defender to beat!', 'hot', 1.15);
-    else if (depth > .72) say(c.team.name + ' are probing around the penalty area...', 'hot', 1.7);
-    else if (depth < .36) say(c.team.name + ' take their time and build from the back.', '', 2.8);
-    else say(name + ' carries it through midfield.', '', 2.4);
+    const wide = Math.abs(p.y - W / 2) > W * .28;
+    if (depth > .86 && goalSide <= 1) say(call('through', [() => name + ' is in behind — one defender to beat!', () => name + ' has broken the line!', () => 'This is the chance for ' + name + '!', () => name + ' is bearing down on goal!']), 'hot', 1.15);
+    else if (depth > .78 && wide) say(call('wideAttack', [() => name + ' attacks the outside channel.', () => c.team.name + ' stretch the defence out wide.', () => name + ' looks up for the delivery.', () => 'Space on the flank for ' + name + '.']), 'hot', 1.55);
+    else if (depth > .78) say(call('boxAttack', [() => c.team.name + ' work it around the box.', () => name + ' searches for a shooting lane.', () => 'The defence are being pushed deeper now.', () => c.team.name + ' keep the pressure on.']), 'hot', 1.55);
+    else if (depth < .34 && goalSide >= 4) say(call('deepCalm', [() => c.team.name + ' are allowed to build patiently.', () => 'No hurry for ' + name + ' at the back.', () => c.team.name + ' recycle possession and reset.', () => name + ' waits for the shape to open.']), '', 2.7);
+    else if (depth < .38) say(call('deepPress', [() => name + ' has pressure arriving.', () => c.team.name + ' try to play through the first press.', () => name + ' needs an option here.', () => 'The press begins to close around ' + name + '.']), '', 2.2);
+    else if (wide) say(call('wideMid', [() => name + ' carries down the line.', () => c.team.name + ' switch the point of attack.', () => name + ' advances into space out wide.', () => 'The flank opens up for ' + name + '.']), '', 2.25);
+    else say(call('midfield', [() => name + ' carries it through midfield.', () => c.team.name + ' look for a route through the middle.', () => name + ' turns into space.', () => c.team.name + ' move the ball between the lines.']), '', 2.35);
   }
   function updateHud() {
     const m = world.match, home = m.home, away = m.away;
@@ -253,10 +277,24 @@
       else if (e.type === 'injury') text = 'Injury: ' + who(e.player) + ' (' + team.name + ') with ' + e.name + ', out for ' + (e.matches === 1 ? 'one match' : e.matches + ' matches');
       else if (e.type === 'tactic') text = team.name + (e.direction === 'attack' ? ' have changed approach: more attacking' : ' have changed approach: more cautious');
       else if (e.type === 'keeperSwap') text = team.name + ' goalkeeper change: ' + who(e.on) + ' in goal' + (e.emergency ? ' (an outfield player)' : '');
-      if (e.type === 'goal') { world.highlightUntil = world.vt + 4.5; say('GOAL! ' + who(e.player) + ' finishes it for ' + team.name + '!', 'goal', 4.5); }
-      else if (e.type === 'shot') { world.highlightUntil = world.vt + 3; say(e.outcome === 'goal' ? 'It is in!' : who(e.player) + ' shoots — ' + (e.outcome === 'saved' ? 'the goalkeeper saves!' : e.outcome === 'blocked' ? 'blocked at the last moment!' : 'just wide!'), 'hot', 2.8); }
-      else if (e.type === 'tackle') { if (e.ok && e.x != null && (e.x < L * .3 || e.x > L * .7)) world.highlightUntil = Math.max(world.highlightUntil, world.vt + 1.8); say((e.ok ? 'Superb challenge! ' : 'A desperate tackle from ') + who(e.player) + (e.ok ? ' wins it cleanly.' : ' cannot take the ball.'), 'tackle', 2.3); }
-      else if (e.type === 'offside') { world.highlightUntil = world.vt + 2.2; say(who(e.player) + ' went too early — offside.', '', 2.2); }
+      if (e.type === 'goal') {
+        world.highlightUntil = world.vt + 4.5;
+        say(call('goal', [() => 'GOAL! ' + who(e.player) + ' finishes it for ' + team.name + '!', () => who(e.player) + ' scores! ' + team.name + ' have their breakthrough!', () => 'It is in! ' + who(e.player) + ' makes no mistake!', () => team.name + ' strike through ' + who(e.player) + '!']), 'goal', 4.5);
+      } else if (e.type === 'shot') {
+        world.highlightUntil = world.vt + 3;
+        const shooter = who(e.player), big = (e.xg || 0) >= .28;
+        if (e.outcome === 'goal') say(call('shotGoal', ['It is in!', 'That finds the net!', 'A clinical finish!']), 'goal', 3.5);
+        else if (e.outcome === 'saved') say(call(big ? 'bigSave' : 'save', [() => (big ? 'What a save! ' : '') + 'The goalkeeper denies ' + shooter + '!', () => shooter + ' shoots — strong hands from the keeper!', () => 'Saved! ' + shooter + ' cannot find a way through.']), 'hot', 2.8);
+        else if (e.outcome === 'blocked') say(call('block', [() => shooter + ' pulls the trigger — blocked!', 'A defender throws himself in the way!', 'The shot never gets through the crowd!']), 'hot', 2.6);
+        else say(call(big ? 'bigMiss' : 'miss', [() => shooter + (big ? ' has to score — but puts it wide!' : ' shoots just wide!'), 'That flashes past the post!', () => shooter + ' cannot quite find the corner.']), 'hot', 2.7);
+      } else if (e.type === 'tackle') {
+        if (e.ok && e.x != null && (e.x < L * .22 || e.x > L * .78)) world.highlightUntil = Math.max(world.highlightUntil, world.vt + 1.8);
+        say(e.ok ? call('wonTackle', [() => 'Superb challenge! ' + who(e.player) + ' wins it cleanly.', () => who(e.player) + ' times the tackle perfectly.', () => 'Brilliant defending from ' + who(e.player) + '.', () => who(e.player) + ' steps in and takes it.']) : call('lostTackle', [() => who(e.player) + ' dives in but cannot win it.', () => 'The attacker escapes ' + who(e.player) + '.', () => who(e.player) + ' mistimes the challenge.']), 'tackle', 2.2);
+      } else if (e.type === 'restart' && e.kind === 'penalty') say(call('penalty', [() => 'PENALTY TO ' + team.name + '!', 'The referee points to the spot!', () => team.name + ' have a penalty!']), 'hot', 3.2);
+      else if (e.type === 'restart' && e.kind === 'corner') say(call('corner', [() => team.name + ' force a corner.', () => 'Corner — another chance for ' + team.name + ' to load the box.', 'The pressure brings a corner.']), 'hot', 2.2);
+      else if (e.type === 'foul' && e.card === 'red') say(call('red', [() => 'RED CARD! ' + who(e.player) + ' is sent off!', () => who(e.player) + ' is dismissed — ' + team.name + ' are down to ten!']), 'hot', 4);
+      else if (e.type === 'foul' && e.card === 'yellow') say(call('yellow', [() => who(e.player) + ' goes into the book.', () => 'Yellow card for ' + who(e.player) + '.', () => who(e.player) + ' will have to be careful now.']), '', 2.2);
+      else if (e.type === 'offside') say(call('offside', [() => who(e.player) + ' went too early — offside.', 'The flag is up. The run came a fraction too soon.', () => who(e.player) + ' strays beyond the line.', 'A promising move ends with the offside flag.']), '', 2.1);
       if (!text) continue;
       const div = document.createElement('div');
       div.innerHTML = '<b>' + FM.formatClock(e.t) + '</b> ' + esc(text);
@@ -294,7 +332,7 @@
     const m = world.match;
     if (!m || m.phase === 'fulltime') return;
     world.highlightsOnly = !world.highlightsOnly;
-    world.highlightUntil = world.vt;
+    world.highlightUntil = world.vt; world.highlightSearching = false;
     world.running = true;
     say(world.highlightsOnly ? 'Highlights on — moving quickly to the next dangerous moment.' : 'Full match view restored.', '', 2.2);
   });
@@ -337,7 +375,7 @@
     world.fixture = fx;
     world.match = FM.startFixture(world.league, fx, { interactive: true });
     world.renderPos.clear(); world.renderBall = null;
-    world.running = true; world.speed = 1; world.highlightsOnly = false; world.highlightUntil = 0; world.shownEvents = 0; world.lastStats = ''; world.trails = []; world.impacts = []; world.vt = 0; world.commentaryUntil = 0;
+    world.running = true; world.speed = 1; world.highlightsOnly = false; world.highlightUntil = 0; world.highlightSearching = false; world.shownEvents = 0; world.lastStats = ''; world.trails = []; world.impacts = []; world.vt = 0; world.commentaryUntil = 0; world.commentaryTurns = {};
     say('The teams are ready. The match is about to begin.', '', 2.5);
     world.selSlot = null; world.selBench = null; world.tab = 'squad';
     document.querySelectorAll('[data-speed]').forEach((x) => x.classList.toggle('on', x.dataset.speed === '1'));
@@ -365,9 +403,9 @@
   el('injuryTen').addEventListener('click', () => { if (world.match) FM.resolveInjury(world.match); });
 
   // ---------- views and navigation ----------
-  const VIEWS = ['home', 'league', 'squad', 'analysis', 'reports', 'news', 'hypotheses', 'match'];
+  const VIEWS = ['home', 'league', 'squad', 'analysis', 'reports', 'news', 'hypotheses', 'preview', 'match'];
   const NAV = [['home', '⌂', 'Home'], ['tactics', '◇', 'Tactics'], ['league', '▥', 'League'], ['squad', '◉', 'Squad'], ['reports', '◎', 'Reports'], ['news', '◫', 'News'], ['analysis', '⌁', 'Analysis'], ['hypotheses', '◌', 'Hypotheses']];
-  const SCREEN_TITLES = { home: 'Club overview', league: 'League centre', squad: 'First-team squad', reports: 'Opposition intelligence', news: 'Football world', analysis: 'Performance analysis', hypotheses: 'Hypothesis lab' };
+  const SCREEN_TITLES = { home: 'Club overview', league: 'League centre', squad: 'First-team squad', reports: 'Opposition intelligence', news: 'Football world', analysis: 'Performance analysis', hypotheses: 'Hypothesis lab', preview: 'Match preview' };
   function setView(v) {
     world.view = v;
     document.body.dataset.view = v;
@@ -378,6 +416,7 @@
     VIEWS.forEach((k) => { const section = el('view-' + k); if (section) { if (SCREEN_TITLES[k]) section.dataset.screenTitle = SCREEN_TITLES[k]; else delete section.dataset.screenTitle; } });
     renderTop();
     renderNav();
+    renderPrepFlow();
     if (v === 'home') renderHome();
     else if (v === 'league') renderLeague();
     else if (v === 'squad') renderSquad();
@@ -385,6 +424,7 @@
     else if (v === 'reports') FM.renderReports(el('view-reports'), world.league);
     else if (v === 'news') FM.renderNews(el('view-news'), world.league);
     else if (v === 'hypotheses') FM.renderHypotheses(el('view-hypotheses'), world.league);
+    else if (v === 'preview') renderPreview();
     else if (v === 'tactics' || v === 'match') renderTactics();
     const activeSection = SCREEN_TITLES[v] ? el('view-' + v) : null;
     if (activeSection && !activeSection.querySelector('.screen-heading')) activeSection.insertAdjacentHTML('afterbegin', `<div class="screen-heading">${SCREEN_TITLES[v]}</div>`);
@@ -394,6 +434,22 @@
     const nav = el('nav');
     nav.innerHTML = NAV.map(([k, icon, label]) => `<button data-nav="${k}" class="${world.view === k ? 'on' : ''}"><span class="nav-ico" aria-hidden="true">${icon}</span><span>${label}</span></button>`).join('');
     nav.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => setView(b.dataset.nav)));
+  }
+  function renderPrepFlow() {
+    const host = el('prepFlow');
+    if (!world.league || world.view === 'match') { host.hidden = true; return; }
+    const active = world.view === 'tactics' ? (world.tab === 'build' ? 'test' : 'prepare') : world.view === 'analysis' || world.view === 'hypotheses' ? 'analyse' : world.view === 'preview' ? 'match' : '';
+    const steps = [['prepare', 'Prepare tactics'], ['test', 'Test phases'], ['analyse', 'Read evidence'], ['match', 'Match preview'], ['review', 'Review & improve']];
+    host.hidden = false;
+    host.innerHTML = steps.map(([k, label], i) => `${i ? '<span class="flow-arrow">›</span>' : ''}<button data-flow="${k}" data-step="${i + 1}" class="${active === k ? 'on' : ''}">${label}</button>`).join('');
+    host.querySelectorAll('[data-flow]').forEach((b) => b.addEventListener('click', () => {
+      const k = b.dataset.flow;
+      if (k === 'prepare') { world.tab = 'squad'; setView('tactics'); }
+      else if (k === 'test') { world.tab = 'build'; setView('tactics'); }
+      else if (k === 'analyse') setView((world.league.labRuns || []).length ? 'analysis' : 'hypotheses');
+      else if (k === 'match') setView('preview');
+      else setView('analysis');
+    }));
   }
   function renderTop() {
     const lg = world.league;
@@ -406,13 +462,13 @@
     const mustPlay = todayFx && !todayFx.played;
     let label;
     if (over) label = 'Season complete';
-    else if (mustPlay) label = 'Play the match';
+    else if (mustPlay) label = 'Match preview';
     else label = 'Advance to ' + FM.weekdayName(lg.day + 1);
     host.innerHTML = `<span class="hint" style="color:inherit;opacity:0.8">${esc(FM.dayLabel(lg.day))}</span>
       <button class="primary" id="advBtn"${over || world.view === 'match' ? ' disabled' : ''}>${label}</button>
       <button id="newBtn" title="Abandon this season and start again">New game</button>`;
     el('advBtn').addEventListener('click', () => {
-      if (mustPlay) { startMatch(); return; }
+      if (mustPlay) { setView('preview'); return; }
       const err = FM.advanceDay(lg);
       if (!err) { FM.saveLeague(lg); setView(world.view === 'tactics' ? 'tactics' : 'home'); }
     });
@@ -420,6 +476,30 @@
       if (!confirm('Abandon this season and start a new game?')) return;
       FM.clearSave(); world.league = null; world.match = null; showNewGame();
     });
+  }
+
+  function renderPreview() {
+    const lg = world.league, host = el('view-preview'), fx = FM.nextUserFixture(lg), me = userTeam();
+    if (!fx) { host.innerHTML = '<div class="card"><h2>No fixture to preview</h2></div>'; return; }
+    const home = FM.teamById(lg, fx.homeId), away = FM.teamById(lg, fx.awayId), opp = home.id === me.id ? away : home;
+    const profile = FM.clubProfile(opp), runs = (lg.labRuns || []).filter((r) => !r.opp || r.opp === opp.name), last = runs[runs.length - 1];
+    const result = last && last.result, rate = result && result.beat ? Math.round(result.beat.p * 100) : null;
+    const problems = FM.teamProblems(me, opp, (ph) => oppLine(ph));
+    const today = FM.userFixtureToday(lg), canPlay = !!(today && !today.played);
+    const findings = result ? `${last.n} build-up tests gave a ${rate}% press-beating rate${result.beat.lo != null ? `, with a ${Math.round(result.beat.lo * 100)}–${Math.round(result.beat.hi * 100)}% interval` : ''}.` : 'No phase experiment has been run for this opponent. That is optional—you can still use the current plan.';
+    host.innerHTML = `<div class="match-preview">
+      <div class="preview-hero"><div class="eyebrow">Round ${fx.round + 1} · ${home.id === me.id ? 'Home' : 'Away'}</div>
+        <div class="preview-clubs"><div class="preview-club"><strong>${esc(home.name)}</strong><span>${home.formationKey}</span></div><div class="preview-v">VS</div><div class="preview-club"><strong>${esc(away.name)}</strong><span>${away.formationKey}</span></div></div>
+        <div class="preview-actions"><button id="previewTactics">Review tactics</button><button id="previewTest">Run an experiment</button><button class="primary" id="enterMatch"${canPlay ? '' : ' disabled'}>${canPlay ? 'Enter the match' : 'Match available on Saturday'}</button></div></div>
+      <div class="preview-grid">
+        <div class="card"><h2>Your match plan</h2><p class="fixture-big">${esc(me.formationKey)}</p><p class="desc">${(me.rules || []).filter((r) => !r.off).length} active player or team instruction${(me.rules || []).filter((r) => !r.off).length === 1 ? '' : 's'}.</p><p class="note">${problems.length ? problems.length + ' positional issue' + (problems.length === 1 ? '' : 's') + ' still need attention.' : 'Every phase currently fits together.'}</p></div>
+        <div class="card"><h2>Opponent</h2><p class="fixture-big">${esc(opp.name)}</p><p class="desc">${esc(profile.tag || 'Opponent')} · likely ${esc(opp.formationKey)} · ${esc({ balanced:'balanced',possession:'patient in possession',counter:'dangerous in transition',press:'aggressive without the ball',direct:'direct with the ball' }[opp.style] || opp.style)}.</p><button id="previewReport">Open scouting report</button></div>
+        <div class="card"><h2>Evidence so far</h2><p class="desc">${findings}</p><p class="note">Experiments inform the decision; they never give the team a hidden bonus.</p></div>
+      </div></div>`;
+    host.querySelector('#previewTactics').addEventListener('click', () => { world.tab = 'squad'; setView('tactics'); });
+    host.querySelector('#previewTest').addEventListener('click', () => { world.tab = 'build'; setView('tactics'); });
+    host.querySelector('#previewReport').addEventListener('click', () => setView('reports'));
+    host.querySelector('#enterMatch').addEventListener('click', () => { if (canPlay) startMatch(); });
   }
 
   // ---------- home ----------
@@ -569,9 +649,32 @@
   const overall = (p) => { const r = p.ratings; return p.natural === 'GK' ? r.gk : Math.round((r.pace + r.dribbling + r.passing + r.finishing + r.tackling) / 5); };
   const inLive = () => world.match && world.match.clock > 0 && world.match.phase !== 'fulltime';
 
+  function capturePlan(team, name) {
+    return { id: 'plan-' + Date.now(), name, savedAt: Date.now(), formationKey: team.formationKey,
+      tactics: JSON.parse(JSON.stringify(team.tactics)), shape: JSON.parse(JSON.stringify(team.shape || {})), phasePos: JSON.parse(JSON.stringify(team.phasePos || {})), rules: JSON.parse(JSON.stringify(team.rules || [])),
+      players: team.players.map((p) => ({ id: p.id, roleId: p.roleId, options: JSON.parse(JSON.stringify(p.options || {})), instr: JSON.parse(JSON.stringify(p.instr || {})) })) };
+  }
+  function restorePlan(team, plan) {
+    if (!plan) return;
+    if (plan.formationKey !== team.formationKey) FM.setFormation(team, plan.formationKey);
+    team.tactics = Object.assign(FM.defaultTactics(), JSON.parse(JSON.stringify(plan.tactics || {})));
+    team.shape = JSON.parse(JSON.stringify(plan.shape || {})); team.phasePos = JSON.parse(JSON.stringify(plan.phasePos || {})); team.rules = JSON.parse(JSON.stringify(plan.rules || []));
+    (plan.players || []).forEach((saved) => { const p = team.players.find((x) => x.id === saved.id); if (p) { if (saved.roleId && FM.ROLES[saved.roleId]) p.roleId = saved.roleId; p.options = JSON.parse(JSON.stringify(saved.options || {})); p.instr = JSON.parse(JSON.stringify(saved.instr || {})); } });
+  }
+  function renderPlanBar(team) {
+    const host = el('planBar'), plans = world.league.tacticalPlans = world.league.tacticalPlans || [];
+    host.innerHTML = `<select id="planSelect" aria-label="Saved tactical plans"><option value="">Saved match plans</option>${plans.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select><button id="savePlan">Save current plan</button><button id="loadPlan" disabled>Restore</button><button id="deletePlan" disabled>Delete</button>`;
+    const select = host.querySelector('#planSelect'), sync = () => { const yes = !!select.value; host.querySelector('#loadPlan').disabled = !yes; host.querySelector('#deletePlan').disabled = !yes; };
+    select.addEventListener('change', sync);
+    host.querySelector('#savePlan').addEventListener('click', () => { const name = prompt('Name this tactical plan:', 'Plan ' + (plans.length + 1)); if (!name || !name.trim()) return; plans.push(capturePlan(team, name.trim())); saveSoon(); renderTactics(); });
+    host.querySelector('#loadPlan').addEventListener('click', () => { const plan = plans.find((p) => p.id === select.value); if (!plan) return; restorePlan(team, plan); world.selSlot = null; saveSoon(); renderTactics(); });
+    host.querySelector('#deletePlan').addEventListener('click', () => { const plan = plans.find((p) => p.id === select.value); if (!plan || !confirm('Delete the saved plan “' + plan.name + '”?')) return; world.league.tacticalPlans = plans.filter((p) => p.id !== plan.id); saveSoon(); renderTactics(); });
+  }
+
   function renderTactics() {
     if (!world.league) return;
     const team = userTeam();
+    renderPlanBar(team);
     el('subInfo').textContent = 'Substitutions used: ' + team.subsUsed + ' of ' + team.maxSubs + (inLive() ? '' : ' (changes before kick-off are free)');
     el('tabs').innerHTML = TABS.map(([k, label]) => `<button data-tab="${k}" class="${world.tab === k ? 'on' : ''}">${label}${k === 'instr' && (team.rules || []).filter((r) => !r.off).length ? ' (' + (team.rules || []).filter((r) => !r.off).length + ')' : ''}</button>`).join('');
     el('tabs').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { world.tab = b.dataset.tab; renderTactics(); }));
@@ -990,8 +1093,8 @@
   // ---------- starting up ----------
   function showNewGame() {
     document.body.dataset.view = 'new';
-    ['home', 'league', 'squad', 'analysis', 'reports', 'news', 'hypotheses', 'match'].forEach((k) => { el('view-' + k).hidden = true; });
-    el('tactics').hidden = true; el('nav').hidden = true; el('newGame').hidden = false;
+    ['home', 'league', 'squad', 'analysis', 'reports', 'news', 'hypotheses', 'preview', 'match'].forEach((k) => { el('view-' + k).hidden = true; });
+    el('tactics').hidden = true; el('nav').hidden = true; el('prepFlow').hidden = true; el('newGame').hidden = false;
     el('topRight').innerHTML = ''; el('subtitle').textContent = 'Eight clubs, one season, and a lot of numbers.';
   }
   el('ngTeam').innerHTML = FM.TEAM_DEFS.map((d, i) => `<option value="${i}">${esc(d.name)}</option>`).join('');
