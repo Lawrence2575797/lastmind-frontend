@@ -550,11 +550,11 @@
   function tableHtml(rows, compact) {
     const me = world.league.userId;
     const head = compact ? '' : '<th>GF</th><th>GA</th>';
-    const started = rows.some((r) => r.p > 0), n = rows.length;
-    const cls = (r, i) => [r.id === me ? 'me' : '', started && i >= n - 2 ? 'rel' : '', started && i === n - 2 ? 'rel-first' : '', started && i === 0 ? 'champ' : ''].filter(Boolean).join(' ');
+    const n = rows.length;
+    const cls = (r, i) => [r.id === me ? 'me' : '', i >= n - 2 ? 'rel' : '', i === n - 2 ? 'rel-first' : '', i === 0 ? 'champ' : ''].filter(Boolean).join(' ');
     return `<div class="tablewrap"><table class="data"><thead><tr><th class="l">#</th><th class="l">Club</th><th>P</th><th>W</th><th>D</th><th>L</th>${head}<th>GD</th><th>Pts</th>${compact ? '' : '<th class="l">Form</th>'}</tr></thead><tbody>` +
       rows.map((r, i) => `<tr class="${cls(r, i)}"><td class="l">${i + 1}</td><td class="l">${esc(r.name)}${compact ? '' : ` <span class="pm">${esc(FM.clubProfile(r).tag)}</span>`}</td><td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td>${compact ? '' : `<td>${r.gf}</td><td>${r.ga}</td>`}<td>${r.gf - r.ga > 0 ? '+' : ''}${r.gf - r.ga}</td><td><b>${r.pts}</b></td>${compact ? '' : `<td class="l">${r.form.slice(-5).map((f) => `<span class="pill ${f}">${f}</span>`).join('')}</td>`}</tr>`).join('') +
-      '</tbody></table></div>' + (started ? '<p class="note"><span class="zone"></span>Top wins the league. The bottom two go down.</p>' : '');
+      '</tbody></table></div>';
   }
   function renderHome() {
     const lg = world.league, host = el('view-home'), me = lg.userId;
@@ -726,10 +726,10 @@
   // Each tab with a board shows the team in that phase of play.
   const BOARD_KEY = { squad: 'shape', build: 'build', midfield: 'midfield', final: 'final', organised: 'without' };
   const PHASE_TEXT = {
-    shape: 'The team set up in its formation. Choose the formation here, and drag one player onto another to swap them (a shirt dropped anywhere else springs back). Every other phase follows from this shape, the roles and the instructions, and is where you place players by hand.',
+    shape: 'The team set up in its formation. Choose the formation here, and drag one player onto another to swap them (a shirt dropped anywhere else springs back). Every other phase follows from this shape and your instructions, and is where you place players by hand.',
     build: 'The team with the ball close to its own goal, which is why the ball starts beside the goalkeeper. These positions apply while the ball is in the team\'s own third, and the team moves toward the final-third positions as the ball goes forward. The ball here is only a guide, so you can drag it to picture other situations. A shirt you drag moves for this phase only, and only as far as the player could run from his other positions. A shirt with a gold dot has been placed by hand.',
     midfield: 'This phase starts from the positions chosen in build-up. Move the shirts again to show how the team plays through midfield; these become the starting positions for the final third.',
-    final: 'The team with the ball near the opposition goal. Attackers can stand on the edge of the box or inside it, but they are held at the offside line, and the same role and instructions apply as in every other phase.',
+    final: 'The team with the ball near the opposition goal. Attackers can stand on the edge of the box or inside it, but they are held at the offside line, and the same instructions apply as in every other phase.',
     transAtt: 'The few seconds just after winning the ball, before the team settles. This is where the first runs are made, so positions here pull players toward where the attack will go.',
     transDef: 'The few seconds just after losing the ball. Players here are pulled toward the positions that cut the counter-attack off, or toward the ball if the team presses.',
     press: 'The team pressing the opposition while they build from their own end. Place the shirts where you want each player to engage; their positions define how high and wide the press is.',
@@ -822,7 +822,7 @@
       : [['counter','Counter quickly'],['secure','Secure possession'],['reset','Reset the attack']];
     const fallback = defensive ? 'contain' : 'secure';
     team.tactics[key] = team.tactics[key] || {};
-    host.innerHTML = `<div class="card transition-plan"><span class="eyebrow">${defensive ? 'Lost the ball in…' : 'Won the ball in…'}</span><h2>${defensive ? 'Defensive transition' : 'Attacking transition'}</h2><p class="desc">Choose the first response in each part of the pitch. Player roles and instructions decide the individual movements.</p><div class="transition-zones">${zones.map(([z,n]) => `<label><b>${n}</b><select data-zone="${z}">${options.map(([v,l]) => `<option value="${v}"${(team.tactics[key][z] || fallback) === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>`).join('')}</div><div id="phaseInstr"></div></div>`;
+    host.innerHTML = `<div class="card transition-plan"><span class="eyebrow">${defensive ? 'Lost the ball in…' : 'Won the ball in…'}</span><h2>${defensive ? 'Defensive transition' : 'Attacking transition'}</h2><p class="desc">Choose the first response in each part of the pitch. The instructions decide each player’s movement.</p><div class="transition-zones">${zones.map(([z,n]) => `<label><b>${n}</b><select data-zone="${z}">${options.map(([v,l]) => `<option value="${v}"${(team.tactics[key][z] || fallback) === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>`).join('')}</div><div id="phaseInstr"></div></div>`;
     host.querySelectorAll('[data-zone]').forEach((s) => s.addEventListener('change', () => { team.tactics[key][s.dataset.zone] = s.value; saveSoon(); }));
     FM.renderInstructions(host.querySelector('#phaseInstr'), team, { save: saveSoon, opp: nextOpponent, changed: () => FM.elena.refresh() }, { stage: defensive ? 'transDef' : 'transAtt' });
     FM.elena.sync({ mode: 'instr', stage: defensive ? 'transDef' : 'transAtt', team, opp: nextOpponent() });
@@ -1166,13 +1166,13 @@
         <div class="tb-left">
           <h2>${isShape ? 'Team shape' : FM.PHASE_NAMES[key]}</h2>
           <div id="board"></div>
-          <div class="row"><button id="resetPhase">${isShape ? 'Reset the shape to the formation' : 'Reset this phase to the role defaults'}</button></div>
+          <div class="row"><button id="resetPhase">${isShape ? 'Reset the shape to the formation' : 'Reset this phase to its default positions'}</button></div>
           <p class="err" id="subErr"></p>
         </div>
         <div class="tb-right">
           ${isShape ? '' : '<div id="phaseInstr"></div>'}
           ${isShape ? `<div><h2 style="margin-bottom:8px">Bench</h2><div class="bench" id="bench">${bench}</div><p class="note" style="margin-top:8px">To substitute, click a bench player and then click the shirt he replaces.</p></div>` : ''}
-          <div id="rolePanel"></div>
+          <div id="playerPanel"></div>
           <div id="warnPanel"></div>
         </div>
       </div>`;
@@ -1219,7 +1219,7 @@
     host.querySelectorAll('[data-bench]').forEach((b) => {
       b.addEventListener('click', () => { const p = team.bench.find((x) => x.id === b.dataset.bench); world.selBench = world.selBench === p ? null : p; renderTactics(); });
     });
-    renderRolePanel(team);
+    renderPlayerPanel(team);
     renderWarnPanel(team);
   }
 
@@ -1229,11 +1229,10 @@
     const all = FM.teamProblems(team, nextOpponent(), (ph) => oppLine(ph));
     const sel = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
     const hurt = team.players.filter(FM.isInjured);
-    let html = (hurt.length && !inLive() ? `<p class="note warnnote">${hurt.map((p) => esc(p.name)).join(', ')} ${hurt.length > 1 ? 'are' : 'is'} injured. Substitute ${hurt.length > 1 ? 'them' : 'him'} here, or the best available replacement will start at kick-off.</p>` : '') + '<h2 style="margin-bottom:8px">Do the phases fit together?</h2>';
+    let html = hurt.length && !inLive() ? `<p class="note warnnote">${hurt.map((p) => esc(p.name)).join(', ')} ${hurt.length > 1 ? 'are' : 'is'} injured. Substitute ${hurt.length > 1 ? 'them' : 'him'} here, or the best available replacement will start at kick-off.</p>` : '';
     const hard = all;
-    if (!hard.length) html += '<p class="note">Yes. Every player can reach each of his positions in time, and nobody is placed offside.</p>';
-    else {
-      html += '<div class="warns">' + hard.map(({ p, list }) => `<div class="warn${p === sel ? ' me' : ''}"><b>${esc(shortName(p))}</b> (${p.slotKey})<ul>${list.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>`).join('') + '</div>';
+    if (hard.length) {
+      html += '<h2 style="margin-bottom:8px">These phases do not fit together yet</h2><div class="warns">' + hard.map(({ p, list }) => `<div class="warn${p === sel ? ' me' : ''}"><b>${esc(shortName(p))}</b> (${p.slotKey})<ul>${list.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>`).join('') + '</div>';
       html += '<div class="row" style="margin-top:8px"><button id="fixAll">Pull impossible and offside positions back</button></div>';
     }
     host.innerHTML = html;
@@ -1253,43 +1252,26 @@
       <p class="note">This season: ${st.apps} appearance${st.apps === 1 ? '' : 's'}, ${st.goals} goal${st.goals === 1 ? '' : 's'}, ${st.shots} shot${st.shots === 1 ? '' : 's'}, ${st.yellows} yellow card${st.yellows === 1 ? '' : 's'}, ${st.reds} red.</p>`;
   }
 
-  function renderRolePanel(team) {
-    const host = el('rolePanel');
-    // A player's role and instructions belong to the player, so they are set here on Squad and formation, not on each phase's page.
+  function renderPlayerPanel(team) {
+    const host = el('playerPanel');
     if (world.tab !== 'squad') { host.innerHTML = ''; return; }
     // A substitute picked from the bench: show his profile, with how to bring him on.
     if (world.selBench && team.bench.includes(world.selBench)) {
       const b = world.selBench;
       host.innerHTML = `<h2 style="margin-bottom:8px">${esc(b.name)}, number ${b.number} (on the bench)</h2>
         <div style="display:grid;gap:10px">${profileHtml(b, null)}
-          <p class="note">Suited to: ${FM.rolesForGroup(b.natural).map((id) => FM.ROLES[id].name).join(', ')}.</p>
           <p class="note">${FM.isInjured(b) ? 'He is injured and cannot be brought on.' : 'To bring him on, click one of the shirts on the board, or drag him onto one. Click him again to deselect.'}</p></div>`;
       return;
     }
     const player = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
-    if (!player) { host.innerHTML = '<p class="note">Click a shirt to see that player and set his role. Instructions are written on the Instructions tab.</p>'; return; }
-    const role = FM.ROLES[player.roleId];
-    const roleOptions = FM.rolesForGroup(player.group).map((id) => `<option value="${id}"${id === player.roleId ? ' selected' : ''}>${FM.ROLES[id].name}</option>`).join('');
-    let extra = '';
-    Object.keys(role.options || {}).forEach((k) => {
-      const o = role.options[k];
-      if (o.type === 'choice') extra += `<label>${o.label}<select data-opt="${k}">${o.choices.map(([v, t]) => `<option value="${v}"${player.options[k] === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>`;
-      else extra += `<label class="check"><input type="checkbox" data-opt="${k}"${player.options[k] ? ' checked' : ''}> ${o.label}</label>`;
-    });
+    if (!player) { host.innerHTML = '<p class="note">Click a shirt to see that player.</p>'; return; }
     host.innerHTML = `
       <h2 style="margin-bottom:8px">${esc(player.name)}, number ${player.number}</h2>
       <div style="display:grid;gap:10px">
         ${profileHtml(player, player.slotKey)}
-        <label>Role<select data-k="role">${roleOptions}</select></label>
-        <p class="desc">${role.desc}</p>
-        ${extra}
         <div class="row"><button id="resetPlayer">Reset his positions in every phase</button></div>
         <label>Your notes on him (these do not change how he plays)<textarea id="playerNote" rows="2">${esc(player.note || '')}</textarea></label>
       </div>`;
-    host.querySelector('[data-k="role"]').addEventListener('change', (e) => { FM.setRole(team, player, e.target.value); FM.fixSlot(team, player); saveSoon(); renderTactics(); });
-    host.querySelectorAll('[data-opt]').forEach((o) => o.addEventListener('change', () => {
-      player.options[o.dataset.opt] = o.type === 'checkbox' ? o.checked : o.value; saveSoon(); renderTactics();
-    }));
     host.querySelector('#resetPlayer').addEventListener('click', () => { FM.clearPlayerPositions(team, player); saveSoon(); renderTactics(); });
     host.querySelector('#playerNote').addEventListener('input', (e) => { player.note = e.target.value; saveSoon(); });
   }
