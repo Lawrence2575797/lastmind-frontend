@@ -729,7 +729,7 @@
   // diagram where the stage ends. The second one can have more than one version: the default, and any "page" the manager adds, each with a label
   // and a condition the match checks. The stage after then shows one starting diagram for every version of the end before it.
   const DEF_ENDS = { withoutEnd: true, transDefEnd: true };
-  function mountPair(host, team, tab) {
+  function mountPair(host, team, tab, instr) {
     FM.ensurePages(team);
     const pair = BOARD_PAIRS[tab], startDef = pair[0], endDef = pair[1], endKey = endDef.key;
     const conds = DEF_ENDS[endKey] ? FM.SCENARIO_CONDS_DEF : FM.SCENARIO_CONDS;
@@ -753,15 +753,28 @@
         <figcaption><b>${esc(f.def.title)}</b><span class="note">${esc(f.label ? 'Where the stage before ended on its page: ' + f.label : f.def.note)}</span></figcaption>
         <div class="board-host" id="board${n}"></div>${f.locked ? '' : `<div class="row"><button data-reset="${f.key}">Reset this diagram</button></div>`}
       </figure>`;
-    // One start and one end sit side by side. Otherwise the starts are along the top and the ends (the versions of the second diagram) below them.
+    // One start and one end sit side by side. Otherwise the starts are along the top and the ends (the versions of the second diagram) below
+    // them. Each page has its instruction box directly beneath its own end diagram, the same width as that diagram; a start that is alone at
+    // the top has the stage-wide instruction box beside it.
     const all = starts.concat(ends);
-    const row = (list, offset) => `<div class="board-pair">${list.map((f, k) => figure(f, offset + k)).join('')}</div>`;
-    host.innerHTML = (starts.length === 1 && ends.length === 1)
-      ? `<div class="scn">${row(all, 0)}</div>`
-      : `<div class="scn">${row(starts, 0)}${row(ends, starts.length)}</div>`;
+    const fig = (list, offset) => list.map((f, k) => figure(f, offset + k));
+    const row = (items) => `<div class="board-pair">${items.join('')}</div>`;
+    const box = (i) => `<div class="bp bp-instr" id="pgInstr${i}"></div>`;
+    const side = starts.length === 1 && ends.length >= 2;
+    let html;
+    if (starts.length === 1 && ends.length === 1) html = row(fig(all, 0)) + row(['<div class="bp bp-spacer"></div>', box(0)]);
+    else if (side) html = row(fig(starts, 0).concat(['<div class="bp bp-instr" id="stageInstr"></div>'])) + row(fig(ends, starts.length)) + row(ends.map((e, i) => box(i)));
+    else html = row(fig(starts, 0)) + row(fig(ends, starts.length)) + row(ends.map((e, i) => box(i)));
+    host.innerHTML = `<div class="scn">${html}</div>`;
     host.insertAdjacentHTML('beforeend', '<div class="row scn-add"><button type="button" id="scnAdd">+ Add a page</button><span class="note">Adds another version of the second diagram, for a different situation.</span></div>');
     const draw = () => { if (!host.isConnected) return; all.forEach((f, n) => drawBoard(host.querySelector('#board' + n), team, f.key, { locked: f.locked, fit: true })); };
     draw();
+    if (instr) {
+      const pg = [{ id: 'default', label: dfl.label }].concat(pagesOf(endKey).map((x) => ({ id: x.id, label: x.label })));
+      pg.forEach((x, i) => FM.renderInstructions(host.querySelector('#pgInstr' + i), team, instr.hooks, { stage: instr.stage, pageId: x.id, pageLabel: x.label, showUntagged: !side }));
+      const sb = host.querySelector('#stageInstr');
+      if (sb) FM.renderInstructions(sb, team, instr.hooks, { stage: instr.stage, wholeStage: true });
+    }
     host.querySelectorAll('[data-reset]').forEach((b) => b.addEventListener('click', () => { FM.clearPhase(team, b.dataset.reset); if (team.phaseBall) delete team.phaseBall[b.dataset.reset]; saveSoon(); renderTactics(); }));
     const add = host.querySelector('#scnAdd');
     host.querySelectorAll('[data-def-label]').forEach((inp) => inp.addEventListener('change', () => { dfl.label = inp.value.trim().slice(0, 40) || 'Default page'; saveSoon(); }));
@@ -905,8 +918,7 @@
     team.tactics[key] = team.tactics[key] || {};
     host.innerHTML = `<div class="card transition-plan"><span class="eyebrow">${defensive ? 'Lost the ball in…' : 'Won the ball in…'}</span><h2>${defensive ? 'Defensive transition' : 'Attacking transition'}</h2><p class="desc">Choose the first response in each part of the pitch, and place the team at the moment it happens and a few seconds on. The instructions decide the rest.</p><div id="transPair"></div><div class="transition-zones">${zones.map(([z,n]) => `<label><b>${n}</b><select data-zone="${z}">${options.map(([v,l]) => `<option value="${v}"${(team.tactics[key][z] || fallback) === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>`).join('')}</div><div id="phaseInstr"></div></div>`;
     host.querySelectorAll('[data-zone]').forEach((s) => s.addEventListener('change', () => { team.tactics[key][s.dataset.zone] = s.value; saveSoon(); }));
-    mountPair(host.querySelector('#transPair'), team, tab);
-    renderPageInstructions(host.querySelector('#phaseInstr'), team, { save: saveSoon, opp: nextOpponent, changed: () => FM.elena.refresh() }, tab, defensive ? 'transDef' : 'transAtt');
+    mountPair(host.querySelector('#transPair'), team, tab, { hooks: { save: saveSoon, opp: nextOpponent, changed: () => FM.elena.refresh() }, stage: defensive ? 'transDef' : 'transAtt' });
     FM.elena.sync({ mode: 'tactics', tab, key: defensive ? 'transDef' : 'transAtt', team, opp: nextOpponent(), stage: defensive ? 'transDef' : 'transAtt' });
   }
 
@@ -1306,7 +1318,7 @@
         </div>
       </div>`;
     const board = host.querySelector('#board') || host.querySelector('#pairHost');
-    if (pair) mountPair(host.querySelector('#pairHost'), team, tab);
+    if (pair) mountPair(host.querySelector('#pairHost'), team, tab, { hooks: { save: saveSoon, opp: nextOpponent, changed: () => FM.elena.refresh(), afterAdd: () => { FM.elena.refresh(); FM.elena.review(); } }, stage: key });
     else {
       // On the squad page the pitch fills the left of the screen and follows its width.
       drawBoard(board, team, key, isShape ? { fit: true } : undefined);
@@ -1325,7 +1337,6 @@
     if (!isShape) {
       // The big instruction box for this stage of play, and the assistant's drawing and review of the instructions.
       const hooks = { save: saveSoon, opp: nextOpponent, changed: () => FM.elena.refresh(), afterAdd: () => { FM.elena.refresh(); FM.elena.review(); } };
-      renderPageInstructions(host.querySelector('#phaseInstr'), team, hooks, tab, key);
     }
     FM.elena.sync({ mode: 'tactics', tab, key, team, opp: nextOpponent(), stage: isShape ? null : key });
     const err = (msg) => { host.querySelector('#subErr').textContent = msg || ''; };

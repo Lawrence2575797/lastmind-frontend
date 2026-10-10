@@ -36,8 +36,9 @@
     opts = opts || {};
     // opts.pageId / opts.pageLabel: which tactics page this box is for ('default' for the page that always exists). Instructions written in a
     // page's box apply only while that page is in use.
-    const stage = opts.stage || null, pageId = opts.pageId || null, key = (stage || 'all') + (pageId ? '#' + pageId : '');
-    const pageNote = opts.pageLabel ? ' on the page "' + opts.pageLabel + '"' : '';
+    // opts.wholeStage: the box beside a lone starting diagram, for instructions that apply on every page of the stage.
+    const stage = opts.stage || null, pageId = opts.pageId || null, whole = !!opts.wholeStage, key = (stage || 'all') + (pageId ? '#' + pageId : '') + (whole ? '#whole' : '');
+    const pageNote = opts.pageLabel && !whole ? ' on the page "' + opts.pageLabel + '"' : '';
     const stateOf = (scope) => states[key + ':' + scope] || (states[key + ':' + scope] = { text: '', busy: false, err: '', draft: null, added: '', collapsed: false, listOpen: true });
     const head = stateOf('general');
     if (stage && head.collapsed) {
@@ -47,7 +48,11 @@
     }
     team.rules = team.rules || [];
     const roster = setRoster(team, hooks);
-    const inPage = (r) => !pageId || (pageId === 'default' ? (!r.when || !r.when.page || r.when.page === 'default') : !!(r.when && r.when.page === pageId));
+    const untagged = (r) => !r.when || !r.when.page;
+    const inPage = (r) => whole ? untagged(r)
+      : !pageId ? true
+      : pageId === 'default' ? ((opts.showUntagged !== false && untagged(r)) || (r.when && r.when.page === 'default'))
+      : !!(r.when && r.when.page === pageId);
     const inStage = (r) => (!stage || (r.when && r.when.stage && r.when.stage.indexOf(stage) >= 0)) && inPage(r);
     const card = (r) => `<div class="in-rule${r.off ? ' off' : ''}">
         <label class="in-sw"><input type="checkbox" data-toggle="${r.id}"${r.off ? '' : ' checked'} aria-label="Instruction on or off"><i></i></label>
@@ -58,9 +63,9 @@
       const rules = team.rules.filter((r) => inStage(r));
       const label = stage ? 'Tell the team how to play in ' + STAGE_NAME[stage] + pageNote : 'Tell the team how to play';
       return `<section class="in-scope in-scope-${scope}" aria-label="${esc(S.title)}">
-        <div class="in-head"><h2>${esc(opts.pageLabel ? 'Instructions: ' + opts.pageLabel : S.title)}${rules.length ? ' (' + rules.filter((r) => !r.off).length + ')' : ''}</h2><p class="in-note">${esc(S.sub)}</p></div>
+        <div class="in-head"><h2>${esc(whole ? 'Instructions for every page of this stage' : opts.pageLabel ? 'Instructions: ' + opts.pageLabel : S.title)}${rules.length ? ' (' + rules.filter((r) => !r.off).length + ')' : ''}</h2><p class="in-note">${esc(S.sub)}</p></div>
         <div class="in-add"><div class="in-body">
-          <label class="in-lab" for="inText_${scope}">${label} <small>(${pageId ? 'applies to this page only' : 'applies to this stage only'})</small></label>
+          <label class="in-lab" for="inText_${scope}">${label} <small>(${whole ? 'applies on every page' : pageId ? 'applies to this page only' : 'applies to this stage only'})</small></label>
           <textarea id="inText_${scope}" data-scope="${scope}" maxlength="3000" rows="7" placeholder="Write as much as you like, about any players, ours or theirs.&#10;&#10;e.g. ${esc(STAGE_EG[stage] || STAGE_EG.build)}">${esc(st.text)}</textarea>
           <div class="in-act"><button type="button" class="in-go" data-understand="${scope}"${st.busy ? ' disabled' : ''}>${st.busy ? 'Reading it…' : 'Turn this into instructions'}</button></div>
           ${st.err ? `<p class="in-err">${esc(st.err)}</p>` : ''}
