@@ -637,32 +637,11 @@
       <td><b>${FM.playerRating(p).toFixed(1)}</b></td><td>${FM.shown(p.ratings.pace)}</td><td>${FM.shown(p.ratings.dribbling)}</td><td>${FM.shown(p.ratings.passing)}</td><td>${FM.shown(p.ratings.finishing)}</td><td>${FM.shown(p.ratings.tackling)}</td><td>${FM.shown(p.ratings.heading)}</td><td>${FM.shown(p.ratings.composure)}</td><td>${p.ratings.stamina ? FM.shown(p.ratings.stamina) : '-'}</td><td>${p.natural === 'GK' ? FM.shown(p.ratings.gk) : '-'}</td>
       <td>${p.stats.apps}</td><td>${p.stats.goals}</td><td>${p.stats.shots}</td><td>${p.stats.yellows}</td><td>${p.stats.reds}</td></tr>`;
     const selected = all.find((p) => p.id === world.profilePlayerId) || all[0];
-    const missingPortraits = team.name === 'Ashford Rovers' ? all.filter((p) => !portraitCache[p.id]) : [];
-    host.innerHTML = `<div id="playerProfile"></div><div class="card"><div class="row" style="justify-content:space-between"><h2>${esc(team.name)}: squad of ${all.length}</h2>${team.name === 'Ashford Rovers' ? `<button id="makeSquadPortraits"${missingPortraits.length ? '' : ' disabled'}>${missingPortraits.length ? `Create ${missingPortraits.length} squad portrait${missingPortraits.length === 1 ? '' : 's'}` : 'All squad portraits created'}</button>` : ''}</div><p class="note" id="portraitProgress">${missingPortraits.length ? 'Portraits are generated one player at a time and completed players are kept if the process is interrupted.' : 'Every player has his club portrait.'}</p>
+    host.innerHTML = `<div id="playerProfile"></div><div class="card"><div class="row" style="justify-content:space-between"><h2>${esc(team.name)}: squad of ${all.length}</h2></div>
       <div class="tablewrap"><table class="data"><thead><tr><th>Player</th><th class="l">#</th><th class="l">Name</th><th class="l">Nation</th><th class="l">Pos</th><th class="l">Now</th><th class="l">Foot</th><th title="Height in cm. Taller players are better in the air.">Ht</th><th>Cond</th><th class="l">Fitness</th><th title="Overall rating out of 10 in his natural position">Rating</th><th>Pac</th><th>Dri</th><th>Pas</th><th>Fin</th><th>Tck</th><th>Hea</th><th>Com</th><th>Sta</th><th>GK</th><th>Apps</th><th>Goals</th><th>Shots</th><th>YC</th><th>RC</th></tr></thead><tbody>${all.map(row).join('')}</tbody></table></div>
       </div>`;
     const open = (id) => { world.profilePlayerId = id; renderSquad(); };
     host.querySelectorAll('[data-player]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); open(b.dataset.player); }));
-    const squadBtn = host.querySelector('#makeSquadPortraits');
-    if (squadBtn && missingPortraits.length) squadBtn.addEventListener('click', async () => {
-      squadBtn.disabled = true;
-      const progress = host.querySelector('#portraitProgress'); let made = 0, failed = 0; const requestTimes = [];
-      for (const player of missingPortraits) {
-        while (requestTimes.length && Date.now() - requestTimes[0] > 61000) requestTimes.shift();
-        if (requestTimes.length >= 9) {
-          const wait = Math.max(0, 61500 - (Date.now() - requestTimes[0]));
-          progress.textContent = `Keeping the image service steady… ${made + failed} of ${missingPortraits.length} complete`;
-          await new Promise((resolve) => setTimeout(resolve, wait));
-          while (requestTimes.length && Date.now() - requestTimes[0] > 61000) requestTimes.shift();
-        }
-        progress.textContent = `Creating ${player.name}… ${made + failed + 1} of ${missingPortraits.length}`;
-        requestTimes.push(Date.now());
-        try { await createFootballPortrait(player); made++; } catch (e) { failed++; }
-      }
-      renderSquad();
-      const done = el('view-squad').querySelector('#portraitProgress');
-      if (done && failed) done.textContent = `${made} portrait${made === 1 ? '' : 's'} created. ${failed} could not be created; use the button to retry only those players.`;
-    });
     renderPlayerProfile(team, selected, host.querySelector('#playerProfile'));
     ensurePortraitsLoaded(all);
   }
@@ -680,11 +659,6 @@
     });
     return portraitDbPromise;
   }
-  async function savedPortrait(id, image) {
-    portraitCache[id] = image;
-    const db = await portraitDb(); if (!db) return;
-    await new Promise((resolve) => { const tx = db.transaction('portraits', 'readwrite'); tx.objectStore('portraits').put(image, PORTRAIT_KEY(id)); tx.oncomplete = resolve; tx.onerror = resolve; });
-  }
   async function ensurePortraitsLoaded(players) {
     if (world.portraitsLoaded || world.portraitsLoading) return;
     world.portraitsLoading = true;
@@ -693,32 +667,12 @@
     world.portraitsLoaded = true; world.portraitsLoading = false;
     if (world.view === 'squad') renderSquad();
   }
-  function footballPortraitDescription(p) {
-    const h = p.height || 180, build = h >= 190 ? 'very tall, long-limbed and powerfully athletic' : h >= 184 ? 'tall and strongly athletic' : h <= 174 ? 'shorter, compact and lean athletic' : 'medium-height, lean and athletic';
-    const role = { GK: 'goalkeeper with a broad upper-body build', CB: 'centre-back with a strong physical build', FB: 'full-back with a lean endurance-athlete build', DM: 'defensive midfielder with a sturdy athletic build', CM: 'central midfielder with a balanced athletic build', AM: 'attacking midfielder with a light agile build', WF: 'wide forward with a lean fast-sprinter build', ST: 'striker with a powerful athletic build' }[p.natural] || 'professional footballer';
-    return `${p.name}, an entirely fictional adult male professional footballer from ${p.nation}, age ${20 + (p.number % 14)}, exactly ${h} cm tall, ${build}, a ${role}. His face, hair and complexion should plausibly and respectfully reflect ${p.nation} heritage without caricature. Unique natural facial features. Ashford Rovers media day.`;
-  }
-  async function createFootballPortrait(p) {
-    const data = await FM.api('/playtest/football-portrait', { description: footballPortraitDescription(p) });
-    if (!data.image) throw new Error('No portrait was returned.');
-    // Not saved unless it passed the check for a plain red shirt with nothing on it: a portrait that did not is made again.
-    if (data.usable === false) throw new Error('This portrait did not come out clean. Try again.');
-    await savedPortrait(p.id, data.image); return data.image;
-  }
   function portraitFallback(p) { return `<div class="player-portrait fallback">${esc(p.name.split(/\s+/).map((x) => x[0]).slice(0, 2).join(''))}</div>`; }
   function renderPlayerProfile(team, p, host) {
     if (!p || !host) return;
     const ashford = team.name === 'Ashford Rovers', image = ashford && portraitCache[p.id];
     const ratings = [['Pace',p.ratings.pace],['Dribbling',p.ratings.dribbling],['Passing',p.ratings.passing],['Finishing',p.ratings.finishing],['Tackling',p.ratings.tackling],['Heading',p.ratings.heading],['Composure',p.ratings.composure],['Stamina',p.ratings.stamina],['Goalkeeping',p.ratings.gk]].filter((x) => x[1] != null);
-    host.innerHTML = `<article class="player-profile card"><div id="profilePortrait">${image ? `<img class="player-portrait" src="${image}" alt="Portrait of ${esc(p.name)}">` : portraitFallback(p)}</div><div><span class="eyebrow">${esc(team.name)} · #${p.number}</span><h2 class="profile-name">${esc(p.name)}</h2><p class="desc">${esc(p.nation)} · ${p.natural} · ${p.height || '—'} cm · ${p.foot || '—'} foot</p><div class="profile-stats"><b>${FM.playerRating(p).toFixed(1)}<small>Overall</small></b><b>${Math.round(100 * FM.conditionOf(p))}%<small>Condition</small></b><b>${p.stats.apps}<small>Apps</small></b><b>${p.stats.goals}<small>Goals</small></b></div>${ashford && !image ? '<button id="makePortrait">Create player portrait</button>' : ''}</div><div class="attribute-grid">${ratings.map(([n,v]) => `<div><span>${n}</span><b>${FM.shown(v)}</b><i style="--v:${v}%"></i></div>`).join('')}</div></article>`;
-    const btn = host.querySelector('#makePortrait'); if (!btn) return;
-    btn.addEventListener('click', async () => {
-      btn.disabled = true; btn.textContent = 'Creating portrait…';
-      try {
-        await createFootballPortrait(p);
-        renderPlayerProfile(team, p, host);
-      } catch (e) { btn.disabled = false; btn.textContent = 'Try portrait again'; btn.insertAdjacentHTML('afterend', `<p class="err">${esc(e.message)}</p>`); }
-    });
+    host.innerHTML = `<article class="player-profile card"><div id="profilePortrait">${image ? `<img class="player-portrait" src="${image}" alt="Portrait of ${esc(p.name)}">` : portraitFallback(p)}</div><div><span class="eyebrow">${esc(team.name)} · #${p.number}</span><h2 class="profile-name">${esc(p.name)}</h2><p class="desc">${esc(p.nation)} · ${p.natural} · ${p.height || '—'} cm · ${p.foot || '—'} foot</p><div class="profile-stats"><b>${FM.playerRating(p).toFixed(1)}<small>Overall</small></b><b>${Math.round(100 * FM.conditionOf(p))}%<small>Condition</small></b><b>${p.stats.apps}<small>Apps</small></b><b>${p.stats.goals}<small>Goals</small></b></div></div><div class="attribute-grid">${ratings.map(([n,v]) => `<div><span>${n}</span><b>${FM.shown(v)}</b><i style="--v:${v}%"></i></div>`).join('')}</div></article>`;
   }
 
   // ---------- the tactics page ----------
