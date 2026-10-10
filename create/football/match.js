@@ -429,7 +429,8 @@
       // The version of each stage's end diagram in use: the first added page whose condition holds (the default one otherwise).
       FM.ensurePages(team);
       team.pageNow = {};
-      const keys = Object.keys(team.pages).filter((k) => (team.pages[k] || []).length);
+      const ORDER = ['buildEnd', 'midfield', 'final'];   // a stage's page can depend on the page the stage before ended on, so these go in order
+      const keys = Object.keys(team.pages).filter((k) => (team.pages[k] || []).length).sort((a, b) => (ORDER.indexOf(a) < 0 ? 9 : ORDER.indexOf(a)) - (ORDER.indexOf(b) < 0 ? 9 : ORDER.indexOf(b)));
       if (keys.length) {
         const oo = other(match, team), ot = oo.tactics;
         const info = {
@@ -448,6 +449,7 @@
           let win = null, best = 0.18;   // close enough to count as lining up like the shirts that were placed
           if (live) cands.forEach((c) => { const dd = FM.sigDistance(live, c.sig); if (dd < best) { best = dd; win = c.id; } });
           info.shapeWinner = win;
+          info.prevPage = (FM.PREV_END[k] && team.pageNow[FM.PREV_END[k]]) || null;
           const sc = FM.pickPage(list, info, dflt);
           team.pageNow[k] = sc ? sc.id : null;
           const dl = (dflt && dflt.label) || 'Default';

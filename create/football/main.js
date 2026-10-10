@@ -748,7 +748,9 @@
     const ends = [{ id: null, label: dfl.label, cond: dfl.cond }].concat(pagesOf(endKey)).map((pg) => ({ key: withKey(endKey, pg), locked: false, def: endDef, pg }));
     const figure = (f, n) => `<figure class="bp${f.locked ? ' locked' : ''}">
         ${f.pg ? (f.pg.id
-          ? `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(f.pg.label)}" data-scn-label="${f.pg.id}"></label><label>Use this page when <select data-scn-cond="${f.pg.id}">${condOpts(f.pg.cond)}</select></label><button type="button" data-scn-del="${f.pg.id}">Remove this page</button></div>${shapeNote(f.pg)}`
+          ? (f.pg.from
+            ? `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(f.pg.label)}" data-scn-label="${f.pg.id}"></label><label>Use this page when <select disabled><option>The stage before ended on the page it follows</option></select></label><button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div>`
+            : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(f.pg.label)}" data-scn-label="${f.pg.id}"></label><label>Use this page when <select data-scn-cond="${f.pg.id}">${condOpts(f.pg.cond)}</select></label><button type="button" data-scn-del="${f.pg.id}">Remove this page</button></div>${shapeNote(f.pg)}`)
           : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(dfl.label)}" data-def-label="1"></label><label>Use this page when <select data-def-cond="1">${condOpts(dfl.cond)}</select></label><button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div>${shapeNote(dfl)}`) : ''}
         <figcaption><b>${esc(f.def.title)}</b><span class="note">${esc(f.label ? 'Where the stage before ended on its page: ' + f.label : f.def.note)}</span></figcaption>
         <div class="board-host" id="board${n}"></div>${f.locked ? '' : `<div class="row"><button data-reset="${f.key}">Reset this diagram</button></div>`}
@@ -760,11 +762,12 @@
     const fig = (list, offset) => list.map((f, k) => figure(f, offset + k));
     const row = (items) => `<div class="board-pair">${items.join('')}</div>`;
     const box = (n) => `<div class="bp bp-instr" id="dgInstr${n}"></div>`;
+    const startBox = (n) => (starts[n].locked ? '<div class="bp bp-spacer"></div>' : box(n));
     const loneStart = starts.length === 1 && ends.length >= 2;
     let html;
-    if (starts.length === 1 && ends.length === 1) html = row(fig(all, 0)) + row([box(0), box(1)]);
-    else if (loneStart) html = row(fig(starts, 0).concat([box(0)])) + row(fig(ends, 1)) + row(ends.map((e, i) => box(1 + i)));
-    else html = row(fig(starts, 0)) + row(starts.map((s, i) => box(i))) + row(fig(ends, starts.length)) + row(ends.map((e, i) => box(starts.length + i)));
+    if (starts.length === 1 && ends.length === 1) html = row(fig(all, 0)) + row([startBox(0), box(1)]);
+    else if (loneStart) html = row(fig(starts, 0).concat(starts[0].locked ? [] : [box(0)])) + row(fig(ends, 1)) + row(ends.map((e, i) => box(1 + i)));
+    else html = row(fig(starts, 0)) + (starts.some((s) => !s.locked) ? row(starts.map((s, i) => startBox(i))) : '') + row(fig(ends, starts.length)) + row(ends.map((e, i) => box(starts.length + i)));
     host.innerHTML = `<div class="scn">${html}</div>`;
     host.insertAdjacentHTML('beforeend', '<div class="row scn-add"><button type="button" id="scnAdd">+ Add a page</button><span class="note">Adds another version of the second diagram, for a different situation.</span></div>');
     const draw = () => { if (!host.isConnected) return; all.forEach((f, n) => drawBoard(host.querySelector('#board' + n), team, f.key, { locked: f.locked, fit: true })); };
@@ -774,12 +777,16 @@
       const f = all[n], at = host.querySelector('#dgInstr' + n);
       if (!instr || !f || !at) return;
       {
+        // where the shirts are for this box's diagram: from its start to its end, which is what Haiku is given along with the wording
+        const startKeyFor = n < starts.length ? f.key : (f.pg.from ? startDef.key + '#' + f.pg.from : startDef.key);
+        const endKeyFor = n < starts.length ? endKey : f.key;
+        const positions = () => team.players.map((p) => ({ number: p.number, name: p.name, slot: p.slotKey || '', start: FM.phasePos(team, p, startKeyFor), end: FM.phasePos(team, p, endKeyFor) }));
         if (n < starts.length) {
-          const from = f.locked ? (f.key.indexOf('#') > 0 ? f.key.slice(f.key.indexOf('#') + 1) : 'default') : null;
-          FM.renderInstructions(at, team, instr.hooks, { stage: instr.stage, part: 'start', fromId: from, title: f.locked ? 'Instructions: start, from ' + f.label : 'Instructions: the start', applies: 'applies to the first part of this stage' });
+          if (f.locked) return;   // a start that came from the stage before has no box of its own: that stage's end page has it
+          FM.renderInstructions(at, team, instr.hooks, { stage: instr.stage, part: 'start', fromId: null, title: 'Instructions: the start', applies: 'applies to the first part of this stage', positions });
         } else {
           const pgId = f.pg.id || 'default';
-          FM.renderInstructions(at, team, instr.hooks, { stage: instr.stage, part: 'end', pageId: pgId, pageLabel: ends.length > 1 ? f.pg.label : null, title: ends.length > 1 ? 'Instructions: ' + f.pg.label : 'Instructions: the end', applies: ends.length > 1 ? 'applies to the end of this stage, on this page only' : 'applies to the end of this stage' });
+          FM.renderInstructions(at, team, instr.hooks, { stage: instr.stage, part: 'end', pageId: pgId, pageLabel: ends.length > 1 ? f.pg.label : null, title: ends.length > 1 ? 'Instructions: ' + f.pg.label : 'Instructions: the end', applies: ends.length > 1 ? 'applies to the end of this stage, on this page only' : 'applies to the end of this stage', positions });
         }
       }
     };

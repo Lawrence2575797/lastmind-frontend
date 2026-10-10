@@ -367,6 +367,7 @@
   FM.sigDistance = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
   FM.scenarioHolds = function (cond, info, page) {
     if (cond === 'always') return true;
+    if (cond === 'from_prev') return !!page && !!page.from && info.prevPage === page.from;
     if (cond === 'opp_shape') return !!page && info.shapeWinner === (page.id || 'default');
     if (cond === 'opp_press') return info.oppPress >= 0.5;
     if (cond === 'opp_sit') return info.oppPress < 0.5;
@@ -397,7 +398,21 @@
     const copy = (l) => JSON.parse(JSON.stringify(l || []));
     if (team.scenarios && team.scenarios.length) { ['buildEnd', 'midfield', 'final', 'transAttEnd'].forEach((k) => { if (!team.pages[k]) team.pages[k] = copy(team.scenarios); }); team.scenarios = []; }
     if (team.defScenarios && team.defScenarios.length) { ['withoutEnd', 'transDefEnd'].forEach((k) => { if (!team.pages[k]) team.pages[k] = copy(team.defScenarios); }); team.defScenarios = []; }
+    // A stage that follows another starts from one diagram for each version of the stage before, so it has an end page following on from each of
+    // them by default (a linked page: it is used when the stage before ended on the page it follows). They come first, in the same order as the
+    // starting diagrams, then any pages the manager adds.
+    Object.keys(FM.PREV_END).forEach((end) => {
+      const prev = team.pages[FM.PREV_END[end]] || [], list = team.pages[end] = team.pages[end] || [];
+      const wanted = prev.map((p) => p.id);
+      // a page carried over from the days when pages were shared by the whole chain follows the page of the same id
+      list.forEach((x) => { if (!x.from && wanted.indexOf(x.id) >= 0) { x.from = x.id; x.cond = 'from_prev'; } });
+      for (let i = list.length - 1; i >= 0; i--) if (list[i].from && wanted.indexOf(list[i].from) < 0) list.splice(i, 1);
+      prev.forEach((p) => { if (!list.some((x) => x.from === p.id)) list.push({ id: 'l' + p.id, label: p.label, cond: 'from_prev', from: p.id }); });
+      const linked = wanted.map((id) => list.find((x) => x.from === id)).filter(Boolean);
+      team.pages[end] = linked.concat(list.filter((x) => !x.from));
+    });
   };
+  FM.PREV_END = { midfield: 'buildEnd', final: 'midfield' };
 
   // The target position for one player, in pitch metres.
   // With the ball he moves from his build-up position toward his final-third position as the ball goes forward; for a few

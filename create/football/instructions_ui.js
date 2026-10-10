@@ -104,7 +104,7 @@
       if (text.length < 3) { st.err = 'Write the instructions first.'; return redraw(); }
       st.busy = true; redraw();
       try {
-        const out = await FM.api('/football/compile-instruction', { text, stage, squad: FM.squadOf(team), opponent: roster.oppTeam ? FM.squadOf(roster.oppTeam) : [] });
+        const out = await FM.api('/football/compile-instruction', { text, stage, squad: FM.squadOf(team), opponent: roster.oppTeam ? FM.squadOf(roster.oppTeam) : [], positions: opts.positions ? opts.positions() : undefined });
         const nums = roster.own.map((p) => p.number);
         st.draft = { rules: (out.rules || []).map((r) => FM.rulesClean(Object.assign({}, r, { text: r.text || r.summary || text, source: 'ai' }, stage ? { when: Object.assign({}, r.when, { stage: [stage] }, part ? { part } : {}, part === 'end' && pageId ? { page: pageId } : {}, part === 'start' && fromId ? { from: fromId } : {}) } : {}), nums)).filter(Boolean), notIncluded: out.notIncluded || [] };
       } catch (err) { st.err = err.message || 'LastMind could not read that just now.'; }
