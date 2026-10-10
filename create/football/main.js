@@ -667,8 +667,8 @@
     ensurePortraitsLoaded(all);
   }
 
-  const PORTRAIT_STORE = 'lm_football_ashford_portraits_v3';
-  const PORTRAIT_KEY = (id) => 'v3:' + id;
+  const PORTRAIT_STORE = 'lm_football_ashford_portraits_v4';
+  const PORTRAIT_KEY = (id) => 'v4:' + id;
   const portraitCache = (() => { try { return JSON.parse(localStorage.getItem(PORTRAIT_STORE) || '{}') || {}; } catch (e) { return {}; } })();
   let portraitDbPromise = null;
   function portraitDb() {
@@ -698,35 +698,12 @@
     const role = { GK: 'goalkeeper with a broad upper-body build', CB: 'centre-back with a strong physical build', FB: 'full-back with a lean endurance-athlete build', DM: 'defensive midfielder with a sturdy athletic build', CM: 'central midfielder with a balanced athletic build', AM: 'attacking midfielder with a light agile build', WF: 'wide forward with a lean fast-sprinter build', ST: 'striker with a powerful athletic build' }[p.natural] || 'professional footballer';
     return `${p.name}, an entirely fictional adult male professional footballer from ${p.nation}, age ${20 + (p.number % 14)}, exactly ${h} cm tall, ${build}, a ${role}. His face, hair and complexion should plausibly and respectfully reflect ${p.nation} heritage without caricature. Unique natural facial features. Ashford Rovers media day.`;
   }
-  // The Ashford Rovers crest. The picture is made with a plain red shirt and the crest is put on afterwards, so it is the same on every
-  // player, and no manufacturer's mark can come from the picture itself.
-  const ASHFORD_CREST = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120" width="100" height="120"><path d="M8 6 H92 V62 C92 94 68 111 50 118 C32 111 8 94 8 62 Z" fill="#F1EAD6" stroke="#1A232D" stroke-width="6" stroke-linejoin="round"/><path d="M8 6 H92 V32 H8 Z" fill="#1A232D"/><circle cx="30" cy="19" r="4" fill="#F1EAD6"/><circle cx="50" cy="19" r="4" fill="#F1EAD6"/><circle cx="70" cy="19" r="4" fill="#F1EAD6"/><path d="M50 40 L72 98 H62 L57 84 H43 L38 98 H28 Z M46 74 H54 L50 62 Z" fill="#B3262B" fill-rule="evenodd"/></svg>';
-  function withCrest(imageUrl, badge) {
-    return new Promise((resolve, reject) => {
-      const img = new Image(), crest = new Image();
-      let loaded = 0;
-      const done = () => {
-        if (++loaded < 2) return;
-        const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
-        const g = c.getContext('2d'); g.drawImage(img, 0, 0);
-        const b = badge || { x: 0.64, y: 0.85, s: 0.1 };
-        const w = b.s * c.width, h = w * 1.2;
-        g.save(); g.shadowColor = 'rgba(0,0,0,.35)'; g.shadowBlur = w * 0.08; g.shadowOffsetY = w * 0.03;
-        g.drawImage(crest, b.x * c.width - w / 2, b.y * c.height - h / 2, w, h); g.restore();
-        resolve(c.toDataURL('image/jpeg', 0.92));
-      };
-      img.onload = done; crest.onload = done;
-      img.onerror = () => reject(new Error('The portrait could not be read.')); crest.onerror = () => reject(new Error('The crest could not be drawn.'));
-      img.src = imageUrl; crest.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(ASHFORD_CREST);
-    });
-  }
   async function createFootballPortrait(p) {
     const data = await FM.api('/playtest/football-portrait', { description: footballPortraitDescription(p) });
     if (!data.image) throw new Error('No portrait was returned.');
     // Not saved unless it passed the check for a plain red shirt with nothing on it: a portrait that did not is made again.
     if (data.usable === false) throw new Error('This portrait did not come out clean. Try again.');
-    const image = await withCrest(data.image, data.badge);
-    await savedPortrait(p.id, image); return image;
+    await savedPortrait(p.id, data.image); return data.image;
   }
   function portraitFallback(p) { return `<div class="player-portrait fallback">${esc(p.name.split(/\s+/).map((x) => x[0]).slice(0, 2).join(''))}</div>`; }
   function renderPlayerProfile(team, p, host) {
