@@ -6794,7 +6794,7 @@
             </div>
 
             <div class="sidebar-tabs">
-                <button class="sidebar-tab-btn active" id="cortexTabBtn" type="button">LastMind</button>
+                <button class="sidebar-tab-btn active" id="cortexTabBtn" type="button">Simulate</button>
                 <button class="sidebar-tab-btn" id="notesTabBtn" type="button">Notes</button>
                 <button class="sidebar-tab-btn" id="foldersTabBtn" type="button" hidden style="display:none;">Your Mind</button>
             </div>
@@ -7082,7 +7082,7 @@
                      actually handles overflow. -->
                 <div class="topbar-actions" id="topbarActions">
                     <!-- LastMind Simulate is live for everyone again (was localhost-only while not release-ready). -->
-                    <button class="cortex-btn-topbar" id="createTopbarBtn" type="button">Simulate</button>
+                    <button class="cortex-btn-topbar" id="createTopbarBtn" type="button" style="display:none;">Simulate</button>
                     <!-- Rewards temporarily hidden site-wide (not localhost-gated like Create above) - code/handlers left
                          fully intact so this is a one-line revert (drop the inline style) when it's ready to come back. -->
                     <button class="cortex-btn-topbar" id="rewardsTopbarBtn" type="button" style="display:none;">Rewards <span class="rewards-topbar-keys" title="Your Keys"><span id="rewardsTopbarKeys">0</span> 🔑</span></button>
@@ -10324,7 +10324,7 @@ SQIDAQAB
             }).catch((err) => console.error('LastMind: failed to load the feed lesson list.', err));
             sfShowFolderFeed(f);
         } else {
-            renderWelcome();
+            goToSimulateHome();
         }
         refreshFolderList();
     }
@@ -10617,7 +10617,7 @@ SQIDAQAB
         stopActiveDictation();
         stopSpeaking();
         selectedPageId = null;
-        document.getElementById('topbarTitle').textContent = 'Create';
+        document.getElementById('topbarTitle').textContent = 'Simulate';
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
         if (view === 'criminal-trial') { renderCreateTrialBuilder(contentInner); return; }
@@ -11665,8 +11665,10 @@ SQIDAQAB
         if (playtest) ptStart(createTrial);
         if (duel) createStartDuel(createTrial);
     }
-    const createDuelBoxHtml = () => `<div class="create-proj" style="margin:0 0 18px;"><h3 style="margin-bottom:6px;">Two-player duels</h3><p class="meta" style="margin:0 0 10px;">Play one side of a case while a friend plays the other, each on your own time. Start one from a project below, or enter a code a friend sent you.</p><div class="row"><input spellcheck="true" type="text" id="createDuelCode" maxlength="6" placeholder="Duel code" autocomplete="off" style="text-transform:uppercase;letter-spacing:.2em;max-width:150px;padding:8px 10px;border-radius:8px;border:1px solid rgba(128,128,128,.4);"><button type="button" class="create-secondary" id="createDuelJoin">Join a duel</button></div><div id="createDuels" style="margin-top:12px;"></div></div>`;
+    const createDuelBoxHtml = () => '';
+    const createDuelBoxHtmlOld = () => `<div class="create-proj" style="margin:0 0 18px;"><h3 style="margin-bottom:6px;">Two-player duels</h3><p class="meta" style="margin:0 0 10px;">Play one side of a case while a friend plays the other, each on your own time. Start one from a project below, or enter a code a friend sent you.</p><div class="row"><input spellcheck="true" type="text" id="createDuelCode" maxlength="6" placeholder="Duel code" autocomplete="off" style="text-transform:uppercase;letter-spacing:.2em;max-width:150px;padding:8px 10px;border-radius:8px;border:1px solid rgba(128,128,128,.4);"><button type="button" class="create-secondary" id="createDuelJoin">Join a duel</button></div><div id="createDuels" style="margin-top:12px;"></div></div>`;
     async function createBindDuelBox(host) {
+        if (!host.querySelector('#createDuels')) return;
         const join = host.querySelector('#createDuelJoin');
         if (join) join.addEventListener('click', () => createJoinDuel(host.querySelector('#createDuelCode').value));
         const list = host.querySelector('#createDuels');
@@ -11714,7 +11716,7 @@ SQIDAQAB
             ? `<article class="create-proj create-proj-with-image"><h3>${escapeHtml(p.title)}</h3>${projectImageHtml(p)}<div class="meta">Football manager${p.meta ? ' · ' + escapeHtml(p.meta) : ''} · saved in this browser</div><div class="row"><a class="create-cta" href="${escapeHtml(p.href || '/create/football/')}" style="padding:8px 18px;font-size:0.85rem;text-decoration:none;">Resume</a><button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button></div></article>`
             : p.kind === 'chancellor'
             ? `<article class="create-proj create-proj-with-image"><h3>${escapeHtml(p.title)}</h3>${projectImageHtml(p)}<div class="meta">Economics simulation${p.meta ? ' · ' + escapeHtml(p.meta) : ''} · saved in this browser</div><div class="row"><a class="create-cta" href="${escapeHtml(p.href || '/chancellor/')}" style="padding:8px 18px;font-size:0.85rem;text-decoration:none;">Resume</a><button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button></div></article>`
-            : `<article class="create-proj create-proj-with-image"><h3>${escapeHtml(p.title)}</h3>${projectImageHtml(p)}${p.isReference ? '<span class="badge">Reference example</span>' : ''}<div class="meta">Criminal trial${p.role ? ` · ${p.role === 'prosecution' ? 'Prosecution' : 'Defence'}` : ''}${p.minutes ? ` · ${p.minutes} min` : ''}${p.local ? ' · saved in this browser' : ''}</div><div class="row"><button type="button" class="create-secondary" data-open="${escapeHtml(p.id)}">${isRef ? 'Open a copy' : 'Open'}</button><button type="button" class="create-secondary" data-play="${escapeHtml(p.id)}">Playtest</button><button type="button" class="create-secondary" data-duel="${escapeHtml(p.id)}" title="Play one side while a friend plays the other">Two-player</button>${isRef ? '' : `<button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button>`}</div></article>`;
+            : `<article class="create-proj create-proj-with-image"><h3>${escapeHtml(p.title)}</h3>${projectImageHtml(p)}${p.isReference ? '<span class="badge">Reference example</span>' : ''}<div class="meta">Criminal trial${p.role ? ` · ${p.role === 'prosecution' ? 'Prosecution' : 'Defence'}` : ''}${p.minutes ? ` · ${p.minutes} min` : ''}${p.local ? ' · saved in this browser' : ''}</div><div class="row"><button type="button" class="create-secondary" data-open="${escapeHtml(p.id)}">${isRef ? 'Open a copy' : 'Open'}</button><button type="button" class="create-secondary" data-play="${escapeHtml(p.id)}">Playtest</button>${isRef ? '' : `<button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button>`}</div></article>`;
         host.innerHTML = `
             ${createDuelBoxHtml()}
             <div class="create-projects-head"><span></span><button type="button" class="create-cta" id="createProjectBtn" style="padding:10px 22px;font-size:0.9rem;">+ Create project</button></div>
@@ -11725,7 +11727,6 @@ SQIDAQAB
         host.querySelectorAll('[data-doctor]').forEach((b) => b.addEventListener('click', () => renderCreatePage('doctor-' + b.dataset.doctor)));
         host.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => createOpenProject(b.dataset.open)));
         host.querySelectorAll('[data-play]').forEach((b) => b.addEventListener('click', () => createOpenProject(b.dataset.play, { playtest: true })));
-        host.querySelectorAll('[data-duel]').forEach((b) => b.addEventListener('click', () => createOpenProject(b.dataset.duel, { duel: true })));
         createBindDuelBox(host);
         host.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
             if (!confirm('Delete this project?')) return;
@@ -17807,7 +17808,7 @@ SQIDAQAB
         { selector: null, title: 'Learn at your pace', body: 'Short lessons teach one idea, then check it.' },
         { selector: null, title: 'Remember it', body: 'Reviews return when they will help most.' },
         { selector: '#knowledgeMapTopbarBtn', title: 'See the whole picture', body: 'Your Mind shows what connects and what comes next.' },
-        { selector: '#cortexTabBtn', title: 'Ask LastMind', body: 'Talk through anything that still feels unclear.' },
+        { selector: '#cortexTabBtn', title: 'Simulate', body: 'Your projects: build, play and share learning simulations.' },
         // The "Exam preparation" step that used to point at
         // #practiceQuestionsTopbarBtn was removed along with keeping that
         // button genuinely hidden (see applyPlanChrome's own comment) -
@@ -18556,7 +18557,7 @@ SQIDAQAB
     function setSidebarTab(tab) {
         sidebarTab = tab;
         document.getElementById('foldersTabBtn').classList.toggle('active', tab === 'folders');
-        document.getElementById('cortexTabBtn').classList.toggle('active', tab === 'cortex');
+        document.getElementById('cortexTabBtn').classList.toggle('active', tab === 'cortex' || tab === 'simulate');
         document.getElementById('notesTabBtn').classList.toggle('active', tab === 'notes');
         document.getElementById('folderList').style.display = tab === 'folders' ? 'block' : 'none';
         document.getElementById('cortexChatList').style.display = tab === 'cortex' ? 'flex' : 'none';
@@ -18572,7 +18573,7 @@ SQIDAQAB
         // LastMind tab itself; still shown everywhere else (Your Mind,
         // a subject's feed, practice questions, ...) where it's a real,
         // useful way back.
-        document.getElementById('dashboardTopbarBtn').style.display = tab === 'cortex' ? 'none' : '';
+        document.getElementById('dashboardTopbarBtn').style.display = (tab === 'cortex' || tab === 'simulate') ? 'none' : '';
     }
 
     // Unlike the old Subjects tab (which just swapped the sidebar list and
@@ -18598,10 +18599,20 @@ SQIDAQAB
     // it here is what makes clicking Cortex behave like a real nav
     // destination (same as clicking a specific past chat via
     // openCortexChat does further down), not just a sidebar list swap.
-    document.getElementById('cortexTabBtn').addEventListener('click', () => {
-        setSidebarTab('cortex');
-        renderWelcome();
-    });
+    // That button is "Simulate" now, and Simulate (Your projects) is the page LastMind opens on.
+    function goToSimulateHome() {
+        stopActiveDictation();
+        stopSpeaking();
+        selectedFolderId = null;
+        selectedSubfolderId = null;
+        selectedPageId = null;
+        specPracticeMode = false;
+        kmGraphMode = false;
+        setSidebarTab('simulate');
+        sfCloseSidebarOnMobile();
+        renderCreatePage('projects');
+    }
+    document.getElementById('cortexTabBtn').addEventListener('click', goToSimulateHome);
 
     // Notes: your own folders, subfolders and pages (see the Notes module near the Maths Tool). Opens the page you were last on.
     document.getElementById('notesTabBtn').addEventListener('click', async () => {
@@ -27327,7 +27338,7 @@ SQIDAQAB
             // Same reasoning as enterApp's own landing path: Cortex is the default now, not the
             // per-subject scheduling feed - see the comment there for why sfMaybeShowFeed is kept
             // but no longer called from a default-landing spot.
-            setSidebarTab('cortex'); renderWelcome();
+            goToSimulateHome();
         }
 
         // A genuine first-time signup never reached enterApp's own tour
@@ -34634,7 +34645,7 @@ SQIDAQAB
                 // ever showed up for an account with nothing scheduled - in practice, almost never.
                 // Deliberately left in the codebase, not deleted, for when subject-based scheduling
                 // on the landing page returns.
-                setSidebarTab('cortex'); renderWelcome();
+                goToSimulateHome();
             }
         }
     }
@@ -34678,7 +34689,7 @@ SQIDAQAB
             ['#progressReportTopbarBtn', 'Open your weekly learning progress report.'],
             ['#calendarTopbarBtn', 'See scheduled reviews, study events, exams, and bookings.'],
             ['#seeTutorialBtn', 'Replay the guided tour of LastMind.'],
-            ['#cortexTabBtn', 'Ask LastMind for learning help and explanations.'],
+            ['#cortexTabBtn', 'Your Simulate projects.'],
             ['#foldersTabBtn', 'Browse your subjects, themes, and lessons.'],
             ['#createFolderBtn', 'Add another subject to your LastMind account.'],
             ['.km-inline-start-lesson-btn', 'Start this lesson or its currently due review.'],

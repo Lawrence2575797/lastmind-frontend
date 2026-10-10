@@ -174,6 +174,8 @@
       '.el-term { border: 0; border-bottom: 1px dotted #F2C14E; background: transparent; color: #F2C14E; font: inherit; padding: 0; cursor: pointer; } .el-term i { margin-left: 3px; padding: 0 4px; font-size: .68em; font-style: normal; border: 1px solid currentColor; border-radius: 50%; opacity: .85; vertical-align: 2px; }',
       '.el-defbox { margin: 4px 0 12px; padding: 9px 12px; border-left: 3px solid #F2C14E; border-radius: 0 8px 8px 0; background: rgba(242,193,78,.1); font-size: .85rem; line-height: 1.5; } .el-link { border: 0; background: transparent; color: #F2C14E; font: inherit; text-decoration: underline; cursor: pointer; padding: 0 4px; }',
       '.el-big { font-size: 1.02rem; line-height: 1.5; } .el-rows { margin: 4px 0; } .el-more { margin: 6px 0; font-size: .86rem; } .el-more summary { cursor: pointer; opacity: .85; }',
+      '.el-chat { flex: none; border-top: 1px solid rgba(241,234,214,.18); background: rgba(0,0,0,.18); } .el-chat-log { max-height: 34vh; overflow-y: auto; padding: 10px 16px 0; display: grid; gap: 8px; } .el-msg { max-width: 92%; padding: 8px 11px; border-radius: 12px; font-size: .88rem; line-height: 1.5; } .el-msg.me { justify-self: end; background: #E6D7B0; color: #1A232D; } .el-msg.her { justify-self: start; background: rgba(255,255,255,.08); } .el-msg.err { justify-self: start; color: #ffb4a8; } .el-typing { opacity: .7; }',
+      '.el-chat-form { display: flex; gap: 8px; padding: 10px 16px 14px; } .el-chat-form textarea { flex: 1; min-width: 0; min-height: 42px; max-height: 110px; resize: vertical; padding: 9px 11px; border-radius: 10px; border: 1px solid rgba(241,234,214,.35); background: rgba(255,255,255,.07); color: inherit; font: inherit; } .el-chat-form button { align-self: flex-end; padding: 10px 16px; border: 0; border-radius: 10px; background: #E6D7B0; color: #1A232D; font: 800 .86rem Arial, sans-serif; cursor: pointer; } .el-chat-form button:disabled { opacity: .5; cursor: wait; }',
       '.el-warm { margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; background: rgba(127,212,154,.12); font-style: italic; }',
       '.el-kw { border: 0; border-bottom: 2px solid #F2C14E; background: rgba(242,193,78,.14); color: #FFE9A8; font: inherit; font-weight: 700; padding: 0 4px; border-radius: 4px 4px 0 0; cursor: pointer; } .el-kw:hover { background: rgba(242,193,78,.28); }',
       '.el-tile { display: inline-grid; gap: 2px; margin: 4px 6px 4px 0; padding: 8px 12px; border: 1px solid rgba(241,234,214,.2); border-radius: 10px; background: rgba(255,255,255,.04); } .el-tile b { font-size: 1.15rem; color: #F2C14E; } .el-tile span { font-size: .74rem; opacity: .8; }',
@@ -432,14 +434,42 @@
     const face = E.el.querySelector('.el-head img'); if (face) face.src = E.tab === 'lessons' ? IMG.think : ((E.ctx.runs.length || E.ctx.mode === 'instr' || E.ctx.mode === 'tactics') ? IMG.point : IMG.hello);
   }
   function openLesson(id) { if (!findLesson(id)) return; E.tab = 'lessons'; E.lesson = id; E.step = 0; E.state = { right: false, wrong: [], hint: '' }; if (!E.open) setOpen(true); else paint(); const b = E.el && E.el.querySelector('.el-body'); if (b) b.scrollTop = 0; }
+  // The chat at the bottom of the panel: ask her anything. It is sent with the text she is showing, so "what does this mean?" has something to
+  // point at. The conversation stays while the panel is closed and opened again.
+  E.chat = E.chat || [];
+  function chatPaint(el) {
+    const log = el.querySelector('.el-chat-log'); if (!log) return;
+    log.innerHTML = E.chat.map((m) => '<div class="el-msg ' + (m.role === 'user' ? 'me' : 'her') + '">' + esc(m.content).replace(/\n/g, '<br>') + '</div>').join('') + (E.chatBusy ? '<div class="el-msg her el-typing">Elena is thinking…</div>' : '') + (E.chatErr ? '<div class="el-msg err">' + esc(E.chatErr) + '</div>' : '');
+    log.hidden = !log.innerHTML;
+    log.scrollTop = log.scrollHeight;
+  }
+  function wireChat(el) {
+    const form = el.querySelector('.el-chat-form'), input = form.querySelector('textarea'), btn = form.querySelector('button');
+    chatPaint(el);
+    const send = async () => {
+      const text = input.value.trim(); if (!text || E.chatBusy) return;
+      const panel = (el.querySelector('.el-body') || {}).innerText || '';
+      E.chat.push({ role: 'user', content: text }); input.value = ''; E.chatBusy = true; E.chatErr = ''; btn.disabled = true; chatPaint(el);
+      try {
+        const out = await FM.api('/football/elena-chat', { message: text, history: E.chat.slice(0, -1).slice(-6), panel: panel.slice(0, 5500), level: levelNow() });
+        E.chat.push({ role: 'assistant', content: out.reply || '' });
+      } catch (err) {
+        E.chatErr = err.code === 'NO_SESSION' ? 'Sign in to LastMind to talk to Elena.' : (err.message || 'Elena could not answer just now. Try again.');
+      }
+      E.chatBusy = false; if (E.el === el) { btn.disabled = false; chatPaint(el); }
+    };
+    form.addEventListener('submit', (e) => { e.preventDefault(); send(); });
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
+  }
   function setOpen(on) {
     E.open = on; document.body.classList.toggle('el-open', on);
     if (E.btn) { E.btn.classList.toggle('open', on); E.btn.setAttribute('aria-expanded', String(on)); }
     if (E.el) { E.el.remove(); E.el = null; }
     if (!on) return;
     const el = document.createElement('aside'); el.className = 'el-panel'; el.setAttribute('aria-label', 'Elena Marsh, performance analyst');
-    el.innerHTML = '<div class="el-head"><img alt="" src="' + IMG.hello + '"><div><b>Elena Marsh</b><small>Performance analyst</small></div><button type="button" class="x" aria-label="Close Elena">×</button></div><div class="el-tabs"><button type="button" data-t="read">My reading</button><button type="button" data-t="instr" hidden>Instructions</button><button type="button" data-t="lessons">Lessons</button></div><div class="el-body"></div>';
+    el.innerHTML = '<div class="el-head"><img alt="" src="' + IMG.hello + '"><div><b>Elena Marsh</b><small>Performance analyst</small></div><button type="button" class="x" aria-label="Close Elena">×</button></div><div class="el-tabs"><button type="button" data-t="read">My reading</button><button type="button" data-t="instr" hidden>Instructions</button><button type="button" data-t="lessons">Lessons</button></div><div class="el-body"></div><div class="el-chat"><div class="el-chat-log" aria-live="polite"></div><form class="el-chat-form"><textarea rows="2" placeholder="Ask Elena anything…" aria-label="Ask Elena"></textarea><button type="submit">Send</button></form></div>';
     document.body.appendChild(el); E.el = el;
+    wireChat(el);
     el.addEventListener('change', (e) => { if ((e.target.id === 'elA' || e.target.id === 'elB') && E.ctx.setCompare) E.ctx.setCompare(+el.querySelector('#elA').value, +el.querySelector('#elB').value); });
     el.addEventListener('click', (e) => {
       const t = e.target.closest('button'); if (!t) return;
