@@ -18562,7 +18562,7 @@ SQIDAQAB
         document.getElementById('folderList').style.display = tab === 'folders' ? 'block' : 'none';
         document.getElementById('cortexChatList').style.display = tab === 'cortex' ? 'flex' : 'none';
         document.getElementById('notesPanel').style.display = tab === 'notes' ? 'flex' : 'none';
-        if (tab !== 'notes' && notesLoaded) notesFlush();
+        if (tab !== 'notes' && notesLoaded) { notesFlush(); notesMapSync(); }
         if (tab === 'notes') notesEnsureLoaded().then(renderMyNotesTree);
         if (tab === 'cortex') refreshCortexChatList();
         // Real, reported request: Home (goToMainFeed) just re-opens the
@@ -21657,6 +21657,46 @@ SQIDAQAB
             if (b.type === 'table') return (b.cells || []).map((row) => (row || []).map((cell) => String(cell || '').replace(/\s+/g, ' ').trim()).join(' | ')).join('\n');
             return nbPlainText(live && live.block === b ? live.ed.getHtml() : b.html);
         }).filter(Boolean).join('\n\n');
+    }
+    // Your notes, onto the knowledge map. Each page that has changed since it was last sent is turned into concepts on the server, and those
+    // concepts then show in Your Mind like any other subject, with their own lessons and spaced reviews (first check a day later).
+    let notesMapBusy = null, notesMapPausedUntil = 0;
+    const notesMapHash = (t) => { let h = 5381; for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0; return String(h) + ':' + t.length; };
+    function notesMapSync() {
+        if (notesMapBusy) return notesMapBusy;
+        if (Date.now() < notesMapPausedUntil) return Promise.resolve(null);
+        notesMapBusy = (async () => {
+            try {
+                await notesEnsureLoaded();
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (!session) return null;
+                const key = 'lastmind-notes-map-v1:' + session.user.id;
+                let seen = {}; try { seen = JSON.parse(localStorage.getItem(key) || '{}') || {}; } catch (_) { seen = {}; }
+                const topFolder = (n) => { let c = n; while (c && c.parentId) c = notesNode(c.parentId); return c && c !== n && c.type === 'folder' ? (c.name || '') : ''; };
+                const todo = [];
+                notes.nodes.filter((n) => n.type === 'page').forEach((pg) => {
+                    const text = nbPageText(pg);
+                    if (text.length < 60) return;
+                    const h = notesMapHash((pg.name || '') + '\n' + text);
+                    if (seen[pg.id] !== h) todo.push({ id: pg.id, title: pg.name || '', folder: topFolder(pg), text, h });
+                });
+                if (!todo.length) return { created: 0 };
+                let created = 0;
+                for (let i = 0; i < todo.length; i += 5) {
+                    const batch = todo.slice(i, i + 5);
+                    const { resp, body } = await createAuthedFetch('/notes-map/sync', { method: 'POST', body: JSON.stringify({ pages: batch.map((b) => ({ id: b.id, title: b.title, folder: b.folder, text: b.text })) }) });
+                    if (!resp.ok) { if (resp.status === 402 || resp.status === 403) notesMapPausedUntil = Date.now() + 10 * 60 * 1000; break; }
+                    if (!(body.skipped > 0 && !body.pages)) batch.forEach((b) => { seen[b.id] = b.h; });
+                    created += body.created || 0;
+                    try { localStorage.setItem(key, JSON.stringify(seen)); } catch (_) { /* nothing to keep */ }
+                }
+                return { created };
+            } catch (err) {
+                console.warn('LastMind: notes could not be added to the map.', err);
+                return null;
+            } finally { notesMapBusy = null; }
+        })();
+        return notesMapBusy;
     }
     function nbAssistState(page) {
         try { const all = JSON.parse(localStorage.getItem(NB_ASSIST_STORE) || '{}'); return all[page.id] || { chat: [], review: null }; } catch (_) { return { chat: [], review: null }; }
@@ -27764,6 +27804,8 @@ SQIDAQAB
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
         showLoadingWithColdStartHint(contentInner, 'Loading your knowledge map…');
+        // Notes written (or changed) since the last time are added to the map in the background; the map redraws once they land.
+        notesMapSync().then((r) => { if (r && r.created && myToken === unifiedMapRenderToken && document.querySelector('#contentInner .ym-bar')) renderUnifiedKnowledgeMap(); });
 
         let data;
         try {
