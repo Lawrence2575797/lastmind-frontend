@@ -174,6 +174,26 @@
     <p class="note">Strengths and weaknesses compare you with this opposition (and with a sensible benchmark) in this one match, using the statistics and log saved for it. They are a place to look next, not a verdict: one match is a small sample.</p>`;
   }
 
+  // ---------- Elena's advice for the next game ----------
+  // From how this match went and how it compared with the one before, not from the next opponent's report.
+  function adviceHtml(league, fx) {
+    const adv = FM.nextGameAdvice ? FM.nextGameAdvice(league, fx) : { items: [], better: null, hasPrev: false };
+    const nx = FM.nextUserFixture ? FM.nextUserFixture(league) : null;
+    const nextOpp = nx ? FM.teamById(league, nx.homeId === league.userId ? nx.awayId : nx.homeId) : null;
+    const intro = adv.hasPrev
+      ? 'This is from how this match went, set against the one before it. It is not from how ' + (nextOpp ? nextOpp.name : 'the next opponent') + ' play: you will see that on the tactics pages.'
+      : 'This is your first recorded league match, so everything here is read against the opposition in this one game. From the next match on I will also tell you whether each thing got better.';
+    const items = adv.items.length ? adv.items.map((i) => `<div class="advice">
+        <h3>${esc(i.title)}${i.trend ? ` <small>${esc(i.trend)}</small>` : ''}</h3>
+        <p class="fact">${esc(i.fact)}. ${esc(i.text)}</p>
+        <p><b>What to try:</b> ${esc(i.doIt)}</p>
+        <p class="note"><b>How you will know it worked:</b> ${esc(i.check)}</p>
+        <button type="button" class="advice-go" data-gotab="${i.tab}">Take me there</button>
+      </div>`).join('') : '<p>Nothing in this match stood out as clearly worse than the opposition. That is a good place to be: keep what is working, and test one change at a time.</p>';
+    const better = adv.better ? `<p class="advice-better"><b>Something that got better:</b> ${esc(adv.better.title)}. ${esc(adv.better.fact)}. Keep whatever you changed.</p>` : '';
+    return `<div class="card advice-card"><h2>Elena: for the next game</h2><p class="desc">${esc(intro)}</p>${better}${items}</div>`;
+  }
+
   // ---------- the page ----------
   FM.renderAnalysis = function (host, league) {
     const fxs = userFixtures(league);
@@ -201,6 +221,7 @@
           <p class="note">Everything here comes from one match, a single sample. Over the season you will have fourteen, and what holds across them is what you can trust.</p>
         </div>
         ${insightsHtml(league, fx)}
+        ${adviceHtml(league, fx)}
         <div class="two">
           <div class="card"><h2>Key facts</h2>${keyFactsHtml(league, fx)}</div>
           <div class="card">
@@ -221,6 +242,7 @@
     host.querySelector('#anKind').addEventListener('change', (e) => { state.mapKind = e.target.value; FM.renderAnalysis(host, league); });
     const ps = host.querySelector('#anPlayer');
     if (ps) ps.addEventListener('change', (e) => { state.playerSel = e.target.value; FM.renderAnalysis(host, league); });
+    host.querySelectorAll('[data-gotab]').forEach((b) => b.addEventListener('click', () => { if (FM.goToTactics) FM.goToTactics(b.dataset.gotab); }));
     if (FM.stopClips) FM.stopClips();
     if (FM.renderClips) FM.renderClips(host.querySelector('#anClips'), league, fx);
     if (FM.renderStatsTiers) FM.renderStatsTiers(host.querySelector('#anStats'), league, fxs, state);

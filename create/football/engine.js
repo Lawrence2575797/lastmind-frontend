@@ -165,8 +165,28 @@
   // Every player has a position (team space) in each phase. Unless the manager has dragged him somewhere, it follows
   // from where his slot is in the shape, his role and his instructions. The same role and instructions feed every phase,
   // so the phases agree with each other: an inverted full-back is inside in build-up AND in the final third.
-  FM.PHASES = ['build', 'midfield', 'final', 'transAtt', 'transDef', 'press', 'without'];
-  FM.PHASE_NAMES = { build: 'Build-up from a goal kick', midfield: 'Play through midfield', final: 'Final third', transAtt: 'Attacking transition', transDef: 'Defensive transition', press: 'Pressing their build-up', without: 'Organised defending' };
+  // Every stage of play has two diagrams: where the team stands when the stage begins and where it is by the time the stage ends. The ball goes with
+  // them, so the shirts are read as "this is where the ball is and this is where everyone should be". Possession stages form one chain:
+  //   build (a goal kick) -> buildEnd (the build-up has reached midfield) -> midfield (the move has reached the final third) -> final (a chance)
+  // so the end of one stage is the start of the next, and the team is shown moving through the keyframes as the ball goes forward.
+  FM.PHASES = ['build', 'buildEnd', 'midfield', 'final', 'transAtt', 'transAttEnd', 'transDef', 'transDefEnd', 'press', 'without', 'withoutEnd'];
+  FM.PHASE_NAMES = { build: 'Build-up from a goal kick', buildEnd: 'Build-up: reaching midfield', midfield: 'Play through midfield', final: 'Final third', transAtt: 'Attacking transition', transAttEnd: 'Attacking transition: settled', transDef: 'Defensive transition', transDefEnd: 'Defensive transition: settled', press: 'Pressing their build-up', without: 'Organised defending', withoutEnd: 'Organised defending: under pressure' };
+  // Where the ball is in each diagram (team space: d 0 is our goal, 1 theirs), unless the manager has moved it.
+  const BALL_DEFAULT = { build: { d: 0.07, w: 0.6 }, buildEnd: { d: 0.34, w: 0.5 }, midfield: { d: 0.62, w: 0.5 }, final: { d: 0.86, w: 0.5 }, transAtt: { d: 0.4, w: 0.5 }, transAttEnd: { d: 0.6, w: 0.5 }, transDef: { d: 0.6, w: 0.5 }, transDefEnd: { d: 0.4, w: 0.5 }, without: { d: 0.58, w: 0.5 }, withoutEnd: { d: 0.2, w: 0.5 } };
+  FM.phaseBall = function (team, key) {
+    const own = team && team.phaseBall && team.phaseBall[key];
+    return own || BALL_DEFAULT[key] || { d: 0.5, w: 0.5 };
+  };
+  FM.setPhaseBall = function (team, key, pos) {
+    team.phaseBall = team.phaseBall || {};
+    const chain = ['build', 'buildEnd', 'midfield', 'final'], i = chain.indexOf(key);
+    let d = pos.d;
+    if (i >= 0) {   // the ball only goes forward through the chain
+      const lo = i > 0 ? FM.phaseBall(team, chain[i - 1]).d + 0.04 : 0.02, hi = i < chain.length - 1 ? FM.phaseBall(team, chain[i + 1]).d - 0.04 : 0.98;
+      d = clamp(d, lo, Math.max(lo, hi));
+    }
+    team.phaseBall[key] = { d: clamp(d, 0.02, 0.98), w: clamp(pos.w, 0.03, 0.97) };
+  };
   const PUSH = { GK: 0, CB: 0.04, FB: 0.10, DM: 0.08, CM: 0.18, AM: 0.16, WF: 0.14, ST: 0.12 };
   // How far each kind of player steps up from his defending position when the team is pressing the opposition's build-up.
   const PRESS_PUSH = { GK: 0.03, CB: 0.10, FB: 0.14, DM: 0.14, CM: 0.16, AM: 0.14, WF: 0.12, ST: 0.08 };
@@ -181,8 +201,10 @@
 
   FM.defaultPhasePos = function (team, p, phase) {
     // Each possession phase begins where the previous phase finished until the manager moves the shirt again.
-    if (phase === 'midfield') { const q = FM.phasePos(team, p, 'build'); return { d: q.d, w: q.w }; }
-    if (phase === 'final') { const q = FM.phasePos(team, p, 'midfield'); return { d: q.d, w: q.w }; }
+    // Until the manager moves a shirt, each stage starts where the one before it ended (the same as before the stages had two diagrams).
+    const carry = { buildEnd: 'build', midfield: 'buildEnd', final: 'midfield', transAttEnd: 'transAtt', transDefEnd: 'transDef', withoutEnd: 'without' };
+
+    if (carry[phase]) { const q = FM.phasePos(team, p, carry[phase]); return { d: q.d, w: q.w }; }
     const base = FM.slotBase(team, p), role = FM.ROLES[p.roleId], m = FM.instrMods(p);
     const inPos = phase === 'build' || phase === 'final' || phase === 'transAtt';
     const o = inPos ? role.inPoss : role.outPoss;
@@ -236,7 +258,7 @@
   // With the ball, a player cannot stand beyond the opposition's second-last defender (the keeper is the last), and in the match the
   // team's targets are held there. In the editor the opposition's line is read from where their defenders stand when defending, which
   // depends on how high they have set their defensive line, so a high line lets your forwards stand higher and a deep one holds them back.
-  FM.OFFSIDE_PHASES = ['build', 'midfield', 'final', 'transAtt'];
+  FM.OFFSIDE_PHASES = ['build', 'buildEnd', 'midfield', 'final', 'transAtt', 'transAttEnd'];
   // The line is exactly where the opposition's deepest outfield player stands (the keeper is the last defender, so he is the second-last).
   // With the opposition not shown, the line is the same whoever the opponent is: where a side in an ordinary defensive shape keeps its
   // deepest outfield player. It only differs when the opposition shirts are shown and moved, in which case lineOverride is the line
@@ -287,7 +309,7 @@
       let moved = false;
       FM.PHASES.forEach((ph) => {
         if (!FM.isManual(team, p, ph)) return;
-        const pos = FM.phasePos(team, p, ph), f = (ph === 'build' || ph === 'final' || ph === 'transAtt') ? 0.6 : 1;
+        const pos = FM.phasePos(team, p, ph), f = (ph === 'build' || ph === 'buildEnd' || ph === 'final' || ph === 'transAtt' || ph === 'transAttEnd') ? 0.6 : 1;
         FM.setPhasePos(team, p, ph, { d: clamp(pos.d + k * wgt * f, 0.02, 0.97), w: pos.w }); moved = true;
       });
       if (moved) FM.fixSlot(team, p);
@@ -308,23 +330,30 @@
     const mix = (a, c, t) => ({ d: a.d + (c.d - a.d) * t, w: a.w + (c.w - a.w) * t });
     let pos;
     if (hasBall) {
-      const build = FM.phasePos(team, player, 'build'), mid = FM.phasePos(team, player, 'midfield'), final = FM.phasePos(team, player, 'final');
-      pos = b.d < 0.55 ? mix(build, mid, clamp((b.d - 0.25) / 0.3, 0, 1)) : mix(mid, final, clamp((b.d - 0.55) / 0.3, 0, 1));
+      // The possession diagrams in order, each with the ball where it is drawn: the team is read off them as the ball goes forward.
+      const chain = ['build', 'buildEnd', 'midfield', 'final'].map((k) => ({ d: FM.phaseBall(team, k).d, pos: FM.phasePos(team, player, k) }));
+      pos = chain[chain.length - 1].pos;
+      if (b.d <= chain[0].d) pos = chain[0].pos;
+      else for (let i = 0; i < chain.length - 1; i++) {
+        if (b.d <= chain[i + 1].d) { pos = mix(chain[i].pos, chain[i + 1].pos, clamp((b.d - chain[i].d) / Math.max(0.05, chain[i + 1].d - chain[i].d), 0, 1)); break; }
+      }
       if (ctx.transAtt > 0) {
         const zone = b.d < 0.33 ? 'defensive' : b.d < 0.67 ? 'middle' : 'attacking';
         const choice = (team.tactics.transAttChoices || {})[zone] || 'counter';
-        const target = choice === 'reset' ? build : choice === 'secure' ? mid : FM.phasePos(team, player, 'transAtt');
+        const target = choice === 'reset' ? chain[0].pos : choice === 'secure' ? chain[1].pos : mix(FM.phasePos(team, player, 'transAtt'), FM.phasePos(team, player, 'transAttEnd'), clamp(ctx.taProg || 0, 0, 1));
         pos = mix(pos, target, ctx.transAtt);
       }
     } else {
-      pos = FM.phasePos(team, player, 'without');
+      // Defending: the first diagram is the team set up while the ball is still far away; the second is the team with the ball close to the goal.
+      const far = FM.phaseBall(team, 'without').d, near = FM.phaseBall(team, 'withoutEnd').d;
+      pos = mix(FM.phasePos(team, player, 'without'), FM.phasePos(team, player, 'withoutEnd'), clamp((far - b.d) / Math.max(0.05, far - near), 0, 1));
       // While the opposition build from their own end, a team that presses their build-up takes its pressing positions instead.
       const pw = clamp((b.d - 0.5) / 0.25, 0, 1) * clamp((team.tactics.pressBuildUp == null ? 0.4 : team.tactics.pressBuildUp) * 1.25, 0, 1);
       if (pw > 0) pos = mix(pos, FM.phasePos(team, player, 'press'), pw);
       if (ctx.transDef > 0) {
         const zone = b.d < 0.33 ? 'defensive' : b.d < 0.67 ? 'middle' : 'attacking';
         const choice = (team.tactics.transDefChoices || {})[zone] || 'contain';
-        const target = choice === 'regroup' ? FM.phasePos(team, player, 'without') : choice === 'counterpress' ? FM.phasePos(team, player, 'transDef') : mix(pos, FM.phasePos(team, player, 'without'), 0.5);
+        const target = choice === 'regroup' ? FM.phasePos(team, player, 'without') : choice === 'counterpress' ? mix(FM.phasePos(team, player, 'transDef'), FM.phasePos(team, player, 'transDefEnd'), clamp(ctx.tdProg || 0, 0, 1)) : mix(pos, FM.phasePos(team, player, 'without'), 0.5);
         pos = mix(pos, target, ctx.transDef);
       }
     }

@@ -119,6 +119,27 @@
     ] },
   ];
 
+  // ---------- every lesson, at the student's level ----------
+  // The older lessons are written for everyone. The newer ones (elena_lessons.js) come in a version for each level, and a lesson with no version for a
+  // level points at the older lesson that does the same job.
+  const levelNow = () => (window.FM_WORLD && FM_WORLD.league && FM_WORLD.league.tier) || 'gcse';
+  function allLessons() {
+    const out = LESSONS.slice();
+    (FM.elenaLessons || []).forEach((x) => { if (x.steps[levelNow()]) out.push(x); });
+    return out;
+  }
+  function findLesson(id) {
+    const x = allLessons().find((l) => l.id === id);
+    if (x) return x;
+    const n = (FM.elenaLessons || []).find((l) => l.id === id);
+    return n && n.alias && n.alias[levelNow()] ? LESSONS.find((l) => l.id === n.alias[levelNow()]) || null : null;
+  }
+  const stepsOf = (L) => (typeof L.steps === 'function' ? L.steps() : L.steps && typeof L.steps === 'object' && !Array.isArray(L.steps) ? L.steps[levelNow()](FM.lessonData ? FM.lessonData() : {}) : L.steps);
+  // One line of a lesson: a sentence, a formula on its own, or a small table.
+  const lineHtml = (l) => (l && l.f != null ? '<p class="el-f">' + esc(l.f).replace(/\n/g, '<br>') + '</p>'
+    : l && l.table ? '<table class="el-tbl"><tr>' + l.table.head.map((h) => '<th>' + esc(h) + '</th>').join('') + '</tr>' + l.table.rows.map((r) => '<tr>' + r.map((c) => '<td>' + esc(c) + '</td>').join('') + '</tr>').join('') + '</table>'
+    : '<p>' + rich(l) + '</p>');
+
   // ---------- the panel ----------
   const E = { open: null, tab: 'read', lesson: null, step: 0, state: null, ctx: null, el: null, btn: null, watch: null };
   function css() {
@@ -153,6 +174,11 @@
       '.el-term { border: 0; border-bottom: 1px dotted #F2C14E; background: transparent; color: #F2C14E; font: inherit; padding: 0; cursor: pointer; } .el-term i { margin-left: 3px; padding: 0 4px; font-size: .68em; font-style: normal; border: 1px solid currentColor; border-radius: 50%; opacity: .85; vertical-align: 2px; }',
       '.el-defbox { margin: 4px 0 12px; padding: 9px 12px; border-left: 3px solid #F2C14E; border-radius: 0 8px 8px 0; background: rgba(242,193,78,.1); font-size: .85rem; line-height: 1.5; } .el-link { border: 0; background: transparent; color: #F2C14E; font: inherit; text-decoration: underline; cursor: pointer; padding: 0 4px; }',
       '.el-big { font-size: 1.02rem; line-height: 1.5; } .el-rows { margin: 4px 0; } .el-more { margin: 6px 0; font-size: .86rem; } .el-more summary { cursor: pointer; opacity: .85; }',
+      '.el-warm { margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; background: rgba(127,212,154,.12); font-style: italic; }',
+      '.el-kw { border: 0; border-bottom: 2px solid #F2C14E; background: rgba(242,193,78,.14); color: #FFE9A8; font: inherit; font-weight: 700; padding: 0 4px; border-radius: 4px 4px 0 0; cursor: pointer; } .el-kw:hover { background: rgba(242,193,78,.28); }',
+      '.el-tile { display: inline-grid; gap: 2px; margin: 4px 6px 4px 0; padding: 8px 12px; border: 1px solid rgba(241,234,214,.2); border-radius: 10px; background: rgba(255,255,255,.04); } .el-tile b { font-size: 1.15rem; color: #F2C14E; } .el-tile span { font-size: .74rem; opacity: .8; }',
+      '.el-f { margin: 2px 0 8px; padding: 8px 12px; border-left: 3px solid #F2C14E; border-radius: 0 8px 8px 0; background: rgba(255,255,255,.07); font: 700 .95rem/1.5 Consolas, "Courier New", monospace; letter-spacing: .01em; }',
+      '.el-body .phase-report { border: 1px solid rgba(241,234,214,.18); border-left: 4px solid #F2C14E; border-radius: 12px; padding: 12px 13px; background: rgba(255,255,255,.04); display: grid; gap: 8px; margin: 6px 0 10px; } .el-body .phase-report h3, .el-body .phase-report p { margin: 0; } .el-body .phase-report h3 { font-size: 1rem; } .el-body .phase-report-kicker { color: #F2C14E; font: 700 .7rem/1.2 Arial, sans-serif; letter-spacing: .08em; text-transform: uppercase; } .el-body .phase-report-data { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; } .el-body .phase-report-data div { border: 1px solid rgba(241,234,214,.16); border-radius: 8px; padding: 7px; } .el-body .phase-report-data b { display: block; color: #F2C14E; font-size: 1.02rem; } .el-body .phase-report-data span, .el-body .phase-report-note { font-size: .74rem; opacity: .8; }',
       'body.el-open { padding-right: min(456px, 100vw); } @media (max-width: 1000px) { body.el-open { padding-right: 16px; } }',
     ].join('\n');
     document.head.appendChild(e);
@@ -311,20 +337,33 @@
   }
   // ---------- the lessons, one step at a time ----------
   function lessonList() {
-    const done = loadDone();
-    return '<p>Each one starts with a question about a coach called Dani. Have a proper go before I say anything: you will remember it better.</p>' + LESSONS.map((L, i) => '<button type="button" class="el-go" data-lesson="' + L.id + '">' + (i + 1) + '. ' + esc(L.title) + (done[L.id] ? '<span class="el-tick">✓ done</span>' : '') + '</button>').join('');
+    const done = loadDone(), all = allLessons();
+    return '<p>One small step to a line, and each line comes from the one before. Have a proper go at each question before reading on: you will remember it far better.</p>' + all.map((L, i) => '<button type="button" class="el-go" data-lesson="' + L.id + '">' + (i + 1) + '. ' + esc(L.title) + (L.blurb ? '<small style="display:block;opacity:.7;font-weight:400">' + esc(L.blurb) + '</small>' : '') + (done[L.id] ? '<span class="el-tick">✓ done</span>' : '') + '</button>').join('');
   }
+  // A line of welcome at the start of each lesson. These are about the person doing it, not about the statistics.
+  const WARM = {
+    proportion: 'You have already done the hard part: you played the matches. Now we get to find out what they were trying to tell you.',
+    mean: 'Take your time with this one. Nobody is marking you, and every line only needs the line above it.',
+    conditional: 'This is the idea behind almost every good tactical decision, so it is worth going slowly.',
+    montecarlo: 'It can feel odd to trust a computer with a hundred matches that never happened. By the end, I think you will see why it is the fairest way to ask.',
+    interval: 'A range is a more honest answer than a single number. That is a good habit to build.',
+    hypothesis: 'This is where it gets exciting: how to tell a change that helped from a lucky afternoon.',
+    chance: 'One result can feel like a verdict. Let us see why it is not.',
+    range: 'You are going to give an honest answer to "how sure are we?".',
+    real: 'Everyone wants to know if the change worked. Here is how to find out without fooling yourself.',
+  };
   function lessonStep() {
-    const L = LESSONS.find((x) => x.id === E.lesson), s = L.steps[E.step], S = E.state;
-    let h = '<button type="button" class="el-go" data-back="1" style="width:auto;display:inline-block;margin:0 0 10px">← All lessons</button><div class="el-progress">' + esc(L.title) + ' · question ' + (E.step + 1) + ' of ' + L.steps.length + (s.final ? ' · on your own' : '') + '</div>';
-    h += s.say.map((l) => '<p>' + rich(l) + '</p>').join('') + '<p class="el-q">' + rich(s.q) + '</p>';
+    const L = findLesson(E.lesson), steps = stepsOf(L), s = steps[E.step], S = E.state;
+    let h = '<button type="button" class="el-go" data-back="1" style="width:auto;display:inline-block;margin:0 0 10px">← All lessons</button><div class="el-progress">' + esc(L.title) + ' · question ' + (E.step + 1) + ' of ' + steps.length + (s.final ? ' · on your own' : '') + '</div>';
+    if (E.step === 0 && WARM[L.id]) h += '<p class="el-warm">' + esc(WARM[L.id]) + '</p>';
+    h += s.say.map(lineHtml).join('') + '<p class="el-q">' + rich(s.q) + '</p>';
     if (s.options) h += s.options.map((o, i) => '<button type="button" class="el-go el-opt' + (S.right && o.ok ? ' right' : '') + (S.wrong.includes(i) ? ' wrong' : '') + '" data-opt="' + i + '"' + (S.right ? ' disabled' : '') + '>' + rich(o.t) + '</button>').join('');
     else h += '<div class="el-num"><input type="number" id="elNum" aria-label="Your answer"' + (S.right ? ' disabled value="' + s.num.answer + '"' : '') + '><button type="button" class="el-go primary" data-check="1"' + (S.right ? ' disabled' : '') + '>Check</button></div>' + (s.num.unit ? '<div class="el-progress">Answer in' + esc(s.num.unit) + '</div>' : '');
     if (S.hint) h += '<p class="el-hint">' + esc(S.hint) + '</p>';
     if (S.right) {
-      h += '<div class="el-box">' + s.why.map((l) => '<p>' + rich(l) + '</p>').join('') + (s.name ? s.name.map((l) => '<p>' + rich(l) + '</p>').join('') : '') + '</div>';
-      if (s.matters) h += '<div class="el-box"><p><b>Why this matters</b></p>' + s.matters.map((l) => '<p>' + rich(l) + '</p>').join('') + '</div>';
-      h += '<button type="button" class="el-go primary" data-next="1">' + (E.step === L.steps.length - 1 ? 'Finish lesson' : 'Next question') + '</button>';
+      h += '<div class="el-box">' + s.why.map(lineHtml).join('') + (s.name ? s.name.map(lineHtml).join('') : '') + '</div>';
+      if (s.matters) h += '<div class="el-box"><p><b>Why this matters</b></p>' + s.matters.map(lineHtml).join('') + '</div>';
+      h += '<button type="button" class="el-go primary" data-next="1">' + (E.step === steps.length - 1 ? 'Finish lesson' : 'Next question') + '</button>';
     }
     return h;
   }
@@ -337,7 +376,7 @@
   const STAGE_WORD = { build: 'the build-up', midfield: 'playing through midfield', final: 'the final third', transAtt: 'winning the ball', transDef: 'losing the ball', press: 'pressing them', without: 'organised defending' };
   function instrReading(c) {
     const team = c.team, stage = c.stage || 'build', live = forStage(team, stage), name = STAGE_WORD[stage] || stage;
-    if (!live.length) return '<p class="el-big">Nothing written for ' + esc(name) + ' yet.</p><p>Add an instruction and I will show what it changes, where it helps and what it risks.</p><p class="el-small">The same instruction is used in the phase tests and the match.</p>';
+    if (!live.length) return '<p class="el-big">The positions for ' + esc(name) + ' are already active.</p><p>Where you place each shirt is the positional instruction. Add words only for something the board cannot show, such as when to press, pass or make a run.</p><p class="el-small">Both the board and written instructions are used in phase tests and matches.</p>';
     const viz = FM.instrViz.draw(team, c.opp, stage);
     let h = '<h4>What it does in ' + esc(name) + '</h4>' + viz.svg +
       '<div class="iv-key"><span><i class="k a"></i> moves here instead</span><span><i class="k g"></i> pass he looks for</span><span><i class="k r"></i> pass he avoids</span><span><i class="k o"></i> follows</span><span><i class="k p"></i> draws in</span></div>';
@@ -376,8 +415,9 @@
     if (E.open && E.el) paint();
   }
   function body() {
-    if (E.tab === 'lessons') return E.lesson ? lessonStep() : lessonList();
+    if (E.tab === 'lessons') return E.lesson && findLesson(E.lesson) ? lessonStep() : lessonList();
     const c = E.ctx; if (c.mode === 'instr') return instrReading(c);
+    if (c.mode === 'tactics') return E.tab === 'instr' ? instrReading(Object.assign({}, c, { stage: c.instrStage || c.stage || 'build' })) : FM.elenaPhase.reading(c, { esc, rich, pc, P });
     if (E.tab === 'instr') return instrReading(Object.assign({}, c, { stage: c.instrStage || 'build' }));
     return c.runs.length ? reading(c) : intro(c);
   }
@@ -385,13 +425,13 @@
     if (!E.el) return;
     const b = E.el.querySelector('.el-body'), keep = null, top = b.scrollTop;
     b.innerHTML = body();
-    E.el.querySelectorAll('.el-tabs button').forEach((t) => { if (t.dataset.t === 'read') t.textContent = E.ctx.mode === 'instr' ? 'My review' : 'My reading'; if (t.dataset.t === 'instr') t.hidden = !E.ctx.instrStage; });
+    E.el.querySelectorAll('.el-tabs button').forEach((t) => { if (t.dataset.t === 'read') t.textContent = E.ctx.mode === 'instr' ? 'My review' : E.ctx.mode === 'tactics' ? 'This phase' : 'My reading'; if (t.dataset.t === 'instr') t.hidden = !E.ctx.instrStage; });
     E.el.querySelectorAll('.el-tabs button').forEach((t) => t.setAttribute('aria-pressed', String(t.dataset.t === E.tab)));
     b.scrollTop = top;
     if (FM.labReplay) { FM.labReplay.stop(); const rh = b.querySelector('#elReplay'); if (rh && E.ctx.runs.length) { const last = E.ctx.runs[E.ctx.runs.length - 1].result, cl = last.clips && last.clips.find((x) => x.key === E.clipKey); if (cl) FM.labReplay.mount(rh, cl.clip, { team: E.ctx.team, opp: E.ctx.opp }); } }
-    const face = E.el.querySelector('.el-head img'); if (face) face.src = E.tab === 'lessons' ? IMG.think : ((E.ctx.runs.length || E.ctx.mode === 'instr') ? IMG.point : IMG.hello);
+    const face = E.el.querySelector('.el-head img'); if (face) face.src = E.tab === 'lessons' ? IMG.think : ((E.ctx.runs.length || E.ctx.mode === 'instr' || E.ctx.mode === 'tactics') ? IMG.point : IMG.hello);
   }
-  function openLesson(id) { E.tab = 'lessons'; E.lesson = id; E.step = 0; E.state = { right: false, wrong: [], hint: '' }; if (!E.open) setOpen(true); else paint(); const b = E.el && E.el.querySelector('.el-body'); if (b) b.scrollTop = 0; }
+  function openLesson(id) { if (!findLesson(id)) return; E.tab = 'lessons'; E.lesson = id; E.step = 0; E.state = { right: false, wrong: [], hint: '' }; if (!E.open) setOpen(true); else paint(); const b = E.el && E.el.querySelector('.el-body'); if (b) b.scrollTop = 0; }
   function setOpen(on) {
     E.open = on; document.body.classList.toggle('el-open', on);
     if (E.btn) { E.btn.classList.toggle('open', on); E.btn.setAttribute('aria-expanded', String(on)); }
@@ -420,25 +460,27 @@
       }
       if (t.dataset.clear) { if (E.ctx.clearRuns) E.ctx.clearRuns(); return; }
       if (t.dataset.back) { E.lesson = null; return paint(); }
-      const L = E.lesson && LESSONS.find((x) => x.id === E.lesson), s = L && L.steps[E.step];
+      const L = E.lesson && findLesson(E.lesson), steps = L ? stepsOf(L) : null, s = L && steps[E.step];
       if (t.dataset.opt != null && s) { const i = +t.dataset.opt, o = s.options[i]; if (o.ok) E.state.right = true; else { if (!E.state.wrong.includes(i)) E.state.wrong.push(i); E.state.hint = o.hint || 'Not quite. Read the question again.'; } if (E.state.right) E.state.hint = ''; return paint(); }
       if (t.dataset.check && s) { const v = parseFloat((el.querySelector('#elNum') || {}).value); if (isNaN(v)) { E.state.hint = 'Type a number first.'; return paint(); } if (Math.abs(v - s.num.answer) <= (s.num.tol || 0)) { E.state.right = true; E.state.hint = ''; } else E.state.hint = 'Not quite. Look at the numbers in the question again.'; return paint(); }
-      if (t.dataset.next && L) { if (E.step === L.steps.length - 1) { const d = loadDone(); d[L.id] = true; saveDone(d); E.lesson = null; } else { E.step++; E.state = { right: false, wrong: [], hint: '' }; } paint(); const b = el.querySelector('.el-body'); if (b) b.scrollTop = 0; }
+      if (t.dataset.next && L) { if (E.step === steps.length - 1) { const d = loadDone(); d[E.lesson] = true; saveDone(d); E.lesson = null; } else { E.step++; E.state = { right: false, wrong: [], hint: '' }; } paint(); const b = el.querySelector('.el-body'); if (b) b.scrollTop = 0; }
     });
     paint();
   }
   // ctx: { opp, runs, a, b, st }. Called every time the lab is drawn.
   FM.elena = {
     lessons: LESSONS,
+    openLesson,
     sync(ctx) {
-      css(); ctx.runs = ctx.runs || []; const fresh = !E.ctx || E.ctx.runs.length !== ctx.runs.length || E.ctx.mode !== ctx.mode; E.ctx = ctx; if (fresh) E.tab = 'read';
+      css(); ctx.runs = ctx.runs || []; if (ctx.mode === 'tactics' && ctx.stage && !ctx.instrStage) ctx.instrStage = ctx.stage; const fresh = !E.ctx || E.ctx.runs.length !== ctx.runs.length || E.ctx.mode !== ctx.mode; E.ctx = ctx; if (fresh) E.tab = 'read';
       if (!E.btn || !E.btn.isConnected) {
         E.btn = document.createElement('button'); E.btn.type = 'button'; E.btn.className = 'el-tab'; E.btn.setAttribute('aria-expanded', 'false'); E.btn.setAttribute('aria-label', 'Open Elena Marsh, performance analyst');
         E.btn.innerHTML = '<img alt="" src="' + IMG.hello + '"><span>ELENA</span><i class="dot"></i>';
         E.btn.addEventListener('click', () => setOpen(!E.open)); document.body.appendChild(E.btn);
-        clearInterval(E.watch); E.watch = setInterval(() => { if (!document.querySelector(E.ctx && E.ctx.mode === 'instr' ? '.in-wrap' : '.lab')) FM.elena.hide(); }, 700);
+        clearInterval(E.watch); E.watch = setInterval(() => { const m = E.ctx && E.ctx.mode; if (!document.querySelector(m === 'tactics' ? '#tabBody .tb-grid, #tabBody .transition-plan, #tabBody .sliders' : m === 'instr' ? '.in-wrap' : '.lab')) FM.elena.hide(); }, 700);
       }
-      if (E.open == null || (E.open && !E.el)) setOpen(true);                         // the first time, she is there to introduce herself
+      if (E.open == null) E.open = false;                                                // she only opens when she is asked to
+      if (E.open && !E.el) setOpen(true);
       else if (E.open) { if (fresh && E.tab === 'lessons' && !E.lesson) E.tab = 'read'; paint(); if (fresh && E.tab !== 'lessons') { const b = E.el && E.el.querySelector('.el-body'); if (b) b.scrollTop = 0; } }
       else if (fresh) E.btn.querySelector('.dot').style.display = '';
     },

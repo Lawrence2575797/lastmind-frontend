@@ -423,7 +423,9 @@
         if (ch.team === team && since < COUNTER_WINDOW) ta = (1 - since / COUNTER_WINDOW) * (0.25 + 0.45 * team.tactics.counterAttack);
         if (ch.team !== team && since < PRESS_WINDOW) td = (1 - since / PRESS_WINDOW) * (0.25 + 0.45 * team.tactics.counterPress);
       }
-      team.phaseCtx = { transAtt: ta, transDef: td };
+      let taProg = 0, tdProg = 0;
+      if (ch) { const since = match.clock - ch.t; if (ch.team === team) taProg = since / COUNTER_WINDOW; else tdProg = since / PRESS_WINDOW; }
+      team.phaseCtx = { transAtt: ta, transDef: td, taProg, tdProg };
     });
   }
   // How strongly the team is in a counter-attack, from 0 (not) to 1, in the seconds just after winning the ball.

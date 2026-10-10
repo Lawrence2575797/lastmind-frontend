@@ -66,7 +66,7 @@
   FM.countInstructions = (p) => Object.keys(p.instr || {}).filter((k) => +p.instr[k] !== 0).length;
 
   // ---------- do the phases agree with each other and with the player's role? ----------
-  const PHASE_SHORT = { build: 'build-up', final: 'the final third', transAtt: 'the transition to attack', transDef: 'the transition to defence', press: 'pressing their build-up', without: 'defending' };
+  const PHASE_SHORT = { build: 'the build-up start', buildEnd: 'the end of the build-up', midfield: 'the move through midfield', transAttEnd: 'the attacking transition, a few seconds on', transDefEnd: 'the defensive transition, a few seconds on', withoutEnd: 'defending close to goal', final: 'the final third', transAtt: 'the transition to attack', transDef: 'the transition to defence', press: 'pressing their build-up', without: 'defending' };
   const POSSESSION = ['build', 'final', 'transAtt'];
   const side = (pos) => Math.abs(pos.w - 0.5);
 

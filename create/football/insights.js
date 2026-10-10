@@ -78,4 +78,50 @@
       return { strengths: cands.slice(0, per).map((c) => shape(c, true)), weaknesses: cands.slice(-per).reverse().map((c) => shape(c, false)) };
     } catch (e) { return empty; }
   };
+
+  // ---------- advice for the next game, from how the last one went ----------
+  // Deliberately not from the next opponent's report: this is about what to carry forward and what to fix, read from the match you have just played and
+  // from the one before it, so that you can see whether a change you made last time actually helped.
+  const ADVICE = {
+    'Chances created': { tab: 'final', doIt: 'On the Final third page, look at the second diagram (creating and taking a chance). One more player arriving in or around the box usually gives the ball carrier a pass worth making.', check: 'Expected goals for you should move up towards theirs.' },
+    'Quality of our shots': { tab: 'final', doIt: 'Be a little more patient: the second diagram on the Final third page should put players where a shot is worth having (central, close), and the ball a pass away from there.', check: 'Expected goals per shot should rise, even if the number of shots falls.' },
+    'Finishing': { tab: 'final', doIt: 'Finishing over one match is mostly luck, so I would not change the tactic for it. Look at who is taking the shots instead: are your best finishers the ones getting them?', check: 'Goals against expected goals over several matches, not one.' },
+    'Goalkeeper and last-ditch defending': { tab: 'organised', doIt: 'Conceding more than the chances were worth is mostly bad luck. Do not rebuild the defence for one match; look at the chances themselves: where were they from?', check: 'Expected goals against, over the next few matches.' },
+    'Shots': { tab: 'final', doIt: 'You need more of the ball in the attacking third. Check the first diagram on the Final third page (where the attack begins) and the Play through midfield page that leads to it.', check: 'The number of shots, and how much of the match the ball spends in their final third.' },
+    'Hitting the target': { tab: 'final', doIt: 'Too many shots from poor angles or under pressure. On the Final third page, second diagram, give the shooter a pass of space before he shoots.', check: 'Shots on target as a share of shots.' },
+    'Possession': { tab: 'midfield', doIt: 'On the Play through midfield page, give the player on the ball a close, safe pass more often (the second diagram): a midfielder dropping into the space between their lines.', check: 'Your share of the ball, and completed passes in the middle third.' },
+    'Territory': { tab: 'organised', doIt: 'You were pinned back. On the Organised defending page, a slightly higher line and a tighter team shape, and on the Defensive transition page a quicker reaction after you lose it, push the game up the pitch.', check: 'The share of the match the ball is in the final third.' },
+    'Passing accuracy': { tab: 'midfield', doIt: 'Shorter and safer is fine for a while. In both diagrams on the Play through midfield page, players closer together make shorter passes, and short passes come off more often.', check: 'Pass completion overall and in the middle third.' },
+    'Playing out from the back': { tab: 'build', doIt: 'On the Build-up page, check the second diagram (building out): is there a free player for every pass the centre-backs might want to make, and are the full-backs wide enough to be an out?', check: 'Pass completion from your own third, and the share of build-ups that get out.' },
+    'Passing when closed down': { tab: 'build', doIt: 'When the receiver is closed down the pass fails far more often. On the Build-up page, first diagram, put the nearest players where the first pass is to a free man and not a marked one.', check: 'Pass completion when the receiver is closed down (under 5 m).' },
+    'Long passes': { tab: 'build', doIt: 'Long passes fail more often than short ones. If you were forced into them, the first diagram on the Build-up page should give the goalkeeper a short option.', check: 'The number of long passes, and how many of them came off.' },
+    'Winning challenges': { tab: 'organised', doIt: 'You lost too many challenges. Let the opponent come to you a little more: a slightly deeper, tighter shape on the Organised defending page, and fewer players diving in.', check: 'Challenges won, and fouls.' },
+    'Winning the ball high up': { tab: 'transdef', doIt: 'You rarely won it back high. On the Defensive transition page the second diagram (a few seconds after losing it) is where the counter-press shape lives: two players close to the ball and the rest tight behind.', check: 'Challenges won in their half.' },
+    'Dribbling': { tab: 'final', doIt: 'A few of your dribbles were not coming off. In the final third a quicker pass is usually safer than taking a man on, and the diagram shows where the pass should go.', check: 'Dribbles won as a share of dribbles tried.' },
+    'Discipline': { tab: 'organised', doIt: 'Fewer fouls: stay on your feet and let them play. The Organised defending page asks for a more patient shape, with the tackle left to the nearest man.', check: 'Fouls and cards.' },
+    'Timing our runs': { tab: 'final', doIt: 'Too many offsides. The offside line is drawn on the Final third page: check that the runners start level with it and not beyond.', check: 'Offsides against the number of passes into the box.' },
+    'Set pieces': { tab: 'setpieces', doIt: 'You conceded more corners than you won. Look at the Set pieces page for how many you send forward and the defensive marking numbers.', check: 'Corners won against corners conceded.' },
+    'Who takes the shots': { tab: 'final', doIt: 'The shots came from one player, which makes you easy to plan against. On the Final third diagram, find a second route to goal that does not run through him.', check: 'The spread of shots across players.' },
+  };
+  FM.nextGameAdvice = function (league, fx) {
+    const empty = { items: [], better: null, hasPrev: false };
+    try {
+      const mine = (league.fixtures || []).filter((f) => f.played && f.log && (f.homeId === league.userId || f.awayId === league.userId));
+      const ordered = mine.slice().sort((a, b) => a.round - b.round);
+      const i = ordered.findIndex((f) => f.id === fx.id), prev = i > 0 ? ordered[i - 1] : null;
+      const ins = FM.matchInsights(league, fx), prevIns = prev ? FM.matchInsights(league, prev) : null;
+      const prevScore = {};
+      if (prevIns) prevIns.strengths.concat(prevIns.weaknesses).forEach((c) => { prevScore[c.title] = c.score; });
+      const trend = (c) => {
+        if (!(c.title in prevScore)) return null;
+        const d = c.score - prevScore[c.title];
+        return d >= 0.15 ? 'better than last time' : d <= -0.15 ? 'worse than last time' : 'about the same as last time';
+      };
+      const items = ins.weaknesses.filter((c) => c.score <= -0.08 && ADVICE[c.title]).slice(0, 3).map((c) => Object.assign({ title: c.title, fact: c.fact, text: c.text, trend: trend(c) }, ADVICE[c.title]));
+      // what has got better since the match before: the largest improvement among the things measured in both
+      let better = null;
+      if (prevIns) ins.strengths.concat(ins.weaknesses).forEach((c) => { if (c.title in prevScore) { const d = c.score - prevScore[c.title]; if (d >= 0.2 && (!better || d > better.d)) better = { title: c.title, fact: c.fact, d }; } });
+      return { items, better, hasPrev: !!prev };
+    } catch (e) { return empty; }
+  };
 })();

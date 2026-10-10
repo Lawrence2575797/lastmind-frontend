@@ -456,6 +456,8 @@
   const VIEWS = ['home', 'league', 'squad', 'analysis', 'reports', 'news', 'preview', 'match'];
   const NAV = [];
   const SCREEN_TITLES = { home: 'Club overview', league: 'League centre', squad: 'First-team squad', reports: 'Opposition intelligence', news: 'Football world', analysis: 'Performance analysis', preview: 'Match preview' };
+  // Lets another page (the Analysis Centre) open one of the tactics pages.
+  FM.goToTactics = (tab) => { world.testing = false; world.tab = tab; setView('tactics'); };
   function setView(v) {
     world.view = v;
     document.body.dataset.view = v;
@@ -728,15 +730,52 @@
   const PHASE_TEXT = {
     shape: 'The team set up in its formation. Choose the formation here, and drag one player onto another to swap them (a shirt dropped anywhere else springs back). Every other phase follows from this shape and your instructions, and is where you place players by hand.',
     build: 'The team with the ball close to its own goal, which is why the ball starts beside the goalkeeper. These positions apply while the ball is in the team\'s own third, and the team moves toward the final-third positions as the ball goes forward. The ball here is only a guide, so you can drag it to picture other situations. A shirt you drag moves for this phase only, and only as far as the player could run from his other positions. A shirt with a gold dot has been placed by hand.',
-    midfield: 'This phase starts from the positions chosen in build-up. Move the shirts again to show how the team plays through midfield; these become the starting positions for the final third.',
+    midfield: 'This phase starts from the positions chosen in build-up. Move the shirts again to show how the team plays through midfield; these become the starting positions for the final third. Each shirt position is an instruction in itself, so it does not need to be repeated in writing.',
     final: 'The team with the ball near the opposition goal. Attackers can stand on the edge of the box or inside it, but they are held at the offside line, and the same instructions apply as in every other phase.',
     transAtt: 'The few seconds just after winning the ball, before the team settles. This is where the first runs are made, so positions here pull players toward where the attack will go.',
     transDef: 'The few seconds just after losing the ball. Players here are pulled toward the positions that cut the counter-attack off, or toward the ball if the team presses.',
     press: 'The team pressing the opposition while they build from their own end. Place the shirts where you want each player to engage; their positions define how high and wide the press is.',
     without: 'The team without the ball, set to defend. The positions of the back line define its height, and the spread of the shirts defines the defensive width.',
   };
-  // Where the ball starts on each phase's board. It is only a picture to think with: drag it anywhere to imagine another situation.
-  const BALL_AT = { build: { d: 0.07, w: 0.6 }, midfield: { d: 0.5, w: 0.5 }, final: { d: 0.86, w: 0.5 }, without: { d: 0.45, w: 0.5 } };
+  // Every stage of play has two diagrams, each with the ball: how the team stands at the start of the stage and how it stands by the end. The
+  // possession stages are one chain, so the end of one is the start of the next (the first diagram of the next page is the last of this one and
+  // cannot be changed there). `locked` marks a diagram that belongs to another page.
+  const BOARD_PAIRS = {
+    build: [
+      { key: 'build', title: '1. The start: a goal kick', note: 'Where everyone stands before the ball is played, and where the ball is.' },
+      { key: 'buildEnd', title: '2. Building out: the ball reaches midfield', note: 'Where the team gets to as it plays out. This is where the next page starts.' },
+    ],
+    midfield: [
+      { key: 'buildEnd', title: '1. The start: where the build-up ended', locked: 'build', note: 'Set on the Build-up page.' },
+      { key: 'midfield', title: '2. Through midfield: the ball is at the edge of the final third', note: 'How the team gets the ball up to the final third. This is where the final third starts.' },
+    ],
+    final: [
+      { key: 'midfield', title: '1. The start: where the move through midfield ended', locked: 'midfield', note: 'Set on the Play through midfield page.' },
+      { key: 'final', title: '2. Creating and taking a chance', note: 'How the team gets into the box and scores.' },
+    ],
+    organised: [
+      { key: 'without', title: '1. They have the ball in midfield', note: 'How the team is set while the opposition are still some way from your goal.' },
+      { key: 'withoutEnd', title: '2. They have the ball near your goal', note: 'How the team defends the area once the attack arrives.' },
+    ],
+    transdef: [
+      { key: 'transDef', title: '1. The moment the ball is lost', note: 'Where everyone stands the instant you lose it.' },
+      { key: 'transDefEnd', title: '2. A few seconds later', note: 'The shape you want to have reached.' },
+    ],
+    transatt: [
+      { key: 'transAtt', title: '1. The moment the ball is won', note: 'Where everyone stands the instant you win it.' },
+      { key: 'transAttEnd', title: '2. The attack is under way', note: 'Where the team wants to be a few seconds into the break.' },
+    ],
+  };
+  const PAIR_TITLE = { build: 'Build-up from a goal kick', midfield: 'Play through midfield', final: 'The final third', organised: 'Organised defending', transdef: 'Defensive transition', transatt: 'Attacking transition' };
+  // Draws the two diagrams of a page into the given host, and redraws them when asked.
+  function mountPair(host, team, tab) {
+    const pair = BOARD_PAIRS[tab];
+    host.innerHTML = `<div class="board-pair">${pair.map((d, i) => `<figure class="bp${d.locked ? ' locked' : ''}"><figcaption><b>${esc(d.title)}</b><span class="note">${esc(d.note)}</span></figcaption><div class="board-host" id="board${i}"></div>${d.locked ? '' : `<div class="row"><button data-reset="${d.key}">Reset this diagram</button></div>`}</figure>`).join('')}</div>`;
+    const draw = () => pair.forEach((d, i) => drawBoard(host.querySelector('#board' + i), team, d.key, { locked: !!d.locked }));
+    draw();
+    host.querySelectorAll('[data-reset]').forEach((b) => b.addEventListener('click', () => { FM.clearPhase(team, b.dataset.reset); if (team.phaseBall) delete team.phaseBall[b.dataset.reset]; saveSoon(); renderTactics(); }));
+    world.redrawBoards = draw;
+  }
   const PHASE_CODE = { build: 'B', midfield: 'M', final: 'F', without: 'D' };
   // [key, label, left end, right end, min, max, what it does]
   const SLIDER_TABS = {
@@ -770,14 +809,14 @@
 
   function capturePlan(team, name) {
     return { id: 'plan-' + Date.now(), name, savedAt: Date.now(), formationKey: team.formationKey,
-      tactics: JSON.parse(JSON.stringify(team.tactics)), shape: JSON.parse(JSON.stringify(team.shape || {})), phasePos: JSON.parse(JSON.stringify(team.phasePos || {})), rules: JSON.parse(JSON.stringify(team.rules || [])),
+      tactics: JSON.parse(JSON.stringify(team.tactics)), shape: JSON.parse(JSON.stringify(team.shape || {})), phasePos: JSON.parse(JSON.stringify(team.phasePos || {})), phaseBall: JSON.parse(JSON.stringify(team.phaseBall || {})), rules: JSON.parse(JSON.stringify(team.rules || [])),
       players: team.players.map((p) => ({ id: p.id, roleId: p.roleId, options: JSON.parse(JSON.stringify(p.options || {})), instr: JSON.parse(JSON.stringify(p.instr || {})) })) };
   }
   function restorePlan(team, plan) {
     if (!plan) return;
     if (plan.formationKey !== team.formationKey) FM.setFormation(team, plan.formationKey);
     team.tactics = Object.assign(FM.defaultTactics(), JSON.parse(JSON.stringify(plan.tactics || {})));
-    team.shape = JSON.parse(JSON.stringify(plan.shape || {})); team.phasePos = JSON.parse(JSON.stringify(plan.phasePos || {})); team.rules = JSON.parse(JSON.stringify(plan.rules || []));
+    team.shape = JSON.parse(JSON.stringify(plan.shape || {})); team.phasePos = JSON.parse(JSON.stringify(plan.phasePos || {})); team.phaseBall = JSON.parse(JSON.stringify(plan.phaseBall || {})); team.rules = JSON.parse(JSON.stringify(plan.rules || []));
     (plan.players || []).forEach((saved) => { const p = team.players.find((x) => x.id === saved.id); if (p) { if (saved.roleId && FM.ROLES[saved.roleId]) p.roleId = saved.roleId; p.options = JSON.parse(JSON.stringify(saved.options || {})); p.instr = JSON.parse(JSON.stringify(saved.instr || {})); } });
   }
   function renderPlanBar(team) {
@@ -799,7 +838,8 @@
     el('subInfo').hidden = true;
     const tabs = world.testing ? TEST_TABS : PREP_TABS;
     const progressKey = world.testing ? 'testPhaseMax' : 'prepPhaseMax', maxPhase = world.league[progressKey] || 0;
-    el('tabs').innerHTML = tabs.map(([k, label], i) => `<button data-tab="${k}" data-phase-index="${i}" class="${world.tab === k ? 'on' : ''}"${i > maxPhase ? ' disabled' : ''}>${label}</button>`).join('');
+    // A step you have visited and moved on from turns green.
+    el('tabs').innerHTML = tabs.map(([k, label], i) => `<button data-tab="${k}" data-phase-index="${i}" class="${world.tab === k ? 'on' : (i < maxPhase ? 'done' : '')}"${i > maxPhase ? ' disabled' : ''}>${label}</button>`).join('');
     el('tabs').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
       const i = +b.dataset.phaseIndex; world.tab = b.dataset.tab;
       if (!world.testing) {
@@ -822,10 +862,11 @@
       : [['counter','Counter quickly'],['secure','Secure possession'],['reset','Reset the attack']];
     const fallback = defensive ? 'contain' : 'secure';
     team.tactics[key] = team.tactics[key] || {};
-    host.innerHTML = `<div class="card transition-plan"><span class="eyebrow">${defensive ? 'Lost the ball in…' : 'Won the ball in…'}</span><h2>${defensive ? 'Defensive transition' : 'Attacking transition'}</h2><p class="desc">Choose the first response in each part of the pitch. The instructions decide each player’s movement.</p><div class="transition-zones">${zones.map(([z,n]) => `<label><b>${n}</b><select data-zone="${z}">${options.map(([v,l]) => `<option value="${v}"${(team.tactics[key][z] || fallback) === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>`).join('')}</div><div id="phaseInstr"></div></div>`;
+    host.innerHTML = `<div class="card transition-plan"><span class="eyebrow">${defensive ? 'Lost the ball in…' : 'Won the ball in…'}</span><h2>${defensive ? 'Defensive transition' : 'Attacking transition'}</h2><p class="desc">Choose the first response in each part of the pitch, and place the team at the moment it happens and a few seconds on. The instructions decide the rest.</p><div id="transPair"></div><div class="transition-zones">${zones.map(([z,n]) => `<label><b>${n}</b><select data-zone="${z}">${options.map(([v,l]) => `<option value="${v}"${(team.tactics[key][z] || fallback) === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>`).join('')}</div><div id="phaseInstr"></div></div>`;
     host.querySelectorAll('[data-zone]').forEach((s) => s.addEventListener('change', () => { team.tactics[key][s.dataset.zone] = s.value; saveSoon(); }));
+    mountPair(host.querySelector('#transPair'), team, tab);
     FM.renderInstructions(host.querySelector('#phaseInstr'), team, { save: saveSoon, opp: nextOpponent, changed: () => FM.elena.refresh() }, { stage: defensive ? 'transDef' : 'transAtt' });
-    FM.elena.sync({ mode: 'instr', stage: defensive ? 'transDef' : 'transAtt', team, opp: nextOpponent() });
+    FM.elena.sync({ mode: 'tactics', tab, key: defensive ? 'transDef' : 'transAtt', team, opp: nextOpponent(), stage: defensive ? 'transDef' : 'transAtt' });
   }
 
   function renderTestPhase(team, phase) {
@@ -937,6 +978,7 @@
       ${takerSelect(team, 'fkTaker', 'Free-kick taker')}
       ${takerSelect(team, 'penTaker', 'Penalty taker')}
     </div>`;
+    FM.elena.sync({ mode: 'tactics', tab: 'setpieces', key: 'setpieces', team, opp: nextOpponent(), stage: null });
     host.querySelectorAll('[data-sp]').forEach((c) => c.addEventListener('input', () => {
       const k = c.dataset.sp;
       if (c.type === 'range') { t[k] = parseFloat(c.value); host.querySelector(`[data-v="${k}"]`).textContent = t[k]; }
@@ -956,7 +998,7 @@
       if (k === 'lineHeight') FM.shiftLine(team, team.tactics.lineHeight, parseFloat(e.target.value));
       team.tactics[k] = parseFloat(e.target.value);
       host.querySelector(`[data-v="${k}"]`).textContent = team.tactics[k].toFixed(2);
-      const board = document.querySelector('#board'); if (board) drawBoard(board, team, BOARD_KEY[world.tab]);
+      if (world.redrawBoards) world.redrawBoards();
       saveSoon();
     }));
   }
@@ -992,7 +1034,7 @@
   }
 
   // When you are in one phase, the opposition are in the one that answers it.
-  const OPP_PHASE = { build: 'press', midfield: 'without', final: 'without', press: 'build', without: 'final' };
+  const OPP_PHASE = { build: 'press', buildEnd: 'press', midfield: 'without', final: 'without', press: 'build', without: 'final', withoutEnd: 'final' };
   function nextOpponent() {
     const lg = world.league, nx = lg && FM.nextUserFixture(lg);
     return nx ? FM.teamById(lg, nx.homeId === lg.userId ? nx.awayId : nx.homeId) : null;
@@ -1020,7 +1062,8 @@
     return shape ? { opp, shape } : null;
   }
 
-  function drawBoard(host, team, key) {
+  function drawBoard(host, team, key, opts) {
+    const locked = !!(opts && opts.locked);
     const selected = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
     const posOf = (p) => (key === 'shape' ? FM.slotBase(team, p) : FM.phasePos(team, p, key));
     let ghosts = '';
@@ -1050,8 +1093,8 @@
       offLine = `<g class="offline" style="pointer-events:none"><line x1="0" y1="${y.toFixed(1)}" x2="${BW}" y2="${y.toFixed(1)}" stroke="#FF6B5A" stroke-width="2.5" stroke-dasharray="3 7" stroke-opacity="0.9"/><text x="6" y="${(y - 6).toFixed(1)}" font-size="14" fill="#fff" stroke="#000" stroke-width="3" style="paint-order:stroke">Offside line (${esc(opp0.name)}'s deepest defender)</text></g>`;
     }
     let ball = '';
-    if (BALL_AT[key]) {
-      const bp = bpt((world.ballPos && world.ballPos[key]) || BALL_AT[key]);
+    if (key !== 'shape') {
+      const bp = bpt(FM.phaseBall(team, key));
       ball = `<g class="ball" transform="translate(${bp.x.toFixed(1)},${bp.y.toFixed(1)})"><circle r="16" fill="#fff" stroke="#111" stroke-width="3"/><circle r="6" fill="#111"/><text y="36" text-anchor="middle" font-size="15" fill="#fff" stroke="#000" stroke-width="3.5" style="paint-order:stroke">ball</text></g>`;
     }
     const dots = team.players.map((p) => {
@@ -1065,17 +1108,17 @@
         ${manual ? '<circle cx="18" cy="-18" r="6.5" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/>' : ''}</g>`;
     }).join('');
     let guides = '';
-    if (key === 'shape' || key === 'without' || key === 'press') {
+    if (key === 'shape' || key === 'without' || key === 'withoutEnd' || key === 'press') {
       const defenders = team.players.filter((p) => p.group === 'CB' || p.group === 'FB').map(posOf);
       const depth = defenders.length ? defenders.reduce((a,p) => a + p.d, 0) / defenders.length : .28;
       const y = (1 - depth) * BH;
       guides += `<g class="tactic-guide"><line x1="4" y1="${y}" x2="${BW-4}" y2="${y}"/><text x="${BW-8}" y="${y-8}" text-anchor="end">Defensive line</text></g>`;
     }
-    if (key === 'build' || key === 'final' || key === 'transAtt') {
+    if (['build', 'buildEnd', 'midfield', 'final', 'transAtt', 'transAttEnd'].indexOf(key) >= 0) {
       const width = Math.min(.94, .58 * team.tactics.attackWidth), x1 = BW * (.5 - width/2), x2 = BW * (.5 + width/2);
       guides += `<g class="tactic-guide width"><line x1="${x1}" y1="30" x2="${x1}" y2="${BH-30}"/><line x1="${x2}" y1="30" x2="${x2}" y2="${BH-30}"/><text x="${BW/2}" y="24" text-anchor="middle">Attacking width</text></g>`;
     }
-    host.innerHTML = `<svg class="board" viewBox="-24 -30 ${BW + 48} ${BH + 92}" role="img" aria-label="Tactics board">${boardPitchSvg(key)}${guides}${ghosts}${offLine}${opp}${dots}${ball}</svg>`;
+    host.innerHTML = `<svg class="board${key === 'shape' ? ' short' : ''}${locked ? ' locked' : ''}" viewBox="-24 -30 ${BW + 48} ${BH + 92}" role="img" aria-label="Tactics board">${boardPitchSvg(key)}${guides}${ghosts}${offLine}${opp}${dots}${ball}</svg>`;
     const svg = host.firstChild;
     const toPos = (e) => {
       const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
@@ -1084,6 +1127,7 @@
     };
     let drag = null, dragBall = null;
     svg.addEventListener('pointerdown', (e) => {
+      if (locked) return;   // this diagram belongs to another page
       const bl = e.target.closest('.ball');
       if (bl) { dragBall = { g: bl, pos: null }; svg.setPointerCapture(e.pointerId); e.preventDefault(); return; }
       const og = e.target.closest('.odot');
@@ -1114,7 +1158,7 @@
       }
     });
     svg.addEventListener('pointerup', (e) => {
-      if (dragBall) { if (dragBall.pos) { world.ballPos = world.ballPos || {}; world.ballPos[key] = { d: dragBall.pos.d, w: dragBall.pos.w }; } dragBall = null; return; }
+      if (dragBall) { if (dragBall.pos) { FM.setPhaseBall(team, key, { d: dragBall.pos.d, w: dragBall.pos.w }); saveSoon(); } dragBall = null; renderTactics(); return; }
       if (!drag) return;
       const d = drag; drag = null;
       if (d.opp) {
@@ -1156,17 +1200,18 @@
       <button class="chip${world.selBench === p ? ' sel' : ''}" data-bench="${p.id}">
         <span class="num" style="${KITNUM(team)}">${p.number}</span><span>${p.natural} ${esc(shortName(p))}</span><span class="meta ${FM.isInjured(p) ? 'out' : FM.conditionOf(p) < 0.6 ? 'low' : ''}">${FM.ratingText(p)} · ${FM.isInjured(p) ? 'injured' : Math.round(100 * FM.conditionOf(p)) + '%'}</span>
       </button>`).join('');
+    const pair = BOARD_PAIRS[tab];
     host.innerHTML = `
-      <div class="tb-grid">
+      <div class="tb-grid${pair ? ' tb-pair' : ''}">
         <aside class="tb-controls">
-          ${isShape ? `<label>Formation<select id="formSel">${Object.keys(FM.FORMATIONS).map((k) => `<option value="${k}"${k === team.formationKey ? ' selected' : ''}>${k}</option>`).join('')}</select></label>` : '<div id="phaseOppReport"></div>'}
+          ${isShape ? `<label>Formation<select id="formSel">${Object.keys(FM.FORMATIONS).map((k) => `<option value="${k}"${k === team.formationKey ? ' selected' : ''}>${k}</option>`).join('')}</select></label>` : ((world.oppMoved && world.oppMoved[key] && Object.keys(world.oppMoved[key]).length) ? '<button class="phase-report-reset" id="oppReset">Reset their shirts to the scouted positions</button>' : '')}
           ${tab === 'organised' ? '<div class="block-presets"><b>Defensive block</b><button data-block="low">Low block</button><button data-block="mid">Mid block</button><button data-block="high">High press</button></div>' : ''}
           <div id="phaseSliders"></div>
         </aside>
         <div class="tb-left">
-          <h2>${isShape ? 'Team shape' : FM.PHASE_NAMES[key]}</h2>
-          <div id="board"></div>
-          <div class="row"><button id="resetPhase">${isShape ? 'Reset the shape to the formation' : 'Reset this phase to its default positions'}</button></div>
+          <h2>${isShape ? 'Team shape' : (PAIR_TITLE[tab] || FM.PHASE_NAMES[key])}</h2>
+          ${pair ? '<div id="pairHost"></div>' : '<div id="board"></div>'}
+          ${pair ? '' : `<div class="row"><button id="resetPhase">${isShape ? 'Reset the shape to the formation' : 'Reset this phase to its default positions'}</button></div>`}
           <p class="err" id="subErr"></p>
         </div>
         <div class="tb-right">
@@ -1176,8 +1221,8 @@
           <div id="warnPanel"></div>
         </div>
       </div>`;
-    const board = host.querySelector('#board');
-    drawBoard(board, team, key);
+    const board = host.querySelector('#board') || host.querySelector('#pairHost');
+    if (pair) mountPair(host.querySelector('#pairHost'), team, tab); else drawBoard(board, team, key);
     host.querySelectorAll('[data-block]').forEach((b) => b.addEventListener('click', () => {
       const target = { low: 0.2, mid: 0.32, high: 0.46 }[b.dataset.block];
       const backs = team.players.filter((p) => p.group === 'CB' || p.group === 'FB'), now = backs.reduce((s,p) => s + FM.phasePos(team,p,'without').d, 0) / Math.max(1, backs.length), shift = target - now;
@@ -1185,28 +1230,19 @@
       team.tactics.pressing = b.dataset.block === 'high' ? .82 : b.dataset.block === 'mid' ? .5 : .22;
       FM.inferShapeTactics(team); saveSoon(); renderTactics();
     }));
-    if (!isShape) {
-      const report = host.querySelector('#phaseOppReport'), opponent = nextOpponent();
-      if (report && opponent && FM.tacticsPhaseReportHtml) {
-        report.innerHTML = FM.tacticsPhaseReportHtml(world.league, opponent.id, key);
-        const movedAny = world.oppMoved && world.oppMoved[key] && Object.keys(world.oppMoved[key]).length;
-        if (movedAny) {
-          const b = document.createElement('button'); b.className = 'phase-report-reset'; b.textContent = 'Reset their shirts to the scouted positions';
-          b.addEventListener('click', () => { delete world.oppMoved[key]; renderTactics(); }); report.appendChild(b);
-        }
-      }
-    }
+    const oppReset = host.querySelector('#oppReset');
+    if (oppReset) oppReset.addEventListener('click', () => { delete world.oppMoved[key]; renderTactics(); });
     if (SLIDER_TABS[tab]) renderSliderTab(team, SLIDER_TABS[tab], host.querySelector('#phaseSliders'));
     if (!isShape) {
       // The big instruction box for this stage of play, and the assistant's drawing and review of the instructions.
-      const sync = () => FM.elena.sync(key === 'build' ? null : { mode: 'instr', stage: key, team, opp: nextOpponent() });
-      const hooks = { save: saveSoon, opp: nextOpponent, changed: () => FM.elena.refresh(), afterAdd: () => { FM.elena.refresh(); if (key === 'build') FM.elena.show('instr'); FM.elena.review(); } };
+      const hooks = { save: saveSoon, opp: nextOpponent, changed: () => FM.elena.refresh(), afterAdd: () => { FM.elena.refresh(); FM.elena.review(); } };
       FM.renderInstructions(host.querySelector('#phaseInstr'), team, hooks, { stage: key });
-      if (key !== 'build') sync();
     }
+    FM.elena.sync({ mode: 'tactics', tab, key, team, opp: nextOpponent(), stage: isShape ? null : key });
     const err = (msg) => { host.querySelector('#subErr').textContent = msg || ''; };
     if (isShape) host.querySelector('#formSel').addEventListener('change', (e) => { FM.setFormation(team, e.target.value); world.selSlot = null; saveSoon(); renderTactics(); });
-    host.querySelector('#resetPhase').addEventListener('click', () => { FM.clearPhase(team, key); saveSoon(); renderTactics(); });
+    const resetBtn = host.querySelector('#resetPhase');
+    if (resetBtn) resetBtn.addEventListener('click', () => { FM.clearPhase(team, key); saveSoon(); renderTactics(); });
 
     const slotPlayer = (i) => team.players.find((p) => p.index === i);
     function doSub(outP, inP) {

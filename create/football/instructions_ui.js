@@ -28,7 +28,7 @@
     return { own: everyone(team), opp: o ? everyone(o) : [], oppTeam: o };
   }
 
-  const SCOPES = { general: { title: 'Instructions', sub: 'How the team should play in this phase.', empty: 'No instructions yet.' } };
+  const SCOPES = { general: { title: 'Instructions', sub: 'Optional: shirt positions already tell players where to stand. Use words only for behaviour the board cannot show.', empty: 'No written instructions. The positions on the board still apply.' } };
   FM.isGameRule = (r) => !!(r && r.game);
 
   // opts.stage: the stage of play this box is for. Everything written in it applies to that stage only.
