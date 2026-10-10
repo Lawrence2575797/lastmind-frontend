@@ -347,6 +347,19 @@
         log.other.push(o);
       }
     });
+    // Which of the manager's added pages applied, and for how much of the match (by the page's own label).
+    const tally = match.scenarioTime || {}, pages = {};
+    Object.keys(tally).forEach((k) => {
+      const i = k.indexOf(':'), tid = k.slice(0, i), rest = k.slice(i + 1), def = / \(defending\)$/.test(rest);
+      (pages[tid] = pages[tid] || []).push({ label: def ? rest.replace(/ \(defending\)$/, '') : rest, group: def ? 'def' : 'poss', n: tally[k] });
+    });
+    Object.keys(pages).forEach((tid) => {
+      ['poss', 'def'].forEach((g) => {
+        const rows = pages[tid].filter((r) => r.group === g), tot = rows.reduce((a, r) => a + r.n, 0) || 1;
+        rows.forEach((r) => { r.share = Math.round(1000 * r.n / tot) / 1000; delete r.n; });
+      });
+    });
+    if (Object.keys(pages).length) log.pages = pages;
     return log;
   };
 

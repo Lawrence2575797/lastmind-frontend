@@ -433,6 +433,7 @@
         const sc = FM.pickScenario(team, { oppPress, diff: (match.score[team.id] || 0) - (match.score[oo.id] || 0), minute: match.clock / 60 });
         team.phaseScn = sc ? sc.id : null;
         match.scenarioTime = match.scenarioTime || {};
+        ['Default'].concat(team.scenarios.map((x) => x.label)).forEach((l) => { const kk = team.id + ':' + l; if (match.scenarioTime[kk] == null) match.scenarioTime[kk] = 0; });
         const k = team.id + ':' + (sc ? sc.label : 'Default');
         match.scenarioTime[k] = (match.scenarioTime[k] || 0) + 1;
       } else team.phaseScn = null;
@@ -443,6 +444,7 @@
         const sc = FM.pickScenario(team, { oppDirect, diff: (match.score[team.id] || 0) - (match.score[oo.id] || 0), minute: match.clock / 60 }, 'def');
         team.defScn = sc ? sc.id : null;
         match.scenarioTime = match.scenarioTime || {};
+        ['Default'].concat(team.defScenarios.map((x) => x.label)).forEach((l) => { const kk = team.id + ':' + l + ' (defending)'; if (match.scenarioTime[kk] == null) match.scenarioTime[kk] = 0; });
         const k = team.id + ':' + (sc ? sc.label : 'Default') + ' (defending)';
         match.scenarioTime[k] = (match.scenarioTime[k] || 0) + 1;
       } else team.defScn = null;

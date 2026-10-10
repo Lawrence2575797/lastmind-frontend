@@ -176,6 +176,20 @@
 
   // ---------- Elena's advice for the next game ----------
   // From how this match went and how it compared with the one before, not from the next opponent's report.
+  // Which of the manager's own pages applied in this match, by the labels they gave them. Only shown when pages have been added.
+  function pagesHtml(league, fx) {
+    const pg = fx.log && fx.log.pages && fx.log.pages[league.userId];
+    if (!pg || !pg.length) return '';
+    const section = (group, title) => {
+      const rows = pg.filter((r) => r.group === group).sort((a, b) => b.share - a.share);
+      if (rows.length < 2 && !(rows[0] && rows[0].label !== 'Default')) return '';
+      return `<h3>${esc(title)}</h3>` + rows.map((r) => `<div class="pg-row"><span>${esc(r.label === 'Default' ? 'Default page' : r.label)}</span><span class="pg-bar"><i style="width:${Math.round(100 * r.share)}%"></i></span><b>${Math.round(100 * r.share)}%</b></div>`).join('');
+    };
+    const body = section('poss', 'With the ball') + section('def', 'Without the ball');
+    if (!body) return '';
+    return `<div class="card pages-card"><h2>Your pages in this match</h2><p class="desc">How much of the match each of your added pages applied, going by the condition you chose for it. A page that never applied shows 0%, which usually means its condition did not come up.</p>${body}</div>`;
+  }
+
   function adviceHtml(league, fx) {
     const adv = FM.nextGameAdvice ? FM.nextGameAdvice(league, fx) : { items: [], better: null, hasPrev: false };
     const nx = FM.nextUserFixture ? FM.nextUserFixture(league) : null;
@@ -221,6 +235,7 @@
           <p class="note">Everything here comes from one match, a single sample. Over the season you will have fourteen, and what holds across them is what you can trust.</p>
         </div>
         ${insightsHtml(league, fx)}
+        ${pagesHtml(league, fx)}
         ${adviceHtml(league, fx)}
         <div class="two">
           <div class="card"><h2>Key facts</h2>${keyFactsHtml(league, fx)}</div>
