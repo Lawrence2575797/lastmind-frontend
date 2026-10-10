@@ -438,11 +438,21 @@
           diff: (match.score[team.id] || 0) - (match.score[oo.id] || 0), minute: match.clock / 60,
         };
         match.pageTime = match.pageTime || {};
+        // Where the opposition really stand, for the pages that are chosen by the shirts the manager placed for them.
+        const ds = oo.players.filter((q) => q.group !== 'GK').map((q) => FM.toTeamSpace(oo.attackDir, q.x, q.y).d);
+        const live = FM.oppSignature(ds);
         keys.forEach((k) => {
-          const list = team.pages[k], sc = FM.pickPage(list, info);
+          const list = team.pages[k], dflt = (team.pageDefaults && team.pageDefaults[k]) || null;
+          const cands = list.filter((x) => x.cond === 'opp_shape' && x.oppSig).map((x) => ({ id: x.id, sig: x.oppSig }));
+          if (dflt && dflt.cond === 'opp_shape' && dflt.oppSig) cands.push({ id: 'default', sig: dflt.oppSig });
+          let win = null, best = 0.18;   // close enough to count as lining up like the shirts that were placed
+          if (live) cands.forEach((c) => { const dd = FM.sigDistance(live, c.sig); if (dd < best) { best = dd; win = c.id; } });
+          info.shapeWinner = win;
+          const sc = FM.pickPage(list, info, dflt);
           team.pageNow[k] = sc ? sc.id : null;
-          ['Default'].concat(list.map((x) => x.label)).forEach((l) => { const kk = team.id + '|' + k + '|' + l; if (match.pageTime[kk] == null) match.pageTime[kk] = 0; });
-          const t = team.id + '|' + k + '|' + (sc ? sc.label : 'Default');
+          const dl = (dflt && dflt.label) || 'Default';
+          [dl].concat(list.map((x) => x.label)).forEach((l) => { const kk = team.id + '|' + k + '|' + l; if (match.pageTime[kk] == null) match.pageTime[kk] = 0; });
+          const t = team.id + '|' + k + '|' + (sc ? sc.label : dl);
           match.pageTime[t] = (match.pageTime[t] || 0) + 1;
         });
       }

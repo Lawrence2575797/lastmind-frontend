@@ -69,7 +69,7 @@
       id: spec.id, name: spec.name, kit: spec.kit, attackDir: spec.attackDir,
       formationKey: spec.formation, tactics: FM.defaultTactics(), players: [], bench: [], squad: [],
       strength: spec.strength || 0, seed: spec.seed || FM.hashString(spec.id), subsUsed: 0, maxSubs: 5,
-      shape: {}, phasePos: {}, pages: {}, scenarios: [], defScenarios: [],
+      shape: {}, phasePos: {}, pages: {}, pageDefaults: {}, scenarios: [], defScenarios: [],
     };
     const rng = FM.mulberry32(team.seed);
     formation.slots.forEach((slot, i) => {
@@ -344,15 +344,30 @@
     { key: 'trailing', label: 'We are losing' },
     { key: 'late', label: 'It is the last 15 minutes' },
   ];
-  FM.SCENARIO_CONDS = [
+  // The same choices are offered on every page, the default one included. 'The opposition line up like the shirts I place' compares where the
+  // opposition really stand with the opposition shirts the manager dragged into place on that page's diagram.
+  const ALWAYS = { key: 'always', label: 'Otherwise (when nothing else applies)' };
+  const OPP_SHAPE = { key: 'opp_shape', label: 'The opposition line up like the shirts I place' };
+  FM.SCENARIO_CONDS = [ALWAYS,
     { key: 'opp_press', label: 'The opposition press us' },
     { key: 'opp_sit', label: 'The opposition sit off us' },
-  ].concat(GAME_STATE_CONDS);
-  FM.SCENARIO_CONDS_DEF = [
+  ].concat(GAME_STATE_CONDS, [OPP_SHAPE]);
+  FM.SCENARIO_CONDS_DEF = [ALWAYS,
     { key: 'opp_direct', label: 'The opposition play long and direct' },
     { key: 'opp_short', label: 'The opposition build short' },
-  ].concat(GAME_STATE_CONDS);
-  FM.scenarioHolds = function (cond, info) {
+  ].concat(GAME_STATE_CONDS, [OPP_SHAPE]);
+  // How the opposition stand, in two numbers (in their own space, 0 their own goal, 1 ours): the average depth of their outfield players and
+  // the average depth of their three most advanced.
+  FM.oppSignature = function (ds) {
+    const v = ds.slice().sort((a, b) => b - a);
+    if (!v.length) return null;
+    const mean = (a) => a.reduce((s, x) => s + x, 0) / a.length;
+    return [mean(v), mean(v.slice(0, 3))];
+  };
+  FM.sigDistance = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  FM.scenarioHolds = function (cond, info, page) {
+    if (cond === 'always') return true;
+    if (cond === 'opp_shape') return !!page && info.shapeWinner === (page.id || 'default');
     if (cond === 'opp_press') return info.oppPress >= 0.5;
     if (cond === 'opp_sit') return info.oppPress < 0.5;
     if (cond === 'opp_direct') return info.oppDirect >= 0.5;
@@ -368,13 +383,17 @@
   // end of the stage before for the stages that follow, one for each version of it), so it has no pages of its own.
   FM.PAGE_ENDS = ['buildEnd', 'midfield', 'final', 'transAttEnd', 'withoutEnd', 'transDefEnd'];
   FM.PAGE_ENDS_DEF = ['withoutEnd', 'transDefEnd'];
-  FM.pickPage = function (list, info) {
-    for (let i = 0; i < (list || []).length; i++) if (FM.scenarioHolds(list[i].cond, info)) return list[i];
+  // The default page is the first one looked at (it has a condition of its own, 'otherwise' unless it was changed), then the added pages in
+  // order. Null means the default page.
+  FM.pickPage = function (list, info, dflt) {
+    if (dflt && dflt.cond && dflt.cond !== 'always' && FM.scenarioHolds(dflt.cond, info, { id: null })) return null;
+    for (let i = 0; i < (list || []).length; i++) if (FM.scenarioHolds(list[i].cond, info, list[i])) return list[i];
     return null;
   };
   // Pages first added when they were whole-chain scenarios are carried over: each becomes a version of every end diagram it applied to.
   FM.ensurePages = function (team) {
     team.pages = team.pages || {};
+    team.pageDefaults = team.pageDefaults || {};
     const copy = (l) => JSON.parse(JSON.stringify(l || []));
     if (team.scenarios && team.scenarios.length) { ['buildEnd', 'midfield', 'final', 'transAttEnd'].forEach((k) => { if (!team.pages[k]) team.pages[k] = copy(team.scenarios); }); team.scenarios = []; }
     if (team.defScenarios && team.defScenarios.length) { ['withoutEnd', 'transDefEnd'].forEach((k) => { if (!team.pages[k]) team.pages[k] = copy(team.defScenarios); }); team.defScenarios = []; }
