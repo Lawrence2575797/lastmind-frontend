@@ -71,11 +71,8 @@
            own padding/margins (see .content/.content-inner, both
            deliberately transparent) and any fullscreen view that doesn't
            paint its own background over it. */
-        background:
-            repeating-linear-gradient(90deg, rgba(0,0,0,0.14) 0px, rgba(0,0,0,0.14) 2px, transparent 2px, transparent 150px),
-            repeating-linear-gradient(0.6deg, rgba(255,255,255,0.06) 0px, rgba(255,255,255,0.06) 1px, transparent 1px, transparent 4px),
-            repeating-linear-gradient(-1.2deg, rgba(0,0,0,0.05) 0px, rgba(0,0,0,0.05) 1px, transparent 1px, transparent 6px),
-            linear-gradient(100deg, #F3D9A6, #D9C398 35%, #F3D9A6 55%, #BBA986 85%, #D9C398 100%);
+        /* Cream leather grain (assets/theme/leather-cream.png, a tiling pebbled texture) in place of the old plank lines. */
+        background: linear-gradient(rgba(238, 226, 189, 0.6), rgba(238, 226, 189, 0.6)), url('/assets/theme/leather-cream.png') 0 0 / 420px 420px repeat, #E4D1A4;
         color: var(--ink);
         font-family: 'Lora', Georgia, serif;
         overflow: hidden;
@@ -3636,11 +3633,8 @@
            card - is always this birch look regardless of the account's
            panel/text theme choice, with the topbar/sidebar painted navy on
            top of it below. */
-        background:
-            repeating-linear-gradient(90deg, rgba(0,0,0,0.14) 0px, rgba(0,0,0,0.14) 2px, transparent 2px, transparent 150px),
-            repeating-linear-gradient(0.6deg, rgba(255,255,255,0.06) 0px, rgba(255,255,255,0.06) 1px, transparent 1px, transparent 4px),
-            repeating-linear-gradient(-1.2deg, rgba(0,0,0,0.05) 0px, rgba(0,0,0,0.05) 1px, transparent 1px, transparent 6px),
-            linear-gradient(100deg, #F3D9A6, #D9C398 35%, #F3D9A6 55%, #BBA986 85%, #D9C398 100%);
+        /* Cream leather grain (assets/theme/leather-cream.png, a tiling pebbled texture) in place of the old plank lines. */
+        background: linear-gradient(rgba(238, 226, 189, 0.6), rgba(238, 226, 189, 0.6)), url('/assets/theme/leather-cream.png') 0 0 / 420px 420px repeat, #E4D1A4;
     }
 
     .topbar {
@@ -6819,7 +6813,7 @@
             </div>
 
             <div class="sidebar-tabs">
-                <button class="sidebar-tab-btn active" id="cortexTabBtn" type="button">Simulate</button>
+                <button class="sidebar-tab-btn active" id="cortexTabBtn" type="button" hidden style="display:none;">Simulate</button>
                 <button class="sidebar-tab-btn" id="notesTabBtn" type="button">Notes</button>
                 <button class="sidebar-tab-btn" id="foldersTabBtn" type="button" hidden style="display:none;">Your Mind</button>
             </div>
@@ -18000,7 +17994,6 @@ SQIDAQAB
         { selector: null, title: 'Learn at your pace', body: 'Short lessons teach one idea, then check it.' },
         { selector: null, title: 'Remember it', body: 'Reviews return when they will help most.' },
         { selector: '#knowledgeMapTopbarBtn', title: 'See the whole picture', body: 'Your Mind shows what connects and what comes next.' },
-        { selector: '#cortexTabBtn', title: 'Simulate', body: 'Your projects: build, play and share learning simulations.' },
         // The "Exam preparation" step that used to point at
         // #practiceQuestionsTopbarBtn was removed along with keeping that
         // button genuinely hidden (see applyPlanChrome's own comment) -
