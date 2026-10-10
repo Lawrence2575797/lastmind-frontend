@@ -1203,7 +1203,7 @@
       </button>`).join('');
     const pair = BOARD_PAIRS[tab];
     host.innerHTML = `
-      <div class="tb-grid${pair ? ' tb-pair' : ''}">
+      <div class="tb-grid${pair ? ' tb-pair' : ''}${isShape ? ' tb-shape' : ''}">
         <aside class="tb-controls">
           ${isShape ? `<label>Formation<select id="formSel">${Object.keys(FM.FORMATIONS).map((k) => `<option value="${k}"${k === team.formationKey ? ' selected' : ''}>${k}</option>`).join('')}</select></label>` : ((world.oppMoved && world.oppMoved[key] && Object.keys(world.oppMoved[key]).length) ? '<button class="phase-report-reset" id="oppReset">Reset their shirts to the scouted positions</button>' : '')}
           ${tab === 'organised' ? '<div class="block-presets"><b>Defensive block</b><button data-block="low">Low block</button><button data-block="mid">Mid block</button><button data-block="high">High press</button></div>' : ''}
@@ -1223,7 +1223,12 @@
         </div>
       </div>`;
     const board = host.querySelector('#board') || host.querySelector('#pairHost');
-    if (pair) mountPair(host.querySelector('#pairHost'), team, tab); else drawBoard(board, team, key);
+    if (pair) mountPair(host.querySelector('#pairHost'), team, tab);
+    else {
+      // On the squad page the pitch fills the left of the screen and follows its width.
+      drawBoard(board, team, key, isShape ? { fit: true } : undefined);
+      if (isShape) world.redrawBoards = () => { if (board.isConnected) drawBoard(board, team, key, { fit: true }); };
+    }
     host.querySelectorAll('[data-block]').forEach((b) => b.addEventListener('click', () => {
       const target = { low: 0.2, mid: 0.32, high: 0.46 }[b.dataset.block];
       const backs = team.players.filter((p) => p.group === 'CB' || p.group === 'FB'), now = backs.reduce((s,p) => s + FM.phasePos(team,p,'without').d, 0) / Math.max(1, backs.length), shift = target - now;

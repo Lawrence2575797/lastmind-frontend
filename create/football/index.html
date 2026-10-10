@@ -249,6 +249,12 @@
   .tb-grid.tb-pair { grid-template-columns: minmax(0, 1fr); } .tb-grid.tb-pair .tb-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; } .tb-grid.tb-pair .tb-controls > * { min-width: 0; } .tb-grid.tb-pair .tb-controls #phaseSliders { flex: 1 1 100%; } .tb-grid.tb-pair .tb-right { grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr); }
   .tb-grid.tb-pair .tb-left { grid-template-columns: minmax(0, 1fr); justify-items: stretch; } .tb-grid.tb-pair #pairHost { width: 100%; }
   .board-pair svg.board { max-width: none; width: 100%; }
+  /* Squad and formation: the formation chooser along the top, the pitch across the left, the bench and the selected player on the right. */
+  .tb-grid.tb-shape { grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); align-items: start; }
+  .tb-grid.tb-shape .tb-controls { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 12px; align-items: end; } .tb-grid.tb-shape .tb-controls label { min-width: 240px; max-width: 360px; }
+  .tb-grid.tb-shape .tb-left { grid-column: 1; grid-row: 2; } .tb-grid.tb-shape .tb-right { grid-column: 2; grid-row: 2; grid-template-columns: minmax(0, 1fr); }
+  .tb-grid.tb-shape svg.board { max-width: none; width: 100%; }
+  @media (max-width: 820px) { .tb-grid.tb-shape { grid-template-columns: minmax(0, 1fr); } .tb-grid.tb-shape .tb-left, .tb-grid.tb-shape .tb-right { grid-column: 1; grid-row: auto; } }
   @media (max-width: 1180px) { .tb-grid.tb-pair { grid-template-columns: minmax(0, 1fr); } }
   .board-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; width: 100%; } @media (max-width: 900px) { .board-pair { grid-template-columns: minmax(0, 1fr); } }
   .board-pair figure { margin: 0; display: grid; gap: 8px; align-content: start; } .board-pair figcaption { display: grid; gap: 2px; } .board-pair figcaption b { font-size: .98rem; } .board-pair figcaption .note { font-size: .82rem; }
@@ -711,6 +717,6 @@
 <script src="/create/football/elena.js?v=20261010d"></script>
 <script src="/create/football/elena_phase.js?v=20261010c"></script>
 <script src="/create/football/elena_lessons.js?v=20261010c"></script>
-<script src="/create/football/main.js?v=20261010i"></script>
+<script src="/create/football/main.js?v=20261010j"></script>
 </body>
 </html>
