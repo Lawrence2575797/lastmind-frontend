@@ -58,7 +58,7 @@
         <div class="in-add"><div class="in-body">
           <label class="in-lab" for="inText_${scope}">${label} <small>(applies to this stage only)</small></label>
           <textarea id="inText_${scope}" data-scope="${scope}" maxlength="3000" rows="7" placeholder="Write as much as you like, about any players, ours or theirs.&#10;&#10;e.g. ${esc(STAGE_EG[stage] || STAGE_EG.build)}">${esc(st.text)}</textarea>
-          <div class="in-act"><button type="button" class="in-go" data-understand="${scope}"${st.busy ? ' disabled' : ''}>${st.busy ? 'Reading it…' : 'Turn this into instructions'}</button><span class="in-note">LastMind reads it once and shows you what it understood before anything is added. Names or shirt numbers both work. Anything you do not mention stays as the game would play it.</span></div>
+          <div class="in-act"><button type="button" class="in-go" data-understand="${scope}"${st.busy ? ' disabled' : ''}>${st.busy ? 'Reading it…' : 'Turn this into instructions'}</button></div>
           ${st.err ? `<p class="in-err">${esc(st.err)}</p>` : ''}
           ${st.draft ? `<div class="in-draft"><h4>Here is how I understood it</h4>${st.draft.rules.length ? st.draft.rules.map((r) => `<div class="in-rule"><div class="in-rt"><small class="in-who">${esc(FM.rulesWho(r))}</small><b>${esc(FM.rulesText(r))}</b></div></div>`).join('') : '<p class="in-note">I could not turn that into anything the game can run.</p>'}
             ${st.draft.notIncluded.length ? `<div class="in-ni"><b>Not included</b><ul>${st.draft.notIncluded.map((n) => `<li>${esc(n)}</li>`).join('')}</ul></div>` : ''}

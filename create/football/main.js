@@ -771,11 +771,13 @@
   function mountPair(host, team, tab) {
     const pair = BOARD_PAIRS[tab];
     host.innerHTML = `<div class="board-pair">${pair.map((d, i) => `<figure class="bp${d.locked ? ' locked' : ''}"><figcaption><b>${esc(d.title)}</b><span class="note">${esc(d.note)}</span></figcaption><div class="board-host" id="board${i}"></div>${d.locked ? '' : `<div class="row"><button data-reset="${d.key}">Reset this diagram</button></div>`}</figure>`).join('')}</div>`;
-    const draw = () => pair.forEach((d, i) => drawBoard(host.querySelector('#board' + i), team, d.key, { locked: !!d.locked }));
+    const draw = () => { if (!host.isConnected) return; pair.forEach((d, i) => drawBoard(host.querySelector('#board' + i), team, d.key, { locked: !!d.locked, fit: true })); };
     draw();
     host.querySelectorAll('[data-reset]').forEach((b) => b.addEventListener('click', () => { FM.clearPhase(team, b.dataset.reset); if (team.phaseBall) delete team.phaseBall[b.dataset.reset]; saveSoon(); renderTactics(); }));
     world.redrawBoards = draw;
   }
+  let boardResizeTimer = null, boardResizeW = 0;
+  window.addEventListener('resize', () => { clearTimeout(boardResizeTimer); boardResizeTimer = setTimeout(() => { if (world.redrawBoards && Math.abs(window.innerWidth - boardResizeW) > 2) world.redrawBoards(); boardResizeW = window.innerWidth; }, 150); });
   const PHASE_CODE = { build: 'B', midfield: 'M', final: 'F', without: 'D' };
   // [key, label, left end, right end, min, max, what it does]
   const SLIDER_TABS = {
@@ -1026,29 +1028,41 @@
 
   // ---------- the tactics board ----------
   // A vertical pitch, attacking up. Positions are team space: d (0 own goal, 1 opposition goal) and w (0 the team's left).
-  const BS = 6.5, BW = 68 * BS, BH = 105 * BS;
+  // The pitch is BW wide in drawing units. A pair of diagrams stretches the pitch sideways so that each fills its half of the screen at whatever
+  // size the screen is (see fitBoardWidth); SX is the number of units to a metre across the pitch, BS the same down it.
+  const BS = 6.5, BH = 105 * BS;
+  let BW = 68 * BS, SX = BS;
   const bpt = (pos) => ({ x: pos.w * BW, y: (1 - pos.d) * BH });
+  // Width (in drawing units) that makes the board exactly fill its column: the picture is limited in height by the page (max-height in
+  // the stylesheet), so its width follows from the column width over that height.
+  function fitBoardWidth(host) {
+    const w = host.clientWidth || host.parentElement && host.parentElement.clientWidth || 0;
+    const maxH = Math.min(0.72 * window.innerHeight, 860);
+    if (!w || !maxH) return 68 * BS;
+    const ratio = Math.max(0.633, Math.min(1.5, w / maxH));    // drawing width over drawing height, within the pitch's own sensible range
+    return Math.round(ratio * (BH + 92) - 48);
+  }
 
   function boardPitchSvg(key) {
-    const cx = BW / 2, S = BS;
+    const cx = BW / 2, S = BS, X = SX;
     const ln = 'stroke="rgba(255,255,255,0.85)" stroke-width="2.5" fill="none"';
     let s = '';
     for (let i = 0; i < 14; i++) s += `<rect x="0" y="${(i * BH / 14).toFixed(1)}" width="${BW}" height="${(BH / 14).toFixed(1)}" fill="${i % 2 ? '#2E7D3E' : '#2A7539'}"/>`;
     if (key === 'final') s += `<rect x="0" y="0" width="${BW}" height="${BH / 3}" fill="rgba(255,255,255,0.07)"/>`;
     if (key === 'build') s += `<rect x="0" y="${BH * 2 / 3}" width="${BW}" height="${BH / 3}" fill="rgba(255,255,255,0.07)"/>`;
     s += `<rect x="0" y="0" width="${BW}" height="${BH}" ${ln}/><line x1="0" y1="${BH / 2}" x2="${BW}" y2="${BH / 2}" ${ln}/>`;
-    s += `<circle cx="${cx}" cy="${BH / 2}" r="${9.15 * S}" ${ln}/><circle cx="${cx}" cy="${BH / 2}" r="3" fill="rgba(255,255,255,0.85)"/>`;
+    s += `<ellipse cx="${cx}" cy="${BH / 2}" rx="${9.15 * X}" ry="${9.15 * S}" ${ln}/><circle cx="${cx}" cy="${BH / 2}" r="3" fill="rgba(255,255,255,0.85)"/>`;
     [[0, 1], [BH, -1]].forEach(([y0, dir]) => {
       const y = (m) => y0 + dir * m * S;
-      s += `<rect x="${cx - 20.16 * S}" y="${dir > 0 ? y0 : y(16.5)}" width="${40.32 * S}" height="${16.5 * S}" ${ln}/>`;
-      s += `<rect x="${cx - 9.16 * S}" y="${dir > 0 ? y0 : y(5.5)}" width="${18.32 * S}" height="${5.5 * S}" ${ln}/>`;
-      s += `<rect x="${cx - 3.66 * S}" y="${dir > 0 ? y0 - 2 * S : y0}" width="${7.32 * S}" height="${2 * S}" ${ln}/>`;
+      s += `<rect x="${cx - 20.16 * X}" y="${dir > 0 ? y0 : y(16.5)}" width="${40.32 * X}" height="${16.5 * S}" ${ln}/>`;
+      s += `<rect x="${cx - 9.16 * X}" y="${dir > 0 ? y0 : y(5.5)}" width="${18.32 * X}" height="${5.5 * S}" ${ln}/>`;
+      s += `<rect x="${cx - 3.66 * X}" y="${dir > 0 ? y0 - 2 * S : y0}" width="${7.32 * X}" height="${2 * S}" ${ln}/>`;
       s += `<circle cx="${cx}" cy="${y(11)}" r="3" fill="rgba(255,255,255,0.85)"/>`;
-      s += `<path d="M ${cx - 7.31 * S} ${y(16.5)} A ${9.15 * S} ${9.15 * S} 0 0 ${dir > 0 ? 0 : 1} ${cx + 7.31 * S} ${y(16.5)}" ${ln}/>`;
+      s += `<path d="M ${cx - 7.31 * X} ${y(16.5)} A ${9.15 * X} ${9.15 * S} 0 0 ${dir > 0 ? 0 : 1} ${cx + 7.31 * X} ${y(16.5)}" ${ln}/>`;
     });
     const scaleText = 'font-family="Arial,sans-serif" font-size="12" font-weight="700" fill="rgba(255,255,255,.9)" stroke="rgba(0,0,0,.72)" stroke-width="3" style="paint-order:stroke;pointer-events:none"';
     s += '<g aria-hidden="true">';
-    [0, 17, 34, 51, 68].forEach((m) => { const x = m * S; s += `<line x1="${x}" y1="${BH}" x2="${x}" y2="${BH + 8}" stroke="rgba(255,255,255,.75)" stroke-width="2"/><text x="${x}" y="${BH + 24}" text-anchor="middle" ${scaleText}>${m}m</text>`; });
+    [0, 17, 34, 51, 68].forEach((m) => { const x = m * X; s += `<line x1="${x}" y1="${BH}" x2="${x}" y2="${BH + 8}" stroke="rgba(255,255,255,.75)" stroke-width="2"/><text x="${x}" y="${BH + 24}" text-anchor="middle" ${scaleText}>${m}m</text>`; });
     [0, 25, 50, 75, 100, 105].forEach((m) => { const y = BH - m * S, yy = Math.max(13, Math.min(BH - 5, y + 4)); s += `<line x1="0" y1="${y}" x2="9" y2="${y}" stroke="rgba(255,255,255,.75)" stroke-width="2"/><text x="12" y="${yy}" text-anchor="start" ${scaleText}>${m}m</text>`; });
     s += '</g>';
     return s;
@@ -1085,6 +1099,7 @@
 
   function drawBoard(host, team, key, opts) {
     const locked = !!(opts && opts.locked);
+    BW = opts && opts.fit ? fitBoardWidth(host) : 68 * BS; SX = BW / 68;
     const selected = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
     const posOf = (p) => (key === 'shape' ? FM.slotBase(team, p) : FM.phasePos(team, p, key));
     let ghosts = '';

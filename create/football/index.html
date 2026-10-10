@@ -246,7 +246,9 @@
   svg.board .tactic-guide text { fill:#fff4ca; stroke:#07100d; stroke-width:4; paint-order:stroke; font-size:15px; font-weight:800; }
   svg.board .tactic-guide.width line { stroke:#8be3a6; }
   svg.board { max-height: min(72vh, 860px); margin-left: auto; margin-right: auto; } svg.board.short { max-height: min(78vh, 900px); }
-  .tb-grid.tb-pair { grid-template-columns: minmax(230px, .6fr) minmax(0, 2.3fr); } .tb-grid.tb-pair .tb-right { grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tb-grid.tb-pair { grid-template-columns: minmax(0, 1fr); } .tb-grid.tb-pair .tb-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; } .tb-grid.tb-pair .tb-controls > * { min-width: 0; } .tb-grid.tb-pair .tb-controls #phaseSliders { flex: 1 1 100%; } .tb-grid.tb-pair .tb-right { grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr); }
+  .tb-grid.tb-pair .tb-left { grid-template-columns: minmax(0, 1fr); justify-items: stretch; } .tb-grid.tb-pair #pairHost { width: 100%; }
+  .board-pair svg.board { max-width: none; width: 100%; }
   @media (max-width: 1180px) { .tb-grid.tb-pair { grid-template-columns: minmax(0, 1fr); } }
   .board-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; width: 100%; } @media (max-width: 900px) { .board-pair { grid-template-columns: minmax(0, 1fr); } }
   .board-pair figure { margin: 0; display: grid; gap: 8px; align-content: start; } .board-pair figcaption { display: grid; gap: 2px; } .board-pair figcaption b { font-size: .98rem; } .board-pair figcaption .note { font-size: .82rem; }
@@ -704,11 +706,11 @@
 <script src="/create/football/api.js?v=20261010c"></script>
 <script src="/create/football/scout.js?v=20261010c"></script>
 <script src="/create/football/instr_viz.js?v=20261010c"></script>
-<script src="/create/football/instructions_ui.js?v=20261010c"></script>
+<script src="/create/football/instructions_ui.js?v=20261010e"></script>
 <script src="/create/football/lab_replay.js?v=20261010c"></script>
 <script src="/create/football/elena.js?v=20261010d"></script>
 <script src="/create/football/elena_phase.js?v=20261010c"></script>
 <script src="/create/football/elena_lessons.js?v=20261010c"></script>
-<script src="/create/football/main.js?v=20261010c"></script>
+<script src="/create/football/main.js?v=20261010e"></script>
 </body>
 </html>
