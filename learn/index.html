@@ -11763,7 +11763,7 @@ SQIDAQAB
         const els = Array.from(host.querySelectorAll('.sim-card'));
         const countEl = host.querySelector('.sim-count');
         const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        let target = 0, pos = 0, raf = 0, lockUntil = 0, wheelAcc = 0, lastWheel = 0, wheelSpent = false;
+        let target = 0, pos = 0, raf = 0, lockUntil = 0, wheelAcc = 0, lastWheel = 0, wheelSpent = false, wheelMin = 0;
         const paint = () => {
             els.forEach((el, i) => {
                 const d = i - pos;
@@ -11798,12 +11798,17 @@ SQIDAQAB
             e.preventDefault();
             // One scroll gesture moves one project, however long it carries on (a trackpad keeps sending events for a second or more as it
             // coasts): after a move, nothing more is taken until the wheel has been quiet for a moment.
-            const now = Date.now();
-            if (now - lastWheel > 170) { wheelAcc = 0; wheelSpent = false; }
+            // A new scroll starts after a short quiet gap, or when the wheel speeds up again after slowing down (a fresh flick on top of the
+            // coasting of the last one). The tail of a coast only ever slows, so it never counts.
+            const now = Date.now(), a = Math.abs(e.deltaY), gap = now - lastWheel;
             lastWheel = now;
-            if (wheelSpent) return;
+            if (gap > 50) { wheelSpent = false; wheelAcc = 0; wheelMin = a; }
+            if (wheelSpent) {
+                wheelMin = Math.min(wheelMin, a);
+                if (now >= lockUntil && a > wheelMin * 1.5 + 10) { wheelSpent = false; wheelAcc = 0; } else return;
+            }
             wheelAcc += e.deltaY;
-            if (Math.abs(wheelAcc) > 30) { wheelSpent = true; wheelAcc = 0; go(target + (e.deltaY > 0 ? 1 : -1)); lockUntil = Date.now() + 260; }
+            if (Math.abs(wheelAcc) > 14) { wheelSpent = true; wheelMin = a; wheelAcc = 0; go(target + (e.deltaY > 0 ? 1 : -1)); lockUntil = now + 250; }
         };
         let startY = null, moved = false;
         const onDown = (e) => { startY = e.clientY; moved = false; };

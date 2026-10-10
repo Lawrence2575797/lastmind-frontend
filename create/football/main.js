@@ -859,6 +859,14 @@
 
   function renderTactics() {
     if (!world.league) return;
+    // Dropping a shirt (or any change on the page) redraws it; stay where the manager was on the same page, and start at the top on a new one.
+    const keepY = world._tacTab === world.tab && world._tacTesting === world.testing ? (window.scrollY || document.documentElement.scrollTop || 0) : null;
+    try { renderTacticsInner(); } finally {
+      world._tacTab = world.tab; world._tacTesting = world.testing;
+      if (keepY != null) window.scrollTo(0, keepY);
+    }
+  }
+  function renderTacticsInner() {
     const team = userTeam();
     if (FM.inferShapeTactics) FM.inferShapeTactics(team);
     renderPlanBar(team);
