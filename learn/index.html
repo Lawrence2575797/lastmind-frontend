@@ -11763,7 +11763,7 @@ SQIDAQAB
         const els = Array.from(host.querySelectorAll('.sim-card'));
         const countEl = host.querySelector('.sim-count');
         const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        let target = 0, pos = 0, raf = 0, lockUntil = 0, wheelAcc = 0;
+        let target = 0, pos = 0, raf = 0, lockUntil = 0, wheelAcc = 0, lastWheel = 0, wheelSpent = false;
         const paint = () => {
             els.forEach((el, i) => {
                 const d = i - pos;
@@ -11796,8 +11796,14 @@ SQIDAQAB
             const dir = e.deltaY > 0 ? 1 : -1;
             if ((dir > 0 && target >= n - 1) || (dir < 0 && target <= 0)) return;
             e.preventDefault();
+            // One scroll gesture moves one project, however long it carries on (a trackpad keeps sending events for a second or more as it
+            // coasts): after a move, nothing more is taken until the wheel has been quiet for a moment.
+            const now = Date.now();
+            if (now - lastWheel > 170) { wheelAcc = 0; wheelSpent = false; }
+            lastWheel = now;
+            if (wheelSpent) return;
             wheelAcc += e.deltaY;
-            if (Math.abs(wheelAcc) > 40) { step(wheelAcc > 0 ? 1 : -1); wheelAcc = 0; }
+            if (Math.abs(wheelAcc) > 30) { wheelSpent = true; wheelAcc = 0; go(target + (e.deltaY > 0 ? 1 : -1)); lockUntil = Date.now() + 260; }
         };
         let startY = null, moved = false;
         const onDown = (e) => { startY = e.clientY; moved = false; };
