@@ -4827,6 +4827,31 @@
     .reward-card.is-purchasable:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(26,26,28,0.18); }
 
     /* LastMind Simulate - same look as Rewards: ink text on the page, panel-coloured cards and buttons. */
+    /* Simulate home: the old chat page's greeting, quote and mark, then the projects as a stack of cards. */
+    .sim-home { width: 100%; max-width: 640px; margin: 0 auto; padding: 3vh 16px 56px; color: var(--ink); display: flex; flex-direction: column; align-items: center; }
+    .sim-greeting, .sim-quote { margin: 0; max-width: 480px; text-align: center; font: italic 1.05rem/1.6 'Lora', Georgia, serif; }
+    .sim-greeting { opacity: 0.65; margin-bottom: 10px; } .sim-quote { opacity: 0.75; font-size: 1.1rem; min-height: 1.6em; }
+    .sim-mark { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 3vh 0 4vh; color: var(--ink); font: 900 clamp(1.8rem, 5vw, 2.6rem)/1.1 'Lora', Georgia, serif; letter-spacing: 0.02em; }
+    .sim-mark-icon { width: clamp(70px, 11vw, 104px); height: auto; }
+    .sim-slogan { font: 600 clamp(0.85rem, 1.6vw, 1rem) Arial, Helvetica, sans-serif; letter-spacing: 0.01em; opacity: 0.6; }
+    .sim-slogan-sub { margin-top: -3px; font: 500 clamp(0.68rem, 1.25vw, 0.8rem)/1.3 Arial, Helvetica, sans-serif; opacity: 0.52; }
+    .sim-wallet-head { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+    .sim-wallet-head h2 { margin: 0; font: 700 1.2rem 'Lora', Georgia, serif; }
+    .sim-wallet-head .create-cta { padding: 10px 22px; font-size: 0.9rem; }
+    .sim-wallet { position: relative; width: 100%; max-width: 440px; height: 500px; touch-action: pan-x; outline: none; perspective: 1200px; user-select: none; -webkit-user-select: none; }
+    .sim-wallet:focus-visible { outline: 2px solid var(--accent); outline-offset: 8px; border-radius: 18px; }
+    .sim-card { position: absolute; left: 0; right: 0; top: 0; height: 330px; border-radius: 18px; overflow: hidden; background: var(--panel); color: var(--text); border: 1px solid rgba(26,26,28,0.28); box-shadow: 0 14px 34px rgba(26,26,28,0.28); transform-origin: 0 100%; will-change: transform, opacity; cursor: pointer; display: flex; flex-direction: column; }
+    .sim-card:not(.front) { cursor: pointer; }
+    .sim-card-img { display: block; width: 100%; height: 170px; object-fit: cover; pointer-events: none; }
+    .sim-card-body { padding: 14px 18px 16px; display: grid; gap: 6px; }
+    .sim-card-body h3 { margin: 0; font: 700 1.15rem/1.25 'Lora', Georgia, serif; }
+    .sim-card-meta { margin: 0; font: 0.8rem Arial, sans-serif; opacity: 0.72; }
+    .sim-card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+    .sim-card-actions .create-cta { padding: 8px 18px; font-size: 0.85rem; }
+    .sim-wallet-nav { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; gap: 14px; }
+    .sim-nav-btn { width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(26,26,28,0.32); background: var(--panel); color: var(--text); font: 700 1rem Arial, sans-serif; cursor: pointer; }
+    .sim-count { font: 700 0.8rem Arial, sans-serif; opacity: 0.7; min-width: 64px; text-align: center; }
+    @media (prefers-reduced-motion: reduce) { .sim-card { will-change: auto; } }
     .create-view { width: 100%; padding-bottom: 44px; color: var(--ink); }
     .create-hero { margin-bottom: 44px; }
     .create-title { margin: 0; font: 700 clamp(2.1rem, 5vw, 3.7rem)/0.95 'Lora', Georgia, serif; letter-spacing: -0.035em; }
@@ -10620,6 +10645,7 @@ SQIDAQAB
         document.getElementById('topbarTitle').textContent = 'Simulate';
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
+        if (view === 'projects') { renderSimulateHome(contentInner); return; }
         if (view === 'criminal-trial') { renderCreateTrialBuilder(contentInner); return; }
         if (view === 'chancellor') { renderChancellorBuilder(contentInner); return; }
         if (view === 'criminal-lawyer-career') { renderCareerHome(contentInner); return; }
@@ -11687,6 +11713,156 @@ SQIDAQAB
         if (String(id).startsWith('local-')) { createSetLocalProjects(createLocalProjects().filter((p) => p.id !== id)); return; }
         await createAuthedFetch(`/create/projects/${encodeURIComponent(id)}`, { method: 'DELETE' });
     }
+    // ─── Simulate home: the LastMind mark, greeting and quote from the old chat page, and your projects as a wallet ───
+    // The projects sit in a stack. Scrolling (wheel, swipe or arrow keys) moves down it: the front card is flicked up and away and the
+    // next one comes forward. Click the front card to open it, or a card behind it to bring it to the front.
+    let simWalletCleanup = null;
+    function simProjectInfo(p, isRef) {
+        const image = (() => {
+            if (p.kind === 'chancellor') return '/assets/create/chancellor.jpg';
+            if (p.kind === 'football-manager') return '/assets/create/football-manager.svg';
+            if (p.kind === 'criminal-lawyer-career') return '/assets/create/criminal-lawyer-career.jpg';
+            if (p.kind === 'doctor-career' && p.track === 'psych') return '/assets/create/psychology-career.jpg';
+            if (p.kind === 'doctor-career' && p.track === 'alevel') return '/assets/create/doctor-career-alevel.jpg';
+            if (p.kind === 'doctor-career') return '/assets/create/doctor-career-gcse.jpg';
+            return '/assets/create/criminal-trial.jpg';
+        })();
+        const meta = p.kind === 'doctor-career' ? 'Career' + (p.meta ? ' · ' + p.meta : '')
+            : p.kind === 'criminal-lawyer-career' ? 'Career' + (p.meta ? ' · ' + p.meta : '')
+            : p.kind === 'football-manager' ? 'Football manager' + (p.meta ? ' · ' + p.meta : '')
+            : p.kind === 'chancellor' ? 'Economics simulation' + (p.meta ? ' · ' + p.meta : '')
+            : 'Criminal trial' + (p.role ? ' · ' + (p.role === 'prosecution' ? 'Prosecution' : 'Defence') : '') + (p.minutes ? ' · ' + p.minutes + ' min' : '');
+        const title = p.kind === 'criminal-lawyer-career' ? 'Criminal Lawyer Career' : p.title;
+        let open, openLabel = 'Open';
+        if (p.kind === 'doctor-career') { open = () => renderCreatePage('doctor-' + p.track); openLabel = 'Resume career'; }
+        else if (p.kind === 'criminal-lawyer-career') { open = () => renderCreatePage('criminal-lawyer-career'); openLabel = 'Resume career'; }
+        else if (p.kind === 'football-manager') { open = () => { window.location.href = p.href || '/create/football/'; }; openLabel = 'Resume'; }
+        else if (p.kind === 'chancellor') { open = () => { window.location.href = p.href || '/chancellor/'; }; openLabel = 'Resume'; }
+        else { open = () => createOpenProject(p.id); openLabel = isRef ? 'Open a copy' : 'Open'; }
+        const extras = [];
+        if (!['doctor-career', 'criminal-lawyer-career', 'football-manager', 'chancellor'].includes(p.kind)) extras.push({ label: 'Playtest', run: () => createOpenProject(p.id, { playtest: true }) });
+        const deletable = !isRef && p.kind !== 'doctor-career' && p.kind !== 'criminal-lawyer-career';
+        return { id: p.id, image, title, meta, open, openLabel, extras, deletable, isRef };
+    }
+    function simWalletMount(host, cards, onDelete) {
+        if (simWalletCleanup) { simWalletCleanup(); simWalletCleanup = null; }
+        const n = cards.length;
+        host.innerHTML = cards.map((c, i) => `
+            <article class="sim-card" data-i="${i}" aria-label="${escapeHtml(c.title)}">
+                <img class="sim-card-img" src="${c.image}" alt="" loading="lazy" draggable="false">
+                <div class="sim-card-body">
+                    <h3>${escapeHtml(c.title)}</h3>
+                    <p class="sim-card-meta">${escapeHtml(c.meta)}${c.isRef ? ' · Reference example' : ''}</p>
+                    <div class="sim-card-actions">
+                        <button type="button" class="create-cta" data-act="open">${escapeHtml(c.openLabel)}</button>
+                        ${c.extras.map((x, k) => `<button type="button" class="create-secondary" data-act="x${k}">${escapeHtml(x.label)}</button>`).join('')}
+                        ${c.deletable ? '<button type="button" class="create-secondary" data-act="del">Delete</button>' : ''}
+                    </div>
+                </div>
+            </article>`).join('') + (n > 1 ? '<div class="sim-wallet-nav"><button type="button" class="sim-nav-btn" data-nav="-1" aria-label="Previous project">↑</button><span class="sim-count" aria-live="polite"></span><button type="button" class="sim-nav-btn" data-nav="1" aria-label="Next project">↓</button></div>' : '');
+        const els = Array.from(host.querySelectorAll('.sim-card'));
+        const countEl = host.querySelector('.sim-count');
+        const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        let target = 0, pos = 0, raf = 0, lockUntil = 0, wheelAcc = 0;
+        const paint = () => {
+            els.forEach((el, i) => {
+                const d = i - pos;
+                let y, x = 0, rot = 0, sc, o;
+                if (d >= 0) { y = Math.min(d, 3.5) * 30; sc = 1 - Math.min(d, 3.5) * 0.05; o = d > 3 ? Math.max(0, 1 - (d - 3) * 2) * 0.55 : 1 - d * 0.1; }
+                else { const t = Math.min(1, -d); y = -t * 380; x = -t * 70; rot = -t * 16; sc = 1 + t * 0.04; o = 1 - t * 1.15; }
+                el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) rotate(${rot.toFixed(2)}deg) scale(${sc.toFixed(3)})`;
+                el.style.opacity = String(Math.max(0, Math.min(1, o)));
+                el.style.zIndex = String(d < 0 ? 200 + i : 100 - i);
+                el.style.pointerEvents = d < -0.5 || d > 3.5 ? 'none' : 'auto';
+                el.classList.toggle('front', Math.abs(d) < 0.5);
+                el.setAttribute('aria-hidden', Math.abs(d) < 0.5 ? 'false' : 'true');
+                el.querySelectorAll('button').forEach((b) => { b.tabIndex = Math.abs(d) < 0.5 ? 0 : -1; });
+            });
+            if (countEl) countEl.textContent = `${Math.round(pos) + 1} of ${n}`;
+        };
+        const tick = () => {
+            raf = 0;
+            if (reduce) pos = target; else pos += (target - pos) * 0.16;
+            if (Math.abs(target - pos) < 0.002) pos = target;
+            paint();
+            if (pos !== target) raf = setTimeout(tick, 16);
+        };
+        const go = (t) => { target = Math.max(0, Math.min(n - 1, t)); if (!raf) raf = setTimeout(tick, 16); };
+        const step = (dir) => { if (Date.now() < lockUntil) return; lockUntil = Date.now() + 260; go(target + dir); };
+        paint();
+        const onWheel = (e) => {
+            if (n < 2) return;
+            // A page that can still scroll the other way keeps the wheel: only take it while the stack can move.
+            const dir = e.deltaY > 0 ? 1 : -1;
+            if ((dir > 0 && target >= n - 1) || (dir < 0 && target <= 0)) return;
+            e.preventDefault();
+            wheelAcc += e.deltaY;
+            if (Math.abs(wheelAcc) > 40) { step(wheelAcc > 0 ? 1 : -1); wheelAcc = 0; }
+        };
+        let startY = null, moved = false;
+        const onDown = (e) => { startY = e.clientY; moved = false; };
+        const onMove = (e) => { if (startY !== null && Math.abs(e.clientY - startY) > 10) moved = true; };
+        const onUp = (e) => { if (startY === null) return; const dy = e.clientY - startY; startY = null; if (Math.abs(dy) > 38) step(dy < 0 ? 1 : -1); };
+        const onKey = (e) => {
+            if (e.key === 'ArrowDown' || e.key === 'PageDown') { e.preventDefault(); step(1); }
+            else if (e.key === 'ArrowUp' || e.key === 'PageUp') { e.preventDefault(); step(-1); }
+            else if (e.key === 'Home') { e.preventDefault(); go(0); }
+            else if (e.key === 'End') { e.preventDefault(); go(n - 1); }
+        };
+        const onClick = (e) => {
+            const nav = e.target.closest('[data-nav]');
+            if (nav) { step(Number(nav.dataset.nav)); return; }
+            const card = e.target.closest('.sim-card');
+            if (!card || moved) { moved = false; return; }
+            const i = Number(card.dataset.i), c = cards[i];
+            const act = e.target.closest('[data-act]');
+            if (i !== Math.round(target)) { go(i); return; }
+            if (!act || act.dataset.act === 'open') { c.open(); return; }
+            if (act.dataset.act === 'del') { onDelete(c); return; }
+            const k = Number(act.dataset.act.slice(1)); if (c.extras[k]) c.extras[k].run();
+        };
+        host.addEventListener('wheel', onWheel, { passive: false });
+        host.addEventListener('pointerdown', onDown); host.addEventListener('pointermove', onMove); host.addEventListener('pointerup', onUp); host.addEventListener('pointercancel', () => { startY = null; });
+        host.addEventListener('keydown', onKey);
+        host.addEventListener('click', onClick);
+        simWalletCleanup = () => { if (raf) clearTimeout(raf); host.removeEventListener('wheel', onWheel); };
+    }
+    async function renderSimulateHome(contentInner) {
+        contentInner.innerHTML = `
+            <section class="sim-home" aria-label="Simulate">
+                <p class="sim-greeting" id="simGreeting"></p>
+                <p class="sim-quote" id="simQuote"></p>
+                <h1 class="sim-mark">
+                    <img class="sim-mark-icon" src="/icons/lastmind-logo.png" alt="LastMind" width="110" height="110">
+                    <span>LastMind</span>
+                    <span class="sim-slogan">Anyone can learn anything</span>
+                    <span class="sim-slogan-sub">And enjoy doing it</span>
+                </h1>
+                <div class="sim-wallet-head"><h2>Your projects</h2><button type="button" class="create-cta" id="simAdd">+ Add</button></div>
+                <div class="sim-wallet" id="simWallet" tabindex="0" role="group" aria-label="Your projects. Scroll or use the arrow keys to move through them."><div class="mt-empty">Loading your projects…</div></div>
+            </section>`;
+        contentInner.querySelector('#simAdd').addEventListener('click', () => renderCreatePage('gallery'));
+        sfGetStudentName().then((name) => { const el = document.getElementById('simGreeting'); if (el) el.textContent = name ? `${sfTimeOfDayGreeting()}, ${name}.` : `${sfTimeOfDayGreeting()}.`; }).catch(() => {});
+        pickNextQuote().then((q) => { const el = document.getElementById('simQuote'); if (el) el.textContent = q; }).catch(() => {});
+        const host = document.getElementById('simWallet');
+        const load = async () => {
+            const { projects, references } = await createLoadProjects();
+            if (!host.isConnected) return;
+            const cards = projects.map((p) => simProjectInfo(p, false)).concat(references.map((p) => simProjectInfo(p, true)));
+            if (!cards.length) {
+                host.innerHTML = '<div class="create-empty"><p>You have no projects yet.</p><button type="button" class="create-cta" id="simFirst">Add your first project</button></div>';
+                host.querySelector('#simFirst').addEventListener('click', () => renderCreatePage('gallery'));
+                return;
+            }
+            simWalletMount(host, cards, async (c) => {
+                if (!confirm('Delete this project?')) return;
+                await createDeleteProject(c.id);
+                load();
+            });
+        };
+        load().catch((err) => { console.error('LastMind: could not load projects.', err); if (host.isConnected) host.innerHTML = '<div class="create-empty"><p>Your projects could not be loaded. Check your connection and try again.</p></div>'; });
+    }
+
     // The Create page's "Your projects" list.
     async function renderCreateProjects(host) {
         host.innerHTML = '<div class="mt-empty">Loading your projects…</div>';
