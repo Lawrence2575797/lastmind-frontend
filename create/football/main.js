@@ -754,26 +754,33 @@
         <div class="board-host" id="board${n}"></div>${f.locked ? '' : `<div class="row"><button data-reset="${f.key}">Reset this diagram</button></div>`}
       </figure>`;
     // One start and one end sit side by side. Otherwise the starts are along the top and the ends (the versions of the second diagram) below
-    // them. Each page has its instruction box directly beneath its own end diagram, the same width as that diagram; a start that is alone at
-    // the top has the stage-wide instruction box beside it.
+    // them. Every diagram has its own instruction box directly beneath it, the same width as the diagram; a start that is alone at the top has
+    // its box beside it instead.
     const all = starts.concat(ends);
     const fig = (list, offset) => list.map((f, k) => figure(f, offset + k));
     const row = (items) => `<div class="board-pair">${items.join('')}</div>`;
-    const box = (i) => `<div class="bp bp-instr" id="pgInstr${i}"></div>`;
-    const side = starts.length === 1 && ends.length >= 2;
+    const box = (n) => `<div class="bp bp-instr" id="dgInstr${n}"></div>`;
+    const loneStart = starts.length === 1 && ends.length >= 2;
     let html;
-    if (starts.length === 1 && ends.length === 1) html = row(fig(all, 0)) + row(['<div class="bp bp-spacer"></div>', box(0)]);
-    else if (side) html = row(fig(starts, 0).concat(['<div class="bp bp-instr" id="stageInstr"></div>'])) + row(fig(ends, starts.length)) + row(ends.map((e, i) => box(i)));
-    else html = row(fig(starts, 0)) + row(fig(ends, starts.length)) + row(ends.map((e, i) => box(i)));
+    if (starts.length === 1 && ends.length === 1) html = row(fig(all, 0)) + row([box(0), box(1)]);
+    else if (loneStart) html = row(fig(starts, 0).concat([box(0)])) + row(fig(ends, 1)) + row(ends.map((e, i) => box(1 + i)));
+    else html = row(fig(starts, 0)) + row(starts.map((s, i) => box(i))) + row(fig(ends, starts.length)) + row(ends.map((e, i) => box(starts.length + i)));
     host.innerHTML = `<div class="scn">${html}</div>`;
     host.insertAdjacentHTML('beforeend', '<div class="row scn-add"><button type="button" id="scnAdd">+ Add a page</button><span class="note">Adds another version of the second diagram, for a different situation.</span></div>');
     const draw = () => { if (!host.isConnected) return; all.forEach((f, n) => drawBoard(host.querySelector('#board' + n), team, f.key, { locked: f.locked, fit: true })); };
     draw();
     if (instr) {
-      const pg = [{ id: 'default', label: dfl.label }].concat(pagesOf(endKey).map((x) => ({ id: x.id, label: x.label })));
-      pg.forEach((x, i) => FM.renderInstructions(host.querySelector('#pgInstr' + i), team, instr.hooks, { stage: instr.stage, pageId: x.id, pageLabel: x.label, showUntagged: !side }));
-      const sb = host.querySelector('#stageInstr');
-      if (sb) FM.renderInstructions(sb, team, instr.hooks, { stage: instr.stage, wholeStage: true });
+      all.forEach((f, n) => {
+        const at = host.querySelector('#dgInstr' + n);
+        if (!at) return;
+        if (n < starts.length) {
+          const from = f.locked ? (f.key.indexOf('#') > 0 ? f.key.slice(f.key.indexOf('#') + 1) : 'default') : null;
+          FM.renderInstructions(at, team, instr.hooks, { stage: instr.stage, part: 'start', fromId: from, title: f.locked ? 'Instructions: start, from ' + f.label : 'Instructions: the start', applies: 'applies to the first part of this stage' });
+        } else {
+          const pgId = f.pg.id || 'default';
+          FM.renderInstructions(at, team, instr.hooks, { stage: instr.stage, part: 'end', pageId: pgId, pageLabel: ends.length > 1 ? f.pg.label : null, title: ends.length > 1 ? 'Instructions: ' + f.pg.label : 'Instructions: the end', applies: ends.length > 1 ? 'applies to the end of this stage, on this page only' : 'applies to the end of this stage' });
+        }
+      });
     }
     host.querySelectorAll('[data-reset]').forEach((b) => b.addEventListener('click', () => { FM.clearPhase(team, b.dataset.reset); if (team.phaseBall) delete team.phaseBall[b.dataset.reset]; saveSoon(); renderTactics(); }));
     const add = host.querySelector('#scnAdd');

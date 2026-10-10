@@ -36,9 +36,11 @@
     opts = opts || {};
     // opts.pageId / opts.pageLabel: which tactics page this box is for ('default' for the page that always exists). Instructions written in a
     // page's box apply only while that page is in use.
-    // opts.wholeStage: the box beside a lone starting diagram, for instructions that apply on every page of the stage.
-    const stage = opts.stage || null, pageId = opts.pageId || null, whole = !!opts.wholeStage, key = (stage || 'all') + (pageId ? '#' + pageId : '') + (whole ? '#whole' : '');
-    const pageNote = opts.pageLabel && !whole ? ' on the page "' + opts.pageLabel + '"' : '';
+    // opts.part ('start' or 'end') and opts.fromId: the box is for one diagram of the stage. A box under an end diagram has its page (pageId); a
+    // box under a start that was carried over from a version of the stage before has that version's id (fromId).
+    const stage = opts.stage || null, part = opts.part || null, pageId = opts.pageId || null, fromId = opts.fromId || null;
+    const key = (stage || 'all') + (part ? ':' + part : '') + (pageId ? '#' + pageId : '') + (fromId ? '<' + fromId : '');
+    const pageNote = opts.pageLabel ? ' (' + opts.pageLabel + ')' : '';
     const stateOf = (scope) => states[key + ':' + scope] || (states[key + ':' + scope] = { text: '', busy: false, err: '', draft: null, added: '', collapsed: false, listOpen: true });
     const head = stateOf('general');
     if (stage && head.collapsed) {
@@ -48,11 +50,17 @@
     }
     team.rules = team.rules || [];
     const roster = setRoster(team, hooks);
-    const untagged = (r) => !r.when || !r.when.page;
-    const inPage = (r) => whole ? untagged(r)
-      : !pageId ? true
-      : pageId === 'default' ? ((opts.showUntagged !== false && untagged(r)) || (r.when && r.when.page === 'default'))
-      : !!(r.when && r.when.page === pageId);
+    const w = (r) => r.when || {};
+    const inPage = (r) => {
+      if (part === 'start') return w(r).part === 'start' && (fromId ? w(r).from === fromId : true);
+      if (part === 'end') {
+        // an end diagram: the instructions tagged for it, and (for the default page) older ones that were written without a page or a part
+        if (w(r).part === 'start') return false;
+        if (pageId === 'default') return !w(r).page || w(r).page === 'default';
+        return w(r).page === pageId;
+      }
+      return true;
+    };
     const inStage = (r) => (!stage || (r.when && r.when.stage && r.when.stage.indexOf(stage) >= 0)) && inPage(r);
     const card = (r) => `<div class="in-rule${r.off ? ' off' : ''}">
         <label class="in-sw"><input type="checkbox" data-toggle="${r.id}"${r.off ? '' : ' checked'} aria-label="Instruction on or off"><i></i></label>
@@ -63,9 +71,9 @@
       const rules = team.rules.filter((r) => inStage(r));
       const label = stage ? 'Tell the team how to play in ' + STAGE_NAME[stage] + pageNote : 'Tell the team how to play';
       return `<section class="in-scope in-scope-${scope}" aria-label="${esc(S.title)}">
-        <div class="in-head"><h2>${esc(whole ? 'Instructions for every page of this stage' : opts.pageLabel ? 'Instructions: ' + opts.pageLabel : S.title)}${rules.length ? ' (' + rules.filter((r) => !r.off).length + ')' : ''}</h2><p class="in-note">${esc(S.sub)}</p></div>
+        <div class="in-head"><h2>${esc(opts.title || S.title)}${rules.length ? ' (' + rules.filter((r) => !r.off).length + ')' : ''}</h2><p class="in-note">${esc(S.sub)}</p></div>
         <div class="in-add"><div class="in-body">
-          <label class="in-lab" for="inText_${scope}">${label} <small>(${whole ? 'applies on every page' : pageId ? 'applies to this page only' : 'applies to this stage only'})</small></label>
+          <label class="in-lab" for="inText_${scope}">${label} <small>(${opts.applies || 'applies to this stage only'})</small></label>
           <textarea id="inText_${scope}" data-scope="${scope}" maxlength="3000" rows="7" placeholder="Write as much as you like, about any players, ours or theirs.&#10;&#10;e.g. ${esc(STAGE_EG[stage] || STAGE_EG.build)}">${esc(st.text)}</textarea>
           <div class="in-act"><button type="button" class="in-go" data-understand="${scope}"${st.busy ? ' disabled' : ''}>${st.busy ? 'Reading it…' : 'Turn this into instructions'}</button></div>
           ${st.err ? `<p class="in-err">${esc(st.err)}</p>` : ''}
@@ -98,7 +106,7 @@
       try {
         const out = await FM.api('/football/compile-instruction', { text, stage, squad: FM.squadOf(team), opponent: roster.oppTeam ? FM.squadOf(roster.oppTeam) : [] });
         const nums = roster.own.map((p) => p.number);
-        st.draft = { rules: (out.rules || []).map((r) => FM.rulesClean(Object.assign({}, r, { text: r.text || r.summary || text, source: 'ai' }, stage ? { when: Object.assign({}, r.when, { stage: [stage] }, pageId ? { page: pageId } : {}) } : {}), nums)).filter(Boolean), notIncluded: out.notIncluded || [] };
+        st.draft = { rules: (out.rules || []).map((r) => FM.rulesClean(Object.assign({}, r, { text: r.text || r.summary || text, source: 'ai' }, stage ? { when: Object.assign({}, r.when, { stage: [stage] }, part ? { part } : {}, part === 'end' && pageId ? { page: pageId } : {}, part === 'start' && fromId ? { from: fromId } : {}) } : {}), nums)).filter(Boolean), notIncluded: out.notIncluded || [] };
       } catch (err) { st.err = err.message || 'LastMind could not read that just now.'; }
       st.busy = false; redraw();
     }));
@@ -108,6 +116,6 @@
       if (hooks.save) hooks.save(); if (hooks.afterAdd) hooks.afterAdd(); else if (hooks.changed) hooks.changed(); redraw();
     }));
     qa('[data-drop]').forEach((dd) => dd.addEventListener('click', () => { stateOf(dd.dataset.drop).draft = null; redraw(); }));
-    if (!pageId || pageId === 'default') FM.instrBox = { fill(text) { const st = stateOf('general'); st.text = text; redraw(); const t = host.querySelector('#inText_general'); if (t) { t.focus(); t.setSelectionRange(text.length, text.length); } } };
+    if (!part || (part === 'end' && pageId === 'default')) FM.instrBox = { fill(text) { const st = stateOf('general'); st.text = text; redraw(); const t = host.querySelector('#inText_general'); if (t) { t.focus(); t.setSelectionRange(text.length, text.length); } } };
   };
 })();

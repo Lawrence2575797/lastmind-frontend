@@ -22,7 +22,14 @@
     const b = FM.toTeamSpace(team.attackDir, ball.x, ball.y), rc = team.ruleCtx || {}, pc = team.phaseCtx || {};
     // The stage of play uses the same boundaries and names as the preparation workflow.
     const stage = hasBall ? ((pc.transAtt || 0) > 0.35 ? 'transAtt' : b.d < 0.33 ? 'build' : b.d < 0.7 ? 'midfield' : 'final') : ((pc.transDef || 0) > 0.35 ? 'transDef' : (b.d > 0.6 && (team.tactics.pressBuildUp == null ? 0.4 : team.tactics.pressBuildUp) > 0.2) ? 'press' : 'without');
-    return { team, ball, hasBall: !!hasBall, zone: zoneOf(b.d), side: sideOf(b.w), pressed: !!pressed, stage, scoreDiff: rc.scoreDiff || 0, minute: rc.minute || 0 };
+    // Each stage has a first diagram (its start) and a second (its end); the stage is in its first part while the ball is nearer where the first
+    // diagram has it, and in its second part once it is nearer the second.
+    const KEYS = { build: ['build', 'buildEnd'], midfield: ['buildEnd', 'midfield'], final: ['midfield', 'final'], without: ['without', 'withoutEnd'], press: ['without', 'withoutEnd'] };
+    let part = null;
+    if (stage === 'transAtt') part = (pc.taProg || 0) < 0.5 ? 'start' : 'end';
+    else if (stage === 'transDef') part = (pc.tdProg || 0) < 0.5 ? 'start' : 'end';
+    else if (KEYS[stage] && FM.phaseBall) { const a = FM.phaseBall(team, KEYS[stage][0]).d, e = FM.phaseBall(team, KEYS[stage][1]).d; part = Math.abs(b.d - a) <= Math.abs(b.d - e) ? 'start' : 'end'; }
+    return { team, ball, hasBall: !!hasBall, zone: zoneOf(b.d), side: sideOf(b.w), pressed: !!pressed, stage, part, scoreDiff: rc.scoreDiff || 0, minute: rc.minute || 0 };
   };
   // ---------- expressions and conditions (see the backend's footballRules.ts for the form they arrive in) ----------
   // The things a rule can talk about, with their positions in metres in the evaluating team's own space: dm is the distance from its own goal line
@@ -100,12 +107,20 @@
   FM.rulesExpr = expr; FM.rulesPred = pred;
 
   const PAGE_END_OF_STAGE = { build: 'buildEnd', midfield: 'midfield', final: 'final', transAtt: 'transAttEnd', transDef: 'transDefEnd', without: 'withoutEnd', press: 'withoutEnd' };
+  const PREV_END_OF_STAGE = { midfield: 'buildEnd', final: 'midfield' };
   const whenHolds = (when, c) => {
     if (!when) return true;
     if (when.possession === 'with' && !c.hasBall) return false;
     if (when.possession === 'without' && c.hasBall) return false;
     if (when.zone && when.zone.indexOf(c.zone) < 0) return false;
     if (when.stage && when.stage.indexOf(c.stage) < 0) return false;
+    // An instruction written under a diagram applies in that part of the stage (the start or the end), and for a start that came from a version of
+    // the stage before, only while that version is the one in use.
+    if (when.part && c.part && when.part !== c.part) return false;
+    if (when.from) {
+      const pk = PREV_END_OF_STAGE[c.stage], now = (c.team && c.team.pageNow && pk && c.team.pageNow[pk]) || null;
+      if (when.from === 'default' ? now !== null : now !== when.from) return false;
+    }
     // An instruction written for one tactics page applies only while that page is the one in use ('default' is the page that is not an added one).
     if (when.page) {
       const k = PAGE_END_OF_STAGE[c.stage], cur = (c.team && c.team.pageNow && k && c.team.pageNow[k]) || null;
