@@ -769,10 +769,11 @@
     host.insertAdjacentHTML('beforeend', '<div class="row scn-add"><button type="button" id="scnAdd">+ Add a page</button><span class="note">Adds another version of the second diagram, for a different situation.</span></div>');
     const draw = () => { if (!host.isConnected) return; all.forEach((f, n) => drawBoard(host.querySelector('#board' + n), team, f.key, { locked: f.locked, fit: true })); };
     draw();
-    if (instr) {
-      all.forEach((f, n) => {
-        const at = host.querySelector('#dgInstr' + n);
-        if (!at) return;
+    // The instruction box under one diagram. It is drawn again when a page is renamed, so its title follows the name as it is typed.
+    const renderBox = (n) => {
+      const f = all[n], at = host.querySelector('#dgInstr' + n);
+      if (!instr || !f || !at) return;
+      {
         if (n < starts.length) {
           const from = f.locked ? (f.key.indexOf('#') > 0 ? f.key.slice(f.key.indexOf('#') + 1) : 'default') : null;
           FM.renderInstructions(at, team, instr.hooks, { stage: instr.stage, part: 'start', fromId: from, title: f.locked ? 'Instructions: start, from ' + f.label : 'Instructions: the start', applies: 'applies to the first part of this stage' });
@@ -780,11 +781,13 @@
           const pgId = f.pg.id || 'default';
           FM.renderInstructions(at, team, instr.hooks, { stage: instr.stage, part: 'end', pageId: pgId, pageLabel: ends.length > 1 ? f.pg.label : null, title: ends.length > 1 ? 'Instructions: ' + f.pg.label : 'Instructions: the end', applies: ends.length > 1 ? 'applies to the end of this stage, on this page only' : 'applies to the end of this stage' });
         }
-      });
-    }
+      }
+    };
+    all.forEach((f, n) => renderBox(n));
     host.querySelectorAll('[data-reset]').forEach((b) => b.addEventListener('click', () => { FM.clearPhase(team, b.dataset.reset); if (team.phaseBall) delete team.phaseBall[b.dataset.reset]; saveSoon(); renderTactics(); }));
     const add = host.querySelector('#scnAdd');
-    host.querySelectorAll('[data-def-label]').forEach((inp) => inp.addEventListener('change', () => { dfl.label = inp.value.trim().slice(0, 40) || 'Default page'; saveSoon(); }));
+    const endIndex = (id) => starts.length + ends.findIndex((e) => (e.pg.id || null) === (id || null));
+    host.querySelectorAll('[data-def-label]').forEach((inp) => inp.addEventListener('input', () => { dfl.label = inp.value.trim().slice(0, 40) || 'Default page'; ends[0].pg.label = dfl.label; saveSoon(); renderBox(endIndex(null)); }));
     host.querySelectorAll('[data-def-cond]').forEach((sel) => sel.addEventListener('change', () => { dfl.cond = sel.value; saveSoon(); renderTactics(); }));
     if (add) add.addEventListener('click', () => {
       team.pages[endKey] = team.pages[endKey] || [];
@@ -792,9 +795,10 @@
       team.pages[endKey].push({ id: 's' + Date.now().toString(36), label: c.label.replace(/^The /, '').replace(/^./, (ch) => ch.toUpperCase()), cond: c.key });
       saveSoon(); renderTactics();
     });
-    host.querySelectorAll('[data-scn-label]').forEach((inp) => inp.addEventListener('change', () => {
+    host.querySelectorAll('[data-scn-label]').forEach((inp) => inp.addEventListener('input', () => {
       const pg = pagesOf(endKey).find((x) => x.id === inp.dataset.scnLabel); if (!pg) return;
       pg.label = inp.value.trim().slice(0, 40) || 'Untitled page'; saveSoon();
+      const n = endIndex(pg.id); if (all[n] && all[n].pg) all[n].pg.label = pg.label; renderBox(n);
     }));
     host.querySelectorAll('[data-scn-cond]').forEach((sel) => sel.addEventListener('change', () => {
       const pg = pagesOf(endKey).find((x) => x.id === sel.dataset.scnCond); if (!pg) return;
