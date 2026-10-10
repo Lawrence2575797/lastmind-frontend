@@ -792,6 +792,17 @@
     world.redrawBoards = draw;
   }
   let boardResizeTimer = null, boardResizeW = 0;
+  // One instruction box for each tactics page of the stage (the default page, then the ones the manager added), each applying only while its
+  // own page is in use.
+  function renderPageInstructions(host, team, hooks, tab, stage) {
+    if (!host) return;
+    FM.ensurePages(team);
+    const pair = BOARD_PAIRS[tab], endKey = pair && pair[1].key;
+    const dfl = (team.pageDefaults && team.pageDefaults[endKey]) || { label: 'Default page' };
+    const pages = [{ id: 'default', label: dfl.label || 'Default page' }].concat(((team.pages && team.pages[endKey]) || []).map((p) => ({ id: p.id, label: p.label })));
+    host.innerHTML = pages.map((p, i) => `<div class="page-instr" id="pageInstr${i}"></div>`).join('');
+    pages.forEach((p, i) => FM.renderInstructions(host.querySelector('#pageInstr' + i), team, hooks, { stage, pageId: p.id, pageLabel: pages.length > 1 ? p.label : null }));
+  }
   window.addEventListener('resize', () => { clearTimeout(boardResizeTimer); boardResizeTimer = setTimeout(() => { if (world.redrawBoards && Math.abs(window.innerWidth - boardResizeW) > 2) world.redrawBoards(); boardResizeW = window.innerWidth; }, 150); });
   const PHASE_CODE = { build: 'B', midfield: 'M', final: 'F', without: 'D' };
   // [key, label, left end, right end, min, max, what it does]
@@ -895,7 +906,7 @@
     host.innerHTML = `<div class="card transition-plan"><span class="eyebrow">${defensive ? 'Lost the ball in…' : 'Won the ball in…'}</span><h2>${defensive ? 'Defensive transition' : 'Attacking transition'}</h2><p class="desc">Choose the first response in each part of the pitch, and place the team at the moment it happens and a few seconds on. The instructions decide the rest.</p><div id="transPair"></div><div class="transition-zones">${zones.map(([z,n]) => `<label><b>${n}</b><select data-zone="${z}">${options.map(([v,l]) => `<option value="${v}"${(team.tactics[key][z] || fallback) === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>`).join('')}</div><div id="phaseInstr"></div></div>`;
     host.querySelectorAll('[data-zone]').forEach((s) => s.addEventListener('change', () => { team.tactics[key][s.dataset.zone] = s.value; saveSoon(); }));
     mountPair(host.querySelector('#transPair'), team, tab);
-    FM.renderInstructions(host.querySelector('#phaseInstr'), team, { save: saveSoon, opp: nextOpponent, changed: () => FM.elena.refresh() }, { stage: defensive ? 'transDef' : 'transAtt' });
+    renderPageInstructions(host.querySelector('#phaseInstr'), team, { save: saveSoon, opp: nextOpponent, changed: () => FM.elena.refresh() }, tab, defensive ? 'transDef' : 'transAtt');
     FM.elena.sync({ mode: 'tactics', tab, key: defensive ? 'transDef' : 'transAtt', team, opp: nextOpponent(), stage: defensive ? 'transDef' : 'transAtt' });
   }
 
@@ -1314,7 +1325,7 @@
     if (!isShape) {
       // The big instruction box for this stage of play, and the assistant's drawing and review of the instructions.
       const hooks = { save: saveSoon, opp: nextOpponent, changed: () => FM.elena.refresh(), afterAdd: () => { FM.elena.refresh(); FM.elena.review(); } };
-      FM.renderInstructions(host.querySelector('#phaseInstr'), team, hooks, { stage: key });
+      renderPageInstructions(host.querySelector('#phaseInstr'), team, hooks, tab, key);
     }
     FM.elena.sync({ mode: 'tactics', tab, key, team, opp: nextOpponent(), stage: isShape ? null : key });
     const err = (msg) => { host.querySelector('#subErr').textContent = msg || ''; };

@@ -34,17 +34,21 @@
   // opts.stage: the stage of play this box is for. Everything written in it applies to that stage only.
   FM.renderInstructions = function (host, team, hooks, opts) {
     opts = opts || {};
-    const stage = opts.stage || null, key = stage || 'all';
+    // opts.pageId / opts.pageLabel: which tactics page this box is for ('default' for the page that always exists). Instructions written in a
+    // page's box apply only while that page is in use.
+    const stage = opts.stage || null, pageId = opts.pageId || null, key = (stage || 'all') + (pageId ? '#' + pageId : '');
+    const pageNote = opts.pageLabel ? ' on the page "' + opts.pageLabel + '"' : '';
     const stateOf = (scope) => states[key + ':' + scope] || (states[key + ':' + scope] = { text: '', busy: false, err: '', draft: null, added: '', collapsed: false, listOpen: true });
     const head = stateOf('general');
     if (stage && head.collapsed) {
-      host.innerHTML = `<button type="button" class="in-reopen" id="inReopen">Show instructions for ${esc(STAGE_NAME[stage])}</button>`;
+      host.innerHTML = `<button type="button" class="in-reopen" id="inReopen">Show instructions for ${esc(STAGE_NAME[stage])}${esc(pageNote)}</button>`;
       host.querySelector('#inReopen').addEventListener('click', () => { head.collapsed = false; FM.renderInstructions(host, team, hooks, opts); });
       return;
     }
     team.rules = team.rules || [];
     const roster = setRoster(team, hooks);
-    const inStage = (r) => !stage || (r.when && r.when.stage && r.when.stage.indexOf(stage) >= 0);
+    const inPage = (r) => !pageId || (pageId === 'default' ? (!r.when || !r.when.page || r.when.page === 'default') : !!(r.when && r.when.page === pageId));
+    const inStage = (r) => (!stage || (r.when && r.when.stage && r.when.stage.indexOf(stage) >= 0)) && inPage(r);
     const card = (r) => `<div class="in-rule${r.off ? ' off' : ''}">
         <label class="in-sw"><input type="checkbox" data-toggle="${r.id}"${r.off ? '' : ' checked'} aria-label="Instruction on or off"><i></i></label>
         <div class="in-rt"><small class="in-who">${esc(FM.rulesWho(r))}</small><b>${esc(FM.rulesText(r))}</b></div>
@@ -52,11 +56,11 @@
     const box = (scope) => {
       const st = stateOf(scope), S = SCOPES[scope];
       const rules = team.rules.filter((r) => inStage(r));
-      const label = stage ? 'Tell the team how to play in ' + STAGE_NAME[stage] : 'Tell the team how to play';
+      const label = stage ? 'Tell the team how to play in ' + STAGE_NAME[stage] + pageNote : 'Tell the team how to play';
       return `<section class="in-scope in-scope-${scope}" aria-label="${esc(S.title)}">
-        <div class="in-head"><h2>${esc(S.title)}${rules.length ? ' (' + rules.filter((r) => !r.off).length + ')' : ''}</h2><p class="in-note">${esc(S.sub)}</p></div>
+        <div class="in-head"><h2>${esc(opts.pageLabel ? 'Instructions: ' + opts.pageLabel : S.title)}${rules.length ? ' (' + rules.filter((r) => !r.off).length + ')' : ''}</h2><p class="in-note">${esc(S.sub)}</p></div>
         <div class="in-add"><div class="in-body">
-          <label class="in-lab" for="inText_${scope}">${label} <small>(applies to this stage only)</small></label>
+          <label class="in-lab" for="inText_${scope}">${label} <small>(${pageId ? 'applies to this page only' : 'applies to this stage only'})</small></label>
           <textarea id="inText_${scope}" data-scope="${scope}" maxlength="3000" rows="7" placeholder="Write as much as you like, about any players, ours or theirs.&#10;&#10;e.g. ${esc(STAGE_EG[stage] || STAGE_EG.build)}">${esc(st.text)}</textarea>
           <div class="in-act"><button type="button" class="in-go" data-understand="${scope}"${st.busy ? ' disabled' : ''}>${st.busy ? 'Reading it…' : 'Turn this into instructions'}</button></div>
           ${st.err ? `<p class="in-err">${esc(st.err)}</p>` : ''}
@@ -89,7 +93,7 @@
       try {
         const out = await FM.api('/football/compile-instruction', { text, stage, squad: FM.squadOf(team), opponent: roster.oppTeam ? FM.squadOf(roster.oppTeam) : [] });
         const nums = roster.own.map((p) => p.number);
-        st.draft = { rules: (out.rules || []).map((r) => FM.rulesClean(Object.assign({}, r, { text: r.text || r.summary || text, source: 'ai' }, stage ? { when: Object.assign({}, r.when, { stage: [stage] }) } : {}), nums)).filter(Boolean), notIncluded: out.notIncluded || [] };
+        st.draft = { rules: (out.rules || []).map((r) => FM.rulesClean(Object.assign({}, r, { text: r.text || r.summary || text, source: 'ai' }, stage ? { when: Object.assign({}, r.when, { stage: [stage] }, pageId ? { page: pageId } : {}) } : {}), nums)).filter(Boolean), notIncluded: out.notIncluded || [] };
       } catch (err) { st.err = err.message || 'LastMind could not read that just now.'; }
       st.busy = false; redraw();
     }));
@@ -99,6 +103,6 @@
       if (hooks.save) hooks.save(); if (hooks.afterAdd) hooks.afterAdd(); else if (hooks.changed) hooks.changed(); redraw();
     }));
     qa('[data-drop]').forEach((dd) => dd.addEventListener('click', () => { stateOf(dd.dataset.drop).draft = null; redraw(); }));
-    FM.instrBox = { fill(text) { const st = stateOf('general'); st.text = text; redraw(); const t = host.querySelector('#inText_general'); if (t) { t.focus(); t.setSelectionRange(text.length, text.length); } } };
+    if (!pageId || pageId === 'default') FM.instrBox = { fill(text) { const st = stateOf('general'); st.text = text; redraw(); const t = host.querySelector('#inText_general'); if (t) { t.focus(); t.setSelectionRange(text.length, text.length); } } };
   };
 })();

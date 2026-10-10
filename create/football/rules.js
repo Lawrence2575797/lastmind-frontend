@@ -99,12 +99,18 @@
   }
   FM.rulesExpr = expr; FM.rulesPred = pred;
 
+  const PAGE_END_OF_STAGE = { build: 'buildEnd', midfield: 'midfield', final: 'final', transAtt: 'transAttEnd', transDef: 'transDefEnd', without: 'withoutEnd', press: 'withoutEnd' };
   const whenHolds = (when, c) => {
     if (!when) return true;
     if (when.possession === 'with' && !c.hasBall) return false;
     if (when.possession === 'without' && c.hasBall) return false;
     if (when.zone && when.zone.indexOf(c.zone) < 0) return false;
     if (when.stage && when.stage.indexOf(c.stage) < 0) return false;
+    // An instruction written for one tactics page applies only while that page is the one in use ('default' is the page that is not an added one).
+    if (when.page) {
+      const k = PAGE_END_OF_STAGE[c.stage], cur = (c.team && c.team.pageNow && k && c.team.pageNow[k]) || null;
+      if (when.page === 'default' ? cur !== null : cur !== when.page) return false;
+    }
     if (when.pressed === 'pressed' && !c.pressed) return false;
     if (when.pressed === 'free' && c.pressed) return false;
     if (when.side === 'wide' ? c.side === 'centre' : when.side && when.side !== c.side) return false;
