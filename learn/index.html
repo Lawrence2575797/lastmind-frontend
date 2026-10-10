@@ -4828,9 +4828,9 @@
 
     /* LastMind Simulate - same look as Rewards: ink text on the page, panel-coloured cards and buttons. */
     /* Simulate home: the old chat page's greeting, quote and mark, then the projects as a stack of cards. */
-    .sim-home { width: 100%; max-width: 640px; margin: 0 auto; padding: 3vh 16px 56px; color: var(--ink); display: flex; flex-direction: column; align-items: center; }
+    .sim-home { width: 100%; max-width: 640px; min-height: calc(100vh - 150px); margin: 0 auto; padding: 4vh 16px 56px; color: var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .sim-greeting, .sim-quote { margin: 0; max-width: 480px; text-align: center; font: italic 1.05rem/1.6 'Lora', Georgia, serif; }
-    .sim-greeting { opacity: 0.65; margin-bottom: 10px; } .sim-quote { opacity: 0.75; font-size: 1.1rem; min-height: 1.6em; }
+    .sim-greeting { margin-bottom: 10px; font: italic 700 clamp(1.5rem, 3.4vw, 2.1rem)/1.25 'Lora', Georgia, serif; opacity: 0.9; min-height: 1.25em; } .sim-quote { opacity: 0.78; font-size: 1.1rem; min-height: 1.6em; margin-bottom: 30px; }
     .sim-mark { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 3vh 0 4vh; color: var(--ink); font: 900 clamp(1.8rem, 5vw, 2.6rem)/1.1 'Lora', Georgia, serif; letter-spacing: 0.02em; }
     .sim-mark-icon { width: clamp(70px, 11vw, 104px); height: auto; }
     .sim-slogan { font: 600 clamp(0.85rem, 1.6vw, 1rem) Arial, Helvetica, sans-serif; letter-spacing: 0.01em; opacity: 0.6; }
@@ -11841,25 +11841,30 @@ SQIDAQAB
     async function renderSimulateHome(contentInner) {
         contentInner.innerHTML = `
             <section class="sim-home" aria-label="Simulate">
-                <p class="sim-greeting" id="simGreeting"></p>
+                <h1 class="sim-greeting" id="simGreeting"></h1>
                 <p class="sim-quote" id="simQuote"></p>
-                <h1 class="sim-mark">
-                    <img class="sim-mark-icon" src="/icons/lastmind-logo.png" alt="LastMind" width="110" height="110">
-                    <span>LastMind</span>
-                    <span class="sim-slogan">Anyone can learn anything</span>
-                    <span class="sim-slogan-sub">And enjoy doing it</span>
-                </h1>
                 <div class="sim-wallet-head"><h2>Your projects</h2><button type="button" class="create-cta" id="simAdd">+ Add</button></div>
                 <div class="sim-wallet" id="simWallet" tabindex="0" role="group" aria-label="Your projects. Scroll or use the arrow keys to move through them."><div class="mt-empty">Loading your projects…</div></div>
             </section>`;
         contentInner.querySelector('#simAdd').addEventListener('click', () => renderCreatePage('gallery'));
         sfGetStudentName().then((name) => { const el = document.getElementById('simGreeting'); if (el) el.textContent = name ? `${sfTimeOfDayGreeting()}, ${name}.` : `${sfTimeOfDayGreeting()}.`; }).catch(() => {});
-        pickNextQuote().then((q) => { const el = document.getElementById('simQuote'); if (el) el.textContent = q; }).catch(() => {});
         const host = document.getElementById('simWallet');
         const load = async () => {
             const { projects, references } = await createLoadProjects();
             if (!host.isConnected) return;
             const cards = projects.map((p) => simProjectInfo(p, false)).concat(references.map((p) => simProjectInfo(p, true)));
+            // The line under the greeting: an invitation for someone who has not started a simulation yet, otherwise one for the kind of
+            // simulation they have already got going.
+            const msgEl = document.getElementById('simQuote');
+            if (msgEl) {
+                const first = projects[0];
+                const byKind = !first ? 'Fancy turning what you are learning into something you can play? Add your first simulation and start from there.'
+                    : first.kind === 'football-manager' ? 'Fancy mastering statistics while leading your team to victory today?'
+                    : first.kind === 'chancellor' ? 'Fancy discovering economics while running your own country today?'
+                    : first.kind === 'doctor-career' ? (first.track === 'psych' ? 'Ready to put the psychology to work with your next patient?' : 'Ready to bring the biology to your next patient on the ward?')
+                    : 'Ready to sharpen your legal reasoning and win your next case?';
+                msgEl.textContent = byKind;
+            }
             if (!cards.length) {
                 host.innerHTML = '<div class="create-empty"><p>You have no projects yet.</p><button type="button" class="create-cta" id="simFirst">Add your first project</button></div>';
                 host.querySelector('#simFirst').addEventListener('click', () => renderCreatePage('gallery'));
