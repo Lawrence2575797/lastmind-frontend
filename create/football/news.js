@@ -59,14 +59,41 @@
     league.news.push(item);
   };
 
+  // Where the club finished last season (the same for every game: see tools/gen_preseason.js), and what that asks of this one.
+  FM.lastSeasonStory = function (league) {
+    const L = FM.LAST_SEASON;
+    if (!L || !L.table || league.seed !== FM.WORLD_SEED) return null;
+    const me = L.table.find((r) => r.id === league.userId);
+    if (!me) return null;
+    const n = L.table.length, champion = L.table[0], third = L.table[2];
+    const rec = me.W + ' win' + (me.W === 1 ? '' : 's') + ', ' + me.D + ' draw' + (me.D === 1 ? '' : 's') + ' and ' + me.L + ' defeat' + (me.L === 1 ? '' : 's');
+    const goals = 'scoring ' + me.GF + ' and conceding ' + me.GA;
+    const upper = me.pos <= Math.ceil(n * 3 / 8), top = me.pos <= Math.ceil(n / 2), bottom = me.pos > n - Math.ceil(n / 4), gap = champion.Pts - me.Pts;
+    let headline, ask;
+    if (me.pos === 1) { headline = 'Champions last season: can Ashford Rovers do it again?'; ask = 'The difficult part now is that every other club has spent the summer planning how to beat them. Repeating a title is harder than winning one, and the squad will have to find something new rather than rely on last year.'; }
+    else if (upper) { headline = `Ashford Rovers finished ${ordinal(me.pos)} last season: can they go one better?`; ask = gap <= 4 ? `The gap to ${champion.name} at the top was ${gap} point${gap === 1 ? '' : 's'}, small enough that a handful of results turning would change the picture. The question this year is whether they can turn good into great.` : `${champion.name} finished ${gap} points clear at the top, so there is real ground to make up. A place near the top is a good base: the question this year is whether the team can close that gap.`; }
+    else if (top) { headline = `Ashford Rovers finished ${ordinal(me.pos)} last season: a solid base to build on?`; ask = `Comfortably in the top half but ${third.Pts - me.Pts > 0 ? (third.Pts - me.Pts) + ' point' + (third.Pts - me.Pts === 1 ? '' : 's') + ' short of the top three' : 'level with the top three'}. The squad has shown it can compete; the next step is to do it more often.`; }
+    else if (!bottom) { headline = `Ashford Rovers finished ${ordinal(me.pos)} last season: can they climb?`; ask = 'Mid-table is a comfortable place to sit and a hard one to leave. It will take a clearer plan, and better use of the chances the side already creates, to move up.'; }
+    else { headline = `Ashford Rovers finished ${ordinal(me.pos)} last season: will they improve?`; ask = 'A difficult year, and the pressure on this season is real. The squad is the same, so any improvement has to come from how the team is set up and what is done with the ball.'; }
+    return { headline, body: `Ashford Rovers ended last season in ${ordinal(me.pos)} place of ${n} with ${me.Pts} points: ${rec}, ${goals}. ${ask}` };
+  };
+
   FM.ensurePreseasonNews = function (league) {
+    ensurePreseasonBasics(league);
+    // Where the club finished last season goes in after the others, so it is the newest story and is read first.
+    if (!league.news.some((n) => n.lastSeason)) {
+      const st = FM.lastSeasonStory(league);
+      if (st) FM.pushNews(league, { round: -1, day: 0, preseason: true, lastSeason: true, kind: 'Season preview', headline: st.headline, body: st.body });
+    }
+  };
+  function ensurePreseasonBasics(league) {
     league.news = league.news || [];
-    if (league.news.some((n) => n.preseason)) return;
+    if (league.news.some((n) => n.preseason && !n.lastSeason)) return;
     const team = FM.teamById(league, league.userId), squad = team.squad.slice().sort((a, b) => FM.playerRating(b) - FM.playerRating(a)), featured = squad[0];
     FM.pushNews(league, { round: -1, day: 0, preseason: true, kind: 'Player profile', headline: `${featured.name}: the player at the heart of Ashford's new season`, body: `${featured.name}, Ashford Rovers' ${NOUN[featured.natural] || 'player'}, enters the season as one of the squad's key figures. His quality could shape how the side play when matches become tight.`, club: team.id, mine: true, reporter: 'Amelia Hart' });
     FM.pushNews(league, { round: -1, day: 0, preseason: true, kind: 'Season preview', headline: 'Ashford Rovers prepare for a season of new ideas', body: 'A new campaign begins with selection decisions, tactical experiments and a squad eager to establish its identity. The first fixtures should reveal which ideas are ready for competitive football.', club: team.id, mine: true, reporter: 'Daniel Reed' });
     FM.pushNews(league, { round: -1, day: 0, preseason: true, kind: 'Interview roundup', headline: 'Managers strike a careful tone before opening weekend', body: 'Across the league, managers have spoken about patience, preparation and the need to begin well. Confidence is growing, but nobody is giving much away before the first team sheets arrive.', club: null, mine: false, reporter: 'Sofia Bennett' });
-  };
+  }
 
   FM.publishInterview = function (league, record, fx) {
     if (!record.answers.length) return;

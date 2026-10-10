@@ -23,7 +23,7 @@
     return { real: !!b, n, ok, p: ok / n, tn, tok, mn, mok, fn, fok, pT: tn ? tok / tn : 0, pF: fn ? fok / fn : 0, lens: lens.slice(0, 5), mean: FM.phaseStatsHelpers ? FM.phaseStatsHelpers.mean(s.len || ex.len) : 22 };
   };
   const who = (D) => (D.real ? 'your' : 'an example set of');
-  const own = (D) => (D.real ? 'You played ' + D.n + ' passes from your own third.' : 'Here is an example, because you have not played enough matches yet: 60 passes from the back.');
+  const own = (D) => (D.real ? 'Across last season, the pre-season friendlies and this season so far, you played ' + D.n + ' passes from your own third.' : 'Here is an example, because you have not played enough matches yet: 60 passes from the back.');
 
   // ---------- the binomial, for the tests ----------
   const LF = [0]; for (let i = 1; i <= 2000; i++) LF[i] = LF[i - 1] + Math.log(i);

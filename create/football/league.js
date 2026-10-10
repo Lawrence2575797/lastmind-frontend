@@ -302,6 +302,8 @@
     // A friendly leaves everything else alone: only the result and team figures are kept (with the goalscorers, for the reports).
     if (fx.friendly) {
       if (FM.summariseMatch) fx.summary = FM.summariseMatch(league, fx, match);
+      // The managed club's friendlies keep their log too, so the statistics have numbers to work on before the first league match.
+      if (fx.homeId === league.userId || fx.awayId === league.userId) fx.log = FM.compactLog(match);
       [home, away].forEach((t) => { FM.fitnessEnd(t, new Set()); FM.restoreLineup(t, t.snap); t.snap = null; delete t.liveBase; delete t.liveLean; });
       return;
     }

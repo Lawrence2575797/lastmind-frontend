@@ -22,10 +22,14 @@
     const me = league.userId;
     const S = { matches: 0, friendlies: 0, all: blank(), build: blank(), midfield: blank(), final: blank(), press: blank(), defend: blank(), shots: { n: 0, goals: 0, xg: 0 }, against: { n: 0, goals: 0, xg: 0 },
       tackles: { n: 0, won: 0, ownThird: { n: 0, won: 0 } }, wins: { n: 0, shot: 0, high: { n: 0, shot: 0 }, low: { n: 0, shot: 0 } }, losses: { n: 0, shot: 0, own: { n: 0, shot: 0 }, else: { n: 0, shot: 0 } } };
-    const fxs = (league.fixtures || []).concat(league.friendlies || []).filter((f) => f.played && f.log && (f.homeId === me || f.awayId === me));
+    // This season's matches, the pre-season friendlies, and last season's (the same for every game: see tools/gen_preseason.js), so that
+    // there are numbers to work on before the first league match.
+    const past = (league.seed === FM.WORLD_SEED && FM.LAST_SEASON && FM.LAST_SEASON.matches) || [];
+    const fxs = (league.fixtures || []).concat(league.friendlies || []).concat(past).filter((f) => f.played && f.log && (f.homeId === me || f.awayId === me));
+    S.lastSeason = 0;
     fxs.forEach((f) => {
       const log = f.log, idx = f.homeId === me ? 0 : 1, flip = idx === 1;
-      S.matches++; if (f.friendly) S.friendlies++;
+      S.matches++; if (f.friendly) S.friendlies++; if (f.history) S.lastSeason++;
       const dU = (x) => (flip ? 1 - x / 105 : x / 105);
       const myShots = [], theirShots = [];
       (log.other || []).forEach((e) => {
@@ -149,10 +153,10 @@
       out += '<h4>Your numbers</h4>';
       const enough = S && S.all.n >= 40;
       if (!enough) {
-        out += '<p>There are not enough passes from your own matches to say anything yet' + (S && S.matches ? ' (' + S.matches + ' match' + (S.matches === 1 ? '' : 'es') + ', ' + S.all.n + ' passes)' : '') + '. Play the pre-season friendlies and the numbers for this phase will appear here: the ' + kw('proportion', 'proportions') + ', the ' + kw('mean', 'averages') + ' and, most interesting of all, the ' + kw('conditional', 'conditional probabilities') + '.</p>' +
+        out += '<p>There are not enough passes from your own matches to say anything yet' + (S && S.matches ? ' (' + S.matches + ' match' + (S.matches === 1 ? '' : 'es') + ', ' + S.all.n + ' passes)' : '') + '. Once some matches have been played, the numbers for this phase will appear here: the ' + kw('proportion', 'proportions') + ', the ' + kw('mean', 'averages') + ' and, most interesting of all, the ' + kw('conditional', 'conditional probabilities') + '.</p>' +
           '<p class="el-small">You can already learn the ideas on example numbers. Tap any gold word.</p>';
       } else {
-        out += '<p class="el-small">From ' + S.matches + ' match' + (S.matches === 1 ? '' : 'es') + ' (' + S.friendlies + ' friendl' + (S.friendlies === 1 ? 'y' : 'ies') + '), ' + S.all.n + ' passes in all.</p>' + ph.body(S);
+        out += '<p class="el-small">From ' + S.matches + ' match' + (S.matches === 1 ? '' : 'es') + ' (' + [S.lastSeason ? S.lastSeason + ' from last season' : '', S.friendlies ? S.friendlies + ' pre-season friendl' + (S.friendlies === 1 ? 'y' : 'ies') : '', (S.matches - S.lastSeason - S.friendlies) ? (S.matches - S.lastSeason - S.friendlies) + ' this season' : ''].filter(Boolean).join(', ') + '), ' + S.all.n + ' passes in all.</p>' + ph.body(S);
       }
       // 3. what testing will add
       out += '<h4>What comes after: testing</h4>' +
