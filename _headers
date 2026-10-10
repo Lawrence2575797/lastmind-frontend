@@ -1,2 +1,7 @@
 /create/football/*
   Cache-Control: no-cache
+
+/learn
+  Cache-Control: no-cache
+/learn/*
+  Cache-Control: no-cache
