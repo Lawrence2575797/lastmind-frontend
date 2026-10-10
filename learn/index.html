@@ -4114,7 +4114,11 @@
     .maths-notes-editor-host .math-shortcut-editor { min-height: clamp(320px, 62vh, 900px); font-family: inherit; font-size: 16px; line-height: 1.8; }
     /* ─── NOTES (sidebar tab + page canvas) ─── */
     .sidebar-tabs { display: flex; }
-    .notes-panel { display: none; flex: 1; overflow-y: auto; padding: 10px 10px 20px; flex-direction: column; gap: 10px; }
+    .notes-panel { display: flex; flex: 1; min-height: 0; overflow-y: auto; padding: 10px 10px 20px; flex-direction: column; gap: 10px; }
+    /* The notes list is always open in the sidebar (there is no Notes tab to press), and usage and My Account stay fixed at the bottom. */
+    .sidebar-tabs { display: none !important; }
+    .notes-panel { display: flex !important; }
+    .sidebar-footer { flex: none; margin-top: auto; }
     .notes-panel-actions { display: flex; gap: 6px; }
     .notes-panel-actions .new-chat-btn { flex: 1; }
     .nt-row { display: flex; align-items: center; gap: 2px; border-radius: 4px; }
@@ -18746,9 +18750,9 @@ SQIDAQAB
         document.getElementById('notesTabBtn').classList.toggle('active', tab === 'notes');
         document.getElementById('folderList').style.display = tab === 'folders' ? 'block' : 'none';
         document.getElementById('cortexChatList').style.display = tab === 'cortex' ? 'flex' : 'none';
-        document.getElementById('notesPanel').style.display = tab === 'notes' ? 'flex' : 'none';
+        document.getElementById('notesPanel').style.display = 'flex';
         if (tab !== 'notes' && notesLoaded) { notesFlush(); notesMapSync(); }
-        if (tab === 'notes') notesEnsureLoaded().then(renderMyNotesTree);
+        notesEnsureLoaded().then(renderMyNotesTree);
         if (tab === 'cortex') refreshCortexChatList();
         // Real, reported request: Home (goToMainFeed) just re-opens the
         // LastMind chat/dashboard when nothing else is selected (see
