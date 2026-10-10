@@ -745,7 +745,7 @@
     const figure = (f, n) => `<figure class="bp${f.locked ? ' locked' : ''}">
         ${f.pg ? (f.pg.id
           ? `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(f.pg.label)}" data-scn-label="${f.pg.id}"></label><label>Use this page when <select data-scn-cond="${f.pg.id}">${condOpts(f.pg.cond)}</select></label><button type="button" data-scn-del="${f.pg.id}">Remove this page</button></div>`
-          : `<div class="scn-head"><b>Default page</b><span class="note">${pagesOf(endKey).length ? 'Used whenever none of your other pages applies.' : 'Add a page for a particular situation, such as ' + (DEF_ENDS[endKey] ? 'the opposition playing long or short.' : 'the opposition pressing or not.')}</span></div>`) : ''}
+          : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" value="Default page" disabled></label><label>Use this page when <select disabled><option>No other page applies</option></select></label><button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div>`) : ''}
         <figcaption><b>${esc(f.def.title)}</b><span class="note">${esc(f.label ? 'Where the stage before ended on its page: ' + f.label : f.def.note)}</span></figcaption>
         <div class="board-host" id="board${n}"></div>${f.locked ? '' : `<div class="row"><button data-reset="${f.key}">Reset this diagram</button></div>`}
       </figure>`;
