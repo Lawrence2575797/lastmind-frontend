@@ -426,6 +426,16 @@
       let taProg = 0, tdProg = 0;
       if (ch) { const since = match.clock - ch.t; if (ch.team === team) taProg = since / COUNTER_WINDOW; else tdProg = since / PRESS_WINDOW; }
       team.phaseCtx = { transAtt: ta, transDef: td, taProg, tdProg };
+      // The page of possession diagrams in use: the first one the manager added whose condition holds (the default page otherwise).
+      if (team.scenarios && team.scenarios.length) {
+        const oo = other(match, team), ot = oo.tactics;
+        const oppPress = 0.6 * (ot.pressBuildUp == null ? 0.4 : ot.pressBuildUp) + 0.4 * pressingNow(match, oo);
+        const sc = FM.pickScenario(team, { oppPress, diff: (match.score[team.id] || 0) - (match.score[oo.id] || 0) });
+        team.phaseScn = sc ? sc.id : null;
+        match.scenarioTime = match.scenarioTime || {};
+        const k = team.id + ':' + (sc ? sc.label : 'Default');
+        match.scenarioTime[k] = (match.scenarioTime[k] || 0) + 1;
+      } else team.phaseScn = null;
     });
   }
   // How strongly the team is in a counter-attack, from 0 (not) to 1, in the seconds just after winning the ball.

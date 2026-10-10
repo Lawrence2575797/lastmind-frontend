@@ -69,7 +69,7 @@
       id: spec.id, name: spec.name, kit: spec.kit, attackDir: spec.attackDir,
       formationKey: spec.formation, tactics: FM.defaultTactics(), players: [], bench: [], squad: [],
       strength: spec.strength || 0, seed: spec.seed || FM.hashString(spec.id), subsUsed: 0, maxSubs: 5,
-      shape: {}, phasePos: {},
+      shape: {}, phasePos: {}, scenarios: [],
     };
     const rng = FM.mulberry32(team.seed);
     formation.slots.forEach((slot, i) => {
@@ -173,16 +173,23 @@
   FM.PHASE_NAMES = { build: 'Build-up from a goal kick', buildEnd: 'Build-up: reaching midfield', midfield: 'Play through midfield', final: 'Final third', transAtt: 'Attacking transition', transAttEnd: 'Attacking transition: settled', transDef: 'Defensive transition', transDefEnd: 'Defensive transition: settled', press: 'Pressing their build-up', without: 'Organised defending', withoutEnd: 'Organised defending: under pressure' };
   // Where the ball is in each diagram (team space: d 0 is our goal, 1 theirs), unless the manager has moved it.
   const BALL_DEFAULT = { build: { d: 0.07, w: 0.6 }, buildEnd: { d: 0.34, w: 0.5 }, midfield: { d: 0.62, w: 0.5 }, final: { d: 0.86, w: 0.5 }, transAtt: { d: 0.4, w: 0.5 }, transAttEnd: { d: 0.6, w: 0.5 }, transDef: { d: 0.6, w: 0.5 }, transDefEnd: { d: 0.4, w: 0.5 }, without: { d: 0.58, w: 0.5 }, withoutEnd: { d: 0.2, w: 0.5 } };
+  // A page the manager has added (a scenario) keeps its own copy of the possession diagrams under the key 'phase#id'. Anything on it that has
+  // not been placed by hand is the same as on the default page, so an added page only differs where it has been changed.
+  FM.baseKey = (key) => String(key).split('#')[0];
+  FM.scnSuffix = (key) => { const i = String(key).indexOf('#'); return i < 0 ? '' : String(key).slice(i); };
   FM.phaseBall = function (team, key) {
     const own = team && team.phaseBall && team.phaseBall[key];
-    return own || BALL_DEFAULT[key] || { d: 0.5, w: 0.5 };
+    if (own) return own;
+    const base = FM.baseKey(key);
+    if (base !== key) return FM.phaseBall(team, base);
+    return BALL_DEFAULT[key] || { d: 0.5, w: 0.5 };
   };
   FM.setPhaseBall = function (team, key, pos) {
     team.phaseBall = team.phaseBall || {};
-    const chain = ['build', 'buildEnd', 'midfield', 'final'], i = chain.indexOf(key);
+    const chain = ['build', 'buildEnd', 'midfield', 'final'], sfx = FM.scnSuffix(key), i = chain.indexOf(FM.baseKey(key));
     let d = pos.d;
     if (i >= 0) {   // the ball only goes forward through the chain
-      const lo = i > 0 ? FM.phaseBall(team, chain[i - 1]).d + 0.04 : 0.02, hi = i < chain.length - 1 ? FM.phaseBall(team, chain[i + 1]).d - 0.04 : 0.98;
+      const lo = i > 0 ? FM.phaseBall(team, chain[i - 1] + sfx).d + 0.04 : 0.02, hi = i < chain.length - 1 ? FM.phaseBall(team, chain[i + 1] + sfx).d - 0.04 : 0.98;
       d = clamp(d, lo, Math.max(lo, hi));
     }
     team.phaseBall[key] = { d: clamp(d, 0.02, 0.98), w: clamp(pos.w, 0.03, 0.97) };
@@ -223,8 +230,13 @@
   };
   FM.phasePos = function (team, p, phase) {
     const man = team.phasePos && team.phasePos[phase] && team.phasePos[phase][p.index];
-    return man || FM.defaultPhasePos(team, p, phase);
+    if (man) return man;
+    const base = FM.baseKey(phase);
+    if (base !== phase) return FM.phasePos(team, p, base);   // an added page that has not been changed here is the default page
+    return FM.defaultPhasePos(team, p, phase);
   };
+  // Every key positions are kept under: the phases, and the pages the manager has added.
+  FM.allPhaseKeys = (team) => FM.PHASES.concat(Object.keys(team.phasePos || {}).filter((k) => k.indexOf('#') > 0));
   FM.isManual = (team, p, phase) => !!(team.phasePos && team.phasePos[phase] && team.phasePos[phase][p.index]);
 
   // ---------- how far can he get between phases? ----------
@@ -270,7 +282,7 @@
     return Math.max(line + (runs > 0 ? 0.5 : runs < 0 ? -1.2 : 0) / L, 0.5);
   };
   FM.clampOffside = function (team, p, phase, pos, opp, lineOverride) {
-    if (!opp || p.group === 'GK' || FM.OFFSIDE_PHASES.indexOf(phase) < 0) return pos;
+    if (!opp || p.group === 'GK' || FM.OFFSIDE_PHASES.indexOf(FM.baseKey(phase)) < 0) return pos;
     return { d: Math.min(pos.d, FM.offsideLimit(opp, p, lineOverride)), w: pos.w };
   };
   FM.setPhasePos = function (team, p, phase, pos) {
@@ -298,7 +310,7 @@
   };
   // After anything moves, any hand-placed position that is now out of reach is pulled back.
   FM.fixSlot = function (team, p, opp, lineFor) {
-    FM.PHASES.forEach((ph) => { if (FM.isManual(team, p, ph)) FM.setPhasePos(team, p, ph, FM.clampOffside(team, p, ph, FM.clampToReach(team, p, ph, FM.phasePos(team, p, ph)), opp, lineFor ? lineFor(ph) : null)); });
+    FM.allPhaseKeys(team).forEach((ph) => { if (FM.isManual(team, p, ph)) FM.setPhasePos(team, p, ph, FM.clampOffside(team, p, ph, FM.clampToReach(team, p, ph, FM.phasePos(team, p, ph)), opp, lineFor ? lineFor(ph) : null)); });
   };
   // Moving the defensive line moves every player's default position (see defaultPhasePos), and it must move the ones the manager has placed by hand
   // as well: a full-back dragged to a spot on the Defending board still goes up and down with the line, by the same amount as everyone else.
@@ -307,9 +319,9 @@
     team.players.forEach((p) => {
       const wgt = FM.GROUP_LINE_WEIGHT[p.group] || 0; if (!wgt) return;
       let moved = false;
-      FM.PHASES.forEach((ph) => {
+      FM.allPhaseKeys(team).forEach((ph) => {
         if (!FM.isManual(team, p, ph)) return;
-        const pos = FM.phasePos(team, p, ph), f = (ph === 'build' || ph === 'buildEnd' || ph === 'final' || ph === 'transAtt' || ph === 'transAttEnd') ? 0.6 : 1;
+        const b0 = FM.baseKey(ph), pos = FM.phasePos(team, p, ph), f = (b0 === 'build' || b0 === 'buildEnd' || b0 === 'final' || b0 === 'transAtt' || b0 === 'transAttEnd') ? 0.6 : 1;
         FM.setPhasePos(team, p, ph, { d: clamp(pos.d + k * wgt * f, 0.02, 0.97), w: pos.w }); moved = true;
       });
       if (moved) FM.fixSlot(team, p);
@@ -318,7 +330,31 @@
   FM.clearPhase = function (team, phase) { if (phase === 'shape') team.shape = {}; else if (team.phasePos) delete team.phasePos[phase]; };
   FM.clearPlayerPositions = function (team, p) {
     delete team.shape[p.index];
-    FM.PHASES.forEach((ph) => { if (team.phasePos[ph]) delete team.phasePos[ph][p.index]; });
+    FM.allPhaseKeys(team).forEach((ph) => { if (team.phasePos[ph]) delete team.phasePos[ph][p.index]; });
+  };
+  // ---------- pages the manager adds (scenarios) ----------
+  // A scenario is a page of possession diagrams (build-up, through midfield, final third) that applies while its condition holds. 'Default' is
+  // the page that always exists, and the first added page whose condition holds wins. The manager gives each page its own label, and the
+  // match records which page was in use, by that label.
+  FM.SCENARIO_CONDS = [
+    { key: 'opp_press', label: 'The opposition press us' },
+    { key: 'opp_sit', label: 'The opposition sit off us' },
+    { key: 'leading', label: 'We are winning' },
+    { key: 'level', label: 'The score is level' },
+    { key: 'trailing', label: 'We are losing' },
+  ];
+  FM.scenarioHolds = function (cond, info) {
+    if (cond === 'opp_press') return info.oppPress >= 0.5;
+    if (cond === 'opp_sit') return info.oppPress < 0.5;
+    if (cond === 'leading') return info.diff > 0;
+    if (cond === 'level') return info.diff === 0;
+    if (cond === 'trailing') return info.diff < 0;
+    return false;
+  };
+  FM.pickScenario = function (team, info) {
+    const list = team.scenarios || [];
+    for (let i = 0; i < list.length; i++) if (FM.scenarioHolds(list[i].cond, info)) return list[i];
+    return null;
   };
 
   // The target position for one player, in pitch metres.
@@ -331,7 +367,8 @@
     let pos;
     if (hasBall) {
       // The possession diagrams in order, each with the ball where it is drawn: the team is read off them as the ball goes forward.
-      const chain = ['build', 'buildEnd', 'midfield', 'final'].map((k) => ({ d: FM.phaseBall(team, k).d, pos: FM.phasePos(team, player, k) }));
+      const sfx = team.phaseScn ? '#' + team.phaseScn : '';
+      const chain = ['build', 'buildEnd', 'midfield', 'final'].map((k) => ({ d: FM.phaseBall(team, k + sfx).d, pos: FM.phasePos(team, player, k + sfx) }));
       pos = chain[chain.length - 1].pos;
       if (b.d <= chain[0].d) pos = chain[0].pos;
       else for (let i = 0; i < chain.length - 1; i++) {

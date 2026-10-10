@@ -249,6 +249,12 @@
   .tb-grid.tb-pair { grid-template-columns: minmax(0, 1fr); } .tb-grid.tb-pair .tb-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; } .tb-grid.tb-pair .tb-controls > * { min-width: 0; } .tb-grid.tb-pair .tb-controls #phaseSliders { flex: 1 1 100%; } .tb-grid.tb-pair .tb-right { grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr); }
   .tb-grid.tb-pair .tb-left { grid-template-columns: minmax(0, 1fr); justify-items: stretch; } .tb-grid.tb-pair #pairHost { width: 100%; }
   .board-pair svg.board { max-width: none; width: 100%; }
+  /* Pages the manager adds on the possession stages */
+  .scn { display: grid; gap: 12px; } .scn + .scn { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--line); }
+  .scn-head { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: end; } .scn-head label { display: grid; gap: 4px; font-size: .78rem; color: var(--cream-soft); } .scn-head .note { align-self: center; }
+  .scn-label { min-width: 220px; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,.06); color: var(--cream); font: inherit; }
+  .scn-head select { padding: 9px 10px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,.06); color: var(--cream); font: inherit; }
+  .scn-add { margin-top: 20px; justify-content: flex-start !important; }
   /* Squad and formation: the formation chooser along the top, the pitch across the left, the bench and the selected player on the right. */
   .tb-grid.tb-shape { grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); align-items: start; }
   .tb-grid.tb-shape .tb-controls { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 12px; align-items: end; } .tb-grid.tb-shape .tb-controls label { min-width: 240px; max-width: 360px; }
@@ -692,12 +698,12 @@
 <script src="/create/football/roles.js?v=20261010c"></script>
 <script src="/create/football/ratings.js?v=20261010c"></script>
 <script src="/create/football/names.js?v=20261010c"></script>
-<script src="/create/football/engine.js?v=20261010c"></script>
+<script src="/create/football/engine.js?v=20261010k"></script>
 <script src="/create/football/rules.js?v=20261010c"></script>
 <script src="/create/football/instructions.js?v=20261010c"></script>
 <script src="/create/football/fitness.js?v=20261010c"></script>
-<script src="/create/football/match.js?v=20261010c"></script>
-<script src="/create/football/league.js?v=20261010c"></script>
+<script src="/create/football/match.js?v=20261010k"></script>
+<script src="/create/football/league.js?v=20261010k"></script>
 <script src="/create/football/preseason.js?v=20261010c"></script>
 <script src="/create/football/stats_math.js?v=20261010c"></script>
 <script src="/create/football/stats.js?v=20261010c"></script>
@@ -717,6 +723,6 @@
 <script src="/create/football/elena.js?v=20261010d"></script>
 <script src="/create/football/elena_phase.js?v=20261010c"></script>
 <script src="/create/football/elena_lessons.js?v=20261010c"></script>
-<script src="/create/football/main.js?v=20261010j"></script>
+<script src="/create/football/main.js?v=20261010k"></script>
 </body>
 </html>

@@ -725,12 +725,47 @@
   };
   const PAIR_TITLE = { build: 'Build-up from a goal kick', midfield: 'Play through midfield', final: 'The final third', organised: 'Organised defending', transdef: 'Defensive transition', transatt: 'Attacking transition' };
   // Draws the two diagrams of a page into the given host, and redraws them when asked.
+  // The possession stages can have more than one page: the default page, and any the manager adds (each labelled, each with a condition the
+  // match checks). Every page has its own two diagrams. A later stage's first diagram is where the same page ended the stage before.
+  const CHAIN_TABS = { build: true, midfield: true, final: true };
   function mountPair(host, team, tab) {
-    const pair = BOARD_PAIRS[tab];
-    host.innerHTML = `<div class="board-pair">${pair.map((d, i) => `<figure class="bp${d.locked ? ' locked' : ''}"><figcaption><b>${esc(d.title)}</b><span class="note">${esc(d.note)}</span></figcaption><div class="board-host" id="board${i}"></div>${d.locked ? '' : `<div class="row"><button data-reset="${d.key}">Reset this diagram</button></div>`}</figure>`).join('')}</div>`;
-    const draw = () => { if (!host.isConnected) return; pair.forEach((d, i) => drawBoard(host.querySelector('#board' + i), team, d.key, { locked: !!d.locked, fit: true })); };
+    const pair = BOARD_PAIRS[tab], chain = !!CHAIN_TABS[tab];
+    const pages = [{ id: null, label: 'Default page' }].concat(chain ? (team.scenarios || []) : []);
+    const keyOf = (k, pg) => (pg.id ? k + '#' + pg.id : k);
+    const condOpts = (cur) => FM.SCENARIO_CONDS.map((c) => `<option value="${c.key}"${c.key === cur ? ' selected' : ''}>${esc(c.label)}</option>`).join('');
+    host.innerHTML = pages.map((pg, si) => `
+      <section class="scn">
+        ${chain ? (pg.id
+          ? `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pg.label)}" data-scn-label="${pg.id}"></label><label>Use this page when <select data-scn-cond="${pg.id}">${condOpts(pg.cond)}</select></label><button type="button" data-scn-del="${pg.id}">Remove this page</button></div>`
+          : `<div class="scn-head"><b>Default page</b><span class="note">${(team.scenarios || []).length ? 'Used whenever none of your other pages applies.' : 'Add more pages for particular situations, such as the opposition pressing or not.'}</span></div>`) : ''}
+        <div class="board-pair">${pair.map((d, i) => `<figure class="bp${d.locked ? ' locked' : ''}"><figcaption><b>${esc(d.title)}</b><span class="note">${esc(d.note)}</span></figcaption><div class="board-host" id="board${si}_${i}"></div>${d.locked ? '' : `<div class="row"><button data-reset="${keyOf(d.key, pg)}">Reset this diagram</button></div>`}</figure>`).join('')}</div>
+      </section>`).join('') + (chain ? '<div class="row scn-add"><button type="button" id="scnAdd">+ Add a page</button></div>' : '');
+    const draw = () => { if (!host.isConnected) return; pages.forEach((pg, si) => pair.forEach((d, i) => drawBoard(host.querySelector('#board' + si + '_' + i), team, keyOf(d.key, pg), { locked: !!d.locked, fit: true }))); };
     draw();
     host.querySelectorAll('[data-reset]').forEach((b) => b.addEventListener('click', () => { FM.clearPhase(team, b.dataset.reset); if (team.phaseBall) delete team.phaseBall[b.dataset.reset]; saveSoon(); renderTactics(); }));
+    const add = host.querySelector('#scnAdd');
+    if (add) add.addEventListener('click', () => {
+      team.scenarios = team.scenarios || [];
+      const used = new Set(team.scenarios.map((s) => s.cond)), c = FM.SCENARIO_CONDS.find((x) => !used.has(x.key)) || FM.SCENARIO_CONDS[0];
+      team.scenarios.push({ id: 's' + Date.now().toString(36), label: c.label.replace(/^The /, '').replace(/^./, (ch) => ch.toUpperCase()), cond: c.key });
+      saveSoon(); renderTactics();
+    });
+    host.querySelectorAll('[data-scn-label]').forEach((inp) => inp.addEventListener('change', () => {
+      const sc = (team.scenarios || []).find((s) => s.id === inp.dataset.scnLabel); if (!sc) return;
+      sc.label = inp.value.trim().slice(0, 40) || 'Untitled page'; saveSoon();
+    }));
+    host.querySelectorAll('[data-scn-cond]').forEach((sel) => sel.addEventListener('change', () => {
+      const sc = (team.scenarios || []).find((s) => s.id === sel.dataset.scnCond); if (!sc) return;
+      sc.cond = sel.value; saveSoon();
+    }));
+    host.querySelectorAll('[data-scn-del]').forEach((b) => b.addEventListener('click', () => {
+      const id = b.dataset.scnDel, sc = (team.scenarios || []).find((s) => s.id === id); if (!sc) return;
+      if (!confirm('Remove "' + sc.label + '" and its diagrams?')) return;
+      team.scenarios = team.scenarios.filter((s) => s.id !== id);
+      Object.keys(team.phasePos || {}).forEach((k) => { if (k.endsWith('#' + id)) delete team.phasePos[k]; });
+      Object.keys(team.phaseBall || {}).forEach((k) => { if (k.endsWith('#' + id)) delete team.phaseBall[k]; });
+      saveSoon(); renderTactics();
+    }));
     world.redrawBoards = draw;
   }
   let boardResizeTimer = null, boardResizeW = 0;
@@ -768,14 +803,14 @@
 
   function capturePlan(team, name) {
     return { id: 'plan-' + Date.now(), name, savedAt: Date.now(), formationKey: team.formationKey,
-      tactics: JSON.parse(JSON.stringify(team.tactics)), shape: JSON.parse(JSON.stringify(team.shape || {})), phasePos: JSON.parse(JSON.stringify(team.phasePos || {})), phaseBall: JSON.parse(JSON.stringify(team.phaseBall || {})), rules: JSON.parse(JSON.stringify(team.rules || [])),
+      tactics: JSON.parse(JSON.stringify(team.tactics)), shape: JSON.parse(JSON.stringify(team.shape || {})), phasePos: JSON.parse(JSON.stringify(team.phasePos || {})), phaseBall: JSON.parse(JSON.stringify(team.phaseBall || {})), scenarios: JSON.parse(JSON.stringify(team.scenarios || [])), rules: JSON.parse(JSON.stringify(team.rules || [])),
       players: team.players.map((p) => ({ id: p.id, roleId: p.roleId, options: JSON.parse(JSON.stringify(p.options || {})), instr: JSON.parse(JSON.stringify(p.instr || {})) })) };
   }
   function restorePlan(team, plan) {
     if (!plan) return;
     if (plan.formationKey !== team.formationKey) FM.setFormation(team, plan.formationKey);
     team.tactics = Object.assign(FM.defaultTactics(), JSON.parse(JSON.stringify(plan.tactics || {})));
-    team.shape = JSON.parse(JSON.stringify(plan.shape || {})); team.phasePos = JSON.parse(JSON.stringify(plan.phasePos || {})); team.phaseBall = JSON.parse(JSON.stringify(plan.phaseBall || {})); team.rules = JSON.parse(JSON.stringify(plan.rules || []));
+    team.shape = JSON.parse(JSON.stringify(plan.shape || {})); team.phasePos = JSON.parse(JSON.stringify(plan.phasePos || {})); team.phaseBall = JSON.parse(JSON.stringify(plan.phaseBall || {})); team.scenarios = JSON.parse(JSON.stringify(plan.scenarios || [])); team.rules = JSON.parse(JSON.stringify(plan.rules || []));
     (plan.players || []).forEach((saved) => { const p = team.players.find((x) => x.id === saved.id); if (p) { if (saved.roleId && FM.ROLES[saved.roleId]) p.roleId = saved.roleId; p.options = JSON.parse(JSON.stringify(saved.options || {})); p.instr = JSON.parse(JSON.stringify(saved.instr || {})); } });
   }
   function renderPlanBar(team) {
@@ -1044,7 +1079,7 @@
   // 'live' puts one shirt at a position it is being dragged to.
   function oppLine(key, live) {
     if (key === 'shape') return null;                // the line follows their scouted defence whether or not their shirts are shown
-    const sc = scoutFor(), cells = sc && sc.shape.phases[OPP_PHASE[key]];
+    const sc = scoutFor(), cells = sc && sc.shape.phases[OPP_PHASE[FM.baseKey(key)]];
     if (!cells) return null;
     const moved = (world.oppMoved && world.oppMoved[key]) || {};
     let min = 1, any = false;
@@ -1074,8 +1109,8 @@
     // The next opponent as scouted: where their players have stood in the phase that answers this one (when you build, they press).
     let opp = '';
     const sc = key !== 'shape' ? scoutFor() : null;
-    if (sc && sc.shape.phases[OPP_PHASE[key]]) {
-      const cells = sc.shape.phases[OPP_PHASE[key]];
+    if (sc && sc.shape.phases[OPP_PHASE[FM.baseKey(key)]]) {
+      const cells = sc.shape.phases[OPP_PHASE[FM.baseKey(key)]];
       const kit = FM.kitAgainst(sc.opp, FM.teamById(world.league, world.league.userId));
       // Their shirts can be dragged to try out "what if they stood here". These moves are only for looking at, not saved, and the
       // button under the board puts them back where they were scouted.
@@ -1089,7 +1124,7 @@
     // With the ball, nobody can stand beyond the opposition's second-last defender: show that line, which moves with their defensive line.
     let offLine = '';
     const opp0 = nextOpponent();
-    if (key !== 'shape' && opp0 && FM.OFFSIDE_PHASES.indexOf(key) >= 0) {
+    if (key !== 'shape' && opp0 && FM.OFFSIDE_PHASES.indexOf(FM.baseKey(key)) >= 0) {
       const y = (1 - FM.offsideLimit(opp0, null, oppLine(key))) * BH;
       offLine = `<g class="offline" style="pointer-events:none"><line x1="0" y1="${y.toFixed(1)}" x2="${BW}" y2="${y.toFixed(1)}" stroke="#FF6B5A" stroke-width="2.5" stroke-dasharray="3 7" stroke-opacity="0.9"/><text x="6" y="${(y - 6).toFixed(1)}" font-size="14" fill="#fff" stroke="#000" stroke-width="3" style="paint-order:stroke">Offside line (${esc(opp0.name)}'s deepest defender)</text></g>`;
     }
@@ -1115,11 +1150,11 @@
       const y = (1 - depth) * BH;
       guides += `<g class="tactic-guide"><line x1="4" y1="${y}" x2="${BW-4}" y2="${y}"/><text x="${BW-8}" y="${y-8}" text-anchor="end">Defensive line</text></g>`;
     }
-    if (['build', 'buildEnd', 'midfield', 'final', 'transAtt', 'transAttEnd'].indexOf(key) >= 0) {
+    if (['build', 'buildEnd', 'midfield', 'final', 'transAtt', 'transAttEnd'].indexOf(FM.baseKey(key)) >= 0) {
       const width = Math.min(.94, .58 * team.tactics.attackWidth), x1 = BW * (.5 - width/2), x2 = BW * (.5 + width/2);
       guides += `<g class="tactic-guide width"><line x1="${x1}" y1="30" x2="${x1}" y2="${BH-30}"/><line x1="${x2}" y1="30" x2="${x2}" y2="${BH-30}"/><text x="${BW/2}" y="24" text-anchor="middle">Attacking width</text></g>`;
     }
-    host.innerHTML = `<svg class="board${key === 'shape' ? ' short' : ''}${locked ? ' locked' : ''}" viewBox="-24 -30 ${BW + 48} ${BH + 92}" role="img" aria-label="Tactics board">${boardPitchSvg(key)}${guides}${ghosts}${offLine}${opp}${dots}${ball}</svg>`;
+    host.innerHTML = `<svg class="board${key === 'shape' ? ' short' : ''}${locked ? ' locked' : ''}" viewBox="-24 -30 ${BW + 48} ${BH + 92}" role="img" aria-label="Tactics board">${boardPitchSvg(FM.baseKey(key))}${guides}${ghosts}${offLine}${opp}${dots}${ball}</svg>`;
     const svg = host.firstChild;
     const toPos = (e) => {
       const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
