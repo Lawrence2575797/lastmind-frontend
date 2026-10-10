@@ -725,48 +725,62 @@
   };
   const PAIR_TITLE = { build: 'Build-up from a goal kick', midfield: 'Play through midfield', final: 'The final third', organised: 'Organised defending', transdef: 'Defensive transition', transatt: 'Attacking transition' };
   // Draws the two diagrams of a page into the given host, and redraws them when asked.
-  // The possession stages can have more than one page: the default page, and any the manager adds (each labelled, each with a condition the
-  // match checks). Every page has its own two diagrams. A later stage's first diagram is where the same page ended the stage before.
-  // Possession pages are shared by build-up, midfield, final third and attacking transition; defending pages by organised defending and
-  // defensive transition.
-  const PAGE_LIST = { build: 'scenarios', midfield: 'scenarios', final: 'scenarios', transatt: 'scenarios', organised: 'defScenarios', transdef: 'defScenarios' };
+  // Each stage has a first diagram that is fixed (the goal kick for build-up; for the stages after it, where the stage before ended) and a second
+  // diagram where the stage ends. The second one can have more than one version: the default, and any "page" the manager adds, each with a label
+  // and a condition the match checks. The stage after then shows one starting diagram for every version of the end before it.
+  const DEF_ENDS = { withoutEnd: true, transDefEnd: true };
   function mountPair(host, team, tab) {
-    const pair = BOARD_PAIRS[tab], listName = PAGE_LIST[tab], chain = !!listName;
-    const conds = listName === 'defScenarios' ? FM.SCENARIO_CONDS_DEF : FM.SCENARIO_CONDS;
-    const pages = [{ id: null, label: 'Default page' }].concat(chain ? (team[listName] || []) : []);
-    const keyOf = (k, pg) => (pg.id ? k + '#' + pg.id : k);
+    FM.ensurePages(team);
+    const pair = BOARD_PAIRS[tab], startDef = pair[0], endDef = pair[1], endKey = endDef.key;
+    const conds = DEF_ENDS[endKey] ? FM.SCENARIO_CONDS_DEF : FM.SCENARIO_CONDS;
+    const pagesOf = (k) => (team.pages && team.pages[k]) || [];
+    const withKey = (k, pg) => (pg.id ? k + '#' + pg.id : k);
     const condOpts = (cur) => conds.map((c) => `<option value="${c.key}"${c.key === cur ? ' selected' : ''}>${esc(c.label)}</option>`).join('');
-    host.innerHTML = pages.map((pg, si) => `
-      <section class="scn">
-        ${chain ? (pg.id
-          ? `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pg.label)}" data-scn-label="${pg.id}"></label><label>Use this page when <select data-scn-cond="${pg.id}">${condOpts(pg.cond)}</select></label><button type="button" data-scn-del="${pg.id}">Remove this page</button></div>`
-          : `<div class="scn-head"><b>Default page</b><span class="note">${(team[listName] || []).length ? 'Used whenever none of your other pages applies.' : (listName === 'defScenarios' ? 'Add more pages for particular situations, such as the opposition playing long or building short.' : 'Add more pages for particular situations, such as the opposition pressing or not.')}</span></div>`) : ''}
-        <div class="board-pair">${pair.map((d, i) => `<figure class="bp${d.locked ? ' locked' : ''}"><figcaption><b>${esc(d.title)}</b><span class="note">${esc(d.note)}</span></figcaption><div class="board-host" id="board${si}_${i}"></div>${d.locked ? '' : `<div class="row"><button data-reset="${keyOf(d.key, pg)}">Reset this diagram</button></div>`}</figure>`).join('')}</div>
-      </section>`).join('') + (chain ? '<div class="row scn-add"><button type="button" id="scnAdd">+ Add a page</button></div>' : '');
-    const draw = () => { if (!host.isConnected) return; pages.forEach((pg, si) => pair.forEach((d, i) => drawBoard(host.querySelector('#board' + si + '_' + i), team, keyOf(d.key, pg), { locked: !!d.locked, fit: true }))); };
+    // the starting diagrams: one fixed one, or one for each version of the end of the stage before (those are drawn on that stage's page)
+    const prev = startDef.locked ? [{ id: null, label: 'Default page' }].concat(pagesOf(startDef.key)) : null;
+    const starts = prev
+      ? prev.map((pg) => ({ key: withKey(startDef.key, pg), locked: true, def: startDef, label: pg.label }))
+      : [{ key: startDef.key, locked: false, def: startDef, label: null }];
+    const ends = [{ id: null, label: 'Default page', cond: null }].concat(pagesOf(endKey)).map((pg) => ({ key: withKey(endKey, pg), locked: false, def: endDef, pg }));
+    const figure = (f, n) => `<figure class="bp${f.locked ? ' locked' : ''}">
+        ${f.pg ? (f.pg.id
+          ? `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(f.pg.label)}" data-scn-label="${f.pg.id}"></label><label>Use this page when <select data-scn-cond="${f.pg.id}">${condOpts(f.pg.cond)}</select></label><button type="button" data-scn-del="${f.pg.id}">Remove this page</button></div>`
+          : `<div class="scn-head"><b>Default page</b><span class="note">${pagesOf(endKey).length ? 'Used whenever none of your other pages applies.' : 'Add a page for a particular situation, such as ' + (DEF_ENDS[endKey] ? 'the opposition playing long or short.' : 'the opposition pressing or not.')}</span></div>`) : ''}
+        <figcaption><b>${esc(f.def.title)}</b><span class="note">${esc(f.label ? 'Where the stage before ended on its page: ' + f.label : f.def.note)}</span></figcaption>
+        <div class="board-host" id="board${n}"></div>${f.locked ? '' : `<div class="row"><button data-reset="${f.key}">Reset this diagram</button></div>`}
+      </figure>`;
+    // One start and one end sit side by side. Otherwise the starts are along the top and the ends (the versions of the second diagram) below them.
+    const all = starts.concat(ends);
+    const row = (list, offset) => `<div class="board-pair">${list.map((f, k) => figure(f, offset + k)).join('')}</div>`;
+    host.innerHTML = (starts.length === 1 && ends.length === 1)
+      ? `<div class="scn">${row(all, 0)}</div>`
+      : `<div class="scn">${row(starts, 0)}${row(ends, starts.length)}</div>`;
+    host.insertAdjacentHTML('beforeend', '<div class="row scn-add"><button type="button" id="scnAdd">+ Add a page</button><span class="note">Adds another version of the second diagram, for a different situation.</span></div>');
+    const draw = () => { if (!host.isConnected) return; all.forEach((f, n) => drawBoard(host.querySelector('#board' + n), team, f.key, { locked: f.locked, fit: true })); };
     draw();
     host.querySelectorAll('[data-reset]').forEach((b) => b.addEventListener('click', () => { FM.clearPhase(team, b.dataset.reset); if (team.phaseBall) delete team.phaseBall[b.dataset.reset]; saveSoon(); renderTactics(); }));
     const add = host.querySelector('#scnAdd');
     if (add) add.addEventListener('click', () => {
-      team[listName] = team[listName] || [];
-      const used = new Set(team[listName].map((s) => s.cond)), c = conds.find((x) => !used.has(x.key)) || conds[0];
-      team[listName].push({ id: 's' + Date.now().toString(36), label: c.label.replace(/^The /, '').replace(/^./, (ch) => ch.toUpperCase()), cond: c.key });
+      team.pages[endKey] = team.pages[endKey] || [];
+      const used = new Set(team.pages[endKey].map((x) => x.cond)), c = conds.find((x) => !used.has(x.key)) || conds[0];
+      team.pages[endKey].push({ id: 's' + Date.now().toString(36), label: c.label.replace(/^The /, '').replace(/^./, (ch) => ch.toUpperCase()), cond: c.key });
       saveSoon(); renderTactics();
     });
     host.querySelectorAll('[data-scn-label]').forEach((inp) => inp.addEventListener('change', () => {
-      const sc = (team[listName] || []).find((s) => s.id === inp.dataset.scnLabel); if (!sc) return;
-      sc.label = inp.value.trim().slice(0, 40) || 'Untitled page'; saveSoon();
+      const pg = pagesOf(endKey).find((x) => x.id === inp.dataset.scnLabel); if (!pg) return;
+      pg.label = inp.value.trim().slice(0, 40) || 'Untitled page'; saveSoon();
     }));
     host.querySelectorAll('[data-scn-cond]').forEach((sel) => sel.addEventListener('change', () => {
-      const sc = (team[listName] || []).find((s) => s.id === sel.dataset.scnCond); if (!sc) return;
-      sc.cond = sel.value; saveSoon();
+      const pg = pagesOf(endKey).find((x) => x.id === sel.dataset.scnCond); if (!pg) return;
+      pg.cond = sel.value; saveSoon();
     }));
     host.querySelectorAll('[data-scn-del]').forEach((b) => b.addEventListener('click', () => {
-      const id = b.dataset.scnDel, sc = (team[listName] || []).find((s) => s.id === id); if (!sc) return;
-      if (!confirm('Remove "' + sc.label + '" and its diagrams?')) return;
-      team[listName] = team[listName].filter((s) => s.id !== id);
-      Object.keys(team.phasePos || {}).forEach((k) => { if (k.endsWith('#' + id)) delete team.phasePos[k]; });
-      Object.keys(team.phaseBall || {}).forEach((k) => { if (k.endsWith('#' + id)) delete team.phaseBall[k]; });
+      const id = b.dataset.scnDel, pg = pagesOf(endKey).find((x) => x.id === id); if (!pg) return;
+      if (!confirm('Remove "' + pg.label + '" and its diagram?')) return;
+      team.pages[endKey] = team.pages[endKey].filter((x) => x.id !== id);
+      const k = endKey + '#' + id;
+      if (team.phasePos) delete team.phasePos[k];
+      if (team.phaseBall) delete team.phaseBall[k];
       saveSoon(); renderTactics();
     }));
     world.redrawBoards = draw;
@@ -806,14 +820,14 @@
 
   function capturePlan(team, name) {
     return { id: 'plan-' + Date.now(), name, savedAt: Date.now(), formationKey: team.formationKey,
-      tactics: JSON.parse(JSON.stringify(team.tactics)), shape: JSON.parse(JSON.stringify(team.shape || {})), phasePos: JSON.parse(JSON.stringify(team.phasePos || {})), phaseBall: JSON.parse(JSON.stringify(team.phaseBall || {})), scenarios: JSON.parse(JSON.stringify(team.scenarios || [])), defScenarios: JSON.parse(JSON.stringify(team.defScenarios || [])), rules: JSON.parse(JSON.stringify(team.rules || [])),
+      tactics: JSON.parse(JSON.stringify(team.tactics)), shape: JSON.parse(JSON.stringify(team.shape || {})), phasePos: JSON.parse(JSON.stringify(team.phasePos || {})), phaseBall: JSON.parse(JSON.stringify(team.phaseBall || {})), pages: JSON.parse(JSON.stringify(team.pages || {})), rules: JSON.parse(JSON.stringify(team.rules || [])),
       players: team.players.map((p) => ({ id: p.id, roleId: p.roleId, options: JSON.parse(JSON.stringify(p.options || {})), instr: JSON.parse(JSON.stringify(p.instr || {})) })) };
   }
   function restorePlan(team, plan) {
     if (!plan) return;
     if (plan.formationKey !== team.formationKey) FM.setFormation(team, plan.formationKey);
     team.tactics = Object.assign(FM.defaultTactics(), JSON.parse(JSON.stringify(plan.tactics || {})));
-    team.shape = JSON.parse(JSON.stringify(plan.shape || {})); team.phasePos = JSON.parse(JSON.stringify(plan.phasePos || {})); team.phaseBall = JSON.parse(JSON.stringify(plan.phaseBall || {})); team.scenarios = JSON.parse(JSON.stringify(plan.scenarios || [])); team.defScenarios = JSON.parse(JSON.stringify(plan.defScenarios || [])); team.rules = JSON.parse(JSON.stringify(plan.rules || []));
+    team.shape = JSON.parse(JSON.stringify(plan.shape || {})); team.phasePos = JSON.parse(JSON.stringify(plan.phasePos || {})); team.phaseBall = JSON.parse(JSON.stringify(plan.phaseBall || {})); team.pages = JSON.parse(JSON.stringify(plan.pages || {})); team.scenarios = JSON.parse(JSON.stringify(plan.scenarios || [])); team.defScenarios = JSON.parse(JSON.stringify(plan.defScenarios || [])); FM.ensurePages(team); team.rules = JSON.parse(JSON.stringify(plan.rules || []));
     (plan.players || []).forEach((saved) => { const p = team.players.find((x) => x.id === saved.id); if (p) { if (saved.roleId && FM.ROLES[saved.roleId]) p.roleId = saved.roleId; p.options = JSON.parse(JSON.stringify(saved.options || {})); p.instr = JSON.parse(JSON.stringify(saved.instr || {})); } });
   }
   function renderPlanBar(team) {

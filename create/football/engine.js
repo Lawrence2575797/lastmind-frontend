@@ -69,7 +69,7 @@
       id: spec.id, name: spec.name, kit: spec.kit, attackDir: spec.attackDir,
       formationKey: spec.formation, tactics: FM.defaultTactics(), players: [], bench: [], squad: [],
       strength: spec.strength || 0, seed: spec.seed || FM.hashString(spec.id), subsUsed: 0, maxSubs: 5,
-      shape: {}, phasePos: {}, scenarios: [], defScenarios: [],
+      shape: {}, phasePos: {}, pages: {}, scenarios: [], defScenarios: [],
     };
     const rng = FM.mulberry32(team.seed);
     formation.slots.forEach((slot, i) => {
@@ -186,10 +186,10 @@
   };
   FM.setPhaseBall = function (team, key, pos) {
     team.phaseBall = team.phaseBall || {};
-    const chain = ['build', 'buildEnd', 'midfield', 'final'], sfx = FM.scnSuffix(key), i = chain.indexOf(FM.baseKey(key));
+    const chain = ['build', 'buildEnd', 'midfield', 'final'], i = chain.indexOf(FM.baseKey(key));
     let d = pos.d;
     if (i >= 0) {   // the ball only goes forward through the chain
-      const lo = i > 0 ? FM.phaseBall(team, chain[i - 1] + sfx).d + 0.04 : 0.02, hi = i < chain.length - 1 ? FM.phaseBall(team, chain[i + 1] + sfx).d - 0.04 : 0.98;
+      const lo = i > 0 ? FM.phaseBall(team, chain[i - 1]).d + 0.04 : 0.02, hi = i < chain.length - 1 ? FM.phaseBall(team, chain[i + 1]).d - 0.04 : 0.98;
       d = clamp(d, lo, Math.max(lo, hi));
     }
     team.phaseBall[key] = { d: clamp(d, 0.02, 0.98), w: clamp(pos.w, 0.03, 0.97) };
@@ -363,10 +363,21 @@
     if (cond === 'late') return (info.minute || 0) >= 75;
     return false;
   };
-  FM.pickScenario = function (team, info, group) {
-    const list = (group === 'def' ? team.defScenarios : team.scenarios) || [];
-    for (let i = 0; i < list.length; i++) if (FM.scenarioHolds(list[i].cond, info)) return list[i];
+  // Pages belong to the second diagram of a stage (where the stage ends): team.pages[endKey] is the list of added versions of it, endKey being
+  // buildEnd, midfield, final, transAttEnd, withoutEnd or transDefEnd. The first diagram of a stage is fixed (a goal kick for build-up, the
+  // end of the stage before for the stages that follow, one for each version of it), so it has no pages of its own.
+  FM.PAGE_ENDS = ['buildEnd', 'midfield', 'final', 'transAttEnd', 'withoutEnd', 'transDefEnd'];
+  FM.PAGE_ENDS_DEF = ['withoutEnd', 'transDefEnd'];
+  FM.pickPage = function (list, info) {
+    for (let i = 0; i < (list || []).length; i++) if (FM.scenarioHolds(list[i].cond, info)) return list[i];
     return null;
+  };
+  // Pages first added when they were whole-chain scenarios are carried over: each becomes a version of every end diagram it applied to.
+  FM.ensurePages = function (team) {
+    team.pages = team.pages || {};
+    const copy = (l) => JSON.parse(JSON.stringify(l || []));
+    if (team.scenarios && team.scenarios.length) { ['buildEnd', 'midfield', 'final', 'transAttEnd'].forEach((k) => { if (!team.pages[k]) team.pages[k] = copy(team.scenarios); }); team.scenarios = []; }
+    if (team.defScenarios && team.defScenarios.length) { ['withoutEnd', 'transDefEnd'].forEach((k) => { if (!team.pages[k]) team.pages[k] = copy(team.defScenarios); }); team.defScenarios = []; }
   };
 
   // The target position for one player, in pitch metres.
@@ -376,11 +387,12 @@
     const role = FM.ROLES[player.roleId], m = FM.instrMods(player), ctx = team.phaseCtx || {};
     const b = toTeamSpace(team.attackDir, ball.x, ball.y);
     const mix = (a, c, t) => ({ d: a.d + (c.d - a.d) * t, w: a.w + (c.w - a.w) * t });
+    // The version of a stage's end diagram that applies right now (see FM.pickPage): the default one unless an added page's condition holds.
+    const pn = (k) => (team.pageNow && team.pageNow[k] ? k + '#' + team.pageNow[k] : k);
     let pos;
     if (hasBall) {
       // The possession diagrams in order, each with the ball where it is drawn: the team is read off them as the ball goes forward.
-      const sfx = team.phaseScn ? '#' + team.phaseScn : '';
-      const chain = ['build', 'buildEnd', 'midfield', 'final'].map((k) => ({ d: FM.phaseBall(team, k + sfx).d, pos: FM.phasePos(team, player, k + sfx) }));
+      const chain = ['build', 'buildEnd', 'midfield', 'final'].map((k) => ({ d: FM.phaseBall(team, pn(k)).d, pos: FM.phasePos(team, player, pn(k)) }));
       pos = chain[chain.length - 1].pos;
       if (b.d <= chain[0].d) pos = chain[0].pos;
       else for (let i = 0; i < chain.length - 1; i++) {
@@ -389,21 +401,20 @@
       if (ctx.transAtt > 0) {
         const zone = b.d < 0.33 ? 'defensive' : b.d < 0.67 ? 'middle' : 'attacking';
         const choice = (team.tactics.transAttChoices || {})[zone] || 'counter';
-        const target = choice === 'reset' ? chain[0].pos : choice === 'secure' ? chain[1].pos : mix(FM.phasePos(team, player, 'transAtt' + sfx), FM.phasePos(team, player, 'transAttEnd' + sfx), clamp(ctx.taProg || 0, 0, 1));
+        const target = choice === 'reset' ? chain[0].pos : choice === 'secure' ? chain[1].pos : mix(FM.phasePos(team, player, 'transAtt'), FM.phasePos(team, player, pn('transAttEnd')), clamp(ctx.taProg || 0, 0, 1));
         pos = mix(pos, target, ctx.transAtt);
       }
     } else {
       // Defending: the first diagram is the team set up while the ball is still far away; the second is the team with the ball close to the goal.
-      const ds = team.defScn ? '#' + team.defScn : '';   // the defending page in use (see FM.pickScenario)
-      const far = FM.phaseBall(team, 'without' + ds).d, near = FM.phaseBall(team, 'withoutEnd' + ds).d;
-      pos = mix(FM.phasePos(team, player, 'without' + ds), FM.phasePos(team, player, 'withoutEnd' + ds), clamp((far - b.d) / Math.max(0.05, far - near), 0, 1));
+      const far = FM.phaseBall(team, 'without').d, near = FM.phaseBall(team, pn('withoutEnd')).d;
+      pos = mix(FM.phasePos(team, player, 'without'), FM.phasePos(team, player, pn('withoutEnd')), clamp((far - b.d) / Math.max(0.05, far - near), 0, 1));
       // While the opposition build from their own end, a team that presses their build-up takes its pressing positions instead.
       const pw = clamp((b.d - 0.5) / 0.25, 0, 1) * clamp((team.tactics.pressBuildUp == null ? 0.4 : team.tactics.pressBuildUp) * 1.25, 0, 1);
-      if (pw > 0) pos = mix(pos, FM.phasePos(team, player, 'press' + ds), pw);
+      if (pw > 0) pos = mix(pos, FM.phasePos(team, player, 'press'), pw);
       if (ctx.transDef > 0) {
         const zone = b.d < 0.33 ? 'defensive' : b.d < 0.67 ? 'middle' : 'attacking';
         const choice = (team.tactics.transDefChoices || {})[zone] || 'contain';
-        const target = choice === 'regroup' ? FM.phasePos(team, player, 'without' + ds) : choice === 'counterpress' ? mix(FM.phasePos(team, player, 'transDef' + ds), FM.phasePos(team, player, 'transDefEnd' + ds), clamp(ctx.tdProg || 0, 0, 1)) : mix(pos, FM.phasePos(team, player, 'without' + ds), 0.5);
+        const target = choice === 'regroup' ? FM.phasePos(team, player, 'without') : choice === 'counterpress' ? mix(FM.phasePos(team, player, 'transDef'), FM.phasePos(team, player, pn('transDefEnd')), clamp(ctx.tdProg || 0, 0, 1)) : mix(pos, FM.phasePos(team, player, 'without'), 0.5);
         pos = mix(pos, target, ctx.transDef);
       }
     }

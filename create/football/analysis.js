@@ -180,12 +180,13 @@
   function pagesHtml(league, fx) {
     const pg = fx.log && fx.log.pages && fx.log.pages[league.userId];
     if (!pg || !pg.length) return '';
-    const section = (group, title) => {
-      const rows = pg.filter((r) => r.group === group).sort((a, b) => b.share - a.share);
-      if (rows.length < 2 && !(rows[0] && rows[0].label !== 'Default')) return '';
+    const STAGES = [['buildEnd', 'Building out from the back'], ['midfield', 'Through midfield'], ['final', 'In the final third'], ['transAttEnd', 'After winning the ball'], ['withoutEnd', 'Defending'], ['transDefEnd', 'After losing the ball']];
+    const section = (stage, title) => {
+      const rows = pg.filter((r) => r.stage === stage).sort((a, b) => b.share - a.share);
+      if (rows.length < 2) return '';
       return `<h3>${esc(title)}</h3>` + rows.map((r) => `<div class="pg-row"><span>${esc(r.label === 'Default' ? 'Default page' : r.label)}</span><span class="pg-bar"><i style="width:${Math.round(100 * r.share)}%"></i></span><b>${Math.round(100 * r.share)}%</b></div>`).join('');
     };
-    const body = section('poss', 'With the ball') + section('def', 'Without the ball');
+    const body = STAGES.map((s) => section(s[0], s[1])).join('');
     if (!body) return '';
     return `<div class="card pages-card"><h2>Your pages in this match</h2><p class="desc">How much of the match each of your added pages applied, going by the condition you chose for it. A page that never applied shows 0%, which usually means its condition did not come up.</p>${body}</div>`;
   }

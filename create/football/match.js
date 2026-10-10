@@ -426,28 +426,26 @@
       let taProg = 0, tdProg = 0;
       if (ch) { const since = match.clock - ch.t; if (ch.team === team) taProg = since / COUNTER_WINDOW; else tdProg = since / PRESS_WINDOW; }
       team.phaseCtx = { transAtt: ta, transDef: td, taProg, tdProg };
-      // The page of possession diagrams in use: the first one the manager added whose condition holds (the default page otherwise).
-      if (team.scenarios && team.scenarios.length) {
+      // The version of each stage's end diagram in use: the first added page whose condition holds (the default one otherwise).
+      FM.ensurePages(team);
+      team.pageNow = {};
+      const keys = Object.keys(team.pages).filter((k) => (team.pages[k] || []).length);
+      if (keys.length) {
         const oo = other(match, team), ot = oo.tactics;
-        const oppPress = 0.6 * (ot.pressBuildUp == null ? 0.4 : ot.pressBuildUp) + 0.4 * pressingNow(match, oo);
-        const sc = FM.pickScenario(team, { oppPress, diff: (match.score[team.id] || 0) - (match.score[oo.id] || 0), minute: match.clock / 60 });
-        team.phaseScn = sc ? sc.id : null;
-        match.scenarioTime = match.scenarioTime || {};
-        ['Default'].concat(team.scenarios.map((x) => x.label)).forEach((l) => { const kk = team.id + ':' + l; if (match.scenarioTime[kk] == null) match.scenarioTime[kk] = 0; });
-        const k = team.id + ':' + (sc ? sc.label : 'Default');
-        match.scenarioTime[k] = (match.scenarioTime[k] || 0) + 1;
-      } else team.phaseScn = null;
-      // The same for the defending pages: what the opposition do with the ball, and the state of the game.
-      if (team.defScenarios && team.defScenarios.length) {
-        const oo = other(match, team), ot = oo.tactics;
-        const oppDirect = 0.5 * (ot.buildDirect == null ? 0.35 : ot.buildDirect) + 0.5 * (ot.directness == null ? 0.5 : ot.directness);
-        const sc = FM.pickScenario(team, { oppDirect, diff: (match.score[team.id] || 0) - (match.score[oo.id] || 0), minute: match.clock / 60 }, 'def');
-        team.defScn = sc ? sc.id : null;
-        match.scenarioTime = match.scenarioTime || {};
-        ['Default'].concat(team.defScenarios.map((x) => x.label)).forEach((l) => { const kk = team.id + ':' + l + ' (defending)'; if (match.scenarioTime[kk] == null) match.scenarioTime[kk] = 0; });
-        const k = team.id + ':' + (sc ? sc.label : 'Default') + ' (defending)';
-        match.scenarioTime[k] = (match.scenarioTime[k] || 0) + 1;
-      } else team.defScn = null;
+        const info = {
+          oppPress: 0.6 * (ot.pressBuildUp == null ? 0.4 : ot.pressBuildUp) + 0.4 * pressingNow(match, oo),
+          oppDirect: 0.5 * (ot.buildDirect == null ? 0.35 : ot.buildDirect) + 0.5 * (ot.directness == null ? 0.5 : ot.directness),
+          diff: (match.score[team.id] || 0) - (match.score[oo.id] || 0), minute: match.clock / 60,
+        };
+        match.pageTime = match.pageTime || {};
+        keys.forEach((k) => {
+          const list = team.pages[k], sc = FM.pickPage(list, info);
+          team.pageNow[k] = sc ? sc.id : null;
+          ['Default'].concat(list.map((x) => x.label)).forEach((l) => { const kk = team.id + '|' + k + '|' + l; if (match.pageTime[kk] == null) match.pageTime[kk] = 0; });
+          const t = team.id + '|' + k + '|' + (sc ? sc.label : 'Default');
+          match.pageTime[t] = (match.pageTime[t] || 0) + 1;
+        });
+      }
     });
   }
   // How strongly the team is in a counter-attack, from 0 (not) to 1, in the seconds just after winning the ball.

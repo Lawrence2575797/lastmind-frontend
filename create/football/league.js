@@ -350,16 +350,15 @@
       }
     });
     // Which of the manager's added pages applied, and for how much of the match (by the page's own label).
-    const tally = match.scenarioTime || {}, pages = {};
+    const tally = match.pageTime || {}, pages = {};
     Object.keys(tally).forEach((k) => {
-      const i = k.indexOf(':'), tid = k.slice(0, i), rest = k.slice(i + 1), def = / \(defending\)$/.test(rest);
-      (pages[tid] = pages[tid] || []).push({ label: def ? rest.replace(/ \(defending\)$/, '') : rest, group: def ? 'def' : 'poss', n: tally[k] });
+      const parts = k.split('|'), tid = parts[0], stage = parts[1], label = parts.slice(2).join('|');
+      (pages[tid] = pages[tid] || []).push({ stage, label, n: tally[k] });
     });
     Object.keys(pages).forEach((tid) => {
-      ['poss', 'def'].forEach((g) => {
-        const rows = pages[tid].filter((r) => r.group === g), tot = rows.reduce((a, r) => a + r.n, 0) || 1;
-        rows.forEach((r) => { r.share = Math.round(1000 * r.n / tot) / 1000; delete r.n; });
-      });
+      const stages = {};
+      pages[tid].forEach((r) => { stages[r.stage] = (stages[r.stage] || 0) + r.n; });
+      pages[tid].forEach((r) => { r.share = Math.round(1000 * r.n / (stages[r.stage] || 1)) / 1000; delete r.n; });
     });
     if (Object.keys(pages).length) log.pages = pages;
     return log;
@@ -421,7 +420,7 @@
   FM.serializeLeague = function (league) {
     const teams = league.teams.map((t) => ({
       id: t.id, name: t.name, kit: t.kit, kits: t.kits, style: t.style, strength: t.strength, seed: t.seed, formationKey: t.formationKey, tactics: t.tactics,
-      subsUsed: t.subsUsed, maxSubs: t.maxSubs, snap: t.snap || null, baseTactics: t.baseTactics, drift: t.drift, shape: t.shape, phasePos: t.phasePos, phaseBall: t.phaseBall || {}, scenarios: t.scenarios || [], defScenarios: t.defScenarios || [], rules: t.rules || [],
+      subsUsed: t.subsUsed, maxSubs: t.maxSubs, snap: t.snap || null, baseTactics: t.baseTactics, drift: t.drift, shape: t.shape, phasePos: t.phasePos, phaseBall: t.phaseBall || {}, pages: t.pages || {}, scenarios: t.scenarios || [], defScenarios: t.defScenarios || [], rules: t.rules || [],
       squad: t.squad.map((p) => { const o = {}; PLAYER_KEYS.forEach((k) => { if (p[k] !== undefined) o[k] = p[k]; }); if (p.baseRatings) o.ratings = p.baseRatings; return o; }),
       players: t.players.map((p) => p.id), bench: t.bench.map((p) => p.id),
     }));
@@ -434,7 +433,7 @@
       const byId = (id) => squad.find((p) => p.id === id);
       const team = {
         id: t.id, name: t.name, kit: t.kit, kits: t.kits, style: t.style, strength: t.strength, seed: t.seed, attackDir: 1, formationKey: t.formationKey,
-        tactics: Object.assign(FM.defaultTactics(), t.tactics), subsUsed: t.subsUsed || 0, maxSubs: t.maxSubs || 5, snap: t.snap || null, baseTactics: Object.assign(FM.defaultTactics(), t.baseTactics || t.tactics), drift: t.drift || {}, shape: t.shape || {}, phasePos: t.phasePos || {}, phaseBall: t.phaseBall || {}, scenarios: t.scenarios || [], defScenarios: t.defScenarios || [], rules: t.rules || [],
+        tactics: Object.assign(FM.defaultTactics(), t.tactics), subsUsed: t.subsUsed || 0, maxSubs: t.maxSubs || 5, snap: t.snap || null, baseTactics: Object.assign(FM.defaultTactics(), t.baseTactics || t.tactics), drift: t.drift || {}, shape: t.shape || {}, phasePos: t.phasePos || {}, phaseBall: t.phaseBall || {}, pages: t.pages || {}, scenarios: t.scenarios || [], defScenarios: t.defScenarios || [], rules: t.rules || [],
         squad, players: t.players.map(byId), bench: t.bench.map(byId), sentOff: [],
       };
       return team;
