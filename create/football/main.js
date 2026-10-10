@@ -727,17 +727,20 @@
   // Draws the two diagrams of a page into the given host, and redraws them when asked.
   // The possession stages can have more than one page: the default page, and any the manager adds (each labelled, each with a condition the
   // match checks). Every page has its own two diagrams. A later stage's first diagram is where the same page ended the stage before.
-  const CHAIN_TABS = { build: true, midfield: true, final: true };
+  // Possession pages are shared by build-up, midfield, final third and attacking transition; defending pages by organised defending and
+  // defensive transition.
+  const PAGE_LIST = { build: 'scenarios', midfield: 'scenarios', final: 'scenarios', transatt: 'scenarios', organised: 'defScenarios', transdef: 'defScenarios' };
   function mountPair(host, team, tab) {
-    const pair = BOARD_PAIRS[tab], chain = !!CHAIN_TABS[tab];
-    const pages = [{ id: null, label: 'Default page' }].concat(chain ? (team.scenarios || []) : []);
+    const pair = BOARD_PAIRS[tab], listName = PAGE_LIST[tab], chain = !!listName;
+    const conds = listName === 'defScenarios' ? FM.SCENARIO_CONDS_DEF : FM.SCENARIO_CONDS;
+    const pages = [{ id: null, label: 'Default page' }].concat(chain ? (team[listName] || []) : []);
     const keyOf = (k, pg) => (pg.id ? k + '#' + pg.id : k);
-    const condOpts = (cur) => FM.SCENARIO_CONDS.map((c) => `<option value="${c.key}"${c.key === cur ? ' selected' : ''}>${esc(c.label)}</option>`).join('');
+    const condOpts = (cur) => conds.map((c) => `<option value="${c.key}"${c.key === cur ? ' selected' : ''}>${esc(c.label)}</option>`).join('');
     host.innerHTML = pages.map((pg, si) => `
       <section class="scn">
         ${chain ? (pg.id
           ? `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pg.label)}" data-scn-label="${pg.id}"></label><label>Use this page when <select data-scn-cond="${pg.id}">${condOpts(pg.cond)}</select></label><button type="button" data-scn-del="${pg.id}">Remove this page</button></div>`
-          : `<div class="scn-head"><b>Default page</b><span class="note">${(team.scenarios || []).length ? 'Used whenever none of your other pages applies.' : 'Add more pages for particular situations, such as the opposition pressing or not.'}</span></div>`) : ''}
+          : `<div class="scn-head"><b>Default page</b><span class="note">${(team[listName] || []).length ? 'Used whenever none of your other pages applies.' : (listName === 'defScenarios' ? 'Add more pages for particular situations, such as the opposition playing long or building short.' : 'Add more pages for particular situations, such as the opposition pressing or not.')}</span></div>`) : ''}
         <div class="board-pair">${pair.map((d, i) => `<figure class="bp${d.locked ? ' locked' : ''}"><figcaption><b>${esc(d.title)}</b><span class="note">${esc(d.note)}</span></figcaption><div class="board-host" id="board${si}_${i}"></div>${d.locked ? '' : `<div class="row"><button data-reset="${keyOf(d.key, pg)}">Reset this diagram</button></div>`}</figure>`).join('')}</div>
       </section>`).join('') + (chain ? '<div class="row scn-add"><button type="button" id="scnAdd">+ Add a page</button></div>' : '');
     const draw = () => { if (!host.isConnected) return; pages.forEach((pg, si) => pair.forEach((d, i) => drawBoard(host.querySelector('#board' + si + '_' + i), team, keyOf(d.key, pg), { locked: !!d.locked, fit: true }))); };
@@ -745,23 +748,23 @@
     host.querySelectorAll('[data-reset]').forEach((b) => b.addEventListener('click', () => { FM.clearPhase(team, b.dataset.reset); if (team.phaseBall) delete team.phaseBall[b.dataset.reset]; saveSoon(); renderTactics(); }));
     const add = host.querySelector('#scnAdd');
     if (add) add.addEventListener('click', () => {
-      team.scenarios = team.scenarios || [];
-      const used = new Set(team.scenarios.map((s) => s.cond)), c = FM.SCENARIO_CONDS.find((x) => !used.has(x.key)) || FM.SCENARIO_CONDS[0];
-      team.scenarios.push({ id: 's' + Date.now().toString(36), label: c.label.replace(/^The /, '').replace(/^./, (ch) => ch.toUpperCase()), cond: c.key });
+      team[listName] = team[listName] || [];
+      const used = new Set(team[listName].map((s) => s.cond)), c = conds.find((x) => !used.has(x.key)) || conds[0];
+      team[listName].push({ id: 's' + Date.now().toString(36), label: c.label.replace(/^The /, '').replace(/^./, (ch) => ch.toUpperCase()), cond: c.key });
       saveSoon(); renderTactics();
     });
     host.querySelectorAll('[data-scn-label]').forEach((inp) => inp.addEventListener('change', () => {
-      const sc = (team.scenarios || []).find((s) => s.id === inp.dataset.scnLabel); if (!sc) return;
+      const sc = (team[listName] || []).find((s) => s.id === inp.dataset.scnLabel); if (!sc) return;
       sc.label = inp.value.trim().slice(0, 40) || 'Untitled page'; saveSoon();
     }));
     host.querySelectorAll('[data-scn-cond]').forEach((sel) => sel.addEventListener('change', () => {
-      const sc = (team.scenarios || []).find((s) => s.id === sel.dataset.scnCond); if (!sc) return;
+      const sc = (team[listName] || []).find((s) => s.id === sel.dataset.scnCond); if (!sc) return;
       sc.cond = sel.value; saveSoon();
     }));
     host.querySelectorAll('[data-scn-del]').forEach((b) => b.addEventListener('click', () => {
-      const id = b.dataset.scnDel, sc = (team.scenarios || []).find((s) => s.id === id); if (!sc) return;
+      const id = b.dataset.scnDel, sc = (team[listName] || []).find((s) => s.id === id); if (!sc) return;
       if (!confirm('Remove "' + sc.label + '" and its diagrams?')) return;
-      team.scenarios = team.scenarios.filter((s) => s.id !== id);
+      team[listName] = team[listName].filter((s) => s.id !== id);
       Object.keys(team.phasePos || {}).forEach((k) => { if (k.endsWith('#' + id)) delete team.phasePos[k]; });
       Object.keys(team.phaseBall || {}).forEach((k) => { if (k.endsWith('#' + id)) delete team.phaseBall[k]; });
       saveSoon(); renderTactics();
@@ -803,14 +806,14 @@
 
   function capturePlan(team, name) {
     return { id: 'plan-' + Date.now(), name, savedAt: Date.now(), formationKey: team.formationKey,
-      tactics: JSON.parse(JSON.stringify(team.tactics)), shape: JSON.parse(JSON.stringify(team.shape || {})), phasePos: JSON.parse(JSON.stringify(team.phasePos || {})), phaseBall: JSON.parse(JSON.stringify(team.phaseBall || {})), scenarios: JSON.parse(JSON.stringify(team.scenarios || [])), rules: JSON.parse(JSON.stringify(team.rules || [])),
+      tactics: JSON.parse(JSON.stringify(team.tactics)), shape: JSON.parse(JSON.stringify(team.shape || {})), phasePos: JSON.parse(JSON.stringify(team.phasePos || {})), phaseBall: JSON.parse(JSON.stringify(team.phaseBall || {})), scenarios: JSON.parse(JSON.stringify(team.scenarios || [])), defScenarios: JSON.parse(JSON.stringify(team.defScenarios || [])), rules: JSON.parse(JSON.stringify(team.rules || [])),
       players: team.players.map((p) => ({ id: p.id, roleId: p.roleId, options: JSON.parse(JSON.stringify(p.options || {})), instr: JSON.parse(JSON.stringify(p.instr || {})) })) };
   }
   function restorePlan(team, plan) {
     if (!plan) return;
     if (plan.formationKey !== team.formationKey) FM.setFormation(team, plan.formationKey);
     team.tactics = Object.assign(FM.defaultTactics(), JSON.parse(JSON.stringify(plan.tactics || {})));
-    team.shape = JSON.parse(JSON.stringify(plan.shape || {})); team.phasePos = JSON.parse(JSON.stringify(plan.phasePos || {})); team.phaseBall = JSON.parse(JSON.stringify(plan.phaseBall || {})); team.scenarios = JSON.parse(JSON.stringify(plan.scenarios || [])); team.rules = JSON.parse(JSON.stringify(plan.rules || []));
+    team.shape = JSON.parse(JSON.stringify(plan.shape || {})); team.phasePos = JSON.parse(JSON.stringify(plan.phasePos || {})); team.phaseBall = JSON.parse(JSON.stringify(plan.phaseBall || {})); team.scenarios = JSON.parse(JSON.stringify(plan.scenarios || [])); team.defScenarios = JSON.parse(JSON.stringify(plan.defScenarios || [])); team.rules = JSON.parse(JSON.stringify(plan.rules || []));
     (plan.players || []).forEach((saved) => { const p = team.players.find((x) => x.id === saved.id); if (p) { if (saved.roleId && FM.ROLES[saved.roleId]) p.roleId = saved.roleId; p.options = JSON.parse(JSON.stringify(saved.options || {})); p.instr = JSON.parse(JSON.stringify(saved.instr || {})); } });
   }
   function renderPlanBar(team) {
