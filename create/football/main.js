@@ -839,7 +839,12 @@
     const tabs = world.testing ? TEST_TABS : PREP_TABS;
     const progressKey = world.testing ? 'testPhaseMax' : 'prepPhaseMax', maxPhase = world.league[progressKey] || 0;
     // A step you have visited and moved on from turns green.
-    el('tabs').innerHTML = tabs.map(([k, label], i) => `<button data-tab="${k}" data-phase-index="${i}" class="${world.tab === k ? 'on' : (i < maxPhase ? 'done' : '')}"${i > maxPhase ? ' disabled' : ''}>${label}</button>`).join('');
+    // In the testing phase every test is open at once (they are largely the same statistical work, so only one has to be done), and a test you have
+    // run turns green.
+    const testRuns = (k) => (k === 'build' ? (world.league.labRuns || []) : ((world.league.phaseLabRuns || {})[k] || [])).length > 0;
+    el('tabs').innerHTML = tabs.map(([k, label], i) => world.testing
+      ? `<button data-tab="${k}" data-phase-index="${i}" class="${world.tab === k ? 'on' : (testRuns(k) ? 'done' : '')}">${label}</button>`
+      : `<button data-tab="${k}" data-phase-index="${i}" class="${world.tab === k ? 'on' : (i < maxPhase ? 'done' : '')}"${i > maxPhase ? ' disabled' : ''}>${label}</button>`).join('');
     el('tabs').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
       const i = +b.dataset.phaseIndex; world.tab = b.dataset.tab;
       if (!world.testing) {
@@ -879,6 +884,19 @@
   // Runs the first 40 seconds of your build-up many times (a Monte Carlo experiment) and reports the share of tests that end each way, each with
   // a 95% interval. The student predicts first, runs it, then changes one thing and runs it again to see whether the difference is real.
   const lpct = (x) => Math.round(x * 100) + '%';
+  // Skipping and moving on. Any test may be skipped (they are largely the same statistical work), but at least one has to be done before you can
+  // go on to read the evidence.
+  function testsDoneCount() { const lg = world.league; return (lg.labRuns || []).length > 0 ? 1 + Object.keys(lg.phaseLabRuns || {}).filter((k) => (lg.phaseLabRuns[k] || []).length).length : Object.keys(lg.phaseLabRuns || {}).filter((k) => (lg.phaseLabRuns[k] || []).length).length; }
+  function skipHtml(phase, st) {
+    if (st.busy) return '';
+    const idx = TEST_TABS.findIndex(([k]) => k === phase), last = idx === TEST_TABS.length - 1;
+    if (testsDoneCount() > 0 && last) return '<button id="labToEvidence">Read the evidence</button>';
+    return last ? '<button id="labSkip" disabled title="Do at least one test before moving on">Skip</button>' : '<button id="labSkip">' + (testsDoneCount() > 0 ? 'Next test' : 'Skip this test') + '</button>';
+  }
+  function skipNote(phase) {
+    const n = testsDoneCount();
+    return '<p class="note">' + (n === 0 ? 'You do not have to do every test, because they are largely the same statistical work. Do at least one, then you can skip the rest and read the evidence.' : 'You have completed ' + n + ' test' + (n === 1 ? '' : 's') + ', so you can skip any others and read the evidence whenever you like.') + (n > 0 ? ' <button class="linkbtn" id="labToEvidence2">Read the evidence now</button>' : '') + '</p>';
+  }
   function renderLab(team, host, phase) {
     phase = phase || 'build';
     const lg = world.league, opp = nextOpponent(); if (!lg || !opp) { host.innerHTML = ''; if (FM.elena) FM.elena.hide(); return; }
@@ -898,12 +916,17 @@
         <label>Number of tests<select id="labN">${[100, 400, 1000].map((n) => `<option value="${n}"${st.n === n ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>
       <label>Before you run it: what share will succeed? (${target}, %)<input type="number" id="labPred" min="0" max="100" step="1" value="${esc(st.pred)}" placeholder="e.g. 60"></label>
       ${runs.length ? `<label>What are you changing, and what do you expect to happen?<textarea id="labHyp" placeholder="Write one clear tactical change and the effect you expect in this phase.">${esc(st.hyp)}</textarea></label>` : ''}
-      <div class="row"><button class="primary" id="labRun"${st.busy ? ' disabled' : ''}>${st.busy ? (st.planning ? 'Their manager is preparing…' : 'Running… ' + st.prog + ' of ' + st.n) : 'Run ' + st.n + ' tests'}</button></div>
+      <div class="row"><button class="primary" id="labRun"${st.busy ? ' disabled' : ''}>${st.busy ? (st.planning ? 'Their manager is preparing…' : 'Running… ' + st.prog + ' of ' + st.n) : 'Run ' + st.n + ' tests'}</button>${skipHtml(phase, st)}</div>
+      ${skipNote(phase)}
       <p class="err">${esc(st.err)}</p>
       ${last ? phaseResultHtml(phase, last.result) + `<p class="note">Run ${runs.length} is done. Change one tactical choice, write your expectation above, then test again.</p>${phaseHistoryHtml(phase, runs)}` : ''}
     </div>`;
     const q = (id) => host.querySelector(id);
     q('#labStart').addEventListener('change', (e) => { st.start = e.target.value; });
+    const goEvidence = () => { world.league.prepStep = Math.max(world.league.prepStep || 0, 4); saveSoon(); setView('reports'); };
+    if (q('#labSkip')) q('#labSkip').addEventListener('click', () => { const i = TEST_TABS.findIndex(([k]) => k === phase); world.tab = TEST_TABS[Math.min(TEST_TABS.length - 1, i + 1)][0]; renderTactics(); });
+    if (q('#labToEvidence')) q('#labToEvidence').addEventListener('click', goEvidence);
+    if (q('#labToEvidence2')) q('#labToEvidence2').addEventListener('click', goEvidence);
     q('#labN').addEventListener('change', (e) => { st.n = +e.target.value; renderLab(team, host, phase); });
     q('#labPred').addEventListener('input', (e) => { st.pred = e.target.value; });
     if (q('#labHyp')) q('#labHyp').addEventListener('input', (e) => { st.hyp = e.target.value; });
@@ -922,10 +945,8 @@
         const phaseIndex = TEST_TABS.findIndex(([k]) => k === phase);
         if (phaseIndex >= 0) {
           lg.testPhaseMax = Math.max(lg.testPhaseMax || 0, phaseIndex + 1);
-          if (phaseIndex === TEST_TABS.length - 1) lg.prepStep = Math.max(lg.prepStep || 0, 3);
-          const nextTab = el('tabs').querySelector(`[data-phase-index="${phaseIndex + 1}"]`);
-          if (nextTab) nextTab.disabled = false;
-          renderPrepFlow();
+          lg.prepStep = Math.max(lg.prepStep || 0, 3);     // one completed test is enough to go on and read the evidence
+          renderTactics(); renderPrepFlow();
         }
       } catch (err) { st.err = 'The test could not run: ' + (err && err.message ? err.message : 'unknown error'); }
       st.busy = false;
