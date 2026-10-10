@@ -760,17 +760,53 @@
     // its box beside it instead.
     const all = starts.concat(ends);
     const fig = (list, offset) => list.map((f, k) => figure(f, offset + k));
-    const row = (items) => `<div class="board-pair">${items.join('')}</div>`;
+    const row = (items, cls) => `<div class="board-pair${cls ? ' ' + cls : ''}">${items.join('')}</div>`;
     const box = (n) => `<div class="bp bp-instr" id="dgInstr${n}"></div>`;
     const startBox = (n) => (starts[n].locked ? '<div class="bp bp-spacer"></div>' : box(n));
     const loneStart = starts.length === 1 && ends.length >= 2;
     let html;
-    if (starts.length === 1 && ends.length === 1) html = row(fig(all, 0)) + row([startBox(0), box(1)]);
-    else if (loneStart) html = row(fig(starts, 0).concat(starts[0].locked ? [] : [box(0)])) + row(fig(ends, 1)) + row(ends.map((e, i) => box(1 + i)));
-    else html = row(fig(starts, 0)) + (starts.some((s) => !s.locked) ? row(starts.map((s, i) => startBox(i))) : '') + row(fig(ends, starts.length)) + row(ends.map((e, i) => box(starts.length + i)));
+    if (starts.length === 1 && ends.length === 1) html = row(fig(all, 0), 'linked') + row([startBox(0), box(1)]);
+    else if (loneStart) html = row(fig(starts, 0).concat(starts[0].locked ? [] : [box(0)])) + row(fig(ends, 1), 'ends-row') + row(ends.map((e, i) => box(1 + i)));
+    else html = row(fig(starts, 0)) + (starts.some((s) => !s.locked) ? row(starts.map((s, i) => startBox(i))) : '') + row(fig(ends, starts.length), 'ends-row') + row(ends.map((e, i) => box(starts.length + i)));
     host.innerHTML = `<div class="scn">${html}</div>`;
     host.insertAdjacentHTML('beforeend', '<div class="row scn-add"><button type="button" id="scnAdd">+ Add a page</button><span class="note">Adds another version of the second diagram, for a different situation.</span></div>');
-    const draw = () => { if (!host.isConnected) return; all.forEach((f, n) => drawBoard(host.querySelector('#board' + n), team, f.key, { locked: f.locked, fit: true })); };
+    // An arrow from each starting diagram to the end diagram that follows it (labelled with the page it came from), so it is plain which version
+    // of the stage before leads to which version of this one.
+    const drawArrows = () => {
+      const scn = host.querySelector('.scn');
+      if (!scn) return;
+      const old = scn.querySelector('.scn-arrows'); if (old) old.remove();
+      const figs = Array.from(scn.querySelectorAll('figure.bp'));
+      if (figs.length < 2) return;
+      const o = scn.getBoundingClientRect(), W = Math.round(o.width), H = Math.round(o.height);
+      const R = (el) => { const r = el.getBoundingClientRect(); return { l: r.left - o.left, t: r.top - o.top, r: r.right - o.left, b: r.bottom - o.top, cx: (r.left + r.right) / 2 - o.left, cy: (r.top + r.bottom) / 2 - o.top }; };
+      let svg = '<defs><marker id="scnArr" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#F2C14E"/></marker></defs>';
+      ends.forEach((e, j) => {
+        let i = 0;
+        if (e.pg.from) { const k = starts.findIndex((s) => s.key.slice(s.key.indexOf('#') + 1) === e.pg.from && s.key.indexOf('#') > 0); if (k >= 0) i = k; }
+        const sf = figs[i], ef = figs[starts.length + j];
+        if (!sf || !ef) return;
+        const label = starts[i].label || e.pg.label || '';
+        const sr = R(sf), er = R(ef), rs = R(sf.parentElement), re = R(ef.parentElement);
+        let d, mx, my;
+        const sameParent = sf.parentElement === ef.parentElement, sameRow = sameParent && Math.abs(sr.t - er.t) < 20;
+        if (sameRow) {   // side by side: straight across the gap, at the height of the middle of the pitch
+          const bs = R(sf.querySelector('.board-host')), y = bs.cy;
+          d = `M${sr.r + 4},${y} L${er.l - 6},${y}`; mx = (sr.r + er.l) / 2; my = y;
+        } else {
+          const x1 = sr.cx, y1 = (sameParent ? sr.b : rs.b) + 4, x2 = er.cx, y2 = (sameParent ? er.t : re.t) - 6, ym = (y1 + y2) / 2;
+          d = Math.abs(x1 - x2) < 4 ? `M${x1},${y1} L${x2},${y2}` : `M${x1},${y1} C${x1},${ym} ${x2},${ym} ${x2},${y2}`;
+          mx = (x1 + x2) / 2; my = ym;
+        }
+        svg += `<path d="${d}" fill="none" stroke="#F2C14E" stroke-width="3.5" stroke-linecap="round" marker-end="url(#scnArr)" opacity="0.95"/>`;
+        if (label && !sameRow) {
+          const text = label.length > 26 ? label.slice(0, 25) + '…' : label, w = Math.max(56, text.length * 7.2 + 16);
+          svg += `<g><rect x="${(mx - w / 2).toFixed(1)}" y="${(my - 11).toFixed(1)}" width="${w.toFixed(1)}" height="22" rx="11" fill="#1A232D" stroke="#F2C14E" stroke-width="1.5"/><text x="${mx.toFixed(1)}" y="${(my + 4.5).toFixed(1)}" text-anchor="middle" font-size="12" font-weight="700" font-family="Arial,sans-serif" fill="#F1EAD6">${esc(text)}</text></g>`;
+        }
+      });
+      scn.insertAdjacentHTML('beforeend', `<svg class="scn-arrows" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">${svg}</svg>`);
+    };
+    const draw = () => { if (!host.isConnected) return; all.forEach((f, n) => drawBoard(host.querySelector('#board' + n), team, f.key, { locked: f.locked, fit: true })); drawArrows(); };
     draw();
     // The instruction box under one diagram. It is drawn again when a page is renamed, so its title follows the name as it is typed.
     const renderBox = (n) => {

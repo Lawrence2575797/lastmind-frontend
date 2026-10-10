@@ -232,7 +232,13 @@
     const man = team.phasePos && team.phasePos[phase] && team.phasePos[phase][p.index];
     if (man) return man;
     const base = FM.baseKey(phase);
-    if (base !== phase) return FM.phasePos(team, p, base);   // an added page that has not been changed here is the default page
+    if (base !== phase) {
+      // A page that follows a version of the stage before starts out as that version's shape (just as the default end starts from the default
+      // start), so two carried boards are two different boards; any other page that has not been changed is the default page.
+      const id = FM.scnSuffix(phase).slice(1), pg = ((team.pages || {})[base] || []).find((x) => x.id === id);
+      if (pg && pg.from && FM.PREV_END && FM.PREV_END[base]) return FM.phasePos(team, p, FM.PREV_END[base] + '#' + pg.from);
+      return FM.phasePos(team, p, base);
+    }
     return FM.defaultPhasePos(team, p, phase);
   };
   // Every key positions are kept under: the phases, and the pages the manager has added.

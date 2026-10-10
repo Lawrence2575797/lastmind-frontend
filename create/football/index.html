@@ -251,10 +251,13 @@
   .tb-grid.tb-pair .tb-left { grid-template-columns: minmax(0, 1fr); justify-items: stretch; } .tb-grid.tb-pair #pairHost { width: 100%; }
   .board-pair svg.board { max-width: none; width: 100%; }
   /* Pages the manager adds on the possession stages */
-  .scn { display: grid; gap: 22px; }
+  .scn { display: grid; gap: 22px; position: relative; }
+  .scn .board-pair.ends-row { margin-top: 44px; }
+  .scn .board-pair.linked { column-gap: 56px; }
+  .scn-arrows { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; z-index: 2; }
   /* Rows of diagrams: two to a row, and a row with only one sits in the middle. Both versions of an end have the same heading so they line up. */
   .scn .board-pair { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; }
-  .scn .board-pair > .bp { flex: 0 1 calc(50% - 8px); min-width: 0; }
+  .scn .board-pair > .bp { flex: 0 1 calc(50% - 8px); min-width: 0; } .scn .board-pair.linked > .bp { flex-basis: calc(50% - 28px); }
   @media (max-width: 900px) { .scn .board-pair > .bp { flex-basis: 100%; } .bp-spacer { display: none; } }
   .scn-del-hold { visibility: hidden; } .bp-instr { align-self: start; } .bp-instr .in-wrap { margin-top: 0; } .bp-instr .in-add textarea { min-height: 120px; } .bp-spacer { display: none; } .scn-shape { margin: 6px 0 0; font-size: .8rem; color: var(--gold); } .scn-head { min-height: 74px; align-items: end; flex-wrap: nowrap; } .scn-head label { flex: 1 1 0; min-width: 0; } .scn-head label input, .scn-head label select { width: 100%; box-sizing: border-box; } .scn-head button { flex: none; white-space: nowrap; } .scn-head select, .scn-head .scn-label { min-width: 0; max-width: 100%; }
   .scn-head input:disabled, .scn-head select:disabled { opacity: .6; }
@@ -705,7 +708,7 @@
 <script src="/create/football/roles.js?v=20261010c"></script>
 <script src="/create/football/ratings.js?v=20261010c"></script>
 <script src="/create/football/names.js?v=20261010c"></script>
-<script src="/create/football/engine.js?v=20261010y"></script>
+<script src="/create/football/engine.js?v=20261010z"></script>
 <script src="/create/football/rules.js?v=20261010w"></script>
 <script src="/create/football/instructions.js?v=20261010c"></script>
 <script src="/create/football/fitness.js?v=20261010c"></script>
@@ -730,6 +733,6 @@
 <script src="/create/football/elena.js?v=20261010d"></script>
 <script src="/create/football/elena_phase.js?v=20261010n"></script>
 <script src="/create/football/elena_lessons.js?v=20261010n"></script>
-<script src="/create/football/main.js?v=20261010y"></script>
+<script src="/create/football/main.js?v=20261010z"></script>
 </body>
 </html>
