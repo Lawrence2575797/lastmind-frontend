@@ -178,6 +178,7 @@
       '.el-chat-form { display: flex; gap: 8px; padding: 10px 16px 14px; } .el-chat-form textarea { flex: 1; min-width: 0; min-height: 42px; max-height: 110px; resize: vertical; padding: 9px 11px; border-radius: 10px; border: 1px solid rgba(241,234,214,.35); background: rgba(255,255,255,.07); color: inherit; font: inherit; } .el-chat-form button { align-self: flex-end; padding: 10px 16px; border: 0; border-radius: 10px; background: #E6D7B0; color: #1A232D; font: 800 .86rem Arial, sans-serif; cursor: pointer; } .el-chat-form button:disabled { opacity: .5; cursor: wait; }',
       '.el-list { list-style: none; margin: 4px 0 10px; padding: 0; display: grid; gap: 8px; } .el-list li { padding: 9px 11px; border-radius: 10px; background: rgba(255,255,255,.06); border-left: 4px solid #F2C14E; font-size: .88rem; line-height: 1.5; } .el-list li.good { border-left-color: #52bd7b; } .el-list li.bad { border-left-color: #e5645a; }',
       '.el-ex-title { margin: 10px 0 8px; font-size: 1.05rem; }',
+      '.el-hint { margin: 0 0 12px; padding: 8px 10px; border-radius: 8px; background: rgba(242,193,78,.12); color: #FFE9A8; font-size: .84rem; }',
       '.el-warm { margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; background: rgba(127,212,154,.12); font-style: italic; }',
       '.el-kw { display: inline !important; width: auto !important; min-height: 0 !important; margin: 0 !important; box-shadow: none !important; border: 0 !important; border-bottom: 2px solid #F2C14E !important; background: rgba(242,193,78,.14) !important; color: #FFE9A8 !important; font: inherit !important; font-weight: 700 !important; line-height: inherit !important; letter-spacing: 0 !important; text-transform: none !important; padding: 0 3px !important; border-radius: 4px 4px 0 0 !important; cursor: pointer; } .el-kw:hover { background: rgba(242,193,78,.28); }',
       '.el-tile { display: inline-grid; gap: 2px; margin: 4px 6px 4px 0; padding: 8px 12px; border: 1px solid rgba(241,234,214,.2); border-radius: 10px; background: rgba(255,255,255,.04); } .el-tile b { font-size: 1.15rem; color: #F2C14E; } .el-tile span { font-size: .74rem; opacity: .8; }',
@@ -428,6 +429,7 @@
     const n = FM.elenaNotes[pageKeyOf(c)];
     let html = '';
     try { html = typeof n === 'function' ? n(c) : (n || ''); } catch (err) { html = ''; }
+    if (html && html.indexOf('data-explain') >= 0) html = '<p class="el-hint">Click any highlighted word you are not sure about for an explanation.</p>' + html;
     return html || '<p class="el-small">No notes on this page yet. You can ask me anything below.</p>';
   }
   function body() {
