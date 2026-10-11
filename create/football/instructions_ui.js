@@ -76,7 +76,7 @@
         <div class="in-head"><h2>${esc(opts.title || S.title)}${rules.length ? ' (' + rules.filter((r) => !r.off).length + ')' : ''}</h2>${opts.title ? '' : '<p class="in-note">' + esc(S.sub) + '</p>'}</div>
         <div class="in-add"><div class="in-body">
           <label class="in-lab" for="inText_${scope}">${label} <small>(${opts.applies || 'applies to this stage only'})</small></label>
-          <textarea id="inText_${scope}" data-scope="${scope}" maxlength="3000" rows="7" placeholder="Write as much as you like, about any players, ours or theirs.&#10;&#10;e.g. ${esc(STAGE_EG[stage] || STAGE_EG.build)}">${esc(st.text)}</textarea>
+          <textarea id="inText_${scope}" data-scope="${scope}" maxlength="3000" rows="2" placeholder="Write as much as you like, about any players, ours or theirs. e.g. ${esc(STAGE_EG[stage] || STAGE_EG.build)}">${esc(st.text)}</textarea>
           <div class="in-act"><button type="button" class="in-go" data-understand="${scope}"${st.busy ? ' disabled' : ''}>${st.busy ? 'Reading it…' : 'Turn this into instructions'}</button></div>
           ${st.err ? `<p class="in-err">${esc(st.err)}</p>` : ''}
           ${st.draft ? `<div class="in-draft"><h4>Here is how I understood it</h4>${st.draft.rules.length ? st.draft.rules.map((r) => `<div class="in-rule"><div class="in-rt"><small class="in-who">${esc(FM.rulesWho(r))}</small><b>${esc(FM.rulesText(r))}</b></div></div>`).join('') : '<p class="in-note">I could not turn that into anything the game can run.</p>'}
@@ -99,7 +99,9 @@
     qa('[data-toggle]').forEach((c) => c.addEventListener('change', () => { const r = team.rules.find((x) => x.id === c.dataset.toggle); if (r) { r.off = !c.checked; touched(); redraw(); } }));
     qa('[data-list]').forEach((b) => b.addEventListener('click', () => { const st = stateOf(b.dataset.list); st.listOpen = !st.listOpen; redraw(); }));
     qa('[data-del]').forEach((b) => b.addEventListener('click', () => { team.rules = team.rules.filter((x) => x.id !== b.dataset.del); stateOf('general').added = ''; touched(); redraw(); }));
-    qa('textarea[data-scope]').forEach((ta) => ta.addEventListener('input', () => { stateOf(ta.dataset.scope).text = ta.value; }));
+    // the box starts small and grows with what is written in it
+    const grow = (ta) => { if (!ta.value) { ta.style.height = ''; return; } if (!ta.scrollHeight) return; ta.style.height = 'auto'; ta.style.height = (ta.scrollHeight + 2) + 'px'; };
+    qa('textarea[data-scope]').forEach((ta) => { grow(ta); ta.addEventListener('input', () => { stateOf(ta.dataset.scope).text = ta.value; grow(ta); }); });
     qa('[data-understand]').forEach((u) => u.addEventListener('click', async () => {
       const scope = u.dataset.understand, st = stateOf(scope), ta = q('#inText_' + scope);
       const text = (ta.value || '').trim(); st.text = text; st.err = ''; st.draft = null; st.added = '';
