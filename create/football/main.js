@@ -1605,7 +1605,7 @@
     btn.disabled = false; btn.textContent = 'Start the season';
     // A new season starts with Elena and the squad list: it is the first thing to read.
     if (FM.coach) FM.coach.reset();
-    if (FM.coach && FM.coach.welcome) { el('newGame').hidden = true; FM.coach.welcome(() => setView('squad')); }
+    if (FM.coach && FM.coach.welcome) { el('newGame').hidden = true; FM.coach.welcome(() => { setView('squad'); setTimeout(() => { if (FM.guide && !FM.guide.active) FM.guide.start('descriptive'); }, 450); }); }
     else setView('squad');
   });
 

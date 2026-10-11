@@ -222,6 +222,7 @@
   };
 
   // the offer that sits at the top of a page's notes
+  try { css(); } catch (e) { /* styles are added again when a lesson starts */ }
   FM.guideOffer = function (id, text) {
     const L = FM.guides[id]; if (!L) return '';
     return '<div class="gd-offer"><b>' + esc(L.title) + '</b><span>' + (text || esc(L.blurb || '')) + '</span><button type="button" data-guide="' + esc(id) + '">Start the lesson</button></div>';

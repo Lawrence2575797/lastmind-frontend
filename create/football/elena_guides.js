@@ -167,9 +167,7 @@
       return [
         {
           target: board, title: 'Space on the ball',
-          lines: [`Your goalkeeper has the ball and has to choose a team-mate.`, `You have played <b>${Z.n}</b> passes in your own third (this season, the friendlies and last season).`, `<b>${Z.ok}</b> of them reached the team-mate: <b>${pc(Z.p)}%</b>.`, `That one number hides a lot. Some receivers were safe and some were not.`],
-          ask: { kind: 'open', q: [`What is it about a receiver that makes a pass to him more likely to fail?`, `Write one thing.`], placeholder: 'One thing about the receiver or the pass',
-            reveal: [`Whatever you wrote is worth testing, and a model can only use what the match log recorded.`, `For every pass the log keeps three measurements: how far it travelled, how clear the lane was, and how far the nearest opponent stood from the receiver.`, `We will start with the last one and call it <b>space</b>.`] },
+          lines: [`Your goalkeeper has the ball and has to choose a team-mate.`, `You have played <b>${Z.n}</b> passes in your own third (this season, the friendlies and last season).`, `<b>${Z.ok}</b> of them reached the team-mate: <b>${pc(Z.p)}%</b>.`, `That one number hides a lot. Some receivers were safe and some were not.`, `For every pass the log keeps three measurements: how far it travelled, how clear the lane was, and how far the nearest opponent stood from the receiver.`, `We will start with the last one and call it <b>space</b>.`],
           why: [`Clubs do this for every pass they log. The result is a number for each pass: how likely it was to come off.`, `That is how an analyst separates a brave pass that failed from a careless one.`],
         },
         {
@@ -322,8 +320,8 @@
   // Describing the squad (squad page)
   // =====================================================================================================
   FM.guides.descriptive = {
-    id: 'descriptive', title: 'Summarising a squad', min: 0, pages: ['hub'],
-    blurb: 'Mean, median, spread and outliers, worked out on your own centre-backs.',
+    id: 'descriptive', title: 'A tour of your squad', min: 0, pages: ['hub'],
+    blurb: 'Elena takes you through the squad one group at a time and summarises each.',
     prepare(ctx) {
       const team = ctx.team; if (!team) return;
       const all = (team.players || []).concat(team.bench || []);
@@ -338,71 +336,104 @@
       D.var = D.vals.reduce((a, v) => a + (v - D.mean) * (v - D.mean), 0) / D.vals.length; D.sd = Math.sqrt(D.var);
       const fv = fbs.map((p) => FM.shown(p.ratings.tackling));
       D.fb = fv.length >= 3 ? { vals: fv, q: quart(fv) } : null;
+      D.all = all;
       ctx.D = D;
     },
     build(ctx) {
-      const D = ctx.D || { vals: [70, 72, 75], q: quart([70, 72, 75]), mean: 72.3, sd: 2, who: 'players', min: 70, max: 75, var: 4 };
+      const D = ctx.D || { vals: [70, 72, 75], q: quart([70, 72, 75]), mean: 72.3, sd: 2, who: 'players', min: 70, max: 75, var: 4, all: [] };
+      const nm = FM.userNameNow ? FM.userNameNow() : '';
       const list = D.q.s.slice().reverse().join(', ');
+      const groupEls = (key) => () => Array.from(document.querySelectorAll('#view-squad .sq-group[data-group="' + key + '"]'));
+      const openGroup = (key) => () => { document.querySelectorAll('#view-squad .sq-group[data-group="' + key + '"]').forEach((d) => { d.open = true; }); };
+      const group = groupEls('Defenders');
       const cells = () => {
         const tbl = document.querySelector('#view-squad .sq-group[data-group="Defenders"] table');
         if (!tbl) return [];
         const head = Array.from(tbl.querySelectorAll('thead th')), ix = head.findIndex((h) => h.textContent.trim() === 'Pac');
         return ix < 0 ? [] : Array.from(tbl.querySelectorAll('tbody tr')).filter((r) => (r.children[4] && r.children[4].textContent.trim()) === 'CB').map((r) => r.children[ix]).filter(Boolean);
       };
-      const group = () => Array.from(document.querySelectorAll('#view-squad .sq-group[data-group="Defenders"]'));
       const odd = (q) => q.s.filter((v) => v < q.lo || v > q.hi);
+      // one group of the squad, summarised on the rating that matters most for it
+      const summaryStep = (key, kinds, stat, word, intro) => ({
+        target: groupEls(key), enter: openGroup(key), title: key,
+        lines: () => {
+          const ps = D.all.filter((p) => kinds.indexOf(p.natural) >= 0);
+          if (!ps.length) return ['There are no ' + key.toLowerCase() + ' in the squad.'];
+          const v = ps.map((p) => FM.shown(p.ratings[stat])), q = quart(v), m = mean(v), sd = Math.sqrt(v.reduce((a, x) => a + (x - m) * (x - m), 0) / v.length);
+          const hi = ps[v.indexOf(Math.max.apply(null, v))], lo = ps[v.indexOf(Math.min.apply(null, v))];
+          const out = [intro.replace('{n}', ps.length)];
+          if (ps.length >= 3) {
+            out.push('The ' + word + ' ratings are <b>' + q.s.slice().reverse().join(', ') + '</b>.');
+            out.push('The mean is <b>' + f1(m) + '</b> and the median <b>' + f1(q.median) + '</b>. They sit close together when no one pulls the mean away.');
+            out.push('The range runs from <b>' + Math.min.apply(null, v) + '</b> (' + esc(lo.name) + ') to <b>' + Math.max.apply(null, v) + '</b> (' + esc(hi.name) + '), and the standard deviation is <b>' + f1(sd) + '</b>.');
+          } else {
+            out.push(ps.map((p) => esc(p.name) + ': <b>' + FM.shown(p.ratings[stat]) + '</b>').join(', ') + '.');
+            out.push('With only ' + ps.length + ' there is nothing to average. What matters is the gap: <b>' + Math.abs(v[0] - (v[1] != null ? v[1] : v[0])) + '</b> points.');
+          }
+          let picks = [];
+          try { picks = FM.squadHighlights(ctx.team).picks.filter((c) => kinds.indexOf(c.p.natural) >= 0); } catch (e) { picks = []; }
+          if (picks.length) {
+            out.push('Against the rest of the league, ' + (picks.length === 1 ? 'one number here is' : picks.length + ' numbers here are') + ' unusual and marked in the list.');
+            picks.slice(0, 2).forEach((c) => out.push(FM.squadMeaning ? FM.squadMeaning(c) : esc(c.p.name) + ': ' + esc(c.label) + ' ' + c.val));
+          } else out.push('Nothing here is unusual compared with the rest of the league, so no number is marked.');
+          return out;
+        },
+      });
       const steps = [
-        { target: group, title: 'Too much to hold in your head',
-          lines: [`Every player in this list has about ten numbers.`, `Nobody can hold a squad of ${(ctx.team && ctx.team.players ? ctx.team.players.length + ctx.team.bench.length : 20)} like that in their head.`],
-          ask: { kind: 'open', q: [`If you had to tell a friend how quick your <b>${D.who}</b> are in one sentence, what would you say?`], placeholder: 'One sentence',
-            reveal: [`You gave a typical value, or a range, or both. That is exactly what statisticians do.`, `<b>Descriptive statistics</b> organise and summarise a dataset so that you can talk about it without listing every number.`, `We will do it for the pace of your ${D.who}.`] } },
+        { target: () => Array.from(document.querySelectorAll('#view-squad .sq-group')), title: (nm ? 'Here is your squad, ' + nm : 'Here is your squad'),
+          lines: ['These are the ' + (D.all.length || 20) + ' players you will take into the season.', 'Every one has about ten ratings, so there are more than 200 numbers on this page.', 'Nobody can hold that in their head, and you do not have to. We will go through the squad one group at a time and summarise each.', 'Let us start at the back.'] },
+        { target: group, enter: openGroup('Defenders'), mark: cells, title: 'Defenders: speed',
+          lines: ['The ' + D.who + ' have pace ratings of <b>' + list + '</b>.', 'One summary for the whole group is enough to carry around. Let us build it.'] },
         { target: group, mark: cells, title: 'The typical value',
-          lines: [`The ${D.who} have pace ratings of <b>${list}</b>.`],
-          ask: { kind: 'number', q: [`Add the ${D.vals.length} ratings and divide by ${D.vals.length}. What do you get?`], answer: () => D.mean, tol: 0.06,
-            reveal: [`<b>${f2(D.mean)}</b>.`, `That is the <b>mean</b>. Every value takes part in it, so one very high or very low value pulls it.`, `Use it when the values are fairly even and you want every one to count.`] } },
+          lines: ['The ' + D.who + ' have pace ratings of <b>' + list + '</b>.'],
+          ask: { kind: 'number', q: ['Add the ' + D.vals.length + ' ratings and divide by ' + D.vals.length + '. What do you get?'], answer: () => D.mean, tol: 0.06,
+            reveal: ['<b>' + f2(D.mean) + '</b>.', 'That is the <b>mean</b>. Every value takes part in it, so one very high or very low value pulls it.', 'Use it when the values are fairly even and you want every one to count.'] } },
         { target: group, mark: cells, title: 'The middle one',
-          lines: [`Now put the ratings in order: <b>${D.q.s.join(', ')}</b>.`],
-          ask: { kind: 'number', q: [`Which value is in the middle? (With an even number of values, the point halfway between the two in the middle.)`], answer: () => D.q.median, tol: 0.06,
-            reveal: [`<b>${f2(D.q.median)}</b>.`, `That is the <b>median</b>: half the values are below it and half above.`, `One extreme value hardly moves it, which is why it is often the better "typical value" when there are extremes.`] } },
+          lines: ['Now put the ratings in order: <b>' + D.q.s.join(', ') + '</b>.'],
+          ask: { kind: 'number', q: ['Which value is in the middle? (With an even number of values, the point halfway between the two in the middle.)'], answer: () => D.q.median, tol: 0.06,
+            reveal: ['<b>' + f2(D.q.median) + '</b>.', 'That is the <b>median</b>: half the values are below it and half above.', 'One extreme value hardly moves it, which is why it is often the better "typical value" when there are extremes.'] } },
       ];
       if (D.mode != null) steps.push({ target: group, mark: cells, title: 'The most common',
-        lines: [`Look at the list again: <b>${D.q.s.join(', ')}</b>.`],
-        ask: { kind: 'number', q: [`Which value appears most often?`], answer: () => D.mode, tol: 0.01, reveal: [`<b>${D.mode}</b>.`, `That is the <b>mode</b>.`, `It is the only one of the three that also works for categories: the most common formation, the most common injury.`] } });
+        lines: ['Look at the list again: <b>' + D.q.s.join(', ') + '</b>.'],
+        ask: { kind: 'number', q: ['Which value appears most often?'], answer: () => D.mode, tol: 0.01, reveal: ['<b>' + D.mode + '</b>.', 'That is the <b>mode</b>.', 'It is the only one of the three that also works for categories: the most common formation, the most common injury.'] } });
       steps.push(
         { target: group, mark: cells, title: 'How spread out',
-          lines: [`Two squads can have the same mean and be very different.`, `One has everyone at 74. The other has some at 60 and some at 88.`],
-          ask: { kind: 'number', q: [`For your ${D.who}, subtract the lowest rating (${D.min}) from the highest (${D.max}).`], answer: () => D.max - D.min, tol: 0.01,
-            reveal: [`<b>${D.max - D.min}</b>.`, `That is the <b>range</b>.`, `It uses only two values, so one odd value changes it a lot. A better measure uses all of them.`] } },
+          lines: ['Two squads can have the same mean and be very different.', 'One has everyone at 74. The other has some at 60 and some at 88.'],
+          ask: { kind: 'number', q: ['For your ' + D.who + ', subtract the lowest rating (' + D.min + ') from the highest (' + D.max + ').'], answer: () => D.max - D.min, tol: 0.01,
+            reveal: ['<b>' + (D.max - D.min) + '</b>.', 'That is the <b>range</b>.', 'It uses only two values, so one odd value changes it a lot. A better measure uses all of them.'] } },
         { target: group, mark: cells, title: 'Distance from the mean',
-          lines: [`The mean is <b>${f2(D.mean)}</b>. Each player is some distance from it, above or below.`],
-          ask: { kind: 'choice', q: [`Why would adding up those plain distances and averaging them tell you nothing?`], correct: 1,
+          lines: ['The mean is <b>' + f2(D.mean) + '</b>. Each player is some distance from it, above or below.'],
+          ask: { kind: 'choice', q: ['Why would adding up those plain distances and averaging them tell you nothing?'], correct: 1,
             options: [{ t: 'There are too many players', fb: 'The count is not the problem.' }, { t: 'The values above the mean cancel the ones below it, so the total is always zero', fb: '' }, { t: 'The mean is not a real number', fb: 'It is a perfectly good number.' }],
-            reveal: [`The positive and negative distances cancel exactly. The total is always zero.`, `So we need a way to stop the signs cancelling. Squaring each distance does that, and it also makes big distances count for more.`] } },
+            reveal: ['The positive and negative distances cancel exactly. The total is always zero.', 'So we need a way to stop the signs cancelling. Squaring each distance does that, and it also makes big distances count for more.'] } },
         { target: group, mark: cells, title: 'Variance and standard deviation',
-          lines: [`Square each distance from the mean (${f2(D.mean)}), add the squares, then divide by ${D.vals.length}.`],
-          ask: { kind: 'number', q: [`What is the average squared distance?`], answer: () => D.var, tol: Math.max(0.05, D.var * 0.02),
-            reveal: [`<b>${f2(D.var)}</b>. This is the <b>variance</b>.`, `It is in squared units, which is hard to picture.`, `Taking the square root brings it back to rating points: <b>${f2(D.sd)}</b>. That is the <b>standard deviation</b>.`, `As a rough guide, most values sit within two standard deviations of the mean.`] },
-          formula: `standard deviation = √( Σ (x − mean)² ÷ n )` },
+          lines: ['Square each distance from the mean (' + f2(D.mean) + '), add the squares, then divide by ' + D.vals.length + '.'],
+          ask: { kind: 'number', q: ['What is the average squared distance?'], answer: () => D.var, tol: Math.max(0.05, D.var * 0.02),
+            reveal: ['<b>' + f2(D.var) + '</b>. This is the <b>variance</b>.', 'It is in squared units, which is hard to picture.', 'Taking the square root brings it back to rating points: <b>' + f2(D.sd) + '</b>. That is the <b>standard deviation</b>.', 'As a rough guide, most values sit within two standard deviations of the mean.'] },
+          formula: 'standard deviation = √( Σ (x − mean)² ÷ n )' },
         { target: group, mark: cells, title: 'Quartiles and the IQR',
-          lines: [`Split the ordered list in half. The median of the lower half is the first quartile, Q1. The median of the upper half is the third quartile, Q3.`, `Ordered: <b>${D.q.s.join(', ')}</b>.`],
-          ask: { kind: 'number', q: [`What is Q3 − Q1?`], answer: () => D.q.iqr, tol: 0.06, reveal: [`Q1 = ${f2(D.q.q1)}, Q3 = ${f2(D.q.q3)}, so the <b>interquartile range</b> is <b>${f2(D.q.iqr)}</b>.`, `It is the spread of the middle half of the values. Extreme values cannot stretch it.`] },
-          formula: `IQR = Q3 − Q1` },
+          lines: ['Split the ordered list in half. The median of the lower half is the first quartile, Q1. The median of the upper half is the third quartile, Q3.', 'Ordered: <b>' + D.q.s.join(', ') + '</b>.'],
+          ask: { kind: 'number', q: ['What is Q3 − Q1?'], answer: () => D.q.iqr, tol: 0.06, reveal: ['Q1 = ' + f2(D.q.q1) + ', Q3 = ' + f2(D.q.q3) + ', so the <b>interquartile range</b> is <b>' + f2(D.q.iqr) + '</b>.', 'It is the spread of the middle half of the values. Extreme values cannot stretch it.'] },
+          formula: 'IQR = Q3 − Q1' },
         { target: group, mark: cells, title: 'What counts as an outlier',
-          lines: [`A common convention marks a value as an <b>outlier</b> if it is more than 1.5 × IQR below Q1 or above Q3.`, `Here that is below <b>${f2(D.q.lo)}</b> or above <b>${f2(D.q.hi)}</b>.`],
-          ask: { kind: 'choice', q: [`Is any of your ${D.who}' pace an outlier?`], correct: odd(D.q).length ? 0 : 1,
+          lines: ['A common convention marks a value as an <b>outlier</b> if it is more than 1.5 × IQR below Q1 or above Q3.', 'Here that is below <b>' + f2(D.q.lo) + '</b> or above <b>' + f2(D.q.hi) + '</b>.'],
+          ask: { kind: 'choice', q: ['Is any of your ' + D.who + ' pace ratings an outlier?'], correct: odd(D.q).length ? 0 : 1,
             options: [{ t: 'Yes, at least one', fb: 'Compare each value with the fences above.' }, { t: 'No, none of them', fb: 'Compare each value with the fences above.' }],
-            reveal: odd(D.q).length ? [`Yes: ${odd(D.q).join(', ')} falls outside the fences.`] : [`No. The lowest, ${D.min}, is the smallest in the group but sits inside the fences, so it is not unusual.`, `Being the lowest is not the same as being an outlier. That is why it is not marked red in the list.`] },
-          formula: `lower fence = Q1 − 1.5 × IQR\nupper fence = Q3 + 1.5 × IQR`.replace('\n', '<br>') },
-        { target: () => Array.from(document.querySelectorAll('#view-squad td.hl-bad, #view-squad td.hl-good')).slice(0, 3), title: 'What is marked in the list',
-          lines: [`Four players is a small group to judge a player against, so each number is compared with <b>every player in the league</b> who plays the same position.`, `Only the numbers beyond the fences are marked: red for unusually low, green for unusually high.`, `Those are the ones worth building a plan around, or protecting.`] },
+            reveal: odd(D.q).length ? ['Yes: ' + odd(D.q).join(', ') + ' falls outside the fences.'] : ['No. The lowest, ' + D.min + ', is the smallest in the group but sits inside the fences, so it is not unusual.', 'Being the lowest is not the same as being an outlier. That is why it is not marked red in the list.'] },
+          formula: 'lower fence = Q1 − 1.5 × IQR<br>upper fence = Q3 + 1.5 × IQR' },
+        summaryStep('Midfielders', ['DM', 'CM', 'AM'], 'passing', 'passing', 'Now the midfield: <b>{n}</b> players, and the rating that matters most is passing. The same tools apply.'),
+        summaryStep('Forwards', ['WF', 'ST'], 'finishing', 'finishing', 'Up front: <b>{n}</b> players, and the rating that matters is finishing.'),
+        summaryStep('Goalkeepers', ['GK'], 'gk', 'goalkeeping', 'Last, the goalkeepers: <b>{n}</b> of them, rated on goalkeeping.'),
+        { target: () => { const e = Array.from(document.querySelectorAll('#view-squad td.hl-bad, #view-squad td.hl-good')).slice(0, 3); return e.length ? e : Array.from(document.querySelectorAll('#view-squad .sq-group')); }, title: 'The colours in the list',
+          lines: ['A squad of four is a small group to judge a player against, so each number is compared with <b>every player in the league</b> who plays the same position.', 'Only the numbers beyond the outlier fences are marked: red for unusually low, green for unusually high.', 'Those are the ones worth building a plan around, or protecting.', (nm ? 'That is the squad, ' + esc(nm) + '.' : 'That is the squad.') + ' Press <b>Continue to formation</b> when you are ready to pick the shape.'] },
       );
       if (D.fb) {
-        const q = D.fb.q, o = q.s.filter((v) => v < q.lo || v > q.hi);
-        steps.push({ target: group, title: 'On your own',
-          lines: [`The full-backs' tackling ratings are: <b>${q.s.join(', ')}</b>.`],
-          ask: { kind: 'choice', q: [`Is the highest of these an outlier?`], correct: q.s[q.n - 1] > q.hi ? 0 : 1,
+        const q = D.fb.q;
+        steps.splice(steps.length - 1, 0, { target: groupEls('Defenders'), enter: openGroup('Defenders'), title: 'Over to you',
+          lines: ['The full-backs\' tackling ratings are: <b>' + q.s.join(', ') + '</b>.'],
+          ask: { kind: 'choice', q: ['Is the highest of these an outlier?'], correct: q.s[q.n - 1] > q.hi ? 0 : 1,
             options: [{ t: 'Yes', fb: 'Work out Q1, Q3 and the upper fence.' }, { t: 'No', fb: 'Work out Q1, Q3 and the upper fence.' }],
-            reveal: [`Q1 = ${f2(q.q1)}, Q3 = ${f2(q.q3)}, IQR = ${f2(q.iqr)}.`, `Upper fence = ${f2(q.q3)} + 1.5 × ${f2(q.iqr)} = <b>${f2(q.hi)}</b>.`, `The highest value is ${q.s[q.n - 1]}, so it is ${q.s[q.n - 1] > q.hi ? '' : 'not '}an outlier.`] } });
+            reveal: ['Q1 = ' + f2(q.q1) + ', Q3 = ' + f2(q.q3) + ', IQR = ' + f2(q.iqr) + '.', 'Upper fence = ' + f2(q.q3) + ' + 1.5 × ' + f2(q.iqr) + ' = <b>' + f2(q.hi) + '</b>.', 'The highest value is ' + q.s[q.n - 1] + ', so it is ' + (q.s[q.n - 1] > q.hi ? '' : 'not ') + 'an outlier.'] } });
       }
       return steps;
     },
@@ -428,9 +459,7 @@
         const la = wilson(C.ka, C.na), lb = wilson(C.kb, C.nb), overlap = !(la[0] > lb[1] || lb[0] > la[1]);
         return [
           { target: board, title: 'Two kinds of pass',
-            lines: [`In the ${isMid ? 'middle third' : 'own third'} you have played <b>${C.n}</b> passes. <b>${C.ok}</b> were completed, which is <b>${pc(p)}%</b>.`, `The log records ${A.gap}.`],
-            ask: { kind: 'open', q: [`Before we split them up: do you expect ${A.aLab} to be completed more often than ${A.bLab}? By roughly how much?`], placeholder: 'What you expect',
-              reveal: [`Writing the expectation down first is what lets the data surprise you.`, `Now the passes are split in two.`] } },
+            lines: [`In the ${isMid ? 'middle third' : 'own third'} you have played <b>${C.n}</b> passes. <b>${C.ok}</b> were completed, which is <b>${pc(p)}%</b>.`, `The log records ${A.gap}.`, `Would you expect ${A.aLab} to be completed more often than ${A.bLab}? Hold that guess in mind: the passes are about to be split in two.`] },
           { title: 'Probability given something',
             lines: [`<b>${C.na}</b> passes went to ${A.aLab}, and <b>${C.ka}</b> of those were completed.`],
             ask: { kind: 'number', unit: '%', q: [`What percentage of passes to ${A.aLab} were completed?`], answer: () => pa * 100, tol: 0.6,
@@ -488,9 +517,7 @@
       const lim = Math.min(25, Math.max(8, lastGood));
       const steps = [
         { target: board, title: 'A shot is not a goal',
-          lines: X.n ? [`Your team has had <b>${X.n}</b> shots with a recorded position (open play, this season and the friendlies). <b>${X.goals}</b> were goals.`, `Goals are rare, so they are slow to learn from.`] : [`No shots with a recorded position yet, so there is nothing to measure. Play a match or two and come back.`, `The lesson still works through the idea on the example below.`],
-          ask: { kind: 'open', q: [`Two shots both missed. One was from the edge of the box with three defenders closing. One was a tap-in at the far post. Were they equally bad?`, `Say what you would count instead of goals.`], placeholder: 'What you would count',
-            reveal: [`They were not equally bad: one was a terrible chance and one was a good chance that did not go in.`, `Analysts count the quality of the chance rather than only the outcome. The quality is the probability that a shot like that scores.`] } },
+          lines: X.n ? [`Your team has had <b>${X.n}</b> shots with a recorded position (open play, this season and the friendlies). <b>${X.goals}</b> were goals.`, `Goals are rare, so they are slow to learn from.`, `Take two shots that both missed. One was from the edge of the box with three defenders closing. One was a tap-in at the far post.`, `They were not equally bad: one was a terrible chance, the other a good chance that did not go in.`, `Analysts count the quality of the chance rather than only the outcome. The quality is the probability that a shot like that scores.`] : [`No shots with a recorded position yet, so there is nothing to measure. Play a match or two and come back.`, `The lesson still works through the idea on the example below.`] },
         { title: 'Where the goals come from',
           lines: [`The shots are split by how far they were from goal.`],
           ask: { kind: 'number', unit: '%', q: [`Before you see the bands: what percentage of your shots from <b>inside 12 m</b> were goals?`], answer: () => pIn * 100, tol: 10,
