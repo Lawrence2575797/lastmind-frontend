@@ -787,11 +787,18 @@
     // diagrams begin at the same height.
     const levelWithEnd = starts.length === 1 && ends.length === 1;
     const holdHead = '<div class="scn-head" aria-hidden="true" style="visibility:hidden"><label>Page name <input type="text" tabindex="-1" disabled></label><label>Use this page when <select tabindex="-1" disabled><option>Otherwise</option></select></label><button type="button" class="scn-del-hold" tabindex="-1">Remove this page</button></div>' +
-      ((ends.some((e) => e.pg && e.pg.id && e.pg.cond === 'custom') || (ends.some((e) => e.pg && !e.pg.id) && dfl.cond === 'custom')) ? '<div class="scn-custom" aria-hidden="true" style="visibility:hidden"><input type="text" tabindex="-1" disabled><button type="button" tabindex="-1">Update</button></div><p class="note scn-custom-note">&nbsp;</p>' : (ends.some((e) => e.pg && e.pg.from) ? '<p class="note scn-custom-note" aria-hidden="true" style="visibility:hidden">&nbsp;</p>' : ''));
+      '<p class="note scn-custom-note" aria-hidden="true" style="visibility:hidden">&nbsp;</p>';
     // the box where a condition is written in words, under the page's name and condition
     // what a following page's box shows: what the manager wrote, or the name of a ready-made condition saved earlier
-    const extraText = (pg) => (pg.extra === 'custom' ? (pg.custom && pg.custom.text) || '' : pg.extra ? ((FM.LINKED_CONDS.find((c) => c.key === pg.extra) || {}).label || '') : '');
-    const extraNote = (pg) => (pg.extra === 'custom' ? (pg.custom && pg.custom.when ? 'Understood as: ' + (pg.custom.summary || pg.custom.text) + '.' : 'Not set yet, so this page is not used until it is.') : pg.extra ? '' : 'It is used whenever the stage before ended on the page it follows.');
+    // One dropdown for when a page is used, the same on every page: no condition, or a box to write it in words. (A page that follows the
+    // stage before is "Only when"; the other pages are "Use this page when".)
+    const presetLabel = (key) => ((conds.concat(FM.LINKED_CONDS).find((c) => c.key === key) || {}).label || '');
+    const condKey = (h) => (h.from ? (h.extra || '') : (h.cond && h.cond !== 'always' ? h.cond : ''));
+    const extraText = (h) => { const k = condKey(h); return k === 'custom' ? (h.custom && h.custom.text) || '' : k ? ((h.custom && h.custom.text) || presetLabel(k)) : ''; };
+    const extraLabel = (h) => { const k = condKey(h); return k === 'custom' ? ((h.custom && (h.custom.summary || h.custom.text)) || 'Your own condition') : k ? ((h.custom && (h.custom.summary || h.custom.text)) || presetLabel(k)) : (h.from ? 'No extra condition' : 'No condition'); };
+    const extraNote = (h) => { const k = condKey(h); return k === 'custom' ? (h.custom && h.custom.when ? 'Understood as: ' + (h.custom.summary || h.custom.text) + '.' : 'Not set yet, so this page is not used until it is.') : k ? '' : (h.from ? 'It is used whenever the stage before ended on the page it follows.' : ''); };
+    const ddField = (h, id) => `<div class="scn-field"><span class="scn-field-lab">${h.from ? 'Only when' : 'Use this page when'}</span><div class="scn-dd" data-dd="${id}"><button type="button" class="scn-dd-btn" data-dd-btn="${id}" aria-haspopup="true" aria-expanded="false"><span>${esc(extraLabel(h))}</span><i aria-hidden="true">&#9662;</i></button><div class="scn-dd-panel" hidden><button type="button" class="scn-dd-opt${condKey(h) ? '' : ' on'}" data-dd-none="${id}">${h.from ? 'No extra condition' : 'No condition'}</button><div class="scn-dd-own"><input type="text" maxlength="200" data-extra-text="${id}" placeholder="Or say when, in your own words" value="${esc(extraText(h))}" aria-label="Say when this page should be used, in your own words"><button type="button" data-extra-go="${id}">Save</button></div></div></div></div>`;
+    const ddNote = (h, id) => `<p class="note scn-custom-note" data-extra-note="${id}">${esc(extraNote(h))}</p>`;
     const customRow = (holder, id) => {
       const c = holder.custom || {};
       return `<div class="scn-custom"><input type="text" class="scn-custom-text" maxlength="200" placeholder="Say when, in your own words: for example when our full-backs have stepped high and we are drawing" value="${esc(c.text || '')}" data-custom-text="${id}" aria-label="When this page should be used"><button type="button" data-custom-go="${id}">${c.when ? 'Update' : 'Save'}</button></div><p class="note scn-custom-note" data-custom-note="${id}">${c.when ? 'Understood as: ' + esc(c.summary || c.text) + '.' : 'Not set yet, so this page is not used until it is.'}</p>`;
@@ -799,9 +806,9 @@
     const figure = (f, n) => `<figure class="bp${f.locked ? ' locked' : ''}">
         ${!f.pg && levelWithEnd ? holdHead : ''}${f.pg ? (f.pg.id
           ? (f.pg.from
-            ? `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname(f.pg))}" data-scn-label="${f.pg.id}"></label><label>Only when <span class="scn-combo"><input type="text" class="scn-combo-in" maxlength="200" data-extra-text="${f.pg.id}" placeholder="No extra condition" value="${esc(extraText(f.pg))}" aria-label="Only when: leave empty for no extra condition, or say when in your own words"><button type="button" class="scn-combo-go" data-extra-go="${f.pg.id}">Save</button></span></label><button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div><p class="note scn-custom-note" data-extra-note="${f.pg.id}">${esc(extraNote(f.pg))}</p>`
-            : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname(f.pg))}" data-scn-label="${f.pg.id}"></label><label>Use this page when <select data-scn-cond="${f.pg.id}">${condOpts(f.pg.cond)}</select></label><button type="button" data-scn-del="${f.pg.id}">Remove this page</button></div>${f.pg.cond === 'custom' ? customRow(f.pg, f.pg.id) : ''}${shapeNote(f.pg)}`)
-          : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname({ id: null }))}" data-def-label="1"></label><label>Use this page when <select data-def-cond="1">${condOpts(dfl.cond)}</select></label><button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div>${dfl.cond === 'custom' ? customRow(dfl, 'default') : ''}${shapeNote(dfl)}`) : ''}
+            ? `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname(f.pg))}" data-scn-label="${f.pg.id}"></label>${ddField(f.pg, f.pg.id)}<button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div>${ddNote(f.pg, f.pg.id)}`
+            : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname(f.pg))}" data-scn-label="${f.pg.id}"></label>${ddField(f.pg, f.pg.id)}<button type="button" data-scn-del="${f.pg.id}">Remove this page</button></div>${ddNote(f.pg, f.pg.id)}`)
+          : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname({ id: null }))}" data-def-label="1"></label>${ddField(dfl, 'default')}<button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div>${ddNote(dfl, 'default')}`) : ''}
         <figcaption><b>${esc(starts.length || !f.pg ? f.def.title : f.def.title.replace(/^\d+\.\s*/, ''))}</b><span class="note">${esc(f.label ? 'From the stage before: ' + f.label : f.def.note)}</span></figcaption>
         <div class="board-host" id="board${n}"></div>${f.locked ? '' : `<div class="row"><button data-reset="${f.key}">Reset this diagram</button></div>`}
       </figure>`;
@@ -910,22 +917,46 @@
       } catch (err) { btn.disabled = false; note.textContent = err.message || 'LastMind could not read that just now. Try again.'; }
     }));
     // a following page's own condition: the box is empty for none, and whatever is written in it is read once and kept
+    const holderOf = (id) => (id === 'default' ? dfl : pagesOf(endKey).find((x) => x.id === id));
+    const setNone = (h) => { if (h.from) h.extra = null; else h.cond = 'always'; h.custom = null; };
     const saveExtra = async (id) => {
-      const pg = pagesOf(endKey).find((x) => x.id === id); if (!pg) return;
+      const h = holderOf(id); if (!h) return;
       const input = host.querySelector('[data-extra-text="' + id + '"]'), note = host.querySelector('[data-extra-note="' + id + '"]'), btn = host.querySelector('[data-extra-go="' + id + '"]');
       const text = (input.value || '').trim();
-      if (!text) { pg.extra = null; pg.custom = null; saveSoon(); renderTactics(); return; }
-      if (text === extraText(pg)) return;
-      if (text.length < 3) { note.textContent = 'Say when this page should be used, or leave the box empty.'; return; }
+      if (!text) { setNone(h); saveSoon(); renderTactics(); return; }
+      if (text === extraText(h)) return;
+      if (text.length < 3) { note.textContent = 'Say when this page should be used, or choose no condition.'; return; }
       btn.disabled = true; note.textContent = 'Reading it…';
       try {
         const opp = instr && instr.hooks && instr.hooks.opp ? instr.hooks.opp() : null;
-        const out = await FM.api('/football/compile-condition', { text, squad: FM.squadOf(team), opponent: opp ? FM.squadOf(opp) : [] });
-        pg.extra = 'custom'; pg.custom = { text, when: out.when || {}, summary: out.summary || text };
+        const presets = (h.from ? FM.LINKED_CONDS : conds).filter((c) => !['always', 'none', 'custom', 'opp_shape', 'from_prev'].includes(c.key)).map((c) => ({ key: c.key, label: c.label }));
+        const out = await FM.api('/football/compile-condition', { text, squad: FM.squadOf(team), opponent: opp ? FM.squadOf(opp) : [], presets });
+        const key = out.preset && presets.some((p) => p.key === out.preset) ? out.preset : 'custom';
+        if (h.from) h.extra = key; else h.cond = key;
+        h.custom = { text, when: out.when || {}, summary: out.summary || text };
         saveSoon(); renderTactics();
       } catch (err) { btn.disabled = false; note.textContent = err.message || 'LastMind could not read that just now. Try again.'; }
     };
     host.querySelectorAll('[data-extra-go]').forEach((b) => b.addEventListener('click', () => saveExtra(b.dataset.extraGo)));
+    host.querySelectorAll('[data-dd-none]').forEach((b) => b.addEventListener('click', () => {
+      const h = holderOf(b.dataset.ddNone); if (!h) return;
+      setNone(h); saveSoon(); renderTactics();
+    }));
+    host.querySelectorAll('[data-dd-btn]').forEach((b) => b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const panel = b.parentNode.querySelector('.scn-dd-panel'), open = panel.hidden;
+      host.querySelectorAll('.scn-dd-panel').forEach((pn) => { pn.hidden = true; });
+      host.querySelectorAll('[data-dd-btn]').forEach((x) => x.setAttribute('aria-expanded', 'false'));
+      panel.hidden = !open; b.setAttribute('aria-expanded', String(open));
+      if (open) { const i = panel.querySelector('input'); if (i) i.focus(); }
+    }));
+    host.querySelectorAll('.scn-dd-panel').forEach((pn) => pn.addEventListener('click', (e) => e.stopPropagation()));
+    const closeDd = (e) => {
+      if (!host.isConnected) { document.removeEventListener('click', closeDd); return; }
+      host.querySelectorAll('.scn-dd-panel').forEach((pn) => { pn.hidden = true; });
+      host.querySelectorAll('[data-dd-btn]').forEach((x) => x.setAttribute('aria-expanded', 'false'));
+    };
+    document.addEventListener('click', closeDd);
     host.querySelectorAll('[data-extra-text]').forEach((i) => i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveExtra(i.dataset.extraText); } }));
     host.querySelectorAll('[data-scn-cond]').forEach((sel) => sel.addEventListener('change', () => {
       const pg = pagesOf(endKey).find((x) => x.id === sel.dataset.scnCond); if (!pg) return;
