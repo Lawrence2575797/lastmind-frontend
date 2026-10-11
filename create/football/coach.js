@@ -160,7 +160,7 @@
     if (!force && FM.coach.seen('squad-intro')) { if (!FM.coach.seen('squad-extremes')) second(); return; }
     FM.coach.show('squad-intro' + (force ? '-again' : ''), {
       force: !!force, title: 'Welcome to the club',
-      html: '<p>Hello, I am Elena Marsh, the club's performance analyst. I will be going through the numbers with you this season.</p>' +
+      html: '<p>Hello, I am Elena Marsh, the performance analyst at the club. I will be going through the numbers with you this season.</p>' +
         '<p>We will start with your squad. Every player is listed with his ratings, grouped by position. Open a group to see the players in it.</p>' +
         '<p>A <b style="color:#7fe0a0">green</b> number is a real strength and a <b style="color:#ff8a80">red</b> one a real weakness, compared with the rest of the squad. Most players will not have any: most ratings sit close to the average.</p>',
       button: 'Show me what stands out', onClose: () => { const d = load(); d['squad-intro'] = true; save(d); second(); },
