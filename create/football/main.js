@@ -770,7 +770,7 @@
     const prev = startDef.locked ? [{ id: null, label: 'Default page' }].concat(pagesOf(startDef.key)) : null;
     const starts = prev
       ? prev.map((pg) => ({ key: withKey(startDef.key, pg), locked: true, def: startDef, label: FM.pageName(team, startDef.key, pg.id ? pg : null) }))
-      : [{ key: startDef.key, locked: false, def: startDef, label: null }];
+      : (tab === 'build' ? [] : [{ key: startDef.key, locked: false, def: startDef, label: null }]);   // the goal-kick start is not shown: it is always the same
     const ends = [{ id: null, label: dfl.label, cond: dfl.cond }].concat(pagesOf(endKey)).map((pg) => ({ key: withKey(endKey, pg), locked: false, def: endDef, pg }));
     // When a fixed start sits beside the end with its name and condition above it, the start carries an invisible copy of that row, so the two
     // diagrams begin at the same height.
@@ -782,7 +782,7 @@
             ? `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname(f.pg))}" data-scn-label="${f.pg.id}"></label><label>Use this page when <select disabled><option>The stage before ended on the page it follows</option></select></label><button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div>`
             : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname(f.pg))}" data-scn-label="${f.pg.id}"></label><label>Use this page when <select data-scn-cond="${f.pg.id}">${condOpts(f.pg.cond)}</select></label><button type="button" data-scn-del="${f.pg.id}">Remove this page</button></div>${shapeNote(f.pg)}`)
           : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname({ id: null }))}" data-def-label="1"></label><label>Use this page when <select data-def-cond="1">${condOpts(dfl.cond)}</select></label><button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div>${shapeNote(dfl)}`) : ''}
-        <figcaption><b>${esc(f.def.title)}</b><span class="note">${esc(f.label ? 'From the stage before: ' + f.label : f.def.note)}</span></figcaption>
+        <figcaption><b>${esc(starts.length || !f.pg ? f.def.title : f.def.title.replace(/^\d+\.\s*/, ''))}</b><span class="note">${esc(f.label ? 'From the stage before: ' + f.label : f.def.note)}</span></figcaption>
         <div class="board-host" id="board${n}"></div>${f.locked ? '' : `<div class="row"><button data-reset="${f.key}">Reset this diagram</button></div>`}
       </figure>`;
     // One start and one end sit side by side. Otherwise the starts are along the top and the ends (the versions of the second diagram) below
@@ -795,11 +795,12 @@
     const startBox = (n) => (starts[n].locked ? '<div class="bp bp-spacer"></div>' : box(n));
     const loneStart = starts.length === 1 && ends.length >= 2;
     let html;
-    if (starts.length === 1 && ends.length === 1) html = row(fig(all, 0), 'linked') + row([startBox(0), box(1)]);
+    if (!starts.length) html = ends.length === 1 ? row(fig(ends, 0).concat([box(0)])) : row(fig(ends, 0), 'ends-row') + row(ends.map((e, i) => box(i)));
+    else if (starts.length === 1 && ends.length === 1) html = row(fig(all, 0), 'linked') + row([startBox(0), box(1)]);
     else if (loneStart) html = row(fig(starts, 0).concat(starts[0].locked ? [] : [box(0)])) + row(fig(ends, 1), 'ends-row') + row(ends.map((e, i) => box(1 + i)));
     else html = row(fig(starts, 0)) + (starts.some((s) => !s.locked) ? row(starts.map((s, i) => startBox(i))) : '') + row(fig(ends, starts.length), 'ends-row') + row(ends.map((e, i) => box(starts.length + i)));
     host.innerHTML = `<div class="scn">${html}</div>`;
-    host.insertAdjacentHTML('beforeend', '<div class="row scn-add"><button type="button" id="scnAdd">+ Add a page</button><span class="note">Adds another version of the second diagram, for a different situation.</span></div>');
+    host.insertAdjacentHTML('beforeend', '<div class="row scn-add"><button type="button" id="scnAdd">+ Add a page</button><span class="note">Adds another version of ' + (starts.length ? 'the second diagram' : 'this diagram') + ', for a different situation.</span></div>');
     // An arrow from each starting diagram to the end diagram that follows it (labelled with the page it came from), so it is plain which version
     // of the stage before leads to which version of this one.
     const drawArrows = () => {
@@ -1221,7 +1222,7 @@
   function saveOppShape(team, key) {
     const base = FM.baseKey(key), sfx = FM.scnSuffix(key);
     if (FM.PAGE_ENDS.indexOf(base) < 0) return;
-    const sc = scoutFor(), cells = sc && sc.shape.phases[OPP_PHASE[base]];
+    const sc = scoutFor(), cells = sc && oppCellsFor(sc, key);
     if (!cells) return;
     const all = Object.assign({}, cells, (world.oppMoved && world.oppMoved[key]) || {});
     const sig = FM.oppSignature(Object.keys(all).filter((k) => !/^GK/.test(k)).map((k) => all[k].d));
@@ -1239,7 +1240,7 @@
   // 'live' puts one shirt at a position it is being dragged to.
   function oppLine(key, live) {
     if (key === 'shape') return null;                // the line follows their scouted defence whether or not their shirts are shown
-    const sc = scoutFor(), cells = sc && sc.shape.phases[OPP_PHASE[FM.baseKey(key)]];
+    const sc = scoutFor(), cells = sc && oppCellsFor(sc, key);
     if (!cells) return null;
     const moved = (world.oppMoved && world.oppMoved[key]) || {};
     let min = 1, any = false;
@@ -1249,6 +1250,44 @@
       min = Math.min(min, c.d); any = true;
     });
     return any ? 1 - min : null;
+  }
+  // The condition a page applies under (a linked page takes the condition of the page it follows).
+  function pageCondOf(key) {
+    const team = userTeam(), base = FM.baseKey(key), sfx = FM.scnSuffix(key);
+    if (!team || FM.PAGE_ENDS.indexOf(base) < 0) return 'always';
+    FM.ensurePages(team);
+    const pg = sfx ? (team.pages[base] || []).find((x) => x.id === sfx.slice(1)) : (team.pageDefaults || {})[base];
+    if (!pg) return 'always';
+    if (pg.cond === 'from_prev' && pg.from && FM.PREV_END && FM.PREV_END[base]) return pageCondOf(FM.PREV_END[base] + '#' + pg.from);
+    return pg.cond || 'always';
+  }
+  // How the opposition stand on a page's diagram. Their scouted shape is the starting point; a page that applies when they press us shows them
+  // pressed up the pitch, and one that applies when they sit off shows a compact, deep block. (d: 0 their own goal, 1 ours.)
+  const shapeCache = new Map();
+  function oppCellsFor(sc, key) {
+    const cells = sc.shape.phases[OPP_PHASE[FM.baseKey(key)]];
+    if (!cells) return null;
+    const cond = pageCondOf(key);
+    if (!({ opp_press: 1, opp_sit: 1, opp_direct: 1, opp_short: 1 })[cond]) return cells;
+    const ck = sc.opp.id + '|' + OPP_PHASE[FM.baseKey(key)] + '|' + cond;
+    const hit = shapeCache.get(ck);
+    if (hit && hit.src === cells) return hit.out;
+    const slots = Object.keys(cells), outfield = slots.filter((k) => !/^GK/.test(k));
+    const mean = outfield.reduce((a, k) => a + cells[k].d, 0) / Math.max(1, outfield.length);
+    const front = outfield.slice().sort((a, b) => cells[b].d - cells[a].d).slice(0, 3);
+    const out = {}, cl = (v) => Math.max(0.02, Math.min(0.97, v));
+    slots.forEach((k) => {
+      const c = cells[k]; let d = c.d, w = c.w;
+      if (!/^GK/.test(k)) {
+        if (cond === 'opp_press') { d = c.d + (1 - c.d) * 0.42; w = 0.5 + (c.w - 0.5) * 0.92; }
+        else if (cond === 'opp_sit') { d = c.d * 0.6; w = 0.5 + (c.w - 0.5) * 0.7; }
+        else if (cond === 'opp_direct') { d = front.indexOf(k) >= 0 ? c.d + (1 - c.d) * 0.5 : c.d * 0.82; }
+        else { d = mean + (c.d - mean) * 0.6; w = 0.5 + (c.w - 0.5) * 0.8; }
+      }
+      out[k] = Object.assign({}, c, { d: cl(d), w: Math.max(0.03, Math.min(0.97, w)) });
+    });
+    shapeCache.set(ck, { src: cells, out });
+    return out;
   }
   function scoutFor() {
     const opp = nextOpponent();
@@ -1280,8 +1319,8 @@
     // The next opponent as scouted: where their players have stood in the phase that answers this one (when you build, they press).
     let opp = '';
     const sc = key !== 'shape' ? scoutFor() : null;
-    if (sc && sc.shape.phases[OPP_PHASE[FM.baseKey(key)]]) {
-      const cells = sc.shape.phases[OPP_PHASE[FM.baseKey(key)]];
+    if (sc && oppCellsFor(sc, key)) {
+      const cells = oppCellsFor(sc, key);
       const kit = FM.kitAgainst(sc.opp, FM.teamById(world.league, world.league.userId));
       // Their shirts can be dragged to try out "what if they stood here". These moves are only for looking at, not saved, and the
       // button under the board puts them back where they were scouted.
