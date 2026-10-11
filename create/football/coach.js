@@ -123,7 +123,8 @@
       '.coach-card h3 { margin: 4px 0 8px; font-size: 1.02rem; } .coach-card p { margin: 0 0 10px; } .coach-card ul { margin: 0 0 10px; padding: 0; list-style: none; display: grid; gap: 8px; }',
       '.coach-card li { padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.06); border-left: 4px solid #F2C14E; } .coach-card li.good { border-left-color: #52bd7b; } .coach-card li.bad { border-left-color: #e5645a; }',
       '.coach-go { display: block; width: 100%; padding: 10px 14px; border: 0; border-radius: 10px; background: #E6D7B0; color: #1A232D; font: 800 .9rem Arial, sans-serif; cursor: pointer; }',
-      '@media (max-width: 600px) { .coach-card { top: 8px; right: 8px; left: 8px; width: auto; } }',
+      '.coach-back { position: fixed; inset: 0; z-index: 300; display: grid; place-items: center; padding: 16px; background: rgba(5,10,14,.72); } .coach-back .coach-card { position: static; width: min(520px, 100%); padding: 22px 24px 24px; font-size: 15px; } .coach-back .coach-head img { width: 64px; height: 64px; }',
+      '@media (max-width: 600px) { .coach-card { top: 8px; right: 8px; left: 8px; width: auto; } .coach-back .coach-card { width: 100%; } }',
     ].join('\n');
     document.head.appendChild(st);
   }
@@ -145,6 +146,20 @@
       el.querySelector('.coach-go').addEventListener('click', done);
       return true;
     },
+  };
+
+  // The first thing in a new season: who she is and what happens next, in the middle of the page.
+  FM.coach.welcome = function (onContinue) {
+    css(); FM.coach.close();
+    const back = document.createElement('div');
+    back.className = 'coach-back';
+    back.innerHTML = '<aside class="coach-card" role="dialog" aria-label="Elena Marsh"><div class="coach-head"><img alt="" src="' + FACE + '"><div><b>Elena Marsh</b><small>Performance analyst</small></div></div>' +
+      '<h3>Welcome to the club</h3>' +
+      '<p>Hello, I am Elena Marsh, the club’s performance analyst. Before every match I will go through the numbers with you: what they say, how to read them, and what to do about them.</p>' +
+      '<p>We start with the squad. Every player has a set of ratings, and the first job is to make sense of them.</p>' +
+      '<button type="button" class="coach-go">Continue to squad</button></aside>';
+    document.body.appendChild(back); current = back;
+    back.querySelector('.coach-go').addEventListener('click', () => { FM.coach.close(); if (onContinue) onContinue(); });
   };
 
   // ---------- what she says on the pages ----------
