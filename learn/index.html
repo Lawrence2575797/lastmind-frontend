@@ -4142,6 +4142,8 @@
     .ps-item-name { font-size: .84rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     .ps-item-x { border: 0; background: transparent; color: inherit; font-size: 1.2rem; cursor: pointer; padding: 0 4px; }
     .ps-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; } .ps-msg { font-size: .86rem; opacity: .85; }
+    .ps-collapsed .nb-tool, .ps-intake .btn { background: #1A232D; color: #F1EAD6; border: 1.5px solid #1A232D; }
+    .ps-collapsed .nb-tool:hover { background: #26323f; }
     .ps-collapsed { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; border: 1px solid rgba(230,215,176,.25); border-radius: 10px; font-size: .9rem; }
     .nb-block.ps-question { border-left: 3px solid rgba(242,193,78,.7); }
     .nb-block.ps-answer { border-left: 3px solid rgba(127,212,154,.6); }
@@ -21301,6 +21303,20 @@ SQIDAQAB
         if (q.marks) h += `<div><i>[${q.marks} mark${q.marks === 1 ? '' : 's'}]</i></div>`;
         return h;
     }
+    // Every question, its table and its answer box on the sheet, in order, given the chat layout's columns: questions on the left, answers on
+    // the right. Returns what psLayout needs.
+    function psReflow(page, cw) {
+        const x0 = (cw < 520 ? 28 : 56) + 16;
+        const leftW = Math.max(240, Math.floor((cw - x0 - 16) * 0.64)), rightX = Math.max(x0 + 24, cw - leftW - 12);
+        const items = []; let cur = null, hasHead = false;
+        page.doc.blocks.forEach((b) => {
+            if (b.role === 'header') hasHead = true;
+            else if (b.role === 'question') { cur = { q: b.id }; items.push(cur); b.x = x0; b.w = leftW; }
+            else if (b.type === 'table' && cur && !cur.t) { cur.t = b.id; b.x = x0; }
+            else if (b.role === 'answer' && cur && !cur.a) { cur.a = b.id; b.x = rightX; b.w = leftW; b.minH = 110; }
+        });
+        return { start: hasHead ? 68 : 12, items };
+    }
     // The sheet is drawn first with every box in place, then laid out from what the browser says each one measures.
     function psLayout(page, canvas) {
         const lay = page.ps && page.ps.layout;
@@ -21315,9 +21331,9 @@ SQIDAQAB
             qb.y = y; nbPlace(qe, qb, canvas);
             let h = qe.offsetHeight;
             if (tb && te) { tb.y = y + h + 8; nbPlace(te, tb, canvas); h += 8 + te.offsetHeight; }
-            let rowH = Math.max(h, 150);
-            if (ab && ae) { ab.y = y; ab.minH = rowH; ae.style.minHeight = rowH + 'px'; nbPlace(ae, ab, canvas); rowH = Math.max(rowH, ae.offsetHeight); }
-            y += rowH + 22;
+            y += h + 14;
+            if (ab && ae) { ab.y = y; ab.minH = 110; ae.style.minHeight = '110px'; nbPlace(ae, ab, canvas); y += Math.max(ae.offsetHeight, 110); }
+            y += 26;
         });
         delete page.ps.layout;
         nbFitCanvas(canvas);
@@ -21326,9 +21342,10 @@ SQIDAQAB
     function psBuild(page, canvas, res) {
         page.doc = page.doc && Array.isArray(page.doc.blocks) ? page.doc : { blocks: [] };
         const cw = canvas.clientWidth || 900;
-        const x0 = (cw < 520 ? 28 : 56) + 16, gap = 24;
-        const leftW = Math.max(220, Math.floor((cw - x0 - gap - 16) / 2));
-        const rightX = x0 + leftW + gap, rightW = Math.max(200, cw - rightX - 12);
+        // a chat: questions on the left, answers on the right
+        const x0 = (cw < 520 ? 28 : 56) + 16;
+        const leftW = Math.max(240, Math.floor((cw - x0 - 16) * 0.64)), rightW = leftW;
+        const rightX = Math.max(x0 + 24, cw - rightW - 12);
         // new questions go under whatever is already on the sheet
         let start = 12;
         canvas.querySelectorAll('.nb-block').forEach((e) => { start = Math.max(start, e.offsetTop + e.offsetHeight + 24); });
@@ -21347,16 +21364,44 @@ SQIDAQAB
                 page.doc.blocks.push({ id: tid, type: 'table', x: x0, y: start, w: Math.min(leftW, Math.max(220, cols * 110)), rows, cols, cells: q.table.rows.map((r) => Array.from({ length: cols }, (_, c) => String(r[c] == null ? '' : r[c]))) });
                 it.t = tid;
             }
-            page.doc.blocks.push({ id: aid, type: 'text', role: 'answer', keep: true, x: rightX, y: start, w: rightW, html: '', writing: true, minH: 150 });
+            page.doc.blocks.push({ id: aid, type: 'text', role: 'answer', keep: true, x: rightX, y: start, w: rightW, html: '', writing: true, minH: 110 });
             items.push(it);
             start += 200;
         });
-        page.ps = Object.assign(page.ps || {}, { done: true, count: ((page.ps && page.ps.count) || 0) + items.length, header: !!(res.header || (page.ps && page.ps.header)), layout: { start: Math.max(12, start - 200 * items.length), items } });
+        page.ps = Object.assign(page.ps || {}, { v: 2, done: true, count: ((page.ps && page.ps.count) || 0) + items.length, header: !!(res.header || (page.ps && page.ps.header)) });
+        page.ps.layout = psReflow(page, cw);
         page.updatedAt = new Date().toISOString();
         notesPersist();
         notesRenderPage(page);
         const canvas2 = document.getElementById('nbCanvas');
         if (canvas2) { requestAnimationFrame(() => requestAnimationFrame(() => { psLayout(page, canvas2); setTimeout(() => psLayout(page, canvas2), 400); })); }
+    }
+    // Questions written as text are split in the browser, with no call to anything: numbered questions, their (a) (b) (c) options and the
+    // heading above them. Pictures and scanned PDFs are the only things that need to be read by LastMind.
+    function psParseText(raw) {
+        const fixMaths = (t) => t.replace(/\^(?!\()(-?[A-Za-z0-9.]+)/g, '^($1)').replace(/_(?!\()([A-Za-z0-9]+)/g, '_($1)');
+        const qStart = /^\s*(?:q(?:uestion)?\.?\s*)?(\d{1,2})\s*[.):]\s+(\S.*)$/i;
+        const opt = /^\s*\(?([a-hA-H])[.)]\s+(\S.*)$/;
+        const head = [], qs = [];
+        let cur = null, expected = 1;
+        String(raw || '').replace(/\r/g, '').split('\n').forEach((line) => {
+            const t = line.trim();
+            if (!t) return;
+            const m = qStart.exec(t);
+            if (m && (+m[1] === expected || (+m[1] === 1 && expected > 1))) {
+                cur = { number: String(qs.length + 1), lines: [fixMaths(m[2])], options: [], inOpts: false }; qs.push(cur); expected = qs.length + 1; return;
+            }
+            if (!cur) { head.push(t); return; }
+            const o = opt.exec(t);
+            if (o) { cur.options.push({ label: o[1].toLowerCase(), text: fixMaths(o[2]) }); cur.inOpts = true; return; }
+            if (cur.inOpts && cur.options.length) { cur.options[cur.options.length - 1].text += ' ' + fixMaths(t); return; }
+            cur.lines.push(fixMaths(t));
+        });
+        if (!qs.length) return null;
+        return {
+            title: '', header: head.slice(0, 4).join(' · ').slice(0, 300),
+            questions: qs.map((q) => { const out = { number: q.number, text: q.lines.join('\n') }; if (q.options.length) out.options = q.options; return out; }),
+        };
     }
     function psReadFile(file) {
         return new Promise((resolve, reject) => {
@@ -21394,6 +21439,7 @@ SQIDAQAB
         canvas.parentNode.insertBefore(sec, canvas);
         const st = page.ps = page.ps || {};
         const items = psPending[page.id] = psPending[page.id] || [];
+        if (st.done && st.v !== 2 && page.doc && Array.isArray(page.doc.blocks)) { st.v = 2; st.layout = psReflow(page, canvas.clientWidth || 900); }
         let open = !st.done, busy = false, message = '', textDraft = '';
         function paint() {
             if (!open) {
@@ -21459,9 +21505,11 @@ SQIDAQAB
             const files = items.filter((i) => i.kind === 'file').map((i) => ({ name: i.name, mime: i.mime, data: i.data }));
             const texts = items.filter((i) => i.kind === 'text').map((i) => i.text).concat(typed ? [typed] : []);
             if (!files.length && !texts.length) { message = 'Add a picture, a file or some text first.'; paint(); return; }
-            busy = true; message = 'Reading your problem set. This takes about a minute.'; paint();
+            busy = true; message = files.length ? 'Reading your problem set. This takes about a minute.' : 'Splitting it into questions…'; paint();
             try {
-                const res = await nbAssistCall('/problem-set/parse', { files, texts });
+                // text alone is split here in the browser; only pictures and PDFs go to LastMind to be read
+                const local = !files.length ? psParseText(texts.join('\n\n')) : null;
+                const res = local || await nbAssistCall('/problem-set/parse', { files, texts });
                 items.length = 0; textDraft = '';
                 if (!page.name && res.title) { page.name = res.title; const t = document.getElementById('nbTitle'); if (t) t.value = res.title; renderMyNotesTree(); }
                 busy = false;
