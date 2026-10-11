@@ -490,8 +490,8 @@
   function renderPrepFlow() {
     const host = el('prepFlow');
     if (!world.league || world.view === 'match') { host.hidden = true; return; }
-    const active = world.view === 'analysis' ? 'analysis' : world.view === 'tactics' ? (world.testing ? 'test' : 'prepare') : world.view === 'reports' ? 'evidence' : world.view === 'preview' ? 'preview' : '';
-    const steps = [['analysis', 'Analysis'], ['prepare', 'Prepare tactics'], ['test', 'Test phases'], ['evidence', 'Read evidence'], ['preview', 'Match preview']];
+    const active = world.view === 'analysis' ? 'analysis' : world.view === 'tactics' ? (world.testing ? 'test' : 'prepare') : world.view === 'preview' ? 'preview' : '';
+    const steps = [['analysis', 'Analysis'], ['prepare', 'Prepare tactics'], ['test', 'Test phases'], ['preview', 'Match preview']];
     host.hidden = false;
     const max = world.league.prepStep || 0;
     host.innerHTML = steps.map(([k, label], i) => `${i ? '<span class="flow-arrow">›</span>' : ''}<button data-flow="${k}" data-step="${i + 1}" class="${active === k ? 'on' : ''}">${label}</button>`).join('');
@@ -500,7 +500,6 @@
       if (k === 'analysis') { world.league.prepStep = Math.max(world.league.prepStep || 0, 1); saveSoon(); setView('analysis'); }
       else if (k === 'prepare') { world.testing = false; world.tab = 'squad'; world.league.prepPhaseMax = Math.max(world.league.prepPhaseMax || 0, 1); saveSoon(); setView('tactics'); }
       else if (k === 'test') { world.testing = true; world.tab = 'build'; setView('tactics'); }
-      else if (k === 'evidence') { world.league.prepStep = Math.max(world.league.prepStep || 0, 4); saveSoon(); setView('reports'); }
       else setView('preview');
     }));
   }
@@ -537,12 +536,12 @@
         <div class="preview-actions"><button id="previewTactics">Review tactics</button><button id="previewTest">Run an experiment</button><button class="primary" id="enterMatch"${canPlay ? '' : ' disabled'}>${canPlay ? 'Play match' : 'Season complete'}</button></div></div>
       <div class="preview-grid">
         <div class="card"><h2>Your match plan</h2><p class="fixture-big">${esc(me.formationKey)}</p><p class="desc">${(me.rules || []).filter((r) => !r.off).length} active player or team instruction${(me.rules || []).filter((r) => !r.off).length === 1 ? '' : 's'}.</p><p class="note">${problems.length ? problems.length + ' positional issue' + (problems.length === 1 ? '' : 's') + ' still need attention.' : 'Every phase currently fits together.'}</p></div>
-        <div class="card"><h2>Opponent</h2><p class="fixture-big">${esc(opp.name)}</p><p class="desc">${esc(profile.tag || 'Opponent')} · likely ${esc(opp.formationKey)} · ${esc({ balanced:'balanced',possession:'patient in possession',counter:'dangerous in transition',press:'aggressive without the ball',direct:'direct with the ball' }[opp.style] || opp.style)}.</p><button id="previewReport">Open scouting report</button></div>
+        <div class="card"><h2>Opponent</h2><p class="fixture-big">${esc(opp.name)}</p><p class="desc">${esc(profile.tag || 'Opponent')} · likely ${esc(opp.formationKey)} · ${esc({ balanced:'balanced',possession:'patient in possession',counter:'dangerous in transition',press:'aggressive without the ball',direct:'direct with the ball' }[opp.style] || opp.style)}.</p></div>
         <div class="card"><h2>Evidence so far</h2><p class="desc">${findings}</p></div>
       </div></div>`;
     host.querySelector('#previewTactics').addEventListener('click', () => { world.testing = false; world.tab = 'squad'; setView('tactics'); });
     host.querySelector('#previewTest').addEventListener('click', () => { world.testing = true; world.tab = 'build'; setView('tactics'); });
-    host.querySelector('#previewReport').addEventListener('click', () => setView('reports'));
+    const rep = host.querySelector('#previewReport'); if (rep) rep.addEventListener('click', () => setView('reports'));
     host.querySelector('#enterMatch').addEventListener('click', () => {
       if (!canPlay) return;
       let guard = 0; while (!FM.userFixtureToday(lg) && !FM.seasonOver(lg) && guard++ < 8) FM.advanceDay(lg);
@@ -1131,12 +1130,12 @@
   function skipHtml(phase, st) {
     if (st.busy) return '';
     const idx = TEST_TABS.findIndex(([k]) => k === phase), last = idx === TEST_TABS.length - 1;
-    if (testsDoneCount() > 0 && last) return '<button id="labToEvidence">Read the evidence</button>';
+    if (testsDoneCount() > 0 && last) return '<button id="labToEvidence">Go to the match preview</button>';
     return last ? '<button id="labSkip" disabled title="Do at least one test before moving on">Skip</button>' : '<button id="labSkip">' + (testsDoneCount() > 0 ? 'Next test' : 'Skip this test') + '</button>';
   }
   function skipNote(phase) {
     const n = testsDoneCount();
-    return '<p class="note">' + (n === 0 ? 'Run at least one test, then you can read the evidence. The others are optional.' : 'You have completed ' + n + ' test' + (n === 1 ? '' : 's') + '. Run the others, or read the evidence now.') + (n > 0 ? ' <button class="linkbtn" id="labToEvidence2">Read the evidence now</button>' : '') + '</p>';
+    return '<p class="note">' + (n === 0 ? 'Run at least one test before the match preview. The others are optional.' : 'You have completed ' + n + ' test' + (n === 1 ? '' : 's') + '. Run the others, or go to the match preview now.') + (n > 0 ? ' <button class="linkbtn" id="labToEvidence2">Go to the match preview</button>' : '') + '</p>';
   }
   function renderLab(team, host, phase) {
     phase = phase || 'build';
@@ -1165,7 +1164,7 @@
     </div>`;
     const q = (id) => host.querySelector(id);
     q('#labStart').addEventListener('change', (e) => { st.start = e.target.value; });
-    const goEvidence = () => { world.league.prepStep = Math.max(world.league.prepStep || 0, 4); saveSoon(); setView('reports'); };
+    const goEvidence = () => { world.league.prepStep = Math.max(world.league.prepStep || 0, 4); saveSoon(); setView('preview'); };
     if (q('#labSkip')) q('#labSkip').addEventListener('click', () => { const i = TEST_TABS.findIndex(([k]) => k === phase); world.tab = TEST_TABS[Math.min(TEST_TABS.length - 1, i + 1)][0]; renderTactics(); });
     if (q('#labToEvidence')) q('#labToEvidence').addEventListener('click', goEvidence);
     if (q('#labToEvidence2')) q('#labToEvidence2').addEventListener('click', goEvidence);
