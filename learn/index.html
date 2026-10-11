@@ -22290,7 +22290,13 @@ SQIDAQAB
     function nbAssistMount(page) {
         document.getElementById('nbAssist')?.remove();
         const wide = () => window.innerWidth > 1180;
-        const pad = (on) => { const ci = document.getElementById('contentInner'); if (ci) ci.style.paddingRight = on && wide() ? '450px' : ''; [0, 80, 300].forEach((ms) => setTimeout(() => { const c = document.getElementById('nbCanvas'); if (c) nbClampBlocksToCanvas(c); }, ms)); };
+        const pad = (on) => {
+            // the page moves over by exactly the width of the panel, so the whole sheet stays readable beside it
+            const ci = document.getElementById('contentInner');
+            const setPad = () => { const pnl = document.getElementById('nbAssist'); const w = pnl && pnl.offsetWidth ? pnl.offsetWidth : 430; if (ci) ci.style.paddingRight = on && window.innerWidth > 900 ? (w + 20) + 'px' : ''; };
+            setPad();
+            [0, 80, 300].forEach((ms) => setTimeout(() => { setPad(); const c = document.getElementById('nbCanvas'); if (c) nbClampBlocksToCanvas(c); }, ms));
+        };
         document.getElementById('nbAssistTab')?.remove();
         const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'nbAssistTab'; btn.className = 'nb-assist-tab'; btn.setAttribute('aria-expanded', 'false'); btn.setAttribute('aria-label', 'Open LastMind beside your notes'); btn.textContent = 'LastMind'; document.body.appendChild(btn);
         const setOpen = (on) => { notesAssist.open = on; btn.classList.toggle('open', on); btn.textContent = on ? 'Close ›' : 'LastMind'; btn.setAttribute('aria-expanded', String(on)); pad(on); if (!on) document.getElementById('nbAssist')?.remove(); else build(); };
@@ -22659,7 +22665,17 @@ SQIDAQAB
             </div>`;
         const canvas = document.getElementById('nbCanvas');
         if (page.kind === 'problemset') { const t = document.getElementById('nbTitle'); if (t) t.placeholder = 'Untitled problem set'; psMountIntake(page, canvas); }
-        if (typeof ResizeObserver === 'function') new ResizeObserver(() => nbClampBlocksToCanvas(canvas)).observe(canvas);
+        // When the sheet gets narrower or wider (the LastMind panel opening beside it, a smaller window), everything is moved so that all of it can
+        // still be read: a problem set is laid out again for the new width, and other boxes are pulled in from the edge.
+        let refitWidth = canvas.clientWidth, refitTimer = null;
+        const refit = () => {
+            const cw = canvas.clientWidth; if (!cw || Math.abs(cw - refitWidth) < 4) { nbClampBlocksToCanvas(canvas); return; }
+            refitWidth = cw;
+            if (page.kind === 'problemset' && page.ps && page.ps.done) { page.ps.layout = psReflow(page, cw); psLayout(page, canvas); }
+            else page.doc.blocks.forEach((b) => { const el = canvas.querySelector('.nb-block[data-id="' + b.id + '"]'); if (el && (b.type === 'text' || b.type === 'table' || b.type === 'diagram' || b.type === 'graph')) nbPlace(el, b, canvas); });
+            nbClampBlocksToCanvas(canvas); nbFitCanvas(canvas);
+        };
+        if (typeof ResizeObserver === 'function') new ResizeObserver(() => { clearTimeout(refitTimer); refitTimer = setTimeout(refit, 80); }).observe(canvas);
         if (typeof ResizeObserver === 'function') notesResizeObs = new ResizeObserver((entries) => {
             let flowed = false;
             entries.forEach((entry) => {
