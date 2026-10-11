@@ -1095,13 +1095,16 @@
   function renderTransitionTab(team, tab) {
     const host = el('tabBody'), defensive = tab === 'transdef', key = defensive ? 'transDefChoices' : 'transAttChoices';
     // each third of the pitch, with the diagram of the team's set-up for that part of the game beside the choice (small, and not editable here)
-    const zones = [['defensive', 'Defensive third', 'buildEnd', 'Your build-up'], ['middle', 'Middle third', 'midfield', 'Your play through midfield'], ['attacking', 'Attacking third', 'final', 'Your final third']];
+    // After losing the ball the shapes shown are the ones the team attacks in; after winning it, the ones it defends in.
+    const zones = defensive
+      ? [['defensive', 'Defensive third', 'buildEnd', 'Your build-up'], ['middle', 'Middle third', 'midfield', 'Your play through midfield'], ['attacking', 'Attacking third', 'final', 'Your final third']]
+      : [['defensive', 'Defensive third', 'withoutEnd', 'Your shape defending near your goal'], ['middle', 'Middle third', 'without', 'Your shape defending in midfield'], ['attacking', 'Attacking third', 'press', 'Your pressing shape']];
     const options = defensive
       ? [['counterpress', 'Counterpress'], ['contain', 'Delay and contain'], ['regroup', 'Regroup']]
       : [['counter', 'Counter quickly'], ['secure', 'Secure possession'], ['reset', 'Reset the attack']];
     const fallback = defensive ? 'contain' : 'secure';
     team.tactics[key] = team.tactics[key] || {};
-    host.innerHTML = `<div class="card transition-plan"><span class="eyebrow">${defensive ? 'Lost the ball in…' : 'Won the ball in…'}</span><h2>${defensive ? 'Defensive transition' : 'Attacking transition'}</h2><p class="desc">Choose what the team does first when it ${defensive ? 'loses' : 'wins'} the ball in each third of the pitch. The small pitches show how you have set the team up for that part of the game.</p>
+    host.innerHTML = `<div class="card transition-plan"><span class="eyebrow">${defensive ? 'Lost the ball in…' : 'Won the ball in…'}</span><h2>${defensive ? 'Defensive transition' : 'Attacking transition'}</h2><p class="desc">Choose what the team does first when it ${defensive ? 'loses' : 'wins'} the ball in each third of the pitch. The small pitches show how you have set the team up ${defensive ? 'for that part of the game' : 'to defend'}.</p>
       <div class="transition-zones">${zones.map(([z, n, k, cap]) => `<label><b>${n}</b><select data-zone="${z}">${options.map(([v, l]) => `<option value="${v}"${(team.tactics[key][z] || fallback) === v ? ' selected' : ''}>${l}</option>`).join('')}</select><span class="tz-board" id="tzBoard_${z}"></span><span class="note tz-cap">${cap}</span></label>`).join('')}</div>
       <div id="transInstr"></div></div>`;
     host.querySelectorAll('[data-zone]').forEach((s) => s.addEventListener('change', () => { team.tactics[key][s.dataset.zone] = s.value; saveSoon(); }));
