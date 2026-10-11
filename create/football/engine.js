@@ -355,8 +355,9 @@
   const ALWAYS = { key: 'always', label: 'Otherwise (when nothing else applies)' };
   const OPP_SHAPE = { key: 'opp_shape', label: 'The opposition line up like the shirts I place' };
   FM.SCENARIO_CONDS = [ALWAYS,
-    { key: 'opp_press', label: 'The opposition press us' },
-    { key: 'opp_sit', label: 'The opposition sit off us' },
+    { key: 'opp_high', label: 'The opposition press high' },
+    { key: 'opp_mid', label: 'The opposition hold a mid block' },
+    { key: 'opp_low', label: 'The opposition sit in a low block' },
   ].concat(GAME_STATE_CONDS, [OPP_SHAPE]);
   FM.SCENARIO_CONDS_DEF = [ALWAYS,
     { key: 'opp_direct', label: 'The opposition play long and direct' },
@@ -375,6 +376,9 @@
     if (cond === 'always') return true;
     if (cond === 'from_prev') return !!page && !!page.from && info.prevPage === page.from;
     if (cond === 'opp_shape') return !!page && info.shapeWinner === (page.id || 'default');
+    if (cond === 'opp_high') return info.oppPress >= 0.6;
+    if (cond === 'opp_mid') return info.oppPress >= 0.4 && info.oppPress < 0.6;
+    if (cond === 'opp_low') return info.oppPress < 0.4;
     if (cond === 'opp_press') return info.oppPress >= 0.5;
     if (cond === 'opp_sit') return info.oppPress < 0.5;
     if (cond === 'opp_direct') return info.oppDirect >= 0.5;
@@ -407,6 +411,10 @@
     // A stage that follows another starts from one diagram for each version of the stage before, so it has an end page following on from each of
     // them by default (a linked page: it is used when the stage before ended on the page it follows). They come first, in the same order as the
     // starting diagrams, then any pages the manager adds.
+    // the old "they press us / they sit off us" conditions became the three kinds of block
+    const LEGACY = { opp_press: 'opp_high', opp_sit: 'opp_low' };
+    Object.keys(team.pages).forEach((k) => (team.pages[k] || []).forEach((x) => { if (LEGACY[x.cond]) x.cond = LEGACY[x.cond]; }));
+    Object.keys(team.pageDefaults).forEach((k) => { const d = team.pageDefaults[k]; if (d && LEGACY[d.cond]) d.cond = LEGACY[d.cond]; });
     // pages saved before names followed the conditions: a name the manager typed stays, the automatic ones are now worked out
     Object.keys(team.pages).forEach((k) => (team.pages[k] || []).forEach((x) => {
       if (x.named === undefined) x.named = !!x.label && !x.from && x.label !== 'Default page' && x.label !== String((FM.SCENARIO_CONDS.concat(FM.SCENARIO_CONDS_DEF).find((c) => c.key === x.cond) || {}).label || '').replace(/^The /, '').replace(/^./, (ch) => ch.toUpperCase());
@@ -428,12 +436,14 @@
   // default page by what is left ("When the opposition sit off us" when the one other page is for their pressing). A page that follows a version of
   // the stage before is called what that version is called.
   const PHRASE = {
-    opp_press: 'When the opposition press us', opp_sit: 'When the opposition sit off us', opp_direct: 'When the opposition play long and direct',
+    opp_high: 'When the opposition press high', opp_mid: 'When the opposition hold a mid block', opp_low: 'When the opposition sit in a low block',
+    opp_press: 'When the opposition press high', opp_sit: 'When the opposition sit in a low block', opp_direct: 'When the opposition play long and direct',
     opp_short: 'When the opposition build short', leading: 'When we are winning', level: 'When the score is level', trailing: 'When we are losing',
     late: 'In the last 15 minutes', opp_shape: 'When the opposition line up like the shirts I placed', always: 'Otherwise',
   };
   const COMPLEMENT = {
-    opp_press: 'When the opposition sit off us', opp_sit: 'When the opposition press us', opp_direct: 'When the opposition build short', opp_short: 'When the opposition play long and direct',
+    opp_high: 'When the opposition do not press high', opp_mid: 'When the opposition do not hold a mid block', opp_low: 'When the opposition do not sit in a low block',
+    opp_press: 'When the opposition do not press high', opp_sit: 'When the opposition do not sit in a low block', opp_direct: 'When the opposition build short', opp_short: 'When the opposition play long and direct',
     leading: 'When we are not winning', trailing: 'When we are not losing', level: 'When the score is not level', late: 'Before the last 15 minutes',
   };
   FM.pageName = function (team, endKey, pg) {

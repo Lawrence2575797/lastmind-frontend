@@ -1268,12 +1268,14 @@
     const cells = sc.shape.phases[OPP_PHASE[FM.baseKey(key)]];
     if (!cells) return null;
     const base = FM.baseKey(key);
-    // On the goal-kick build-up a page that applies "otherwise" is the one for when they do not press, so they sit off.
+    // A page that applies when they press high shows them pressed up the pitch, a mid block shows them around the halfway line and a low block
+    // shows them compact in their own half. A page for "otherwise" shows the mid block.
     let cond = pageCondOf(key);
-    if ((base === 'buildEnd' || base === 'build') && cond === 'always') cond = 'opp_sit';
-    // Build-up is from a goal kick: the opposition cannot be in the penalty area when it is taken, and even a high press stands on the edge of it.
     const kick = base === 'buildEnd' || base === 'build';
-    const special = !!({ opp_press: 1, opp_sit: 1, opp_direct: 1, opp_short: 1 })[cond];
+    if (cond === 'opp_press') cond = 'opp_high'; else if (cond === 'opp_sit') cond = 'opp_low';
+    if (cond === 'always' && kick) cond = 'opp_mid';
+    const block = { opp_high: 1, opp_mid: 1, opp_low: 1 }[cond];
+    const special = block || cond === 'opp_direct' || cond === 'opp_short';
     if (!special && !kick) return cells;
     const ck = sc.opp.id + '|' + OPP_PHASE[base] + '|' + cond + '|' + (kick ? 'k' : '');
     const hit = shapeCache.get(ck);
@@ -1282,19 +1284,20 @@
     const mean = outfield.reduce((a, k) => a + cells[k].d, 0) / Math.max(1, outfield.length);
     const front = outfield.slice().sort((a, b) => cells[b].d - cells[a].d).slice(0, 3);
     const out = {}, cl = (v) => Math.max(0.02, Math.min(0.97, v));
+    // where the block's average depth sits (0 their goal, 1 ours), how much of the scouted spread it keeps, and how wide it stands
+    const BLOCK = { opp_high: { m: kick ? 0.56 : 0.62, spread: 0.85, wide: 0.95 }, opp_mid: { m: 0.43, spread: 0.8, wide: 0.85 }, opp_low: { m: 0.28, spread: 0.6, wide: 0.7 } }[cond];
     slots.forEach((k) => {
       const c = cells[k]; let d = c.d, w = c.w;
       if (!/^GK/.test(k)) {
-        if (cond === 'opp_press') { d = c.d + (1 - c.d) * 0.42; w = 0.5 + (c.w - 0.5) * 0.92; }
-        else if (cond === 'opp_sit') { d = c.d * 0.6; w = 0.5 + (c.w - 0.5) * 0.7; }
+        if (BLOCK) { d = BLOCK.m + (c.d - mean) * BLOCK.spread; w = 0.5 + (c.w - 0.5) * BLOCK.wide; }
         else if (cond === 'opp_direct') { d = front.indexOf(k) >= 0 ? c.d + (1 - c.d) * 0.5 : c.d * 0.82; }
         else if (cond === 'opp_short') { d = mean + (c.d - mean) * 0.6; w = 0.5 + (c.w - 0.5) * 0.8; }
       }
       out[k] = Object.assign({}, c, { d: cl(d), w: Math.max(0.03, Math.min(0.97, w)) });
     });
     if (kick) {
-      // the deepest-into-our-half player stands no further than the cap (the penalty area ends 0.157 of the pitch from our goal line)
-      const cap = cond === 'opp_press' ? 0.72 : cond === 'opp_sit' ? 0.46 : 0.6;
+      // goal kick: nobody in the penalty area, and even a high press stands on its edge (the area ends 0.157 of the pitch from our goal line)
+      const cap = cond === 'opp_high' ? 0.72 : cond === 'opp_low' ? 0.46 : 0.58;
       const top = Math.max.apply(null, outfield.map((k) => out[k].d));
       if (top > cap) outfield.forEach((k) => { out[k].d = Math.max(0.02, out[k].d * cap / top); });
     }
