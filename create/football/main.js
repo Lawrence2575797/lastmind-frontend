@@ -1267,9 +1267,12 @@
   function oppCellsFor(sc, key) {
     const cells = sc.shape.phases[OPP_PHASE[FM.baseKey(key)]];
     if (!cells) return null;
-    const cond = pageCondOf(key);
-    if (!({ opp_press: 1, opp_sit: 1, opp_direct: 1, opp_short: 1 })[cond]) return cells;
-    const ck = sc.opp.id + '|' + OPP_PHASE[FM.baseKey(key)] + '|' + cond;
+    const cond = pageCondOf(key), base = FM.baseKey(key);
+    // Build-up is from a goal kick: the opposition cannot be in the penalty area when it is taken, and even a high press stands on the edge of it.
+    const kick = base === 'buildEnd' || base === 'build';
+    const special = !!({ opp_press: 1, opp_sit: 1, opp_direct: 1, opp_short: 1 })[cond];
+    if (!special && !kick) return cells;
+    const ck = sc.opp.id + '|' + OPP_PHASE[base] + '|' + cond + '|' + (kick ? 'k' : '');
     const hit = shapeCache.get(ck);
     if (hit && hit.src === cells) return hit.out;
     const slots = Object.keys(cells), outfield = slots.filter((k) => !/^GK/.test(k));
@@ -1282,10 +1285,16 @@
         if (cond === 'opp_press') { d = c.d + (1 - c.d) * 0.42; w = 0.5 + (c.w - 0.5) * 0.92; }
         else if (cond === 'opp_sit') { d = c.d * 0.6; w = 0.5 + (c.w - 0.5) * 0.7; }
         else if (cond === 'opp_direct') { d = front.indexOf(k) >= 0 ? c.d + (1 - c.d) * 0.5 : c.d * 0.82; }
-        else { d = mean + (c.d - mean) * 0.6; w = 0.5 + (c.w - 0.5) * 0.8; }
+        else if (cond === 'opp_short') { d = mean + (c.d - mean) * 0.6; w = 0.5 + (c.w - 0.5) * 0.8; }
       }
       out[k] = Object.assign({}, c, { d: cl(d), w: Math.max(0.03, Math.min(0.97, w)) });
     });
+    if (kick) {
+      // the deepest-into-our-half player stands no further than the cap (the penalty area ends 0.157 of the pitch from our goal line)
+      const cap = cond === 'opp_press' ? 0.8 : cond === 'opp_sit' ? 0.5 : 0.66;
+      const top = Math.max.apply(null, outfield.map((k) => out[k].d));
+      if (top > cap) outfield.forEach((k) => { out[k].d = Math.max(0.02, out[k].d * cap / top); });
+    }
     shapeCache.set(ck, { src: cells, out });
     return out;
   }
