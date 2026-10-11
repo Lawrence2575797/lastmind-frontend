@@ -410,7 +410,9 @@
       const mine = m.score[me], theirs = m.score[m.home.id === me ? m.away.id : m.home.id], result = mine > theirs ? 'W' : mine < theirs ? 'L' : 'D';
       FM.completeRound(world.league, world.fixture, world.match);
       world.league.prepStep = 0; world.league.prepPhaseMax = 0; world.league.testPhaseMax = 0;
-      { const mine = FM.teamById(world.league, world.league.userId); if (mine && mine.rules) mine.rules = mine.rules.filter((r) => !r.game); }   // instructions for that one game are done with
+      // The instructions stay for the next game, to be changed in the same preparation as everything else. One that was written for a single game
+      // is kept too, as an ordinary instruction that now applies whoever the opposition are.
+      { const mine = FM.teamById(world.league, world.league.userId); if (mine && mine.rules) mine.rules.forEach((r) => { delete r.game; }); }
       world.match = null; world.fixture = null;
       FM.saveLeague(world.league);
       btn.disabled = false; btn.textContent = 'Finish and see the table';

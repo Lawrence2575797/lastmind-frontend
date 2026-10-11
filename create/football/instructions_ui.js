@@ -43,11 +43,6 @@
     const pageNote = opts.pageLabel ? ' (' + opts.pageLabel + ')' : '';
     const stateOf = (scope) => states[key + ':' + scope] || (states[key + ':' + scope] = { text: '', busy: false, err: '', draft: null, added: '', collapsed: false, listOpen: true });
     const head = stateOf('general');
-    if (stage && head.collapsed) {
-      host.innerHTML = `<button type="button" class="in-reopen" id="inReopen">Show instructions for ${esc(STAGE_NAME[stage])}${esc(pageNote)}</button>`;
-      host.querySelector('#inReopen').addEventListener('click', () => { head.collapsed = false; FM.renderInstructions(host, team, hooks, opts); });
-      return;
-    }
     team.rules = team.rules || [];
     const roster = setRoster(team, hooks);
     const w = (r) => r.when || {};
@@ -62,6 +57,13 @@
       return true;
     };
     const inStage = (r) => (!stage || (r.when && r.when.stage && r.when.stage.indexOf(stage) >= 0)) && inPage(r);
+    // The box under a diagram can be folded away to just its title, and opened again. It keeps what is in it.
+    if (stage && head.collapsed) {
+      const n = team.rules.filter((r) => inStage(r) && !r.off).length;
+      host.innerHTML = `<button type="button" class="in-fold" id="inFold" aria-expanded="false"><span>${esc(opts.title || 'Instructions')}${n ? ' (' + n + ')' : ''} <small>Open</small></span><i aria-hidden="true">&#9662;</i></button>`;
+      host.querySelector('#inFold').addEventListener('click', () => { head.collapsed = false; FM.renderInstructions(host, team, hooks, opts); });
+      return;
+    }
     const card = (r) => `<div class="in-rule${r.off ? ' off' : ''}">
         <label class="in-sw"><input type="checkbox" data-toggle="${r.id}"${r.off ? '' : ' checked'} aria-label="Instruction on or off"><i></i></label>
         <div class="in-rt"><small class="in-who">${esc(FM.rulesWho(r))}</small><b>${esc(FM.rulesText(r))}</b></div>
@@ -87,13 +89,13 @@
       </section>`;
     };
     host.innerHTML = `<div class="in-wrap"><div class="in-main">
-        ${stage ? '<div class="in-panel-bar"><button type="button" class="in-panel-close" id="inPanelClose" aria-label="Close instructions" title="Close instructions">×</button></div>' : ''}
+        ${stage ? '<button type="button" class="in-fold open" id="inFold" aria-expanded="true"><span>' + esc(opts.title || 'Instructions') + ' <small>Close</small></span><i aria-hidden="true">&#9652;</i></button>' : ''}
         ${box('general')}
       </div></div>`;
     const q = (s) => host.querySelector(s), qa = (s) => host.querySelectorAll(s);
     const redraw = () => FM.renderInstructions(host, team, hooks, opts);
     const touched = () => { if (hooks.save) hooks.save(); if (hooks.changed) hooks.changed(); };
-    const close = q('#inPanelClose'); if (close) close.addEventListener('click', () => { head.collapsed = true; redraw(); });
+    const fold = q('#inFold'); if (fold) fold.addEventListener('click', () => { head.collapsed = true; redraw(); });
     qa('[data-toggle]').forEach((c) => c.addEventListener('change', () => { const r = team.rules.find((x) => x.id === c.dataset.toggle); if (r) { r.off = !c.checked; touched(); redraw(); } }));
     qa('[data-list]').forEach((b) => b.addEventListener('click', () => { const st = stateOf(b.dataset.list); st.listOpen = !st.listOpen; redraw(); }));
     qa('[data-del]').forEach((b) => b.addEventListener('click', () => { team.rules = team.rules.filter((x) => x.id !== b.dataset.del); stateOf('general').added = ''; touched(); redraw(); }));
