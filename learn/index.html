@@ -22244,11 +22244,26 @@ SQIDAQAB
         })();
         return notesMapBusy;
     }
+    // One conversation with LastMind, shared by every page and problem set: it is the same chat wherever you open it. Only the review of a page
+    // belongs to that page.
+    const NB_ASSIST_SHARED = '__chat__';
     function nbAssistState(page) {
-        try { const all = JSON.parse(localStorage.getItem(NB_ASSIST_STORE) || '{}'); return all[page.id] || { chat: [], review: null }; } catch (_) { return { chat: [], review: null }; }
+        try {
+            const all = JSON.parse(localStorage.getItem(NB_ASSIST_STORE) || '{}');
+            const mine = all[page.id] || {};
+            let chat = all[NB_ASSIST_SHARED] && Array.isArray(all[NB_ASSIST_SHARED].chat) ? all[NB_ASSIST_SHARED].chat : null;
+            if (!chat) chat = Array.isArray(mine.chat) ? mine.chat : [];   // the first time: carry on from this page's own earlier chat
+            return { chat, review: mine.review || null };
+        } catch (_) { return { chat: [], review: null }; }
     }
     function nbAssistSave(page, st) {
-        try { const all = JSON.parse(localStorage.getItem(NB_ASSIST_STORE) || '{}'); st.chat = st.chat.slice(-30); all[page.id] = st; localStorage.setItem(NB_ASSIST_STORE, JSON.stringify(all)); } catch (_) { /* a convenience only */ }
+        try {
+            const all = JSON.parse(localStorage.getItem(NB_ASSIST_STORE) || '{}');
+            st.chat = st.chat.slice(-40);
+            all[NB_ASSIST_SHARED] = { chat: st.chat };
+            all[page.id] = { review: st.review || null };
+            localStorage.setItem(NB_ASSIST_STORE, JSON.stringify(all));
+        } catch (_) { /* a convenience: the chat is simply not kept */ }
     }
     function nbAssistReviewHtml(r) {
         const list = (a, f) => (a && a.length ? a.map(f).join('') : '');
