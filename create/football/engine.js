@@ -407,6 +407,11 @@
     // A stage that follows another starts from one diagram for each version of the stage before, so it has an end page following on from each of
     // them by default (a linked page: it is used when the stage before ended on the page it follows). They come first, in the same order as the
     // starting diagrams, then any pages the manager adds.
+    // pages saved before names followed the conditions: a name the manager typed stays, the automatic ones are now worked out
+    Object.keys(team.pages).forEach((k) => (team.pages[k] || []).forEach((x) => {
+      if (x.named === undefined) x.named = !!x.label && !x.from && x.label !== 'Default page' && x.label !== String((FM.SCENARIO_CONDS.concat(FM.SCENARIO_CONDS_DEF).find((c) => c.key === x.cond) || {}).label || '').replace(/^The /, '').replace(/^./, (ch) => ch.toUpperCase());
+    }));
+    Object.keys(team.pageDefaults).forEach((k) => { const d = team.pageDefaults[k]; if (d && d.named === undefined) d.named = !!d.label && d.label !== 'Default page'; });
     Object.keys(FM.PREV_END).forEach((end) => {
       const prev = team.pages[FM.PREV_END[end]] || [], list = team.pages[end] = team.pages[end] || [];
       const wanted = prev.map((p) => p.id);
@@ -419,6 +424,35 @@
     });
   };
   FM.PREV_END = { midfield: 'buildEnd', final: 'midfield' };
+  // What a page is called. Unless the manager has named it themselves, a page is called by when it applies ("When the opposition press us"), and the
+  // default page by what is left ("When the opposition sit off us" when the one other page is for their pressing). A page that follows a version of
+  // the stage before is called what that version is called.
+  const PHRASE = {
+    opp_press: 'When the opposition press us', opp_sit: 'When the opposition sit off us', opp_direct: 'When the opposition play long and direct',
+    opp_short: 'When the opposition build short', leading: 'When we are winning', level: 'When the score is level', trailing: 'When we are losing',
+    late: 'In the last 15 minutes', opp_shape: 'When the opposition line up like the shirts I placed', always: 'Otherwise',
+  };
+  const COMPLEMENT = {
+    opp_press: 'When the opposition sit off us', opp_sit: 'When the opposition press us', opp_direct: 'When the opposition build short', opp_short: 'When the opposition play long and direct',
+    leading: 'When we are not winning', trailing: 'When we are not losing', level: 'When the score is not level', late: 'Before the last 15 minutes',
+  };
+  FM.pageName = function (team, endKey, pg) {
+    const pages = (team.pages || {})[endKey] || [], dfl = (team.pageDefaults || {})[endKey] || {}, prevKey = FM.PREV_END[endKey];
+    if (pg) {
+      if (pg.named && pg.label) return pg.label;
+      if (pg.from && prevKey) {
+        const pp = ((team.pages || {})[prevKey] || []).find((x) => x.id === pg.from);
+        if (pp) return FM.pageName(team, prevKey, pp);
+      }
+      return PHRASE[pg.cond] || pg.label || 'Page';
+    }
+    if (dfl.named && dfl.label) return dfl.label;
+    if (dfl.cond && dfl.cond !== 'always') return PHRASE[dfl.cond] || 'Default page';
+    if (prevKey && ((team.pages || {})[prevKey] || []).length) return FM.pageName(team, prevKey, null);
+    const added = pages.filter((x) => !x.from && x.cond && x.cond !== 'always' && x.cond !== 'opp_shape');
+    if (added.length === 1 && COMPLEMENT[added[0].cond]) return COMPLEMENT[added[0].cond];
+    return added.length ? 'Otherwise' : 'Default page';
+  };
 
   // The target position for one player, in pitch metres.
   // With the ball he moves from his build-up position toward his final-third position as the ball goes forward; for a few

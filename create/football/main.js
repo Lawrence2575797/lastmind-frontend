@@ -739,20 +739,21 @@
     // When a page is chosen by how the opposition line up, the shirts are the ones dragged into place on its own diagram.
     const shapeNote = (pg) => (pg.cond === 'opp_shape' ? `<p class="note scn-shape">${pg.oppSig ? 'Their shape for this page is saved from the shirts you placed. Drag their shirts on its diagram to change it.' : 'Drag the opposition shirts on this page\'s diagram to show how they should line up when it applies.'}</p>` : '');
     const withKey = (k, pg) => (pg.id ? k + '#' + pg.id : k);
+    const pname = (pg) => FM.pageName(team, endKey, pg && pg.id ? pg : null);
     const condOpts = (cur) => conds.map((c) => `<option value="${c.key}"${c.key === cur ? ' selected' : ''}>${esc(c.label)}</option>`).join('');
     // the starting diagrams: one fixed one, or one for each version of the end of the stage before (those are drawn on that stage's page)
     const prev = startDef.locked ? [{ id: null, label: 'Default page' }].concat(pagesOf(startDef.key)) : null;
     const starts = prev
-      ? prev.map((pg) => ({ key: withKey(startDef.key, pg), locked: true, def: startDef, label: pg.label }))
+      ? prev.map((pg) => ({ key: withKey(startDef.key, pg), locked: true, def: startDef, label: FM.pageName(team, startDef.key, pg.id ? pg : null) }))
       : [{ key: startDef.key, locked: false, def: startDef, label: null }];
     const ends = [{ id: null, label: dfl.label, cond: dfl.cond }].concat(pagesOf(endKey)).map((pg) => ({ key: withKey(endKey, pg), locked: false, def: endDef, pg }));
     const figure = (f, n) => `<figure class="bp${f.locked ? ' locked' : ''}">
         ${f.pg ? (f.pg.id
           ? (f.pg.from
-            ? `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(f.pg.label)}" data-scn-label="${f.pg.id}"></label><label>Use this page when <select disabled><option>The stage before ended on the page it follows</option></select></label><button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div>`
-            : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(f.pg.label)}" data-scn-label="${f.pg.id}"></label><label>Use this page when <select data-scn-cond="${f.pg.id}">${condOpts(f.pg.cond)}</select></label><button type="button" data-scn-del="${f.pg.id}">Remove this page</button></div>${shapeNote(f.pg)}`)
-          : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(dfl.label)}" data-def-label="1"></label><label>Use this page when <select data-def-cond="1">${condOpts(dfl.cond)}</select></label><button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div>${shapeNote(dfl)}`) : ''}
-        <figcaption><b>${esc(f.def.title)}</b><span class="note">${esc(f.label ? 'Where the stage before ended on its page: ' + f.label : f.def.note)}</span></figcaption>
+            ? `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname(f.pg))}" data-scn-label="${f.pg.id}"></label><label>Use this page when <select disabled><option>The stage before ended on the page it follows</option></select></label><button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div>`
+            : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname(f.pg))}" data-scn-label="${f.pg.id}"></label><label>Use this page when <select data-scn-cond="${f.pg.id}">${condOpts(f.pg.cond)}</select></label><button type="button" data-scn-del="${f.pg.id}">Remove this page</button></div>${shapeNote(f.pg)}`)
+          : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname({ id: null }))}" data-def-label="1"></label><label>Use this page when <select data-def-cond="1">${condOpts(dfl.cond)}</select></label><button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div>${shapeNote(dfl)}`) : ''}
+        <figcaption><b>${esc(f.def.title)}</b><span class="note">${esc(f.label ? 'From the stage before: ' + f.label : f.def.note)}</span></figcaption>
         <div class="board-host" id="board${n}"></div>${f.locked ? '' : `<div class="row"><button data-reset="${f.key}">Reset this diagram</button></div>`}
       </figure>`;
     // One start and one end sit side by side. Otherwise the starts are along the top and the ends (the versions of the second diagram) below
@@ -786,7 +787,7 @@
         if (e.pg.from) { const k = starts.findIndex((s) => s.key.slice(s.key.indexOf('#') + 1) === e.pg.from && s.key.indexOf('#') > 0); if (k >= 0) i = k; }
         const sf = figs[i], ef = figs[starts.length + j];
         if (!sf || !ef) return;
-        const label = starts[i].label || e.pg.label || '';
+        const label = starts[i].label || pname(e.pg) || '';
         const sr = R(sf), er = R(ef), rs = R(sf.parentElement), re = R(ef.parentElement);
         let d, mx, my;
         const sameParent = sf.parentElement === ef.parentElement, sameRow = sameParent && Math.abs(sr.t - er.t) < 20;
@@ -800,7 +801,7 @@
         }
         svg += `<path d="${d}" fill="none" stroke="#F2C14E" stroke-width="3.5" stroke-linecap="round" marker-end="url(#scnArr)" opacity="0.95"/>`;
         if (label && !sameRow) {
-          const text = label.length > 26 ? label.slice(0, 25) + '…' : label, w = Math.max(56, text.length * 7.2 + 16);
+          const text = label.length > 40 ? label.slice(0, 39) + '…' : label, w = Math.max(56, text.length * 6.9 + 18);
           svg += `<g><rect x="${(mx - w / 2).toFixed(1)}" y="${(my - 11).toFixed(1)}" width="${w.toFixed(1)}" height="22" rx="11" fill="#1A232D" stroke="#F2C14E" stroke-width="1.5"/><text x="${mx.toFixed(1)}" y="${(my + 4.5).toFixed(1)}" text-anchor="middle" font-size="12" font-weight="700" font-family="Arial,sans-serif" fill="#F1EAD6">${esc(text)}</text></g>`;
         }
       });
@@ -822,7 +823,7 @@
           FM.renderInstructions(at, team, instr.hooks, { stage: instr.stage, part: 'start', fromId: null, title: 'Instructions: the start', applies: 'applies to the first part of this stage', positions });
         } else {
           const pgId = f.pg.id || 'default';
-          FM.renderInstructions(at, team, instr.hooks, { stage: instr.stage, part: 'end', pageId: pgId, pageLabel: ends.length > 1 ? f.pg.label : null, title: ends.length > 1 ? 'Instructions: ' + f.pg.label : 'Instructions: the end', applies: ends.length > 1 ? 'applies to the end of this stage, on this page only' : 'applies to the end of this stage', positions });
+          FM.renderInstructions(at, team, instr.hooks, { stage: instr.stage, part: 'end', pageId: pgId, pageLabel: ends.length > 1 ? pname(f.pg) : null, title: ends.length > 1 ? 'Instructions: ' + pname(f.pg) : 'Instructions: the end', applies: ends.length > 1 ? 'applies to the end of this stage, on this page only' : 'applies to the end of this stage', positions });
         }
       }
     };
@@ -830,7 +831,7 @@
     host.querySelectorAll('[data-reset]').forEach((b) => b.addEventListener('click', () => { FM.clearPhase(team, b.dataset.reset); if (team.phaseBall) delete team.phaseBall[b.dataset.reset]; saveSoon(); renderTactics(); }));
     const add = host.querySelector('#scnAdd');
     const endIndex = (id) => starts.length + ends.findIndex((e) => (e.pg.id || null) === (id || null));
-    host.querySelectorAll('[data-def-label]').forEach((inp) => inp.addEventListener('input', () => { dfl.label = inp.value.trim().slice(0, 40) || 'Default page'; ends[0].pg.label = dfl.label; saveSoon(); renderBox(endIndex(null)); }));
+    host.querySelectorAll('[data-def-label]').forEach((inp) => inp.addEventListener('input', () => { const v = inp.value.trim().slice(0, 40); dfl.label = v || 'Default page'; dfl.named = !!v; saveSoon(); renderBox(endIndex(null)); }));
     host.querySelectorAll('[data-def-cond]').forEach((sel) => sel.addEventListener('change', () => { dfl.cond = sel.value; saveSoon(); renderTactics(); }));
     if (add) add.addEventListener('click', () => {
       team.pages[endKey] = team.pages[endKey] || [];
@@ -840,8 +841,8 @@
     });
     host.querySelectorAll('[data-scn-label]').forEach((inp) => inp.addEventListener('input', () => {
       const pg = pagesOf(endKey).find((x) => x.id === inp.dataset.scnLabel); if (!pg) return;
-      pg.label = inp.value.trim().slice(0, 40) || 'Untitled page'; saveSoon();
-      const n = endIndex(pg.id); if (all[n] && all[n].pg) all[n].pg.label = pg.label; renderBox(n);
+      const v = inp.value.trim().slice(0, 40); pg.label = v || pg.label || 'Page'; pg.named = !!v; saveSoon();
+      const n = endIndex(pg.id); renderBox(n);
     }));
     host.querySelectorAll('[data-scn-cond]').forEach((sel) => sel.addEventListener('change', () => {
       const pg = pagesOf(endKey).find((x) => x.id === sel.dataset.scnCond); if (!pg) return;
@@ -849,7 +850,7 @@
     }));
     host.querySelectorAll('[data-scn-del]').forEach((b) => b.addEventListener('click', () => {
       const id = b.dataset.scnDel, pg = pagesOf(endKey).find((x) => x.id === id); if (!pg) return;
-      if (!confirm('Remove "' + pg.label + '" and its diagram?')) return;
+      if (!confirm('Remove "' + pname(pg) + '" and its diagram?')) return;
       team.pages[endKey] = team.pages[endKey].filter((x) => x.id !== id);
       const k = endKey + '#' + id;
       if (team.phasePos) delete team.phasePos[k];

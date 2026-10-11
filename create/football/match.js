@@ -452,9 +452,9 @@
           info.prevPage = (FM.PREV_END[k] && team.pageNow[FM.PREV_END[k]]) || null;
           const sc = FM.pickPage(list, info, dflt);
           team.pageNow[k] = sc ? sc.id : null;
-          const dl = (dflt && dflt.label) || 'Default';
-          [dl].concat(list.map((x) => x.label)).forEach((l) => { const kk = team.id + '|' + k + '|' + l; if (match.pageTime[kk] == null) match.pageTime[kk] = 0; });
-          const t = team.id + '|' + k + '|' + (sc ? sc.label : dl);
+          const dl = FM.pageName(team, k, null);
+          [dl].concat(list.map((x) => FM.pageName(team, k, x))).forEach((l) => { const kk = team.id + '|' + k + '|' + l; if (match.pageTime[kk] == null) match.pageTime[kk] = 0; });
+          const t = team.id + '|' + k + '|' + (sc ? FM.pageName(team, k, sc) : dl);
           match.pageTime[t] = (match.pageTime[t] || 0) + 1;
         });
       }
