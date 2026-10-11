@@ -236,7 +236,7 @@
       // A page that follows a version of the stage before starts out as that version's shape (just as the default end starts from the default
       // start), so two carried boards are two different boards; any other page that has not been changed is the default page.
       const id = FM.scnSuffix(phase).slice(1), pg = ((team.pages || {})[base] || []).find((x) => x.id === id);
-      if (pg && pg.from && FM.PREV_END && FM.PREV_END[base]) return FM.phasePos(team, p, FM.PREV_END[base] + '#' + pg.from);
+      if (pg && pg.from && FM.PREV_END && FM.PREV_END[base]) return FM.phasePos(team, p, FM.PREV_END[base] + (pg.from === 'default' ? '' : '#' + pg.from));
       return FM.phasePos(team, p, base);
     }
     return FM.defaultPhasePos(team, p, phase);
@@ -386,7 +386,7 @@
     // a page that follows one of the stage before is used whenever that one was; the manager can add a condition of their own on top of it
     // a condition the manager described in words was turned into a "when" once, when they saved it (see the backend's compile-condition)
     if (cond === 'custom') return !!(page && page.custom && page.custom.when && info.when && info.when(page.custom.when));
-    if (cond === 'from_prev') return !!page && !!page.from && info.prevPage === page.from && (!page.extra || FM.scenarioHolds(page.extra, info, page));
+    if (cond === 'from_prev') return !!page && !!page.from && info.prevPage === (page.from === 'default' ? null : page.from) && (!page.extra || FM.scenarioHolds(page.extra, info, page));
     if (cond === 'fb_high') return !!info.fbHigh;
     if (cond === 'fb_back') return !info.fbHigh;
     if (cond === 'opp_shape') return !!page && info.shapeWinner === (page.id || 'default');
@@ -439,10 +439,11 @@
       const wanted = prev.map((p) => p.id);
       // a page carried over from the days when pages were shared by the whole chain follows the page of the same id
       list.forEach((x) => { if (!x.from && wanted.indexOf(x.id) >= 0) { x.from = x.id; x.cond = 'from_prev'; } });
-      for (let i = list.length - 1; i >= 0; i--) if (list[i].from && wanted.indexOf(list[i].from) < 0) list.splice(i, 1);
-      prev.forEach((p) => { if (!list.some((x) => x.from === p.id)) list.push({ id: 'l' + p.id, label: p.label, cond: 'from_prev', from: p.id }); });
-      const linked = wanted.map((id) => list.find((x) => x.from === id)).filter(Boolean);
-      team.pages[end] = linked.concat(list.filter((x) => !x.from));
+      for (let i = list.length - 1; i >= 0; i--) if (list[i].from && list[i].from !== 'default' && wanted.indexOf(list[i].from) < 0) list.splice(i, 1);
+      prev.forEach((p) => { if (!list.some((x) => x.from === p.id && !x.extra)) list.push({ id: 'l' + p.id, label: p.label, cond: 'from_prev', from: p.id }); });
+      const conditionFirst = (a, b) => (a.extra ? 0 : 1) - (b.extra ? 0 : 1);
+      const follows = (id) => list.filter((x) => x.from === id).sort(conditionFirst);
+      team.pages[end] = follows('default').concat([].concat.apply([], wanted.map(follows)), list.filter((x) => !x.from));
     });
   };
   FM.PREV_END = { midfield: 'buildEnd', final: 'midfield' };
@@ -466,8 +467,13 @@
     if (pg) {
       if (pg.named && pg.label) return pg.label;
       if (pg.from && prevKey) {
-        const pp = ((team.pages || {})[prevKey] || []).find((x) => x.id === pg.from);
-        if (pp) return FM.pageName(team, prevKey, pp);
+        const pp = pg.from === 'default' ? null : ((team.pages || {})[prevKey] || []).find((x) => x.id === pg.from);
+        if (pg.from === 'default' || pp) {
+          const base = FM.pageName(team, prevKey, pp);
+          if (pg.extra === 'custom' && pg.custom && pg.custom.summary) return base + ' and ' + String(pg.custom.summary).replace(/^when\s+/i, '');
+          if (pg.extra && pg.extra !== 'custom' && PHRASE[pg.extra]) return base + ' and ' + PHRASE[pg.extra].replace(/^when\s+/i, '').replace(/^./, (c) => c.toLowerCase());
+          return base;
+        }
       }
       if (pg.cond === 'custom' && pg.custom && pg.custom.summary) return cap1(pg.custom.summary);
       if (pg.cond === 'from_prev' && pg.extra === 'custom' && pg.custom && pg.custom.summary) return cap1(pg.custom.summary);

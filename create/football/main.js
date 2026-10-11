@@ -786,7 +786,7 @@
     // When a fixed start sits beside the end with its name and condition above it, the start carries an invisible copy of that row, so the two
     // diagrams begin at the same height.
     const levelWithEnd = starts.length === 1 && ends.length === 1;
-    const holdHead = '<div class="scn-head" aria-hidden="true" style="visibility:hidden"><label>Page name <input type="text" tabindex="-1" disabled></label><label>Use this page when <select tabindex="-1" disabled><option>Otherwise</option></select></label><button type="button" class="scn-del-hold" tabindex="-1">Remove this page</button></div>' +
+    const holdHead = '<div class="scn-add-above" aria-hidden="true" style="visibility:hidden"><button type="button" tabindex="-1">+ Add a page</button></div><div class="scn-head" aria-hidden="true" style="visibility:hidden"><label>Page name <input type="text" tabindex="-1" disabled></label><label>Use this page when <select tabindex="-1" disabled><option>Otherwise</option></select></label><button type="button" class="scn-del-hold" tabindex="-1">Remove this page</button></div>' +
       '<p class="note scn-custom-note" aria-hidden="true" style="visibility:hidden">&nbsp;</p>';
     // the box where a condition is written in words, under the page's name and condition
     // what a following page's box shows: what the manager wrote, or the name of a ready-made condition saved earlier
@@ -803,10 +803,13 @@
       const c = holder.custom || {};
       return `<div class="scn-custom"><input type="text" class="scn-custom-text" maxlength="200" placeholder="Say when, in your own words: for example when our full-backs have stepped high and we are drawing" value="${esc(c.text || '')}" data-custom-text="${id}" aria-label="When this page should be used"><button type="button" data-custom-go="${id}">${c.when ? 'Update' : 'Save'}</button></div><p class="note scn-custom-note" data-custom-note="${id}">${c.when ? 'Understood as: ' + esc(c.summary || c.text) + '.' : 'Not set yet, so this page is not used until it is.'}</p>`;
     };
-    const figure = (f, n) => `<figure class="bp${f.locked ? ' locked' : ''}">
-        ${!f.pg && levelWithEnd ? holdHead : ''}${f.pg ? (f.pg.id
+    // "+ Add a page" sits above each end page and adds another page that follows the same start diagram
+    const startIdOf = (e) => (e.pg && e.pg.from) || 'default';
+    const addAbove = (f) => (f.pg ? `<div class="scn-add-above"><button type="button" data-add-after="${esc(startIdOf(f))}">+ Add a page</button></div>` : '');
+    const figure = (f, n) => `<figure class="bp${f.locked ? ' locked' : ''}" data-fig="${n}">
+        ${addAbove(f)}${!f.pg && levelWithEnd ? holdHead : ''}${f.pg ? (f.pg.id
           ? (f.pg.from
-            ? `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname(f.pg))}" data-scn-label="${f.pg.id}"></label>${ddField(f.pg, f.pg.id)}<button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div>${ddNote(f.pg, f.pg.id)}`
+            ? `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname(f.pg))}" data-scn-label="${f.pg.id}"></label>${ddField(f.pg, f.pg.id)}${f.pg.added ? `<button type="button" data-scn-del="${f.pg.id}">Remove this page</button>` : '<button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button>'}</div>${ddNote(f.pg, f.pg.id)}`
             : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname(f.pg))}" data-scn-label="${f.pg.id}"></label>${ddField(f.pg, f.pg.id)}<button type="button" data-scn-del="${f.pg.id}">Remove this page</button></div>${ddNote(f.pg, f.pg.id)}`)
           : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname({ id: null }))}" data-def-label="1"></label>${ddField(dfl, 'default')}<button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div>${ddNote(dfl, 'default')}`) : ''}
         <figcaption><b>${esc(starts.length || !f.pg ? f.def.title : f.def.title.replace(/^\d+\.\s*/, ''))}</b><span class="note">${esc(f.label ? 'From the stage before: ' + f.label : f.def.note)}</span></figcaption>
@@ -825,24 +828,31 @@
     if (!starts.length) html = ends.length === 1 ? row(fig(ends, 0), 'solo') + row([box(0)], 'solo') : row(fig(ends, 0), 'ends-row') + row(ends.map((e, i) => box(i)));
     else if (starts.length === 1 && ends.length === 1) html = row(fig(all, 0), 'linked') + row([startBox(0), box(1)]);
     else if (loneStart) html = row(fig(starts, 0).concat(starts[0].locked ? [] : [box(0)])) + row(fig(ends, 1), 'ends-row') + row(ends.map((e, i) => box(1 + i)));
-    else html = row(fig(starts, 0)) + (starts.some((s) => !s.locked) ? row(starts.map((s, i) => startBox(i))) : '') + row(fig(ends, starts.length), 'ends-row') + row(ends.map((e, i) => box(starts.length + i)));
+    else {
+      // several starts: a column for each, its own diagram on top and the pages that follow it underneath
+      const startId = (s) => (s.key.indexOf('#') > 0 ? s.key.slice(s.key.indexOf('#') + 1) : 'default');
+      const ids = starts.map(startId);
+      const colOf = (e) => { const k = ids.indexOf(startIdOf(e)); return k < 0 ? 0 : k; };
+      html = `<div class="board-pair cols" style="--n:${starts.length}">` + starts.map((s, i) => `<div class="scn-col">${figure(s, i)}${s.locked ? '' : box(i)}${ends.map((e, j) => (colOf(e) === i ? figure(e, starts.length + j) + box(starts.length + j) : '')).join('')}</div>`).join('') + '</div>';
+    }
     host.innerHTML = `<div class="scn">${html}</div>`;
-    host.insertAdjacentHTML('afterbegin', '<div class="row scn-add"><button type="button" id="scnAdd">+ Add a page</button><span class="note">Adds another version of ' + (starts.length ? 'the second diagram' : 'this diagram') + ', for a different situation.</span></div>');
     // An arrow from each starting diagram to the end diagram that follows it (labelled with the page it came from), so it is plain which version
     // of the stage before leads to which version of this one.
     const drawArrows = () => {
       const scn = host.querySelector('.scn');
       if (!scn) return;
       const old = scn.querySelector('.scn-arrows'); if (old) old.remove();
-      const figs = Array.from(scn.querySelectorAll('figure.bp'));
-      if (figs.length < 2 || !starts.length) return;
+      const figOf = (k) => scn.querySelector('figure.bp[data-fig="' + k + '"]');
+      if (!starts.length || scn.querySelectorAll('figure.bp').length < 2) return;
+      const seenStart = {};
       const o = scn.getBoundingClientRect(), W = Math.round(o.width), H = Math.round(o.height);
       const R = (el) => { const r = el.getBoundingClientRect(); return { l: r.left - o.left, t: r.top - o.top, r: r.right - o.left, b: r.bottom - o.top, cx: (r.left + r.right) / 2 - o.left, cy: (r.top + r.bottom) / 2 - o.top }; };
       let svg = '<defs><marker id="scnArr" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#F2C14E"/></marker></defs>';
       ends.forEach((e, j) => {
         let i = 0;
-        if (e.pg.from) { const k = starts.findIndex((s) => s.key.slice(s.key.indexOf('#') + 1) === e.pg.from && s.key.indexOf('#') > 0); if (k >= 0) i = k; }
-        const sf = figs[i], ef = figs[starts.length + j];
+        if (e.pg.from && e.pg.from !== 'default') { const k = starts.findIndex((s) => s.key.slice(s.key.indexOf('#') + 1) === e.pg.from && s.key.indexOf('#') > 0); if (k >= 0) i = k; }
+        if (seenStart[i]) return; seenStart[i] = true;
+        const sf = figOf(i), ef = figOf(starts.length + j);
         if (!sf || !ef) return;
         const label = starts[i].label || pname(e.pg) || '';
         const sr = R(sf), er = R(ef), rs = R(sf.parentElement), re = R(ef.parentElement);
@@ -872,7 +882,7 @@
       if (!instr || !f || !at) return;
       {
         // where the shirts are for this box's diagram: from its start to its end, which is what Haiku is given along with the wording
-        const startKeyFor = n < starts.length ? f.key : (f.pg.from ? startDef.key + '#' + f.pg.from : startDef.key);
+        const startKeyFor = n < starts.length ? f.key : (f.pg.from && f.pg.from !== 'default' ? startDef.key + '#' + f.pg.from : startDef.key);
         const endKeyFor = n < starts.length ? endKey : f.key;
         const positions = () => team.players.map((p) => ({ number: p.number, name: p.name, slot: p.slotKey || '', start: FM.phasePos(team, p, startKeyFor), end: FM.phasePos(team, p, endKeyFor) }));
         if (n < starts.length) {
@@ -886,16 +896,20 @@
     };
     all.forEach((f, n) => renderBox(n));
     host.querySelectorAll('[data-reset]').forEach((b) => b.addEventListener('click', () => { FM.clearPhase(team, b.dataset.reset); if (team.phaseBall) delete team.phaseBall[b.dataset.reset]; saveSoon(); renderTactics(); }));
-    const add = host.querySelector('#scnAdd');
     const endIndex = (id) => starts.length + ends.findIndex((e) => (e.pg.id || null) === (id || null));
     host.querySelectorAll('[data-def-label]').forEach((inp) => inp.addEventListener('input', () => { const v = inp.value.trim().slice(0, 40); dfl.label = v || 'Default page'; dfl.named = !!v; saveSoon(); renderBox(endIndex(null)); }));
     host.querySelectorAll('[data-def-cond]').forEach((sel) => sel.addEventListener('change', () => { dfl.cond = sel.value; saveSoon(); renderTactics(); }));
-    if (add) add.addEventListener('click', () => {
+    host.querySelectorAll('[data-add-after]').forEach((addBtn) => addBtn.addEventListener('click', () => {
       team.pages[endKey] = team.pages[endKey] || [];
+      if (starts.length > 1) {
+        // a page that follows this start diagram: it is used when the stage before ended there and whatever is written for it holds
+        team.pages[endKey].push({ id: 's' + Date.now().toString(36), label: 'Another page', cond: 'from_prev', from: addBtn.dataset.addAfter, extra: 'custom', custom: null, added: true });
+        saveSoon(); renderTactics(); return;
+      }
       const used = new Set(team.pages[endKey].map((x) => x.cond).concat([dfl.cond])), c = conds.find((x) => x.key !== 'always' && x.key !== 'opp_shape' && !used.has(x.key)) || conds[1];
       team.pages[endKey].push({ id: 's' + Date.now().toString(36), label: c.label.replace(/^The /, '').replace(/^./, (ch) => ch.toUpperCase()), cond: c.key });
       saveSoon(); renderTactics();
-    });
+    }));
     host.querySelectorAll('[data-scn-label]').forEach((inp) => inp.addEventListener('input', () => {
       const pg = pagesOf(endKey).find((x) => x.id === inp.dataset.scnLabel); if (!pg) return;
       const v = inp.value.trim().slice(0, 40); pg.label = v || pg.label || 'Page'; pg.named = !!v; saveSoon();
@@ -1327,7 +1341,7 @@
     const pg = sfx ? (team.pages[base] || []).find((x) => x.id === sfx.slice(1)) : (team.pageDefaults || {})[base];
     if (!pg) return 'always';
     if (pg.cond === 'from_prev' && pg.extra && /^opp_/.test(pg.extra)) return pg.extra;   // an extra condition about how they set up shows them that way
-    if (pg.cond === 'from_prev' && pg.from && FM.PREV_END && FM.PREV_END[base]) return pageCondOf(FM.PREV_END[base] + '#' + pg.from);
+    if (pg.cond === 'from_prev' && pg.from && FM.PREV_END && FM.PREV_END[base]) return pageCondOf(FM.PREV_END[base] + (pg.from === 'default' ? '' : '#' + pg.from));
     return pg.cond || 'always';
   }
   // How the opposition stand on a page's diagram. Their scouted shape is the starting point; a page that applies when they press us shows them
