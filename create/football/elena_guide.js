@@ -210,18 +210,20 @@
       if (L.build) { try { steps = L.build(G.ctx); } catch (e) { steps = null; } }
       if (!steps || !steps.length) return false;
       G.lesson = Object.assign({}, L, { steps });
+      FM.guideMarkSeen(id);
       document.body.classList.add('gd-on');
       G.spot = document.createElement('div'); G.spot.className = 'gd-spot none';
       G.card = document.createElement('aside'); G.card.className = 'gd-card'; G.card.setAttribute('role', 'dialog'); G.card.setAttribute('aria-label', 'Elena Marsh: ' + L.title);
       document.body.appendChild(G.spot); document.body.appendChild(G.card);
       G.api = { redraw: render, ready(v) { const s = stOf(G.i); if (s.ready !== !!v) { s.ready = !!v; const n = G.card && G.card.querySelector('[data-gd="next"],[data-gd="finish"]'); if (n && G.lesson.steps[G.i].gate) n.disabled = !v; } }, shared: G.shared, stepState: () => stOf(G.i) };
       G.card.addEventListener('click', onClick); document.addEventListener('keydown', onKey);
+      FM.guideMarkSeen(id);
       place(); enterStep();
       return true;
     },
     detail(id) {
       const L = FM.guides[id]; if (!L || !G.lesson) return false;
-      let steps; try { steps = L.build ? L.build(G.ctx) : L.steps; } catch (e) { steps = null; }
+      let steps; try { if (L.prepare) L.prepare(G.ctx); steps = L.build ? L.build(G.ctx) : L.steps; } catch (e) { steps = null; }
       if (!steps || !steps.length) return false;
       G.stack.push({ lesson: G.lesson, i: G.i });
       G.lesson = Object.assign({}, L, { steps }); G.i = 0;
@@ -240,10 +242,19 @@
     },
   };
 
+  // which tours have been given already (so a page's tour starts by itself only the first time)
+  const SEEN_KEY = 'lm_fm_tours';
+  const seenSet = () => { try { return JSON.parse(localStorage.getItem(SEEN_KEY) || '{}') || {}; } catch (e) { return {}; } };
+  FM.guideSeen = (id) => !!seenSet()[id];
+  FM.guideMarkSeen = (id) => { try { const d = seenSet(); d[id] = 1; localStorage.setItem(SEEN_KEY, JSON.stringify(d)); } catch (e) { /* it only means the tour starts again */ } };
+  FM.guideResetSeen = () => { try { localStorage.removeItem(SEEN_KEY); } catch (e) { /* nothing */ } };
+  FM.TOUR_FOR = { hub: 'descriptive', squad: 'tour-squad', build: 'tour-build', midfield: 'tour-midfield', final: 'tour-final', transdef: 'tour-transdef', organised: 'tour-organised', transatt: 'tour-transatt', setpieces: 'tour-setpieces', test: 'tour-test', evidence: 'tour-evidence', preview: 'tour-preview', analysis: 'tour-analysis' };
+  FM.tourIdFor = (pageKey) => { const id = FM.TOUR_FOR[pageKey]; return id && FM.guides[id] ? id : null; };
+
   // the offer that sits at the top of a page's notes
   try { css(); } catch (e) { /* styles are added again when a lesson starts */ }
   FM.guideOffer = function (id, text) {
     const L = FM.guides[id]; if (!L) return '';
-    return '<div class="gd-offer"><b>' + esc(L.title) + '</b><span>' + (text || esc(L.blurb || '')) + '</span><button type="button" data-guide="' + esc(id) + '">Start the lesson</button></div>';
+    return '<div class="gd-offer"><b>' + esc(L.title) + '</b><span>' + (text || esc(L.blurb || '')) + '</span><button type="button" data-guide="' + esc(id) + '">' + (/^(tour-|descriptive$)/.test(id) ? 'Take the tour' : 'Start the lesson') + '</button></div>';
   };
 })();

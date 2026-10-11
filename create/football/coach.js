@@ -130,7 +130,7 @@
   }
   FM.coach = {
     seen: (id) => !!load()[id],
-    reset() { save({}); },
+    reset() { save({}); if (FM.guideResetSeen) FM.guideResetSeen(); },
     close() { if (current) { current.remove(); current = null; } },
     // cfg: { title, html, button, onClose }. Shown once, unless cfg.force is set.
     show(id, cfg) {

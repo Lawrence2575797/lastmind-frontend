@@ -16,7 +16,7 @@
 
   // ---------- the numbers: every pass and shot of the user's club that has been logged ----------
   function gather(lg) {
-    const out = { build: [], midfield: [], final: [], all: [], shots: [], matches: 0 };
+    const out = { build: [], midfield: [], final: [], all: [], shots: [], setShots: [], matches: 0 };
     if (!lg) return out;
     const me = lg.userId;
     const past = (lg.seed === FM.WORLD_SEED && FM.LAST_SEASON && FM.LAST_SEASON.matches) || [];
@@ -33,6 +33,7 @@
       (log.other || []).forEach((e) => {
         if (e.type !== 'shot' || e.team !== me) return;
         const goal = e.outcome === 'goal' ? 1 : 0;
+        if (e.setPiece) out.setShots.push({ goal, kind: e.setPiece });
         if (typeof e.x === 'number' && typeof e.y === 'number' && !e.setPiece) {
           const xu = flip ? 105 - e.x : e.x, dx = 105 - xu, dy = e.y - 34;
           const dist = Math.hypot(dx, dy), ang = Math.atan2(7.32 * dx, dx * dx + dy * dy - 3.66 * 3.66);
@@ -718,4 +719,5 @@
     };
   }
   wrap();
+  FM.guideLib = { esc, pc, f1, f2, f3, mean, quart, wilson, sig, LEVEL, fillInstruction, instrTargets, goButton, board, KW, kwLesson, kwData };
 })();

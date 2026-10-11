@@ -548,6 +548,10 @@
       }
       if (E.open == null) E.open = false;
       // A page she has notes for opens her panel by itself the first time you arrive (it can be closed; it does not reopen until another page).
+      if (newPage && FM.tourIdFor) {
+        const tid = FM.tourIdFor(pk);
+        if (tid && !FM.guideSeen(tid)) { setTimeout(() => { if (FM.guide && !FM.guide.active && !FM.guideSeen(tid)) FM.guide.start(tid); }, 600); }
+      }
       if (newPage && FM.elenaNotes[pk] && !E.open) { setOpen(true); return; }
       if (E.open && !E.el) setOpen(true);
       else if (E.open) { if (fresh && E.tab === 'lessons' && !E.lesson) E.tab = 'read'; paint(); if (fresh && E.tab !== 'lessons') { const b = E.el && E.el.querySelector('.el-body'); if (b) b.scrollTop = 0; } }
