@@ -507,7 +507,7 @@
         E.btn = document.createElement('button'); E.btn.type = 'button'; E.btn.className = 'el-tab'; E.btn.setAttribute('aria-expanded', 'false'); E.btn.setAttribute('aria-label', 'Open Elena Marsh, performance analyst');
         E.btn.innerHTML = '<img alt="" src="' + IMG.hello + '"><span>ELENA</span><i class="dot"></i>';
         E.btn.addEventListener('click', () => setOpen(!E.open)); document.body.appendChild(E.btn);
-        clearInterval(E.watch); E.watch = setInterval(() => { const m = E.ctx && E.ctx.mode; if (!document.querySelector(m === 'tactics' ? '#tabBody .tb-grid, #tabBody .transition-plan, #tabBody .sliders' : m === 'instr' ? '.in-wrap' : '.lab')) FM.elena.hide(); }, 700);
+        clearInterval(E.watch); E.watch = setInterval(() => { const m = E.ctx && E.ctx.mode; const found = document.querySelector(m === 'tactics' ? '#tabBody .tb-grid, #tabBody .transition-plan, #tabBody .sliders' : m === 'instr' ? '.in-wrap' : '.lab'); if (!found || !found.offsetParent) FM.elena.hide(); }, 700);   // gone when the page it belongs to is not on screen
       }
       if (E.open == null) E.open = false;                                                // she only opens when she is asked to
       if (E.open && !E.el) setOpen(true);

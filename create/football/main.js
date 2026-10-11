@@ -1504,6 +1504,8 @@
     document.body.dataset.view = 'new';
     ['home', 'league', 'squad', 'analysis', 'reports', 'news', 'preview', 'match'].forEach((k) => { el('view-' + k).hidden = true; });
     el('tactics').hidden = true; el('nav').hidden = true; el('prepFlow').hidden = true; el('newGame').hidden = false;
+    if (FM.elena) FM.elena.hide();    // Elena's tab belongs to the tactics pages, not the start screen
+    if (FM.coach) FM.coach.close();
     el('topRight').innerHTML = ''; el('subtitle').textContent = 'Eight clubs, one season, and a lot of numbers.';
   }
   el('ngStart').addEventListener('click', async () => {
