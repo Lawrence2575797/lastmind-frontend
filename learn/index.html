@@ -14442,51 +14442,10 @@ SQIDAQAB
         }
     }
 
-    // Real, natural-sounding speech via the backend's ElevenLabs-backed
-    // /tts route (see elevenLabsService.ts) - only defined for subjects
-    // with a configured voice (Italian/Spanish today). Object URLs are
-    // cached in-memory per (subject, text) so replaying the same word/
-    // phrase within a session never re-fetches it. Returns false (never
-    // throws) on any failure - a 404 (no voice configured for this
-    // subject), a network error, or no session - so the caller can fall
-    // back to on-device speech instead of the student hearing nothing.
-    const elevenLabsAudioCache = new Map();
-    async function speakViaElevenLabs(subject, text) {
-        const trimmed = (text || '').trim();
-        if (!trimmed) return false;
-        const key = `${subject}::${trimmed}`;
-        try {
-            let url = elevenLabsAudioCache.get(key);
-            if (!url) {
-                const { data: { session } } = await supabaseClient.auth.getSession();
-                if (!session) return false;
-                const resp = await fetch(`${COMPILE_BACKEND_URL}/tts`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-                    body: JSON.stringify({ subject, text: trimmed })
-                });
-                if (!resp.ok) return false;
-                const blob = await resp.blob();
-                url = URL.createObjectURL(blob);
-                elevenLabsAudioCache.set(key, url);
-            }
-            stopSpeaking();
-            currentTtsAudio = new Audio(url);
-            await currentTtsAudio.play();
-            return true;
-        } catch (err) {
-            console.error('LastMind: ElevenLabs playback failed, falling back to on-device speech.', err);
-            return false;
-        }
-    }
-
-    // Single entry point every "speak this aloud" call site should use -
-    // tries ElevenLabs first (real voices for Italian/Spanish), falling
-    // back to the on-device Web Speech API (speakText, below) for every
-    // other subject or on any ElevenLabs failure.
+    // Single entry point every "speak this aloud" call site uses: the browser's own on-device speech (speakText, above). Nothing is sent
+    // to any server.
     async function speak(subject, text) {
-        const played = await speakViaElevenLabs(subject, text);
-        if (!played) await speakText(text, localeForSubject(subject));
+        await speakText(text, localeForSubject(subject));
     }
 
     // Wires every bolded term inside a language-subject lesson explanation
