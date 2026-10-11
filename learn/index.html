@@ -4147,6 +4147,14 @@
     .ps-collapsed { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; border: 1px solid rgba(230,215,176,.25); border-radius: 10px; font-size: .9rem; }
     .nb-canvas .nb-block.ps-question { border: 1.5px solid rgba(242,193,78,.75); border-radius: 12px; background: rgba(242,193,78,.07); padding: 8px 10px; box-sizing: border-box; }
     .nb-canvas .nb-block.ps-answer { border: 1.5px solid rgba(127,212,154,.75); border-radius: 12px; background: rgba(127,212,154,.06); padding: 8px 10px; box-sizing: border-box; }
+    .nb-canvas .nb-block.ps-mark { padding: 2px 0 0; box-sizing: border-box; }
+    .ps-mark-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .ps-mark-btn { background: #E6D7B0; color: #1A232D; border: 0; border-radius: 8px; padding: 7px 14px; font-weight: 700; font-size: .86rem; font-family: inherit; cursor: pointer; } .ps-mark-btn:disabled { opacity: .55; cursor: wait; }
+    .ps-mark-msg { font-size: .84rem; opacity: .85; color: #F1EAD6; }
+    .ps-mark-out { margin-top: 8px; display: grid; gap: 8px; } .ps-mark-out:empty { display: none; }
+    .ps-mark-out p { margin: 0; padding: 0 2px; line-height: 1.55; color: #F1EAD6; }
+    .ps-verdict { display: inline-flex; gap: 8px; align-items: baseline; padding: 6px 12px; border-radius: 10px; width: fit-content; background: rgba(255,255,255,.08); color: #F1EAD6; }
+    .ps-v-correct { background: rgba(82,189,123,.22); color: #b6f2cb; } .ps-v-partly { background: rgba(242,193,78,.2); color: #FFE9A8; } .ps-v-incorrect { background: rgba(229,100,90,.22); color: #ffc2bc; }
     .nb-canvas.ps-sheet { cursor: default; } .nb-canvas.ps-sheet .nb-hint { display: none; }
     .nt-name { flex: 1; min-width: 0; text-align: left; background: none; border: 0; color: var(--text); font-family: 'Arial', sans-serif; font-size: 0.84rem; padding: 7px 4px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .nt-name.nt-folder { font-weight: 700; }
@@ -21316,7 +21324,59 @@ SQIDAQAB
             else if (b.type === 'table' && cur && !cur.t) { cur.t = b.id; b.x = x0; }
             else if (b.role === 'answer' && cur && !cur.a) { cur.a = b.id; b.x = rightX; b.w = leftW; b.minH = 110; }
         });
+        // a marking box under each answer; a sheet made before they existed gets them now
+        items.forEach((it) => {
+            if (!it.a) return;
+            let mb = page.doc.blocks.find((b) => b.type === 'mark' && b.a === it.a);
+            if (!mb) {
+                mb = { id: notesNewId(), type: 'mark', role: 'mark', keep: true, q: it.q, a: it.a, t: it.t || null, x: rightX, y: 0, w: leftW };
+                const at = page.doc.blocks.findIndex((b) => b.id === it.a);
+                page.doc.blocks.splice(at + 1, 0, mb);
+            }
+            mb.x = rightX; mb.w = leftW; it.m = mb.id;
+        });
         return { start: hasHead ? 68 : 12, items };
+    }
+    // A question, written out as plain text for the marker: its words, its options and its table.
+    function psQuestionText(page, mb) {
+        const qb = page.doc.blocks.find((b) => b.id === mb.q), tb = mb.t && page.doc.blocks.find((b) => b.id === mb.t);
+        let t = qb ? nbPlainText(qb.html).replace(/\n{2,}/g, '\n').trim() : '';
+        if (tb && tb.cells) t += '\n\nTable:\n' + tb.cells.map((r) => (r || []).map((c) => String(c || '').trim()).join(' | ')).join('\n');
+        return t;
+    }
+    function psMakeMarkBlock(page, block, canvas) {
+        const el = document.createElement('div');
+        el.className = 'nb-block ps-mark'; el.dataset.id = block.id;
+        el.innerHTML = '<div class="ps-mark-bar"><button type="button" class="ps-mark-btn">Mark answer</button><span class="ps-mark-msg" aria-live="polite"></span></div><div class="ps-mark-out"></div>';
+        canvas.appendChild(el);
+        nbPlace(el, block, canvas);
+        const btn = el.querySelector('.ps-mark-btn'), msg = el.querySelector('.ps-mark-msg'), out = el.querySelector('.ps-mark-out');
+        const paint = () => {
+            const r = block.result;
+            if (!r) { out.innerHTML = ''; btn.textContent = 'Mark answer'; return; }
+            const label = { correct: 'Correct', partly: 'Partly correct', incorrect: 'Not correct' }[r.verdict] || 'Marked';
+            out.innerHTML = `<div class="ps-verdict ps-v-${psEsc(r.verdict)}"><b>${label}</b>${r.score ? ' <span>' + psEsc(r.score) + '</span>' : ''}</div>` + (r.paragraphs || []).map((t) => `<p>${renderMathShorthand(t)}</p>`).join('');
+            btn.textContent = 'Mark again';
+        };
+        paint();
+        btn.addEventListener('click', async () => {
+            const ans = page.doc.blocks.find((b) => b.id === block.a);
+            const answer = ans ? nbPlainText(ans.html).replace(/\n{3,}/g, '\n\n').trim() : '';
+            if (!answer) { msg.textContent = 'Write an answer in the box above first.'; return; }
+            const prev = el.offsetHeight;
+            btn.disabled = true; msg.textContent = 'Marking…';
+            try {
+                const res = await nbAssistCall('/problem-set/mark', { question: psQuestionText(page, block), answer });
+                block.result = { verdict: res.verdict, score: res.score || '', paragraphs: res.paragraphs || [] };
+                msg.textContent = ''; page.updatedAt = new Date().toISOString();
+                paint(); notesScheduleSave();
+            } catch (err) { msg.textContent = (err && err.message) || 'LastMind could not mark that just now. Try again.'; }
+            btn.disabled = false;
+            // what is below moves down by however much the marking added
+            const grew = el.offsetHeight - prev;
+            if (grew > 0) { nbFlowBlocksBelow(page, canvas, el, prev, grew); nbFitCanvas(canvas); notesScheduleSave(); }
+        });
+        return el;
     }
     // The sheet is drawn first with every box in place, then laid out from what the browser says each one measures.
     function psLayout(page, canvas) {
@@ -21326,14 +21386,15 @@ SQIDAQAB
         const elOf = (id) => canvas.querySelector('.nb-block[data-id="' + id + '"]');
         let y = Math.max(12, lay.start || 12);
         lay.items.forEach((it) => {
-            const qb = byId(it.q), ab = it.a && byId(it.a), tb = it.t && byId(it.t);
-            const qe = elOf(it.q), ae = it.a && elOf(it.a), te = it.t && elOf(it.t);
+            const qb = byId(it.q), ab = it.a && byId(it.a), tb = it.t && byId(it.t), mb = it.m && byId(it.m);
+            const qe = elOf(it.q), ae = it.a && elOf(it.a), te = it.t && elOf(it.t), me = it.m && elOf(it.m);
             if (!qb || !qe) return;
             qb.y = y; nbPlace(qe, qb, canvas);
             let h = qe.offsetHeight;
             if (tb && te) { tb.y = y + h + 14; nbPlace(te, tb, canvas); h += 14 + te.offsetHeight; }
             y += h + 14;
             if (ab && ae) { ab.y = y; ab.minH = 110; ae.style.minHeight = '110px'; nbPlace(ae, ab, canvas); y += Math.max(ae.offsetHeight, 110); }
+            if (mb && me) { y += 8; mb.y = y; nbPlace(me, mb, canvas); y += me.offsetHeight; }
             y += 26;
         });
         delete page.ps.layout;
@@ -21366,10 +21427,11 @@ SQIDAQAB
                 it.t = tid;
             }
             page.doc.blocks.push({ id: aid, type: 'text', role: 'answer', keep: true, x: rightX, y: start, w: rightW, html: '', writing: true, minH: 110 });
+            page.doc.blocks.push({ id: notesNewId(), type: 'mark', role: 'mark', keep: true, q: qid, a: aid, t: it.t || null, x: rightX, y: start, w: rightW });
             items.push(it);
             start += 200;
         });
-        page.ps = Object.assign(page.ps || {}, { v: 2, done: true, count: ((page.ps && page.ps.count) || 0) + items.length, header: !!(res.header || (page.ps && page.ps.header)) });
+        page.ps = Object.assign(page.ps || {}, { v: 3, done: true, count: ((page.ps && page.ps.count) || 0) + items.length, header: !!(res.header || (page.ps && page.ps.header)) });
         page.ps.layout = psReflow(page, cw);
         page.updatedAt = new Date().toISOString();
         notesPersist();
@@ -21441,7 +21503,7 @@ SQIDAQAB
         canvas.classList.add('ps-sheet');
         const st = page.ps = page.ps || {};
         const items = psPending[page.id] = psPending[page.id] || [];
-        if (st.done && st.v !== 2 && page.doc && Array.isArray(page.doc.blocks)) { st.v = 2; st.layout = psReflow(page, canvas.clientWidth || 900); }
+        if (st.done && st.v !== 3 && page.doc && Array.isArray(page.doc.blocks)) { st.v = 3; st.layout = psReflow(page, canvas.clientWidth || 900); }
         let open = !st.done, busy = false, message = '', textDraft = '';
         function paint() {
             if (!open) {
@@ -21522,7 +21584,7 @@ SQIDAQAB
         }
         paint();
         // a sheet that was built but not yet laid out (the page was closed first) is laid out now
-        if (st.layout) requestAnimationFrame(() => requestAnimationFrame(() => psLayout(page, canvas)));
+        if (st.layout) { requestAnimationFrame(() => requestAnimationFrame(() => psLayout(page, canvas))); setTimeout(() => psLayout(page, canvas), 250); }
     }
 
     function nbRemoveBlock(page, block, el, canvas) {
@@ -22598,7 +22660,7 @@ SQIDAQAB
             if (flowed) notesScheduleSave();
         });
         page.doc = page.doc && Array.isArray(page.doc.blocks) ? page.doc : { blocks: [] };
-        page.doc.blocks.forEach((b) => { if (b.type === 'diagram') nbMakeDiagramBlock(page, b, canvas); else if (b.type === 'graph') nbMakeGraphBlock(page, b, canvas); else if (b.type === 'table') nbMakeTableBlock(page, b, canvas, false); else nbMakeTextBlock(page, b, canvas, false); });
+        page.doc.blocks.forEach((b) => { if (b.type === 'diagram') nbMakeDiagramBlock(page, b, canvas); else if (b.type === 'graph') nbMakeGraphBlock(page, b, canvas); else if (b.type === 'table') nbMakeTableBlock(page, b, canvas, false); else if (b.type === 'mark') psMakeMarkBlock(page, b, canvas); else nbMakeTextBlock(page, b, canvas, false); });
         nbToggleHint(canvas, page); nbFitCanvas(canvas);
         // The sheet has a margin line. A click on or near it starts the text a fixed, comfortable distance to its right; a click anywhere
         // else starts the text exactly where you clicked.
