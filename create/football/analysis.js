@@ -177,6 +177,7 @@
   // From how this match went and how it compared with the one before, not from the next opponent's report.
   // Which of the manager's own pages applied in this match, by the labels they gave them. Only shown when pages have been added.
   function pagesHtml(league, fx) {
+    return '';   // not shown: it told the manager nothing they could act on
     const pg = fx.log && fx.log.pages && fx.log.pages[league.userId];
     if (!pg || !pg.length) return '';
     const STAGES = [['buildEnd', 'Building out from the back'], ['midfield', 'Through midfield'], ['final', 'In the final third'], ['transAttEnd', 'After winning the ball'], ['withoutEnd', 'Defending'], ['transDefEnd', 'After losing the ball']];
