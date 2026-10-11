@@ -1411,6 +1411,8 @@
         if (d.moved && d.pos) { world.oppMoved = world.oppMoved || {}; (world.oppMoved[key] = world.oppMoved[key] || {})[d.slot] = { d: 1 - d.pos.d, w: 1 - d.pos.w }; saveOppShape(team, key); afterBoardChange(team); }
         return;
       }
+      // a plain click on a shirt arms it for a substitution: click a bench player next and he takes that shirt's place
+      world.subArmed = (!d.moved && d.prev !== d.p && !world.selBench) ? d.p : null;
       if (!d.moved && world.selBench) { host.dispatchEvent(new CustomEvent('sub', { detail: { idx: d.p.index, id: world.selBench.id } })); return; }
       world.selBench = null;
       if (key === 'shape') {
@@ -1462,7 +1464,7 @@
         </div>
         <div class="tb-right">
           ${isShape ? '' : '<div id="phaseInstr"></div>'}
-          ${isShape ? `<div><h2 style="margin-bottom:8px">Bench</h2><div class="bench" id="bench">${bench}</div><p class="note" style="margin-top:8px">To substitute, click a bench player and then click the shirt he replaces.</p></div>` : ''}
+          ${isShape ? `<div><h2 style="margin-bottom:8px">Bench</h2><div class="bench" id="bench">${bench}</div><p class="note" style="margin-top:8px">To substitute, click a bench player and the shirt he replaces, in either order.</p></div>` : ''}
           <div id="playerPanel"></div>
           <div id="warnPanel"></div>
         </div>
@@ -1503,7 +1505,13 @@
     }
     board.addEventListener('sub', (e) => { const inP = team.bench.find((p) => p.id === e.detail.id); if (inP) doSub(slotPlayer(e.detail.idx), inP); });
     host.querySelectorAll('[data-bench]').forEach((b) => {
-      b.addEventListener('click', () => { const p = team.bench.find((x) => x.id === b.dataset.bench); world.selBench = world.selBench === p ? null : p; renderTactics(); });
+      b.addEventListener('click', () => {
+        const p = team.bench.find((x) => x.id === b.dataset.bench);
+        const armed = world.subArmed && team.players.includes(world.subArmed) ? world.subArmed : null;
+        world.subArmed = null;
+        if (armed && p) { doSub(armed, p); return; }          // shirt first, then the substitute
+        world.selBench = world.selBench === p ? null : p; renderTactics();
+      });
     });
     renderPlayerPanel(team);
     renderWarnPanel(team);

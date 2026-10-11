@@ -196,14 +196,14 @@
   FM.elenaNotes.squad = '<h4>Choosing your formation</h4>' +
     '<p>The drop-down at the top chooses the formation, for example 4-3-3 or 4-2-2-2: the numbers are the defenders, the midfielders and the forwards, from the back.</p>' +
     '<p>To change who plays where, <b>drag one player onto another</b> and they swap places. A shirt dropped anywhere else springs back.</p>' +
-    '<p>The bench is on the right. Click a substitute, then click the shirt he should replace.</p>' +
+    '<p>The bench is on the right. Click a substitute and the shirt he should replace, in either order.</p>' +
     '<p>Remember what the squad list showed: quick players are most useful where pace matters, and slower ones need protecting.</p>';
   FM.coachFormation = function (force) {
     FM.coach.show('formation-intro' + (force ? '-again' : ''), {
       force: !!force, title: 'Choosing your formation',
       html: '<p>This is where you decide how the team lines up. The drop-down at the top chooses the formation, for example 4-3-3 or 4-2-2-2: the numbers are the defenders, the midfielders and the forwards, from the back.</p>' +
         '<p>To change who plays where, <b>drag one player onto another</b> and they swap places. A shirt dropped anywhere else springs back.</p>' +
-        '<p>The bench is on the right. Click a substitute, then click the shirt he should replace.</p>' +
+        '<p>The bench is on the right. Click a substitute and the shirt he should replace, in either order.</p>' +
         '<p>Remember what the squad list showed: quick players are most useful where pace matters, and slower ones need protecting. Everything on the pages that follow is built from this shape.</p>',
       button: 'Got it',
     });
