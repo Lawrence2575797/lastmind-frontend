@@ -1,0 +1,177 @@
+/*
+ * Elena's first words, and the squad's extremes. Two things live here:
+ *   FM.squadHighlights(team)  which of the squad's numbers are extreme enough to mark (green strong, red weak), chosen by comparing each player with
+ *                             the rest of the squad on the numbers that matter for his position, and what each one means in play.
+ *   FM.coach                  the small card that appears in the top corner the first time a page is visited, which is read and closed.
+ */
+(function () {
+  const FM = (window.FM = window.FM || {});
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const FACE = '/assets/football/elena-hello.jpg';
+
+  // ---------- which numbers are extreme ----------
+  // The numbers that matter for each position. A winger is not marked down for tackling, nor a centre-back for finishing.
+  const RELEVANT = {
+    GK: ['gk'],
+    CB: ['pace', 'tackling', 'heading', 'passing', 'composure'],
+    FB: ['pace', 'stamina', 'passing', 'dribbling', 'tackling'],
+    DM: ['tackling', 'passing', 'stamina', 'composure'],
+    CM: ['passing', 'stamina', 'dribbling', 'tackling'],
+    AM: ['passing', 'dribbling', 'finishing', 'composure'],
+    WF: ['pace', 'dribbling', 'finishing', 'passing'],
+    ST: ['finishing', 'pace', 'heading', 'composure'],
+  };
+  const ROLE = { GK: 'goalkeeper', CB: 'centre-back', FB: 'full-back', DM: 'holding midfielder', CM: 'central midfielder', AM: 'attacking midfielder', WF: 'winger', ST: 'striker' };
+  const OUTFIELD_STATS = ['pace', 'dribbling', 'passing', 'finishing', 'tackling', 'heading', 'composure', 'stamina'];
+  const mean = (a) => a.reduce((s, x) => s + x, 0) / Math.max(1, a.length);
+  const sd = (a) => { const m = mean(a); return Math.sqrt(mean(a.map((x) => (x - m) * (x - m)))); };
+
+  FM.squadHighlights = function (team) {
+    const all = (team.players || []).concat(team.bench || []).filter((p) => p && p.ratings);
+    const outfield = all.filter((p) => p.natural !== 'GK');
+    const stat = {};
+    OUTFIELD_STATS.forEach((s) => { const v = outfield.map((p) => p.ratings[s] || 0); stat[s] = { m: mean(v), sd: sd(v) }; });
+    const cands = [];
+    outfield.forEach((p) => (RELEVANT[p.natural] || []).forEach((s) => {
+      const st = stat[s];
+      if (!st || st.sd < 1) return;
+      const z = (p.ratings[s] - st.m) / st.sd;
+      if (z >= 1.3) cands.push({ p, s, z, kind: 'good' }); else if (z <= -1.3) cands.push({ p, s, z, kind: 'bad' });
+    }));
+    // a goalkeeper stands out only if he is plainly very good or very poor
+    all.filter((p) => p.natural === 'GK').forEach((p) => {
+      const g = p.ratings.gk || 0;
+      if (g >= 78) cands.push({ p, s: 'gk', z: 2, kind: 'good' }); else if (g <= 48) cands.push({ p, s: 'gk', z: -2, kind: 'bad' });
+    });
+    // Only the extremes: the strongest few strengths and weaknesses of the whole squad, and never more than two marks on one player.
+    cands.sort((a, b) => Math.abs(b.z) - Math.abs(a.z));
+    const perPlayer = {}, picks = [], count = { good: 0, bad: 0 };
+    cands.forEach((c) => {
+      const cap = c.kind === 'good' ? 7 : 6;
+      if (count[c.kind] >= cap) return;
+      if ((perPlayer[c.p.id] || 0) >= 2) return;
+      perPlayer[c.p.id] = (perPlayer[c.p.id] || 0) + 1; count[c.kind]++; picks.push(c);
+    });
+    const marks = {};
+    picks.forEach((c) => { (marks[c.p.id] = marks[c.p.id] || {})[c.s] = c.kind; });
+    return { marks, picks };
+  };
+
+  // What an extreme number means in play, one line each, written for the position he plays.
+  function meaning(c) {
+    const p = c.p, n = '<b>' + esc(p.name) + '</b>', r = ROLE[p.natural] || 'player', g = p.natural, good = c.kind === 'good';
+    const back = g === 'CB' || g === 'FB', mid = g === 'DM' || g === 'CM' || g === 'AM', fwd = g === 'WF' || g === 'ST';
+    switch (c.s) {
+      case 'pace':
+        if (!good) return back ? n + ' is slow for a ' + r + '. Left alone against a quick forward, or with a high defensive line behind him, he could be exploited in behind. Consider a deeper line or cover for him.'
+          : mid ? n + ' is slow for a ' + r + '. He will struggle to get back when you lose the ball, so protect the space behind him.'
+          : n + ' lacks the pace for a ' + r + ': balls in behind will not suit him, so play to his feet.';
+        return back ? n + ' is quick for a ' + r + '. He can handle a high defensive line and recover when beaten, which lets you push the team up.'
+          : fwd ? n + ' has real pace. Passes in behind the defence are a genuine weapon with him on the pitch.' : n + ' covers the ground quickly, which helps in transitions both ways.';
+      case 'finishing':
+        return good ? n + ' is a clinical finisher: chances that fall to him are worth more than most, so get him into the box.'
+          : n + ' is poor in front of goal for a ' + r + '. His shots are worth less, so look for a better-placed team-mate when the chance arrives.';
+      case 'dribbling':
+        return good ? n + ' can beat a man. Give him the ball one-on-one in wide or advanced areas.'
+          : n + ' rarely beats a defender, so do not rely on him to dribble out of pressure.';
+      case 'passing':
+        return good ? n + ' is an accurate passer. He is the one to set the tempo and break the first line.'
+          : n + ' is a weak passer for a ' + r + '. Under pressure he is likely to give the ball away, so do not make him your main outlet.';
+      case 'tackling':
+        return good ? n + ' wins the ball well, which makes him a good anchor when you press.'
+          : n + ' is poor in the tackle for a ' + r + '. He is better dropping off and covering than stepping in to win it.';
+      case 'heading':
+        return good ? n + ' is strong in the air: a threat from corners and safe against long balls.'
+          : n + ' is weak in the air. Be careful leaving him against a tall striker, and think about who marks at set pieces.';
+      case 'composure':
+        return good ? n + ' stays calm under pressure, so he can be trusted on the ball when the opposition press.'
+          : n + ' is easily rattled. Closing him down quickly is likely to force mistakes, so keep him in quieter areas.';
+      case 'stamina':
+        return good ? n + ' can keep running all match, so his work rate will not drop late on.'
+          : n + ' tires quickly. Expect his work rate to fall in the last half hour, and have a replacement in mind.';
+      case 'gk':
+        return good ? n + ' is a very good goalkeeper. He will save shots a lesser keeper would not.'
+          : n + ' is a weak goalkeeper, so shots on target are more dangerous against you than they should be.';
+      default: return '';
+    }
+  }
+  FM.squadImpacts = function (team) {
+    const h = FM.squadHighlights(team), seen = {}, out = [];
+    // weaknesses first (they are what can hurt you), then strengths, one line per player
+    h.picks.slice().sort((a, b) => (a.kind === b.kind ? Math.abs(b.z) - Math.abs(a.z) : a.kind === 'bad' ? -1 : 1)).forEach((c) => {
+      if (seen[c.p.id]) return;
+      seen[c.p.id] = 1;
+      const text = meaning(c);
+      if (text) out.push({ kind: c.kind, html: text });
+    });
+    return out.slice(0, 7);
+  };
+
+  // ---------- the card in the top corner ----------
+  const KEY = 'lm_football_coach_v1';
+  const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { return {}; } };
+  const save = (d) => { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) { /* it only means the card shows again */ } };
+  let styled = false, current = null;
+  function css() {
+    if (styled) return; styled = true;
+    const st = document.createElement('style');
+    st.textContent = [
+      '.coach-card { position: fixed; top: 14px; right: 14px; z-index: 200; width: min(400px, calc(100vw - 28px)); max-height: calc(100vh - 28px); overflow: auto; background: #1A232D; color: #F1EAD6; border: 1px solid #F2C14E; border-radius: 16px; box-shadow: 0 18px 50px rgba(0,0,0,.5); padding: 14px 16px 16px; font: 14px/1.55 Arial, sans-serif; }',
+      '.coach-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; } .coach-head img { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; object-position: 50% 18%; border: 2px solid #F2C14E; flex: none; }',
+      '.coach-head b { display: block; } .coach-head small { opacity: .7; } .coach-x { margin-left: auto; width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(241,234,214,.35); background: transparent; color: inherit; font-size: 1.1rem; cursor: pointer; }',
+      '.coach-card h3 { margin: 4px 0 8px; font-size: 1.02rem; } .coach-card p { margin: 0 0 10px; } .coach-card ul { margin: 0 0 10px; padding: 0; list-style: none; display: grid; gap: 8px; }',
+      '.coach-card li { padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.06); border-left: 4px solid #F2C14E; } .coach-card li.good { border-left-color: #52bd7b; } .coach-card li.bad { border-left-color: #e5645a; }',
+      '.coach-go { display: block; width: 100%; padding: 10px 14px; border: 0; border-radius: 10px; background: #E6D7B0; color: #1A232D; font: 800 .9rem Arial, sans-serif; cursor: pointer; }',
+      '@media (max-width: 600px) { .coach-card { top: 8px; right: 8px; left: 8px; width: auto; } }',
+    ].join('\n');
+    document.head.appendChild(st);
+  }
+  FM.coach = {
+    seen: (id) => !!load()[id],
+    reset() { save({}); },
+    close() { if (current) { current.remove(); current = null; } },
+    // cfg: { title, html, button, onClose }. Shown once, unless cfg.force is set.
+    show(id, cfg) {
+      if (!cfg.force && load()[id]) return false;
+      css(); FM.coach.close();
+      const el = document.createElement('aside');
+      el.className = 'coach-card'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Elena Marsh');
+      el.innerHTML = '<div class="coach-head"><img alt="" src="' + FACE + '"><div><b>Elena Marsh</b><small>Performance analyst</small></div><button type="button" class="coach-x" aria-label="Close">×</button></div>' +
+        '<h3>' + esc(cfg.title) + '</h3>' + cfg.html + '<button type="button" class="coach-go">' + esc(cfg.button || 'Got it') + '</button>';
+      document.body.appendChild(el); current = el;
+      const done = () => { const d = load(); d[id] = true; save(d); FM.coach.close(); if (cfg.onClose) cfg.onClose(); };
+      el.querySelector('.coach-x').addEventListener('click', done);
+      el.querySelector('.coach-go').addEventListener('click', done);
+      return true;
+    },
+  };
+
+  // ---------- what she says on the pages ----------
+  FM.coachSquad = function (team, force) {
+    const notes = FM.squadImpacts(team);
+    const second = () => FM.coach.show('squad-extremes' + (force ? '-again' : ''), {
+      force: true, title: 'What the extremes mean for you',
+      html: (notes.length ? '<p>Here is what the marked numbers mean when the match is being played:</p><ul>' + notes.map((n) => '<li class="' + n.kind + '">' + n.html + '</li>').join('') + '</ul>' : '<p>Nothing in this squad is extreme enough to mark. That is useful to know too: there is no glaring weakness to protect, and no standout to build around.</p>') +
+        '<p>Take your time with the list. When you are ready, press <b>Continue to formation</b>.</p>',
+      button: 'Close', onClose: () => { const d = load(); d['squad-extremes'] = true; save(d); const b = document.getElementById('toFormation'); if (b) b.focus(); },
+    });
+    if (!force && FM.coach.seen('squad-intro')) { if (!FM.coach.seen('squad-extremes')) second(); return; }
+    FM.coach.show('squad-intro' + (force ? '-again' : ''), {
+      force: !!force, title: 'Welcome. This is your squad.',
+      html: '<p>I am Elena Marsh, the club\'s performance analyst. My job is to find out what the numbers say about your team, so that you decide from evidence and not from a hunch.</p>' +
+        '<p>The first thing to read is your <b>squad list</b>: every player, with the numbers behind him. Open each group (goalkeepers, defenders, midfielders and forwards) to see them.</p>' +
+        '<p>I have marked the extremes: <b style="color:#7fe0a0">green</b> for a real strength and <b style="color:#ff8a80">red</b> for a real weakness. Only the extremes. Most numbers are ordinary, and that matters too.</p>',
+      button: 'Show me what they mean', onClose: () => { const d = load(); d['squad-intro'] = true; save(d); second(); },
+    });
+  };
+  FM.coachFormation = function (force) {
+    FM.coach.show('formation-intro' + (force ? '-again' : ''), {
+      force: !!force, title: 'Choosing your formation',
+      html: '<p>This is where you decide how the team lines up. The drop-down at the top chooses the formation, for example 4-3-3 or 4-2-2-2: the numbers are the defenders, the midfielders and the forwards, from the back.</p>' +
+        '<p>To change who plays where, <b>drag one player onto another</b> and they swap places. A shirt dropped anywhere else springs back.</p>' +
+        '<p>The bench is on the right. Click a substitute, then click the shirt he should replace.</p>' +
+        '<p>Think back to the squad list: put your quick players where pace matters, and give the slow ones some protection. Every page after this builds from this shape, so it is worth taking your time.</p>',
+      button: 'Got it',
+    });
+  };
+})();

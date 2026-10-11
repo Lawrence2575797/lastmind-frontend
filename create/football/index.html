@@ -251,6 +251,17 @@
   .tb-grid.tb-pair .tb-left { grid-template-columns: minmax(0, 1fr); justify-items: stretch; } .tb-grid.tb-pair #pairHost { width: 100%; }
   .board-pair svg.board { max-width: none; width: 100%; }
   /* Pages the manager adds on the possession stages */
+  /* The squad list: groups by position that open and close, and the extremes marked green and red by Elena. */
+  .sq-group { margin: 14px 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .sq-group > summary { cursor: pointer; padding: 12px 14px; font-weight: 800; background: rgba(241,234,214,.06); list-style: none; display: flex; align-items: center; gap: 10px; }
+  .sq-group > summary::-webkit-details-marker { display: none; } .sq-group > summary::before { content: '\25B8'; transition: transform .15s; } .sq-group[open] > summary::before { transform: rotate(90deg); }
+  .sq-group > summary small { font-weight: 500; opacity: .7; }
+  .sq-group .tablewrap { margin: 0; }
+  table.data td.hl-good { background: rgba(82,189,123,.28); color: #a6f3c0; font-weight: 800; }
+  table.data td.hl-bad { background: rgba(229,100,90,.26); color: #ffb3ad; font-weight: 800; }
+  .sq-key { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin: 4px 0 0; font-size: .86rem; }
+  .sq-key i { display: inline-block; width: 14px; height: 14px; border-radius: 4px; vertical-align: -2px; margin-right: 6px; } .sq-key .g { background: rgba(82,189,123,.7); } .sq-key .r { background: rgba(229,100,90,.7); }
+  .sq-foot { display: flex; justify-content: flex-end; gap: 10px; margin: 16px 0 4px; flex-wrap: wrap; }
   .scn { display: grid; gap: 22px; position: relative; }
   .scn .board-pair.ends-row { margin-top: 44px; }
   .scn .board-pair.linked { column-gap: 56px; }
@@ -661,15 +672,11 @@
   <section id="newGame" class="card" hidden>
     <h2>New season</h2>
     <p class="desc">Take charge of a club. Read the match, shape the tactics and see what happens.</p>
-    <label>Your club
-      <select id="ngTeam"></select>
-    </label>
     <div style="display:grid;gap:10px">
-      <h2>Statistics level</h2>
-      <p class="note">Choose once for the season. Higher levels include everything below them.</p>
-      <label class="radio"><input type="radio" name="tier" value="gcse" checked> <span><b>GCSE</b>: averages, range, relative frequency, charts, scatter graphs, box plots, cumulative frequency.</span></label>
-      <label class="radio"><input type="radio" name="tier" value="alevel"> <span><b>A-level</b>: standard deviation, normal and binomial distributions, hypothesis tests, correlation, regression, conditional probability.</span></label>
-      <label class="radio"><input type="radio" name="tier" value="above"> <span><b>Beyond A-level</b>: confidence intervals, t-tests, chi-squared, Poisson, logistic and multiple regression, Bayesian updating, power and multiple testing.</span></label>
+      <h2>What level do you want to learn at?</h2>
+      <label class="radio"><input type="radio" name="tier" value="gcse" checked> <span><b>GCSE</b></span></label>
+      <label class="radio"><input type="radio" name="tier" value="alevel"> <span><b>A-level</b></span></label>
+      <label class="radio"><input type="radio" name="tier" value="above"> <span><b>Beyond A-level</b></span></label>
     </div>
     <div class="row"><button class="primary" id="ngStart" style="flex:0 0 auto">Start the season</button></div>
   </section>
@@ -764,6 +771,7 @@
 <script src="/create/football/elena.js?v=20261010d"></script>
 <script src="/create/football/elena_phase.js?v=20261010n"></script>
 <script src="/create/football/elena_lessons.js?v=20261010n"></script>
-<script src="/create/football/main.js?v=20261011d"></script>
+<script src="/create/football/coach.js?v=20261011e"></script>
+<script src="/create/football/main.js?v=20261011f"></script>
 </body>
 </html>

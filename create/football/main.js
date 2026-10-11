@@ -471,12 +471,12 @@
     renderPrepFlow();
     if (v === 'home') renderHome();
     else if (v === 'league') renderLeague();
-    else if (v === 'squad') renderSquad();
+    else if (v === 'squad') { renderSquad(); if (FM.coachSquad && world.league) FM.coachSquad(userTeam()); }
     else if (v === 'analysis') FM.renderAnalysis(el('view-analysis'), world.league);
     else if (v === 'reports') FM.renderReports(el('view-reports'), world.league);
     else if (v === 'news') FM.renderNews(el('view-news'), world.league);
     else if (v === 'preview') renderPreview();
-    else if (v === 'tactics' || v === 'match') renderTactics();
+    else if (v === 'tactics' || v === 'match') { renderTactics(); if (v === 'tactics' && !world.testing && world.tab === 'squad' && FM.coachFormation) FM.coachFormation(); }
     const activeSection = SCREEN_TITLES[v] ? el('view-' + v) : null;
     if (activeSection && !activeSection.querySelector('.screen-heading')) activeSection.insertAdjacentHTML('afterbegin', `<div class="screen-heading">${SCREEN_TITLES[v]}</div>`);
     if (v === 'match') resize();
@@ -633,15 +633,33 @@
     const team = userTeam(), host = el('view-squad');
     const onPitch = team.players.slice().sort((a, b) => a.index - b.index);
     const all = onPitch.concat(team.bench);
+    // the extremes Elena marks: green for a real strength, red for a real weakness (see coach.js)
+    const marks = (FM.squadHighlights ? FM.squadHighlights(team).marks : {});
+    const hl = (p, stat) => { const k = marks[p.id] && marks[p.id][stat]; return k ? ' class="hl-' + k + '"' : ''; };
+    const cell = (p, stat, text) => `<td${hl(p, stat)}>${text}</td>`;
     const row = (p) => `<tr class="player-row" data-player="${p.id}" tabindex="0"><td>${portraitCache[p.id] ? `<img class="squad-thumb" src="${portraitCache[p.id]}" alt="">` : `<span class="squad-thumb fallback">${esc(p.name.split(/\s+/).map((x) => x[0]).slice(0, 2).join(''))}</span>`}</td><td class="l">${p.number}</td><td class="l"><button class="player-link" data-player="${p.id}">${esc(p.name)}</button></td><td class="l">${esc(p.nation)}</td><td class="l">${p.natural}</td><td class="l">${p.slotKey ? p.slotKey : 'Bench'}</td><td class="l">${{ right: 'Right', left: 'Left', both: 'Both' }[p.foot] || ''}</td><td>${p.height || '-'}</td><td class="${condClass(p)}">${Math.round(100 * FM.conditionOf(p))}%</td><td class="l ${FM.isInjured(p) ? 'out' : ''}">${FM.isInjured(p) ? esc(injuryText(p)) : 'Fit'}</td>
-      <td><b>${FM.playerRating(p).toFixed(1)}</b></td><td>${FM.shown(p.ratings.pace)}</td><td>${FM.shown(p.ratings.dribbling)}</td><td>${FM.shown(p.ratings.passing)}</td><td>${FM.shown(p.ratings.finishing)}</td><td>${FM.shown(p.ratings.tackling)}</td><td>${FM.shown(p.ratings.heading)}</td><td>${FM.shown(p.ratings.composure)}</td><td>${p.ratings.stamina ? FM.shown(p.ratings.stamina) : '-'}</td><td>${p.natural === 'GK' ? FM.shown(p.ratings.gk) : '-'}</td>
+      <td><b>${FM.playerRating(p).toFixed(1)}</b></td>${cell(p, 'pace', FM.shown(p.ratings.pace))}${cell(p, 'dribbling', FM.shown(p.ratings.dribbling))}${cell(p, 'passing', FM.shown(p.ratings.passing))}${cell(p, 'finishing', FM.shown(p.ratings.finishing))}${cell(p, 'tackling', FM.shown(p.ratings.tackling))}${cell(p, 'heading', FM.shown(p.ratings.heading))}${cell(p, 'composure', FM.shown(p.ratings.composure))}${cell(p, 'stamina', p.ratings.stamina ? FM.shown(p.ratings.stamina) : '-')}${cell(p, 'gk', p.natural === 'GK' ? FM.shown(p.ratings.gk) : '-')}
       <td>${p.stats.apps}</td><td>${p.stats.goals}</td><td>${p.stats.shots}</td><td>${p.stats.yellows}</td><td>${p.stats.reds}</td></tr>`;
     const selected = all.find((p) => p.id === world.profilePlayerId) || all[0];
-    host.innerHTML = `<div id="playerProfile"></div><div class="card"><div class="row" style="justify-content:space-between"><h2>${esc(team.name)}: squad of ${all.length}</h2></div>
-      <div class="tablewrap"><table class="data"><thead><tr><th>Player</th><th class="l">#</th><th class="l">Name</th><th class="l">Nation</th><th class="l">Pos</th><th class="l">Now</th><th class="l">Foot</th><th title="Height in cm. Taller players are better in the air.">Ht</th><th>Cond</th><th class="l">Fitness</th><th title="Overall rating out of 10 in his natural position">Rating</th><th>Pac</th><th>Dri</th><th>Pas</th><th>Fin</th><th>Tck</th><th>Hea</th><th>Com</th><th>Sta</th><th>GK</th><th>Apps</th><th>Goals</th><th>Shots</th><th>YC</th><th>RC</th></tr></thead><tbody>${all.map(row).join('')}</tbody></table></div>
+    const head = `<thead><tr><th>Player</th><th class="l">#</th><th class="l">Name</th><th class="l">Nation</th><th class="l">Pos</th><th class="l">Now</th><th class="l">Foot</th><th title="Height in cm. Taller players are better in the air.">Ht</th><th>Cond</th><th class="l">Fitness</th><th title="Overall rating out of 10 in his natural position">Rating</th><th>Pac</th><th>Dri</th><th>Pas</th><th>Fin</th><th>Tck</th><th>Hea</th><th>Com</th><th>Sta</th><th>GK</th><th>Apps</th><th>Goals</th><th>Shots</th><th>YC</th><th>RC</th></tr></thead>`;
+    const GROUPS = [['Goalkeepers', ['GK']], ['Defenders', ['CB', 'FB']], ['Midfielders', ['DM', 'CM', 'AM']], ['Forwards', ['WF', 'ST']]];
+    const open = world.squadOpen || (world.squadOpen = {});
+    const groups = GROUPS.map(([title, kinds]) => {
+      const list = all.filter((p) => kinds.indexOf(p.natural) >= 0);
+      if (!list.length) return '';
+      const ex = list.filter((p) => marks[p.id]).length;
+      return `<details class="sq-group" data-group="${title}"${open[title] === false ? '' : ' open'}><summary>${title} <small>${list.length} player${list.length === 1 ? '' : 's'}${ex ? ' · ' + ex + ' with a number worth noting' : ''}</small></summary><div class="tablewrap"><table class="data">${head}<tbody>${list.map(row).join('')}</tbody></table></div></details>`;
+    }).join('');
+    host.innerHTML = `<div id="playerProfile"></div><div class="card"><div class="row" style="justify-content:space-between"><h2>${esc(team.name)}: squad of ${all.length}</h2><button type="button" id="elenaSquad">Elena's notes</button></div>
+      <p class="sq-key"><span><i class="g"></i>A real strength</span><span><i class="r"></i>A real weakness</span><span class="note">Only the extremes are marked: most numbers are ordinary.</span></p>
+      ${groups}
+      <div class="sq-foot"><button class="primary" id="toFormation">Continue to formation</button></div>
       </div>`;
-    const open = (id) => { world.profilePlayerId = id; renderSquad(); };
-    host.querySelectorAll('[data-player]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); open(b.dataset.player); }));
+    const openPlayer = (id) => { world.profilePlayerId = id; renderSquad(); };
+    host.querySelectorAll('[data-player]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openPlayer(b.dataset.player); }));
+    host.querySelectorAll('.sq-group').forEach((d) => d.addEventListener('toggle', () => { open[d.dataset.group] = d.open; }));
+    host.querySelector('#toFormation').addEventListener('click', () => { if (FM.coach) FM.coach.close(); FM.goToTactics('squad'); });
+    host.querySelector('#elenaSquad').addEventListener('click', () => { if (FM.coachSquad) FM.coachSquad(team, true); });
     renderPlayerProfile(team, selected, host.querySelector('#playerProfile'));
     ensurePortraitsLoaded(all);
   }
@@ -1486,18 +1504,18 @@
     el('tactics').hidden = true; el('nav').hidden = true; el('prepFlow').hidden = true; el('newGame').hidden = false;
     el('topRight').innerHTML = ''; el('subtitle').textContent = 'Eight clubs, one season, and a lot of numbers.';
   }
-  el('ngTeam').innerHTML = `<option value="0">${esc(FM.TEAM_DEFS[0].name)}</option>`;
-  el('ngTeam').value = '0'; // Ashford Rovers is the default club for the supported portrait experience.
   el('ngStart').addEventListener('click', async () => {
     const btn = el('ngStart'), tier = document.querySelector('input[name="tier"]:checked').value;
     btn.disabled = true; btn.textContent = 'Setting up the clubs...';
     await new Promise((r) => setTimeout(r, 30));
-    world.league = FM.createLeague({ userIndex: +el('ngTeam').value, tier });
+    world.league = FM.createLeague({ userIndex: 0, tier });   // Ashford Rovers is the only club to take charge of
     if (FM.ensurePreseasonNews) FM.ensurePreseasonNews(world.league);
     await FM.playFriendlies(world.league, (i, n) => { btn.textContent = 'Playing pre-season friendlies (' + i + ' of ' + n + ')...'; });
     FM.saveLeague(world.league);
     btn.disabled = false; btn.textContent = 'Start the season';
-    setView('home');
+    // A new season starts with Elena and the squad list: it is the first thing to read.
+    if (FM.coach) FM.coach.reset();
+    setView('squad');
   });
 
   window.FM_WORLD = world; // debug handle for the console
