@@ -113,7 +113,7 @@
   };
 
   FM.makeNews = function (league, round) {
-    const rng = FM.mulberry32(league.seed + round * 131 + 17);
+    const rng = FM.mulberry32(league.seed + (league.runSeed || 0) + round * 131 + 17);
     const pick = (arr) => arr[Math.floor(rng() * arr.length)];
     const me = league.userId, name = (id) => FM.teamById(league, id).name;
     const fxs = league.fixtures.filter((f) => f.round === round && f.played);

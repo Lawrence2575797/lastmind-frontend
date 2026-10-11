@@ -1147,6 +1147,11 @@
   function renderTacticsInner() {
     const team = userTeam();
     if (FM.inferShapeTactics) FM.inferShapeTactics(team);
+    // During a match the board under the pitch is the squad and formation page, with the substitutes on the side: no tabs, no tests, no plans.
+    const inMatch = world.view === 'match';
+    if (inMatch) { world.testing = false; world.tab = 'squad'; }
+    el('tabs').hidden = inMatch; el('planBar').hidden = inMatch;
+    const head = document.querySelector('#tactics .tac-head h2'); if (head) head.textContent = inMatch ? 'Squad and substitutes' : 'Tactics';
     renderPlanBar(team);
     el('subInfo').textContent = '';
     el('subInfo').hidden = true;
@@ -1767,7 +1772,8 @@
     const btn = el('ngStart'), tier = document.querySelector('input[name="tier"]:checked').value;
     btn.disabled = true; btn.textContent = 'Setting up the clubs...';
     await new Promise((r) => setTimeout(r, 30));
-    world.league = FM.createLeague({ userIndex: 0, tier });   // Ashford Rovers is the only club to take charge of
+    // The league is the same each time (clubs, squads, fixtures, last season), but each new game rolls its own dice: injuries and results differ.
+    world.league = FM.createLeague({ userIndex: 0, tier, runSeed: Math.floor(Math.random() * 1e9) });   // Ashford Rovers is the only club to take charge of
     if (FM.ensurePreseasonNews) FM.ensurePreseasonNews(world.league);
     await FM.playFriendlies(world.league, (i, n) => { btn.textContent = 'Playing pre-season friendlies (' + i + ' of ' + n + ')...'; });
     FM.saveLeague(world.league);

@@ -66,6 +66,7 @@
   FM.createLeague = function (opts) {
     // Every game is the same league (same clubs, squads and fixtures), so the pre-season friendlies could be played once, in advance.
     const seed = opts.seed || FM.WORLD_SEED;
+    const runSeed = opts.runSeed | 0;   // what makes one game's matches different from another's; 0 for the shared pre-made history
     const rng = FM.mulberry32(seed);
     const used = new Set();
     const teams = FM.TEAM_DEFS.map((def, i) => {
@@ -93,13 +94,14 @@
       return team;
     });
     const league = { seed, tier: opts.tier || 'gcse', userId: teams[opts.userIndex || 0].id, season: 1, day: 0, teams, fixtures: [], testLog: [], hypotheses: [], news: [], tacticalPlans: [] };
-    league.fixtures = makeFixtures(teams.map((t) => t.id), rng, seed);
+    league.fixtures = makeFixtures(teams.map((t) => t.id), rng, seed + runSeed);
     // Three pre-season friendlies each, played before the season starts. They give the opposition reports something to read, but
     // they do not count: not in the table, not in player records, injuries or fatigue, and not in the statistics workshop.
     league.friendlies = makeFixtures(teams.map((t) => t.id), FM.mulberry32(seed + 555), seed + 555)
       .filter((f) => f.round < 3).map((f, i) => Object.assign(f, { id: 'p' + i, round: f.round - 3, friendly: true }));
     // The friendlies for the shared league are played in advance (see tools/gen_preseason.js) and simply loaded here.
     if (seed === FM.WORLD_SEED && FM.PRESEASON) league.friendlies = JSON.parse(JSON.stringify(FM.PRESEASON));
+    league.runSeed = runSeed;
     return league;
   };
 
@@ -248,7 +250,7 @@
       const f = league.fixtures.find((x) => x.round === round && (x.homeId === team.id || x.awayId === team.id));
       if (!f || !f.played) return;
       const gf = f.homeId === team.id ? f.hg : f.ag, ga = f.homeId === team.id ? f.ag : f.hg;
-      const rng = FM.mulberry32(league.seed + round * 977 + idx * 31);
+      const rng = FM.mulberry32(league.seed + (league.runSeed || 0) + round * 977 + idx * 31);
       team.drift = team.drift || {};
       // Only settings that shape the style of play wander; tempo, directness and risk swing scoring too hard to drift at random.
       DRIFT_KEYS.forEach((k) => { team.drift[k] = (team.drift[k] || 0) * 0.75 + (rng() - 0.5) * 0.05; });
@@ -424,7 +426,7 @@
       squad: t.squad.map((p) => { const o = {}; PLAYER_KEYS.forEach((k) => { if (p[k] !== undefined) o[k] = p[k]; }); if (p.baseRatings) o.ratings = p.baseRatings; return o; }),
       players: t.players.map((p) => p.id), bench: t.bench.map((p) => p.id),
     }));
-    return JSON.stringify({ v: 1, seed: league.seed, tier: league.tier, userId: league.userId, season: league.season, day: league.day, fixtures: league.fixtures, teams, prepStep: league.prepStep || 0, prepPhaseMax: league.prepPhaseMax || 0, testPhaseMax: league.testPhaseMax || 0, testLog: league.testLog || [], hypotheses: league.hypotheses || [], news: league.news || [], friendlies: league.friendlies || [], labRuns: league.labRuns || [], phaseLabRuns: league.phaseLabRuns || {}, interviews: league.interviews || [], tacticalPlans: league.tacticalPlans || [] });
+    return JSON.stringify({ v: 1, seed: league.seed, runSeed: league.runSeed || 0, tier: league.tier, userId: league.userId, season: league.season, day: league.day, fixtures: league.fixtures, teams, prepStep: league.prepStep || 0, prepPhaseMax: league.prepPhaseMax || 0, testPhaseMax: league.testPhaseMax || 0, testLog: league.testLog || [], hypotheses: league.hypotheses || [], news: league.news || [], friendlies: league.friendlies || [], labRuns: league.labRuns || [], phaseLabRuns: league.phaseLabRuns || {}, interviews: league.interviews || [], tacticalPlans: league.tacticalPlans || [] });
   };
   FM.deserializeLeague = function (text) {
     const d = JSON.parse(text);
@@ -438,7 +440,7 @@
       };
       return team;
     });
-    const league = { seed: d.seed, tier: d.tier, userId: d.userId, season: d.season, day: d.day, fixtures: d.fixtures, teams, prepStep: d.prepStep || 0, prepPhaseMax: d.prepPhaseMax || 0, testPhaseMax: d.testPhaseMax || 0, testLog: d.testLog || [], hypotheses: d.hypotheses || [], news: d.news || [], friendlies: d.friendlies || [], labRuns: d.labRuns || [], phaseLabRuns: d.phaseLabRuns || {}, interviews: d.interviews || [], tacticalPlans: d.tacticalPlans || [] };
+    const league = { seed: d.seed, runSeed: d.runSeed || 0, tier: d.tier, userId: d.userId, season: d.season, day: d.day, fixtures: d.fixtures, teams, prepStep: d.prepStep || 0, prepPhaseMax: d.prepPhaseMax || 0, testPhaseMax: d.testPhaseMax || 0, testLog: d.testLog || [], hypotheses: d.hypotheses || [], news: d.news || [], friendlies: d.friendlies || [], labRuns: d.labRuns || [], phaseLabRuns: d.phaseLabRuns || {}, interviews: d.interviews || [], tacticalPlans: d.tacticalPlans || [] };
     FM.today = d.day;
     // A match that was abandoned part way: put the lineups back as they were before kick-off.
     league.teams.forEach((t) => { if (t.snap) { FM.restoreLineup(t, t.snap); t.snap = null; } else FM.resetToKickoff(t); });
