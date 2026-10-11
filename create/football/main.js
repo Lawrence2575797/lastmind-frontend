@@ -654,7 +654,7 @@
     }).join('');
     const analysis = FM.squadAnalysisHtml ? FM.squadAnalysisHtml(team) : '';
     host.innerHTML = `<div class="sq-layout"><div class="sq-main"><div id="playerProfile"></div><div class="card"><div class="row" style="justify-content:space-between"><h2>${esc(team.name)}: squad of ${all.length}</h2><button type="button" id="elenaSquad">Elena's welcome</button></div>
-      <p class="sq-key"><span><i class="g"></i>A real strength</span><span><i class="r"></i>A real weakness</span><span class="note">Compared with the rest of the squad.</span></p>
+      <p class="sq-key"><span><i class="g"></i>A real strength</span><span><i class="r"></i>A real weakness</span></p>
       ${groups}
       <div class="sq-foot"><button class="primary" id="toFormation">Continue to formation</button></div>
       </div></div>
