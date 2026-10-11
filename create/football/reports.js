@@ -191,7 +191,7 @@
         <p class="desc"><b>${esc(FM.clubProfile(t).tag)}.</b> ${esc(FM.clubProfile(t).story)}</p>
         ${pending}<p class="desc">${sample} ${rep.n ? `Record: won ${rep.record.w}, drawn ${rep.record.d}, lost ${rep.record.l}.` : ''}</p>
         ${small}${friendlyNote}
-        <p class="note">This report describes what they did, not what they will do. Managers adapt, especially to a club that has just beaten them, so the more your approach has changed since they last scouted you, the less this tells you. You can read it as often as you like, and it does not get updated until a match has been played.</p>
+        <p class="note">This report describes what they did, not what they will do. Managers adapt, especially after a defeat, so the more your approach has changed since they last scouted you, the less this tells you.</p>
       </div>
       ${shapeCard(league, state.teamId)}
       <div class="two">

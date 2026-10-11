@@ -73,7 +73,7 @@
       const rules = team.rules.filter((r) => inStage(r));
       const label = stage ? 'Tell the team how to play in ' + STAGE_NAME[stage] + pageNote : 'Tell the team how to play';
       return `<section class="in-scope in-scope-${scope}" aria-label="${esc(S.title)}">
-        <div class="in-head"><h2>${esc(opts.title || S.title)}${rules.length ? ' (' + rules.filter((r) => !r.off).length + ')' : ''}</h2><p class="in-note">${esc(S.sub)}</p></div>
+        <div class="in-head"><h2>${esc(opts.title || S.title)}${rules.length ? ' (' + rules.filter((r) => !r.off).length + ')' : ''}</h2>${opts.title ? '' : '<p class="in-note">' + esc(S.sub) + '</p>'}</div>
         <div class="in-add"><div class="in-body">
           <label class="in-lab" for="inText_${scope}">${label} <small>(${opts.applies || 'applies to this stage only'})</small></label>
           <textarea id="inText_${scope}" data-scope="${scope}" maxlength="3000" rows="7" placeholder="Write as much as you like, about any players, ours or theirs.&#10;&#10;e.g. ${esc(STAGE_EG[stage] || STAGE_EG.build)}">${esc(st.text)}</textarea>

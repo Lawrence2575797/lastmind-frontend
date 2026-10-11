@@ -538,7 +538,7 @@
       <div class="preview-grid">
         <div class="card"><h2>Your match plan</h2><p class="fixture-big">${esc(me.formationKey)}</p><p class="desc">${(me.rules || []).filter((r) => !r.off).length} active player or team instruction${(me.rules || []).filter((r) => !r.off).length === 1 ? '' : 's'}.</p><p class="note">${problems.length ? problems.length + ' positional issue' + (problems.length === 1 ? '' : 's') + ' still need attention.' : 'Every phase currently fits together.'}</p></div>
         <div class="card"><h2>Opponent</h2><p class="fixture-big">${esc(opp.name)}</p><p class="desc">${esc(profile.tag || 'Opponent')} · likely ${esc(opp.formationKey)} · ${esc({ balanced:'balanced',possession:'patient in possession',counter:'dangerous in transition',press:'aggressive without the ball',direct:'direct with the ball' }[opp.style] || opp.style)}.</p><button id="previewReport">Open scouting report</button></div>
-        <div class="card"><h2>Evidence so far</h2><p class="desc">${findings}</p><p class="note">Experiments inform the decision; they never give the team a hidden bonus.</p></div>
+        <div class="card"><h2>Evidence so far</h2><p class="desc">${findings}</p></div>
       </div></div>`;
     host.querySelector('#previewTactics').addEventListener('click', () => { world.testing = false; world.tab = 'squad'; setView('tactics'); });
     host.querySelector('#previewTest').addEventListener('click', () => { world.testing = true; world.tab = 'build'; setView('tactics'); });
@@ -1021,7 +1021,7 @@
   }
   function skipNote(phase) {
     const n = testsDoneCount();
-    return '<p class="note">' + (n === 0 ? 'You do not have to do every test, because they are largely the same statistical work. Do at least one, then you can skip the rest and read the evidence.' : 'You have completed ' + n + ' test' + (n === 1 ? '' : 's') + ', so you can skip any others and read the evidence whenever you like.') + (n > 0 ? ' <button class="linkbtn" id="labToEvidence2">Read the evidence now</button>' : '') + '</p>';
+    return '<p class="note">' + (n === 0 ? 'Run at least one test, then you can read the evidence. The others are optional.' : 'You have completed ' + n + ' test' + (n === 1 ? '' : 's') + '. Run the others, or read the evidence now.') + (n > 0 ? ' <button class="linkbtn" id="labToEvidence2">Read the evidence now</button>' : '') + '</p>';
   }
   function renderLab(team, host, phase) {
     phase = phase || 'build';

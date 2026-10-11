@@ -315,7 +315,7 @@
       ? '<div class="analysis-owner elena"><b>I have done the higher-level uncertainty work</b><span>You read the proportions, direction and football meaning. The intervals and significance checks are supporting evidence, not the decision itself.</span></div>'
       : level === 'alevel'
         ? '<div class="analysis-owner"><b>You lead this comparison</b><span>Read the probabilities and decide what test fits. I will add beyond-A-level effect sizes or uncertainty in the Analysis Centre when they are useful.</span></div>'
-        : '<div class="analysis-owner"><b>Your analysis</b><span>Choose the comparison, check its assumptions and make the conclusion. I will explain the football context, but I will not execute the statistical test for you.</span></div>';
+        : '<div class="analysis-owner"><b>Your analysis</b><span>Choose the comparison, check its assumptions and draw the conclusion. I can explain the football context if you need it.</span></div>';
     h += resultsText(r, last, n, level);
     // what went wrong: three things at most, each a sentence and something to try
     const ex = FM.lab.explain(r, {}), w = r.why, lostN = r.lost.k;

@@ -160,7 +160,7 @@
       return `<circle cx="${P.x}" cy="${P.y}" r="${r.toFixed(1)}" fill="${team.kits.home[0]}" stroke="#fff" stroke-width="3"/><text x="${P.x}" y="${P.y + 6}" text-anchor="middle" font-size="17" font-weight="700" fill="${team.kits.home[1]}">${o.n}</text><text x="${P.x}" y="${P.y + r + 17}" text-anchor="middle" font-size="15" fill="#fff" stroke="#000" stroke-width="3" style="paint-order:stroke">${esc(pl ? shortName(pl) : '')}</text>`;
     }).join('');
     return `<svg class="amap" viewBox="0 0 ${PW} ${PH}" role="img" aria-label="Pass network">${pitchLines()}${lines}${dots}</svg>
-      <p class="note">Each circle is a player, placed where he made his passes on average (arranged on a grid, so no two overlap), bigger the more passes he made. Only the starting eleven are shown: substitutes, and passes to or from them, are left out. A line joins two players who completed a lot of passes between them (at least four, and at least 30% of the busiest link), thicker for more. ${passes.length} passes in total.</p>`;
+      <p class="note">Each circle is a player, placed where he made his passes on average and sized by how many he made. A line joins two players who completed a lot of passes between them, thicker for more. ${passes.length} passes in total. Substitutes are not shown.</p>`;
   }
 
   // ---------- strengths and weaknesses (from the saved statistics and log, so it works for every match already played) ----------
@@ -171,7 +171,7 @@
       <div class="card"><h2>Five strengths</h2>${list(ins.strengths, 'There is not enough recorded for this match to say.')}</div>
       <div class="card"><h2>Five weaknesses</h2>${list(ins.weaknesses, 'There is not enough recorded for this match to say.')}</div>
     </div>
-    <p class="note">Strengths and weaknesses compare you with this opposition (and with a sensible benchmark) in this one match, using the statistics and log saved for it. They are a place to look next, not a verdict: one match is a small sample.</p>`;
+    <p class="note">Strengths and weaknesses compare you with this opposition in this one match. One match is a small sample, so treat them as a place to look next.</p>`;
   }
 
   // ---------- Elena's advice for the next game ----------
@@ -188,7 +188,7 @@
     };
     const body = STAGES.map((s) => section(s[0], s[1])).join('');
     if (!body) return '';
-    return `<div class="card pages-card"><h2>Your pages in this match</h2><p class="desc">How much of the match each of your added pages applied, going by the condition you chose for it. A page that never applied shows 0%, which usually means its condition did not come up.</p>${body}</div>`;
+    return `<div class="card pages-card"><h2>Your pages in this match</h2><p class="desc">How much of the match each of your added pages applied, going by the condition you chose for it.</p>${body}</div>`;
   }
 
   function adviceHtml(league, fx) {
@@ -213,7 +213,7 @@
   FM.renderAnalysis = function (host, league) {
     const fxs = userFixtures(league);
     if (!fxs.length) {
-      host.innerHTML = '<div class="card"><h2>Analysis Centre</h2><p class="desc">Nothing to analyse yet. Play a match first: every pass, tackle, shot and position is recorded silently while you watch, and studied here afterwards.</p></div>';
+      host.innerHTML = '<div class="card"><h2>Analysis Centre</h2><p class="desc">Nothing to analyse yet. Play a match first: every pass, tackle, shot and position is recorded while you play and shown here afterwards.</p></div>';
       return;
     }
     if (!fxs.find((f) => f.id === state.fxId)) state.fxId = fxs[fxs.length - 1].id;

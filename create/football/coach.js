@@ -171,7 +171,7 @@
       force: !!force, title: 'Welcome to the club',
       html: '<p>Hello, I am Elena Marsh, the performance analyst at the club. I will be going through the numbers with you this season.</p>' +
         '<p>We will start with your squad. Every player is listed with his ratings, grouped by position. Open a group to see the players in it.</p>' +
-        '<p>A <b style="color:#7fe0a0">green</b> number is a real strength and a <b style="color:#ff8a80">red</b> one a real weakness, compared with the rest of the squad. Most players will not have any: most ratings sit close to the average. My notes on the ones that do are on the right of the list.</p>',
+        '<p>A <b style="color:#7fe0a0">green</b> number is a real strength and a <b style="color:#ff8a80">red</b> one a real weakness, compared with the rest of the squad. My notes on the ones that do are on the right of the list.</p>',
       button: 'Got it', onClose: () => { const d = load(); d['squad-intro'] = true; d['squad-extremes'] = true; save(d); const b = document.getElementById('toFormation'); if (b) b.focus(); },
     });
   };
