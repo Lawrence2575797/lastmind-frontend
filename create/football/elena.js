@@ -176,6 +176,8 @@
       '.el-big { font-size: 1.02rem; line-height: 1.5; } .el-rows { margin: 4px 0; } .el-more { margin: 6px 0; font-size: .86rem; } .el-more summary { cursor: pointer; opacity: .85; }',
       '.el-chat { flex: none; border-top: 1px solid rgba(241,234,214,.18); background: rgba(0,0,0,.18); } .el-chat-log { max-height: 34vh; overflow-y: auto; padding: 10px 16px 0; display: grid; gap: 8px; } .el-msg { max-width: 92%; padding: 8px 11px; border-radius: 12px; font-size: .88rem; line-height: 1.5; } .el-msg.me { justify-self: end; background: #E6D7B0; color: #1A232D; } .el-msg.her { justify-self: start; background: rgba(255,255,255,.08); } .el-msg.err { justify-self: start; color: #ffb4a8; } .el-typing { opacity: .7; }',
       '.el-chat-form { display: flex; gap: 8px; padding: 10px 16px 14px; } .el-chat-form textarea { flex: 1; min-width: 0; min-height: 42px; max-height: 110px; resize: vertical; padding: 9px 11px; border-radius: 10px; border: 1px solid rgba(241,234,214,.35); background: rgba(255,255,255,.07); color: inherit; font: inherit; } .el-chat-form button { align-self: flex-end; padding: 10px 16px; border: 0; border-radius: 10px; background: #E6D7B0; color: #1A232D; font: 800 .86rem Arial, sans-serif; cursor: pointer; } .el-chat-form button:disabled { opacity: .5; cursor: wait; }',
+      '.el-list { list-style: none; margin: 4px 0 10px; padding: 0; display: grid; gap: 8px; } .el-list li { padding: 9px 11px; border-radius: 10px; background: rgba(255,255,255,.06); border-left: 4px solid #F2C14E; font-size: .88rem; line-height: 1.5; } .el-list li.good { border-left-color: #52bd7b; } .el-list li.bad { border-left-color: #e5645a; }',
+      '.el-ex-title { margin: 10px 0 8px; font-size: 1.05rem; }',
       '.el-warm { margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; background: rgba(127,212,154,.12); font-style: italic; }',
       '.el-kw { border: 0; border-bottom: 2px solid #F2C14E; background: rgba(242,193,78,.14); color: #FFE9A8; font: inherit; font-weight: 700; padding: 0 4px; border-radius: 4px 4px 0 0; cursor: pointer; } .el-kw:hover { background: rgba(242,193,78,.28); }',
       '.el-tile { display: inline-grid; gap: 2px; margin: 4px 6px 4px 0; padding: 8px 12px; border: 1px solid rgba(241,234,214,.2); border-radius: 10px; background: rgba(255,255,255,.04); } .el-tile b { font-size: 1.15rem; color: #F2C14E; } .el-tile span { font-size: .74rem; opacity: .8; }',
@@ -420,13 +422,21 @@
   // before are kept in this file but are not shown until a page is given its notes; until then the panel is just her chat.
   const LESSONS_ON = false;
   FM.elenaNotes = FM.elenaNotes || {};
+  // Which page the notes are for: the tactics tab, the squad page, another view, or the testing phase.
+  function pageKeyOf(c) { return !c ? null : c.mode === 'hub' ? 'hub' : c.mode === 'tactics' ? c.tab : c.mode === 'view' ? c.tab : 'test'; }
   function pageNote(c) {
-    const key = c && c.mode === 'tactics' ? c.tab : null;
-    const n = key && FM.elenaNotes[key];
-    const html = typeof n === 'function' ? n(c) : n;
+    const n = FM.elenaNotes[pageKeyOf(c)];
+    let html = '';
+    try { html = typeof n === 'function' ? n(c) : (n || ''); } catch (err) { html = ''; }
     return html || '<p class="el-small">No notes on this page yet. You can ask me anything below.</p>';
   }
   function body() {
+    // a word she has used, opened: its explanation, with the way back to the page's notes
+    const ex = E.explain && FM.elenaExplain && FM.elenaExplain[E.explain];
+    if (ex) {
+      let inner = ''; try { inner = ex.html(E.ctx); } catch (err) { inner = ''; }
+      return '<button type="button" class="el-link" data-back-note="1">&larr; Back to the notes</button><h3 class="el-ex-title">' + esc(ex.title) + '</h3>' + inner;
+    }
     if (!LESSONS_ON) return pageNote(E.ctx);
     if (E.tab === 'lessons') return E.lesson && findLesson(E.lesson) ? lessonStep() : lessonList();
     const c = E.ctx; if (c.mode === 'instr') return instrReading(c);
@@ -486,6 +496,8 @@
     el.addEventListener('click', (e) => {
       const t = e.target.closest('button'); if (!t) return;
       if (t.classList.contains('x')) return setOpen(false);
+      if (t.dataset.explain) { E.explain = t.dataset.explain; paint(); const bd = el.querySelector('.el-body'); if (bd) bd.scrollTop = 0; return; }
+      if (t.dataset.backNote != null) { E.explain = null; paint(); const bd = el.querySelector('.el-body'); if (bd) bd.scrollTop = 0; return; }
       if (t.dataset.t) { E.tab = t.dataset.t; if (E.tab === 'lessons') E.lesson = null; return paint(); }
       if (t.dataset.lesson) return openLesson(t.dataset.lesson);
       if (t.dataset.clip) { E.clipKey = t.dataset.clip; return paint(); }
@@ -514,19 +526,23 @@
     lessons: LESSONS,
     openLesson,
     sync(ctx) {
-      css(); ctx.runs = ctx.runs || []; if (ctx.mode === 'tactics' && ctx.stage && !ctx.instrStage) ctx.instrStage = ctx.stage; const fresh = !E.ctx || E.ctx.runs.length !== ctx.runs.length || E.ctx.mode !== ctx.mode; E.ctx = ctx; if (fresh) E.tab = 'read';
+      css(); const pk = pageKeyOf(ctx); const newPage = E.pageKey !== pk; E.pageKey = pk; if (newPage) E.explain = null;
+      ctx.runs = ctx.runs || []; if (ctx.mode === 'tactics' && ctx.stage && !ctx.instrStage) ctx.instrStage = ctx.stage; const fresh = !E.ctx || E.ctx.runs.length !== ctx.runs.length || E.ctx.mode !== ctx.mode; E.ctx = ctx; if (fresh) E.tab = 'read';
       if (!E.btn || !E.btn.isConnected) {
         E.btn = document.createElement('button'); E.btn.type = 'button'; E.btn.className = 'el-tab'; E.btn.setAttribute('aria-expanded', 'false'); E.btn.setAttribute('aria-label', 'Open Elena Marsh, performance analyst');
         E.btn.innerHTML = '<img alt="" src="' + IMG.hello + '"><span>ELENA</span><i class="dot"></i>';
         E.btn.addEventListener('click', () => setOpen(!E.open)); document.body.appendChild(E.btn);
-        clearInterval(E.watch); E.watch = setInterval(() => { const m = E.ctx && E.ctx.mode; const found = document.querySelector(m === 'tactics' ? '#tabBody .tb-grid, #tabBody .transition-plan, #tabBody .sliders' : m === 'instr' ? '.in-wrap' : '.lab'); if (!found || !found.offsetParent) FM.elena.hide(); }, 700);   // gone when the page it belongs to is not on screen
+        clearInterval(E.watch); E.watch = setInterval(() => { const m = E.ctx && E.ctx.mode; let found; if (m === 'hub') found = document.body.dataset.view === 'squad'; else if (m === 'view') found = document.body.dataset.view === E.ctx.view; else { const n = document.querySelector(m === 'tactics' ? '#tabBody .tb-grid, #tabBody .transition-plan, #tabBody .sliders' : m === 'instr' ? '.in-wrap' : '.lab'); found = n && n.offsetParent; } if (!found) FM.elena.hide(); }, 700);   // gone when the page it belongs to is not on screen
       }
-      if (E.open == null) E.open = false;                                                // she only opens when she is asked to
+      if (E.open == null) E.open = false;
+      // A page she has notes for opens her panel by itself the first time you arrive (it can be closed; it does not reopen until another page).
+      if (newPage && FM.elenaNotes[pk] && !E.open) { setOpen(true); return; }
       if (E.open && !E.el) setOpen(true);
       else if (E.open) { if (fresh && E.tab === 'lessons' && !E.lesson) E.tab = 'read'; paint(); if (fresh && E.tab !== 'lessons') { const b = E.el && E.el.querySelector('.el-body'); if (b) b.scrollTop = 0; } }
       else if (fresh) E.btn.querySelector('.dot').style.display = '';
     },
     review: () => { if (LESSONS_ON) requestReview(); },
+    open() { if (E.btn && !E.open) setOpen(true); },
     refresh() { if (E.open && E.el) paint(); },
     show(tab) { E.tab = tab; if (E.open && E.el) paint(); },
     hide() { if (FM.labReplay) FM.labReplay.stop(); clearInterval(E.watch); if (E.el) E.el.remove(); if (E.btn) E.btn.remove(); E.el = E.btn = null; document.body.classList.remove('el-open'); },

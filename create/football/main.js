@@ -473,12 +473,14 @@
     renderPrepFlow();
     if (v === 'home') renderHome();
     else if (v === 'league') renderLeague();
-    else if (v === 'squad') { if (FM.elena) FM.elena.hide(); renderSquad(); if (FM.coachSquad && world.league) FM.coachSquad(userTeam()); }
+    else if (v === 'squad') renderSquad();
     else if (v === 'analysis') FM.renderAnalysis(el('view-analysis'), world.league);
     else if (v === 'reports') FM.renderReports(el('view-reports'), world.league);
     else if (v === 'news') FM.renderNews(el('view-news'), world.league);
     else if (v === 'preview') renderPreview();
-    else if (v === 'tactics' || v === 'match') { renderTactics(); if (v === 'tactics' && !world.testing && world.tab === 'squad' && FM.coachFormation) FM.coachFormation(); }
+    else if (v === 'tactics' || v === 'match') renderTactics();
+    // the pages that are not tactics pages get her notes too
+    if ((v === 'reports' || v === 'preview' || v === 'analysis') && FM.elena && world.league) FM.elena.sync({ mode: 'view', view: v, tab: { reports: 'evidence', preview: 'preview', analysis: 'analysis' }[v], key: v, team: userTeam(), opp: nextOpponent(), stage: null });
     const activeSection = SCREEN_TITLES[v] ? el('view-' + v) : null;
     if (activeSection && !activeSection.querySelector('.screen-heading')) activeSection.insertAdjacentHTML('afterbegin', `<div class="screen-heading">${SCREEN_TITLES[v]}</div>`);
     if (v === 'match') resize();
@@ -652,20 +654,21 @@
       const ex = list.filter((p) => marks[p.id]).length;
       return `<details class="sq-group" data-group="${title}"${open[title] === false ? '' : ' open'}><summary>${title} <small>${list.length} player${list.length === 1 ? '' : 's'}${ex ? ' · ' + ex + ' with a number worth noting' : ''}</small></summary><div class="tablewrap"><table class="data">${head}<tbody>${list.map(row).join('')}</tbody></table></div></details>`;
     }).join('');
-    const analysis = FM.squadAnalysisHtml ? FM.squadAnalysisHtml(team) : '';
-    host.innerHTML = `<div class="sq-layout"><div class="sq-main"><div id="playerProfile"></div><div class="card"><div class="row" style="justify-content:space-between"><h2>${esc(team.name)}: squad of ${all.length}</h2><button type="button" id="elenaSquad">Elena's welcome</button></div>
+    host.innerHTML = `<div class="sq-layout"><div class="sq-main"><div id="playerProfile"></div><div class="card"><div class="row" style="justify-content:space-between"><h2>${esc(team.name)}: squad of ${all.length}</h2><button type="button" id="elenaSquad">Elena's notes</button></div>
       <p class="sq-key"><span><i class="g"></i>A real strength</span><span><i class="r"></i>A real weakness</span></p>
       ${groups}
       <div class="sq-foot"><button class="primary" id="toFormation">Continue to formation</button></div>
       </div></div>
-      <aside class="sq-elena" aria-label="Elena Marsh's notes on the squad"><div class="sq-elena-head"><img alt="" src="/assets/football/elena-point.jpg"><div><b>Elena Marsh</b><small>Performance analyst</small></div></div><h3>What stands out in your squad</h3>${analysis}</aside></div>`;
+      </div>`;
     const openPlayer = (id) => { world.profilePlayerId = id; renderSquad(); };
     host.querySelectorAll('[data-player]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openPlayer(b.dataset.player); }));
     host.querySelectorAll('.sq-group').forEach((d) => d.addEventListener('toggle', () => { open[d.dataset.group] = d.open; }));
     host.querySelector('#toFormation').addEventListener('click', () => { if (FM.coach) FM.coach.close(); FM.goToTactics('squad'); });
-    host.querySelector('#elenaSquad').addEventListener('click', () => { if (FM.coachSquad) FM.coachSquad(team, true); });
+    host.querySelector('#elenaSquad').addEventListener('click', () => { if (FM.elena) FM.elena.open(); });
     renderPlayerProfile(team, selected, host.querySelector('#playerProfile'));
     ensurePortraitsLoaded(all);
+    // Elena opens at the side with the descriptive statistics for this squad.
+    if (FM.elena) FM.elena.sync({ mode: 'hub', tab: 'hub', key: 'hub', team, opp: nextOpponent(), stage: null });
   }
 
   const PORTRAIT_STORE = 'lm_football_ashford_portraits_v4';

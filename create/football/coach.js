@@ -26,32 +26,32 @@
   const mean = (a) => a.reduce((s, x) => s + x, 0) / Math.max(1, a.length);
   const sd = (a) => { const m = mean(a); return Math.sqrt(mean(a.map((x) => (x - m) * (x - m)))); };
 
+  const POSITION_NAME = { GK: 'goalkeepers', CB: 'centre-backs', FB: 'full-backs', DM: 'holding midfielders', CM: 'central midfielders', AM: 'attacking midfielders', WF: 'wingers', ST: 'strikers' };
+  const STAT_LABEL = { pace: 'Pace', dribbling: 'Dribbling', passing: 'Passing', finishing: 'Finishing', tackling: 'Tackling', heading: 'Heading', composure: 'Composure', stamina: 'Stamina', gk: 'Goalkeeping' };
+  const medOf = (a) => { const n = a.length; return n % 2 ? a[(n - 1) / 2] : (a[n / 2 - 1] + a[n / 2]) / 2; };
+  // A number is marked only when it is an outlier by the quartile rule: more than 1.5 × IQR beyond Q1 or Q3 of the same number for every player
+  // in the league who plays his position (the shown ratings, as in the squad list). Most numbers are inside the fences, so few are marked.
   FM.squadHighlights = function (team) {
-    const all = (team.players || []).concat(team.bench || []).filter((p) => p && p.ratings);
-    const outfield = all.filter((p) => p.natural !== 'GK');
-    const stat = {};
-    OUTFIELD_STATS.forEach((s) => { const v = outfield.map((p) => p.ratings[s] || 0); stat[s] = { m: mean(v), sd: sd(v) }; });
-    const cands = [];
-    outfield.forEach((p) => (RELEVANT[p.natural] || []).forEach((s) => {
-      const st = stat[s];
-      if (!st || st.sd < 1) return;
-      const z = (p.ratings[s] - st.m) / st.sd;
-      if (z >= 1.3) cands.push({ p, s, z, kind: 'good' }); else if (z <= -1.3) cands.push({ p, s, z, kind: 'bad' });
+    const lg = window.FM_WORLD && FM_WORLD.league;
+    const pool = lg ? [].concat.apply([], lg.teams.map((t) => t.squad || [])) : (team.players || []).concat(team.bench || []);
+    const mine = (team.players || []).concat(team.bench || []).filter((p) => p && p.ratings);
+    const cache = {}, picks = [];
+    const dist = (g, s) => {
+      const k = g + ':' + s;
+      if (cache[k]) return cache[k];
+      const v = pool.filter((q) => q.natural === g && q.ratings).map((q) => FM.shown(q.ratings[s])).sort((a, b) => a - b), n = v.length;
+      if (n < 8) return (cache[k] = null);
+      const q1 = medOf(v.slice(0, Math.floor(n / 2))), q3 = medOf(v.slice(Math.ceil(n / 2))), iqr = q3 - q1;
+      return (cache[k] = { n, q1, q3, iqr, lo: q1 - 1.5 * iqr, hi: q3 + 1.5 * iqr });
+    };
+    mine.forEach((p) => (RELEVANT[p.natural] || []).forEach((s) => {
+      const d = dist(p.natural, s);
+      if (!d) return;
+      const val = FM.shown(p.ratings[s]);
+      const base = { p, s, val, n: d.n, q1: d.q1, q3: d.q3, lo: d.lo, hi: d.hi, label: STAT_LABEL[s] || s, groupName: POSITION_NAME[p.natural] || p.natural };
+      if (val < d.lo) picks.push(Object.assign(base, { kind: 'bad', z: (d.lo - val) / Math.max(1, d.iqr) }));
+      else if (val > d.hi) picks.push(Object.assign(base, { kind: 'good', z: (val - d.hi) / Math.max(1, d.iqr) }));
     }));
-    // a goalkeeper stands out only if he is plainly very good or very poor
-    all.filter((p) => p.natural === 'GK').forEach((p) => {
-      const g = p.ratings.gk || 0;
-      if (g >= 78) cands.push({ p, s: 'gk', z: 2, kind: 'good' }); else if (g <= 48) cands.push({ p, s: 'gk', z: -2, kind: 'bad' });
-    });
-    // Only the extremes: the strongest few strengths and weaknesses of the whole squad, and never more than two marks on one player.
-    cands.sort((a, b) => Math.abs(b.z) - Math.abs(a.z));
-    const perPlayer = {}, picks = [], count = { good: 0, bad: 0 };
-    cands.forEach((c) => {
-      const cap = c.kind === 'good' ? 7 : 6;
-      if (count[c.kind] >= cap) return;
-      if ((perPlayer[c.p.id] || 0) >= 2) return;
-      perPlayer[c.p.id] = (perPlayer[c.p.id] || 0) + 1; count[c.kind]++; picks.push(c);
-    });
     const marks = {};
     picks.forEach((c) => { (marks[c.p.id] = marks[c.p.id] || {})[c.s] = c.kind; });
     return { marks, picks };
@@ -95,6 +95,7 @@
       default: return '';
     }
   }
+  FM.squadMeaning = meaning;
   FM.squadImpacts = function (team) {
     const h = FM.squadHighlights(team), seen = {}, out = [];
     // weaknesses first (they are what can hurt you), then strengths, one line per player
