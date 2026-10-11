@@ -198,12 +198,12 @@
     const intro = adv.hasPrev
       ? 'This is from how this match went, set against the one before it. It is not from how ' + (nextOpp ? nextOpp.name : 'the next opponent') + ' play: you will see that on the tactics pages.'
       : 'This is your first recorded league match, so everything here is read against the opposition in this one game. From the next match on I will also tell you whether each thing got better.';
-    const items = adv.items.length ? adv.items.map((i) => `<div class="advice">
+    const items = adv.items.length ? adv.items.map((i, n) => `<div class="advice" id="advice-${n}">
         <h3>${esc(i.title)}${i.trend ? ` <small>${esc(i.trend)}</small>` : ''}</h3>
         <p class="fact">${esc(i.fact)}. ${esc(i.text)}</p>
         <p><b>What to try:</b> ${esc(i.doIt)}</p>
         <p class="note"><b>How you will know it worked:</b> ${esc(i.check)}</p>
-        <button type="button" class="advice-go" data-gotab="${i.tab}">Take me there</button>
+        <button type="button" class="advice-go" data-gotab="${i.tab}" data-from="advice-${n}">Take me there</button>
       </div>`).join('') : '<p>Nothing in this match stood out as clearly worse than the opposition. That is a good place to be: keep what is working, and test one change at a time.</p>';
     const better = adv.better ? `<p class="advice-better"><b>Something that got better:</b> ${esc(adv.better.title)}. ${esc(adv.better.fact)}. Keep whatever you changed.</p>` : '';
     return `<div class="card advice-card"><h2>For the next game</h2><p class="desc">${esc(intro)}</p>${better}${items}</div>`;
@@ -257,7 +257,11 @@
     host.querySelector('#anKind').addEventListener('change', (e) => { state.mapKind = e.target.value; FM.renderAnalysis(host, league); });
     const ps = host.querySelector('#anPlayer');
     if (ps) ps.addEventListener('change', (e) => { state.playerSel = e.target.value; FM.renderAnalysis(host, league); });
-    host.querySelectorAll('[data-gotab]').forEach((b) => b.addEventListener('click', () => { if (FM.goToTactics) FM.goToTactics(b.dataset.gotab); }));
+    host.querySelectorAll('[data-gotab]').forEach((b) => b.addEventListener('click', () => {
+      // remember exactly where on this page the manager was, so "Take me back" returns to that part of it
+      const from = b.dataset.from, sc = document.scrollingElement || document.documentElement;
+      if (FM.goToTactics) FM.goToTactics(b.dataset.gotab, { fxId: state.fxId, anchor: from, scrollTop: sc.scrollTop, label: 'Back to the analysis' });
+    }));
     if (FM.stopClips) FM.stopClips();
     if (FM.renderClips) FM.renderClips(host.querySelector('#anClips'), league, fx);
     if (FM.renderStatsTiers) FM.renderStatsTiers(host.querySelector('#anStats'), league, fxs, state);

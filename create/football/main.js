@@ -541,8 +541,27 @@
   const NAV = [];
   const SCREEN_TITLES = { home: 'Club overview', league: 'League centre', squad: 'First-team squad', reports: 'Opposition intelligence', news: 'Football world', analysis: 'Performance analysis', preview: 'Match preview' };
   // Lets another page (the Analysis Centre) open one of the tactics pages.
-  FM.goToTactics = (tab) => { world.testing = false; world.tab = tab; setView('tactics'); };
+  // "Take me there" from another screen: a button stays on the tactics page that returns to the same place on the screen it came from.
+  let backBtn = null;
+  function dropBackBtn() { if (backBtn) { backBtn.remove(); backBtn = null; } }
+  FM.goToTactics = (tab, from) => {
+    dropBackBtn();
+    world.testing = false; world.tab = tab; setView('tactics');
+    if (!from) return;
+    backBtn = document.createElement('button');
+    backBtn.type = 'button'; backBtn.className = 'take-back'; backBtn.textContent = '‹ ' + (from.label || 'Take me back');
+    backBtn.addEventListener('click', () => {
+      dropBackBtn();
+      if (from.fxId && FM.setAnalysisMatch) FM.setAnalysisMatch(from.fxId);
+      setView('analysis');
+      const sc = document.scrollingElement || document.documentElement;
+      const go = () => { const a = from.anchor && document.getElementById(from.anchor); if (a) a.scrollIntoView({ block: 'start' }); else sc.scrollTop = from.scrollTop || 0; };
+      go(); requestAnimationFrame(go); setTimeout(go, 120);
+    });
+    document.body.appendChild(backBtn);
+  };
   function setView(v) {
+    if (v !== 'tactics' && backBtn) dropBackBtn();
     world.view = v;
     document.body.dataset.view = v;
     VIEWS.forEach((k) => { el('view-' + k).hidden = k !== v; });
