@@ -144,31 +144,70 @@
       FM.stepMatch(m, SUBSTEP);
     }
   }
-  function isImportantMoment(m) {
-    if (world.vt < world.highlightUntil) return true;
-    if (m.restart && (m.restart.kind === 'corner' || m.restart.kind === 'penalty' || (m.restart.kind === 'freekick' && FM.toTeamSpace(m.restart.team.attackDir, m.restart.x, m.restart.y).d > .72))) return true;
-    if (!m.carrier) return false;
-    const p = m.carrier.player;
-    const depth = FM.toTeamSpace(m.carrier.team.attackDir, p.x, p.y).d;
-    const opponents = m.carrier.team === m.home ? m.away.players : m.home.players;
-    const pressure = opponents.some((d) => d.group !== 'GK' && Math.hypot(d.x - p.x, d.y - p.y) < 4.5);
-    return depth > .79 || (depth > .73 && pressure);
+  // Highlights are goals and missed penalties, and nothing else. Between them the match is simulated at speed behind a loading screen that
+  // shows the clock running; each highlight then plays from a few seconds before it (from the match's own recording of where everyone was).
+  function isImportantMoment() { return world.vt < world.highlightUntil; }   // the seconds after a highlight, played live
+  const HL_CLOCK = (m) => { const t = Math.max(0, Math.floor(m.clock)); return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); };
+  function hlOverlay(on, m) {
+    let box = document.getElementById('hlLoad');
+    if (!box) {
+      const wrap = document.querySelector('.pitch-wrap'); if (!wrap) return;
+      box = document.createElement('div'); box.id = 'hlLoad'; box.className = 'hl-load'; box.hidden = true;
+      box.innerHTML = '<div class="hl-clock" id="hlClock">00:00</div><div class="hl-bar"><i></i></div><div class="hl-sub">Playing on to the next highlight</div>';
+      wrap.appendChild(box);
+    }
+    box.hidden = !on;
+    if (on && m) { const c = document.getElementById('hlClock'); if (c) c.textContent = HL_CLOCK(m); }
   }
-  function importantEvent(e) {
-    if (e.type === 'goal' || (e.type === 'shot' && (e.xg || 0) >= .1) || (e.type === 'foul' && e.card === 'red')) return true;
-    if (e.type === 'restart' && (e.kind === 'corner' || e.kind === 'penalty')) return true;
-    if (e.type === 'tackle' && e.ok && e.x != null && (e.x < L * .22 || e.x > L * .78)) return true;
-    return false;
+  function hlRestore() {
+    const h = world.hl;
+    if (!h || !h.saved) return;
+    h.saved.players.forEach((q) => { q.p.x = q.x; q.p.y = q.y; });
+    h.saved.ball.p.x = h.saved.ball.x; h.saved.ball.p.y = h.saved.ball.y;
+  }
+  function hlCancel() {
+    hlRestore(); world.hl = null; world.hlScanned = null; world.hlWait = null; world.highlightSearching = false; hlOverlay(false);
+  }
+  function hlStartReplay(m, e, index, tail) {
+    const r = m.rec, t0 = e.t - (e.type === 'goal' ? 10 : 8), t1 = e.t + tail;
+    const frames = r && r.buf ? r.buf.filter((f) => f.t >= t0 && f.t <= t1 + 0.01) : [];
+    world.highlightRevealFrom = index;
+    world.highlightSearching = false; hlOverlay(false);
+    world.hlScanned = m.events.length; world.hlWait = null;
+    if (frames.length < 4) { world.highlightUntil = world.vt + 4.5; return true; }   // nothing recorded: carry on live from here
+    const saved = { players: m.home.players.concat(m.away.players).map((p) => ({ p, x: p.x, y: p.y })), ball: { p: m.ball, x: m.ball.x, y: m.ball.y } };
+    world.hl = { phase: 'replay', frames, start: performance.now(), dur: (frames[frames.length - 1].t - frames[0].t) * 1000, saved };
+    return true;
+  }
+  function hlReplayStep(m, now, dt) {
+    const h = world.hl, el = now - h.start, fr = h.frames;
+    world.vt += dt;
+    const tt = fr[0].t + Math.min(el, h.dur) / 1000;
+    let k = 0; while (k < fr.length - 2 && fr[k + 1].t <= tt) k++;
+    const a = fr[k], b = fr[Math.min(k + 1, fr.length - 1)], u = b.t > a.t ? Math.max(0, Math.min(1, (tt - a.t) / (b.t - a.t))) : 0;
+    const put = (list, from, to) => list.forEach((p) => { const f = from.find((z) => z[0] === p.number), g = to.find((z) => z[0] === p.number); if (f) { p.x = f[1] + ((g ? g[1] : f[1]) - f[1]) * u; p.y = f[2] + ((g ? g[2] : f[2]) - f[2]) * u; } });
+    put(m.home.players, a.h, b.h); put(m.away.players, a.a, b.a);
+    m.ball.x = a.b[0] + (b.b[0] - a.b[0]) * u; m.ball.y = a.b[1] + (b.b[1] - a.b[1]) * u;
+    draw();
+    if (el >= h.dur) { hlRestore(); world.hl = null; world.highlightUntil = world.vt + 4.5; }
   }
   function seekHighlight(m) {
-    const startedAt = m.events.length, t0 = performance.now();
-    world.highlightSearching = true;
-    while (performance.now() - t0 < 26 && m.phase !== 'halftime' && m.phase !== 'fulltime' && !m.injuryPause) {
+    if (world.hlScanned == null) world.hlScanned = m.events.length;
+    world.highlightSearching = true; hlOverlay(true, m);
+    const t0 = performance.now();
+    let scanned = world.hlScanned;
+    while (performance.now() - t0 < 34 && m.phase !== 'halftime' && m.phase !== 'fulltime' && !m.injuryPause) {
       FM.stepMatch(m, SUBSTEP);
-      const added = m.events.slice(startedAt), hit = added.findIndex(importantEvent);
-      if (isImportantMoment(m) || hit >= 0) { world.highlightRevealFrom = hit >= 0 ? startedAt + hit : m.events.length; world.highlightSearching = false; return true; }
+      for (; scanned < m.events.length; scanned++) {
+        const e = m.events[scanned];
+        if (e.type === 'goal') return hlStartReplay(m, e, scanned, 0.2);
+        if (e.type === 'shot' && e.setPiece === 'penalty' && e.outcome !== 'goal') world.hlWait = { until: m.clock + 2.2, ev: e, index: scanned };
+      }
+      if (world.hlWait && m.clock >= world.hlWait.until) { const w = world.hlWait; return hlStartReplay(m, w.ev, w.index, 2.2); }
     }
-    if (m.phase === 'halftime' || m.phase === 'fulltime' || m.injuryPause) world.highlightSearching = false;
+    world.hlScanned = scanned;
+    const c = document.getElementById('hlClock'); if (c) c.textContent = HL_CLOCK(m);
+    if (m.phase === 'halftime' || m.phase === 'fulltime' || m.injuryPause) { world.highlightSearching = false; world.hlScanned = null; world.hlWait = null; hlOverlay(false); }
     return false;
   }
   let last = performance.now();
@@ -177,6 +216,7 @@
     world.frameDt = dt;
     last = now;
     const m = world.match;
+    if (world.view === 'match' && m && world.hl && world.hl.phase === 'replay') { hlReplayStep(m, now, dt); requestAnimationFrame(frame); return; }
     if (world.view === 'match' && m) {
       if (FM.scout && world.league) FM.scout.watch(world.league, m);
       if (world.skipTo) { skipSlice(m); if (!world.skipTo) world.trails = []; }
@@ -185,7 +225,7 @@
         else { advanceMatch(dt * MATCH_SPEED * (world.highlightsOnly ? 1 : world.speed)); world.highlightSearching = false; }
         world.vt += dt;
       }
-      if (!world.highlightSearching) { draw(); updateHud(); }
+      if (!world.highlightSearching) { draw(); updateHud(); } else if (!world.highlightsOnly) hlOverlay(false);
     }
     requestAnimationFrame(frame);
   }
@@ -334,9 +374,10 @@
     const m = world.match;
     if (!m || m.phase === 'fulltime') return;
     world.highlightsOnly = !world.highlightsOnly;
+    hlCancel();
     world.highlightUntil = world.vt; world.highlightSearching = false; world.highlightRevealFrom = m.events.length;
     world.running = true;
-    say(world.highlightsOnly ? 'Highlights on — moving quickly to the next dangerous moment.' : 'Full match view restored.', '', 2.2);
+    say(world.highlightsOnly ? 'Highlights on: goals and missed penalties only.' : 'Full match view restored.', '', 2.2);
   });
   el('stepBtn').addEventListener('click', () => {
     const m = world.match;
@@ -468,7 +509,7 @@
     world.fixture = fx;
     world.match = FM.startFixture(world.league, fx, { interactive: true });
     world.renderPos.clear(); world.renderBall = null;
-    world.running = true; world.speed = 1; world.highlightsOnly = false; world.highlightUntil = 0; world.highlightSearching = false; world.highlightRevealFrom = 0; world.shownEvents = 0; world.lastStats = ''; world.trails = []; world.impacts = []; world.vt = 0; world.commentaryUntil = 0; world.commentaryTurns = {};
+    world.hl = null; world.hlScanned = null; world.hlWait = null; world.running = true; world.speed = 1; world.highlightsOnly = false; world.highlightUntil = 0; world.highlightSearching = false; world.highlightRevealFrom = 0; world.shownEvents = 0; world.lastStats = ''; world.trails = []; world.impacts = []; world.vt = 0; world.commentaryUntil = 0; world.commentaryTurns = {};
     say('The teams are ready. The match is about to begin.', '', 2.5);
     world.selSlot = null; world.selBench = null; world.tab = 'squad';
     document.querySelectorAll('[data-speed]').forEach((x) => x.classList.toggle('on', x.dataset.speed === '1'));
