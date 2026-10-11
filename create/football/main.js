@@ -787,8 +787,11 @@
     // diagrams begin at the same height.
     const levelWithEnd = starts.length === 1 && ends.length === 1;
     const holdHead = '<div class="scn-head" aria-hidden="true" style="visibility:hidden"><label>Page name <input type="text" tabindex="-1" disabled></label><label>Use this page when <select tabindex="-1" disabled><option>Otherwise</option></select></label><button type="button" class="scn-del-hold" tabindex="-1">Remove this page</button></div>' +
-      (ends.some((e) => e.pg && ((e.pg.id ? (e.pg.from ? e.pg.extra : e.pg.cond) : dfl.cond) === 'custom')) ? '<div class="scn-custom" aria-hidden="true" style="visibility:hidden"><input type="text" tabindex="-1" disabled><button type="button" tabindex="-1">Update</button></div><p class="note scn-custom-note">&nbsp;</p>' : '');
+      ((ends.some((e) => e.pg && e.pg.id && e.pg.cond === 'custom') || (ends.some((e) => e.pg && !e.pg.id) && dfl.cond === 'custom')) ? '<div class="scn-custom" aria-hidden="true" style="visibility:hidden"><input type="text" tabindex="-1" disabled><button type="button" tabindex="-1">Update</button></div><p class="note scn-custom-note">&nbsp;</p>' : (ends.some((e) => e.pg && e.pg.from) ? '<p class="note scn-custom-note" aria-hidden="true" style="visibility:hidden">&nbsp;</p>' : ''));
     // the box where a condition is written in words, under the page's name and condition
+    // what a following page's box shows: what the manager wrote, or the name of a ready-made condition saved earlier
+    const extraText = (pg) => (pg.extra === 'custom' ? (pg.custom && pg.custom.text) || '' : pg.extra ? ((FM.LINKED_CONDS.find((c) => c.key === pg.extra) || {}).label || '') : '');
+    const extraNote = (pg) => (pg.extra === 'custom' ? (pg.custom && pg.custom.when ? 'Understood as: ' + (pg.custom.summary || pg.custom.text) + '.' : 'Not set yet, so this page is not used until it is.') : pg.extra ? '' : 'It is used whenever the stage before ended on the page it follows.');
     const customRow = (holder, id) => {
       const c = holder.custom || {};
       return `<div class="scn-custom"><input type="text" class="scn-custom-text" maxlength="200" placeholder="Say when, in your own words: for example when our full-backs have stepped high and we are drawing" value="${esc(c.text || '')}" data-custom-text="${id}" aria-label="When this page should be used"><button type="button" data-custom-go="${id}">${c.when ? 'Update' : 'Save'}</button></div><p class="note scn-custom-note" data-custom-note="${id}">${c.when ? 'Understood as: ' + esc(c.summary || c.text) + '.' : 'Not set yet, so this page is not used until it is.'}</p>`;
@@ -796,7 +799,7 @@
     const figure = (f, n) => `<figure class="bp${f.locked ? ' locked' : ''}">
         ${!f.pg && levelWithEnd ? holdHead : ''}${f.pg ? (f.pg.id
           ? (f.pg.from
-            ? `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname(f.pg))}" data-scn-label="${f.pg.id}"></label><label>Only when <select data-scn-extra="${f.pg.id}">${FM.LINKED_CONDS.map((c) => `<option value="${c.key}"${c.key === (f.pg.extra || 'none') ? ' selected' : ''}>${esc(c.label)}</option>`).join('')}</select></label><button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div>${f.pg.extra === 'custom' ? customRow(f.pg, f.pg.id) : ''}`
+            ? `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname(f.pg))}" data-scn-label="${f.pg.id}"></label><label>Only when <span class="scn-combo"><input type="text" class="scn-combo-in" maxlength="200" data-extra-text="${f.pg.id}" placeholder="No extra condition" value="${esc(extraText(f.pg))}" aria-label="Only when: leave empty for no extra condition, or say when in your own words"><button type="button" class="scn-combo-go" data-extra-go="${f.pg.id}">Save</button></span></label><button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div><p class="note scn-custom-note" data-extra-note="${f.pg.id}">${esc(extraNote(f.pg))}</p>`
             : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname(f.pg))}" data-scn-label="${f.pg.id}"></label><label>Use this page when <select data-scn-cond="${f.pg.id}">${condOpts(f.pg.cond)}</select></label><button type="button" data-scn-del="${f.pg.id}">Remove this page</button></div>${f.pg.cond === 'custom' ? customRow(f.pg, f.pg.id) : ''}${shapeNote(f.pg)}`)
           : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname({ id: null }))}" data-def-label="1"></label><label>Use this page when <select data-def-cond="1">${condOpts(dfl.cond)}</select></label><button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div>${dfl.cond === 'custom' ? customRow(dfl, 'default') : ''}${shapeNote(dfl)}`) : ''}
         <figcaption><b>${esc(starts.length || !f.pg ? f.def.title : f.def.title.replace(/^\d+\.\s*/, ''))}</b><span class="note">${esc(f.label ? 'From the stage before: ' + f.label : f.def.note)}</span></figcaption>
@@ -906,10 +909,24 @@
         saveSoon(); renderTactics();
       } catch (err) { btn.disabled = false; note.textContent = err.message || 'LastMind could not read that just now. Try again.'; }
     }));
-    host.querySelectorAll('[data-scn-extra]').forEach((sel) => sel.addEventListener('change', () => {
-      const pg = pagesOf(endKey).find((x) => x.id === sel.dataset.scnExtra); if (!pg) return;
-      pg.extra = sel.value === 'none' ? null : sel.value; saveSoon(); renderTactics();
-    }));
+    // a following page's own condition: the box is empty for none, and whatever is written in it is read once and kept
+    const saveExtra = async (id) => {
+      const pg = pagesOf(endKey).find((x) => x.id === id); if (!pg) return;
+      const input = host.querySelector('[data-extra-text="' + id + '"]'), note = host.querySelector('[data-extra-note="' + id + '"]'), btn = host.querySelector('[data-extra-go="' + id + '"]');
+      const text = (input.value || '').trim();
+      if (!text) { pg.extra = null; pg.custom = null; saveSoon(); renderTactics(); return; }
+      if (text === extraText(pg)) return;
+      if (text.length < 3) { note.textContent = 'Say when this page should be used, or leave the box empty.'; return; }
+      btn.disabled = true; note.textContent = 'Reading it…';
+      try {
+        const opp = instr && instr.hooks && instr.hooks.opp ? instr.hooks.opp() : null;
+        const out = await FM.api('/football/compile-condition', { text, squad: FM.squadOf(team), opponent: opp ? FM.squadOf(opp) : [] });
+        pg.extra = 'custom'; pg.custom = { text, when: out.when || {}, summary: out.summary || text };
+        saveSoon(); renderTactics();
+      } catch (err) { btn.disabled = false; note.textContent = err.message || 'LastMind could not read that just now. Try again.'; }
+    };
+    host.querySelectorAll('[data-extra-go]').forEach((b) => b.addEventListener('click', () => saveExtra(b.dataset.extraGo)));
+    host.querySelectorAll('[data-extra-text]').forEach((i) => i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveExtra(i.dataset.extraText); } }));
     host.querySelectorAll('[data-scn-cond]').forEach((sel) => sel.addEventListener('change', () => {
       const pg = pagesOf(endKey).find((x) => x.id === sel.dataset.scnCond); if (!pg) return;
       pg.cond = sel.value; saveSoon(); renderTactics();
