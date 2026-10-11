@@ -438,6 +438,9 @@
           oppDirect: 0.5 * (ot.buildDirect == null ? 0.35 : ot.buildDirect) + 0.5 * (ot.directness == null ? 0.5 : ot.directness),
           diff: (match.score[team.id] || 0) - (match.score[oo.id] || 0), minute: match.clock / 60,
         };
+        // our full-backs: have they stepped up the pitch (past about the middle of our own half and the halfway line)?
+        const fbs = team.players.filter((q) => q.group === 'FB');
+        info.fbHigh = fbs.length ? fbs.reduce((a, q) => a + FM.toTeamSpace(team.attackDir, q.x, q.y).d, 0) / fbs.length >= 0.45 : false;
         match.pageTime = match.pageTime || {};
         // Where the opposition really stand, for the pages that are chosen by the shirts the manager placed for them.
         const ds = oo.players.filter((q) => q.group !== 'GK').map((q) => FM.toTeamSpace(oo.attackDir, q.x, q.y).d);

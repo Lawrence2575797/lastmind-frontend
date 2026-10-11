@@ -359,6 +359,14 @@
     { key: 'opp_mid', label: 'The opposition hold a mid block' },
     { key: 'opp_low', label: 'The opposition sit in a low block' },
   ].concat(GAME_STATE_CONDS, [OPP_SHAPE]);
+  // What a page that simply follows the stage before can also depend on. By default it depends on nothing more.
+  FM.LINKED_CONDS = [{ key: 'none', label: 'No extra condition' },
+    { key: 'fb_high', label: 'Our full-backs have stepped high' },
+    { key: 'fb_back', label: 'Our full-backs have stayed back' },
+    { key: 'opp_high', label: 'The opposition press high' },
+    { key: 'opp_mid', label: 'The opposition hold a mid block' },
+    { key: 'opp_low', label: 'The opposition sit in a low block' },
+  ].concat(GAME_STATE_CONDS);
   FM.SCENARIO_CONDS_DEF = [ALWAYS,
     { key: 'opp_direct', label: 'The opposition play long and direct' },
     { key: 'opp_short', label: 'The opposition build short' },
@@ -374,7 +382,10 @@
   FM.sigDistance = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
   FM.scenarioHolds = function (cond, info, page) {
     if (cond === 'always') return true;
-    if (cond === 'from_prev') return !!page && !!page.from && info.prevPage === page.from;
+    // a page that follows one of the stage before is used whenever that one was; the manager can add a condition of their own on top of it
+    if (cond === 'from_prev') return !!page && !!page.from && info.prevPage === page.from && (!page.extra || FM.scenarioHolds(page.extra, info, null));
+    if (cond === 'fb_high') return !!info.fbHigh;
+    if (cond === 'fb_back') return !info.fbHigh;
     if (cond === 'opp_shape') return !!page && info.shapeWinner === (page.id || 'default');
     if (cond === 'opp_high') return info.oppPress >= 0.6;
     if (cond === 'opp_mid') return info.oppPress >= 0.4 && info.oppPress < 0.6;

@@ -790,7 +790,7 @@
     const figure = (f, n) => `<figure class="bp${f.locked ? ' locked' : ''}">
         ${!f.pg && levelWithEnd ? holdHead : ''}${f.pg ? (f.pg.id
           ? (f.pg.from
-            ? `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname(f.pg))}" data-scn-label="${f.pg.id}"></label><label>Use this page when <select disabled><option>The stage before ended on the page it follows</option></select></label><button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div>`
+            ? `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname(f.pg))}" data-scn-label="${f.pg.id}"></label><label>Only when <select data-scn-extra="${f.pg.id}">${FM.LINKED_CONDS.map((c) => `<option value="${c.key}"${c.key === (f.pg.extra || 'none') ? ' selected' : ''}>${esc(c.label)}</option>`).join('')}</select></label><button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div>`
             : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname(f.pg))}" data-scn-label="${f.pg.id}"></label><label>Use this page when <select data-scn-cond="${f.pg.id}">${condOpts(f.pg.cond)}</select></label><button type="button" data-scn-del="${f.pg.id}">Remove this page</button></div>${shapeNote(f.pg)}`)
           : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname({ id: null }))}" data-def-label="1"></label><label>Use this page when <select data-def-cond="1">${condOpts(dfl.cond)}</select></label><button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div>${shapeNote(dfl)}`) : ''}
         <figcaption><b>${esc(starts.length || !f.pg ? f.def.title : f.def.title.replace(/^\d+\.\s*/, ''))}</b><span class="note">${esc(f.label ? 'From the stage before: ' + f.label : f.def.note)}</span></figcaption>
@@ -884,6 +884,10 @@
       const pg = pagesOf(endKey).find((x) => x.id === inp.dataset.scnLabel); if (!pg) return;
       const v = inp.value.trim().slice(0, 40); pg.label = v || pg.label || 'Page'; pg.named = !!v; saveSoon();
       const n = endIndex(pg.id); renderBox(n);
+    }));
+    host.querySelectorAll('[data-scn-extra]').forEach((sel) => sel.addEventListener('change', () => {
+      const pg = pagesOf(endKey).find((x) => x.id === sel.dataset.scnExtra); if (!pg) return;
+      pg.extra = sel.value === 'none' ? null : sel.value; saveSoon(); renderTactics();
     }));
     host.querySelectorAll('[data-scn-cond]').forEach((sel) => sel.addEventListener('change', () => {
       const pg = pagesOf(endKey).find((x) => x.id === sel.dataset.scnCond); if (!pg) return;
@@ -1253,6 +1257,7 @@
     FM.ensurePages(team);
     const pg = sfx ? (team.pages[base] || []).find((x) => x.id === sfx.slice(1)) : (team.pageDefaults || {})[base];
     if (!pg) return 'always';
+    if (pg.cond === 'from_prev' && pg.extra && /^opp_/.test(pg.extra)) return pg.extra;   // an extra condition about how they set up shows them that way
     if (pg.cond === 'from_prev' && pg.from && FM.PREV_END && FM.PREV_END[base]) return pageCondOf(FM.PREV_END[base] + '#' + pg.from);
     return pg.cond || 'always';
   }
