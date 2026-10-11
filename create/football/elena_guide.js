@@ -18,7 +18,7 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   FM.guides = FM.guides || {};
   const FACE = '/assets/football/elena-point.jpg';
-  const G = { lesson: null, i: 0, card: null, spot: null, raf: 0, ctx: null, st: {}, leave: null, els: [], reopen: false, shared: {} };
+  const G = { lesson: null, i: 0, card: null, spot: null, raf: 0, ctx: null, st: {}, leave: null, els: [], reopen: false, shared: {}, stack: [] };
 
   function css() {
     if (document.getElementById('guideStyle')) return;
@@ -26,6 +26,8 @@
     st.textContent = [
       '.gd-spot { position: fixed; z-index: 400; pointer-events: none; border-radius: 12px; border: 3px solid #F2C14E; box-shadow: 0 0 0 100vmax rgba(4,9,13,.66), 0 0 24px 2px rgba(242,193,78,.55); transition: left .5s ease, top .5s ease, width .5s ease, height .5s ease, opacity .25s; }',
       '.gd-spot.none { opacity: 0; }',
+      '.gd-kw { display: inline; margin: 0; padding: 0 4px; min-height: 0 !important; border: 0; border-bottom: 2px solid #F2C14E; background: rgba(242,193,78,.14); color: #FFE9A8; font: inherit; font-weight: 700; border-radius: 4px 4px 0 0; cursor: pointer; } .gd-kw:hover { background: rgba(242,193,78,.3); }',
+      '.gd-note { display: grid; gap: 9px; }',
       '.gd-hl { outline: 3px solid #F2C14E !important; outline-offset: 1px; border-radius: 4px; position: relative; z-index: 2; animation: gdPulse 1.4s ease-in-out infinite; }',
       '@keyframes gdPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(242,193,78,.6); } 50% { box-shadow: 0 0 0 6px rgba(242,193,78,0); } } @media (prefers-reduced-motion: reduce) { .gd-hl { animation: none; } .gd-spot, .gd-card { transition: none; } }',
       '.gd-card { position: fixed; z-index: 410; width: min(440px, calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow: auto; background: #1A232D; color: #F1EAD6; border: 1px solid #F2C14E; border-radius: 16px; box-shadow: 0 18px 50px rgba(0,0,0,.55); font: 14px/1.55 Arial, sans-serif; transition: left .5s ease, top .5s ease; }',
@@ -104,10 +106,11 @@
     let h = '<div class="gd-head"><img alt="" src="' + FACE + '"><div><b>Elena Marsh</b><small>' + esc(L.title) + ' · step ' + (G.i + 1) + ' of ' + L.steps.length + '</small></div>' +
       '<button type="button" class="gd-x" data-gd="stop" aria-label="Leave the lesson"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 2 L12 12 M12 2 L2 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg></button></div>';
     h += '<div class="gd-body">';
+    if (G.stack.length) h += '<button type="button" class="gd-link" data-gd="return">&larr; Back to the tour</button>';
     if (step.title) h += '<h3>' + esc(step.title) + '</h3>';
     h += lines(val(step.lines));
     if (step.formula) h += '<div class="gd-f">' + val(step.formula) + '</div>';
-    if (ask) {
+    if (ask && (s.open || s.done || L.askOpen)) {
       h += '<div class="gd-q">' + lines(val(ask.q));
       if (ask.kind === 'choice') {
         h += (ask.options || []).map((o, k) => '<button type="button" class="gd-opt' + (s.done && k === ask.correct ? ' good' : s.picked === k && !s.done ? ' bad' : '') + '" data-gd="pick" data-k="' + k + '"' + (s.done ? ' disabled' : '') + '>' + o.t + '</button>').join('');
@@ -120,15 +123,18 @@
       if (s.msg && !s.done) h += '<p class="gd-fb">' + s.msg + '</p>';
       if (s.done) h += '<div class="gd-ok">' + lines(val(ask.reveal)) + '</div>';
       if (!s.done && s.tries >= 2 && ask.kind !== 'open') h += '<div><button type="button" class="gd-link" data-gd="show">Show me the answer</button></div>';
+    } else if (ask) {
+      // the explanation stands on its own; the question is there for anyone who wants to test themselves
+      h += '<div class="gd-note">' + lines(val(ask.reveal)) + '</div><div class="gd-row"><button type="button" class="gd-btn" data-gd="openq">Test yourself on this</button></div>';
     }
     if (step.widget) h += '<div class="gd-widget" id="gdWidget"></div>';
-    if (step.why && (!ask || s.done)) h += '<div class="gd-why"><b>Why this matters</b>' + lines(val(step.why)) + '</div>';
-    if (step.apply && (!ask || s.done)) h += '<div class="gd-row">' + step.apply.map((a, k) => '<button type="button" class="gd-btn go" data-gd="apply" data-k="' + k + '">' + esc(a.label) + '</button>').join('') + '</div>' + (s.applied ? '<p class="gd-ok">' + s.applied + '</p>' : '');
+    if (step.why) h += '<div class="gd-why"><b>Why this matters</b>' + lines(val(step.why)) + '</div>';
+    if (step.apply) h += '<div class="gd-row">' + step.apply.map((a, k) => '<button type="button" class="gd-btn go" data-gd="apply" data-k="' + k + '">' + esc(a.label) + '</button>').join('') + '</div>' + (s.applied ? '<p class="gd-ok">' + s.applied + '</p>' : '');
     h += '</div>';
-    const needAnswer = !!ask && !s.done, needWidget = !!step.widget && step.gate && !s.ready;
+    const needAnswer = false, needWidget = false;
     h += '<div class="gd-nav"><button type="button" class="gd-btn" data-gd="back"' + (G.i === 0 ? ' disabled' : '') + '>Back</button><div class="gd-dots">' +
       L.steps.map((_, k) => '<i class="' + (k === G.i ? 'on' : stOf(k).done || k < G.i ? 'done' : '') + '"></i>').join('') + '</div><span class="sp"></span>' +
-      (last ? '<button type="button" class="gd-btn go" data-gd="finish"' + (needAnswer || needWidget ? ' disabled' : '') + '>Finish</button>' : '<button type="button" class="gd-btn go" data-gd="next"' + (needAnswer || needWidget ? ' disabled' : '') + '>Next</button>') + '</div>';
+      (last ? '<button type="button" class="gd-btn go" data-gd="finish"' + (needAnswer || needWidget ? ' disabled' : '') + '>' + (G.stack.length ? 'Back to the tour' : 'Finish') + '</button>' : '<button type="button" class="gd-btn go" data-gd="next"' + (needAnswer || needWidget ? ' disabled' : '') + '>Next</button>') + '</div>';
     G.card.innerHTML = h;
     if (step.widget) {
       const box = G.card.querySelector('#gdWidget');
@@ -170,11 +176,15 @@
   }
 
   function onClick(e) {
+    const kwb = e.target.closest('[data-kw]');
+    if (kwb && G.card && G.card.contains(kwb)) return FM.guide.detail(kwb.dataset.kw);
     const b = e.target.closest('[data-gd]'); if (!b || !G.card || !G.card.contains(b)) return;
     const a = b.dataset.gd, L = G.lesson, step = L.steps[G.i], s = stOf(G.i);
     if (a === 'stop') return FM.guide.stop();
     if (a === 'next') { if (G.i < L.steps.length - 1) { G.i++; enterStep(); } return; }
     if (a === 'back') { if (G.i > 0) { G.i--; enterStep(); } return; }
+    if (a === 'return' || (a === 'finish' && G.stack.length)) { const pr = G.stack.pop(); G.lesson = pr.lesson; G.i = pr.i; return enterStep(); }
+    if (a === 'openq') { s.open = true; return render(); }
     if (a === 'finish') return FM.guide.stop(true);
     if (a === 'pick') return pickChoice(+b.dataset.k);
     if (a === 'check') return checkNumber();
@@ -193,7 +203,7 @@
     start(id, opts) {
       const L = FM.guides[id]; if (!L) return false;
       css(); FM.guide.stop(true, true);
-      G.i = (opts && opts.step) || 0; G.shared = {}; G.st = {};
+      G.i = (opts && opts.step) || 0; G.shared = {}; G.st = {}; G.stack = [];
       G.ctx = (FM.guideContext ? FM.guideContext() : {});
       if (L.prepare) { try { L.prepare(G.ctx); } catch (e) { /* the steps cope with missing data */ } }
       let steps = L.steps;
@@ -209,6 +219,15 @@
       place(); enterStep();
       return true;
     },
+    detail(id) {
+      const L = FM.guides[id]; if (!L || !G.lesson) return false;
+      let steps; try { steps = L.build ? L.build(G.ctx) : L.steps; } catch (e) { steps = null; }
+      if (!steps || !steps.length) return false;
+      G.stack.push({ lesson: G.lesson, i: G.i });
+      G.lesson = Object.assign({}, L, { steps }); G.i = 0;
+      enterStep();
+      return true;
+    },
     stop(finished, silent) {
       if (!G.lesson) return;
       if (G.leave) { try { G.leave(); } catch (e) { /* nothing to clean */ } G.leave = null; }
@@ -216,7 +235,7 @@
       document.querySelectorAll('.gd-hl').forEach((e) => e.classList.remove('gd-hl'));
       document.removeEventListener('keydown', onKey);
       if (G.card) G.card.remove(); if (G.spot) G.spot.remove();
-      G.lesson = null; G.card = G.spot = null; G.els = [];
+      G.lesson = null; G.card = G.spot = null; G.els = []; G.stack = [];
       document.body.classList.remove('gd-on');
     },
   };
