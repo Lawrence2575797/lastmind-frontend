@@ -772,8 +772,12 @@
       ? prev.map((pg) => ({ key: withKey(startDef.key, pg), locked: true, def: startDef, label: FM.pageName(team, startDef.key, pg.id ? pg : null) }))
       : [{ key: startDef.key, locked: false, def: startDef, label: null }];
     const ends = [{ id: null, label: dfl.label, cond: dfl.cond }].concat(pagesOf(endKey)).map((pg) => ({ key: withKey(endKey, pg), locked: false, def: endDef, pg }));
+    // When a fixed start sits beside the end with its name and condition above it, the start carries an invisible copy of that row, so the two
+    // diagrams begin at the same height.
+    const levelWithEnd = starts.length === 1 && ends.length === 1;
+    const holdHead = '<div class="scn-head" aria-hidden="true" style="visibility:hidden"><label>Page name <input type="text" tabindex="-1" disabled></label><label>Use this page when <select tabindex="-1" disabled><option>Otherwise</option></select></label><button type="button" class="scn-del-hold" tabindex="-1">Remove this page</button></div>';
     const figure = (f, n) => `<figure class="bp${f.locked ? ' locked' : ''}">
-        ${f.pg ? (f.pg.id
+        ${!f.pg && levelWithEnd ? holdHead : ''}${f.pg ? (f.pg.id
           ? (f.pg.from
             ? `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname(f.pg))}" data-scn-label="${f.pg.id}"></label><label>Use this page when <select disabled><option>The stage before ended on the page it follows</option></select></label><button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div>`
             : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname(f.pg))}" data-scn-label="${f.pg.id}"></label><label>Use this page when <select data-scn-cond="${f.pg.id}">${condOpts(f.pg.cond)}</select></label><button type="button" data-scn-del="${f.pg.id}">Remove this page</button></div>${shapeNote(f.pg)}`)
