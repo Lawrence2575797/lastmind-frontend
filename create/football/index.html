@@ -252,26 +252,13 @@
   .tb-grid.tb-pair .tb-left { grid-template-columns: minmax(0, 1fr); justify-items: stretch; } .tb-grid.tb-pair #pairHost { width: 100%; }
   .board-pair svg.board { max-width: none; width: 100%; }
   /* Pages the manager adds on the possession stages */
-  /* The squad list: groups by position that open and close, and the extremes marked green and red by Elena. */
-  /* Elena's notes on the squad sit beside the list, always showing. */
+  /* The squad list: groups by position that open and close. */
   .sq-layout { display: block; }
-  .sq-elena { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: rgba(5,12,16,.76); font-family: var(--sans); color: var(--cream); }
-  .sq-elena-head { display: flex; align-items: center; gap: 12px; } .sq-elena-head img { width: 54px; height: 54px; border-radius: 50%; object-fit: cover; object-position: 50% 18%; border: 2px solid var(--gold); } .sq-elena-head small { display: block; opacity: .7; }
-  .sq-elena h3 { margin: 14px 0 6px; font-size: 1.02rem; } .sq-elena h4 { margin: 14px 0 6px; font-size: .74rem; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); }
-  .sq-elena ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; } .sq-elena p { margin: 0 0 10px; }
-  .sq-elena li { padding: 9px 11px; border-radius: 10px; background: rgba(255,255,255,.06); border-left: 4px solid var(--gold); font-size: .88rem; line-height: 1.5; }
-  .sq-elena li.good { border-left-color: #52bd7b; } .sq-elena li.bad { border-left-color: #e5645a; }
-  .sq-chip { display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 999px; font-size: .74rem; font-weight: 800; white-space: nowrap; } .sq-chip.good { background: rgba(82,189,123,.28); color: #a6f3c0; } .sq-chip.bad { background: rgba(229,100,90,.26); color: #ffb3ad; }
-  @media (max-width: 1100px) { .sq-layout { grid-template-columns: minmax(0, 1fr); } .sq-elena { position: static; max-height: none; } }
   .sq-group { margin: 14px 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
   .sq-group > summary { cursor: pointer; padding: 12px 14px; font-weight: 800; background: rgba(241,234,214,.06); list-style: none; display: flex; align-items: center; gap: 10px; }
   .sq-group > summary::-webkit-details-marker { display: none; } .sq-group > summary::before { content: '\25B8'; transition: transform .15s; } .sq-group[open] > summary::before { transform: rotate(90deg); }
   .sq-group > summary small { font-weight: 500; opacity: .7; }
   .sq-group .tablewrap { margin: 0; }
-  table.data td.hl-good { background: rgba(82,189,123,.28); color: #a6f3c0; font-weight: 800; }
-  table.data td.hl-bad { background: rgba(229,100,90,.26); color: #ffb3ad; font-weight: 800; }
-  .sq-key { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin: 4px 0 0; font-size: .86rem; }
-  .sq-key i { display: inline-block; width: 14px; height: 14px; border-radius: 4px; vertical-align: -2px; margin-right: 6px; } .sq-key .g { background: rgba(82,189,123,.7); } .sq-key .r { background: rgba(229,100,90,.7); }
   .sq-foot { display: flex; justify-content: flex-end; gap: 10px; margin: 16px 0 4px; flex-wrap: wrap; }
   .scn { display: grid; gap: 22px; position: relative; }
   .scn .board-pair.ends-row { margin-top: 44px; }
@@ -282,6 +269,21 @@
   .scn .board-pair > .bp { flex: 0 1 calc(50% - 8px); min-width: 0; } .scn .board-pair.linked > .bp { flex-basis: calc(50% - 28px); }
   @media (max-width: 900px) { .scn .board-pair > .bp { flex-basis: 100%; } .bp-spacer { display: none; } }
   @media (min-width: 901px) { .scn .board-pair.linked figcaption { min-height: 66px; align-content: start; } }
+  /* the reading of a build-up test, under the controls */
+  .el-box { margin: 10px 0; padding: 10px 12px; border-radius: 10px; background: rgba(242,193,78,.12); } .el-box p:last-child { margin-bottom: 0; } .el-try { opacity: .85; }
+  .el-go { display: block; width: 100%; margin: 6px 0 0; padding: 9px 12px; border: 1px solid rgba(241,234,214,.35); border-radius: 10px; background: rgba(255,255,255,.06); color: inherit; font: 700 .84rem Arial, sans-serif; text-align: left; cursor: pointer; } .el-go:hover { background: rgba(255,255,255,.12); }
+  .el-go.primary { background: #E6D7B0; color: #1A232D; border-color: #E6D7B0; text-align: center; } .el-go[disabled] { opacity: .5; cursor: not-allowed; }
+  .rp-pitch { display: block; width: 100%; height: auto; border-radius: 10px; background: #2A7539; } .rp-bar { display: flex; gap: 8px; align-items: center; margin-top: 8px; } .rp-bar .el-go { width: auto; margin: 0; flex: none; padding: 7px 14px; } .rp-seek { flex: 1; min-width: 0; } .rp-speed { flex: none; padding: 6px; border-radius: 8px; border: 1px solid rgba(241,234,214,.35); background: rgba(255,255,255,.07); color: inherit; }
+  .rp-key { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 8px 0; font-size: .76rem; opacity: .85; } .rp-k { display: inline-block; width: 14px; height: 0; margin-right: 4px; vertical-align: middle; border-top: 3px solid #FFE27A; } .rp-k.no { border-top: 3px dashed #FF5A36; } .rp-k.job { border-top: 2.5px dashed #FF9F43; } .rp-k.free { width: 12px; height: 12px; border: 2px dashed #7fd49a; border-radius: 50%; }
+  .rp-say p { margin: 0 0 8px; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,.07); font-size: .86rem; } .rp-pick { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; } .rp-pick .el-go { width: auto; margin: 0; }
+  .el-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 8px 0; border-bottom: 1px solid rgba(241,234,214,.12); } .el-rl small, .el-rv small { display: block; opacity: .7; font-size: .76rem; } .el-rv { text-align: right; } .el-rv b { font-size: 1.05rem; } .el-row .el-bar { grid-column: 1 / -1; }
+  .el-bar { position: relative; height: 10px; border-radius: 5px; background: rgba(241,234,214,.12); } .el-bar i { position: absolute; top: 0; bottom: 0; border-radius: 5px; background: #F2C14E; opacity: .85; } .el-bar b { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #F1EAD6; }
+  .el-small { font-size: .8rem; opacity: .8; } .el-cmp { display: grid; gap: 8px; margin: 6px 0 10px; } .el-cmp label { display: grid; gap: 4px; font-size: .8rem; opacity: .9; } .el-cmp select { padding: 8px; border-radius: 8px; border: 1px solid rgba(241,234,214,.35); background: rgba(255,255,255,.07); color: inherit; font: inherit; }
+  .el-tbl { width: 100%; border-collapse: collapse; font-size: .8rem; margin: 6px 0 10px; } .el-tbl th, .el-tbl td { padding: 6px 4px; text-align: left; border-bottom: 1px solid rgba(241,234,214,.12); } .el-tbl th { font-size: .7rem; letter-spacing: .05em; text-transform: uppercase; opacity: .7; } .el-tbl td small { display: block; opacity: .65; }
+  .iv-pitch { display: block; width: 100%; max-width: 360px; margin: 6px auto; height: auto; border-radius: 10px; } .iv-chips { display: flex; flex-wrap: wrap; gap: 6px; } .iv-chips .el-go { width: auto; margin: 0; padding: 7px 12px; }
+  .el-big { font-size: 1.02rem; line-height: 1.5; } .el-rows { margin: 4px 0; } .el-more { margin: 6px 0; font-size: .86rem; } .el-more summary { cursor: pointer; opacity: .85; }
+  .el-hint { margin: 0 0 12px; padding: 8px 10px; border-radius: 8px; background: rgba(242,193,78,.12); color: #FFE9A8; font-size: .84rem; }
+  .lab-results { flex: none; overflow: visible; padding: 0; } .lab-results p { margin: 0 0 10px; } .lab-results h4 { margin: 16px 0 6px; font-size: .78rem; letter-spacing: .07em; text-transform: uppercase; color: #F2C14E; }
   .scn-del-hold { visibility: hidden; } .bp-instr { align-self: start; } .bp-instr .in-wrap { margin-top: 0; } .bp-instr .in-add textarea { min-height: 64px; max-height: none; resize: none; overflow: hidden; } .bp-spacer { display: none; } .scn-shape { margin: 6px 0 0; font-size: .8rem; color: var(--gold); } .scn-head { min-height: 74px; align-items: end; flex-wrap: nowrap; } .scn-head label { flex: 1 1 0; min-width: 0; } .scn-head label input, .scn-head label select { width: 100%; box-sizing: border-box; } .scn-head button { flex: none; white-space: nowrap; } .scn-head select, .scn-head .scn-label { min-width: 0; max-width: 100%; }
   .scn-head input:disabled, .scn-head select:disabled { opacity: .6; }
   .scn-head input, .scn-head select { height: 42px; box-sizing: border-box; margin: 0; }
@@ -330,7 +332,6 @@
   .analysis-contract p { margin:5px 0 0; }
   .analysis-owner { display:grid; gap:3px; padding:10px 12px; border-radius:10px; background:rgba(82,189,123,.09); border:1px solid rgba(82,189,123,.25); font:600 .8rem/1.45 var(--sans); }
   .analysis-owner span { color:var(--cream-soft); }
-  .analysis-owner.elena { background:rgba(242,193,78,.09); border-color:rgba(242,193,78,.28); }
   .assisted-tag { margin-left:auto; padding:3px 8px; border-radius:999px; background:rgba(242,193,78,.15); color:var(--gold); font-size:.66rem; letter-spacing:.05em; text-transform:uppercase; }
   .tool-box { display: grid; gap: 12px; min-width: 0; }
   .lvl { font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; color: var(--navy); flex: none; }
@@ -770,28 +771,20 @@
 <script src="/create/football/league.js?v=20261010s"></script>
 <script src="/create/football/preseason.js?v=20261010n"></script>
 <script src="/create/football/stats_math.js?v=20261010c"></script>
-<script src="/create/football/stats.js?v=20261010c"></script>
+<script src="/create/football/stats.js?v=20261013a"></script>
 <script src="/create/football/stats_top.js?v=20261010c"></script>
 <script src="/create/football/news.js?v=20261010n"></script>
 <script src="/create/football/insights.js?v=20261010c"></script>
-<script src="/create/football/analysis.js?v=20261011p"></script>
+<script src="/create/football/analysis.js?v=20261013a"></script>
 <script src="/create/football/clips.js?v=20261010c"></script>
-<script src="/create/football/reports.js?v=20261011p"></script>
-<script src="/create/football/lab.js?v=20261010c"></script>
+<script src="/create/football/reports.js?v=20261013a"></script>
+<script src="/create/football/lab.js?v=20261013a"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="/create/football/api.js?v=20261012n"></script>
+<script src="/create/football/api.js?v=20261013a"></script>
 <script src="/create/football/scout.js?v=20261010c"></script>
-<script src="/create/football/instr_viz.js?v=20261010c"></script>
-<script src="/create/football/instructions_ui.js?v=20261012b"></script>
+<script src="/create/football/instructions_ui.js?v=20261013a"></script>
 <script src="/create/football/lab_replay.js?v=20261010c"></script>
-<script src="/create/football/elena.js?v=20261012r"></script>
-<script src="/create/football/elena_phase.js?v=20261010n"></script>
-<script src="/create/football/elena_lessons.js?v=20261010n"></script>
-<script src="/create/football/coach.js?v=20261012r"></script>
-<script src="/create/football/elena_notes.js?v=20261012n"></script>
-<script src="/create/football/elena_guide.js?v=20261012s"></script>
-<script src="/create/football/elena_guides.js?v=20261012r"></script>
-<script src="/create/football/elena_tours.js?v=20261012r"></script>
-<script src="/create/football/main.js?v=20261012o"></script>
+<script src="/create/football/lab_results.js?v=20261013a"></script>
+<script src="/create/football/main.js?v=20261013a"></script>
 </body>
 </html>

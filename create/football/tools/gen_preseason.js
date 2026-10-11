@@ -1,7 +1,7 @@
 // Plays, once, everything a new game starts with, so that every game starts the same and nothing has to be played at the start:
 //   FM.PRESEASON    the pre-season friendlies of the shared league
 //   FM.LAST_SEASON  a whole previous season of the same league: its final table and every match of the club the player manages
-// The matches of the managed club keep a (slimmed) log, so the statistics pages, Elena's lessons and the opposition reports have real data to
+// The matches of the managed club keep a (slimmed) log, so the statistics pages and the opposition reports have real data to
 // work on before the first league game. Run again (node create/football/tools/gen_preseason.js) after any change to the match engine or the
 // clubs, then commit preseason.js.
 global.window = global;

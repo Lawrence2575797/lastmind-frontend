@@ -6,21 +6,6 @@
   const SUPABASE_URL = 'https://evgdecewwmkupiadgfop.supabase.co';
   const SUPABASE_ANON_KEY = 'sb_publishable_Bb-f61P1zqy_xW63D26nUw_VTOVXaub';   // the public (publishable) key, the same one every LastMind page carries
   let client = null;
-  // The first name the manager gave when they signed up, so Elena can use it. Empty until it has loaded (or when signed out).
-  let known = '';
-  try { known = sessionStorage.getItem('lm_fm_name') || ''; } catch (e) { /* none */ }
-  FM.userNameNow = () => known;
-  FM.userName = async function () {
-    try {
-      if (!window.supabase || !window.supabase.createClient) return known;
-      if (!client) client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      const { data } = await client.auth.getSession();
-      const n = ((data && data.session && data.session.user && data.session.user.user_metadata && data.session.user.user_metadata.first_name) || '').trim();
-      if (n) { known = n; try { sessionStorage.setItem('lm_fm_name', n); } catch (e) { /* none */ } }
-    } catch (e) { /* stays as it was */ }
-    return known;
-  };
-  setTimeout(() => FM.userName(), 0);
   FM.api = async function (path, body) {
     if (!window.supabase || !window.supabase.createClient) throw new Error('The sign-in could not load. Check your connection and try again.');
     if (!client) client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);

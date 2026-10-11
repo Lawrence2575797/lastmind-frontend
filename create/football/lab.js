@@ -278,9 +278,9 @@
     return { press, nPress, chaser, pairs, freeAtt, freeDef, back, backPressers, user: u, opp: o };
   };
 
-  // Elena's reading of a run: what went wrong, why, and what could be tried. Every number is from the run itself.
+  // The reading of a run: what went wrong, why, and what could be tried. Every number is from the run itself.
   // ctx: { opp (name), changes (what was changed since the run before) }
-  // What went wrong in a run, in Elena's own voice and as little as possible: a line on what she saw, and a line on what she would try. The
+  // What went wrong in a run, in as little as possible: a line on what was seen, and a line on what to try. The
   // concepts behind the words (a lane, a free man, the press) are explained by the little ? buttons in the panel, not here.
   LAB.explain = function (r, ctx) {
     const w = r.why, out = [], pc = (x) => Math.round(x * 100) + '%', lost = w ? w.n : 0;
@@ -293,7 +293,7 @@
       dribble: k + ' of the ' + lost + ' were players trying to take someone on and losing it. That is a brave thing to do in your own third.',
       tackle: k + ' of the ' + lost + ' were players getting tackled with the ball. Nobody got rid of it in time.',
       offside: k + ' of the ' + lost + ' were passes to someone who was offside.',
-      other: 'The ball went in ways I could not put one name to, ' + lost + ' times.',
+      other: 'The ball went in ways that do not fit one cause, ' + lost + ' times.',
     }[top];
     const fix1 = { intercepted: 'Give the player on the ball a nearer outlet, or move someone so the defender is not stood on the line between them.', loose: 'Ask for a shorter pass, or someone who is better with the ball at his feet.', dribble: 'Give him a quick pass to play before the defender gets there.', tackle: 'He needs one more option, or a team-mate closer to him.', offside: 'Hold the runners a few metres deeper until the ball is played.', other: 'Watch one of the replays below to see what is happening.' }[top];
     out.push({ title: 'You lost it ' + lost + ' times out of ' + r.n, body: say1, fix: fix1 });
@@ -301,7 +301,7 @@
     const pl = Object.keys(w.players).map((q) => w.players[q]).sort((a, b) => b.n - a.n)[0];
     if (pl && pl.n >= 3 && pl.n / lost >= 0.28) {
       const gk = pl.group === 'GK', sn = pl.name.split(' ').pop();
-      out.push({ title: sn + ' keeps giving it away', body: 'He lost it ' + pl.n + ' times out of ' + lost + '.' + (gk ? ' He has the ball first every time, and when someone is close he kicks it long.' : ' I would look at where he stands, and how many safe passes he has.'), fix: gk ? 'Put a centre-back close beside him, so there is a short pass to play.' : 'Give him an easier pass, or take the marker away from him.' });
+      out.push({ title: sn + ' keeps giving it away', body: 'He lost it ' + pl.n + ' times out of ' + lost + '.' + (gk ? ' He has the ball first every time, and when someone is close he kicks it long.' : ' Look at where he stands, and how many safe passes he has.'), fix: gk ? 'Put a centre-back close beside him, so there is a short pass to play.' : 'Give him an easier pass, or take the marker away from him.' });
     }
     // 3. How far the failed passes travelled, or how marked the receivers were.
     if (w.failedPasses >= 4) {

@@ -77,7 +77,7 @@
       return { decision: right && str >= 0.4 ? 'looks supported' : right && str >= 0.2 ? 'weak' : 'not supported', informal: true, n, lines: lines.concat(['At this level, judge it from the scatter graph: a correlation of 0.4 or more in the expected direction is a fair sign, under 0.2 is hardly anything.']) };
     }
     const t = S.corrTest(r, n), p1 = (pos ? r > 0 : r < 0) ? t.p / 2 : 1 - t.p / 2;
-    if (courseTier === 1) { const lr = S.linreg(a, b); lines.push(`Elena's regression line has gradient ${f2(lr.b, 3)}: each extra unit of ${metricName(h.params.x)} goes with ${f2(Math.abs(lr.b), 3)} ${lr.b < 0 ? 'fewer' : 'more'} ${metricName(h.params.y)}, on average.`); }
+    if (courseTier === 1) { const lr = S.linreg(a, b); lines.push(`The regression line has gradient ${f2(lr.b, 3)}: each extra unit of ${metricName(h.params.x)} goes with ${f2(Math.abs(lr.b), 3)} ${lr.b < 0 ? 'fewer' : 'more'} ${metricName(h.params.y)}, on average.`); }
     lines.push(`One-tailed test of H0: no correlation: p-value ${pf(p1)}.`);
     return { decision: p1 < 0.05 ? 'supported' : 'not supported (not enough evidence)', p: p1, n, lines, assisted: courseTier < tier };
   }
@@ -176,7 +176,7 @@
     const card = (h, actions) => `<div class="hyp"><div class="hyp-head"><b>${h.id}</b> ${esc(h.label)} <span class="pm">${h.source === 'proposed' ? '(proposed)' : '(yours)'}</span></div>${h.note ? `<p class="note">Your note: ${esc(h.note)}</p>` : ''}${actions || ''}</div>`;
     host.innerHTML = `<div style="display:grid;gap:16px">
       <div class="card"><h2>Hypotheses</h2>
-        <p class="desc">A hypothesis is a claim you can check against the data. Write down as many as you like. Each is tested after your next match, using everything known by then. ${tier === 1 ? 'You read the rates, graph and football meaning; Elena carries out the significance test or regression when it helps.' : tier === 2 ? 'You lead the A-level test and interpretation; Elena adds effect sizes and uncertainty when a beyond-A-level method is useful.' : 'You choose and carry out the full method. Elena explains and challenges your conclusion without doing it for you.'}</p>
+        <p class="desc">A hypothesis is a claim you can check against the data. Write down as many as you like. Each is tested after your next match, using everything known by then. ${tier === 1 ? 'You read the rates, graph and football meaning; the significance test or regression is carried out for you when it helps.' : tier === 2 ? 'You lead the A-level test and interpretation; effect sizes and uncertainty are added when a beyond-A-level method is useful.' : 'You choose and carry out the full method. No method is carried out on your behalf.'}</p>
         <p class="note">Write the hypothesis before you look at the result. The more you test, the more will pass by chance: see "The problem of many tests" in the Analysis Centre, which collects every test with a p-value.</p>
         ${next ? '' : '<p class="note">The season is over, so there is no next match to test against.</p>'}</div>
       <div class="two">
@@ -189,7 +189,7 @@
           <div class="row"><button class="primary" id="hbAdd"${next ? '' : ' disabled'}>Add to be tested after the next match</button></div></div>
       </div>
       <div class="card"><h2>Waiting for the next match (${pending.length})</h2>${pending.length ? pending.map((h) => card(h, `<div class="row"><button data-cancel="${h.id}">Withdraw</button></div>`)).join('') : '<p class="note">None waiting.</p>'}</div>
-      <div class="card"><h2>Tested (${tested.length})</h2>${tested.length ? tested.map((h) => { const r = h.result; return card(h, `${r.assisted ? '<div class="analysis-owner elena"><b>Elena carried out the higher-level method</b><span>Your part is to decide what the direction, size and uncertainty mean for the team.</span></div>' : ''}<p class="desc"><b>Round ${h.testedRound + 1}: ${esc(r.decision)}</b>${r.informal ? ' (judged by eye)' : ''}${fin(r.p) ? ' (p = ' + pf(r.p) + ')' : ''}</p>${r.lines.map((l) => `<p class="note">${esc(l)}</p>`).join('')}${h.kind !== 'next' && next ? `<div class="row"><button data-retest="${h.id}">Test again after the next match</button></div>` : ''}`); }).join('') : '<p class="note">Nothing tested yet.</p>'}</div></div>`;
+      <div class="card"><h2>Tested (${tested.length})</h2>${tested.length ? tested.map((h) => { const r = h.result; return card(h, `${r.assisted ? '<div class="analysis-owner"><b>The higher-level method was calculated for you</b><span>Your part is to decide what the direction, size and uncertainty mean for the team.</span></div>' : ''}<p class="desc"><b>Round ${h.testedRound + 1}: ${esc(r.decision)}</b>${r.informal ? ' (judged by eye)' : ''}${fin(r.p) ? ' (p = ' + pf(r.p) + ')' : ''}</p>${r.lines.map((l) => `<p class="note">${esc(l)}</p>`).join('')}${h.kind !== 'next' && next ? `<div class="row"><button data-retest="${h.id}">Test again after the next match</button></div>` : ''}`); }).join('') : '<p class="note">Nothing tested yet.</p>'}</div></div>`;
     const bind = (id, fn) => { const e = host.querySelector(id); if (e) e.addEventListener('change', fn); };
     const re = () => FM.renderHypotheses(host, league);
     bind('#hbKind', (e) => { b.kind = e.target.value; re(); });

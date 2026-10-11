@@ -479,8 +479,6 @@
     else if (v === 'news') FM.renderNews(el('view-news'), world.league);
     else if (v === 'preview') renderPreview();
     else if (v === 'tactics' || v === 'match') renderTactics();
-    // the pages that are not tactics pages get her notes too
-    if ((v === 'reports' || v === 'preview' || v === 'analysis') && FM.elena && world.league) FM.elena.sync({ mode: 'view', view: v, tab: { reports: 'evidence', preview: 'preview', analysis: 'analysis' }[v], key: v, team: userTeam(), opp: nextOpponent(), stage: null });
     const activeSection = SCREEN_TITLES[v] ? el('view-' + v) : null;
     if (activeSection && !activeSection.querySelector('.screen-heading')) activeSection.insertAdjacentHTML('afterbegin', `<div class="screen-heading">${SCREEN_TITLES[v]}</div>`);
     if (v === 'match') resize();
@@ -637,10 +635,7 @@
     const team = userTeam(), host = el('view-squad');
     const onPitch = team.players.slice().sort((a, b) => a.index - b.index);
     const all = onPitch.concat(team.bench);
-    // the extremes Elena marks: green for a real strength, red for a real weakness (see coach.js)
-    const marks = (FM.squadHighlights ? FM.squadHighlights(team).marks : {});
-    const hl = (p, stat) => { const k = marks[p.id] && marks[p.id][stat]; return k ? ' class="hl-' + k + '"' : ''; };
-    const cell = (p, stat, text) => `<td${hl(p, stat)}>${text}</td>`;
+    const cell = (p, stat, text) => `<td>${text}</td>`;
     const row = (p) => `<tr class="player-row" data-player="${p.id}" tabindex="0"><td>${portraitCache[p.id] ? `<img class="squad-thumb" src="${portraitCache[p.id]}" alt="">` : `<span class="squad-thumb fallback">${esc(p.name.split(/\s+/).map((x) => x[0]).slice(0, 2).join(''))}</span>`}</td><td class="l">${p.number}</td><td class="l"><button class="player-link" data-player="${p.id}">${esc(p.name)}</button></td><td class="l">${esc(p.nation)}</td><td class="l">${p.natural}</td><td class="l">${p.slotKey ? p.slotKey : 'Bench'}</td><td class="l">${{ right: 'Right', left: 'Left', both: 'Both' }[p.foot] || ''}</td><td>${p.height || '-'}</td><td class="${condClass(p)}">${Math.round(100 * FM.conditionOf(p))}%</td><td class="l ${FM.isInjured(p) ? 'out' : ''}">${FM.isInjured(p) ? esc(injuryText(p)) : 'Fit'}</td>
       <td><b>${FM.playerRating(p).toFixed(1)}</b></td>${cell(p, 'pace', FM.shown(p.ratings.pace))}${cell(p, 'dribbling', FM.shown(p.ratings.dribbling))}${cell(p, 'passing', FM.shown(p.ratings.passing))}${cell(p, 'finishing', FM.shown(p.ratings.finishing))}${cell(p, 'tackling', FM.shown(p.ratings.tackling))}${cell(p, 'heading', FM.shown(p.ratings.heading))}${cell(p, 'composure', FM.shown(p.ratings.composure))}${cell(p, 'stamina', p.ratings.stamina ? FM.shown(p.ratings.stamina) : '-')}${cell(p, 'gk', p.natural === 'GK' ? FM.shown(p.ratings.gk) : '-')}
       <td>${p.stats.apps}</td><td>${p.stats.goals}</td><td>${p.stats.shots}</td><td>${p.stats.yellows}</td><td>${p.stats.reds}</td></tr>`;
@@ -651,11 +646,9 @@
     const groups = GROUPS.map(([title, kinds]) => {
       const list = all.filter((p) => kinds.indexOf(p.natural) >= 0);
       if (!list.length) return '';
-      const ex = list.filter((p) => marks[p.id]).length;
-      return `<details class="sq-group" data-group="${title}"${open[title] === false ? '' : ' open'}><summary>${title} <small>${list.length} player${list.length === 1 ? '' : 's'}${ex ? ' · ' + ex + ' with a number worth noting' : ''}</small></summary><div class="tablewrap"><table class="data">${head}<tbody>${list.map(row).join('')}</tbody></table></div></details>`;
+      return `<details class="sq-group" data-group="${title}"${open[title] === false ? '' : ' open'}><summary>${title} <small>${list.length} player${list.length === 1 ? '' : 's'}</small></summary><div class="tablewrap"><table class="data">${head}<tbody>${list.map(row).join('')}</tbody></table></div></details>`;
     }).join('');
-    host.innerHTML = `<div class="sq-layout"><div class="sq-main"><div id="playerProfile"></div><div class="card"><div class="row" style="justify-content:space-between"><h2>${esc(team.name)}: squad of ${all.length}</h2><button type="button" id="elenaSquad">Elena's notes</button></div>
-      <p class="sq-key"><span><i class="g"></i>A real strength</span><span><i class="r"></i>A real weakness</span></p>
+    host.innerHTML = `<div class="sq-layout"><div class="sq-main"><div id="playerProfile"></div><div class="card"><div class="row" style="justify-content:space-between"><h2>${esc(team.name)}: squad of ${all.length}</h2></div>
       ${groups}
       <div class="sq-foot"><button class="primary" id="toFormation">Continue to formation</button></div>
       </div></div>
@@ -663,12 +656,9 @@
     const openPlayer = (id) => { world.profilePlayerId = id; renderSquad(); };
     host.querySelectorAll('[data-player]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openPlayer(b.dataset.player); }));
     host.querySelectorAll('.sq-group').forEach((d) => d.addEventListener('toggle', () => { open[d.dataset.group] = d.open; }));
-    host.querySelector('#toFormation').addEventListener('click', () => { if (FM.coach) FM.coach.close(); FM.goToTactics('squad'); });
-    host.querySelector('#elenaSquad').addEventListener('click', () => { if (FM.elena) FM.elena.open(); });
+    host.querySelector('#toFormation').addEventListener('click', () => { FM.goToTactics('squad'); });
     renderPlayerProfile(team, selected, host.querySelector('#playerProfile'));
     ensurePortraitsLoaded(all);
-    // Elena opens at the side with the descriptive statistics for this squad.
-    if (FM.elena) FM.elena.sync({ mode: 'hub', tab: 'hub', key: 'hub', team, opp: nextOpponent(), stage: null });
   }
 
   const PORTRAIT_STORE = 'lm_football_ashford_portraits_v4';
@@ -1019,8 +1009,7 @@
     team.tactics[key] = team.tactics[key] || {};
     host.innerHTML = `<div class="card transition-plan"><span class="eyebrow">${defensive ? 'Lost the ball in…' : 'Won the ball in…'}</span><h2>${defensive ? 'Defensive transition' : 'Attacking transition'}</h2><p class="desc">Choose the first response in each part of the pitch, and place the team at the moment it happens and a few seconds on. The instructions decide the rest.</p><div id="transPair"></div><div class="transition-zones">${zones.map(([z,n]) => `<label><b>${n}</b><select data-zone="${z}">${options.map(([v,l]) => `<option value="${v}"${(team.tactics[key][z] || fallback) === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>`).join('')}</div><div id="phaseInstr"></div></div>`;
     host.querySelectorAll('[data-zone]').forEach((s) => s.addEventListener('change', () => { team.tactics[key][s.dataset.zone] = s.value; saveSoon(); }));
-    mountPair(host.querySelector('#transPair'), team, tab, { hooks: { save: saveSoon, opp: nextOpponent, changed: () => FM.elena.refresh() }, stage: defensive ? 'transDef' : 'transAtt' });
-    FM.elena.sync({ mode: 'tactics', tab, key: defensive ? 'transDef' : 'transAtt', team, opp: nextOpponent(), stage: defensive ? 'transDef' : 'transAtt' });
+    mountPair(host.querySelector('#transPair'), team, tab, { hooks: { save: saveSoon, opp: nextOpponent }, stage: defensive ? 'transDef' : 'transAtt' });
   }
 
   function renderTestPhase(team, phase) {
@@ -1048,7 +1037,7 @@
   }
   function renderLab(team, host, phase) {
     phase = phase || 'build';
-    const lg = world.league, opp = nextOpponent(); if (!lg || !opp) { host.innerHTML = ''; if (FM.elena) FM.elena.hide(); return; }
+    const lg = world.league, opp = nextOpponent(); if (!lg || !opp) { host.innerHTML = ''; return; }
     lg.labRuns = lg.labRuns || []; lg.phaseLabRuns = lg.phaseLabRuns || {};
     const reverse = phase === 'organised' || phase === 'transdef';
     const title = { build: 'Test the build-up', midfield: 'Test playing through midfield', final: 'Test the final third', organised: 'Test organised defending', transdef: 'Test the defensive transition', transatt: 'Test the attacking transition' }[phase];
@@ -1068,7 +1057,8 @@
       <div class="row"><button class="primary" id="labRun"${st.busy ? ' disabled' : ''}>${st.busy ? (st.planning ? 'Their manager is preparing…' : 'Running… ' + st.prog + ' of ' + st.n) : 'Run ' + st.n + ' tests'}</button>${skipHtml(phase, st)}</div>
       ${skipNote(phase)}
       <p class="err">${esc(st.err)}</p>
-      ${last ? phaseResultHtml(phase, last.result) + `<p class="note">Run ${runs.length} is done. Change one tactical choice, write your expectation above, then test again.</p>${phaseHistoryHtml(phase, runs)}` : ''}
+      ${last && phase !== 'build' ? phaseResultHtml(phase, last.result) + `<p class="note">Run ${runs.length} is done. Change one tactical choice, write your expectation above, then test again.</p>${phaseHistoryHtml(phase, runs)}` : ''}
+      ${phase === 'build' ? '<div id="labReading"></div>' : ''}
     </div>`;
     const q = (id) => host.querySelector(id);
     q('#labStart').addEventListener('change', (e) => { st.start = e.target.value; });
@@ -1104,8 +1094,8 @@
     let tac = null; try { tac = FM.aiTacticsFor(lg, opp, team); } catch (e) { tac = null; }
     const setCompare = (x, y) => { st.a = x; st.b = y; renderLab(team, host, phase); };
     const clearRuns = () => { if (phase === 'build') lg.labRuns = []; else lg.phaseLabRuns[phase] = []; st.a = st.b = null; saveSoon(); renderLab(team, host, phase); };
-    if (phase === 'build') FM.elena.sync({ opp, runs, a, b, st, team, tac, setCompare, clearRuns, instrStage: 'build' });
-    else FM.elena.sync({ mode: 'instr', stage: phase, team, opp });
+    // the reading of the tests (what happened, why it was lost, how they pressed, replays and the comparison) sits on the page under the controls
+    if (phase === 'build' && FM.labResults) FM.labResults.render(host.querySelector('#labReading'), { opp, runs, a, b, st, team, tac, setCompare, clearRuns });
   }
 
   function phaseResultHtml(phase, r) {
@@ -1148,7 +1138,6 @@
       ${takerSelect(team, 'fkTaker', 'Free-kick taker')}
       ${takerSelect(team, 'penTaker', 'Penalty taker')}
     </div>`;
-    FM.elena.sync({ mode: 'tactics', tab: 'setpieces', key: 'setpieces', team, opp: nextOpponent(), stage: null });
     host.querySelectorAll('[data-sp]').forEach((c) => c.addEventListener('input', () => {
       const k = c.dataset.sp;
       if (c.type === 'range') { t[k] = parseFloat(c.value); host.querySelector(`[data-v="${k}"]`).textContent = t[k]; }
@@ -1319,7 +1308,6 @@
       try { world.redrawBoards(); } catch (e) { renderTactics(); return; }
       if (el('playerPanel')) renderPlayerPanel(team);
       if (el('warnPanel')) renderWarnPanel(team);
-      if (FM.elena && FM.elena.refresh) FM.elena.refresh();
     } else renderTactics();
   }
   function drawBoard(host, team, key, opts) {
@@ -1485,7 +1473,7 @@
         </div>
       </div>`;
     const board = host.querySelector('#board') || host.querySelector('#pairHost');
-    if (pair) mountPair(host.querySelector('#pairHost'), team, tab, { hooks: { save: saveSoon, opp: nextOpponent, changed: () => FM.elena.refresh(), afterAdd: () => { FM.elena.refresh(); FM.elena.review(); } }, stage: key });
+    if (pair) mountPair(host.querySelector('#pairHost'), team, tab, { hooks: { save: saveSoon, opp: nextOpponent }, stage: key });
     else {
       // On the squad page the pitch fills the left of the screen and follows its width.
       drawBoard(board, team, key, isShape ? { fit: true } : undefined);
@@ -1502,10 +1490,8 @@
     if (oppReset) oppReset.addEventListener('click', () => { delete world.oppMoved[key]; renderTactics(); });
     if (SLIDER_TABS[tab]) renderSliderTab(team, SLIDER_TABS[tab], host.querySelector('#phaseSliders'));
     if (!isShape) {
-      // The big instruction box for this stage of play, and the assistant's drawing and review of the instructions.
-      const hooks = { save: saveSoon, opp: nextOpponent, changed: () => FM.elena.refresh(), afterAdd: () => { FM.elena.refresh(); FM.elena.review(); } };
+      const hooks = { save: saveSoon, opp: nextOpponent };
     }
-    FM.elena.sync({ mode: 'tactics', tab, key, team, opp: nextOpponent(), stage: isShape ? null : key });
     const err = (msg) => { host.querySelector('#subErr').textContent = msg || ''; };
     if (isShape) host.querySelector('#formSel').addEventListener('change', (e) => { FM.setFormation(team, e.target.value); world.selSlot = null; saveSoon(); renderTactics(); });
     const resetBtn = host.querySelector('#resetPhase');
@@ -1590,8 +1576,6 @@
     document.body.dataset.view = 'new';
     ['home', 'league', 'squad', 'analysis', 'reports', 'news', 'preview', 'match'].forEach((k) => { el('view-' + k).hidden = true; });
     el('tactics').hidden = true; el('nav').hidden = true; el('prepFlow').hidden = true; el('newGame').hidden = false;
-    if (FM.elena) FM.elena.hide();    // Elena's tab belongs to the tactics pages, not the start screen
-    if (FM.coach) FM.coach.close();
     el('topRight').innerHTML = ''; el('subtitle').textContent = 'Eight clubs, one season, and a lot of numbers.';
   }
   el('ngStart').addEventListener('click', async () => {
@@ -1603,10 +1587,7 @@
     await FM.playFriendlies(world.league, (i, n) => { btn.textContent = 'Playing pre-season friendlies (' + i + ' of ' + n + ')...'; });
     FM.saveLeague(world.league);
     btn.disabled = false; btn.textContent = 'Start the season';
-    // A new season starts with Elena and the squad list: it is the first thing to read.
-    if (FM.coach) FM.coach.reset();
-    if (FM.coach && FM.coach.welcome) { el('newGame').hidden = true; FM.coach.welcome(() => { setView('squad'); setTimeout(() => { if (FM.guide && !FM.guide.active) FM.guide.start('descriptive'); }, 450); }); }
-    else setView('squad');
+    setView('squad');
   });
 
   window.FM_WORLD = world; // debug handle for the console

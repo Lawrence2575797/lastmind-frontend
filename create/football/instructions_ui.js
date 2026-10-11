@@ -1,6 +1,6 @@
 // One instruction box for each phase. LastMind turns the manager's wording into rules the match engine runs (see rules.js and the backend route
 // /football/compile-instruction), shows you what it understood, and only then adds it. Beneath it are all your instructions in one list, and the
-// assistant, on the right, draws what they do on the pitch and tells you where they clash and what to try next (see elena.js).
+// diagram on the page shows what they do on the pitch.
 (function () {
   const FM = (window.FM = window.FM || {});
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

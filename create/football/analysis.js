@@ -174,7 +174,7 @@
     <p class="note">Strengths and weaknesses compare you with this opposition in this one match. One match is a small sample, so treat them as a place to look next.</p>`;
   }
 
-  // ---------- Elena's advice for the next game ----------
+  // ---------- advice for the next game ----------
   // From how this match went and how it compared with the one before, not from the next opponent's report.
   // Which of the manager's own pages applied in this match, by the labels they gave them. Only shown when pages have been added.
   function pagesHtml(league, fx) {
@@ -206,7 +206,7 @@
         <button type="button" class="advice-go" data-gotab="${i.tab}">Take me there</button>
       </div>`).join('') : '<p>Nothing in this match stood out as clearly worse than the opposition. That is a good place to be: keep what is working, and test one change at a time.</p>';
     const better = adv.better ? `<p class="advice-better"><b>Something that got better:</b> ${esc(adv.better.title)}. ${esc(adv.better.fact)}. Keep whatever you changed.</p>` : '';
-    return `<div class="card advice-card"><h2>Elena: for the next game</h2><p class="desc">${esc(intro)}</p>${better}${items}</div>`;
+    return `<div class="card advice-card"><h2>For the next game</h2><p class="desc">${esc(intro)}</p>${better}${items}</div>`;
   }
 
   // ---------- the page ----------

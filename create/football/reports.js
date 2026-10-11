@@ -115,7 +115,7 @@
   FM.tacticsPhaseReportHtml = function (league, teamId, ownPhase) {
     const rep = FM.opponentReport(league, teamId), sh = FM.scoutedShape(league, teamId), phase = OPP_PHASE[ownPhase];
     if (!rep.team) return '';
-    if (!rep.n || !sh) return `<section class="phase-report"><div class="phase-report-kicker">Elena Marsh · opposition analyst</div><h3>${esc(OPP_HEADLINE[ownPhase] || 'The matching opposition phase')}</h3><p>There is no match evidence yet. I would rather leave this blank than pretend we know how ${esc(rep.team.name)} will behave.</p></section>`;
+    if (!rep.n || !sh) return `<section class="phase-report"><div class="phase-report-kicker">Opposition analysis</div><h3>${esc(OPP_HEADLINE[ownPhase] || 'The matching opposition phase')}</h3><p>There is no match evidence yet, so there is nothing reliable to say about how ${esc(rep.team.name)} will behave.</p></section>`;
     const cells = sh.phases[phase] || {}, entries = Object.keys(cells).map((slot) => ({ slot, ...cells[slot] }));
     const outfield = entries.filter((x) => !/^GK/.test(x.slot));
     const front = outfield.filter((x) => /ST|CF|AM|WF|LW|RW/.test(x.slot));
@@ -129,7 +129,7 @@
     const metricRead = ownPhase === 'build' ? reading(press, 'usually allow the first pass', 'mix pressing with holding shape', 'usually press the first pass') : reading(press, 'generally patient', 'change their approach', 'usually act quickly');
     const form = rep.formations.length ? rep.formations[0][0] : sh.formation;
     return `<section class="phase-report">
-      <div class="phase-report-kicker">Elena Marsh · opposition analyst</div>
+      <div class="phase-report-kicker">Opposition analysis</div>
       <h3>${esc(OPP_HEADLINE[ownPhase] || 'The matching opposition phase')}</h3>
       <p>Across ${rep.n} recorded match${rep.n === 1 ? '' : 'es'}, ${esc(rep.team.name)} have most often used a ${esc(form)}. In this phase they ${esc(metricRead)}.</p>
       <div class="phase-report-data">
