@@ -21114,8 +21114,10 @@ SQIDAQAB
     // Where a block sits and how wide it is, kept inside the page on a narrow screen without changing what is saved.
     function nbPlace(el, block, canvas) {
         const minW = block.type === 'table' ? 220 : (block.type === 'diagram' || block.type === 'graph') ? NB_MIN_FIGURE : 140, cw = canvas.clientWidth || 600;
-        const w = nbClamp(block.w || 460, minW, Math.max(minW, cw));
-        const x = nbClamp(block.x || 0, 0, Math.max(0, cw - w));
+        // nothing sits to the left of the margin line: a box that was placed there (or that the page has narrowed around) is shown just right of it
+        const lo = (parseFloat(canvas.style.getPropertyValue('--nb-margin')) || 56) + 8;
+        const w = nbClamp(block.w || 460, minW, Math.max(minW, cw - lo));
+        const x = nbClamp(block.x || 0, lo, Math.max(lo, cw - w));
         el.style.left = x + 'px'; el.style.top = Math.max(0, block.y || 0) + 'px'; el.style.width = w + 'px';
         nbSyncCompact(el);
     }
@@ -22630,6 +22632,7 @@ SQIDAQAB
         const refit = () => {
             const cw = canvas.clientWidth; if (!cw || Math.abs(cw - refitWidth) < 4) { nbClampBlocksToCanvas(canvas); return; }
             refitWidth = cw;
+            canvas.style.setProperty('--nb-margin', (cw < 520 ? 28 : cw < 760 ? 40 : 56) + 'px');
             if (page.kind === 'problemset' && page.ps && page.ps.done) { page.ps.layout = psReflow(page, cw); psLayout(page, canvas); }
             else page.doc.blocks.forEach((b) => { const el = canvas.querySelector('.nb-block[data-id="' + b.id + '"]'); if (el && (b.type === 'text' || b.type === 'table' || b.type === 'diagram' || b.type === 'graph')) nbPlace(el, b, canvas); });
             nbClampBlocksToCanvas(canvas); nbFitCanvas(canvas);
@@ -22654,7 +22657,7 @@ SQIDAQAB
         nbToggleHint(canvas, page); nbFitCanvas(canvas);
         // The sheet has a margin line. A click on or near it starts the text a fixed, comfortable distance to its right; a click anywhere
         // else starts the text exactly where you clicked.
-        const nbMargin = () => (canvas.clientWidth < 520 ? 28 : 56);
+        const nbMargin = () => (canvas.clientWidth < 520 ? 28 : canvas.clientWidth < 760 ? 40 : 56);
         const nbTextStart = () => nbMargin() + 16;
         const nbSetMargin = () => canvas.style.setProperty('--nb-margin', nbMargin() + 'px');
         nbSetMargin(); window.addEventListener('resize', nbSetMargin);
