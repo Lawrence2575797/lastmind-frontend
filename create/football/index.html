@@ -610,6 +610,37 @@
     body:not([data-view="match"]) .tabs button { flex: none; }
     body:not([data-view="match"]) #tabBody { padding: 4px 18px 22px; }
   }
+
+  /* Phones: pitches use the whole width, and the controls line up level with each other. */
+  @media (max-width: 900px) {
+    .scn .board-pair.linked > .bp, .scn .board-pair > .bp { flex-basis: 100%; }
+    .scn .board-pair.linked { row-gap: 22px; }
+    .scn-arrows { display: none; }
+    .scn-head { flex-direction: column; align-items: stretch; flex-wrap: nowrap; min-height: 0; }
+    .scn-head label { flex: none; }
+    .scn-head .scn-del-hold { display: none; }
+    .bp-spacer { display: none; }
+  }
+  @media (max-width: 720px) {
+    body:not([data-view="match"]) { padding: 0 4px 40px; }
+    body:not([data-view="match"]) #tabBody { padding: 4px 6px 20px; }
+    body:not([data-view="match"]) .panel, body:not([data-view="match"]) .card { padding: 14px; }
+    body:not([data-view="match"]) .tac-head { padding: 16px 10px 0; }
+    body:not([data-view="match"]) .tabs { padding: 0 6px; }
+    /* header: the title, then the week and four buttons in an even grid, then the way back */
+    body:not([data-view="match"]) .topbar { padding: 14px 2px 12px; gap: 10px; }
+    body:not([data-view="match"]) .topgroup { display: grid; grid-template-columns: 1fr; gap: 8px; }
+    body:not([data-view="match"]) .topright { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    body:not([data-view="match"]) .topright > :not(button):not(a) { grid-column: 1 / -1; }
+    body:not([data-view="match"]) .topright button, body:not([data-view="match"]) .topright a { width: 100%; justify-content: center; text-align: center; }
+    body:not([data-view="match"]) .lm-back { justify-self: stretch; text-align: center; }
+    /* the saved plans bar: the chooser across the top, then three equal buttons */
+    .plan-bar { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr); gap: 8px; align-items: stretch; }
+    .plan-bar select { grid-column: 1 / -1; width: 100%; min-width: 0; }
+    .plan-bar button { padding-left: 6px; padding-right: 6px; white-space: nowrap; font-size: .9rem; }
+    .tb-grid.tb-shape svg.board, .scn svg.board { border-radius: 8px; }
+    .board-pair .row button { width: 100%; }
+  }
 </style>
 </head>
 <body>
@@ -733,6 +764,6 @@
 <script src="/create/football/elena.js?v=20261010d"></script>
 <script src="/create/football/elena_phase.js?v=20261010n"></script>
 <script src="/create/football/elena_lessons.js?v=20261010n"></script>
-<script src="/create/football/main.js?v=20261010z"></script>
+<script src="/create/football/main.js?v=20261011b"></script>
 </body>
 </html>

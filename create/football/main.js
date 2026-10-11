@@ -928,9 +928,10 @@
     if (!world.league) return;
     // Dropping a shirt (or any change on the page) redraws it; stay where the manager was on the same page, and start at the top on a new one.
     const keepY = world._tacTab === world.tab && world._tacTesting === world.testing ? (window.scrollY || document.documentElement.scrollTop || 0) : null;
+    const keepX = window.scrollX || document.documentElement.scrollLeft || 0;
     try { renderTacticsInner(); } finally {
       world._tacTab = world.tab; world._tacTesting = world.testing;
-      if (keepY != null) window.scrollTo(0, keepY);
+      if (keepY != null) window.scrollTo(keepX, keepY);
     }
   }
   function renderTacticsInner() {
@@ -1211,6 +1212,17 @@
     return shape ? { opp, shape } : null;
   }
 
+  // After a shirt (or the ball) has been dropped: draw the diagrams again in place and bring the side panels up to date, without redrawing the
+  // whole page. A full redraw empties the page for a moment, which throws a zoomed-in view (or a scrolled one) to somewhere else.
+  function afterBoardChange(team) {
+    if (FM.inferShapeTactics) FM.inferShapeTactics(team);
+    if (world.redrawBoards) {
+      try { world.redrawBoards(); } catch (e) { renderTactics(); return; }
+      if (el('playerPanel')) renderPlayerPanel(team);
+      if (el('warnPanel')) renderWarnPanel(team);
+      if (FM.elena && FM.elena.refresh) FM.elena.refresh();
+    } else renderTactics();
+  }
   function drawBoard(host, team, key, opts) {
     const locked = !!(opts && opts.locked);
     BW = opts && opts.fit ? fitBoardWidth(host) : 68 * BS; SX = BW / 68;
@@ -1308,11 +1320,11 @@
       }
     });
     svg.addEventListener('pointerup', (e) => {
-      if (dragBall) { if (dragBall.pos) { FM.setPhaseBall(team, key, { d: dragBall.pos.d, w: dragBall.pos.w }); saveSoon(); } dragBall = null; renderTactics(); return; }
+      if (dragBall) { if (dragBall.pos) { FM.setPhaseBall(team, key, { d: dragBall.pos.d, w: dragBall.pos.w }); saveSoon(); } dragBall = null; afterBoardChange(team); return; }
       if (!drag) return;
       const d = drag; drag = null;
       if (d.opp) {
-        if (d.moved && d.pos) { world.oppMoved = world.oppMoved || {}; (world.oppMoved[key] = world.oppMoved[key] || {})[d.slot] = { d: 1 - d.pos.d, w: 1 - d.pos.w }; saveOppShape(team, key); renderTactics(); }
+        if (d.moved && d.pos) { world.oppMoved = world.oppMoved || {}; (world.oppMoved[key] = world.oppMoved[key] || {})[d.slot] = { d: 1 - d.pos.d, w: 1 - d.pos.w }; saveOppShape(team, key); afterBoardChange(team); }
         return;
       }
       if (!d.moved && world.selBench) { host.dispatchEvent(new CustomEvent('sub', { detail: { idx: d.p.index, id: world.selBench.id } })); return; }
@@ -1325,7 +1337,7 @@
           const other = team.players.find((x) => { if (x === d.p) return false; const o = bpt(FM.slotBase(team, x)); return Math.hypot(o.x - q.x, o.y - q.y) < 34; });
           if (other) { FM.swapSlots(team, d.p, other); FM.fixSlot(team, d.p); FM.fixSlot(team, other); world.selSlot = null; saveSoon(); }
         } else if (d.prev === d.p) world.selSlot = null;
-        renderTactics();
+        afterBoardChange(team);
         return;
       }
       if (d.moved) {
@@ -1338,7 +1350,7 @@
         } else FM.setPhasePos(team, d.p, key, d.pos);
         saveSoon();
       }
-      renderTactics();
+      afterBoardChange(team);
     });
     // a bench player dragged from the list onto a shirt is a substitution
   }
