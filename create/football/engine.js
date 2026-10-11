@@ -354,11 +354,12 @@
   // opposition really stand with the opposition shirts the manager dragged into place on that page's diagram.
   const ALWAYS = { key: 'always', label: 'Otherwise (when nothing else applies)' };
   const OPP_SHAPE = { key: 'opp_shape', label: 'The opposition line up like the shirts I place' };
+  const CUSTOM = { key: 'custom', label: 'Something else: I will describe it' };
   FM.SCENARIO_CONDS = [ALWAYS,
     { key: 'opp_high', label: 'The opposition press high' },
     { key: 'opp_mid', label: 'The opposition hold a mid block' },
     { key: 'opp_low', label: 'The opposition sit in a low block' },
-  ].concat(GAME_STATE_CONDS, [OPP_SHAPE]);
+  ].concat(GAME_STATE_CONDS, [OPP_SHAPE, CUSTOM]);
   // What a page that simply follows the stage before can also depend on. By default it depends on nothing more.
   FM.LINKED_CONDS = [{ key: 'none', label: 'No extra condition' },
     { key: 'fb_high', label: 'Our full-backs have stepped high' },
@@ -366,11 +367,11 @@
     { key: 'opp_high', label: 'The opposition press high' },
     { key: 'opp_mid', label: 'The opposition hold a mid block' },
     { key: 'opp_low', label: 'The opposition sit in a low block' },
-  ].concat(GAME_STATE_CONDS);
+  ].concat(GAME_STATE_CONDS, [CUSTOM]);
   FM.SCENARIO_CONDS_DEF = [ALWAYS,
     { key: 'opp_direct', label: 'The opposition play long and direct' },
     { key: 'opp_short', label: 'The opposition build short' },
-  ].concat(GAME_STATE_CONDS, [OPP_SHAPE]);
+  ].concat(GAME_STATE_CONDS, [OPP_SHAPE, CUSTOM]);
   // How the opposition stand, in two numbers (in their own space, 0 their own goal, 1 ours): the average depth of their outfield players and
   // the average depth of their three most advanced.
   FM.oppSignature = function (ds) {
@@ -383,7 +384,9 @@
   FM.scenarioHolds = function (cond, info, page) {
     if (cond === 'always') return true;
     // a page that follows one of the stage before is used whenever that one was; the manager can add a condition of their own on top of it
-    if (cond === 'from_prev') return !!page && !!page.from && info.prevPage === page.from && (!page.extra || FM.scenarioHolds(page.extra, info, null));
+    // a condition the manager described in words was turned into a "when" once, when they saved it (see the backend's compile-condition)
+    if (cond === 'custom') return !!(page && page.custom && page.custom.when && info.when && info.when(page.custom.when));
+    if (cond === 'from_prev') return !!page && !!page.from && info.prevPage === page.from && (!page.extra || FM.scenarioHolds(page.extra, info, page));
     if (cond === 'fb_high') return !!info.fbHigh;
     if (cond === 'fb_back') return !info.fbHigh;
     if (cond === 'opp_shape') return !!page && info.shapeWinner === (page.id || 'default');
@@ -408,7 +411,7 @@
   // The default page is the first one looked at (it has a condition of its own, 'otherwise' unless it was changed), then the added pages in
   // order. Null means the default page.
   FM.pickPage = function (list, info, dflt) {
-    if (dflt && dflt.cond && dflt.cond !== 'always' && FM.scenarioHolds(dflt.cond, info, { id: null })) return null;
+    if (dflt && dflt.cond && dflt.cond !== 'always' && FM.scenarioHolds(dflt.cond, info, Object.assign({ id: null }, dflt))) return null;
     for (let i = 0; i < (list || []).length; i++) if (FM.scenarioHolds(list[i].cond, info, list[i])) return list[i];
     return null;
   };
@@ -450,13 +453,14 @@
     opp_high: 'When the opposition press high', opp_mid: 'When the opposition hold a mid block', opp_low: 'When the opposition sit in a low block',
     opp_press: 'When the opposition press high', opp_sit: 'When the opposition sit in a low block', opp_direct: 'When the opposition play long and direct',
     opp_short: 'When the opposition build short', leading: 'When we are winning', level: 'When the score is level', trailing: 'When we are losing',
-    late: 'In the last 15 minutes', opp_shape: 'When the opposition line up like the shirts I placed', always: 'Otherwise',
+    late: 'In the last 15 minutes', opp_shape: 'When the opposition line up like the shirts I placed', always: 'Otherwise', custom: 'Your own condition',
   };
   const COMPLEMENT = {
     opp_high: 'When the opposition do not press high', opp_mid: 'When the opposition do not hold a mid block', opp_low: 'When the opposition do not sit in a low block',
     opp_press: 'When the opposition do not press high', opp_sit: 'When the opposition do not sit in a low block', opp_direct: 'When the opposition build short', opp_short: 'When the opposition play long and direct',
     leading: 'When we are not winning', trailing: 'When we are not losing', level: 'When the score is not level', late: 'Before the last 15 minutes',
   };
+  const cap1 = (t) => String(t || '').replace(/^./, (c) => c.toUpperCase());
   FM.pageName = function (team, endKey, pg) {
     const pages = (team.pages || {})[endKey] || [], dfl = (team.pageDefaults || {})[endKey] || {}, prevKey = FM.PREV_END[endKey];
     if (pg) {
@@ -465,9 +469,12 @@
         const pp = ((team.pages || {})[prevKey] || []).find((x) => x.id === pg.from);
         if (pp) return FM.pageName(team, prevKey, pp);
       }
+      if (pg.cond === 'custom' && pg.custom && pg.custom.summary) return cap1(pg.custom.summary);
+      if (pg.cond === 'from_prev' && pg.extra === 'custom' && pg.custom && pg.custom.summary) return cap1(pg.custom.summary);
       return PHRASE[pg.cond] || pg.label || 'Page';
     }
     if (dfl.named && dfl.label) return dfl.label;
+    if (dfl.cond === 'custom' && dfl.custom && dfl.custom.summary) return cap1(dfl.custom.summary);
     if (dfl.cond && dfl.cond !== 'always') return PHRASE[dfl.cond] || 'Default page';
     if (prevKey && ((team.pages || {})[prevKey] || []).length) return FM.pageName(team, prevKey, null);
     const added = pages.filter((x) => !x.from && x.cond && x.cond !== 'always' && x.cond !== 'opp_shape');

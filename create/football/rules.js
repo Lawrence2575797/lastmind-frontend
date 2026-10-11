@@ -34,6 +34,7 @@
   // ---------- expressions and conditions (see the backend's footballRules.ts for the form they arrive in) ----------
   // The things a rule can talk about, with their positions in metres in the evaluating team's own space: dm is the distance from its own goal line
   // towards the opposition's goal (0 to 105), wm the distance from its left touchline (0 to 68).
+  FM.rulesWhen = (when, c) => whenHolds(when, c);
   FM.rulesEv = function (team, me, ball, hasBall) {
     const rc = team.ruleCtx || {};
     return { team, opp: team.oppRef || null, me, ball, hasBall: !!hasBall, carrier: rc.carrier || null, minute: rc.minute || 0, scoreDiff: rc.scoreDiff || 0, pressed: rc.pressed ? 1 : 0, receiver: null };

@@ -786,13 +786,19 @@
     // When a fixed start sits beside the end with its name and condition above it, the start carries an invisible copy of that row, so the two
     // diagrams begin at the same height.
     const levelWithEnd = starts.length === 1 && ends.length === 1;
-    const holdHead = '<div class="scn-head" aria-hidden="true" style="visibility:hidden"><label>Page name <input type="text" tabindex="-1" disabled></label><label>Use this page when <select tabindex="-1" disabled><option>Otherwise</option></select></label><button type="button" class="scn-del-hold" tabindex="-1">Remove this page</button></div>';
+    const holdHead = '<div class="scn-head" aria-hidden="true" style="visibility:hidden"><label>Page name <input type="text" tabindex="-1" disabled></label><label>Use this page when <select tabindex="-1" disabled><option>Otherwise</option></select></label><button type="button" class="scn-del-hold" tabindex="-1">Remove this page</button></div>' +
+      (ends.some((e) => e.pg && ((e.pg.id ? (e.pg.from ? e.pg.extra : e.pg.cond) : dfl.cond) === 'custom')) ? '<div class="scn-custom" aria-hidden="true" style="visibility:hidden"><input type="text" tabindex="-1" disabled><button type="button" tabindex="-1">Update</button></div><p class="note scn-custom-note">&nbsp;</p>' : '');
+    // the box where a condition is written in words, under the page's name and condition
+    const customRow = (holder, id) => {
+      const c = holder.custom || {};
+      return `<div class="scn-custom"><input type="text" class="scn-custom-text" maxlength="200" placeholder="Say when, in your own words: for example when our full-backs have stepped high and we are drawing" value="${esc(c.text || '')}" data-custom-text="${id}" aria-label="When this page should be used"><button type="button" data-custom-go="${id}">${c.when ? 'Update' : 'Save'}</button></div><p class="note scn-custom-note" data-custom-note="${id}">${c.when ? 'Understood as: ' + esc(c.summary || c.text) + '.' : 'Not set yet, so this page is not used until it is.'}</p>`;
+    };
     const figure = (f, n) => `<figure class="bp${f.locked ? ' locked' : ''}">
         ${!f.pg && levelWithEnd ? holdHead : ''}${f.pg ? (f.pg.id
           ? (f.pg.from
-            ? `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname(f.pg))}" data-scn-label="${f.pg.id}"></label><label>Only when <select data-scn-extra="${f.pg.id}">${FM.LINKED_CONDS.map((c) => `<option value="${c.key}"${c.key === (f.pg.extra || 'none') ? ' selected' : ''}>${esc(c.label)}</option>`).join('')}</select></label><button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div>`
-            : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname(f.pg))}" data-scn-label="${f.pg.id}"></label><label>Use this page when <select data-scn-cond="${f.pg.id}">${condOpts(f.pg.cond)}</select></label><button type="button" data-scn-del="${f.pg.id}">Remove this page</button></div>${shapeNote(f.pg)}`)
-          : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname({ id: null }))}" data-def-label="1"></label><label>Use this page when <select data-def-cond="1">${condOpts(dfl.cond)}</select></label><button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div>${shapeNote(dfl)}`) : ''}
+            ? `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname(f.pg))}" data-scn-label="${f.pg.id}"></label><label>Only when <select data-scn-extra="${f.pg.id}">${FM.LINKED_CONDS.map((c) => `<option value="${c.key}"${c.key === (f.pg.extra || 'none') ? ' selected' : ''}>${esc(c.label)}</option>`).join('')}</select></label><button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div>${f.pg.extra === 'custom' ? customRow(f.pg, f.pg.id) : ''}`
+            : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname(f.pg))}" data-scn-label="${f.pg.id}"></label><label>Use this page when <select data-scn-cond="${f.pg.id}">${condOpts(f.pg.cond)}</select></label><button type="button" data-scn-del="${f.pg.id}">Remove this page</button></div>${f.pg.cond === 'custom' ? customRow(f.pg, f.pg.id) : ''}${shapeNote(f.pg)}`)
+          : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname({ id: null }))}" data-def-label="1"></label><label>Use this page when <select data-def-cond="1">${condOpts(dfl.cond)}</select></label><button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div>${dfl.cond === 'custom' ? customRow(dfl, 'default') : ''}${shapeNote(dfl)}`) : ''}
         <figcaption><b>${esc(starts.length || !f.pg ? f.def.title : f.def.title.replace(/^\d+\.\s*/, ''))}</b><span class="note">${esc(f.label ? 'From the stage before: ' + f.label : f.def.note)}</span></figcaption>
         <div class="board-host" id="board${n}"></div>${f.locked ? '' : `<div class="row"><button data-reset="${f.key}">Reset this diagram</button></div>`}
       </figure>`;
@@ -884,6 +890,21 @@
       const pg = pagesOf(endKey).find((x) => x.id === inp.dataset.scnLabel); if (!pg) return;
       const v = inp.value.trim().slice(0, 40); pg.label = v || pg.label || 'Page'; pg.named = !!v; saveSoon();
       const n = endIndex(pg.id); renderBox(n);
+    }));
+    // a condition described in words: read once when it is saved, and kept as the situation the match checks
+    host.querySelectorAll('[data-custom-go]').forEach((btn) => btn.addEventListener('click', async () => {
+      const id = btn.dataset.customGo, holder = id === 'default' ? dfl : pagesOf(endKey).find((x) => x.id === id);
+      if (!holder) return;
+      const input = host.querySelector('[data-custom-text="' + id + '"]'), note = host.querySelector('[data-custom-note="' + id + '"]');
+      const text = (input.value || '').trim();
+      if (text.length < 3) { note.textContent = 'Write when this page should be used first.'; return; }
+      btn.disabled = true; note.textContent = 'Reading it…';
+      try {
+        const opp = instr && instr.hooks && instr.hooks.opp ? instr.hooks.opp() : null;
+        const out = await FM.api('/football/compile-condition', { text, squad: FM.squadOf(team), opponent: opp ? FM.squadOf(opp) : [] });
+        holder.custom = { text, when: out.when || {}, summary: out.summary || text };
+        saveSoon(); renderTactics();
+      } catch (err) { btn.disabled = false; note.textContent = err.message || 'LastMind could not read that just now. Try again.'; }
     }));
     host.querySelectorAll('[data-scn-extra]').forEach((sel) => sel.addEventListener('change', () => {
       const pg = pagesOf(endKey).find((x) => x.id === sel.dataset.scnExtra); if (!pg) return;

@@ -438,6 +438,9 @@
           oppDirect: 0.5 * (ot.buildDirect == null ? 0.35 : ot.buildDirect) + 0.5 * (ot.directness == null ? 0.5 : ot.directness),
           diff: (match.score[team.id] || 0) - (match.score[oo.id] || 0), minute: match.clock / 60,
         };
+        // a condition the manager wrote in words, checked against the same situation the instructions use
+        const hasBallNow = possessionTeam(match) === team, pressedNow = !!(team.ruleCtx && team.ruleCtx.pressed);
+        info.when = (w) => { try { const cx = FM.rulesCtx(team, match.ball, hasBallNow, pressedNow); cx.scoreDiff = info.diff; cx.minute = info.minute; cx.me = null; return !!FM.rulesWhen(w, cx); } catch (e) { return false; } };
         // our full-backs: have they stepped up the pitch (past about the middle of our own half and the halfway line)?
         const fbs = team.players.filter((q) => q.group === 'FB');
         info.fbHigh = fbs.length ? fbs.reduce((a, q) => a + FM.toTeamSpace(team.attackDir, q.x, q.y).d, 0) / fbs.length >= 0.45 : false;
