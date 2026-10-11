@@ -1267,7 +1267,10 @@
   function oppCellsFor(sc, key) {
     const cells = sc.shape.phases[OPP_PHASE[FM.baseKey(key)]];
     if (!cells) return null;
-    const cond = pageCondOf(key), base = FM.baseKey(key);
+    const base = FM.baseKey(key);
+    // On the goal-kick build-up a page that applies "otherwise" is the one for when they do not press, so they sit off.
+    let cond = pageCondOf(key);
+    if ((base === 'buildEnd' || base === 'build') && cond === 'always') cond = 'opp_sit';
     // Build-up is from a goal kick: the opposition cannot be in the penalty area when it is taken, and even a high press stands on the edge of it.
     const kick = base === 'buildEnd' || base === 'build';
     const special = !!({ opp_press: 1, opp_sit: 1, opp_direct: 1, opp_short: 1 })[cond];
@@ -1291,7 +1294,7 @@
     });
     if (kick) {
       // the deepest-into-our-half player stands no further than the cap (the penalty area ends 0.157 of the pitch from our goal line)
-      const cap = cond === 'opp_press' ? 0.8 : cond === 'opp_sit' ? 0.5 : 0.66;
+      const cap = cond === 'opp_press' ? 0.72 : cond === 'opp_sit' ? 0.46 : 0.6;
       const top = Math.max.apply(null, outfield.map((k) => out[k].d));
       if (top > cap) outfield.forEach((k) => { out[k].d = Math.max(0.02, out[k].d * cap / top); });
     }
