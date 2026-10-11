@@ -268,7 +268,8 @@
   }
   const complex = (r) => r.effects.some((e) => e.type === 'place' || e.type === 'passScore' || e.type === 'attract') || (r.when && r.when.expr);
   FM.rulesText = function (r) {
-    if (r.source === 'ai' && r.text && complex(r)) return r.text.replace(/\.?$/, '.');
+    // an instruction the manager wrote is shown as it was understood ("plays as a false nine"), never as the metres underneath it
+    if (r.source === 'ai' && r.text) return r.text.replace(/\.?$/, '.');
     const w = whenText(r.when || {}), t = r.effects.map(FM.rulesEffectText).join(', and '); return t.charAt(0).toUpperCase() + t.slice(1) + (w ? ', ' + w : '') + '.';
   };
   FM.rulesWho = (r) => who(r.scope);

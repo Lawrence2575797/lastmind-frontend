@@ -494,7 +494,7 @@
     const steps = [['analysis', 'Analysis'], ['prepare', 'Prepare tactics'], ['test', 'Test phases'], ['evidence', 'Read evidence'], ['preview', 'Match preview']];
     host.hidden = false;
     const max = world.league.prepStep || 0;
-    host.innerHTML = steps.map(([k, label], i) => `${i ? '<span class="flow-arrow">›</span>' : ''}<button data-flow="${k}" data-step="${i + 1}" class="${active === k ? 'on' : ''}"${i > max ? ' disabled' : ''}>${label}</button>`).join('');
+    host.innerHTML = steps.map(([k, label], i) => `${i ? '<span class="flow-arrow">›</span>' : ''}<button data-flow="${k}" data-step="${i + 1}" class="${active === k ? 'on' : ''}">${label}</button>`).join('');
     host.querySelectorAll('[data-flow]').forEach((b) => b.addEventListener('click', () => {
       const k = b.dataset.flow;
       if (k === 'analysis') { world.league.prepStep = Math.max(world.league.prepStep || 0, 1); saveSoon(); setView('analysis'); }
@@ -631,11 +631,33 @@
     const friendlyCard = fr.length ? `<div class="card"><h2>Pre-season friendlies</h2><p class="note">These did not count toward the table.</p><div class="rounds">${fr.map((f) => `<div class="res ${f.homeId === me || f.awayId === me ? 'me' : ''}"><span>${esc(FM.teamById(lg, f.homeId).name)}</span><b>${f.hg} - ${f.ag}</b><span>${esc(FM.teamById(lg, f.awayId).name)}</span></div>`).join('')}</div></div>` : '';
     host.innerHTML = `<div class="two"><div class="card"><h2>League table</h2>${tableHtml(rows, false)}</div><div style="display:grid;gap:16px"><div class="card"><h2>Results and fixtures</h2><div class="rounds">${roundHtml}</div></div>${friendlyCard}</div></div>`;
   }
+  // The ratings that matter for each kind of player, and how each of them compares with the whole league's players in that position.
+  const SQ_STATS = { GK: ['gk'], CB: ['pace', 'tackling', 'heading', 'composure'], FB: ['pace', 'tackling', 'passing', 'stamina', 'dribbling'], DM: ['tackling', 'passing', 'stamina', 'composure'], CM: ['passing', 'dribbling', 'stamina', 'tackling'], AM: ['passing', 'dribbling', 'finishing', 'composure'], WF: ['pace', 'dribbling', 'finishing', 'passing'], ST: ['finishing', 'pace', 'heading', 'composure'] };
+  function squadMarks(players) {
+    const lg = world.league, pool = lg ? [].concat.apply([], lg.teams.map((t) => t.squad || [])) : players;
+    const cache = {}, marks = {};
+    const dist = (g, s) => {
+      const k = g + ':' + s; if (cache[k]) return cache[k];
+      const v = pool.filter((q) => q.natural === g && q.ratings).map((q) => FM.shown(q.ratings[s])), n = v.length;
+      if (n < 6) return (cache[k] = null);
+      const m = v.reduce((a, b) => a + b, 0) / n, sd = Math.sqrt(v.reduce((a, b) => a + (b - m) * (b - m), 0) / n) || 1;
+      return (cache[k] = { m, sd });
+    };
+    players.forEach((p) => (SQ_STATS[p.natural] || []).forEach((s) => {
+      const d = dist(p.natural, s); if (!d || !p.ratings || p.ratings[s] == null) return;
+      const z = (FM.shown(p.ratings[s]) - d.m) / d.sd;
+      if (z >= 0.9) (marks[p.id] = marks[p.id] || {})[s] = 'good'; else if (z <= -0.9) (marks[p.id] = marks[p.id] || {})[s] = 'bad';
+    }));
+    return marks;
+  }
   function renderSquad() {
     const team = userTeam(), host = el('view-squad');
     const onPitch = team.players.slice().sort((a, b) => a.index - b.index);
     const all = onPitch.concat(team.bench);
-    const cell = (p, stat, text) => `<td>${text}</td>`;
+    // Green and red give a feel for the squad at a glance: a number is green when it is clearly above, and red when it is clearly below, what
+    // the other players in the league who play the same position have, in the ratings that matter for that position.
+    const marks = squadMarks(all);
+    const cell = (p, stat, text) => { const k = marks[p.id] && marks[p.id][stat]; return `<td${k ? ' class="hl-' + k + '" title="' + (k === 'good' ? 'Well above' : 'Well below') + ' the other ' + p.natural + 's in the league"' : ''}>${text}</td>`; };
     const row = (p) => `<tr class="player-row" data-player="${p.id}" tabindex="0"><td>${portraitCache[p.id] ? `<img class="squad-thumb" src="${portraitCache[p.id]}" alt="">` : `<span class="squad-thumb fallback">${esc(p.name.split(/\s+/).map((x) => x[0]).slice(0, 2).join(''))}</span>`}</td><td class="l">${p.number}</td><td class="l"><button class="player-link" data-player="${p.id}">${esc(p.name)}</button></td><td class="l">${esc(p.nation)}</td><td class="l">${p.natural}</td><td class="l">${p.slotKey ? p.slotKey : 'Bench'}</td><td class="l">${{ right: 'Right', left: 'Left', both: 'Both' }[p.foot] || ''}</td><td>${p.height || '-'}</td><td class="${condClass(p)}">${Math.round(100 * FM.conditionOf(p))}%</td><td class="l ${FM.isInjured(p) ? 'out' : ''}">${FM.isInjured(p) ? esc(injuryText(p)) : 'Fit'}</td>
       <td><b>${FM.playerRating(p).toFixed(1)}</b></td>${cell(p, 'pace', FM.shown(p.ratings.pace))}${cell(p, 'dribbling', FM.shown(p.ratings.dribbling))}${cell(p, 'passing', FM.shown(p.ratings.passing))}${cell(p, 'finishing', FM.shown(p.ratings.finishing))}${cell(p, 'tackling', FM.shown(p.ratings.tackling))}${cell(p, 'heading', FM.shown(p.ratings.heading))}${cell(p, 'composure', FM.shown(p.ratings.composure))}${cell(p, 'stamina', p.ratings.stamina ? FM.shown(p.ratings.stamina) : '-')}${cell(p, 'gk', p.natural === 'GK' ? FM.shown(p.ratings.gk) : '-')}
       <td>${p.stats.apps}</td><td>${p.stats.goals}</td><td>${p.stats.shots}</td><td>${p.stats.yellows}</td><td>${p.stats.reds}</td></tr>`;
@@ -649,14 +671,13 @@
       return `<details class="sq-group" data-group="${title}"${open[title] === false ? '' : ' open'}><summary>${title} <small>${list.length} player${list.length === 1 ? '' : 's'}</small></summary><div class="tablewrap"><table class="data">${head}<tbody>${list.map(row).join('')}</tbody></table></div></details>`;
     }).join('');
     host.innerHTML = `<div class="sq-layout"><div class="sq-main"><div id="playerProfile"></div><div class="card"><div class="row" style="justify-content:space-between"><h2>${esc(team.name)}: squad of ${all.length}</h2></div>
+      <p class="sq-key"><span><i class="g"></i>Well above the other players in the league in that position</span><span><i class="r"></i>Well below</span></p>
       ${groups}
-      <div class="sq-foot"><button class="primary" id="toFormation">Continue to formation</button></div>
       </div></div>
       </div>`;
     const openPlayer = (id) => { world.profilePlayerId = id; renderSquad(); };
     host.querySelectorAll('[data-player]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openPlayer(b.dataset.player); }));
     host.querySelectorAll('.sq-group').forEach((d) => d.addEventListener('toggle', () => { open[d.dataset.group] = d.open; }));
-    host.querySelector('#toFormation').addEventListener('click', () => { FM.goToTactics('squad'); });
     renderPlayerProfile(team, selected, host.querySelector('#playerProfile'));
     ensurePortraitsLoaded(all);
   }
@@ -969,7 +990,7 @@
     const testRuns = (k) => (k === 'build' ? (world.league.labRuns || []) : ((world.league.phaseLabRuns || {})[k] || [])).length > 0;
     el('tabs').innerHTML = tabs.map(([k, label], i) => world.testing
       ? `<button data-tab="${k}" data-phase-index="${i}" class="${world.tab === k ? 'on' : (testRuns(k) ? 'done' : '')}">${label}</button>`
-      : `<button data-tab="${k}" data-phase-index="${i}" class="${world.tab === k ? 'on' : (i < maxPhase ? 'done' : '')}"${i > maxPhase ? ' disabled' : ''}>${label}</button>`).join('');
+      : `<button data-tab="${k}" data-phase-index="${i}" class="${world.tab === k ? 'on' : (i < maxPhase ? 'done' : '')}">${label}</button>`).join('');
     el('tabs').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
       const i = +b.dataset.phaseIndex; world.tab = b.dataset.tab;
       if (!world.testing) {
@@ -978,21 +999,6 @@
       }
       saveSoon(); renderTactics(); renderPrepFlow();
     }));
-    // the way on: each preparation page ends with a button to the next one, and the last one goes to the testing phase
-    const nextBox = el('tabNext');
-    if (nextBox) {
-      const ti = tabs.findIndex(([k]) => k === world.tab);
-      if (world.testing || ti < 0) { nextBox.hidden = true; nextBox.innerHTML = ''; }
-      else {
-        const last = ti >= tabs.length - 1;
-        const label = last ? 'Continue to testing' : 'Continue to ' + tabs[ti + 1][1].replace(/^\d+\.\s*/, '').replace(/^./, (c) => c.toLowerCase());
-        nextBox.hidden = false; nextBox.innerHTML = '<button type="button" class="primary" id="tabNextBtn">' + label.replace(/^Continue to (.)/, (m, c) => 'Continue to ' + c) + '</button>';
-        el('tabNextBtn').addEventListener('click', () => {
-          if (last) { world.league.prepStep = Math.max(world.league.prepStep || 0, 2); world.testing = true; world.tab = 'build'; saveSoon(); setView('tactics'); }
-          else { world.tab = tabs[ti + 1][0]; world.league[progressKey] = Math.max(world.league[progressKey] || 0, ti + 2); if (ti + 1 >= 6) world.league.prepStep = Math.max(world.league.prepStep || 0, 2); saveSoon(); renderTactics(); renderPrepFlow(); window.scrollTo(0, 0); }
-        });
-      }
-    }
     if (world.testing) renderTestPhase(team, world.tab);
     else if (world.tab === 'setpieces') renderSetPieces(team);
     else if (world.tab === 'transdef' || world.tab === 'transatt') renderTransitionTab(team, world.tab);
