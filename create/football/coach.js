@@ -147,23 +147,32 @@
   };
 
   // ---------- what she says on the pages ----------
+  // The analysis that sits beside the squad list for good: each marked number, what it is, and what it means in a match.
+  const STAT_NAME = { pace: 'Pace', dribbling: 'Dribbling', passing: 'Passing', finishing: 'Finishing', tackling: 'Tackling', heading: 'Heading', composure: 'Composure', stamina: 'Stamina', gk: 'Goalkeeping' };
+  FM.squadAnalysisHtml = function (team) {
+    const picks = FM.squadHighlights(team).picks.slice().sort((a, b) => Math.abs(b.z) - Math.abs(a.z));
+    if (!picks.length) return '<p>Nothing in this squad stands out as especially strong or weak, so there is no glaring weakness to protect and no single player to build around.</p>';
+    // one entry for each player and kind: what each of his marked numbers means, with the numbers themselves
+    const group = (kind) => {
+      const by = {}, order = [];
+      picks.filter((c) => c.kind === kind).forEach((c) => { if (!by[c.p.id]) { by[c.p.id] = []; order.push(c.p.id); } by[c.p.id].push(c); });
+      return order.map((id) => {
+        const cs = by[id];
+        const chips = cs.map((c) => '<span class="sq-chip ' + kind + '">' + STAT_NAME[c.s] + ' ' + (FM.shown ? FM.shown(c.p.ratings[c.s]) : c.p.ratings[c.s]) + '</span>').join(' ');
+        return '<li class="' + kind + '">' + cs.map((c, k) => (k ? meaning(c).replace(/^<b>[^<]*<\/b> /, 'He ') : meaning(c))).join(' ') + ' ' + chips + '</li>';
+      });
+    };
+    const bad = group('bad'), good = group('good');
+    return (bad.length ? '<h4>Weaknesses to protect</h4><ul>' + bad.join('') + '</ul>' : '') + (good.length ? '<h4>Strengths to use</h4><ul>' + good.join('') + '</ul>' : '');
+  };
   FM.coachSquad = function (team, force) {
-    const notes = FM.squadImpacts(team);
-    const second = () => FM.coach.show('squad-extremes' + (force ? '-again' : ''), {
-      force: true, title: 'What stands out',
-      html: (notes.length
-        ? '<p>A few of these numbers stand out from the rest of the squad. This is what they mean once a match is being played:</p><ul>' + notes.map((n) => '<li class="' + n.kind + '">' + n.html + '</li>').join('') + '</ul>'
-        : '<p>Nothing in this squad stands out as especially strong or weak, so there is no glaring weakness to protect and no single player to build around.</p>') +
-        '<p>Have a look through the list, then press <b>Continue to formation</b> when you are ready.</p>',
-      button: 'Close', onClose: () => { const d = load(); d['squad-extremes'] = true; save(d); const b = document.getElementById('toFormation'); if (b) b.focus(); },
-    });
-    if (!force && FM.coach.seen('squad-intro')) { if (!FM.coach.seen('squad-extremes')) second(); return; }
+    if (!force && FM.coach.seen('squad-intro')) return;
     FM.coach.show('squad-intro' + (force ? '-again' : ''), {
       force: !!force, title: 'Welcome to the club',
       html: '<p>Hello, I am Elena Marsh, the performance analyst at the club. I will be going through the numbers with you this season.</p>' +
         '<p>We will start with your squad. Every player is listed with his ratings, grouped by position. Open a group to see the players in it.</p>' +
-        '<p>A <b style="color:#7fe0a0">green</b> number is a real strength and a <b style="color:#ff8a80">red</b> one a real weakness, compared with the rest of the squad. Most players will not have any: most ratings sit close to the average.</p>',
-      button: 'Show me what stands out', onClose: () => { const d = load(); d['squad-intro'] = true; save(d); second(); },
+        '<p>A <b style="color:#7fe0a0">green</b> number is a real strength and a <b style="color:#ff8a80">red</b> one a real weakness, compared with the rest of the squad. Most players will not have any: most ratings sit close to the average. My notes on the ones that do are on the right of the list.</p>',
+      button: 'Got it', onClose: () => { const d = load(); d['squad-intro'] = true; d['squad-extremes'] = true; save(d); const b = document.getElementById('toFormation'); if (b) b.focus(); },
     });
   };
   FM.coachFormation = function (force) {

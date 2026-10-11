@@ -473,7 +473,7 @@
     renderPrepFlow();
     if (v === 'home') renderHome();
     else if (v === 'league') renderLeague();
-    else if (v === 'squad') { renderSquad(); if (FM.coachSquad && world.league) FM.coachSquad(userTeam()); }
+    else if (v === 'squad') { if (FM.elena) FM.elena.hide(); renderSquad(); if (FM.coachSquad && world.league) FM.coachSquad(userTeam()); }
     else if (v === 'analysis') FM.renderAnalysis(el('view-analysis'), world.league);
     else if (v === 'reports') FM.renderReports(el('view-reports'), world.league);
     else if (v === 'news') FM.renderNews(el('view-news'), world.league);
@@ -652,11 +652,13 @@
       const ex = list.filter((p) => marks[p.id]).length;
       return `<details class="sq-group" data-group="${title}"${open[title] === false ? '' : ' open'}><summary>${title} <small>${list.length} player${list.length === 1 ? '' : 's'}${ex ? ' · ' + ex + ' with a number worth noting' : ''}</small></summary><div class="tablewrap"><table class="data">${head}<tbody>${list.map(row).join('')}</tbody></table></div></details>`;
     }).join('');
-    host.innerHTML = `<div id="playerProfile"></div><div class="card"><div class="row" style="justify-content:space-between"><h2>${esc(team.name)}: squad of ${all.length}</h2><button type="button" id="elenaSquad">Elena's notes</button></div>
+    const analysis = FM.squadAnalysisHtml ? FM.squadAnalysisHtml(team) : '';
+    host.innerHTML = `<div class="sq-layout"><div class="sq-main"><div id="playerProfile"></div><div class="card"><div class="row" style="justify-content:space-between"><h2>${esc(team.name)}: squad of ${all.length}</h2><button type="button" id="elenaSquad">Elena's welcome</button></div>
       <p class="sq-key"><span><i class="g"></i>A real strength</span><span><i class="r"></i>A real weakness</span><span class="note">Compared with the rest of the squad.</span></p>
       ${groups}
       <div class="sq-foot"><button class="primary" id="toFormation">Continue to formation</button></div>
-      </div>`;
+      </div></div>
+      <aside class="sq-elena" aria-label="Elena Marsh's notes on the squad"><div class="sq-elena-head"><img alt="" src="/assets/football/elena-point.jpg"><div><b>Elena Marsh</b><small>Performance analyst</small></div></div><h3>What stands out in your squad</h3>${analysis}</aside></div>`;
     const openPlayer = (id) => { world.profilePlayerId = id; renderSquad(); };
     host.querySelectorAll('[data-player]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openPlayer(b.dataset.player); }));
     host.querySelectorAll('.sq-group').forEach((d) => d.addEventListener('toggle', () => { open[d.dataset.group] = d.open; }));

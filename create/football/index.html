@@ -253,6 +253,16 @@
   .board-pair svg.board { max-width: none; width: 100%; }
   /* Pages the manager adds on the possession stages */
   /* The squad list: groups by position that open and close, and the extremes marked green and red by Elena. */
+  /* Elena's notes on the squad sit beside the list, always showing. */
+  .sq-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; align-items: start; }
+  .sq-elena { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: rgba(5,12,16,.76); font-family: var(--sans); color: var(--cream); }
+  .sq-elena-head { display: flex; align-items: center; gap: 12px; } .sq-elena-head img { width: 54px; height: 54px; border-radius: 50%; object-fit: cover; object-position: 50% 18%; border: 2px solid var(--gold); } .sq-elena-head small { display: block; opacity: .7; }
+  .sq-elena h3 { margin: 14px 0 6px; font-size: 1.02rem; } .sq-elena h4 { margin: 14px 0 6px; font-size: .74rem; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); }
+  .sq-elena ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; } .sq-elena p { margin: 0 0 10px; }
+  .sq-elena li { padding: 9px 11px; border-radius: 10px; background: rgba(255,255,255,.06); border-left: 4px solid var(--gold); font-size: .88rem; line-height: 1.5; }
+  .sq-elena li.good { border-left-color: #52bd7b; } .sq-elena li.bad { border-left-color: #e5645a; }
+  .sq-chip { display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 999px; font-size: .74rem; font-weight: 800; white-space: nowrap; } .sq-chip.good { background: rgba(82,189,123,.28); color: #a6f3c0; } .sq-chip.bad { background: rgba(229,100,90,.26); color: #ffb3ad; }
+  @media (max-width: 1100px) { .sq-layout { grid-template-columns: minmax(0, 1fr); } .sq-elena { position: static; max-height: none; } }
   .sq-group { margin: 14px 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
   .sq-group > summary { cursor: pointer; padding: 12px 14px; font-weight: 800; background: rgba(241,234,214,.06); list-style: none; display: flex; align-items: center; gap: 10px; }
   .sq-group > summary::-webkit-details-marker { display: none; } .sq-group > summary::before { content: '\25B8'; transition: transform .15s; } .sq-group[open] > summary::before { transform: rotate(90deg); }
@@ -772,7 +782,7 @@
 <script src="/create/football/elena.js?v=20261011k"></script>
 <script src="/create/football/elena_phase.js?v=20261010n"></script>
 <script src="/create/football/elena_lessons.js?v=20261010n"></script>
-<script src="/create/football/coach.js?v=20261011l"></script>
-<script src="/create/football/main.js?v=20261011l"></script>
+<script src="/create/football/coach.js?v=20261011n"></script>
+<script src="/create/football/main.js?v=20261011m"></script>
 </body>
 </html>
