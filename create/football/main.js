@@ -358,10 +358,50 @@
     world.skipTo = 'end';
   });
 
-  const INTERVIEW_ANSWERS = {
-    calm: ['We have prepared well. Now the players need to trust the work.', 'We will respect them, but we will play our own game.', 'The performance matters. If we get that right, the result can follow.', 'There is no need for a grand promise. We know what we need to do.', 'The group is ready and looking forward to it.'],
-    response: ['We were brave at the right moments and deserved the result.', 'There were good spells and difficult spells. We will learn from both.', 'The score does not tell the whole story, but we have to own the result.', 'The players gave everything. Our next job is to improve the details.', 'We will review it honestly, then move forward together.']
-  };
+  // The ready-made answers belong to the question they answer: each question has its own five, and the ones after a match depend on the result.
+  function interviewAnswers(kind, fx, result) {
+    const lg = world.league, me = userTeam(), home = FM.teamById(lg, fx.homeId), away = FM.teamById(lg, fx.awayId), opp = home.id === me.id ? away : home;
+    if (kind === 'pre') return [
+      [
+        `A hard game. ${opp.name} are well organised and they will make it difficult for us.`,
+        `They are dangerous when they break, so we have to look after the ball and be careful when we lose it.`,
+        `I expect them to sit deep and test our patience, so we will need to be sharp with the ball.`,
+        `A close game. They have good players, and so do we.`,
+        `Nothing different from any other match: ninety minutes of hard work, and the team that is better at the details will win it.`,
+      ],
+      [
+        `Keeping our shape and being patient until the chances come.`,
+        `Winning the ball back quickly and attacking before they can reset.`,
+        `Controlling the middle of the pitch, because that is where the game will be decided.`,
+        `Not giving them easy chances. Our defensive discipline comes first.`,
+        `Getting the ball to our best players in space, and trusting them.`,
+      ],
+      [
+        `Trust the work we have done, and enjoy the game.`,
+        `Be brave on the ball and work for each other when we do not have it.`,
+        `Stay calm, stick to the plan and take the chances we create.`,
+        `Start with intensity from the first minute. We cannot wait for the game to come to us.`,
+        `Nothing complicated: do your jobs, and the rest will follow.`,
+      ],
+    ];
+    const R = result === 'W' ? 'W' : result === 'L' ? 'L' : 'D';
+    const performance = {
+      W: [`I am very pleased. The players carried out the plan well.`, `We deserved it, though there are things we can still do better.`, `A good performance, and the result reflects it.`, `It was not perfect, but the attitude and the effort were excellent.`, `Pleased with the result. We were a little fortunate at times, and I will say so to the players.`],
+      L: [`Disappointed. We did not do enough, and the result is deserved.`, `There were some good moments, but we did not take our chances.`, `We were not good enough today, and I take responsibility for that.`, `The effort was there, but the details let us down.`, `It is a harsh result on the performance, but we have to take it.`],
+      D: [`A fair result. Both sides had chances.`, `We wanted more, but it is a point we can build on.`, `Frustrating. We created enough to win it.`, `A solid performance, but we lacked the final touch.`, `We can be happy enough with a point, given how the match went.`],
+    }[R];
+    const decided = {
+      W: [`In the key moments in both boxes. We were clean at the back and clinical at the other end.`, `In midfield: we won enough of the ball there to control the game.`, `In the first half, when we set the tone and made it difficult for them.`, `A moment of quality from us made the difference.`, `We stayed in the game and were sharper when it mattered.`],
+      L: [`In the key moments in both boxes. They took theirs and we did not take ours.`, `In midfield: they won too much of the ball there.`, `Early on. We were slow to settle and we let them get a grip on the game.`, `One mistake at the wrong moment made the difference.`, `Over the whole game they were just that bit sharper.`],
+      D: [`In the key moments in both boxes. Neither side took enough of theirs.`, `Nowhere, really. Midfield was very even and nobody could break the other down.`, `It was settled by who made the fewest mistakes, and that was neither of us.`, `A moment of quality, or a mistake, could have decided it and neither came.`, `Both teams had spells on top, and the draw reflects that.`],
+    }[R];
+    const next = {
+      W: [`The belief that we can do it again. We keep the standards we set today.`, `Enjoy it tonight, and then back to work. The next one is a new game.`, `We build on what worked, and we do not get ahead of ourselves.`, `The same intensity. A win does not count for anything in the next match.`, `That we are a good side when we play as a group.`],
+      L: [`The anger, and then the response. We learn from it quickly.`, `Look at what went wrong honestly, fix it on the training pitch and move on.`, `That one result does not define us. We back ourselves and go again.`, `The details. We were close, and the details are what we can change.`, `That we are better than that, and we have to show it next time.`],
+      D: [`The things we did well, and we fix the final touch.`, `A point is a point. We take the positives and we go again.`, `That we are hard to beat, and now we need to be sharper in the final third.`, `More of the same, with the courage to go and win it.`, `We stay together and keep the standard high.`],
+    }[R];
+    return [performance, decided, next];
+  }
   function interviewQuestions(kind, fx, result) {
     const lg = world.league, me = userTeam(), home = FM.teamById(lg, fx.homeId), away = FM.teamById(lg, fx.awayId), opp = home.id === me.id ? away : home;
     if (kind === 'pre') return [
@@ -373,7 +413,7 @@
     return [`${lead}, how do you assess the performance?`, 'Where was the match decided?', 'What do you want the players to take into the next game?'];
   }
   function runInterview(kind, fx, result, done) {
-    const room = el('interviewRoom'), body = el('pressRoomBody'), questions = interviewQuestions(kind, fx, result), answers = INTERVIEW_ANSWERS[kind === 'pre' ? 'calm' : 'response'];
+    const room = el('interviewRoom'), body = el('pressRoomBody'), questions = interviewQuestions(kind, fx, result), answerSets = interviewAnswers(kind, fx, result);
     const lg = world.league, key = kind + ':' + fx.round;
     lg.interviews = lg.interviews || [];
     if (lg.interviews.some((x) => x.key === key)) { done(); return; }
@@ -387,6 +427,7 @@
     const draw = () => {
       el('pressRoomKicker').textContent = kind === 'pre' ? 'Before the match' : 'After the match';
       el('pressRoomTitle').textContent = kind === 'pre' ? 'Pre-match press conference' : 'Post-match press conference';
+      const answers = answerSets[index] || [];
       body.innerHTML = `<div class="press-progress">${questions.map((_, i) => `<i class="${i <= index ? 'on' : ''}"></i>`).join('')}</div><p class="press-question">${esc(questions[index])}</p><div class="press-answers">${answers.map((a, i) => `<button class="press-answer" data-answer="${i}">${esc(a)}</button>`).join('')}</div><button id="skipInterview">Skip interview</button>`;
       body.querySelectorAll('[data-answer]').forEach((b) => b.addEventListener('click', () => {
         record.answers.push({ question: questions[index], answer: answers[+b.dataset.answer] });
