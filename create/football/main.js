@@ -1094,15 +1094,22 @@
 
   function renderTransitionTab(team, tab) {
     const host = el('tabBody'), defensive = tab === 'transdef', key = defensive ? 'transDefChoices' : 'transAttChoices';
-    const zones = [['defensive','Defensive third'],['middle','Middle third'],['attacking','Attacking third']];
+    // each third of the pitch, with the diagram of the team's set-up for that part of the game beside the choice (small, and not editable here)
+    const zones = [['defensive', 'Defensive third', 'buildEnd', 'Your build-up'], ['middle', 'Middle third', 'midfield', 'Your play through midfield'], ['attacking', 'Attacking third', 'final', 'Your final third']];
     const options = defensive
-      ? [['counterpress','Counterpress'],['contain','Delay and contain'],['regroup','Regroup']]
-      : [['counter','Counter quickly'],['secure','Secure possession'],['reset','Reset the attack']];
+      ? [['counterpress', 'Counterpress'], ['contain', 'Delay and contain'], ['regroup', 'Regroup']]
+      : [['counter', 'Counter quickly'], ['secure', 'Secure possession'], ['reset', 'Reset the attack']];
     const fallback = defensive ? 'contain' : 'secure';
     team.tactics[key] = team.tactics[key] || {};
-    host.innerHTML = `<div class="card transition-plan"><span class="eyebrow">${defensive ? 'Lost the ball in…' : 'Won the ball in…'}</span><h2>${defensive ? 'Defensive transition' : 'Attacking transition'}</h2><p class="desc">Choose the first response in each part of the pitch, and place the team at the moment it happens and a few seconds on. The instructions decide the rest.</p><div id="transPair"></div><div class="transition-zones">${zones.map(([z,n]) => `<label><b>${n}</b><select data-zone="${z}">${options.map(([v,l]) => `<option value="${v}"${(team.tactics[key][z] || fallback) === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>`).join('')}</div><div id="phaseInstr"></div></div>`;
+    host.innerHTML = `<div class="card transition-plan"><span class="eyebrow">${defensive ? 'Lost the ball in…' : 'Won the ball in…'}</span><h2>${defensive ? 'Defensive transition' : 'Attacking transition'}</h2><p class="desc">Choose what the team does first when it ${defensive ? 'loses' : 'wins'} the ball in each third of the pitch. The small pitches show how you have set the team up for that part of the game.</p>
+      <div class="transition-zones">${zones.map(([z, n, k, cap]) => `<label><b>${n}</b><select data-zone="${z}">${options.map(([v, l]) => `<option value="${v}"${(team.tactics[key][z] || fallback) === v ? ' selected' : ''}>${l}</option>`).join('')}</select><span class="tz-board" id="tzBoard_${z}"></span><span class="note tz-cap">${cap}</span></label>`).join('')}</div>
+      <div id="transInstr"></div></div>`;
     host.querySelectorAll('[data-zone]').forEach((s) => s.addEventListener('change', () => { team.tactics[key][s.dataset.zone] = s.value; saveSoon(); }));
-    mountPair(host.querySelector('#transPair'), team, tab, { hooks: { save: saveSoon, opp: nextOpponent }, stage: defensive ? 'transDef' : 'transAtt' });
+    const draw = () => { zones.forEach(([z, , k]) => { const h = host.querySelector('#tzBoard_' + z); if (h && h.isConnected) drawBoard(h, team, k, { locked: true, fit: true }); }); };
+    draw();
+    world.redrawBoards = draw;
+    // one instruction box for the stage, as on the other pages
+    FM.renderInstructions(host.querySelector('#transInstr'), team, { save: saveSoon, opp: nextOpponent }, { stage: defensive ? 'transDef' : 'transAtt', title: 'Instructions: ' + (defensive ? 'after losing the ball' : 'after winning the ball'), applies: 'applies to this stage only' });
   }
 
   function renderTestPhase(team, phase) {
