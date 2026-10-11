@@ -118,7 +118,7 @@
     st.textContent = [
       '.coach-card { position: fixed; top: 14px; right: 14px; z-index: 200; width: min(400px, calc(100vw - 28px)); max-height: calc(100vh - 28px); overflow: auto; background: #1A232D; color: #F1EAD6; border: 1px solid #F2C14E; border-radius: 16px; box-shadow: 0 18px 50px rgba(0,0,0,.5); padding: 14px 16px 16px; font: 14px/1.55 Arial, sans-serif; }',
       '.coach-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; } .coach-head img { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; object-position: 50% 18%; border: 2px solid #F2C14E; flex: none; }',
-      '.coach-head b { display: block; } .coach-head small { opacity: .7; } .coach-x { margin-left: auto; width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(241,234,214,.35); background: transparent; color: inherit; font-size: 1.1rem; cursor: pointer; }',
+      '.coach-head b { display: block; } .coach-head small { opacity: .7; } .coach-card .coach-x { margin-left: auto; flex: none; width: 32px; height: 32px; min-height: 0; padding: 0 !important; line-height: 1; display: grid; place-items: center; border-radius: 50%; border: 1px solid rgba(241,234,214,.35); background: transparent; color: inherit; cursor: pointer; } .coach-card .coach-x svg { display: block; width: 14px; height: 14px; }',
       '.coach-card h3 { margin: 4px 0 8px; font-size: 1.02rem; } .coach-card p { margin: 0 0 10px; } .coach-card ul { margin: 0 0 10px; padding: 0; list-style: none; display: grid; gap: 8px; }',
       '.coach-card li { padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.06); border-left: 4px solid #F2C14E; } .coach-card li.good { border-left-color: #52bd7b; } .coach-card li.bad { border-left-color: #e5645a; }',
       '.coach-go { display: block; width: 100%; padding: 10px 14px; border: 0; border-radius: 10px; background: #E6D7B0; color: #1A232D; font: 800 .9rem Arial, sans-serif; cursor: pointer; }',
@@ -136,7 +136,7 @@
       css(); FM.coach.close();
       const el = document.createElement('aside');
       el.className = 'coach-card'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Elena Marsh');
-      el.innerHTML = '<div class="coach-head"><img alt="" src="' + FACE + '"><div><b>Elena Marsh</b><small>Performance analyst</small></div><button type="button" class="coach-x" aria-label="Close">×</button></div>' +
+      el.innerHTML = '<div class="coach-head"><img alt="" src="' + FACE + '"><div><b>Elena Marsh</b><small>Performance analyst</small></div><button type="button" class="coach-x" aria-label="Close"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 2 L12 12 M12 2 L2 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg></button></div>' +
         '<h3>' + esc(cfg.title) + '</h3>' + cfg.html + '<button type="button" class="coach-go">' + esc(cfg.button || 'Got it') + '</button>';
       document.body.appendChild(el); current = el;
       const done = () => { const d = load(); d[id] = true; save(d); FM.coach.close(); if (cfg.onClose) cfg.onClose(); };
