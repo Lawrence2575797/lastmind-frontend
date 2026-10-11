@@ -21118,7 +21118,7 @@ SQIDAQAB
         const lo = (parseFloat(canvas.style.getPropertyValue('--nb-margin')) || 56) + 8;
         const w = nbClamp(block.w || 460, minW, Math.max(minW, cw - lo));
         const x = nbClamp(block.x || 0, lo, Math.max(lo, cw - w));
-        el.style.left = x + 'px'; el.style.top = Math.max(0, block.y || 0) + 'px'; el.style.width = w + 'px';
+        el.style.left = x + 'px'; el.style.top = (Math.max(0, block.y || 0) + (el._nbShift || 0)) + 'px'; el.style.width = w + 'px';
         nbSyncCompact(el);
     }
     // When the page gets narrower (the LastMind panel opens beside it), text boxes narrow with it and their lines wrap, instead of running under the panel.
@@ -21149,10 +21149,24 @@ SQIDAQAB
             const candidateBlock = page.doc.blocks.find((item) => item.id === candidate.dataset.id);
             if (!candidateBlock) return;
             candidateBlock.y = Math.max(0, candidate.offsetTop + growth);
-            candidate.style.top = candidateBlock.y + 'px';
+            candidate.style.top = candidateBlock.y + 'px'; candidate._nbShift = 0;   // the saved position now includes any on-screen shift
             moved = true;
         });
         return moved;
+    }
+    // When a text box changes height only because its width changed (the LastMind panel opening beside the page, a smaller window), what is
+    // below it is moved down - or back up - to match, on screen only. The saved position is never touched, so opening and closing the panel
+    // can never leave a gap behind on the page.
+    function nbShiftBlocksBelow(canvas, sourceEl, previousHeight, delta) {
+        const oldBottom = sourceEl.offsetTop + previousHeight;
+        const sourceLeft = sourceEl.offsetLeft, sourceRight = sourceLeft + sourceEl.offsetWidth;
+        const list = [];
+        canvas.querySelectorAll('.nb-block').forEach((c) => {
+            if (c === sourceEl || c.offsetTop < oldBottom - 2) return;
+            if (c.offsetLeft + c.offsetWidth <= sourceLeft || c.offsetLeft >= sourceRight) return;
+            list.push(c);
+        });
+        list.forEach((c) => { c._nbShift = Math.max(0, (c._nbShift || 0) + delta); c.style.top = (Math.max(0, c.offsetTop + delta)) + 'px'; });
     }
     function nbWireDrag(handle, el, block, canvas) {
         handle.addEventListener('pointerdown', (e) => {
@@ -21163,6 +21177,7 @@ SQIDAQAB
     function nbDragStart(e, handle, el, block, canvas) {
         {
             const sx = e.clientX, sy = e.clientY, ox = el.offsetLeft, oy = el.offsetTop;
+            el._nbShift = 0;   // where it is dropped is what is saved
             try { handle.setPointerCapture(e.pointerId); } catch (_) { /* older browser */ }
             const move = (ev) => {
                 block.x = nbClamp(ox + ev.clientX - sx, 0, Math.max(0, canvas.clientWidth - el.offsetWidth));
@@ -22657,9 +22672,14 @@ SQIDAQAB
             entries.forEach((entry) => {
                 const el = entry.target;
                 if (!el.classList.contains('nb-text')) return;
-                const height = el.offsetHeight;
+                const height = el.offsetHeight, width = el.offsetWidth;
                 const previousHeight = Number(el._nbFlowHeight) || height;
-                el._nbFlowHeight = height;
+                const previousWidth = el._nbFlowWidth;
+                el._nbFlowHeight = height; el._nbFlowWidth = width;
+                if (previousWidth != null && Math.abs(width - previousWidth) >= 1) {   // narrower or wider, not typed into: shown shifted, never saved
+                    if (height !== previousHeight) nbShiftBlocksBelow(canvas, el, previousHeight, height - previousHeight);
+                    return;
+                }
                 if (height > previousHeight) flowed = nbFlowBlocksBelow(page, canvas, el, previousHeight, height - previousHeight) || flowed;
             });
             canvas.querySelectorAll('.nb-graph, .nb-diagram').forEach(nbSyncCompact);
