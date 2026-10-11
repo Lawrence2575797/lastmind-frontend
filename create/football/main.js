@@ -983,6 +983,21 @@
       }
       saveSoon(); renderTactics(); renderPrepFlow();
     }));
+    // the way on: each preparation page ends with a button to the next one, and the last one goes to the testing phase
+    const nextBox = el('tabNext');
+    if (nextBox) {
+      const ti = tabs.findIndex(([k]) => k === world.tab);
+      if (world.testing || ti < 0) { nextBox.hidden = true; nextBox.innerHTML = ''; }
+      else {
+        const last = ti >= tabs.length - 1;
+        const label = last ? 'Continue to testing' : 'Continue to ' + tabs[ti + 1][1].replace(/^\d+\.\s*/, '').replace(/^./, (c) => c.toLowerCase());
+        nextBox.hidden = false; nextBox.innerHTML = '<button type="button" class="primary" id="tabNextBtn">' + label.replace(/^Continue to (.)/, (m, c) => 'Continue to ' + c) + '</button>';
+        el('tabNextBtn').addEventListener('click', () => {
+          if (last) { world.league.prepStep = Math.max(world.league.prepStep || 0, 2); world.testing = true; world.tab = 'build'; saveSoon(); setView('tactics'); }
+          else { world.tab = tabs[ti + 1][0]; world.league[progressKey] = Math.max(world.league[progressKey] || 0, ti + 2); if (ti + 1 >= 6) world.league.prepStep = Math.max(world.league.prepStep || 0, 2); saveSoon(); renderTactics(); renderPrepFlow(); window.scrollTo(0, 0); }
+        });
+      }
+    }
     if (world.testing) renderTestPhase(team, world.tab);
     else if (world.tab === 'setpieces') renderSetPieces(team);
     else if (world.tab === 'transdef' || world.tab === 'transatt') renderTransitionTab(team, world.tab);
