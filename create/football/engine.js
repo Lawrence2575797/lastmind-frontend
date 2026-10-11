@@ -435,12 +435,15 @@
     }));
     Object.keys(team.pageDefaults).forEach((k) => { const d = team.pageDefaults[k]; if (d && d.named === undefined) d.named = !!d.label && d.label !== 'Default page'; });
     Object.keys(FM.PREV_END).forEach((end) => {
-      const prev = team.pages[FM.PREV_END[end]] || [], list = team.pages[end] = team.pages[end] || [];
+      // each page appears once: ids are unique (a repeated one is dropped), here and in the stage before
+      const uniq = (l) => { const seen = {}; return (l || []).filter((x) => x && x.id != null && !seen[x.id] && (seen[x.id] = true)); };
+      const prev = team.pages[FM.PREV_END[end]] = uniq(team.pages[FM.PREV_END[end]]), list = team.pages[end] = uniq(team.pages[end]);
       const wanted = prev.map((p) => p.id);
       // a page carried over from the days when pages were shared by the whole chain follows the page of the same id
       list.forEach((x) => { if (!x.from && wanted.indexOf(x.id) >= 0) { x.from = x.id; x.cond = 'from_prev'; } });
       for (let i = list.length - 1; i >= 0; i--) if (list[i].from && list[i].from !== 'default' && wanted.indexOf(list[i].from) < 0) list.splice(i, 1);
-      prev.forEach((p) => { if (!list.some((x) => x.from === p.id && !x.extra)) list.push({ id: 'l' + p.id, label: p.label, cond: 'from_prev', from: p.id }); });
+      // every start has its own automatic page (it may be given a condition of its own, but it is never made again)
+      prev.forEach((p) => { if (!list.some((x) => x.from === p.id && (x.id === 'l' + p.id || x.id === p.id || !x.added))) list.push({ id: 'l' + p.id, label: p.label, cond: 'from_prev', from: p.id }); });
       const conditionFirst = (a, b) => (a.extra ? 0 : 1) - (b.extra ? 0 : 1);
       const follows = (id) => list.filter((x) => x.from === id).sort(conditionFirst);
       team.pages[end] = follows('default').concat([].concat.apply([], wanted.map(follows)), list.filter((x) => !x.from));
