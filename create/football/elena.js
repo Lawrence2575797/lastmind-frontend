@@ -416,7 +416,18 @@
     } catch (err) { E.review = { key, err: err.message || 'I could not read through that just now.' }; }
     if (E.open && E.el) paint();
   }
+  // What she says on each page is added page by page (FM.elenaNotes, keyed by the tactics tab). The lessons, readings and statistics pages written
+  // before are kept in this file but are not shown until a page is given its notes; until then the panel is just her chat.
+  const LESSONS_ON = false;
+  FM.elenaNotes = FM.elenaNotes || {};
+  function pageNote(c) {
+    const key = c && c.mode === 'tactics' ? c.tab : null;
+    const n = key && FM.elenaNotes[key];
+    const html = typeof n === 'function' ? n(c) : n;
+    return html || '<p class="el-small">No notes on this page yet. You can ask me anything below.</p>';
+  }
   function body() {
+    if (!LESSONS_ON) return pageNote(E.ctx);
     if (E.tab === 'lessons') return E.lesson && findLesson(E.lesson) ? lessonStep() : lessonList();
     const c = E.ctx; if (c.mode === 'instr') return instrReading(c);
     if (c.mode === 'tactics') return E.tab === 'instr' ? instrReading(Object.assign({}, c, { stage: c.instrStage || c.stage || 'build' })) : FM.elenaPhase.reading(c, { esc, rich, pc, P });
@@ -433,7 +444,7 @@
     if (FM.labReplay) { FM.labReplay.stop(); const rh = b.querySelector('#elReplay'); if (rh && E.ctx.runs.length) { const last = E.ctx.runs[E.ctx.runs.length - 1].result, cl = last.clips && last.clips.find((x) => x.key === E.clipKey); if (cl) FM.labReplay.mount(rh, cl.clip, { team: E.ctx.team, opp: E.ctx.opp }); } }
     const face = E.el.querySelector('.el-head img'); if (face) face.src = E.tab === 'lessons' ? IMG.think : ((E.ctx.runs.length || E.ctx.mode === 'instr' || E.ctx.mode === 'tactics') ? IMG.point : IMG.hello);
   }
-  function openLesson(id) { if (!findLesson(id)) return; E.tab = 'lessons'; E.lesson = id; E.step = 0; E.state = { right: false, wrong: [], hint: '' }; if (!E.open) setOpen(true); else paint(); const b = E.el && E.el.querySelector('.el-body'); if (b) b.scrollTop = 0; }
+  function openLesson(id) { if (!LESSONS_ON || !findLesson(id)) return; E.tab = 'lessons'; E.lesson = id; E.step = 0; E.state = { right: false, wrong: [], hint: '' }; if (!E.open) setOpen(true); else paint(); const b = E.el && E.el.querySelector('.el-body'); if (b) b.scrollTop = 0; }
   // The chat at the bottom of the panel: ask her anything. It is sent with the text she is showing, so "what does this mean?" has something to
   // point at. The conversation stays while the panel is closed and opened again.
   E.chat = E.chat || [];
@@ -469,6 +480,7 @@
     const el = document.createElement('aside'); el.className = 'el-panel'; el.setAttribute('aria-label', 'Elena Marsh, performance analyst');
     el.innerHTML = '<div class="el-head"><img alt="" src="' + IMG.hello + '"><div><b>Elena Marsh</b><small>Performance analyst</small></div><button type="button" class="x" aria-label="Close Elena"><svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true" style="display:block"><path d="M2 2 L12 12 M12 2 L2 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg></button></div><div class="el-tabs"><button type="button" data-t="read">My reading</button><button type="button" data-t="instr" hidden>Instructions</button><button type="button" data-t="lessons">Lessons</button></div><div class="el-body"></div><div class="el-chat"><div class="el-chat-log" aria-live="polite"></div><form class="el-chat-form"><textarea rows="2" placeholder="Ask Elena anything…" aria-label="Ask Elena"></textarea><button type="submit">Send</button></form></div>';
     document.body.appendChild(el); E.el = el;
+    const tabsRow = el.querySelector('.el-tabs'); if (tabsRow && !LESSONS_ON) tabsRow.hidden = true;
     wireChat(el);
     el.addEventListener('change', (e) => { if ((e.target.id === 'elA' || e.target.id === 'elB') && E.ctx.setCompare) E.ctx.setCompare(+el.querySelector('#elA').value, +el.querySelector('#elB').value); });
     el.addEventListener('click', (e) => {
@@ -514,7 +526,7 @@
       else if (E.open) { if (fresh && E.tab === 'lessons' && !E.lesson) E.tab = 'read'; paint(); if (fresh && E.tab !== 'lessons') { const b = E.el && E.el.querySelector('.el-body'); if (b) b.scrollTop = 0; } }
       else if (fresh) E.btn.querySelector('.dot').style.display = '';
     },
-    review: requestReview,
+    review: () => { if (LESSONS_ON) requestReview(); },
     refresh() { if (E.open && E.el) paint(); },
     show(tab) { E.tab = tab; if (E.open && E.el) paint(); },
     hide() { if (FM.labReplay) FM.labReplay.stop(); clearInterval(E.watch); if (E.el) E.el.remove(); if (E.btn) E.btn.remove(); E.el = E.btn = null; document.body.classList.remove('el-open'); },
