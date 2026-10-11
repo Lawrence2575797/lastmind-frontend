@@ -800,7 +800,7 @@
     else if (loneStart) html = row(fig(starts, 0).concat(starts[0].locked ? [] : [box(0)])) + row(fig(ends, 1), 'ends-row') + row(ends.map((e, i) => box(1 + i)));
     else html = row(fig(starts, 0)) + (starts.some((s) => !s.locked) ? row(starts.map((s, i) => startBox(i))) : '') + row(fig(ends, starts.length), 'ends-row') + row(ends.map((e, i) => box(starts.length + i)));
     host.innerHTML = `<div class="scn">${html}</div>`;
-    host.insertAdjacentHTML('beforeend', '<div class="row scn-add"><button type="button" id="scnAdd">+ Add a page</button><span class="note">Adds another version of ' + (starts.length ? 'the second diagram' : 'this diagram') + ', for a different situation.</span></div>');
+    host.insertAdjacentHTML('afterbegin', '<div class="row scn-add"><button type="button" id="scnAdd">+ Add a page</button><span class="note">Adds another version of ' + (starts.length ? 'the second diagram' : 'this diagram') + ', for a different situation.</span></div>');
     // An arrow from each starting diagram to the end diagram that follows it (labelled with the page it came from), so it is plain which version
     // of the stage before leads to which version of this one.
     const drawArrows = () => {
@@ -808,7 +808,7 @@
       if (!scn) return;
       const old = scn.querySelector('.scn-arrows'); if (old) old.remove();
       const figs = Array.from(scn.querySelectorAll('figure.bp'));
-      if (figs.length < 2) return;
+      if (figs.length < 2 || !starts.length) return;
       const o = scn.getBoundingClientRect(), W = Math.round(o.width), H = Math.round(o.height);
       const R = (el) => { const r = el.getBoundingClientRect(); return { l: r.left - o.left, t: r.top - o.top, r: r.right - o.left, b: r.bottom - o.top, cx: (r.left + r.right) / 2 - o.left, cy: (r.top + r.bottom) / 2 - o.top }; };
       let svg = '<defs><marker id="scnArr" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#F2C14E"/></marker></defs>';
