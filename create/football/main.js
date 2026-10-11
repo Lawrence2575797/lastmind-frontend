@@ -653,7 +653,7 @@
       return `<details class="sq-group" data-group="${title}"${open[title] === false ? '' : ' open'}><summary>${title} <small>${list.length} player${list.length === 1 ? '' : 's'}${ex ? ' · ' + ex + ' with a number worth noting' : ''}</small></summary><div class="tablewrap"><table class="data">${head}<tbody>${list.map(row).join('')}</tbody></table></div></details>`;
     }).join('');
     host.innerHTML = `<div id="playerProfile"></div><div class="card"><div class="row" style="justify-content:space-between"><h2>${esc(team.name)}: squad of ${all.length}</h2><button type="button" id="elenaSquad">Elena's notes</button></div>
-      <p class="sq-key"><span><i class="g"></i>A real strength</span><span><i class="r"></i>A real weakness</span><span class="note">Only the extremes are marked: most numbers are ordinary.</span></p>
+      <p class="sq-key"><span><i class="g"></i>A real strength</span><span><i class="r"></i>A real weakness</span><span class="note">Compared with the rest of the squad.</span></p>
       ${groups}
       <div class="sq-foot"><button class="primary" id="toFormation">Continue to formation</button></div>
       </div>`;

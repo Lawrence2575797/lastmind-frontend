@@ -150,18 +150,20 @@
   FM.coachSquad = function (team, force) {
     const notes = FM.squadImpacts(team);
     const second = () => FM.coach.show('squad-extremes' + (force ? '-again' : ''), {
-      force: true, title: 'What the extremes mean for you',
-      html: (notes.length ? '<p>Here is what the marked numbers mean when the match is being played:</p><ul>' + notes.map((n) => '<li class="' + n.kind + '">' + n.html + '</li>').join('') + '</ul>' : '<p>Nothing in this squad is extreme enough to mark. That is useful to know too: there is no glaring weakness to protect, and no standout to build around.</p>') +
-        '<p>Take your time with the list. When you are ready, press <b>Continue to formation</b>.</p>',
+      force: true, title: 'What stands out',
+      html: (notes.length
+        ? '<p>A few of these numbers stand out from the rest of the squad. This is what they mean once a match is being played:</p><ul>' + notes.map((n) => '<li class="' + n.kind + '">' + n.html + '</li>').join('') + '</ul>'
+        : '<p>Nothing in this squad stands out as especially strong or weak, so there is no glaring weakness to protect and no single player to build around.</p>') +
+        '<p>Have a look through the list, then press <b>Continue to formation</b> when you are ready.</p>',
       button: 'Close', onClose: () => { const d = load(); d['squad-extremes'] = true; save(d); const b = document.getElementById('toFormation'); if (b) b.focus(); },
     });
     if (!force && FM.coach.seen('squad-intro')) { if (!FM.coach.seen('squad-extremes')) second(); return; }
     FM.coach.show('squad-intro' + (force ? '-again' : ''), {
-      force: !!force, title: 'Welcome. This is your squad.',
-      html: '<p>I am Elena Marsh, the club\'s performance analyst. My job is to find out what the numbers say about your team, so that you decide from evidence and not from a hunch.</p>' +
-        '<p>The first thing to read is your <b>squad list</b>: every player, with the numbers behind him. Open each group (goalkeepers, defenders, midfielders and forwards) to see them.</p>' +
-        '<p>I have marked the extremes: <b style="color:#7fe0a0">green</b> for a real strength and <b style="color:#ff8a80">red</b> for a real weakness. Only the extremes. Most numbers are ordinary, and that matters too.</p>',
-      button: 'Show me what they mean', onClose: () => { const d = load(); d['squad-intro'] = true; save(d); second(); },
+      force: !!force, title: 'Welcome to the club',
+      html: '<p>Hello, I am Elena Marsh, the club's performance analyst. I will be going through the numbers with you this season.</p>' +
+        '<p>We will start with your squad. Every player is listed with his ratings, grouped by position. Open a group to see the players in it.</p>' +
+        '<p>A <b style="color:#7fe0a0">green</b> number is a real strength and a <b style="color:#ff8a80">red</b> one a real weakness, compared with the rest of the squad. Most players will not have any: most ratings sit close to the average.</p>',
+      button: 'Show me what stands out', onClose: () => { const d = load(); d['squad-intro'] = true; save(d); second(); },
     });
   };
   FM.coachFormation = function (force) {
@@ -170,7 +172,7 @@
       html: '<p>This is where you decide how the team lines up. The drop-down at the top chooses the formation, for example 4-3-3 or 4-2-2-2: the numbers are the defenders, the midfielders and the forwards, from the back.</p>' +
         '<p>To change who plays where, <b>drag one player onto another</b> and they swap places. A shirt dropped anywhere else springs back.</p>' +
         '<p>The bench is on the right. Click a substitute, then click the shirt he should replace.</p>' +
-        '<p>Think back to the squad list: put your quick players where pace matters, and give the slow ones some protection. Every page after this builds from this shape, so it is worth taking your time.</p>',
+        '<p>Remember what the squad list showed: quick players are most useful where pace matters, and slower ones need protecting. Everything on the pages that follow is built from this shape.</p>',
       button: 'Got it',
     });
   };
