@@ -170,8 +170,7 @@
     return `<div class="two">
       <div class="card"><h2>Five strengths</h2>${list(ins.strengths, 'There is not enough recorded for this match to say.')}</div>
       <div class="card"><h2>Five weaknesses</h2>${list(ins.weaknesses, 'There is not enough recorded for this match to say.')}</div>
-    </div>
-    <p class="note">Strengths and weaknesses compare you with this opposition in this one match. One match is a small sample, so treat them as a place to look next.</p>`;
+    </div>`;
   }
 
   // ---------- advice for the next game ----------
@@ -233,7 +232,6 @@
           <label>Match
             <select id="anMatch">${fxs.map((f) => { const fh = FM.teamById(league, f.homeId), fa = FM.teamById(league, f.awayId); return `<option value="${f.id}"${f.id === fx.id ? ' selected' : ''}>Round ${f.round + 1}: ${esc(fh.name)} ${f.hg}-${f.ag} ${esc(fa.name)}</option>`; }).join('')}</select>
           </label>
-          <p class="note">Everything here comes from one match, a single sample. Over the season you will have fourteen, and what holds across them is what you can trust.</p>
         </div>
         ${insightsHtml(league, fx)}
         ${pagesHtml(league, fx)}

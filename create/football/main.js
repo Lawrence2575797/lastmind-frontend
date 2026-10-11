@@ -1455,7 +1455,8 @@
     if (cond === 'always' && kick) cond = 'opp_mid';
     const block = { opp_high: 1, opp_mid: 1, opp_low: 1 }[cond];
     const special = block || cond === 'opp_direct' || cond === 'opp_short';
-    if (!special && !kick) return cells;
+    const finalThird = base === 'final';
+    if (!special && !kick && !finalThird) return cells;
     const ck = sc.opp.id + '|' + OPP_PHASE[base] + '|' + cond + '|' + (kick ? 'k' : '');
     const hit = shapeCache.get(ck);
     if (hit && hit.src === cells) return hit.out;
@@ -1474,6 +1475,13 @@
       }
       out[k] = Object.assign({}, c, { d: cl(d), w: Math.max(0.03, Math.min(0.97, w)) });
     });
+    if (finalThird) {
+      // we are attacking their goal: their back line sits on the edge of their own penalty area (it ends 0.157 of the pitch from their goal
+      // line) and the rest of the team stands compact in front of it, as a defence does in reality
+      const low = Math.min.apply(null, outfield.map((k) => out[k].d));
+      const edge = cond === 'opp_high' ? 0.2 : 0.175;
+      outfield.forEach((k) => { out[k].d = Math.max(0.02, Math.min(0.97, edge + (out[k].d - low) * 0.75)); });
+    }
     if (kick) {
       // goal kick: nobody in the penalty area, and even a high press stands on its edge (the area ends 0.157 of the pitch from our goal line)
       const cap = cond === 'opp_high' ? 0.72 : cond === 'opp_low' ? 0.46 : 0.58;
