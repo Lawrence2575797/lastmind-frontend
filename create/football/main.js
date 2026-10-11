@@ -795,7 +795,7 @@
     const startBox = (n) => (starts[n].locked ? '<div class="bp bp-spacer"></div>' : box(n));
     const loneStart = starts.length === 1 && ends.length >= 2;
     let html;
-    if (!starts.length) html = ends.length === 1 ? row(fig(ends, 0).concat([box(0)])) : row(fig(ends, 0), 'ends-row') + row(ends.map((e, i) => box(i)));
+    if (!starts.length) html = ends.length === 1 ? row(fig(ends, 0), 'solo') + row([box(0)], 'solo') : row(fig(ends, 0), 'ends-row') + row(ends.map((e, i) => box(i)));
     else if (starts.length === 1 && ends.length === 1) html = row(fig(all, 0), 'linked') + row([startBox(0), box(1)]);
     else if (loneStart) html = row(fig(starts, 0).concat(starts[0].locked ? [] : [box(0)])) + row(fig(ends, 1), 'ends-row') + row(ends.map((e, i) => box(1 + i)));
     else html = row(fig(starts, 0)) + (starts.some((s) => !s.locked) ? row(starts.map((s, i) => startBox(i))) : '') + row(fig(ends, starts.length), 'ends-row') + row(ends.map((e, i) => box(starts.length + i)));
@@ -837,7 +837,7 @@
       });
       scn.insertAdjacentHTML('beforeend', `<svg class="scn-arrows" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">${svg}</svg>`);
     };
-    const draw = () => { if (!host.isConnected) return; all.forEach((f, n) => drawBoard(host.querySelector('#board' + n), team, f.key, { locked: f.locked, fit: true })); drawArrows(); };
+    const draw = () => { if (!host.isConnected) return; all.forEach((f, n) => drawBoard(host.querySelector('#board' + n), team, f.key, { locked: f.locked, fit: true, big: !starts.length && ends.length === 1 })); drawArrows(); };
     draw();
     // The instruction box under one diagram. It is drawn again when a page is renamed, so its title follows the name as it is typed.
     const renderBox = (n) => {
@@ -1182,9 +1182,9 @@
   const bpt = (pos) => ({ x: pos.w * BW, y: (1 - pos.d) * BH });
   // Width (in drawing units) that makes the board exactly fill its column: the picture is limited in height by the page (max-height in
   // the stylesheet), so its width follows from the column width over that height.
-  function fitBoardWidth(host) {
+  function fitBoardWidth(host, big) {
     const w = host.clientWidth || host.parentElement && host.parentElement.clientWidth || 0;
-    const maxH = Math.min(0.72 * window.innerHeight, 860);
+    const maxH = big ? Math.min(0.92 * window.innerHeight, 1000) : Math.min(0.72 * window.innerHeight, 860);
     if (!w || !maxH) return 68 * BS;
     const ratio = Math.max(0.633, Math.min(1.5, w / maxH));    // drawing width over drawing height, within the pitch's own sensible range
     return Math.round(ratio * (BH + 92) - 48);
@@ -1309,7 +1309,7 @@
   }
   function drawBoard(host, team, key, opts) {
     const locked = !!(opts && opts.locked);
-    BW = opts && opts.fit ? fitBoardWidth(host) : 68 * BS; SX = BW / 68;
+    BW = opts && opts.fit ? fitBoardWidth(host, opts.big) : 68 * BS; SX = BW / 68;
     const selected = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
     const posOf = (p) => (key === 'shape' ? FM.slotBase(team, p) : FM.phasePos(team, p, key));
     let ghosts = '';
