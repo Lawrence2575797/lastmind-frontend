@@ -303,6 +303,8 @@
   .scn-col { display: grid; gap: 14px; align-content: start; min-width: 0; }
   .scn-add-above { margin: 0 0 8px; } .scn-add-above button { padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,.06); color: var(--cream); font-weight: 700; cursor: pointer; }
   @media (max-width: 900px) { .scn .board-pair.cols { grid-template-columns: minmax(0, 1fr); } }
+  /* the replay of a test: three quarters of the width of the results, centred */
+  .lab-results #elReplay { width: 75%; margin: 0 auto; } @media (max-width: 700px) { .lab-results #elReplay { width: 100%; } }
   .scn-del-hold { visibility: hidden; } .bp-instr { align-self: start; } .bp-instr .in-wrap { margin-top: 0; } .bp-instr .in-add textarea { min-height: 64px; max-height: none; resize: none; overflow: hidden; } .bp-spacer { display: none; } .scn-shape { margin: 6px 0 0; font-size: .8rem; color: var(--gold); } .scn-head { min-height: 74px; align-items: end; flex-wrap: nowrap; } .scn-head label { flex: 1 1 0; min-width: 0; } .scn-head label input, .scn-head label select { width: 100%; box-sizing: border-box; } .scn-head button { flex: none; white-space: nowrap; } .scn-head select, .scn-head .scn-label { min-width: 0; max-width: 100%; }
   .scn-head input:disabled, .scn-head select:disabled { opacity: .6; }
   .scn-head input, .scn-head select { height: 42px; box-sizing: border-box; margin: 0; }
@@ -801,7 +803,7 @@
 <script src="/create/football/scout.js?v=20261010c"></script>
 <script src="/create/football/instructions_ui.js?v=20261013a"></script>
 <script src="/create/football/lab_replay.js?v=20261010c"></script>
-<script src="/create/football/lab_results.js?v=20261013a"></script>
+<script src="/create/football/lab_results.js?v=20261015e"></script>
 <script src="/create/football/main.js?v=20261015d"></script>
 </body>
 </html>
