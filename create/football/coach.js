@@ -151,12 +151,14 @@
   // The first thing in a new season: who she is and what happens next, in the middle of the page.
   FM.coach.welcome = function (onContinue) {
     css(); FM.coach.close();
+    const nm = FM.userNameNow ? FM.userNameNow() : '';
     const back = document.createElement('div');
     back.className = 'coach-back';
     back.innerHTML = '<aside class="coach-card" role="dialog" aria-label="Elena Marsh"><div class="coach-head"><img alt="" src="' + FACE + '"><div><b>Elena Marsh</b><small>Performance analyst</small></div></div>' +
-      '<h3>Welcome to the club</h3>' +
-      '<p>Hello, I am Elena Marsh, the club’s performance analyst. Before every match I will go through the numbers with you: what they say, how to read them, and what to do about them.</p>' +
-      '<p>We start with the squad. Every player has a set of ratings, and the first job is to make sense of them.</p>' +
+      '<h3>' + (nm ? 'Welcome to the club, ' + esc(nm) + '!' : 'Welcome to the club!') + '</h3>' +
+      '<p>I am Elena Marsh, the club’s performance analyst, and I could not be happier that you are the one in charge.</p>' +
+      '<p>Before every match we will go through the numbers together: what they say, how to read them, and what to do about them.</p>' +
+      '<p>This is going to be a great season. Let’s start with the squad: every player has a set of ratings, and the first job is to make sense of them.</p>' +
       '<button type="button" class="coach-go">Continue to squad</button></aside>';
     document.body.appendChild(back); current = back;
     back.querySelector('.coach-go').addEventListener('click', () => { FM.coach.close(); if (onContinue) onContinue(); });
@@ -201,7 +203,7 @@
   FM.coachFormation = function (force) {
     FM.coach.show('formation-intro' + (force ? '-again' : ''), {
       force: !!force, title: 'Choosing your formation',
-      html: '<p>This is where you decide how the team lines up. The drop-down at the top chooses the formation, for example 4-3-3 or 4-2-2-2: the numbers are the defenders, the midfielders and the forwards, from the back.</p>' +
+      html: '<p>' + (FM.userNameNow && FM.userNameNow() ? 'Now for the big decision, ' + esc(FM.userNameNow()) + '. ' : '') + 'This is where you decide how the team lines up. The drop-down at the top chooses the formation, for example 4-3-3 or 4-2-2-2: the numbers are the defenders, the midfielders and the forwards, from the back.</p>' +
         '<p>To change who plays where, <b>drag one player onto another</b> and they swap places. A shirt dropped anywhere else springs back.</p>' +
         '<p>The bench is on the right. Click a substitute and the shirt he should replace, in either order.</p>' +
         '<p>Remember what the squad list showed: quick players are most useful where pace matters, and slower ones need protecting. Everything on the pages that follow is built from this shape.</p>',

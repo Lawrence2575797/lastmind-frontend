@@ -191,7 +191,8 @@
   // The squad page: descriptive statistics, worked through on the players' own numbers.
   N.hub = (c) => {
     const team = c.team, e = hubExample(team); FM.elenaExample = e;
-    let h = P('That is a lot to take in at once, isn\'t it?') +
+    const nm = FM.userNameNow ? FM.userNameNow() : '';
+    let h = P((nm ? esc(nm) + ', that' : 'That') + ' is a lot to take in at once, isn\'t it?') + P('Do not worry. This is exactly what the next few minutes are for.') +
       P('That is why statisticians use ' + kw('descriptive', 'descriptive statistics') + '. They organise and summarise a dataset, and it is worth going through some now.');
     if (e) {
       const s = e.s;
