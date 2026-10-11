@@ -506,6 +506,8 @@
     el.addEventListener('click', (e) => {
       const t = e.target.closest('button'); if (!t) return;
       if (t.classList.contains('x')) return setOpen(false);
+      if (t.dataset.guide && FM.guide) { FM.guide.start(t.dataset.guide); return; }
+      if (t.dataset.explain && FM.guideFor) { const gid = FM.guideFor(t.dataset.explain, pageKeyOf(E.ctx)); if (gid && FM.guide) { FM.guide.start(gid); return; } }
       if (t.dataset.explain) { if (E.explain && E.explain !== t.dataset.explain) (E.trail = E.trail || []).push(E.explain); E.explain = t.dataset.explain; paint(); const bd = el.querySelector('.el-body'); if (bd) bd.scrollTop = 0; return; }
       if (t.dataset.backNote != null) { E.explain = (E.trail && E.trail.length) ? E.trail.pop() : null; paint(); const bd = el.querySelector('.el-body'); if (bd) bd.scrollTop = 0; return; }
       if (t.dataset.t) { E.tab = t.dataset.t; if (E.tab === 'lessons') E.lesson = null; return paint(); }
@@ -536,7 +538,7 @@
     lessons: LESSONS,
     openLesson,
     sync(ctx) {
-      css(); const pk = pageKeyOf(ctx); const newPage = E.pageKey !== pk; E.pageKey = pk; if (newPage) { E.explain = null; E.trail = []; }
+      css(); const pk = pageKeyOf(ctx); const newPage = E.pageKey !== pk; E.pageKey = pk; if (newPage) { E.explain = null; E.trail = []; if (FM.guide && FM.guide.active) FM.guide.stop(false, true); }
       ctx.runs = ctx.runs || []; if (ctx.mode === 'tactics' && ctx.stage && !ctx.instrStage) ctx.instrStage = ctx.stage; const fresh = !E.ctx || E.ctx.runs.length !== ctx.runs.length || E.ctx.mode !== ctx.mode; E.ctx = ctx; if (fresh) E.tab = 'read';
       if (!E.btn || !E.btn.isConnected) {
         E.btn = document.createElement('button'); E.btn.type = 'button'; E.btn.className = 'el-tab'; E.btn.setAttribute('aria-expanded', 'false'); E.btn.setAttribute('aria-label', 'Open Elena Marsh, performance analyst');
