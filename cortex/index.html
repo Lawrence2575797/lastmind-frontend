@@ -2189,7 +2189,13 @@ SQIDAQAB
         });
     }
 
+    // Building a topic map and generating lessons from a typed topic is switched off. All of the code below is kept, but nothing can reach
+    // it: every way in (typed requests, suggestion chips, the assistant's own hand-off) goes through startTopicLearnFlow or
+    // startTopicTeachSequence, and both return straight away while this is false.
+    const LESSON_GENERATION_ENABLED = false;
+    const LESSON_GENERATION_OFF_MESSAGE = "I can't build lessons from a topic here. The lessons are in your subjects on the Learn page - and I'm happy to answer questions or talk something through.";
     async function startTopicTeachSequence(state) {
+        if (!LESSON_GENERATION_ENABLED) { appendAssistantMessage(LESSON_GENERATION_OFF_MESSAGE); return; }
         // Put the lesson card on screen before the first network request.
         // sendChatMessage hands off to this function by removing its generic
         // thinking bubble, so waiting until after refreshTopicNodeCompletion
@@ -2269,6 +2275,7 @@ SQIDAQAB
     // suggestion chips below, both of which already have the topic text in
     // hand rather than reading it back out of #chatInput.
     async function startTopicLearnFlow(topic) {
+        if (!LESSON_GENERATION_ENABLED) { appendAssistantMessage(LESSON_GENERATION_OFF_MESSAGE); return; }
         const card = appendCardMessage(`
             <div class="topic-loading-wrap">
                 ${TOPIC_LOADING_WIRES_SVG}
@@ -2717,8 +2724,8 @@ SQIDAQAB
         input.value = '';
         input.style.height = 'auto';
         appendUserMessage(text);
-        const directTeachTopic = detectTeachMeTopic(text);
-        const looksLikeLessonRequest = !!directTeachTopic || detectStartLessonsIntent(text) || /\b(?:generate|build|make|create|start|begin)\b[^.!?]{0,45}\blesson\b/i.test(text);
+        const directTeachTopic = LESSON_GENERATION_ENABLED ? detectTeachMeTopic(text) : null;
+        const looksLikeLessonRequest = LESSON_GENERATION_ENABLED && (!!directTeachTopic || detectStartLessonsIntent(text) || /\b(?:generate|build|make|create|start|begin)\b[^.!?]{0,45}\blesson\b/i.test(text));
         const thinkingEl = appendAssistantMessage('');
         const stopThinking = startAssistantWorking(thinkingEl, looksLikeLessonRequest ? [
             'LastMind received your lesson request…',
@@ -2849,7 +2856,7 @@ SQIDAQAB
         // topicComputeTeachSet always recomputes fresh, so this is safe to
         // call again even after some lessons are already done or the exact
         // continuation window was already missed/dismissed earlier.
-        if (detectStartLessonsIntent(text)) {
+        if (LESSON_GENERATION_ENABLED && detectStartLessonsIntent(text)) {
             dropThinking();
             chatHistory.push({ role: 'user', content: text });
             saveChatHistory();
