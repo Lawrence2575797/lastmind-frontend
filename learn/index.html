@@ -4285,6 +4285,10 @@
     .nb-text.nb-frame-open > .nb-resize, .nb-diagram:hover > .nb-resize { opacity: 1; }
 
     .nb-diagram { background: var(--panel, #12121E); color: var(--text, #E6D7B0); border-radius: 10px; padding: 0 0 8px; --text: #E6D7B0; --accent: #E6D7B0; border: 1px solid rgba(230, 215, 176, 0.3); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35); }
+    .nb-image { background: var(--panel, #12121E); border-radius: 10px; padding: 0 0 6px; border: 1px solid rgba(230, 215, 176, 0.3); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35); }
+    .nb-image img { display: block; width: 100%; height: auto; border-radius: 0 0 8px 8px; user-select: none; -webkit-user-drag: none; }
+    .nb-img-missing { margin: 0; padding: 18px 14px; opacity: .8; font-size: .9rem; }
+    .nb-drop-over { outline: 3px dashed rgba(230, 215, 176, .8); outline-offset: -6px; }
     .nb-dbar { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-bottom: 1px solid rgba(230, 215, 176, 0.18); }
     .nb-dbar .nb-grip { position: static; display: flex; flex: 1; justify-content: flex-start; width: auto; height: 26px; padding: 0 8px; background: transparent; color: var(--text); font-size: 13px; font-weight: 700; gap: 6px; }
     .nb-lines-btn { font: inherit; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 8px; cursor: pointer; background: transparent; color: var(--text); border: 1.5px solid rgba(230, 215, 176, 0.4); }
@@ -22152,6 +22156,138 @@ SQIDAQAB
         return el;
     }
 
+    // ----- pictures on a Notes page
+    // A picture is kept in this browser's own database (IndexedDB), not inside the page's saved text, so a page with several screenshots stays
+    // small and quick to save. The block only holds the key. Pictures are shrunk first so a full-screen screenshot is a few hundred kilobytes.
+    const nbImgMem = new Map();
+    let nbImgDbPromise = null;
+    function nbImgDb() {
+        if (!window.indexedDB) return Promise.resolve(null);
+        if (!nbImgDbPromise) nbImgDbPromise = new Promise((resolve) => {
+            const req = indexedDB.open('lastmind-notes-images', 1);
+            req.onupgradeneeded = () => { if (!req.result.objectStoreNames.contains('images')) req.result.createObjectStore('images'); };
+            req.onsuccess = () => resolve(req.result); req.onerror = () => resolve(null);
+        });
+        return nbImgDbPromise;
+    }
+    async function nbImgSave(id, dataUrl) {
+        nbImgMem.set(id, dataUrl);
+        const db = await nbImgDb(); if (!db) return false;
+        return new Promise((resolve) => { try { const tx = db.transaction('images', 'readwrite'); tx.objectStore('images').put(dataUrl, id); tx.oncomplete = () => resolve(true); tx.onerror = () => resolve(false); } catch (e) { resolve(false); } });
+    }
+    async function nbImgLoad(id, inline) {
+        if (inline) return inline;
+        if (nbImgMem.has(id)) return nbImgMem.get(id);
+        const db = await nbImgDb(); if (!db) return null;
+        return new Promise((resolve) => { try { const r = db.transaction('images').objectStore('images').get(id); r.onsuccess = () => { if (r.result) nbImgMem.set(id, r.result); resolve(r.result || null); }; r.onerror = () => resolve(null); } catch (e) { resolve(null); } });
+    }
+    // The picture, scaled so its longer side is at most 1600 pixels. Returns { url, w, h }.
+    async function nbShrinkImage(blob) {
+        const bitmap = await (window.createImageBitmap ? createImageBitmap(blob) : new Promise((resolve, reject) => { const i = new Image(); i.onload = () => resolve(i); i.onerror = reject; i.src = URL.createObjectURL(blob); }));
+        const sw = bitmap.width || bitmap.naturalWidth, sh = bitmap.height || bitmap.naturalHeight;
+        const k = Math.min(1, 1600 / Math.max(sw, sh));
+        const w = Math.max(1, Math.round(sw * k)), h = Math.max(1, Math.round(sh * k));
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        const ctx = c.getContext('2d'); ctx.drawImage(bitmap, 0, 0, w, h);
+        const png = blob.type === 'image/png' && blob.size < 700000;
+        return { url: c.toDataURL(png ? 'image/png' : 'image/jpeg', 0.88), w, h };
+    }
+    async function nbAddImageBlock(page, canvas, blob) {
+        if (!blob || !/^image\//.test(blob.type || '')) return null;
+        let shrunk;
+        try { shrunk = await nbShrinkImage(blob); } catch (e) { notesStatus('That picture could not be read'); return null; }
+        const imgId = 'i' + notesNewId();
+        const saved = await nbImgSave(imgId, shrunk.url);
+        let bottom = 0; canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
+        const x = canvas.clientWidth < 520 ? 44 : 72;
+        const block = { id: notesNewId(), type: 'image', x, y: bottom ? bottom + 24 : 24, w: Math.max(160, Math.min(shrunk.w, 560, canvas.clientWidth - x - 24)), img: imgId };
+        if (!saved) block.src = shrunk.url;   // no browser database: the picture is kept in the page itself
+        page.doc.blocks.push(block);
+        nbToggleHint(canvas, page);
+        const el = nbMakeImageBlock(page, block, canvas);
+        nbFitCanvas(canvas); notesScheduleSave();
+        if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        return el;
+    }
+    function nbMakeImageBlock(page, block, canvas) {
+        const el = document.createElement('div');
+        el.className = 'nb-block nb-image'; el.dataset.id = block.id;
+        el.innerHTML = `<div class="nb-dbar"><span class="nb-grip nb-igrip" title="Drag to move" role="button" aria-label="Drag to move this picture">⠿ Picture</span><button type="button" class="nb-del nb-del-inline" aria-label="Delete this picture" title="Delete">×</button></div><div class="nb-imgwrap"><img alt="Picture added to this page" draggable="false"></div><div class="nb-resize" title="Drag to resize"></div>`;
+        canvas.appendChild(el);
+        nbPlace(el, block, canvas);
+        const img = el.querySelector('img'), wrap = el.querySelector('.nb-imgwrap');
+        nbImgLoad(block.img, block.src).then((url) => {
+            if (!el.isConnected) return;
+            if (url) img.src = url; else wrap.innerHTML = '<p class="nb-img-missing">This picture is saved on another device and is not available here.</p>';
+            img.addEventListener('load', () => nbFitCanvas(canvas), { once: true });
+            nbFitCanvas(canvas);
+        });
+        nbWireDrag(el.querySelector('.nb-igrip'), el, block, canvas);
+        nbWireResize(el.querySelector('.nb-resize'), el, block, canvas); nbWireCorners(el, block, canvas);
+        const delBtn = el.querySelector('.nb-del'); let armed = null;
+        delBtn.addEventListener('click', () => {
+            if (armed) { clearTimeout(armed); nbRemoveBlock(page, block, el, canvas); return; }
+            delBtn.textContent = 'Sure?'; delBtn.style.width = 'auto'; delBtn.style.padding = '0 8px';
+            armed = setTimeout(() => { armed = null; delBtn.textContent = '×'; delBtn.style.width = ''; delBtn.style.padding = ''; }, 3000);
+        });
+        return el;
+    }
+    // One screenshot of a screen, window or tab, chosen in the browser's own picker.
+    async function nbCaptureScreen() {
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        try {
+            const video = document.createElement('video');
+            video.srcObject = stream; video.muted = true; video.playsInline = true;
+            await video.play();
+            await new Promise((r) => setTimeout(r, 350));   // let a real frame arrive
+            const c = document.createElement('canvas'); c.width = video.videoWidth; c.height = video.videoHeight;
+            c.getContext('2d').drawImage(video, 0, 0);
+            return await new Promise((resolve) => c.toBlob(resolve, 'image/png'));
+        } finally { stream.getTracks().forEach((t) => t.stop()); }
+    }
+    let nbPasteHandler = null;
+    function nbMountImages(page, canvas) {
+        const add = async (files) => {
+            const list = Array.from(files || []).filter((f) => /^image\//.test(f.type || ''));
+            for (const f of list) await nbAddImageBlock(page, canvas, f);
+            return list.length;
+        };
+        const fileInput = document.getElementById('nbImageFile');
+        document.getElementById('nbAddImage').addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', async () => { await add(fileInput.files); fileInput.value = ''; });
+        const shot = document.getElementById('nbAddScreenshot');
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) shot.hidden = true;
+        shot.addEventListener('click', async () => {
+            try {
+                const blob = await nbCaptureScreen();
+                if (blob) { await nbAddImageBlock(page, canvas, blob); notesStatus('Screenshot added'); }
+            } catch (e) { if (!e || e.name !== 'NotAllowedError') notesStatus('The screenshot could not be taken'); }
+        });
+        // Paste: a picture on the clipboard (a screenshot, or "copy image") goes onto the page. Text on the clipboard is left to the box it is
+        // pasted into. Boxes elsewhere (the assistant, the title) keep their own paste.
+        if (nbPasteHandler) document.removeEventListener('paste', nbPasteHandler, true);
+        nbPasteHandler = (e) => {
+            if (!canvas.isConnected) return;
+            const t = e.target, tag = t && t.tagName;
+            if (t && ((tag === 'INPUT' || tag === 'TEXTAREA') || (t.closest && t.closest('.nb-assist, .nb-sr-modal, .nb-sr-pop, #nbTitle')))) return;
+            const cd = e.clipboardData; if (!cd) return;
+            const files = Array.from(cd.files || []).filter((f) => /^image\//.test(f.type || ''));
+            if (!files.length) return;
+            if (cd.getData && cd.getData('text/plain').trim()) return;
+            e.preventDefault();
+            add(files);
+        };
+        document.addEventListener('paste', nbPasteHandler, true);
+        // Drop: pictures dragged from the desktop or another page.
+        canvas.addEventListener('dragover', (e) => { if (e.dataTransfer && Array.from(e.dataTransfer.types || []).indexOf('Files') >= 0) { e.preventDefault(); canvas.classList.add('nb-drop-over'); } });
+        canvas.addEventListener('dragleave', () => canvas.classList.remove('nb-drop-over'));
+        canvas.addEventListener('drop', (e) => {
+            canvas.classList.remove('nb-drop-over');
+            const files = e.dataTransfer && Array.from(e.dataTransfer.files || []).filter((f) => /^image\//.test(f.type || ''));
+            if (files && files.length) { e.preventDefault(); add(files); }
+        });
+    }
+
     function nbMakeDiagramBlock(page, block, canvas) {
         const el = document.createElement('div');
         el.className = 'nb-block nb-diagram'; el.dataset.id = block.id;
@@ -22756,6 +22892,9 @@ SQIDAQAB
                     <button type="button" class="nb-tool nb-tool-strong" id="nbAddGraph" title="Add coordinate graph (Ctrl+Alt+G)">+ Graph</button>
                     <button type="button" class="nb-tool" id="nbAddTable">+ Table</button>
                     <button type="button" class="nb-tool" id="nbAddDiagram">+ Economics diagram</button>
+                    <button type="button" class="nb-tool" id="nbAddImage" title="Add a picture from your device (you can also paste or drop one onto the page)">+ Image</button>
+                    <button type="button" class="nb-tool" id="nbAddScreenshot" title="Take a screenshot of a screen, window or tab and add it to the page">Screenshot</button>
+                    <input type="file" id="nbImageFile" accept="image/*" multiple hidden>
                     <button type="button" class="nb-tool" id="nbShortcuts">Shortcuts</button>
                 </div>
                 <div class="nb-canvas" id="nbCanvas"></div>
@@ -22777,7 +22916,7 @@ SQIDAQAB
             refitWidth = cw;
             canvas.style.setProperty('--nb-margin', (cw < 520 ? 28 : cw < 760 ? 40 : 56) + 'px');
             if (page.kind === 'problemset' && page.ps && page.ps.done) { psRelayout(page, canvas); }
-            else page.doc.blocks.forEach((b) => { const el = canvas.querySelector('.nb-block[data-id="' + b.id + '"]'); if (el && (b.type === 'text' || b.type === 'table' || b.type === 'diagram' || b.type === 'graph')) nbPlace(el, b, canvas); });
+            else page.doc.blocks.forEach((b) => { const el = canvas.querySelector('.nb-block[data-id="' + b.id + '"]'); if (el && (b.type === 'text' || b.type === 'table' || b.type === 'diagram' || b.type === 'graph' || b.type === 'image')) nbPlace(el, b, canvas); });
             nbClampBlocksToCanvas(canvas); nbFitCanvas(canvas);
         };
         if (typeof ResizeObserver === 'function') new ResizeObserver(() => { clearTimeout(refitTimer); refitTimer = setTimeout(refit, 80); }).observe(canvas);
@@ -22807,7 +22946,7 @@ SQIDAQAB
             if (flowed) notesScheduleSave();
         });
         page.doc = page.doc && Array.isArray(page.doc.blocks) ? page.doc : { blocks: [] };
-        page.doc.blocks.forEach((b) => { if (b.type === 'diagram') nbMakeDiagramBlock(page, b, canvas); else if (b.type === 'graph') nbMakeGraphBlock(page, b, canvas); else if (b.type === 'table') nbMakeTableBlock(page, b, canvas, false); else if (b.type === 'mark') psMakeMarkBlock(page, b, canvas); else if (b.type === 'rule') psMakeRuleBlock(page, b, canvas); else if (b.type === 'total') psMakeTotalBlock(page, b, canvas); else nbMakeTextBlock(page, b, canvas, false); });
+        page.doc.blocks.forEach((b) => { if (b.type === 'diagram') nbMakeDiagramBlock(page, b, canvas); else if (b.type === 'graph') nbMakeGraphBlock(page, b, canvas); else if (b.type === 'table') nbMakeTableBlock(page, b, canvas, false); else if (b.type === 'mark') psMakeMarkBlock(page, b, canvas); else if (b.type === 'rule') psMakeRuleBlock(page, b, canvas); else if (b.type === 'total') psMakeTotalBlock(page, b, canvas); else if (b.type === 'image') nbMakeImageBlock(page, b, canvas); else nbMakeTextBlock(page, b, canvas, false); });
         nbToggleHint(canvas, page); nbFitCanvas(canvas);
         // The sheet has a margin line. A click on or near it starts the text a fixed, comfortable distance to its right; a click anywhere
         // else starts the text exactly where you clicked.
@@ -22926,6 +23065,7 @@ SQIDAQAB
         document.getElementById('nbTableCancel').addEventListener('click', closeTablePicker);
         tablePicker.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); addTable(document.getElementById('nbTableRows').value, document.getElementById('nbTableCols').value); } else if (event.key === 'Escape') closeTablePicker(); });
         nbAssistMount(page); nbSrMount(page); nbHistoryMount(page);
+        nbMountImages(page, canvas);
         const addGraph = () => {
             let bottom = 0; canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
             const block = { id: notesNewId(), type: 'graph', x: 24, y: bottom ? bottom + 24 : 24, w: Math.min(700, Math.max(300, canvas.clientWidth - 48)), state: { mode: '2d', expression2d: '', expression3d: '', min: -10, max: 10 } };
