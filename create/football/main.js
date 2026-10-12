@@ -537,9 +537,9 @@
   el('injuryTen').addEventListener('click', () => { if (world.match) FM.resolveInjury(world.match); });
 
   // ---------- views and navigation ----------
-  const VIEWS = ['home', 'league', 'squad', 'analysis', 'reports', 'news', 'preview', 'match'];
+  const VIEWS = ['home', 'league', 'squad', 'recruit', 'analysis', 'reports', 'news', 'preview', 'match'];
   const NAV = [];
-  const SCREEN_TITLES = { home: 'Club overview', league: 'League centre', squad: 'First-team squad', reports: 'Opposition intelligence', news: 'Football world', analysis: 'Performance analysis', preview: 'Match preview' };
+  const SCREEN_TITLES = { home: 'Club overview', league: 'League centre', squad: 'First-team squad', recruit: 'Recruitment', reports: 'Opposition intelligence', news: 'Football world', analysis: 'Performance analysis', preview: 'Match preview' };
   // Lets another page (the Analysis Centre) open one of the tactics pages.
   // "Take me there" from another screen: a button stays on the tactics page that returns to the same place on the screen it came from.
   let backBtn = null;
@@ -575,6 +575,7 @@
     if (v === 'home') renderHome();
     else if (v === 'league') renderLeague();
     else if (v === 'squad') renderSquad();
+    else if (v === 'recruit') FM.renderRecruit(el('view-recruit'), world.league, { save: saveSoon, openSquad: () => setView('squad') });
     else if (v === 'analysis') FM.renderAnalysis(el('view-analysis'), world.league);
     else if (v === 'reports') FM.renderReports(el('view-reports'), world.league);
     else if (v === 'news') FM.renderNews(el('view-news'), world.league);
@@ -613,6 +614,7 @@
     host.innerHTML = `<span class="hint" style="color:inherit;opacity:0.8">${esc(FM.dayLabel(lg.day))}</span>
       <button data-top="home" class="${world.view === 'home' ? 'on' : ''}">Home</button>
       <button data-top="squad" class="${world.view === 'squad' ? 'on' : ''}">Squad</button>
+      <button data-top="recruit" class="${world.view === 'recruit' ? 'on' : ''}">Recruitment</button>
       <button data-top="news" class="${world.view === 'news' ? 'on' : ''}">News</button>
       <button id="newBtn" title="Abandon this season and start again">New game</button>`;
     host.querySelectorAll('[data-top]').forEach((b) => b.addEventListener('click', () => setView(b.dataset.top)));
@@ -752,6 +754,7 @@
     }));
     return marks;
   }
+  FM.squadMarks = squadMarks;
   function renderSquad() {
     const team = userTeam(), host = el('view-squad');
     const onPitch = team.players.slice().sort((a, b) => a.index - b.index);

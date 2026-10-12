@@ -692,6 +692,48 @@
     .board-pair .row button { width: 100%; }
   }
   .take-back { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 400; padding: 12px 22px; border-radius: 999px; border: 0; background: var(--gold); color: #0b1a14; font: 700 .95rem/1 inherit; box-shadow: 0 6px 22px rgba(0,0,0,.45); cursor: pointer; }
+
+  /* recruitment and the news pages */
+  .rc-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; }
+  @media (max-width: 1100px) { .rc-wrap { grid-template-columns: 1fr; } }
+  .rc-money { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: .9rem; opacity: .9; }
+  .rc-tabs { display: flex; gap: 8px; margin: 10px 0 12px; flex-wrap: wrap; }
+  .rc-tabs button.on { background: var(--gold, #E6D7B0); color: #1A232D; }
+  .rc-filters { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; margin: 8px 0 10px; }
+  .rc-filters label { display: grid; gap: 3px; font-size: .78rem; opacity: .9; }
+  .rc-filters input[type=number] { width: 84px; } .rc-filters .rc-check { display: flex; align-items: center; gap: 6px; }
+  .rc-club { display: flex; align-items: center; gap: 4px; }
+  .rc-table { max-height: 560px; overflow: auto; } .rc-table tr.sel td { background: rgba(230,215,176,.16); } .rc-table tr[data-open] { cursor: pointer; }
+  .rc-chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: .74rem; font-weight: 700; background: rgba(230,215,176,.18); }
+  .rc-chip.st-fee_agreed, .rc-chip.st-signed { background: rgba(80,180,110,.3); } .rc-chip.st-bid_rejected, .rc-chip.st-collapsed { background: rgba(214,80,70,.3); } .rc-chip.st-counter, .rc-chip.st-wage_talks { background: rgba(230,180,60,.3); }
+  .rc-side .card { display: grid; gap: 10px; }
+  .rc-head { display: flex; gap: 12px; align-items: flex-start; } .rc-head h3 { margin: 2px 0; }
+  .rc-portrait { flex: none; width: 92px; height: 116px; border-radius: 10px; overflow: hidden; background: rgba(255,255,255,.08); display: grid; place-items: center; }
+  .rc-portrait img, .rc-scene img { width: 100%; height: 100%; object-fit: cover; display: block; } .rc-portrait .fallback { font-size: 1.6rem; font-weight: 800; opacity: .7; }
+  .rc-scene { border-radius: 10px; overflow: hidden; min-height: 0; background: rgba(255,255,255,.05); } .rc-scene.loading { min-height: 120px; animation: rcPulse 1.2s ease-in-out infinite; }
+  @keyframes rcPulse { 50% { opacity: .55; } } @media (prefers-reduced-motion: reduce) { .rc-scene.loading { animation: none; } }
+  .rc-price { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .88rem; } .rc-reasons { margin: 0; padding-left: 18px; font-size: .85rem; opacity: .9; }
+  .rc-ratings td { padding: 3px 8px; } .rc-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .rc-form { display: grid; gap: 8px; padding: 12px; border-radius: 10px; background: rgba(255,255,255,.06); }
+  .rc-form label { display: grid; gap: 3px; font-size: .82rem; } .rc-msg { margin: 0; font-weight: 700; }
+  .rc-chat { display: grid; gap: 6px; max-height: 190px; overflow: auto; } .rc-bubble { padding: 7px 10px; border-radius: 10px; font-size: .86rem; background: rgba(255,255,255,.08); } .rc-bubble small { display: block; opacity: .65; }
+  .rc-bubble.you { background: rgba(230,215,176,.16); }
+  .rc-offer { padding: 12px; border-radius: 10px; background: rgba(255,255,255,.06); margin-bottom: 10px; display: grid; gap: 8px; }
+  .rc-offer-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; } .rc-offer-actions label { display: grid; gap: 3px; font-size: .78rem; } .rc-offer-actions input { width: 90px; }
+  .rc-moves { margin: 0; padding-left: 18px; }
+  .nw-kind { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: .72rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; background: rgba(255,255,255,.12); }
+  .nw-kind.mine { background: var(--gold, #E6D7B0); color: #1A232D; }
+  .nw-lead { text-align: left; display: grid; gap: 6px; padding: 22px 24px; border-radius: 14px; background: linear-gradient(135deg, rgba(230,215,176,.2), rgba(255,255,255,.05)); border: 1px solid rgba(230,215,176,.35); cursor: pointer; color: inherit; }
+  .nw-lead strong { font-size: clamp(1.4rem, 3vw, 2.1rem); line-height: 1.15; } .nw-lead em { opacity: .85; font-style: normal; }
+  .nw-list { display: grid; gap: 8px; } .nw-item { text-align: left; display: grid; gap: 3px; padding: 11px 14px; border-radius: 10px; background: rgba(255,255,255,.06); border: 0; cursor: pointer; color: inherit; }
+  .nw-item:hover, .nw-lead:hover { background: rgba(230,215,176,.16); } .nw-h { font-weight: 800; font-size: 1.02rem; } .nw-d { opacity: .8; font-size: .88rem; }
+  .nw-article { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; align-items: start; } .nw-article > button { grid-column: 1 / -1; justify-self: start; }
+  @media (max-width: 900px) { .nw-article { grid-template-columns: 1fr; } }
+  .nw-article h1 { font-size: clamp(1.7rem, 3.6vw, 2.6rem); line-height: 1.1; margin: 10px 0; } .nw-meta { display: flex; gap: 10px; align-items: center; font-size: .82rem; opacity: .9; }
+  .nw-dek { font-size: 1.15rem; line-height: 1.4; opacity: .92; } .nw-body { font-size: 1.02rem; line-height: 1.65; max-width: 68ch; }
+  .nw-photo { margin: 14px 0; max-width: 460px; } .nw-photo .rc-scene { aspect-ratio: 4 / 5; max-height: 420px; display: grid; place-items: center; } .nw-photo .fallback { font-size: 3rem; font-weight: 800; opacity: .6; }
+  .nw-article blockquote { margin: 14px 0; padding: 4px 0 4px 16px; border-left: 3px solid var(--gold, #E6D7B0); font-size: 1.2rem; font-style: italic; max-width: 60ch; }
+  .nw-more { display: block; width: 100%; text-align: left; margin-bottom: 8px; padding: 9px 11px; border: 0; border-radius: 9px; background: rgba(255,255,255,.06); cursor: pointer; color: inherit; font-size: .88rem; }
 </style>
 </head>
 <body>
@@ -724,6 +766,7 @@
   <section id="view-home" hidden></section>
   <section id="view-league" hidden></section>
   <section id="view-squad" hidden></section>
+  <section id="view-recruit" hidden></section>
   <section id="view-analysis" hidden></section>
   <section id="view-reports" hidden></section>
   <section id="view-news" hidden></section>
@@ -791,7 +834,7 @@
 <script src="/create/football/instructions.js?v=20261010c"></script>
 <script src="/create/football/fitness.js?v=20261010c"></script>
 <script src="/create/football/match.js?v=20261014c"></script>
-<script src="/create/football/league.js?v=20261017a"></script>
+<script src="/create/football/league.js?v=20261019a"></script>
 <script src="/create/football/preseason.js?v=20261010n"></script>
 <script src="/create/football/stats_math.js?v=20261010c"></script>
 <script src="/create/football/stats.js?v=20261013a"></script>
@@ -808,6 +851,8 @@
 <script src="/create/football/instructions_ui.js?v=20261013a"></script>
 <script src="/create/football/lab_replay.js?v=20261010c"></script>
 <script src="/create/football/lab_results.js?v=20261015e"></script>
-<script src="/create/football/main.js?v=20261018a"></script>
+<script src="/create/football/transfers.js?v=20261019a"></script>
+<script src="/create/football/recruit.js?v=20261019b"></script>
+<script src="/create/football/main.js?v=20261019a"></script>
 </body>
 </html>
