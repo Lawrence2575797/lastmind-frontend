@@ -1796,7 +1796,7 @@
   // ---------- starting up ----------
   function showNewGame() {
     document.body.dataset.view = 'new';
-    ['home', 'league', 'squad', 'analysis', 'reports', 'news', 'preview', 'match'].forEach((k) => { el('view-' + k).hidden = true; });
+    VIEWS.forEach((k) => { el('view-' + k).hidden = true; });
     el('tactics').hidden = true; el('nav').hidden = true; el('prepFlow').hidden = true; el('newGame').hidden = false;
     el('topRight').innerHTML = ''; el('subtitle').textContent = 'Eight clubs, one season, and a lot of numbers.';
   }
