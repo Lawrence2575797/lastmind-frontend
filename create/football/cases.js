@@ -157,36 +157,17 @@
   };
   const INSTR_WORD = { depth: 'Get further forward', runs: 'Run in behind often', shoot: 'Shoot less', position: 'Roam from his position', risk: 'Play it safe', tackle: 'Stay on his feet', closeDown: 'Close down more' };
 
-  const STEPS = [
-    { id: 'rate', ask: (c) => `How would you check whether ${c.last}'s ${c.tpl.unit} figure is really below the league's, or whether it is just a bad run?`,
-      options: [
-        { id: 'ci', label: 'Put a confidence interval around his rate', ok: true },
-        { id: 'mean', label: 'Work out his mean and standard deviation per match', why: 'That would tell you how many he attempts and how much that varies, not whether his success rate differs from the league\'s.' },
-        { id: 'corr', label: 'Correlate success with the match date', why: 'That looks for a trend over time. It does not compare his rate with the league average.' },
-        { id: 'sum', label: 'Just compare the two percentages', why: 'A bare comparison cannot say whether the gap is bigger than a bad run produces.' },
-      ] },
-    { id: 'split', ask: (c) => `The rate depends on the situation. Which tool compares success rates between groups, such as ${c.tpl.zone.levels[0].toLowerCase()} against ${c.tpl.zone.levels[2].toLowerCase()}?`,
-      options: [
-        { id: 'chi', label: 'A chi-square test on the groups', ok: true },
-        { id: 'tt', label: 'A t-test on the average of each group', why: 'A t-test compares averages of measured numbers. Here each attempt is a yes or no, so you compare proportions.' },
-        { id: 'pm', label: 'A correlation coefficient', why: 'That measures how two numbers move together. It does not compare success rates between named groups.' },
-        { id: 'rg', label: 'A straight-line regression', why: 'A straight line does not fit a yes-or-no outcome (it can predict more than 100% or less than 0%).' },
-      ] },
-    { id: 'both', ask: (c) => `${c.tpl.zone.label} and ${c.tpl.ctx.label.toLowerCase()} overlap: the better positions tend to come with more support. Which tool separates what each one does by itself?`,
-      options: [
-        { id: 'logit', label: 'Logistic regression with both factors in it', ok: true },
-        { id: 'two', label: 'Two separate chi-square tests', why: 'Each test ignores the other factor, so any effect that is really caused by one shows up in both. That is the confusion you are trying to remove.' },
-        { id: 'avg', label: 'Compare the overall average with the league', why: 'That is where you started. It cannot say what is behind the gap.' },
-        { id: 'pick', label: 'Just pick whichever split looks biggest', why: 'The biggest-looking split can be the one that is only carried by the other factor.' },
-      ] },
-    { id: 'cause', ask: () => 'With both factors taken together, what is actually holding him back?', options: 'dynamic' },
-    { id: 'act', ask: () => 'What will you do about it?', options: 'dynamic' },
+  // The tools the manager can run on his decisions (no questions: each one just does its job and explains what it found).
+  const TOOLS = [
+    { id: 'rate', name: 'Compare him with the league', how: 'A confidence interval around his rate' },
+    { id: 'split', name: 'Break his decisions down by situation', how: 'Success rates by group, with a chi-square test' },
+    { id: 'both', name: 'Separate the two factors', how: 'A logistic regression with both factors in it' },
   ];
 
   FM.caseState = function (league, p) {
     const d = FM.develop(league);
     d.cases = d.cases || {};
-    return (d.cases[p.id] = d.cases[p.id] || { step: 0, wrong: 0, msg: '', choice: null, appliedRound: null, created: Date.now(), key: null });
+    return (d.cases[p.id] = d.cases[p.id] || { ran: {}, choice: null, appliedRound: null, created: Date.now(), key: null });
   };
 
   // ---------- the screen ----------
@@ -232,19 +213,15 @@
       if (id === 'cause') return `<p><b>You decided:</b> ${esc(st.causeText || '')}</p>`;
       return '';
     };
-    for (let i = 0; i < Math.min(st.step, STEPS.length); i++) html += `<div class="dv-step done"><b>✓ ${esc(STEPS[i].ask(c))}</b>${resultOf(STEPS[i].id)}</div>`;
-    if (st.step < STEPS.length) {
-      const s = STEPS[st.step];
-      let opts = s.options;
-      if (opts === 'dynamic') {
-        if (s.id === 'cause') opts = [{ id: 'location', label: `${tpl.zone.label}: his habit of choosing the poorer ones` }, { id: 'execution', label: `${tpl.tech}: it is poor from everywhere` }, { id: 'context', label: `${tpl.ctx.label}: what is around him` }, { id: 'chance', label: 'Nothing: it is just chance' }];
-        else opts = avail.map((k) => ({ id: k, label: tpl.act[k] }));
-        opts = opts.slice().sort((a, b) => hsh(st.created + a.id) - hsh(st.created + b.id));
-      }
-      html += `<div class="dv-step now"><b>${esc(s.ask(c))}</b><div class="dv-opts">${opts.map((o) => `<button type="button" class="dv-opt" data-copt="${esc(o.id)}">${esc(o.label)}</button>`).join('')}</div>${st.msg ? `<p class="dv-wrong">${esc(st.msg)}</p>` : ''}</div>`;
-    } else if (applied) {
+    // the analyses: run in any order, each one shows what it found
+    st.ran = st.ran || {};
+    html += `<div class="dv-tools">${TOOLS.map((t) => `<button type="button" class="dv-tool${st.ran[t.id] ? ' on' : ''}" data-tool="${t.id}"><b>${esc(t.name)}</b><small>${esc(t.how)}</small></button>`).join('')}</div>`;
+    TOOLS.forEach((t) => { if (st.ran[t.id]) html += `<div class="dv-step done"><b>${esc(t.name)}</b>${resultOf(t.id)}</div>`; });
+    if (!applied) {
+      html += `<div class="dv-step now"><b>What will you do about it?</b><div class="dv-opts">${avail.map((k) => ({ id: k, label: tpl.act[k] })).sort((x, y) => hsh(st.created + x.id) - hsh(st.created + y.id)).map((o) => `<button type="button" class="dv-opt" data-copt="${esc(o.id)}">${esc(o.label)}</button>`).join('')}</div></div>`;
+    } else {
       const ch = st.choice, g = (k) => (proj ? proj[k] - proj.now : 0);
-      html += `<div class="dv-step done"><b>✓ You chose:</b> <p>${esc(tpl.act[ch])}</p>
+      html += `<div class="dv-step done"><b>You decided:</b> <p>${esc(tpl.act[ch])}</p>
         ${st.setText ? `<p class="note">Applied in the match engine: ${esc(st.setText)}.</p>` : ''}
         <p>${ch === bestKind ? 'That is the right fix for what his matches show. ' : (g(ch) > 0.02 ? 'That helps, but it is not the biggest thing you could have done. ' : 'That is unlikely to make much difference to the cause. ')}${esc(tpl.exp[bestKind])}</p>
         ${proj ? `<table class="data dv-split"><thead><tr><th class="l">If you had chosen</th><th>Expected ${esc(tpl.unit)} success</th></tr></thead><tbody><tr><td class="l"><i>Now</i></td><td>${pct(proj.now)}</td></tr>${avail.map((k) => `<tr><td class="l">${esc(tpl.act[k])}${k === ch ? ' (your choice)' : ''}</td><td>${pct(proj[k])}</td></tr>`).join('')}</tbody></table>` : ''}</div>`;
@@ -254,41 +231,27 @@
       } else html += '<p class="note">Play the next match: the feedback below will report how it went.</p>';
     }
     host.innerHTML = html + '</div>';
+    host.querySelectorAll('[data-tool]').forEach((b) => b.addEventListener('click', () => { st.ran[b.dataset.tool] = true; save(); redraw(); }));
     host.querySelectorAll('[data-copt]').forEach((b) => b.addEventListener('click', () => {
-      const id = b.dataset.copt, s = STEPS[st.step];
-      if (!s) return;
-      if (s.id === 'cause') {
-        if (id === bestKind) {
-          st.causeText = { location: 'it is where he does it: the poorer choices are the problem, not the delivery.', execution: 'it is the delivery itself: he is below the league wherever it is.', context: 'it is what is around him, not his own delivery or his choices.' }[bestKind];
-          st.msg = ''; st.step++; save(); redraw();
-        } else {
-          st.wrong++; st.msg = id === 'chance' ? 'Not that: the first test showed where he stands against the league. Look at the odds multipliers again.' : 'Check the model again: with both factors in, which one still moves his success rate, and which only did because it overlapped with the other?';
-          save(); redraw();
-        }
-        return;
+      const id = b.dataset.copt;
+      st.choice = id;
+      st.appliedRound = league.fixtures.filter((f) => f.played && (f.homeId === league.userId || f.awayId === league.userId) && !f.friendly).length;
+      const d = FM.develop(league), me = FM.teamById(league, league.userId);
+      // what he takes in from a training plan follows how much of the analysis you did
+      const score = Math.min(100, 40 + 20 * TOOLS.filter((t) => st.ran[t.id]).length);
+      st.score = score; const set = [];
+      if (id === 'execution' || (key === 'keeper' && id === 'context')) {
+        d.plans[p.id] = { lesson: tpl.lesson, active: true, startRound: st.appliedRound, startAbility: FM.abilityOf(p), rounds: 0, gain: 0, understanding: score, attempts: 1, last: { text: '(case study)', reply: '', tip: '', understanding: score } };
+        if (!d.hist[p.id]) d.hist[p.id] = [[st.appliedRound - 1, FM.abilityOf(p)]];
+        set.push('training plan started');
+      } else if (INSTR[key] && INSTR[key][id]) {
+        INSTR[key][id](p, me.players).forEach(([q, k, v]) => { q.instr = q.instr || {}; q.instr[k] = v; set.push(q.name.split(' ').slice(-1)[0] + ': ' + INSTR_WORD[k]); });
       }
-      if (s.id === 'act') {
-        st.choice = id; st.msg = '';
-        st.appliedRound = league.fixtures.filter((f) => f.played && (f.homeId === league.userId || f.awayId === league.userId) && !f.friendly).length;
-        const d = FM.develop(league), me = FM.teamById(league, league.userId);
-        const score = Math.max(30, 100 - 15 * st.wrong);
-        st.score = score; const set = [];
-        if (id === 'execution' || (key === 'keeper' && id === 'context')) {
-          d.plans[p.id] = { lesson: tpl.lesson, active: true, startRound: st.appliedRound, startAbility: FM.abilityOf(p), rounds: 0, gain: 0, understanding: score, attempts: 1, last: { text: '(case study)', reply: '', tip: '', understanding: score } };
-          if (!d.hist[p.id]) d.hist[p.id] = [[st.appliedRound - 1, FM.abilityOf(p)]];
-          set.push('training plan started');
-        } else if (INSTR[key] && INSTR[key][id]) {
-          INSTR[key][id](p, me.players).forEach(([q, k, v]) => { q.instr = q.instr || {}; q.instr[k] = v; set.push(q.name.split(' ').slice(-1)[0] + ': ' + INSTR_WORD[k]); });
-        }
-        st.setText = set.join('; ');
-        d.feed.push({ id: 'D' + (d.seq++), round: st.appliedRound - 1, pid: p.id, name: p.name, kind: id === bestKind ? 'good' : 'ok', title: 'Decision made: ' + last,
-          text: 'You have decided: ' + tpl.act[id].charAt(0).toLowerCase() + tpl.act[id].slice(1) + '. ' + (id === bestKind ? 'It is the right answer to what the data showed.' : 'It addresses part of the problem, but not the main cause.'),
-          advice: 'The next matches will show whether his ' + tpl.unit + ' improve. Read the feedback after each round.' });
-        save(); redraw(); if (hooks && hooks.redraw) hooks.redraw();
-        return;
-      }
-      const opt = s.options.find((o) => o.id === id);
-      if (opt && opt.ok) { st.msg = ''; st.step++; save(); redraw(); } else { st.wrong++; st.msg = opt ? opt.why : 'Try another tool.'; save(); redraw(); }
+      st.setText = set.join('; ');
+      d.feed.push({ id: 'D' + (d.seq++), round: st.appliedRound - 1, pid: p.id, name: p.name, kind: id === bestKind ? 'good' : 'ok', title: 'Decision made: ' + last,
+        text: 'You have decided: ' + tpl.act[id].charAt(0).toLowerCase() + tpl.act[id].slice(1) + '. ' + (id === bestKind ? 'It is the right answer to what the data showed.' : 'It addresses part of the problem, but not the main cause.'),
+        advice: 'The next matches will show whether his ' + tpl.unit + ' improve. Read the feedback after each round.' });
+      save(); redraw(); if (hooks && hooks.redraw) hooks.redraw();
     }));
   };
 
