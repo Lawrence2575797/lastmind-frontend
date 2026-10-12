@@ -551,7 +551,7 @@
           <p>${esc(L.teach)} Look at the evidence above, then explain it to ${esc(last)} in your own words: <b>what drives success, how much, and what he should do differently</b>.</p>
           <textarea id="dvExplain" rows="5" placeholder="e.g. When the receiver has little space around him the pass is much less likely to arrive. Each extra metre of space makes it about 1.2 times more likely, so before you play it, check…">${esc(dv.draft && dv.draft[sel.id] || (teachPlan && teachPlan.last ? teachPlan.last.text : ''))}</textarea>
           <div class="row"><button type="button" id="dvTeach" class="primary"${dv.busy ? ' disabled' : ''}>${dv.busy ? 'He is thinking…' : teachPlan && teachPlan.attempts ? 'Explain it again' : 'Explain it to him'}</button>
-          <button type="button" id="dvJust" title="He trains the lesson without you explaining it, and takes in very little">Just train him (no explanation)</button>${plan && plan.active ? '<button type="button" id="dvStop">Stop this training</button>' : ''}</div>
+${plan && plan.active ? '<button type="button" id="dvStop">Stop this training</button>' : ''}</div>
           <p class="note">${teachPlan ? `In training for ${teachPlan.rounds || 0} week${teachPlan.rounds === 1 ? '' : 's'}; he has taken in <b>${teachPlan.understanding || 0}%</b> so far (${teachPlan.attempts || 0} explanation${teachPlan.attempts === 1 ? '' : 's'}). A clearer explanation raises it and he sharpens straight away.` : 'Training begins when you have explained it. The clearer and more accurate your explanation, the more he takes in.'}</p>
           ${result}</div>`;
       let spark = '';
@@ -608,13 +608,6 @@
       const out = FM.devTeach(league, pl, lid, res, text);
       dv.last[pl.id] = { lesson: lid, res, before, after: out.after };
       dv.draft = dv.draft || {}; dv.draft[pl.id] = text;
-      save(); draw();
-    });
-    const just = host.querySelector('#dvJust');
-    if (just) just.addEventListener('click', () => {
-      const res = { understanding: 30, covered: [], missed: wire.kps.map((k, i) => i), wrong: [], reply: 'Okay, boss, I will work on it in training.', tip: 'He took in very little without an explanation. Tell him what the numbers show and what to do about it.', keyPoints: wire.kps, source: 'local' };
-      const out = FM.devTeach(league, pl, lid, res, '(no explanation)');
-      dv.last[pl.id] = { lesson: lid, res, before: FM.abilityOf(pl), after: out.after };
       save(); draw();
     });
     const stop = host.querySelector('#dvStop');
