@@ -88,7 +88,7 @@
     let body = '';
     if (rs.tab === 'players') {
       body = `${filters}<p class="note">${rows.length} player${rows.length === 1 ? '' : 's'}. Click one to see them, declare interest, or make an approach. Green and red mark ratings well above or below the other players in the league in that position.</p>
-        <div class="tablewrap rc-table"><table class="data">${head}<tbody>${rows.slice(0, 120).map(rowHtml).join('') || '<tr><td colspan="17" class="l">No players match those filters.</td></tr>'}</tbody></table></div>`;
+        <div class="tablewrap rc-table"><table class="data">${head}<tbody>${rows.slice(0, 400).map(rowHtml).join('') || '<tr><td colspan="17" class="l">No players match those filters.</td></tr>'}</tbody></table></div>`;
     } else if (rs.tab === 'shortlist') {
       body = shortlist.length ? `<div class="tablewrap rc-table"><table class="data">${head}<tbody>${shortlist.map((p) => rowHtml({ p, tm: FM.clubOf(league, p) })).join('')}</tbody></table></div>` : '<p class="note">Nobody on your shortlist yet. Declaring interest in a player, or approaching his club, adds him here.</p>';
     } else {

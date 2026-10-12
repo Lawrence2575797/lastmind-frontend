@@ -6,7 +6,6 @@
   const FM = (window.FM = window.FM || {});
   const POS = ['GK', 'CB', 'FB', 'DM', 'CM', 'AM', 'WF', 'ST'];
   const POS_NAME = { GK: 'goalkeeper', CB: 'centre-back', FB: 'full-back', DM: 'defensive midfielder', CM: 'midfielder', AM: 'attacking midfielder', WF: 'winger', ST: 'striker' };
-  const MIN_DEPTH = { GK: 2, CB: 4, FB: 3, DM: 2, CM: 3, AM: 2, WF: 3, ST: 3 };   // how many of each a club likes to have
   const MIN_SQUAD = 15;
   const r1 = (v) => Math.round(v * 10) / 10;
   const hsh = (s) => FM.hashString(String(s));
@@ -43,15 +42,38 @@
       });
       league.transfer = { v: 1, budget, wageBudget, shortlist: [], deals: {}, offers: [], ai: {}, hikes: {}, seq: 1, moves: [] };
     }
+    if (!league.transfer.reserves) { league.transfer.reserves = true; addReserves(league); }
     return league.transfer;
   };
+  // Each computer-run club's squad is rounded out with reserves, so every club has real cover in every position (two on top of the players it
+  // starts there, one in goal) and a market worth browsing. They are young and rate a little below the club's average.
+  function addReserves(league) {
+    const t = league.transfer;
+    league.teams.forEach((team) => {
+      if (team.id === league.userId) return;
+      const avg = team.squad.reduce((a, p) => a + FM.playerRating(p), 0) / Math.max(1, team.squad.length);
+      POS.forEach((pos) => {
+        const want = pos === 'GK' ? 3 : Math.max(1, starters(team, pos)) + 2;
+        let guard = 0;
+        while (depth(team, pos) < want && guard++ < 4) {
+          const y = youth(league, team, pos, avg - 0.35); y.age = 18 + (t.seq % 4);
+          team.squad.push(y); team.bench.push(y);
+          t.wageBudget[team.id] = r1((t.wageBudget[team.id] || 0) + FM.wageOf(y));
+        }
+      });
+    });
+  }
   const wageBill = (team) => team.squad.reduce((a, p) => a + FM.wageOf(p), 0);
   FM.wageRoom = (league, teamId) => { const t = FM.transfer(league), team = FM.teamById(league, teamId); return r1((t.wageBudget[teamId] || 0) - wageBill(team)); };
 
   // ---------- what a club will take: need, supply and demand ----------
   function depth(team, pos) { return team.squad.filter((p) => p.natural === pos).length; }
+  // How many of a position a club wants: the players it starts there, and one more as cover (two goalkeepers). A club is only "short" when it
+  // has fewer than that, which happens after it sells someone or loses a player for long.
+  function starters(team, pos) { return team.players.filter((p) => p.natural === pos).length; }
+  function needDepth(team, pos) { return pos === 'GK' ? 2 : Math.max(1, starters(team, pos)) + 1; }
   FM.clubNeeds = function (team) {
-    return POS.filter((pos) => depth(team, pos) < MIN_DEPTH[pos]);
+    return POS.filter((pos) => depth(team, pos) < needDepth(team, pos));
   };
   function isKeyPlayer(team, p) { const same = team.squad.filter((q) => q.natural === p.natural).sort((a, b) => FM.playerRating(b) - FM.playerRating(a)); return same[0] === p; }
   FM.canSell = function (team, p) {
@@ -63,9 +85,9 @@
     const club = FM.clubOf(league, p), t = FM.transfer(league);
     let price = FM.valueOf(p);
     if (club) {
-      const d = depth(club, p.natural), min = MIN_DEPTH[p.natural];
-      if (d <= min) price *= 1.1 + 0.08 * (min - d + 1) / 1;          // thin in that position: he is harder to buy
-      else if (d >= min + 2) price *= 0.88;                            // plenty of cover: they will listen
+      const d = depth(club, p.natural), need = needDepth(club, p.natural);
+      if (d < need) price *= 1.1 + 0.08 * (need - d);                  // thin in that position: he is harder to buy
+      else if (d >= need + 2) price *= 0.88;                           // plenty of cover: they will listen
       if (isKeyPlayer(club, p)) price *= 1.1;
       const budget = t.budget[club.id] || 0;
       if (budget < 2) price *= 0.93;                                   // a club short of money sells a little cheaper
@@ -77,9 +99,9 @@
   FM.priceReasons = function (league, p) {
     const club = FM.clubOf(league, p), out = [], t = FM.transfer(league);
     if (!club) return out;
-    const d = depth(club, p.natural), min = MIN_DEPTH[p.natural];
-    if (d <= min) out.push(club.name + ' are short of ' + POS_NAME[p.natural] + 's, so they are reluctant to sell');
-    else if (d >= min + 2) out.push(club.name + ' have plenty of cover in his position');
+    const d = depth(club, p.natural), need = needDepth(club, p.natural);
+    if (d < need) out.push(club.name + ' are short of ' + POS_NAME[p.natural] + 's, so they are reluctant to sell');
+    else if (d >= need + 2) out.push(club.name + ' have plenty of cover in his position');
     if (isKeyPlayer(club, p)) out.push('he is a key player for them');
     if ((t.hikes[p.id] || 1) > 1.01) out.push('rival interest has pushed the price up');
     if ((t.ai[p.id])) out.push('another club is already in talks for him');
@@ -334,7 +356,8 @@
 
   // ---------- offers for the manager's own players, and how they are answered ----------
   function wantsHim(league, club, p) {
-    return depth(club, p.natural) <= MIN_DEPTH[p.natural] ? 1.25 : depth(club, p.natural) >= MIN_DEPTH[p.natural] + 2 ? 0.9 : 1.05;
+    const d = depth(club, p.natural), need = needDepth(club, p.natural);
+    return d < need ? 1.25 : d >= need + 2 ? 0.9 : 1.05;
   }
   FM.respondOffer = function (league, offerId, action, counterFee) {
     const t = FM.transfer(league), o = t.offers.find((x) => x.id === offerId), me = FM.teamById(league, league.userId);
