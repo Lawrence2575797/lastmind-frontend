@@ -274,7 +274,11 @@
       let view = '';
       if (diag.kind === 'evidence') {
         const m = diag.m;
-        view += `<p><b>Assistant manager:</b> “${esc(sel.name.split(' ').slice(-1)[0])}'s ${esc(L.area.toLowerCase())} are costing us. He completes ${pct(m.rate)} of his ${L.unit.split(' ')[0]} (${m.k} of ${m.n}), where the league as a whole manages ${pct(m.base)}.”</p>`;
+        const sp = m.split, last = sel.name.split(' ').slice(-1)[0], what = L.unit.split(' ')[0];
+        const hard = sp && sp[0].n >= 3 && sp[1].n >= 3 && sp[1].rate - sp[0].rate >= 0.15;
+        if (m.rate >= m.base && hard) view += `<p><b>Assistant manager:</b> “${esc(last)}'s ${esc(what)} look fine overall (${pct(m.rate)}, against ${pct(m.base)} for the league), but when the situation is tight (${esc(m.labels[0])}) he gets only ${pct(sp[0].rate)} of them right, against ${pct(sp[1].rate)} otherwise. That is where we lose the ball.”</p>`;
+        else if (m.rate < m.base) view += `<p><b>Assistant manager:</b> “${esc(last)}'s ${esc(L.area.toLowerCase())} are costing us. He gets ${pct(m.rate)} of his ${esc(what)} right (${m.k} of ${m.n}), where the league as a whole manages ${pct(m.base)}.”${hard ? ` It is much worse when ${esc(m.labels[0])}: ${pct(sp[0].rate)} against ${pct(sp[1].rate)}.` : ''}</p>`;
+        else view += `<p><b>Assistant manager:</b> “${esc(last)} is doing fine on his ${esc(L.area.toLowerCase())}: ${pct(m.rate)} (${m.k} of ${m.n}) against ${pct(m.base)} for the league. I would look at something else, or keep building on this.”</p>`;
       } else if (diag.kind === 'attribute') {
         view += `<p><b>Assistant manager:</b> “There are not enough matches on record yet to see his decisions, but his ${esc(diag.attr === 'gk' ? 'goalkeeping' : diag.attr)} is below most players in his position. I would start there.”</p>`;
       } else view += '<p><b>Assistant manager:</b> “Play him a few matches and I will have something to tell you.”</p>';
