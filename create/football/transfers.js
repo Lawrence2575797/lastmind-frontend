@@ -23,6 +23,8 @@
     let v = 4 * Math.exp((r - 8.4) * 2.2);
     v *= a <= 21 ? 1.35 : a <= 25 ? 1.15 : a <= 28 ? 1 : a <= 31 ? 0.7 : 0.4;
     if (p.natural === 'GK') v *= 0.75;
+    // a young player with a lot of room to grow is worth more than his ability alone
+    if (FM.potentialOf && a <= 24) { const room = Math.max(0, FM.potentialOf(p) - FM.abilityOf(p)); v *= 1 + room / 45; }
     return Math.max(0.2, v);
   };
   FM.wageOf = (p) => p.wage != null ? p.wage : Math.max(2, r1(FM.valueOf(p) * 1.1 + 2));   // £ thousand a week

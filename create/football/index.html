@@ -735,6 +735,17 @@
   .nw-photo { margin: 14px 0; max-width: 460px; } .nw-photo .rc-scene { aspect-ratio: 4 / 5; max-height: 420px; display: grid; place-items: center; } .nw-photo .fallback { font-size: 3rem; font-weight: 800; opacity: .6; }
   .nw-article blockquote { margin: 14px 0; padding: 4px 0 4px 16px; border-left: 3px solid var(--gold, #E6D7B0); font-size: 1.2rem; font-style: italic; max-width: 60ch; }
   .nw-more { display: block; width: 100%; text-align: left; margin-bottom: 8px; padding: 9px 11px; border: 0; border-radius: 9px; background: rgba(255,255,255,.06); cursor: pointer; color: inherit; font-size: .88rem; }
+
+  /* player development */
+  .dv-wrap { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px; align-items: start; margin-bottom: 16px; } @media (max-width: 1100px) { .dv-wrap { grid-template-columns: 1fr; } }
+  .dv-list .tablewrap { max-height: 640px; overflow: auto; } .dv-list tr.sel td { background: rgba(230,215,176,.16); } .dv-list tr[data-dev] { cursor: pointer; }
+  .dv-bar { display: inline-block; width: 84px; height: 8px; border-radius: 6px; background: rgba(255,255,255,.14); overflow: hidden; vertical-align: middle; } .dv-bar i { display: block; height: 100%; border-radius: 6px; background: var(--gold, #E6D7B0); } .dv-bar.big { width: 100%; height: 10px; margin: 6px 0 4px; }
+  .dv-nums { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .92rem; } .dv-spark { width: 100%; max-width: 360px; color: var(--gold, #E6D7B0); }
+  .dv-player h4 { margin: 16px 0 6px; } .dv-measure { padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,.05); margin-bottom: 8px; } .dv-measure h4 { margin: 0 0 4px; font-size: .95rem; } .dv-split { margin: 6px 0; max-width: 360px; }
+  .dv-train { display: grid; gap: 8px; } .dv-lesson { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid rgba(230,215,176,.25); border-radius: 10px; cursor: pointer; } .dv-lesson.on { border-color: var(--gold, #E6D7B0); background: rgba(230,215,176,.1); } .dv-lesson small { display: block; opacity: .75; }
+  .dv-feed { margin-top: 0; } .dv-fb { padding: 12px 14px; border-radius: 10px; border-left: 4px solid; margin-bottom: 10px; background: rgba(255,255,255,.05); } .dv-fb p { margin: 4px 0; }
+  .dv-fb.good { border-color: #50b46e; background: rgba(80,180,110,.12); } .dv-fb.bad { border-color: #d65046; background: rgba(214,80,70,.12); } .dv-fb.ok { border-color: #e6b43c; background: rgba(230,180,60,.12); } .dv-fb.info { border-color: rgba(230,215,176,.5); }
+  .dv-fb-head { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; } .dv-advice { font-size: .92rem; opacity: .92; }
 </style>
 </head>
 <body>
@@ -768,6 +779,7 @@
   <section id="view-league" hidden></section>
   <section id="view-squad" hidden></section>
   <section id="view-recruit" hidden></section>
+  <section id="view-develop" hidden></section>
   <section id="view-analysis" hidden></section>
   <section id="view-reports" hidden></section>
   <section id="view-news" hidden></section>
@@ -835,7 +847,7 @@
 <script src="/create/football/instructions.js?v=20261010c"></script>
 <script src="/create/football/fitness.js?v=20261010c"></script>
 <script src="/create/football/match.js?v=20261014c"></script>
-<script src="/create/football/league.js?v=20261019a"></script>
+<script src="/create/football/league.js?v=20261023a"></script>
 <script src="/create/football/preseason.js?v=20261010n"></script>
 <script src="/create/football/stats_math.js?v=20261010c"></script>
 <script src="/create/football/stats.js?v=20261013a"></script>
@@ -852,8 +864,9 @@
 <script src="/create/football/instructions_ui.js?v=20261013a"></script>
 <script src="/create/football/lab_replay.js?v=20261010c"></script>
 <script src="/create/football/lab_results.js?v=20261015e"></script>
-<script src="/create/football/transfers.js?v=20261021a"></script>
-<script src="/create/football/recruit.js?v=20261022a"></script>
-<script src="/create/football/main.js?v=20261021c"></script>
+<script src="/create/football/transfers.js?v=20261023a"></script>
+<script src="/create/football/recruit.js?v=20261023a"></script>
+<script src="/create/football/development.js?v=20261023a"></script>
+<script src="/create/football/main.js?v=20261023a"></script>
 </body>
 </html>

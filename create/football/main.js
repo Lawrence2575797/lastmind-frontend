@@ -537,9 +537,9 @@
   el('injuryTen').addEventListener('click', () => { if (world.match) FM.resolveInjury(world.match); });
 
   // ---------- views and navigation ----------
-  const VIEWS = ['home', 'league', 'squad', 'recruit', 'analysis', 'reports', 'news', 'preview', 'match'];
+  const VIEWS = ['home', 'league', 'squad', 'recruit', 'develop', 'analysis', 'reports', 'news', 'preview', 'match'];
   const NAV = [];
-  const SCREEN_TITLES = { home: 'Club overview', league: 'League centre', squad: 'First-team squad', recruit: 'Recruitment', reports: 'Opposition intelligence', news: 'Football world', analysis: 'Performance analysis', preview: 'Match preview' };
+  const SCREEN_TITLES = { home: 'Club overview', league: 'League centre', squad: 'First-team squad', recruit: 'Recruitment', develop: 'Player development', reports: 'Opposition intelligence', news: 'Football world', analysis: 'Performance analysis', preview: 'Match preview' };
   // Lets another page (the Analysis Centre) open one of the tactics pages.
   // "Take me there" from another screen: a button stays on the tactics page that returns to the same place on the screen it came from.
   let backBtn = null;
@@ -575,6 +575,7 @@
     if (v === 'home') renderHome();
     else if (v === 'league') renderLeague();
     else if (v === 'squad') renderSquad();
+    else if (v === 'develop') FM.renderDevelop(el('view-develop'), world.league, { save: saveSoon });
     else if (v === 'recruit') FM.renderRecruit(el('view-recruit'), world.league, { save: saveSoon, openSquad: () => setView('squad') });
     else if (v === 'analysis') FM.renderAnalysis(el('view-analysis'), world.league);
     else if (v === 'reports') FM.renderReports(el('view-reports'), world.league);
@@ -615,6 +616,7 @@
       <button data-top="home" class="${world.view === 'home' ? 'on' : ''}">Home</button>
       <button data-top="squad" class="${world.view === 'squad' ? 'on' : ''}">Squad</button>
       <button data-top="recruit" class="${world.view === 'recruit' ? 'on' : ''}">Recruitment</button>
+      <button data-top="develop" class="${world.view === 'develop' ? 'on' : ''}">Development</button>
       <button data-top="news" class="${world.view === 'news' ? 'on' : ''}">News</button>
       <button id="newBtn" title="Abandon this season and start again">New game</button>`;
     host.querySelectorAll('[data-top]').forEach((b) => b.addEventListener('click', () => setView(b.dataset.top)));
@@ -764,10 +766,10 @@
     const marks = squadMarks(all);
     const cell = (p, stat, text) => { const k = marks[p.id] && marks[p.id][stat]; return `<td${k ? ' class="hl-' + k + '" title="' + (k === 'good' ? 'Well above' : 'Well below') + ' the other ' + p.natural + 's in the league"' : ''}>${text}</td>`; };
     const row = (p) => `<tr class="player-row" data-player="${p.id}" tabindex="0"><td>${portraitCache[p.id] ? `<img class="squad-thumb" src="${portraitCache[p.id]}" alt="">` : `<span class="squad-thumb fallback">${esc(p.name.split(/\s+/).map((x) => x[0]).slice(0, 2).join(''))}</span>`}</td><td class="l">${p.number}</td><td class="l"><button class="player-link" data-player="${p.id}">${esc(p.name)}</button></td><td class="l">${esc(p.nation)}</td><td class="l">${p.natural}</td><td class="l">${p.slotKey ? p.slotKey : 'Bench'}</td><td class="l">${{ right: 'Right', left: 'Left', both: 'Both' }[p.foot] || ''}</td><td>${p.height || '-'}</td><td class="${condClass(p)}">${Math.round(100 * FM.conditionOf(p))}%</td><td class="l ${FM.isInjured(p) ? 'out' : ''}">${FM.isInjured(p) ? esc(injuryText(p)) : 'Fit'}</td>
-      <td><b>${FM.playerRating(p).toFixed(1)}</b></td>${cell(p, 'pace', FM.shown(p.ratings.pace))}${cell(p, 'dribbling', FM.shown(p.ratings.dribbling))}${cell(p, 'passing', FM.shown(p.ratings.passing))}${cell(p, 'finishing', FM.shown(p.ratings.finishing))}${cell(p, 'tackling', FM.shown(p.ratings.tackling))}${cell(p, 'heading', FM.shown(p.ratings.heading))}${cell(p, 'composure', FM.shown(p.ratings.composure))}${cell(p, 'stamina', p.ratings.stamina ? FM.shown(p.ratings.stamina) : '-')}${cell(p, 'gk', p.natural === 'GK' ? FM.shown(p.ratings.gk) : '-')}
+      <td><b>${FM.abilityOf(p)}</b></td><td>${FM.potentialOf(p)}</td>${cell(p, 'pace', FM.shown(p.ratings.pace))}${cell(p, 'dribbling', FM.shown(p.ratings.dribbling))}${cell(p, 'passing', FM.shown(p.ratings.passing))}${cell(p, 'finishing', FM.shown(p.ratings.finishing))}${cell(p, 'tackling', FM.shown(p.ratings.tackling))}${cell(p, 'heading', FM.shown(p.ratings.heading))}${cell(p, 'composure', FM.shown(p.ratings.composure))}${cell(p, 'stamina', p.ratings.stamina ? FM.shown(p.ratings.stamina) : '-')}${cell(p, 'gk', p.natural === 'GK' ? FM.shown(p.ratings.gk) : '-')}
       <td>${p.stats.apps}</td><td>${p.stats.goals}</td><td>${p.stats.shots}</td><td>${p.stats.yellows}</td><td>${p.stats.reds}</td></tr>`;
     const selected = all.find((p) => p.id === world.profilePlayerId) || all[0];
-    const head = `<thead><tr><th>Player</th><th class="l">#</th><th class="l">Name</th><th class="l">Nation</th><th class="l">Pos</th><th class="l">Now</th><th class="l">Foot</th><th title="Height in cm. Taller players are better in the air.">Ht</th><th>Cond</th><th class="l">Fitness</th><th title="Overall rating out of 10 in his natural position">Rating</th><th>Pac</th><th>Dri</th><th>Pas</th><th>Fin</th><th>Tck</th><th>Hea</th><th>Com</th><th>Sta</th><th>GK</th><th>Apps</th><th>Goals</th><th>Shots</th><th>YC</th><th>RC</th></tr></thead>`;
+    const head = `<thead><tr><th>Player</th><th class="l">#</th><th class="l">Name</th><th class="l">Nation</th><th class="l">Pos</th><th class="l">Now</th><th class="l">Foot</th><th title="Height in cm. Taller players are better in the air.">Ht</th><th>Cond</th><th class="l">Fitness</th><th title="What he is worth to a team now, out of 100, in his natural position">Ability</th><th title="The most he can reach, out of 100. Develop him in the Development tab.">Potential</th><th>Pac</th><th>Dri</th><th>Pas</th><th>Fin</th><th>Tck</th><th>Hea</th><th>Com</th><th>Sta</th><th>GK</th><th>Apps</th><th>Goals</th><th>Shots</th><th>YC</th><th>RC</th></tr></thead>`;
     const GROUPS = [['Goalkeepers', ['GK']], ['Defenders', ['CB', 'FB']], ['Midfielders', ['DM', 'CM', 'AM']], ['Forwards', ['WF', 'ST']]];
     const open = world.squadOpen || (world.squadOpen = {});
     const groups = GROUPS.map(([title, kinds]) => {

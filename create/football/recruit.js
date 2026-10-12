@@ -62,9 +62,9 @@
     const status = (p) => { const d = t.deals[p.id]; return d && d.stage !== 'signed' ? chip(STAGE_TEXT[d.stage] || d.stage, 'st-' + d.stage) : (t.shortlist.indexOf(p.id) >= 0 ? chip('Shortlisted') : ''); };
     const rowHtml = ({ p, tm }) => `<tr class="player-row${rs.open === p.id ? ' sel' : ''}" data-open="${esc(p.id)}" tabindex="0">
       <td class="l"><b>${esc(p.name)}</b> ${FM.isInjured(p) ? '<span class="out">injured</span>' : ''}</td><td class="l">${esc(tm.name)}</td><td class="l">${p.natural}</td><td>${FM.ageOf(p)}</td><td class="l">${esc(p.nation)}</td>
-      <td><b>${FM.playerRating(p).toFixed(1)}</b></td>${['pace', 'dribbling', 'passing', 'finishing', 'tackling', 'heading', 'composure', 'stamina', 'gk'].map((s) => cell(p, s)).join('')}
+      <td><b>${FM.abilityOf(p)}</b></td><td>${FM.potentialOf(p)}</td>${['pace', 'dribbling', 'passing', 'finishing', 'tackling', 'heading', 'composure', 'stamina', 'gk'].map((s) => cell(p, s)).join('')}
       <td><b>${FM.money(FM.askingPrice(league, p))}</b></td><td class="l">${status(p)}</td></tr>`;
-    const head = `<thead><tr><th class="l">Player</th><th class="l">Club</th><th class="l">Pos</th><th>Age</th><th class="l">Nation</th><th>Now</th><th>Pace</th><th>Dri</th><th>Pas</th><th>Fin</th><th>Tac</th><th>Hea</th><th>Com</th><th>Sta</th><th>GK</th><th>Price</th><th class="l">Status</th></tr></thead>`;
+    const head = `<thead><tr><th class="l">Player</th><th class="l">Club</th><th class="l">Pos</th><th>Age</th><th class="l">Nation</th><th title="What he is worth to a team now, out of 100">Ability</th><th title="The most he can reach, out of 100">Potential</th><th>Pace</th><th>Dri</th><th>Pas</th><th>Fin</th><th>Tac</th><th>Hea</th><th>Com</th><th>Sta</th><th>GK</th><th>Price</th><th class="l">Status</th></tr></thead>`;
     const clubIdx = rs.club === 'all' ? -1 : others.findIndex((x) => x.id === rs.club);
     const filters = `<div class="rc-filters">
         <div class="rc-club"><button type="button" id="rcPrev" aria-label="Previous club">‹</button>
@@ -88,13 +88,13 @@
     let body = '';
     if (rs.tab === 'players') {
       body = `${filters}<p class="note">${rows.length} player${rows.length === 1 ? '' : 's'}. Click one to see them, declare interest, or make an approach. Green and red mark ratings well above or below the other players in the league in that position.</p>
-        <div class="tablewrap rc-table"><table class="data">${head}<tbody>${rows.slice(0, 400).map(rowHtml).join('') || '<tr><td colspan="17" class="l">No players match those filters.</td></tr>'}</tbody></table></div>`;
+        <div class="tablewrap rc-table"><table class="data">${head}<tbody>${rows.slice(0, 400).map(rowHtml).join('') || '<tr><td colspan="18" class="l">No players match those filters.</td></tr>'}</tbody></table></div>`;
     } else if (rs.tab === 'shortlist') {
       body = shortlist.length ? `<div class="tablewrap rc-table"><table class="data">${head}<tbody>${shortlist.map((p) => rowHtml({ p, tm: FM.clubOf(league, p) })).join('')}</tbody></table></div>` : '<p class="note">Nobody on your shortlist yet. Declaring interest in a player, or approaching his club, adds him here.</p>';
     } else {
       const offerHtml = openOffers.map((o) => {
         const p = FM.findPlayer(league, o.pid), buyer = FM.teamById(league, o.from);
-        return `<div class="rc-offer"><div><b>${esc(buyer.name)}</b> offer <b>${FM.money(o.fee)}</b> for <b>${esc(p.name)}</b> <small>(${p.natural}, ${FM.ageOf(p)}, rated ${FM.playerRating(p).toFixed(1)}; worth about ${FM.money(FM.valueOf(p))})</small>${o.status === 'countered' ? ' ' + chip('They raised their offer', 'st-counter') : ''}</div>
+        return `<div class="rc-offer"><div><b>${esc(buyer.name)}</b> offer <b>${FM.money(o.fee)}</b> for <b>${esc(p.name)}</b> <small>(${p.natural}, ${FM.ageOf(p)}, ability ${FM.abilityOf(p)}, potential ${FM.potentialOf(p)}; worth about ${FM.money(FM.valueOf(p))})</small>${o.status === 'countered' ? ' ' + chip('They raised their offer', 'st-counter') : ''}</div>
           <div class="rc-offer-actions"><button type="button" class="primary" data-offer="accept" data-id="${o.id}">Accept</button><button type="button" data-offer="reject" data-id="${o.id}">Reject</button>
           <label>Ask for £m<input type="number" step="0.1" min="0" value="${(o.fee * 1.2).toFixed(1)}" data-counter="${o.id}"></label><button type="button" data-offer="counter" data-id="${o.id}">Counter</button></div>
           ${rs.msg['o' + o.id] ? `<p class="rc-msg">${esc(rs.msg['o' + o.id])}</p>` : ''}</div>`;
@@ -185,7 +185,7 @@
     }
     side.innerHTML = `<div class="card rc-player"><div class="rc-head"><div class="rc-portrait" id="rcPortrait"><span class="fallback">${initials(p)}</span></div>
         <div><span class="eyebrow">${esc(club ? club.name : '')}</span><h3>${esc(p.name)}</h3><p class="note">${FM.POS_NAME[p.natural]} · ${FM.ageOf(p)} · ${esc(p.nation)} · ${p.height || '-'} cm · ${({ right: 'Right', left: 'Left', both: 'Two' }[p.foot] || '')}-footed</p>
-        <p><b>${FM.playerRating(p).toFixed(1)}</b> rating · condition ${cond}% · ${FM.isInjured(p) ? 'injured' : 'fit'}</p></div></div>
+        <p><b>${FM.abilityOf(p)}</b> ability · <b>${FM.potentialOf(p)}</b> potential (${esc(FM.potentialWord ? FM.potentialWord(p) : '')}) · condition ${cond}% · ${FM.isInjured(p) ? 'injured' : 'fit'}</p></div></div>
       <div class="rc-price"><span>Asking price <b>${FM.money(ask)}</b></span><span>Wage now <b>${FM.wageOf(p)}k</b>/wk</span><span>Contract <b>${p.contract || (1 + (FM.hashString(p.id + ':c') % 4))} yr</b></span></div>
       ${reasons.length ? `<ul class="rc-reasons">${reasons.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
       <table class="data rc-ratings"><tbody>${ratingRows}</tbody></table>${action}
