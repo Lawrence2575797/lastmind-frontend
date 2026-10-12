@@ -796,7 +796,9 @@
         if (Math.hypot(opt.tx - gx0, opt.ty - W / 2) < 24 && rng() < 0.85) { flight.ex = clamp(flight.ex, 2, L - 2); flight.ey = clamp(flight.ey, 2, W - 2); }
       }
     }
-    record(match, { type: 'pass', team: team.id, from: carrier.number, to: opt.target.number, by: flight.interceptor ? flight.interceptor.number : undefined, p: opt.p, ok, outcome: flight.outcome, dist: opt.d, lane: opt.lane, press: opt.press, forced: !!match.forcePass, carrierPressure: nearestOpponent(match, team, carrier).d, minCarrierPressure: match.possessionMinPressure, plannedHold: match.possessionPlannedDelay, receivedDepth: match.possessionReceivedDepth, held: Math.max(0, match.clock - (match.possessionReceivedAt == null ? match.clock : match.possessionReceivedAt)), x: carrier.x, y: carrier.y, tx: flight.ex, ty: flight.ey });
+    // for the manager's analysis: where the pass was going, and how many team-mates were in the box when it left
+    let boxMates = 0; { const gxA = team.attackDir === 1 ? L : 0; team.players.forEach((q) => { if (q !== carrier && Math.abs(q.x - gxA) <= 16.5 && Math.abs(q.y - W / 2) <= 20.2) boxMates++; }); }
+    record(match, { type: 'pass', team: team.id, from: carrier.number, to: opt.target.number, tx: opt.tx, ty: opt.ty, box: boxMates, by: flight.interceptor ? flight.interceptor.number : undefined, p: opt.p, ok, outcome: flight.outcome, dist: opt.d, lane: opt.lane, press: opt.press, forced: !!match.forcePass, carrierPressure: nearestOpponent(match, team, carrier).d, minCarrierPressure: match.possessionMinPressure, plannedHold: match.possessionPlannedDelay, receivedDepth: match.possessionReceivedDepth, held: Math.max(0, match.clock - (match.possessionReceivedAt == null ? match.clock : match.possessionReceivedAt)), x: carrier.x, y: carrier.y, tx: flight.ex, ty: flight.ey });
     match.carrier = null; match.carry = null;
     match.flight = flight;
     match.ball.state = 'flight';
@@ -1607,7 +1609,8 @@
           const st = statsOf(match, opp);
           st.tackles++;
           if (ok) st.tacklesWon++;
-          record(match, { type: 'tackle', team: opp.id, player: d.number, vs: c.player.number, p, ok, x: c.player.x, y: c.player.y });
+          let coverD = 40; opp.players.forEach((q) => { if (q !== d) coverD = Math.min(coverD, Math.hypot(q.x - d.x, q.y - d.y)); });
+          record(match, { type: 'tackle', team: opp.id, player: d.number, vs: c.player.number, p, ok, x: c.player.x, y: c.player.y, depth: FM.toTeamSpace(opp.attackDir, c.player.x, c.player.y).d, cover: coverD });
           if (ok && (c.player.y < 5 || c.player.y > W - 5) && match.rng() < 0.2) { startRestart(match, 'throw', team, clamp(c.player.x, 1, L - 1), c.player.y < W / 2 ? 0.5 : W - 0.5); break; }
           if (ok) { giveBall(match, opp, d, 0.9 + delayBeforeNextDecision(match, opp, d) * 0.4); break; }
           if (match.rng() < (0.06 + 0.1 * opp.tactics.tackleAggression + 0.002 * (60 - d.ratings.tackling) + 0.04 * FM.instrMods(d).tackle) * (inBox(team.attackDir, c.player.x, c.player.y) ? (FM.BOX_FOUL == null ? 0.35 : FM.BOX_FOUL) : 1)) { commitFoul(match, d, c.player, opp, team); break; }

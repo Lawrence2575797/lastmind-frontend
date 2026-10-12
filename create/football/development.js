@@ -58,65 +58,17 @@
     shot: { label: ['defender close', 'space'], test: (e) => e.def < 3 },
     tackle: { label: ['', ''], test: null },
   };
-  // Last season. The shared league's previous season was played once in advance (its final table, and every match of the managed club with
-  // the passes, tackles and shots). What that log left out is rebuilt here so a game starts with a season of evidence: the positions of passes and
-  // challenges, where shots were taken from and how close the nearest defender was, and the dribbles. They are drawn at random, seeded by the
-  // match, from distributions that depend on the player's ratings and on the situation (a defender close by makes a dribble harder, shots
-  // from closer in and with more space score more), so a model fitted to them finds the same kinds of relationships a real match would give.
-  // The results themselves are last season's own: the scores, and so the table, are untouched.
-  const gam = (rng, k, theta) => { let t = 0; for (let i = 0; i < k; i++) t += -Math.log(Math.max(1e-9, rng())); return t * theta; };
-  const pois = (rng, lam) => { const L = Math.exp(-lam); let k = 0, q = 1; do { k++; q *= rng(); } while (q > L && k < 40); return k - 1; };
-  function forgeMatch(league, m) {
-    const rng = FM.mulberry32(FM.hashString(String(m.id)) + (league.seed || 0));
-    const R1 = (v) => Math.round(v * 10) / 10;
-    const yAt = () => Math.max(2, Math.min(66, 34 + (rng() + rng() + rng() - 1.5) * 22));
-    const log = { teams: m.log.teams.slice(), duration: m.log.duration, dribbles: [], other: [], passes: (m.log.passes || []).map((q) => q.slice()), tackles: (m.log.tackles || []).map((q) => q.slice()) };
-    log.passes.forEach((q) => { q[6] = R1(yAt()); });
-    log.tackles.forEach((q) => { q[6] = R1(yAt()); });
-    (m.log.other || []).forEach((e) => {
-      if (e.type !== 'shot') return;
-      const goal = e.outcome === 'goal', side = e.team === log.teams[0] ? 0 : 1;
-      const dist = Math.max(4, Math.min(34, (goal ? 11 : 17) + (rng() + rng() - 1) * 9)), def = Math.max(0.5, Math.min(12, (goal ? 3.6 : 2.6) + (rng() + rng() - 1) * 2.4));
-      log.other.push({ t: e.t, type: 'shot', team: e.team, player: e.player, xg: e.xg, outcome: e.outcome, defDist: R1(def), x: R1(side === 0 ? 105 - dist : dist), y: R1(34 + (rng() + rng() - 1) * 10) });
-    });
-    [0, 1].forEach((side) => {
-      const team = FM.teamById(league, log.teams[side]); if (!team) return;
-      const nums = new Set();
-      log.passes.forEach((q) => { if (q[1] === side) { nums.add(q[2]); nums.add(q[3]); } });
-      log.tackles.forEach((q) => { if (q[1] === side) nums.add(q[2]); });
-      nums.forEach((num) => {
-        const p = team.squad.find((x) => x.number === num);
-        if (!p || p.natural === 'GK' || !p.ratings) return;
-        const base = { WF: 3.2, AM: 2.6, ST: 1.7, FB: 1.5, CM: 1.5, DM: 0.8, CB: 0.4 }[p.natural] || 1, dr = p.ratings.dribbling || 60;
-        const n = pois(rng, base * (0.6 + dr / 90));
-        for (let i = 0; i < n; i++) {
-          const def = Math.max(0.3, Math.min(15, 1 + gam(rng, 2, 2))), pr = 1 / (1 + Math.exp(-(-0.5 + 0.32 * def + 0.045 * (dr - 65))));
-          const xx = side === 0 ? 105 - Math.max(5, Math.min(100, gam(rng, 3, 14))) : Math.max(5, Math.min(100, gam(rng, 3, 14)));
-          log.dribbles.push([Math.round(rng() * (log.duration || 5400)), side, num, rng() < pr ? 1 : 0, R1(xx), R1(yAt()), R1(def), Math.round(pr * 1000) / 1000]);
-        }
-      });
-    });
-    return { id: 'ls-' + m.id, round: (m.round || 0) - 17, homeId: m.homeId, awayId: m.awayId, played: true, hg: m.hg, ag: m.ag, history: true, log };
-  }
-  function lastSeasonFixtures(league) {
-    const L = FM.LAST_SEASON;
-    if (!L || !L.matches || league.seed !== FM.WORLD_SEED) return [];
-    if (!league._lastSeasonForged) league._lastSeasonForged = L.matches.filter((m) => m.log).map((m) => forgeMatch(league, m));
-    return league._lastSeasonForged;
-  }
+  // Only this season's league matches, as they were actually played. Pre-season friendlies and last season are not evidence.
   function fixturesWithLogs(league) {
-    return league.fixtures.concat(league.friendlies || [], lastSeasonFixtures(league)).filter((f) => f.log && f.played).sort((a, b) => a.round - b.round);
+    return league.fixtures.filter((f) => f.log && f.played && !f.friendly && !f.history).sort((a, b) => a.round - b.round);
   }
-  // What the numbers rest on, for the screen.
-  FM.devSources = function (league) {
-    const all = fixturesWithLogs(league);
-    return { last: all.filter((f) => f.history).length, pre: all.filter((f) => f.friendly && !f.history).length, season: all.filter((f) => !f.history && !f.friendly).length };
-  };
+  FM.devFixtures = fixturesWithLogs;
+  // What the numbers rest on, for the screen: the number of this season's matches played.
+  FM.devSources = function (league) { return { season: fixturesWithLogs(league).length }; };
   // Every logged decision by one player (or by everyone, if p is null), tagged with the round it happened in.
   FM.devEvents = function (league, p) {
     const out = { pass: [], dribble: [], tackle: [], shot: [] };
     fixturesWithLogs(league).forEach((f) => {
-      if (p && f.history && p.joined != null) return;   // last season's shirt numbers belong to the players who wore them then
       const L = f.log, round = f.round;
       L.teams.forEach((tid, side) => {
         const team = FM.teamById(league, tid);
@@ -141,7 +93,7 @@
     return val;
   };
   const rateOf = (list) => ({ n: list.length, k: list.filter((e) => e.ok).length, rate: list.length ? list.filter((e) => e.ok).length / list.length : NaN });
-  const MIN_N = { pass: 12, dribble: 5, tackle: 5, shot: 4 };
+  const MIN_N = { pass: 3, dribble: 2, tackle: 2, shot: 2 };
   // The measures for one lesson: overall, against the league, by condition, and before and after a plan began.
   FM.devMeasure = function (league, p, lessonId, sinceRound) {
     const L = FM.LESSONS[lessonId]; if (!L || !L.metric) return null;
@@ -267,8 +219,8 @@
           advice = 'Keep the lesson going until his potential is reached, then move on to the next weakness. Check that the improvement holds against stronger teams.';
         } else if (diff >= 0.05) {
           kind = 'ok'; title = 'Early signs for ' + first;
-          text = name + ' is heading the right way: ' + nums + '. It is promising, but with this few matches it could still be chance.';
-          advice = 'Give it two or three more matches before you decide. A change this small needs more evidence.';
+          text = name + ' is heading the right way: ' + nums + '.';
+          advice = 'Keep the lesson going and watch the next match.';
         } else if (diff <= -0.1 && t && t.p < 0.1) {
           kind = 'bad'; title = first + ' has gone backwards';
           text = pick(rng, [
@@ -278,7 +230,7 @@
           advice = 'Look at who he has faced and how tired he was: a harder opponent or a heavy schedule can pull a number down. If it carries on, try a different lesson.';
         } else {
           kind = 'info'; title = 'No clear change yet for ' + first;
-          text = name + ' is at ' + nums + '. That is roughly where he started, and the gap is well within what luck produces from match to match.';
+          text = name + ' is at ' + nums + '. That is roughly where he started.';
           advice = 'Do not judge it yet. Compare the same conditions, and give the training more matches.';
         }
         if (plan.understanding != null) {
@@ -290,7 +242,7 @@
       } else {
         feed(league, { round, pid: p.id, name, kind: 'info', title: first + ' is training',
           text: pick(rng, [name + ' put the week in on "' + L.title.toLowerCase() + '".', name + ' worked hard on his ' + L.area.toLowerCase() + ' this week.']) +
-            (m ? ' There are only ' + (m.post ? m.post.n : 0) + ' decisions recorded since the lesson began, so it is too early to say whether it is working.' : ''),
+            '',
           advice: m ? 'Keep playing him: the evidence arrives with matches.' : 'This work shows up in his ratings rather than in one statistic.' });
       }
       if (a >= startAbility + 2) {
@@ -344,11 +296,11 @@
     const ev = FM.devEvents(league, null)[key].filter((e) => vars.every((v) => v.get(e) != null && isFinite(v.get(e))));
     const succ = ev.filter((e) => e.ok).length, fail = ev.length - succ;
     let out = { lesson: lessonId, vars, n: ev.length, ok: false, reason: '' };
-    if (ev.length < 40 || succ < 6 || fail < 6) { out.reason = 'There are not enough recorded decisions across the league yet (' + ev.length + ', with ' + fail + ' that failed) to fit a model.'; }
+    if (ev.length < 12 || succ < 2 || fail < 2) { out.reason = 'The model fills in once this season\'s matches have been played.'; }
     else {
       const X = ev.map((e) => [1].concat(vars.map((v) => Math.min(v.max, Math.max(v.min, v.get(e)))))), y = ev.map((e) => (e.ok ? 1 : 0));
       let fit = null; try { fit = S.logistic(X, y); } catch (err) { fit = null; }
-      if (!fit || !fit.converged) out.reason = 'The model could not be fitted to this data yet. More matches will help.';
+      if (!fit || !fit.converged) out.reason = 'The model fills in as this season\'s matches are played.';
       else {
         out.ok = true; out.fit = fit;
         out.terms = vars.map((v, j) => ({ v, beta: fit.beta[j + 1], se: fit.se[j + 1], p: fit.p[j + 1], or: Math.exp(fit.beta[j + 1]) }));
@@ -376,8 +328,8 @@
       M.terms.forEach((t) => {
         if (t.p < 0.1) pts.push({ var: t.v.k, dir: t.beta > 0 ? 'up' : 'down', text: 'The ' + t.v.high + ', the ' + (t.beta > 0 ? 'more' : 'less') + ' likely it is to succeed' + (t.p < 0.05 ? '' : ' (a weaker effect)') });
       });
-      if (!pts.length) pts.push({ var: null, text: 'None of the situation factors clearly changes the chance of success in the data so far, so the honest conclusion is that more matches are needed' });
-    } else pts.push({ var: null, text: 'There is not enough data yet for the model to say what matters, so the honest conclusion is to gather more matches' });
+      if (!pts.length) pts.push({ var: null, text: 'That none of the situation factors clearly changes his chance of success' });
+    } else pts.push({ var: null, text: 'What the matches show about the situation that matters' });
     pts.push({ var: 'size', text: 'How big the effect is, in numbers (for example the odds or the percentage chance in two situations)' });
     pts.push({ var: 'rule', text: 'A rule he can use during a match' });
     return pts;
@@ -459,7 +411,6 @@
     odds: ['Reading the table: odds ratios', 'The odds ratio is the number the odds of success are multiplied by for each extra unit of that factor. Above 1 means it helps; below 1 means it hurts; exactly 1 means no effect. 0.80 for "pass length" means every extra metre cuts the odds of the pass arriving by about a fifth, whatever the lane and space.'],
     explore: ['Using the model: change the situation', 'The sliders put numbers into the fitted model and read off the probability. Move one factor at a time to see how much each is worth, then ask which of them a player can actually change by his decision.'],
     expected: ['Decision or execution? Expected against actual', 'The model can say what a typical player would complete from the same situations. If he gets less than that, he is executing worse than others in those situations. If he gets about the same but the situations are poor, the fault is the choices he makes. They need different coaching.'],
-    size: ['Why small samples mislead', 'A player who has made 9 tackles can easily be at 22% one month and 55% the next with no change in ability at all. Percentages from few decisions swing wildly by chance, which is why the screen asks for a minimum number of decisions before it says anything strong.'],
   };
   const explain = (k) => `<details class="dv-explain"><summary>${esc(EXPLAIN[k][0])}</summary><p>${esc(EXPLAIN[k][1])}</p></details>`;
   const dv = { sel: null, sort: 'gap', lesson: {}, busy: false, last: {} };
@@ -499,8 +450,8 @@
         if (m.rate >= m.base && hard) view = `“${esc(last)}'s ${esc(what)} look fine overall (${pct(m.rate)}, against ${pct(m.base)} for the league), but when the situation is tight (${esc(m.labels[0])}) he gets only ${pct(sp[0].rate)} of them right, against ${pct(sp[1].rate)} otherwise. That is where we lose the ball.”`;
         else if (m.rate < m.base) view = `“${esc(last)}'s ${esc(dl.area.toLowerCase())} are costing us. He gets ${pct(m.rate)} of his ${esc(what)} right (${m.k} of ${m.n}), where the league as a whole manages ${pct(m.base)}.”${hard ? ` It is much worse when ${esc(m.labels[0])}: ${pct(sp[0].rate)} against ${pct(sp[1].rate)}.` : ''}`;
         else view = `“${esc(last)} is doing fine on his ${esc(dl.area.toLowerCase())}: ${pct(m.rate)} (${m.k} of ${m.n}) against ${pct(m.base)} for the league. I would look at something else, or keep building on this.”`;
-      } else if (diag.kind === 'attribute') view = `“There are not enough matches on record yet to see his decisions, but his ${esc(diag.attr === 'gk' ? 'goalkeeping' : diag.attr)} is below most players in his position. I would start there.”`;
-      else view = '“Play him a few matches and I will have something to tell you.”';
+      } else if (diag.kind === 'attribute') view = `“I have no recorded decisions for him yet, but his ${esc(diag.attr === 'gk' ? 'goalkeeping' : diag.attr)} is below most players in his position. I would start there.”`;
+      else view = '“Once he has played, I will have something to tell you.”';
       // 2. investigate: tabs for the lesson, then three layers of evidence
       const tabs = `<div class="dv-tabs" role="tablist">${lessons.map((id) => `<button type="button" role="tab" data-dvl="${id}" class="${id === lessonId ? 'on' : ''}" aria-selected="${id === lessonId}">${esc(FM.LESSONS[id].area)}</button>`).join('')}</div>`;
       const m = FM.devMeasure(league, sel, lessonId, plan && plan.active && plan.lesson === lessonId ? plan.startRound : null);
@@ -508,13 +459,12 @@
       if (!m) inv = '<p class="note">This lesson is about effort and match feel rather than one recorded decision, so there is no statistic to model. You can still teach it below.</p>';
       else {
         const src = FM.devSources(league);
-        inv += `<div class="dv-layer"><h4>How often</h4><p class="note">Based on ${src.last ? src.last + ' matches from last season' : ''}${src.last && (src.pre || src.season) ? ', ' : ''}${src.pre ? src.pre + ' pre-season friendl' + (src.pre === 1 ? 'y' : 'ies') : ''}${src.season ? (src.last || src.pre ? ' and ' : '') + src.season + ' match' + (src.season === 1 ? '' : 'es') + ' this season' : ''}.</p>`;
-        if (!m.n) inv += '<p class="note">Nothing recorded yet. Matches you play are logged for this.</p>';
+        inv += `<div class="dv-layer"><h4>How often</h4>${src.season ? `<p class="note">From ${src.season} match${src.season === 1 ? '' : 'es'} played this season.</p>` : ''}`;
+        if (!m.n) inv += '<p class="note">Nothing recorded for him yet in this season\'s matches.</p>';
         else {
           inv += `<p><b>${m.k} of ${m.n}</b> ${esc(L.unit)} (<b>${pct(m.rate)}</b>${m.lo != null ? `, true figure plausibly between ${pct(m.lo)} and ${pct(m.hi)}` : ''}). The league as a whole: <b>${pct(m.base)}</b>.</p>`;
-          if (m.n < m.min) inv += `<p class="note">Only ${m.n} decisions so far: treat this as a first impression.</p>`;
         }
-        inv += explain('how') + explain('ci') + explain('size') + '</div>';
+        inv += explain('how') + explain('ci') + '</div>';
         if (m.split && m.split[0].n >= 1 && m.split[1].n >= 1) {
           inv += `<div class="dv-layer"><h4>Does the situation matter?</h4><table class="data dv-split"><thead><tr><th class="l">When</th><th>Decisions</th><th>Success</th></tr></thead><tbody>${m.split.map((s2, i) => `<tr><td class="l">${esc(m.labels[i])}</td><td>${s2.n}</td><td>${s2.n ? pct(s2.rate) : '–'}</td></tr>`).join('')}</tbody></table>`;
           if (m.splitP != null && !isNaN(m.splitP)) inv += `<p>The gap between those two situations: ${esc(FM.plainChance(m.splitP))}.</p>`;

@@ -342,8 +342,8 @@
     const idx = (id) => (id === match.home.id ? 0 : 1);
     const log = { teams: [match.home.id, match.away.id], passes: [], tackles: [], dribbles: [], other: [], heat: match.heat, duration: Math.round(match.clock) };
     match.events.forEach((e) => {
-      if (e.type === 'pass') log.passes.push([Math.round(e.t), idx(e.team), e.from, e.to, e.outcome === 'offside' ? 2 : e.ok ? 1 : 0, r1(e.x), r1(e.y), r1(e.dist), r1(Math.min(e.lane, 30)), r1(Math.min(e.press, 30)), r3(e.p)]);
-      else if (e.type === 'tackle') log.tackles.push([Math.round(e.t), idx(e.team), e.player, e.vs, e.ok ? 1 : 0, r1(e.x), r1(e.y)]);
+      if (e.type === 'pass') log.passes.push([Math.round(e.t), idx(e.team), e.from, e.to, e.outcome === 'offside' ? 2 : e.ok ? 1 : 0, r1(e.x), r1(e.y), r1(e.dist), r1(Math.min(e.lane, 30)), r1(Math.min(e.press, 30)), r3(e.p), r1(e.tx == null ? -1 : e.tx), r1(e.ty == null ? -1 : e.ty), e.box == null ? -1 : e.box]);
+      else if (e.type === 'tackle') log.tackles.push([Math.round(e.t), idx(e.team), e.player, e.vs, e.ok ? 1 : 0, r1(e.x), r1(e.y), r3(e.depth == null ? -1 : e.depth), r1(e.cover == null ? -1 : e.cover)]);
       else if (e.type === 'dribble') log.dribbles.push([Math.round(e.t), idx(e.team), e.player, e.ok ? 1 : 0, r1(e.x), r1(e.y), r1(Math.min(e.defDist, 30)), r3(e.p)]);
       else {
         const o = {};
