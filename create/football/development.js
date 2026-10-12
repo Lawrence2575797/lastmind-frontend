@@ -58,13 +58,65 @@
     shot: { label: ['defender close', 'space'], test: (e) => e.def < 3 },
     tackle: { label: ['', ''], test: null },
   };
-  function fixturesWithLogs(league) {
-    return league.fixtures.concat(league.friendlies || []).filter((f) => f.log && f.played).sort((a, b) => a.round - b.round);
+  // Last season. The shared league's previous season was played once in advance (its final table, and every match of the managed club with
+  // the passes, tackles and shots). What that log left out is rebuilt here so a game starts with a season of evidence: the positions of passes and
+  // challenges, where shots were taken from and how close the nearest defender was, and the dribbles. They are drawn at random, seeded by the
+  // match, from distributions that depend on the player's ratings and on the situation (a defender close by makes a dribble harder, shots
+  // from closer in and with more space score more), so a model fitted to them finds the same kinds of relationships a real match would give.
+  // The results themselves are last season's own: the scores, and so the table, are untouched.
+  const gam = (rng, k, theta) => { let t = 0; for (let i = 0; i < k; i++) t += -Math.log(Math.max(1e-9, rng())); return t * theta; };
+  const pois = (rng, lam) => { const L = Math.exp(-lam); let k = 0, q = 1; do { k++; q *= rng(); } while (q > L && k < 40); return k - 1; };
+  function forgeMatch(league, m) {
+    const rng = FM.mulberry32(FM.hashString(String(m.id)) + (league.seed || 0));
+    const R1 = (v) => Math.round(v * 10) / 10;
+    const yAt = () => Math.max(2, Math.min(66, 34 + (rng() + rng() + rng() - 1.5) * 22));
+    const log = { teams: m.log.teams.slice(), duration: m.log.duration, dribbles: [], other: [], passes: (m.log.passes || []).map((q) => q.slice()), tackles: (m.log.tackles || []).map((q) => q.slice()) };
+    log.passes.forEach((q) => { q[6] = R1(yAt()); });
+    log.tackles.forEach((q) => { q[6] = R1(yAt()); });
+    (m.log.other || []).forEach((e) => {
+      if (e.type !== 'shot') return;
+      const goal = e.outcome === 'goal', side = e.team === log.teams[0] ? 0 : 1;
+      const dist = Math.max(4, Math.min(34, (goal ? 11 : 17) + (rng() + rng() - 1) * 9)), def = Math.max(0.5, Math.min(12, (goal ? 3.6 : 2.6) + (rng() + rng() - 1) * 2.4));
+      log.other.push({ t: e.t, type: 'shot', team: e.team, player: e.player, xg: e.xg, outcome: e.outcome, defDist: R1(def), x: R1(side === 0 ? 105 - dist : dist), y: R1(34 + (rng() + rng() - 1) * 10) });
+    });
+    [0, 1].forEach((side) => {
+      const team = FM.teamById(league, log.teams[side]); if (!team) return;
+      const nums = new Set();
+      log.passes.forEach((q) => { if (q[1] === side) { nums.add(q[2]); nums.add(q[3]); } });
+      log.tackles.forEach((q) => { if (q[1] === side) nums.add(q[2]); });
+      nums.forEach((num) => {
+        const p = team.squad.find((x) => x.number === num);
+        if (!p || p.natural === 'GK' || !p.ratings) return;
+        const base = { WF: 3.2, AM: 2.6, ST: 1.7, FB: 1.5, CM: 1.5, DM: 0.8, CB: 0.4 }[p.natural] || 1, dr = p.ratings.dribbling || 60;
+        const n = pois(rng, base * (0.6 + dr / 90));
+        for (let i = 0; i < n; i++) {
+          const def = Math.max(0.3, Math.min(15, 1 + gam(rng, 2, 2))), pr = 1 / (1 + Math.exp(-(-0.5 + 0.32 * def + 0.045 * (dr - 65))));
+          const xx = side === 0 ? 105 - Math.max(5, Math.min(100, gam(rng, 3, 14))) : Math.max(5, Math.min(100, gam(rng, 3, 14)));
+          log.dribbles.push([Math.round(rng() * (log.duration || 5400)), side, num, rng() < pr ? 1 : 0, R1(xx), R1(yAt()), R1(def), Math.round(pr * 1000) / 1000]);
+        }
+      });
+    });
+    return { id: 'ls-' + m.id, round: (m.round || 0) - 17, homeId: m.homeId, awayId: m.awayId, played: true, hg: m.hg, ag: m.ag, history: true, log };
   }
+  function lastSeasonFixtures(league) {
+    const L = FM.LAST_SEASON;
+    if (!L || !L.matches || league.seed !== FM.WORLD_SEED) return [];
+    if (!league._lastSeasonForged) league._lastSeasonForged = L.matches.filter((m) => m.log).map((m) => forgeMatch(league, m));
+    return league._lastSeasonForged;
+  }
+  function fixturesWithLogs(league) {
+    return league.fixtures.concat(league.friendlies || [], lastSeasonFixtures(league)).filter((f) => f.log && f.played).sort((a, b) => a.round - b.round);
+  }
+  // What the numbers rest on, for the screen.
+  FM.devSources = function (league) {
+    const all = fixturesWithLogs(league);
+    return { last: all.filter((f) => f.history).length, pre: all.filter((f) => f.friendly && !f.history).length, season: all.filter((f) => !f.history && !f.friendly).length };
+  };
   // Every logged decision by one player (or by everyone, if p is null), tagged with the round it happened in.
   FM.devEvents = function (league, p) {
     const out = { pass: [], dribble: [], tackle: [], shot: [] };
     fixturesWithLogs(league).forEach((f) => {
+      if (p && f.history && p.joined != null) return;   // last season's shirt numbers belong to the players who wore them then
       const L = f.log, round = f.round;
       L.teams.forEach((tid, side) => {
         const team = FM.teamById(league, tid);
@@ -445,7 +497,8 @@
       let inv = '';
       if (!m) inv = '<p class="note">This lesson is about effort and match feel rather than one recorded decision, so there is no statistic to model. You can still teach it below.</p>';
       else {
-        inv += `<div class="dv-layer"><h4>How often</h4>`;
+        const src = FM.devSources(league);
+        inv += `<div class="dv-layer"><h4>How often</h4><p class="note">Based on ${src.last ? src.last + ' matches from last season' : ''}${src.last && (src.pre || src.season) ? ', ' : ''}${src.pre ? src.pre + ' pre-season friendl' + (src.pre === 1 ? 'y' : 'ies') : ''}${src.season ? (src.last || src.pre ? ' and ' : '') + src.season + ' match' + (src.season === 1 ? '' : 'es') + ' this season' : ''}.</p>`;
         if (!m.n) inv += '<p class="note">Nothing recorded yet. Matches you play are logged for this.</p>';
         else {
           inv += `<p><b>${m.k} of ${m.n}</b> ${esc(L.unit)} (<b>${pct(m.rate)}</b>${m.lo != null ? `, true figure plausibly between ${pct(m.lo)} and ${pct(m.hi)}` : ''}). The league as a whole: <b>${pct(m.base)}</b>.</p>`;
