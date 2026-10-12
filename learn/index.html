@@ -4274,7 +4274,7 @@
        a genuine line box, so later content is always pushed down. */
     .nb-text .math-shortcut-editor .nb-plain-line { display: block; min-height: 1.55em; }
     /* Lists hang their bullets and numbers in the gap beside the margin line while their text lines up with the paragraphs above and below. */
-    .nb-text .math-shortcut-editor ul, .nb-text .math-shortcut-editor ol { margin: 0.2em 0; padding-left: 0; list-style-position: outside; }
+    .nb-text .math-shortcut-editor ul, .nb-text .math-shortcut-editor ol { margin: 0.2em 0; padding-left: 1.5em; list-style-position: outside; }
     .nb-text .math-shortcut-editor li { margin-left: 0; padding-left: 0.1em; }
     .nb-text .math-shortcut-editor ul { list-style: disc; }
     /* The long dash from typing two hyphens: larger and heavier, to match the weight of a bullet point */
@@ -21355,6 +21355,8 @@ SQIDAQAB
             document.execCommand('formatBlock', false, cur === f[1] ? 'div' : f[1]);
         } else document.execCommand(f[0], false, null);
     }
+    // The margin line sits at one fixed distance from the page's left edge: 56px with the LastMind panel closed, 44px with it open (28px on a phone).
+    function nbMarginFor(cw) { return cw < 520 ? 28 : (notesAssist && notesAssist.open ? 44 : 56); }
     function nbSyncKeyboardButtons() {
         const m = document.getElementById('nbKbdMaths'), e = document.getElementById('nbKbdEnglish');
         if (m) m.setAttribute('aria-pressed', String(!notesWriting));
@@ -22077,6 +22079,28 @@ SQIDAQAB
                     }
                 }
             }
+            // Backspace with the cursor directly to the right of a bullet (nothing typed before it in that item) takes the bullet away and
+            // leaves the text as an ordinary line; in a nested list it first moves the item out a level.
+            if (e.key === 'Backspace' && !mod && !e.altKey && !e.shiftKey) {
+                const selB = window.getSelection();
+                if (selB.rangeCount && selB.isCollapsed && selB.anchorNode && editable.contains(selB.anchorNode)) {
+                    let li = selB.anchorNode.nodeType === 1 ? selB.anchorNode : selB.anchorNode.parentNode;
+                    while (li && li !== editable && li.tagName !== 'LI') li = li.parentNode;
+                    if (li && li.tagName === 'LI') {
+                        const pre = document.createRange(); pre.selectNodeContents(li); pre.setEnd(selB.anchorNode, selB.anchorOffset);
+                        const holder = pre.cloneContents();
+                        if (holder.querySelector && holder.querySelector('ul, ol')) { /* the caret is after a nested list: leave it alone */ }
+                        else if (pre.toString().replace(/[​\s]/g, '') === '' && !holder.querySelector('img, .math-symbol, .frac, .root')) {
+                            e.preventDefault();
+                            const list = li.parentNode;
+                            if (list && list.parentNode && list.parentNode.closest && list.parentNode.closest('li')) document.execCommand('outdent');
+                            else document.execCommand(list && list.tagName === 'OL' ? 'insertOrderedList' : 'insertUnorderedList');
+                            editable.dispatchEvent(new Event('input', { bubbles: true }));
+                            return;
+                        }
+                    }
+                }
+            }
             // Backspace at the start of an arrow line removes the arrow as
             // one structural item. The browser otherwise only deletes the
             // invisible landing character, leaving the drawn arrow behind.
@@ -22218,6 +22242,8 @@ SQIDAQAB
                     }
                 }
             }
+            // Alt + Shift + H: heading on this line (and back to normal text). Plain Shift + H stays a capital H.
+            if (e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey && e.code === 'KeyH') { e.preventDefault(); nbFormat('h2'); return; }
             if (mod && e.altKey && !e.shiftKey) {
                 const k = { Digit1: 'h1', Digit2: 'h2', Digit0: 'p' }[e.code];
                 if (k) { e.preventDefault(); nbFormat(k); return; }
@@ -22609,6 +22635,8 @@ SQIDAQAB
         ['Writing and lists', [
             ['Click anywhere', 'Starts a new line of text at the spot you clicked.'],
             [K('Ctrl') + ' + ' + K('Alt') + ' + ' + K('1') + ' / ' + K('2') + ' / ' + K('0'), 'Turns the line into a title, a heading, or normal text.'],
+            [K('Alt') + ' + ' + K('Shift') + ' + ' + K('H'), 'Turns the line into a heading, and back again. (A plain ' + K('Shift') + ' + ' + K('H') + ' is just a capital H.)'],
+            [K('Backspace') + ' next to a bullet', 'With the cursor directly to the right of a bullet, takes the bullet away and keeps the text.'],
             [K('-') + ' then ' + K('Space'), 'At the start of a line, turns it into a bullet point.'],
             [K('.') + K('.'), 'At the start of a line, also turns it into a bullet point.'],
             [K('1.') + ' then ' + K('Space'), 'At the start of a line, starts a numbered list.'],
@@ -23120,20 +23148,12 @@ SQIDAQAB
                     <button type="button" class="nb-tool nb-sr-btn" id="nbSrBtn" title="Quiz yourself on this page the day after you write it">Revision</button>
                 </div>
                 <div class="nb-toolbar" role="toolbar" aria-label="Page tools">
-                    <button type="button" class="nb-tool" data-fmt="h1" title="Title (Ctrl+Alt+1)">Title</button>
-                    <button type="button" class="nb-tool" data-fmt="h2" title="Heading (Ctrl+Alt+2)">Heading</button>
-                    <button type="button" class="nb-tool" data-fmt="p" title="Normal text (Ctrl+Alt+0)">Text</button>
-                    <button type="button" class="nb-tool" data-fmt="ul" title="Bullet points (Ctrl+Shift+8, or type - then Space)">• Bullets</button>
                     <button type="button" class="nb-tool" data-fmt="ol" title="Numbered list (Ctrl+Shift+7, or type 1. then Space)">1. Numbers</button>
                     <label class="nb-text-size-wrap">Text size
                         <select class="nb-text-size" id="nbTextSize" aria-label="Text size" title="Text size for highlighted text or the active text box">
                             <option value="12">12px</option><option value="14">14px</option><option value="16" selected>16px</option><option value="18">18px</option><option value="22">22px</option><option value="28">28px</option><option value="36">36px</option>
                         </select>
                     </label>
-                    <span class="maths-notes-kbd-switch" role="group" aria-label="Keyboard" hidden>
-                        <button type="button" id="nbKbdEnglish" aria-pressed="true">English keyboard</button>
-                        <button type="button" id="nbKbdMaths" aria-pressed="false">Maths keyboard</button>
-                    </span>
                     <button type="button" class="nb-tool nb-tool-strong" id="nbAddGraph" title="Add coordinate graph (Ctrl+Alt+G)">+ Graph</button>
                     <button type="button" class="nb-tool" id="nbAddTable">+ Table</button>
                     <button type="button" class="nb-tool" id="nbAddDiagram">+ Economics diagram</button>
@@ -23160,7 +23180,7 @@ SQIDAQAB
         const refit = () => {
             const cw = canvas.clientWidth; if (!cw || Math.abs(cw - refitWidth) < 4) { nbClampBlocksToCanvas(canvas); return; }
             refitWidth = cw;
-            canvas.style.setProperty('--nb-margin', (cw < 520 ? 28 : cw < 760 ? 40 : 56) + 'px');
+            canvas.style.setProperty('--nb-margin', nbMarginFor(cw) + 'px');
             if (page.kind === 'problemset' && page.ps && page.ps.done) { psRelayout(page, canvas); }
             else page.doc.blocks.forEach((b) => { const el = canvas.querySelector('.nb-block[data-id="' + b.id + '"]'); if (el && (b.type === 'text' || b.type === 'table' || b.type === 'diagram' || b.type === 'graph' || b.type === 'image')) nbPlace(el, b, canvas); });
             nbClampBlocksToCanvas(canvas); nbFitCanvas(canvas);
@@ -23196,7 +23216,7 @@ SQIDAQAB
         nbToggleHint(canvas, page); nbFitCanvas(canvas);
         // The sheet has a margin line. A click on or near it starts the text a fixed, comfortable distance to its right; a click anywhere
         // else starts the text exactly where you clicked.
-        const nbMargin = () => (canvas.clientWidth < 520 ? 28 : canvas.clientWidth < 760 ? 40 : 56);
+        const nbMargin = () => nbMarginFor(canvas.clientWidth);
         const nbTextStart = () => nbMargin() + 16;
         const nbSetMargin = () => canvas.style.setProperty('--nb-margin', nbMargin() + 'px');
         nbSetMargin(); window.addEventListener('resize', nbSetMargin);
@@ -23285,8 +23305,7 @@ SQIDAQAB
         document.addEventListener('pointerdown', onAlignmentPointerDown, true);
         notesSelectionSizeCleanup = () => { document.removeEventListener('pointerdown', onFramePointerDown, true); document.removeEventListener('selectionchange', onSelectionChange); document.removeEventListener('pointerdown', onSelectionPointerDown, true); document.removeEventListener('pointerdown', onAlignmentPointerDown, true); document.removeEventListener('pointerdown', onTablePickerPointerDown, true); notesSelectionSizeDismiss = null; selectionSize.remove(); };
         const setKeyboard = (writing) => { notesWriting = writing; nbSyncKeyboardButtons(); if (notesActive) { notesActive.ed.setWritingMode(writing); notesActive.editable.focus(); } };
-        document.getElementById('nbKbdEnglish').addEventListener('click', () => setKeyboard(true));
-        document.getElementById('nbKbdMaths').addEventListener('click', () => setKeyboard(false));
+        void setKeyboard;   // the keyboard is chosen automatically now
         nbSyncKeyboardButtons();
         document.getElementById('nbShortcuts').addEventListener('click', () => openMathsShortcutPopup(NB_SHORTCUTS_HTML, true));
         const acBtn = document.getElementById('nbAutocorrect');
