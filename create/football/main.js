@@ -645,7 +645,9 @@
     const rep = host.querySelector('#previewReport'); if (rep) rep.addEventListener('click', () => setView('reports'));
     host.querySelector('#enterMatch').addEventListener('click', () => {
       if (!canPlay) return;
-      let guard = 0; while (!FM.userFixtureToday(lg) && !FM.seasonOver(lg) && guard++ < 8) FM.advanceDay(lg);
+      // Move on to the next matchday. The day is still the one the last match was played on, so "a fixture today" is not enough: it has to be one
+      // that has not been played yet.
+      for (let guard = 0; guard < 30 && !FM.seasonOver(lg); guard++) { const today = FM.userFixtureToday(lg); if (today && !today.played) break; if (FM.advanceDay(lg)) break; }
       FM.saveLeague(lg); beginPreMatchInterview();
     });
   }
