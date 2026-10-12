@@ -20216,7 +20216,7 @@ SQIDAQAB
         [K('Caps Lock') + ' + ' + K('~'), 'Types a root with a small box for the index, such as a cube root.'],
         [K('Shift') + ' + a letter', 'Types the Greek letter when you are writing maths: straight after a number, a sign (x = ), a letter such as sin, or a bracket that follows a function. In ordinary writing (the start of a line or sentence, after a word) it is just a capital letter. ' + K('Alt') + ' + ' + K('Shift') + ' + a letter always gives the Greek letter. With Caps Lock on you get the capital Greek letter.'],
         [K('&lt;=') + ' ' + K('&gt;=') + ' ' + K('!=') + ' ' + K('=='), 'Typed as two keys, these turn into ≤, ≥, ≠ and the identity sign ≡.'],
-        [K('Ctrl') + ' + ' + K('-'), 'Puts a bar over the letter, symbol or bracket group just before the cursor, or over the selected text: x̄ for a mean, or an exogenous variable. Press it again straight after the barred part to take the bar off.'],
+        [K('Ctrl') + ' + ' + K('-'), 'Puts a bar over the word just before the cursor (a variable name such as GDP or Y, a letter, a Greek letter), over a bracket group, or over the selected text: x̄ for a mean, or an exogenous variable. What you type next is not barred. Press it again straight after the barred part to take the bar off.'],
         [K('Shift') + ' + ' + K('E'), 'Types ∈, "belongs to the set of", such as c ∈ ℝ. Straight after a single letter and a space (c ) it always gives ∈; elsewhere it follows the same maths-or-writing rule as the Greek letters.'],
         [K('Shift') + ' + ' + K('F'), 'Types f(x) when you are writing maths. At the start of a line, type a capital F and then ' + K('(') + ': it becomes f(x). Press ' + K("'") + ' straight after it for f′(x), and again for f″(x).'],
         [K('Shift') + ' + ' + K('I'), 'Types an integral sign in maths (after a sign or a number); a capital I in ordinary writing. Then press ' + K('d') + ' to add the limits.'],
@@ -20838,6 +20838,7 @@ SQIDAQAB
             const landAfter = (el) => {
                 let tail = el.nextSibling;
                 if (!tail || tail.nodeType !== 3) { tail = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL); el.parentNode.insertBefore(tail, el.nextSibling); }
+                else if (tail.textContent === '') tail.textContent = MATH_SHORTCUT_ZWS_GLOBAL;
                 const c = document.createRange(); c.setStart(tail, tail.textContent.charAt(0) === MATH_SHORTCUT_ZWS_GLOBAL ? 1 : 0); c.collapse(true);
                 sel.removeAllRanges(); sel.addRange(c);
             };
@@ -20856,6 +20857,26 @@ SQIDAQAB
                 if (i > 0) {
                     const ch = node.textContent.charAt(i - 1);
                     if (/\s/.test(ch)) return false;
+                    // the word: the run of letters and digits before the cursor, together with any Greek letters or symbols joined to it
+                    const isWord = (c) => /[A-Za-z0-9\u0370-\u03ff'\u2019\u2032\u2033]/.test(c);
+                    if (isWord(ch)) {
+                        let j = i; while (j > 0 && isWord(node.textContent.charAt(j - 1))) j--;
+                        let startNode = node, startOff = j;
+                        if (j === 0) {
+                            let prev = node.previousSibling;
+                            while (prev) {
+                                if (prev.nodeType === 3 && !prev.textContent.replace(/\u200B/g, '')) { prev = prev.previousSibling; continue; }
+                                if (prev.nodeType === 1 && prev.classList.contains('math-symbol')) { startNode = prev.parentNode; startOff = Array.prototype.indexOf.call(prev.parentNode.childNodes, prev); prev = prev.previousSibling; continue; }
+                                if (prev.nodeType === 3) {
+                                    const t = prev.textContent; let k = t.length; while (k > 0 && isWord(t.charAt(k - 1))) k--;
+                                    if (k < t.length) { startNode = prev; startOff = k; if (k === 0) { prev = prev.previousSibling; continue; } }
+                                }
+                                break;
+                            }
+                        }
+                        const wr = document.createRange(); wr.setStart(startNode, startOff); wr.setEnd(node, i);
+                        return wrapRange(wr);
+                    }
                     const after = node.textContent.slice(i);
                     node.textContent = node.textContent.slice(0, i - 1);
                     const span = document.createElement('span'); span.className = 'math-bar'; span.textContent = ch;
@@ -20883,6 +20904,22 @@ SQIDAQAB
             }
             const r2 = document.createRange(); r2.selectNode(target);
             return wrapRange(r2);
+        }
+        // The bar belongs to the one word it was put on: when the cursor is at the very end of a barred word, whatever is typed next starts
+        // outside it (browsers otherwise tend to carry the formatting of the last character on to the next ones).
+        function leaveBarAtEnd() {
+            const sel = window.getSelection();
+            if (!sel.rangeCount || !sel.isCollapsed) return;
+            const rg = sel.getRangeAt(0);
+            let bar = rg.startContainer.nodeType === 1 ? rg.startContainer : rg.startContainer.parentNode;
+            while (bar && bar !== editor && !(bar.classList && bar.classList.contains('math-bar'))) bar = bar.parentNode;
+            if (!bar || bar === editor) return;
+            const rest = document.createRange(); rest.selectNodeContents(bar); rest.setStart(rg.startContainer, rg.startOffset);
+            if (rest.toString().replace(/\u200B/g, '') !== '') return;       // the cursor is inside the word: keep the bar
+            let tail = bar.nextSibling;
+            if (!tail || tail.nodeType !== 3) { tail = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL); bar.parentNode.insertBefore(tail, bar.nextSibling); }
+            const c = document.createRange(); c.setStart(tail, tail.textContent.charAt(0) === MATH_SHORTCUT_ZWS_GLOBAL ? 1 : 0); c.collapse(true);
+            sel.removeAllRanges(); sel.addRange(c);
         }
         // ----- automatic mode: is the cursor in maths or in ordinary writing?
         function lineBeforeCaret() {
@@ -20973,6 +21010,7 @@ SQIDAQAB
         }
         const afterOperand = () => /[A-Za-z0-9)\]′″]$/.test(lineBeforeCaret()) || isSymbolChar(lineBeforeCaret().slice(-1));
         editor.addEventListener('keydown', (ev) => {
+            if (ev.key && ev.key.length === 1 && !ev.ctrlKey && !ev.metaKey && !ev.altKey) leaveBarAtEnd();
             if (auto && typeof opts.autocorrect === 'function') {
                 if (ev.key === 'Backspace' && !ev.ctrlKey && !ev.metaKey && !ev.altKey && lastFix && undoAutocorrect()) { ev.preventDefault(); return; }
                 if (AC_BOUNDARY.indexOf(ev.key) >= 0 && !ev.ctrlKey && !ev.metaKey && !ev.altKey && opts.autocorrect()) { lastFix = null; nbLoadDictionary(); tryAutocorrect(); }
@@ -21129,6 +21167,40 @@ SQIDAQAB
             if (intZone && intZone.className === 'int-lower' && ev.key === ' ') { ev.preventDefault(); exitIntLimits(intZone); return; }
         });
         editor.addEventListener('input', () => { if (!writingMode) maybeConvertTwoChar(); });
+        // Text typed straight after a barred word goes outside the bar. The browser would otherwise treat the position just after the bar's last
+        // letter as part of it, so the text is placed by hand.
+        editor.addEventListener('beforeinput', (e) => {
+            if (e.inputType !== 'insertText' || !e.data || e.isComposing) return;
+            const sel = window.getSelection();
+            if (!sel.rangeCount || !sel.isCollapsed) return;
+            const rg = sel.getRangeAt(0), node = rg.startContainer;
+            let tail = null, at = 0;
+            const isBar = (n) => n && n.nodeType === 1 && n.classList && n.classList.contains('math-bar');
+            if (node.nodeType === 3 && !node.parentNode.closest('.math-bar')) {
+                if (node.textContent.slice(0, rg.startOffset).replace(/​/g, '') === '') {
+                    let prev = node.previousSibling;
+                    while (prev && prev.nodeType === 3 && !prev.textContent.replace(/​/g, '')) prev = prev.previousSibling;
+                    if (isBar(prev)) { tail = node; at = rg.startOffset; }
+                }
+            } else {
+                let bar = node.nodeType === 1 ? node : node.parentNode;
+                while (bar && bar !== editor && !isBar(bar)) bar = bar.parentNode;
+                if (bar && bar !== editor) {
+                    const rest = document.createRange(); rest.selectNodeContents(bar); rest.setStart(node, rg.startOffset);
+                    if (rest.toString().replace(/​/g, '') === '') {
+                        tail = bar.nextSibling;
+                        if (!tail || tail.nodeType !== 3) { tail = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL); bar.parentNode.insertBefore(tail, bar.nextSibling); }
+                        at = tail.textContent.charAt(0) === MATH_SHORTCUT_ZWS_GLOBAL ? 1 : 0;
+                    }
+                }
+            }
+            if (!tail) return;
+            e.preventDefault();
+            tail.insertData(at, e.data);
+            const c = document.createRange(); c.setStart(tail, at + e.data.length); c.collapse(true);
+            sel.removeAllRanges(); sel.addRange(c);
+            editor.dispatchEvent(new Event('input', { bubbles: true }));
+        });
         editor.addEventListener('copy', (ev) => { nbMathCopy(ev, false, editor); });
         editor.addEventListener('cut', (ev) => { nbMathCopy(ev, true, editor); });
         // Pasting is welcome here: maths copied from LastMind keeps its form, text that is written as maths is drawn as maths, and anything else is
