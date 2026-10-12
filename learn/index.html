@@ -4296,6 +4296,14 @@
     .nb-image img { display: block; width: 100%; height: auto; border-radius: 0 0 8px 8px; user-select: none; -webkit-user-drag: none; }
     .nb-img-missing { margin: 0; padding: 18px 14px; opacity: .8; font-size: .9rem; }
     .nb-drop-over { outline: 3px dashed rgba(230, 215, 176, .8); outline-offset: -6px; }
+    .nb-msg .frac, .nb-review .frac, .nb-tex .frac, .nb-sr-card .frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin: 0 0.2em; font-size: 0.9em; line-height: 1.15; }
+    .nb-msg .frac-num, .nb-review .frac-num, .nb-sr-card .frac-num { align-self: stretch; text-align: center; padding: 0 0.2em 0.12em; border-bottom: 1.5px solid currentColor; }
+    .nb-msg .frac-den, .nb-review .frac-den, .nb-sr-card .frac-den { align-self: stretch; text-align: center; padding: 0.12em 0.2em 0; }
+    .nb-msg .root, .nb-review .root, .nb-sr-card .root { display: inline-flex; align-items: flex-start; white-space: nowrap; }
+    .nb-msg .root-radicand, .nb-review .root-radicand, .nb-sr-card .root-radicand { border-top: 1.5px solid currentColor; padding: 0 0.15em; }
+    .nb-msg p, .nb-review p { margin: 0 0 .6em; } .nb-msg ul, .nb-msg ol { margin: .2em 0 .6em; padding-left: 1.4em; } .nb-msg code { padding: 0 .25em; border-radius: 4px; background: rgba(255,255,255,.1); }
+    .nb-assist-form { align-items: flex-end; } .nb-assist-form #nbAssistInputHost { flex: 1; min-width: 0; }
+    .nb-assist-editor .math-shortcut-editor { min-height: 44px; max-height: 150px; overflow: auto; padding: 8px 10px; font-family: inherit; font-size: .95rem; line-height: 1.5; border-radius: 8px; }
     .nb-dbar { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-bottom: 1px solid rgba(230, 215, 176, 0.18); }
     .nb-dbar .nb-grip { position: static; display: flex; flex: 1; justify-content: flex-start; width: auto; height: 26px; padding: 0 8px; background: transparent; color: var(--text); font-size: 13px; font-weight: 700; gap: 6px; }
     .nb-lines-btn { font: inherit; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 8px; cursor: pointer; background: transparent; color: var(--text); border: 1.5px solid rgba(230, 215, 176, 0.4); }
@@ -20962,11 +20970,27 @@ SQIDAQAB
             if (intZone && intZone.className === 'int-lower' && ev.key === ' ') { ev.preventDefault(); exitIntLimits(intZone); return; }
         });
         editor.addEventListener('input', () => { if (!writingMode) maybeConvertTwoChar(); });
-        // Pasting is welcome here: take the plain text only (no pasted styling).
+        editor.addEventListener('copy', (ev) => { nbMathCopy(ev, false, editor); });
+        editor.addEventListener('cut', (ev) => { nbMathCopy(ev, true, editor); });
+        // Pasting is welcome here: maths copied from LastMind keeps its form, text that is written as maths is drawn as maths, and anything else is
+        // plain text only (no pasted styling).
         editor.addEventListener('paste', (ev) => {
             ev.preventDefault();
-            const text = (ev.clipboardData || window.clipboardData).getData('text/plain');
-            if (text) insertTextAtCaret(text);
+            const cd = ev.clipboardData || window.clipboardData;
+            const html = cd.getData('text/html');
+            if (html && html.indexOf('data-lm-maths') >= 0) {
+                document.execCommand('insertHTML', false, nbSanitizeMathHtml(html) + MATH_SHORTCUT_ZWS_GLOBAL);
+                editor.dispatchEvent(new Event('input', { bubbles: true }));
+                return;
+            }
+            const text = cd.getData('text/plain');
+            if (!text) return;
+            if (nbLooksLikeMaths(text)) {
+                document.execCommand('insertHTML', false, nbMathInline(text, { markdown: false }).replace(/\n/g, '<br>') + MATH_SHORTCUT_ZWS_GLOBAL);
+                editor.dispatchEvent(new Event('input', { bubbles: true }));
+                return;
+            }
+            insertTextAtCaret(text);
         });
 
         function serializeNode(node) {
@@ -22693,7 +22717,140 @@ SQIDAQAB
     const NB_ASSIST_STORE = 'lastmind-notes-assist-v1';
     let notesAssist = { open: false, busy: false, store: null };
     const nbAssistE = (t) => String(t == null ? '' : t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    const nbAssistRich = (t) => nbAssistE(t).split(/\n{2,}/).map((para) => '<p>' + para.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>') + '</p>').join('');
+    // ----- maths in text (the LastMind panel, the review, the quiz, and pasting)
+    // Text arrives as ordinary writing with maths in it: LaTeX between $ signs or \( \), or the shorthand the maths keyboard writes out
+    // (x^(2), a_(1), sqrt(x), (a)/(b), 3/4). It is turned into the same fractions, powers and roots the editor draws, so it looks the same
+    // everywhere and can be copied into a Notes box and still be maths. Everything is escaped first; the only tags made are the ones below.
+    const NB_TEX_SYMBOLS = {
+        times: '×', cdot: '·', div: '÷', pm: '±', mp: '∓', leq: '≤', le: '≤', geq: '≥', ge: '≥', neq: '≠', ne: '≠', approx: '≈', equiv: '≡', sim: '∼', propto: '∝',
+        infty: '∞', to: '→', rightarrow: '→', leftarrow: '←', Rightarrow: '⇒', Leftarrow: '⇐', Leftrightarrow: '⇔', leftrightarrow: '↔', in: '∈', notin: '∉',
+        subset: '⊂', subseteq: '⊆', cup: '∪', cap: '∩', emptyset: '∅', forall: '∀', exists: '∃', therefore: '∴', sum: '∑', prod: '∏', int: '∫', partial: '∂',
+        nabla: '∇', degree: '°', circ: '°', ldots: '…', cdots: '⋯', dots: '…', prime: '′', angle: '∠', perp: '⊥', parallel: '∥',
+        alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', epsilon: 'ε', varepsilon: 'ε', zeta: 'ζ', eta: 'η', theta: 'θ', vartheta: 'ϑ', iota: 'ι', kappa: 'κ',
+        lambda: 'λ', mu: 'μ', nu: 'ν', xi: 'ξ', pi: 'π', rho: 'ρ', sigma: 'σ', tau: 'τ', upsilon: 'υ', phi: 'φ', varphi: 'φ', chi: 'χ', psi: 'ψ', omega: 'ω',
+        Gamma: 'Γ', Delta: 'Δ', Theta: 'Θ', Lambda: 'Λ', Xi: 'Ξ', Pi: 'Π', Sigma: 'Σ', Phi: 'Φ', Psi: 'Ψ', Omega: 'Ω',
+        ln: 'ln', log: 'log', sin: 'sin', cos: 'cos', tan: 'tan', exp: 'exp', lim: 'lim', max: 'max', min: 'min', det: 'det',
+        quad: ' ', qquad: '  ', ',': ' ', ';': ' ', ':': ' ', '!': '', ' ': ' ',
+    };
+    function nbTexToHtml(src) {
+        let i = 0;
+        const esc = nbAssistE;
+        const group = () => {            // one {…} group, or a single token
+            while (src[i] === ' ') i += 1;
+            if (src[i] === '{') {
+                let depth = 0, j = i;
+                for (; j < src.length; j += 1) { if (src[j] === '{') depth += 1; else if (src[j] === '}') { depth -= 1; if (depth === 0) break; } }
+                const inner = src.slice(i + 1, j); i = j + 1;
+                return nbTexToHtml(inner);
+            }
+            if (src[i] === '\\') { const m = /^\\([A-Za-z]+|.)/.exec(src.slice(i)); if (m) { i += m[0].length; return NB_TEX_SYMBOLS[m[1]] != null ? esc(NB_TEX_SYMBOLS[m[1]]) : esc(m[1]); } }
+            const ch = src[i] || ''; i += 1; return esc(ch);
+        };
+        let out = '';
+        while (i < src.length) {
+            const c = src[i];
+            if (c === '\\') {
+                const m = /^\\([A-Za-z]+|.)/.exec(src.slice(i)); if (!m) { i += 1; continue; }
+                const name = m[1]; i += m[0].length;
+                if (name === 'frac' || name === 'dfrac' || name === 'tfrac') { const a = group(), b = group(); out += '<span class="frac"><span class="frac-num">' + a + '</span><span class="frac-den">' + b + '</span></span>'; }
+                else if (name === 'sqrt') {
+                    let idx = '';
+                    if (src[i] === '[') { const j = src.indexOf(']', i); if (j > i) { idx = esc(src.slice(i + 1, j)); i = j + 1; } }
+                    const x = group();
+                    out += (idx ? '<sup>' + idx + '</sup>' : '') + '<span class="root"><span class="root-symbol">√</span><span class="root-radicand">' + x + '</span></span>';
+                } else if (name === 'text' || name === 'mathrm' || name === 'mathbf' || name === 'textbf' || name === 'operatorname' || name === 'mathit') {
+                    while (src[i] === ' ') i += 1;
+                    if (src[i] === '{') { const j = src.indexOf('}', i); const raw = src.slice(i + 1, j < 0 ? src.length : j); i = (j < 0 ? src.length : j + 1); out += esc(raw); }
+                } else if (name === 'left' || name === 'right' || name === 'big' || name === 'Big' || name === 'bigg' || name === 'Bigg') { if (src[i] === '.') i += 1; }
+                else if (name === '\\') out += '<br>';
+                else if (name === '{' || name === '}' || name === '%' || name === '$' || name === '&' || name === '_' || name === '#') out += esc(name);
+                else if (NB_TEX_SYMBOLS[name] != null) out += esc(NB_TEX_SYMBOLS[name]) + (/^(sin|cos|tan|ln|log|exp|lim|max|min|det)$/.test(name) ? ' ' : '');
+                else out += esc(name);
+            } else if (c === '^') { i += 1; out += '<sup>' + group() + '</sup>'; }
+            else if (c === '_') { i += 1; out += '<sub>' + group() + '</sub>'; }
+            else if (c === '{') { out += group(); }
+            else if (c === '}' || c === '&') { i += 1; }
+            else if (c === '~') { out += ' '; i += 1; }
+            else { out += esc(c); i += 1; }
+        }
+        return out;
+    }
+    // One line of text: maths in LaTeX and in shorthand turned into drawn maths. opts.markdown also handles **bold**, *italic* and `code`.
+    function nbMathInline(text, opts) {
+        const md = !opts || opts.markdown !== false;
+        const keep = [];
+        const hold = (html) => { keep.push(html); return '\u0000' + (keep.length - 1) + '\u0000'; };
+        let t = String(text == null ? '' : text);
+        // LaTeX between delimiters
+        t = t.replace(/\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)|\$(?![\s$])([^$\n]+?)(?<![\s\\])\$/g,
+            (m, a, b, c, d) => hold('<span class="nb-tex">' + nbTexToHtml(a || b || c || d || '') + '</span>'));
+        t = nbAssistE(t);
+        if (md) {
+            t = t.replace(/`([^`\n]+)`/g, (m, x) => hold('<code>' + x + '</code>'));
+            t = t.replace(/\*\*([^*\n]+?)\*\*/g, '<b>$1</b>');
+            t = t.replace(/(^|[^*\w])\*(?![\s*])([^*\n]+?)(?<![\s*])\*(?![*\w])/g, '$1<i>$2</i>');
+        }
+        // shorthand: roots, fractions, powers and subscripts
+        t = t.replace(/(?:sqrt|√)\(([^()]*)\)/gi, (m, x) => hold('<span class="root"><span class="root-symbol">√</span><span class="root-radicand">' + x + '</span></span>'));
+        t = t.replace(/\(([^()\n]{1,40})\)\/\(([^()\n]{1,40})\)/g, (m, a, b) => hold('<span class="frac"><span class="frac-num">' + a + '</span><span class="frac-den">' + b + '</span></span>'));
+        t = t.replace(/(?<![\/\d.])(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)(?![\/\d])/g, (m, a, b) => hold('<span class="frac"><span class="frac-num">' + a + '</span><span class="frac-den">' + b + '</span></span>'));
+        t = t.replace(/\^\(([^()]*)\)/g, '<sup>$1</sup>').replace(/\^\{([^{}]*)\}/g, '<sup>$1</sup>').replace(/\^(-?[A-Za-z0-9.]+)/g, '<sup>$1</sup>');
+        t = t.replace(/_\(([^()]*)\)/g, '<sub>$1</sub>').replace(/_\{([^{}]*)\}/g, '<sub>$1</sub>').replace(/(?<=[A-Za-z0-9)])_([A-Za-z0-9]{1,3})(?![A-Za-z0-9])/g, '<sub>$1</sub>');
+        t = t.replace(/(\d)\s*\*\s*(\d)/g, '$1 × $2').replace(/&lt;=/g, '≤').replace(/&gt;=/g, '≥').replace(/!=/g, '≠').replace(/-&gt;/g, '→');
+        return t.replace(/\u0000(\d+)\u0000/g, (m, n) => keep[+n]);
+    }
+    // A reply as paragraphs, with simple lists and headings.
+    function nbMathRich(text) {
+        const blocks = String(text == null ? '' : text).replace(/\r/g, '').split(/\n{2,}/);
+        return blocks.map((block) => {
+            const lines = block.split('\n').filter((l) => l.trim() !== '');
+            if (!lines.length) return '';
+            if (lines.every((l) => /^\s*([-*•]|\d+[.)])\s+/.test(l))) {
+                const ordered = /^\s*\d+[.)]\s+/.test(lines[0]);
+                return '<' + (ordered ? 'ol' : 'ul') + '>' + lines.map((l) => '<li>' + nbMathInline(l.replace(/^\s*([-*•]|\d+[.)])\s+/, '')) + '</li>').join('') + '</' + (ordered ? 'ol' : 'ul') + '>';
+            }
+            return '<p>' + lines.map((l) => { const h = /^#{1,4}\s+(.*)$/.exec(l); return h ? '<b>' + nbMathInline(h[1]) + '</b>' : nbMathInline(l); }).join('<br>') + '</p>';
+        }).join('');
+    }
+    const nbAssistRich = nbMathRich;
+    const nbAssistM = (t) => nbMathInline(t);
+    // Copying from or pasting into a Notes box keeps maths as maths: the clipboard carries the drawn form (marked as ours) and a readable
+    // plain-text form, and a paste is only ever rebuilt from the few tags and classes the editor itself uses.
+    const NB_PASTE_TAGS = /^(DIV|SPAN|I|B|STRONG|EM|SUP|SUB|BR|P|UL|OL|LI|H1|H2|TABLE|TBODY|TR|TD|CODE)$/;
+    function nbSanitizeMathHtml(html) {
+        const box = document.createElement('div'); box.innerHTML = String(html || '');
+        const marked = box.querySelector('[data-lm-maths]'); if (marked) box.innerHTML = marked.innerHTML;   // the wrapper is ours: only its contents are pasted
+        box.querySelectorAll('script, style, iframe, object, embed, link, meta, img').forEach((n) => n.remove());
+        const clean = (node) => {
+            Array.from(node.childNodes).forEach((c) => {
+                if (c.nodeType === 8) { c.remove(); return; }
+                if (c.nodeType !== 1) return;
+                clean(c);
+                if (!NB_PASTE_TAGS.test(c.tagName)) { while (c.firstChild) c.parentNode.insertBefore(c.firstChild, c); c.remove(); return; }
+                Array.from(c.attributes).forEach((a) => { if (a.name !== 'class' && !(a.name === 'data-cols' || a.name === 'data-rows')) c.removeAttribute(a.name); });
+                if (c.getAttribute('class')) c.setAttribute('class', c.getAttribute('class').split(/\s+/).filter((k) => /^(math-|frac|root|int-|mx|func-|nb-dash|nb-arrow)/.test(k)).join(' '));
+                if (!c.getAttribute('class')) c.removeAttribute('class');
+            });
+        };
+        clean(box);
+        return box.innerHTML;
+    }
+    const NB_MATHS_SELECTOR = '.math-symbol, .frac, .root, sup, sub, .mx, .math-bracket, .math-function-argument, .int-limits, .func-primes';
+    function nbMathCopy(ev, cut, host) {
+        const sel = window.getSelection();
+        if (!sel || !sel.rangeCount || sel.isCollapsed || !ev.clipboardData) return false;
+        const range = sel.getRangeAt(0);
+        if (host && !host.contains(range.commonAncestorContainer)) return false;
+        const box = document.createElement('div'); box.appendChild(range.cloneContents());
+        if (!box.querySelector(NB_MATHS_SELECTOR)) return false;
+        ev.preventDefault();
+        ev.clipboardData.setData('text/html', '<div data-lm-maths="1">' + box.innerHTML + '</div>');
+        ev.clipboardData.setData('text/plain', nbPlainText(box.innerHTML));
+        if (cut) { document.execCommand('delete'); if (host) host.dispatchEvent(new Event('input', { bubbles: true })); }
+        return true;
+    }
+    // Text that looks like maths (LaTeX, or the written-out shorthand) becomes drawn maths when pasted into a box.
+    function nbLooksLikeMaths(t) { return /\$[^$\n]+\$|\\\(|\\\[|\\(frac|sqrt|times|cdot|alpha|beta|theta|pi|leq|geq)\b|\^\(|\^\{|_\(|sqrt\(|√\(|\([^()\n]+\)\/\([^()\n]+\)/.test(t); }
     // The page as plain text: block order down the page, with fractions, powers and roots written out.
     function nbPlainText(html) {
         const box = document.createElement('div'); box.innerHTML = html || '';
@@ -22785,16 +22942,16 @@ SQIDAQAB
     }
     function nbAssistReviewHtml(r) {
         const list = (a, f) => (a && a.length ? a.map(f).join('') : '');
-        return '<div class="nb-review"><h4>Overall</h4><p style="margin:0">' + nbAssistE(r.summary) + '</p>' +
-            (r.strengths && r.strengths.length ? '<h4>What works</h4><ul>' + list(r.strengths, (x) => '<li>' + nbAssistE(x) + '</li>') + '</ul>' : '') +
-            '<h4>Worth improving</h4>' + (r.issues && r.issues.length ? list(r.issues, (i, n) => '<div class="nb-issue">' + (i.where ? '<q>' + nbAssistE(i.where) + '</q>' : '') + '<b>' + (n + 1) + '. ' + nbAssistE(i.problem) + '</b><div class="fix"><b>Try:</b> ' + nbAssistE(i.improvement) + '</div></div>') : '<p class="nb-assist-hint" style="margin:0">This page is in good shape.</p>') +
-            '<h4>Next steps</h4>' + list(r.nextSteps, (x, n) => '<div class="nb-step"><b>' + (n + 1) + '. ' + nbAssistE(x.topic) + '</b>' + (x.why ? nbAssistE(x.why) + '<br>' : '') + (x.action ? '<i>' + nbAssistE(x.action) + '</i>' : '') + '</div>') + '</div>';
+        return '<div class="nb-review"><h4>Overall</h4><p style="margin:0">' + nbAssistM(r.summary) + '</p>' +
+            (r.strengths && r.strengths.length ? '<h4>What works</h4><ul>' + list(r.strengths, (x) => '<li>' + nbAssistM(x) + '</li>') + '</ul>' : '') +
+            '<h4>Worth improving</h4>' + (r.issues && r.issues.length ? list(r.issues, (i, n) => '<div class="nb-issue">' + (i.where ? '<q>' + nbAssistM(i.where) + '</q>' : '') + '<b>' + (n + 1) + '. ' + nbAssistM(i.problem) + '</b><div class="fix"><b>Try:</b> ' + nbAssistM(i.improvement) + '</div></div>') : '<p class="nb-assist-hint" style="margin:0">This page is in good shape.</p>') +
+            '<h4>Next steps</h4>' + list(r.nextSteps, (x, n) => '<div class="nb-step"><b>' + (n + 1) + '. ' + nbAssistM(x.topic) + '</b>' + (x.why ? nbAssistM(x.why) + '<br>' : '') + (x.action ? '<i>' + nbAssistM(x.action) + '</i>' : '') + '</div>') + '</div>';
     }
     function nbAssistPaint(page) {
         const body = document.getElementById('nbAssistBody'); if (!body) return;
         const st = notesAssist.store;
         body.innerHTML = (st.review ? nbAssistReviewHtml(st.review) : '') +
-            (st.chat.length ? st.chat.map((m) => '<div class="nb-msg ' + (m.role === 'user' ? 'me' : 'ai') + '">' + (m.role === 'user' ? nbAssistE(m.content) : nbAssistRich(m.content)) + '</div>').join('') : (st.review ? '' : '<p class="nb-assist-hint">Ask about the page, or choose <b>Review my notes</b>.</p>')) +
+            (st.chat.length ? st.chat.map((m) => '<div class="nb-msg ' + (m.role === 'user' ? 'me' : 'ai') + '">' + nbMathRich(m.content) + '</div>').join('') : (st.review ? '' : '<p class="nb-assist-hint">Ask about the page, or choose <b>Review my notes</b>.</p>')) +
             (notesAssist.busy ? '<div class="nb-msg ai nb-assist-hint">LastMind is thinking…</div>' : '') + (notesAssist.error ? '<p class="nb-assist-err">' + nbAssistE(notesAssist.error) + '</p>' : '');
         body.scrollTop = body.scrollHeight;
         const rv = document.querySelector('.nb-assist-review'), send = document.querySelector('.nb-assist-form button');
@@ -22822,13 +22979,19 @@ SQIDAQAB
             document.getElementById('nbAssist')?.remove();
             notesAssist.store = nbAssistState(page); notesAssist.error = '';
             const el = document.createElement('aside'); el.id = 'nbAssist'; el.className = 'nb-assist'; el.setAttribute('aria-label', 'LastMind');
-            el.innerHTML = '<div class="nb-assist-head"><div><b>LastMind</b><small>Here beside your notes</small></div><button type="button" class="nb-assist-x" aria-label="Close LastMind">×</button></div><div class="nb-assist-actions"><div class="nb-assist-revision" id="nbSrPanel"></div><button type="button" class="nb-assist-review">Review my notes</button></div><div class="nb-assist-body" id="nbAssistBody"></div><form class="nb-assist-form"><textarea id="nbAssistInput" rows="2" placeholder="Ask about this page…" aria-label="Ask LastMind"></textarea><button type="submit">Send</button></form>';
+            el.innerHTML = '<div class="nb-assist-head"><div><b>LastMind</b><small>Here beside your notes</small></div><button type="button" class="nb-assist-x" aria-label="Close LastMind">×</button></div><div class="nb-assist-actions"><div class="nb-assist-revision" id="nbSrPanel"></div><button type="button" class="nb-assist-review">Review my notes</button></div><div class="nb-assist-body" id="nbAssistBody"></div><form class="nb-assist-form"><div id="nbAssistInputHost"></div><button type="submit">Send</button></form>';
             document.body.appendChild(el); pad(true); nbSrPopPaint(page, el.querySelector('#nbSrPanel')); nbAssistPaint(page);
             el.querySelector('.nb-assist-x').addEventListener('click', () => setOpen(false));
-            const input = el.querySelector('#nbAssistInput');
+            // the question is written in the same editor as the notes, so the maths shortcuts work here too; it is sent as plain text with the
+            // maths written out (x^(2), (a)/(b), √)
+            const askEd = createSmartAnswerEditor('Ask about this page…', { hideShortcutHint: true, auto: true, autocorrect: () => notesAutocorrect });
+            askEd.container.classList.add('nb-assist-editor');
+            el.querySelector('#nbAssistInputHost').appendChild(askEd.container);
+            const input = askEd.container.querySelector('.math-shortcut-editor');
+            input.id = 'nbAssistInput'; input.setAttribute('aria-label', 'Ask LastMind');
             const send = async () => {
-                const text = input.value.trim(); if (!text || notesAssist.busy) return;
-                const st = notesAssist.store; st.chat.push({ role: 'user', content: text }); input.value = ''; notesAssist.busy = true; notesAssist.error = ''; nbAssistPaint(page);
+                const text = nbPlainText(askEd.getHtml()).trim(); if (!text || notesAssist.busy) return;
+                const st = notesAssist.store; st.chat.push({ role: 'user', content: text }); askEd.setHtml(''); notesAssist.busy = true; notesAssist.error = ''; nbAssistPaint(page);
                 try {
                     const out = await nbAssistCall('/notes-assistant/chat', { message: text, history: st.chat.slice(0, -1).slice(-4), notes: nbPageText(page), title: page.name || '' });
                     st.chat.push({ role: 'assistant', content: out.reply });
@@ -22836,7 +22999,8 @@ SQIDAQAB
                 notesAssist.busy = false; nbAssistSave(page, st); nbAssistPaint(page);
             };
             el.querySelector('form').addEventListener('submit', (e) => { e.preventDefault(); send(); });
-            input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
+            input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.defaultPrevented) { e.preventDefault(); send(); } });
+            el.querySelector('#nbAssistBody').addEventListener('copy', (ev) => { nbMathCopy(ev, false, null); });
             el.querySelector('.nb-assist-review').addEventListener('click', async () => {
                 if (notesAssist.busy) return; const st = notesAssist.store, notes = nbPageText(page);
                 if (!notes) { notesAssist.error = 'There is nothing to review yet. Write some notes on this page first.'; nbAssistPaint(page); return; }
@@ -22971,7 +23135,7 @@ SQIDAQAB
             if (q.type === 'mcq') body = q.options.map((o, n) => '<label class="nb-sr-opt"><input type="radio" name="nbSrAns" value="' + n + '"><span>' + nbAssistE(o) + '</span></label>').join('');
             else if (q.type === 'cloze') body = '<input type="text" class="nb-sr-text" id="nbSrAns" autocomplete="off" aria-label="Your answer" placeholder="The missing word or number">';
             else body = '<textarea class="nb-sr-text" id="nbSrAns" rows="4" aria-label="Your answer" placeholder="Answer in a sentence or two"></textarea>';
-            card = nbSrModal('<div class="nb-sr-top"><b>Revision · ' + (i + 1) + ' of ' + questions.length + '</b>' + close + '</div><div class="nb-sr-bar"><i style="width:' + Math.round(i * 100 / questions.length) + '%"></i></div><p class="nb-sr-q">' + nbAssistE(q.q) + '</p><div class="nb-sr-body">' + body + '</div><div class="nb-sr-fb" id="nbSrFb" aria-live="polite"></div><div class="nb-sr-foot"><button type="button" class="nb-sr-go" id="nbSrGo">Check</button></div>');
+            card = nbSrModal('<div class="nb-sr-top"><b>Revision · ' + (i + 1) + ' of ' + questions.length + '</b>' + close + '</div><div class="nb-sr-bar"><i style="width:' + Math.round(i * 100 / questions.length) + '%"></i></div><p class="nb-sr-q">' + nbAssistM(q.q) + '</p><div class="nb-sr-body">' + body + '</div><div class="nb-sr-fb" id="nbSrFb" aria-live="polite"></div><div class="nb-sr-foot"><button type="button" class="nb-sr-go" id="nbSrGo">Check</button></div>');
             wire(card);
             const go = card.querySelector('#nbSrGo'), fb = card.querySelector('#nbSrFb');
             const field = card.querySelector('#nbSrAns'); if (field) field.focus();
