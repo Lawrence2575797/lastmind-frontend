@@ -20110,6 +20110,7 @@ SQIDAQAB
         [K('Caps Lock') + ' + ' + K('~'), 'Types a root with a small box for the index, such as a cube root. Press ' + K('Space') + ' to leave the box.'],
         [K('Shift') + ' + a letter', 'Types the Greek letter for it (Shift+A gives α). With Caps Lock on you get the capital.'],
         [K('&lt;=') + ' ' + K('&gt;=') + ' ' + K('!='), 'Typed as two keys, these turn into ≤, ≥ and ≠.'],
+        [K('Shift') + ' + ' + K('E'), 'Types ∈, "belongs to the set of", such as c ∈ ℝ.'],
         [K('f'), 'Types f(x). Press ' + K("'") + ' straight after it for f′(x), and again for f″(x).'],
         [K('Shift') + ' + ' + K('I'), 'Types an integral sign. Then press ' + K('d') + ' to add the limits.'],
         [K(']'), 'Evaluates between limits, such as [x²] from 0 to 2.'],
@@ -20134,6 +20135,7 @@ SQIDAQAB
         [K('Caps Lock') + ' + ' + K('~'), 'Types a root with a small box for the index, such as a cube root.'],
         [K('Shift') + ' + a letter', 'Types the Greek letter when you are writing maths: straight after a number, a sign (x = ), a letter such as sin, or a bracket that follows a function. In ordinary writing (the start of a line or sentence, after a word) it is just a capital letter. ' + K('Alt') + ' + ' + K('Shift') + ' + a letter always gives the Greek letter. With Caps Lock on you get the capital Greek letter.'],
         [K('&lt;=') + ' ' + K('&gt;=') + ' ' + K('!=') + ' ' + K('=='), 'Typed as two keys, these turn into ≤, ≥, ≠ and the identity sign ≡.'],
+        [K('Shift') + ' + ' + K('E'), 'Types ∈, "belongs to the set of", such as c ∈ ℝ. Straight after a single letter and a space (c ) it always gives ∈; elsewhere it follows the same maths-or-writing rule as the Greek letters.'],
         [K('Shift') + ' + ' + K('F'), 'Types f(x) when you are writing maths. At the start of a line, type a capital F and then ' + K('(') + ': it becomes f(x). Press ' + K("'") + ' straight after it for f′(x), and again for f″(x).'],
         [K('Shift') + ' + ' + K('I'), 'Types an integral sign in maths (after a sign or a number); a capital I in ordinary writing. Then press ' + K('d') + ' to add the limits.'],
         [K(']'), 'After a maths expression in square brackets, evaluates between limits, such as [x²] from 0 to 2.'],
@@ -20779,8 +20781,11 @@ SQIDAQAB
             const keyLetter = ev.code && /^Key[A-Z]$/.test(ev.code) ? ev.code.slice(3).toLowerCase() : String(ev.key || '').toLowerCase();
             const shiftLetter = ev.shiftKey && !ev.ctrlKey && !ev.metaKey && (!ev.altKey || auto) && keyLetter.length === 1;
             const wantsMaths = !auto || ev.altKey || mathsContext();
-            if (shiftLetter && wantsMaths) {
+            // "c " then Shift+E is the element-of sign, even though a letter and a space would otherwise read as ordinary writing
+            const afterVariable = keyLetter === 'e' && /(^|[^A-Za-z])[A-HJ-Za-z]\s$/.test(lineBeforeCaret()) && !/(^|[^A-Za-z])a\s$/.test(lineBeforeCaret());
+            if (shiftLetter && (wantsMaths || afterVariable)) {
                 const lower = keyLetter;
+                if (lower === 'e') { ev.preventDefault(); insertStyledSymbol('∈'); return; }
                 if (MATH_SHORTCUT_GREEK_MAP_GLOBAL[lower]) {
                     ev.preventDefault();
                     const capsOn = ev.getModifierState && ev.getModifierState('CapsLock');
