@@ -4149,6 +4149,12 @@
     .nb-canvas .nb-block.ps-answer { border: 1.5px solid rgba(127,212,154,.75); border-radius: 12px; background: rgba(127,212,154,.06); padding: 8px 10px; box-sizing: border-box; }
     .nb-canvas .nb-block.ps-mark { padding: 2px 0 0; box-sizing: border-box; }
     .ps-mark-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .nb-canvas .nb-block.ps-rule { height: 3px; padding: 0; border: 0; border-top: 3px solid rgba(242,193,78,.85); background: none; box-shadow: none; }
+    .nb-canvas .nb-block.ps-total { box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 18px; padding: 14px 18px; border: 1.5px solid rgba(242,193,78,.75); border-radius: 12px; background: rgba(242,193,78,.1); }
+    .ps-total-line { font-size: 1.05rem; } .ps-total-line b { font-size: 1.6rem; margin-left: 6px; } .ps-total-line small { display: block; opacity: .75; font-size: .82rem; }
+    .ps-retry-btn { background: #E6D7B0; color: #1A232D; border: 0; border-radius: 8px; padding: 9px 16px; font-weight: 800; font-size: .9rem; font-family: inherit; cursor: pointer; }
+    .nb-canvas .nb-block.ps-ro .nb-grip, .nb-canvas .nb-block.ps-ro .nb-align-left { display: none !important; }
+    .nb-canvas .nb-block.ps-ro .math-shortcut-editor { pointer-events: none; cursor: default; user-select: text; }
     .ps-mark-btn { background: #E6D7B0; color: #1A232D; border: 0; border-radius: 8px; padding: 7px 14px; font-weight: 700; font-size: .86rem; font-family: inherit; cursor: pointer; } .ps-mark-btn:disabled { opacity: .55; cursor: wait; }
     .ps-mark-msg { font-size: .84rem; opacity: .85; color: #F1EAD6; }
     .ps-mark-out { margin-top: 8px; display: grid; gap: 8px; } .ps-mark-out:empty { display: none; }
@@ -21296,6 +21302,8 @@ SQIDAQAB
         const items = []; let cur = null, hasHead = false;
         page.doc.blocks.forEach((b) => {
             if (b.role === 'header') hasHead = true;
+            else if (b.role === 'rule') { items.push({ r: b.id }); cur = null; b.x = x0; b.w = cw - x0 - 12; }
+            else if (b.role === 'total') { items.push({ tot: b.id }); cur = null; b.x = x0; b.w = cw - x0 - 12; }
             else if (b.role === 'question') { cur = { q: b.id }; items.push(cur); b.x = x0; b.w = leftW; }
             else if (b.type === 'table' && cur && !cur.t) { cur.t = b.id; b.x = x0; }
             else if (b.role === 'answer' && cur && !cur.a) { cur.a = b.id; b.x = rightX; b.w = leftW; b.minH = 110; }
@@ -21311,7 +21319,109 @@ SQIDAQAB
             }
             mb.x = rightX; mb.w = leftW; it.m = mb.id;
         });
-        return { start: hasHead ? 68 : 12, items };
+        // every attempt ends with its total (and the retry button); a sheet made before totals existed gets one now
+        let added = false;
+        const lastItem = items[items.length - 1];
+        if (items.some((it) => it.q) && !(lastItem && lastItem.tot)) {
+            const tb = { id: notesNewId(), type: 'total', role: 'total', keep: true, x: x0, y: 0, w: cw - x0 - 12 };
+            page.doc.blocks.push(tb); items.push({ tot: tb.id }); added = true;
+        }
+        return { start: hasHead ? 68 : 12, items, added };
+    }
+    // ----- the total at the end of an attempt, and trying the whole set again
+    // The marks that belong to one attempt: everything since the previous total or dividing line.
+    function psAttemptMarks(page, totalId) {
+        let acc = [];
+        for (const b of page.doc.blocks) {
+            if (b.role === 'rule') { acc = []; continue; }
+            if (b.type === 'mark') acc.push(b);
+            if (b.id === totalId) return acc;
+            if (b.role === 'total') acc = [];
+        }
+        return acc;
+    }
+    // What one question scored, out of what it was worth: marks if the marker gave them, otherwise right is 1 and wrong is 0 (partly right is a half).
+    function psMarkValue(page, mb) {
+        const qb = page.doc.blocks.find((b) => b.id === mb.q);
+        const text = qb ? nbPlainText(qb.html) : '';
+        const printed = /\[(\d{1,3})\s*marks?\]/i.exec(text);
+        let out = printed ? +printed[1] : 1, got = 0;
+        const r = mb.result;
+        if (r) {
+            const sc = /^(\d{1,3})\s*\/\s*(\d{1,3})$/.exec(String(r.score || '').trim());
+            if (sc) { got = +sc[1]; out = +sc[2] || out; }
+            else got = (r.verdict === 'correct' ? 1 : r.verdict === 'partly' ? 0.5 : 0) * out;
+        }
+        return { got, out, marked: !!r };
+    }
+    function psPaintTotals(page, canvas) {
+        canvas.querySelectorAll('.ps-total').forEach((e) => { if (e._psPaint) e._psPaint(); });
+        void page;
+    }
+    function psMakeRuleBlock(page, block, canvas) {
+        const el = document.createElement('div');
+        el.className = 'nb-block ps-rule ps-ro'; el.dataset.id = block.id; el.setAttribute('role', 'separator');
+        canvas.appendChild(el);
+        nbPlace(el, block, canvas);
+        return el;
+    }
+    function psMakeTotalBlock(page, block, canvas) {
+        const el = document.createElement('div');
+        el.className = 'nb-block ps-total ps-ro'; el.dataset.id = block.id;
+        el.innerHTML = '<div class="ps-total-line" aria-live="polite"></div><button type="button" class="ps-retry-btn">Retry problem set</button>';
+        canvas.appendChild(el);
+        nbPlace(el, block, canvas);
+        const line = el.querySelector('.ps-total-line'), btn = el.querySelector('.ps-retry-btn');
+        const fmt = (n) => (Math.round(n * 10) / 10).toString();
+        el._psPaint = () => {
+            const marks = psAttemptMarks(page, block.id);
+            let got = 0, out = 0, open = 0;
+            marks.forEach((m) => { const v = psMarkValue(page, m); got += v.got; out += v.out; if (!v.marked) open += 1; });
+            line.innerHTML = 'Total <b>' + fmt(got) + ' / ' + fmt(out) + '</b>' + (open ? '<small>' + open + ' question' + (open === 1 ? ' has' : 's have') + ' not been marked yet</small>' : '');
+            const last = page.doc.blocks.filter((b) => b.role === 'total').pop();
+            btn.hidden = last !== block;
+        };
+        btn.addEventListener('click', () => psRetry(page));
+        el._psPaint();
+        return el;
+    }
+    // A line under the sheet so far, then the original questions again, in the same format, with empty answers.
+    function psRetry(page) {
+        const blocks = page.doc.blocks;
+        const firstRule = blocks.findIndex((b) => b.role === 'rule');
+        const original = blocks.slice(0, firstRule < 0 ? blocks.length : firstRule);
+        const cw = (document.getElementById('nbCanvas') || {}).clientWidth || 900, x0 = (cw < 520 ? 28 : 56) + 16;
+        const map = {}, copy = [];
+        original.forEach((b) => {
+            if (b.role === 'question') { const id = notesNewId(); map[b.id] = id; copy.push({ id, type: 'text', role: 'question', keep: true, x: b.x, y: 0, w: b.w, html: b.html, writing: true }); }
+            else if (b.type === 'table') { const id = notesNewId(); map[b.id] = id; copy.push(Object.assign(JSON.parse(JSON.stringify(b)), { id, y: 0 })); }
+            else if (b.role === 'answer') { const id = notesNewId(); map[b.id] = id; copy.push({ id, type: 'text', role: 'answer', keep: true, x: b.x, y: 0, w: b.w, html: '', writing: true, minH: 110 }); }
+            else if (b.type === 'mark') copy.push({ id: notesNewId(), type: 'mark', role: 'mark', keep: true, q: map[b.q], a: map[b.a], t: b.t ? map[b.t] : null, x: b.x, y: 0, w: b.w });
+        });
+        if (!copy.length) return;
+        blocks.push({ id: notesNewId(), type: 'rule', role: 'rule', keep: true, x: x0, y: 0, w: cw - x0 - 12 });
+        copy.forEach((b) => blocks.push(b));
+        page.updatedAt = new Date().toISOString();
+        // the new attempt gets its own total from the next layout
+        psRelayout(page, document.getElementById('nbCanvas'));
+        notesPersist();
+        const c = document.getElementById('nbCanvas');
+        if (c && c.parentElement && c.parentElement.scrollTo) { /* the page stays where it is: the new set is below */ }
+    }
+    // The sheet is laid out again from what the browser says each box measures. Positions are always worked out from the content, never kept
+    // from an earlier layout, so nothing a box did before (wrapping while the page was narrow, a long answer, a table) can leave a gap behind.
+    function psRelayout(page, canvas) {
+        if (!page || !page.ps || !page.ps.done || !canvas) return;
+        const lay = psReflow(page, canvas.clientWidth || 900);
+        page.ps.layout = lay;
+        if (lay.added || !canvas.querySelector('.nb-block[data-id="' + (lay.items.filter((i) => i.tot).pop() || {}).tot + '"]') || canvas.querySelectorAll('.nb-block').length < page.doc.blocks.length) {
+            notesPersist(); notesRenderPage(page);
+            const c = document.getElementById('nbCanvas');
+            if (c) requestAnimationFrame(() => requestAnimationFrame(() => { psRelayout(page, c); }));
+            return;
+        }
+        psLayout(page, canvas);
+        psPaintTotals(page, canvas);
     }
     // A question, written out as plain text for the marker: its words, its options and its table.
     function psQuestionText(page, mb) {
@@ -21349,8 +21459,8 @@ SQIDAQAB
             } catch (err) { msg.textContent = (err && err.message) || 'LastMind could not mark that just now. Try again.'; }
             btn.disabled = false;
             // what is below moves down by however much the marking added
-            const grew = el.offsetHeight - prev;
-            if (grew > 0) { nbFlowBlocksBelow(page, canvas, el, prev, grew); nbFitCanvas(canvas); notesScheduleSave(); }
+            void prev;
+            psPaintTotals(page, canvas); psRelayout(page, canvas); nbFitCanvas(canvas); notesScheduleSave();
         });
         return el;
     }
@@ -21362,6 +21472,8 @@ SQIDAQAB
         const elOf = (id) => canvas.querySelector('.nb-block[data-id="' + id + '"]');
         let y = Math.max(12, lay.start || 12);
         lay.items.forEach((it) => {
+            if (it.r) { const rb = byId(it.r), re = elOf(it.r); if (rb && re) { y += 4; rb.y = y; nbPlace(re, rb, canvas); y += 3 + 30; } return; }
+            if (it.tot) { const xb = byId(it.tot), xe = elOf(it.tot); if (xb && xe) { xb.y = y; nbPlace(xe, xb, canvas); y += xe.offsetHeight + 26; } return; }
             const qb = byId(it.q), ab = it.a && byId(it.a), tb = it.t && byId(it.t), mb = it.m && byId(it.m);
             const qe = elOf(it.q), ae = it.a && elOf(it.a), te = it.t && elOf(it.t), me = it.m && elOf(it.m);
             if (!qb || !qe) return;
@@ -21387,6 +21499,7 @@ SQIDAQAB
         // new questions go under whatever is already on the sheet
         let start = 12;
         canvas.querySelectorAll('.nb-block').forEach((e) => { start = Math.max(start, e.offsetTop + e.offsetHeight + 24); });
+        while (page.doc.blocks.length && page.doc.blocks[page.doc.blocks.length - 1].role === 'total') page.doc.blocks.pop();
         const items = [];
         if (res.header && !(page.ps && page.ps.header)) {
             page.doc.blocks.push({ id: notesNewId(), type: 'text', role: 'header', keep: true, x: x0, y: start, w: cw - x0 - 12, html: `<div><b>${psEsc(res.header)}</b></div>`, writing: true });
@@ -21896,6 +22009,7 @@ SQIDAQAB
         ed.setHtml(block.html || '');
         if (block.minH) { el.style.minHeight = block.minH + 'px'; const edEl = ed.container.querySelector('.math-shortcut-editor'); if (edEl) edEl.style.minHeight = Math.max(60, block.minH - 44) + 'px'; }
         if (block.role === 'answer') el.classList.add('ps-answer'); else if (block.role === 'question') el.classList.add('ps-question');
+        if (block.role === 'question' || block.role === 'header') { el.classList.add('ps-ro'); const ro = ed.container.querySelector('.math-shortcut-editor'); if (ro) ro.setAttribute('contenteditable', 'false'); }
         // Each box remembers its own keyboard. A box with maths in it opens on the maths keyboard, so it is never spell-checked as prose.
         const hasMaths = /math-symbol|class="frac|<sup|<sub|class="root|class="mx|int-limits/.test(block.html || '');
         ed.setWritingMode(typeof block.writing === 'boolean' ? block.writing : hasMaths ? false : notesWriting);
@@ -22654,7 +22768,7 @@ SQIDAQAB
                 </div>
             </div>`;
         const canvas = document.getElementById('nbCanvas');
-        if (page.kind === 'problemset') { const t = document.getElementById('nbTitle'); if (t) t.placeholder = 'Untitled problem set'; psMountIntake(page, canvas); }
+        if (page.kind === 'problemset') { const t = document.getElementById('nbTitle'); if (t) t.placeholder = 'Untitled problem set'; psMountIntake(page, canvas); if (page.ps && page.ps.done) requestAnimationFrame(() => requestAnimationFrame(() => psRelayout(page, canvas))); }
         // When the sheet gets narrower or wider (the LastMind panel opening beside it, a smaller window), everything is moved so that all of it can
         // still be read: a problem set is laid out again for the new width, and other boxes are pulled in from the edge.
         let refitWidth = canvas.clientWidth, refitTimer = null;
@@ -22662,12 +22776,18 @@ SQIDAQAB
             const cw = canvas.clientWidth; if (!cw || Math.abs(cw - refitWidth) < 4) { nbClampBlocksToCanvas(canvas); return; }
             refitWidth = cw;
             canvas.style.setProperty('--nb-margin', (cw < 520 ? 28 : cw < 760 ? 40 : 56) + 'px');
-            if (page.kind === 'problemset' && page.ps && page.ps.done) { page.ps.layout = psReflow(page, cw); psLayout(page, canvas); }
+            if (page.kind === 'problemset' && page.ps && page.ps.done) { psRelayout(page, canvas); }
             else page.doc.blocks.forEach((b) => { const el = canvas.querySelector('.nb-block[data-id="' + b.id + '"]'); if (el && (b.type === 'text' || b.type === 'table' || b.type === 'diagram' || b.type === 'graph')) nbPlace(el, b, canvas); });
             nbClampBlocksToCanvas(canvas); nbFitCanvas(canvas);
         };
         if (typeof ResizeObserver === 'function') new ResizeObserver(() => { clearTimeout(refitTimer); refitTimer = setTimeout(refit, 80); }).observe(canvas);
         if (typeof ResizeObserver === 'function') notesResizeObs = new ResizeObserver((entries) => {
+            if (page.kind === 'problemset') {
+                clearTimeout(page._psTimer);
+                page._psTimer = setTimeout(() => { const c = document.getElementById('nbCanvas'); if (c) psRelayout(page, c); }, 60);
+                nbFitCanvas(canvas);
+                return;
+            }
             let flowed = false;
             entries.forEach((entry) => {
                 const el = entry.target;
@@ -22687,7 +22807,7 @@ SQIDAQAB
             if (flowed) notesScheduleSave();
         });
         page.doc = page.doc && Array.isArray(page.doc.blocks) ? page.doc : { blocks: [] };
-        page.doc.blocks.forEach((b) => { if (b.type === 'diagram') nbMakeDiagramBlock(page, b, canvas); else if (b.type === 'graph') nbMakeGraphBlock(page, b, canvas); else if (b.type === 'table') nbMakeTableBlock(page, b, canvas, false); else if (b.type === 'mark') psMakeMarkBlock(page, b, canvas); else nbMakeTextBlock(page, b, canvas, false); });
+        page.doc.blocks.forEach((b) => { if (b.type === 'diagram') nbMakeDiagramBlock(page, b, canvas); else if (b.type === 'graph') nbMakeGraphBlock(page, b, canvas); else if (b.type === 'table') nbMakeTableBlock(page, b, canvas, false); else if (b.type === 'mark') psMakeMarkBlock(page, b, canvas); else if (b.type === 'rule') psMakeRuleBlock(page, b, canvas); else if (b.type === 'total') psMakeTotalBlock(page, b, canvas); else nbMakeTextBlock(page, b, canvas, false); });
         nbToggleHint(canvas, page); nbFitCanvas(canvas);
         // The sheet has a margin line. A click on or near it starts the text a fixed, comfortable distance to its right; a click anywhere
         // else starts the text exactly where you clicked.
