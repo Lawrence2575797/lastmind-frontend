@@ -1807,6 +1807,7 @@
     // The league is the same each time (clubs, squads, fixtures, last season), but each new game rolls its own dice: injuries and results differ.
     world.league = FM.createLeague({ userIndex: 0, tier, runSeed: Math.floor(Math.random() * 1e9) });   // Ashford Rovers is the only club to take charge of
     if (FM.ensurePreseasonNews) FM.ensurePreseasonNews(world.league);
+    if (FM.transfer) FM.transfer(world.league);   // the opening offers are made now and saved with the game, not when a screen first asks
     await FM.playFriendlies(world.league, (i, n) => { btn.textContent = 'Playing pre-season friendlies (' + i + ' of ' + n + ')...'; });
     FM.saveLeague(world.league);
     btn.disabled = false; btn.textContent = 'Start the season';
@@ -1817,7 +1818,9 @@
   window.addEventListener('resize', resize);
   world.league = FM.loadLeague();
   if (world.league) {
-    if (FM.ensurePreseasonNews) { FM.ensurePreseasonNews(world.league); FM.saveLeague(world.league); }
+    if (FM.transfer) FM.transfer(world.league);
+    if (FM.ensurePreseasonNews) { FM.ensurePreseasonNews(world.league); }
+    FM.saveLeague(world.league);
     setView('home');
     // a game saved before friendlies existed: play them now so the reports have something to read
     if (FM.ensureFriendlies(world.league)) {
