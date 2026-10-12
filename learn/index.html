@@ -21410,7 +21410,11 @@ SQIDAQAB
         const out = Object.assign({}, n); delete out.open; out._ord = group.indexOf(n);
         return out;
     }
-    const notesSyncSig = (n) => JSON.stringify(notesSyncPayload(n));
+    // Keys in a fixed order: the database does not keep them in the order they were written, so two copies are compared this way.
+    const notesSyncCanon = (v) => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.keys(x).sort().reduce((o, key) => { o[key] = x[key]; return o; }, {}) : x));
+    const notesSyncSig = (n) => notesSyncCanon(notesSyncPayload(n));
+    // The database writes a time as 2026-10-12T16:30:00.123+00:00 and the stamp it was sent back as ...123Z: the same moment, so compared as moments.
+    const notesSyncSame = (a, b) => !!a && !!b && (a === b || Date.parse(a) === Date.parse(b));
     async function notesSyncFetch(path, opts) {
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) throw new Error('signed out');
@@ -21428,9 +21432,9 @@ SQIDAQAB
         let batch = [], size = 0;
         const flush = async () => {
             if (!batch.length) return;
-            const sent = batch; batch = []; size = 0;
-            const r = await notesSyncFetch('/notes-sync/push', { method: 'POST', body: JSON.stringify({ nodes: sent.map((n) => ({ id: n.id, data: notesSyncPayload(n) })), deleted: [] }) });
-            sent.forEach((n) => { meta.nodes[n.id] = { sig: notesSyncSig(n), at: (r.stamps || {})[n.id] || new Date().toISOString() }; });
+            const sent = batch.map((n) => ({ id: n.id, sig: notesSyncSig(n), data: notesSyncPayload(n) })); batch = []; size = 0;
+            const r = await notesSyncFetch('/notes-sync/push', { method: 'POST', body: JSON.stringify({ nodes: sent.map((n) => ({ id: n.id, data: n.data })), deleted: [] }) });
+            sent.forEach((n) => { meta.nodes[n.id] = { sig: n.sig, at: (r.stamps || {})[n.id] || new Date().toISOString() }; });
             notesSyncSaveMeta(meta);
         };
         for (const n of items) {
@@ -21475,6 +21479,9 @@ SQIDAQAB
             const adopt = (row) => {
                 const d = Object.assign({}, row.data); const ord = d._ord; delete d._ord;
                 if (!d.id || !(d.type === 'folder' || d.type === 'page')) return;
+                // the page open on the screen, with the cursor in it: it is picked up on a later sync, never replaced while it is being written
+                const typingNow = document.activeElement && document.activeElement.closest && document.activeElement.closest('#nbCanvas');
+                if (d.id === notes.activeId && typingNow && document.getElementById('nbCanvas')) return;
                 const i = notes.nodes.findIndex((x) => x.id === d.id);
                 if (i >= 0) { if (notes.nodes[i].open !== undefined) d.open = notes.nodes[i].open; notes.nodes[i] = d; } else notes.nodes.push(d);
                 if (typeof ord === 'number') serverOrd.set(d.id, ord);
@@ -21497,11 +21504,13 @@ SQIDAQAB
                     return;
                 }
                 const sig = notesSyncSig(l);
-                if (m && m.at === row.updatedAt) { if (sig !== m.sig) toPush.push(l); return; }
-                // the server has a version this device has not seen
+                if (m && notesSyncSame(m.at, row.updatedAt)) { if (sig !== m.sig) toPush.push(l); return; }
+                // the server has a version this device has not seen: the same content as here is just recorded, never copied over
+                const rowSig = notesSyncCanon(row.data);
+                if (rowSig === sig) { meta.nodes[id] = { sig, at: row.updatedAt }; return; }
                 if (m && !m.gone && sig === m.sig) { adopt(row); return; }
                 const localAt = l.updatedAt || '', serverAt = (row.data && row.data.updatedAt) || '';
-                const sameAsServer = JSON.stringify(Object.assign({}, row.data, { _ord: undefined })) === JSON.stringify(Object.assign({}, notesSyncPayload(l), { _ord: undefined }));
+                const sameAsServer = notesSyncCanon(Object.assign({}, row.data, { _ord: undefined })) === notesSyncCanon(Object.assign({}, notesSyncPayload(l), { _ord: undefined }));
                 if (sameAsServer) { meta.nodes[id] = { sig, at: row.updatedAt }; return; }
                 if (serverAt && serverAt > localAt) adopt(row); else toPush.push(l);
             });
