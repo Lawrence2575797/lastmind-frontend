@@ -101,7 +101,7 @@
       }).join('');
       const active = Object.keys(t.deals).map((id) => t.deals[id]).filter((d) => ['counter', 'fee_agreed', 'wage_talks'].indexOf(d.stage) >= 0);
       const moves = t.moves.slice(-12).reverse();
-      body = `<h3>Offers for your players</h3>${offerHtml || '<p class="note">No offers at the moment. Other clubs make their moves after each round.</p>'}
+      body = `${rs.offerNote ? `<div class="rc-notice ${rs.offerNote.kind}" role="status">${esc(rs.offerNote.text)}</div>` : ''}<h3>Offers for your players</h3>${offerHtml || '<p class="note">No offers at the moment. Other clubs make their moves after each round.</p>'}
         <h3>Deals in progress</h3>${active.length ? active.map((d) => { const p = FM.findPlayer(league, d.pid); return p ? `<div class="rc-offer"><div><b>${esc(p.name)}</b> ${chip(STAGE_TEXT[d.stage], 'st-' + d.stage)}${d.fee ? ' fee ' + FM.money(d.fee) : ''}</div><div class="rc-offer-actions"><button type="button" data-open="${esc(p.id)}">Open</button></div></div>` : ''; }).join('') : '<p class="note">No deals in progress.</p>'}
         <h3>Recent moves in the league</h3>${moves.length ? `<ul class="rc-moves">${moves.map((m) => `<li><b>${esc(m.name)}</b>: ${esc(FM.teamById(league, m.from).name)} to ${esc(FM.teamById(league, m.to).name)}, ${FM.money(m.fee)}</li>`).join('')}</ul>` : '<p class="note">No transfers yet.</p>'}`;
     }
@@ -112,7 +112,7 @@
       <div class="rc-side" id="rcSide"></div></div>`;
 
     // ----- events
-    host.querySelectorAll('[data-rctab]').forEach((b) => b.addEventListener('click', () => { rs.tab = b.dataset.rctab; draw(); }));
+    host.querySelectorAll('[data-rctab]').forEach((b) => b.addEventListener('click', () => { rs.tab = b.dataset.rctab; rs.offerNote = null; draw(); }));
     const bind = (id, key, num) => { const e = host.querySelector(id); if (e) e.addEventListener('change', () => { rs[key] = e.type === 'checkbox' ? e.checked : e.value; draw(); }); void num; };
     bind('#rcClub', 'club'); bind('#rcPos', 'pos'); bind('#rcNation', 'nation'); bind('#rcAgeMin', 'ageMin'); bind('#rcAgeMax', 'ageMax'); bind('#rcRating', 'ratingMin'); bind('#rcPrice', 'priceMax'); bind('#rcFit', 'fit'); bind('#rcSort', 'sort');
     const step = (d) => { const ids = ['all'].concat(others.map((x) => x.id)); rs.club = ids[(ids.indexOf(rs.club) + d + ids.length) % ids.length]; draw(); };
@@ -121,9 +121,22 @@
     host.querySelectorAll('[data-open]').forEach((r) => r.addEventListener('click', () => { rs.open = r.dataset.open; rs.bid = null; draw(); const side = host.querySelector('#rcSide'); if (side && side.scrollIntoView) side.scrollIntoView({ block: 'nearest' }); }));
     host.querySelectorAll('[data-offer]').forEach((b) => b.addEventListener('click', () => {
       const id = b.dataset.id, counter = host.querySelector('[data-counter="' + id + '"]');
-      const r = FM.respondOffer(league, id, b.dataset.offer, counter ? counter.value : 0);
-      rs.msg['o' + id] = r.ok ? (r.status === 'sold' ? 'Sold for ' + FM.money(r.fee) + '.' : r.status === 'countered' ? 'They come back with ' + FM.money(r.fee) + '.' : r.status === 'withdrawn' ? 'They have withdrawn.' : '') : r.text;
+      const offer = t.offers.find((x) => x.id === id), pl = offer && FM.findPlayer(league, offer.pid), buyer = offer && FM.teamById(league, offer.from);
+      const action = b.dataset.offer, asked = counter ? FM.round1 ? FM.round1(counter.value) : Math.round(Number(counter.value) * 10) / 10 : 0;
+      const before = offer ? offer.fee : 0;
+      const r = FM.respondOffer(league, id, action, counter ? counter.value : 0);
+      const who = buyer ? buyer.name : 'The club', name = pl ? pl.name : 'the player';
+      // the answer is shown straight away, at the top, in plain words: accepted, rejected, or a different offer
+      let note;
+      if (!r.ok) note = { kind: 'no', text: r.text };
+      else if (r.status === 'sold') note = { kind: 'ok', text: (action === 'counter' ? 'Accepted: ' + who + ' agreed to pay ' + FM.money(r.fee) + ' for ' + name + ', so the deal is done.' : 'Deal done: ' + name + ' has joined ' + who + ' for ' + FM.money(r.fee) + '.') };
+      else if (r.status === 'countered') note = { kind: 'counter', text: 'Countered: ' + who + ' will not pay ' + FM.money(asked) + ' for ' + name + ' but will go to ' + FM.money(r.fee) + (r.fee > before ? ' (up from ' + FM.money(before) + ')' : '') + '. Accept it, reject it, or ask for a different price below.' };
+      else if (r.status === 'withdrawn') note = { kind: 'no', text: 'Rejected: ' + who + ' will not pay ' + FM.money(asked) + ' for ' + name + ' and have withdrawn their offer.' };
+      else if (r.status === 'rejected') note = { kind: 'no', text: "You turned down " + who + "'s offer of " + FM.money(before) + ' for ' + name + '.' };
+      else note = { kind: 'no', text: 'Nothing changed.' };
+      rs.offerNote = note;
       save(); draw();
+      const el = host.querySelector('.rc-notice'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
     }));
     drawSide(host.querySelector('#rcSide'), league, draw, save);
   };
