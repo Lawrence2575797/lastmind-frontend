@@ -43,8 +43,44 @@
       league.transfer = { v: 1, budget, wageBudget, shortlist: [], deals: {}, offers: [], ai: {}, hikes: {}, seq: 1, moves: [] };
     }
     if (!league.transfer.reserves) { league.transfer.reserves = true; addReserves(league); }
+    // A new game opens with a few offers already waiting: clubs have been looking at the squad all summer. Which clubs, and for whom, differs
+    // from one game to the next.
+    if (!league.transfer.opening) {
+      league.transfer.opening = true;
+      if (userRounds(league) === 0) openingOffers(league);
+    }
     return league.transfer;
   };
+  function offerStory(league, team, p, fee, opening) {
+    const me = FM.teamById(league, league.userId);
+    story(league, { kind: 'Offer', headline: opening ? `${team.name} want ${p.name}: ${money(fee)} on the table` : `${team.name} bid ${money(fee)} for ${p.name}`,
+      dek: opening ? `A bid is waiting for ${me.name} before a ball has been kicked.` : `A formal offer has arrived at ${me.name}.`,
+      body: `${team.name} have made a formal offer of ${money(fee)} for ${p.name}, the ${FM.ageOf(p)}-year-old ${POS_NAME[p.natural]}. The decision is with ${me.name}: the offer can be accepted, rejected, or answered with a price of the club's own.`,
+      playerId: p.id, mine: true, teams: [team.id, me.id], scene: 'approach' });
+  }
+  function openingOffers(league) {
+    const t = league.transfer, me = FM.teamById(league, league.userId);
+    const rng = FM.mulberry32(league.seed + (league.runSeed || 0) * 977 + 4242);
+    const clubs = league.teams.filter((x) => x.id !== league.userId).sort(() => rng() - 0.5);
+    const count = 2 + Math.floor(rng() * 3);   // two to four
+    const taken = new Set();
+    for (const team of clubs) {
+      if (t.offers.length >= count) break;
+      const budget = t.budget[team.id] || 0;
+      const options = me.squad.filter((p) => !taken.has(p.id) && FM.canSell(me, p)).map((p) => {
+        const mates = team.squad.filter((q) => q.natural === p.natural);
+        const top = mates.length ? Math.max(...mates.map((q) => FM.playerRating(q))) : 0;
+        return { p, gain: FM.playerRating(p) - top + (FM.clubNeeds(team).indexOf(p.natural) >= 0 ? 0.5 : 0), price: FM.askingPrice(league, p) };
+      }).filter((o) => o.gain > -0.1 && o.price <= budget * 1.05);
+      if (!options.length) continue;
+      options.sort((a, b) => b.gain - a.gain);
+      const o = options[Math.floor(rng() * Math.min(4, options.length))];
+      const fee = r1(Math.max(0.2, o.price * (0.9 + rng() * 0.25)));
+      taken.add(o.p.id);
+      t.offers.push({ id: 'o' + (t.seq++), pid: o.p.id, from: team.id, fee, age: -1, status: 'open' });
+      offerStory(league, team, o.p, fee, true);
+    }
+  }
   // Each computer-run club's squad is rounded out with reserves, so every club has real cover in every position (two on top of the players it
   // starts there, one in goal) and a market worth browsing. They are young and rate a little below the club's average.
   function addReserves(league) {
@@ -431,7 +467,7 @@
     // 4. new moves
     league.teams.forEach((team) => {
       if (team.id === league.userId) return;
-      if (rng() > 0.5) return;
+      if (rng() > (round <= 1 ? 0.9 : 0.5)) return;
       const needs = FM.clubNeeds(team);
       const budget = t.budget[team.id] || 0;
       if (budget < 1) return;
@@ -449,17 +485,19 @@
           const needBonus = needs.indexOf(p.natural) >= 0 ? 0.6 : 0;
           const gain = FM.playerRating(p) - top + needBonus;
           if (gain <= 0.05) return;
-          const score = gain * (0.8 + rng() * 0.6) / Math.sqrt(price + 1);
+          // computer clubs look hardest at the manager's players, and most of all early in the season
+          const lean = other.id === league.userId ? (round <= 1 ? 2.4 : 1.7) : 1;
+          const score = gain * lean * (0.8 + rng() * 0.6) / Math.sqrt(price + 1);
           if (score > bestScore) { bestScore = score; best = { p, other, price }; }
         });
       });
       if (!best) return;
       if (best.other.id === league.userId) {
-        if (t.offers.length >= 2) return;
+        if (t.offers.length >= 3) return;
         const fee = r1(Math.max(0.2, best.price * (0.85 + rng() * 0.3)));
         const o = { id: 'o' + (t.seq++), pid: best.p.id, from: team.id, fee, age: 0, status: 'open' };
         t.offers.push(o);
-        story(league, { kind: 'Offer', headline: `${team.name} bid ${money(fee)} for ${best.p.name}`, dek: `A formal offer has arrived at ${me.name}.`, body: `${team.name} have made a formal offer of ${money(fee)} for ${best.p.name}, the ${FM.ageOf(best.p)}-year-old ${POS_NAME[best.p.natural]}. The decision is with ${me.name}: the offer can be accepted, rejected, or answered with a price of the club's own.`, playerId: best.p.id, mine: true, teams: [team.id, me.id], scene: 'approach' });
+        offerStory(league, team, best.p, fee, false);
       } else {
         t.ai[best.p.id] = { team: team.id, from: best.other.id, fee: best.price, round };
         story(league, { kind: 'Transfer talks', headline: `${team.name} open talks for ${best.p.name}`, dek: `${best.other.name} are said to want around ${money(best.price)}.`, body: `${team.name} have opened talks with ${best.other.name} over the signing of ${best.p.name}, the ${FM.ageOf(best.p)}-year-old ${POS_NAME[best.p.natural]}. A fee in the region of ${money(best.price)} is being discussed.`, playerId: best.p.id, mine: false, teams: [team.id, best.other.id], scene: 'approach' });
