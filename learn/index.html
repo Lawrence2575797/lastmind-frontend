@@ -6894,6 +6894,7 @@
             <div class="notes-panel" id="notesPanel">
                 <div class="notes-panel-actions">
                     <button type="button" class="new-chat-btn" id="notesNewFolderBtn">Add problem set</button>
+                    <button type="button" class="new-chat-btn" id="notesNewNotesFolderBtn">Add folder</button>
                 </div>
                 <div class="notes-panel-tree" id="notesTreeItems"></div>
             </div>
@@ -21543,6 +21544,7 @@ SQIDAQAB
             else if (act === 'delete-yes') notesDelete(id);
         });
         document.getElementById('notesNewFolderBtn').addEventListener('click', () => notesStartNew(null, 'pset', 'sets'));
+        document.getElementById('notesNewNotesFolderBtn').addEventListener('click', () => notesStartNew(null, 'folder', 'notes'));
         // Drag and drop: folders among folders, subfolders among the subfolders of the same folder, pages among the pages of the same folder.
         const tree = document.getElementById('notesTreeItems');
         let dragId = null;
@@ -22970,14 +22972,6 @@ SQIDAQAB
         const fileInput = document.getElementById('nbImageFile');
         document.getElementById('nbAddImage').addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', async () => { await add(fileInput.files); fileInput.value = ''; });
-        const shot = document.getElementById('nbAddScreenshot');
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) shot.hidden = true;
-        shot.addEventListener('click', async () => {
-            try {
-                const blob = await nbCaptureScreen();
-                if (blob) { await nbAddImageBlock(page, canvas, blob); notesStatus('Screenshot added'); }
-            } catch (e) { if (!e || e.name !== 'NotAllowedError') notesStatus('The screenshot could not be taken'); }
-        });
         // Paste: a picture on the clipboard (a screenshot, or "copy image") goes onto the page. Text on the clipboard is left to the box it is
         // pasted into. Boxes elsewhere (the assistant, the title) keep their own paste.
         if (nbPasteHandler) document.removeEventListener('paste', nbPasteHandler, true);
@@ -23743,7 +23737,6 @@ SQIDAQAB
                     <button type="button" class="nb-tool nb-sr-btn" id="nbSrBtn" title="Quiz yourself on this page the day after you write it">Revision</button>
                 </div>
                 <div class="nb-toolbar" role="toolbar" aria-label="Page tools">
-                    <button type="button" class="nb-tool" data-fmt="ol" title="Numbered list (Ctrl+Shift+7, or type 1. then Space)">1. Numbers</button>
                     <label class="nb-text-size-wrap">Text size
                         <select class="nb-text-size" id="nbTextSize" aria-label="Text size" title="Text size for highlighted text or the active text box">
                             <option value="12">12px</option><option value="14">14px</option><option value="16" selected>16px</option><option value="18">18px</option><option value="22">22px</option><option value="28">28px</option><option value="36">36px</option>
@@ -23753,7 +23746,6 @@ SQIDAQAB
                     <button type="button" class="nb-tool" id="nbAddTable">+ Table</button>
                     <button type="button" class="nb-tool" id="nbAddDiagram">+ Economics diagram</button>
                     <button type="button" class="nb-tool" id="nbAddImage" title="Add a picture from your device (you can also paste or drop one onto the page)">+ Image</button>
-                    <button type="button" class="nb-tool" id="nbAddScreenshot" title="Take a screenshot of a screen, window or tab and add it to the page">Screenshot</button>
                     <input type="file" id="nbImageFile" accept="image/*" multiple hidden>
                     <button type="button" class="nb-tool" id="nbAutocorrect" aria-pressed="true" title="Corrects common typing mistakes as you write. Press Backspace straight after a correction to put back what you typed.">Autocorrect: on</button>
                     <button type="button" class="nb-tool" id="nbShortcuts">Shortcuts</button>
