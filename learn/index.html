@@ -4251,6 +4251,9 @@
     .nb-text .math-shortcut-wrap { margin: 0; }
     .nb-text .math-shortcut-mode-badge { display: none; }
     .nb-text .math-shortcut-editor { min-height: 0; padding: 6px 8px; background: transparent; border: 0; border-radius: 6px; color: #E6D7B0; caret-color: #E6D7B0; font-family: inherit; font-size: 16px; line-height: 1.6; box-shadow: none; }
+    .nb-text .math-shortcut-editor .math-symbol, .nb-text .math-shortcut-editor .math-bracket, .nb-text .math-shortcut-editor .math-function-argument,
+    .nb-text .math-shortcut-editor .func-primes, .nb-text .math-shortcut-editor .root-symbol, .nb-text .math-shortcut-editor sup, .nb-text .math-shortcut-editor sub,
+    .nb-text .math-shortcut-editor .frac, .nb-text .math-shortcut-editor .mx { font-family: inherit !important; }
     .nb-text .math-shortcut-editor h1 { font-family: 'Cormorant Garamond', 'Lora', Georgia, serif; font-size: 2.5em; font-weight: 700; letter-spacing: .015em; color: #F6E9C0; margin: 0.15em 0 0.25em; padding-bottom: 0.08em; border-bottom: 3px double rgba(230, 215, 176, 0.55); line-height: 1.1; }
     .nb-text .math-shortcut-editor h2 { font-size: 1.35em; font-weight: 700; margin: 0.1em 0; line-height: 1.25; }
     /* Shift+Enter adds a connected, indented follow-on line. The arrow is
@@ -20079,7 +20082,7 @@ SQIDAQAB
         'l': { lower: 'λ', upper: 'Λ' }, 'w': { lower: 'ω', upper: 'Ω' },
         'x': { lower: 'χ', upper: 'Χ' },
     };
-    const MATH_SHORTCUT_TWO_CHAR_GLOBAL = { '<=': '≤', '>=': '≥', '!=': '≠' };
+    const MATH_SHORTCUT_TWO_CHAR_GLOBAL = { '<=': '≤', '>=': '≥', '!=': '≠', '==': '≡' };
     const MATH_SHORTCUT_ZWS_GLOBAL = '​';
 
     // Automatic word/maths detection (backslash escapes, a fraction
@@ -20118,6 +20121,21 @@ SQIDAQAB
         return sections.map(([title, rows]) => `<table class="sc-table"><caption>${title}</caption><thead><tr><th scope="col">You press</th><th scope="col">What happens</th></tr></thead><tbody>${rows.map(([k, d]) => `<tr><th scope="row">${k}</th><td>${d}</td></tr>`).join('')}</tbody></table>`).join('');
     }
     const MATHS_SHORTCUT_ITEMS_HTML = shortcutTableHtml([SC_MATHS_SYMBOLS, SC_MATHS_LAYOUT]);
+    // Notes page: one keyboard, and LastMind works out from what is around the cursor whether a key is maths or ordinary writing.
+    const SC_NOTES_SYMBOLS = ['Maths shortcuts (they apply by themselves as you write)', [
+        [K('^') + ' ' + K('_'), 'Start a power (x²) or a subscript (x₁) when typed straight after a letter, a number or a bracket. Press ' + K('Space') + ' or ' + K('→') + ' to leave it.'],
+        [K('/'), 'Makes a fraction after a number, a bracket or a short variable (3/, (a+b)/, x/). After a word it is just a slash, so and/or stays as typed.'],
+        [K('*'), 'Types a multiplication sign × after a number, letter or bracket.'],
+        [K('~'), 'Starts a square root when it follows an equals or other maths sign (x = ~). Press ' + K('→') + ' or ' + K('Tab') + ' to leave it.'],
+        [K('Caps Lock') + ' + ' + K('~'), 'Types a root with a small box for the index, such as a cube root.'],
+        [K('Shift') + ' + a letter', 'Types the Greek letter when you are writing maths: straight after a number, a sign (x = ), a letter such as sin, or a bracket that follows a function. In ordinary writing (the start of a line or sentence, after a word) it is just a capital letter. ' + K('Alt') + ' + ' + K('Shift') + ' + a letter always gives the Greek letter. With Caps Lock on you get the capital Greek letter.'],
+        [K('&lt;=') + ' ' + K('&gt;=') + ' ' + K('!=') + ' ' + K('=='), 'Typed as two keys, these turn into ≤, ≥, ≠ and the identity sign ≡.'],
+        [K('Shift') + ' + ' + K('F'), 'Types f(x) when you are writing maths. At the start of a line, type a capital F and then ' + K('(') + ': it becomes f(x). Press ' + K("'") + ' straight after it for f′(x), and again for f″(x).'],
+        [K('Shift') + ' + ' + K('I'), 'Types an integral sign in maths (after a sign or a number); a capital I in ordinary writing. Then press ' + K('d') + ' to add the limits.'],
+        [K(']'), 'After a maths expression in square brackets, evaluates between limits, such as [x²] from 0 to 2.'],
+        [K('Shift') + ' + ' + K('M'), 'Starts a matrix in maths. Type the size as (rows*columns), for example (3*3), then press ' + K(')') + ' or ' + K('Enter') + '.'],
+        [K('Space') + ' on a new line', 'If the line above has an equals sign, the new line lines up under the right-hand side of it.'],
+    ]];
 
     // opts (all optional): onModeChange(writingMode) when the keyboard switches between maths and English; hideShortcutHint to leave the
     // inline shortcut list out (the Notes page shows it as a popup instead).
@@ -20223,6 +20241,9 @@ SQIDAQAB
 
     function createSmartAnswerEditor(placeholder, opts) {
         opts = opts || {};
+        // auto: no keyboard to switch. The maths shortcuts are always on, and each one that could get in the way of ordinary writing only fires
+        // where the text around the cursor says it is maths (see mathsContext below). Used by the Notes page.
+        const auto = !!opts.auto;
         const wrap = document.createElement('div');
         wrap.className = 'math-shortcut-wrap';
         const editor = document.createElement('div');
@@ -20259,10 +20280,12 @@ SQIDAQAB
         let writingMode = false;
         function updateModeBadge() {
             // Red spelling underlines belong to writing, not to maths: "lim", "sin" and variable names are not misspellings.
-            editor.spellcheck = writingMode; editor.setAttribute('spellcheck', String(writingMode));
-            modeBadge.textContent = writingMode ? 'Mode: writing (# for maths)' : 'Mode: maths (# for writing)';
-            modeBadge.classList.toggle('writing', writingMode);
-            if (typeof opts.onModeChange === 'function') opts.onModeChange(writingMode);
+            const shown = auto ? true : writingMode;
+            editor.spellcheck = shown; editor.setAttribute('spellcheck', String(shown));
+            modeBadge.textContent = shown ? 'Mode: writing (# for maths)' : 'Mode: maths (# for writing)';
+            modeBadge.classList.toggle('writing', shown);
+            modeBadge.hidden = auto;
+            if (typeof opts.onModeChange === 'function') opts.onModeChange(shown);
         }
         updateModeBadge();
 
@@ -20658,13 +20681,44 @@ SQIDAQAB
             range.setStart(node, offset - 1); range.collapse(true);
             sel.removeAllRanges(); sel.addRange(range);
         }
+        // ----- automatic mode: is the cursor in maths or in ordinary writing?
+        function lineBeforeCaret() {
+            const sel = window.getSelection();
+            if (!sel.rangeCount) return '';
+            const r = sel.getRangeAt(0);
+            let line = r.startContainer.nodeType === 1 ? r.startContainer : r.startContainer.parentNode;
+            while (line && line !== editor && !(line.nodeType === 1 && /^(DIV|P|LI|H1|H2)$/.test(line.tagName))) line = line.parentNode;
+            if (!line) line = editor;
+            const pre = document.createRange(); pre.selectNodeContents(line); pre.setEnd(r.startContainer, r.startOffset);
+            return pre.toString().replace(/\u200b/g, '');
+        }
+        const MATH_OPS = '=+−-×÷<>≤≥≠≈≡^_/*|,';
+        const isSymbolChar = (c) => !!c && c.charCodeAt(0) > 0x2000 && !/[“”‘’…—–•]/.test(c);
+        // True when a key that is also a plain letter or sign in English should be treated as maths: inside a power, fraction, root or matrix,
+        // straight after a number, a maths sign, a Greek letter or a lowercase letter (sinθ), or after a maths sign and a space (x = α).
+        // At the start of a line, after a word and a space, after a capital letter (GDP, UK) or after sentence punctuation it is ordinary writing.
+        function mathsContext() {
+            if (currentZone() || currentFracPart() || closestClass('root-radicand') || closestClass('root-index') || currentIntLimitZone() || closestClass('mx-cell')) return true;
+            const t = lineBeforeCaret();
+            if (!t) return false;
+            const last = t.slice(-1);
+            if (last === ' ' || last === '\u00a0') {
+                const before = t.replace(/[\s\u00a0]+$/, '').slice(-1);
+                return !!before && (MATH_OPS.indexOf(before) >= 0 || isSymbolChar(before));
+            }
+            if (/[0-9a-z]/.test(last)) return true;
+            if (MATH_OPS.indexOf(last) >= 0 || isSymbolChar(last)) return true;
+            if (last === '(' || last === '[') return /[A-Za-z0-9)]/.test(t.slice(-2, -1) || '');
+            return false;
+        }
+        const afterOperand = () => /[A-Za-z0-9)\]′″]$/.test(lineBeforeCaret()) || isSymbolChar(lineBeforeCaret().slice(-1));
         editor.addEventListener('keydown', (ev) => {
             // "#" always toggles the mode, in either mode, and is never
             // itself inserted. Clears any in-flight maths state (a pending
             // prime-chain or integral-limits trigger) so switching modes
             // mid-expression can never leave stale state to misfire once
             // the student switches back.
-            if (ev.key === '#') {
+            if (ev.key === '#' && !auto) {
                 ev.preventDefault();
                 writingMode = !writingMode;
                 funcPrimeLanding = null; funcPrimeSpan = null; pendingIntegral = false;
@@ -20709,32 +20763,57 @@ SQIDAQAB
                 pendingIntegral = false;
                 if (ev.key === 'd' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) { ev.preventDefault(); growLimitBoxes(); return; }
             }
-            if (ev.key === ']' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+            const bracketLooksMaths = () => {
+                const t = lineBeforeCaret(), i = t.lastIndexOf('[');
+                return i >= 0 && /[0-9+\-−×÷=^_\/*]|[Α-ωα-ω∫√π]/.test(t.slice(i + 1));
+            };
+            if (ev.key === ']' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && (!auto || bracketLooksMaths())) {
                 ev.preventDefault(); insertTextAtCaret(']'); growLimitBoxes(); return;
             }
-            if (ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
-                const lower = ev.key.toLowerCase();
-                if (MATH_SHORTCUT_GREEK_MAP_GLOBAL[lower] && ev.key.length === 1) {
+            // Shift + a letter: a Greek letter, an integral, a matrix or f(x) in maths; just a capital letter in ordinary writing. Alt + Shift always
+            // gives the maths one.
+            const keyLetter = ev.code && /^Key[A-Z]$/.test(ev.code) ? ev.code.slice(3).toLowerCase() : String(ev.key || '').toLowerCase();
+            const shiftLetter = ev.shiftKey && !ev.ctrlKey && !ev.metaKey && (!ev.altKey || auto) && keyLetter.length === 1;
+            const wantsMaths = !auto || ev.altKey || mathsContext();
+            if (shiftLetter && wantsMaths) {
+                const lower = keyLetter;
+                if (MATH_SHORTCUT_GREEK_MAP_GLOBAL[lower]) {
                     ev.preventDefault();
                     const capsOn = ev.getModifierState && ev.getModifierState('CapsLock');
                     insertStyledSymbol(capsOn ? MATH_SHORTCUT_GREEK_MAP_GLOBAL[lower].upper : MATH_SHORTCUT_GREEK_MAP_GLOBAL[lower].lower);
                     return;
                 }
-                if (lower === 'i' && ev.key.length === 1) { ev.preventDefault(); insertStyledSymbol('∫'); pendingIntegral = true; return; }
+                if (lower === 'i') { ev.preventDefault(); insertStyledSymbol('∫'); pendingIntegral = true; return; }
+                if (auto && lower === 'f') { ev.preventDefault(); insertFuncF(); return; }
             }
-            if (ev.key === 'f' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !precedingCharIsLetter()) { ev.preventDefault(); insertFuncF(); return; }
-            if (ev.key === '*') { ev.preventDefault(); insertStyledSymbol('×'); return; }
-            if (ev.key === '~') {
+            // a capital F at the start of a word, then "(": f(x)
+            if (auto && ev.key === '(' && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+                const selF = window.getSelection();
+                if (selF.rangeCount && selF.isCollapsed) {
+                    const rF = selF.getRangeAt(0), nF = rF.startContainer, oF = rF.startOffset;
+                    if (nF.nodeType === 3 && oF > 0 && nF.textContent.charAt(oF - 1) === 'F' && (oF === 1 || /[\s\u200b=+\-−×÷(\[,]/.test(nF.textContent.charAt(oF - 2)))) {
+                        ev.preventDefault();
+                        nF.textContent = nF.textContent.slice(0, oF - 1) + nF.textContent.slice(oF);
+                        const back = document.createRange(); back.setStart(nF, oF - 1); back.collapse(true); selF.removeAllRanges(); selF.addRange(back);
+                        insertFuncF();
+                        return;
+                    }
+                }
+            }
+            if (!auto && ev.key === 'f' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !precedingCharIsLetter()) { ev.preventDefault(); insertFuncF(); return; }
+            if (ev.key === '*' && (!auto || afterOperand())) { ev.preventDefault(); insertStyledSymbol('×'); return; }
+            if (ev.key === '~' && (!auto || (lineBeforeCaret() && mathsContext()))) {
                 ev.preventDefault();
                 const capsOn = ev.getModifierState && ev.getModifierState('CapsLock');
                 if (capsOn) insertRootWithIndex(); else insertSquareRoot();
                 return;
             }
             if (ev.key === '(' || ev.key === ')') { ev.preventDefault(); insertMathBracket(ev.key); return; }
-            if (ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && ev.key.length === 1 && ev.key.toLowerCase() === 'm') { ev.preventDefault(); insertMatrixSpec(); return; }
-            if (ev.key === '^') { ev.preventDefault(); startZone('sup'); return; }
-            if (ev.key === '_') { ev.preventDefault(); startZone('sub'); return; }
-            if (ev.key === '/') {
+            if (ev.shiftKey && !ev.ctrlKey && !ev.metaKey && (!ev.altKey || auto) && keyLetter === 'm' && (!auto || wantsMaths)) { ev.preventDefault(); insertMatrixSpec(); return; }
+            if (ev.key === '^' && (!auto || afterOperand())) { ev.preventDefault(); startZone('sup'); return; }
+            if (ev.key === '_' && (!auto || afterOperand())) { ev.preventDefault(); startZone('sub'); return; }
+            const slashIsMaths = () => { const t = lineBeforeCaret(); return /[0-9)\]]$/.test(t) || isSymbolChar(t.slice(-1)) || /(^|[^A-Za-z])[A-Za-z]{1,2}$/.test(t); };
+            if (ev.key === '/' && (!auto || currentFracPart() || slashIsMaths())) {
                 const fracPart = currentFracPart();
                 if (fracPart && fracPart.className === 'frac-num') { ev.preventDefault(); advanceFracNumToDen(fracPart); return; }
                 if (fracPart && fracPart.className === 'frac-den') return;
@@ -20830,8 +20909,8 @@ SQIDAQAB
 
         return {
             container: wrap,
-            setWritingMode(on) { writingMode = !!on; funcPrimeLanding = null; funcPrimeSpan = null; pendingIntegral = false; updateModeBadge(); },
-            isWritingMode() { return writingMode; },
+            setWritingMode(on) { if (auto) return; writingMode = !!on; funcPrimeLanding = null; funcPrimeSpan = null; pendingIntegral = false; updateModeBadge(); },
+            isWritingMode() { return auto ? true : writingMode; },
             getValue() { return serializeChildren(editor).trim(); },
             isEmpty() { return !serializeChildren(editor).trim(); },
             focus() { editor.focus(); },
@@ -22008,7 +22087,7 @@ SQIDAQAB
         el.className = 'nb-block nb-text'; el.dataset.id = block.id;
         el.innerHTML = '<div class="nb-grip" title="Drag to move" role="button" aria-label="Drag to move this text box">⠿</div><button type="button" class="nb-align-left" aria-label="Align this text box with another" aria-pressed="false" title="Align left edge with another text box">⇤</button><button type="button" class="nb-del" aria-label="Delete this text box" title="Delete">×</button><div class="nb-body"></div><div class="nb-resize" title="Drag to resize"></div>';
         let ready = false;
-        const ed = createSmartAnswerEditor('Type here…', { hideShortcutHint: true, onModeChange: (w) => { if (!ready) return; notesWriting = w; block.writing = w; nbSyncKeyboardButtons(); notesScheduleSave(); } });
+        const ed = createSmartAnswerEditor('Type here…', { hideShortcutHint: true, auto: true, onModeChange: (w) => { if (!ready) return; notesWriting = w; block.writing = w; nbSyncKeyboardButtons(); notesScheduleSave(); } });
         el.querySelector('.nb-body').appendChild(ed.container);
         ed.setHtml(block.html || '');
         if (block.minH) { el.style.minHeight = block.minH + 'px'; const edEl = ed.container.querySelector('.math-shortcut-editor'); if (edEl) edEl.style.minHeight = Math.max(60, block.minH - 44) + 'px'; }
@@ -22369,11 +22448,11 @@ SQIDAQAB
         ['Writing and lists', [
             ['Click anywhere', 'Starts a new line of text at the spot you clicked.'],
             [K('Ctrl') + ' + ' + K('Alt') + ' + ' + K('1') + ' / ' + K('2') + ' / ' + K('0'), 'Turns the line into a title, a heading, or normal text.'],
-            [K('-') + ' then ' + K('Space'), 'At the start of a line, turns it into a bullet point (English keyboard).'],
-            [K('.') + K('.'), 'At the start of a line, also turns it into a bullet point (English keyboard).'],
-            [K('1.') + ' then ' + K('Space'), 'At the start of a line, starts a numbered list (English keyboard).'],
+            [K('-') + ' then ' + K('Space'), 'At the start of a line, turns it into a bullet point.'],
+            [K('.') + K('.'), 'At the start of a line, also turns it into a bullet point.'],
+            [K('1.') + ' then ' + K('Space'), 'At the start of a line, starts a numbered list.'],
             [K('Ctrl') + ' + ' + K('Shift') + ' + ' + K('8') + ' / ' + K('7'), 'Turns the selected lines into bullet points or a numbered list.'],
-            [K('-') + K('-'), 'Types a large long dash — in the same weight as a bullet point (English keyboard).'],
+            [K('-') + K('-'), 'Types a large long dash — in the same weight as a bullet point.'],
             [K('Shift') + ' + ' + K('Enter'), 'Adds an indented follow-on line that starts with an arrow. Press it twice in a row after writing your first point and the arrow grows a longer vertical line with a second arrow below, so two points can come from the same place.'],
         ]],
         ['Moving things around the page', [
@@ -22394,7 +22473,7 @@ SQIDAQAB
             ['Drag inside the expanded graph', 'Pans the axes so you can look at a different part.'],
             ['Two fingers (touch)', 'Pinch to zoom the axes and slide to pan them. A single finger only moves the graph block.'],
         ]],
-        SC_MATHS_SYMBOLS, SC_MATHS_LAYOUT,
+        SC_NOTES_SYMBOLS,
     ]);
 
     // ─── LastMind beside your notes: chat about concepts, and a review of the page ───
@@ -22885,7 +22964,7 @@ SQIDAQAB
                             <option value="12">12px</option><option value="14">14px</option><option value="16" selected>16px</option><option value="18">18px</option><option value="22">22px</option><option value="28">28px</option><option value="36">36px</option>
                         </select>
                     </label>
-                    <span class="maths-notes-kbd-switch" role="group" aria-label="Keyboard">
+                    <span class="maths-notes-kbd-switch" role="group" aria-label="Keyboard" hidden>
                         <button type="button" id="nbKbdEnglish" aria-pressed="true">English keyboard</button>
                         <button type="button" id="nbKbdMaths" aria-pressed="false">Maths keyboard</button>
                     </span>
