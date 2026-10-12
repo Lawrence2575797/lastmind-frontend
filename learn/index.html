@@ -4296,6 +4296,7 @@
     .nb-image img { display: block; width: 100%; height: auto; border-radius: 0 0 8px 8px; user-select: none; -webkit-user-drag: none; }
     .nb-img-missing { margin: 0; padding: 18px 14px; opacity: .8; font-size: .9rem; }
     .nb-drop-over { outline: 3px dashed rgba(230, 215, 176, .8); outline-offset: -6px; }
+    .math-bar { text-decoration: overline; text-decoration-thickness: 0.09em; }
     .nb-msg .frac, .nb-review .frac, .nb-tex .frac, .nb-sr-card .frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin: 0 0.2em; font-size: 0.9em; line-height: 1.15; }
     .nb-msg .frac-num, .nb-review .frac-num, .nb-sr-card .frac-num { align-self: stretch; text-align: center; padding: 0 0.2em 0.12em; border-bottom: 1.5px solid currentColor; }
     .nb-msg .frac-den, .nb-review .frac-den, .nb-sr-card .frac-den { align-self: stretch; text-align: center; padding: 0.12em 0.2em 0; }
@@ -20189,6 +20190,7 @@ SQIDAQAB
         [K('Caps Lock') + ' + ' + K('~'), 'Types a root with a small box for the index, such as a cube root. Press ' + K('Space') + ' to leave the box.'],
         [K('Shift') + ' + a letter', 'Types the Greek letter for it (Shift+A gives α). With Caps Lock on you get the capital.'],
         [K('&lt;=') + ' ' + K('&gt;=') + ' ' + K('!='), 'Typed as two keys, these turn into ≤, ≥ and ≠.'],
+        [K('Ctrl') + ' + ' + K('-'), 'Puts a bar over the letter before the cursor (x̄), or over the selected text. Press it again to take it off.'],
         [K('Shift') + ' + ' + K('E'), 'Types ∈, "belongs to the set of", such as c ∈ ℝ.'],
         [K('f'), 'Types f(x). Press ' + K("'") + ' straight after it for f′(x), and again for f″(x).'],
         [K('Shift') + ' + ' + K('I'), 'Types an integral sign. Then press ' + K('d') + ' to add the limits.'],
@@ -20214,6 +20216,7 @@ SQIDAQAB
         [K('Caps Lock') + ' + ' + K('~'), 'Types a root with a small box for the index, such as a cube root.'],
         [K('Shift') + ' + a letter', 'Types the Greek letter when you are writing maths: straight after a number, a sign (x = ), a letter such as sin, or a bracket that follows a function. In ordinary writing (the start of a line or sentence, after a word) it is just a capital letter. ' + K('Alt') + ' + ' + K('Shift') + ' + a letter always gives the Greek letter. With Caps Lock on you get the capital Greek letter.'],
         [K('&lt;=') + ' ' + K('&gt;=') + ' ' + K('!=') + ' ' + K('=='), 'Typed as two keys, these turn into ≤, ≥, ≠ and the identity sign ≡.'],
+        [K('Ctrl') + ' + ' + K('-'), 'Puts a bar over the letter, symbol or bracket group just before the cursor, or over the selected text: x̄ for a mean, or an exogenous variable. Press it again straight after the barred part to take the bar off.'],
         [K('Shift') + ' + ' + K('E'), 'Types ∈, "belongs to the set of", such as c ∈ ℝ. Straight after a single letter and a space (c ) it always gives ∈; elsewhere it follows the same maths-or-writing rule as the Greek letters.'],
         [K('Shift') + ' + ' + K('F'), 'Types f(x) when you are writing maths. At the start of a line, type a capital F and then ' + K('(') + ': it becomes f(x). Press ' + K("'") + ' straight after it for f′(x), and again for f″(x).'],
         [K('Shift') + ' + ' + K('I'), 'Types an integral sign in maths (after a sign or a number); a capital I in ordinary writing. Then press ' + K('d') + ' to add the limits.'],
@@ -20824,6 +20827,63 @@ SQIDAQAB
             range.setStart(node, offset - 1); range.collapse(true);
             sel.removeAllRanges(); sel.addRange(range);
         }
+        // Ctrl + minus: a bar over the letter, symbol or bracketed group just before the cursor (x̄: a mean, an exogenous variable), or over the
+        // selected text. Press it again with the cursor straight after the barred part to take the bar off.
+        function toggleBar() {
+            const sel = window.getSelection();
+            if (!sel.rangeCount || !editor.contains(sel.anchorNode)) return false;
+            const rg = sel.getRangeAt(0);
+            const barOf = (n) => { while (n && n !== editor) { if (n.nodeType === 1 && n.classList && n.classList.contains('math-bar')) return n; n = n.parentNode; } return null; };
+            const unwrap = (b) => { const par = b.parentNode, first = b.firstChild, last = b.lastChild; while (b.firstChild) par.insertBefore(b.firstChild, b); par.removeChild(b); return [first, last]; };
+            const landAfter = (el) => {
+                let tail = el.nextSibling;
+                if (!tail || tail.nodeType !== 3) { tail = document.createTextNode(MATH_SHORTCUT_ZWS_GLOBAL); el.parentNode.insertBefore(tail, el.nextSibling); }
+                const c = document.createRange(); c.setStart(tail, tail.textContent.charAt(0) === MATH_SHORTCUT_ZWS_GLOBAL ? 1 : 0); c.collapse(true);
+                sel.removeAllRanges(); sel.addRange(c);
+            };
+            const wrapRange = (r) => { const span = document.createElement('span'); span.className = 'math-bar'; span.appendChild(r.extractContents()); r.insertNode(span); landAfter(span); return true; };
+            if (!sel.isCollapsed) {
+                const ex = barOf(rg.commonAncestorContainer);
+                if (ex) { unwrap(ex); return true; }
+                return wrapRange(rg);
+            }
+            const here = barOf(rg.startContainer);
+            if (here) { const pair = unwrap(here); const last = pair[1]; if (last) { const c = document.createRange(); c.setStartAfter(last); c.collapse(true); sel.removeAllRanges(); sel.addRange(c); } return true; }
+            const node = rg.startContainer, off = rg.startOffset;
+            let target = null;
+            if (node.nodeType === 3) {
+                let i = off; while (i > 0 && node.textContent.charAt(i - 1) === MATH_SHORTCUT_ZWS_GLOBAL) i--;
+                if (i > 0) {
+                    const ch = node.textContent.charAt(i - 1);
+                    if (/\s/.test(ch)) return false;
+                    const after = node.textContent.slice(i);
+                    node.textContent = node.textContent.slice(0, i - 1);
+                    const span = document.createElement('span'); span.className = 'math-bar'; span.textContent = ch;
+                    node.parentNode.insertBefore(span, node.nextSibling);
+                    if (after) node.parentNode.insertBefore(document.createTextNode(after), span.nextSibling);
+                    landAfter(span);
+                    return true;
+                }
+                target = node.previousSibling;
+            } else target = node.childNodes[off - 1] || null;
+            while (target && target.nodeType === 3 && !target.textContent.replace(/\u200B/g, '')) target = target.previousSibling;
+            if (!target || target.nodeType !== 1) return false;
+            // straight after a barred part: a second press takes the bar off
+            if (target.classList.contains('math-bar')) { const pr = unwrap(target); const lastN = pr[1]; if (lastN) { const c0 = document.createRange(); c0.setStartAfter(lastN); c0.collapse(true); sel.removeAllRanges(); sel.addRange(c0); } return true; }
+            // a bracketed group: bar the whole of it
+            if (target.classList.contains('math-bracket') && target.textContent === ')') {
+                let depth = 0, open = null;
+                for (let n = target; n; n = n.previousSibling) {
+                    if (n.nodeType === 1 && n.classList.contains('math-bracket')) {
+                        if (n.textContent === ')') depth++;
+                        else if (n.textContent === '(') { depth--; if (depth === 0) { open = n; break; } }
+                    }
+                }
+                if (open) { const r = document.createRange(); r.setStartBefore(open); r.setEndAfter(target); return wrapRange(r); }
+            }
+            const r2 = document.createRange(); r2.selectNode(target);
+            return wrapRange(r2);
+        }
         // ----- automatic mode: is the cursor in maths or in ordinary writing?
         function lineBeforeCaret() {
             const sel = window.getSelection();
@@ -20968,6 +21028,7 @@ SQIDAQAB
                 pendingIntegral = false;
                 if (ev.key === 'd' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) { ev.preventDefault(); growLimitBoxes(); return; }
             }
+            if ((ev.ctrlKey || ev.metaKey) && !ev.altKey && !ev.shiftKey && (ev.key === '-' || ev.code === 'Minus')) { if (toggleBar()) { ev.preventDefault(); editor.dispatchEvent(new Event('input', { bubbles: true })); return; } }
             const bracketLooksMaths = () => {
                 const t = lineBeforeCaret(), i = t.lastIndexOf('[');
                 return i >= 0 && /[0-9+\-−×÷=^_\/*]|[Α-ωα-ω∫√π]/.test(t.slice(i + 1));
@@ -22850,7 +22911,8 @@ SQIDAQAB
             if (c === '\\') {
                 const m = /^\\([A-Za-z]+|.)/.exec(src.slice(i)); if (!m) { i += 1; continue; }
                 const name = m[1]; i += m[0].length;
-                if (name === 'frac' || name === 'dfrac' || name === 'tfrac') { const a = group(), b = group(); out += '<span class="frac"><span class="frac-num">' + a + '</span><span class="frac-den">' + b + '</span></span>'; }
+                if (name === 'bar' || name === 'overline') { const x = group(); out += '<span class="math-bar">' + x + '</span>'; }
+                else if (name === 'frac' || name === 'dfrac' || name === 'tfrac') { const a = group(), b = group(); out += '<span class="frac"><span class="frac-num">' + a + '</span><span class="frac-den">' + b + '</span></span>'; }
                 else if (name === 'sqrt') {
                     let idx = '';
                     if (src[i] === '[') { const j = src.indexOf(']', i); if (j > i) { idx = esc(src.slice(i + 1, j)); i = j + 1; } }
@@ -22889,6 +22951,8 @@ SQIDAQAB
             t = t.replace(/(^|[^*\w])\*(?![\s*])([^*\n]+?)(?<![\s*])\*(?![*\w])/g, '$1<i>$2</i>');
         }
         // shorthand: roots, fractions, powers and subscripts
+        t = t.replace(/\bbar\(([^()]*)\)/g, (m, x) => hold('<span class="math-bar">' + x + '</span>'));
+        t = t.replace(/(.)\u0304/g, (m, x) => hold('<span class="math-bar">' + x + '</span>'));
         t = t.replace(/(?:sqrt|√)\(([^()]*)\)/gi, (m, x) => hold('<span class="root"><span class="root-symbol">√</span><span class="root-radicand">' + x + '</span></span>'));
         t = t.replace(/\(([^()\n]{1,40})\)\/\(([^()\n]{1,40})\)/g, (m, a, b) => hold('<span class="frac"><span class="frac-num">' + a + '</span><span class="frac-den">' + b + '</span></span>'));
         t = t.replace(/(?<![\/\d.])(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)(?![\/\d])/g, (m, a, b) => hold('<span class="frac"><span class="frac-num">' + a + '</span><span class="frac-den">' + b + '</span></span>'));
@@ -22958,6 +23022,7 @@ SQIDAQAB
             const cl = n.classList, kids = () => Array.from(n.childNodes).map(walk).join('');
             if (cl && cl.contains('frac')) { const a = n.querySelector('.frac-num'), b = n.querySelector('.frac-den'); const x = a ? walk(a) : '', y = b ? walk(b) : ''; return x || y ? '(' + x + ')/(' + y + ')' : ''; }
             if (cl && cl.contains('int-limits')) { const u = n.querySelector('.int-upper'), l = n.querySelector('.int-lower'); return '[' + (l ? walk(l) : '') + ', ' + (u ? walk(u) : '') + ']'; }
+            if (cl && cl.contains('math-bar')) { const i = kids(); return i.length === 1 ? i + '\u0304' : i ? 'bar(' + i + ')' : ''; }
             if (n.tagName === 'SUP') { const i = kids(); return i ? '^(' + i + ')' : ''; }
             if (n.tagName === 'SUB') { const i = kids(); return i ? '_(' + i + ')' : ''; }
             if (cl && cl.contains('root-n')) { const r = n.querySelector('.root-index'); const i = r ? walk(r) : ''; return (i ? '^(' + i + ')' : '') + '\u221a'; }
