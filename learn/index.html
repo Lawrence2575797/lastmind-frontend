@@ -20098,6 +20098,39 @@ SQIDAQAB
     const MATH_SHORTCUT_ZWS_GLOBAL = '​';
     // Autocorrect (Notes page): a typed word that is on this list is replaced when the next space or punctuation is typed. Only mistakes that are
     // never a real word are here, so nothing a student meant is ever changed. Keys are lower case; capitals are carried across.
+    // Beyond the list: a word that is not in an English word list, and is one slip away from exactly one word that is (letters swapped, one
+    // missing, one extra, one wrong), is corrected to it. The word list (common English, British spellings, about 500 KB) is fetched once from
+    // the jsDelivr CDN the first time autocorrect is used, and the browser keeps it. Until it has arrived only the fixed list above applies.
+    let nbDict = null, nbDictLoading = null;
+    function nbLoadDictionary() {
+        if (nbDict || nbDictLoading) return nbDictLoading;
+        const base = 'https://cdn.jsdelivr.net/npm/wordlist-english@1.2.1/', levels = [10, 20, 35, 40];
+        const files = [];
+        ['english', 'british'].forEach((k) => levels.forEach((l) => files.push([k + '-words-' + l, l])));
+        nbDictLoading = Promise.all(files.map(([f]) => fetch(base + f + '.json').then((r) => (r.ok ? r.json() : [])).catch(() => []))).then((lists) => {
+            const m = new Map();
+            lists.forEach((list, k) => { const level = files[k][1]; (Array.isArray(list) ? list : []).forEach((w) => { const lw = String(w).toLowerCase(); if (!m.has(lw) || m.get(lw) > level) m.set(lw, level); }); });
+            if (m.size > 2000) nbDict = m;
+            return nbDict;
+        }).catch(() => null);
+        return nbDictLoading;
+    }
+    function nbDictCorrect(word) {
+        if (!nbDict || word.length < 6 || word.length > 20 || !/^[a-z]+$/.test(word) || nbDict.has(word)) return null;
+        const L = 'abcdefghijklmnopqrstuvwxyz', n = word.length, found = new Map(), trans = [];
+        const add = (c, kind) => { if (c !== word && c[0] === word[0] && nbDict.has(c) && !found.has(c)) { found.set(c, kind); if (kind === 't') trans.push(c); } };
+        for (let i = 0; i < n - 1; i++) add(word.slice(0, i) + word[i + 1] + word[i] + word.slice(i + 2), 't');
+        for (let i = 0; i < n; i++) add(word.slice(0, i) + word.slice(i + 1), 'd');
+        for (let i = 0; i < n; i++) for (let k = 0; k < 26; k++) add(word.slice(0, i) + L[k] + word.slice(i + 1), 's');
+        for (let i = 0; i <= n; i++) for (let k = 0; k < 26; k++) add(word.slice(0, i) + L[k] + word.slice(i), 'i');
+        if (trans.length === 1) return trans[0];                  // two letters the wrong way round is by far the most likely slip
+        if (found.size === 1) return found.keys().next().value;
+        let best = null, bl = 99, tie = false;
+        found.forEach((kind, c) => { const lv = nbDict.get(c); if (lv < bl) { best = c; bl = lv; tie = false; } else if (lv === bl) tie = true; });
+        return !tie && bl <= 20 ? best : null;
+    }
+    let nbAcIgnored = (() => { try { return new Set(JSON.parse(localStorage.getItem('lm-notes-ac-ignore') || '[]')); } catch (_) { return new Set(); } })();
+    function nbAcIgnore(word) { nbAcIgnored.add(word); try { localStorage.setItem('lm-notes-ac-ignore', JSON.stringify(Array.from(nbAcIgnored).slice(-500))); } catch (_) { /* a convenience only */ } }
     const NOTES_AUTOCORRECT_WORDS = {
         teh: 'the', hte: 'the', adn: 'and', nad: 'and', taht: 'that', thta: 'that', waht: 'what', wiht: 'with', whcih: 'which', wich: 'which', wihch: 'which',
         thier: 'their', theyre: "they're", youre: "you're", dont: "don't", doesnt: "doesn't", didnt: "didn't", isnt: "isn't", wasnt: "wasn't", arent: "aren't",
@@ -20827,7 +20860,7 @@ SQIDAQAB
         const AC_BOUNDARY = [' ', '.', ',', ';', ':', '!', '?', ')', 'Enter'];
         function autocorrectedWord(word) {
             const lower = word.toLowerCase();
-            if (fixIgnored.has(lower)) return null;
+            if (fixIgnored.has(lower) || nbAcIgnored.has(lower)) return null;
             let rep = NOTES_AUTOCORRECT_WORDS[lower];
             if (rep) {
                 if (word.length > 1 && word === word.toUpperCase()) return rep.toUpperCase();
@@ -20836,6 +20869,13 @@ SQIDAQAB
             }
             // two capitals then ordinary lower case (a held Shift): THen -> Then
             if (/^[A-Z]{2}[a-z]{2,}$/.test(word)) return word.charAt(0) + word.slice(1).toLowerCase();
+            // a word one slip away from exactly one real word (fucntion -> function). Names and acronyms (a capital letter anywhere) are left alone,
+            // and so is a word that is already written more than once on the page.
+            if (/^[a-z]+$/.test(word) && nbDict) {
+                const host = document.getElementById('nbCanvas');
+                const used = host ? (host.textContent || '').toLowerCase().split(/[^a-z']+/).filter((x) => x === lower).length : 1;
+                if (used <= 1) return nbDictCorrect(lower);
+            }
             return null;
         }
         function tryAutocorrect() {
@@ -20867,7 +20907,7 @@ SQIDAQAB
             f.node.nodeValue = text.slice(0, f.start) + f.original + text.slice(f.start + f.fixed.length);
             const caret = document.createRange(); caret.setStart(f.node, f.start + f.original.length + 1); caret.collapse(true);
             sel.removeAllRanges(); sel.addRange(caret);
-            fixIgnored.add(f.original.toLowerCase());
+            fixIgnored.add(f.original.toLowerCase()); nbAcIgnore(f.original.toLowerCase());
             lastFix = null;
             return true;
         }
@@ -20875,7 +20915,7 @@ SQIDAQAB
         editor.addEventListener('keydown', (ev) => {
             if (auto && typeof opts.autocorrect === 'function') {
                 if (ev.key === 'Backspace' && !ev.ctrlKey && !ev.metaKey && !ev.altKey && lastFix && undoAutocorrect()) { ev.preventDefault(); return; }
-                if (AC_BOUNDARY.indexOf(ev.key) >= 0 && !ev.ctrlKey && !ev.metaKey && !ev.altKey && opts.autocorrect()) { lastFix = null; tryAutocorrect(); }
+                if (AC_BOUNDARY.indexOf(ev.key) >= 0 && !ev.ctrlKey && !ev.metaKey && !ev.altKey && opts.autocorrect()) { lastFix = null; nbLoadDictionary(); tryAutocorrect(); }
                 else if (!/^(Shift|Control|Alt|Meta|CapsLock)$/.test(ev.key)) lastFix = null;
             }
             // "#" always toggles the mode, in either mode, and is never
@@ -22764,7 +22804,7 @@ SQIDAQAB
             ['Two fingers (touch)', 'Pinch to zoom the axes and slide to pan them. A single finger only moves the graph block.'],
         ]],
         ['Autocorrect', [
-            ['Typing a word wrong', 'Common mistakes such as ' + K('teh') + ' (the), ' + K('adn') + ' (and), ' + K('recieve') + ' and ' + K('dont') + ' (don\'t) are corrected as you press ' + K('Space') + ' or punctuation. Capitals are kept, and nothing inside a power, fraction, root or matrix is touched.'],
+            ['Typing a word wrong', 'Common mistakes such as ' + K('teh') + ' (the), ' + K('adn') + ' (and), ' + K('recieve') + ' and ' + K('dont') + ' (don\'t) are corrected as you press ' + K('Space') + ' or punctuation. So are other words that are one slip away from a single real word, such as ' + K('fucntion') + ' (function). Capitals are kept, names and acronyms are left alone, and nothing inside a power, fraction, root or matrix is touched.'],
             [K('Backspace') + ' straight after a correction', 'Puts back what you typed, and that word is left alone from then on.'],
             ['Autocorrect: on / off (toolbar)', 'Turns it off if you would rather type everything exactly as it comes. Your choice is remembered.'],
         ]],
