@@ -22242,7 +22242,25 @@ SQIDAQAB
                     }
                 }
             }
-            // Alt + Shift + H: heading on this line (and back to normal text). Plain Shift + H stays a capital H.
+            // Shift + H on an empty line makes it a heading (no letter is typed). Press Shift + H again and the line goes back to normal text with
+            // a capital H typed, so a line that really starts with H costs one extra press. Shift + H anywhere else is a capital H.
+            if (e.shiftKey && !e.altKey && !mod && e.code === 'KeyH' && e.key === 'H') {
+                const selH = window.getSelection();
+                if (selH.rangeCount && selH.isCollapsed && selH.anchorNode && editable.contains(selH.anchorNode)) {
+                    let lineEl = selH.anchorNode.nodeType === 1 ? selH.anchorNode : selH.anchorNode.parentNode;
+                    while (lineEl && lineEl !== editable && !/^(DIV|P|H1|H2|LI)$/.test(lineEl.tagName)) lineEl = lineEl.parentNode;
+                    const inLine = lineEl && lineEl !== editable ? lineEl : null;
+                    const empty = (inLine ? inLine.textContent : editable.textContent).replace(/[​\s]/g, '') === '';
+                    if (empty && !(inLine && inLine.tagName === 'LI')) {
+                        e.preventDefault();
+                        if (inLine && /^H[12]$/.test(inLine.tagName)) { document.execCommand('formatBlock', false, 'div'); document.execCommand('insertText', false, 'H'); }
+                        else nbFormat('h2');
+                        editable.dispatchEvent(new Event('input', { bubbles: true }));
+                        return;
+                    }
+                }
+            }
+            // Alt + Shift + H: heading on this line, wherever the cursor is (and back to normal text).
             if (e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey && e.code === 'KeyH') { e.preventDefault(); nbFormat('h2'); return; }
             if (mod && e.altKey && !e.shiftKey) {
                 const k = { Digit1: 'h1', Digit2: 'h2', Digit0: 'p' }[e.code];
@@ -22635,7 +22653,8 @@ SQIDAQAB
         ['Writing and lists', [
             ['Click anywhere', 'Starts a new line of text at the spot you clicked.'],
             [K('Ctrl') + ' + ' + K('Alt') + ' + ' + K('1') + ' / ' + K('2') + ' / ' + K('0'), 'Turns the line into a title, a heading, or normal text.'],
-            [K('Alt') + ' + ' + K('Shift') + ' + ' + K('H'), 'Turns the line into a heading, and back again. (A plain ' + K('Shift') + ' + ' + K('H') + ' is just a capital H.)'],
+            [K('Shift') + ' + ' + K('H'), 'On an empty line, turns it into a heading. Press it again to go back to normal text with a capital H typed. Anywhere else it is just a capital H.'],
+            [K('Alt') + ' + ' + K('Shift') + ' + ' + K('H'), 'Turns the line the cursor is on into a heading, and back again.'],
             [K('Backspace') + ' next to a bullet', 'With the cursor directly to the right of a bullet, takes the bullet away and keeps the text.'],
             [K('-') + ' then ' + K('Space'), 'At the start of a line, turns it into a bullet point.'],
             [K('.') + K('.'), 'At the start of a line, also turns it into a bullet point.'],
