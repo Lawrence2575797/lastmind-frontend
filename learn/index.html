@@ -20291,6 +20291,64 @@ SQIDAQAB
         return true;
     }
 
+    // The general version of the above, for when the brackets are not simple neighbours: a bracket pair with f(x), powers, subscripts or another
+    // fraction inside it, a closing bracket that sits inside a subscript, or text and bracket spans mixed. It reads the visible characters on the
+    // line up to the caret, matches the final ")" with its "(" (counting every bracket, including the ones inside f(x)), and puts everything
+    // between them on top of the fraction.
+    function mathsFractionFromAnyBrackets(editor) {
+        const sel = window.getSelection();
+        if (!sel.rangeCount || !sel.isCollapsed) return false;
+        const caret = sel.getRangeAt(0);
+        if (!editor.contains(caret.startContainer)) return false;
+        let line = caret.startContainer.nodeType === 1 ? caret.startContainer : caret.startContainer.parentNode;
+        while (line && line !== editor && !(line.nodeType === 1 && /^(DIV|P|LI|H1|H2)$/.test(line.tagName))) line = line.parentNode;
+        if (!line) line = editor;
+        const chars = [];
+        const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+        for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+            const c = document.createRange(); c.selectNodeContents(n);
+            if (caret.compareBoundaryPoints(Range.START_TO_START, c) <= 0 && !(n === caret.startContainer)) break;   // wholly after the caret
+            const text = n.textContent, end = n === caret.startContainer ? caret.startOffset : text.length;
+            for (let k = 0; k < end; k++) if (text[k] !== '\u200B') chars.push({ n, k, c: text[k] });
+        }
+        if (!chars.length || chars[chars.length - 1].c !== ')') return false;
+        let depth = 0, open = -1;
+        for (let j = chars.length - 1; j >= 0; j--) {
+            if (chars[j].c === ')') depth++;
+            else if (chars[j].c === '(') { depth--; if (depth === 0) { open = j; break; } }
+        }
+        if (open < 0 || open === chars.length - 1) return false;
+        const a = chars[open], z = chars[chars.length - 1];
+        const big = document.createRange(); big.setStart(a.n, a.k); big.setEnd(z.n, z.k + 1);
+        const frag = big.extractContents();
+        // take the outer pair of brackets off the numerator (a bracket typed on the maths keyboard is a span of its own)
+        const dropEnd = (first, ch) => {
+            const w = document.createTreeWalker(frag, NodeFilter.SHOW_TEXT);
+            const nodes = []; for (let n = w.nextNode(); n; n = w.nextNode()) nodes.push(n);
+            const list = first ? nodes : nodes.slice().reverse();
+            for (const n of list) {
+                const t = n.textContent;
+                const idx = first ? t.search(/[^\u200B]/) : (() => { for (let i = t.length - 1; i >= 0; i--) if (t[i] !== '\u200B') return i; return -1; })();
+                if (idx < 0) continue;
+                if (t[idx] !== ch) return;
+                const par = n.parentNode;
+                if (par && par.classList && par.classList.contains('math-bracket') && t.replace(/\u200B/g, '') === ch) par.remove();
+                else n.textContent = t.slice(0, idx) + t.slice(idx + 1);
+                return;
+            }
+        };
+        dropEnd(true, '('); dropEnd(false, ')');
+        const num = document.createElement('span'); num.className = 'frac-num'; num.appendChild(frag);
+        if (!num.textContent.replace(/\u200B/g, '') && !num.querySelector('*')) num.textContent = '\u200B';
+        const den = document.createElement('span'); den.className = 'frac-den'; den.appendChild(document.createTextNode('\u200B'));
+        const frac = document.createElement('span'); frac.className = 'frac'; frac.appendChild(num); frac.appendChild(den);
+        big.insertNode(frac);
+        const to = document.createRange(); to.setStart(den.firstChild, 1); to.collapse(true);
+        sel.removeAllRanges(); sel.addRange(to);
+        editor.dispatchEvent(new Event('input', { bubbles: true }));
+        return true;
+    }
+
     function createSmartAnswerEditor(placeholder, opts) {
         opts = opts || {};
         // auto: no keyboard to switch. The maths shortcuts are always on, and each one that could get in the way of ordinary writing only fires
@@ -20928,7 +20986,7 @@ SQIDAQAB
                 if (fracPart && fracPart.className === 'frac-num') { ev.preventDefault(); advanceFracNumToDen(fracPart); return; }
                 if (fracPart && fracPart.className === 'frac-den') return;
                 ev.preventDefault();
-                if (mathsFractionFromBrackets(editor)) return;
+                if (mathsFractionFromBrackets(editor) || mathsFractionFromAnyBrackets(editor)) return;
                 const token = findTokenBeforeCaret();
                 if (token) {
                     const numerator = token.range.extractContents();
