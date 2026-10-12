@@ -20088,6 +20088,44 @@ SQIDAQAB
     };
     const MATH_SHORTCUT_TWO_CHAR_GLOBAL = { '<=': '≤', '>=': '≥', '!=': '≠', '==': '≡' };
     const MATH_SHORTCUT_ZWS_GLOBAL = '​';
+    // Autocorrect (Notes page): a typed word that is on this list is replaced when the next space or punctuation is typed. Only mistakes that are
+    // never a real word are here, so nothing a student meant is ever changed. Keys are lower case; capitals are carried across.
+    const NOTES_AUTOCORRECT_WORDS = {
+        teh: 'the', hte: 'the', adn: 'and', nad: 'and', taht: 'that', thta: 'that', waht: 'what', wiht: 'with', whcih: 'which', wich: 'which', wihch: 'which',
+        thier: 'their', theyre: "they're", youre: "you're", dont: "don't", doesnt: "doesn't", didnt: "didn't", isnt: "isn't", wasnt: "wasn't", arent: "aren't",
+        werent: "weren't", couldnt: "couldn't", wouldnt: "wouldn't", shouldnt: "shouldn't", havent: "haven't", hasnt: "hasn't", cant: "can't", wont: "won't",
+        recieve: 'receive', recieved: 'received', beleive: 'believe', belive: 'believe', freind: 'friend', wierd: 'weird', acheive: 'achieve', acheived: 'achieved',
+        becuase: 'because', becasue: 'because', beacuse: 'because', bcause: 'because', seperate: 'separate', seperately: 'separately', definately: 'definitely',
+        definitly: 'definitely', occured: 'occurred', occurence: 'occurrence', untill: 'until', alot: 'a lot', tommorow: 'tomorrow', tomorow: 'tomorrow',
+        goverment: 'government', govenment: 'government', enviroment: 'environment', enviornment: 'environment', accomodate: 'accommodate', calender: 'calendar',
+        collegue: 'colleague', comming: 'coming', conciously: 'consciously', existance: 'existence', foriegn: 'foreign', grammer: 'grammar', happend: 'happened',
+        immediatly: 'immediately', independant: 'independent', knowlege: 'knowledge', libary: 'library', neccessary: 'necessary', necessery: 'necessary',
+        noticable: 'noticeable', occassion: 'occasion', persistant: 'persistent', posession: 'possession', prefered: 'preferred', probaly: 'probably',
+        probly: 'probably', publically: 'publicly', realy: 'really', refered: 'referred', relevent: 'relevant', responsability: 'responsibility',
+        rythm: 'rhythm', succesful: 'successful', successfull: 'successful', truely: 'truly', unforseen: 'unforeseen', wether: 'whether', writting: 'writing',
+        yeild: 'yield', tounge: 'tongue', diffrent: 'different', diferent: 'different', difference: 'difference', intresting: 'interesting', interseting: 'interesting',
+        importent: 'important', importantly: 'importantly', usally: 'usually', usualy: 'usually', actualy: 'actually', basicly: 'basically', basicaly: 'basically',
+        eventualy: 'eventually', generaly: 'generally', especialy: 'especially', accross: 'across', agian: 'again', aganist: 'against', againts: 'against',
+        amoung: 'among', aswell: 'as well', thsi: 'this', tihs: 'this', thigns: 'things', thign: 'thing', somthing: 'something', somehting: 'something',
+        becomming: 'becoming', begining: 'beginning', beggining: 'beginning', beleif: 'belief', buisness: 'business', bussiness: 'business', catagory: 'category',
+        concensus: 'consensus', definate: 'definite', desparate: 'desperate', dissapear: 'disappear', embarass: 'embarrass', excercise: 'exercise',
+        familar: 'familiar', finaly: 'finally', fourth: 'fourth', gaurd: 'guard', harrass: 'harass', hieght: 'height', humourous: 'humorous', ignorence: 'ignorance',
+        imediately: 'immediately', incidently: 'incidentally', jewelry: 'jewellery', judgement: 'judgement', lenght: 'length', liason: 'liaison', mispell: 'misspell',
+        neice: 'niece', ocurred: 'occurred', paralel: 'parallel', parliment: 'parliament', percieve: 'perceive', playwrite: 'playwright', politican: 'politician',
+        potatos: 'potatoes', priviledge: 'privilege', pronounciation: 'pronunciation', recomend: 'recommend', reccomend: 'recommend', rember: 'remember',
+        remeber: 'remember', resistence: 'resistance', sence: 'sense', sieze: 'seize', speach: 'speech', strenght: 'strength', suprise: 'surprise',
+        supprise: 'surprise', tendancy: 'tendency', therfore: 'therefore', thoroghly: 'thoroughly', threshhold: 'threshold', tyrany: 'tyranny', vaccum: 'vacuum',
+        wellfare: 'welfare', whereever: 'wherever', wholely: 'wholly', withold: 'withhold', wonderfull: 'wonderful',
+        // maths and economics
+        derivitive: 'derivative', derivitives: 'derivatives', intergral: 'integral', integeral: 'integral', fuction: 'function', funtion: 'function',
+        probabilty: 'probability', varience: 'variance', averge: 'average', gradiant: 'gradient', equasion: 'equation', equaton: 'equation', equaiton: 'equation',
+        quadradic: 'quadratic', quadtratic: 'quadratic', coeficient: 'coefficient', coefficent: 'coefficient', theorom: 'theorem', thereom: 'theorem',
+        triangel: 'triangle', sqaure: 'square', pythagorus: 'pythagoras', equilibirum: 'equilibrium', equilibrum: 'equilibrium', equilibruim: 'equilibrium',
+        inflaton: 'inflation', elasticty: 'elasticity', elastisity: 'elasticity', demmand: 'demand', suply: 'supply', suppy: 'supply', monoploy: 'monopoly',
+        oligoply: 'oligopoly', compitition: 'competition', competion: 'competition', unemployement: 'unemployment', recesion: 'recession', econmy: 'economy',
+        econmics: 'economics', marginl: 'marginal', opportunty: 'opportunity', externalites: 'externalities', subsidys: 'subsidies', producton: 'production',
+        consumtion: 'consumption', investmnet: 'investment', aggregrate: 'aggregate', agregate: 'aggregate', multipler: 'multiplier', fiscle: 'fiscal',
+    };
 
     // Automatic word/maths detection (backslash escapes, a fraction
     // blocklist) turned out unreliable in real use — the student reported
@@ -20717,8 +20755,63 @@ SQIDAQAB
             if (last === '(' || last === '[') return /[A-Za-z0-9)]/.test(t.slice(-2, -1) || '');
             return false;
         }
+        // ----- autocorrect (Notes page only): see NOTES_AUTOCORRECT_WORDS
+        let lastFix = null;
+        const fixIgnored = new Set();
+        const AC_BOUNDARY = [' ', '.', ',', ';', ':', '!', '?', ')', 'Enter'];
+        function autocorrectedWord(word) {
+            const lower = word.toLowerCase();
+            if (fixIgnored.has(lower)) return null;
+            let rep = NOTES_AUTOCORRECT_WORDS[lower];
+            if (rep) {
+                if (word.length > 1 && word === word.toUpperCase()) return rep.toUpperCase();
+                if (word.charAt(0) !== word.charAt(0).toLowerCase()) return rep.charAt(0).toUpperCase() + rep.slice(1);
+                return rep;
+            }
+            // two capitals then ordinary lower case (a held Shift): THen -> Then
+            if (/^[A-Z]{2}[a-z]{2,}$/.test(word)) return word.charAt(0) + word.slice(1).toLowerCase();
+            return null;
+        }
+        function tryAutocorrect() {
+            const sel = window.getSelection();
+            if (!sel.rangeCount || !sel.isCollapsed) return;
+            const r = sel.getRangeAt(0), node = r.startContainer, off = r.startOffset;
+            if (node.nodeType !== 3) return;
+            if (currentZone() || currentFracPart() || closestClass('root-radicand') || closestClass('root-index') || currentIntLimitZone() || closestClass('mx-cell')) return;
+            const before = node.textContent.slice(0, off), m = /([A-Za-z]+)$/.exec(before);
+            if (!m) return;
+            const word = m[1], start = off - word.length, prev = before.charAt(start - 1);
+            if (prev && /[A-Za-z0-9^_\/\\*+=<>−×÷′'’\u0370-\u03ff]/.test(prev)) return;   // part of a longer token or of maths
+            if (start === 0 && node.previousSibling && node.previousSibling.nodeType === 1 && !/^(BR|DIV|P|LI)$/.test(node.previousSibling.tagName)) return;
+            const fixed = autocorrectedWord(word);
+            if (!fixed || fixed === word) return;
+            node.nodeValue = before.slice(0, start) + fixed + node.textContent.slice(off);
+            const caret = document.createRange(); caret.setStart(node, start + fixed.length); caret.collapse(true);
+            sel.removeAllRanges(); sel.addRange(caret);
+            lastFix = { node, start, fixed, original: word, expect: start + fixed.length + 1 };
+        }
+        // Backspace straight after a correction puts back what was typed, and that word is left alone from then on.
+        function undoAutocorrect() {
+            if (!lastFix) return false;
+            const sel = window.getSelection();
+            if (!sel.rangeCount || !sel.isCollapsed) { lastFix = null; return false; }
+            const r = sel.getRangeAt(0), f = lastFix;
+            if (r.startContainer !== f.node || r.startOffset !== f.expect || f.node.textContent.substr(f.start, f.fixed.length) !== f.fixed) { lastFix = null; return false; }
+            const text = f.node.textContent;
+            f.node.nodeValue = text.slice(0, f.start) + f.original + text.slice(f.start + f.fixed.length);
+            const caret = document.createRange(); caret.setStart(f.node, f.start + f.original.length + 1); caret.collapse(true);
+            sel.removeAllRanges(); sel.addRange(caret);
+            fixIgnored.add(f.original.toLowerCase());
+            lastFix = null;
+            return true;
+        }
         const afterOperand = () => /[A-Za-z0-9)\]′″]$/.test(lineBeforeCaret()) || isSymbolChar(lineBeforeCaret().slice(-1));
         editor.addEventListener('keydown', (ev) => {
+            if (auto && typeof opts.autocorrect === 'function') {
+                if (ev.key === 'Backspace' && !ev.ctrlKey && !ev.metaKey && !ev.altKey && lastFix && undoAutocorrect()) { ev.preventDefault(); return; }
+                if (AC_BOUNDARY.indexOf(ev.key) >= 0 && !ev.ctrlKey && !ev.metaKey && !ev.altKey && opts.autocorrect()) { lastFix = null; tryAutocorrect(); }
+                else if (!/^(Shift|Control|Alt|Meta|CapsLock)$/.test(ev.key)) lastFix = null;
+            }
             // "#" always toggles the mode, in either mode, and is never
             // itself inserted. Clears any in-flight maths state (a pending
             // prime-chain or integral-limits trigger) so switching modes
@@ -20967,6 +21060,7 @@ SQIDAQAB
     const OLD_MATHS_NOTES_KEY = 'lastmind-maths-notes-v1';
     let notes = { nodes: [], activeId: null };
     let notesKey = NOTES_KEY, notesLoaded = false, notesSaveTimer = null, notesListening = false;
+    let notesAutocorrect = (() => { try { return localStorage.getItem('lm-notes-autocorrect') !== '0'; } catch (_) { return true; } })();
     let notesWriting = true;          // the keyboard: true = English, false = maths (# switches)
     let notesActive = null;           // { ed, editable, block }: the text box the toolbar acts on
     let notesAlignSource = null;      // first text box chosen for left-edge alignment
@@ -22154,7 +22248,7 @@ SQIDAQAB
         el.className = 'nb-block nb-text'; el.dataset.id = block.id;
         el.innerHTML = '<div class="nb-grip" title="Drag to move" role="button" aria-label="Drag to move this text box">⠿</div><button type="button" class="nb-align-left" aria-label="Align this text box with another" aria-pressed="false" title="Align left edge with another text box">⇤</button><button type="button" class="nb-del" aria-label="Delete this text box" title="Delete">×</button><div class="nb-body"></div><div class="nb-resize" title="Drag to resize"></div>';
         let ready = false;
-        const ed = createSmartAnswerEditor('Type here…', { hideShortcutHint: true, auto: true, onModeChange: (w) => { if (!ready) return; notesWriting = w; block.writing = w; nbSyncKeyboardButtons(); notesScheduleSave(); } });
+        const ed = createSmartAnswerEditor('Type here…', { hideShortcutHint: true, auto: true, autocorrect: () => notesAutocorrect, onModeChange: (w) => { if (!ready) return; notesWriting = w; block.writing = w; nbSyncKeyboardButtons(); notesScheduleSave(); } });
         el.querySelector('.nb-body').appendChild(ed.container);
         ed.setHtml(block.html || '');
         if (block.minH) { el.style.minHeight = block.minH + 'px'; const edEl = ed.container.querySelector('.math-shortcut-editor'); if (edEl) edEl.style.minHeight = Math.max(60, block.minH - 44) + 'px'; }
@@ -22539,6 +22633,11 @@ SQIDAQAB
             ['Curves tab (expanded graph)', 'Open the tab on the right and drag a line or curve onto the graph. Drag the circles on its ends to change its direction or shape. A straight line stays straight.'],
             ['Drag inside the expanded graph', 'Pans the axes so you can look at a different part.'],
             ['Two fingers (touch)', 'Pinch to zoom the axes and slide to pan them. A single finger only moves the graph block.'],
+        ]],
+        ['Autocorrect', [
+            ['Typing a word wrong', 'Common mistakes such as ' + K('teh') + ' (the), ' + K('adn') + ' (and), ' + K('recieve') + ' and ' + K('dont') + ' (don\'t) are corrected as you press ' + K('Space') + ' or punctuation. Capitals are kept, and nothing inside a power, fraction, root or matrix is touched.'],
+            [K('Backspace') + ' straight after a correction', 'Puts back what you typed, and that word is left alone from then on.'],
+            ['Autocorrect: on / off (toolbar)', 'Turns it off if you would rather type everything exactly as it comes. Your choice is remembered.'],
         ]],
         SC_NOTES_SYMBOLS,
     ]);
@@ -23041,6 +23140,7 @@ SQIDAQAB
                     <button type="button" class="nb-tool" id="nbAddImage" title="Add a picture from your device (you can also paste or drop one onto the page)">+ Image</button>
                     <button type="button" class="nb-tool" id="nbAddScreenshot" title="Take a screenshot of a screen, window or tab and add it to the page">Screenshot</button>
                     <input type="file" id="nbImageFile" accept="image/*" multiple hidden>
+                    <button type="button" class="nb-tool" id="nbAutocorrect" aria-pressed="true" title="Corrects common typing mistakes as you write. Press Backspace straight after a correction to put back what you typed.">Autocorrect: on</button>
                     <button type="button" class="nb-tool" id="nbShortcuts">Shortcuts</button>
                 </div>
                 <div class="nb-canvas" id="nbCanvas"></div>
@@ -23189,6 +23289,10 @@ SQIDAQAB
         document.getElementById('nbKbdMaths').addEventListener('click', () => setKeyboard(false));
         nbSyncKeyboardButtons();
         document.getElementById('nbShortcuts').addEventListener('click', () => openMathsShortcutPopup(NB_SHORTCUTS_HTML, true));
+        const acBtn = document.getElementById('nbAutocorrect');
+        const syncAc = () => { acBtn.textContent = 'Autocorrect: ' + (notesAutocorrect ? 'on' : 'off'); acBtn.setAttribute('aria-pressed', String(notesAutocorrect)); };
+        syncAc();
+        acBtn.addEventListener('click', () => { notesAutocorrect = !notesAutocorrect; try { localStorage.setItem('lm-notes-autocorrect', notesAutocorrect ? '1' : '0'); } catch (_) { /* a convenience only */ } syncAc(); });
         const addTable = (rows, cols) => {
             rows = nbClamp(Math.round(Number(rows) || 3), 1, 12); cols = nbClamp(Math.round(Number(cols) || 3), 1, 12);
             let bottom = 0; canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
