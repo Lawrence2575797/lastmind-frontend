@@ -4122,6 +4122,10 @@
     .notes-panel-actions { display: flex; gap: 6px; }
     .notes-panel-actions .new-chat-btn { flex: 1; }
     .nt-row { display: flex; align-items: center; gap: 2px; border-radius: 4px; }
+    .nt-row[draggable="true"] { cursor: grab; }
+    .nt-row.nt-dragging { opacity: .45; }
+    .nt-row.nt-drop-before { box-shadow: inset 0 3px 0 #E6D7B0; }
+    .nt-row.nt-drop-after { box-shadow: inset 0 -3px 0 #E6D7B0; }
     .nt-row:hover { background: rgba(230, 215, 176, 0.06); }
     .nt-row.active { background: rgba(230, 215, 176, 0.14); }
     .nt-caret { flex: none; width: 20px; height: 26px; background: none; border: 0; color: var(--text); opacity: 0.7; cursor: pointer; font-size: 0.8rem; padding: 0; }
@@ -21032,6 +21036,28 @@ SQIDAQAB
         const kids = notes.nodes.filter((n) => (n.parentId || null) === pid && (pid !== null || !space || notesSpaceOf(n) === space));
         return kids.filter((n) => n.type === 'folder').concat(kids.filter((n) => n.type === 'page'));
     }
+    // The items a folder or page can be ordered among: the same kind (folders with folders, pages with pages) in the same place (the same parent
+    // folder, or the same section at the top). Dragging only ever reorders among these, never moves something into a different folder.
+    function notesSiblings(n) {
+        const pid = n.parentId || null;
+        return notes.nodes.filter((x) => (x.parentId || null) === pid && x.type === n.type && (pid !== null || notesSpaceOf(x) === notesSpaceOf(n)));
+    }
+    function notesReorder(id, targetId, after) {
+        const n = notesNode(id), t = notesNode(targetId);
+        if (!n || !t || n === t) return false;
+        if (notesSiblings(n).indexOf(t) < 0) return false;
+        notes.nodes = notes.nodes.filter((x) => x !== n);
+        const at = notes.nodes.indexOf(t);
+        notes.nodes.splice(after ? at + 1 : at, 0, n);
+        notesPersist(); renderMyNotesTree();
+        return true;
+    }
+    function notesMoveBy(id, dir) {
+        const n = notesNode(id); if (!n) return;
+        const sib = notesSiblings(n), i = sib.indexOf(n), t = sib[i + dir];
+        if (!t) return;
+        notesReorder(id, t.id, dir > 0);
+    }
     function notesDescendants(id) {
         const out = [];
         notesChildren(id).forEach((c) => { out.push(c.id); notesDescendants(c.id).forEach((x) => out.push(x)); });
@@ -21062,7 +21088,7 @@ SQIDAQAB
             const pad = 6 + depth * 14;
             const addKind = notesAddKind(n);
             const editing = notesEditing && notesEditing.id === n.id;
-            rows.push(`<div class="nt-row ${n.id === notes.activeId ? 'active' : ''}" data-id="${escapeHtml(n.id)}" style="padding-left:${pad}px">
+            rows.push(`<div class="nt-row ${n.id === notes.activeId ? 'active' : ''}" data-id="${escapeHtml(n.id)}" draggable="${editing ? 'false' : 'true'}" style="padding-left:${pad}px">
                 ${isFolder ? `<button type="button" class="nt-caret" data-act="toggle" aria-label="${open ? 'Close' : 'Open'} folder" aria-expanded="${open}">${open ? '▾' : '▸'}</button>` : '<span class="nt-caret nt-caret-page"></span>'}
                 ${editing ? `<input type="text" class="nt-input" maxlength="80" value="${escapeHtml(n.name || '')}" placeholder="${isFolder ? (depth > 1 ? 'Subfolder name' : 'Folder name') : isSet ? 'Problem set name' : 'Page name'}" aria-label="Name">`
                     : `<button type="button" class="nt-name ${isFolder ? 'nt-folder' : ''}" data-act="${isFolder ? 'toggle' : 'open'}">${label}</button>`}
@@ -21071,7 +21097,7 @@ SQIDAQAB
             if (notesMenuId === n.id && !editing) rows.push(`<div class="nt-actions" data-for="${escapeHtml(n.id)}" style="padding-left:${pad}px">
                 ${notesConfirmId === n.id
                     ? `<span class="nt-sure">Delete ${isFolder ? 'this and everything in it' : 'this page'}?</span><button type="button" class="btn nt-danger" data-act="delete-yes">Yes, delete</button><button type="button" class="btn" data-act="delete-no">Keep</button>`
-                    : '<button type="button" class="btn" data-act="rename">Rename</button><button type="button" class="btn" data-act="delete">Delete</button>'}</div>`);
+                    : '<button type="button" class="btn" data-act="up" title="Move up">↑</button><button type="button" class="btn" data-act="down" title="Move down">↓</button><button type="button" class="btn" data-act="rename">Rename</button><button type="button" class="btn" data-act="delete">Delete</button>'}</div>`);
             if (open) walk(n.id, depth + 1, space);
         });
         // two sections: the problem sets, and the notes
@@ -21154,12 +21180,48 @@ SQIDAQAB
             else if (act === 'open') notesOpenPage(id, false);
             else if (act === 'more') { notesMenuId = notesMenuId === id ? null : id; notesConfirmId = null; renderMyNotesTree(); }
             else if (act === 'add' && n) notesStartNew(id, notesAddKind(n));
+            else if (act === 'up' || act === 'down') notesMoveBy(id, act === 'up' ? -1 : 1);
             else if (act === 'rename') { notesEditing = { id, isNew: false }; notesMenuId = null; renderMyNotesTree(); }
             else if (act === 'delete') { notesConfirmId = id; renderMyNotesTree(); }
             else if (act === 'delete-no') { notesConfirmId = null; renderMyNotesTree(); }
             else if (act === 'delete-yes') notesDelete(id);
         });
         document.getElementById('notesNewFolderBtn').addEventListener('click', () => notesStartNew(null, 'pset', 'sets'));
+        // Drag and drop: folders among folders, subfolders among the subfolders of the same folder, pages among the pages of the same folder.
+        const tree = document.getElementById('notesTreeItems');
+        let dragId = null;
+        const clearMarks = () => tree.querySelectorAll('.nt-drop-before, .nt-drop-after, .nt-dragging').forEach((e) => e.classList.remove('nt-drop-before', 'nt-drop-after', 'nt-dragging'));
+        const rowOf = (t) => t.closest && t.closest('.nt-row[data-id]');
+        const canDrop = (row) => {
+            if (!row || !dragId || row.dataset.id === dragId) return false;
+            const a = notesNode(dragId), b = notesNode(row.dataset.id);
+            return !!(a && b && notesSiblings(a).indexOf(b) >= 0);
+        };
+        tree.addEventListener('dragstart', (e) => {
+            const row = rowOf(e.target);
+            if (!row || row.getAttribute('draggable') !== 'true') return;
+            dragId = row.dataset.id;
+            row.classList.add('nt-dragging');
+            if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', dragId); } catch (_) { /* older browser */ } }
+        });
+        tree.addEventListener('dragover', (e) => {
+            const row = rowOf(e.target);
+            tree.querySelectorAll('.nt-drop-before, .nt-drop-after').forEach((x) => x.classList.remove('nt-drop-before', 'nt-drop-after'));
+            if (!canDrop(row)) return;
+            e.preventDefault();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+            const r = row.getBoundingClientRect();
+            row.classList.add(e.clientY > r.top + r.height / 2 ? 'nt-drop-after' : 'nt-drop-before');
+        });
+        tree.addEventListener('drop', (e) => {
+            const row = rowOf(e.target);
+            if (!canDrop(row)) { clearMarks(); dragId = null; return; }
+            e.preventDefault();
+            const r = row.getBoundingClientRect(), after = e.clientY > r.top + r.height / 2, id = dragId;
+            clearMarks(); dragId = null;
+            notesReorder(id, row.dataset.id, after);
+        });
+        tree.addEventListener('dragend', () => { clearMarks(); dragId = null; });
     }
 
     // ----- the main area -----
