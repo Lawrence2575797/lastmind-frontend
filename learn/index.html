@@ -21330,7 +21330,8 @@ SQIDAQAB
 
     function notesNewId() { return 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
     function notesNode(id) { return notes.nodes.find((n) => n.id === id) || null; }
-    function notesPersist() { try { localStorage.setItem(notesKey, JSON.stringify(notes)); return true; } catch (_) { return false; } }
+    function notesPersistLocal() { try { localStorage.setItem(notesKey, JSON.stringify(notes)); return true; } catch (_) { return false; } }
+    function notesPersist() { const ok = notesPersistLocal(); if (typeof notesSyncSchedule === 'function') notesSyncSchedule(); return ok; }
     function notesStatus(text) { const el = document.getElementById('nbStatus'); if (el) el.textContent = text; }
     function notesFlush() {
         if (notesSaveTimer) { clearTimeout(notesSaveTimer); notesSaveTimer = null; }
@@ -21379,10 +21380,162 @@ SQIDAQAB
         if (d && Array.isArray(d.nodes)) notes = { nodes: d.nodes.filter((n) => n && n.id && (n.type === 'folder' || n.type === 'page')), activeId: d.activeId || null, sectionOpen: (d.sectionOpen && typeof d.sectionOpen === 'object') ? d.sectionOpen : {} };
         else { notes = { nodes: [], activeId: null }; notesMigrateMathsNotes(suffix); notesPersist(); }
         notesLoaded = true;
+        notesSyncUid = suffix ? suffix.slice(1) : null;
+        if (notesSyncUid) notesSyncNow();
         if (!notesListening) {
             notesListening = true;
             window.addEventListener('beforeunload', notesFlush); window.addEventListener('pagehide', notesFlush);
-            document.addEventListener('visibilitychange', () => { if (document.hidden) notesFlush(); });
+            document.addEventListener('visibilitychange', () => { if (document.hidden) notesFlush(); else if (notesSyncUid) notesSyncNow(); });
+        }
+    }
+
+    // ----- Notes are kept with the account, not the device -----
+    // This browser's copy (localStorage) stays as a fast local cache and the place an edit lands first. Every folder, page and problem set is
+    // also kept on the server under the signed-in account, so signing in on another device brings them all. Each device remembers, per item,
+    // what it last saw on the server (a fingerprint of the item and the server's timestamp). From that it can tell an item it changed from
+    // one another device changed, one that was deleted here from one that was deleted elsewhere, and one it has never seen. The first time an
+    // account is used on a device, everything already in this browser is uploaded, so existing notes move onto the account.
+    let notesSyncUid = null, notesSyncTimer = null, notesSyncBusy = false, notesSyncAgain = false;
+    const notesSyncImgKnown = new Set();
+    function notesSyncMetaKey() { return 'lastmind-notes-syncmeta-v1:' + notesSyncUid; }
+    function notesSyncMeta() {
+        try { const m = JSON.parse(localStorage.getItem(notesSyncMetaKey()) || 'null'); if (m && m.nodes) return m; } catch (_) { /* start afresh */ }
+        return { nodes: {} };
+    }
+    function notesSyncSaveMeta(m) { try { localStorage.setItem(notesSyncMetaKey(), JSON.stringify(m)); } catch (_) { /* the next load works it out again */ } }
+    // The item as it is stored: without whether its folder is open here, and with its place among its siblings.
+    function notesSyncPayload(n) {
+        const group = notes.nodes.filter((x) => (x.parentId || null) === (n.parentId || null) && x.type === n.type && ((n.parentId || null) !== null || notesSpaceOf(x) === notesSpaceOf(n)));
+        const out = Object.assign({}, n); delete out.open; out._ord = group.indexOf(n);
+        return out;
+    }
+    const notesSyncSig = (n) => JSON.stringify(notesSyncPayload(n));
+    async function notesSyncFetch(path, opts) {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) throw new Error('signed out');
+        const resp = await fetch(COMPILE_BACKEND_URL + path, Object.assign({ headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token } }, opts || {}));
+        if (!resp.ok) throw new Error('notes sync ' + resp.status);
+        return resp.json();
+    }
+    function notesSyncSchedule() {
+        if (!notesSyncUid) return;
+        if (notesSyncTimer) clearTimeout(notesSyncTimer);
+        notesSyncTimer = setTimeout(() => { notesSyncTimer = null; notesSyncNow(); }, 1800);
+    }
+    // Sends what changed here. Items go in batches so one request stays small.
+    async function notesSyncPush(meta, items, deletedIds) {
+        let batch = [], size = 0;
+        const flush = async () => {
+            if (!batch.length) return;
+            const sent = batch; batch = []; size = 0;
+            const r = await notesSyncFetch('/notes-sync/push', { method: 'POST', body: JSON.stringify({ nodes: sent.map((n) => ({ id: n.id, data: notesSyncPayload(n) })), deleted: [] }) });
+            sent.forEach((n) => { meta.nodes[n.id] = { sig: notesSyncSig(n), at: (r.stamps || {})[n.id] || new Date().toISOString() }; });
+            notesSyncSaveMeta(meta);
+        };
+        for (const n of items) {
+            const len = notesSyncSig(n).length;
+            if (batch.length && (size + len > 2500000 || batch.length >= 100)) await flush();
+            batch.push(n); size += len;
+        }
+        await flush();
+        for (let i = 0; i < deletedIds.length; i += 200) {
+            const ids = deletedIds.slice(i, i + 200);
+            const r = await notesSyncFetch('/notes-sync/push', { method: 'POST', body: JSON.stringify({ nodes: [], deleted: ids }) });
+            ids.forEach((id) => { meta.nodes[id] = { gone: true, at: (r.stamps || {})[id] || new Date().toISOString() }; });
+            notesSyncSaveMeta(meta);
+        }
+    }
+    async function notesSyncImages(serverIds) {
+        const have = new Set(serverIds); serverIds.forEach((i) => notesSyncImgKnown.add(i));
+        const ids = [];
+        notes.nodes.forEach((n) => ((n.doc && n.doc.blocks) || []).forEach((b) => { if (b.type === 'image' && b.img && !b.src && !have.has(b.img) && !notesSyncImgKnown.has(b.img)) ids.push(b.img); }));
+        for (const id of ids) {
+            const url = await nbImgLoad(id, null);
+            if (url && /^data:image\//.test(url)) {
+                try { await notesSyncFetch('/notes-sync/image', { method: 'POST', body: JSON.stringify({ id, dataUrl: url }) }); notesSyncImgKnown.add(id); } catch (_) { /* tried again next time */ }
+            }
+        }
+    }
+    // The whole exchange: bring in what other devices changed, send what this one did.
+    async function notesSyncNow() {
+        if (!notesSyncUid || !notesLoaded) return;
+        if (notesSyncBusy) { notesSyncAgain = true; return; }
+        notesSyncBusy = true;
+        const uid = notesSyncUid;
+        try {
+            // an edit still waiting to be saved locally goes into the local copy first
+            if (notesSaveTimer) notesFlush();
+            const server = await notesSyncFetch('/notes-sync');
+            if (uid !== notesSyncUid) return;
+            const meta = notesSyncMeta();
+            const rows = new Map((server.nodes || []).map((r) => [r.id, r]));
+            const toPush = [], toDelete = [], serverOrd = new Map();
+            let changed = false, activeChanged = false;
+            const adopt = (row) => {
+                const d = Object.assign({}, row.data); const ord = d._ord; delete d._ord;
+                if (!d.id || !(d.type === 'folder' || d.type === 'page')) return;
+                const i = notes.nodes.findIndex((x) => x.id === d.id);
+                if (i >= 0) { if (notes.nodes[i].open !== undefined) d.open = notes.nodes[i].open; notes.nodes[i] = d; } else notes.nodes.push(d);
+                if (typeof ord === 'number') serverOrd.set(d.id, ord);
+                if (d.id === notes.activeId) activeChanged = true;
+                changed = true;
+                meta.nodes[d.id] = { sig: notesSyncSig(notesNode(d.id)), at: row.updatedAt };
+            };
+            rows.forEach((row, id) => {
+                const l = notesNode(id), m = meta.nodes[id];
+                if (row.deletedAt || !row.data) {
+                    if (l) {
+                        if (m && !m.gone && notesSyncSig(l) === m.sig) { notes.nodes = notes.nodes.filter((x) => x.id !== id); if (id === notes.activeId) { notes.activeId = null; activeChanged = true; } changed = true; meta.nodes[id] = { gone: true, at: row.updatedAt }; }
+                        else toPush.push(l);   // edited here since: it stays
+                    } else meta.nodes[id] = { gone: true, at: row.updatedAt };
+                    return;
+                }
+                if (!l) {
+                    if (m && !m.gone) toDelete.push(id);   // deleted here while offline
+                    else adopt(row);
+                    return;
+                }
+                const sig = notesSyncSig(l);
+                if (m && m.at === row.updatedAt) { if (sig !== m.sig) toPush.push(l); return; }
+                // the server has a version this device has not seen
+                if (m && !m.gone && sig === m.sig) { adopt(row); return; }
+                const localAt = l.updatedAt || '', serverAt = (row.data && row.data.updatedAt) || '';
+                const sameAsServer = JSON.stringify(Object.assign({}, row.data, { _ord: undefined })) === JSON.stringify(Object.assign({}, notesSyncPayload(l), { _ord: undefined }));
+                if (sameAsServer) { meta.nodes[id] = { sig, at: row.updatedAt }; return; }
+                if (serverAt && serverAt > localAt) adopt(row); else toPush.push(l);
+            });
+            notes.nodes.forEach((n) => { if (!rows.has(n.id)) toPush.push(n); });
+            // anything this device removed while it was not syncing
+            Object.keys(meta.nodes).forEach((id) => { if (!meta.nodes[id].gone && !notesNode(id) && !rows.has(id) && toDelete.indexOf(id) < 0) toDelete.push(id); });
+            if (changed) {
+                // a folder's order, as the account has it
+                const groups = new Map();
+                notes.nodes.forEach((n, i) => { const k = (n.parentId || '') + '|' + n.type + '|' + ((n.parentId || null) === null ? notesSpaceOf(n) : ''); (groups.get(k) || groups.set(k, []).get(k)).push(i); });
+                const ordered = notes.nodes.slice();
+                groups.forEach((idxs) => {
+                    const members = idxs.map((i, pos) => ({ n: notes.nodes[i], key: serverOrd.has(notes.nodes[i].id) ? serverOrd.get(notes.nodes[i].id) : pos, pos }));
+                    members.sort((a, b) => a.key - b.key || a.pos - b.pos);
+                    idxs.forEach((i, k) => { ordered[i] = members[k].n; });
+                });
+                notes.nodes = ordered;
+                notesPersistLocal();
+            }
+            notesSyncSaveMeta(meta);
+            await notesSyncPush(meta, toPush.filter((n, i, a) => a.indexOf(n) === i), toDelete);
+            await notesSyncImages(server.imageIds || []);
+            if (changed && uid === notesSyncUid) {
+                renderMyNotesTree();
+                const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest('#nbCanvas');
+                if (activeChanged && !typing) {
+                    const pg = notes.activeId && notesNode(notes.activeId);
+                    if (pg && pg.type === 'page') notesRenderPage(pg); else if (!pg && typeof notesRenderLanding === 'function' && document.getElementById('nbCanvas')) notesRenderLanding();
+                }
+            }
+        } catch (e) {
+            console.warn('Notes could not be synced with the account just now:', e && e.message);
+        } finally {
+            notesSyncBusy = false;
+            if (notesSyncAgain) { notesSyncAgain = false; notesSyncSchedule(); }
         }
     }
 
@@ -22887,16 +23040,25 @@ SQIDAQAB
         });
         return nbImgDbPromise;
     }
-    async function nbImgSave(id, dataUrl) {
+    async function nbImgSave(id, dataUrl, fromAccount) {
         nbImgMem.set(id, dataUrl);
+        if (!fromAccount && typeof notesSyncUid !== 'undefined' && notesSyncUid && /^data:image\//.test(dataUrl)) {
+            notesSyncFetch('/notes-sync/image', { method: 'POST', body: JSON.stringify({ id, dataUrl }) }).then(() => notesSyncImgKnown.add(id)).catch(() => { /* uploaded with the next sync */ });
+        }
         const db = await nbImgDb(); if (!db) return false;
         return new Promise((resolve) => { try { const tx = db.transaction('images', 'readwrite'); tx.objectStore('images').put(dataUrl, id); tx.oncomplete = () => resolve(true); tx.onerror = () => resolve(false); } catch (e) { resolve(false); } });
     }
     async function nbImgLoad(id, inline) {
         if (inline) return inline;
         if (nbImgMem.has(id)) return nbImgMem.get(id);
-        const db = await nbImgDb(); if (!db) return null;
-        return new Promise((resolve) => { try { const r = db.transaction('images').objectStore('images').get(id); r.onsuccess = () => { if (r.result) nbImgMem.set(id, r.result); resolve(r.result || null); }; r.onerror = () => resolve(null); } catch (e) { resolve(null); } });
+        const db = await nbImgDb();
+        const local = db ? await new Promise((resolve) => { try { const r = db.transaction('images').objectStore('images').get(id); r.onsuccess = () => { if (r.result) nbImgMem.set(id, r.result); resolve(r.result || null); }; r.onerror = () => resolve(null); } catch (e) { resolve(null); } }) : null;
+        if (local) return local;
+        // not on this device: fetch it from the account and keep a copy here
+        if (typeof notesSyncUid !== 'undefined' && notesSyncUid) {
+            try { const r = await notesSyncFetch('/notes-sync/image/' + encodeURIComponent(id)); if (r && r.dataUrl) { nbImgSave(id, r.dataUrl, true); return r.dataUrl; } } catch (_) { /* not there either */ }
+        }
+        return null;
     }
     // The picture, scaled so its longer side is at most 1600 pixels. Returns { url, w, h }.
     async function nbShrinkImage(blob) {
@@ -22935,7 +23097,7 @@ SQIDAQAB
         const img = el.querySelector('img'), wrap = el.querySelector('.nb-imgwrap');
         nbImgLoad(block.img, block.src).then((url) => {
             if (!el.isConnected) return;
-            if (url) img.src = url; else wrap.innerHTML = '<p class="nb-img-missing">This picture is saved on another device and is not available here.</p>';
+            if (url) img.src = url; else wrap.innerHTML = '<p class="nb-img-missing">This picture could not be loaded.</p>';
             img.addEventListener('load', () => nbFitCanvas(canvas), { once: true });
             nbFitCanvas(canvas);
         });
