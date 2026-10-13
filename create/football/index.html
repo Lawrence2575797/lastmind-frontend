@@ -127,6 +127,14 @@
   .phase-kpis b,.phase-kpis span { display:block; } .phase-kpis b { color:var(--gold); font-size:1.2rem; } .phase-kpis span { color:var(--cream-soft); font:600 .72rem var(--sans); }
   .player-link { padding:0; border:0; background:transparent; color:var(--cream); text-decoration:underline; text-decoration-color:rgba(242,193,78,.45); }
   .player-row { cursor:pointer; } .player-row:hover td { background:rgba(82,189,123,.08); }
+  .pf { margin: 0 0 16px; padding: 16px 18px; border-radius: 16px; background: var(--fm-surface); border: 1px solid rgba(255,255,255,.07); } .pf h3 { margin: 0 0 12px; font-size: 1.05rem; } .pf h4 { margin: 14px 0 6px; font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; opacity: .75; }
+  .pf-top { display: flex; gap: 16px; align-items: center; } .pf-score { width: 84px; height: 84px; border-radius: 50%; display: grid; place-items: center; align-content: center; border: 3px solid var(--pf, #888); flex: none; } .pf-score b { font-size: 1.8rem; line-height: 1; } .pf-score small { font-size: .62rem; opacity: .7; }
+  .pf-score.hi, .pf-m.hi { --pf: #52bd7b; } .pf-score.ok, .pf-m.ok { --pf: #9fcf6a; } .pf-score.mid, .pf-m.mid { --pf: #f1c04f; } .pf-score.lo, .pf-m.lo { --pf: #d9695f; }
+  .pf-verdict { margin: 0; font-size: 1.15rem; font-weight: 700; } .pf-sub { margin: 4px 0 0; opacity: .8; } .pf-none { margin: 0; opacity: .85; line-height: 1.5; }
+  .pf-strip { display: flex; gap: 10px; align-items: flex-end; height: 128px; margin: 16px 0 4px; } .pf-m { position: relative; flex: 1; max-width: 86px; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; } .pf-m i { display: block; width: 100%; border-radius: 8px 8px 3px 3px; background: var(--pf, #888); opacity: .85; min-height: 6px; } .pf-m b { font-size: .95rem; } .pf-m small { font-size: .66rem; opacity: .7; white-space: nowrap; }
+  .pf-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 22px; } .pf ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; line-height: 1.45; } .pf-quiet { opacity: .6; list-style: none; margin-left: -18px; }
+  .pf-moments { list-style: none; padding: 0; } .pf-moments li { display: flex; gap: 10px; align-items: baseline; padding: 6px 10px; border-radius: 8px; background: rgba(255,255,255,.04); } .pf-moments li.good { border-left: 3px solid #52bd7b; } .pf-moments li.bad { border-left: 3px solid #d9695f; } .pf-moments span { font-size: .7rem; opacity: .6; font-weight: 700; }
+  @media (max-width: 700px) { .pf-cols { grid-template-columns: 1fr; } }
   .cap-badge { display:inline-block; min-width:18px; padding:0 5px; border-radius:4px; background:var(--fm-gold,#f1c04f); color:#14181a; font-weight:800; font-size:.72rem; text-align:center; }
   .cap-line { margin:8px 0 0; font-size:.9rem; } .cap-make { padding:5px 10px; border-radius:8px; border:1px solid rgba(241,192,79,.5); background:transparent; color:inherit; font:inherit; cursor:pointer; } .cap-make:hover { background:rgba(241,192,79,.14); }
   .cap-intro { display:grid; gap:10px; margin-bottom:16px; border-left:3px solid var(--fm-gold,#f1c04f); } .cap-intro p { margin:0; font-size:1.02rem; line-height:1.55; } .cap-intro-who { display:flex; align-items:center; gap:10px; } .cap-intro-who small { display:block; opacity:.7; } .cap-intro-ok { justify-self:start; padding:8px 14px; border-radius:8px; border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.06); color:inherit; font:inherit; cursor:pointer; }
@@ -866,7 +874,7 @@
 <script src="/create/football/instructions.js?v=20261010c"></script>
 <script src="/create/football/fitness.js?v=20261010c"></script>
 <script src="/create/football/match.js?v=20261028a"></script>
-<script src="/create/football/league.js?v=20261029b"></script>
+<script src="/create/football/league.js?v=20261029c"></script>
 <script src="/create/football/preseason.js?v=20261010n"></script>
 <script src="/create/football/stats_math.js?v=20261010c"></script>
 <script src="/create/football/stats.js?v=20261013a"></script>
@@ -886,7 +894,8 @@
 <script src="/create/football/transfers.js?v=20261023a"></script>
 <script src="/create/football/recruit.js?v=20261023a"></script>
 <script src="/create/football/development.js?v=20261029a"></script>
+<script src="/create/football/form.js?v=20261029a"></script>
 <script src="/create/football/cases.js?v=20261028a"></script>
-<script src="/create/football/main.js?v=20261029b"></script>
+<script src="/create/football/main.js?v=20261029d"></script>
 </body>
 </html>

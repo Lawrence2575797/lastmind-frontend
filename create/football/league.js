@@ -428,7 +428,7 @@
     league.captains = league.captains || {};
     const kept = all.find((p) => p.id === league.captains[team.id]);
     if (kept) return kept;
-    const score = (p) => (p.ratings ? FM.shown(p.ratings.composure) : 0) + Math.min(10, Math.max(0, (p.age || 20) - 21)) * 2 + (p.natural === 'GK' ? -25 : 0) + (FM.abilityOf ? FM.abilityOf(p) * 0.3 : 0);
+    const score = (p) => (p.ratings ? FM.shown(p.ratings.composure) : 0) + Math.min(10, Math.max(0, (FM.ageOf ? FM.ageOf(p) : 20) - 21)) * 2 + (p.natural === 'GK' ? -25 : 0) + (FM.abilityOf ? FM.abilityOf(p) * 0.3 : 0);
     const best = all.slice().sort((a, b) => score(b) - score(a) || String(a.id).localeCompare(String(b.id)))[0] || null;
     if (best) league.captains[team.id] = best.id;
     return best;
