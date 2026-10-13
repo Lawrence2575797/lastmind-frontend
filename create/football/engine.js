@@ -494,6 +494,7 @@
   // The target position for one player, in pitch metres.
   // With the ball he moves from his build-up position toward his final-third position as the ball goes forward; for a few
   // seconds after winning it he is drawn toward his transition position, and after losing it toward his defensive one.
+  const L_PITCH = 105, W_PITCH = 68;
   FM.targetFor = function (team, player, ball, hasBall) {
     const role = FM.ROLES[player.roleId], m = FM.instrMods(player), ctx = team.phaseCtx || {};
     const b = toTeamSpace(team.attackDir, ball.x, ball.y);
@@ -527,6 +528,60 @@
         const choice = (team.tactics.transDefChoices || {})[zone] || 'contain';
         const target = choice === 'regroup' ? FM.phasePos(team, player, 'without') : choice === 'counterpress' ? mix(FM.phasePos(team, player, 'transDef'), FM.phasePos(team, player, pn('transDefEnd')), clamp(ctx.tdProg || 0, 0, 1)) : mix(pos, FM.phasePos(team, player, 'without'), 0.5);
         pos = mix(pos, target, ctx.transDef);
+      }
+    }
+    // The board gives each player a place, but real attacks do not stand still on it. Once the ball is in the final third the forwards and
+    // attacking midfielders move on toward goal and into the box as the ball arrives (the width pulls inside toward the posts), and the
+    // defenders drop off as the ball comes close to their own goal. How far is part of the role: a striker goes furthest, a full-back least.
+    // Everyone is free to leave his square, anywhere on the pitch and in any phase: the squares are a rough guide and the role says what he
+    // is for. With the ball, a player is drawn toward where his role wants him relative to the ball (a forward ahead of it, a midfielder
+    // level and supporting, a centre-back well behind), so the whole team moves up and back with play. Without it, the line follows the ball:
+    // defenders keep a distance goal-side of it, and a forward stays up. How strongly is the FREEDOM setting and the player's own roaming.
+    if (player.group !== 'GK') {
+      const free = clamp((FM.FREEDOM == null ? 0.38 : FM.FREEDOM) * (1 + 0.5 * m.roam), 0, 0.8);
+      const want = hasBall
+        ? clamp(b.d + ({ ST: 0.14, AM: 0.09, WF: 0.09, CM: 0.02, FB: 0.0, DM: -0.1, CB: -0.2 })[player.group], 0.04, 0.95)
+        : clamp(b.d - ({ CB: 0.2, FB: 0.19, DM: 0.1, CM: 0.04, AM: -0.02, WF: -0.04, ST: -0.12 })[player.group], ({ CB: 0.17, FB: 0.17, DM: 0.25, CM: 0.3 })[player.group] || 0.04, 0.92);
+      // the forwards are only ever drawn on, never back past where the board put them: dropping is for the players behind the ball
+      const target = hasBall && ['ST', 'WF', 'AM'].indexOf(player.group) >= 0 ? Math.max(pos.d, want) : (!hasBall && player.group === 'ST' ? Math.max(pos.d, want) : want);
+      pos = { d: pos.d + (target - pos.d) * free, w: pos.w };
+    }
+    if (hasBall && player.group !== 'GK') {
+      const fz = clamp((b.d - 0.56) / 0.26, 0, 1);
+      if (fz > 0) {
+        const adv = ({ ST: 0.17, AM: 0.14, WF: 0.11, CM: 0.1, FB: 0.06 })[player.group] || 0;
+        const wide = Math.abs(b.w - 0.5) > 0.2;
+        pos = { d: pos.d + adv * fz * (FM.ATT_RUN == null ? 1 : FM.ATT_RUN) * clamp(1 + 0.5 * m.runs, 0.3, 1.6), w: pos.w };
+        if (player.group === 'ST' || player.group === 'AM') pos.w += (0.5 + (wide ? (b.w < 0.5 ? 0.09 : -0.09) : 0) - pos.w) * 0.4 * fz;
+        else if (player.group === 'WF') pos.w += (0.5 - pos.w) * 0.2 * fz;
+      }
+    } else if (!hasBall && ['CB', 'FB', 'DM'].indexOf(player.group) >= 0 && b.d < 0.5) {
+      const buffer = ({ CB: 0.12, FB: 0.14, DM: 0.2 })[player.group];
+      pos = { d: Math.min(pos.d, Math.max(({ CB: 0.17, FB: 0.17, DM: 0.25 })[player.group], b.d + buffer)), w: pos.w };
+    }
+    // Marking. Defenders do not just hold the board's squares while the other side moves about: each one picks up the most dangerous attacker he
+    // is the closest defender to, and stands goal-side of him. How tightly depends on his role and on how close the ball is to goal.
+    if (!hasBall && player.group !== 'GK' && team.oppRef && ['CB', 'FB', 'DM', 'CM'].indexOf(player.group) >= 0) {
+      const own = team.attackDir === 1 ? 0 : L_PITCH;
+      const mates = team.players.filter((q) => q.group !== 'GK');
+      let pick = null, pd = Infinity;
+      team.oppRef.players.forEach((o) => {
+        if (o.group === 'GK') return;
+        const dme = Math.hypot(o.x - player.x, o.y - player.y);
+        if (dme > 15) return;
+        // he is marked by the nearest of us, and only if he is a threat: on our side of the halfway line or level with the ball
+        let nearest = null, nd = Infinity;
+        mates.forEach((q) => { const dq = Math.hypot(o.x - q.x, o.y - q.y); if (dq < nd) { nd = dq; nearest = q; } });
+        if (nearest !== player) return;
+        const danger = Math.abs(o.x - own);
+        if (danger < pd) { pd = danger; pick = o; }
+      });
+      if (pick) {
+        const k = ({ CB: 0.75, FB: 0.6, DM: 0.5, CM: 0.35 })[player.group] * clamp(1.15 - b.d, 0.25, 1);
+        const gy = W_PITCH / 2, step = 2.4, dirOwn = team.attackDir === 1 ? -1 : 1;
+        const tx = clamp(pick.x + dirOwn * step, 0.5, L_PITCH - 0.5), ty = clamp(pick.y + (gy - pick.y) * 0.12, 0.5, W_PITCH - 0.5);
+        const ts = toTeamSpace(team.attackDir, tx, ty);
+        pos = { d: pos.d + (ts.d - pos.d) * k, w: pos.w + (ts.w - pos.w) * k };
       }
     }
     let d = pos.d, w = pos.w;

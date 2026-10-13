@@ -633,7 +633,7 @@
       }
       const targetGoalD = Math.hypot(tx - goal.x, ty - goal.y);
       const attackSpread = zone === 'final' && targetGoalD < 32
-        ? (({ ST: -1.08, WF: .58, AM: .5, CM: .28, FB: .1 })[t.group] || 0)
+        ? (({ ST: (FM.ST_SPREAD == null ? -0.6 : FM.ST_SPREAD), WF: .58, AM: .5, CM: .28, FB: .1 })[t.group] || 0)
         : 0;
       options.push({ kind: 'pass', target: t, tx, ty, d, lane, press, p, score: off === 'off' ? -4 : score + adj + chance + attackSpread });
     });

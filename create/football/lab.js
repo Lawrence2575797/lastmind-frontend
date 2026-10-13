@@ -126,7 +126,7 @@
         if (!finalThird && h === u && d >= 0.5) { result = { outcome: 'beat', time: t }; break; }
         if (finalThird) {
           const shots = match.events.filter((e) => e.type === 'shot' && e.team === u.id);
-          if (shots.length) { const shot = shots[shots.length - 1]; result = { outcome: 'beat', time: t, shot: true, goal: shot.outcome === 'goal', xg: shot.xg || 0, shotInfo: { d: Math.round(Math.min(shot.x, L - shot.x)), def: Math.round((shot.defDist == null ? 9 : shot.defDist) * 10) / 10, xg: shot.xg || 0, header: shot.setPiece === 'header' } }; break; }
+          if (shots.length) { const shot = shots[shots.length - 1]; result = { outcome: 'beat', time: t, shot: true, goal: shot.outcome === 'goal', xg: shot.xg || 0, shotInfo: { grp: (u.players.find((q) => q.number === shot.player) || {}).group, d: Math.round(Math.min(shot.x, L - shot.x)), def: Math.round((shot.defDist == null ? 9 : shot.defDist) * 10) / 10, xg: shot.xg || 0, header: shot.setPiece === 'header' } }; break; }
         }
         if (h === o) { const dg = Math.hypot(match.ball.x - (dir === 1 ? 0 : L), match.ball.y - 34); lostAt = t; lostZone = dg < NEAR_GOAL ? 'lostNear' : d < 0.33 ? 'lostOwn' : 'lostMid'; lostCause = causeOf(match, u, o, entries, t); }
         else if (t >= TRIAL_SECONDS) { result = { outcome: 'still', time: t }; break; }
