@@ -1190,6 +1190,14 @@
     renderPlanBar(team);
     el('subInfo').textContent = '';
     el('subInfo').hidden = true;
+    if (world.backToTests && !world.testing && !inMatch) {
+      const si = el('subInfo'); si.hidden = false;
+      si.innerHTML = '<button type="button" class="primary" id="backToTests">Back to tests</button> <span>Make your change here, then go back and test it again.</span>';
+      const bb = si.querySelector('#backToTests');
+      bb.addEventListener('click', () => { const ph = world.backToTests.phase; world.backToTests = null; world.testing = true; world.tab = ph; if (world.phaseLabs && world.phaseLabs[ph]) world.phaseLabs[ph].view = 'setup'; renderTactics(); renderPrepFlow(); });
+    }
+    // arriving at the tests afresh shows the controls (and what we recommend), not the last reading
+    if (world.testing && world._tacTesting !== true) Object.keys(world.phaseLabs || {}).forEach((k) => { if (!world.phaseLabs[k].busy) world.phaseLabs[k].view = 'setup'; });
     const tabs = world.testing ? TEST_TABS : PREP_TABS;
     const progressKey = world.testing ? 'testPhaseMax' : 'prepPhaseMax', maxPhase = world.league[progressKey] || 0;
     // A step you have visited and moved on from turns green.
@@ -1259,67 +1267,92 @@
     const n = testsDoneCount();
     return '<p class="note">' + (n === 0 ? 'Run at least one test before the match preview. The others are optional.' : 'You have completed ' + n + ' test' + (n === 1 ? '' : 's') + '. Run the others, or go to the match preview now.') + (n > 0 ? ' <button class="linkbtn" id="labToEvidence2">Go to the match preview</button>' : '') + '</p>';
   }
+  const SAT_TARGET = { build: 0.7, midfield: 0.65, final: 0.4, transatt: 0.35, organised: 0.6, transdef: 0.6 };
+  const SUCCESS_KEY = { build: 'beat', midfield: 'beat', final: 'shot', transatt: 'shot', organised: 'lost', transdef: 'lost' };
   function renderLab(team, host, phase) {
     phase = phase || 'build';
     const lg = world.league, opp = nextOpponent(); if (!lg || !opp) { host.innerHTML = ''; return; }
     lg.labRuns = lg.labRuns || []; lg.phaseLabRuns = lg.phaseLabRuns || {};
     const reverse = phase === 'organised' || phase === 'transdef';
     const title = { build: 'Test the build-up', midfield: 'Test playing through midfield', final: 'Test the final third', organised: 'Test organised defending', transdef: 'Test the defensive transition', transatt: 'Test the attacking transition' }[phase];
-    const target = { build: 'goal-kick build-ups that reach midfield', midfield: 'moves that play through midfield', final: 'attacks that produce a shot', organised: 'opposition attacks stopped without a shot', transdef: 'attacks stopped after losing the ball', transatt: 'ball wins that produce a shot' }[phase];
+    const lede = {
+      build: 'We will play the same goal kick against ' + opp.name + ' again and again, with your players where you put them, and count how often you get out.',
+      midfield: 'We will play the move through midfield against ' + opp.name + ' again and again and count how often it works.',
+      final: 'We will send the same attack at ' + opp.name + '\'s goal again and again and count how often it ends in a shot.',
+      organised: 'We will have ' + opp.name + ' attack you again and again and count how often your shape stops them.',
+      transdef: 'We will have you lose the ball against ' + opp.name + ' again and again and count how often you stop the counter.',
+      transatt: 'We will have you win the ball against ' + opp.name + ' again and again and count how often it becomes a shot.',
+    }[phase];
     const runs = phase === 'build' ? lg.labRuns : (lg.phaseLabRuns[phase] = lg.phaseLabRuns[phase] || []);
     world.phaseLabs = world.phaseLabs || {};
-    const st = world.phaseLabs[phase] = world.phaseLabs[phase] || { start: 'keeper', n: 100, pred: '', hyp: '', busy: false, prog: 0, a: null, b: null, err: '' };
+    const st = world.phaseLabs[phase] = world.phaseLabs[phase] || { start: 'keeper', n: 100, view: 'setup', busy: false, prog: 0, a: null, b: null, err: '' };
     const last = runs[runs.length - 1];
-    const cmpRuns = runs.length >= 2 ? runs : [];
-    const a = st.a != null && runs[st.a] ? st.a : Math.max(0, runs.length - 2), b = st.b != null && runs[st.b] ? st.b : runs.length - 1;
+    const goEvidence = () => { world.league.prepStep = Math.max(world.league.prepStep || 0, 4); saveSoon(); setView('preview'); };
+    // The shortcut to the tactics page for a change, with a way straight back to this test.
+    const toTactics = (tab) => { world.testing = false; world.tab = tab; world.backToTests = { phase }; renderTactics(); renderPrepFlow(); window.scrollTo(0, 0); };
+
+    // ---- the results page: the controls go, and the reading takes their place ----
+    if (last && st.view === 'results' && !st.busy && FM.labResults) {
+      host.innerHTML = '<div class="lab"><div id="labOutcome"></div></div>';
+      const fresh = !!st.fresh; st.fresh = false;
+      FM.labResults.outcome(host.querySelector('#labOutcome'), { phase, opp, team, runs, fresh, onAgain: () => { st.view = 'setup'; renderLab(team, host, phase); window.scrollTo(0, 0); }, onTactics: toTactics, onPreview: goEvidence });
+      return;
+    }
+
+    // ---- the set-up: where to test from, how many, and (after a first run) what we recommend ----
+    const sat = SAT_TARGET[phase] || 0.6, key = SUCCESS_KEY[phase] || 'beat';
+    const lastRate = last && last.result && last.result[key] ? last.result[key].p : null;
+    const unsat = lastRate != null && lastRate < sat;
+    const fixedN = runs.length ? runs[runs.length - 1].n : st.n;
+    if (runs.length) st.n = fixedN;
+    const reco = !runs.length ? '' : unsat
+      ? `<div class="lab-reco"><h3>We recommend testing again</h3><p>Last time ${Math.round(lastRate * 100)}% of tests were successful, which is below where we would like it. Make a change in your tactics, then run the <b>same ${fixedN} tests</b> again. We want to <b>improve on ${Math.round(lastRate * 100)}%</b>.</p>
+          <p class="note">The computer will check the new result against the old one as a proper statistical test. It starts by assuming your change made no difference, and only accepts that it helped if luck alone would be unlikely to give a gain that big. It tells you what it found, and how sure it is, at the top of the results.</p>
+          <p><button type="button" class="el-go" id="labSeeLast">See your last results</button> <button type="button" class="el-go" id="labToTactics">Change your tactics</button></p></div>`
+      : `<div class="lab-reco ok"><h3>That was a good result</h3><p>${Math.round(lastRate * 100)}% of tests were successful, so there is no need to test again. You can, if you want to try to push it further.</p>
+          <p><button type="button" class="el-go" id="labSeeLast">See your last results</button></p></div>`;
+    const busyText = st.busy ? (st.planning ? 'Their manager is preparing…' : st.done ? st.n + '/' + st.n + ' tests run' : st.prog + '/' + st.n + ' tests run') : (runs.length ? 'Run ' + st.n + ' tests again' : 'Run ' + st.n + ' tests');
     host.innerHTML = `<div class="lab">
       <h2>${title}</h2>
+      <p class="lab-lede">${esc(lede)}</p>
+      ${reco}
       <div class="two"><label>Scenario<select id="labStart">${phase === 'final' || phase === 'transatt' ? '<option value="attack">An attack entering the final third</option>' : phase === 'organised' || phase === 'transdef' ? '<option value="defend">The opposition attack your goal</option>' : `<option value="goalkick">A goal kick, played short</option>`}</select></label>
-        <label>Number of tests<select id="labN">${[100, 400, 1000].map((n) => `<option value="${n}"${st.n === n ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>
-      <label>Before you run it: what share will succeed? (${target}, %)<input type="number" id="labPred" min="0" max="100" step="1" value="${esc(st.pred)}" placeholder="e.g. 60"></label>
-      ${runs.length ? `<label>What are you changing, and what do you expect to happen?<textarea id="labHyp" placeholder="Write one clear tactical change and the effect you expect in this phase.">${esc(st.hyp)}</textarea></label>` : ''}
-      <div class="row"><button class="primary" id="labRun"${st.busy ? ' disabled' : ''}>${st.busy ? (st.planning ? 'Their manager is preparing…' : 'Running… ' + st.prog + ' of ' + st.n) : 'Run ' + st.n + ' tests'}</button>${skipHtml(phase, st)}</div>
+        <label>Number of tests<select id="labN"${runs.length ? ' disabled title="The same number of tests as last time, so the two results can be compared fairly"' : ''}>${[100, 400, 1000].map((n) => `<option value="${n}"${st.n === n ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>
+      <div class="row"><button class="primary" id="labRun"${st.busy ? ' disabled' : ''}>${busyText}</button>${skipHtml(phase, st)}</div>
       ${skipNote(phase)}
       <p class="err">${esc(st.err)}</p>
-      ${last && phase !== 'build' ? phaseResultHtml(phase, last.result) + `<p class="note">Run ${runs.length} is done. Change one tactical choice, write your expectation above, then test again.</p>${phaseHistoryHtml(phase, runs)}` : ''}
-      ${phase === 'build' ? '<div id="labReading"></div>' : ''}
     </div>`;
     const q = (id) => host.querySelector(id);
     q('#labStart').addEventListener('change', (e) => { st.start = e.target.value; });
-    const goEvidence = () => { world.league.prepStep = Math.max(world.league.prepStep || 0, 4); saveSoon(); setView('preview'); };
     if (q('#labSkip')) q('#labSkip').addEventListener('click', () => { const i = TEST_TABS.findIndex(([k]) => k === phase); world.tab = TEST_TABS[Math.min(TEST_TABS.length - 1, i + 1)][0]; renderTactics(); });
     if (q('#labToEvidence')) q('#labToEvidence').addEventListener('click', goEvidence);
     if (q('#labToEvidence2')) q('#labToEvidence2').addEventListener('click', goEvidence);
+    if (q('#labSeeLast')) q('#labSeeLast').addEventListener('click', () => { st.view = 'results'; renderLab(team, host, phase); });
+    if (q('#labToTactics')) q('#labToTactics').addEventListener('click', () => toTactics(phase === 'build' ? 'build' : phase));
     q('#labN').addEventListener('change', (e) => { st.n = +e.target.value; renderLab(team, host, phase); });
-    q('#labPred').addEventListener('input', (e) => { st.pred = e.target.value; });
-    if (q('#labHyp')) q('#labHyp').addEventListener('input', (e) => { st.hyp = e.target.value; });
     q('#labRun').addEventListener('click', async () => {
       if (st.busy) return;
-      st.busy = true; st.prog = 0; st.err = ''; st.planning = true; renderLab(team, host, phase);
+      st.busy = true; st.done = false; st.prog = 0; st.err = ''; st.planning = true; renderLab(team, host, phase);
       let oppPlan = null; try { oppPlan = await FM.scout.labPlan(lg, team, opp); } catch (e) { oppPlan = FM.scout.plan1(FM.scout.profile(lg)); }
       st.planning = false;
-      const snap = FM.lab.snapshot(team), pred = st.pred === '' ? '' : Math.max(0, Math.min(100, +st.pred));
+      const snap = FM.lab.snapshot(team);
       try {
         const attackTest = ['final','transatt','organised','transdef'].includes(phase);
-        const result = await FM.lab.run(lg, { n: st.n, phase: attackTest ? 'final' : 'build', user: reverse ? opp : team, opp: reverse ? team : opp, start: st.start, record: true, oppRules: reverse ? (team.rules || []) : oppPlan.rules, oppNudge: reverse ? {} : oppPlan.tactics }, (d) => { st.prog = d; const b2 = host.querySelector('#labRun'); if (b2) b2.textContent = 'Running… ' + d + ' of ' + st.n; });
-        runs.push({ id: phase[0] + 'r' + (runs.length + 1), phase, oppPlan: { source: oppPlan.source, rationale: oppPlan.rationale, scouted: oppPlan.scouted, note: oppPlan.note || '', rules: FM.scout.describe(oppPlan.rules, opp, team) }, n: st.n, start: st.start, opp: opp.name, pred, hyp: st.hyp, snap, changes: FM.lab.changes(last && last.snap, snap), result });
+        const result = await FM.lab.run(lg, { n: st.n, phase: attackTest ? 'final' : 'build', user: reverse ? opp : team, opp: reverse ? team : opp, start: st.start, record: true, oppRules: reverse ? (team.rules || []) : oppPlan.rules, oppNudge: reverse ? {} : oppPlan.tactics }, (d) => { st.prog = d; const b2 = host.querySelector('#labRun'); if (b2) b2.textContent = d + '/' + st.n + ' tests run'; });
+        runs.push({ id: phase[0] + 'r' + (runs.length + 1), phase, oppPlan: { source: oppPlan.source, rationale: oppPlan.rationale, scouted: oppPlan.scouted, note: oppPlan.note || '', rules: FM.scout.describe(oppPlan.rules, opp, team) }, n: st.n, start: st.start, opp: opp.name, pred: '', hyp: '', snap, changes: FM.lab.changes(last && last.snap, snap), result });
         runs.forEach((r, i) => { if (i < runs.length - 2 && r.result) delete r.result.clips; });
-        st.a = Math.max(0, runs.length - 2); st.b = runs.length - 1; st.pred = ''; st.hyp = ''; saveSoon();
+        st.a = Math.max(0, runs.length - 2); st.b = runs.length - 1; saveSoon();
         const phaseIndex = TEST_TABS.findIndex(([k]) => k === phase);
-        if (phaseIndex >= 0) {
-          lg.testPhaseMax = Math.max(lg.testPhaseMax || 0, phaseIndex + 1);
-          lg.prepStep = Math.max(lg.prepStep || 0, 3);     // one completed test is enough to go on and read the evidence
-          renderTactics(); renderPrepFlow();
-        }
+        if (phaseIndex >= 0) { lg.testPhaseMax = Math.max(lg.testPhaseMax || 0, phaseIndex + 1); lg.prepStep = Math.max(lg.prepStep || 0, 3); }
+        // the button says all the tests have run, then the page refreshes into the results
+        st.done = true;
+        const b3 = host.querySelector('#labRun'); if (b3) b3.textContent = st.n + '/' + st.n + ' tests run';
+        await new Promise((r) => setTimeout(r, 1100));
+        st.view = 'results'; st.fresh = true;
       } catch (err) { st.err = 'The test could not run: ' + (err && err.message ? err.message : 'unknown error'); }
-      st.busy = false;
-      if (document.body.contains(host)) renderLab(team, host, phase);
+      st.busy = false; st.done = false;
+      if (document.body.contains(host)) { renderTactics(); renderPrepFlow(); }
     });
-    let tac = null; try { tac = FM.aiTacticsFor(lg, opp, team); } catch (e) { tac = null; }
-    const setCompare = (x, y) => { st.a = x; st.b = y; renderLab(team, host, phase); };
-    const clearRuns = () => { if (phase === 'build') lg.labRuns = []; else lg.phaseLabRuns[phase] = []; st.a = st.b = null; saveSoon(); renderLab(team, host, phase); };
-    // the reading of the tests (what happened, why it was lost, how they pressed, replays and the comparison) sits on the page under the controls
-    if (phase === 'build' && FM.labResults) FM.labResults.render(host.querySelector('#labReading'), { opp, runs, a, b, st, team, tac, setCompare, clearRuns });
   }
 
   function phaseResultHtml(phase, r) {

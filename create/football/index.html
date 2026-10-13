@@ -135,6 +135,18 @@
   .pf-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 22px; } .pf ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; line-height: 1.45; } .pf-quiet { opacity: .6; list-style: none; margin-left: -18px; }
   .pf-moments { list-style: none; padding: 0; } .pf-moments li { display: flex; gap: 10px; align-items: baseline; padding: 6px 10px; border-radius: 8px; background: rgba(255,255,255,.04); } .pf-moments li.good { border-left: 3px solid #52bd7b; } .pf-moments li.bad { border-left: 3px solid #d9695f; } .pf-moments span { font-size: .7rem; opacity: .6; font-weight: 700; }
   @media (max-width: 700px) { .pf-cols { grid-template-columns: 1fr; } }
+  .lab-lede { margin: 2px 0 14px; opacity: .9; line-height: 1.5; max-width: 62ch; }
+  .lab-reco { margin: 0 0 16px; padding: 14px 16px; border-radius: 12px; background: rgba(241,192,79,.08); border: 1px solid rgba(241,192,79,.35); } .lab-reco.ok { background: rgba(82,189,123,.1); border-color: rgba(82,189,123,.4); } .lab-reco h3 { margin: 0 0 6px; font-size: 1.05rem; } .lab-reco p { margin: 6px 0; line-height: 1.5; }
+  .lab-outcome { display: grid; gap: 22px; } .lab-outcome h3 { margin: 0 0 8px; font-size: 1.15rem; } .lab-outcome h4 { margin: 14px 0 6px; font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; opacity: .75; }
+  .lo-title { margin: 0 0 10px; font-size: 1.6rem; } .lo-headline { margin: 0; font-size: 1.5rem; } .lo-headline b { font-size: 2.6rem; color: var(--gold, #f1c04f); margin-right: 4px; }
+  .lo-mood { margin: 6px 0 0; font-size: 1.15rem; font-weight: 600; } .lo-detail { margin: 6px 0 0; opacity: .8; } .lo-small { font-size: .88rem; opacity: .75; margin: 6px 0; }
+  .lo-test { margin-top: 16px; padding: 14px 16px; border-radius: 12px; background: rgba(255,255,255,.05); } .lo-test h4 { margin-top: 0; } .lo-test p { margin: 6px 0; line-height: 1.5; }
+  .lo-verdict { font-weight: 700; font-size: 1.05rem; } .lo-verdict.yes { color: #7fd69a; } .lo-verdict.no { color: #e98a80; } .lo-verdict.maybe { color: #f1c04f; }
+  .lo-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 26px; } @media (max-width: 760px) { .lo-cols { grid-template-columns: 1fr; } }
+  .lo-bar { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; margin: 8px 0; } .lo-bar span small { display: block; opacity: .65; font-size: .75rem; } .lo-bar i { grid-column: 1 / -1; height: 6px; border-radius: 4px; background: linear-gradient(90deg, #d9695f var(--w), rgba(255,255,255,.1) var(--w)); } .lo-bar em { font-style: normal; font-weight: 700; }
+  .lo-ins { display: grid; gap: 12px; } .lo-card { padding: 14px 16px; border-radius: 12px; background: rgba(255,255,255,.05); border-left: 3px solid var(--gold, #f1c04f); } .lo-card p { margin: 6px 0; line-height: 1.5; } .lo-cost { opacity: .85; } .lo-cost em { font-style: normal; font-weight: 700; }
+  .lab-outcome.rv-anim .rv { opacity: 0; transform: translateY(10px); animation: rvIn .7s ease forwards; animation-delay: calc(var(--i) * .85s); }
+  @keyframes rvIn { to { opacity: 1; transform: none; } } @media (prefers-reduced-motion: reduce) { .lab-outcome.rv-anim .rv { animation: none; opacity: 1; transform: none; } }
   .cap-badge { display:inline-block; min-width:18px; padding:0 5px; border-radius:4px; background:var(--fm-gold,#f1c04f); color:#14181a; font-weight:800; font-size:.72rem; text-align:center; }
   .cap-line { margin:8px 0 0; font-size:.9rem; } .cap-make { padding:5px 10px; border-radius:8px; border:1px solid rgba(241,192,79,.5); background:transparent; color:inherit; font:inherit; cursor:pointer; } .cap-make:hover { background:rgba(241,192,79,.14); }
   .cap-intro { display:grid; gap:10px; margin-bottom:16px; border-left:3px solid var(--fm-gold,#f1c04f); } .cap-intro p { margin:0; font-size:1.02rem; line-height:1.55; } .cap-intro-who { display:flex; align-items:center; gap:10px; } .cap-intro-who small { display:block; opacity:.7; } .cap-intro-ok { justify-self:start; padding:8px 14px; border-radius:8px; border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.06); color:inherit; font:inherit; cursor:pointer; }
@@ -889,13 +901,13 @@
 <script src="/create/football/api.js?v=20261013a"></script>
 <script src="/create/football/scout.js?v=20261010c"></script>
 <script src="/create/football/instructions_ui.js?v=20261013a"></script>
-<script src="/create/football/lab_replay.js?v=20261010c"></script>
-<script src="/create/football/lab_results.js?v=20261015e"></script>
+<script src="/create/football/lab_replay.js?v=20261030b"></script>
+<script src="/create/football/lab_results.js?v=20261030c"></script>
 <script src="/create/football/transfers.js?v=20261023a"></script>
 <script src="/create/football/recruit.js?v=20261023a"></script>
 <script src="/create/football/development.js?v=20261029a"></script>
 <script src="/create/football/form.js?v=20261029a"></script>
 <script src="/create/football/cases.js?v=20261028a"></script>
-<script src="/create/football/main.js?v=20261029d"></script>
+<script src="/create/football/main.js?v=20261030a"></script>
 </body>
 </html>

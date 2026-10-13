@@ -75,10 +75,14 @@
     return lines.slice(-3);
   }
 
-  function stop() { S.playing = false; if (S.raf) cancelAnimationFrame(S.raf); S.raf = 0; }
+  // Several replays can sit on one page: each keeps its own place, and starting one pauses the others.
+  const REG = [];
+  function stop() { REG.forEach((r) => { r.halt(); if (r.btn && r.btn.isConnected) r.btn.textContent = 'Play'; }); REG.length = 0; }
   // host: where to draw. clip: one stored clip. ctx: { team, opp } for names and kits.
   function mount(host, clip, ctx) {
-    stop(); S.host = host; S.clip = clip; S.ctx = ctx; S.t = 0;
+    const I = { raf: 0, playing: false, t: 0, speed: S.speed, last: 0 };
+    const halt = () => { I.playing = false; if (I.raf) cancelAnimationFrame(I.raf); I.raf = 0; };
+    const me = { halt, btn: null }; REG.push(me);
     const d = unpack(clip), kits = [ctx.team.kit || { shirt: '#c0392b', number: '#fff' }, ctx.opp.kit || { shirt: '#3b82c4', number: '#fff' }];
     const kitMap = { u: kits[0], o: kits[1] };
     const nm = (side, n) => { const q = clip.names[side][n]; return q ? q.split(' ').slice(-1)[0] + ' (#' + n + ')' : '#' + n; };
@@ -87,11 +91,12 @@
       '<div class="rp-key"><span><i class="rp-k ok"></i> pass that came off</span><span><i class="rp-k no"></i> pass lost</span><span><i class="rp-k job"></i> their job: goes to this player</span><span><i class="rp-k free"></i> your player with nobody on him</span></div>' +
       '<div class="rp-say" aria-live="polite"></div>';
     const svg = host.querySelector('.rp-pitch'), say = host.querySelector('.rp-say'), seek = host.querySelector('.rp-seek'), btn = host.querySelector('.rp-play');
-    const draw = () => { svg.innerHTML = frame(d, clip, S.t, kitMap); say.innerHTML = narrate(d, clip, S.t, nm).map((l) => '<p>' + l + '</p>').join('') || '<p>Press Play. Each pass appears as an arrow, and the explanation appears here.</p>'; seek.value = String(Math.round(S.t * 100)); };
-    const tick = (ts) => { if (!S.playing) return; if (!S.last) S.last = ts; S.t = Math.min(clip.end, S.t + (ts - S.last) / 1000 * S.speed); S.last = ts; draw(); if (S.t >= clip.end) { stop(); btn.textContent = 'Replay'; return; } S.raf = requestAnimationFrame(tick); };
-    btn.addEventListener('click', () => { if (S.playing) { stop(); btn.textContent = 'Play'; return; } if (S.t >= clip.end) S.t = 0; S.playing = true; S.last = 0; btn.textContent = 'Pause'; S.raf = requestAnimationFrame(tick); });
-    seek.addEventListener('input', () => { S.t = +seek.value / 100; draw(); });
-    host.querySelector('.rp-speed').addEventListener('change', (e) => { S.speed = +e.target.value; });
+    const draw = () => { svg.innerHTML = frame(d, clip, I.t, kitMap); say.innerHTML = narrate(d, clip, I.t, nm).map((l) => '<p>' + l + '</p>').join('') || '<p>Press Play. Each pass appears as an arrow, and the explanation appears here.</p>'; seek.value = String(Math.round(I.t * 100)); };
+    const tick = (ts) => { if (!I.playing) return; if (!I.last) I.last = ts; I.t = Math.min(clip.end, I.t + (ts - I.last) / 1000 * I.speed); I.last = ts; draw(); if (I.t >= clip.end) { halt(); btn.textContent = 'Replay'; return; } I.raf = requestAnimationFrame(tick); };
+    me.btn = btn;
+    btn.addEventListener('click', () => { if (I.playing) { halt(); btn.textContent = 'Play'; return; } REG.forEach((r) => { if (r !== me) { r.halt(); if (r.btn && r.btn.isConnected) r.btn.textContent = 'Play'; } }); if (I.t >= clip.end) I.t = 0; I.playing = true; I.last = 0; btn.textContent = 'Pause'; I.raf = requestAnimationFrame(tick); });
+    seek.addEventListener('input', () => { I.t = +seek.value / 100; draw(); });
+    host.querySelector('.rp-speed').addEventListener('change', (e) => { I.speed = +e.target.value; S.speed = I.speed; });
     draw();
   }
   FM.labReplay = { mount, stop };
