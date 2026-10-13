@@ -961,10 +961,12 @@
     const rng = FM.mulberry32(((seed >>> 0) ^ 0x9E3779B1) >>> 0), heat = derby ? derby.heat : 0;
     const list = [];
     const plan = (kind, p, lo, hi) => { if (rng() < p) list.push({ kind, at: (lo + rng() * (hi - lo)) * 60 }); };
-    plan('scuffle', 0.05 + 0.55 * heat, 12, 84);
-    plan('managers', 0.04 + 0.5 * heat, 8, 86);
-    plan('penalty', 0.03 + 0.25 * heat, 15, 88);
-    plan('invader', 0.02 + 0.2 * heat, 10, 80);
+    // an ordinary game: now and then; a derby: several times as often; the Iron Derby: nearly always, and often more than one
+    const at = (base, top) => base + (top - base) * Math.pow(heat, 1.5);
+    plan('scuffle', at(0.07, 0.92), 12, 84);
+    plan('managers', at(0.05, 0.82), 8, 86);
+    plan('penalty', at(0.04, 0.5), 15, 88);
+    plan('invader', at(0.03, 0.38), 10, 80);
     if (heat >= 1 && !list.length) list.push({ kind: 'scuffle', at: (25 + rng() * 50) * 60 });
     list.sort((a, b) => a.at - b.at);
     match.derby = derby || null;

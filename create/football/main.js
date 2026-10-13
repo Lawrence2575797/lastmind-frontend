@@ -430,8 +430,69 @@
     world.skipTo = 'end';
   });
 
+
+  // In a derby the press asks about the derby. The Iron Derby has its own questions (1997, the fans, the tempers); the lesser rivalries are
+  // asked about the fixture's name and story. After the match, what happened in it is asked about too: a red card, a row on the touchline.
+  function derbyInterview(kind, fx, result) {
+    const lg = world.league, me = userTeam(), home = FM.teamById(lg, fx.homeId), away = FM.teamById(lg, fx.awayId), opp = home.id === me.id ? away : home;
+    const d = FM.derbyBetween ? FM.derbyBetween(me.name, opp.name) : null;
+    if (!d) return null;
+    const iron = d.key === 'iron', sum = fx.summary || {}, reds = sum.reds || [], drama = sum.drama || [];
+    if (kind === 'pre') {
+      if (iron) return {
+        questions: [
+          'This is the Iron Derby, in your first game in charge, and all of Ashford has been waiting for it. How do you handle that?',
+          'Some in Ashford have never forgiven Northfield for 1997, or for what happened with James Whitlock. Do you share that, or is it just another game?',
+          'Derbies bring tempers: cards, rows on the touchline. How do you keep your players, and yourself, under control?',
+        ],
+        answers: [
+          ['It means everything to the town, and I understand that. My job is to turn it into focus rather than nerves.', 'I will not pretend it is just another game. I will make sure the players are ready for what the Foundry will be like.', 'The supporters have waited a long time for this. We owe them a performance first and a result second.', 'I have been told what this match is. Now I want the players to enjoy the occasion and do their jobs.', 'It is a big game. It is also three points, and I will treat it that way in the dressing room.'],
+          ['I understand where the feeling comes from. I want it in the stands, and I want the players clear-headed on the pitch.', 'I was not here for 1997. What I owe the club is a team that plays the game properly and wins it.', 'The history is real and I respect it. But the way to answer it is by winning on Saturday.', 'It is not just another game, and I will not insult the supporters by saying it is.', 'What happened before I arrived is for the people who lived it. My concern is the next ninety minutes.'],
+          ['I have asked the players to be hard and fair. Win your challenges, and keep your heads.', 'Discipline wins derbies. I will tell them that again before kick-off.', 'Passion is welcome. Losing our heads is not, and I will make sure they know the difference.', 'I will not tell them to hold back: they are in a derby. I will tell them to stay in control.', 'I will keep myself in check too. I want to be on the touchline at the end.'],
+        ],
+      };
+      return {
+        questions: [
+          `${d.name}: what does a game against ${opp.name} mean to your supporters?`,
+          `${d.line} Does that history matter to you?`,
+          'How do you stop the occasion getting to your players?',
+        ],
+        answers: [
+          ['It means a great deal to them, and I want to give them something to be proud of.', 'The supporters have been talking about it all week. We are ready.', `${opp.name} are the game our people look for first. I understand that.`, 'It is a big one. We want it as much as they do.', 'The fans make a game like this, and I want the team to be worthy of them.'],
+          ['It matters to the people at this club, so it matters to me.', 'The history is real, but it will not kick a ball on Saturday. That is up to us.', 'I know the story. I want to write the next chapter.', 'I respect it, and then I get on with the football.', 'It is a part of why we love the game, and I do not want to ignore it.'],
+          ['By keeping the routine simple: the same preparation as any other game.', 'I will remind them that they are good enough, and that the occasion is a reason to play, not to worry.', 'Experience helps, and we have good senior players in the dressing room.', 'We talk about it openly. Nobody pretends it is not a derby.', 'We keep our shape, our discipline and our heads. That is the plan.'],
+        ],
+      };
+    }
+    // after the match
+    const R = result === 'W' ? 'W' : result === 'L' ? 'L' : 'D';
+    const incident = reds.length || drama.length;
+    const q2 = incident
+      ? (reds.length ? `There ${reds.length === 1 ? 'was a sending-off' : 'were ' + reds.length + ' sendings-off'} and ${drama.some((x) => x.kind === 'managers') ? 'a row on the touchline' : 'plenty of flashpoints'}. What did you make of the match?` : 'There was a row on the touchline and a few flashpoints. What did you make of the match?')
+      : 'It was a hard match without much trouble. Was it as demanding as you expected?';
+    const first = iron
+      ? { W: 'You have beaten Northfield in the Iron Derby. What do you say to the supporters?', L: 'You have lost the Iron Derby. What do you say to the supporters?', D: 'The Iron Derby ends level. What do you say to the supporters?' }[R]
+      : { W: `You have won ${d.name}. What do you say to the supporters?`, L: `You have lost ${d.name}. What do you say to the supporters?`, D: `${d.name} ends level. What do you say to the supporters?` }[R];
+    const third = iron ? 'The return at Millbank is in a few weeks. What does this result mean for it?' : `What does this result mean for the rest of the season?`;
+    const a1 = {
+      W: ['We have given them something to enjoy tonight. Now we keep our feet on the ground.', 'I am very proud of them. This is a result the whole town will remember.', 'It is one of the best afternoons I will have in this job. Tomorrow we get back to work.', 'The supporters were magnificent. They carried us through the difficult parts.', 'It is only three points on paper. I know what it means to them, and I am glad we got it.'],
+      L: ['I am sorry. They deserved better and so do the players. We will answer it.', 'It hurts, and I will not hide from that. We take the lesson and go again.', 'I know what that result means to the town. I take the responsibility.', 'It is a difficult night. The supporters stayed with us, and we owe them a response.', 'We were not good enough on the day, and that is the end of it. The next game is the one that matters now.'],
+      D: ['A point is not what anyone wanted in a derby, and we will say so. But it is not nothing.', 'We came to win and we did not. The supporters have every right to be frustrated.', 'There was not much between the teams. We move on.', 'I understand if it feels flat. We had chances, and so did they.', 'It is a fair result and an incomplete one. We go again.'],
+    }[R];
+    const a2 = incident
+      ? ['The occasion got to a few people. That happens in derbies, and I will deal with it with the players.', 'I do not like seeing it, and I will speak to my players. The referee did what he felt he had to.', 'It was a derby. It was hot, and it boiled over a couple of times. I will not add to it.', 'I will watch it again before saying more. The emotion on the pitch was real on both sides.', 'We have to be better than that, and I include myself. A manager should set the tone.']
+      : ['It was demanding and honest, and both teams stayed within themselves. That is to the credit of the players.', 'Harder than anyone watching would think. It was a tight game and nothing was given.', 'Yes. Every challenge was a contest, and the players handled it well.', 'It was a derby without the drama, which was a surprise. But the intensity was there.', 'Both sets of supporters got what they came for in terms of effort.'];
+    const a3 = {
+      W: ['It does a lot for belief. We go to Millbank knowing we can beat them there.', 'It lifts us, and we will use it. But Northfield will come to us for revenge.', 'Everyone will tell us what it means. I want to see it again at their place first.', 'It gives us a lead in the story. They will want it back.', 'It means we have got the first word. The second meeting is another game.'],
+      L: ['It means we go to Millbank with something to prove, and I want the players to feel that.', 'It is not the end of anything. There are thirteen more games and a second derby.', 'We pay attention to what they did well, and then we answer it at their place.', 'It makes the return more important, and the players know it.', 'It means we have work to do. We do it quietly.'],
+      D: ['It leaves everything for Millbank. That is fine by me.', 'The second meeting will decide who has the better of it. We have to be ready.', 'Neither of us has the advantage. That will change in a few weeks.', 'It keeps it open. We go there believing we can win.', 'A point here and a good game there would be the whole story.'],
+    }[R];
+    return { questions: [first, q2, third], answers: [a1, a2, a3] };
+  }
+
   // The ready-made answers belong to the question they answer: each question has its own five, and the ones after a match depend on the result.
   function interviewAnswers(kind, fx, result) {
+    { const dk = derbyInterview(kind, fx, result); if (dk) return dk.answers; }
     const lg = world.league, me = userTeam(), home = FM.teamById(lg, fx.homeId), away = FM.teamById(lg, fx.awayId), opp = home.id === me.id ? away : home;
     if (kind === 'pre') return [
       [
@@ -475,6 +536,7 @@
     return [performance, decided, next];
   }
   function interviewQuestions(kind, fx, result) {
+    { const dk = derbyInterview(kind, fx, result); if (dk) return dk.questions; }
     const lg = world.league, me = userTeam(), home = FM.teamById(lg, fx.homeId), away = FM.teamById(lg, fx.awayId), opp = home.id === me.id ? away : home;
     if (kind === 'pre') return [
       `What do you expect from ${opp.name} today?`,
