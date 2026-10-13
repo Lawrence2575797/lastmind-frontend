@@ -1271,7 +1271,7 @@
       if (nb) nb.click();
     } });
     const ph = FM.SCENARIO_PHASES[tab];
-    FM.renderInstructions(host.querySelector('#scnInstr'), team, { save: saveSoon, opp: nextOpponent() }, { stage: ph.stage, title: 'Anything else you want to tell them', applies: 'applies to this phase' });
+    FM.renderInstructions(host.querySelector('#scnInstr'), team, { save: saveSoon, opp: nextOpponent }, { stage: ph.stage, title: 'Anything else you want to tell them', applies: 'applies to this phase' });
   }
   function renderTransitionTab(team, tab) {
     const host = el('tabBody'), defensive = tab === 'transdef', key = defensive ? 'transDefChoices' : 'transAttChoices';

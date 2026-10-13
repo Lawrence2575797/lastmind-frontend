@@ -223,9 +223,16 @@
     }
     // the man with the ball: the goalkeeper for a goal kick, otherwise the player nearest to where the ball is
     const nearest = own.map((o, i) => ({ i, d: dist(o, S.ball) })).sort((a, b) => a.d - b.d)[0];
-    S.holder = phase === 'build' ? Math.max(0, own.findIndex((o) => o.p.group === 'GK')) : nearest.i;
+    const carried = phase !== 'build' && team.scenarioBall && team.scenarioBall[phaseKey(phase)];
+    const ci = carried ? own.findIndex((o) => o.p.index === carried.pi) : -1;
+    S.carried = ci >= 0;
+    S.holder = phase === 'build' ? Math.max(0, own.findIndex((o) => o.p.group === 'GK')) : (ci >= 0 ? ci : nearest.i);
     S.ball = { x: own[S.holder].x + 0.8, y: own[S.holder].y + 0.6 };
     // the opposition stand in their own shape for this ball (not yet reacting to anything); the engine is armed when the scenario starts
+    if (phase !== 'build') {
+      eng.m.ball.x = S.ball.y; eng.m.ball.y = S.ball.x;
+      eng.o.players.forEach((p) => { const q = FM.targetFor(eng.o, p, eng.m.ball, false); p.x = q.x; p.y = q.y; p.vx = 0; p.vy = 0; });
+    }
     readOpp(S);
     keepOutOfBox(S);
     S.tackled = null;
@@ -285,6 +292,10 @@
     if (S.phase === 'build' || S.phase === 'midfield') { team.phasePos = team.phasePos || {}; const kk = S.phase === 'build' ? 'build' : 'buildEnd'; team.phasePos[kk] = team.phasePos[kk] || {}; S.own.forEach((o, i) => { team.phasePos[kk][o.p.index] = { d: clamp(S.start[i].y / L, 0.03, 0.97), w: clamp(S.start[i].x / W, 0.04, 0.96) }; }); }
     // where the team got to is where the next phase starts (and for the last phase, where the attack finished)
     const end = saved(team);
+    team.scenarioBall = team.scenarioBall || {};
+    if (S.holder != null && S.own[S.holder]) team.scenarioBall[ph.end] = { pi: S.own[S.holder].p.index };
+    // (a board placed by hand for that diagram no longer takes precedence over where this phase really ended)
+    if (team.phasePos && team.phasePos[ph.end]) team.phasePos[ph.end] = {};
     end[ph.end] = {}; S.own.forEach((o) => { end[ph.end][o.p.index] = { d: clamp(o.y / L, 0.03, 0.97), w: clamp(o.x / W, 0.04, 0.96) }; });
     team.scenarioInfo = team.scenarioInfo || {};
     team.scenarioInfo[S.phase] = { at: new Date().toISOString(), vs: S.press.label, passes: ex.passes, completed: ex.completed, meanLen: ex.meanLen, aerial: Math.round(ex.aerialShare * 100), dribbled: ex.dribbled, lost: S.lost };
@@ -371,6 +382,7 @@
     if (!S || S.team !== team || S.oppTeam !== opp) { S = null; store[phase] = null; }
     const info = (team.scenarioInfo || {})[phase], press = FM.scenarioOppPress(opp);
     const draw = () => {
+      if (!S) { S = fresh(team, opp, phase); store[phase] = S; }
       host.innerHTML = `<div class="scn2">
         <div class="scn2-head"><h2>${esc(ph.title)}</h2>
           <p class="desc">Preparing for ${esc(opp.name)}, who usually <b>${esc(press.label)}</b>. ${esc(ph.goal)}</p>
@@ -395,7 +407,7 @@
               <div class="row"><button id="scnUndo"${S.beats.length ? '' : ' disabled'}>Undo</button><button id="scnReset">End scenario</button></div>
               <div class="row"><button class="primary" id="scnFinish">Use this${ph.next ? ' and go on to ' + esc(ph.next.toLowerCase()) : ''}</button></div></div>`
             : `<div class="scn2-card"><h3>${ph.defend ? 'Show the team how to defend' : 'Show the team how to play it'}</h3><p class="desc">${ph.defend ? `${esc(opp.name)} start with the ball at their goalkeeper and build up against you. You set your team as they bring it up, and press when they have it deep. They play as they play in a match, and from what you show LastMind works out how the team defends.` : `You will take the ball from the ${phase === 'build' ? 'goalkeeper' : 'man on it'} and play the phase out against ${esc(opp.name)}. They react to every move the way they play. From what you show, LastMind works out how the team plays this phase.`}</p>
-              <p class="desc"><b>Drag your players into position first.</b> ${esc(opp.name)} hold their shape until you start${phase === 'build' ? ', and cannot come into the box before the ball is played' : ''}.</p><div class="row"><button class="primary" id="scnStart">Start scenario</button></div></div>`}
+              ${S && S.carried ? `<p class="desc">This starts where the last phase ended: ${esc(S.own[S.holder].p.name.split(' ').slice(-1)[0])} has the ball and your players stand where they finished.</p>` : ''}<p class="desc"><b>Drag your players into position first.</b> ${esc(opp.name)} hold their shape until you start${phase === 'build' ? ', and cannot come into the box before the ball is played' : ''}.</p><div class="row"><button class="primary" id="scnStart">Start scenario</button></div></div>`}
             ${S && S.finished ? `<div class="scn2-card"><h3>What it learned</h3><p class="desc">${esc(S.learned || '')}</p></div>` : ''}
           </div>
         </div></div>`;
@@ -553,7 +565,7 @@
       q('#scnFinish').addEventListener('click', () => {
         const ex = FM.scenarioApply(S);
         S.finished = true;
-        S.learned = `${ex.passes} pass${ex.passes === 1 ? '' : 'es'}, averaging ${ex.meanLen} m, ${Math.round(ex.aerialShare * 100)}% in the air; ${ex.dribbled} m dribbled. The team will now play this phase ${ex.direct > 0.6 ? 'directly' : ex.direct < 0.35 ? 'short and patient' : 'with a mix of short and longer passes'}${ex.centreShare >= 0.6 ? ', through the middle' : ex.wideShare >= 0.5 ? ', out wide' : ''}${ex.risk > 0.55 ? ', and will take risks' : ex.risk < 0.3 ? ', and will keep it safe' : ''}. Where you finished is where the next phase starts.`;
+        S.learned = `${ex.passes} pass${ex.passes === 1 ? '' : 'es'}, averaging ${ex.meanLen} m, ${Math.round(ex.aerialShare * 100)}% in the air; ${ex.dribbled} m dribbled. The team will now play this phase ${ex.direct > 0.6 ? 'directly' : ex.direct < 0.35 ? 'short and patient' : 'with a mix of short and longer passes'}${ex.centreShare >= 0.6 ? ', through the middle' : ex.wideShare >= 0.5 ? ', out wide' : ''}${ex.risk > 0.55 ? ', and will take risks' : ex.risk < 0.3 ? ', and will keep it safe' : ''}.${ph.next ? ' Where you finished is where the next phase starts.' : ''}`;
         if (hooks && hooks.save) hooks.save();
         draw();
         if (hooks && hooks.applied) hooks.applied(ph);
@@ -737,8 +749,8 @@
             if (r.to == null || dist(S.own[rc], e) > 1.5) {
               S.holder = rc; S.ball = { x: e.x, y: e.y };
               say(r.to == null
-                ? `${who(r.from)} ${r.aerial ? 'plays it over the top' : 'passes'} into space, ${Math.round(r.d)} m. ${who(rc)} goes to collect it.`
-                : `${who(r.from)} ${r.aerial ? 'plays it over the top' : 'passes'} to ${who(rc)}, ${Math.round(r.d)} m.${r.loose ? ' It runs a little loose, but he gets to it.' : ''}`);
+                ? `${who(r.from)} ${r.aerial ? (r.d < 22 ? 'chips it' : 'plays it over the top') : 'passes'} into space, ${Math.round(r.d)} m. ${who(rc)} goes to collect it.`
+                : `${who(r.from)} ${r.aerial ? (r.d < 22 ? 'chips it' : 'plays it over the top') : 'passes'} to ${who(rc)}, ${Math.round(r.d)} m.${r.loose ? ' It runs a little loose, but he gets to it.' : ''}`);
               const dd0 = { kind: 'move', i: rc, from: { x: S.own[rc].x, y: S.own[rc].y }, target: { x: e.x, y: e.y }, released: true, pickup: true, timer: null, snap: null };
               S.busy = true; S.tackled = null;
               dd0.timer = setInterval(() => dribbleTick(dd0), 100);
@@ -746,7 +758,7 @@
             }
             S.holder = rc;
             S.ball = { x: S.own[rc].x + 0.8, y: S.own[rc].y + 0.6 };
-            say(`${who(r.from)} ${r.aerial ? 'plays it over the top' : 'passes'} to ${who(rc)}, ${Math.round(r.d)} m. It comes off.`);
+            say(`${who(r.from)} ${r.aerial ? (r.d < 22 ? 'chips it' : 'plays it over the top') : 'passes'} to ${who(rc)}, ${Math.round(r.d)} m. It comes off.`);
           } else {
             const wq = S.opp[r.winner], wn = last(wq.p.name);
             S.lost = true; S.ball = { x: e.x, y: e.y };
