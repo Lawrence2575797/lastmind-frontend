@@ -637,6 +637,12 @@
       // the forwards are only ever drawn on, never back past where the board put them: dropping is for the players behind the ball
       const target = hasBall && ['ST', 'WF', 'AM'].indexOf(player.group) >= 0 ? Math.max(pos.d, want) : (!hasBall && player.group === 'ST' ? Math.max(pos.d, want) : want);
       pos = { d: pos.d + (target - pos.d) * free, w: pos.w };
+      // When the ball is carried out ahead of the back line, the centre-backs who are left step up with it to stay a short pass away and keep
+      // the line together, unless told to hold the line.
+      if (hasBall && player.group === 'CB' && b.d > pos.d + 0.06) {
+        const hold = m.stepUp < 0 || FM.rulesDelta(team, player, 'stepUp', ball, true) < 0;
+        if (!hold) { const cover = clamp(b.d - 0.16, 0.12, 0.7); if (cover > pos.d) pos = { d: pos.d + (cover - pos.d) * 0.7, w: pos.w }; }
+      }
     }
     if (hasBall && player.group !== 'GK') {
       const fz = clamp((b.d - 0.56) / 0.26, 0, 1);

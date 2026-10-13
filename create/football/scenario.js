@@ -337,7 +337,7 @@
               <li>Then press <b>Play on</b> and watch what they do with the ball.</li></ul>
               <div class="scn2-stats">${S.snaps.length} set-up${S.snaps.length === 1 ? '' : 's'} shown · ${S.events.length} move${S.events.length === 1 ? '' : 's'} by them</div>
               <p class="scn2-say" id="scnSay">${esc(S.say || 'They have the ball. Set your team.')}</p>
-              <div class="row"><button class="primary" id="scnPlay"${S.ended ? ' disabled' : ''}>Play on</button><button id="scnReset">Start again</button></div>
+              <div class="row"><button class="primary" id="scnPlay"${S.ended ? ' disabled' : ''}>Play on</button><button id="scnReset">End scenario</button></div>
               <div class="row"><button class="primary" id="scnFinish">Use this</button></div></div>`
             : S && S.started ? `<div class="scn2-card"><h3>How to play it</h3><ul class="scn2-help">
               <li><b>Drag a player</b> to move him. With the ball, that is a dribble.</li>
@@ -345,7 +345,7 @@
               <li>Drag it over an opponent in the way and it is a ball in the air.</li></ul>
               <div class="scn2-stats">${S.beats.filter((b) => b.type === 'pass').length} passes · ${Math.round(S.beats.filter((b) => b.type === 'dribble').reduce((a, b) => a + b.d, 0))} m dribbled</div>
               <p class="scn2-say" id="scnSay">${esc(S.say || 'Your move.')}</p>
-              <div class="row"><button id="scnUndo"${S.beats.length ? '' : ' disabled'}>Undo</button><button id="scnReset">Start again</button></div>
+              <div class="row"><button id="scnUndo"${S.beats.length ? '' : ' disabled'}>Undo</button><button id="scnReset">End scenario</button></div>
               <div class="row"><button class="primary" id="scnFinish">Use this${ph.next ? ' and go on to ' + esc(ph.next.toLowerCase()) : ''}</button></div></div>`
             : `<div class="scn2-card"><h3>${ph.defend ? 'Show the team how to defend' : 'Show the team how to play it'}</h3><p class="desc">${ph.defend ? `${esc(opp.name)} start with the ball at their goalkeeper and build up against you. You set your team as they bring it up, and press when they have it deep. They play as they play in a match, and from what you show LastMind works out how the team defends.` : `You will take the ball from the ${phase === 'build' ? 'goalkeeper' : 'man on it'} and play the phase out against ${esc(opp.name)}. They react to every move the way they play. From what you show, LastMind works out how the team plays this phase.`}</p>
               <p class="desc"><b>Drag your players into position first.</b> ${esc(opp.name)} hold their shape until you start${phase === 'build' ? ', and cannot come into the box before the ball is played' : ''}.</p><div class="row"><button class="primary" id="scnStart">Start scenario</button></div></div>`}
@@ -470,7 +470,7 @@
         svg0.addEventListener('pointerup', () => { d0 = null; });
         return;
       }
-      q('#scnReset').addEventListener('click', () => { store[phase] = null; S = null; draw(); const b = host.querySelector('#scnStart'); if (b) b.click(); });
+      q('#scnReset').addEventListener('click', () => { store[phase] = null; S = null; draw(); });
       if (S.defending) { wireDefend(); return; }
       q('#scnUndo').addEventListener('click', () => { if (!S.history || !S.history.length) return; const snap = S.history.pop(); S.own = snap.own.map((o, i) => Object.assign({}, S.own[i], { x: o.x, y: o.y })); S.opp.forEach((o, i) => { o.x = snap.opp[i].x; o.y = snap.opp[i].y; }); S.ball = snap.ball; S.holder = snap.holder; S.beats = snap.beats; S.pins = Object.assign({}, snap.pins || {}); S.lost = false; say('Taken back.'); draw(); });
       q('#scnFinish').addEventListener('click', () => {
@@ -493,6 +493,13 @@
         if (d.timer) { clearInterval(d.timer); d.timer = null; }
         drag = null;
         const o = S.own[d.i], moved = dist(o, d.from);
+        if (d.pickup) {
+          // collecting a pass is not a dribble: nothing is added to the beats, the pass is what was shown
+          S.busy = false;
+          if (tackled && S.tackled) { S.lost = true; say(S.tackled.name.split(' ').slice(-1)[0] + ' gets there first and wins it: the ball is lost. Undo, or end the scenario.'); }
+          else say(`${o.p.name.split(' ').slice(-1)[0]} collects it.`);
+          draw(); return;
+        }
         if (moved < 0.5 && !tackled) {
           S.own.forEach((q, k) => { q.x = d.snap.own[k].x; q.y = d.snap.own[k].y; });
           S.opp.forEach((q, k) => { q.x = d.snap.opp[k].x; q.y = d.snap.opp[k].y; });
@@ -501,7 +508,7 @@
         pushHist(d.snap);
         if (!S.beats.some((b) => b.type === 'pass' || b.type === 'dribble')) S.start = d.snap.own.map((q) => ({ x: q.x, y: q.y }));
         S.beats.push({ type: 'dribble', i: d.i, d: moved, fromXY: d.from, endXY: { x: o.x, y: o.y } });
-        if (tackled && S.tackled) { S.lost = true; say(S.tackled.name.split(' ').slice(-1)[0] + ' tackles him and wins it: the ball is lost. Undo, or start again.'); }
+        if (tackled && S.tackled) { S.lost = true; say(S.tackled.name.split(' ').slice(-1)[0] + ' tackles him and wins it: the ball is lost. Undo, or end the scenario.'); }
         else say(`${o.p.name.split(' ').slice(-1)[0]} carries it ${Math.round(moved)} m.`);
         S.busy = false;
         draw();
@@ -509,13 +516,34 @@
       const dribbleTick = (d) => {
         if (S.holder !== d.i) { finishDribble(d, false); return; }
         const o = S.own[d.i], tg = d.target || { x: o.x, y: o.y }, dd = dist(o, tg);
-        if (dd > 0.01) { const stp = Math.min(dd, 0.8); o.x += (tg.x - o.x) / dd * stp; o.y += (tg.y - o.y) / dd * stp; }
-        S.ball = { x: o.x + 0.8, y: o.y + 0.6 };
+        // he can only run as fast as he is: his pace, a little slower with the ball and by how good he is at it
+        const rt = o.p.ratings || {}, pace = (o.p.maxSpeed || 8) * clamp(0.72 + 0.004 * ((rt.dribbling || 60) - 60), 0.6, 0.92);
+        if (dd > 0.01) { const stp = Math.min(dd, pace * 0.1); o.x += (tg.x - o.x) / dd * stp; o.y += (tg.y - o.y) / dd * stp; }
+        // each defender who gets to him has a go, once: his dribbling against the defender's tackling and how close he is
+        if (!d.pickup && FM.dribbleProb) {
+          d.faced = d.faced || {}; d.n = (d.n || 0) + 1;
+          for (let k = 0; k < S.opp.length; k++) {
+            const q = S.opp[k];
+            if (q.p.group === 'GK' || dist(q, o) > 2.0) continue;
+            if (d.faced[k] != null && d.n - d.faced[k] < 15) continue;
+            d.faced[k] = d.n;
+            const rng = FM.mulberry32((S.seed + S.beats.length * 104729 + k * 977 + d.n * 31) >>> 0);
+            const pOK = FM.dribbleProb(o.p, Math.max(dist(q, o), 0.6), q.p);
+            if (rng() > pOK) { S.tackled = q.p; S.ball = { x: o.x, y: o.y }; finishDribble(d, true); return; }
+            say(`${o.p.name.split(' ').slice(-1)[0]} gets past ${q.p.name.split(' ').slice(-1)[0]}.`);
+          }
+        }
+        // a ball played into space stays where it is until the man sent for it gets there; if one of theirs gets to it first it is theirs
+        if (d.pickup && dist(o, tg) > 0.6) {
+          const thief = S.opp.find((q) => dist(q, tg) < 1.1 && dist(q, tg) < dist(o, tg));
+          if (thief) { S.tackled = thief.p; S.ball = { x: tg.x, y: tg.y }; runEngine(S, 0.1); finishDribble(d, true); return; }
+        } else S.ball = { x: o.x + 0.8, y: o.y + 0.6 };
         S.tackled = null;
         runEngine(S, 0.1);
         redraw();
         if (S.tackled) { finishDribble(d, true); return; }
-        if (d.released && dist(o, tg) < 0.25) finishDribble(d, false);
+        if (d.released && !d.pickup && dist(o, tg) < 0.25) finishDribble(d, false);
+        else if (d.pickup && dist(o, tg) < 0.6) { S.ball = { x: o.x + 0.8, y: o.y + 0.6 }; finishDribble(d, false); }
       };
       svg.addEventListener('pointerdown', (ev) => {
         if (S.busy || S.lost) return;
@@ -570,7 +598,7 @@
           S.pins[d.i] = true;
           S.beats.push({ type: 'move', i: d.i, d: moved, fromXY: d.from, endXY: { x: o.x, y: o.y } }); say(`${o.p.name.split(' ').slice(-1)[0]} moves.`);
           S.busy = true; await reactAnimated(); S.busy = false;
-          if (S.tackled) { S.lost = true; say(S.tackled.name.split(' ').slice(-1)[0] + ' wins it: the ball is lost. Undo, or start again.'); }
+          if (S.tackled) { S.lost = true; say(S.tackled.name.split(' ').slice(-1)[0] + ' wins it: the ball is lost. Undo, or end the scenario.'); }
           draw();
         } else if (d.kind === 'ball') {
           let to = null, bd = 3.2;
@@ -598,9 +626,21 @@
           S.beats.push({ type: 'pass', from: r.from, to: r.to, ok: r.ok, aerial: r.aerial, d: r.d, lane: r.lane, p: r.p, dy: e.y - h.y, fromXY: { x: h.x, y: h.y }, endXY: e });
           const who = (i) => S.own[i].p.name.split(' ').slice(-1)[0];
           if (r.ok) {
-            S.holder = r.to != null ? r.to : S.holder;
-            if (r.to != null) { S.ball = { x: S.own[r.to].x + 0.8, y: S.own[r.to].y + 0.6 }; }
-            else { S.ball = e; }
+            if (r.to == null) {
+              // into space: the nearest of his team-mates goes and gets it, with everyone else moving as they would
+              let rc = -1, bdist = Infinity;
+              S.own.forEach((q, k) => { if (k === r.from || (q.p.group === 'GK' && S.own[r.from].p.group !== 'GK')) return; const dd2 = dist(q, e); if (dd2 < bdist) { bdist = dd2; rc = k; } });
+              if (rc < 0) rc = S.holder;
+              S.holder = rc; S.ball = { x: e.x, y: e.y };
+              const who0 = (i) => S.own[i].p.name.split(' ').slice(-1)[0];
+              say(`${who0(r.from)} ${r.aerial ? 'plays it over the top' : 'passes'} into space, ${Math.round(r.d)} m. ${who0(rc)} goes to collect it.`);
+              const dd0 = { kind: 'move', i: rc, from: { x: S.own[rc].x, y: S.own[rc].y }, target: { x: e.x, y: e.y }, released: true, pickup: true, timer: null, snap: null };
+              S.busy = true; S.tackled = null;
+              dd0.timer = setInterval(() => dribbleTick(dd0), 100);
+              return;
+            }
+            S.holder = r.to;
+            S.ball = { x: S.own[r.to].x + 0.8, y: S.own[r.to].y + 0.6 };
             say(`${who(r.from)} ${r.aerial ? 'plays it over the top' : 'passes'} ${r.to != null ? 'to ' + who(r.to) : 'into space'}, ${Math.round(r.d)} m. It comes off.`);
             // the man it was meant for goes to the ball; the others stay where the manager put them
             if (r.to != null) { const o = S.own[r.to]; const tgt = { x: e.x, y: e.y }; o.x = tgt.x; o.y = tgt.y; }
@@ -608,10 +648,10 @@
             // the nearest of them on the line wins it (or it runs out of play)
             const win = (r.blocker && !r.blocker.own) ? r.blocker.o : S.opp.slice().sort((a, b) => dist(a, e) - dist(b, e))[0];
             S.lost = true; S.ball = { x: win.x, y: win.y };
-            say(`${who(r.from)} ${r.aerial ? 'tries it over the top' : 'tries a pass'}, but ${r.aerial ? 'it is not won' : (r.blocker && !r.blocker.own ? 'it is cut out by ' + win.p.name.split(' ').slice(-1)[0] : 'it does not reach him')}: the ball is lost. Undo, or start again.`);
+            say(`${who(r.from)} ${r.aerial ? 'tries it over the top' : 'tries a pass'}, but ${r.aerial ? 'it is not won' : (r.blocker && !r.blocker.own ? 'it is cut out by ' + win.p.name.split(' ').slice(-1)[0] : 'it does not reach him')}: the ball is lost. Undo, or end the scenario.`);
           }
           S.busy = true; await reactAnimated(); S.busy = false;
-          if (r.ok && S.tackled) { S.lost = true; say(S.tackled.name.split(' ').slice(-1)[0] + ' closes him down and wins it: the ball is lost. Undo, or start again.'); }
+          if (r.ok && S.tackled) { S.lost = true; say(S.tackled.name.split(' ').slice(-1)[0] + ' closes him down and wins it: the ball is lost. Undo, or end the scenario.'); }
           draw();
         }
       });
