@@ -438,8 +438,9 @@
     let wire = null;
     if (sel) {
       const plan = d.plans[sel.id], a = FM.abilityOf(sel), pot = FM.potentialOf(sel), age = FM.ageOf(sel);
-      const diag = FM.devDiagnose(league, sel), lessons = lessonsFor(sel);
-      const lessonId = dv.lesson[sel.id] && lessons.indexOf(dv.lesson[sel.id]) >= 0 ? dv.lesson[sel.id] : (plan && plan.active ? plan.lesson : diag.lesson);
+      const diag = FM.devDiagnose(league, sel);
+      // The problem the assistant has named is the one to investigate: there is nothing else to open (a passing problem is about passing).
+      const lessonId = plan && plan.active ? plan.lesson : (diag.lesson || lessonsFor(sel)[0]), lessons = [lessonId];
       const L = FM.LESSONS[lessonId], last = sel.name.split(' ').slice(-1)[0];
       const hist = d.hist[sel.id] || [];
       // 1. the problem
@@ -453,7 +454,7 @@
       } else if (diag.kind === 'attribute') view = `“I have no recorded decisions for him yet, but his ${esc(diag.attr === 'gk' ? 'goalkeeping' : diag.attr)} is below most players in his position. I would start there.”`;
       else view = '“Once he has played, I will have something to tell you.”';
       // 2. investigate: tabs for the lesson, then three layers of evidence
-      const tabs = `<div class="dv-tabs" role="tablist">${lessons.map((id) => `<button type="button" role="tab" data-dvl="${id}" class="${id === lessonId ? 'on' : ''}" aria-selected="${id === lessonId}">${esc(FM.LESSONS[id].area)}</button>`).join('')}</div>`;
+      const tabs = `<p class="dv-area"><b>${esc(FM.LESSONS[lessonId].area)}</b></p>`;
       const m = FM.devMeasure(league, sel, lessonId, plan && plan.active && plan.lesson === lessonId ? plan.startRound : null);
       let inv = '';
       if (!m) inv = '<p class="note">This lesson is about effort and match feel rather than one recorded decision, so there is no statistic to model. You can still teach it below.</p>';
