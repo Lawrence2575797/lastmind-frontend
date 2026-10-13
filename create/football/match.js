@@ -463,6 +463,8 @@
           const t = team.id + '|' + k + '|' + (sc ? FM.pageName(team, k, sc) : dl);
           match.pageTime[t] = (match.pageTime[t] || 0) + 1;
         });
+        // a page of the build-up is two diagrams, the goal kick and where it gets to: the start uses the page the end is on
+        team.pageNow.build = team.pageNow.buildEnd || null;
       }
     });
   }

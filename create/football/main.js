@@ -895,13 +895,16 @@
     const condOpts = (cur) => conds.map((c) => `<option value="${c.key}"${c.key === cur ? ' selected' : ''}>${esc(c.label)}</option>`).join('');
     // the starting diagrams: one fixed one, or one for each version of the end of the stage before (those are drawn on that stage's page)
     const prev = startDef.locked ? [{ id: null, label: 'Default page' }].concat(pagesOf(startDef.key)) : null;
-    const starts = prev
+    let starts = prev
       ? prev.map((pg) => ({ key: withKey(startDef.key, pg), locked: true, def: startDef, label: FM.pageName(team, startDef.key, pg.id ? pg : null) }))
       : [{ key: startDef.key, locked: false, def: startDef, label: null }];   // the goal kick is the start of the build-up, and is shown beside where it ends
     const ends = [{ id: null, label: dfl.label, cond: dfl.cond }].concat(pagesOf(endKey)).map((pg) => ({ key: withKey(endKey, pg), locked: false, def: endDef, pg }));
+    // The build-up: every page is two diagrams, the goal kick and where it gets to, shown side by side with the same name and condition.
+    const buildPages = tab === 'build';
+    if (buildPages) starts = ends.map((e) => ({ key: withKey('build', e.pg), locked: false, def: startDef, label: null, pgLink: e.pg }));
     // When a fixed start sits beside the end with its name and condition above it, the start carries an invisible copy of that row, so the two
     // diagrams begin at the same height.
-    const levelWithEnd = starts.length === 1 && ends.length === 1;
+    const levelWithEnd = buildPages || (starts.length === 1 && ends.length === 1);
     const holdHead = '<div class="scn-add-above" aria-hidden="true" style="visibility:hidden"><button type="button" tabindex="-1">+ Add a page</button></div><div class="scn-head" aria-hidden="true" style="visibility:hidden"><label>Page name <input type="text" tabindex="-1" disabled></label><label>Use this page when <select tabindex="-1" disabled><option>Otherwise</option></select></label><button type="button" class="scn-del-hold" tabindex="-1">Remove this page</button></div>' +
       '<p class="note scn-custom-note" aria-hidden="true" style="visibility:hidden">&nbsp;</p>';
     // the box where a condition is written in words, under the page's name and condition
@@ -941,7 +944,8 @@
     const startBox = (n) => (starts[n].locked ? '<div class="bp bp-spacer"></div>' : box(n));
     const loneStart = starts.length === 1 && ends.length >= 2;
     let html;
-    if (!starts.length) html = ends.length === 1 ? row(fig(ends, 0), 'solo') + row([box(0)], 'solo') : row(fig(ends, 0), 'ends-row') + row(ends.map((e, i) => box(i)));
+    if (buildPages) html = ends.map((e, i) => row([figure(starts[i], i), figure(ends[i], starts.length + i)], 'linked') + row([box(i), box(starts.length + i)])).join('');
+    else if (!starts.length) html = ends.length === 1 ? row(fig(ends, 0), 'solo') + row([box(0)], 'solo') : row(fig(ends, 0), 'ends-row') + row(ends.map((e, i) => box(i)));
     else if (starts.length === 1 && ends.length === 1) html = row(fig(all, 0), 'linked') + row([startBox(0), box(1)]);
     else if (loneStart) html = row(fig(starts, 0).concat(starts[0].locked ? [] : [box(0)])) + row(fig(ends, 1), 'ends-row') + row(ends.map((e, i) => box(1 + i)));
     else {
@@ -965,9 +969,9 @@
       const R = (el) => { const r = el.getBoundingClientRect(); return { l: r.left - o.left, t: r.top - o.top, r: r.right - o.left, b: r.bottom - o.top, cx: (r.left + r.right) / 2 - o.left, cy: (r.top + r.bottom) / 2 - o.top }; };
       let svg = '<defs><marker id="scnArr" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#F2C14E"/></marker></defs>';
       ends.forEach((e, j) => {
-        let i = 0;
-        if (e.pg.from && e.pg.from !== 'default') { const k = starts.findIndex((s) => s.key.slice(s.key.indexOf('#') + 1) === e.pg.from && s.key.indexOf('#') > 0); if (k >= 0) i = k; }
-        if (seenStart[i]) return; seenStart[i] = true;
+        let i = buildPages ? j : 0;
+        if (!buildPages && e.pg.from && e.pg.from !== 'default') { const k = starts.findIndex((s) => s.key.slice(s.key.indexOf('#') + 1) === e.pg.from && s.key.indexOf('#') > 0); if (k >= 0) i = k; }
+        if (!buildPages && seenStart[i]) return; seenStart[i] = true;
         const sf = figOf(i), ef = figOf(starts.length + j);
         if (!sf || !ef) return;
         const label = starts[i].label || pname(e.pg) || '';
@@ -1003,7 +1007,7 @@
         const positions = () => team.players.map((p) => ({ number: p.number, name: p.name, slot: p.slotKey || '', start: FM.phasePos(team, p, startKeyFor), end: FM.phasePos(team, p, endKeyFor) }));
         if (n < starts.length) {
           if (f.locked) return;   // a start that came from the stage before has no box of its own: that stage's end page has it
-          FM.renderInstructions(at, team, instr.hooks, { stage: instr.stage, part: 'start', fromId: null, title: 'Instructions: the start', applies: 'applies to the first part of this stage', positions });
+          FM.renderInstructions(at, team, instr.hooks, { stage: instr.stage, part: 'start', fromId: null, pageId: buildPages ? (f.pgLink.id || 'default') : undefined, title: buildPages && ends.length > 1 ? 'Instructions: the start of ' + pname(f.pgLink) : 'Instructions: the start', applies: 'applies to the first part of this stage', positions });
         } else {
           const pgId = f.pg.id || 'default';
           FM.renderInstructions(at, team, instr.hooks, { stage: instr.stage, part: 'end', pageId: pgId, pageLabel: ends.length > 1 ? pname(f.pg) : null, title: ends.length > 1 ? 'Instructions: ' + pname(f.pg) : 'Instructions: the end', applies: ends.length > 1 ? 'applies to the end of this stage, on this page only' : 'applies to the end of this stage', positions });
@@ -1017,7 +1021,7 @@
     host.querySelectorAll('[data-def-cond]').forEach((sel) => sel.addEventListener('change', () => { dfl.cond = sel.value; saveSoon(); renderTactics(); }));
     host.querySelectorAll('[data-add-after]').forEach((addBtn) => addBtn.addEventListener('click', () => {
       team.pages[endKey] = team.pages[endKey] || [];
-      if (starts.length > 1) {
+      if (starts.length > 1 && !buildPages) {
         // a page that follows this start diagram: it is used when the stage before ended there and whatever is written for it holds
         team.pages[endKey].push({ id: 's' + Date.now().toString(36), label: 'Another page', cond: 'from_prev', from: addBtn.dataset.addAfter, extra: 'custom', custom: null, added: true });
         saveSoon(); renderTactics(); return;
@@ -1099,6 +1103,7 @@
       const k = endKey + '#' + id;
       if (team.phasePos) delete team.phasePos[k];
       if (team.phaseBall) delete team.phaseBall[k];
+      if (buildPages) { const sk = 'build#' + id; if (team.phasePos) delete team.phasePos[sk]; if (team.phaseBall) delete team.phaseBall[sk]; }
       saveSoon(); renderTactics();
     }));
     world.redrawBoards = draw;
@@ -1497,7 +1502,8 @@
   }
   // The condition a page applies under (a linked page takes the condition of the page it follows).
   function pageCondOf(key) {
-    const team = userTeam(), base = FM.baseKey(key), sfx = FM.scnSuffix(key);
+    const team = userTeam(), base0 = FM.baseKey(key), sfx = FM.scnSuffix(key);
+    const base = base0 === 'build' ? 'buildEnd' : base0;   // a page of the build-up has the goal kick as its start and the end beside it
     if (!team || FM.PAGE_ENDS.indexOf(base) < 0) return 'always';
     FM.ensurePages(team);
     const pg = sfx ? (team.pages[base] || []).find((x) => x.id === sfx.slice(1)) : (team.pageDefaults || {})[base];
