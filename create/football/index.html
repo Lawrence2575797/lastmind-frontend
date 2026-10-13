@@ -154,6 +154,11 @@
   .mp-choices { display:grid; gap:10px; } .mp-choices button { text-align:left; padding:14px 16px; border-radius:12px; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.05); color:inherit; font:inherit; cursor:pointer; display:grid; gap:4px; } .mp-choices button:hover { border-color:var(--fm-gold,#f1c04f); } .mp-choices span { opacity:.75; font-size:.88rem; }
   .mp-view { display:grid; gap:16px; } .mp-code { display:flex; align-items:center; gap:14px; flex-wrap:wrap; } .mp-code span { opacity:.7; } .mp-code b { font:800 1.9rem var(--sans, system-ui); letter-spacing:.18em; color:var(--fm-gold,#f1c04f); }
   .mp-in { color:#7fd69a; font-weight:700; } .mp-wait { color:#f1c04f; } .mp-ai { opacity:.65; }
+  .scn2 { display:grid; gap:14px; } .scn2-head h2 { margin:0 0 6px; } .scn2-body { display:grid; grid-template-columns:minmax(320px,520px) minmax(260px,1fr); gap:20px; align-items:start; }
+  .scn2-pitch { border-radius:12px; overflow:hidden; border:1px solid rgba(255,255,255,.12); touch-action:none; } .scn2-pitch svg { display:block; width:100%; height:auto; user-select:none; -webkit-user-select:none; }
+  .scn2-card { padding:16px 18px; border-radius:14px; background:var(--fm-surface,#17231f); border:1px solid rgba(255,255,255,.08); display:grid; gap:10px; margin-bottom:12px; } .scn2-card h3 { margin:0; font-size:1.05rem; }
+  .scn2-help { margin:0; padding-left:18px; display:grid; gap:6px; line-height:1.45; } .scn2-stats { opacity:.8; font-size:.9rem; } .scn2-say { margin:0; min-height:2.6em; font-weight:600; } .scn2-last { margin:0; }
+  @media (max-width:900px) { .scn2-body { grid-template-columns:1fr; } }
   .cap-badge { display:inline-block; min-width:18px; padding:0 5px; border-radius:4px; background:var(--fm-gold,#f1c04f); color:#14181a; font-weight:800; font-size:.72rem; text-align:center; }
   .cap-line { margin:8px 0 0; font-size:.9rem; } .cap-make { padding:5px 10px; border-radius:8px; border:1px solid rgba(241,192,79,.5); background:transparent; color:inherit; font:inherit; cursor:pointer; } .cap-make:hover { background:rgba(241,192,79,.14); }
   .cap-modal { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(6,12,10,.72); backdrop-filter: blur(3px); } .cap-modal .cap-intro { width: min(520px, 100%); margin: 0; padding: 22px 24px; box-shadow: 0 24px 70px rgba(0,0,0,.5); } .cap-modal .cap-intro p { font-size: 1.08rem; } .cap-modal .cap-intro-ok { justify-self: end; background: var(--gold, #f1c04f); color: #14181a; border-color: transparent; font-weight: 700; }
@@ -894,7 +899,7 @@
 <script src="/create/football/roles.js?v=20261010c"></script>
 <script src="/create/football/ratings.js?v=20261010c"></script>
 <script src="/create/football/names.js?v=20261010c"></script>
-<script src="/create/football/engine.js?v=20261031o"></script>
+<script src="/create/football/engine.js?v=20261102b"></script>
 <script src="/create/football/rules.js?v=20261014c"></script>
 <script src="/create/football/instructions.js?v=20261010c"></script>
 <script src="/create/football/fitness.js?v=20261010c"></script>
@@ -921,7 +926,8 @@
 <script src="/create/football/development.js?v=20261029a"></script>
 <script src="/create/football/form.js?v=20261029a"></script>
 <script src="/create/football/cases.js?v=20261028a"></script>
-<script src="/create/football/multiplayer.js?v=20261101b"></script>
-<script src="/create/football/main.js?v=20261031n"></script>
+<script src="/create/football/scenario.js?v=20261102d"></script>
+<script src="/create/football/multiplayer.js?v=20261102b"></script>
+<script src="/create/football/main.js?v=20261102b"></script>
 </body>
 </html>

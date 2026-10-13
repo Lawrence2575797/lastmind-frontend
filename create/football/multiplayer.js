@@ -81,11 +81,12 @@
     }
     FM.finishFixture(league, fx, match);
   }
-  FM.mpResolve = async function (league, round, plans) {
+  FM.mpResolve = async function (league, round, plans, seatedIds) {
     const mp = league.mp, me = league.userId, ids = Object.keys(plans || {});
     ids.forEach((id) => { const t = FM.teamById(league, id); if (t) FM.mpApplyPlan(t, plans[id].plan || plans[id]); });
     const keepHuman = league.humanIds, keepWatch = league.watchIds;
-    league.humanIds = ids; league.watchIds = [me]; league.userId = mp.hostTeam;
+    // every seated manager's club is left to its manager's plan: one who did not hand one in plays on with their last plan (or the club as it stands)
+    league.humanIds = Array.from(new Set(ids.concat(seatedIds || []))); league.watchIds = [me]; league.userId = mp.hostTeam;
     const out = [];
     try {
       if (mp.kind === 'league') advanceToRound(league, round);
@@ -100,6 +101,15 @@
     return out;
   };
 
+  // The plans for a round, with a last plan standing in for any manager who did not hand one in: the latest they ever did hand in.
+  function withLast(state, round) {
+    const out = Object.assign({}, state.plans[String(round)] || {});
+    Object.keys(state.seats || {}).forEach((t) => {
+      if (out[t]) return;
+      for (let r = round - 1; r >= 0; r--) { const p = state.plans[String(r)] && state.plans[String(r)][t]; if (p) { out[t] = p; break; } }
+    });
+    return out;
+  }
   // One go round the loop: fetch, catch up on rounds played elsewhere, play the current one if everybody is in. Returns what changed.
   FM.mpSync = async function (league, opts) {
     const mp = league.mp;
@@ -117,15 +127,16 @@
     let changed = false;
     // rounds the others have already played: play them here too, with the plans that were handed in
     while (mp.localRound < g.state.round) {
-      await FM.mpResolve(league, mp.localRound, g.state.plans[String(mp.localRound)] || {});
+      await FM.mpResolve(league, mp.localRound, withLast(g.state, mp.localRound), Object.keys(g.state.seats));
       mp.localRound++; changed = true;
     }
     // the round being waited for: everybody seated has handed their plan in, or the host chooses to go on
     const key = String(g.state.round), handed = g.state.plans[key] || {}, seated = Object.keys(g.state.seats);
     const everyone = seated.length > 0 && seated.every((t) => handed[t]);
-    const ready = (g.state.kind === 'match' ? seated.length === 2 : true) && (everyone || (opts && opts.force && g.host));
+    const idle = Date.now() - Date.parse(g.state.roundAt || 0) > 24 * 60 * 60 * 1000 && !!g.state.roundAt;
+    const ready = (g.state.kind === 'match' ? seated.length === 2 : true) && (everyone || idle || (opts && opts.force && g.host));
     if (!g.state.finished && ready && mp.localRound === g.state.round) {
-      const scores = await FM.mpResolve(league, g.state.round, handed);
+      const scores = await FM.mpResolve(league, g.state.round, withLast(g.state, g.state.round), seated);
       mp.localRound++; changed = true;
       try { const after = await call('played', { code: mp.code, round: g.state.round, scores, force: !everyone }); if (after && after.state) mp.state = after.state; } catch (e) { /* another browser got there first: the next poll shows it */ }
     }

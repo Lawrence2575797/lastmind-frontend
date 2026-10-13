@@ -304,6 +304,9 @@
     return { d: clamp(d, 0.02, 0.97), w: clamp(w, 0.04, 0.96) };
   };
   FM.phasePos = function (team, p, phase) {
+    // what the manager showed in a scenario (see scenario.js) is where that phase ended, and so where the next one starts
+    const sc = team.scenarioEnd && team.scenarioEnd[FM.baseKey(phase)];
+    if (sc && sc[p.index] && !(team.phasePos && team.phasePos[phase] && team.phasePos[phase][p.index])) return { d: sc[p.index].d, w: sc[p.index].w };
     if (FM.baseKey(phase) === 'buildEnd') return FM.buildEndPos(team, p, phase);
     const man = team.phasePos && team.phasePos[phase] && team.phasePos[phase][p.index];
     if (man) return man;

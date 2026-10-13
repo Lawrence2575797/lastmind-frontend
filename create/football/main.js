@@ -577,7 +577,13 @@
     else if (v === 'squad') renderSquad();
     else if (v === 'develop') FM.renderDevelop(el('view-develop'), world.league, { save: saveSoon });
     else if (v === 'recruit') FM.renderRecruit(el('view-recruit'), world.league, { save: saveSoon, openSquad: () => setView('squad') });
-    else if (v === 'analysis') FM.renderAnalysis(el('view-analysis'), world.league);
+    else if (v === 'analysis') {
+      const av = el('view-analysis');
+      FM.renderAnalysis(av, world.league);
+      // the opposition report comes first: it is what the preparation is for
+      const oppBox = document.createElement('div'); oppBox.id = 'analysisOpp'; av.insertBefore(oppBox, av.firstChild);
+      try { FM.renderReports(oppBox, world.league); } catch (e) { oppBox.remove(); }
+    }
     else if (v === 'reports') FM.renderReports(el('view-reports'), world.league);
     else if (v === 'news') FM.renderNews(el('view-news'), world.league);
     else if (v === 'preview') renderPreview();
@@ -1244,9 +1250,19 @@
     if (world.testing) renderTestPhase(team, world.tab);
     else if (world.tab === 'setpieces') renderSetPieces(team);
     else if (world.tab === 'transdef' || world.tab === 'transatt') renderTransitionTab(team, world.tab);
+    else if (['build', 'midfield', 'final'].indexOf(world.tab) >= 0 && FM.renderScenario && nextOpponent()) renderScenarioTab(team, world.tab);
     else renderBoardTab(team, world.tab);
   }
 
+  // Build-up, through midfield and the final third are prepared by showing the phase against the opposition (see scenario.js).
+  function renderScenarioTab(team, tab) {
+    const host = el('tabBody');
+    host.innerHTML = '<div id="scnHost"></div><div id="scnInstr"></div>';
+    world.scn = world.scn || {};
+    FM.renderScenario(host.querySelector('#scnHost'), team, nextOpponent(), tab, { store: world.scn, save: saveSoon, applied: () => { FM.inferShapeTactics(team); renderPrepFlow(); } });
+    const ph = FM.SCENARIO_PHASES[tab];
+    FM.renderInstructions(host.querySelector('#scnInstr'), team, { save: saveSoon, opp: nextOpponent() }, { stage: ph.stage, title: 'Anything else you want to tell them', applies: 'applies to this phase' });
+  }
   function renderTransitionTab(team, tab) {
     const host = el('tabBody'), defensive = tab === 'transdef', key = defensive ? 'transDefChoices' : 'transAttChoices';
     // each third of the pitch, with the diagram of the team's set-up for that part of the game beside the choice (small, and not editable here)
