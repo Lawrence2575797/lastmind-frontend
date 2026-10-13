@@ -337,6 +337,57 @@
     return { text: `You showed ${snaps.length} set-up${snaps.length === 1 ? '' : 's'}, ${zones.length ? 'for the ball ' + zones.join(', ') : ''}. The team will now defend with ${line > 0.4 ? 'a high' : line > 0.26 ? 'a middling' : 'a deep'} line, ${press >= 2.5 ? 'press the ball hard' : press >= 1.4 ? 'close the ball down with a couple of players' : 'sit off and let the ball come'}, and stand ${sd > 15 ? 'wide' : sd < 11 ? 'narrow and compact' : 'at a normal width'}. The positions you set for each part of the pitch are the ones it takes up.` };
   };
 
+
+  // ---------- the first-time demonstration ----------
+  // A short looping picture of what the cursor does here: drag the ball to pass it, drag a player to move him, with the other side reacting.
+  FM.scenarioDemo = function () {
+    const old = document.getElementById('scnDemo'); if (old) old.remove();
+    const T = [0, 0.6, 1.0, 2.2, 2.8, 3.2, 5.0, 6.4, 7.4, 8].map((t) => +(t / 8).toFixed(4)).join(';');
+    const anim = (attr, vals) => `<animate attributeName="${attr}" dur="8s" repeatCount="indefinite" keyTimes="${T}" values="${vals.join(';')}"/>`;
+    // positions at the ten key times
+    const cur = { x: [150, 108, 108, 62, 62, 62, 62, 62, 150, 150], y: [252, 232, 232, 192, 192, 192, 138, 138, 252, 252] };
+    const ball = { x: [108, 108, 108, 66, 66, 66, 66, 66, 108, 108], y: [232, 232, 232, 192, 192, 192, 138, 138, 232, 232] };
+    const cb = { x: [60, 60, 60, 60, 60, 60, 60, 60, 60, 60], y: [190, 190, 190, 190, 190, 190, 136, 136, 190, 190] };
+    const oa = { x: [80, 80, 80, 80, 80, 80, 74, 74, 80, 80], y: [120, 120, 120, 120, 120, 120, 134, 134, 120, 120] };
+    const ob = { x: [120, 120, 120, 120, 120, 120, 112, 112, 120, 120], y: [118, 118, 118, 118, 118, 118, 130, 130, 118, 118] };
+    const moving = (p, fill) => `<circle r="7" fill="${fill}" stroke="#fff" stroke-width="1.4">${anim('cx', p.x)}${anim('cy', p.y)}</circle>`;
+    const still = (x, y, fill) => `<circle cx="${x}" cy="${y}" r="7" fill="${fill}" stroke="#fff" stroke-width="1.4"/>`;
+    const svg = `<svg viewBox="0 0 200 284" role="img" aria-label="A cursor drags the ball to a centre-back to pass it, then drags him forward while the opposition shift">
+      <rect x="0" y="0" width="200" height="262" rx="8" fill="#2d7a3c"/>
+      <rect x="0" y="0" width="200" height="262" rx="8" fill="none" stroke="#e8efe6" stroke-opacity=".7"/>
+      <line x1="0" y1="86" x2="200" y2="86" stroke="#e8efe6" stroke-opacity=".6"/><circle cx="100" cy="86" r="22" fill="none" stroke="#e8efe6" stroke-opacity=".6"/>
+      <rect x="45" y="210" width="110" height="52" fill="none" stroke="#e8efe6" stroke-opacity=".6"/><rect x="72" y="236" width="56" height="26" fill="none" stroke="#e8efe6" stroke-opacity=".6"/>
+      ${still(100, 242, '#c0392b')}${still(150, 188, '#c0392b')}${still(100, 160, '#c0392b')}${still(40, 140, '#c0392b')}${still(160, 140, '#c0392b')}
+      ${moving(cb, '#c0392b')}
+      ${moving(oa, '#f1c04f')}${moving(ob, '#f1c04f')}${still(100, 80, '#f1c04f')}${still(45, 96, '#f1c04f')}${still(155, 96, '#f1c04f')}
+      <line x1="104" y1="238" x2="66" y2="192" stroke="#fff" stroke-width="2" stroke-dasharray="4 5" opacity="0">
+        ${anim('x2', ball.x)}${anim('y2', ball.y)}${anim('opacity', [0, 0, 1, 1, 0, 0, 0, 0, 0, 0])}
+      </line>
+      <circle r="4" fill="#fff" stroke="#000" stroke-width="1">${anim('cx', ball.x)}${anim('cy', ball.y)}</circle>
+      <g><path d="M0 0 L0 15 L4 11 L7 17 L10 15.5 L7 10 L12 10 Z" fill="#fff" stroke="#111" stroke-width="1.1" stroke-linejoin="round"/>
+        <animateTransform attributeName="transform" type="translate" dur="8s" repeatCount="indefinite" keyTimes="${T}" values="${cur.x.map((x, i) => x + ' ' + cur.y[i]).join(';')}"/></g>
+      <text x="100" y="278" text-anchor="middle" font-size="11" font-weight="700" fill="#f4edda">Drag the ball to pass it${anim('opacity', [0, 1, 1, 1, 0, 0, 0, 0, 0, 0])}</text>
+      <text x="100" y="278" text-anchor="middle" font-size="11" font-weight="700" fill="#f4edda">Drag a player to move him${anim('opacity', [0, 0, 0, 0, 1, 1, 1, 1, 0, 0])}</text>
+    </svg>`;
+    const wrap = document.createElement('div');
+    wrap.id = 'scnDemo'; wrap.className = 'cap-modal';
+    wrap.innerHTML = `<div class="card scn-demo" role="dialog" aria-modal="true" aria-label="How the scenario works">
+        <h3>Show the team how to play it</h3>
+        <div class="scn-demo-pic">${svg}</div>
+        <ul>
+          <li><b>Drag the ball</b> to where you want it to go and let go: that is the pass. Over an opponent on the way, it is in the air.</li>
+          <li><b>Drag a player</b> to move him. With the ball, he dribbles, and can be tackled.</li>
+          <li>The other side reacts as you play. When the ball is carried or passed beyond the halfway line, this phase is done.</li>
+        </ul>
+        <div class="row" style="justify-content:flex-end"><button type="button" class="cap-intro-ok" id="scnDemoOk">Got it</button></div>
+      </div>`;
+    document.body.appendChild(wrap);
+    const close = () => { wrap.remove(); try { localStorage.setItem('lm_football_scn_demo_seen_v1', '1'); } catch (e) { /* fine */ } };
+    wrap.querySelector('#scnDemoOk').addEventListener('click', close);
+    wrap.addEventListener('click', (ev) => { if (ev.target === wrap) close(); });
+  };
+  FM.scenarioDemoSeen = () => { try { return localStorage.getItem('lm_football_scn_demo_seen_v1') === '1'; } catch (e) { return true; } };
+
   // ---------- drawing ----------
   function pitchSvg() {
     const X = (m) => (m * PS).toFixed(1), Y = (m) => ((L - m) * PS).toFixed(1), ln = 'stroke="rgba(255,255,255,.8)" stroke-width="1.6" fill="none"';
@@ -407,7 +458,7 @@
               <div class="row"><button id="scnUndo"${S.beats.length ? '' : ' disabled'}>Undo</button><button id="scnReset">End scenario</button></div>
               <div class="row"><button class="primary" id="scnFinish">Use this${ph.next ? ' and go on to ' + esc(ph.next.toLowerCase()) : ''}</button></div></div>`
             : `<div class="scn2-card"><h3>${ph.defend ? 'Show the team how to defend' : 'Show the team how to play it'}</h3><p class="desc">${ph.defend ? `${esc(opp.name)} start with the ball at their goalkeeper and build up against you. You set your team as they bring it up, and press when they have it deep. They play as they play in a match, and from what you show LastMind works out how the team defends.` : `You will take the ball from the ${phase === 'build' ? 'goalkeeper' : 'man on it'} and play the phase out against ${esc(opp.name)}. They react to every move the way they play. From what you show, LastMind works out how the team plays this phase.`}</p>
-              ${S && S.carried ? `<p class="desc">This starts where the last phase ended: ${esc(S.own[S.holder].p.name.split(' ').slice(-1)[0])} has the ball and your players stand where they finished.</p>` : ''}<p class="desc"><b>Drag your players into position first.</b> ${esc(opp.name)} hold their shape until you start${phase === 'build' ? ', and cannot come into the box before the ball is played' : ''}.</p><div class="row"><button class="primary" id="scnStart">Start scenario</button></div></div>`}
+              ${S && S.carried ? `<p class="desc">This starts where the last phase ended: ${esc(S.own[S.holder].p.name.split(' ').slice(-1)[0])} has the ball and your players stand where they finished.</p>` : ''}<p class="desc"><b>Drag your players into position first.</b> ${esc(opp.name)} hold their shape until you start${phase === 'build' ? ', and cannot come into the box before the ball is played' : ''}.</p><div class="row"><button class="primary" id="scnStart">Start scenario</button><button id="scnHow">How this works</button></div></div>`}
             ${S && S.finished ? `<div class="scn2-card"><h3>What it learned</h3><p class="desc">${esc(S.learned || '')}</p></div>` : ''}
           </div>
         </div></div>`;
@@ -510,6 +561,8 @@
     }
     function wire() {
       const q = (s) => host.querySelector(s);
+      const how = q('#scnHow');
+      if (how) how.addEventListener('click', () => FM.scenarioDemo());
       const start = q('#scnStart');
       if (start) start.addEventListener('click', () => {
         S.started = true;
@@ -780,5 +833,7 @@
       });
     }
     draw();
+    // the first time anyone meets the build-up page, a short demonstration of what the cursor does
+    if (phase === 'build' && FM.scenarioDemo && !FM.scenarioDemoSeen()) FM.scenarioDemo();
   };
 })();

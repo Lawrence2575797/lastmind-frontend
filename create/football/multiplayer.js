@@ -134,7 +134,7 @@
     const key = String(g.state.round), handed = g.state.plans[key] || {}, seated = Object.keys(g.state.seats);
     const everyone = seated.length > 0 && seated.every((t) => handed[t]);
     const idle = Date.now() - Date.parse(g.state.roundAt || 0) > 24 * 60 * 60 * 1000 && !!g.state.roundAt;
-    const ready = (g.state.kind === 'match' ? seated.length === 2 : true) && (everyone || idle || (opts && opts.force && g.host));
+    const ready = (g.state.kind === 'match' ? seated.length === 2 : true) && (everyone || idle);
     if (!g.state.finished && ready && mp.localRound === g.state.round) {
       const scores = await FM.mpResolve(league, g.state.round, withLast(g.state, g.state.round), seated);
       mp.localRound++; changed = true;
@@ -193,7 +193,7 @@
         ${cta}
         <div class="row">
           ${finished ? '' : `<button class="primary" id="mpSubmit">${yourIn ? 'Hand in my plan again' : 'Lock in my plan'}</button><button id="mpPrepare">Prepare my team</button>`}
-          ${!finished && !isMatch && seated.length > 0 && yourIn && waiting.length && mp.hostTeam === you ? '<button id="mpForce">Play the round without waiting</button>' : ''}
+          
           <button id="mpRefresh">Check for news</button>
         </div>
         <p class="err" id="mpErr"></p>
@@ -217,14 +217,13 @@
       if (host.isConnected) FM.renderMp(host, league, hooks);
     });
     const prep = q('#mpPrepare'); if (prep) prep.addEventListener('click', () => hooks && hooks.prepare && hooks.prepare());
-    const force = q('#mpForce'); if (force) force.addEventListener('click', () => { if (confirm('Play the round now? The clubs whose managers have not handed in a plan will be run by the computer.')) refresh({ force: true }); });
     // look for news while this screen is open
     if (host._mpTimer) clearInterval(host._mpTimer);
     if (!finished) host._mpTimer = setInterval(() => { if (!host.isConnected || host.hidden) { clearInterval(host._mpTimer); return; } refresh(); }, 6000);
   };
 
   // ---------- starting or joining a game, from the start screen ----------
-  FM.mpMenu = function (hooks) {
+  FM.mpMenu = function (hooks, first) {
     const old = document.getElementById('mpModal'); if (old) old.remove();
     const wrap = document.createElement('div');
     wrap.id = 'mpModal'; wrap.className = 'mp-modal';
@@ -300,6 +299,6 @@
         } catch (e) { look.disabled = false; msg.innerHTML = needSignIn(e); }
       });
     };
-    home();
+    ({ league: () => create('league'), match: () => create('match'), join }[first] || home)();
   };
 })();

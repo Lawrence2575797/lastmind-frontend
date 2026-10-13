@@ -147,6 +147,7 @@
   .lo-ins { display: grid; gap: 12px; } .lo-card { padding: 14px 16px; border-radius: 12px; background: rgba(255,255,255,.05); border-left: 3px solid var(--gold, #f1c04f); } .lo-card p { margin: 6px 0; line-height: 1.5; } .lo-cost { opacity: .85; } .lo-cost em { font-style: normal; font-weight: 700; }
   .lab-outcome.rv-anim .rv { opacity: 0; transform: translateY(10px); animation: rvIn .7s ease forwards; animation-delay: calc(var(--i) * .85s); }
   @keyframes rvIn { to { opacity: 1; transform: none; } } @media (prefers-reduced-motion: reduce) { .lab-outcome.rv-anim .rv { animation: none; opacity: 1; transform: none; } }
+  .ng-modes { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:14px; margin-top:12px; } .ng-mode { border:1px solid rgba(244,237,218,.16); border-radius:12px; padding:14px 16px; display:grid; gap:10px; align-content:start; background:rgba(255,255,255,.03); } .ng-mode h3 { margin:0; font-size:1.05rem; } #ngResume a { color: var(--gold, #f1c04f); font-weight: 700; }
   .mp-or { display:flex; align-items:center; gap:12px; margin:18px 0 6px; opacity:.6; } .mp-or::before, .mp-or::after { content:''; flex:1; height:1px; background:currentColor; opacity:.4; }
   .mp-modal { position:fixed; inset:0; z-index:1100; display:grid; place-items:center; padding:20px; background:rgba(6,12,10,.74); backdrop-filter:blur(3px); }
   .mp-box { width:min(520px,100%); max-height:90vh; overflow:auto; padding:22px 24px; border-radius:16px; background:var(--fm-surface,#17231f); border:1px solid rgba(255,255,255,.12); box-shadow:0 24px 70px rgba(0,0,0,.5); display:grid; gap:12px; }
@@ -161,6 +162,7 @@
   @media (max-width:900px) { .scn2-body { grid-template-columns:1fr; } }
   .cap-badge { display:inline-block; min-width:18px; padding:0 5px; border-radius:4px; background:var(--fm-gold,#f1c04f); color:#14181a; font-weight:800; font-size:.72rem; text-align:center; }
   .cap-line { margin:8px 0 0; font-size:.9rem; } .cap-make { padding:5px 10px; border-radius:8px; border:1px solid rgba(241,192,79,.5); background:transparent; color:inherit; font:inherit; cursor:pointer; } .cap-make:hover { background:rgba(241,192,79,.14); }
+  .scn-demo { width: min(560px, 100%); margin: 0; padding: 20px 22px; box-shadow: 0 24px 70px rgba(0,0,0,.5); display: grid; gap: 12px; max-height: 92vh; overflow: auto; } .scn-demo h3 { margin: 0; } .scn-demo-pic { display: grid; place-items: center; } .scn-demo-pic svg { width: min(230px, 62vw); height: auto; } .scn-demo .cap-intro-ok { background: var(--gold, #f1c04f); color: #14181a; border-color: transparent; font-weight: 700; } .scn-demo ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: .95rem; }
   .cap-modal { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(6,12,10,.72); backdrop-filter: blur(3px); } .cap-modal .cap-intro { width: min(520px, 100%); margin: 0; padding: 22px 24px; box-shadow: 0 24px 70px rgba(0,0,0,.5); } .cap-modal .cap-intro p { font-size: 1.08rem; } .cap-modal .cap-intro-ok { justify-self: end; background: var(--gold, #f1c04f); color: #14181a; border-color: transparent; font-weight: 700; }
   .cap-intro { display:grid; gap:10px; margin-bottom:16px; border-left:3px solid var(--fm-gold,#f1c04f); } .cap-intro p { margin:0; font-size:1.02rem; line-height:1.55; } .cap-intro-who { display:flex; align-items:center; gap:10px; } .cap-intro-who small { display:block; opacity:.7; } .cap-intro-ok { justify-self:start; padding:8px 14px; border-radius:8px; border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.06); color:inherit; font:inherit; cursor:pointer; }
   .player-profile { grid-template-columns:180px minmax(260px,.8fr) minmax(300px,1.2fr); align-items:center; margin-bottom:16px; background:radial-gradient(circle at 12% 10%,rgba(82,189,123,.2),transparent 35%),var(--fm-surface); }
@@ -818,17 +820,36 @@
   <div class="prep-flow" id="prepFlow" hidden aria-label="Match preparation workflow"></div>
 
   <section id="newGame" class="card" hidden>
-    <h2>New season</h2>
-    <p class="desc">Take charge of a club. Read the match, shape the tactics and see what happens.</p>
-    <div style="display:grid;gap:10px">
-      <h2>What level do you want to learn at?</h2>
-      <label class="radio"><input type="radio" name="tier" value="gcse" checked> <span><b>GCSE</b></span></label>
-      <label class="radio"><input type="radio" name="tier" value="alevel"> <span><b>A-level</b></span></label>
-      <label class="radio"><input type="radio" name="tier" value="above"> <span><b>Beyond A-level</b></span></label>
+    <h2>How do you want to play?</h2>
+    <p class="note" id="ngResume" hidden>You already have a game going. <a href="/create/football/">Resume it</a>, or start something new below (a new game replaces the saved one).</p>
+    <div class="ng-modes">
+      <div class="ng-mode">
+        <h3>A season on your own</h3>
+        <p class="desc">Take charge of a club in an eight-club league. Read the match, shape the tactics and see what happens. The other clubs are run by the computer.</p>
+        <div style="display:grid;gap:6px">
+          <b>What level do you want to learn at?</b>
+          <label class="radio"><input type="radio" name="tier" value="gcse" checked> <span>GCSE</span></label>
+          <label class="radio"><input type="radio" name="tier" value="alevel"> <span>A-level</span></label>
+          <label class="radio"><input type="radio" name="tier" value="above"> <span>Beyond A-level</span></label>
+        </div>
+        <div class="row"><button class="primary" id="ngStart" style="flex:0 0 auto">Start the season</button></div>
+      </div>
+      <div class="ng-mode">
+        <h3>A league with friends</h3>
+        <p class="desc">Eight clubs, fourteen rounds. Each friend takes a club and prepares in their own time; clubs with nobody in charge are run by the computer. You send them a game code.</p>
+        <div class="row"><button id="ngLeague" style="flex:0 0 auto">Start a league game</button></div>
+      </div>
+      <div class="ng-mode">
+        <h3>A one-off match with a friend</h3>
+        <p class="desc">Two managers each pick a club, prepare, and play each other once.</p>
+        <div class="row"><button id="ngMatch" style="flex:0 0 auto">Play a one-off match</button></div>
+      </div>
+      <div class="ng-mode">
+        <h3>Join a friend's game</h3>
+        <p class="desc">Somebody has sent you a game code.</p>
+        <div class="row"><button id="ngJoin" style="flex:0 0 auto">Join with a code</button></div>
+      </div>
     </div>
-    <div class="row"><button class="primary" id="ngStart" style="flex:0 0 auto">Start the season</button></div>
-    <div class="mp-or"><span>or</span></div>
-    <div class="row"><button id="ngMulti" style="flex:0 0 auto">Play with other managers</button><span class="note">Start or join a league game, or a one-off match, with a game code.</span></div>
   </section>
 
   <section id="view-home" hidden></section>
@@ -926,8 +947,8 @@
 <script src="/create/football/development.js?v=20261029a"></script>
 <script src="/create/football/form.js?v=20261029a"></script>
 <script src="/create/football/cases.js?v=20261028a"></script>
-<script src="/create/football/scenario.js?v=20261103r"></script>
-<script src="/create/football/multiplayer.js?v=20261102b"></script>
-<script src="/create/football/main.js?v=20261103d"></script>
+<script src="/create/football/scenario.js?v=20261103s"></script>
+<script src="/create/football/multiplayer.js?v=20261103c"></script>
+<script src="/create/football/main.js?v=20261103f"></script>
 </body>
 </html>

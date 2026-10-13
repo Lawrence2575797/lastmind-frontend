@@ -1895,9 +1895,10 @@
     el('tactics').hidden = true; el('nav').hidden = true; el('prepFlow').hidden = true; el('newGame').hidden = false;
     el('topRight').innerHTML = ''; el('subtitle').textContent = 'Eight clubs, one season, and a lot of numbers.';
   }
-  el('ngMulti').addEventListener('click', () => {
-    FM.mpMenu({ start: (league) => { world.league = league; world.match = null; FM.saveLeague(league); if (FM.ensurePreseasonNews) FM.ensurePreseasonNews(league); setView('mp'); } });
-  });
+  const openMp = (first) => FM.mpMenu({ start: (league) => { world.league = league; world.match = null; FM.saveLeague(league); if (FM.ensurePreseasonNews) FM.ensurePreseasonNews(league); try { history.replaceState(null, '', location.pathname); } catch (e) { /* fine */ } setView('mp'); } }, first);
+  el('ngLeague').addEventListener('click', () => openMp('league'));
+  el('ngMatch').addEventListener('click', () => openMp('match'));
+  el('ngJoin').addEventListener('click', () => openMp('join'));
   el('ngStart').addEventListener('click', async () => {
     const btn = el('ngStart'), tier = document.querySelector('input[name="tier"]:checked').value;
     btn.disabled = true; btn.textContent = 'Setting up the clubs...';
@@ -1909,12 +1910,16 @@
     await FM.playFriendlies(world.league, (i, n) => { btn.textContent = 'Playing pre-season friendlies (' + i + ' of ' + n + ')...'; });
     FM.saveLeague(world.league);
     btn.disabled = false; btn.textContent = 'Start the season';
+    try { history.replaceState(null, '', location.pathname); } catch (e) { /* fine */ }
     setView('squad');
   });
 
   window.FM_WORLD = world; // debug handle for the console
   window.addEventListener('resize', resize);
   world.league = FM.loadLeague();
+  // "New project" comes here with ?new=1: the set-up choices, even when a game is saved (resuming is what Your projects is for)
+  const wantsNew = /[?&]new=1/.test(location.search);
+  if (world.league && wantsNew) { el('ngResume').hidden = false; world.league = null; showNewGame(); requestAnimationFrame(frame); return; }
   if (world.league) {
     if (FM.transfer) FM.transfer(world.league);
     if (FM.ensurePreseasonNews) { FM.ensurePreseasonNews(world.league); }
