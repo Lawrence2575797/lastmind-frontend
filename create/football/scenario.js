@@ -308,7 +308,7 @@
       s += `<g data-own="${i}" style="cursor:grab"><circle cx="${X(o.x)}" cy="${Y(o.y)}" r="${1.75 * PS}" fill="${ok.shirt}" stroke="${hold ? '#FFE27A' : ok.number}" stroke-width="${hold ? 3.5 : 2}"/><text x="${X(o.x)}" y="${(+Y(o.y) + 4).toFixed(1)}" text-anchor="middle" font-size="12" font-weight="700" fill="${ok.number}" font-family="sans-serif" pointer-events="none">${o.p.number}</text><text x="${X(o.x)}" y="${(+Y(o.y) + 1.75 * PS + 12).toFixed(1)}" text-anchor="middle" font-size="10" fill="#fff" stroke="#000" stroke-width="2.5" style="paint-order:stroke" font-family="sans-serif" pointer-events="none">${esc(o.p.name.split(' ').slice(-1)[0])}</text></g>`;
     });
     const b = S.ball;
-    s += `<g data-ball="1" style="cursor:grab"><circle cx="${X(b.x)}" cy="${Y(b.y)}" r="${0.95 * PS}" fill="#fff" stroke="#000" stroke-width="2"/></g>`;
+    s += `<g data-ball="1" style="cursor:grab"><circle cx="${X(b.x)}" cy="${Y(b.y)}" r="${1.25 * PS}" fill="transparent"/><circle cx="${X(b.x)}" cy="${Y(b.y)}" r="${0.95 * PS}" fill="#fff" stroke="#000" stroke-width="2"/></g>`;
     return s;
   }
 
@@ -338,8 +338,8 @@
               <div class="row"><button class="primary" id="scnFinish">Use this</button></div></div>`
             : S && S.started ? `<div class="scn2-card"><h3>How to play it</h3><ul class="scn2-help">
               <li><b>Drag a player</b> to move him. With the ball, that is a dribble.</li>
-              <li><b>Drag the ball</b> onto a player to give it to him.</li>
-              <li><b>Press on the pitch and drag</b> the way you want the pass to go, then let go. Over a player on the line, it is a ball in the air.</li></ul>
+              <li><b>Drag the ball</b> to where you want to play it, and let go. Onto a teammate, or into space. A line follows the ball.</li>
+              <li>Drag it over an opponent in the way and it is a ball in the air.</li></ul>
               <div class="scn2-stats">${S.beats.filter((b) => b.type === 'pass').length} passes · ${Math.round(S.beats.filter((b) => b.type === 'dribble').reduce((a, b) => a + b.d, 0))} m dribbled</div>
               <p class="scn2-say" id="scnSay">${esc(S.say || 'Your move.')}</p>
               <div class="row"><button id="scnUndo"${S.beats.length ? '' : ' disabled'}>Undo</button><button id="scnReset">Start again</button></div>
@@ -484,9 +484,7 @@
         svg.setPointerCapture(ev.pointerId);
         const p = toBoard(svg, ev);
         if (own) { drag = { kind: 'move', i: +own.dataset.own, from: { x: S.own[+own.dataset.own].x, y: S.own[+own.dataset.own].y }, ballFrom: { x: S.ball.x, y: S.ball.y } }; }
-        else if (ball && S.holder == null) drag = { kind: 'ball' };
         else if (ball) drag = { kind: 'ball' };
-        else if (S.holder != null) drag = { kind: 'pass', start: p, cur: p };
         ev.preventDefault();
       });
       svg.addEventListener('pointermove', (ev) => {
@@ -496,6 +494,14 @@
           const o = S.own[drag.i]; o.x = p.x; o.y = p.y;
           if (S.holder === drag.i) { S.ball = { x: p.x + 0.8, y: p.y + 0.6 }; }
           redraw();
+        } else if (drag.kind === 'ball' && S.holder != null) {
+          // the ball goes where the pointer goes and the line to it is drawn behind it
+          S.ball = { x: p.x, y: p.y }; redraw();
+          const h = S.own[S.holder], X = (m) => (m * PS).toFixed(1), Y = (m) => ((L - m) * PS).toFixed(1);
+          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          line.setAttribute('x1', X(h.x)); line.setAttribute('y1', Y(h.y)); line.setAttribute('x2', X(p.x)); line.setAttribute('y2', Y(p.y));
+          line.setAttribute('stroke', '#fff'); line.setAttribute('stroke-width', '3'); line.setAttribute('stroke-dasharray', '4 5'); line.setAttribute('pointer-events', 'none');
+          svg.insertBefore(line, svg.querySelector('[data-ball]'));
         } else if (drag.kind === 'ball') { S.ball = { x: p.x, y: p.y }; redraw(); }
         else if (drag.kind === 'pass') {
           drag.cur = p; redraw();
@@ -510,6 +516,8 @@
         if (!drag) return;
         const d = drag; drag = null;
         const p = toBoard(svg, ev);
+        // letting go of the ball is the pass: onto a teammate, into space, or over a player in the way for one in the air
+        if (d.kind === 'ball' && S.holder != null) { const h0 = S.own[S.holder]; S.ball = { x: h0.x + 0.8, y: h0.y + 0.6 }; d.kind = 'pass'; d.start = { x: h0.x, y: h0.y }; }
         if (d.kind === 'move') {
           const o = S.own[d.i], moved = dist(o, d.from);
           if (moved < 0.5) { o.x = d.from.x; o.y = d.from.y; S.ball = d.ballFrom; redraw(); return; }
