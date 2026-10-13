@@ -920,7 +920,7 @@
     const presetField = (h, id) => { const cur = h.cond && h.cond !== 'from_prev' ? h.cond : 'always'; const known = FM.BUILD_CONDS.some((c) => c.key === cur); return `<div class="scn-field"><span class="scn-field-lab">Use this page when the opposition</span><select class="scn-preset" data-preset="${id}" aria-label="How the opposition press the goal kick">${FM.BUILD_CONDS.map((c) => `<option value="${c.key}"${c.key === cur ? ' selected' : ''}>${esc(c.label)}</option>`).join('')}${known ? '' : `<option value="${esc(cur)}" selected>${esc(presetLabel(cur) || 'Another condition')}</option>`}</select></div>`; };
     const ddFieldFree = (h, id) => `<div class="scn-field"><span class="scn-field-lab">${h.from ? 'Only when' : 'Use this page when'}</span><div class="scn-dd" data-dd="${id}"><button type="button" class="scn-dd-btn" data-dd-btn="${id}" aria-haspopup="true" aria-expanded="false"><span>${esc(extraLabel(h))}</span><i aria-hidden="true">&#9662;</i></button><div class="scn-dd-panel" hidden><button type="button" class="scn-dd-opt${condKey(h) ? '' : ' on'}" data-dd-none="${id}">${h.from ? 'No extra condition' : 'No condition'}</button><div class="scn-dd-own"><input type="text" maxlength="200" data-extra-text="${id}" placeholder="Or say when, in your own words" value="${esc(extraText(h))}" aria-label="Say when this page should be used, in your own words"><button type="button" data-extra-go="${id}">Save</button></div></div></div></div>`;
     const ddField = (h, id) => (tab === 'build' ? presetField(h, id) : ddFieldFree(h, id));
-    const ddNote = (h, id) => (tab === 'build' ? `<p class="note scn-custom-note">${esc(((FM.BUILD_CONDS.find((c) => c.key === (h.cond || 'always')) || {}).note) || '')}</p>` : `<p class="note scn-custom-note" data-extra-note="${id}">${esc(extraNote(h))}</p>`);
+    const ddNote = (h, id) => (tab === 'build' ? '' : `<p class="note scn-custom-note" data-extra-note="${id}">${esc(extraNote(h))}</p>`);
     const customRow = (holder, id) => {
       const c = holder.custom || {};
       return `<div class="scn-custom"><input type="text" class="scn-custom-text" maxlength="200" placeholder="Say when, in your own words: for example when our full-backs have stepped high and we are drawing" value="${esc(c.text || '')}" data-custom-text="${id}" aria-label="When this page should be used"><button type="button" data-custom-go="${id}">${c.when ? 'Update' : 'Save'}</button></div><p class="note scn-custom-note" data-custom-note="${id}">${c.when ? 'Understood as: ' + esc(c.summary || c.text) + '.' : 'Not set yet, so this page is not used until it is.'}</p>`;
@@ -929,12 +929,12 @@
     const startIdOf = (e) => (e.pg && e.pg.from) || 'default';
     const addAbove = (f) => (f.pg ? `<div class="scn-add-above"><button type="button" data-add-after="${esc(startIdOf(f))}">+ Add a page</button></div>` : '');
     const figure = (f, n) => `<figure class="bp${f.locked ? ' locked' : ''}" data-fig="${n}">
-        ${addAbove(f)}${!f.pg && levelWithEnd ? holdHead : ''}${f.pg ? (f.pg.id
+        ${buildPages ? '' : addAbove(f)}${!f.pg && levelWithEnd ? holdHead : ''}${f.pg ? (f.pg.id
           ? (f.pg.from
             ? `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname(f.pg))}" data-scn-label="${f.pg.id}"></label>${ddField(f.pg, f.pg.id)}${f.pg.added ? `<button type="button" data-scn-del="${f.pg.id}">Remove this page</button>` : '<button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button>'}</div>${ddNote(f.pg, f.pg.id)}`
             : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname(f.pg))}" data-scn-label="${f.pg.id}"></label>${ddField(f.pg, f.pg.id)}<button type="button" data-scn-del="${f.pg.id}">Remove this page</button></div>${ddNote(f.pg, f.pg.id)}`)
           : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname({ id: null }))}" data-def-label="1"></label>${ddField(dfl, 'default')}<button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div>${ddNote(dfl, 'default')}`) : ''}
-        <figcaption><b>${esc(starts.length || !f.pg ? f.def.title : f.def.title.replace(/^\d+\.\s*/, ''))}</b><span class="note">${esc(f.label ? 'From the stage before: ' + f.label : f.def.note)}</span></figcaption>
+        ${buildPages ? '' : `<figcaption><b>${esc(starts.length || !f.pg ? f.def.title : f.def.title.replace(/^\d+\.\s*/, ''))}</b><span class="note">${esc(f.label ? 'From the stage before: ' + f.label : f.def.note)}</span></figcaption>`}
         <div class="board-host" id="board${n}"></div>${f.locked ? '' : `<div class="row"><button data-reset="${f.key}">Reset this diagram</button></div>`}
       </figure>`;
     // One start and one end sit side by side. Otherwise the starts are along the top and the ends (the versions of the second diagram) below
@@ -947,7 +947,8 @@
     const startBox = (n) => (starts[n].locked ? '<div class="bp bp-spacer"></div>' : box(n));
     const loneStart = starts.length === 1 && ends.length >= 2;
     let html;
-    if (buildPages) html = starts.length === 1 ? row([figure(starts[0], 0)], 'solo') + row([box(0)], 'solo') : `<div class="board-pair cols" style="--n:${Math.min(starts.length, 3)}">` + starts.map((s, i) => `<div class="scn-col">${figure(s, i)}${box(i)}</div>`).join('') + '</div>';   // several pages sit side by side, each with its own box under it
+    const addTop = buildPages ? '<div class="scn-add-top"><button type="button" data-add-after="default">+ Add a page</button></div>' : '';
+    if (buildPages) html = addTop + (starts.length === 1 ? row([figure(starts[0], 0)], 'solo') + row([box(0)], 'solo') : `<div class="board-pair cols" style="--n:${Math.min(starts.length, 3)}">` + starts.map((s, i) => `<div class="scn-col">${figure(s, i)}${box(i)}</div>`).join('') + '</div>');   // several pages sit side by side, each with its own box under it
     else if (!starts.length) html = ends.length === 1 ? row(fig(ends, 0), 'solo') + row([box(0)], 'solo') : row(fig(ends, 0), 'ends-row') + row(ends.map((e, i) => box(i)));
     else if (starts.length === 1 && ends.length === 1) html = row(fig(all, 0), 'linked') + row([startBox(0), box(1)]);
     else if (loneStart) html = row(fig(starts, 0).concat(starts[0].locked ? [] : [box(0)])) + row(fig(ends, 1), 'ends-row') + row(ends.map((e, i) => box(1 + i)));
