@@ -283,10 +283,27 @@
     else if (wide) say(call('wideMid', [() => name + ' carries down the line.', () => c.team.name + ' switch the point of attack.', () => name + ' advances into space out wide.', () => 'The flank opens up for ' + name + '.']), '', 2.25);
     else say(call('midfield', [() => name + ' carries it through midfield.', () => c.team.name + ' look for a route through the middle.', () => name + ' turns into space.', () => c.team.name + ' move the ball between the lines.']), '', 2.35);
   }
+  // Cards and flashpoints along the top of the match, so a sent-off player or a manager in the stands is never missed.
+  function renderIncidents(m) {
+    const box = el('incidents'); if (!box) return;
+    const items = [];
+    const nameOf = (id, n) => { const t = id === m.home.id ? m.home : m.away, p = t.squad.find((x) => x.number === n); return (p ? shortName(p) : 'number ' + n) + ' (' + t.name + ')'; };
+    const min = (t) => Math.floor(t / 60) + "'";
+    m.events.forEach((e) => {
+      if (e.type === 'foul' && (e.card === 'red' || e.card === 'second yellow')) items.push('<span class="inc"><i class="card-red"></i>' + min(e.t) + ' ' + esc(nameOf(e.team, e.player)) + (e.card === 'second yellow' ? ' (second yellow)' : '') + ' sent off</span>');
+      else if (e.type === 'drama' && e.kind === 'managers') items.push('<span class="inc hot">' + min(e.t) + ' Touchline row: ' + (e.both ? 'both managers' : esc(((e.team === m.home.id ? m.home : m.away).name)) + ' manager') + ' sent to the stands</span>');
+      else if (e.type === 'drama' && e.kind === 'penalty') items.push('<span class="inc hot">' + min(e.t) + ' Disputed penalty</span>');
+      else if (e.type === 'drama' && e.kind === 'scuffle') items.push('<span class="inc hot">' + min(e.t) + ' Flashpoint</span>');
+    });
+    [m.home, m.away].forEach((t) => { const until = m.stands && m.stands[t.id]; if (until && until > m.clock) items.push('<span class="inc stand">' + esc(t.name) + ' manager in the stands: no changes until ' + FM.formatClock(until) + '</span>'); });
+    const html = items.join('');
+    if (html !== world.lastIncidents) { box.innerHTML = html; world.lastIncidents = html; }
+  }
   function updateHud() {
     const m = world.match, home = m.home, away = m.away;
     el('scHome').textContent = m.score[home.id]; el('scAway').textContent = m.score[away.id];
     el('clock').textContent = m.phase === 'halftime' ? 'Half time' : m.phase === 'fulltime' ? 'Full time' : FM.formatClock(m.clock) + (m.restart ? ' · ' + RESTART_NAMES[m.restart.kind] : '');
+    renderIncidents(m);
     const h = m.stats[home.id], a = m.stats[away.id], tot = h.possession + a.possession;
     const rows = [
       ['Possession', pct(h.possession, tot), pct(a.possession, tot)],
@@ -314,6 +331,13 @@
       else if (e.type === 'shot') text = (e.setPiece ? ({ header: 'Header', freekick: 'Free kick', penalty: 'Penalty' }[e.setPiece]) : 'Shot') + ', ' + who(e.player) + ' (' + team.name + '): ' + e.outcome + ' (xG ' + e.xg.toFixed(2) + ')';
       else if (e.type === 'foul') text = 'Foul by ' + who(e.player) + ' (' + team.name + ')' + (e.card ? ', ' + e.card.toUpperCase() : '');
       else if (e.type === 'offside') text = 'Offside, ' + who(e.player) + ' (' + team.name + ')';
+      else if (e.type === 'drama') {
+        const ot = team === home ? away : home, vsName = (n) => { const q = playerBy(e.vsTeam === home.id ? home : e.vsTeam === away.id ? away : ot, n); return q ? shortName(q) : 'number ' + n; };
+        if (e.kind === 'scuffle') text = 'FLASHPOINT: ' + who(e.player) + ' (' + team.name + ') and ' + vsName(e.vs) + ' square up' + (e.outcome === 'both' ? ': both sent off' : e.outcome === 'aggressor' ? ': ' + who(e.player) + ' sent off' : ': both booked');
+        else if (e.kind === 'managers') text = 'TOUCHLINE ROW: ' + (e.both ? 'both managers sent to the stands' : team.name + ' manager sent to the stands');
+        else if (e.kind === 'penalty') text = 'CONTROVERSY: a penalty to ' + team.name + ', and the defenders are furious';
+        else if (e.kind === 'invader') text = 'A supporter is on the pitch: play is held up';
+      }
       else if (e.type === 'restart' && (e.kind === 'corner' || e.kind === 'penalty')) text = (e.kind === 'corner' ? 'Corner' : 'PENALTY') + ' to ' + team.name;
       else if (e.type === 'sub') text = 'Substitution, ' + team.name + ': ' + who(e.on) + ' on for ' + who(e.off);
       else if (e.type === 'injury') text = 'Injury: ' + who(e.player) + ' (' + team.name + ') with ' + e.name + ', out for ' + (e.matches === 1 ? 'one match' : e.matches + ' matches');
@@ -336,6 +360,13 @@
       else if (reveal && e.type === 'restart' && e.kind === 'corner') say(call('corner', [() => team.name + ' force a corner.', () => 'Corner — another chance for ' + team.name + ' to load the box.', 'The pressure brings a corner.']), 'hot', 2.2);
       else if (reveal && e.type === 'foul' && e.card === 'red') say(call('red', [() => 'RED CARD! ' + who(e.player) + ' is sent off!', () => who(e.player) + ' is dismissed — ' + team.name + ' are down to ten!']), 'hot', 4);
       else if (reveal && e.type === 'foul' && e.card === 'yellow') say(call('yellow', [() => who(e.player) + ' goes into the book.', () => 'Yellow card for ' + who(e.player) + '.', () => who(e.player) + ' will have to be careful now.']), '', 2.2);
+      else if (reveal && e.type === 'drama') {
+        world.highlightUntil = Math.max(world.highlightUntil, world.vt + 4);
+        if (e.kind === 'scuffle') say('Trouble! ' + who(e.player) + ' goes in late and both sides come running in. The referee has a lot to deal with.', 'hot', 5);
+        else if (e.kind === 'managers') say('Chaos on the touchline: the benches are on their feet and the fourth official is between the two managers.', 'hot', 5);
+        else if (e.kind === 'penalty') say('The referee points to the spot, and the protests are furious. That one will be talked about.', 'hot', 5);
+        else if (e.kind === 'invader') say('A supporter has run onto the pitch and the stewards are chasing him across the penalty area.', 'hot', 4);
+      }
       else if (reveal && e.type === 'offside') say(call('offside', [() => who(e.player) + ' went too early — offside.', 'The flag is up. The run came a fraction too soon.', () => who(e.player) + ' strays beyond the line.', 'A promising move ends with the offside flag.']), '', 2.1);
       if (!text) continue;
       const div = document.createElement('div');
@@ -584,6 +615,11 @@
       // the opposition report comes first: it is what the preparation is for
       const oppBox = document.createElement('div'); oppBox.id = 'analysisOpp'; av.insertBefore(oppBox, av.firstChild);
       try { FM.renderReports(oppBox, world.league); } catch (e) { oppBox.remove(); }
+      // before anything else: who the next opponent are to this club (and, for a derby, how much the two sides hate each other)
+      try {
+        const nx = nextOpponent(), hc = FM.historyCardHtml ? FM.historyCardHtml(world.league, nx) : '';
+        if (hc) { const hb = document.createElement('div'); hb.id = 'analysisHistory'; hb.innerHTML = hc; av.insertBefore(hb, av.firstChild); }
+      } catch (e) { /* the history is a nicety */ }
     }
     else if (v === 'reports') FM.renderReports(el('view-reports'), world.league);
     else if (v === 'news') FM.renderNews(el('view-news'), world.league);
@@ -655,7 +691,7 @@
         <div class="preview-actions"><button id="previewTactics">Review tactics</button>${lg.mp && lg.mp.kind === 'match' ? '' : '<button id="previewTest">Run an experiment</button>'}<button class="primary" id="enterMatch"${canPlay ? '' : ' disabled'}>${canPlay ? (lg.mp ? 'Lock in my plan' : 'Play match') : 'Season complete'}</button></div></div>
       <div class="preview-grid">
         <div class="card"><h2>Your match plan</h2><p class="fixture-big">${esc(me.formationKey)}</p><p class="desc">${(me.rules || []).filter((r) => !r.off).length} active player or team instruction${(me.rules || []).filter((r) => !r.off).length === 1 ? '' : 's'}.</p><p class="note">${problems.length ? problems.length + ' positional issue' + (problems.length === 1 ? '' : 's') + ' still need attention.' : 'Every phase currently fits together.'}</p></div>
-        <div class="card"><h2>Opponent</h2><p class="fixture-big">${esc(opp.name)}</p><p class="desc">${esc(profile.tag || 'Opponent')} · likely ${esc(opp.formationKey)} · ${esc({ balanced:'balanced',possession:'patient in possession',counter:'dangerous in transition',press:'aggressive without the ball',direct:'direct with the ball' }[opp.style] || opp.style)}.</p></div>
+        <div class="card"><h2>Opponent</h2><p class="fixture-big">${esc(opp.name)}</p><p class="desc">${FM.derbyBetween && FM.derbyBetween(me.name, opp.name) ? '<b>' + esc(FM.derbyBetween(me.name, opp.name).name) + '</b> · ' : ''}${esc(profile.tag || 'Opponent')} · likely ${esc(opp.formationKey)} · ${esc({ balanced:'balanced',possession:'patient in possession',counter:'dangerous in transition',press:'aggressive without the ball',direct:'direct with the ball' }[opp.style] || opp.style)}.</p></div>
         <div class="card"><h2>Evidence so far</h2><p class="desc">${findings}</p></div>
       </div></div>`;
     host.querySelector('#previewTactics').addEventListener('click', () => { world.testing = false; world.tab = 'squad'; setView('tactics'); });
@@ -1858,7 +1894,7 @@
     const r = p.ratings, rows = RATING_ROWS.concat(p.natural === 'GK' ? [['gk', 'Goalkeeping']] : []);
     const bars = rows.map(([k, l]) => `<div class="rrow"><span>${l}</span><span class="rbar"><i style="width:${Math.max(0, Math.min(100, FM.shown(r[k] || 0)))}%"></i></span><b>${r[k] != null ? FM.shown(r[k]) : '-'}</b></div>`).join('');
     const st = p.stats || { apps: 0, goals: 0, shots: 0, yellows: 0, reds: 0 };
-    const cond = FM.isInjured(p) ? `<span class="out">injured: ${esc(injuryText(p))}</span>` : `condition ${Math.round(100 * FM.conditionOf(p))}%`;
+    const cond = FM.isInjured(p) ? `<span class="out">${p.injury && p.injury.suspended ? '' : 'injured: '}${esc(injuryText(p))}</span>` : `condition ${Math.round(100 * FM.conditionOf(p))}%`;
     return `<p class="note">${esc(p.nation)} · natural position ${p.natural}${playingAs ? ', playing ' + playingAs : ''} · ${FM.FOOT_TEXT[p.foot] || ''}, ${p.height || '?'} cm · <b>rated ${FM.ratingText(p)}</b>${p.group && p.group !== p.natural ? ' (' + FM.ratingText(p, p.group) + ' as a ' + p.group + ')' : ''} · ${cond}</p>
       <div class="ratings">${bars}</div>
       <p class="note">This season: ${st.apps} appearance${st.apps === 1 ? '' : 's'}, ${st.goals} goal${st.goals === 1 ? '' : 's'}, ${st.shots} shot${st.shots === 1 ? '' : 's'}, ${st.yellows} yellow card${st.yellows === 1 ? '' : 's'}, ${st.reds} red.</p>`;
@@ -1872,7 +1908,7 @@
       const b = world.selBench;
       host.innerHTML = `<h2 style="margin-bottom:8px">${esc(b.name)}, number ${b.number} (on the bench)</h2>
         <div style="display:grid;gap:10px">${profileHtml(b, null)}
-          <p class="note">${FM.isInjured(b) ? 'He is injured and cannot be brought on.' : 'To bring him on, click one of the shirts on the board, or drag him onto one. Click him again to deselect.'}</p></div>`;
+          <p class="note">${FM.isInjured(b) ? (b.injury && b.injury.suspended ? 'He is suspended and cannot be brought on.' : 'He is injured and cannot be brought on.') : 'To bring him on, click one of the shirts on the board, or drag him onto one. Click him again to deselect.'}</p></div>`;
       return;
     }
     const player = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;

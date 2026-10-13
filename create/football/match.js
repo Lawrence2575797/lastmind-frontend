@@ -948,6 +948,81 @@
     });
   }
 
+
+  // ---------- drama ----------
+  // A rivalry makes a match hotter: more cards, and moments that are not part of the football. They are planned before kick-off from the
+  // fixture's seed (so a match always plays the same), spread through the game, and carried out when play is live.
+  //   scuffle: a late challenge and a squaring-up between players of both sides, ending in cards, perhaps in a red or two
+  //   managers: the two benches go at each other on the touchline: a manager is sent to the stands and cannot make a change for ten minutes
+  //   penalty: a contentious penalty is given, and the defenders protest (one of them is booked)
+  //   invader: a supporter gets onto the pitch and play is held up
+  FM.setupDrama = function (match, derby, seed) {
+    if (match.friendly) { match.drama = null; return; }
+    const rng = FM.mulberry32(((seed >>> 0) ^ 0x9E3779B1) >>> 0), heat = derby ? derby.heat : 0;
+    const list = [];
+    const plan = (kind, p, lo, hi) => { if (rng() < p) list.push({ kind, at: (lo + rng() * (hi - lo)) * 60 }); };
+    plan('scuffle', 0.05 + 0.55 * heat, 12, 84);
+    plan('managers', 0.04 + 0.5 * heat, 8, 86);
+    plan('penalty', 0.03 + 0.25 * heat, 15, 88);
+    plan('invader', 0.02 + 0.2 * heat, 10, 80);
+    if (heat >= 1 && !list.length) list.push({ kind: 'scuffle', at: (25 + rng() * 50) * 60 });
+    list.sort((a, b) => a.at - b.at);
+    match.derby = derby || null;
+    match.drama = { list, rng };
+    match.stands = {};
+  };
+  function bookPlayer(match, team, p) {
+    const st = statsOf(match, team);
+    p.yellows = (p.yellows || 0) + 1; st.yellows++;
+    if (p.yellows >= 2) { st.reds++; sendOff(match, team, p); return 'second yellow'; }
+    return 'yellow';
+  }
+  function redPlayer(match, team, p) { statsOf(match, team).reds++; sendOff(match, team, p); return 'red'; }
+  function runDrama(match) {
+    const d = match.drama;
+    if (!d || !d.list.length || match.phase !== 'play' || match.flight || match.restart) return;
+    const next = d.list[0];
+    if (match.clock < next.at || !match.carrier) return;
+    const c = match.carrier, attT = c.team, defT = other(match, attT), rng = d.rng;
+    const nearTo = (team, pt, skip) => team.players.filter((p) => p.group !== 'GK' && p !== skip).sort((a, b) => Math.hypot(a.x - pt.x, a.y - pt.y) - Math.hypot(b.x - pt.x, b.y - pt.y));
+    if (next.kind === 'penalty') {
+      // wait for a moment when the attack is in the final third; give up if one does not come
+      const deep = FM.toTeamSpace(attT.attackDir, c.player.x, c.player.y).d;
+      if (deep < 0.74) { if (match.clock > next.at + 600) d.list.shift(); return; }
+      d.list.shift();
+      const prot = nearTo(defT, c.player)[0];
+      record(match, { type: 'drama', kind: 'penalty', team: attT.id, player: c.player.number, vs: prot ? prot.number : null, vsTeam: defT.id, x: c.player.x, y: c.player.y });
+      if (prot) { const card = bookPlayer(match, defT, prot); record(match, { type: 'foul', team: defT.id, player: prot.number, vs: c.player.number, card, x: prot.x, y: prot.y, drama: true }); }
+      startRestart(match, 'penalty', attT, attT.attackDir === 1 ? L - 11 : 11, W / 2);
+      return;
+    }
+    d.list.shift();
+    if (next.kind === 'scuffle') {
+      const victim = c.player, aggressor = nearTo(defT, victim)[0];
+      if (!aggressor) return;
+      const r = rng(), cards = [];
+      const give = (team, p, how) => { const card = how === 'red' ? redPlayer(match, team, p) : bookPlayer(match, team, p); cards.push({ team: team.id, player: p.number, card }); record(match, { type: 'foul', team: team.id, player: p.number, vs: p === aggressor ? victim.number : aggressor.number, card, x: victim.x, y: victim.y, drama: true }); };
+      let outcome;
+      if (r < 0.4) { outcome = 'booked'; give(defT, aggressor, 'yellow'); give(attT, victim, 'yellow'); }
+      else if (r < 0.8) { outcome = 'aggressor'; give(defT, aggressor, 'red'); give(attT, victim, 'yellow'); }
+      else { outcome = 'both'; give(defT, aggressor, 'red'); give(attT, victim, 'red'); }
+      record(match, { type: 'drama', kind: 'scuffle', team: defT.id, player: aggressor.number, vs: victim.number, vsTeam: attT.id, outcome, cards, x: victim.x, y: victim.y });
+      startRestart(match, 'freekick', attT, clamp(victim.x, 0.5, L - 0.5), clamp(victim.y, 0.5, W - 0.5));
+      return;
+    }
+    if (next.kind === 'managers') {
+      const both = rng() < 0.45, one = rng() < 0.5 ? attT : defT;
+      const teams = both ? [attT, defT] : [one];
+      teams.forEach((t) => { match.stands[t.id] = match.clock + 600; });
+      record(match, { type: 'drama', kind: 'managers', team: (both ? attT : one).id, both, teams: teams.map((t) => t.id), until: match.clock + 600 });
+      return;
+    }
+    if (next.kind === 'invader') {
+      record(match, { type: 'drama', kind: 'invader', team: attT.id });
+      startRestart(match, 'freekick', attT, clamp(c.player.x, 0.5, L - 0.5), clamp(c.player.y, 0.5, W - 0.5));
+    }
+  }
+
   // ---------- fouls and cards ----------
   function inBox(attackDir, x, y) {
     const gx = attackDir === 1 ? L : 0;
@@ -1000,8 +1075,9 @@
     const dangerous = FM.toTeamSpace(team.attackDir, victim.x, victim.y).d > 0.6;
     const r = match.rng();
     const denial = opts && opts.denial;
-    const pRed = 0.002 + 0.006 * aggr + (dangerous ? 0.006 : 0) + (denial ? 0.3 : 0);
-    const pYellow = (0.04 + 0.18 * aggr + (dangerous ? 0.08 : 0) + (denial ? 0.4 : 0)) * (fouler.yellows ? 0.6 : 1);
+    const heat = match.derby ? match.derby.heat : 0;   // a rivalry: more cards
+    const pRed = (0.002 + 0.006 * aggr + (dangerous ? 0.006 : 0) + (denial ? 0.3 : 0)) * (1 + heat);
+    const pYellow = (0.04 + 0.18 * aggr + (dangerous ? 0.08 : 0) + (denial ? 0.4 : 0)) * (1 + 0.5 * heat) * (fouler.yellows ? 0.6 : 1);
     let card = null;
     if (r < pRed) card = 'red';
     else if (r < pRed + pYellow) {
@@ -1587,6 +1663,8 @@
     statsOf(match, poss).possession += dt;
     sampleHeat(match);
 
+    if (match.restart) { runRestart(match, dt); checkEnd(match); return; }
+    if (match.drama && match.drama.list.length) runDrama(match);
     if (match.restart) { runRestart(match, dt); checkEnd(match); return; }
 
     if (match.aiTeams.length && match.carrier && match.clock >= match.nextAiCheck) { match.nextAiCheck += AI_CHECK_SECONDS; aiTick(match); }

@@ -13,14 +13,14 @@
 
   // Eight fictional clubs. Each has a home and an away kit, a starting style, a formation and a strength.
   FM.TEAM_DEFS = [
-    { tag: 'Mid-table side', story: "A steady club aiming for a top-half finish. Not the strongest squad, but nobody's pushover.", name: 'Ashford Rovers', style: 'balanced', formation: '4-3-3', strength: 0, home: ['#D62828', '#FFFFFF'], away: ['#F4F4F4', '#1A232D'] },
-    { tag: 'Title challengers', story: "Patient passers with one of the best squads in the league, expected to be in the title race.", name: 'Kingsbridge Athletic', style: 'possession', formation: '4-2-2-2', strength: 1, home: ['#1E5AE0', '#FFFFFF'], away: ['#F2C94C', '#1A232D'] },
-    { tag: 'Lower mid-table', story: "Dangerous on the break, rarely in real trouble but never comfortable.", name: 'Northfield United', style: 'counter', formation: '4-3-3', strength: -0.5, home: ['#1F8A4C', '#FFFFFF'], away: ['#F2C94C', '#1A232D'] },
-    { tag: 'Top-half club', story: "A high-energy pressing side pushing to break into the top three.", name: 'Redcliffe Town', style: 'press', formation: '4-2-2-2', strength: 0.5, home: ['#7B1E3A', '#FFFFFF'], away: ['#8FC7E8', '#1A232D'] },
-    { tag: 'Title favourites', story: "The strongest squad in the league. Anything but the title would be a disappointment.", name: 'Harbour City', style: 'possession', formation: '4-3-3', strength: 1.5, home: ['#0F8B8D', '#FFFFFF'], away: ['#F28C6B', '#1A232D'] },
-    { tag: 'Fighting relegation', story: "Long balls and hard graft. The weakest squad, and favourites to go down.", name: 'Stoneham Wanderers', style: 'direct', formation: '4-2-2-2', strength: -1.5, home: ['#F28C28', '#1A232D'], away: ['#2B2B2B', '#FFFFFF'] },
-    { tag: 'Mid-table side', story: "Solid and unspectacular, with no great strength and no great weakness.", name: 'Westmoor Albion', style: 'balanced', formation: '4-3-3', strength: 0, home: ['#F4F4F4', '#1D3557'], away: ['#6A3FA0', '#FFFFFF'] },
-    { tag: 'Fighting relegation', story: "A thin squad that survives by hitting teams on the counter. Expected to be in the relegation fight.", name: 'Eastgate Rangers', style: 'counter', formation: '4-2-2-2', strength: -1, home: ['#C9A227', '#1A232D'], away: ['#1D3557', '#FFFFFF'] },
+    { tag: 'The working-class giants', story: "Formed by the workers of Ashford Ironworks. Three titles in six seasons in the 1970s, a near-death in 2004, and a town that sees every match as the defence of its identity.", name: 'Ashford Rovers', style: 'balanced', formation: '4-3-3', strength: 0, home: ['#1F8A4C', '#FFFFFF'], away: ['#F4F4F4', '#1F8A4C'] },
+    { tag: 'The Scholars', story: "Born at the university, and the club that learned to buy players by statistics. Champions in 2005 on a quarter of Harbour City's wage bill.", name: 'Kingsbridge Athletic', style: 'possession', formation: '4-2-2-2', strength: 1, home: ['#1E5AE0', '#F2C94C'], away: ['#F2C94C', '#1E5AE0'] },
+    { tag: 'The ruthless rivals', story: "Founded by three players who walked out of Ashford in 1894. Champions in 1997 after a penalty Ashford still call the Theft of '97.", name: 'Northfield United', style: 'counter', formation: '4-3-3', strength: -0.5, home: ['#151515', '#FFFFFF'], away: ['#F2C94C', '#1A232D'] },
+    { tag: 'The little club that conquered the giants', story: "A quarrying town of 30,000 that won the league in 2015 with part-timers and a former postman. Sells almost everyone good.", name: 'Redcliffe Town', style: 'press', formation: '4-2-2-2', strength: 0.5, home: ['#7B1E3A', '#F3E7C8'], away: ['#8FC7E8', '#1A232D'] },
+    { tag: 'The richest club with the emptiest trophy cabinet', story: "A dockworkers' club until a shipping billionaire bought it in 2016. A squad of stars, an impatient owner, and no title since 1962.", name: 'Harbour City', style: 'possession', formation: '4-3-3', strength: 1.5, home: ['#16325C', '#8EC9F0'], away: ['#8EC9F0', '#16325C'] },
+    { tag: 'The fallen aristocrats', story: "The oldest club in the league and once its greatest: eleven titles between 1900 and 1930. A crumbling Victorian stadium is bankrupting them.", name: 'Stoneham Wanderers', style: 'direct', formation: '4-2-2-2', strength: -1.5, home: ['#5E1224', '#FFFFFF'], away: ['#F4F4F4', '#5E1224'] },
+    { tag: 'The ambitious newcomers', story: "Two village clubs merged in the Depression. Owner Eleanor Price built them on analytics and coaching, and they finished third in 2025.", name: 'Westmoor Albion', style: 'balanced', formation: '4-3-3', strength: 0, home: ['#E3A008', '#14233F'], away: ['#14233F', '#E3A008'] },
+    { tag: 'The club that always finishes second', story: "Runners-up seven times, and the side that threw away a 2-0 lead on the last day of 2019. The supporters believe the club is cursed.", name: 'Eastgate Rangers', style: 'counter', formation: '4-2-2-2', strength: -1, home: ['#C0262F', '#111111'], away: ['#E9E9E9', '#C0262F'] },
   ];
 
   const STYLES = {
@@ -99,6 +99,23 @@
     });
     const league = { seed, tier: opts.tier || 'gcse', userId: teams[opts.userIndex || 0].id, season: 1, day: 0, teams, fixtures: [], testLog: [], hypotheses: [], news: [], tacticalPlans: [] };
     league.fixtures = makeFixtures(teams.map((t) => t.id), rng, seed + runSeed);
+    // The first game of every season is the Iron Derby: Ashford Rovers at home to Northfield United. The rounds are re-ordered so the pairing falls
+    // in round one, and the return game is the mirror of it.
+    (function () {
+      const ash = teams.find((t) => t.name === 'Ashford Rovers'), nor = teams.find((t) => t.name === 'Northfield United');
+      if (!ash || !nor) return;
+      const half = teams.length - 1;
+      const fx = league.fixtures.find((f) => f.round < half && ((f.homeId === ash.id && f.awayId === nor.id) || (f.homeId === nor.id && f.awayId === ash.id)));
+      if (!fx) return;
+      const r = fx.round;
+      if (r !== 0) league.fixtures.forEach((f) => {
+        const k = f.round >= half ? f.round - half : f.round, second = f.round >= half;
+        const nk = k === 0 ? r : k === r ? 0 : k;
+        f.round = second ? nk + half : nk;
+      });
+      const pair = league.fixtures.filter((f) => (f.homeId === ash.id && f.awayId === nor.id) || (f.homeId === nor.id && f.awayId === ash.id));
+      pair.forEach((f) => { if (f.round < half && f.homeId !== ash.id) { const h = f.homeId; f.homeId = f.awayId; f.awayId = h; } if (f.round >= half && f.homeId !== nor.id) { const h = f.homeId; f.homeId = f.awayId; f.awayId = h; } });
+    })();
     // Three pre-season friendlies each, played before the season starts. They give the opposition reports something to read, but
     // they do not count: not in the table, not in player records, injuries or fatigue, and not in the statistics workshop.
     league.friendlies = makeFixtures(teams.map((t) => t.id), FM.mulberry32(seed + 555), seed + 555)
@@ -285,6 +302,8 @@
     match.day = league.day; match.userId = league.userId; match.interactive = !!(opts && opts.interactive); match.friendly = friendly;
     match.aiTeams = [home, away].filter((t) => !FM.isHuman(league, t.id));
     match.fixture = fx;
+    // a rivalry (the Iron Derby above all) makes a match hotter, and plans the incidents that go with it
+    if (FM.setupDrama) FM.setupDrama(match, FM.derbyForFixture ? FM.derbyForFixture(league, fx) : null, fx.seed);
     if (FM.scout) FM.scout.startMatch(league, match);   // computer-run clubs read your recent matches and set their rules
     // Clips are cut from your own matches (not friendlies, and not matches between other clubs).
     if (!friendly && (FM.isWatched(league, home.id) || FM.isWatched(league, away.id))) { match.clips = []; match.rec = { buf: [], next: 0, pending: [], cands: [], chain: null }; }
@@ -335,6 +354,13 @@
       league.fixtures.forEach((o) => { if (o !== fx && o.clips && o.clips.length) { o.clips = []; o.clipsExpired = true; } });
     }
     if (FM.summariseMatch) fx.summary = FM.summariseMatch(league, fx, match);
+    // a player sent off misses the next match (two after a violent act)
+    if (fx.summary) fx.summary.reds.forEach((r) => {
+      const t = r.team === home.id ? home : away, p = t.squad.find((x) => x.number === r.n);
+      if (!p) return;
+      const games = r.violent ? 2 : 1, until = (match.day || league.day || 0) + 7 * games + 1;
+      if (!p.injury || p.injury.until < until) p.injury = { until, name: 'Suspended (' + (r.second ? 'second yellow card' : r.violent ? 'violent conduct' : 'red card') + ')', matches: games, suspended: true };
+    });
     [home, away].forEach((t) => { FM.fitnessEnd(t, played); FM.restoreLineup(t, t.snap); t.snap = null; delete t.liveBase; delete t.liveLean; });
   };
 

@@ -119,6 +119,7 @@
     if (FM.isInjured && FM.isInjured(inPlayer)) return inPlayer.name + ' is injured and cannot play.';
     const live = match && match.phase !== 'kickoff' || (match && match.clock > 0);
     if (live && team.subsUsed >= team.maxSubs) return 'No substitutions left.';
+    if (live && match && match.stands && match.stands[team.id] > match.clock) return 'You have been sent to the stands: no changes can be made for another ' + Math.ceil((match.stands[team.id] - match.clock) / 60) + ' minute(s).';
     inPlayer.x = outPlayer.x; inPlayer.y = outPlayer.y; inPlayer.vx = outPlayer.vx; inPlayer.vy = outPlayer.vy;
     inPlayer.index = outPlayer.index; inPlayer.slotKey = outPlayer.slotKey; inPlayer.group = outPlayer.group;
     // The new player takes over the role if it suits his slot, otherwise the slot's default role.

@@ -164,6 +164,11 @@
   .cap-badge { display:inline-block; min-width:18px; padding:0 5px; border-radius:4px; background:var(--fm-gold,#f1c04f); color:#14181a; font-weight:800; font-size:.72rem; text-align:center; }
   .cap-line { margin:8px 0 0; font-size:.9rem; } .cap-make { padding:5px 10px; border-radius:8px; border:1px solid rgba(241,192,79,.5); background:transparent; color:inherit; font:inherit; cursor:pointer; } .cap-make:hover { background:rgba(241,192,79,.14); }
   .scn-demo { width: min(560px, 100%); margin: 0; padding: 20px 22px; box-shadow: 0 24px 70px rgba(0,0,0,.5); display: grid; gap: 12px; max-height: 92vh; overflow: auto; } .scn-demo h3 { margin: 0; } .scn-demo-pic { display: grid; place-items: center; } .scn-demo-pic svg { width: min(230px, 62vw); height: auto; } .scn-demo .cap-intro-ok { background: var(--gold, #f1c04f); color: #14181a; border-color: transparent; font-weight: 700; } .scn-demo ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: .95rem; }
+  .hist-card { display: grid; gap: 10px; } .hist-card h2 { margin: 0; } .hist-card h3 { margin: 8px 0 0; font-size: .82rem; letter-spacing: .07em; text-transform: uppercase; color: var(--gold, #f1c04f); } .hist-lede { font-size: 1.05rem; margin: 0; }
+  .hist-iron { border-color: rgba(241,192,79,.45); background: linear-gradient(180deg, rgba(241,192,79,.07), rgba(255,255,255,.02)); }
+  .hist-record { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; } .hist-record div { border: 1px solid rgba(244,237,218,.16); border-radius: 10px; padding: 10px; display: grid; gap: 2px; text-align: center; } .hist-record b { font-size: 1.7rem; line-height: 1; } .hist-record span { font-size: .72rem; letter-spacing: .05em; text-transform: uppercase; opacity: .75; }
+  .hist-list { margin: 0; padding-left: 18px; display: grid; gap: 8px; } .hist-derby { margin: 0; }
+  .incidents { display: flex; flex-wrap: wrap; gap: 6px 10px; min-height: 0; } .incidents:empty { display: none; } .inc { display: inline-flex; gap: 6px; align-items: center; padding: 4px 10px; border-radius: 999px; font-size: .82rem; background: rgba(255,255,255,.07); border: 1px solid rgba(244,237,218,.18); } .inc .card-red { width: 9px; height: 13px; border-radius: 2px; background: #d62828; } .inc .card-yel { width: 9px; height: 13px; border-radius: 2px; background: #f1c04f; } .inc.stand { background: rgba(214,40,40,.18); border-color: rgba(214,40,40,.5); } .inc.hot { background: rgba(241,192,79,.14); border-color: rgba(241,192,79,.5); }
   .cap-modal { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(6,12,10,.72); backdrop-filter: blur(3px); } .cap-modal .cap-intro { width: min(520px, 100%); margin: 0; padding: 22px 24px; box-shadow: 0 24px 70px rgba(0,0,0,.5); } .cap-modal .cap-intro p { font-size: 1.08rem; } .cap-modal .cap-intro-ok { justify-self: end; background: var(--gold, #f1c04f); color: #14181a; border-color: transparent; font-weight: 700; }
   .cap-intro { display:grid; gap:10px; margin-bottom:16px; border-left:3px solid var(--fm-gold,#f1c04f); } .cap-intro p { margin:0; font-size:1.02rem; line-height:1.55; } .cap-intro-who { display:flex; align-items:center; gap:10px; } .cap-intro-who small { display:block; opacity:.7; } .cap-intro-ok { justify-self:start; padding:8px 14px; border-radius:8px; border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.06); color:inherit; font:inherit; cursor:pointer; }
   .player-profile { grid-template-columns:180px minmax(260px,.8fr) minmax(300px,1.2fr); align-items:center; margin-bottom:16px; background:radial-gradient(circle at 12% 10%,rgba(82,189,123,.2),transparent 35%),var(--fm-surface); }
@@ -875,6 +880,7 @@
         <div><span class="big" id="scHome">0</span> <span class="big">:</span> <span class="big" id="scAway">0</span><div class="clock" id="clock">00:00</div></div>
         <div class="team"><span id="nmAway"></span><span class="swatch" id="swAway"></span></div>
       </div>
+      <div class="incidents" id="incidents" aria-live="polite"></div>
       <div class="layout">
         <div>
           <div class="pitch-wrap">
@@ -921,17 +927,18 @@
 <script src="/create/football/roles.js?v=20261010c"></script>
 <script src="/create/football/ratings.js?v=20261010c"></script>
 <script src="/create/football/names.js?v=20261010c"></script>
-<script src="/create/football/engine.js?v=20261103k"></script>
+<script src="/create/football/engine.js?v=20261104b"></script>
 <script src="/create/football/rules.js?v=20261014c"></script>
 <script src="/create/football/instructions.js?v=20261010c"></script>
 <script src="/create/football/fitness.js?v=20261010c"></script>
-<script src="/create/football/match.js?v=20261103c"></script>
-<script src="/create/football/league.js?v=20261103d"></script>
+<script src="/create/football/match.js?v=20261104b"></script>
+<script src="/create/football/league.js?v=20261104b"></script>
 <script src="/create/football/preseason.js?v=20261010n"></script>
 <script src="/create/football/stats_math.js?v=20261010c"></script>
 <script src="/create/football/stats.js?v=20261013a"></script>
 <script src="/create/football/stats_top.js?v=20261010c"></script>
-<script src="/create/football/news.js?v=20261017a"></script>
+<script src="/create/football/history.js?v=20261104a"></script>
+<script src="/create/football/news.js?v=20261104c"></script>
 <script src="/create/football/insights.js?v=20261010c"></script>
 <script src="/create/football/analysis.js?v=20261017b"></script>
 <script src="/create/football/clips.js?v=20261010c"></script>
@@ -948,8 +955,8 @@
 <script src="/create/football/development.js?v=20261029a"></script>
 <script src="/create/football/form.js?v=20261029a"></script>
 <script src="/create/football/cases.js?v=20261028a"></script>
-<script src="/create/football/scenario.js?v=20261103v"></script>
+<script src="/create/football/scenario.js?v=20261104b"></script>
 <script src="/create/football/multiplayer.js?v=20261103c"></script>
-<script src="/create/football/main.js?v=20261103f"></script>
+<script src="/create/football/main.js?v=20261104c"></script>
 </body>
 </html>

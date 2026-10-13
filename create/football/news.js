@@ -15,7 +15,8 @@
   FM.summariseMatch = function (league, fx, match) {
     const home = match.home, away = match.away, byNum = (team, n) => team.squad.find((p) => p.number === n);
     const teamOf = (id) => (id === home.id ? home : away);
-    const sum = { goals: [], reds: [], injuries: [], potm: null, hat: [] };
+    const sum = { goals: [], reds: [], injuries: [], potm: null, hat: [], drama: [], derby: null };
+    const dby = FM.derbyForFixture ? FM.derbyForFixture(league, fx) : null; if (dby) sum.derby = dby.key;
     const score = {}; const add = (team, n, v) => { const k = team.id + ':' + n; score[k] = (score[k] || 0) + v; };
     const goalsBy = {};
     match.events.forEach((e) => {
@@ -30,7 +31,9 @@
       else if (e.type === 'foul' && p) {
         add(team, p.number, -0.25);
         if (e.card === 'yellow') add(team, p.number, -0.3);
-        if (e.card === 'red' || e.card === 'second yellow') { add(team, p.number, -2); sum.reds.push({ t: Math.round(e.t / 60), team: team.id, n: p.number, name: p.name, second: e.card === 'second yellow' }); }
+        if (e.card === 'red' || e.card === 'second yellow') { add(team, p.number, -2); sum.reds.push({ t: Math.round(e.t / 60), team: team.id, n: p.number, name: p.name, second: e.card === 'second yellow', violent: !!e.drama && e.card === 'red' }); }
+      } else if (e.type === 'drama') {
+        sum.drama.push({ t: Math.round(e.t / 60), kind: e.kind, team: e.team, player: e.player != null ? e.player : null, vs: e.vs != null ? e.vs : null, vsTeam: e.vsTeam || null, outcome: e.outcome || null, teams: e.teams || null, both: !!e.both, names: { player: e.player != null && p ? p.name : null, vs: e.vs != null ? ((byNum(teamOf(e.vsTeam || e.team), e.vs) || {}).name || null) : null } });
       } else if (e.type === 'injury' && p) sum.injuries.push({ team: team.id, n: p.number, name: p.name, matches: e.matches, what: e.name });
     });
     Object.keys(goalsBy).forEach((k) => { if (goalsBy[k] >= 3) { const [tid, n] = k.split(':'); const p = byNum(teamOf(tid), +n); sum.hat.push({ team: tid, n: +n, name: p.name, goals: goalsBy[k] }); } });
@@ -80,12 +83,30 @@
 
   FM.ensurePreseasonNews = function (league) {
     ensurePreseasonBasics(league);
+    ensureHistoryPack(league);
     // Where the club finished last season goes in after the others, so it is the newest story and is read first.
     if (!league.news.some((n) => n.lastSeason)) {
       const st = FM.lastSeasonStory(league);
       if (st) FM.pushNews(league, { round: -1, day: 0, preseason: true, lastSeason: true, kind: 'Season preview', headline: st.headline, body: st.body });
     }
   };
+
+  // The history of the league, written up as the stories a league's papers would run before the season: the Iron Derby first, then a
+  // short piece on each of the other clubs. (Newest is read first, so the derby is pushed last.)
+  function ensureHistoryPack(league) {
+    if (!FM.CLUB_HISTORY || league.news.some((n) => n.historyPack)) return;
+    const me = FM.teamById(league, league.userId);
+    const order = ['Harbour City', 'Kingsbridge Athletic', 'Westmoor Albion', 'Redcliffe Town', 'Stoneham Wanderers', 'Eastgate Rangers'];
+    order.forEach((nm) => {
+      const h = FM.CLUB_HISTORY[nm], t = league.teams.find((x) => x.name === nm);
+      if (!h || !t) return;
+      FM.pushNews(league, { round: -1, day: 0, preseason: true, historyPack: true, kind: 'Club history', publication: 'The Westhaven Post', club: t.id, headline: `${nm}: ${h.tagline.charAt(0).toLowerCase() + h.tagline.slice(1)}`, body: `${h.paras.join(' ')} ${h.board}` });
+    });
+    const d = FM.DERBIES[0], r = d.record;
+    FM.pushNews(league, { round: -1, day: 0, preseason: true, historyPack: true, kind: 'Club history', publication: 'The Westhaven Post', club: league.teams.find((x) => x.name === 'Northfield United').id, headline: 'Northfield United: the ruthless neighbours', body: `${FM.CLUB_HISTORY['Northfield United'].paras.join(' ')} ${FM.CLUB_HISTORY['Northfield United'].board}` });
+    FM.pushNews(league, { round: -1, day: 0, preseason: true, historyPack: true, kind: 'Derby', publication: 'The Westhaven Post', club: me.id, mine: true, headline: 'Judgement Day, the Theft of \'97: how a penalty split two towns', body: `${d.timeline[3].text} Northfield supporters celebrate the anniversary as Judgement Day. In Ashford they call it the Theft of '97, and in the thirty years since it has become the way the town measures every injustice.` });
+    FM.pushNews(league, { round: -1, day: 0, preseason: true, historyPack: true, kind: 'Derby', publication: 'The Westhaven Post', club: me.id, mine: true, headline: `Ashford open the season with the Iron Derby: ${r.total} meetings, and neither town has forgiven the other`, body: `Ashford Rovers ${r.a}, Northfield United ${r.b}, ${r.d} drawn: that is the all-time record over ${r.total} meetings, and the new manager's first game is the next one, at the Foundry. ${d.line} ${d.today} ${d.aView} ${d.bView}` });
+  }
   function ensurePreseasonBasics(league) {
     league.news = league.news || [];
     if (league.news.some((n) => n.preseason && !n.lastSeason)) return;
@@ -143,7 +164,65 @@
     }));
 
     // red cards
-    fxs.forEach((f) => (f.summary ? f.summary.reds : []).forEach((r) => push('Red card', `${r.name} sent off for ${name(r.team)}`, `${name(f.homeId)} ${f.hg}-${f.ag} ${name(f.awayId)}. ${r.name} was shown ${r.second ? 'a second yellow card' : 'a straight red'} in the ${r.t}th minute and ${name(r.team)} played on with ten.`, r.team)));
+    fxs.forEach((f) => (f.summary ? f.summary.reds.filter((r) => !r.violent) : []).forEach((r) => push('Red card', `${r.name} sent off for ${name(r.team)}`, `${name(f.homeId)} ${f.hg}-${f.ag} ${name(f.awayId)}. ${r.name} was shown ${r.second ? 'a second yellow card' : 'a straight red'} in the ${r.t}th minute and ${name(r.team)} played on with ten.`, r.team)));
+
+
+    // ---- the history of the league, told through what happened ----
+    const mgr = (id) => (id === me ? 'the manager' : ((FM.CLUB_HISTORY[name(id)] || {}).manager || 'the manager'));
+    fxs.forEach((f) => {
+      const dby = f.summary && f.summary.derby ? FM.DERBIES.find((d) => d.key === f.summary.derby) : (FM.derbyForFixture ? FM.derbyForFixture(league, f) : null);
+      if (!dby) return;
+      const home = name(f.homeId), away = name(f.awayId), res = `${home} ${f.hg}-${f.ag} ${away}`;
+      const winner = f.hg > f.ag ? f.homeId : f.hg < f.ag ? f.awayId : null;
+      const isA = (id) => name(id) === dby.a;
+      const rec = FM.derbyRecord ? FM.derbyRecord(league, dby) : null;
+      const sum = f.summary || {};
+      const bits = [];
+      (sum.reds || []).forEach((r) => bits.push(`${r.name} (${name(r.team)}) was sent off on ${r.t} minutes${r.violent ? ' for violent conduct' : ''}`));
+      (sum.drama || []).forEach((dr) => {
+        if (dr.kind === 'managers') bits.push(dr.both ? 'the two managers had to be separated on the touchline and both were sent to the stands' : `${mgr(dr.team)} was sent to the stands after a touchline row`);
+        else if (dr.kind === 'penalty') bits.push(`a contentious penalty was awarded to ${name(dr.team)} on ${dr.t} minutes`);
+        else if (dr.kind === 'invader') bits.push('a supporter got onto the pitch and held up play');
+        else if (dr.kind === 'scuffle') bits.push(`players squared up after a late challenge by ${dr.names && dr.names.player ? dr.names.player : 'a defender'} on ${dr.t} minutes`);
+      });
+      const drama = bits.length ? ` ${bits.map((b, i) => (i === 0 ? b.charAt(0).toUpperCase() + b.slice(1) : b)).join('; ')}.` : '';
+      let head, body;
+      if (dby.key === 'iron') {
+        const aWon = winner && isA(winner), bWon = winner && !isA(winner);
+        head = aWon ? pick(['Ashford win the Iron Derby', 'The Foundry erupts: Ashford beat Northfield', 'Ashford beat Northfield and a town breathes out']) : bWon ? pick(['Northfield win the Iron Derby again', 'Northfield silence the Foundry', 'Another Iron Derby goes to Northfield']) : pick(['The Iron Derby ends level, and nobody is happy', 'Ashford and Northfield cannot be separated']);
+        const rs = rec ? ` The all-time record now reads Ashford ${rec.a}, Northfield ${rec.b}, ${rec.d} drawn, over ${rec.total} meetings.` : '';
+        const mood = FM.derbyMood(dby, bWon ? 'b' : 'a', aWon || bWon ? 'win' : 'draw');
+        const echo = (f.homeId && sum.reds && sum.reds.length >= 2) ? ' It was the kind of afternoon the fixture is remembered for.' : '';
+        body = `${res}. ${mood}${rs}${drama}${echo}`;
+        // what it does to the table talk
+        if (winner) body += ` ${isA(winner) ? 'In Ashford they will be talking about the 1997 penalty for some time, and for once not as an open wound.' : 'In Millbank the song about the Theft of \'97 will be sung in the pubs tonight.'}`;
+      } else {
+        const wn = winner ? name(winner) : null;
+        head = wn ? `${dby.name}: ${wn} come out on top` : `${dby.name} ends level`;
+        body = `${res}. ${dby.line}${drama}`;
+      }
+      const involvesMe = f.homeId === me || f.awayId === me;
+      push('Derby', head, body, involvesMe ? me : (winner || f.homeId));
+      if (involvesMe) items[items.length - 1].mine = true;
+    });
+    // incidents get a story of their own in the user's match, and in any other that had one
+    fxs.forEach((f) => {
+      const sum = f.summary; if (!sum || !sum.drama) return;
+      const involvesMe = f.homeId === me || f.awayId === me;
+      sum.drama.filter((dr) => dr.kind === 'managers').forEach((dr) => {
+        const tn = (dr.teams || [dr.team]).map((id) => name(id));
+        push('Touchline', dr.both ? `Managers sent to the stands as ${name(f.homeId)} v ${name(f.awayId)} boils over` : `${tn[0]} manager sent to the stands`, `${name(f.homeId)} ${f.hg}-${f.ag} ${name(f.awayId)}. ${dr.both ? 'Both benches were on their feet and the fourth official had to step between the two managers; both were sent to the stands.' : `${mgr(dr.team)} was sent to the stands after a heated exchange with the fourth official and could not make changes for ten minutes.`}`, involvesMe ? me : dr.team);
+      });
+      sum.drama.filter((dr) => dr.kind === 'scuffle').forEach((dr) => {
+        const p1 = dr.names && dr.names.player, p2 = dr.names && dr.names.vs;
+        push('Red card', `${p1 || 'A defender'} and ${p2 || 'an opponent'} squared up: ${dr.outcome === 'both' ? 'both sent off' : dr.outcome === 'aggressor' ? 'one sent off' : 'both booked'}`, `${name(f.homeId)} ${f.hg}-${f.ag} ${name(f.awayId)}. A late challenge by ${p1 || 'a defender'} on ${p2 || 'an opponent'} brought players from both sides running in. ${dr.outcome === 'both' ? 'The referee sent both players off for violent conduct, and each will miss the next two matches.' : dr.outcome === 'aggressor' ? `${p1 || 'The defender'} was sent off and ${p2 || 'his opponent'} was booked.` : 'Both players were booked and the free kick was given.'}`, involvesMe ? me : dr.team);
+      });
+    });
+    // bragging rights: where the Iron Derby clubs stand in the table
+    if (round >= 3 && round % 3 === 0) {
+      const tbl2 = FM.tableRows(league), ia = tbl2.findIndex((r) => r.name === 'Ashford Rovers'), ib = tbl2.findIndex((r) => r.name === 'Northfield United');
+      if (ia >= 0 && ib >= 0) push('Derby', ia < ib ? 'Ashford above Northfield: the table that matters most in the town' : 'Northfield ahead of Ashford in the table: nobody at the Foundry wants to look', `${ia < ib ? 'Ashford Rovers' : 'Northfield United'} sit ${ordinal((ia < ib ? ia : ib) + 1)}, ${ia < ib ? 'Northfield United' : 'Ashford Rovers'} ${ordinal((ia < ib ? ib : ia) + 1)}. For both clubs, finishing above the other is almost as important as the title: the second meeting is at Millbank later in the season.`, me);
+    }
 
     // injuries
     fxs.forEach((f) => (f.summary ? f.summary.injuries : []).forEach((i) => {
