@@ -437,8 +437,7 @@
                 if (data.session || data.user) {
                     // Email confirmation is off in your Supabase project settings —
                     // the user is already signed in.
-                    if (data.session) renderSession(data.session);
-                    else window.location.href = '/learn/';
+                    window.location.replace('/learn/');   // straight back into the app, not a second screen
                 } else {
                     setStatus(authStatus, 'Check your email to confirm your account before logging in.');
                 }
@@ -448,7 +447,7 @@
                     setStatus(authStatus, error.message, true);
                     return;
                 }
-                renderSession(data.session);
+                window.location.replace('/learn/');   // signed in: straight back into the app
             }
         } catch (err) {
             setStatus(authStatus, 'Something went wrong. Please try again.', true);
