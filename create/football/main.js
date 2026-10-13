@@ -944,7 +944,7 @@
     const startBox = (n) => (starts[n].locked ? '<div class="bp bp-spacer"></div>' : box(n));
     const loneStart = starts.length === 1 && ends.length >= 2;
     let html;
-    if (buildPages) html = starts.map((s, i) => row([figure(s, i)], 'solo') + row([box(i)], 'solo')).join('');
+    if (buildPages) html = starts.length === 1 ? row([figure(starts[0], 0)], 'solo') + row([box(0)], 'solo') : `<div class="board-pair cols" style="--n:${Math.min(starts.length, 3)}">` + starts.map((s, i) => `<div class="scn-col">${figure(s, i)}${box(i)}</div>`).join('') + '</div>';   // several pages sit side by side, each with its own box under it
     else if (!starts.length) html = ends.length === 1 ? row(fig(ends, 0), 'solo') + row([box(0)], 'solo') : row(fig(ends, 0), 'ends-row') + row(ends.map((e, i) => box(i)));
     else if (starts.length === 1 && ends.length === 1) html = row(fig(all, 0), 'linked') + row([startBox(0), box(1)]);
     else if (loneStart) html = row(fig(starts, 0).concat(starts[0].locked ? [] : [box(0)])) + row(fig(ends, 1), 'ends-row') + row(ends.map((e, i) => box(1 + i)));
