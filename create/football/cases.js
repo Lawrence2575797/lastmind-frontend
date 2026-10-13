@@ -43,45 +43,46 @@
   };
   const POS_T = { WF: ['cross', 'shoot', 'progress'], FB: ['cross', 'progress', 'duel'], ST: ['shoot', 'progress'], AM: ['shoot', 'progress', 'cross'], CM: ['progress', 'shoot', 'duel'], DM: ['progress', 'duel'], CB: ['duel', 'progress'], GK: ['keeper'] };
   const MIN_ROWS = 6;
+  const WIN = { cross: 'Found a team-mate', shoot: 'Goal', progress: 'Arrived', duel: 'Won the ball', keeper: 'Saved' };
 
   // ---------- reading the match logs ----------
   const W = 68, LEN = 105;
   function rowsFromLog(f, key, tid, who) {
     const L = f.log, side = L.teams.indexOf(tid), out = [];
     if (side < 0) return out;
-    const R = f.round;
-    const keep = (r) => { if (who == null || r.who === who) out.push(r); };
+    const R = f.round, opp = L.teams[1 - side];
+    const keep = (r) => { if (who == null || r.who === who) { r.opp = opp; out.push(r); } };
     if (key === 'cross' || key === 'progress') {
       (L.passes || []).forEach((q) => {
         if (q[1] !== side || q[4] === 2) return;
         if (key === 'progress') {
           const d = q[7], press = q[9];
-          keep({ z: d < 12 ? 0 : d < 26 ? 1 : 2, c: press < 3 ? 0 : press < 6 ? 1 : 2, ok: q[4] === 1 ? 1 : 0, round: R, who: q[2] });
+          keep({ z: d < 12 ? 0 : d < 26 ? 1 : 2, c: press < 3 ? 0 : press < 6 ? 1 : 2, ok: q[4] === 1 ? 1 : 0, round: R, who: q[2], t: q[0] });
         } else {
           if (q.length < 14 || q[11] < 0) return;
           const tx = q[11], ty = q[12], box = q[13], end = tx < LEN / 2 ? 0 : LEN, x = q[5], y = q[6];
           const dgl = Math.abs(x - end);
           if (Math.abs(y - W / 2) < 16 || dgl > 40 || Math.abs(tx - end) > 16.5 || Math.abs(ty - W / 2) > 20.2) return;
-          keep({ z: dgl <= 9 ? 0 : dgl <= 24 ? 1 : 2, c: box <= 1 ? 0 : box === 2 ? 1 : 2, ok: q[4] === 1 ? 1 : 0, round: R, who: q[2] });
+          keep({ z: dgl <= 9 ? 0 : dgl <= 24 ? 1 : 2, c: box <= 1 ? 0 : box === 2 ? 1 : 2, ok: q[4] === 1 ? 1 : 0, round: R, who: q[2], t: q[0] });
         }
       });
     } else if (key === 'duel') {
       (L.tackles || []).forEach((q) => {
         if (q[1] !== side || q.length < 9 || q[7] < 0) return;
         const depth = q[7], cover = q[8];
-        keep({ z: depth > 0.6 ? 0 : depth > 0.3 ? 1 : 2, c: cover > 12 ? 0 : cover > 6 ? 1 : 2, ok: q[4] === 1 ? 1 : 0, round: R, who: q[2] });
+        keep({ z: depth > 0.6 ? 0 : depth > 0.3 ? 1 : 2, c: cover > 12 ? 0 : cover > 6 ? 1 : 2, ok: q[4] === 1 ? 1 : 0, round: R, who: q[2], t: q[0] });
       });
     } else if (key === 'shoot') {
       (L.other || []).forEach((q) => {
         if (q.type !== 'shot' || q.team !== tid || q.x == null || q.defDist == null) return;
         const dist = Math.min(q.x, LEN - q.x);
-        keep({ z: dist <= 7 ? 0 : dist <= 16.5 && Math.abs(q.y - W / 2) <= 20.2 ? 1 : 2, c: q.defDist < 2 ? 0 : q.defDist < 4 ? 1 : 2, ok: q.outcome === 'goal' ? 1 : 0, round: R, who: q.player });
+        keep({ z: dist <= 7 ? 0 : dist <= 16.5 && Math.abs(q.y - W / 2) <= 20.2 ? 1 : 2, c: q.defDist < 2 ? 0 : q.defDist < 4 ? 1 : 2, ok: q.outcome === 'goal' ? 1 : 0, round: R, who: q.player, t: q.t });
       });
     } else if (key === 'keeper') {
       (L.other || []).forEach((q) => {
         if (q.type !== 'shot' || q.team === tid || q.x == null || (q.outcome !== 'saved' && q.outcome !== 'goal')) return;
         const dist = Math.min(q.x, LEN - q.x), ang = Math.abs(q.y - W / 2);
-        keep({ z: dist > 22 ? 0 : dist > 12 ? 1 : 2, c: ang < 6 ? 0 : ang < 12 ? 1 : 2, ok: q.outcome === 'saved' ? 1 : 0, round: R, who: 1 });
+        keep({ z: dist > 22 ? 0 : dist > 12 ? 1 : 2, c: ang < 6 ? 0 : ang < 12 ? 1 : 2, ok: q.outcome === 'saved' ? 1 : 0, round: R, who: 1, t: q.t });
       });
     }
     return out;
@@ -110,7 +111,11 @@
 
   // Which case a player gets: the kind of decision (by position) where he is furthest below the league, among those he has made.
   function pickKey(league, p, st) {
-    if (st.key) return st.key;
+    if (st.key) {
+      // a case whose data is no longer there (a new save, a new season) is dropped unless the manager has already acted on it
+      if (st.choice != null || collect(league, p, st.key).mine.length >= MIN_ROWS) return st.key;
+      st.key = null;
+    }
     let best = null;
     (POS_T[p.natural] || ['progress']).forEach((key) => {
       const c = collect(league, p, key);
@@ -180,6 +185,7 @@
     const applied = st.choice != null, cut = applied ? st.appliedRound : Infinity;
     const base = applied ? mine.filter((r) => r.round < cut) : mine, after = applied ? mine.filter((r) => r.round >= cut) : [];
     const use = base.length >= MIN_ROWS ? base : mine;
+    if (!use.length) { host.innerHTML = '<div class="dv-case"><p class="note">His case study is built from what he does in this season’s matches. It appears once he has played.</p></div>'; return; }
     const n = use.length, ok = use.filter((r) => r.ok).length, w = S.wilson(ok, n, 0.95), lr = rate(all);
     const zR = [0, 1, 2].map((z) => { const g = use.filter((r) => r.z === z); return { n: g.length, k: g.filter((r) => r.ok).length }; });
     const cR = [0, 1, 2].map((k) => { const g = use.filter((r) => r.c === k); return { n: g.length, k: g.filter((r) => r.ok).length }; });
@@ -190,6 +196,11 @@
     const bestKind = proj ? avail.slice().sort((a, b) => (proj[b] - proj.now) - (proj[a] - proj.now))[0] : 'execution';
     let html = `<div class="dv-case"><h5>${esc(tpl.title)}</h5>
       <p><b>The brief:</b> <b>${pct(ok / n)}</b> of ${esc(last)}'s ${esc(tpl.unit)} ${esc(tpl.vp)} (${ok} of ${n}), against <b>${pct(lr)}</b> for the league. Find out why, and decide what to do.</p>`;
+    // the evidence itself: his decisions, match by match, most recent first
+    const oppName = (tid) => { const tm = FM.teamById(league, tid); return tm ? tm.name : 'Opponent'; };
+    const evid = use.slice().sort((a, b) => b.round - a.round || (b.t || 0) - (a.t || 0)).slice(0, 40);
+    html += `<details class="dv-explain dv-evidence" open><summary>The evidence: ${use.length} of his ${esc(tpl.unit)} this season${use.length > evid.length ? ' (the latest ' + evid.length + ' shown)' : ''}</summary>
+      <div class="dv-evscroll"><table class="data dv-split"><thead><tr><th class="l">Match</th><th>Min</th><th class="l">${esc(tpl.zone.label)}</th><th class="l">${esc(tpl.ctx.label)}</th><th>Result</th></tr></thead><tbody>${evid.map((r) => `<tr><td class="l">Round ${r.round} v ${esc(oppName(r.opp))}</td><td>${r.t != null ? Math.floor(r.t / 60) + 1 : '–'}'</td><td class="l">${esc(tpl.zone.levels[r.z])}</td><td class="l">${esc(tpl.ctx.levels[r.c])}</td><td>${r.ok ? '<b>' + esc(WIN[key]) + '</b>' : 'Failed'}</td></tr>`).join('')}</tbody></table></div></details>`;
     const resultOf = (id) => {
       if (id === 'rate') {
         const below = w.hi < lr, above = w.lo > lr;
