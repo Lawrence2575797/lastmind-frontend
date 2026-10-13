@@ -285,7 +285,7 @@
         }
         if (w && w.n >= 3) sec += '<h4>How you stopped the others</h4>' + bars(Object.keys(w.kinds).sort((a, b) => w.kinds[b] - w.kinds[a]).slice(0, 4).map((k) => [STOP_WORDS[k] || k, w.kinds[k], '']), w.n);
       } else if (phase === 'build' || phase === 'midfield') {
-        const zones = [['Near your own goal', r.lostNear.k, 'within 25 m: the dangerous ones'], ['In your own third', r.lostOwn.k, 'out to the edge of it'], ['In midfield', r.lostMid.k, 'before the halfway line'], ['Still going at 40 seconds', r.still.k, 'neither won nor lost']];
+        const zones = [['Near your own goal', r.lostNear.k, 'within 25 m: the dangerous ones'], ['Still going at 40 seconds', r.still.k, 'neither won nor lost']];
         sec += '<div class="lo-cols"><div><h4>Where it was lost</h4>' + bars(zones, lostK) + (r.shot && r.shot.k ? '<p class="lo-small">They went on to have a shot in ' + r.shot.k + ' of the ' + n + ' tests.</p>' : '') + '</div>';
         if (w && w.failedPasses >= 3) sec += '<div><h4>How it was lost, and how far the pass went</h4>' + kindBars(w) + passLine(w) + '</div>';
         sec += '</div>';

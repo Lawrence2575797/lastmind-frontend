@@ -89,9 +89,9 @@
     host.innerHTML = '<svg class="rp-pitch" viewBox="0 0 ' + VW + ' ' + VH + '" role="img" aria-label="Replay of the test"></svg>' +
       '<div class="rp-bar"><button type="button" class="el-go primary rp-play">Play</button><input type="range" class="rp-seek" min="0" max="' + Math.round(clip.end * 100) + '" value="0" aria-label="Position in the replay"><select class="rp-speed" aria-label="Speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></div>' +
       '<div class="rp-key"><span><i class="rp-k ok"></i> pass that came off</span><span><i class="rp-k no"></i> pass lost</span><span><i class="rp-k job"></i> their job: goes to this player</span><span><i class="rp-k free"></i> your player with nobody on him</span></div>' +
-      '<div class="rp-say" aria-live="polite"></div>';
-    const svg = host.querySelector('.rp-pitch'), say = host.querySelector('.rp-say'), seek = host.querySelector('.rp-seek'), btn = host.querySelector('.rp-play');
-    const draw = () => { svg.innerHTML = frame(d, clip, I.t, kitMap); say.innerHTML = narrate(d, clip, I.t, nm).map((l) => '<p>' + l + '</p>').join('') || '<p>Press Play. Each pass appears as an arrow, and the explanation appears here.</p>'; seek.value = String(Math.round(I.t * 100)); };
+      '';
+    const svg = host.querySelector('.rp-pitch'), seek = host.querySelector('.rp-seek'), btn = host.querySelector('.rp-play');
+    const draw = () => { svg.innerHTML = frame(d, clip, I.t, kitMap); seek.value = String(Math.round(I.t * 100)); };
     const tick = (ts) => { if (!I.playing) return; if (!I.last) I.last = ts; I.t = Math.min(clip.end, I.t + (ts - I.last) / 1000 * I.speed); I.last = ts; draw(); if (I.t >= clip.end) { halt(); btn.textContent = 'Replay'; return; } I.raf = requestAnimationFrame(tick); };
     me.btn = btn;
     btn.addEventListener('click', () => { if (I.playing) { halt(); btn.textContent = 'Play'; return; } REG.forEach((r) => { if (r !== me) { r.halt(); if (r.btn && r.btn.isConnected) r.btn.textContent = 'Play'; } }); if (I.t >= clip.end) I.t = 0; I.playing = true; I.last = 0; btn.textContent = 'Pause'; I.raf = requestAnimationFrame(tick); });
