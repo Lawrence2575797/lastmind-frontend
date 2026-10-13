@@ -21952,13 +21952,31 @@ SQIDAQAB
     const PS_MAX_ITEMS = 8;
     function psEsc(t) { return escapeHtml(String(t == null ? '' : t)); }
     // the text of a question as a text box holds it: the maths shorthand (^(...), _(...), √) drawn as real superscripts and subscripts
+    // the same drawing the rest of Notes uses: fractions, powers, subscripts, roots, and LaTeX between $ signs
+    const psMath = (line) => (typeof nbMathInline === 'function' ? nbMathInline(String(line == null ? '' : line), { markdown: false }) : renderMathShorthand(line));
     function psTextHtml(t) {
-        return String(t == null ? '' : t).split(/\n+/).map((line) => `<div>${renderMathShorthand(line) || '<br>'}</div>`).join('');
+        return String(t == null ? '' : t).split(/\n+/).map((line) => `<div>${psMath(line) || '<br>'}</div>`).join('');
+    }
+    // A question saved before fractions were drawn: its plain text is run through the maths drawing once, leaving what is already drawn alone.
+    function psRefreshMath(html) {
+        const box = document.createElement('div'); box.innerHTML = String(html || '');
+        const walker = document.createTreeWalker(box, NodeFilter.SHOW_TEXT), todo = [];
+        let n; while ((n = walker.nextNode())) { if (!n.parentElement.closest('.frac, .root, sup, sub, .nb-tex, .math-symbol, .int-limits')) todo.push(n); }
+        todo.forEach((node) => {
+            const d = node.data;
+            if (!/[\^_]|\d\/|\/\d|\([^()]*\/[^()]*\)|sqrt|√|\$/.test(d)) return;
+            const out = psMath(d);
+            if (out === psEsc(d) || out === d) return;
+            const holder = document.createElement('span'); holder.innerHTML = out;
+            while (holder.firstChild) node.parentNode.insertBefore(holder.firstChild, node);
+            node.remove();
+        });
+        return box.innerHTML;
     }
     function psQuestionHtml(q) {
-        let h = `<div><b>${psEsc(q.number)}.</b> ${renderMathShorthand(String(q.text || '').split(/\n/)[0] || '')}</div>`;
-        String(q.text || '').split(/\n+/).slice(1).forEach((line) => { h += `<div>${renderMathShorthand(line)}</div>`; });
-        (q.options || []).forEach((o) => { h += `<div>(${psEsc(o.label)}) ${renderMathShorthand(o.text)}</div>`; });
+        let h = `<div><b>${psEsc(q.number)}.</b> ${psMath(String(q.text || '').split(/\n/)[0] || '')}</div>`;
+        String(q.text || '').split(/\n+/).slice(1).forEach((line) => { h += `<div>${psMath(line)}</div>`; });
+        (q.options || []).forEach((o) => { h += `<div>(${psEsc(o.label)}) ${psMath(o.text)}</div>`; });
         if (q.figure) h += `<div><i>Figure: ${psEsc(q.figure)}</i></div>`;
         if (q.marks) h += `<div><i>[${q.marks} mark${q.marks === 1 ? '' : 's'}]</i></div>`;
         return h;
@@ -22722,6 +22740,7 @@ SQIDAQAB
         let ready = false;
         const ed = createSmartAnswerEditor('Type here…', { hideShortcutHint: true, auto: true, autocorrect: () => notesAutocorrect, onModeChange: (w) => { if (!ready) return; notesWriting = w; block.writing = w; nbSyncKeyboardButtons(); notesScheduleSave(); } });
         el.querySelector('.nb-body').appendChild(ed.container);
+        if (block.role === 'question' && !block.mathV2) { try { block.html = psRefreshMath(block.html); } catch (_) { /* leave it as it was */ } block.mathV2 = true; }
         ed.setHtml(block.html || '');
         if (block.minH) { el.style.minHeight = block.minH + 'px'; const edEl = ed.container.querySelector('.math-shortcut-editor'); if (edEl) edEl.style.minHeight = Math.max(60, block.minH - 44) + 'px'; }
         if (block.role === 'answer') el.classList.add('ps-answer'); else if (block.role === 'question') el.classList.add('ps-question');
@@ -23370,7 +23389,12 @@ SQIDAQAB
         t = t.replace(/(.)\u0304/g, (m, x) => hold('<span class="math-bar">' + x + '</span>'));
         t = t.replace(/(?:sqrt|√)\(([^()]*)\)/gi, (m, x) => hold('<span class="root"><span class="root-symbol">√</span><span class="root-radicand">' + x + '</span></span>'));
         t = t.replace(/\(([^()\n]{1,40})\)\/\(([^()\n]{1,40})\)/g, (m, a, b) => hold('<span class="frac"><span class="frac-num">' + a + '</span><span class="frac-den">' + b + '</span></span>'));
-        t = t.replace(/(?<![\/\d.])(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)(?![\/\d])/g, (m, a, b) => hold('<span class="frac"><span class="frac-num">' + a + '</span><span class="frac-den">' + b + '</span></span>'));
+        const fr = (a, b) => hold('<span class="frac"><span class="frac-num">' + a + '</span><span class="frac-den">' + b + '</span></span>');
+        // (4/5), (x/2), (3x/4): a fraction written in brackets is drawn as a fraction, without the brackets
+        t = t.replace(/\(([0-9]+(?:\.[0-9]+)?[A-Za-z]?|[A-Za-z])\/([0-9]+(?:\.[0-9]+)?[A-Za-z]?|[A-Za-z])\)/g, (m, a, b) => fr(a, b));
+        t = t.replace(/\b(d[a-z])\/(d[a-z])\b/g, (m, a, b) => fr(a, b));
+        t = t.replace(/(?<![\/\w.])(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?|[a-z])(?![\/\w])/g, (m, a, b) => fr(a, b));
+        t = t.replace(/(?<![\/\w.])([a-z])\/(\d+(?:\.\d+)?)(?![\/\w])/g, (m, a, b) => fr(a, b));
         t = t.replace(/\^\(([^()]*)\)/g, '<sup>$1</sup>').replace(/\^\{([^{}]*)\}/g, '<sup>$1</sup>').replace(/\^(-?[A-Za-z0-9.]+)/g, '<sup>$1</sup>');
         t = t.replace(/_\(([^()]*)\)/g, '<sub>$1</sub>').replace(/_\{([^{}]*)\}/g, '<sub>$1</sub>').replace(/(?<=[A-Za-z0-9)])_([A-Za-z0-9]{1,3})(?![A-Za-z0-9])/g, '<sub>$1</sub>');
         t = t.replace(/(\d)\s*\*\s*(\d)/g, '$1 × $2').replace(/&lt;=/g, '≤').replace(/&gt;=/g, '≥').replace(/!=/g, '≠').replace(/-&gt;/g, '→');
