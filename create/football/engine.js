@@ -253,7 +253,43 @@
     if (!centre) w += (base.w < 0.5 ? -1 : 1) * m.width;
     return { d: clamp(d, 0.02, 0.97), w: clamp(w, 0.04, 0.96) };
   };
+  // Where the team gets to by the end of the build-up is not drawn by the manager: it follows from where it starts (the goal kick, one for each page
+  // of the build-up) and from the instructions given for the build-up on that page. A team asked to play centrally comes in off the flanks, one
+  // asked to play long sends its forwards up further and keeps its defenders back, one asked to play short stays compact, and so on. Each page of the
+  // build-up has its own version, which the next stage (through midfield) starts from.
+  FM.buildEndPos = function (team, p, key) {
+    const sfx = FM.scnSuffix(key), pageId = sfx ? sfx.slice(1) : 'default';
+    const start = FM.phasePos(team, p, 'build' + sfx);
+    if (p.group === 'GK') return { d: start.d, w: start.w };
+    const dEnd = FM.defaultPhasePos(team, p, 'buildEnd'), dStart = FM.defaultPhasePos(team, p, 'build');
+    let adv = dEnd.d - dStart.d, wShift = 0, k = 1;
+    const wide = Math.abs(start.w - 0.5) > 0.12, side = start.w < 0.5 ? -1 : 1;
+    const scope = (FM.RULES && FM.RULES.scopeMatches) || (() => true);
+    (team.rules || []).forEach((r) => {
+      if (r.off || !r.when || !r.when.stage || r.when.stage.indexOf('build') < 0) return;
+      const pg = r.when.page || 'default';
+      if (pg !== pageId) return;
+      if (!scope(r.scope, p)) return;
+      (r.effects || []).forEach((e) => {
+        if (e.type === 'passLength') { if (e.pref === 'short') k -= 0.3 * e.strength; else { k += (['ST', 'WF', 'AM'].indexOf(p.group) >= 0 ? 0.35 : -0.15) * e.strength; } }
+        else if (e.type === 'passDirection') k += (e.dir === 'forward' ? 0.2 : e.dir === 'backward' ? -0.25 : 0) * e.weight;
+        else if (e.type === 'passTarget' && e.to) {
+          if (e.to.side === 'centre') { if (wide) wShift += -side * 0.12 * e.weight; else wShift += 0; }
+          else if (e.to.side === 'wide' || e.to.side === 'left' || e.to.side === 'right') { if (wide) wShift += side * 0.1 * e.weight; }
+        }
+        else if (e.type === 'tempo') k += 0.15 * e.delta;
+        else if (e.type === 'runs' && ['ST', 'WF', 'AM'].indexOf(p.group) >= 0) adv += 0.05 * e.delta;
+        else if (e.type === 'position') { adv += (e.forward || 0) / 105; wShift += (start.w >= 0.5 ? 1 : -1) * (e.wide || 0) / 68; }
+      });
+    });
+    let d = start.d + adv * clamp(k, 0.4, 1.6), w = start.w + wShift;
+    // he can only run so far in the time it takes
+    const reach = FM.reachMetres(p) * 0.85, dist = Math.hypot((d - start.d) * 105, (w - start.w) * 68);
+    if (dist > reach) { const f = reach / dist; d = start.d + (d - start.d) * f; w = start.w + (w - start.w) * f; }
+    return { d: clamp(d, 0.02, 0.97), w: clamp(w, 0.04, 0.96) };
+  };
   FM.phasePos = function (team, p, phase) {
+    if (FM.baseKey(phase) === 'buildEnd') return FM.buildEndPos(team, p, phase);
     const man = team.phasePos && team.phasePos[phase] && team.phasePos[phase][p.index];
     if (man) return man;
     const base = FM.baseKey(phase);

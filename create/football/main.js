@@ -851,8 +851,8 @@
   // cannot be changed there). `locked` marks a diagram that belongs to another page.
   const BOARD_PAIRS = {
     build: [
-      { key: 'build', title: '1. The start: a goal kick', note: 'Where everyone stands before the ball is played, and where the ball is.' },
-      { key: 'buildEnd', title: '2. Building out: the ball reaches midfield', note: 'Where the team gets to as it plays out. This is where the next page starts.' },
+      { key: 'build', title: 'The start: a goal kick', note: 'Where everyone stands before the ball is played. How the team then plays out is decided by the instructions below; where it gets to is worked out from them and shown on the next page.' },
+      { key: 'buildEnd', title: 'Building out: the ball reaches midfield', note: 'Worked out from the goal kick and the instructions.' },
     ],
     midfield: [
       { key: 'buildEnd', title: '1. The start: where the build-up ended', locked: 'build', note: 'Set on the Build-up page.' },
@@ -901,7 +901,7 @@
     const ends = [{ id: null, label: dfl.label, cond: dfl.cond }].concat(pagesOf(endKey)).map((pg) => ({ key: withKey(endKey, pg), locked: false, def: endDef, pg }));
     // The build-up: every page is two diagrams, the goal kick and where it gets to, shown side by side with the same name and condition.
     const buildPages = tab === 'build';
-    if (buildPages) starts = ends.map((e) => ({ key: withKey('build', e.pg), locked: false, def: startDef, label: null, pgLink: e.pg }));
+    if (buildPages) starts = ends.map((e) => ({ key: withKey('build', e.pg), locked: false, def: startDef, label: null, pg: e.pg, pgLink: e.pg }));
     // When a fixed start sits beside the end with its name and condition above it, the start carries an invisible copy of that row, so the two
     // diagrams begin at the same height.
     const levelWithEnd = buildPages || (starts.length === 1 && ends.length === 1);
@@ -937,14 +937,14 @@
     // One start and one end sit side by side. Otherwise the starts are along the top and the ends (the versions of the second diagram) below
     // them. Every diagram has its own instruction box directly beneath it, the same width as the diagram; a start that is alone at the top has
     // its box beside it instead.
-    const all = starts.concat(ends);
+    const all = buildPages ? starts : starts.concat(ends);
     const fig = (list, offset) => list.map((f, k) => figure(f, offset + k));
     const row = (items, cls) => `<div class="board-pair${cls ? ' ' + cls : ''}">${items.join('')}</div>`;
     const box = (n) => `<div class="bp bp-instr" id="dgInstr${n}"></div>`;
     const startBox = (n) => (starts[n].locked ? '<div class="bp bp-spacer"></div>' : box(n));
     const loneStart = starts.length === 1 && ends.length >= 2;
     let html;
-    if (buildPages) html = ends.map((e, i) => row([figure(starts[i], i), figure(ends[i], starts.length + i)], 'linked') + row([box(i), box(starts.length + i)])).join('');
+    if (buildPages) html = starts.map((s, i) => row([figure(s, i)], 'solo') + row([box(i)], 'solo')).join('');
     else if (!starts.length) html = ends.length === 1 ? row(fig(ends, 0), 'solo') + row([box(0)], 'solo') : row(fig(ends, 0), 'ends-row') + row(ends.map((e, i) => box(i)));
     else if (starts.length === 1 && ends.length === 1) html = row(fig(all, 0), 'linked') + row([startBox(0), box(1)]);
     else if (loneStart) html = row(fig(starts, 0).concat(starts[0].locked ? [] : [box(0)])) + row(fig(ends, 1), 'ends-row') + row(ends.map((e, i) => box(1 + i)));
@@ -1007,7 +1007,7 @@
         const positions = () => team.players.map((p) => ({ number: p.number, name: p.name, slot: p.slotKey || '', start: FM.phasePos(team, p, startKeyFor), end: FM.phasePos(team, p, endKeyFor) }));
         if (n < starts.length) {
           if (f.locked) return;   // a start that came from the stage before has no box of its own: that stage's end page has it
-          FM.renderInstructions(at, team, instr.hooks, { stage: instr.stage, part: 'start', fromId: null, pageId: buildPages ? (f.pgLink.id || 'default') : undefined, title: buildPages && ends.length > 1 ? 'Instructions: the start of ' + pname(f.pgLink) : 'Instructions: the start', applies: 'applies to the first part of this stage', positions });
+          FM.renderInstructions(at, team, instr.hooks, { stage: instr.stage, part: buildPages ? null : 'start', fromId: null, pageId: buildPages ? (f.pgLink.id || 'default') : undefined, title: buildPages ? (ends.length > 1 ? 'How we build up: ' + pname(f.pgLink) : 'How we build up') : 'Instructions: the start', applies: buildPages ? 'applies to the whole build-up on this page: centrally or wide, short or long, who to find' : 'applies to the first part of this stage', positions });
         } else {
           const pgId = f.pg.id || 'default';
           FM.renderInstructions(at, team, instr.hooks, { stage: instr.stage, part: 'end', pageId: pgId, pageLabel: ends.length > 1 ? pname(f.pg) : null, title: ends.length > 1 ? 'Instructions: ' + pname(f.pg) : 'Instructions: the end', applies: ends.length > 1 ? 'applies to the end of this stage, on this page only' : 'applies to the end of this stage', positions });
@@ -1016,7 +1016,7 @@
     };
     all.forEach((f, n) => renderBox(n));
     host.querySelectorAll('[data-reset]').forEach((b) => b.addEventListener('click', () => { FM.clearPhase(team, b.dataset.reset); if (team.phaseBall) delete team.phaseBall[b.dataset.reset]; saveSoon(); renderTactics(); }));
-    const endIndex = (id) => starts.length + ends.findIndex((e) => (e.pg.id || null) === (id || null));
+    const endIndex = (id) => (buildPages ? 0 : starts.length) + ends.findIndex((e) => (e.pg.id || null) === (id || null));
     host.querySelectorAll('[data-def-label]').forEach((inp) => inp.addEventListener('input', () => { const v = inp.value.trim().slice(0, 40); dfl.label = v || 'Default page'; dfl.named = !!v; saveSoon(); renderBox(endIndex(null)); }));
     host.querySelectorAll('[data-def-cond]').forEach((sel) => sel.addEventListener('change', () => { dfl.cond = sel.value; saveSoon(); renderTactics(); }));
     host.querySelectorAll('[data-add-after]').forEach((addBtn) => addBtn.addEventListener('click', () => {

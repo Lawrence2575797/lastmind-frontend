@@ -379,6 +379,7 @@
     const A = after.posAll || { build: after.pos }, B = before.posAll || { build: before.pos };
     const boards = [];
     Object.keys(A).forEach((ph) => {
+      if (FM.baseKey(ph) === 'buildEnd') return;   // worked out from the goal kick and the instructions, never moved by hand
       const names2 = [];
       Object.keys(A[ph]).forEach((n) => {
         const a = A[ph][n], b = (B[ph] || {})[n]; if (!b) return;
@@ -396,7 +397,7 @@
   // Each test belongs to one stage of play with a start diagram and an end diagram. An instruction goes in with that stage and part, so it applies
   // only while the team is in that part of play, exactly as if it had been written under that board.
   LAB.BOARDS = {
-    build: { keys: ['build', 'buildEnd'], stage: 'build' }, midfield: { keys: ['buildEnd', 'midfield'], stage: 'midfield' }, final: { keys: ['midfield', 'final'], stage: 'final' },
+    build: { keys: ['build', 'build'], stage: 'build', noPart: true }, midfield: { keys: ['buildEnd', 'midfield'], stage: 'midfield' }, final: { keys: ['midfield', 'final'], stage: 'final' },
     transatt: { keys: ['transAtt', 'transAttEnd'], stage: 'transAtt' }, organised: { keys: ['without', 'withoutEnd'], stage: 'without' }, transdef: { keys: ['transDef', 'transDefEnd'], stage: 'transDef' },
   };
   LAB.implement = function (team, phase, id, result) {
@@ -415,7 +416,7 @@
       moved.push({ key, p });
     };
     const rule = (scope, effects, part, extra) => {
-      const when = Object.assign({ stage: [B.stage] }, part ? { part } : {}, part === 'end' ? { page: 'default' } : {}, extra || {});
+      const when = Object.assign({ stage: [B.stage] }, part && !B.noPart ? { part } : {}, part === 'end' ? { page: 'default' } : {}, extra || {});
       const r = FM.rulesClean({ scope, when, effects, source: 'builder' }, team.players.map((p) => p.number));
       if (r) { team.rules.push(r); said.push(FM.rulesWho(r) + ' will now ' + FM.rulesEffectText(effects[0]).replace(/^./, (c) => c) + (r.when.part ? ' (' + (r.when.part === 'start' ? 'at the start of' : 'by the end of') + ' this phase)' : '') + '.'); }
     };

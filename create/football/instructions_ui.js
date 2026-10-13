@@ -47,6 +47,7 @@
     const roster = setRoster(team, hooks);
     const w = (r) => r.when || {};
     const inPage = (r) => {
+      if (!part && pageId) return pageId === 'default' ? (!w(r).page || w(r).page === 'default') : w(r).page === pageId;   // the whole stage, for one page of it
       if (part === 'start') {
         if (!(w(r).part === 'start' && (fromId ? w(r).from === fromId : true))) return false;
         if (pageId) return pageId === 'default' ? (!w(r).page || w(r).page === 'default') : w(r).page === pageId;   // the goal-kick start of one page of the build-up
@@ -114,7 +115,7 @@
       try {
         const out = await FM.api('/football/compile-instruction', { text, stage, squad: FM.squadOf(team), opponent: roster.oppTeam ? FM.squadOf(roster.oppTeam) : [], positions: opts.positions ? opts.positions() : undefined });
         const nums = roster.own.map((p) => p.number);
-        st.draft = { rules: (out.rules || []).map((r) => FM.rulesClean(Object.assign({}, r, { text: r.text || r.summary || text, source: 'ai' }, stage ? { when: Object.assign({}, r.when, { stage: [stage] }, part ? { part } : {}, (part === 'end' || (part === 'start' && !fromId)) && pageId ? { page: pageId } : {}, part === 'start' && fromId ? { from: fromId } : {}) } : {}), nums)).filter(Boolean), notIncluded: out.notIncluded || [] };
+        st.draft = { rules: (out.rules || []).map((r) => FM.rulesClean(Object.assign({}, r, { text: r.text || r.summary || text, source: 'ai' }, stage ? { when: Object.assign({}, r.when, { stage: [stage] }, part ? { part } : {}, (part === 'end' || !part || (part === 'start' && !fromId)) && pageId ? { page: pageId } : {}, part === 'start' && fromId ? { from: fromId } : {}) } : {}), nums)).filter(Boolean), notIncluded: out.notIncluded || [] };
       } catch (err) { st.err = err.message || 'LastMind could not read that just now.'; }
       st.busy = false; redraw();
     }));
