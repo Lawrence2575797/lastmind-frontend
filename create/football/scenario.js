@@ -195,8 +195,11 @@
     const land = { x: clamp(target.x + Math.cos(ang) * rad, 1, W - 1), y: clamp(target.y + Math.sin(ang) * rad, 1, L - 1) };
     let bj = -1, bt = Infinity;
     S.opp.forEach((q, j) => { const t = arrive(q, land); if (t < bt) { bt = t; bj = j; } });
-    const tr = to != null ? arrive(S.own[to], land) : Infinity;
-    if (to != null && tr <= bt + 0.15) return out({ ok: true, p, how: 'loose', loose: true, land });
+    // our own side competes for it too: the man it was meant for, or for a ball into space the nearest team-mate who could run onto it
+    let tr = Infinity;
+    if (to != null) tr = arrive(S.own[to], land);
+    else S.own.forEach((q, k) => { if (k === S.holder || (q.p.group === 'GK' && from.p.group !== 'GK')) return; tr = Math.min(tr, arrive(q, land)); });
+    if (tr <= bt + 0.15) return out({ ok: true, p, how: 'loose', loose: true, land });
     return out({ ok: false, p, how: aerial ? 'air' : 'loose', winner: bj, land });
   }
 
