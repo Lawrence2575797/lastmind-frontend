@@ -48,7 +48,7 @@
   const cloneTeam = (t) => JSON.parse(JSON.stringify(t, (k, v) => (TRANSIENT[k] ? undefined : v)));
   function makeEngine(team, opp, phase, seed) {
     const u = cloneTeam(team), o = cloneTeam(opp);
-    u.rules = []; o.rules = []; u.phasePos = u.phasePos || {};
+    u.rules = (u.rules || []).filter((r) => r && r.source !== 'scenario'); o.rules = []; u.phasePos = u.phasePos || {};
     if (opp.baseTactics) o.tactics = Object.assign({}, opp.baseTactics);   // how they usually play: the profile the page quotes
     const m = FM.createMatch(u, o, seed);
     m.userId = u.id;
@@ -59,9 +59,12 @@
     return { m, u, o };
   }
   // our players, where the scenario has them (and, when we have the ball, the ball with the man who has it)
+  // The man with the ball and any man the manager has placed himself stay where the board has them; every other player of ours moves as the
+  // team would, by its instructions or else the formation's own positions, so the shape follows the ball while someone dribbles or passes.
+  const held = (S, i) => !S.attack || i === S.holder || !!(S.pins && S.pins[i]);
   function syncOwn(S) {
     const { m, u } = S.eng;
-    S.own.forEach((o, i) => { const p = u.players[i]; if (!p) return; p.x = o.y; p.y = o.x; p.vx = 0; p.vy = 0; });
+    S.own.forEach((o, i) => { const p = u.players[i]; if (!p || !held(S, i)) return; p.x = o.y; p.y = o.x; p.vx = 0; p.vy = 0; });
     if (S.attack && S.holder != null && m.carrier && m.carrier.team === u) {
       const h = u.players[S.holder];
       m.carrier.player = h; m.ball.x = h.x; m.ball.y = h.y; m.ball.state = 'carried';
@@ -97,7 +100,7 @@
       if (S.attack && m.carrier && m.carrier.team !== u) { S.tackled = m.carrier.player; break; }
       if (!S.attack && S.stopOn && S.stopOn(m)) break;
     }
-    S.own.forEach((q, i) => { const p = u.players[i]; if (p) { p.x = q.y; p.y = q.x; } });
+    S.own.forEach((q, i) => { const p = u.players[i]; if (!p) return; if (held(S, i)) { p.x = q.y; p.y = q.x; } else { q.x = p.y; q.y = p.x; } });
     for (let e = from; e < m.events.length; e++) out.push(m.events[e]);
     readOpp(S);
     return out;
@@ -193,7 +196,7 @@
     const aerialShare = pass.length ? pass.filter((b) => b.aerial).length / pass.length : 0;
     const tight = pass.length ? pass.filter((b) => !b.aerial && b.lane < 3).length / pass.length : 0;
     const dribbled = dribbles.reduce((s, b) => s + b.d, 0);
-    const recvs = good.filter((b) => b.to != null).map((b) => S.own[b.to]);
+    const recvs = good.filter((b) => b.to != null).map((b) => b.endXY);
     const centreShare = recvs.length ? recvs.filter((o) => Math.abs(o.x - W / 2) < 13).length / recvs.length : 0.5;
     const wideShare = recvs.length ? recvs.filter((o) => Math.abs(o.x - W / 2) > 21).length / recvs.length : 0.3;
     const forward = pass.length ? pass.filter((b) => b.dy > 3).length / pass.length : 0.5;
@@ -358,13 +361,16 @@
     const redraw = (tween) => { const svg = host.querySelector('#scnSvg'); if (svg) svg.innerHTML = boardSvg(S, tween); };
     // move the opposition towards where they want to be, over a moment, so the reaction can be seen
     const reactAnimated = () => new Promise((resolve) => {
-      const starts = S.opp.map((o) => ({ x: o.x, y: o.y })), targets = oppReact(S);
+      const starts = S.opp.map((o) => ({ x: o.x, y: o.y })), ownStarts = S.own.map((o) => ({ x: o.x, y: o.y })), targets = oppReact(S);
+      const ownEnds = S.own.map((o) => ({ x: o.x, y: o.y }));
       S.opp.forEach((o, i) => { o.x = starts[i].x; o.y = starts[i].y; });
+      S.own.forEach((o, i) => { o.x = ownStarts[i].x; o.y = ownStarts[i].y; });
       const goal = targets;
       const t0 = Date.now(), dur = 650;
       const step = () => {
         const k = clamp((Date.now() - t0) / dur, 0, 1), e = k * (2 - k);
         S.opp.forEach((o, i) => { o.x = starts[i].x + (goal[i].x - starts[i].x) * e; o.y = starts[i].y + (goal[i].y - starts[i].y) * e; });
+        S.own.forEach((o, i) => { o.x = ownStarts[i].x + (ownEnds[i].x - ownStarts[i].x) * e; o.y = ownStarts[i].y + (ownEnds[i].y - ownStarts[i].y) * e; });
         redraw();
         if (k < 1) setTimeout(step, 16); else resolve();
       };
@@ -466,7 +472,7 @@
       }
       q('#scnReset').addEventListener('click', () => { store[phase] = null; S = null; draw(); const b = host.querySelector('#scnStart'); if (b) b.click(); });
       if (S.defending) { wireDefend(); return; }
-      q('#scnUndo').addEventListener('click', () => { if (!S.history || !S.history.length) return; const snap = S.history.pop(); S.own = snap.own.map((o, i) => Object.assign({}, S.own[i], { x: o.x, y: o.y })); S.opp.forEach((o, i) => { o.x = snap.opp[i].x; o.y = snap.opp[i].y; }); S.ball = snap.ball; S.holder = snap.holder; S.beats = snap.beats; S.lost = false; say('Taken back.'); draw(); });
+      q('#scnUndo').addEventListener('click', () => { if (!S.history || !S.history.length) return; const snap = S.history.pop(); S.own = snap.own.map((o, i) => Object.assign({}, S.own[i], { x: o.x, y: o.y })); S.opp.forEach((o, i) => { o.x = snap.opp[i].x; o.y = snap.opp[i].y; }); S.ball = snap.ball; S.holder = snap.holder; S.beats = snap.beats; S.pins = Object.assign({}, snap.pins || {}); S.lost = false; say('Taken back.'); draw(); });
       q('#scnFinish').addEventListener('click', () => {
         const ex = FM.scenarioApply(S);
         S.finished = true;
@@ -477,23 +483,57 @@
       });
       const svg = q('#scnSvg');
       let drag = null;
-      const snapshot = () => { S.history = S.history || []; S.history.push({ own: S.own.map((o) => ({ x: o.x, y: o.y })), opp: S.opp.map((o) => ({ x: o.x, y: o.y })), ball: { x: S.ball.x, y: S.ball.y }, holder: S.holder, beats: S.beats.slice() }); if (S.history.length > 40) S.history.shift(); };
+      const snapNow = () => ({ own: S.own.map((o) => ({ x: o.x, y: o.y })), opp: S.opp.map((o) => ({ x: o.x, y: o.y })), ball: { x: S.ball.x, y: S.ball.y }, holder: S.holder, beats: S.beats.slice(), pins: Object.assign({}, S.pins || {}) });
+      const pushHist = (sn) => { S.history = S.history || []; S.history.push(sn); if (S.history.length > 40) S.history.shift(); };
+      const snapshot = () => pushHist(snapNow());
+      S.pins = S.pins || {};
+      // The man with the ball walks to where the manager has dragged it, at running pace, while everyone else (their side and ours) carries on in
+      // real time. A tackle by the engine ends the run on the spot.
+      const finishDribble = (d, tackled) => {
+        if (d.timer) { clearInterval(d.timer); d.timer = null; }
+        drag = null;
+        const o = S.own[d.i], moved = dist(o, d.from);
+        if (moved < 0.5 && !tackled) {
+          S.own.forEach((q, k) => { q.x = d.snap.own[k].x; q.y = d.snap.own[k].y; });
+          S.opp.forEach((q, k) => { q.x = d.snap.opp[k].x; q.y = d.snap.opp[k].y; });
+          S.ball = d.snap.ball; S.busy = false; draw(); return;
+        }
+        pushHist(d.snap);
+        if (!S.beats.some((b) => b.type === 'pass' || b.type === 'dribble')) S.start = d.snap.own.map((q) => ({ x: q.x, y: q.y }));
+        S.beats.push({ type: 'dribble', i: d.i, d: moved, fromXY: d.from, endXY: { x: o.x, y: o.y } });
+        if (tackled && S.tackled) { S.lost = true; say(S.tackled.name.split(' ').slice(-1)[0] + ' tackles him and wins it: the ball is lost. Undo, or start again.'); }
+        else say(`${o.p.name.split(' ').slice(-1)[0]} carries it ${Math.round(moved)} m.`);
+        S.busy = false;
+        draw();
+      };
+      const dribbleTick = (d) => {
+        if (S.holder !== d.i) { finishDribble(d, false); return; }
+        const o = S.own[d.i], tg = d.target || { x: o.x, y: o.y }, dd = dist(o, tg);
+        if (dd > 0.01) { const stp = Math.min(dd, 0.8); o.x += (tg.x - o.x) / dd * stp; o.y += (tg.y - o.y) / dd * stp; }
+        S.ball = { x: o.x + 0.8, y: o.y + 0.6 };
+        S.tackled = null;
+        runEngine(S, 0.1);
+        redraw();
+        if (S.tackled) { finishDribble(d, true); return; }
+        if (d.released && dist(o, tg) < 0.25) finishDribble(d, false);
+      };
       svg.addEventListener('pointerdown', (ev) => {
         if (S.busy || S.lost) return;
         const own = ev.target.closest && ev.target.closest('[data-own]'), ball = ev.target.closest && ev.target.closest('[data-ball]');
         svg.setPointerCapture(ev.pointerId);
         const p = toBoard(svg, ev);
-        if (own) { drag = { kind: 'move', i: +own.dataset.own, from: { x: S.own[+own.dataset.own].x, y: S.own[+own.dataset.own].y }, ballFrom: { x: S.ball.x, y: S.ball.y } }; }
+        if (own) { drag = { kind: 'move', timer: null, target: null, released: false, i: +own.dataset.own, from: { x: S.own[+own.dataset.own].x, y: S.own[+own.dataset.own].y }, ballFrom: { x: S.ball.x, y: S.ball.y } }; }
         else if (ball) drag = { kind: 'ball' };
         ev.preventDefault();
       });
       svg.addEventListener('pointermove', (ev) => {
-        if (!drag) return;
+        if (!drag || drag.released) return;
         const p = toBoard(svg, ev);
         if (drag.kind === 'move') {
-          const o = S.own[drag.i]; o.x = p.x; o.y = p.y;
-          if (S.holder === drag.i) { S.ball = { x: p.x + 0.8, y: p.y + 0.6 }; }
-          redraw();
+          if (S.holder === drag.i) {
+            drag.target = p;
+            if (!drag.timer) { drag.snap = snapNow(); S.tackled = null; drag.timer = setInterval(() => dribbleTick(drag), 100); }
+          } else { const o = S.own[drag.i]; o.x = p.x; o.y = p.y; redraw(); }
         } else if (drag.kind === 'ball' && S.holder != null) {
           // the ball goes where the pointer goes and the line to it is drawn behind it
           S.ball = { x: p.x, y: p.y }; redraw();
@@ -518,15 +558,17 @@
         const p = toBoard(svg, ev);
         // letting go of the ball is the pass: onto a teammate, into space, or over a player in the way for one in the air
         if (d.kind === 'ball' && S.holder != null) { const h0 = S.own[S.holder]; S.ball = { x: h0.x + 0.8, y: h0.y + 0.6 }; d.kind = 'pass'; d.start = { x: h0.x, y: h0.y }; }
+        if (d.kind === 'move' && S.holder === d.i && d.timer) {
+          // he runs on to where it was dragged; the finish is in the tick
+          drag = d; d.released = true; S.busy = true; return;
+        }
         if (d.kind === 'move') {
           const o = S.own[d.i], moved = dist(o, d.from);
           if (moved < 0.5) { o.x = d.from.x; o.y = d.from.y; S.ball = d.ballFrom; redraw(); return; }
           // undo needs the state from before the drag
           const tmpOwn = { x: o.x, y: o.y }; o.x = d.from.x; o.y = d.from.y; const ballNow = S.ball; S.ball = d.ballFrom; snapshot(); o.x = tmpOwn.x; o.y = tmpOwn.y; S.ball = ballNow;
-          if (S.holder === d.i && !S.beats.some((b) => b.type === 'pass' || b.type === 'dribble')) S.start = S.own.map((q2, k) => (k === d.i ? { x: d.from.x, y: d.from.y } : { x: q2.x, y: q2.y }));
-          if (S.holder === d.i) { S.beats.push({ type: 'dribble', i: d.i, d: moved, fromXY: d.from, endXY: { x: o.x, y: o.y } }); say(`${o.p.name.split(' ').slice(-1)[0]} carries it ${Math.round(moved)} m.`); }
-          else { S.beats.push({ type: 'move', i: d.i, d: moved, fromXY: d.from, endXY: { x: o.x, y: o.y } }); say(`${o.p.name.split(' ').slice(-1)[0]} moves.`); }
-          // a man with the ball who is run into: they close down (the opposition reaction can win it)
+          S.pins[d.i] = true;
+          S.beats.push({ type: 'move', i: d.i, d: moved, fromXY: d.from, endXY: { x: o.x, y: o.y } }); say(`${o.p.name.split(' ').slice(-1)[0]} moves.`);
           S.busy = true; await reactAnimated(); S.busy = false;
           if (S.tackled) { S.lost = true; say(S.tackled.name.split(' ').slice(-1)[0] + ' wins it: the ball is lost. Undo, or start again.'); }
           draw();
