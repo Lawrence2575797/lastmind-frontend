@@ -636,7 +636,12 @@
         : clamp(b.d - ({ CB: 0.2, FB: 0.19, DM: 0.1, CM: 0.04, AM: -0.02, WF: -0.04, ST: -0.12 })[player.group], ({ CB: 0.17, FB: 0.17, DM: 0.25, CM: 0.3 })[player.group] || 0.04, 0.92);
       // the forwards are only ever drawn on, never back past where the board put them: dropping is for the players behind the ball
       const target = hasBall && ['ST', 'WF', 'AM'].indexOf(player.group) >= 0 ? Math.max(pos.d, want) : (!hasBall && player.group === 'ST' ? Math.max(pos.d, want) : want);
-      pos = { d: pos.d + (target - pos.d) * free, w: pos.w };
+      // With the ball, the team keeps roughly the shape its board gives for where the ball is: a player is drawn toward his role's place relative to
+      // the ball, but only a little way back from the board's square (a pass to a centre-back does not bring the full-backs and midfield back into
+      // the box with it) and further forward (as the attack approaches goal, or to find space).
+      let pull = (target - pos.d) * free;
+      if (hasBall) pull = clamp(pull, -(FM.PULL_BACK == null ? 0.055 : FM.PULL_BACK), FM.PULL_FWD == null ? 0.12 : FM.PULL_FWD);
+      pos = { d: pos.d + pull, w: pos.w };
       // When the ball is carried out ahead of the back line, the centre-backs who are left step up with it to stay a short pass away and keep
       // the line together, unless told to hold the line.
       if (hasBall && player.group === 'CB' && b.d > pos.d + 0.06) {
@@ -689,8 +694,9 @@
 
     // Shape shifts toward the ball (a roaming player follows it more, a player told to hold less).
     const pull = clamp((FM.GROUP_BALL_PULL[player.group] || 0.4) + phase.ballPull + 0.25 * m.roam, 0, 1);
-    d += (b.d - d) * pull * 0.3;
-    w += (b.w - w) * pull * 0.22;
+    // With the ball the team mostly holds its board's shape (only a little drawn toward the ball); without it the block shifts with the ball.
+    d += (b.d - d) * pull * (hasBall ? (FM.SHIFT_D_ATT == null ? 0.14 : FM.SHIFT_D_ATT) : 0.3);
+    w += (b.w - w) * pull * (hasBall ? (FM.SHIFT_W_ATT == null ? 0.09 : FM.SHIFT_W_ATT) : 0.22);
     // The manager's own instructions can move him further forward or wider, in the situations they name.
     const rs = FM.rulesShift ? FM.rulesShift(team, player, ball, hasBall) : null;
     if (rs) { d += rs.d; w += (w >= 0.5 ? 1 : -1) * rs.w; }
