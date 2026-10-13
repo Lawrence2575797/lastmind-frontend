@@ -1264,7 +1264,12 @@
     const host = el('tabBody');
     host.innerHTML = '<div id="scnHost"></div><div id="scnInstr"></div>';
     world.scn = world.scn || {};
-    FM.renderScenario(host.querySelector('#scnHost'), team, nextOpponent(), tab, { store: world.scn, save: saveSoon, applied: () => { FM.inferShapeTactics(team); renderPrepFlow(); } });
+    FM.renderScenario(host.querySelector('#scnHost'), team, nextOpponent(), tab, { store: world.scn, save: saveSoon, applied: (done) => {
+      FM.inferShapeTactics(team); renderPrepFlow();
+      // "Use this and go on to ..." takes you to that phase's page
+      const nk = done && done.nextKey, nb = nk && el('tabs').querySelector('button[data-tab="' + nk + '"]');
+      if (nb) nb.click();
+    } });
     const ph = FM.SCENARIO_PHASES[tab];
     FM.renderInstructions(host.querySelector('#scnInstr'), team, { save: saveSoon, opp: nextOpponent() }, { stage: ph.stage, title: 'Anything else you want to tell them', applies: 'applies to this phase' });
   }

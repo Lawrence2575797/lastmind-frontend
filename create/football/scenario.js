@@ -18,8 +18,8 @@
   const toEng = (p) => ({ x: p.y, y: p.x });
   const fromEng = (p) => ({ x: p.y, y: p.x });
   const PHASES = {
-    build: { title: 'Build-up from a goal kick', stage: 'build', end: 'buildEnd', endLine: 0.5, goal: 'Get the ball out of your half, past their press.', next: 'Play through midfield' },
-    midfield: { title: 'Play through midfield', stage: 'midfield', end: 'midfield', endLine: 0.72, goal: 'Carry the ball up to the edge of the final third.', next: 'The final third' },
+    build: { title: 'Build-up from a goal kick', stage: 'build', end: 'buildEnd', endLine: 0.5, goal: 'Get the ball out of your half, past their press.', next: 'Play through midfield', nextKey: 'midfield' },
+    midfield: { title: 'Play through midfield', stage: 'midfield', end: 'midfield', endLine: 0.72, goal: 'Carry the ball up to the edge of the final third.', next: 'The final third', nextKey: 'final' },
     final: { title: 'The final third', stage: 'final', end: 'final', endLine: null, goal: 'Create a chance: finish the attack with a shot (drag a pass line into the goal).', next: null },
     organised: { title: 'Defending', stage: 'without', end: 'without', defend: true, goal: 'They have the ball. Move your players as they bring it up the pitch, and press when they have it deep, then let them play on.', next: null },
   };
@@ -86,6 +86,27 @@
     syncOwn(S);
     m.lastTeam = u; m.nextDecision = m.clock + 999;
   }
+  // Team-mates do not stand on top of each other: the ones moving as the team would are kept a few metres apart.
+  function keepApart(S, minD) {
+    const md = minD || 6.5, { u } = S.eng;
+    for (let round = 0; round < 3; round++) {
+      for (let i = 0; i < S.own.length; i++) {
+        for (let j = i + 1; j < S.own.length; j++) {
+          const a = S.own[i], b = S.own[j];
+          if (a.p.group === 'GK' || b.p.group === 'GK') continue;
+          const dx = b.x - a.x, dy = b.y - a.y, dd = Math.hypot(dx, dy);
+          if (dd >= md) continue;
+          const ha = held(S, i), hb = held(S, j);
+          if (ha && hb) continue;
+          const ux = dd > 0.01 ? dx / dd : 1, uy = dd > 0.01 ? dy / dd : 0, push = md - dd;
+          const fa = ha ? 0 : hb ? 1 : 0.5, fb = hb ? 0 : ha ? 1 : 0.5;
+          a.x -= ux * push * fa; a.y -= uy * push * fa; b.x += ux * push * fb; b.y += uy * push * fb;
+          a.x = clamp(a.x, 1, W - 1); a.y = clamp(a.y, 1, L - 1); b.x = clamp(b.x, 1, W - 1); b.y = clamp(b.y, 1, L - 1);
+        }
+      }
+    }
+    S.own.forEach((q, i) => { if (held(S, i)) return; const p = u.players[i]; if (p) { p.x = q.y; p.y = q.x; } });
+  }
   function readOpp(S) { const { o } = S.eng; S.opp.forEach((q, i) => { const p = o.players[i]; if (p) { q.x = p.y; q.y = p.x; } }); }
   // Run the engine on for some seconds with our players held where they are. Returns the events that happened.
   function runEngine(S, seconds) {
@@ -101,6 +122,7 @@
       if (!S.attack && S.stopOn && S.stopOn(m)) break;
     }
     S.own.forEach((q, i) => { const p = u.players[i]; if (!p) return; if (held(S, i)) { p.x = q.y; p.y = q.x; } else { q.x = p.y; q.y = p.x; } });
+    if (S.attack) keepApart(S);
     for (let e = from; e < m.events.length; e++) out.push(m.events[e]);
     readOpp(S);
     return out;
@@ -133,27 +155,48 @@
     S.own.forEach((o, i) => { if (i !== S.holder && i !== exceptOwn) test(o, true); });
     return { clearance: bd, blocker };
   }
+  // How long a player takes to get to a point: a moment to react, then at his pace.
+  const arrive = (q, pt) => 0.3 + Math.max(0, dist(q, pt) - 0.7) / Math.max(5, ((q.p && q.p.maxSpeed) || 7.5) * 0.85);
+  // A pass, as it would happen. A ball along the ground can only be cut out by a man who can get to the line before it does; one over the top
+  // is contested where it comes down. A pass that does not come off runs loose near the man it was meant for, and whoever gets to it first has it.
   function evaluatePass(S, end) {
     const from = S.own[S.holder], rng = FM.mulberry32((S.seed + S.beats.length * 7919) >>> 0);
-    const d = dist(from, end);
-    // who it is meant for: the nearest of his own men to where the line ends
+    // who it is meant for: the nearest of his own men to where the ball is let go
     let to = null, bd = 7;
     S.own.forEach((o, i) => { if (i === S.holder) return; const dd = dist(o, end); if (dd < bd) { bd = dd; to = i; } });
     const target = to != null ? S.own[to] : end;
+    const d = dist(from, target);
     const lane = laneInfo(S, from, target, to);
     const aerial = d > 32 || (lane.blocker && lane.clearance < 1.8);
     const press = Math.min.apply(null, S.opp.map((o) => dist(o, target)).concat([30]));
-    let p;
-    if (aerial) {
-      // over the top: it does not matter who is in the way, but it is harder to place, and the man waiting for it is contested
-      p = FM.passProb(from.p, d, 9, press) * 0.9 - (press < 2.5 ? 0.12 : 0);
-    } else {
-      p = FM.passProb(from.p, d, lane.clearance, press);
+    const out = (o) => Object.assign({ from: S.holder, to, end: { x: target.x, y: target.y }, d, aerial, lane: lane.clearance, winner: null, loose: false }, o);
+    if (!aerial) {
+      const ab = { x: target.x - from.x, y: target.y - from.y }, len2 = ab.x * ab.x + ab.y * ab.y || 1, V = 17;
+      const cands = [];
+      S.opp.forEach((q, j) => {
+        const t = clamp(((q.x - from.x) * ab.x + (q.y - from.y) * ab.y) / len2, 0, 1);
+        if (t < 0.06 || t > 0.97) return;
+        const P = { x: from.x + ab.x * t, y: from.y + ab.y * t };
+        const margin = d * t / V - arrive(q, P);
+        if (margin > -0.2) cands.push({ j, t, P, margin });
+      });
+      cands.sort((a, b) => a.t - b.t);
+      for (const c of cands) {
+        if (rng() < 1 / (1 + Math.exp(-(c.margin - 0.05) / 0.2))) return out({ ok: false, p: 0, how: 'cut', winner: c.j, land: c.P });
+      }
     }
+    let p = aerial ? FM.passProb(from.p, d, 9, press) * 0.9 - (press < 2.5 ? 0.12 : 0) : FM.passProb(from.p, d, lane.clearance, press);
     if (to == null) p *= 0.55;   // into space: nobody is meant to be there
     p = clamp(p, 0.04, 0.97);
-    const ok = rng() < p;
-    return { from: S.holder, to, end: target, d, aerial, p, ok, lane: lane.clearance, blocker: lane.blocker };
+    if (rng() < p) return out({ ok: true, p, how: 'ok', land: { x: target.x, y: target.y } });
+    // not completed: it runs a few metres from where it was meant to go
+    const ang = rng() * Math.PI * 2, rad = 2 + rng() * 3;
+    const land = { x: clamp(target.x + Math.cos(ang) * rad, 1, W - 1), y: clamp(target.y + Math.sin(ang) * rad, 1, L - 1) };
+    let bj = -1, bt = Infinity;
+    S.opp.forEach((q, j) => { const t = arrive(q, land); if (t < bt) { bt = t; bj = j; } });
+    const tr = to != null ? arrive(S.own[to], land) : Infinity;
+    if (to != null && tr <= bt + 0.15) return out({ ok: true, p, how: 'loose', loose: true, land });
+    return out({ ok: false, p, how: aerial ? 'air' : 'loose', winner: bj, land });
   }
 
   // ---------- the scenario itself ----------
@@ -371,6 +414,17 @@
         const k = clamp((Date.now() - t0) / dur, 0, 1), e = k * (2 - k);
         S.opp.forEach((o, i) => { o.x = starts[i].x + (goal[i].x - starts[i].x) * e; o.y = starts[i].y + (goal[i].y - starts[i].y) * e; });
         S.own.forEach((o, i) => { o.x = ownStarts[i].x + (ownEnds[i].x - ownStarts[i].x) * e; o.y = ownStarts[i].y + (ownEnds[i].y - ownStarts[i].y) * e; });
+        redraw();
+        if (k < 1) setTimeout(step, 16); else resolve();
+      };
+      step();
+    });
+    // one of theirs runs to a point, at his pace
+    const tweenOpp = (idx, to) => new Promise((resolve) => {
+      const q = S.opp[idx], x0 = q.x, y0 = q.y, dur = clamp(dist(q, to) / Math.max(5, (q.p.maxSpeed || 7.5)) * 1000, 250, 2600), t0 = Date.now();
+      const step = () => {
+        const k = clamp((Date.now() - t0) / dur, 0, 1);
+        q.x = x0 + (to.x - x0) * k; q.y = y0 + (to.y - y0) * k;
         redraw();
         if (k < 1) setTimeout(step, 16); else resolve();
       };
@@ -644,33 +698,44 @@
           }
           if (!S.beats.some((b) => b.type === 'pass' || b.type === 'dribble')) S.start = S.own.map((o) => ({ x: o.x, y: o.y }));
           const r = evaluatePass(S, p);
-          const e = { x: r.end.x, y: r.end.y };
+          const e = { x: r.land.x, y: r.land.y };
           S.beats.push({ type: 'pass', from: r.from, to: r.to, ok: r.ok, aerial: r.aerial, d: r.d, lane: r.lane, p: r.p, dy: e.y - h.y, fromXY: { x: h.x, y: h.y }, endXY: e });
           const who = (i) => S.own[i].p.name.split(' ').slice(-1)[0];
+          const last = (n) => n.split(' ').slice(-1)[0];
           if (r.ok) {
-            if (r.to == null) {
-              // into space: the nearest of his team-mates goes and gets it, with everyone else moving as they would
-              let rc = -1, bdist = Infinity;
+            // the man it is for runs onto it (a man it was played into space for is the nearest of his team-mates); the ball stays where it
+            // comes down until he gets there
+            let rc = r.to;
+            if (rc == null) {
+              let bdist = Infinity;
               S.own.forEach((q, k) => { if (k === r.from || (q.p.group === 'GK' && S.own[r.from].p.group !== 'GK')) return; const dd2 = dist(q, e); if (dd2 < bdist) { bdist = dd2; rc = k; } });
-              if (rc < 0) rc = S.holder;
+              if (rc == null) rc = S.holder;
+            }
+            if (r.to == null || dist(S.own[rc], e) > 1.5) {
               S.holder = rc; S.ball = { x: e.x, y: e.y };
-              const who0 = (i) => S.own[i].p.name.split(' ').slice(-1)[0];
-              say(`${who0(r.from)} ${r.aerial ? 'plays it over the top' : 'passes'} into space, ${Math.round(r.d)} m. ${who0(rc)} goes to collect it.`);
+              say(r.to == null
+                ? `${who(r.from)} ${r.aerial ? 'plays it over the top' : 'passes'} into space, ${Math.round(r.d)} m. ${who(rc)} goes to collect it.`
+                : `${who(r.from)} ${r.aerial ? 'plays it over the top' : 'passes'} to ${who(rc)}, ${Math.round(r.d)} m.${r.loose ? ' It runs a little loose, but he gets to it.' : ''}`);
               const dd0 = { kind: 'move', i: rc, from: { x: S.own[rc].x, y: S.own[rc].y }, target: { x: e.x, y: e.y }, released: true, pickup: true, timer: null, snap: null };
               S.busy = true; S.tackled = null;
               dd0.timer = setInterval(() => dribbleTick(dd0), 100);
               return;
             }
-            S.holder = r.to;
-            S.ball = { x: S.own[r.to].x + 0.8, y: S.own[r.to].y + 0.6 };
-            say(`${who(r.from)} ${r.aerial ? 'plays it over the top' : 'passes'} ${r.to != null ? 'to ' + who(r.to) : 'into space'}, ${Math.round(r.d)} m. It comes off.`);
-            // the man it was meant for goes to the ball; the others stay where the manager put them
-            if (r.to != null) { const o = S.own[r.to]; const tgt = { x: e.x, y: e.y }; o.x = tgt.x; o.y = tgt.y; }
+            S.holder = rc;
+            S.ball = { x: S.own[rc].x + 0.8, y: S.own[rc].y + 0.6 };
+            say(`${who(r.from)} ${r.aerial ? 'plays it over the top' : 'passes'} to ${who(rc)}, ${Math.round(r.d)} m. It comes off.`);
           } else {
-            // the nearest of them on the line wins it (or it runs out of play)
-            const win = (r.blocker && !r.blocker.own) ? r.blocker.o : S.opp.slice().sort((a, b) => dist(a, e) - dist(b, e))[0];
-            S.lost = true; S.ball = { x: win.x, y: win.y };
-            say(`${who(r.from)} ${r.aerial ? 'tries it over the top' : 'tries a pass'}, but ${r.aerial ? 'it is not won' : (r.blocker && !r.blocker.own ? 'it is cut out by ' + win.p.name.split(' ').slice(-1)[0] : 'it does not reach him')}: the ball is lost. Undo, or end the scenario.`);
+            const wq = S.opp[r.winner], wn = last(wq.p.name);
+            S.lost = true; S.ball = { x: e.x, y: e.y };
+            say(r.how === 'cut' ? `${who(r.from)} tries a pass, but ${wn} gets across and cuts it out: the ball is lost. Undo, or end the scenario.`
+              : r.how === 'air' ? `${who(r.from)} plays it over the top, but ${wn} gets there first: the ball is lost. Undo, or end the scenario.`
+              : `${who(r.from)}'s pass runs loose and ${wn} gets to it first: the ball is lost. Undo, or end the scenario.`);
+            // he goes to where the ball is; nobody else has to move
+            S.busy = true;
+            await tweenOpp(r.winner, e);
+            S.busy = false;
+            draw();
+            return;
           }
           S.busy = true; await reactAnimated(); S.busy = false;
           if (r.ok && S.tackled) { S.lost = true; say(S.tackled.name.split(' ').slice(-1)[0] + ' closes him down and wins it: the ball is lost. Undo, or end the scenario.'); }
