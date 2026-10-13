@@ -626,7 +626,11 @@
     // level and supporting, a centre-back well behind), so the whole team moves up and back with play. Without it, the line follows the ball:
     // defenders keep a distance goal-side of it, and a forward stays up. How strongly is the FREEDOM setting and the player's own roaming.
     if (player.group !== 'GK') {
-      const free = clamp((FM.FREEDOM == null ? 0.38 : FM.FREEDOM) * (1 + 0.5 * m.roam), 0, 0.8);
+      // A side that sits in a low block does not follow the ball up the pitch while the opposition are building from their own end: its line and
+      // its forwards hold their depth, and only a mid block or a high press moves up with the ball.
+      const prs = 0.6 * (team.tactics.pressBuildUp == null ? 0.4 : team.tactics.pressBuildUp) + 0.4 * (team.tactics.pressing == null ? 0.5 : team.tactics.pressing);
+      const blockHold = !hasBall && b.d > 0.5 ? clamp(prs / 0.4, 0.12, 1) : 1;
+      const free = clamp((FM.FREEDOM == null ? 0.38 : FM.FREEDOM) * (1 + 0.5 * m.roam) * blockHold, 0, 0.8);
       const want = hasBall
         ? clamp(b.d + ({ ST: 0.14, AM: 0.09, WF: 0.09, CM: 0.02, FB: 0.0, DM: -0.1, CB: -0.2 })[player.group], 0.04, 0.95)
         : clamp(b.d - ({ CB: 0.2, FB: 0.19, DM: 0.1, CM: 0.04, AM: -0.02, WF: -0.04, ST: -0.12 })[player.group], ({ CB: 0.17, FB: 0.17, DM: 0.25, CM: 0.3 })[player.group] || 0.04, 0.92);

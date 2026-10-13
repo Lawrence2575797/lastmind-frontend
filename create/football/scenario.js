@@ -49,6 +49,7 @@
   function makeEngine(team, opp, phase, seed) {
     const u = cloneTeam(team), o = cloneTeam(opp);
     u.rules = []; o.rules = []; u.phasePos = u.phasePos || {};
+    if (opp.baseTactics) o.tactics = Object.assign({}, opp.baseTactics);   // how they usually play: the profile the page quotes
     const m = FM.createMatch(u, o, seed);
     m.userId = u.id;
     if (phase === 'organised') FM.startBuildUpTrial(m, o, 'goalkick');
@@ -66,6 +67,22 @@
       m.carrier.player = h; m.ball.x = h.x; m.ball.y = h.y; m.ball.state = 'carried';
     }
   }
+  // From a goal kick nobody on the other side may be in the penalty area until the ball has been played.
+  const BOX_D = 17.5, BOX_HALF = 21;
+  function boxLocked(S) { return S.phase === 'build' && S.attack && !S.beats.some((b) => b.type === 'pass'); }
+  function keepOutOfBox(S) {
+    if (!boxLocked(S)) return;
+    S.opp.forEach((q) => { if (q.p.group !== 'GK' && q.y < BOX_D && Math.abs(q.x - W / 2) < BOX_HALF) q.y = BOX_D; });
+    S.eng.o.players.forEach((p) => { if (p.group !== 'GK' && p.x < BOX_D && Math.abs(p.y - W / 2) < BOX_HALF) { p.x = BOX_D; p.vx = 0; } });
+  }
+  // the engine's picture of the ball: with the man the board says has it, our men where the board has them
+  function armEngine(S) {
+    const { m, u } = S.eng, h = S.own[S.holder];
+    m.ball.x = h.y; m.ball.y = h.x; m.ball.state = 'carried';
+    m.carrier = { team: u, player: u.players[S.holder] };
+    syncOwn(S);
+    m.lastTeam = u; m.nextDecision = m.clock + 999;
+  }
   function readOpp(S) { const { o } = S.eng; S.opp.forEach((q, i) => { const p = o.players[i]; if (p) { q.x = p.y; q.y = p.x; } }); }
   // Run the engine on for some seconds with our players held where they are. Returns the events that happened.
   function runEngine(S, seconds) {
@@ -76,6 +93,7 @@
       syncOwn(S);
       FM.stepMatch(m, 0.1);
       if (m.restart) m.restart = null;
+      keepOutOfBox(S);
       if (S.attack && m.carrier && m.carrier.team !== u) { S.tackled = m.carrier.player; break; }
       if (!S.attack && S.stopOn && S.stopOn(m)) break;
     }
@@ -157,12 +175,9 @@
     const nearest = own.map((o, i) => ({ i, d: dist(o, S.ball) })).sort((a, b) => a.d - b.d)[0];
     S.holder = phase === 'build' ? Math.max(0, own.findIndex((o) => o.p.group === 'GK')) : nearest.i;
     S.ball = { x: own[S.holder].x + 0.8, y: own[S.holder].y + 0.6 };
-    // set the engine up with our men where the manager's board has them and the ball with the man who has it, and let the opposition settle
-    eng.m.ball.x = own[S.holder].y; eng.m.ball.y = own[S.holder].x;
-    syncOwn(S);
-    eng.m.carrier = { team: eng.u, player: eng.u.players[S.holder] };
-    eng.m.lastTeam = eng.u; eng.m.nextDecision = eng.m.clock + 999;
-    runEngine(S, 3.5);
+    // the opposition stand in their own shape for this ball (not yet reacting to anything); the engine is armed when the scenario starts
+    readOpp(S);
+    keepOutOfBox(S);
     S.tackled = null;
     S.start = own.map((o) => ({ x: o.x, y: o.y }));
     return S;
@@ -329,7 +344,8 @@
               <p class="scn2-say" id="scnSay">${esc(S.say || 'Your move.')}</p>
               <div class="row"><button id="scnUndo"${S.beats.length ? '' : ' disabled'}>Undo</button><button id="scnReset">Start again</button></div>
               <div class="row"><button class="primary" id="scnFinish">Use this${ph.next ? ' and go on to ' + esc(ph.next.toLowerCase()) : ''}</button></div></div>`
-            : `<div class="scn2-card"><h3>${ph.defend ? 'Show the team how to defend' : 'Show the team how to play it'}</h3><p class="desc">${ph.defend ? `${esc(opp.name)} start with the ball at their goalkeeper and build up against you. You set your team as they bring it up, and press when they have it deep. They play as they play in a match, and from what you show LastMind works out how the team defends.` : `You will take the ball from the ${phase === 'build' ? 'goalkeeper' : 'man on it'} and play the phase out against ${esc(opp.name)}. They react to every move the way they play. From what you show, LastMind works out how the team plays this phase.`}</p><div class="row"><button class="primary" id="scnStart">Start scenario</button></div></div>`}
+            : `<div class="scn2-card"><h3>${ph.defend ? 'Show the team how to defend' : 'Show the team how to play it'}</h3><p class="desc">${ph.defend ? `${esc(opp.name)} start with the ball at their goalkeeper and build up against you. You set your team as they bring it up, and press when they have it deep. They play as they play in a match, and from what you show LastMind works out how the team defends.` : `You will take the ball from the ${phase === 'build' ? 'goalkeeper' : 'man on it'} and play the phase out against ${esc(opp.name)}. They react to every move the way they play. From what you show, LastMind works out how the team plays this phase.`}</p>
+              <p class="desc"><b>Drag your players into position first.</b> ${esc(opp.name)} hold their shape until you start${phase === 'build' ? ', and cannot come into the box before the ball is played' : ''}.</p><div class="row"><button class="primary" id="scnStart">Start scenario</button></div></div>`}
             ${S && S.finished ? `<div class="scn2-card"><h3>What it learned</h3><p class="desc">${esc(S.learned || '')}</p></div>` : ''}
           </div>
         </div></div>`;
@@ -418,8 +434,36 @@
     function wire() {
       const q = (s) => host.querySelector(s);
       const start = q('#scnStart');
-      if (start) start.addEventListener('click', () => { S.started = true; S.say = 'You have the ball. Move your players into their places first if you like, then play.'; draw(); });
-      if (!S.started) return;
+      if (start) start.addEventListener('click', () => {
+        S.started = true;
+        S.start = S.own.map((o) => ({ x: o.x, y: o.y }));
+        if (S.attack) armEngine(S);
+        S.say = S.defending ? 'They have the ball. Set your team.' : 'You have the ball. Your move.';
+        draw();
+      });
+      if (!S.started) {
+        // before the start: put the players where they should be; the opposition stay in their shape
+        const svg0 = q('#scnSvg');
+        let d0 = null;
+        svg0.addEventListener('pointerdown', (ev) => {
+          const own = ev.target.closest && ev.target.closest('[data-own]');
+          if (!own) return;
+          try { svg0.setPointerCapture(ev.pointerId); } catch (e) { /* fine */ }
+          d0 = +own.dataset.own;
+          ev.preventDefault();
+        });
+        svg0.addEventListener('pointermove', (ev) => {
+          if (d0 == null) return;
+          const p = toBoard(svg0, ev), o = S.own[d0];
+          // they have the goal kick: our men stay out of their box until it is played
+          if (S.defending && o.p.group !== 'GK' && p.y > L - BOX_D && Math.abs(p.x - W / 2) < BOX_HALF) p.y = L - BOX_D;
+          o.x = p.x; o.y = p.y;
+          if (S.holder === d0) S.ball = { x: p.x + 0.8, y: p.y + 0.6 };
+          redraw();
+        });
+        svg0.addEventListener('pointerup', () => { d0 = null; });
+        return;
+      }
       q('#scnReset').addEventListener('click', () => { store[phase] = null; S = null; draw(); const b = host.querySelector('#scnStart'); if (b) b.click(); });
       if (S.defending) { wireDefend(); return; }
       q('#scnUndo').addEventListener('click', () => { if (!S.history || !S.history.length) return; const snap = S.history.pop(); S.own = snap.own.map((o, i) => Object.assign({}, S.own[i], { x: o.x, y: o.y })); S.opp.forEach((o, i) => { o.x = snap.opp[i].x; o.y = snap.opp[i].y; }); S.ball = snap.ball; S.holder = snap.holder; S.beats = snap.beats; S.lost = false; say('Taken back.'); draw(); });

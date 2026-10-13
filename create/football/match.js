@@ -256,7 +256,10 @@
       // Near their own goal defenders do close the man on the ball down, whatever the team's pressing setting: a shot has to be stopped.
       const ownGoal = { x: opp.attackDir === 1 ? 0 : L, y: W / 2 };
       const nearGoal = dist(c.player, ownGoal) < (FM.DEF_BOX || 30);
-      const press = clamp(Math.max(pressingNow(match, opp) + (deep ? 0.35 * (pbu - 0.4) : 0), nearGoal ? (FM.DEF_BOX_PRESS || 0.8) : 0), 0, 1);
+      // Against a build-up the side's profile is the press-the-build-up setting weighed with its general pressing: the same figure the scouting
+      // report calls a low block, a mid block or a high press, so a side that "sits in a low block" does not come out to hunt the keeper.
+      const now = pressingNow(match, opp);
+      const press = clamp(Math.max(deep ? 0.6 * pbu + 0.4 * now : now, nearGoal ? (FM.DEF_BOX_PRESS || 0.8) : 0), 0, 1);
       const lostIt = match.lastChange && match.lastChange.team === c.team && match.clock - match.lastChange.t < PRESS_WINDOW;
       const n = 1 + (press > 0.65 && (lostIt || nearGoal || (deep && pbu > 0.6)) ? 1 : 0);
       const ranked = opp.players.filter((p) => p.group !== 'GK').map((p) => ({ p, d: dist(p, c.player) })).sort((a, b) => a.d - b.d);
@@ -294,7 +297,7 @@
       // taking the nearest of your players not already taken. Whether a player follows his job is a chance, drawn again every few seconds: a team that
       // presses hard mostly sticks to it, and one that presses lightly often does not. The ones left over (usually their full-backs and centre-backs)
       // mark nobody, which is what leaves your man free.
-      const plan = press >= 0.3 && FM.toTeamSpace(c.team.attackDir, c.player.x, c.player.y).d < 0.5 ? pressPlan(match, opp, c.team, c.player, press, ov) : null;
+      const plan = press >= 0.4 && FM.toTeamSpace(c.team.attackDir, c.player.x, c.player.y).d < 0.5 ? pressPlan(match, opp, c.team, c.player, press, ov) : null;
       if (plan) {
         const stand = 1.2 + 2.6 * (1 - press);
         plan.assign.forEach((q, p) => {
@@ -314,7 +317,8 @@
       // receiver down as well, getting right up to him and covering more of the carrier's options. Only when the instructions say press high.
       const hardPress = clamp((press - 0.5) / 0.4, 0, 1);
       const laneAt = (FM.DEF_LANE_AT || 0.6) + 0.3 * hardPress;
-      const cutters = Math.max(2, Math.round((FM.DEF_CUTTERS || 3) * (0.5 + 0.5 * press) + 1.5 * hardPress));
+      // A low block does not go into the carrier's own third to cut the lanes out of a goal kick: it waits for the ball to come to it.
+      const cutters = press < 0.4 && deep ? 0 : Math.max(2, Math.round((FM.DEF_CUTTERS || 3) * (0.5 + 0.5 * press) + 1.5 * hardPress));
       const taken = new Set();
       let used = 0;
       for (const { q } of recv) {
