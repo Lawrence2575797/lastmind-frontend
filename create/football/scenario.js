@@ -472,7 +472,7 @@
       }
       q('#scnReset').addEventListener('click', () => { store[phase] = null; S = null; draw(); });
       if (S.defending) { wireDefend(); return; }
-      q('#scnUndo').addEventListener('click', () => { if (!S.history || !S.history.length) return; const snap = S.history.pop(); S.own = snap.own.map((o, i) => Object.assign({}, S.own[i], { x: o.x, y: o.y })); S.opp.forEach((o, i) => { o.x = snap.opp[i].x; o.y = snap.opp[i].y; }); S.ball = snap.ball; S.holder = snap.holder; S.beats = snap.beats; S.pins = Object.assign({}, snap.pins || {}); S.lost = false; say('Taken back.'); draw(); });
+      q('#scnUndo').addEventListener('click', () => { if (!S.history || !S.history.length) return; const snap = S.history.pop(); S.own = snap.own.map((o, i) => Object.assign({}, S.own[i], { x: o.x, y: o.y })); S.opp.forEach((o, i) => { o.x = snap.opp[i].x; o.y = snap.opp[i].y; }); S.ball = snap.ball; S.holder = snap.holder; S.beats = snap.beats; S.pins = Object.assign({}, snap.pins || {}); S.lost = false; S.done = false; S.shotTaken = false; say('Taken back.'); draw(); });
       q('#scnFinish').addEventListener('click', () => {
         const ex = FM.scenarioApply(S);
         S.finished = true;
@@ -489,6 +489,16 @@
       S.pins = S.pins || {};
       // The man with the ball walks to where the manager has dragged it, at running pace, while everyone else (their side and ours) carries on in
       // real time. A tackle by the engine ends the run on the spot.
+      // In the build-up the scenario is over once the ball is with a man beyond the halfway line (and in midfield, at the edge of the final third).
+      const reached = () => {
+        if (!ph.endLine || S.holder == null || S.lost || S.done) return false;
+        const h = S.own[S.holder];
+        if (h.y <= L * ph.endLine) return false;
+        S.done = true;
+        const nm = h.p.name.split(' ').slice(-1)[0];
+        say(`${nm} has it ${phase === 'build' ? 'beyond the halfway line: the build-up is done' : 'at the edge of the final third: the midfield play is done'}. Press Use this to take what it showed.`);
+        return true;
+      };
       const finishDribble = (d, tackled) => {
         if (d.timer) { clearInterval(d.timer); d.timer = null; }
         drag = null;
@@ -497,7 +507,7 @@
           // collecting a pass is not a dribble: nothing is added to the beats, the pass is what was shown
           S.busy = false;
           if (tackled && S.tackled) { S.lost = true; say(S.tackled.name.split(' ').slice(-1)[0] + ' gets there first and wins it: the ball is lost. Undo, or end the scenario.'); }
-          else say(`${o.p.name.split(' ').slice(-1)[0]} collects it.`);
+          else { say(`${o.p.name.split(' ').slice(-1)[0]} collects it.`); reached(); }
           draw(); return;
         }
         if (moved < 0.5 && !tackled) {
@@ -511,6 +521,7 @@
         if (tackled && S.tackled) { S.lost = true; say(S.tackled.name.split(' ').slice(-1)[0] + ' tackles him and wins it: the ball is lost. Undo, or end the scenario.'); }
         else say(`${o.p.name.split(' ').slice(-1)[0]} carries it ${Math.round(moved)} m.`);
         S.busy = false;
+        if (!tackled) reached();
         draw();
       };
       const dribbleTick = (d) => {
@@ -542,11 +553,12 @@
         runEngine(S, 0.1);
         redraw();
         if (S.tackled) { finishDribble(d, true); return; }
+        if (!d.pickup && ph.endLine && o.y > L * ph.endLine) { finishDribble(d, false); return; }
         if (d.released && !d.pickup && dist(o, tg) < 0.25) finishDribble(d, false);
         else if (d.pickup && dist(o, tg) < 0.6) { S.ball = { x: o.x + 0.8, y: o.y + 0.6 }; finishDribble(d, false); }
       };
       svg.addEventListener('pointerdown', (ev) => {
-        if (S.busy || S.lost) return;
+        if (S.busy || S.lost || S.done) return;
         const own = ev.target.closest && ev.target.closest('[data-own]'), ball = ev.target.closest && ev.target.closest('[data-ball]');
         svg.setPointerCapture(ev.pointerId);
         const p = toBoard(svg, ev);
@@ -611,13 +623,23 @@
           if (dist(d.start, p) < 3 || S.holder == null) { redraw(); return; }
           snapshot();
           const h = S.own[S.holder];
-          // a line into the goal is a shot (in the final third)
-          if (phase === 'final' && p.y > L - 6 && Math.abs(p.x - W / 2) < 12 && h.y > L - 36) {
+          // the ball dragged into the goal from range is a shot, in any phase: goal, saved, blocked or wide
+          if (p.y > L - 6 && Math.abs(p.x - W / 2) < 14 && h.y > L - 40) {
             const rng = FM.mulberry32((S.seed + S.beats.length * 7919) >>> 0);
-            const xg = 1 / (1 + Math.exp(-(FM.xgLogit ? FM.xgLogit(h.p, L - h.y, h.x, 1, Math.min.apply(null, S.opp.map((q) => dist(q, h)).concat([20]))) : -2)));
-            const goal = rng() < xg;
-            S.beats.push({ type: 'shot', i: S.holder, ok: goal, d: dist(h, p), fromXY: { x: h.x, y: h.y }, endXY: { x: p.x, y: L }, dy: L - h.y });
-            say(goal ? 'Goal.' : 'Saved or wide: the attack ends in a shot.'); S.ball = { x: p.x, y: L }; S.lost = false; S.shotTaken = true;
+            const nearest = Math.min.apply(null, S.opp.filter((q) => q.p.group !== 'GK').map((q) => dist(q, h)).concat([20]));
+            const xg = 1 / (1 + Math.exp(-(FM.xgLogit ? FM.xgLogit(h.p, h.y, h.x, 1, nearest) : -2)));
+            const gk = S.opp.find((q) => q.p.group === 'GK'), last = (n) => n.split(' ').slice(-1)[0];
+            let outcome;
+            if (nearest < 2 && rng() < 0.35) outcome = 'blocked';
+            else if (Math.abs(p.x - W / 2) >= 3.66) outcome = 'wide';
+            else outcome = rng() < clamp(xg / 0.62, 0.03, 0.92) ? 'goal' : 'saved';
+            const goal = outcome === 'goal', who = last(h.p.name);
+            S.beats.push({ type: 'shot', i: S.holder, ok: goal, outcome, d: dist(h, p), fromXY: { x: h.x, y: h.y }, endXY: { x: p.x, y: L }, dy: L - h.y });
+            S.ball = { x: clamp(p.x, W / 2 - 3.66, W / 2 + 3.66), y: L };
+            if (outcome === 'blocked') S.ball = { x: h.x, y: h.y + 1.5 };
+            say(goal ? `${who} shoots and scores! GOAL.` : outcome === 'saved' ? `${who} shoots: saved${gk ? ' by ' + last(gk.p.name) : ''}.` : outcome === 'blocked' ? `${who} shoots, but it is blocked.` : `${who} shoots: wide of the post.`);
+            S.say += ' The attack ends here: press Use this to take what it showed.';
+            S.lost = false; S.shotTaken = true; S.done = true;
             draw(); return;
           }
           if (!S.beats.some((b) => b.type === 'pass' || b.type === 'dribble')) S.start = S.own.map((o) => ({ x: o.x, y: o.y }));
@@ -652,6 +674,7 @@
           }
           S.busy = true; await reactAnimated(); S.busy = false;
           if (r.ok && S.tackled) { S.lost = true; say(S.tackled.name.split(' ').slice(-1)[0] + ' closes him down and wins it: the ball is lost. Undo, or end the scenario.'); }
+          else if (r.ok) reached();
           draw();
         }
       });
