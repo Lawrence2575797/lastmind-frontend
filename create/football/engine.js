@@ -395,8 +395,29 @@
     team.tactics.defWidth = width('without');
   };
   // After anything moves, any hand-placed position that is now out of reach is pulled back.
+  // Returns whether anything moved. A position that came from a scenario the manager showed counts like one placed by hand; a default one that is
+  // out of reach is pulled back as well.
   FM.fixSlot = function (team, p, opp, lineFor) {
-    FM.allPhaseKeys(team).forEach((ph) => { if (FM.isManual(team, p, ph)) FM.setPhasePos(team, p, ph, FM.clampOffside(team, p, ph, FM.clampToReach(team, p, ph, FM.phasePos(team, p, ph)), opp, lineFor ? lineFor(ph) : null)); });
+    let moved = false;
+    FM.allPhaseKeys(team).forEach((ph) => {
+      const sc = team.scenarioEnd && team.scenarioEnd[FM.baseKey(ph)];
+      const placed = FM.isManual(team, p, ph) || !!(sc && sc[p.index]);
+      const was = FM.phasePos(team, p, ph);
+      const now = FM.clampOffside(team, p, ph, FM.clampToReach(team, p, ph, was), opp, lineFor ? lineFor(ph) : null);
+      const differs = Math.abs(now.d - was.d) > 0.002 || Math.abs(now.w - was.w) > 0.002;
+      if (differs) moved = true;
+      // a placed position is always re-stated; a default one is only fixed (and so becomes fixed) when it really was impossible
+      if (placed || differs) FM.setPhasePos(team, p, ph, now);
+    });
+    return moved;
+  };
+  // Pull every player's positions back until nothing is out of reach or offside: a few passes, because pulling one phase can bring the next into range.
+  FM.fixTeam = function (team, opp, lineFor) {
+    for (let k = 0; k < 4; k++) {
+      let moved = false;
+      team.players.forEach((q) => { if (FM.fixSlot(team, q, opp, lineFor)) moved = true; });
+      if (!moved) break;
+    }
   };
   // Moving the defensive line moves every player's default position (see defaultPhasePos), and it must move the ones the manager has placed by hand
   // as well: a full-back dragged to a spot on the Defending board still goes up and down with the line, by the same amount as everyone else.

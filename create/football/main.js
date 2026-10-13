@@ -1366,6 +1366,7 @@
     world.scn = world.scn || {};
     FM.renderScenario(host.querySelector('#scnHost'), team, nextOpponent(), sub, { store: world.scn, save: saveSoon, applied: (done) => {
       FM.inferShapeTactics(team); renderPrepFlow();
+      try { FM.fixTeam(team, nextOpponent(), (ph) => oppLine(ph)); } catch (e) { /* the warnings on the squad page still say what is wrong */ }
       // "Use this and go on to ..." takes you to that phase's page
       const nk = done && done.nextKey, nb = nk && el('tabs').querySelector('button[data-tab="' + nk + '"]');
       if (nb) nb.click();
@@ -1936,6 +1937,8 @@
   function renderWarnPanel(team) {
     const host = el('warnPanel');
     if (!host) return;
+    // Positions that are out of reach between phases, or offside, are not allowed to stand: they are pulled back as soon as they are made.
+    if (!inLive()) { try { FM.fixTeam(team, nextOpponent(), (ph) => oppLine(ph)); saveSoon(); } catch (e) { /* the warnings below still say what is wrong */ } }
     const all = FM.teamProblems(team, nextOpponent(), (ph) => oppLine(ph));
     const sel = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
     const hurt = team.players.filter(FM.isInjured);
