@@ -1295,7 +1295,9 @@
     if (last && st.view === 'results' && !st.busy && FM.labResults) {
       host.innerHTML = '<div class="lab"><div id="labOutcome"></div></div>';
       const fresh = !!st.fresh; st.fresh = false;
-      FM.labResults.outcome(host.querySelector('#labOutcome'), { phase, opp, team, runs, fresh, onAgain: () => { st.view = 'setup'; renderLab(team, host, phase); window.scrollTo(0, 0); }, onTactics: toTactics, onPreview: goEvidence });
+      FM.labResults.outcome(host.querySelector('#labOutcome'), { phase, opp, team, runs, fresh, onAgain: () => { st.view = 'setup'; renderLab(team, host, phase); window.scrollTo(0, 0); }, onTactics: toTactics, onPreview: goEvidence,
+        onImplement: (id) => { const out = FM.lab.implement(team, phase, id, last.result); saveSoon(); if (FM.inferShapeTactics) FM.inferShapeTactics(team); return out; },
+        onRevert: () => { const prevRun = runs[runs.length - 2]; const ok = prevRun && FM.lab.restore(team, prevRun.snap); if (ok) { if (FM.inferShapeTactics) FM.inferShapeTactics(team); saveSoon(); } return !!ok; } });
       if (st.toAgain) { st.toAgain = false; const tgt = host.querySelector('[data-act="again"]'); if (tgt && tgt.scrollIntoView) setTimeout(() => tgt.scrollIntoView({ block: 'center', behavior: 'smooth' }), 80); }
       return;
     }

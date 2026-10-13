@@ -346,25 +346,114 @@
     const za = S.normInv(0.975), zb = S.normInv(0.8);
     return Math.ceil(Math.pow(za + zb, 2) * (p1 * (1 - p1) + p2 * (1 - p2)) / (d * d));
   };
-  // A set-up in a few numbers, kept with each run so a run can say what changed since the last one.
+  // A set-up in a few numbers, kept with each run so a run can say what changed since the last one, and so it can be put back.
   LAB.snapshot = function (team) {
     const keys = ['buildDirect', 'directness', 'tempo', 'risk', 'beatPress', 'attackWidth', 'lineHeight'];
     const tac = {}; keys.forEach((k) => { tac[k] = Math.round(team.tactics[k] * 100) / 100; });
-    const pos = {}; team.players.forEach((p) => { const q = FM.phasePos(team, p, 'build'); pos[p.number] = [Math.round(q.d * 1000) / 1000, Math.round(q.w * 1000) / 1000, p.name]; });
-    return { tac, pos, rules: (team.rules || []).filter((r) => !r.off).map((r) => FM.rulesWho(r) + ': ' + FM.rulesText(r)) };
+    // where every player stands on every board, by shirt number
+    const all = {};
+    (FM.allPhaseKeys ? FM.allPhaseKeys(team) : FM.PHASES).forEach((ph) => {
+      const row = {}; team.players.forEach((p) => { const q = FM.phasePos(team, p, ph); row[p.number] = [Math.round(q.d * 1000) / 1000, Math.round(q.w * 1000) / 1000, p.name]; });
+      all[ph] = row;
+    });
+    const full = { tactics: JSON.parse(JSON.stringify(team.tactics)), phasePos: JSON.parse(JSON.stringify(team.phasePos || {})), rules: JSON.parse(JSON.stringify(team.rules || [])), shape: JSON.parse(JSON.stringify(team.shape || {})) };
+    return { tac, pos: all.build || {}, posAll: all, full, rules: (team.rules || []).filter((r) => !r.off).map((r) => FM.rulesWho(r) + ': ' + FM.rulesText(r)) };
   };
+  // Put a set-up back exactly as it was when a run was made.
+  LAB.restore = function (team, snap) {
+    if (!snap || !snap.full) return false;
+    const f = JSON.parse(JSON.stringify(snap.full));
+    team.tactics = f.tactics; team.phasePos = f.phasePos; team.rules = f.rules; if (f.shape) team.shape = f.shape;
+    return true;
+  };
+  // What is different between two set-ups, in plain words and at most a few lines.
   LAB.changes = function (before, after) {
     if (!before) return [];
     const out = [], names = { buildDirect: 'Playing out from the back', directness: 'Progressing through midfield', tempo: 'Tempo', risk: 'Risk', beatPress: 'Beating the press', attackWidth: 'Width', lineHeight: 'Defensive line' };
-    Object.keys(after.tac).forEach((k) => { if (before.tac[k] !== after.tac[k]) out.push(names[k] + ': ' + before.tac[k] + ' to ' + after.tac[k]); });
+    Object.keys(after.tac).forEach((k) => { if (before.tac[k] !== after.tac[k]) out.push(names[k] + ' changed'); });
     const rb = before.rules || [], ra = after.rules || [];
-    ra.forEach((t) => { if (rb.indexOf(t) < 0) out.push('Instruction added: ' + t.replace(/\.$/, '')); });
-    rb.forEach((t) => { if (ra.indexOf(t) < 0) out.push('Instruction removed: ' + t.replace(/\.$/, '')); });
-    Object.keys(after.pos).forEach((n) => {
-      const a = after.pos[n], b = before.pos[n]; if (!b) return;
-      const dx = (a[0] - b[0]) * L, dy = (a[1] - b[1]) * 68;
-      if (Math.abs(dx) >= 2 || Math.abs(dy) >= 2) out.push(a[2] + ' moved ' + (Math.abs(dx) >= 2 ? Math.abs(Math.round(dx)) + ' m ' + (dx > 0 ? 'up' : 'back') : '') + (Math.abs(dx) >= 2 && Math.abs(dy) >= 2 ? ' and ' : '') + (Math.abs(dy) >= 2 ? Math.abs(Math.round(dy)) + ' m across' : ''));
+    const added = ra.filter((t) => rb.indexOf(t) < 0).length, removed = rb.filter((t) => ra.indexOf(t) < 0).length;
+    if (added) out.push(added + (added === 1 ? ' instruction' : ' instructions') + ' added');
+    if (removed) out.push(removed + (removed === 1 ? ' instruction' : ' instructions') + ' removed');
+    // player positions, board by board
+    const A = after.posAll || { build: after.pos }, B = before.posAll || { build: before.pos };
+    const boards = [];
+    Object.keys(A).forEach((ph) => {
+      const names2 = [];
+      Object.keys(A[ph]).forEach((n) => {
+        const a = A[ph][n], b = (B[ph] || {})[n]; if (!b) return;
+        const dx = (a[0] - b[0]) * L, dy = (a[1] - b[1]) * 68;
+        if (Math.abs(dx) >= 2 || Math.abs(dy) >= 2) names2.push(a[2].split(' ').slice(-1)[0]);
+      });
+      if (names2.length) boards.push({ ph, names: names2 });
     });
+    boards.slice(0, 3).forEach((b) => out.push((b.names.length > 3 ? b.names.slice(0, 3).join(', ') + ' and ' + (b.names.length - 3) + ' more' : (b.names.length > 1 ? b.names.slice(0, -1).join(', ') + ' and ' + b.names[b.names.length - 1] : b.names.join(''))) + ' moved on the "' + ((FM.PHASE_NAMES && FM.PHASE_NAMES[b.ph]) || b.ph) + '" board'));
+    if (boards.length > 3) out.push('and positions on ' + (boards.length - 3) + ' more boards');
     return out;
+  };
+
+  // ---------- "implement this for me": the instruction written into the right place, and the players moved on the right board ----------
+  // Each test belongs to one stage of play with a start diagram and an end diagram. An instruction goes in with that stage and part, so it applies
+  // only while the team is in that part of play, exactly as if it had been written under that board.
+  LAB.BOARDS = {
+    build: { keys: ['build', 'buildEnd'], stage: 'build' }, midfield: { keys: ['buildEnd', 'midfield'], stage: 'midfield' }, final: { keys: ['midfield', 'final'], stage: 'final' },
+    transatt: { keys: ['transAtt', 'transAttEnd'], stage: 'transAtt' }, organised: { keys: ['without', 'withoutEnd'], stage: 'without' }, transdef: { keys: ['transDef', 'transDefEnd'], stage: 'transDef' },
+  };
+  LAB.implement = function (team, phase, id, result) {
+    const B = LAB.BOARDS[phase]; if (!B) return null;
+    const S = B.keys[0], E = B.keys[1], said = [], moved = [];
+    const clampv = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+    const G = (...g) => team.players.filter((p) => g.indexOf(p.group) >= 0);
+    const surname = (p) => p.name.split(' ').slice(-1)[0];
+    team.phasePos = team.phasePos || {}; team.rules = team.rules || [];
+    // move one player on one board: by an amount, or to a place
+    const go = (p, key, o) => {
+      const cur = FM.phasePos(team, p, key);
+      let pos = { d: clampv(o.d != null ? o.d : cur.d + (o.dd || 0), 0.03, 0.97), w: clampv(o.w != null ? o.w : cur.w + (o.dw || 0), 0.04, 0.96) };
+      if (FM.clampToReach) pos = FM.clampToReach(team, p, key, pos);
+      FM.setPhasePos(team, p, key, pos);
+      moved.push({ key, p });
+    };
+    const rule = (scope, effects, part, extra) => {
+      const when = Object.assign({ stage: [B.stage] }, part ? { part } : {}, part === 'end' ? { page: 'default' } : {}, extra || {});
+      const r = FM.rulesClean({ scope, when, effects, source: 'builder' }, team.players.map((p) => p.number));
+      if (r) { team.rules.push(r); said.push(FM.rulesWho(r) + ' will now ' + FM.rulesEffectText(effects[0]).replace(/^./, (c) => c) + (r.when.part ? ' (' + (r.when.part === 'start' ? 'at the start of' : 'by the end of') + ' this phase)' : '') + '.'); }
+    };
+    const team_ = { kind: 'team' }, grp = (g) => ({ kind: 'group', group: g }), line = (l) => ({ kind: 'line', line: l });
+    const w = result && result.why, top = w ? Object.keys(w.players || {}).map((k) => w.players[k]).sort((a, b) => b.n - a.n)[0] : null;
+    const topP = top ? team.players.find((p) => p.name === top.name) : null;
+    const near = (p, key) => { const c = FM.phasePos(team, p, key); return G('DM', 'CM', 'AM', 'FB', 'WF').filter((q) => q !== p).map((q) => { const o = FM.phasePos(team, q, key); return { q, d: Math.hypot((o.d - c.d) * 105, (o.w - c.w) * 68) }; }).sort((a, b) => a.d - b.d)[0]; };
+    const support = (p, key) => { if (!p) return; const n = near(p, key); if (!n) return; const c = FM.phasePos(team, p, key); go(n.q, key, { d: clampv(c.d - 0.03, 0.05, 0.95), w: clampv(c.w + (c.w < 0.5 ? 0.09 : -0.09), 0.05, 0.95) }); };
+    const att = phase === 'final' || phase === 'transatt';
+    const holder = () => G('DM')[0] || G('CM')[0] || G('AM')[0];
+    if (phase === 'organised' || phase === 'transdef') {
+      if (id === 'close') { G('DM', 'CM').forEach((p) => { go(p, E, { dd: -0.06 }); go(p, S, { dd: -0.03 }); }); rule(line('midfield'), [{ type: 'position', forward: -4, wide: 0, phase: 'without' }], 'end'); }
+      else if (id === 'free') { rule(grp('CM'), [{ type: 'closeDown', delta: 0.6 }], 'end'); rule(grp('DM'), [{ type: 'closeDown', delta: 0.5 }], 'end'); }
+      else if (id === 'far') { G('CB', 'FB').forEach((p) => { go(p, S, { dd: -0.04 }); go(p, E, { dd: -0.04 }); }); rule(line('defence'), [{ type: 'position', forward: -3, wide: 0, phase: 'without' }], 'end'); }
+      else if (id === 'wide') { G('CM', 'DM').forEach((p) => { const c = FM.phasePos(team, p, S); go(p, S, { dw: (0.5 - c.w) * 0.35 }); const e = FM.phasePos(team, p, E); go(p, E, { dw: (0.5 - e.w) * 0.35 }); }); }
+      else if (id === 'counter') { G('DM').forEach((p) => { go(p, 'midfield', { dd: -0.07 }); go(p, 'final', { dd: -0.09 }); }); rule(grp('DM'), [{ type: 'position', forward: -5, wide: 0, phase: 'with' }], null, { stage: ['midfield', 'final'], possession: 'with' }); }
+      else { G('CB', 'FB').forEach((p) => { go(p, S, { dd: 0.03 }); go(p, E, { dd: 0.03 }); }); G('ST', 'WF').forEach((p) => { go(p, S, { dd: -0.05 }); go(p, E, { dd: -0.05 }); }); }
+    } else if (att) {
+      if (id === 'intercepted') { const h = G('AM')[0] || G('CM')[0]; if (h) { go(h, S, { dd: 0.0, dw: (0.5 - FM.phasePos(team, h, S).w) * 0.4 }); go(h, E, { dd: -0.03, dw: (0.5 - FM.phasePos(team, h, E).w) * 0.4 }); rule(grp(h.group), [{ type: 'freeMan', weight: 0.5 }], 'start'); } }
+      else if (id === 'loose') { rule(team_, [{ type: 'passLength', pref: 'short', strength: 0.6 }], 'start'); rule(team_, [{ type: 'risk', delta: -0.3 }], 'start'); }
+      else if (id === 'dribble' || id === 'player') { if (topP) { rule({ kind: 'slot', slot: topP.slotKey }, [{ type: 'dribble', delta: -0.6 }], null); support(topP, E); } }
+      else if (id === 'tackle') { if (topP) support(topP, E); G('AM', 'CM').slice(0, 1).forEach((p) => go(p, E, { dd: -0.02 })); }
+      else if (id === 'offside') { G('ST').forEach((p) => { go(p, S, { dd: -0.04 }); go(p, E, { dd: -0.04 }); }); rule(grp('ST'), [{ type: 'runs', delta: -0.5 }], null); }
+      else { G('CM').forEach((p) => { go(p, E, { dd: 0.05 }); }); G('AM').forEach((p) => go(p, E, { dd: 0.03 })); G('WF').forEach((p) => go(p, E, { dw: (p.slotKey && FM.phasePos(team, p, E).w < 0.5 ? -0.04 : 0.04) })); rule(line('attack'), [{ type: 'runs', delta: 0.4 }], null); }
+    } else {
+      if (id === 'intercepted' || id === 'g') { const h = holder(); if (h) { go(h, S, { dd: -0.08, dw: (0.5 - FM.phasePos(team, h, S).w) * 0.4 }); rule(grp(h.group), [{ type: 'freeMan', weight: 0.5 }], 'start'); } G('FB').forEach((p) => go(p, S, { dd: -0.04 })); }
+      else if (id === 'loose') { rule(team_, [{ type: 'passLength', pref: 'short', strength: 0.7 }], 'start'); G('CM').forEach((p) => go(p, S, { dd: -0.05 })); }
+      else if (id === 'dribble' || id === 'player') { if (topP) { rule({ kind: 'slot', slot: topP.slotKey }, [{ type: 'dribble', delta: -0.7 }, { type: 'risk', delta: -0.3 }], null); support(topP, S); } else rule(team_, [{ type: 'dribble', delta: -0.4 }], 'start'); }
+      else if (id === 'tackle') { if (topP) support(topP, S); rule(team_, [{ type: 'tempo', delta: 0.4 }], 'start'); }
+      else if (id === 'offside') { G('ST', 'WF').forEach((p) => { go(p, S, { dd: -0.05 }); go(p, E, { dd: -0.05 }); }); rule(line('attack'), [{ type: 'runs', delta: -0.5 }], null); }
+      else if (id === 'long') { G('DM', 'CM').forEach((p) => go(p, S, { dd: -0.08 })); rule(team_, [{ type: 'passLength', pref: 'short', strength: 0.6 }], 'start'); }
+      else if (id === 'near') { const cbs = G('CB').sort((a, b) => FM.phasePos(team, a, S).w - FM.phasePos(team, b, S).w); cbs.forEach((p, i) => go(p, S, { d: 0.13, w: cbs.length === 1 ? 0.5 : 0.5 + (i / (cbs.length - 1) - 0.5) * 0.3 })); rule(grp('GK'), [{ type: 'passLength', pref: 'short', strength: 0.6 }], 'start'); }
+      else if (id === 'marked') { G('WF', 'FB').forEach((p) => { [S, E].forEach((k) => { const c = FM.phasePos(team, p, k); go(p, k, { dw: c.w < 0.5 ? -0.06 : 0.06 }); }); }); rule(team_, [{ type: 'freeMan', weight: 0.6 }], 'start'); }
+    }
+    // what was done, in plain words
+    const byBoard = {};
+    moved.forEach((m) => { (byBoard[m.key] = byBoard[m.key] || new Set()).add(surname(m.p)); });
+    const moves = Object.keys(byBoard).map((k) => Array.from(byBoard[k]).join(', ') + ' moved on the "' + ((FM.PHASE_NAMES && FM.PHASE_NAMES[k]) || k) + '" board.');
+    return { said, moves, count: said.length + moves.length };
   };
 })();

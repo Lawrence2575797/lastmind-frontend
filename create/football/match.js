@@ -741,6 +741,9 @@
     if (team.rules && team.rules.length) { const f = FM.rulesFold(FM.rulesActive(team, carrier, FM.rulesCtx(team, match.ball, true, d < 4))); tempoD = f.tempo; hold = f.holdUp; }
     const clear = clearThrough(match, team, carrier) ? 0.3 : 1;   // one on one with the keeper there is no time to think
     const planned = (base * clear * (1 - 0.35 * tempoD) * pressureFactor + (FM.instrMods(carrier).holdUp || hold ? 0.9 : 0)) * (0.82 + 0.36 * match.rng()) + (midfield ? 0 : 0.18);
+    // A man with a defender on top of him does not stand and think: he gets rid of it, or moves it on, within a second or two.
+    if (d < 2.5) return Math.min(planned, 1.7 + 1.0 * match.rng());
+    if (d < 4.5) return Math.min(planned, Math.max(2.6, planned * 0.75));
     return Math.max(counterNow(match, team) > .45 || clear < 1 ? 2.1 : 3.8, planned);
   }
 

@@ -225,10 +225,11 @@
     return out.slice(0, 3);
   }
 
-  // "Did the change help?", settled by the computer: a one-sided test of the new run against the one before it.
+  // "Did the change help?", settled by the computer. The question depends on which way the result moved: a rise is tested as a rise and a fall as a
+  // fall, each against the chance that run-to-run variation alone would move it that far.
   function improvement(prev, cur, phase) {
     const A = asRes(prev, phase), B = asRes(cur, phase), c = FM.lab.compare(A, B, 'ok'), d = c.diff;
-    return { diff: d, pOne: d >= 0 ? c.p / 2 : 1 - c.p / 2, c, a: A.ok.p, b: B.ok.p, n: B.n, need: c.need };
+    return { diff: d, pDir: c.p / 2, a: A.ok.p, b: B.ok.p, n: B.n, need: c.need };
   }
   const SIG = 0.05;
   const bars = (rows, total) => rows.filter((x) => x[1] > 0).map(([l, k, note]) => '<div class="lo-bar"><span><b>' + esc(l) + '</b>' + (note ? '<small>' + esc(note) + '</small>' : '') + '</span><i style="--w:' + Math.round((k / Math.max(1, total)) * 100) + '%"></i><em>' + k + ' of ' + total + '</em></div>').join('');
@@ -249,20 +250,30 @@
     let h = '<div class="lab-outcome' + fresh + '">';
     // 1. the headline, with how it compares with last time straight under it
     const pctWhole = Math.round(rate * 100);
-    let top = '<p class="lo-headline"><b>' + pctWhole + '%</b> of tests were successful.</p><p class="lo-mood">' + esc(mood(rate, sat)) + '</p><p class="lo-detail">' + esc((DONE_TEXT[phase] || DONE_TEXT.build)(succ.k, n)) + (phase === 'build' && r.time ? ', in ' + r.time.mean.toFixed(1) + ' seconds on average' : '') + '.</p>';
+    let verdict = null, im = null, prev = null;
     if (runs.length >= 2) {
-      const prev = runs[runs.length - 2], im = improvement(prev, run, phase), pa = Math.round(im.a * 100), pb = Math.round(im.b * 100);
-      const pTxt = im.pOne < 0.001 ? 'less than 0.1%' : (im.pOne * 100).toFixed(1) + '%';
-      const verdict = im.diff <= 0 && im.pOne > 0.5
-        ? 'It did not improve: ' + pb + '% this time, against ' + pa + '% last time.'
-        : im.pOne < SIG ? 'It really did improve. ' + pa + '% became ' + pb + '%, and luck alone would give a rise that big ' + (im.pOne * 100 < 1 ? 'fewer than 1 time in 100.' : 'only about ' + Math.round(im.pOne * 100) + ' times in 100.')
-        : 'It looks better (' + pa + '% became ' + pb + '%), but the evidence is not strong enough yet: luck alone would give a rise like that about ' + Math.round(im.pOne * 100) + ' times in 100.' + (im.need ? ' About ' + im.need + ' tests of each would settle it.' : '');
-      const changed = (run.changes || []).slice(0, 4);
+      prev = runs[runs.length - 2]; im = improvement(prev, run, phase);
+      const big = im.pDir < SIG;
+      verdict = Math.abs(im.diff) < 0.02 ? 'same' : im.diff > 0 ? (big ? 'better' : 'slightly-better') : (big ? 'worse' : 'slightly-worse');
+    }
+    const moodText = verdict === 'worse' ? 'That is a step back from last time.'
+      : verdict === 'slightly-worse' ? 'A little lower than last time, though not by enough to be sure your change is the reason.'
+      : verdict === 'better' ? 'Better than last time: your change worked.'
+      : mood(rate, sat);
+    let top = '<p class="lo-headline"><b>' + pctWhole + '%</b> of tests were successful.</p><p class="lo-mood">' + esc(moodText) + '</p><p class="lo-detail">' + esc((DONE_TEXT[phase] || DONE_TEXT.build)(succ.k, n)) + (phase === 'build' && r.time ? ', in ' + r.time.mean.toFixed(1) + ' seconds on average' : '') + '.</p>';
+    if (im) {
+      const pa = Math.round(im.a * 100), pb = Math.round(im.b * 100);
+      const text = {
+        better: 'Yes. Last time ' + pa + '% of tests were successful and this time ' + pb + '%. That gap is too big to be down to chance, so the change helped.',
+        'slightly-better': 'A little better (' + pa + '% became ' + pb + '%), but not by enough to be sure it was your change and not just the ordinary ups and downs between runs. Testing again will tell.',
+        same: 'No real difference: ' + pa + '% last time and ' + pb + '% now.',
+        'slightly-worse': 'A little lower (' + pa + '% became ' + pb + '%), but that is within the ordinary ups and downs between runs, so the change may not be to blame.',
+        worse: 'No. It went from ' + pa + '% down to ' + pb + '%. That drop is too big to be down to chance: the change made it worse.',
+      }[verdict];
+      const changed = (run.changes || []).slice(0, 5);
       top += '<div class="lo-test"><h4>Did the change help?</h4>' +
-        '<p>The computer set it up as a test. <b>The starting assumption</b> is that nothing you changed made any difference to the ' + pa + '% from last time. <b>The alternative</b> is that you raised it. It only accepts the alternative if luck alone would give a rise this big less than ' + Math.round(SIG * 100) + ' times in 100: that is the <b>5% significance level</b>.</p>' +
-        '<p class="lo-verdict ' + (im.pOne < SIG ? 'yes' : im.diff <= 0 ? 'no' : 'maybe') + '">' + esc(verdict) + '</p>' +
-        (im.diff > 0 ? '<p class="lo-small">The chance of seeing a rise at least this big if nothing had really changed: ' + esc(pTxt) + '.</p>' : '') +
-        (changed.length ? '<p class="lo-small">What you changed: ' + changed.map(esc).join('; ') + '.</p>' : '') + '</div>';
+        '<p class="lo-verdict ' + (verdict === 'better' ? 'yes' : verdict === 'worse' ? 'no' : 'maybe') + '">' + esc(text) + '</p>' +
+        (changed.length ? '<p class="lo-small">What you changed since last time: ' + changed.map(esc).join('; ') + '.</p>' : '') + '</div>';
     }
     h += rv('<h2 class="lo-title">Test Results</h2>' + top, 'lo-top');
     const clips = pickClips(r, phase);
@@ -301,12 +312,14 @@
     // 4. instructions
     const ins = instructionsFor(r, phase), unsat = rate < sat, tab = PREP_TAB[phase] || 'build';
     h += rv('<h3>Instructions</h3><p class="lo-small">' + (unsat ? 'These are the changes most likely to move the result, and what each one costs you.' : 'You are already getting good results. If you want to push further, these are the changes worth trying, and what each one costs you.') + '</p>' +
-      '<div class="lo-ins">' + ins.map((x, k) => '<div class="lo-card"><b>' + (k + 1) + '. ' + esc(x.title) + '</b><p>' + esc(x.change) + '</p><p class="lo-cost"><em>The trade-off:</em> ' + esc(x.cost) + '</p><button type="button" class="el-go" data-tactics="' + tab + '">See tactics</button></div>').join('') + '</div>');
+      '<div class="lo-ins">' + ins.map((x, k) => '<div class="lo-card"><b>' + (k + 1) + '. ' + esc(x.title) + '</b><p>' + esc(x.change) + '</p><p class="lo-cost"><em>The trade-off:</em> ' + esc(x.cost) + '</p><div class="row"><button type="button" class="primary" data-implement="' + esc(x.id) + '">Implement this for me</button><button type="button" class="el-go" data-tactics="' + tab + '">See tactics</button></div><p class="lo-done" data-done="' + esc(x.id) + '" hidden></p></div>').join('') + '</div>');
     // 5. what next
-    const rec = unsat
-      ? '<h3>Test it again</h3><p>We recommend making a change and testing again. It will be the same ' + n + ' tests as before, and we will be looking to <b>beat ' + pctWhole + '%</b>. The computer then checks whether any improvement is real or just luck, and tells you what it found at the top of the results.</p>'
-      : '<h3>Ready for the match?</h3><p>This is a good result to take into the game. You can still test again if you want to push it further.</p>';
-    h += rv(rec + '<div class="row"><button type="button" class="primary" data-act="again">' + (unsat ? 'Test again (' + n + ' tests)' : 'Test again anyway') + '</button><button type="button" class="el-go" data-tactics="' + tab + '">See tactics</button><button type="button" class="el-go" data-act="preview">Go to the match preview</button></div>');
+    const canRevert = verdict === 'worse' && prev && prev.snap && prev.snap.full;
+    let rec;
+    if (canRevert) rec = '<h3>Go back to what you had</h3><p>Your last change made things clearly worse, so we recommend putting your tactics back exactly as they were for the previous test (' + Math.round(im.a * 100) + '% successful). You can then try a different change from the instructions above.</p>';
+    else if (unsat) rec = '<h3>Test it again</h3><p>We recommend making a change and testing again. It will be the same ' + n + ' tests as before, and we will be looking to <b>beat ' + pctWhole + '%</b>. Afterwards we will tell you whether the change really helped.</p>';
+    else rec = '<h3>Ready for the match?</h3><p>This is a good result to take into the game. You can still test again if you want to push it further.</p>';
+    h += rv(rec + '<div class="row">' + (canRevert ? '<button type="button" class="primary" data-act="revert">Put my previous tactics back</button>' : '') + '<button type="button" class="' + (canRevert ? 'el-go' : 'primary') + '" data-act="again">' + (unsat ? 'Test again (' + n + ' tests)' : 'Test again anyway') + '</button><button type="button" class="el-go" data-tactics="' + tab + '">See tactics</button><button type="button" class="el-go" data-act="preview">Go to the match preview</button></div><p class="lo-done" data-reverted hidden></p>');
     return h + '</div>';
   }
 
@@ -322,6 +335,13 @@
       host.querySelectorAll('[data-tactics]').forEach((b) => b.addEventListener('click', () => c.onTactics && c.onTactics(b.dataset.tactics)));
       const ag = host.querySelector('[data-act="again"]'); if (ag) ag.addEventListener('click', () => c.onAgain && c.onAgain());
       const pv = host.querySelector('[data-act="preview"]'); if (pv) pv.addEventListener('click', () => c.onPreview && c.onPreview());
+      host.querySelectorAll('[data-implement]').forEach((b) => b.addEventListener('click', () => {
+        const out = c.onImplement ? c.onImplement(b.dataset.implement) : null, note = host.querySelector('[data-done="' + b.dataset.implement + '"]');
+        b.disabled = true; b.textContent = out && out.count ? 'Done' : 'Nothing to change';
+        if (note) { note.hidden = false; note.textContent = out && out.count ? [].concat(out.said, out.moves).join(' ') + ' Open the tactics board to see it, then test again.' : 'Your tactics already match this, so nothing was changed.'; }
+      }));
+      const rv2 = host.querySelector('[data-act="revert"]');
+      if (rv2) rv2.addEventListener('click', () => { const ok = c.onRevert ? c.onRevert() : false; rv2.disabled = true; const note = host.querySelector('[data-reverted]'); if (note) { note.hidden = false; note.textContent = ok ? 'Your previous tactics are back. Test again to confirm.' : 'The previous tactics could not be restored.'; } });
       const r = c.runs[c.runs.length - 1].result;
       if (FM.labReplay && r.clips) {
         const g = host.querySelector('#loGood'), bd = host.querySelector('#loBad'), picked = pickClips(r, c.phase);

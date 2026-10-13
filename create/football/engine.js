@@ -209,10 +209,35 @@
   FM.defaultPhasePos = function (team, p, phase) {
     // Each possession phase begins where the previous phase finished until the manager moves the shirt again.
     // Until the manager moves a shirt, each stage starts where the one before it ended (the same as before the stages had two diagrams).
-    const carry = { buildEnd: 'build', midfield: 'buildEnd', final: 'midfield', transAttEnd: 'transAtt', transDefEnd: 'transDef', withoutEnd: 'without' };
+    const carry = { transAttEnd: 'transAtt', transDefEnd: 'transDef' };
 
     if (carry[phase]) { const q = FM.phasePos(team, p, carry[phase]); return { d: q.d, w: q.w }; }
     const base = FM.slotBase(team, p), role = FM.ROLES[p.roleId], m = FM.instrMods(p);
+    // The team's shape as the ball moves up the pitch, from a goal kick to a chance. Each group stands where a real side's would for that ball: at
+    // a goal kick the side is in its own half with only the striker near halfway, and every phase on from there moves the whole shape up with the
+    // ball. (The slot's own place in the formation, and the role, move a player a little either side of his group's depth.)
+    const POSS_D = {
+      build:    { GK: 0.03, CB: 0.19, FB: 0.29, DM: 0.33, CM: 0.40, AM: 0.46, WF: 0.50, ST: 0.55 },
+      buildEnd: { GK: 0.03, CB: 0.34, FB: 0.46, DM: 0.43, CM: 0.54, AM: 0.62, WF: 0.66, ST: 0.72 },
+      midfield: { GK: 0.04, CB: 0.46, FB: 0.60, DM: 0.53, CM: 0.66, AM: 0.74, WF: 0.78, ST: 0.80 },
+      final:    { GK: 0.05, CB: 0.56, FB: 0.70, DM: 0.62, CM: 0.72, AM: 0.76, WF: 0.78, ST: 0.80 },
+      // Without the ball the side drops with it: a compact block when the ball is in midfield, and everyone back around the box when it is not.
+      without:    { GK: 0.03, CB: 0.27, FB: 0.30, DM: 0.40, CM: 0.46, AM: 0.52, WF: 0.58, ST: 0.62 },
+      withoutEnd: { GK: 0.03, CB: 0.15, FB: 0.17, DM: 0.24, CM: 0.30, AM: 0.36, WF: 0.42, ST: 0.48 },
+    };
+    const GROUP_BASE = { GK: 0.03, CB: 0.20, FB: 0.22, DM: 0.41, CM: 0.50, AM: 0.62, WF: 0.78, ST: 0.83 };
+    if (POSS_D[phase] && POSS_D[phase][p.group] != null) {
+      const oP = phase === 'without' || phase === 'withoutEnd' ? role.outPoss : role.inPoss;
+      let d = POSS_D[phase][p.group] + (p.group === 'GK' ? 0 : (base.d - (GROUP_BASE[p.group] == null ? base.d : GROUP_BASE[p.group])) * 0.5) + (oP.depth || 0) * 0.25 + m.depth;
+      const kw = phase === 'build' ? 0.6 : 1;
+      let w = base.w;
+      const centre = Math.abs(base.w - 0.5) < 0.01;
+      if (oP.wTarget != null) { const tw = base.w < 0.5 ? oP.wTarget : 1 - oP.wTarget; w = base.w + (tw - base.w) * kw; }
+      else if (oP.width) w += (base.w < 0.5 ? -1 : 1) * oP.width * kw * (centre ? 0 : 1);
+      if (!centre) w += (base.w < 0.5 ? -1 : 1) * m.width;
+      return { d: clamp(d, 0.02, 0.97), w: clamp(w, 0.04, 0.96) };
+    }
+
     const inPos = phase === 'build' || phase === 'final' || phase === 'transAtt';
     const o = inPos ? role.inPoss : role.outPoss;
     let depth = o.depth, wTarget = o.wTarget;
