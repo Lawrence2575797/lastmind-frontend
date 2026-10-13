@@ -569,6 +569,7 @@
     el('tactics').hidden = !(v === 'tactics' || v === 'match');
     el('nav').hidden = v === 'match';
     VIEWS.forEach((k) => { const section = el('view-' + k); if (section) { if (SCREEN_TITLES[k]) section.dataset.screenTitle = SCREEN_TITLES[k]; else delete section.dataset.screenTitle; } });
+    document.querySelectorAll('body > .cap-modal').forEach((n) => n.remove());
     renderTop();
     renderNav();
     renderPrepFlow();
@@ -804,8 +805,12 @@
     const openPlayer = (id) => { world.profilePlayerId = id; renderSquad(); const pp = el('view-squad').querySelector('#playerProfile'); if (pp && pp.scrollIntoView) pp.scrollIntoView({ block: 'start', behavior: 'smooth' }); };
     host.querySelectorAll('[data-player]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openPlayer(b.dataset.player); }));
     host.querySelectorAll('.sq-group').forEach((d) => d.addEventListener('toggle', () => { open[d.dataset.group] = d.open; }));
-    const okBtn = host.querySelector('.cap-intro-ok');
-    if (okBtn) okBtn.addEventListener('click', () => { world.league.captainIntroSeen = true; saveSoon(); renderSquad(); });
+    // the pop-up sits on the body so it is centred on what is in view, whatever the page around it is doing
+    document.querySelectorAll('body > .cap-modal').forEach((n) => n.remove());
+    const capModal = host.querySelector('.cap-modal');
+    if (capModal) document.body.appendChild(capModal);
+    const okBtn = document.querySelector('.cap-modal .cap-intro-ok');
+    if (okBtn) okBtn.addEventListener('click', () => { const mm = document.querySelector('body > .cap-modal'); if (mm) mm.remove(); world.league.captainIntroSeen = true; saveSoon(); renderSquad(); });
     renderPlayerProfile(team, selected, host.querySelector('#playerProfile'));
     ensurePortraitsLoaded(all);
   }
