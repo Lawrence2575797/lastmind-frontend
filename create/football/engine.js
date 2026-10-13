@@ -589,7 +589,7 @@
     const mix = (a, c, t) => ({ d: a.d + (c.d - a.d) * t, w: a.w + (c.w - a.w) * t });
     // The version of a stage's end diagram that applies right now (see FM.pickPage): the default one unless an added page's condition holds.
     const pn = (k) => (team.pageNow && team.pageNow[k] ? k + '#' + team.pageNow[k] : k);
-    let pos;
+    let pos, lowK = 0;   // lowK: how far this side is sitting in a low block (0 to 1), set below when it is without the ball
     if (hasBall) {
       // The possession diagrams in order, each with the ball where it is drawn: the team is read off them as the ball goes forward.
       const chain = ['build', 'buildEnd', 'midfield', 'final'].map((k) => ({ d: FM.phaseBall(team, pn(k)).d, pos: FM.phasePos(team, player, pn(k)) }));
@@ -609,8 +609,17 @@
       const far = FM.phaseBall(team, 'without').d, near = FM.phaseBall(team, pn('withoutEnd')).d;
       pos = mix(FM.phasePos(team, player, 'without'), FM.phasePos(team, player, pn('withoutEnd')), clamp((far - b.d) / Math.max(0.05, far - near), 0, 1));
       // While the opposition build from their own end, a team that presses their build-up takes its pressing positions instead.
-      const pw = clamp((b.d - 0.5) / 0.25, 0, 1) * clamp((team.tactics.pressBuildUp == null ? 0.4 : team.tactics.pressBuildUp) * 1.25, 0, 1);
+      // How far it takes up its pressing positions rests on the setting (an average side takes half the way; a side that hardly presses a build-up
+      // stays in its block, and one that presses hard goes the whole way).
+      const pbuT = team.tactics.pressBuildUp == null ? 0.4 : team.tactics.pressBuildUp;
+      const pw = clamp((b.d - 0.5) / 0.25, 0, 1) * clamp(0.5 + 2.67 * (pbuT - 0.4), 0, 1);
       if (pw > 0) pos = mix(pos, FM.phasePos(team, player, 'press'), pw);
+      // A side that does not press (what the scouting report calls a low block) sits deeper while the ball is up the other end: its whole shape is
+      // brought back toward its own goal, so its forwards are about on the halfway line rather than up in the other half.
+      const prsLow = 0.6 * pbuT + 0.4 * (team.tactics.pressing == null ? 0.5 : team.tactics.pressing);
+      const lowBlock = clamp((0.4 - prsLow) / 0.1, 0, 1) * clamp((b.d - 0.35) / 0.3, 0, 1);
+      lowK = lowBlock;
+      if (lowBlock > 0) pos = { d: pos.d * (1 - 0.35 * lowBlock), w: pos.w };
       if (ctx.transDef > 0) {
         const zone = b.d < 0.33 ? 'defensive' : b.d < 0.67 ? 'middle' : 'attacking';
         const choice = (team.tactics.transDefChoices || {})[zone] || 'contain';
@@ -629,7 +638,7 @@
       // A side that sits in a low block does not follow the ball up the pitch while the opposition are building from their own end: its line and
       // its forwards hold their depth, and only a mid block or a high press moves up with the ball.
       const prs = 0.6 * (team.tactics.pressBuildUp == null ? 0.4 : team.tactics.pressBuildUp) + 0.4 * (team.tactics.pressing == null ? 0.5 : team.tactics.pressing);
-      const blockHold = !hasBall && b.d > 0.5 ? clamp(prs / 0.4, 0.12, 1) : 1;
+      const blockHold = !hasBall && b.d > 0.5 ? clamp(prs / 0.4, 0.12, 1) * (1 - 0.75 * lowK) : 1;
       const free = clamp((FM.FREEDOM == null ? 0.38 : FM.FREEDOM) * (1 + 0.5 * m.roam) * blockHold, 0, 0.8);
       const want = hasBall
         ? clamp(b.d + ({ ST: 0.14, AM: 0.09, WF: 0.09, CM: 0.02, FB: 0.0, DM: -0.1, CB: -0.2 })[player.group], 0.04, 0.95)
@@ -656,7 +665,7 @@
         const wide = Math.abs(b.w - 0.5) > 0.2;
         pos = { d: pos.d + adv * fz * (FM.ATT_RUN == null ? 1 : FM.ATT_RUN) * clamp(1 + 0.5 * m.runs, 0.3, 1.6), w: pos.w };
         if (player.group === 'ST' || player.group === 'AM') pos.w += (0.5 + (wide ? (b.w < 0.5 ? 0.09 : -0.09) : 0) - pos.w) * 0.4 * fz;
-        else if (player.group === 'WF') pos.w += (0.5 - pos.w) * 0.2 * fz;
+        else if (player.group === 'WF') pos.w += (0.5 - pos.w) * (FM.WF_CUT == null ? 0.05 : FM.WF_CUT) * fz;   // wingers keep their width: they come in far less than the forwards do
       }
     } else if (!hasBall && ['CB', 'FB', 'DM'].indexOf(player.group) >= 0 && b.d < 0.5) {
       const buffer = ({ CB: 0.12, FB: 0.14, DM: 0.2 })[player.group];
@@ -695,7 +704,7 @@
     // Shape shifts toward the ball (a roaming player follows it more, a player told to hold less).
     const pull = clamp((FM.GROUP_BALL_PULL[player.group] || 0.4) + phase.ballPull + 0.25 * m.roam, 0, 1);
     // With the ball the team mostly holds its board's shape (only a little drawn toward the ball); without it the block shifts with the ball.
-    d += (b.d - d) * pull * (hasBall ? (FM.SHIFT_D_ATT == null ? 0.14 : FM.SHIFT_D_ATT) : 0.3);
+    d += (b.d - d) * pull * (hasBall ? (FM.SHIFT_D_ATT == null ? 0.14 : FM.SHIFT_D_ATT) : 0.3 * (1 - 0.8 * lowK));
     w += (b.w - w) * pull * (hasBall ? (FM.SHIFT_W_ATT == null ? 0.09 : FM.SHIFT_W_ATT) : 0.22);
     // The manager's own instructions can move him further forward or wider, in the situations they name.
     const rs = FM.rulesShift ? FM.rulesShift(team, player, ball, hasBall) : null;

@@ -129,13 +129,14 @@
     return out;
   }
   // The positions the opposition reach after a move of ours.
-  function oppReact(S, noPress) {
+  function oppReact(S, noPress, secs) {
     S.tackled = null;
+    S.eng.m.extraOv = null;
     if (!noPress) {
       const m = S.eng.m;
       // the engine must treat the ball as just arrived, so the press picks a new target
       m.plan = null; m.possessionReceivedAt = m.clock;
-      runEngine(S, 1.6);
+      runEngine(S, secs || 1.6);
     }
     return S.opp.map((o) => ({ x: o.x, y: o.y }));
   }
@@ -170,6 +171,13 @@
     const lane = laneInfo(S, from, target, to);
     const aerial = d > 32 || (lane.blocker && lane.clearance < 1.8);
     const press = Math.min.apply(null, S.opp.map((o) => dist(o, target)).concat([30]));
+    // how hard the pass is: only the opposition make a lane difficult (a team-mate near the line is somebody to play it to, not in the way)
+    const laneOpp = (() => {
+      const ab = { x: target.x - from.x, y: target.y - from.y }, l2 = ab.x * ab.x + ab.y * ab.y || 1;
+      let m = 30;
+      S.opp.forEach((q) => { const t = clamp(((q.x - from.x) * ab.x + (q.y - from.y) * ab.y) / l2, 0, 1); if (t < 0.05 || t > 0.97) return; m = Math.min(m, Math.hypot(q.x - (from.x + ab.x * t), q.y - (from.y + ab.y * t))); });
+      return m;
+    })();
     const out = (o) => Object.assign({ from: S.holder, to, end: { x: target.x, y: target.y }, d, aerial, lane: lane.clearance, winner: null, loose: false }, o);
     if (!aerial) {
       const ab = { x: target.x - from.x, y: target.y - from.y }, len2 = ab.x * ab.x + ab.y * ab.y || 1, V = 17;
@@ -186,7 +194,7 @@
         if (rng() < 1 / (1 + Math.exp(-(c.margin - 0.05) / 0.2))) return out({ ok: false, p: 0, how: 'cut', winner: c.j, land: c.P });
       }
     }
-    let p = aerial ? FM.passProb(from.p, d, 9, press) * 0.9 - (press < 2.5 ? 0.12 : 0) : FM.passProb(from.p, d, lane.clearance, press);
+    let p = aerial ? FM.passProb(from.p, d, 9, press) * 0.9 - (press < 2.5 ? 0.12 : 0) : FM.passProb(from.p, d, Math.min(laneOpp, 12), press);
     if (to == null) p *= 0.55;   // into space: nobody is meant to be there
     p = clamp(p, 0.04, 0.97);
     if (rng() < p) return out({ ok: true, p, how: 'ok', land: { x: target.x, y: target.y } });
@@ -431,13 +439,28 @@
     const store = (hooks && hooks.store) || (host._scn = host._scn || {});
     let S = store[phase];
     if (!S || S.team !== team || S.oppTeam !== opp) { S = null; store[phase] = null; }
+    // A player is named by his surname; one of theirs who shares a surname with one of ours is named with his club, so it is never unclear whose
+    // man a message is about.
+    const surname = (n) => n.split(' ').slice(-1)[0];
+    const nm = (p) => {
+      if (!p || !p.name) return 'a defender';
+      const sn = surname(p.name), ours = S && S.own && S.own.some((o) => o.p.name === p.name);
+      return !ours && S && S.own && S.own.some((o) => surname(o.p.name) === sn) ? `${sn} (${opp.name})` : sn;
+    };
     const info = (team.scenarioInfo || {})[phase], press = FM.scenarioOppPress(opp);
+    // "sit in a low block" -> "sits in a low block", for a sentence about one side
+    const third = (l) => String(l || '').replace(/^(press|hold|sit)/, (w) => w + (w === 'press' ? 'es' : 's'));
+    // what the phase is about, said for the side they are up against
+    const goalText = () => {
+      if (phase === 'build') return press.value >= 0.6 ? 'Get the ball out of your half, past their press.' : press.value >= 0.4 ? 'Get the ball out of your half and past their mid block.' : 'Get the ball out of your half. They will not come to you, so the pass you make and the space you find is the whole problem.';
+      return ph.goal;
+    };
     const draw = () => {
       if (!S) { S = fresh(team, opp, phase); store[phase] = S; }
       host.innerHTML = `<div class="scn2">
         <div class="scn2-head"><h2>${esc(ph.title)}</h2>
-          <p class="desc">Preparing for ${esc(opp.name)}, who usually <b>${esc(press.label)}</b>. ${esc(ph.goal)}</p>
-          ${info ? `<p class="note scn2-last">Last shown: ${info.passes} pass${info.passes === 1 ? '' : 'es'} (${info.completed} came off), ${info.dribbled} m dribbled, ${info.aerial}% in the air, against a side that ${esc(info.vs)}.${info.lost ? ' The ball was lost.' : ''}</p>` : ''}
+          <p class="desc">Preparing for ${esc(opp.name)}, who usually <b>${esc(press.label)}</b>. ${esc(goalText())}</p>
+          ${info ? `<p class="note scn2-last">Last shown: ${info.passes} pass${info.passes === 1 ? '' : 'es'} (${info.completed} came off), ${info.dribbled} m dribbled, ${info.aerial}% in the air, against a side that ${esc(third(info.vs))}.${info.lost ? ' The ball was lost.' : ''}</p>` : ''}
         </div>
         <div class="scn2-body">
           <div class="scn2-pitch"><svg id="scnSvg" viewBox="0 0 ${W * PS} ${L * PS}" role="img" aria-label="${esc(ph.title)}: drag the players and the ball, and draw passes"></svg></div>
@@ -470,13 +493,13 @@
     const say = (t) => { if (S) S.say = t; const el = host.querySelector('#scnSay'); if (el) el.textContent = t; };
     const redraw = (tween) => { const svg = host.querySelector('#scnSvg'); if (svg) svg.innerHTML = boardSvg(S, tween); };
     // move the opposition towards where they want to be, over a moment, so the reaction can be seen
-    const reactAnimated = () => new Promise((resolve) => {
-      const starts = S.opp.map((o) => ({ x: o.x, y: o.y })), ownStarts = S.own.map((o) => ({ x: o.x, y: o.y })), targets = oppReact(S);
+    const reactAnimated = (secs) => new Promise((resolve) => {
+      const starts = S.opp.map((o) => ({ x: o.x, y: o.y })), ownStarts = S.own.map((o) => ({ x: o.x, y: o.y })), targets = oppReact(S, false, secs);
       const ownEnds = S.own.map((o) => ({ x: o.x, y: o.y }));
       S.opp.forEach((o, i) => { o.x = starts[i].x; o.y = starts[i].y; });
       S.own.forEach((o, i) => { o.x = ownStarts[i].x; o.y = ownStarts[i].y; });
       const goal = targets;
-      const t0 = Date.now(), dur = 1600;   // the engine ran 1.6 s: they cover what 1.6 s of running covers
+      const t0 = Date.now(), dur = (secs || 1.6) * 1000;   // the engine ran this long: they cover what that much running covers
 
       const step = () => {
         const k = clamp((Date.now() - t0) / dur, 0, 1), e = k;
@@ -523,7 +546,7 @@
         const evs = runEngine(S, 9);
         const ends = S.opp.map((o) => ({ x: o.x, y: o.y })), b1 = { x: m.ball.y, y: m.ball.x };
         S.opp.forEach((o, i) => { o.x = starts[i].x; o.y = starts[i].y; });
-        const name = (n) => { const p = S.eng.o.players.find((q2) => q2.number === n); return p ? p.name.split(' ').slice(-1)[0] : '#' + n; };
+        const name = (n) => { const p = S.eng.o.players.find((q2) => q2.number === n); return p ? nm(p) : '#' + n; };
         const last = evs.filter((e) => ['pass', 'shot', 'dribble', 'tackle', 'goal'].indexOf(e.type) >= 0).pop();
         let text = 'They keep the ball.';
         if (last) {
@@ -648,7 +671,7 @@
         if (d.pickup) {
           // collecting a pass is not a dribble: nothing is added to the beats, the pass is what was shown
           S.busy = false;
-          if (tackled && S.tackled) { S.lost = true; say(S.tackled.name.split(' ').slice(-1)[0] + ' gets there first and wins it: the ball is lost. Undo, or end the scenario.'); }
+          if (tackled && S.tackled) { S.lost = true; say(nm(S.tackled) + ' gets there first and wins it: the ball is lost. Undo, or end the scenario.'); }
           else { say(`${o.p.name.split(' ').slice(-1)[0]} collects it.`); reached(); }
           draw(); return;
         }
@@ -660,7 +683,7 @@
         pushHist(d.snap);
         if (!S.beats.some((b) => b.type === 'pass' || b.type === 'dribble')) S.start = d.snap.own.map((q) => ({ x: q.x, y: q.y }));
         S.beats.push({ type: 'dribble', i: d.i, d: moved, fromXY: d.from, endXY: { x: o.x, y: o.y } });
-        if (tackled && S.tackled) { S.lost = true; say(S.tackled.name.split(' ').slice(-1)[0] + ' tackles him and wins it: the ball is lost. Undo, or end the scenario.'); }
+        if (tackled && S.tackled) { S.lost = true; say(nm(S.tackled) + ' tackles him and wins it: the ball is lost. Undo, or end the scenario.'); }
         else say(`${o.p.name.split(' ').slice(-1)[0]} carries it ${Math.round(moved)} m.`);
         S.busy = false;
         if (!tackled) reached();
@@ -683,7 +706,7 @@
             const rng = FM.mulberry32((S.seed + S.beats.length * 104729 + k * 977 + d.n * 31) >>> 0);
             const pOK = FM.dribbleProb(o.p, Math.max(dist(q, o), 0.6), q.p);
             if (rng() > pOK) { S.tackled = q.p; S.ball = { x: o.x, y: o.y }; finishDribble(d, true); return; }
-            say(`${o.p.name.split(' ').slice(-1)[0]} gets past ${q.p.name.split(' ').slice(-1)[0]}.`);
+            say(`${o.p.name.split(' ').slice(-1)[0]} gets past ${nm(q.p)}.`);
           }
         }
         // a ball played into space stays where it is until the man sent for it gets there; if one of theirs gets to it first it is theirs
@@ -692,6 +715,14 @@
           if (thief) { S.tackled = thief.p; S.ball = { x: tg.x, y: tg.y }; runEngine(S, 0.1); finishDribble(d, true); return; }
         } else S.ball = { x: o.x + 0.8, y: o.y + 0.6 };
         S.tackled = null;
+        if (d.pickup) S.eng.m.extraOv = null;
+        else {
+          // the nearest defender within reach steps out to meet him, whatever the block: a man running at a defence is always met
+          const m = S.eng.m; m.extraOv = new Map();
+          let near = null, nd = 13;
+          S.eng.o.players.forEach((p) => { if (p.group === 'GK') return; const dd = Math.hypot(p.x - o.y, p.y - o.x); if (dd < nd && p.x > o.y - 0.5) { nd = dd; near = p; } });   // one who is ahead of him, to meet him
+          if (near) m.extraOv.set(near, { x: o.y + 1.6, y: o.x });
+        }
         runEngine(S, 0.1);
         redraw();
         if (S.tackled) { finishDribble(d, true); return; }
@@ -751,8 +782,8 @@
           const tmpOwn = { x: o.x, y: o.y }; o.x = d.from.x; o.y = d.from.y; const ballNow = S.ball; S.ball = d.ballFrom; snapshot(); o.x = tmpOwn.x; o.y = tmpOwn.y; S.ball = ballNow;
           S.pins[d.i] = true;
           S.beats.push({ type: 'move', i: d.i, d: moved, fromXY: d.from, endXY: { x: o.x, y: o.y } }); say(`${o.p.name.split(' ').slice(-1)[0]} moves.`);
-          S.busy = true; await reactAnimated(); S.busy = false;
-          if (S.tackled) { S.lost = true; say(S.tackled.name.split(' ').slice(-1)[0] + ' wins it: the ball is lost. Undo, or end the scenario.'); }
+          S.busy = true; await reactAnimated(0.9); S.busy = false;
+          if (S.tackled) { S.lost = true; say(nm(S.tackled) + ' wins it: the ball is lost. Undo, or end the scenario.'); }
           draw();
         } else if (d.kind === 'ball') {
           let to = null, bd = 3.2;
@@ -779,7 +810,7 @@
             S.beats.push({ type: 'shot', i: S.holder, ok: goal, outcome, d: dist(h, p), fromXY: { x: h.x, y: h.y }, endXY: { x: p.x, y: L }, dy: L - h.y });
             S.ball = { x: clamp(p.x, W / 2 - 3.66, W / 2 + 3.66), y: L };
             if (outcome === 'blocked') S.ball = { x: h.x, y: h.y + 1.5 };
-            say(goal ? `${who} shoots and scores! GOAL.` : outcome === 'saved' ? `${who} shoots: saved${gk ? ' by ' + last(gk.p.name) : ''}.` : outcome === 'blocked' ? `${who} shoots, but it is blocked.` : `${who} shoots: wide of the post.`);
+            say(goal ? `${who} shoots and scores! GOAL.` : outcome === 'saved' ? `${who} shoots: saved${gk ? ' by ' + nm(gk.p) : ''}.` : outcome === 'blocked' ? `${who} shoots, but it is blocked.` : `${who} shoots: wide of the post.`);
             S.say += ' The attack ends here: press Use this to take what it showed.';
             S.lost = false; S.shotTaken = true; S.done = true;
             draw(); return;
@@ -813,7 +844,7 @@
             S.ball = { x: S.own[rc].x + 0.8, y: S.own[rc].y + 0.6 };
             say(`${who(r.from)} ${r.aerial ? (r.d < 22 ? 'chips it' : 'plays it over the top') : 'passes'} to ${who(rc)}, ${Math.round(r.d)} m. It comes off.`);
           } else {
-            const wq = S.opp[r.winner], wn = last(wq.p.name);
+            const wq = S.opp[r.winner], wn = nm(wq.p);
             S.lost = true; S.ball = { x: e.x, y: e.y };
             say(r.how === 'cut' ? `${who(r.from)} tries a pass, but ${wn} gets across and cuts it out: the ball is lost. Undo, or end the scenario.`
               : r.how === 'air' ? `${who(r.from)} plays it over the top, but ${wn} gets there first: the ball is lost. Undo, or end the scenario.`
@@ -825,8 +856,8 @@
             draw();
             return;
           }
-          S.busy = true; await reactAnimated(); S.busy = false;
-          if (r.ok && S.tackled) { S.lost = true; say(S.tackled.name.split(' ').slice(-1)[0] + ' closes him down and wins it: the ball is lost. Undo, or end the scenario.'); }
+          S.busy = true; await reactAnimated(clamp(r.d / (r.aerial ? 14 : 17) + 0.35, 0.8, 2.6)); S.busy = false;
+          if (r.ok && S.tackled) { S.lost = true; say(nm(S.tackled) + ' closes him down and wins it: the ball is lost. Undo, or end the scenario.'); }
           else if (r.ok) reached();
           draw();
         }
