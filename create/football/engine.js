@@ -276,11 +276,25 @@
         else if (e.type === 'passDirection') k += (e.dir === 'forward' ? 0.2 : e.dir === 'backward' ? -0.25 : 0) * e.weight;
         else if (e.type === 'passTarget' && e.to) {
           if (e.to.side === 'centre') { if (wide) wShift += -side * 0.12 * e.weight; else wShift += 0; }
-          else if (e.to.side === 'wide' || e.to.side === 'left' || e.to.side === 'right') { if (wide) wShift += side * 0.1 * e.weight; }
+          else if (e.to.side === 'wide') { if (wide) wShift += side * 0.1 * e.weight; }
+          else if (e.to.side === 'left' || e.to.side === 'right') wShift += (e.to.side === 'left' ? -1 : 1) * 0.07 * e.weight;   // the whole team leans to that side
+          // the players he is told to find are the ones the team gets forward, so they come up
+          if ((e.to.group && e.to.group === p.group) || (e.to.line && FM.RULES && FM.RULES.LINES && (FM.RULES.LINES[e.to.line] || []).indexOf(p.group) >= 0) || (e.to.number != null && e.to.number === p.number) || (e.to.slot && e.to.slot === p.slotKey)) adv += 0.05 * e.weight;
         }
         else if (e.type === 'tempo') k += 0.15 * e.delta;
         else if (e.type === 'runs' && ['ST', 'WF', 'AM'].indexOf(p.group) >= 0) adv += 0.05 * e.delta;
-        else if (e.type === 'position') { adv += (e.forward || 0) / 105; wShift += (start.w >= 0.5 ? 1 : -1) * (e.wide || 0) / 68; }
+        else if (e.type === 'risk' && ['ST', 'WF', 'AM', 'CM'].indexOf(p.group) >= 0) adv += 0.03 * e.delta;
+        else if (e.type === 'dribble' && ['ST', 'WF', 'AM'].indexOf(p.group) >= 0) adv += 0.03 * e.delta;
+        else if (e.type === 'freeMan' && wide) wShift += side * 0.04 * e.weight;
+        else if (e.type === 'holdUp' && p.group === 'ST') adv -= 0.04;
+        else if (e.type === 'position' && e.phase !== 'without') { adv += (e.forward || 0) / 105; wShift += (start.w >= 0.5 ? 1 : -1) * (e.wide || 0) / 68; }
+        else if (e.type === 'place') {
+          // "stand at X metres": a plain number, or an offset from where he stands, is taken as it is
+          const num = (x) => (typeof x === 'number' ? x : null);
+          const off = (x) => (x && x.op && (x.op === 'add' || x.op === 'sub') && x.args && x.args[0] && x.args[0].attr && x.args[0].of && x.args[0].of.e === 'me' && typeof x.args[1] === 'number' ? (x.op === 'add' ? x.args[1] : -x.args[1]) : null);
+          if (num(e.dm) != null) adv = num(e.dm) / 105 - start.d; else if (off(e.dm) != null) adv += off(e.dm) / 105;
+          if (num(e.wm) != null) wShift = num(e.wm) / 68 - start.w; else if (off(e.wm) != null) wShift += off(e.wm) / 68;
+        }
       });
     });
     let d = start.d + adv * clamp(k, 0.4, 1.6), w = start.w + wShift;
