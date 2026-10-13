@@ -525,7 +525,6 @@ ${plan && plan.active ? '<button type="button" id="dvStop">Stop this training</b
           <div class="dv-nums"><span>Ability <b>${a}</b></span><span>Potential <b>${pot}</b></span><span>${esc(FM.potentialWord(sel))}</span><span>${esc(FM.learningWord(sel))}</span></div>
           <span class="dv-bar big"><i style="width:${Math.min(100, Math.round(100 * a / Math.max(1, pot)))}%"></i></span>${spark}
           ${pot - a <= 0 ? '<p class="note">He has reached his potential, so more training will not raise his ratings. Younger players have room to grow.</p>' : ''}
-          <h4>Case study</h4><div id="dvCase"></div>
           <h4>1. The problem</h4><p><b>Assistant manager:</b> ${view}</p>
           <h4>2. Investigate the evidence</h4>${tabs}${inv}
           <h4>3. Teach him</h4>${teach}</div>`;
@@ -543,8 +542,6 @@ ${plan && plan.active ? '<button type="button" id="dvStop">Stop this training</b
     host.querySelectorAll('[data-dev]').forEach((r) => r.addEventListener('click', () => { dv.sel = r.dataset.dev; draw(); }));
     if (!wire) return;
     const { sel: pl, lessonId: lid, plan: pln } = wire;
-    const caseBox = host.querySelector('#dvCase');
-    if (caseBox && FM.renderCase) FM.renderCase(league, pl, caseBox, { save, redraw: draw });
     host.querySelectorAll('[data-dvl]').forEach((b) => b.addEventListener('click', () => { const ta = host.querySelector('#dvExplain'); dv.draft = dv.draft || {}; if (ta) dv.draft[pl.id] = ta.value; dv.lesson[pl.id] = b.dataset.dvl; draw(); }));
     // the "try a situation" sliders
     const box = host.querySelector('.dv-explore');
