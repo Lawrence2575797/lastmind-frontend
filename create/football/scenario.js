@@ -34,8 +34,9 @@
 
   // ---------- the starting positions ----------
   const saved = (team) => (team.scenarioEnd = team.scenarioEnd || {});
+  const phaseKey = (phase) => (phase === 'build' ? 'build' : phase === 'midfield' ? 'buildEnd' : 'midfield');
   function startPositions(team, phase) {
-    const key = phase === 'build' ? 'build' : phase === 'midfield' ? 'buildEnd' : 'midfield';
+    const key = phaseKey(phase);
     return team.players.map((p) => { const q = FM.phasePos(team, p, key); return { p, x: q.w * W, y: q.d * L }; });
   }
   function startBall(phase) { return phase === 'build' ? { x: W / 2, y: 4 } : phase === 'midfield' ? { x: W / 2, y: 40 } : { x: W / 2, y: 68 }; }
@@ -273,12 +274,12 @@
     // a man who was moved a long way is asked to stand there
     S.own.forEach((o, i) => {
       const s = S.start[i], dx = o.x - s.x, dy = o.y - s.y;
-      if (o.p.group === 'GK' || Math.hypot(dx, dy) < 9) return;
+      if (!(S.pins && S.pins[i]) || o.p.group === 'GK' || Math.hypot(dx, dy) < 9) return;
       const eff = { type: 'position', forward: Math.round(clamp(dy, -15, 15) * 10) / 10, wide: Math.round(clamp((o.x >= W / 2 ? dx : -dx), -12, 12) * 10) / 10, phase: 'with' };
       add({ kind: 'slot', slot: o.p.slotKey }, [eff]);
     });
     // where the team stood before it began is where this phase starts (for the goal kick)
-    if (S.phase === 'build') { team.phasePos = team.phasePos || {}; team.phasePos.build = team.phasePos.build || {}; S.own.forEach((o, i) => { team.phasePos.build[o.p.index] = { d: clamp(S.start[i].y / L, 0.03, 0.97), w: clamp(S.start[i].x / W, 0.04, 0.96) }; }); }
+    if (S.phase === 'build' || S.phase === 'midfield') { team.phasePos = team.phasePos || {}; const kk = S.phase === 'build' ? 'build' : 'buildEnd'; team.phasePos[kk] = team.phasePos[kk] || {}; S.own.forEach((o, i) => { team.phasePos[kk][o.p.index] = { d: clamp(S.start[i].y / L, 0.03, 0.97), w: clamp(S.start[i].x / W, 0.04, 0.96) }; }); }
     // where the team got to is where the next phase starts (and for the last phase, where the attack finished)
     const end = saved(team);
     end[ph.end] = {}; S.own.forEach((o) => { end[ph.end][o.p.index] = { d: clamp(o.y / L, 0.03, 0.97), w: clamp(o.x / W, 0.04, 0.96) }; });
@@ -409,9 +410,10 @@
       S.opp.forEach((o, i) => { o.x = starts[i].x; o.y = starts[i].y; });
       S.own.forEach((o, i) => { o.x = ownStarts[i].x; o.y = ownStarts[i].y; });
       const goal = targets;
-      const t0 = Date.now(), dur = 650;
+      const t0 = Date.now(), dur = 1600;   // the engine ran 1.6 s: they cover what 1.6 s of running covers
+
       const step = () => {
-        const k = clamp((Date.now() - t0) / dur, 0, 1), e = k * (2 - k);
+        const k = clamp((Date.now() - t0) / dur, 0, 1), e = k;
         S.opp.forEach((o, i) => { o.x = starts[i].x + (goal[i].x - starts[i].x) * e; o.y = starts[i].y + (goal[i].y - starts[i].y) * e; });
         S.own.forEach((o, i) => { o.x = ownStarts[i].x + (ownEnds[i].x - ownStarts[i].x) * e; o.y = ownStarts[i].y + (ownEnds[i].y - ownStarts[i].y) * e; });
         redraw();
@@ -497,7 +499,20 @@
       if (start) start.addEventListener('click', () => {
         S.started = true;
         S.start = S.own.map((o) => ({ x: o.x, y: o.y }));
-        if (S.attack) armEngine(S);
+        if (S.attack) {
+          // where the shirts are before starting is where the team plays this phase: in this scenario, in the match and in the tests
+          const key = phaseKey(phase), put = {};
+          S.own.forEach((o) => { put[o.p.index] = { d: clamp(o.y / L, 0.03, 0.97), w: clamp(o.x / W, 0.04, 0.96) }; });
+          const nextKey = { build: 'buildEnd', buildEnd: 'midfield', midfield: 'final' }[key];
+          // the shape the team will have as the ball goes on to the next diagram: the width the manager placed, with the depth it would have gained
+          const ahead = {};
+          S.own.forEach((o) => { const a0 = FM.phasePos(team, o.p, key), b0 = FM.phasePos(team, o.p, nextKey), pl = put[o.p.index]; ahead[o.p.index] = { d: clamp(pl.d + (b0.d - a0.d), 0.03, 0.97), w: pl.w }; });
+          const apply = (t) => { t.phasePos = t.phasePos || {}; t.phasePos[key] = Object.assign({}, put); if (key !== 'build') { t.scenarioEnd = t.scenarioEnd || {}; t.scenarioEnd[key] = Object.assign({}, put); } };
+          apply(team); apply(S.eng.u);
+          const u0 = S.eng.u; u0.phasePos[nextKey] = Object.assign({}, ahead); u0.scenarioEnd = u0.scenarioEnd || {}; u0.scenarioEnd[nextKey] = Object.assign({}, ahead);
+          if (hooks && hooks.save) hooks.save();
+          armEngine(S);
+        }
         S.say = S.defending ? 'They have the ball. Set your team.' : 'You have the ball. Your move.';
         draw();
       });
