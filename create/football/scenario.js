@@ -781,9 +781,8 @@
           // undo needs the state from before the drag
           const tmpOwn = { x: o.x, y: o.y }; o.x = d.from.x; o.y = d.from.y; const ballNow = S.ball; S.ball = d.ballFrom; snapshot(); o.x = tmpOwn.x; o.y = tmpOwn.y; S.ball = ballNow;
           S.pins[d.i] = true;
-          S.beats.push({ type: 'move', i: d.i, d: moved, fromXY: d.from, endXY: { x: o.x, y: o.y } }); say(`${o.p.name.split(' ').slice(-1)[0]} moves.`);
-          S.busy = true; await reactAnimated(0.9); S.busy = false;
-          if (S.tackled) { S.lost = true; say(nm(S.tackled) + ' wins it: the ball is lost. Undo, or end the scenario.'); }
+          S.beats.push({ type: 'move', i: d.i, d: moved, fromXY: d.from, endXY: { x: o.x, y: o.y } }); say(`${o.p.name.split(' ').slice(-1)[0]} stands there.`);
+          // placing a man is only that: nothing else on the pitch reacts to it (the other side and your own team move when the ball does)
           draw();
         } else if (d.kind === 'ball') {
           let to = null, bd = 3.2;
