@@ -217,13 +217,13 @@
     // a goal kick the side is in its own half with only the striker near halfway, and every phase on from there moves the whole shape up with the
     // ball. (The slot's own place in the formation, and the role, move a player a little either side of his group's depth.)
     const POSS_D = {
-      build:    { GK: 0.03, CB: 0.19, FB: 0.29, DM: 0.33, CM: 0.40, AM: 0.46, WF: 0.50, ST: 0.55 },
-      buildEnd: { GK: 0.03, CB: 0.34, FB: 0.46, DM: 0.43, CM: 0.54, AM: 0.62, WF: 0.66, ST: 0.72 },
-      midfield: { GK: 0.04, CB: 0.46, FB: 0.60, DM: 0.53, CM: 0.66, AM: 0.74, WF: 0.78, ST: 0.80 },
-      final:    { GK: 0.05, CB: 0.56, FB: 0.70, DM: 0.62, CM: 0.72, AM: 0.76, WF: 0.78, ST: 0.80 },
+      build:    { GK: 0.03, CB: 0.19, FB: 0.29, DM: 0.33, CM: 0.40, AM: 0.46, WF: 0.50, ST: 0.56 },
+      buildEnd: { GK: 0.03, CB: 0.30, FB: 0.40, DM: 0.38, CM: 0.46, AM: 0.54, WF: 0.60, ST: 0.68 },
+      midfield: { GK: 0.04, CB: 0.38, FB: 0.48, DM: 0.46, CM: 0.54, AM: 0.62, WF: 0.67, ST: 0.74 },
+      final:    { GK: 0.05, CB: 0.44, FB: 0.54, DM: 0.50, CM: 0.60, AM: 0.68, WF: 0.72, ST: 0.78 },
       // Without the ball the side drops with it: a compact block when the ball is in midfield, and everyone back around the box when it is not.
-      without:    { GK: 0.03, CB: 0.27, FB: 0.30, DM: 0.40, CM: 0.46, AM: 0.52, WF: 0.58, ST: 0.62 },
-      withoutEnd: { GK: 0.03, CB: 0.15, FB: 0.17, DM: 0.24, CM: 0.30, AM: 0.36, WF: 0.42, ST: 0.48 },
+      without:    { GK: 0.03, CB: 0.26, FB: 0.29, DM: 0.38, CM: 0.44, AM: 0.50, WF: 0.58, ST: 0.64 },
+      withoutEnd: { GK: 0.03, CB: 0.17, FB: 0.20, DM: 0.27, CM: 0.33, AM: 0.42, WF: 0.55, ST: 0.60 },
     };
     const GROUP_BASE = { GK: 0.03, CB: 0.20, FB: 0.22, DM: 0.41, CM: 0.50, AM: 0.62, WF: 0.78, ST: 0.83 };
     if (POSS_D[phase] && POSS_D[phase][p.group] != null) {
@@ -602,8 +602,8 @@
         if (danger < pd) { pd = danger; pick = o; }
       });
       if (pick) {
-        const k = ({ CB: 0.75, FB: 0.6, DM: 0.5, CM: 0.35 })[player.group] * clamp(1.15 - b.d, 0.25, 1);
-        const gy = W_PITCH / 2, step = 2.4, dirOwn = team.attackDir === 1 ? -1 : 1;
+        const k = ({ CB: 0.85, FB: 0.7, DM: 0.6, CM: 0.45 })[player.group] * clamp(1.15 - b.d, 0.25, 1);
+        const gy = W_PITCH / 2, step = 1.5, dirOwn = team.attackDir === 1 ? -1 : 1;
         const tx = clamp(pick.x + dirOwn * step, 0.5, L_PITCH - 0.5), ty = clamp(pick.y + (gy - pick.y) * 0.12, 0.5, W_PITCH - 0.5);
         const ts = toTeamSpace(team.attackDir, tx, ty);
         pos = { d: pos.d + (ts.d - pos.d) * k, w: pos.w + (ts.w - pos.w) * k };
