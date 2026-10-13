@@ -421,6 +421,14 @@
     { key: 'opp_mid', label: 'The opposition hold a mid block' },
     { key: 'opp_low', label: 'The opposition sit in a low block' },
   ].concat(GAME_STATE_CONDS, [OPP_SHAPE, CUSTOM]);
+  // The build-up is chosen by one thing only: how the opposition set up to press the goal kick. These are the presets offered for it (the
+  // other stages keep their own conditions). 'always' is the page used when none of the others applies.
+  FM.BUILD_CONDS = [
+    { key: 'always', label: 'Any set-up (the page used when no other applies)', note: '' },
+    { key: 'opp_high', label: 'They press high', note: 'Their forwards and wingers push up onto your back line and the goalkeeper, with little room to play out short.' },
+    { key: 'opp_mid', label: 'They hold a mid block', note: 'They stand compact around the halfway line, let you have the ball at the back and press once it goes past their forwards.' },
+    { key: 'opp_low', label: 'They sit in a low block', note: 'They drop deep into their own half and leave you the ball; the space is in front of you, not behind them.' },
+  ];
   // What a page that simply follows the stage before can also depend on. By default it depends on nothing more.
   FM.LINKED_CONDS = [{ key: 'none', label: 'No extra condition' },
     { key: 'fb_high', label: 'Our full-backs have stepped high' },

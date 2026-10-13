@@ -884,7 +884,7 @@
   function mountPair(host, team, tab, instr) {
     FM.ensurePages(team);
     const pair = BOARD_PAIRS[tab], startDef = pair[0], endDef = pair[1], endKey = endDef.key;
-    const conds = DEF_ENDS[endKey] ? FM.SCENARIO_CONDS_DEF : FM.SCENARIO_CONDS;
+    const conds = tab === 'build' ? FM.BUILD_CONDS : (DEF_ENDS[endKey] ? FM.SCENARIO_CONDS_DEF : FM.SCENARIO_CONDS);
     const pagesOf = (k) => (team.pages && team.pages[k]) || [];
     team.pageDefaults = team.pageDefaults || {};
     const dfl = team.pageDefaults[endKey] = Object.assign({ label: 'Default page', cond: 'always' }, team.pageDefaults[endKey] || {});
@@ -916,8 +916,11 @@
     const extraText = (h) => { const k = condKey(h); return k === 'custom' ? (h.custom && h.custom.text) || '' : k ? ((h.custom && h.custom.text) || presetLabel(k)) : ''; };
     const extraLabel = (h) => { const k = condKey(h); return k === 'custom' ? ((h.custom && (h.custom.summary || h.custom.text)) || 'Your own condition') : k ? ((h.custom && (h.custom.summary || h.custom.text)) || presetLabel(k)) : (h.from ? 'No extra condition' : 'No condition'); };
     const extraNote = (h) => { const k = condKey(h); return k === 'custom' ? (h.custom && h.custom.when ? 'Understood as: ' + (h.custom.summary || h.custom.text) + '.' : 'Not set yet, so this page is not used until it is.') : k ? '' : (h.from ? 'It is used whenever the stage before ended on the page it follows.' : ''); };
-    const ddField = (h, id) => `<div class="scn-field"><span class="scn-field-lab">${h.from ? 'Only when' : 'Use this page when'}</span><div class="scn-dd" data-dd="${id}"><button type="button" class="scn-dd-btn" data-dd-btn="${id}" aria-haspopup="true" aria-expanded="false"><span>${esc(extraLabel(h))}</span><i aria-hidden="true">&#9662;</i></button><div class="scn-dd-panel" hidden><button type="button" class="scn-dd-opt${condKey(h) ? '' : ' on'}" data-dd-none="${id}">${h.from ? 'No extra condition' : 'No condition'}</button><div class="scn-dd-own"><input type="text" maxlength="200" data-extra-text="${id}" placeholder="Or say when, in your own words" value="${esc(extraText(h))}" aria-label="Say when this page should be used, in your own words"><button type="button" data-extra-go="${id}">Save</button></div></div></div></div>`;
-    const ddNote = (h, id) => `<p class="note scn-custom-note" data-extra-note="${id}">${esc(extraNote(h))}</p>`;
+    // The build-up: a drop-down of the ways the opposition may press the goal kick, nothing to type
+    const presetField = (h, id) => { const cur = h.cond && h.cond !== 'from_prev' ? h.cond : 'always'; const known = FM.BUILD_CONDS.some((c) => c.key === cur); return `<div class="scn-field"><span class="scn-field-lab">Use this page when the opposition</span><select class="scn-preset" data-preset="${id}" aria-label="How the opposition press the goal kick">${FM.BUILD_CONDS.map((c) => `<option value="${c.key}"${c.key === cur ? ' selected' : ''}>${esc(c.label)}</option>`).join('')}${known ? '' : `<option value="${esc(cur)}" selected>${esc(presetLabel(cur) || 'Another condition')}</option>`}</select></div>`; };
+    const ddFieldFree = (h, id) => `<div class="scn-field"><span class="scn-field-lab">${h.from ? 'Only when' : 'Use this page when'}</span><div class="scn-dd" data-dd="${id}"><button type="button" class="scn-dd-btn" data-dd-btn="${id}" aria-haspopup="true" aria-expanded="false"><span>${esc(extraLabel(h))}</span><i aria-hidden="true">&#9662;</i></button><div class="scn-dd-panel" hidden><button type="button" class="scn-dd-opt${condKey(h) ? '' : ' on'}" data-dd-none="${id}">${h.from ? 'No extra condition' : 'No condition'}</button><div class="scn-dd-own"><input type="text" maxlength="200" data-extra-text="${id}" placeholder="Or say when, in your own words" value="${esc(extraText(h))}" aria-label="Say when this page should be used, in your own words"><button type="button" data-extra-go="${id}">Save</button></div></div></div></div>`;
+    const ddField = (h, id) => (tab === 'build' ? presetField(h, id) : ddFieldFree(h, id));
+    const ddNote = (h, id) => (tab === 'build' ? `<p class="note scn-custom-note">${esc(((FM.BUILD_CONDS.find((c) => c.key === (h.cond || 'always')) || {}).note) || '')}</p>` : `<p class="note scn-custom-note" data-extra-note="${id}">${esc(extraNote(h))}</p>`);
     const customRow = (holder, id) => {
       const c = holder.custom || {};
       return `<div class="scn-custom"><input type="text" class="scn-custom-text" maxlength="200" placeholder="Say when, in your own words: for example when our full-backs have stepped high and we are drawing" value="${esc(c.text || '')}" data-custom-text="${id}" aria-label="When this page should be used"><button type="button" data-custom-go="${id}">${c.when ? 'Update' : 'Save'}</button></div><p class="note scn-custom-note" data-custom-note="${id}">${c.when ? 'Understood as: ' + esc(c.summary || c.text) + '.' : 'Not set yet, so this page is not used until it is.'}</p>`;
@@ -1018,6 +1021,12 @@
     host.querySelectorAll('[data-reset]').forEach((b) => b.addEventListener('click', () => { FM.clearPhase(team, b.dataset.reset); if (team.phaseBall) delete team.phaseBall[b.dataset.reset]; saveSoon(); renderTactics(); }));
     const endIndex = (id) => (buildPages ? 0 : starts.length) + ends.findIndex((e) => (e.pg.id || null) === (id || null));
     host.querySelectorAll('[data-def-label]').forEach((inp) => inp.addEventListener('input', () => { const v = inp.value.trim().slice(0, 40); dfl.label = v || 'Default page'; dfl.named = !!v; saveSoon(); renderBox(endIndex(null)); }));
+    host.querySelectorAll('[data-preset]').forEach((sel) => sel.addEventListener('change', () => {
+      const id = sel.dataset.preset, h = id === 'default' ? dfl : pagesOf(endKey).find((x) => x.id === id);
+      if (!h) return;
+      h.cond = sel.value; h.custom = null; h.extra = null; if (id !== 'default') h.named = false; else h.named = false;
+      saveSoon(); renderTactics();
+    }));
     host.querySelectorAll('[data-def-cond]').forEach((sel) => sel.addEventListener('change', () => { dfl.cond = sel.value; saveSoon(); renderTactics(); }));
     host.querySelectorAll('[data-add-after]').forEach((addBtn) => addBtn.addEventListener('click', () => {
       team.pages[endKey] = team.pages[endKey] || [];
@@ -1027,7 +1036,7 @@
         saveSoon(); renderTactics(); return;
       }
       const used = new Set(team.pages[endKey].map((x) => x.cond).concat([dfl.cond])), c = conds.find((x) => x.key !== 'always' && x.key !== 'opp_shape' && !used.has(x.key)) || conds[1];
-      team.pages[endKey].push({ id: 's' + Date.now().toString(36), label: c.label.replace(/^The /, '').replace(/^./, (ch) => ch.toUpperCase()), cond: c.key });
+      team.pages[endKey].push({ id: 's' + Date.now().toString(36), label: c.label.replace(/^The /, '').replace(/^./, (ch) => ch.toUpperCase()), cond: c.key, named: false });
       saveSoon(); renderTactics();
     }));
     host.querySelectorAll('[data-scn-label]').forEach((inp) => inp.addEventListener('input', () => {
