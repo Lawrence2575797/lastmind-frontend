@@ -7152,7 +7152,7 @@
                      level with anything else). Same goToMainFeed handler either way. -->
                 <button class="cortex-btn-topbar" id="dashboardTopbarBtn" type="button" title="Back to feed">Home</button>
                 <button class="cortex-btn-topbar upgrade-topbar-btn" id="upgradeTopbarBtn" type="button" style="display:none;">Upgrade to LastMind+</button>
-                <a class="cortex-btn-topbar" id="loginTopbarBtn" href="/account/?mode=login" title="Log in to see your notes on this device" style="display:none;text-decoration:none;">Log in</a>
+                <a class="cortex-btn-topbar" id="loginTopbarBtn" href="/account/?mode=login" title="Log in or create an account to see your notes on this device" style="display:none;text-decoration:none;">Log in / Sign up</a>
                 <span class="topbar-title" id="topbarTitle"></span>
                 <!-- Locks used to sit outside this scrollable row, in
                      the outer (non-scrolling) topbar flex line — on a
@@ -36421,7 +36421,7 @@ SQIDAQAB
         // coming back after being explicitly hidden).
         document.getElementById('specialistToolsWrap').style.display = '';
         document.getElementById('upgradeTopbarBtn').style.display = paid ? 'none' : '';
-        document.getElementById('loginTopbarBtn').style.display = (!paid && isGuestUser) ? '' : 'none';
+        document.getElementById('loginTopbarBtn').style.display = (!paid || isGuestUser) ? '' : 'none';   // anyone not on a paid plan, and every guest, can always reach the login page
         [document.getElementById('createTopbarBtn'), document.getElementById('mathsToolTopbarBtn')].forEach((el) => {
             if (!el) return;
             el.classList.toggle('lm-plus-locked', !paid);
@@ -36746,7 +36746,7 @@ SQIDAQAB
         } else {
             isGuestUser = !!supabaseSession.user?.is_anonymous;
         }
-        document.getElementById('loginTopbarBtn').style.display = isGuestUser ? '' : 'none';
+        if (isGuestUser) document.getElementById('loginTopbarBtn').style.display = '';
 
         const userId = supabaseSession.user.id;
         let token = await getStoredToken(userId).catch(() => null);
