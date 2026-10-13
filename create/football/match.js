@@ -463,8 +463,17 @@
           const t = team.id + '|' + k + '|' + (sc ? FM.pageName(team, k, sc) : dl);
           match.pageTime[t] = (match.pageTime[t] || 0) + 1;
         });
-        // a page of the build-up is two diagrams, the goal kick and where it gets to: the start uses the page the end is on
-        team.pageNow.build = team.pageNow.buildEnd || null;
+        // The build-up is prepared for the ways the opposition may press. If one of them is how they are pressing, that page is used. If not, the
+        // team is set up from its formation, and follows the instructions of the prepared page closest to how they are pressing.
+        const bl = team.pages.buildEnd || [];
+        team.buildUnmatched = false;
+        if (team.pageNow.buildEnd) team.pageNow.build = team.pageNow.buildEnd;
+        else if (bl.length) {
+          const LVL = { opp_high: 0.75, opp_mid: 0.5, opp_low: 0.25 };
+          let near = null, nd = 9;
+          bl.forEach((x) => { const dd = Math.abs((LVL[x.cond] == null ? 0.5 : LVL[x.cond]) - info.oppPress); if (dd < nd) { nd = dd; near = x; } });
+          team.pageNow.buildEnd = near ? near.id : null; team.pageNow.build = null; team.buildUnmatched = true;
+        } else team.pageNow.build = null;
       }
     });
   }

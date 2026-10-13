@@ -898,9 +898,10 @@
     let starts = prev
       ? prev.map((pg) => ({ key: withKey(startDef.key, pg), locked: true, def: startDef, label: FM.pageName(team, startDef.key, pg.id ? pg : null) }))
       : [{ key: startDef.key, locked: false, def: startDef, label: null }];   // the goal kick is the start of the build-up, and is shown beside where it ends
-    const ends = [{ id: null, label: dfl.label, cond: dfl.cond }].concat(pagesOf(endKey)).map((pg) => ({ key: withKey(endKey, pg), locked: false, def: endDef, pg }));
-    // The build-up: every page is two diagrams, the goal kick and where it gets to, shown side by side with the same name and condition.
+    // The build-up has no default page: the pages are the ways the opposition may press that the manager has prepared for. Anything else is
+    // set up from the formation, following the instructions of the nearest prepared page.
     const buildPages = tab === 'build';
+    const ends = (buildPages ? [] : [{ id: null, label: dfl.label, cond: dfl.cond }]).concat(pagesOf(endKey)).map((pg) => ({ key: withKey(endKey, pg), locked: false, def: endDef, pg }));
     if (buildPages) starts = ends.map((e) => ({ key: withKey('build', e.pg), locked: false, def: startDef, label: null, pg: e.pg, pgLink: e.pg }));
     // When a fixed start sits beside the end with its name and condition above it, the start carries an invisible copy of that row, so the two
     // diagrams begin at the same height.
@@ -948,7 +949,8 @@
     const loneStart = starts.length === 1 && ends.length >= 2;
     let html;
     const addTop = buildPages ? '<div class="scn-add-top"><button type="button" data-add-after="default">+ Add a page</button></div>' : '';
-    if (buildPages) html = addTop + (starts.length === 1 ? row([figure(starts[0], 0)], 'solo') + row([box(0)], 'solo') : `<div class="board-pair cols" style="--n:${Math.min(starts.length, 3)}">` + starts.map((s, i) => `<div class="scn-col">${figure(s, i)}${box(i)}</div>`).join('') + '</div>');   // several pages sit side by side, each with its own box under it
+    if (buildPages && !starts.length) html = addTop + '<p class="note scn-empty">Add a page for each way the opposition might press your goal kick. Anything you have not prepared for, the team sets up from its formation.</p>';
+    else if (buildPages) html = addTop + (starts.length === 1 ? row([figure(starts[0], 0)], 'solo') + row([box(0)], 'solo') : `<div class="board-pair cols" style="--n:${Math.min(starts.length, 3)}">` + starts.map((s, i) => `<div class="scn-col">${figure(s, i)}${box(i)}</div>`).join('') + '</div>');   // several pages sit side by side, each with its own box under it
     else if (!starts.length) html = ends.length === 1 ? row(fig(ends, 0), 'solo') + row([box(0)], 'solo') : row(fig(ends, 0), 'ends-row') + row(ends.map((e, i) => box(i)));
     else if (starts.length === 1 && ends.length === 1) html = row(fig(all, 0), 'linked') + row([startBox(0), box(1)]);
     else if (loneStart) html = row(fig(starts, 0).concat(starts[0].locked ? [] : [box(0)])) + row(fig(ends, 1), 'ends-row') + row(ends.map((e, i) => box(1 + i)));
@@ -1311,7 +1313,7 @@
       host.innerHTML = '<div class="lab"><div id="labOutcome"></div></div>';
       const fresh = !!st.fresh; st.fresh = false;
       FM.labResults.outcome(host.querySelector('#labOutcome'), { phase, opp, team, runs, fresh, onAgain: () => { st.view = 'setup'; renderLab(team, host, phase); window.scrollTo(0, 0); }, onTactics: toTactics, onPreview: goEvidence,
-        onImplement: (id) => { const out = FM.lab.implement(team, phase, id, last.result); saveSoon(); if (FM.inferShapeTactics) FM.inferShapeTactics(team); return out; },
+        onImplement: (id) => { const out = FM.lab.implement(team, phase, id, last.result, { opp }); saveSoon(); if (FM.inferShapeTactics) FM.inferShapeTactics(team); return out; },
         onRevert: () => { const prevRun = runs[runs.length - 2]; const ok = prevRun && FM.lab.restore(team, prevRun.snap); if (ok) { if (FM.inferShapeTactics) FM.inferShapeTactics(team); saveSoon(); } return !!ok; } });
       if (st.toAgain) { st.toAgain = false; const tgt = host.querySelector('[data-act="again"]'); if (tgt && tgt.scrollIntoView) setTimeout(() => tgt.scrollIntoView({ block: 'center', behavior: 'smooth' }), 80); }
       return;

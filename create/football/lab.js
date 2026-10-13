@@ -400,8 +400,21 @@
     build: { keys: ['build', 'build'], stage: 'build', noPart: true }, midfield: { keys: ['buildEnd', 'midfield'], stage: 'midfield' }, final: { keys: ['midfield', 'final'], stage: 'final' },
     transatt: { keys: ['transAtt', 'transAttEnd'], stage: 'transAtt' }, organised: { keys: ['without', 'withoutEnd'], stage: 'without' }, transdef: { keys: ['transDef', 'transDefEnd'], stage: 'transDef' },
   };
-  LAB.implement = function (team, phase, id, result) {
-    const B = LAB.BOARDS[phase]; if (!B) return null;
+  LAB.implement = function (team, phase, id, result, opts) {
+    let B = LAB.BOARDS[phase]; if (!B) return null;
+    if (phase === 'build') {
+      // The build-up is prepared page by page, one for each way the opposition press. The change goes on the page for how this opponent press
+      // (a page is made for it if none has been prepared yet).
+      FM.ensurePages(team); team.pages.buildEnd = team.pages.buildEnd || [];
+      const opp = opts && opts.opp, ot = opp && opp.tactics;
+      const press = ot ? 0.6 * (ot.pressBuildUp == null ? 0.4 : ot.pressBuildUp) + 0.4 * (ot.pressing == null ? 0.5 : ot.pressing) : 0.5;
+      const list = team.pages.buildEnd;
+      if (!list.length) list.push({ id: 's' + Date.now().toString(36), label: '', cond: press >= 0.6 ? 'opp_high' : press >= 0.4 ? 'opp_mid' : 'opp_low', named: false });
+      const LVL = { opp_high: 0.75, opp_mid: 0.5, opp_low: 0.25 };
+      let pg = list[0], nd = 9;
+      list.forEach((x) => { const dd = Math.abs((LVL[x.cond] == null ? 0.5 : LVL[x.cond]) - press); if (dd < nd) { nd = dd; pg = x; } });
+      B = Object.assign({}, B, { keys: ['build#' + pg.id, 'build#' + pg.id], page: pg.id });
+    }
     const S = B.keys[0], E = B.keys[1], said = [], moved = [];
     const clampv = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
     const G = (...g) => team.players.filter((p) => g.indexOf(p.group) >= 0);
@@ -416,7 +429,7 @@
       moved.push({ key, p });
     };
     const rule = (scope, effects, part, extra) => {
-      const when = Object.assign({ stage: [B.stage] }, part && !B.noPart ? { part } : {}, part === 'end' ? { page: 'default' } : {}, extra || {});
+      const when = Object.assign({ stage: [B.stage] }, part && !B.noPart ? { part } : {}, part === 'end' ? { page: 'default' } : {}, B.page ? { page: B.page } : {}, extra || {});
       const r = FM.rulesClean({ scope, when, effects, source: 'builder' }, team.players.map((p) => p.number));
       if (r) { team.rules.push(r); said.push(FM.rulesWho(r) + ' will now ' + FM.rulesEffectText(effects[0]).replace(/^./, (c) => c) + (r.when.part ? ' (' + (r.when.part === 'start' ? 'at the start of' : 'by the end of') + ' this phase)' : '') + '.'); }
     };

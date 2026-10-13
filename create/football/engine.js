@@ -259,7 +259,8 @@
   // build-up has its own version, which the next stage (through midfield) starts from.
   FM.buildEndPos = function (team, p, key) {
     const sfx = FM.scnSuffix(key), pageId = sfx ? sfx.slice(1) : 'default';
-    const start = FM.phasePos(team, p, 'build' + sfx);
+    // when the opposition set up in a way no page was prepared for, the team starts from its formation, whichever page's instructions it follows
+    const start = FM.phasePos(team, p, team.buildUnmatched ? 'build' : 'build' + sfx);
     if (p.group === 'GK') return { d: start.d, w: start.w };
     const dEnd = FM.defaultPhasePos(team, p, 'buildEnd'), dStart = FM.defaultPhasePos(team, p, 'build');
     let adv = dEnd.d - dStart.d, wShift = 0, k = 1;
@@ -551,6 +552,7 @@
       if (pg.cond === 'from_prev' && pg.extra === 'custom' && pg.custom && pg.custom.summary) return cap1(pg.custom.summary);
       return PHRASE[pg.cond] || pg.label || 'Page';
     }
+    if (endKey === 'buildEnd' && !pg) return 'Anything else (set up from the formation)';
     if (dfl.named && dfl.label) return dfl.label;
     if (dfl.cond === 'custom' && dfl.custom && dfl.custom.summary) return cap1(dfl.custom.summary);
     if (dfl.cond && dfl.cond !== 'always') return PHRASE[dfl.cond] || 'Default page';
