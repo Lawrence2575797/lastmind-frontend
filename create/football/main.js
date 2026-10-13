@@ -1360,15 +1360,17 @@
   // Build-up, through midfield and the final third are prepared by showing the phase against the opposition (see scenario.js).
   function renderScenarioTab(team, tab) {
     const host = el('tabBody');
-    host.innerHTML = '<div id="scnHost"></div><div id="scnInstr"></div>';
+    const defTab = tab === 'organised', sub = defTab ? (world.defSub || 'press') : tab;
+    host.innerHTML = (defTab ? '<div class="def-sub" role="tablist"><button data-sub="press" class="' + (sub === 'press' ? 'on' : '') + '">1. Pressing their build-up</button><button data-sub="organised" class="' + (sub === 'organised' ? 'on' : '') + '">2. Defending your third</button></div>' : '') + '<div id="scnHost"></div><div id="scnInstr"></div>';
+    host.querySelectorAll('[data-sub]').forEach((b) => b.addEventListener('click', () => { world.defSub = b.dataset.sub; renderScenarioTab(team, tab); }));
     world.scn = world.scn || {};
-    FM.renderScenario(host.querySelector('#scnHost'), team, nextOpponent(), tab, { store: world.scn, save: saveSoon, applied: (done) => {
+    FM.renderScenario(host.querySelector('#scnHost'), team, nextOpponent(), sub, { store: world.scn, save: saveSoon, applied: (done) => {
       FM.inferShapeTactics(team); renderPrepFlow();
       // "Use this and go on to ..." takes you to that phase's page
       const nk = done && done.nextKey, nb = nk && el('tabs').querySelector('button[data-tab="' + nk + '"]');
       if (nb) nb.click();
     } });
-    const ph = FM.SCENARIO_PHASES[tab];
+    const ph = FM.SCENARIO_PHASES[sub];
     FM.renderInstructions(host.querySelector('#scnInstr'), team, { save: saveSoon, opp: nextOpponent }, { stage: ph.stage, title: 'Anything else you want to tell them', applies: 'applies to this phase' });
   }
   function renderTransitionTab(team, tab) {
@@ -1384,12 +1386,10 @@
     const fallback = defensive ? 'contain' : 'secure';
     team.tactics[key] = team.tactics[key] || {};
     host.innerHTML = `<div class="card transition-plan"><span class="eyebrow">${defensive ? 'Lost the ball in…' : 'Won the ball in…'}</span><h2>${defensive ? 'Defensive transition' : 'Attacking transition'}</h2><p class="desc">Choose what the team does first when it ${defensive ? 'loses' : 'wins'} the ball in each third of the pitch. The small pitches show how you have set the team up ${defensive ? 'for that part of the game' : 'to defend'}.</p>
-      <div class="transition-zones">${zones.map(([z, n, k, cap]) => `<label><b>${n}</b><select data-zone="${z}">${options.map(([v, l]) => `<option value="${v}"${(team.tactics[key][z] || fallback) === v ? ' selected' : ''}>${l}</option>`).join('')}</select><span class="tz-board" id="tzBoard_${z}"></span><span class="note tz-cap">${cap}</span></label>`).join('')}</div>
+      <div class="transition-zones">${zones.map(([z, n, k, cap]) => `<label><b>${n}</b><select data-zone="${z}">${options.map(([v, l]) => `<option value="${v}"${(team.tactics[key][z] || fallback) === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>`).join('')}</div>
       <div id="transInstr"></div></div>`;
     host.querySelectorAll('[data-zone]').forEach((s) => s.addEventListener('change', () => { team.tactics[key][s.dataset.zone] = s.value; saveSoon(); }));
-    const draw = () => { zones.forEach(([z, , k]) => { const h = host.querySelector('#tzBoard_' + z); if (h && h.isConnected) drawBoard(h, team, k, { locked: true, fit: true }); }); };
-    draw();
-    world.redrawBoards = draw;
+    world.redrawBoards = null;
     // one instruction box for the stage, as on the other pages
     FM.renderInstructions(host.querySelector('#transInstr'), team, { save: saveSoon, opp: nextOpponent }, { stage: defensive ? 'transDef' : 'transAtt', title: 'Instructions: ' + (defensive ? 'after losing the ball' : 'after winning the ball'), applies: 'applies to this stage only' });
   }

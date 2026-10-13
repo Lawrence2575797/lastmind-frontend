@@ -21,7 +21,8 @@
     build: { title: 'Build-up from a goal kick', stage: 'build', end: 'buildEnd', endLine: 0.5, goal: 'Get the ball out of your half, past their press.', next: 'Play through midfield', nextKey: 'midfield' },
     midfield: { title: 'Play through midfield', stage: 'midfield', end: 'midfield', endLine: 0.72, goal: 'Carry the ball up to the edge of the final third.', next: 'The final third', nextKey: 'final' },
     final: { title: 'The final third', stage: 'final', end: 'final', endLine: null, goal: 'Create a chance: finish the attack with a shot (drag a pass line into the goal).', next: null },
-    organised: { title: 'Defending', stage: 'without', end: 'without', defend: true, goal: 'They have the ball. Move your players as they bring it up the pitch, and press when they have it deep, then let them play on.', next: null },
+    press: { title: 'Pressing their build-up', stage: 'without', end: 'press', defend: true, endAtHalf: true, goal: 'They start from their goalkeeper. Show how the team presses them: where the players stand, and who goes to the ball. Press the man on it and he can be tackled.', next: null },
+    organised: { title: 'Defending your third', stage: 'without', end: 'without', defend: true, goal: 'They have the ball at the edge of your third. Show where the team sits and who closes down, then let them play on. Close the man on the ball down and he can be tackled.', next: null },
   };
   FM.SCENARIO_PHASES = PHASES;
 
@@ -53,7 +54,8 @@
     if (opp.baseTactics) o.tactics = Object.assign({}, opp.baseTactics);   // how they usually play: the profile the page quotes
     const m = FM.createMatch(u, o, seed);
     m.userId = u.id;
-    if (phase === 'organised') FM.startBuildUpTrial(m, o, 'goalkick');
+    if (phase === 'press') FM.startBuildUpTrial(m, o, 'goalkick');
+    else if (phase === 'organised') FM.startFinalThirdTrial(m, o);
     else if (phase === 'build') FM.startBuildUpTrial(m, u, 'goalkick');
     else FM.startFinalThirdTrial(m, u);
     m.noOffside = false; m.forcePass = false;
@@ -215,7 +217,7 @@
   function fresh(team, opp, phase) {
     const own = startPositions(team, phase);
     const press = FM.scenarioOppPress(opp);
-    const defending = phase === 'organised';
+    const defending = phase === 'organised' || phase === 'press';
     const seed = (Date.now() & 0xfffff) + 17;
     const eng = makeEngine(team, opp, phase, seed);
     const oppP = eng.o.players.map((p, i) => ({ p: opp.players[i] || p, x: 0, y: 0 }));
@@ -315,7 +317,9 @@
   // midfield, and near our goal; and from how high the line was, how many went to the ball and how wide it stood.
   FM.scenarioApplyDefend = function (S) {
     const team = S.team, snaps = S.snaps.length ? S.snaps : [{ ballX: S.eng.m.ball.x, own: S.own.map((o) => ({ x: o.x, y: o.y })) }];
-    const zoneOf = (bx) => (bx > 70 ? 'press' : bx > 35 ? 'without' : 'withoutEnd');
+    const pressing = S.phase === 'press';
+    // pressing their build-up is one shape (whatever part of their half the ball is in); defending your third is the shape in midfield and near goal
+    const zoneOf = (bx) => (pressing ? 'press' : bx > 35 ? 'without' : 'withoutEnd');
     const lastIn = {}; snaps.forEach((sn) => { lastIn[zoneOf(sn.ballX)] = sn; });
     const mean = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
     const out = S.own.map((o, i) => ({ o, i })).filter(({ o }) => o.p.group !== 'GK');
@@ -328,10 +332,15 @@
     const spread = (sn) => { const xs = out.map(({ i }) => sn.own[i].x), m = mean(xs); return Math.sqrt(mean(xs.map((x) => (x - m) * (x - m)))); };
     const sd = mean(snaps.map(spread));
     const set = (k, v) => { if (team.tactics[k] != null) team.tactics[k] = Math.round((team.tactics[k] * 0.25 + v * 0.75) * 100) / 100; };
-    set('lineHeight', clamp((line - 0.14) / 0.42, 0, 1));
-    set('pressing', clamp(0.15 + press / 5, 0.1, 0.95));
-    if (snaps.some((sn) => sn.ballX > 70)) set('pressBuildUp', clamp(0.1 + pressDeep / 4, 0.05, 0.95));
-    set('defWidth', clamp(0.7 + (sd - 9) / 14 * 0.55, 0.7, 1.25));
+    if (pressing) {
+      // how hard they go for a build-up: how many go to the ball, and how high they stand to do it
+      set('pressBuildUp', clamp(0.1 + press / 4, 0.05, 0.95));
+      set('pressing', clamp(0.2 + press / 6, 0.1, 0.95));
+    } else {
+      set('lineHeight', clamp((line - 0.14) / 0.42, 0, 1));
+      set('pressing', clamp(0.15 + press / 5, 0.1, 0.95));
+      set('defWidth', clamp(0.7 + (sd - 9) / 14 * 0.55, 0.7, 1.25));
+    }
     // the shapes themselves: for each part of the pitch the ball was in, where the team stood
     team.phasePos = team.phasePos || {};
     Object.keys(lastIn).forEach((k) => {
@@ -339,9 +348,9 @@
       S.own.forEach((o, i) => { const q = lastIn[k].own[i]; team.phasePos[k][o.p.index] = { d: clamp(q.y / L, 0.03, 0.97), w: clamp(q.x / W, 0.04, 0.96) }; });
     });
     team.scenarioInfo = team.scenarioInfo || {};
-    team.scenarioInfo.organised = { at: new Date().toISOString(), vs: S.press.label, passes: S.events.length, completed: S.events.length, meanLen: 0, aerial: 0, dribbled: 0, lost: false, defend: true, zones: Object.keys(lastIn) };
+    team.scenarioInfo[S.phase] = { at: new Date().toISOString(), vs: S.press.label, passes: S.events.length, completed: S.events.length, meanLen: 0, aerial: 0, dribbled: 0, lost: false, defend: true, zones: Object.keys(lastIn) };
     if (FM.inferShapeTactics) FM.inferShapeTactics(team);
-    const zones = Object.keys(lastIn).map((k) => ({ press: 'when they have it deep in their half', without: 'in midfield', withoutEnd: 'near your goal' }[k]));
+    const zones = Object.keys(lastIn).map((k) => ({ press: 'when they build from the back', without: 'when they are in midfield and the edge of your third', withoutEnd: 'when they are near your goal' }[k]));
     return { text: `You showed ${snaps.length} set-up${snaps.length === 1 ? '' : 's'}, ${zones.length ? 'for the ball ' + zones.join(', ') : ''}. The team will now defend with ${line > 0.4 ? 'a high' : line > 0.26 ? 'a middling' : 'a deep'} line, ${press >= 2.5 ? 'press the ball hard' : press >= 1.4 ? 'close the ball down with a couple of players' : 'sit off and let the ball come'}, and stand ${sd > 15 ? 'wide' : sd < 11 ? 'narrow and compact' : 'at a normal width'}. The positions you set for each part of the pitch are the ones it takes up.` };
   };
 
@@ -466,7 +475,8 @@
           <div class="scn2-pitch"><svg id="scnSvg" viewBox="0 0 ${W * PS} ${L * PS}" role="img" aria-label="${esc(ph.title)}: drag the players and the ball, and draw passes"></svg></div>
           <div class="scn2-side">
             ${S && S.defending && S.started ? `<div class="scn2-card"><h3>Defend it</h3><ul class="scn2-help">
-              <li><b>Drag your players</b> to where you want them as they bring the ball up. Press when they have it deep.</li>
+              <li><b>Drag your players</b> to where you want them as they bring the ball ${phase === 'press' ? 'out from the back' : 'into your third'}.</li>
+              <li><b>Drag one onto the man with the ball</b> to close him down: he can be tackled, and the ball is yours if it comes off.</li>
               <li>Then press <b>Play on</b> and watch what they do with the ball.</li></ul>
               <div class="scn2-stats">${S.snaps.length} set-up${S.snaps.length === 1 ? '' : 's'} shown · ${S.events.length} move${S.events.length === 1 ? '' : 's'} by them</div>
               <p class="scn2-say" id="scnSay">${esc(S.say || 'They have the ball. Set your team.')}</p>
@@ -480,7 +490,7 @@
               <p class="scn2-say" id="scnSay">${esc(S.say || 'Your move.')}</p>
               <div class="row"><button id="scnUndo"${S.beats.length ? '' : ' disabled'}>Undo</button><button id="scnReset">End scenario</button></div>
               <div class="row"><button class="primary" id="scnFinish">Use this${ph.next ? ' and go on to ' + esc(ph.next.toLowerCase()) : ''}</button></div></div>`
-            : `<div class="scn2-card"><h3>${ph.defend ? 'Show the team how to defend' : 'Show the team how to play it'}</h3><p class="desc">${ph.defend ? `${esc(opp.name)} start with the ball at their goalkeeper and build up against you. You set your team as they bring it up, and press when they have it deep. They play as they play in a match, and from what you show LastMind works out how the team defends.` : `You will take the ball from the ${phase === 'build' ? 'goalkeeper' : 'man on it'} and play the phase out against ${esc(opp.name)}. They react to every move the way they play. From what you show, LastMind works out how the team plays this phase.`}</p>
+            : `<div class="scn2-card"><h3>${ph.defend ? 'Show the team how to defend' : 'Show the team how to play it'}</h3><p class="desc">${ph.defend ? `${phase === 'press' ? esc(opp.name) + ' start with the ball at their goalkeeper and build up against you. You set the press: where your players stand, and who goes to the ball.' : esc(opp.name) + ' come at you with the ball at the edge of your third. You set where the team sits and who closes down.'} They play as they play in a match, and from what you show LastMind works out how the team defends. Go for the man on the ball and you can win it.` : `You will take the ball from the ${phase === 'build' ? 'goalkeeper' : 'man on it'} and play the phase out against ${esc(opp.name)}. They react to every move the way they play. From what you show, LastMind works out how the team plays this phase.`}</p>
               ${S && S.carried ? `<p class="desc">This starts where the last phase ended: ${esc(S.own[S.holder].p.name.split(' ').slice(-1)[0])} has the ball and your players stand where they finished.</p>` : ''}<p class="desc"><b>Drag your players into position first.</b> ${esc(opp.name)} hold their shape until you start${phase === 'build' ? ', and cannot come into the box before the ball is played' : ''}.</p><div class="row"><button class="primary" id="scnStart">Start scenario</button><button id="scnHow">How this works</button></div></div>`}
             ${S && S.finished ? `<div class="scn2-card"><h3>What it learned</h3><p class="desc">${esc(S.learned || '')}</p></div>` : ''}
           </div>
@@ -534,10 +544,40 @@
         ev.preventDefault();
       });
       svg.addEventListener('pointermove', (ev) => { if (!drag) return; const p = toBoard(svg, ev), o = S.own[drag.i]; o.x = p.x; o.y = p.y; redraw(); });
-      svg.addEventListener('pointerup', () => { drag = null; });
+      // The man they have the ball with, and whether one of ours is near enough to go for it. Close him down and he can be tackled: his tackling
+      // against the carrier's dribbling, a little better the closer he gets. A miss lets the carrier get past him, and play goes on.
+      const carrierNow = () => { const c = S.eng.m.carrier; return c && c.team === S.eng.o ? { p: c.player, x: c.player.y, y: c.player.x } : null; };
+      const tackleRoll = (idxs, tag) => {
+        const c = carrierNow(); if (!c || !FM.tackleProb) return null;
+        const near = idxs.filter((i) => dist(S.own[i], c) <= 2.8 && S.own[i].p.group !== 'GK').sort((a, b) => dist(S.own[a], c) - dist(S.own[b], c));
+        if (!near.length) return null;
+        const i = near[0], rng = FM.mulberry32((S.seed + S.snaps.length * 7919 + i * 131 + (tag || 0)) >>> 0);
+        const base = FM.tackleProb(S.own[i].p, c.p), close = clamp(1.15 - dist(S.own[i], c) / 4, 0.4, 1);
+        const won = rng() < base * close;
+        return { i, won, carrier: c.p };
+      };
+      const endWon = (t) => {
+        S.ended = true; S.won = true; S.events.push({ type: 'tackle' });
+        S.say = `${nm(S.own[t.i].p)} wins the ball back from ${nm(t.carrier)}. The defending is done.`;
+        S.busy = false; draw();
+      };
+      let afterMiss = '';
+      svg.addEventListener('pointerup', async () => {
+        const d = drag; drag = null;
+        if (!d || S.busy || S.ended) return;
+        const t = tackleRoll([d.i], 1);
+        if (!t) return;
+        if (t.won) { endWon(t); return; }
+        afterMiss = `${nm(S.own[t.i].p)} goes in and misses: ${nm(t.carrier)} gets past him. `;
+        const b = host.querySelector('#scnPlay'); if (b) b.click();
+      });
       q('#scnPlay').addEventListener('click', async () => {
         if (S.busy || S.ended) return;
         S.busy = true;
+        { const t = afterMiss ? null : tackleRoll(S.own.map((_, k) => k), 2);   // somebody already stood on him gets his go first
+          if (t && t.won) { endWon(t); return; }
+          if (t) afterMiss = `${nm(S.own[t.i].p)} goes in and misses: ${nm(t.carrier)} gets past him. `; }
+        const missText = afterMiss; afterMiss = '';
         const m = S.eng.m;
         S.snaps.push({ ballX: m.ball.x, own: S.own.map((o) => ({ x: o.x, y: o.y })) });
         S.evFrom = m.events.length; S.t0 = m.clock;
@@ -554,11 +594,14 @@
           if (last.type === 'pass') text = last.ok ? `${name(last.from)} passes to ${name(last.to)}${last.dist > 28 ? ', a long ball' : ''}.` : `${name(last.from)}'s pass goes astray: you have it back.`;
           else if (last.type === 'dribble') text = last.ok ? `${name(last.player)} takes his man on.` : `${name(last.player)} loses it in a dribble.`;
           else if (last.type === 'tackle') text = last.team === S.eng.u.id ? (last.ok ? 'You win the ball back.' : 'Your tackle misses.') : (last.ok ? 'They win it back.' : 'He rides the tackle.');
+          if (last.type === 'tackle' && last.team === S.eng.u.id && last.ok) S.won = true;
           else if (last.type === 'shot') { text = `${name(last.player)} shoots${last.outcome === 'goal' ? ' and scores' : last.outcome === 'saved' ? ': saved' : last.outcome === 'blocked' ? ': blocked' : ': wide'}.`; S.ended = true; }
         }
         const lost = m.carrier && m.carrier.team === S.eng.u;
-        if (lost && !S.ended) { text += ' The ball is yours: the defending is done.'; S.ended = true; }
-        S.say = text;
+        if (lost && !S.ended) { text += ' The ball is yours: the defending is done.'; S.ended = true; S.won = true; }
+        // pressing a build-up is over once they are through it: the ball carried or played beyond their half
+        if (ph.endAtHalf && !S.ended && m.ball.x < L / 2) { text += ' They are through the press: the pressing is done.'; S.ended = true; }
+        S.say = missText + text;
         const t0 = Date.now(), dur = 650;
         await new Promise((resolve) => {
           const step = () => {
