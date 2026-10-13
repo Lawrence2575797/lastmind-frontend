@@ -1194,10 +1194,10 @@
       const si = el('subInfo'); si.hidden = false;
       si.innerHTML = '<button type="button" class="primary" id="backToTests">Back to tests</button> <span>Make your change here, then go back and test it again.</span>';
       const bb = si.querySelector('#backToTests');
-      bb.addEventListener('click', () => { const ph = world.backToTests.phase; world.backToTests = null; world.testing = true; world.tab = ph; if (world.phaseLabs && world.phaseLabs[ph]) world.phaseLabs[ph].view = 'setup'; renderTactics(); renderPrepFlow(); });
+      bb.addEventListener('click', () => { const ph = world.backToTests.phase; world.backToTests = null; world.testing = true; world.tab = ph; if (world.phaseLabs && world.phaseLabs[ph]) { world.phaseLabs[ph].view = 'results'; world.phaseLabs[ph].toAgain = true; } renderTactics(); renderPrepFlow(); });
     }
     // arriving at the tests afresh shows the controls (and what we recommend), not the last reading
-    if (world.testing && world._tacTesting !== true) Object.keys(world.phaseLabs || {}).forEach((k) => { if (!world.phaseLabs[k].busy) world.phaseLabs[k].view = 'setup'; });
+    if (world.testing && world._tacTesting !== true) Object.keys(world.phaseLabs || {}).forEach((k) => { const lg0 = world.league, rr = k === 'build' ? (lg0.labRuns || []) : ((lg0.phaseLabRuns || {})[k] || []); if (!world.phaseLabs[k].busy) world.phaseLabs[k].view = rr.length ? 'results' : 'setup'; });
     const tabs = world.testing ? TEST_TABS : PREP_TABS;
     const progressKey = world.testing ? 'testPhaseMax' : 'prepPhaseMax', maxPhase = world.league[progressKey] || 0;
     // A step you have visited and moved on from turns green.
@@ -1285,7 +1285,7 @@
     }[phase];
     const runs = phase === 'build' ? lg.labRuns : (lg.phaseLabRuns[phase] = lg.phaseLabRuns[phase] || []);
     world.phaseLabs = world.phaseLabs || {};
-    const st = world.phaseLabs[phase] = world.phaseLabs[phase] || { start: 'keeper', n: 100, view: 'setup', busy: false, prog: 0, a: null, b: null, err: '' };
+    const st = world.phaseLabs[phase] = world.phaseLabs[phase] || { start: 'keeper', n: 100, view: runs.length ? 'results' : 'setup', busy: false, prog: 0, a: null, b: null, err: '' };
     const last = runs[runs.length - 1];
     const goEvidence = () => { world.league.prepStep = Math.max(world.league.prepStep || 0, 4); saveSoon(); setView('preview'); };
     // The shortcut to the tactics page for a change, with a way straight back to this test.
@@ -1296,6 +1296,7 @@
       host.innerHTML = '<div class="lab"><div id="labOutcome"></div></div>';
       const fresh = !!st.fresh; st.fresh = false;
       FM.labResults.outcome(host.querySelector('#labOutcome'), { phase, opp, team, runs, fresh, onAgain: () => { st.view = 'setup'; renderLab(team, host, phase); window.scrollTo(0, 0); }, onTactics: toTactics, onPreview: goEvidence });
+      if (st.toAgain) { st.toAgain = false; const tgt = host.querySelector('[data-act="again"]'); if (tgt && tgt.scrollIntoView) setTimeout(() => tgt.scrollIntoView({ block: 'center', behavior: 'smooth' }), 80); }
       return;
     }
 
@@ -1305,12 +1306,7 @@
     const unsat = lastRate != null && lastRate < sat;
     const fixedN = runs.length ? runs[runs.length - 1].n : st.n;
     if (runs.length) st.n = fixedN;
-    const reco = !runs.length ? '' : unsat
-      ? `<div class="lab-reco"><h3>We recommend testing again</h3><p>Last time ${Math.round(lastRate * 100)}% of tests were successful, which is below where we would like it. Make a change in your tactics, then run the <b>same ${fixedN} tests</b> again. We want to <b>improve on ${Math.round(lastRate * 100)}%</b>.</p>
-          <p class="note">The computer will check the new result against the old one as a proper statistical test. It starts by assuming your change made no difference, and only accepts that it helped if luck alone would be unlikely to give a gain that big. It tells you what it found, and how sure it is, at the top of the results.</p>
-          <p><button type="button" class="el-go" id="labSeeLast">See your last results</button> <button type="button" class="el-go" id="labToTactics">Change your tactics</button></p></div>`
-      : `<div class="lab-reco ok"><h3>That was a good result</h3><p>${Math.round(lastRate * 100)}% of tests were successful, so there is no need to test again. You can, if you want to try to push it further.</p>
-          <p><button type="button" class="el-go" id="labSeeLast">See your last results</button></p></div>`;
+    const reco = !runs.length ? '' : `<p class="lab-lede">${unsat ? 'Your last result was ' + Math.round(lastRate * 100) + '%. Run the same ' + fixedN + ' tests again and we will check whether the change helped.' : 'Run the same ' + fixedN + ' tests again to see whether you can push the last result of ' + Math.round(lastRate * 100) + '% any further.'}</p><p><button type="button" class="el-go" id="labSeeLast">Back to your last results</button></p>`;
     const busyText = st.busy ? (st.planning ? 'Their manager is preparing…' : st.done ? st.n + '/' + st.n + ' tests run' : st.prog + '/' + st.n + ' tests run') : (runs.length ? 'Run ' + st.n + ' tests again' : 'Run ' + st.n + ' tests');
     host.innerHTML = `<div class="lab">
       <h2>${title}</h2>
