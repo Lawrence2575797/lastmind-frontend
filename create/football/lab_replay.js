@@ -48,7 +48,7 @@
       s += '<circle cx="' + X(p.x) + '" cy="' + Y(p.y) + '" r="11" fill="' + kit.shirt + '" stroke="' + kit.number + '" stroke-width="2.5"/><text x="' + X(p.x) + '" y="' + (p.y * PS + 4.5).toFixed(1) + '" text-anchor="middle" font-size="12.5" font-weight="700" fill="' + kit.number + '" font-family="sans-serif">' + p.n + '</text>';
     });
     s += '<circle cx="' + X(ball[0]) + '" cy="' + Y(ball[1]) + '" r="6" fill="#fff" stroke="#000" stroke-width="2"/>';
-    s += '<text x="' + (VW - 8) + '" y="' + (VH - 8) + '" text-anchor="end" font-size="13" fill="#fff" stroke="#000" stroke-width="3" style="paint-order:stroke" font-family="sans-serif">you attack &#8594;</text>';
+    s += '<text x="' + (VW - 8) + '" y="' + (VH - 8) + '" text-anchor="end" font-size="13" fill="#fff" stroke="#000" stroke-width="3" style="paint-order:stroke" font-family="sans-serif">' + esc(kits.label || 'you attack') + ' &#8594;</text>';
     return s;
   }
 
@@ -84,7 +84,7 @@
     const halt = () => { I.playing = false; if (I.raf) cancelAnimationFrame(I.raf); I.raf = 0; };
     const me = { halt, btn: null }; REG.push(me);
     const d = unpack(clip), kits = [ctx.team.kit || { shirt: '#c0392b', number: '#fff' }, ctx.opp.kit || { shirt: '#3b82c4', number: '#fff' }];
-    const kitMap = { u: kits[0], o: kits[1] };
+    const kitMap = { u: kits[0], o: kits[1], label: ctx.attackLabel };
     const nm = (side, n) => { const q = clip.names[side][n]; return q ? q.split(' ').slice(-1)[0] + ' (#' + n + ')' : '#' + n; };
     host.innerHTML = '<svg class="rp-pitch" viewBox="0 0 ' + VW + ' ' + VH + '" role="img" aria-label="Replay of the test"></svg>' +
       '<div class="rp-bar"><button type="button" class="el-go primary rp-play">Play</button><input type="range" class="rp-seek" min="0" max="' + Math.round(clip.end * 100) + '" value="0" aria-label="Position in the replay"><select class="rp-speed" aria-label="Speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></div>' +

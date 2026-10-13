@@ -1267,7 +1267,7 @@
     const n = testsDoneCount();
     return '<p class="note">' + (n === 0 ? 'Run at least one test before the match preview. The others are optional.' : 'You have completed ' + n + ' test' + (n === 1 ? '' : 's') + '. Run the others, or go to the match preview now.') + (n > 0 ? ' <button class="linkbtn" id="labToEvidence2">Go to the match preview</button>' : '') + '</p>';
   }
-  const SAT_TARGET = { build: 0.7, midfield: 0.65, final: 0.4, transatt: 0.35, organised: 0.6, transdef: 0.6 };
+  const SAT_TARGET = { build: 0.7, midfield: 0.65, final: 0.08, transatt: 0.06, organised: 0.92, transdef: 0.92 };
   const SUCCESS_KEY = { build: 'beat', midfield: 'beat', final: 'shot', transatt: 'shot', organised: 'lost', transdef: 'lost' };
   function renderLab(team, host, phase) {
     phase = phase || 'build';
@@ -1301,7 +1301,7 @@
 
     // ---- the set-up: where to test from, how many, and (after a first run) what we recommend ----
     const sat = SAT_TARGET[phase] || 0.6, key = SUCCESS_KEY[phase] || 'beat';
-    const lastRate = last && last.result && last.result[key] ? last.result[key].p : null;
+    const lastRate = last && last.result && FM.labResults && FM.labResults.successRate ? FM.labResults.successRate(phase, last.result) : null;
     const unsat = lastRate != null && lastRate < sat;
     const fixedN = runs.length ? runs[runs.length - 1].n : st.n;
     if (runs.length) st.n = fixedN;

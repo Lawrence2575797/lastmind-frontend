@@ -126,7 +126,7 @@
         if (!finalThird && h === u && d >= 0.5) { result = { outcome: 'beat', time: t }; break; }
         if (finalThird) {
           const shots = match.events.filter((e) => e.type === 'shot' && e.team === u.id);
-          if (shots.length) { const shot = shots[shots.length - 1]; result = { outcome: 'beat', time: t, shot: true, goal: shot.outcome === 'goal', xg: shot.xg || 0 }; break; }
+          if (shots.length) { const shot = shots[shots.length - 1]; result = { outcome: 'beat', time: t, shot: true, goal: shot.outcome === 'goal', xg: shot.xg || 0, shotInfo: { d: Math.round(Math.min(shot.x, L - shot.x)), def: Math.round((shot.defDist == null ? 9 : shot.defDist) * 10) / 10, xg: shot.xg || 0, header: shot.setPiece === 'header' } }; break; }
         }
         if (h === o) { const dg = Math.hypot(match.ball.x - (dir === 1 ? 0 : L), match.ball.y - 34); lostAt = t; lostZone = dg < NEAR_GOAL ? 'lostNear' : d < 0.33 ? 'lostOwn' : 'lostMid'; lostCause = causeOf(match, u, o, entries, t); }
         else if (t >= TRIAL_SECONDS) { result = { outcome: 'still', time: t }; break; }
@@ -179,7 +179,7 @@
   LAB.run = function (league, opts, onProgress) {
     const n = opts.n || 100, userTeam = opts.user, oppTeam = opts.opp, base = opts.seed || (Date.now() & 0xffffff);
     let oppTactics = null; try { if (oppTeam.id !== league.userId) oppTactics = FM.aiTacticsFor(league, oppTeam, userTeam); } catch (e) { oppTactics = null; }
-    const res = { n, counts: { beat: 0, lostNear: 0, lostOwn: 0, lostMid: 0, still: 0 }, shot: 0, goal: 0, xg: 0, times: [], passes: [], causes: [], passTotal: 0, passOk: 0, passP: 0, firsts: [], clips: {} };
+    const res = { n, counts: { beat: 0, lostNear: 0, lostOwn: 0, lostMid: 0, still: 0 }, shot: 0, goal: 0, xg: 0, times: [], passes: [], causes: [], passTotal: 0, passOk: 0, passP: 0, firsts: [], shotList: [], clips: {} };
     let i = 0;
     return new Promise((resolve) => {
       const batch = () => {
@@ -194,6 +194,7 @@
           res.passes.push(r.passes); res.passTotal += r.passTotal || 0; res.passOk += r.passes || 0; res.passP += r.passP || 0;
           if (r.cause) res.causes.push(Object.assign({ zone: r.outcome, shot: !!r.shot }, r.cause));
           if (r.first) res.firsts.push(Object.assign({ outcome: r.outcome }, r.first));
+          if (r.shotInfo) res.shotList.push(r.shotInfo);
           if (r.clip) { const key = r.outcome === 'beat' ? 'beat' : (r.cause && r.cause.kind) || 'other'; const pool = res.clips[key] || (res.clips[key] = []); if (pool.length < 7 && r.clip.f.length > 3) pool.push(r.clip); }
         }
         if (onProgress) onProgress(i, n);
@@ -213,12 +214,20 @@
     out.passes = { mean: S.mean(res.passes), sd: S.sd(res.passes, true) };
     out.passStats = { perTest: res.passTotal / n, okPerTest: res.passOk / n, rate: res.passTotal ? res.passOk / res.passTotal : 0, expected: res.passTotal ? res.passP / res.passTotal : 0 };
     out.why = LAB.reduceCauses(res.causes || []);
+    out.shotsWhy = LAB.reduceShots(res.shotList || []);
     out.press = LAB.reduceFirsts(res.firsts || [], n);
     const LABEL = { beat: 'A build-up that worked', intercepted: 'A pass cut out', dribble: 'A dribble that lost the ball', tackle: 'Tackled on the ball', loose: 'A pass that went astray', offside: 'A pass to a player offside', other: 'Another way of losing it' };
     // Of the tests of each kind, show a typical one: the one whose number of passes is the middle one, not the luckiest or the strangest.
     const typical = (pool) => { const n = (c) => c.ev.filter((e) => e.type === 'pass').length, sorted = pool.slice().sort((x, y) => n(x) - n(y)); return sorted[Math.floor(sorted.length / 2)]; };
     out.clips = ['beat', 'intercepted', 'dribble', 'tackle', 'loose', 'offside', 'other'].filter((k) => res.clips && res.clips[k] && res.clips[k].length).map((k) => ({ key: k, label: LABEL[k], clip: typical(res.clips[k]) }));
     return out;
+  };
+
+  // The attacks that reached a shot, boiled down: how close it was, how much room the shooter had, how good the chance was.
+  LAB.reduceShots = function (list) {
+    const w = { n: list.length, close: 0, mid: 0, far: 0, free: 0, pressed: 0, xg: 0, headers: 0 };
+    list.forEach((q) => { if (q.d <= 11) w.close++; else if (q.d <= 20) w.mid++; else w.far++; if (q.def >= 4) w.free++; else if (q.def < 2) w.pressed++; w.xg += q.xg || 0; if (q.header) w.headers++; });
+    return w;
   };
 
   // The lost tests boiled down to a handful of counts, small enough to keep with each run.
