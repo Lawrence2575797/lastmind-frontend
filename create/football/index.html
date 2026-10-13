@@ -147,6 +147,13 @@
   .lo-ins { display: grid; gap: 12px; } .lo-card { padding: 14px 16px; border-radius: 12px; background: rgba(255,255,255,.05); border-left: 3px solid var(--gold, #f1c04f); } .lo-card p { margin: 6px 0; line-height: 1.5; } .lo-cost { opacity: .85; } .lo-cost em { font-style: normal; font-weight: 700; }
   .lab-outcome.rv-anim .rv { opacity: 0; transform: translateY(10px); animation: rvIn .7s ease forwards; animation-delay: calc(var(--i) * .85s); }
   @keyframes rvIn { to { opacity: 1; transform: none; } } @media (prefers-reduced-motion: reduce) { .lab-outcome.rv-anim .rv { animation: none; opacity: 1; transform: none; } }
+  .mp-or { display:flex; align-items:center; gap:12px; margin:18px 0 6px; opacity:.6; } .mp-or::before, .mp-or::after { content:''; flex:1; height:1px; background:currentColor; opacity:.4; }
+  .mp-modal { position:fixed; inset:0; z-index:1100; display:grid; place-items:center; padding:20px; background:rgba(6,12,10,.74); backdrop-filter:blur(3px); }
+  .mp-box { width:min(520px,100%); max-height:90vh; overflow:auto; padding:22px 24px; border-radius:16px; background:var(--fm-surface,#17231f); border:1px solid rgba(255,255,255,.12); box-shadow:0 24px 70px rgba(0,0,0,.5); display:grid; gap:12px; }
+  .mp-box h2 { margin:0; } .mp-box label { display:grid; gap:6px; font-weight:600; } .mp-box input, .mp-box select { padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.06); color:inherit; font:inherit; }
+  .mp-choices { display:grid; gap:10px; } .mp-choices button { text-align:left; padding:14px 16px; border-radius:12px; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.05); color:inherit; font:inherit; cursor:pointer; display:grid; gap:4px; } .mp-choices button:hover { border-color:var(--fm-gold,#f1c04f); } .mp-choices span { opacity:.75; font-size:.88rem; }
+  .mp-view { display:grid; gap:16px; } .mp-code { display:flex; align-items:center; gap:14px; flex-wrap:wrap; } .mp-code span { opacity:.7; } .mp-code b { font:800 1.9rem var(--sans, system-ui); letter-spacing:.18em; color:var(--fm-gold,#f1c04f); }
+  .mp-in { color:#7fd69a; font-weight:700; } .mp-wait { color:#f1c04f; } .mp-ai { opacity:.65; }
   .cap-badge { display:inline-block; min-width:18px; padding:0 5px; border-radius:4px; background:var(--fm-gold,#f1c04f); color:#14181a; font-weight:800; font-size:.72rem; text-align:center; }
   .cap-line { margin:8px 0 0; font-size:.9rem; } .cap-make { padding:5px 10px; border-radius:8px; border:1px solid rgba(241,192,79,.5); background:transparent; color:inherit; font:inherit; cursor:pointer; } .cap-make:hover { background:rgba(241,192,79,.14); }
   .cap-modal { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(6,12,10,.72); backdrop-filter: blur(3px); } .cap-modal .cap-intro { width: min(520px, 100%); margin: 0; padding: 22px 24px; box-shadow: 0 24px 70px rgba(0,0,0,.5); } .cap-modal .cap-intro p { font-size: 1.08rem; } .cap-modal .cap-intro-ok { justify-self: end; background: var(--gold, #f1c04f); color: #14181a; border-color: transparent; font-weight: 700; }
@@ -815,6 +822,8 @@
       <label class="radio"><input type="radio" name="tier" value="above"> <span><b>Beyond A-level</b></span></label>
     </div>
     <div class="row"><button class="primary" id="ngStart" style="flex:0 0 auto">Start the season</button></div>
+    <div class="mp-or"><span>or</span></div>
+    <div class="row"><button id="ngMulti" style="flex:0 0 auto">Play with other managers</button><span class="note">Start or join a league game, or a one-off match, with a game code.</span></div>
   </section>
 
   <section id="view-home" hidden></section>
@@ -825,6 +834,7 @@
   <section id="view-analysis" hidden></section>
   <section id="view-reports" hidden></section>
   <section id="view-news" hidden></section>
+  <section id="view-mp" hidden></section>
   <section id="view-preview" hidden></section>
 
   <section id="interviewRoom" class="press-room" hidden aria-modal="true" role="dialog" aria-labelledby="pressRoomTitle">
@@ -911,6 +921,7 @@
 <script src="/create/football/development.js?v=20261029a"></script>
 <script src="/create/football/form.js?v=20261029a"></script>
 <script src="/create/football/cases.js?v=20261028a"></script>
+<script src="/create/football/multiplayer.js?v=20261101b"></script>
 <script src="/create/football/main.js?v=20261031n"></script>
 </body>
 </html>

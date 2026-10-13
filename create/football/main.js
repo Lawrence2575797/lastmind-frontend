@@ -537,9 +537,9 @@
   el('injuryTen').addEventListener('click', () => { if (world.match) FM.resolveInjury(world.match); });
 
   // ---------- views and navigation ----------
-  const VIEWS = ['home', 'league', 'squad', 'recruit', 'develop', 'analysis', 'reports', 'news', 'preview', 'match'];
+  const VIEWS = ['home', 'league', 'squad', 'recruit', 'develop', 'analysis', 'reports', 'news', 'preview', 'mp', 'match'];
   const NAV = [];
-  const SCREEN_TITLES = { home: 'Club overview', league: 'League centre', squad: 'First-team squad', recruit: 'Recruitment', develop: 'Player development', reports: 'Opposition intelligence', news: 'Football world', analysis: 'Performance analysis', preview: 'Match preview' };
+  const SCREEN_TITLES = { home: 'Club overview', league: 'League centre', squad: 'First-team squad', recruit: 'Recruitment', develop: 'Player development', reports: 'Opposition intelligence', news: 'Football world', analysis: 'Performance analysis', preview: 'Match preview', mp: 'Playing with other managers' };
   // Lets another page (the Analysis Centre) open one of the tactics pages.
   // "Take me there" from another screen: a button stays on the tactics page that returns to the same place on the screen it came from.
   let backBtn = null;
@@ -581,6 +581,7 @@
     else if (v === 'reports') FM.renderReports(el('view-reports'), world.league);
     else if (v === 'news') FM.renderNews(el('view-news'), world.league);
     else if (v === 'preview') renderPreview();
+    else if (v === 'mp') FM.renderMp(el('view-mp'), world.league, { prepare: () => { world.testing = false; world.tab = 'squad'; setView('tactics'); }, afterSync: () => { FM.saveLeague(world.league); renderTop(); } });
     else if (v === 'tactics' || v === 'match') renderTactics();
     const activeSection = SCREEN_TITLES[v] ? el('view-' + v) : null;
     if (activeSection && !activeSection.querySelector('.screen-heading')) activeSection.insertAdjacentHTML('afterbegin', `<div class="screen-heading">${SCREEN_TITLES[v]}</div>`);
@@ -594,7 +595,8 @@
     const host = el('prepFlow');
     if (!world.league || world.view === 'match') { host.hidden = true; return; }
     const active = world.view === 'analysis' ? 'analysis' : world.view === 'tactics' ? (world.testing ? 'test' : 'prepare') : world.view === 'preview' ? 'preview' : '';
-    const steps = [['analysis', 'Analysis'], ['prepare', 'Prepare tactics'], ['test', 'Test phases'], ['preview', 'Match preview']];
+    const oneOff = world.league.mp && world.league.mp.kind === 'match';
+    const steps = oneOff ? [['prepare', 'Prepare tactics'], ['preview', 'Match preview']] : [['analysis', 'Analysis'], ['prepare', 'Prepare tactics'], ['test', 'Test phases'], ['preview', 'Match preview']];
     host.hidden = false;
     const max = world.league.prepStep || 0;
     host.innerHTML = steps.map(([k, label], i) => `${i ? '<span class="flow-arrow">›</span>' : ''}<button data-flow="${k}" data-step="${i + 1}" class="${active === k ? 'on' : ''}">${label}</button>`).join('');
@@ -615,9 +617,10 @@
     host.innerHTML = `<span class="hint" style="color:inherit;opacity:0.8">${esc(FM.dayLabel(lg.day))}</span>
       <button data-top="home" class="${world.view === 'home' ? 'on' : ''}">Home</button>
       <button data-top="squad" class="${world.view === 'squad' ? 'on' : ''}">Squad</button>
-      <button data-top="recruit" class="${world.view === 'recruit' ? 'on' : ''}">Recruitment</button>
-      <button data-top="develop" class="${world.view === 'develop' ? 'on' : ''}">Development</button>
-      <button data-top="news" class="${world.view === 'news' ? 'on' : ''}">News</button>
+      ${lg.mp ? '' : `<button data-top="recruit" class="${world.view === 'recruit' ? 'on' : ''}">Recruitment</button>
+      <button data-top="develop" class="${world.view === 'develop' ? 'on' : ''}">Development</button>`}
+      ${lg.mp && lg.mp.kind === 'match' ? '' : `<button data-top="news" class="${world.view === 'news' ? 'on' : ''}">News</button>`}
+      ${lg.mp ? `<button data-top="mp" class="${world.view === 'mp' ? 'on' : ''}">Online</button>` : ''}
       <button id="newBtn" title="Abandon this season and start again">New game</button>`;
     host.querySelectorAll('[data-top]').forEach((b) => b.addEventListener('click', () => setView(b.dataset.top)));
     el('newBtn').addEventListener('click', () => {
@@ -628,7 +631,11 @@
 
   function renderPreview() {
     const lg = world.league, host = el('view-preview'), fx = FM.nextUserFixture(lg), me = userTeam();
-    if (!fx) { host.innerHTML = '<div class="card"><h2>No fixture to preview</h2></div>'; return; }
+    if (!fx) {
+      host.innerHTML = lg.mp ? '<div class="card"><h2>Waiting for the match</h2><p class="desc">There is nothing to preview until the other manager has joined.</p><div class="row"><button class="primary" id="mpBackOnline">Back to the game</button></div></div>' : '<div class="card"><h2>No fixture to preview</h2></div>';
+      const bo = host.querySelector('#mpBackOnline'); if (bo) bo.addEventListener('click', () => setView('mp'));
+      return;
+    }
     const home = FM.teamById(lg, fx.homeId), away = FM.teamById(lg, fx.awayId), opp = home.id === me.id ? away : home;
     const profile = FM.clubProfile(opp), runs = (lg.labRuns || []).filter((r) => !r.opp || r.opp === opp.name), last = runs[runs.length - 1];
     const result = last && last.result, rate = result && result.beat ? Math.round(result.beat.p * 100) : null;
@@ -638,17 +645,19 @@
     host.innerHTML = `<div class="match-preview">
       <div class="preview-hero"><div class="eyebrow">Round ${fx.round + 1} · ${home.id === me.id ? 'Home' : 'Away'}</div>
         <div class="preview-clubs"><div class="preview-club"><strong>${esc(home.name)}</strong><span>${home.formationKey}</span></div><div class="preview-v">VS</div><div class="preview-club"><strong>${esc(away.name)}</strong><span>${away.formationKey}</span></div></div>
-        <div class="preview-actions"><button id="previewTactics">Review tactics</button><button id="previewTest">Run an experiment</button><button class="primary" id="enterMatch"${canPlay ? '' : ' disabled'}>${canPlay ? 'Play match' : 'Season complete'}</button></div></div>
+        <div class="preview-actions"><button id="previewTactics">Review tactics</button>${lg.mp && lg.mp.kind === 'match' ? '' : '<button id="previewTest">Run an experiment</button>'}<button class="primary" id="enterMatch"${canPlay ? '' : ' disabled'}>${canPlay ? (lg.mp ? 'Lock in my plan' : 'Play match') : 'Season complete'}</button></div></div>
       <div class="preview-grid">
         <div class="card"><h2>Your match plan</h2><p class="fixture-big">${esc(me.formationKey)}</p><p class="desc">${(me.rules || []).filter((r) => !r.off).length} active player or team instruction${(me.rules || []).filter((r) => !r.off).length === 1 ? '' : 's'}.</p><p class="note">${problems.length ? problems.length + ' positional issue' + (problems.length === 1 ? '' : 's') + ' still need attention.' : 'Every phase currently fits together.'}</p></div>
         <div class="card"><h2>Opponent</h2><p class="fixture-big">${esc(opp.name)}</p><p class="desc">${esc(profile.tag || 'Opponent')} · likely ${esc(opp.formationKey)} · ${esc({ balanced:'balanced',possession:'patient in possession',counter:'dangerous in transition',press:'aggressive without the ball',direct:'direct with the ball' }[opp.style] || opp.style)}.</p></div>
         <div class="card"><h2>Evidence so far</h2><p class="desc">${findings}</p></div>
       </div></div>`;
     host.querySelector('#previewTactics').addEventListener('click', () => { world.testing = false; world.tab = 'squad'; setView('tactics'); });
-    host.querySelector('#previewTest').addEventListener('click', () => { world.testing = true; world.tab = 'build'; setView('tactics'); });
+    const pt = host.querySelector('#previewTest'); if (pt) pt.addEventListener('click', () => { world.testing = true; world.tab = 'build'; setView('tactics'); });
     const rep = host.querySelector('#previewReport'); if (rep) rep.addEventListener('click', () => setView('reports'));
-    host.querySelector('#enterMatch').addEventListener('click', () => {
+    host.querySelector('#enterMatch').addEventListener('click', async () => {
       if (!canPlay) return;
+      // With other managers the round is not played from here: the plan is handed in, and the round is played once everybody has
+      if (lg.mp) { const b = host.querySelector('#enterMatch'); b.disabled = true; b.textContent = 'Handing in...'; try { await FM.mpSubmit(lg); await FM.mpSync(lg); } catch (e) { /* the game screen shows what went wrong */ } setView('mp'); return; }
       // Move on to the next matchday. The day is still the one the last match was played on, so "a fixture today" is not enough: it has to be one
       // that has not been played yet.
       for (let guard = 0; guard < 30 && !FM.seasonOver(lg); guard++) { const today = FM.userFixtureToday(lg); if (today && !today.played) break; if (FM.advanceDay(lg)) break; }
@@ -1860,6 +1869,9 @@
     el('tactics').hidden = true; el('nav').hidden = true; el('prepFlow').hidden = true; el('newGame').hidden = false;
     el('topRight').innerHTML = ''; el('subtitle').textContent = 'Eight clubs, one season, and a lot of numbers.';
   }
+  el('ngMulti').addEventListener('click', () => {
+    FM.mpMenu({ start: (league) => { world.league = league; world.match = null; FM.saveLeague(league); if (FM.ensurePreseasonNews) FM.ensurePreseasonNews(league); setView('mp'); } });
+  });
   el('ngStart').addEventListener('click', async () => {
     const btn = el('ngStart'), tier = document.querySelector('input[name="tier"]:checked').value;
     btn.disabled = true; btn.textContent = 'Setting up the clubs...';
