@@ -193,33 +193,7 @@
         ${small}${friendlyNote}
         <p class="note">This report describes what they did, not what they will do. Managers adapt, especially after a defeat, so the more your approach has changed since they last scouted you, the less this tells you.</p>
       </div>
-      ${shapeCard(league, state.teamId)}
-      <div class="two">
-        <div class="card"><h2>How they set up and play</h2>${rep.n ? `
-          <p class="note">Their average setting across those matches, with the average of every other club shown as a tick. The wider the "varies" note, the less reliable the average is.</p>
-          <div class="tablewrap"><table class="data"><thead><tr><th class="l">Setting</th><th class="l">Their average</th><th class="l">Reading</th></tr></thead><tbody>${rep.tactics.map((r) => {
-            const lo = r.key === 'attackWidth' ? 0.7 : 0, hi = r.key === 'attackWidth' ? 1.25 : 1;
-            const v = r.key === 'attackWidth' ? (r.mean - 0.7) / 0.55 : r.mean;
-            const lg = r.key === 'attackWidth' ? (r.league - 0.7) / 0.55 : r.league;
-            return `<tr><td class="l">${r.label}</td><td class="l">${bar(v, lg, 0, 1)}</td><td class="l">${label3(v, r.lo, r.hi)}${r.n > 1 && r.sd > 0.07 ? ' <span class="pm">varies (sd ' + f2(r.sd, 2) + ')</span>' : ''}</td></tr>`;
-          }).join('')}</tbody></table></div>
-          <p class="desc">Formation: ${rep.formations.map(([k, n]) => `${k} (${n} match${n > 1 ? 'es' : ''})`).join(', ')}.</p>` : '<p class="note">No matches to read it from yet.</p>'}</div>
-        <div class="card"><h2>Their numbers</h2>${rep.n ? `
-          <div class="tablewrap"><table class="data"><thead><tr><th class="l">Per match</th><th>Their average</th><th>Other clubs</th><th>Last match</th></tr></thead><tbody>${rep.stats.map((s) => `<tr><td class="l">${s.label}</td><td>${pm(s, s.d)}</td><td>${f2(s.league, s.d)}</td><td>${f2(s.last, s.d)}</td></tr>`).join('')}</tbody></table></div>
-          <p class="note">Brackets are a 95% confidence interval for their true average, shown once there are three matches or more. A wide bracket means the average could easily be off.</p>` : '<p class="note">No matches to read it from yet.</p>'}</div>
-      </div>
-      <div class="two">
-        <div class="card"><h2>Who to watch</h2>${rep.scorers.length ? `<div class="tablewrap"><table class="data"><thead><tr><th class="l">Player</th><th class="l">Position</th><th>Goals</th><th>Shots (league)</th></tr></thead><tbody>${rep.scorers.map((x) => `<tr><td class="l">${esc(x.p.name)} (${x.p.number})</td><td class="l">${x.p.natural}</td><td>${x.goals}</td><td>${x.shots}</td></tr>`).join('')}</tbody></table></div><p class="note">Goals include pre-season friendlies; shots are league matches only. Goals are rare events, so a leading scorer after a few matches is often partly luck.</p>` : '<p class="note">Nobody has scored or shot yet.</p>'}
-          <h2 style="margin-top:6px">The team as it would line up</h2>
-          <div class="tablewrap"><table class="data"><thead><tr><th class="l">Area</th><th>Rating</th><th>Other clubs</th></tr></thead><tbody>${rep.lines.map((l, i) => `<tr><td class="l">${l[0]}</td><td>${f2(l[1], 0)}</td><td>${f2(rep.linesLeague[i], 0)}</td></tr>`).join('')}</tbody></table></div>
-          <p class="note">Average ratings of the players in their current starting line-up. This can change before the match if they make selection changes.</p></div>
-        <div class="card"><h2>Against you before</h2>${rep.meetings.length ? rep.meetings.map((f) => {
-          const home = FM.teamById(league, f.homeId), away = FM.teamById(league, f.awayId), theirs = f.stats[state.teamId];
-          const dev = TACTIC_ROWS.map(([k, label]) => { const avg = (rep.tactics.find((x) => x.key === k) || {}).mean; const v = theirs.tactics ? theirs.tactics[k] : NaN; return { label, diff: v - avg }; }).filter((d) => fin(d.diff) && Math.abs(d.diff) >= 0.08).sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff)).slice(0, 4);
-          return `<p class="desc"><b>Round ${f.round + 1}: ${esc(home.name)} ${f.hg}-${f.ag} ${esc(away.name)}</b></p><p class="desc">They played ${theirs.formation}. Compared with their own average, against you they used ${dev.length ? dev.map((d) => (d.diff > 0 ? 'more ' : 'less ') + d.label.toLowerCase()).join(', ') : 'much the same settings'}.</p>`;
-        }).join('') + '<p class="note">A club that lost to you usually changes something. A club that beat you may stay as it was. Either way, expect some change.</p>' : '<p class="note">You have not met them yet.</p>'}
-        ${isNext ? '<p class="desc"><b>This is your next opponent.</b> Open the Tactics page to prepare, and the Hypotheses page to write down what you expect before you see it.</p>' : ''}</div>
-      </div></div>`;
+    </div>`;
     host.querySelector('#rpTeam').addEventListener('change', (e) => { state.teamId = e.target.value; FM.renderReports(host, league); });
   };
 })();
