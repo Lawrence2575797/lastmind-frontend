@@ -21,6 +21,7 @@
     build: { title: 'Build-up from a goal kick', stage: 'build', end: 'buildEnd', endLine: 0.5, goal: 'Get the ball out of your half, past their press.', next: 'Play through midfield' },
     midfield: { title: 'Play through midfield', stage: 'midfield', end: 'midfield', endLine: 0.72, goal: 'Carry the ball up to the edge of the final third.', next: 'The final third' },
     final: { title: 'The final third', stage: 'final', end: 'final', endLine: null, goal: 'Create a chance: finish the attack with a shot (drag a pass line into the goal).', next: null },
+    organised: { title: 'Defending', stage: 'without', end: 'without', defend: true, goal: 'They have the ball. Move your players as they bring it up the pitch, and press when they have it deep, then let them play on.', next: null },
   };
   FM.SCENARIO_PHASES = PHASES;
 
@@ -39,42 +40,62 @@
   }
   function startBall(phase) { return phase === 'build' ? { x: W / 2, y: 4 } : phase === 'midfield' ? { x: W / 2, y: 40 } : { x: W / 2, y: 68 }; }
 
-  // ---------- the opposition's reaction ----------
-  function oppReact(S, noPress) {
-    const { team, press } = S, opp = S.oppTeam;
-    const keep = [];
-    // put everyone where the engine expects them, ask the engine where the opposition would stand, then put everything back
-    const own = S.own, theirs = S.opp;
-    own.forEach((o) => { const e = toEng(o); keep.push([o.p, o.p.x, o.p.y]); o.p.x = e.x; o.p.y = e.y; });
-    theirs.forEach((o) => { const e = toEng(o); keep.push([o.p, o.p.x, o.p.y]); o.p.x = e.x; o.p.y = e.y; });
-    const oa = opp.attackDir, ta = team.attackDir, orf = opp.oppRef, trf = team.oppRef;
-    opp.attackDir = -1; team.attackDir = 1;
-    try { Object.defineProperty(opp, 'oppRef', { value: team, writable: true, configurable: true, enumerable: false }); } catch (e) { opp.oppRef = team; }
-    const ballE = toEng(S.ball);
-    const targets = theirs.map((o) => { try { const t = FM.targetFor(opp, o.p, ballE, false); return fromEng(t); } catch (e) { return { x: o.x, y: o.y }; } });
-    opp.attackDir = oa; team.attackDir = ta;
-    try { Object.defineProperty(opp, 'oppRef', { value: orf, writable: true, configurable: true, enumerable: false }); } catch (e) { /* fine */ }
-    keep.forEach(([p, x, y]) => { p.x = x; p.y = y; });
-    // pressing: the nearest of them go to the ball and to the men near it, as many as their pressing says
-    const carrier = S.holder != null ? own[S.holder] : null;
-    if (carrier && !noPress) {
-      const n = clamp(Math.round(1 + 4.5 * press.value), 1, 6);
-      const cand = theirs.map((o, i) => ({ o, i })).filter(({ o }) => o.p.group !== 'GK' && ['ST', 'WF', 'AM', 'CM', 'DM'].indexOf(o.p.group) >= 0)
-        .sort((a, b) => dist(a.o, carrier) - dist(b.o, carrier)).slice(0, n);
-      const taken = new Set([S.holder]);
-      cand.forEach(({ o, i }, k) => {
-        if (k === 0) { targets[i] = { x: carrier.x + (carrier.x < W / 2 ? 0.8 : -0.8), y: carrier.y + 1.4 }; return; }
-        const free = own.map((q, j) => ({ q, j })).filter(({ j }) => !taken.has(j)).sort((a, b) => dist(a.q, o) - dist(b.q, o))[0];
-        if (free && dist(free.q, o) < 30) { taken.add(free.j); targets[i] = { x: free.q.x, y: free.q.y + 1.8 }; }
-      });
+  // ---------- the opposition's reaction: the match engine itself ----------
+  // The two clubs are put in a real match (copies of them, so nothing in the game is touched) and the engine plays the opposition exactly as it
+  // would in a game: their pressing, their line, who marks whom, how they shift toward the ball. Our own players stand where the manager has put
+  // them. When the manager moves something, the engine is run on for a moment and the opposition's new positions are read back.
+  const TRANSIENT = { oppRef: 1, ruleCtx: 1, phaseCtx: 1, extraOv: 1 };
+  const cloneTeam = (t) => JSON.parse(JSON.stringify(t, (k, v) => (TRANSIENT[k] ? undefined : v)));
+  function makeEngine(team, opp, phase, seed) {
+    const u = cloneTeam(team), o = cloneTeam(opp);
+    u.rules = []; o.rules = []; u.phasePos = u.phasePos || {};
+    const m = FM.createMatch(u, o, seed);
+    m.userId = u.id;
+    if (phase === 'organised') FM.startBuildUpTrial(m, o, 'goalkick');
+    else if (phase === 'build') FM.startBuildUpTrial(m, u, 'goalkick');
+    else FM.startFinalThirdTrial(m, u);
+    m.noOffside = false; m.forcePass = false;
+    return { m, u, o };
+  }
+  // our players, where the scenario has them (and, when we have the ball, the ball with the man who has it)
+  function syncOwn(S) {
+    const { m, u } = S.eng;
+    S.own.forEach((o, i) => { const p = u.players[i]; if (!p) return; p.x = o.y; p.y = o.x; p.vx = 0; p.vy = 0; });
+    if (S.attack && S.holder != null && m.carrier && m.carrier.team === u) {
+      const h = u.players[S.holder];
+      m.carrier.player = h; m.ball.x = h.x; m.ball.y = h.y; m.ball.state = 'carried';
     }
-    return targets.map((t) => ({ x: clamp(t.x, 0.5, W - 0.5), y: clamp(t.y, 0.5, L - 0.5) }));
   }
-  function moveToward(from, to, maxStep) {
-    const d = dist(from, to);
-    if (d <= maxStep) return { x: to.x, y: to.y };
-    return { x: from.x + (to.x - from.x) * maxStep / d, y: from.y + (to.y - from.y) * maxStep / d };
+  function readOpp(S) { const { o } = S.eng; S.opp.forEach((q, i) => { const p = o.players[i]; if (p) { q.x = p.y; q.y = p.x; } }); }
+  // Run the engine on for some seconds with our players held where they are. Returns the events that happened.
+  function runEngine(S, seconds) {
+    const { m, u, o } = S.eng, out = [];
+    const n = Math.round(seconds / 0.1), from = m.events.length;
+    for (let k = 0; k < n; k++) {
+      if (S.attack) { m.nextDecision = m.clock + 999; m.carry = null; }
+      syncOwn(S);
+      FM.stepMatch(m, 0.1);
+      if (m.restart) m.restart = null;
+      if (S.attack && m.carrier && m.carrier.team !== u) { S.tackled = m.carrier.player; break; }
+      if (!S.attack && S.stopOn && S.stopOn(m)) break;
+    }
+    S.own.forEach((q, i) => { const p = u.players[i]; if (p) { p.x = q.y; p.y = q.x; } });
+    for (let e = from; e < m.events.length; e++) out.push(m.events[e]);
+    readOpp(S);
+    return out;
   }
+  // The positions the opposition reach after a move of ours.
+  function oppReact(S, noPress) {
+    S.tackled = null;
+    if (!noPress) {
+      const m = S.eng.m;
+      // the engine must treat the ball as just arrived, so the press picks a new target
+      m.plan = null; m.possessionReceivedAt = m.clock;
+      runEngine(S, 1.6);
+    }
+    return S.opp.map((o) => ({ x: o.x, y: o.y }));
+  }
+  const moveToward = (from, to) => ({ x: to.x, y: to.y });
 
   // ---------- what a pass does ----------
   // Is any other player standing on the line between the two ends (so a ball along the ground would run into him)?
@@ -118,16 +139,31 @@
   function fresh(team, opp, phase) {
     const own = startPositions(team, phase);
     const press = FM.scenarioOppPress(opp);
-    const oppP = opp.players.map((p) => ({ p, x: 0, y: 0 }));
-    const S = { team, oppTeam: opp, phase, press, own, opp: oppP, ball: startBall(phase), holder: null, beats: [], seed: (Date.now() & 0xfffff) + 17, log: [], lost: false, started: false, start: null, finished: false };
+    const defending = phase === 'organised';
+    const seed = (Date.now() & 0xfffff) + 17;
+    const eng = makeEngine(team, opp, phase, seed);
+    const oppP = eng.o.players.map((p, i) => ({ p: opp.players[i] || p, x: 0, y: 0 }));
+    const S = { team, oppTeam: opp, phase, press, own, opp: oppP, ball: startBall(phase), holder: null, beats: [], seed, log: [], lost: false, started: false, start: null, finished: false, eng, attack: !defending, defending, snaps: [], events: [] };
+    if (defending) {
+      // they have the ball at their goal kick; our men stand where the engine would put them for that
+      S.own.forEach((o, i) => { const p = eng.u.players[i]; if (p) { o.x = p.y; o.y = p.x; } });
+      S.holder = null;
+      S.ball = { x: eng.m.ball.y, y: eng.m.ball.x };
+      readOpp(S);
+      S.start = own.map((o) => ({ x: o.x, y: o.y }));
+      return S;
+    }
     // the man with the ball: the goalkeeper for a goal kick, otherwise the player nearest to where the ball is
     const nearest = own.map((o, i) => ({ i, d: dist(o, S.ball) })).sort((a, b) => a.d - b.d)[0];
     S.holder = phase === 'build' ? Math.max(0, own.findIndex((o) => o.p.group === 'GK')) : nearest.i;
     S.ball = { x: own[S.holder].x + 0.8, y: own[S.holder].y + 0.6 };
-    // the opposition start where they would stand for this ball
-    S.opp.forEach((o) => { o.x = 34; o.y = 90; });
-    const t = oppReact(S, true);   // they begin in their own shape: the pressing starts with the first move
-    S.opp.forEach((o, i) => { o.x = t[i].x; o.y = t[i].y; });
+    // set the engine up with our men where the manager's board has them and the ball with the man who has it, and let the opposition settle
+    eng.m.ball.x = own[S.holder].y; eng.m.ball.y = own[S.holder].x;
+    syncOwn(S);
+    eng.m.carrier = { team: eng.u, player: eng.u.players[S.holder] };
+    eng.m.lastTeam = eng.u; eng.m.nextDecision = eng.m.clock + 999;
+    runEngine(S, 3.5);
+    S.tackled = null;
     S.start = own.map((o) => ({ x: o.x, y: o.y }));
     return S;
   }
@@ -191,6 +227,40 @@
     return ex;
   };
 
+  // The team's defending, from the set-ups shown: where it stood when they had the ball deep in their own half (pressing their build-up), in
+  // midfield, and near our goal; and from how high the line was, how many went to the ball and how wide it stood.
+  FM.scenarioApplyDefend = function (S) {
+    const team = S.team, snaps = S.snaps.length ? S.snaps : [{ ballX: S.eng.m.ball.x, own: S.own.map((o) => ({ x: o.x, y: o.y })) }];
+    const zoneOf = (bx) => (bx > 70 ? 'press' : bx > 35 ? 'without' : 'withoutEnd');
+    const lastIn = {}; snaps.forEach((sn) => { lastIn[zoneOf(sn.ballX)] = sn; });
+    const mean = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
+    const out = S.own.map((o, i) => ({ o, i })).filter(({ o }) => o.p.group !== 'GK');
+    const pressersOf = (sn) => { const ball = { x: 0, y: 0 }; const be = { x: S.eng.m.ball.y, y: sn.ballX }; return out.filter(({ i }) => Math.hypot(sn.own[i].x - be.x, sn.own[i].y - be.y) < 8).length; };
+    const press = mean(snaps.map(pressersOf)), pressDeep = mean(snaps.filter((sn) => sn.ballX > 70).map(pressersOf));
+    const lineOf = (sn) => { const ys = out.map(({ i }) => sn.own[i].y).sort((a, b) => a - b).slice(0, 4); return mean(ys) / L; };
+    // the height of the line is read where it matters: with the ball in midfield (the shape it holds), not when the ball is far away or on top of the box
+    const midSnaps = snaps.filter((sn) => zoneOf(sn.ballX) === 'without');
+    const line = mean((midSnaps.length ? midSnaps : snaps).map(lineOf));
+    const spread = (sn) => { const xs = out.map(({ i }) => sn.own[i].x), m = mean(xs); return Math.sqrt(mean(xs.map((x) => (x - m) * (x - m)))); };
+    const sd = mean(snaps.map(spread));
+    const set = (k, v) => { if (team.tactics[k] != null) team.tactics[k] = Math.round((team.tactics[k] * 0.25 + v * 0.75) * 100) / 100; };
+    set('lineHeight', clamp((line - 0.14) / 0.42, 0, 1));
+    set('pressing', clamp(0.15 + press / 5, 0.1, 0.95));
+    if (snaps.some((sn) => sn.ballX > 70)) set('pressBuildUp', clamp(0.1 + pressDeep / 4, 0.05, 0.95));
+    set('defWidth', clamp(0.7 + (sd - 9) / 14 * 0.55, 0.7, 1.25));
+    // the shapes themselves: for each part of the pitch the ball was in, where the team stood
+    team.phasePos = team.phasePos || {};
+    Object.keys(lastIn).forEach((k) => {
+      team.phasePos[k] = team.phasePos[k] || {};
+      S.own.forEach((o, i) => { const q = lastIn[k].own[i]; team.phasePos[k][o.p.index] = { d: clamp(q.y / L, 0.03, 0.97), w: clamp(q.x / W, 0.04, 0.96) }; });
+    });
+    team.scenarioInfo = team.scenarioInfo || {};
+    team.scenarioInfo.organised = { at: new Date().toISOString(), vs: S.press.label, passes: S.events.length, completed: S.events.length, meanLen: 0, aerial: 0, dribbled: 0, lost: false, defend: true, zones: Object.keys(lastIn) };
+    if (FM.inferShapeTactics) FM.inferShapeTactics(team);
+    const zones = Object.keys(lastIn).map((k) => ({ press: 'when they have it deep in their half', without: 'in midfield', withoutEnd: 'near your goal' }[k]));
+    return { text: `You showed ${snaps.length} set-up${snaps.length === 1 ? '' : 's'}, ${zones.length ? 'for the ball ' + zones.join(', ') : ''}. The team will now defend with ${line > 0.4 ? 'a high' : line > 0.26 ? 'a middling' : 'a deep'} line, ${press >= 2.5 ? 'press the ball hard' : press >= 1.4 ? 'close the ball down with a couple of players' : 'sit off and let the ball come'}, and stand ${sd > 15 ? 'wide' : sd < 11 ? 'narrow and compact' : 'at a normal width'}. The positions you set for each part of the pitch are the ones it takes up.` };
+  };
+
   // ---------- drawing ----------
   function pitchSvg() {
     const X = (m) => (m * PS).toFixed(1), Y = (m) => ((L - m) * PS).toFixed(1), ln = 'stroke="rgba(255,255,255,.8)" stroke-width="1.6" fill="none"';
@@ -215,7 +285,8 @@
     const oppKit = { shirt: (S.oppTeam.kits && S.oppTeam.kits.away && S.oppTeam.kits.away[0]) || '#3b82c4', number: (S.oppTeam.kits && S.oppTeam.kits.away && S.oppTeam.kits.away[1]) || '#fff' };
     S.opp.forEach((o) => {
       const q = tween && tween.opp ? tween.opp(o) : o;
-      s += `<g><circle cx="${X(q.x)}" cy="${Y(q.y)}" r="${1.6 * PS}" fill="${oppKit.shirt}" stroke="${oppKit.number}" stroke-width="2" opacity=".92"/><text x="${X(q.x)}" y="${(Y(q.y) * 1 + 4).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="${oppKit.number}" font-family="sans-serif">${o.p.number}</text></g>`;
+      const hasIt = S.defending && S.eng && S.eng.m.carrier && S.eng.m.carrier.player && S.eng.m.carrier.player.number === o.p.number && S.eng.m.carrier.team === S.eng.o;
+      s += `<g><circle cx="${X(q.x)}" cy="${Y(q.y)}" r="${1.6 * PS}" fill="${oppKit.shirt}" stroke="${hasIt ? '#FFE27A' : oppKit.number}" stroke-width="${hasIt ? 3.5 : 2}" opacity=".92"/><text x="${X(q.x)}" y="${(Y(q.y) * 1 + 4).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="${oppKit.number}" font-family="sans-serif">${o.p.number}</text></g>`;
     });
     S.own.forEach((o, i) => {
       const hold = i === S.holder;
@@ -243,7 +314,14 @@
         <div class="scn2-body">
           <div class="scn2-pitch"><svg id="scnSvg" viewBox="0 0 ${W * PS} ${L * PS}" role="img" aria-label="${esc(ph.title)}: drag the players and the ball, and draw passes"></svg></div>
           <div class="scn2-side">
-            ${S && S.started ? `<div class="scn2-card"><h3>How to play it</h3><ul class="scn2-help">
+            ${S && S.defending && S.started ? `<div class="scn2-card"><h3>Defend it</h3><ul class="scn2-help">
+              <li><b>Drag your players</b> to where you want them as they bring the ball up. Press when they have it deep.</li>
+              <li>Then press <b>Play on</b> and watch what they do with the ball.</li></ul>
+              <div class="scn2-stats">${S.snaps.length} set-up${S.snaps.length === 1 ? '' : 's'} shown · ${S.events.length} move${S.events.length === 1 ? '' : 's'} by them</div>
+              <p class="scn2-say" id="scnSay">${esc(S.say || 'They have the ball. Set your team.')}</p>
+              <div class="row"><button class="primary" id="scnPlay"${S.ended ? ' disabled' : ''}>Play on</button><button id="scnReset">Start again</button></div>
+              <div class="row"><button class="primary" id="scnFinish">Use this</button></div></div>`
+            : S && S.started ? `<div class="scn2-card"><h3>How to play it</h3><ul class="scn2-help">
               <li><b>Drag a player</b> to move him. With the ball, that is a dribble.</li>
               <li><b>Drag the ball</b> onto a player to give it to him.</li>
               <li><b>Press on the pitch and drag</b> the way you want the pass to go, then let go. Over a player on the line, it is a ball in the air.</li></ul>
@@ -251,7 +329,7 @@
               <p class="scn2-say" id="scnSay">${esc(S.say || 'Your move.')}</p>
               <div class="row"><button id="scnUndo"${S.beats.length ? '' : ' disabled'}>Undo</button><button id="scnReset">Start again</button></div>
               <div class="row"><button class="primary" id="scnFinish">Use this${ph.next ? ' and go on to ' + esc(ph.next.toLowerCase()) : ''}</button></div></div>`
-            : `<div class="scn2-card"><h3>Show the team how to play it</h3><p class="desc">You will take the ball from the ${phase === 'build' ? 'goalkeeper' : 'man on it'} and play the phase out against ${esc(opp.name)}. They react to every move the way they play. From what you show, LastMind works out how the team plays this phase.</p><div class="row"><button class="primary" id="scnStart">Start scenario</button></div></div>`}
+            : `<div class="scn2-card"><h3>${ph.defend ? 'Show the team how to defend' : 'Show the team how to play it'}</h3><p class="desc">${ph.defend ? `${esc(opp.name)} start with the ball at their goalkeeper and build up against you. You set your team as they bring it up, and press when they have it deep. They play as they play in a match, and from what you show LastMind works out how the team defends.` : `You will take the ball from the ${phase === 'build' ? 'goalkeeper' : 'man on it'} and play the phase out against ${esc(opp.name)}. They react to every move the way they play. From what you show, LastMind works out how the team plays this phase.`}</p><div class="row"><button class="primary" id="scnStart">Start scenario</button></div></div>`}
             ${S && S.finished ? `<div class="scn2-card"><h3>What it learned</h3><p class="desc">${esc(S.learned || '')}</p></div>` : ''}
           </div>
         </div></div>`;
@@ -264,8 +342,9 @@
     const redraw = (tween) => { const svg = host.querySelector('#scnSvg'); if (svg) svg.innerHTML = boardSvg(S, tween); };
     // move the opposition towards where they want to be, over a moment, so the reaction can be seen
     const reactAnimated = () => new Promise((resolve) => {
-      const targets = oppReact(S), starts = S.opp.map((o) => ({ x: o.x, y: o.y }));
-      const goal = S.opp.map((o, i) => moveToward(starts[i], targets[i], 11));
+      const starts = S.opp.map((o) => ({ x: o.x, y: o.y })), targets = oppReact(S);
+      S.opp.forEach((o, i) => { o.x = starts[i].x; o.y = starts[i].y; });
+      const goal = targets;
       const t0 = Date.now(), dur = 650;
       const step = () => {
         const k = clamp((Date.now() - t0) / dur, 0, 1), e = k * (2 - k);
@@ -276,12 +355,73 @@
       step();
     });
     const toBoard = (svg, ev) => { const r = svg.getBoundingClientRect(); return { x: clamp((ev.clientX - r.left) / r.width * W, 0, W), y: clamp(L - (ev.clientY - r.top) / r.height * L, 0, L) }; };
+    function wireDefend() {
+      const q = (s2) => host.querySelector(s2), svg = q('#scnSvg');
+      let drag = null;
+      svg.addEventListener('pointerdown', (ev) => {
+        if (S.busy) return;
+        const own = ev.target.closest && ev.target.closest('[data-own]');
+        if (!own) return;
+        try { svg.setPointerCapture(ev.pointerId); } catch (e) { /* fine */ }
+        drag = { i: +own.dataset.own };
+        ev.preventDefault();
+      });
+      svg.addEventListener('pointermove', (ev) => { if (!drag) return; const p = toBoard(svg, ev), o = S.own[drag.i]; o.x = p.x; o.y = p.y; redraw(); });
+      svg.addEventListener('pointerup', () => { drag = null; });
+      q('#scnPlay').addEventListener('click', async () => {
+        if (S.busy || S.ended) return;
+        S.busy = true;
+        const m = S.eng.m;
+        S.snaps.push({ ballX: m.ball.x, own: S.own.map((o) => ({ x: o.x, y: o.y })) });
+        S.evFrom = m.events.length; S.t0 = m.clock;
+        S.stopOn = (mm) => { const last = mm.events[mm.events.length - 1]; return mm.events.length > S.evFrom && last && ['pass', 'shot', 'dribble', 'tackle', 'goal'].indexOf(last.type) >= 0 && mm.clock - S.t0 > 0.8; };
+        const starts = S.opp.map((o) => ({ x: o.x, y: o.y })), b0 = { x: S.ball.x, y: S.ball.y };
+        const evs = runEngine(S, 9);
+        const ends = S.opp.map((o) => ({ x: o.x, y: o.y })), b1 = { x: m.ball.y, y: m.ball.x };
+        S.opp.forEach((o, i) => { o.x = starts[i].x; o.y = starts[i].y; });
+        const name = (n) => { const p = S.eng.o.players.find((q2) => q2.number === n); return p ? p.name.split(' ').slice(-1)[0] : '#' + n; };
+        const last = evs.filter((e) => ['pass', 'shot', 'dribble', 'tackle', 'goal'].indexOf(e.type) >= 0).pop();
+        let text = 'They keep the ball.';
+        if (last) {
+          S.events.push({ type: last.type });
+          if (last.type === 'pass') text = last.ok ? `${name(last.from)} passes to ${name(last.to)}${last.dist > 28 ? ', a long ball' : ''}.` : `${name(last.from)}'s pass goes astray: you have it back.`;
+          else if (last.type === 'dribble') text = last.ok ? `${name(last.player)} takes his man on.` : `${name(last.player)} loses it in a dribble.`;
+          else if (last.type === 'tackle') text = last.team === S.eng.u.id ? (last.ok ? 'You win the ball back.' : 'Your tackle misses.') : (last.ok ? 'They win it back.' : 'He rides the tackle.');
+          else if (last.type === 'shot') { text = `${name(last.player)} shoots${last.outcome === 'goal' ? ' and scores' : last.outcome === 'saved' ? ': saved' : last.outcome === 'blocked' ? ': blocked' : ': wide'}.`; S.ended = true; }
+        }
+        const lost = m.carrier && m.carrier.team === S.eng.u;
+        if (lost && !S.ended) { text += ' The ball is yours: the defending is done.'; S.ended = true; }
+        S.say = text;
+        const t0 = Date.now(), dur = 650;
+        await new Promise((resolve) => {
+          const step = () => {
+            const k = clamp((Date.now() - t0) / dur, 0, 1), e = k * (2 - k);
+            S.opp.forEach((o, i) => { o.x = starts[i].x + (ends[i].x - starts[i].x) * e; o.y = starts[i].y + (ends[i].y - starts[i].y) * e; });
+            S.ball = { x: b0.x + (b1.x - b0.x) * e, y: b0.y + (b1.y - b0.y) * e };
+            redraw();
+            if (k < 1) setTimeout(step, 16); else resolve();
+          };
+          step();
+        });
+        S.busy = false;
+        draw();
+      });
+      q('#scnFinish').addEventListener('click', () => {
+        const ex = FM.scenarioApplyDefend(S);
+        S.finished = true;
+        S.learned = ex.text;
+        if (hooks && hooks.save) hooks.save();
+        draw();
+        if (hooks && hooks.applied) hooks.applied(ph);
+      });
+    }
     function wire() {
       const q = (s) => host.querySelector(s);
       const start = q('#scnStart');
       if (start) start.addEventListener('click', () => { S.started = true; S.say = 'You have the ball. Move your players into their places first if you like, then play.'; draw(); });
       if (!S.started) return;
       q('#scnReset').addEventListener('click', () => { store[phase] = null; S = null; draw(); const b = host.querySelector('#scnStart'); if (b) b.click(); });
+      if (S.defending) { wireDefend(); return; }
       q('#scnUndo').addEventListener('click', () => { if (!S.history || !S.history.length) return; const snap = S.history.pop(); S.own = snap.own.map((o, i) => Object.assign({}, S.own[i], { x: o.x, y: o.y })); S.opp.forEach((o, i) => { o.x = snap.opp[i].x; o.y = snap.opp[i].y; }); S.ball = snap.ball; S.holder = snap.holder; S.beats = snap.beats; S.lost = false; say('Taken back.'); draw(); });
       q('#scnFinish').addEventListener('click', () => {
         const ex = FM.scenarioApply(S);
@@ -336,14 +476,7 @@
           else { S.beats.push({ type: 'move', i: d.i, d: moved, fromXY: d.from, endXY: { x: o.x, y: o.y } }); say(`${o.p.name.split(' ').slice(-1)[0]} moves.`); }
           // a man with the ball who is run into: they close down (the opposition reaction can win it)
           S.busy = true; await reactAnimated(); S.busy = false;
-          if (S.holder === d.i) {
-            const nearest = Math.min.apply(null, S.opp.map((q) => dist(q, o)));
-            if (nearest < 1.1 && FM.dribbleProb) {
-              const rng = FM.mulberry32((S.seed + S.beats.length * 104729) >>> 0);
-              const pOK = FM.dribbleProb(o.p, nearest, S.opp.sort((a, b) => dist(a, o) - dist(b, o))[0].p);
-              if (rng() > pOK) { S.lost = true; say('He was tackled: the ball is lost. Undo, or start again.'); }
-            }
-          }
+          if (S.tackled) { S.lost = true; say(S.tackled.name.split(' ').slice(-1)[0] + ' wins it: the ball is lost. Undo, or start again.'); }
           draw();
         } else if (d.kind === 'ball') {
           let to = null, bd = 3.2;
@@ -383,7 +516,9 @@
             S.lost = true; S.ball = { x: win.x, y: win.y };
             say(`${who(r.from)} ${r.aerial ? 'tries it over the top' : 'tries a pass'}, but ${r.aerial ? 'it is not won' : (r.blocker && !r.blocker.own ? 'it is cut out by ' + win.p.name.split(' ').slice(-1)[0] : 'it does not reach him')}: the ball is lost. Undo, or start again.`);
           }
-          S.busy = true; await reactAnimated(); S.busy = false; draw();
+          S.busy = true; await reactAnimated(); S.busy = false;
+          if (r.ok && S.tackled) { S.lost = true; say(S.tackled.name.split(' ').slice(-1)[0] + ' closes him down and wins it: the ball is lost. Undo, or start again.'); }
+          draw();
         }
       });
     }
