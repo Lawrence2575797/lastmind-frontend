@@ -503,13 +503,18 @@
           // where the shirts are before starting is where the team plays this phase: in this scenario, in the match and in the tests
           const key = phaseKey(phase), put = {};
           S.own.forEach((o) => { put[o.p.index] = { d: clamp(o.y / L, 0.03, 0.97), w: clamp(o.x / W, 0.04, 0.96) }; });
-          const nextKey = { build: 'buildEnd', buildEnd: 'midfield', midfield: 'final' }[key];
-          // the shape the team will have as the ball goes on to the next diagram: the width the manager placed, with the depth it would have gained
-          const ahead = {};
-          S.own.forEach((o) => { const a0 = FM.phasePos(team, o.p, key), b0 = FM.phasePos(team, o.p, nextKey), pl = put[o.p.index]; ahead[o.p.index] = { d: clamp(pl.d + (b0.d - a0.d), 0.03, 0.97), w: pl.w }; });
+          // the shape the team will have as the ball goes on through the later diagrams: the width the manager placed, with the depth each
+          // would have gained
+          const CHAIN = ['build', 'buildEnd', 'midfield', 'final'], later = CHAIN.slice(CHAIN.indexOf(key) + 1);
           const apply = (t) => { t.phasePos = t.phasePos || {}; t.phasePos[key] = Object.assign({}, put); if (key !== 'build') { t.scenarioEnd = t.scenarioEnd || {}; t.scenarioEnd[key] = Object.assign({}, put); } };
+          const ahead = {};
+          later.forEach((k) => {
+            ahead[k] = {};
+            S.own.forEach((o) => { const a0 = FM.phasePos(team, o.p, key), b0 = FM.phasePos(team, o.p, k), pl = put[o.p.index]; ahead[k][o.p.index] = { d: clamp(pl.d + (b0.d - a0.d), 0.03, 0.97), w: pl.w }; });
+          });
           apply(team); apply(S.eng.u);
-          const u0 = S.eng.u; u0.phasePos[nextKey] = Object.assign({}, ahead); u0.scenarioEnd = u0.scenarioEnd || {}; u0.scenarioEnd[nextKey] = Object.assign({}, ahead);
+          const u0 = S.eng.u; u0.scenarioEnd = u0.scenarioEnd || {};
+          later.forEach((k) => { u0.phasePos[k] = Object.assign({}, ahead[k]); u0.scenarioEnd[k] = Object.assign({}, ahead[k]); });
           if (hooks && hooks.save) hooks.save();
           armEngine(S);
         }
