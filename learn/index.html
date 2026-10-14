@@ -36869,6 +36869,11 @@ SQIDAQAB
         }
 
         if (!supabaseSession) {
+            // A first-time visitor is signed out even while we create the
+            // anonymous session used to hold temporary progress. Set this
+            // before the network request so its failure cannot hide login.
+            isGuestUser = true;
+            document.getElementById('loginTopbarBtn').style.display = '';
             try {
                 const { data, error } = await supabaseClient.auth.signInAnonymously();
                 if (error || !data.session) throw error || new Error('anonymous session unavailable');
@@ -36880,7 +36885,7 @@ SQIDAQAB
                 return;
             }
         } else {
-            isGuestUser = !!supabaseSession.user?.is_anonymous;
+            isGuestUser = supabaseSession.user?.is_anonymous === true || supabaseSession.user?.app_metadata?.provider === 'anonymous';
         }
         if (isGuestUser) document.getElementById('loginTopbarBtn').style.display = '';
 

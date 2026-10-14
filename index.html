@@ -1350,7 +1350,10 @@
 
             const { data: { session } } = await supabaseClient.auth.getSession();
 
-            if (!session) {
+            // Anonymous Supabase sessions let a visitor try LastMind without
+            // an account. They are still signed-out visitors and must keep
+            // the Log In / Sign Up controls visible.
+            if (!session || session.user?.is_anonymous === true || session.user?.app_metadata?.provider === 'anonymous') {
                 loginBtn.style.display = 'inline-block';
                 signupBtn.style.display = 'inline-block';
                 navActionBtn.style.display = 'none';
