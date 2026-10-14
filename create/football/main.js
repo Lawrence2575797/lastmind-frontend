@@ -381,6 +381,7 @@
     el('highlightBtn').setAttribute('aria-pressed', String(world.highlightsOnly));
     document.querySelectorAll('[data-speed]').forEach((x) => { x.disabled = world.highlightsOnly; });
     el('playBtn').classList.toggle('on', playing);
+    { const pp = el('pitchPlay'); if (pp) { pp.hidden = playing || m.phase === 'fulltime' || !!m.injuryPause || !!world.skipTo; pp.textContent = m.phase === 'halftime' ? 'Start second half' : (m.clock > 0 ? 'Play on' : 'Kick off'); } }
     const ip = m.injuryPause;
     el('injuryBox').hidden = !ip;
     if (ip) { world.running = false; el('injuryText').textContent = ip.player.name + ' (number ' + ip.player.number + ') is injured and cannot continue, so play is stopped. Substitute him on the tactics board below (click a bench player, then his shirt), or play on with ten men.'; }
@@ -389,6 +390,7 @@
     if (done) el('finishText').textContent = 'Full time: ' + home.name + ' ' + m.score[home.id] + '-' + m.score[away.id] + ' ' + away.name + '.';
   }
 
+  el('pitchPlay').addEventListener('click', () => el('playBtn').click());
   el('playBtn').addEventListener('click', () => {
     const m = world.match;
     if (world.skipTo) { world.skipTo = null; world.running = false; return; } // stop skipping

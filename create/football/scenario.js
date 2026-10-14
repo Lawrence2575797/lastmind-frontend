@@ -10,7 +10,7 @@
 // Coordinates here are metres: x across the pitch (0 to 68, left to right), y up the pitch (0 to 105), our goal at the bottom.
 (function () {
   const FM = (window.FM = window.FM || {});
-  const L = 105, W = 68, PS = 7;
+  const L = 105, W = 68, PS = 7, GOAL = 2.4;   // GOAL: metres shown beyond each goal line, for the goals
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -411,6 +411,12 @@
     let s = '';
     for (let i = 0; i < 15; i++) s += `<rect x="0" y="${(i * L * PS / 15).toFixed(1)}" width="${W * PS}" height="${(L * PS / 15 + 0.5).toFixed(1)}" fill="${i % 2 ? '#2E7D3E' : '#2A7539'}"/>`;
     s += `<rect x="0" y="0" width="${W * PS}" height="${L * PS}" ${ln}/><line x1="0" y1="${Y(L / 2)}" x2="${W * PS}" y2="${Y(L / 2)}" ${ln}/><circle cx="${X(W / 2)}" cy="${Y(L / 2)}" r="${9.15 * PS}" ${ln}/>`;
+    // the goals: a frame with its net behind each goal line
+    [0, L].forEach((gy) => {
+      const top = gy === L;
+      s += `<rect x="${X(W / 2 - 3.66)}" y="${top ? (-2 * PS).toFixed(1) : (L * PS).toFixed(1)}" width="${(7.32 * PS).toFixed(1)}" height="${(2 * PS).toFixed(1)}" fill="rgba(255,255,255,.14)" stroke="rgba(255,255,255,.95)" stroke-width="2"/>`;
+      for (let k = 1; k < 6; k++) s += `<line x1="${X(W / 2 - 3.66 + k * 7.32 / 6)}" y1="${top ? (-2 * PS).toFixed(1) : (L * PS).toFixed(1)}" x2="${X(W / 2 - 3.66 + k * 7.32 / 6)}" y2="${top ? '0' : ((L + 2) * PS).toFixed(1)}" stroke="rgba(255,255,255,.35)" stroke-width="1"/>`;
+    });
     [[0, 1], [L, -1]].forEach(([y0, dir]) => {
       s += `<rect x="${X(W / 2 - 20.16)}" y="${dir > 0 ? Y(16.5) : Y(L)}" width="${40.32 * PS}" height="${16.5 * PS}" ${ln}/><rect x="${X(W / 2 - 9.16)}" y="${dir > 0 ? Y(5.5) : Y(L)}" width="${18.32 * PS}" height="${5.5 * PS}" ${ln}/>`;
     });
@@ -474,7 +480,7 @@
           ${info ? `<p class="note scn2-last">Last shown: ${info.passes} pass${info.passes === 1 ? '' : 'es'} (${info.completed} came off), ${info.dribbled} m dribbled, ${info.aerial}% in the air, against a side that ${esc(third(info.vs))}.${info.lost ? ' The ball was lost.' : ''}</p>` : ''}
         </div>
         <div class="scn2-body">
-          <div class="scn2-pitch"><svg id="scnSvg" viewBox="0 0 ${W * PS} ${L * PS}" role="img" aria-label="${esc(ph.title)}: drag the players and the ball, and draw passes"></svg></div>
+          <div class="scn2-pitch"><svg id="scnSvg" viewBox="0 ${-GOAL * PS} ${W * PS} ${(L + 2 * GOAL) * PS}" role="img" aria-label="${esc(ph.title)}: drag the players and the ball, and draw passes"></svg></div>
           <div class="scn2-side">
             ${S && S.defending && S.started ? `<div class="scn2-card"><h3>Defend it</h3><ul class="scn2-help">
               <li><b>Drag your players</b> to where you want them as they bring the ball ${phase === 'press' ? 'out from the back' : 'into your third'}.</li>
@@ -533,7 +539,7 @@
       };
       step();
     });
-    const toBoard = (svg, ev) => { const r = svg.getBoundingClientRect(); return { x: clamp((ev.clientX - r.left) / r.width * W, 0, W), y: clamp(L - (ev.clientY - r.top) / r.height * L, 0, L) }; };
+    const toBoard = (svg, ev) => { const r = svg.getBoundingClientRect(); return { x: clamp((ev.clientX - r.left) / r.width * W, 0, W), y: clamp((L + GOAL) - (ev.clientY - r.top) / r.height * (L + 2 * GOAL), 0, L) }; };
     function wireDefend() {
       const q = (s2) => host.querySelector(s2), svg = q('#scnSvg');
       let drag = null;
