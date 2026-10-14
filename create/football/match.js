@@ -183,6 +183,14 @@
   }
 
   // The build-up lab: one short, repeatable trial. Both sides stand where their own phase positions put them, with the ball beside the keeper.
+  // From a goal kick nobody on the other side may be in the penalty area until the ball has been played.
+  function clearBoxOfOpponents(match, team) {
+    const opp = other(match, team), gx = team.attackDir === 1 ? 0 : L, inward = team.attackDir === 1 ? 1 : -1;
+    opp.players.forEach((p) => {
+      if (p.group === 'GK') return;
+      if (Math.abs(p.x - gx) < 17 && Math.abs(p.y - W / 2) < 20.7) { p.x = gx + inward * 17.4; p.vx = 0; }
+    });
+  }
   FM.startBuildUpTrial = function (match, team, kind) {
     const opp = other(match, team), dir = team.attackDir;
     match.phase = 'play'; match.kickoffTimer = 0; match.clock = 0; match.restart = null; match.flight = null; match.carry = null; match.events = [];
@@ -196,7 +204,7 @@
     match.lastTeam = team; match.lastChange = null;
     giveBall(match, team, gk, 1.2);
     match.lastChange = null;   // the keeper has the ball in open play or from a goal kick: nobody has just lost it, so there is no counter-press to begin with
-    if (goalKick) { match.forcePass = true; match.noOffside = true; }
+    if (goalKick) { match.forcePass = true; match.noOffside = true; clearBoxOfOpponents(match, team); match.boxLock = { team }; }
   };
   // A move through midfield: the ball with a midfielder on the edge of his own third, the team in the shape it has for that moment, the
   // opposition set up for it. Used by the midfield test.
@@ -1701,6 +1709,12 @@
     }
     if (match.extraOv) match.extraOv.forEach((v, p) => { if (!ov.has(p)) ov.set(p, v); });   // the lab: opponents following a player who has moved
     match.teams.forEach((t) => FM.stepTeam(t, match.ball, t === poss, dt, ov));
+    // a goal kick that has not been played yet: the other side stay out of the box
+    if (match.boxLock) {
+      const bl = match.boxLock;
+      if (match.clock > 40 || match.events.some((e) => e.type === 'pass' && e.team === bl.team.id)) match.boxLock = null;
+      else clearBoxOfOpponents(match, bl.team);
+    }
     fitnessTick(match, dt);
 
     updateBall(match, dt);
