@@ -4927,7 +4927,7 @@
     .create-card-link { cursor: pointer; }
     .create-card-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
     .create-card h3 { margin: 0; padding: 14px 16px 12px; font: 700 1.05rem 'Lora', Georgia, serif; }
-    .create-price { display: inline-block; margin: 0 16px 8px; padding: 3px 10px; border-radius: 999px; font: 700 0.8rem Arial, sans-serif; background: rgba(241,192,79,.18); border: 1px solid rgba(241,192,79,.55); } .create-price.free { background: rgba(80,200,120,.16); border-color: rgba(80,200,120,.5); }
+    .create-price { display: inline-block; margin: 0 16px 8px; padding: 3px 10px; border-radius: 999px; font: 700 0.8rem Arial, sans-serif; background: rgba(241,192,79,.18); border: 1px solid rgba(241,192,79,.55); } .create-price.unlocked { background: rgba(80,200,120,.2); border-color: rgba(80,200,120,.6); } .create-price.free { background: rgba(80,200,120,.16); border-color: rgba(80,200,120,.5); }
     .create-card-image { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }
     .create-card p { margin: 0; padding: 12px 16px 16px; font: 0.86rem/1.5 Arial, sans-serif; opacity: 0.85; }
     .create-builder-head { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 26px; }
@@ -10759,6 +10759,7 @@ SQIDAQAB
         // the free demonstration case (Kasper Nowicki): a card of its own, and clicking it goes straight to the case
         const galleryEl = contentInner.querySelector('.create-gallery');
         if (view === 'gallery' && galleryEl) {
+            lmMarkUnlocked(galleryEl);
             createLoadProjects().then(({ references }) => {
                 const demo = (references || [])[0];
                 if (!demo || !galleryEl.isConnected || galleryEl.querySelector('[data-demo]')) return;
@@ -10768,7 +10769,7 @@ SQIDAQAB
                 const go = () => createOpenProject(demo.id);
                 art.addEventListener('click', go);
                 art.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); go(); } });
-                galleryEl.insertBefore(art, galleryEl.firstChild);
+                galleryEl.insertBefore(art, Array.from(galleryEl.children).find((c) => !c.dataset.unlocked) || null);   // after any project that is unlocked
             }).catch(() => { /* the demo is only a nicety */ });
         }
         const back = document.getElementById('createBackBtn');
@@ -10808,6 +10809,48 @@ SQIDAQAB
         }
     }
     window.lmEnsureProject = lmEnsureProject;
+    // The projects on the new-project page that this account already has: marked "Unlocked" in place of the price, and moved to the top.
+    async function lmMarkUnlocked(galleryEl) {
+        try {
+            const client = window.supabaseClient;
+            const { data } = client ? await client.auth.getSession() : { data: null };
+            const token = data && data.session ? data.session.access_token : null;
+            if (!token) return;
+            const of = { 'football-manager': 'football', 'criminal-trial': 'law', 'criminal-lawyer-career': 'law' };
+            for (const project of ['football', 'law']) {
+                const r = await fetch(COMPILE_BACKEND_URL + '/projects/access', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ project }) });
+                const j = await r.json().catch(() => ({}));
+                if (!r.ok || !j.allowed || !galleryEl.isConnected) continue;
+                Array.from(galleryEl.querySelectorAll('[data-simulation]')).filter((c) => of[c.dataset.simulation] === project).reverse().forEach((c) => {
+                    const price = c.querySelector('.create-price');
+                    if (price) { price.textContent = 'Unlocked'; price.className = 'create-price unlocked'; }
+                    c.dataset.unlocked = '1';
+                    galleryEl.insertBefore(c, galleryEl.firstChild);
+                });
+            }
+        } catch (err) { /* the marks are a nicety */ }
+    }
+    // coming back from the checkout (/learn/?billing_session=...&project=football): wait for the payment to register, then say it is unlocked
+    (function () {
+        const q = new URLSearchParams(location.search), project = q.get('project');
+        if (!q.get('billing_session') || ['football', 'law'].indexOf(project) < 0) return;
+        const name = project === 'football' ? 'Be the manager' : 'The law projects';
+        let tries = 0;
+        const banner = (text) => { const b = document.createElement('div'); b.setAttribute('role', 'status'); b.textContent = text; b.style.cssText = 'position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:100000;background:#1f8a4c;color:#fff;padding:12px 20px;border-radius:12px;font:700 15px Arial,sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.35)'; document.body.appendChild(b); setTimeout(() => b.remove(), 7000); };
+        const t = setInterval(async () => {
+            if (!window.supabaseClient) { if (++tries > 60) clearInterval(t); return; }
+            tries++;
+            try {
+                const { data } = await window.supabaseClient.auth.getSession();
+                const token = data && data.session ? data.session.access_token : null;
+                if (!token) return;
+                const r = await fetch(COMPILE_BACKEND_URL + '/projects/access', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ project }) });
+                const j = await r.json().catch(() => ({}));
+                if (r.ok && j.allowed) { clearInterval(t); banner(name + ' is unlocked.'); if (typeof renderCreatePage === 'function') renderCreatePage('gallery'); }
+            } catch (err) { /* try again */ }
+            if (tries > 40) clearInterval(t);
+        }, 1500);
+    })();
     // coming here from a project page that needs a subscription (/learn/?needs=football)
     (function () {
         const need = new URLSearchParams(location.search).get('needs');
@@ -36517,7 +36560,7 @@ SQIDAQAB
         // coming back after being explicitly hidden).
         document.getElementById('specialistToolsWrap').style.display = '';
         document.getElementById('upgradeTopbarBtn').style.display = 'none';   // the upgrade button is not shown: projects are priced separately now
-        document.getElementById('loginTopbarBtn').style.display = (!paid || isGuestUser) ? '' : 'none';   // anyone not on a paid plan, and every guest, can always reach the login page
+        document.getElementById('loginTopbarBtn').style.display = isGuestUser ? '' : 'none';   // only visitors who are not signed in are offered it
         [document.getElementById('createTopbarBtn'), document.getElementById('mathsToolTopbarBtn')].forEach((el) => {
             if (!el) return;
             el.classList.toggle('lm-plus-locked', !paid);
