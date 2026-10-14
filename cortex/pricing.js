@@ -343,7 +343,7 @@ function createExtraLocksModalHTML() {
     <div class="locks-modal">
       <button class="locks-close" aria-label="Close">x</button>
       <h2>Buy Extra Locks</h2>
-      <p>Extra Locks expire at the next calendar-month reset.</p>
+      <p>Extra Locks do not expire: they stay until you use them. Your monthly Locks are used first.</p>
 
       <div class="locks-form">
         <label>Amount (USD)</label>
