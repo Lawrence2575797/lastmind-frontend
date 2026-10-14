@@ -512,7 +512,7 @@
       return 'PHASE COMPLETE';
     };
     const pitchOverlay = () => {
-      if (!terminal()) return S && S.started && S.say ? `<div class="scn2-live" role="status">${esc(S.say)}</div>` : '';
+      if (!terminal()) return '';
       return `<div class="scn2-finish" role="status"><span>${esc(outcomeTitle())}</span><p>${esc((S.finished ? S.learned : S.say) || 'The scenario is complete.')}</p>
         ${S.finished
           ? `<button class="scn2-applied" type="button" disabled>✓ Applied</button><button id="scnAnother" type="button">Start another scenario</button>${ph.nextKey ? `<button class="primary" id="scnNext" type="button">Move on to ${esc(ph.next.toLowerCase())}</button>` : ''}`
