@@ -7187,7 +7187,6 @@
                          fully intact, same one-line-revert pattern as createTopbarBtn/rewardsTopbarBtn above (drop the two
                          inline display:none). Tutoring itself is now a single plain button straight to Live tutoring rather
                          than a dropdown, since that's the only item left in it - see wireTutoringMenu's own comment. -->
-                    <button class="cortex-btn-topbar" id="founderTutoringTopbarBtn" type="button">Tutoring</button>
                     <div class="specialist-tools-wrap" id="tutoringMenuWrap" style="display:none;">
                         <div class="specialist-tools-menu" id="tutoringMenu">
                             <button class="cortex-btn-topbar" id="liveTutoringMenuBtn" type="button">Live tutoring</button>
@@ -18830,7 +18829,7 @@ SQIDAQAB
     // handlers are left fully intact for a one-line revert (drop the inline
     // display:none on tutoringMenuWrap and the two buttons, then swap this
     // handler back to the toggle it replaced).
-    document.getElementById('founderTutoringTopbarBtn').addEventListener('click', renderFounderTutoringPage);
+    document.getElementById('founderTutoringTopbarBtn')?.addEventListener('click', renderFounderTutoringPage);
     document.getElementById('liveTutoringMenuBtn').addEventListener('click', renderFounderTutoringPage);
 
     let sidebarTab = 'folders'; // 'folders' | 'cortex' | 'notes'
