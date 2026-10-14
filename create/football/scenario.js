@@ -823,8 +823,8 @@
         // letting go of the ball is the pass: onto a teammate, into space, or over a player in the way for one in the air
         if (d.kind === 'ball' && S.holder != null) { const h0 = S.own[S.holder]; S.ball = { x: h0.x + 0.8, y: h0.y + 0.6 }; d.kind = 'pass'; d.start = { x: h0.x, y: h0.y }; }
         if (d.kind === 'move' && S.holder === d.i && d.timer) {
-          // he runs on to where it was dragged; the finish is in the tick
-          drag = d; d.released = true; S.busy = true; return;
+          // letting go stops him where he is: he does not run on to where the pointer got to
+          finishDribble(d, false); return;
         }
         if (d.kind === 'move') {
           const o = S.own[d.i], moved = dist(o, d.from);
