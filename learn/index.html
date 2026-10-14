@@ -21911,8 +21911,19 @@ SQIDAQAB
         const minW = block.type === 'table' ? 220 : (block.type === 'diagram' || block.type === 'graph') ? NB_MIN_FIGURE : 140, cw = canvas.clientWidth || 600;
         // nothing sits to the left of the margin line: a box that was placed there (or that the page has narrowed around) is shown just right of it
         const lo = (parseFloat(canvas.style.getPropertyValue('--nb-margin')) || 56) + 8;
-        const w = nbClamp(block.w || 460, minW, Math.max(minW, cw - lo));
-        const x = nbClamp(block.x || 0, lo, Math.max(lo, cw - w));
+        const isFigure = block.type === 'diagram' || block.type === 'graph' || block.type === 'image';
+        let w, x;
+        if (isFigure) {
+            // Keep a figure where the student placed it and scale it into the space remaining
+            // on its right. Moving it left when a sidebar opens makes it cover the notes.
+            // The saved width and position are untouched, so both return when the page widens.
+            const displayMin = Math.min(minW, Math.max(96, cw - lo - 12));
+            x = nbClamp(block.x || lo, lo, Math.max(lo, cw - displayMin - 12));
+            w = nbClamp(block.w || 460, displayMin, Math.max(displayMin, cw - x - 12));
+        } else {
+            w = nbClamp(block.w || 460, minW, Math.max(minW, cw - lo));
+            x = nbClamp(block.x || 0, lo, Math.max(lo, cw - w));
+        }
         el.style.left = x + 'px'; el.style.top = (Math.max(0, block.y || 0) + (el._nbShift || 0)) + 'px'; el.style.width = w + 'px';
         nbSyncCompact(el);
     }
