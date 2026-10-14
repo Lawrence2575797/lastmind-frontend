@@ -737,6 +737,7 @@
   }
 
   function renderPreview() {
+    syncLabContext();
     const lg = world.league, host = el('view-preview'), fx = FM.nextUserFixture(lg), me = userTeam();
     if (!fx) {
       host.innerHTML = lg.mp ? '<div class="card"><h2>Waiting for the match</h2><p class="desc">There is nothing to preview until the other manager has joined.</p><div class="row"><button class="primary" id="mpBackOnline">Back to the game</button></div></div>' : '<div class="card"><h2>No fixture to preview</h2></div>';
@@ -1314,7 +1315,8 @@
       const name = prompt('Name this tactical plan:', 'Plan ' + (plans.length + 1));
       if (!name || !name.trim()) return;
       const plan = capturePlan(team, name.trim());
-      plans.push(plan); lg.activePlanId = plan.id; saveSoon(); renderTactics();
+      plans.push(plan); lg.activePlanId = plan.id; lg.labCtx = plan.id + '|' + ((nextOpponent() || {}).name || '');   // a copy of the team as it is: the tests still apply
+      saveSoon(); renderTactics();
     };
     host.querySelector('#savePlan').addEventListener('click', () => {
       if (!active) { saveNew(); return; }
@@ -1326,8 +1328,22 @@
     host.querySelector('#deletePlan').addEventListener('click', () => { if (!active || !confirm('Delete the saved plan “' + active.name + '”?')) return; lg.tacticalPlans = plans.filter((p) => p.id !== active.id); lg.activePlanId = null; saveSoon(); renderTactics(); });
   }
 
+  // The tests belong to the opposition they were run against and to the match plan that was in use: a different opponent (the next game), or a
+  // different saved plan picked, starts the tests afresh. The earlier runs are kept in an archive, not thrown away.
+  function syncLabContext() {
+    const lg = world.league; if (!lg) return;
+    const opp = nextOpponent(); if (!opp) return;
+    const ctx = (lg.activePlanId || 'current') + '|' + opp.name;
+    if (lg.labCtx !== undefined && lg.labCtx !== null && lg.labCtx !== ctx) {
+      const had = (lg.labRuns || []).length || Object.keys(lg.phaseLabRuns || {}).some((k) => (lg.phaseLabRuns[k] || []).length);
+      if (had) { lg.labArchive = (lg.labArchive || []).concat([{ ctx: lg.labCtx, at: Date.now(), build: lg.labRuns || [], phases: lg.phaseLabRuns || {} }]).slice(-12); }
+      lg.labRuns = []; lg.phaseLabRuns = {}; world.phaseLabs = {};
+    }
+    lg.labCtx = ctx;
+  }
   function renderTactics() {
     if (!world.league) return;
+    syncLabContext();
     // Dropping a shirt (or any change on the page) redraws it; stay where the manager was on the same page, and start at the top on a new one.
     const keepY = world._tacTab === world.tab && world._tacTesting === world.testing ? (window.scrollY || document.documentElement.scrollTop || 0) : null;
     const keepX = window.scrollX || document.documentElement.scrollLeft || 0;
