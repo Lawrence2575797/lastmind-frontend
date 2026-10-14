@@ -95,6 +95,7 @@
   FM.setFormation = function (team, formationKey) {
     const formation = FM.FORMATIONS[formationKey];
     team.formationKey = formationKey;
+    delete team.formationLabel;
     team.shape = {}; team.phasePos = {}; // a new formation starts from its own preset positions
     const free = team.players.slice();
     const pairs = [];
@@ -205,6 +206,32 @@
     if (s) return s;
     const slot = FM.FORMATIONS[team.formationKey].slots[p.index];
     return { d: slot.d, w: slot.w };
+  };
+
+  // Name the shape the manager has actually drawn, rather than continuing to
+  // call it by the preset it began from. Nearby midfield lines are treated as
+  // one line; a clear gap creates a separate line (for example 4-2-3-1).
+  FM.inferFormationName = function (team) {
+    if (!team || !team.players) return team && team.formationKey || '';
+    const ds = team.players.filter((p) => p.group !== 'GK').map((p) => FM.slotBase(team, p).d).sort((a, b) => a - b);
+    if (!ds.length) return team.formationKey || '';
+    const defenders = ds.filter((d) => d < 0.32).length;
+    const forwards = ds.filter((d) => d >= 0.70).length;
+    const middle = ds.filter((d) => d >= 0.32 && d < 0.70);
+    const mids = [];
+    middle.forEach((d) => {
+      const last = mids[mids.length - 1];
+      if (!last || d - last.mean > 0.135) mids.push({ n: 1, mean: d });
+      else { last.mean = (last.mean * last.n + d) / (last.n + 1); last.n++; }
+    });
+    return [defenders].concat(mids.map((x) => x.n), [forwards]).filter((n) => n > 0).join('-');
+  };
+  FM.formationName = (team) => (team && (team.formationLabel || team.formationKey)) || '';
+  FM.updateFormationName = function (team) {
+    const name = FM.inferFormationName(team);
+    if (name && name !== team.formationKey) team.formationLabel = name;
+    else delete team.formationLabel;
+    return FM.formationName(team);
   };
 
   FM.defaultPhasePos = function (team, p, phase) {
@@ -378,6 +405,7 @@
   FM.setSlotBase = function (team, p, pos) {
     team.shape[p.index] = { d: clamp(pos.d, 0.02, 0.98), w: clamp(pos.w, 0.03, 0.97) };
     FM.fixSlot(team, p);
+    FM.updateFormationName(team);
   };
   // Shape values used by the match model and reports are derived from the shirts on the phase pitches.
   FM.inferShapeTactics = function (team) {
@@ -434,7 +462,7 @@
       if (moved) FM.fixSlot(team, p);
     });
   };
-  FM.clearPhase = function (team, phase) { if (phase === 'shape') team.shape = {}; else if (team.phasePos) delete team.phasePos[phase]; };
+  FM.clearPhase = function (team, phase) { if (phase === 'shape') { team.shape = {}; delete team.formationLabel; } else if (team.phasePos) delete team.phasePos[phase]; };
   FM.clearPlayerPositions = function (team, p) {
     delete team.shape[p.index];
     FM.allPhaseKeys(team).forEach((ph) => { if (team.phasePos[ph]) delete team.phasePos[ph][p.index]; });

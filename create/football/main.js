@@ -765,10 +765,10 @@
     const findings = result ? `${last.n} build-up tests gave a ${rate}% press-beating rate${result.beat.lo != null ? `, with a ${Math.round(result.beat.lo * 100)}–${Math.round(result.beat.hi * 100)}% interval` : ''}.` : 'No phase experiment has been run for this opponent. That is optional—you can still use the current plan.';
     host.innerHTML = `<div class="match-preview">
       <div class="preview-hero"><div class="eyebrow">Round ${fx.round + 1} · ${home.id === me.id ? 'Home' : 'Away'}</div>
-        <div class="preview-clubs"><div class="preview-club"><strong>${esc(home.name)}</strong><span>${home.formationKey}</span></div><div class="preview-v">VS</div><div class="preview-club"><strong>${esc(away.name)}</strong><span>${away.formationKey}</span></div></div>
+        <div class="preview-clubs"><div class="preview-club"><strong>${esc(home.name)}</strong><span>${esc(FM.formationName ? FM.formationName(home) : home.formationKey)}</span></div><div class="preview-v">VS</div><div class="preview-club"><strong>${esc(away.name)}</strong><span>${esc(FM.formationName ? FM.formationName(away) : away.formationKey)}</span></div></div>
         <div class="preview-actions"><button id="previewTactics">Review tactics</button>${lg.mp && lg.mp.kind === 'match' ? '' : '<button id="previewTest">Run an experiment</button>'}<button class="primary" id="enterMatch"${canPlay ? '' : ' disabled'}>${canPlay ? (lg.mp ? 'Lock in my plan' : 'Play match') : 'Season complete'}</button></div></div>
       <div class="preview-grid">
-        <div class="card"><h2>Your match plan</h2><p class="fixture-big">${esc(me.formationKey)}</p><p class="desc">${(me.rules || []).filter((r) => !r.off).length} active player or team instruction${(me.rules || []).filter((r) => !r.off).length === 1 ? '' : 's'}.</p><p class="note">${problems.length ? problems.length + ' positional issue' + (problems.length === 1 ? '' : 's') + ' still need attention.' : 'Every phase currently fits together.'}</p></div>
+        <div class="card"><h2>Your match plan</h2><p class="fixture-big">${esc(FM.formationName ? FM.formationName(me) : me.formationKey)}</p><p class="desc">${(me.rules || []).filter((r) => !r.off).length} active player or team instruction${(me.rules || []).filter((r) => !r.off).length === 1 ? '' : 's'}.</p><p class="note">${problems.length ? problems.length + ' positional issue' + (problems.length === 1 ? '' : 's') + ' still need attention.' : 'Every phase currently fits together.'}</p></div>
         <div class="card"><h2>Opponent</h2><p class="fixture-big">${esc(opp.name)}</p><p class="desc">${FM.derbyBetween && FM.derbyBetween(me.name, opp.name) ? '<b>' + esc(FM.derbyBetween(me.name, opp.name).name) + '</b> · ' : ''}${esc(profile.tag || 'Opponent')} · likely ${esc(opp.formationKey)} · ${esc({ balanced:'balanced',possession:'patient in possession',counter:'dangerous in transition',press:'aggressive without the ball',direct:'direct with the ball' }[opp.style] || opp.style)}.</p></div>
         <div class="card"><h2>Evidence so far</h2><p class="desc">${findings}</p></div>
       </div></div>`;
@@ -1299,13 +1299,14 @@
   const inLive = () => world.match && world.match.clock > 0 && world.match.phase !== 'fulltime';
 
   function capturePlan(team, name) {
-    return { id: 'plan-' + Date.now(), name, savedAt: Date.now(), formationKey: team.formationKey,
+    return { id: 'plan-' + Date.now(), name, savedAt: Date.now(), formationKey: team.formationKey, formationLabel: team.formationLabel || null,
       tactics: JSON.parse(JSON.stringify(team.tactics)), shape: JSON.parse(JSON.stringify(team.shape || {})), phasePos: JSON.parse(JSON.stringify(team.phasePos || {})), phaseBall: JSON.parse(JSON.stringify(team.phaseBall || {})), pages: JSON.parse(JSON.stringify(team.pages || {})), pageDefaults: JSON.parse(JSON.stringify(team.pageDefaults || {})), rules: JSON.parse(JSON.stringify(team.rules || [])),
       players: team.players.map((p) => ({ id: p.id, roleId: p.roleId, options: JSON.parse(JSON.stringify(p.options || {})), instr: JSON.parse(JSON.stringify(p.instr || {})) })) };
   }
   function restorePlan(team, plan) {
     if (!plan) return;
     if (plan.formationKey !== team.formationKey) FM.setFormation(team, plan.formationKey);
+    if (plan.formationLabel) team.formationLabel = plan.formationLabel; else delete team.formationLabel;
     team.tactics = Object.assign(FM.defaultTactics(), JSON.parse(JSON.stringify(plan.tactics || {})));
     team.shape = JSON.parse(JSON.stringify(plan.shape || {})); team.phasePos = JSON.parse(JSON.stringify(plan.phasePos || {})); team.phaseBall = JSON.parse(JSON.stringify(plan.phaseBall || {})); team.pages = JSON.parse(JSON.stringify(plan.pages || {})); team.pageDefaults = JSON.parse(JSON.stringify(plan.pageDefaults || {})); team.scenarios = JSON.parse(JSON.stringify(plan.scenarios || [])); team.defScenarios = JSON.parse(JSON.stringify(plan.defScenarios || [])); FM.ensurePages(team); team.rules = JSON.parse(JSON.stringify(plan.rules || []));
     (plan.players || []).forEach((saved) => { const p = team.players.find((x) => x.id === saved.id); if (p) { if (saved.roleId && FM.ROLES[saved.roleId]) p.roleId = saved.roleId; p.options = JSON.parse(JSON.stringify(saved.options || {})); p.instr = JSON.parse(JSON.stringify(saved.instr || {})); } });
@@ -1894,14 +1895,15 @@
       if (!d.moved && world.selBench) { host.dispatchEvent(new CustomEvent('sub', { detail: { idx: d.p.index, id: world.selBench.id } })); return; }
       world.selBench = null;
       if (key === 'shape') {
-        // The only thing a drag does here is swap two players: drop one shirt on another. Dropped anywhere else, it springs back.
-        // A plain click only selects a player, and clicking the same player again lets go of him.
+        // Dropping on another shirt swaps the two players. Dropping into space
+        // redraws the formation, and that new position is used by the engine.
         if (d.moved) {
           const q = toPos(e);
           const other = team.players.find((x) => { if (x === d.p) return false; const o = bpt(FM.slotBase(team, x)); return Math.hypot(o.x - q.x, o.y - q.y) < 34; });
           if (other) { FM.swapSlots(team, d.p, other); FM.fixSlot(team, d.p); FM.fixSlot(team, other); world.selSlot = null; saveSoon(); }
+          else { FM.setSlotBase(team, d.p, d.pos || q); world.selSlot = null; saveSoon(); }
         } else if (d.prev === d.p) world.selSlot = null;
-        afterBoardChange(team);
+        renderTactics();
         return;
       }
       if (d.moved) {
@@ -1922,6 +1924,8 @@
 
   function renderBoardTab(team, tab) {
     const host = el('tabBody'), key = BOARD_KEY[tab], isShape = key === 'shape';
+    const formationTitle = FM.formationName ? FM.formationName(team) : team.formationKey;
+    const formationOptions = Object.keys(FM.FORMATIONS).map((k) => `<option value="${k}"${!team.formationLabel && k === team.formationKey ? ' selected' : ''}>${k}</option>`).join('');
     const bench = team.bench.map((p) => `
       <button class="chip${world.selBench === p ? ' sel' : ''}" data-bench="${p.id}">
         <span class="num" style="${KITNUM(team)}">${p.number}</span><span>${p.natural} ${esc(shortName(p))}</span><span class="meta ${FM.isInjured(p) ? 'out' : FM.conditionOf(p) < 0.6 ? 'low' : ''}">${FM.ratingText(p)} · ${FM.isInjured(p) ? 'injured' : Math.round(100 * FM.conditionOf(p)) + '%'}</span>
@@ -1930,12 +1934,12 @@
     host.innerHTML = `
       <div class="tb-grid${pair ? ' tb-pair' : ''}${isShape ? ' tb-shape' : ''}">
         <aside class="tb-controls">
-          ${isShape ? `<label>Formation<select id="formSel">${Object.keys(FM.FORMATIONS).map((k) => `<option value="${k}"${k === team.formationKey ? ' selected' : ''}>${k}</option>`).join('')}</select></label>` : ((world.oppMoved && world.oppMoved[key] && Object.keys(world.oppMoved[key]).length) ? '<button class="phase-report-reset" id="oppReset">Reset their shirts to the scouted positions</button>' : '')}
+          ${isShape ? `<label>Formation<select id="formSel">${team.formationLabel ? `<option value="__custom" selected disabled>Current shape: ${esc(formationTitle)}</option>` : ''}${formationOptions}</select></label>${world.view === 'match' ? '' : '<button type="button" class="primary" id="useFormationDefaults">Use default tactics with this formation</button><p class="note">This keeps the formation, replaces manual phase pages and written tactical instructions with sensible defaults, and takes you straight to testing.</p>'}` : ((world.oppMoved && world.oppMoved[key] && Object.keys(world.oppMoved[key]).length) ? '<button class="phase-report-reset" id="oppReset">Reset their shirts to the scouted positions</button>' : '')}
           ${tab === 'organised' ? '<div class="block-presets"><b>Defensive block</b><button data-block="low">Low block</button><button data-block="mid">Mid block</button><button data-block="high">High press</button></div>' : ''}
           <div id="phaseSliders"></div>
         </aside>
         <div class="tb-left">
-          <h2>${isShape ? 'Team shape' : (PAIR_TITLE[tab] || FM.PHASE_NAMES[key])}</h2>
+          <h2>${isShape ? 'Formation: ' + esc(formationTitle) : (PAIR_TITLE[tab] || FM.PHASE_NAMES[key])}</h2>
           ${pair ? '<div id="pairHost"></div>' : '<div id="board"></div>'}
           ${pair ? '' : `<div class="row"><button id="resetPhase">${isShape ? 'Reset the shape to the formation' : 'Reset this phase to its default positions'}</button></div>`}
           <p class="err" id="subErr"></p>
@@ -1969,6 +1973,18 @@
     }
     const err = (msg) => { host.querySelector('#subErr').textContent = msg || ''; };
     if (isShape) host.querySelector('#formSel').addEventListener('change', (e) => { FM.setFormation(team, e.target.value); world.selSlot = null; saveSoon(); renderTactics(); });
+    const defaultsBtn = host.querySelector('#useFormationDefaults');
+    if (defaultsBtn) defaultsBtn.addEventListener('click', () => {
+      team.tactics = FM.defaultTactics();
+      team.phasePos = {}; team.phaseBall = {}; team.pages = {}; team.pageDefaults = {};
+      team.scenarios = []; team.defScenarios = []; team.scenarioEnd = {}; team.scenarioInfo = {}; team.scenarioBall = {};
+      team.rules = [];
+      if (FM.inferShapeTactics) FM.inferShapeTactics(team);
+      world.league.prepPhaseMax = PREP_TABS.length;
+      world.league.prepStep = Math.max(world.league.prepStep || 0, 2);
+      world.testing = true; world.tab = 'build'; world.selSlot = null;
+      saveSoon(); renderTactics(); renderPrepFlow(); window.scrollTo(0, 0);
+    });
     const resetBtn = host.querySelector('#resetPhase');
     if (resetBtn) resetBtn.addEventListener('click', () => { FM.clearPhase(team, key); saveSoon(); renderTactics(); });
 
