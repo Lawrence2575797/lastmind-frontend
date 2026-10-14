@@ -21941,26 +21941,37 @@ SQIDAQAB
         canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
         canvas.style.height = Math.max(Math.round(window.innerHeight * 0.68), 480, bottom + 160) + 'px';
     }
-    // Text boxes are freely positioned, but a box directly below another
-    // should still make room when the upper box gains a line. Move every
-    // horizontally-overlapping block that starts below the upper box by
-    // exactly the amount it grew, preserving the student's spacing.
+    // Text boxes are freely positioned, but typing must never disappear under a figure.
+    // As the final line approaches the next horizontally-overlapping block, reserve one
+    // whole writing line between them. Every block below moves by the same amount, so a
+    // diagram keeps the spacing the student gave it instead of merely sitting over prose.
     function nbFlowBlocksBelow(page, canvas, sourceEl, previousHeight, growth) {
         if (!(growth > 0)) return false;
         const oldBottom = sourceEl.offsetTop + previousHeight;
         const sourceLeft = sourceEl.offsetLeft, sourceRight = sourceLeft + sourceEl.offsetWidth;
-        let moved = false;
+        const editor = sourceEl.querySelector('.math-shortcut-editor');
+        const style = getComputedStyle(editor || sourceEl), fontSize = parseFloat(style.fontSize) || 16;
+        const writtenLine = parseFloat(style.lineHeight);
+        const lineGap = Math.max(18, Number.isFinite(writtenLine) ? writtenLine : fontSize * 1.55);
+        const below = [];
         canvas.querySelectorAll('.nb-block').forEach((candidate) => {
-            if (candidate === sourceEl || candidate.offsetTop < oldBottom - 2) return;
+            if (candidate === sourceEl || candidate.offsetTop < oldBottom - lineGap) return;
             const candidateLeft = candidate.offsetLeft, candidateRight = candidateLeft + candidate.offsetWidth;
             if (candidateRight <= sourceLeft || candidateLeft >= sourceRight) return;
             const candidateBlock = page.doc.blocks.find((item) => item.id === candidate.dataset.id);
             if (!candidateBlock) return;
-            candidateBlock.y = Math.max(0, candidate.offsetTop + growth);
-            candidate.style.top = candidateBlock.y + 'px'; candidate._nbShift = 0;   // the saved position now includes any on-screen shift
-            moved = true;
+            below.push({ el: candidate, block: candidateBlock });
         });
-        return moved;
+        if (!below.length) return false;
+        const nearestTop = Math.min(...below.map((item) => item.el.offsetTop));
+        const requiredTop = sourceEl.offsetTop + sourceEl.offsetHeight + lineGap;
+        const push = Math.max(0, requiredTop - nearestTop);
+        if (push < 1) return false;
+        below.forEach(({ el: candidate, block: candidateBlock }) => {
+            candidateBlock.y = Math.max(0, candidate.offsetTop + push);
+            candidate.style.top = candidateBlock.y + 'px'; candidate._nbShift = 0;   // the saved position now includes any on-screen shift
+        });
+        return true;
     }
     // When a text box changes height only because its width changed (the LastMind panel opening beside the page, a smaller window), what is
     // below it is moved down - or back up - to match, on screen only. The saved position is never touched, so opening and closing the panel
