@@ -427,10 +427,27 @@
     FM.finishFixture(league, fx, match);
   };
 
+  // The same simulation, split across short browser turns. This prevents the
+  // browser's "not responding" warning while the other league games are played.
+  FM.simulateFixtureAsync = async function (league, fx, step) {
+    const match = FM.startFixture(league, fx);
+    const dt = step || 0.1;
+    let guard = 0;
+    while (match.phase !== 'fulltime' && guard < 200000) {
+      const stop = Math.min(guard + 750, 200000);
+      while (match.phase !== 'fulltime' && guard++ < stop) {
+        if (match.phase === 'halftime') FM.startSecondHalf(match);
+        FM.stepMatch(match, dt);
+      }
+      if (match.phase !== 'fulltime') await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    FM.finishFixture(league, fx, match);
+  };
+
   // After the user's match: record it, then play the rest of that round in the background.
-  FM.completeRound = function (league, userFx, userMatch) {
+  FM.completeRound = async function (league, userFx, userMatch) {
     FM.finishFixture(league, userFx, userMatch);
-    league.fixtures.filter((f) => f.round === userFx.round && !f.played).forEach((f) => FM.simulateFixture(league, f));
+    for (const fixture of league.fixtures.filter((f) => f.round === userFx.round && !f.played)) await FM.simulateFixtureAsync(league, fixture);
     FM.aiAfterRound(league, userFx.round);
     if (FM.testPendingHypotheses) FM.testPendingHypotheses(league, userFx);
     if (FM.makeNews) FM.makeNews(league, userFx.round);

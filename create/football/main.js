@@ -291,7 +291,7 @@
     else if (wide) say(call('wideMid', [() => name + ' carries down the line.', () => c.team.name + ' switch the point of attack.', () => name + ' advances into space out wide.', () => 'The flank opens up for ' + name + '.']), '', 2.25);
     else say(call('midfield', [() => name + ' carries it through midfield.', () => c.team.name + ' look for a route through the middle.', () => name + ' turns into space.', () => c.team.name + ' move the ball between the lines.']), '', 2.35);
   }
-  // Cards and flashpoints along the top of the match, so a sent-off player or a manager in the stands is never missed.
+  // Important disciplinary incidents along the top of the match.
   function renderIncidents(m) {
     const box = el('incidents'); if (!box) return;
     const items = [];
@@ -301,7 +301,6 @@
       if (e.type === 'foul' && (e.card === 'red' || e.card === 'second yellow')) items.push('<span class="inc"><i class="card-red"></i>' + min(e.t) + ' ' + esc(nameOf(e.team, e.player)) + (e.card === 'second yellow' ? ' (second yellow)' : '') + ' sent off</span>');
       else if (e.type === 'drama' && e.kind === 'managers') items.push('<span class="inc hot">' + min(e.t) + ' Touchline row: ' + (e.both ? 'both managers' : esc(((e.team === m.home.id ? m.home : m.away).name)) + ' manager') + ' sent to the stands</span>');
       else if (e.type === 'drama' && e.kind === 'penalty') items.push('<span class="inc hot">' + min(e.t) + ' Disputed penalty</span>');
-      else if (e.type === 'drama' && e.kind === 'scuffle') items.push('<span class="inc hot">' + min(e.t) + ' Flashpoint</span>');
     });
     [m.home, m.away].forEach((t) => { const until = m.stands && m.stands[t.id]; if (until && until > m.clock) items.push('<span class="inc stand">' + esc(t.name) + ' manager in the stands: no changes until ' + FM.formatClock(until) + '</span>'); });
     const html = items.join('');
@@ -342,8 +341,7 @@
       else if (e.type === 'offside') text = 'Offside, ' + who(e.player) + ' (' + team.name + ')';
       else if (e.type === 'drama') {
         const ot = team === home ? away : home, vsName = (n) => { const q = playerBy(e.vsTeam === home.id ? home : e.vsTeam === away.id ? away : ot, n); return q ? shortName(q) : 'number ' + n; };
-        if (e.kind === 'scuffle') text = 'FLASHPOINT: ' + who(e.player) + ' (' + team.name + ') and ' + vsName(e.vs) + ' square up' + (e.outcome === 'both' ? ': both sent off' : e.outcome === 'aggressor' ? ': ' + who(e.player) + ' sent off' : ': both booked');
-        else if (e.kind === 'managers') text = 'TOUCHLINE ROW: ' + (e.both ? 'both managers sent to the stands' : team.name + ' manager sent to the stands');
+        if (e.kind === 'managers') text = 'TOUCHLINE ROW: ' + (e.both ? 'both managers sent to the stands' : team.name + ' manager sent to the stands');
         else if (e.kind === 'penalty') text = 'CONTROVERSY: a penalty to ' + team.name + ', and the defenders are furious';
         else if (e.kind === 'invader') text = 'A supporter is on the pitch: play is held up';
       }
@@ -481,7 +479,7 @@
     const R = result === 'W' ? 'W' : result === 'L' ? 'L' : 'D';
     const incident = reds.length || drama.length;
     const q2 = incident
-      ? (reds.length ? `There ${reds.length === 1 ? 'was a sending-off' : 'were ' + reds.length + ' sendings-off'} and ${drama.some((x) => x.kind === 'managers') ? 'a row on the touchline' : 'plenty of flashpoints'}. What did you make of the match?` : 'There was a row on the touchline and a few flashpoints. What did you make of the match?')
+      ? (reds.length ? `There ${reds.length === 1 ? 'was a sending-off' : 'were ' + reds.length + ' sendings-off'}${drama.some((x) => x.kind === 'managers') ? ' and a row on the touchline' : ''}. What did you make of the match?` : 'There was a row on the touchline. What did you make of the match?')
       : 'It was a hard match without much trouble. Was it as demanding as you expected?';
     const first = iron
       ? { W: 'You have beaten Northfield in the Iron Derby. What do you say to the supporters?', L: 'You have lost the Iron Derby. What do you say to the supporters?', D: 'The Iron Derby ends level. What do you say to the supporters?' }[R]
@@ -602,10 +600,10 @@
   el('finishBtn').addEventListener('click', () => {
     const btn = el('finishBtn');
     btn.disabled = true; btn.textContent = 'Playing the other matches...';
-    setTimeout(() => {
+    setTimeout(async () => {
       const fx = world.fixture, m = world.match, me = world.league.userId;
       const mine = m.score[me], theirs = m.score[m.home.id === me ? m.away.id : m.home.id], result = mine > theirs ? 'W' : mine < theirs ? 'L' : 'D';
-      FM.completeRound(world.league, world.fixture, world.match);
+      await FM.completeRound(world.league, world.fixture, world.match);
       world.league.prepStep = 0; world.league.prepPhaseMax = 0; world.league.testPhaseMax = 0;
       // The instructions stay for the next game, to be changed in the same preparation as everything else. One that was written for a single game
       // is kept too, as an ordinary instruction that now applies whoever the opposition are.

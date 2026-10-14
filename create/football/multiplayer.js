@@ -218,7 +218,8 @@
       if (e.type === 'goal') return '<b>' + min + ' GOAL</b> ' + esc(nameOf(e.team, e.player)) + ' (' + esc(club) + ')';
       if (e.type === 'foul' && (e.card === 'red' || e.card === 'second yellow')) return '<b>' + min + ' RED CARD</b> ' + esc(nameOf(e.team, e.player)) + ' (' + esc(club) + ')';
       if (e.type === 'foul' && e.card === 'yellow') return min + ' Yellow card: ' + esc(nameOf(e.team, e.player)) + ' (' + esc(club) + ')';
-      if (e.type === 'drama') return '<b>' + min + ({ scuffle: ' FLASHPOINT', managers: ' TOUCHLINE ROW', penalty: ' CONTROVERSY', invader: ' PITCH INVADER' }[e.kind] || ' INCIDENT') + '</b> ' + ({ scuffle: 'Players square up', managers: e.both ? 'Both managers sent to the stands' : club + ' manager sent to the stands', penalty: 'A contentious penalty for ' + esc(club), invader: 'Play is held up' }[e.kind] || '');
+      if (e.type === 'drama' && e.kind === 'scuffle') return null;
+      if (e.type === 'drama') return '<b>' + min + ({ managers: ' TOUCHLINE ROW', penalty: ' CONTROVERSY', invader: ' PITCH INVADER' }[e.kind] || ' INCIDENT') + '</b> ' + ({ managers: e.both ? 'Both managers sent to the stands' : club + ' manager sent to the stands', penalty: 'A contentious penalty for ' + esc(club), invader: 'Play is held up' }[e.kind] || '');
       if (e.type === 'shot' && e.outcome === 'saved') return min + ' Saved: ' + esc(nameOf(e.team, e.player)) + ' (' + esc(club) + ')';
       if (e.type === 'sub') return min + ' Substitution, ' + esc(club);
       return null;
