@@ -3,7 +3,8 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(self), interest-cohort=()
   Strict-Transport-Security: max-age=31536000
-  Content-Security-Policy: frame-ancestors 'self'; base-uri 'self'; object-src 'none'; form-action 'self' https://checkout.stripe.com https://billing.stripe.com
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self' https://checkout.stripe.com https://billing.stripe.com; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://d3js.org; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; connect-src 'self' https://evgdecewwmkupiadgfop.supabase.co wss://evgdecewwmkupiadgfop.supabase.co https://lastmind-compile-backend.onrender.com https://lastmind-stripe-backend.onrender.com; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; frame-src 'self' https://checkout.stripe.com https://billing.stripe.com; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests
+  Cross-Origin-Opener-Policy: same-origin-allow-popups
 
 /create/football/*
   Cache-Control: no-cache
