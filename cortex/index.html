@@ -2312,7 +2312,7 @@ SQIDAQAB
             const skip = new Set(data.nodes.filter((n) => n.completed).map((n) => n.id));
             const state = { subject: data.subject, qualification: data.qualification, examBoard: data.examBoard, nodes: topicTopologicalOrder(data.nodes, data.edges), edges: data.edges, skip, target: taskNode.id, freeLimited: !!data.freeLimited };
             renderTopicMap(card, state);
-            if (state.freeLimited) card.insertAdjacentHTML('beforeend', '<div class="topic-map-summary">The Free plan keeps this map to three concepts and includes three new lessons each month. LastMind+ unlocks the full map and unlimited lessons.</div>');
+            if (state.freeLimited) card.insertAdjacentHTML('beforeend', '<div class="topic-map-summary">The Free plan keeps this map to three concepts and includes three new lessons each month.</div>');
             topicMapState = state; // kept as "most recently shown map", for reference only - every card's own interactivity closes over its own `state`, never this
             recordSilentContext(
                 `[Built a knowledge map for "${state.subject}": ${state.nodes.length} concepts - ${state.nodes.map((n) => n.label).join(', ')}.]`,

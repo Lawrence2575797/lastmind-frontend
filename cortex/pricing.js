@@ -17,44 +17,6 @@ async function fetchLockBalance() {
   if (!res.ok) return null;
   return res.json();
 }
-// Create upgrade checkout session
-async function createUpgradeSession(tier) {
-  const client = window.supabaseClient;
-  const { data: sessionData } = client ? await client.auth.getSession() : { data: {} };
-  if (sessionData?.session?.user?.is_anonymous) {
-    window.location.href = '/account/?mode=signup';
-    return;
-  }
-  const token = await getAuthToken();
-  if (!token) {
-    showLoginRequired();
-    return;
-  }
-
-  try {
-    const res = await fetch(`${PRICING_API}/checkout/upgrade`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ tier }),
-    });
-
-    if (!res.ok) {
-      const text = await res.text();
-      let message = `Server error: ${res.status} ${res.statusText}`;
-      try { message = JSON.parse(text).error || message; } catch {}
-      throw new Error(message);
-    }
-    const { url } = await res.json();
-    window.location.href = url;
-  } catch (err) {
-    console.error('Checkout error:', err);
-    alert(err.message);
-  }
-}
-
 // Create extra locks checkout session
 async function createExtraLocksSession(amountUsd) {
   const token = await getAuthToken();
@@ -85,30 +47,6 @@ async function createExtraLocksSession(amountUsd) {
     console.error('Extra locks checkout error:', err);
     alert(err.message);
   }
-}
-
-// Show upgrade modal
-function showUpgradeModal() {
-  if (document.querySelector('.upgrade-overlay')) return;
-  const modal = createUpgradeModalHTML();
-  document.body.appendChild(modal);
-
-  // Close on overlay click (modal is the overlay div itself)
-  modal.addEventListener('click', (e) => {
-    if (e.target === modal) {
-      modal.remove();
-    }
-  });
-
-  // Close on X button
-  modal.querySelector('.upgrade-close').addEventListener('click', () => {
-    modal.remove();
-  });
-
-  // Upgrade buttons
-  modal.querySelector('[data-tier="premium"]').addEventListener('click', () => {
-    createUpgradeSession('premium');
-  });
 }
 
 // Show extra locks purchase modal (Max tier only)
@@ -500,8 +438,6 @@ async function displayLockBalance() {
     if (!balance) return;
     const chip = document.getElementById('locksBalanceAmount');
     if (chip) chip.textContent = balance.balance.toLocaleString();
-    const upgrade = document.getElementById('upgradeTopbarBtn');
-    if (upgrade) { upgrade.style.display = 'none'; upgrade.onclick=showUpgradeModal; }   // no upgrade button: projects are priced separately
     const extra = document.getElementById('buyMoreTokensBtn');
     if (extra) { extra.style.display=''; extra.textContent='Buy Extra Locks'; }   // on every plan, the free one included
   } catch(err) { console.warn('Could not refresh pricing:',err.message); }
@@ -512,6 +448,6 @@ async function openPurchaseOptions() {
   } catch { showExtraLocksModal(); }
 }
 function initPricing() { displayLockBalance(); }
-window.LastMindPricing = {showUpgradeModal,showExtraLocksModal,fetchLockBalance,
-  displayLockBalance,createUpgradeSession,createExtraLocksSession,initPricing,setAuthToken,openPurchaseOptions};
+window.LastMindPricing = {showExtraLocksModal,fetchLockBalance,
+  displayLockBalance,createExtraLocksSession,initPricing,setAuthToken,openPurchaseOptions};
 })();
