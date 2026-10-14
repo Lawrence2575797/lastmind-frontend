@@ -501,15 +501,15 @@ async function displayLockBalance() {
     const chip = document.getElementById('locksBalanceAmount');
     if (chip) chip.textContent = balance.balance.toLocaleString();
     const upgrade = document.getElementById('upgradeTopbarBtn');
-    if (upgrade) { upgrade.style.display = balance.tier==='max'?'none':''; upgrade.onclick=showUpgradeModal; }
+    if (upgrade) { upgrade.style.display = 'none'; upgrade.onclick=showUpgradeModal; }   // no upgrade button: projects are priced separately
     const extra = document.getElementById('buyMoreTokensBtn');
-    if (extra) { extra.style.display=balance.tier==='max'?'':'none'; extra.textContent='Buy Extra Locks'; }
+    if (extra) { extra.style.display=''; extra.textContent='Buy Extra Locks'; }   // on every plan, the free one included
   } catch(err) { console.warn('Could not refresh pricing:',err.message); }
 }
 async function openPurchaseOptions() {
   try { const balance = await fetchLockBalance();
-    if (balance?.tier === 'max') showExtraLocksModal(); else showUpgradeModal();
-  } catch { showUpgradeModal(); }
+    showExtraLocksModal();
+  } catch { showExtraLocksModal(); }
 }
 function initPricing() { displayLockBalance(); }
 window.LastMindPricing = {showUpgradeModal,showExtraLocksModal,fetchLockBalance,
