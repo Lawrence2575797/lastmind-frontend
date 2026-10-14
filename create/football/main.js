@@ -1463,7 +1463,8 @@
       try { FM.fixTeam(team, nextOpponent(), (ph) => oppLine(ph)); } catch (e) { /* the warnings on the squad page still say what is wrong */ }
       // "Use this and go on to ..." takes you to that phase's page
       const nk = done && done.nextKey, nb = nk && el('tabs').querySelector('button[data-tab="' + nk + '"]');
-      if (nb) nb.click();
+      if (nk === 'organised' && tab === 'organised') { world.defSub = 'organised'; renderScenarioTab(team, tab); }
+      else if (nb) nb.click();
     } });
     const ph = FM.SCENARIO_PHASES[sub];
     if (!DEMO_MODE) FM.renderInstructions(host.querySelector('#scnInstr'), team, { save: saveSoon, opp: nextOpponent }, { stage: ph.stage, title: 'Anything else you want to tell them', applies: 'applies to this phase' });
@@ -2020,7 +2021,7 @@
     if (defaultsBtn) defaultsBtn.addEventListener('click', () => {
       team.tactics = FM.defaultTactics();
       team.phasePos = {}; team.phaseBall = {}; team.pages = {}; team.pageDefaults = {};
-      team.scenarios = []; team.defScenarios = []; team.scenarioEnd = {}; team.scenarioInfo = {}; team.scenarioBall = {};
+      team.scenarios = []; team.defScenarios = []; team.scenarioEnd = {}; team.scenarioInfo = {}; team.scenarioBall = {}; team.scenarioEvidence = {}; team.scenarioDefEvidence = {};
       team.rules = [];
       if (FM.inferShapeTactics) FM.inferShapeTactics(team);
       world.league.prepPhaseMax = PREP_TABS.length;

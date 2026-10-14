@@ -158,9 +158,15 @@
   .mp-view { display:grid; gap:16px; } .mp-code { display:flex; align-items:center; gap:14px; flex-wrap:wrap; } .mp-code span { opacity:.7; } .mp-code b { font:800 1.9rem var(--sans, system-ui); letter-spacing:.18em; color:var(--fm-gold,#f1c04f); }
   .mp-in { color:#7fd69a; font-weight:700; } .mp-wait { color:#f1c04f; } .mp-ai { opacity:.65; }
   .scn2 { display:grid; gap:14px; } .scn2-head h2 { margin:0 0 6px; } .scn2-body { display:grid; grid-template-columns:minmax(320px,520px) minmax(260px,1fr); gap:20px; align-items:start; }
-  .scn2-pitch { border-radius:12px; overflow:hidden; border:1px solid rgba(255,255,255,.12); touch-action:none; } .scn2-pitch svg { display:block; width:100%; height:auto; user-select:none; -webkit-user-select:none; }
+  .scn2-pitch { position:relative; border-radius:12px; overflow:hidden; border:1px solid rgba(255,255,255,.12); touch-action:none; } .scn2-pitch svg { display:block; width:100%; height:auto; user-select:none; -webkit-user-select:none; }
   .scn2-card { padding:16px 18px; border-radius:14px; background:var(--fm-surface,#17231f); border:1px solid rgba(255,255,255,.08); display:grid; gap:10px; margin-bottom:12px; } .scn2-card h3 { margin:0; font-size:1.05rem; }
   .scn2-help { margin:0; padding-left:18px; display:grid; gap:6px; line-height:1.45; } .scn2-stats { opacity:.8; font-size:.9rem; } .scn2-say { margin:0; min-height:2.6em; font-weight:600; } .scn2-last { margin:0; }
+  .scn2-live { position:absolute; z-index:5; left:14px; right:14px; bottom:14px; padding:10px 14px; border-left:4px solid var(--gold); border-radius:8px; background:rgba(3,8,7,.9); color:var(--cream); box-shadow:0 8px 24px rgba(0,0,0,.38); font-weight:800; line-height:1.35; pointer-events:none; }
+  .scn2-finish { position:absolute; z-index:8; left:50%; top:50%; width:min(330px,calc(100% - 32px)); box-sizing:border-box; transform:translate(-50%,-50%); display:grid; gap:10px; padding:20px; border:1px solid rgba(230,215,176,.55); border-radius:16px; background:rgba(7,16,13,.96); color:var(--cream); text-align:center; box-shadow:0 22px 55px rgba(0,0,0,.56); }
+  .scn2-finish > span { color:var(--gold); font-size:clamp(1.05rem,2.5vw,1.45rem); font-weight:900; letter-spacing:.08em; }
+  .scn2-finish p { margin:0 0 3px; line-height:1.45; }
+  .scn2-finish button { width:100%; }
+  .scn2-applied { border-color:#62c889; background:rgba(63,155,98,.2); color:#91e4ae; font-weight:900; opacity:1 !important; }
   @media (max-width:900px) { .scn2-body { grid-template-columns:1fr; } }
   .cap-badge { display:inline-block; min-width:18px; padding:0 5px; border-radius:4px; background:var(--fm-gold,#f1c04f); color:#14181a; font-weight:800; font-size:.72rem; text-align:center; }
   .cap-line { margin:8px 0 0; font-size:.9rem; } .cap-make { padding:5px 10px; border-radius:8px; border:1px solid rgba(241,192,79,.5); background:transparent; color:inherit; font:inherit; cursor:pointer; } .cap-make:hover { background:rgba(241,192,79,.14); }
@@ -953,7 +959,7 @@
 <script src="/create/football/instructions.js?v=20261010c"></script>
 <script src="/create/football/fitness.js?v=20261010c"></script>
 <script src="/create/football/match.js?v=20261105k"></script>
-<script src="/create/football/league.js?v=20261014a"></script>
+<script src="/create/football/league.js?v=20261014b"></script>
 <script src="/create/football/preseason.js?v=20261010n"></script>
 <script src="/create/football/stats_math.js?v=20261010c"></script>
 <script src="/create/football/stats.js?v=20261013a"></script>
@@ -976,8 +982,8 @@
 <script src="/create/football/development.js?v=20261106a"></script>
 <script src="/create/football/form.js?v=20261029a"></script>
 <script src="/create/football/cases.js?v=20261028a"></script>
-<script src="/create/football/scenario.js?v=20261105j"></script>
+<script src="/create/football/scenario.js?v=20261014a"></script>
 <script src="/create/football/multiplayer.js?v=20261106b"></script>
-<script src="/create/football/main.js?v=20261014a"></script>
+<script src="/create/football/main.js?v=20261014b"></script>
 </body>
 </html>
