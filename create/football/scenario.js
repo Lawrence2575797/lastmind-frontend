@@ -221,7 +221,7 @@
     const seed = (Date.now() & 0xfffff) + 17;
     const eng = makeEngine(team, opp, phase, seed);
     const oppP = eng.o.players.map((p, i) => ({ p: opp.players[i] || p, x: 0, y: 0 }));
-    const S = { team, oppTeam: opp, phase, press, own, opp: oppP, ball: startBall(phase), holder: null, beats: [], seed, log: [], lost: false, started: false, start: null, finished: false, eng, attack: !defending, defending, snaps: [], events: [] };
+    const S = { sig: team.formationKey + ':' + team.players.map((p) => p.id).join(','), team, oppTeam: opp, phase, press, own, opp: oppP, ball: startBall(phase), holder: null, beats: [], seed, log: [], lost: false, started: false, start: null, finished: false, eng, attack: !defending, defending, snaps: [], events: [] };
     if (defending) {
       // they have the ball at their goal kick; our men stand where the engine would put them for that
       S.own.forEach((o, i) => { const p = eng.u.players[i]; if (p) { o.x = p.y; o.y = p.x; } });
@@ -447,7 +447,9 @@
     if (!host || !ph || !opp) return;
     const store = (hooks && hooks.store) || (host._scn = host._scn || {});
     let S = store[phase];
-    if (!S || S.team !== team || S.oppTeam !== opp) { S = null; store[phase] = null; }
+    // who is in the eleven and the shape they are in: if either has changed since the scenario was set up, it is set up again from the squad
+    const lineupSig = () => team.formationKey + ':' + team.players.map((p) => p.id).join(',');
+    if (!S || S.team !== team || S.oppTeam !== opp || S.sig !== lineupSig()) { S = null; store[phase] = null; }
     // A player is named by his surname; one of theirs who shares a surname with one of ours is named with his club, so it is never unclear whose
     // man a message is about.
     const surname = (n) => n.split(' ').slice(-1)[0];
