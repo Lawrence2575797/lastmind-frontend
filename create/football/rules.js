@@ -1,7 +1,8 @@
 // Instruction rules: the manager's own instructions, for the whole team, a line (defence, midfield, attack, goalkeeper), a position group or one player.
 // A rule is  who it is for  +  when it applies  +  what changes. The match engine reads them while it plays: they change which pass a player likes,
 // where he stands, who he follows and how hard he closes down, only while their conditions hold. The words typed by a manager are turned into this
-// form by the code-driven instruction builder; nothing is interpreted during a match, so a match or a test can always be replayed exactly.
+// form once, when the instruction is saved (see the backend route /football/compile-instruction); nothing is interpreted during a match, so a
+// match or a test can always be replayed exactly. The vocabulary here must match lastmind-compile-backend/src/services/footballRules.ts.
 (function () {
   const FM = (window.FM = window.FM || {});
   const L = 105, W = 68;

@@ -1,5 +1,5 @@
 // Talking to the LastMind backend from the football page. The sign-in is the same one the rest of LastMind uses (it is kept in this browser by Supabase),
-// so a manager who is signed in elsewhere is signed in here. Football instructions themselves are built locally and do not call AI.
+// so a manager who is signed in elsewhere is signed in here. Used only to turn a typed instruction into rules: see instructions_ui.js.
 (function () {
   const FM = (window.FM = window.FM || {});
   const BACKEND = 'https://lastmind-compile-backend.onrender.com';
