@@ -674,7 +674,14 @@
     renderTop();
     renderNav();
     renderPrepFlow();
-    if (v === 'home') renderHome();
+    // In a game with other managers, the match you have not yet watched back keeps its result to itself: the screens that would show it wait
+    const mpHold = world.league && world.league.mp && FM.mpReplay && !FM.mpReplay.seen && ['home', 'league', 'news', 'reports', 'analysis', 'squad', 'develop', 'recruit'].indexOf(v) >= 0;
+    if (mpHold) {
+      const sec = el('view-' + v);
+      sec.innerHTML = '<div class="card"><h2>Watch your match first</h2><p class="desc">The round has been played, and the result is kept back until you have watched the match. Nothing can be changed in it now.</p><div class="row"><button class="primary" id="gateWatch">Go to the match</button></div></div>';
+      sec.querySelector('#gateWatch').addEventListener('click', () => setView('mp'));
+    }
+    else if (v === 'home') renderHome();
     else if (v === 'league') renderLeague();
     else if (v === 'squad') renderSquad();
     else if (v === 'develop') FM.renderDevelop(el('view-develop'), world.league, { save: saveSoon });
