@@ -106,6 +106,10 @@
   .in-link { border: 0; background: transparent; color: var(--gold); font: inherit; text-decoration: underline; cursor: pointer; padding: 0 4px; } .in-pl { display: grid; gap: 8px; } .in-pl h3 { margin: 0; font-size: .78rem; letter-spacing: .07em; text-transform: uppercase; color: var(--gold); }
   #oppMind { display: grid; gap: 8px; font-family: var(--sans); font-size: .84rem; line-height: 1.5; } #oppMind .om { padding: 8px 10px; border-radius: 10px; background: rgba(241,234,214,.08); } #oppMind .om.old { opacity: .65; } #oppMind .om p { margin: 4px 0 0; } #oppMind .omsrc { margin-left: 8px; font-size: .72rem; opacity: .7; } #oppMind .omsub { opacity: .8; font-size: .8rem; } #oppMind ul { margin: 4px 0 0; padding-left: 18px; } #oppMind details summary { cursor: pointer; margin-top: 4px; opacity: .85; }
   .in-main .in-add textarea { min-height: 220px; font-size: .95rem; line-height: 1.55; } .in-who { display: block; font-size: .72rem; letter-spacing: .05em; text-transform: uppercase; color: var(--gold); margin-bottom: 2px; } .in-wrap { grid-template-columns: minmax(0, 1fr) !important; }
+  .in-builder { display:grid; grid-template-columns:minmax(150px,.8fr) minmax(220px,1.4fr) auto; gap:10px; align-items:end; }
+  .in-builder label { display:grid; gap:5px; color:var(--muted); font-size:.78rem; font-weight:800; text-transform:uppercase; letter-spacing:.06em; }
+  .in-builder select { width:100%; }
+  @media (max-width:760px) { .in-builder { grid-template-columns:1fr; } }
   .pages-card h3 { margin: 14px 0 6px; font-size: .95rem; } .pg-row { display: grid; grid-template-columns: minmax(120px, 1.2fr) minmax(0, 2fr) 48px; gap: 10px; align-items: center; padding: 5px 0; } .pg-bar { height: 10px; border-radius: 5px; background: rgba(241,234,214,.12); overflow: hidden; } .pg-bar i { display: block; height: 100%; background: var(--gold); } .pg-row b { text-align: right; font-variant-numeric: tabular-nums; }
   .advice-card .advice { padding: 12px 0; border-top: 1px solid var(--line); display: grid; gap: 6px; } .advice h3 { margin: 0; font-size: 1.02rem; } .advice h3 small { font-weight: 500; color: var(--gold); margin-left: 8px; } .advice p { margin: 0; } .advice-go { justify-self: start; margin-top: 4px; } .advice-better { padding: 8px 10px; border-radius: 10px; background: rgba(127,212,154,.12); margin: 6px 0; }
   .lab .linkbtn { border: 0; background: transparent; color: var(--gold); text-decoration: underline; padding: 0 4px; font: inherit; cursor: pointer; }
@@ -937,8 +941,8 @@
 <script src="/create/football/roles.js?v=20261010c"></script>
 <script src="/create/football/ratings.js?v=20261010c"></script>
 <script src="/create/football/names.js?v=20261010c"></script>
-<script src="/create/football/engine.js?v=20261104h"></script>
-<script src="/create/football/rules.js?v=20261014c"></script>
+<script src="/create/football/engine.js?v=20261104i"></script>
+<script src="/create/football/rules.js?v=20261106a"></script>
 <script src="/create/football/instructions.js?v=20261010c"></script>
 <script src="/create/football/fitness.js?v=20261010c"></script>
 <script src="/create/football/match.js?v=20261105k"></script>
@@ -957,16 +961,16 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="/create/football/api.js?v=20261013a"></script>
 <script src="/create/football/scout.js?v=20261010c"></script>
-<script src="/create/football/instructions_ui.js?v=20261031i"></script>
+<script src="/create/football/instructions_ui.js?v=20261106a"></script>
 <script src="/create/football/lab_replay.js?v=20261030d"></script>
 <script src="/create/football/lab_results.js?v=20261105f"></script>
 <script src="/create/football/transfers.js?v=20261105a"></script>
 <script src="/create/football/recruit.js?v=20261105a"></script>
-<script src="/create/football/development.js?v=20261104a"></script>
+<script src="/create/football/development.js?v=20261106a"></script>
 <script src="/create/football/form.js?v=20261029a"></script>
 <script src="/create/football/cases.js?v=20261028a"></script>
 <script src="/create/football/scenario.js?v=20261105j"></script>
-<script src="/create/football/multiplayer.js?v=20261106a"></script>
-<script src="/create/football/main.js?v=20261106c"></script>
+<script src="/create/football/multiplayer.js?v=20261106b"></script>
+<script src="/create/football/main.js?v=20261106d"></script>
 </body>
 </html>

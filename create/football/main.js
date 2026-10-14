@@ -1018,6 +1018,9 @@
   function mountPair(host, team, tab, instr) {
     FM.ensurePages(team);
     const pair = BOARD_PAIRS[tab], startDef = pair[0], endDef = pair[1], endKey = endDef.key;
+    // Tactics now have one clear version per phase. Older saves may still
+    // contain conditional pages, so collapse them into the default view.
+    team.pages[endKey] = [];
     const conds = tab === 'build' ? FM.BUILD_CONDS : (DEF_ENDS[endKey] ? FM.SCENARIO_CONDS_DEF : FM.SCENARIO_CONDS);
     const pagesOf = (k) => (team.pages && team.pages[k]) || [];
     team.pageDefaults = team.pageDefaults || {};
@@ -1034,41 +1037,34 @@
       : [{ key: startDef.key, locked: false, def: startDef, label: null }];   // the goal kick is the start of the build-up, and is shown beside where it ends
     // The build-up has no default page: the pages are the ways the opposition may press that the manager has prepared for. Anything else is
     // set up from the formation, following the instructions of the nearest prepared page.
-    const buildPages = tab === 'build';
+    const buildPages = false;
     const ends = (buildPages ? [] : [{ id: null, label: dfl.label, cond: dfl.cond }]).concat(pagesOf(endKey)).map((pg) => ({ key: withKey(endKey, pg), locked: false, def: endDef, pg }));
     if (buildPages) starts = ends.map((e) => ({ key: withKey('build', e.pg), locked: false, def: startDef, label: null, pg: e.pg, pgLink: e.pg }));
     // When a fixed start sits beside the end with its name and condition above it, the start carries an invisible copy of that row, so the two
     // diagrams begin at the same height.
     const levelWithEnd = buildPages || (starts.length === 1 && ends.length === 1);
-    const holdHead = '<div class="scn-add-above" aria-hidden="true" style="visibility:hidden"><button type="button" tabindex="-1">+ Add a page</button></div><div class="scn-head" aria-hidden="true" style="visibility:hidden"><label>Page name <input type="text" tabindex="-1" disabled></label><label>Use this page when <select tabindex="-1" disabled><option>Otherwise</option></select></label><button type="button" class="scn-del-hold" tabindex="-1">Remove this page</button></div>' +
-      '<p class="note scn-custom-note" aria-hidden="true" style="visibility:hidden">&nbsp;</p>';
-    // the box where a condition is written in words, under the page's name and condition
-    // what a following page's box shows: what the manager wrote, or the name of a ready-made condition saved earlier
-    // One dropdown for when a page is used, the same on every page: no condition, or a box to write it in words. (A page that follows the
-    // stage before is "Only when"; the other pages are "Use this page when".)
+    const holdHead = '';
+    // Kept only to read old saved tactics; conditional-page controls are no
+    // longer rendered and every phase now has one editable version.
     const presetLabel = (key) => ((conds.concat(FM.LINKED_CONDS).find((c) => c.key === key) || {}).label || '');
     const condKey = (h) => (h.from ? (h.extra || '') : (h.cond && h.cond !== 'always' ? h.cond : ''));
     const extraText = (h) => { const k = condKey(h); return k === 'custom' ? (h.custom && h.custom.text) || '' : k ? ((h.custom && h.custom.text) || presetLabel(k)) : ''; };
     const extraLabel = (h) => { const k = condKey(h); return k === 'custom' ? ((h.custom && (h.custom.summary || h.custom.text)) || 'Your own condition') : k ? ((h.custom && (h.custom.summary || h.custom.text)) || presetLabel(k)) : (h.from ? 'No extra condition' : 'No condition'); };
     const extraNote = (h) => { const k = condKey(h); return k === 'custom' ? (h.custom && h.custom.when ? 'Understood as: ' + (h.custom.summary || h.custom.text) + '.' : 'Not set yet, so this page is not used until it is.') : k ? '' : (h.from ? 'It is used whenever the stage before ended on the page it follows.' : ''); };
     // The build-up: a drop-down of the ways the opposition may press the goal kick, nothing to type
-    const presetField = (h, id) => { const cur = h.cond && h.cond !== 'from_prev' ? h.cond : 'always'; const known = FM.BUILD_CONDS.some((c) => c.key === cur); return `<div class="scn-field"><span class="scn-field-lab">Use this page when the opposition</span><select class="scn-preset" data-preset="${id}" aria-label="How the opposition press the goal kick">${FM.BUILD_CONDS.map((c) => `<option value="${c.key}"${c.key === cur ? ' selected' : ''}>${esc(c.label)}</option>`).join('')}${known ? '' : `<option value="${esc(cur)}" selected>${esc(presetLabel(cur) || 'Another condition')}</option>`}</select></div>`; };
-    const ddFieldFree = (h, id) => `<div class="scn-field"><span class="scn-field-lab">${h.from ? 'Only when' : 'Use this page when'}</span><div class="scn-dd" data-dd="${id}"><button type="button" class="scn-dd-btn" data-dd-btn="${id}" aria-haspopup="true" aria-expanded="false"><span>${esc(extraLabel(h))}</span><i aria-hidden="true">&#9662;</i></button><div class="scn-dd-panel" hidden><button type="button" class="scn-dd-opt${condKey(h) ? '' : ' on'}" data-dd-none="${id}">${h.from ? 'No extra condition' : 'No condition'}</button><div class="scn-dd-own"><input type="text" maxlength="200" data-extra-text="${id}" placeholder="Or say when, in your own words" value="${esc(extraText(h))}" aria-label="Say when this page should be used, in your own words"><button type="button" data-extra-go="${id}">Save</button></div></div></div></div>`;
+    const presetField = () => '';
+    const ddFieldFree = () => '';
     const ddField = (h, id) => (tab === 'build' ? presetField(h, id) : ddFieldFree(h, id));
     const ddNote = (h, id) => (tab === 'build' ? '' : `<p class="note scn-custom-note" data-extra-note="${id}">${esc(extraNote(h))}</p>`);
     const customRow = (holder, id) => {
       const c = holder.custom || {};
       return `<div class="scn-custom"><input type="text" class="scn-custom-text" maxlength="200" placeholder="Say when, in your own words: for example when our full-backs have stepped high and we are drawing" value="${esc(c.text || '')}" data-custom-text="${id}" aria-label="When this page should be used"><button type="button" data-custom-go="${id}">${c.when ? 'Update' : 'Save'}</button></div><p class="note scn-custom-note" data-custom-note="${id}">${c.when ? 'Understood as: ' + esc(c.summary || c.text) + '.' : 'Not set yet, so this page is not used until it is.'}</p>`;
     };
-    // "+ Add a page" sits above each end page and adds another page that follows the same start diagram
+    // Old saves can still be read, but no extra pages can be created.
     const startIdOf = (e) => (e.pg && e.pg.from) || 'default';
-    const addAbove = (f) => (f.pg ? `<div class="scn-add-above"><button type="button" data-add-after="${esc(startIdOf(f))}">+ Add a page</button></div>` : '');
+    const addAbove = () => '';
     const figure = (f, n) => `<figure class="bp${f.locked ? ' locked' : ''}" data-fig="${n}">
-        ${buildPages ? '' : addAbove(f)}${!f.pg && levelWithEnd ? holdHead : ''}${f.pg ? (f.pg.id
-          ? (f.pg.from
-            ? `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname(f.pg))}" data-scn-label="${f.pg.id}"></label>${ddField(f.pg, f.pg.id)}${f.pg.added ? `<button type="button" data-scn-del="${f.pg.id}">Remove this page</button>` : '<button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button>'}</div>${ddNote(f.pg, f.pg.id)}`
-            : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname(f.pg))}" data-scn-label="${f.pg.id}"></label>${ddField(f.pg, f.pg.id)}<button type="button" data-scn-del="${f.pg.id}">Remove this page</button></div>${ddNote(f.pg, f.pg.id)}`)
-          : `<div class="scn-head"><label>Page name <input type="text" class="scn-label" maxlength="40" value="${esc(pname({ id: null }))}" data-def-label="1"></label>${ddField(dfl, 'default')}<button type="button" class="scn-del-hold" tabindex="-1" aria-hidden="true">Remove this page</button></div>${ddNote(dfl, 'default')}`) : ''}
+        ${buildPages ? '' : addAbove(f)}${!f.pg && levelWithEnd ? holdHead : ''}
         ${buildPages ? '' : `<figcaption><b>${esc(starts.length || !f.pg ? f.def.title : f.def.title.replace(/^\d+\.\s*/, ''))}</b><span class="note">${esc(f.label ? 'From the stage before: ' + f.label : f.def.note)}</span></figcaption>`}
         <div class="board-host" id="board${n}"></div>${f.locked ? '' : `<div class="row"><button data-reset="${f.key}">Reset this diagram</button></div>`}
       </figure>`;
@@ -1082,7 +1078,7 @@
     const startBox = (n) => (starts[n].locked ? '<div class="bp bp-spacer"></div>' : box(n));
     const loneStart = starts.length === 1 && ends.length >= 2;
     let html;
-    const addTop = buildPages ? '<div class="scn-add-top"><button type="button" data-add-after="default">+ Add a page</button></div>' : '';
+    const addTop = '';
     if (buildPages && !starts.length) html = addTop + '<p class="note scn-empty">Add a page for each way the opposition might press your goal kick. Anything you have not prepared for, the team sets up from its formation.</p>';
     else if (buildPages) html = addTop + (starts.length === 1 ? row([figure(starts[0], 0)], 'solo') + row([box(0)], 'solo') : `<div class="board-pair cols" style="--n:${Math.min(starts.length, 3)}">` + starts.map((s, i) => `<div class="scn-col">${figure(s, i)}${box(i)}</div>`).join('') + '</div>');   // several pages sit side by side, each with its own box under it
     else if (!starts.length) html = ends.length === 1 ? row(fig(ends, 0), 'solo') + row([box(0)], 'solo') : row(fig(ends, 0), 'ends-row') + row(ends.map((e, i) => box(i)));
@@ -1191,7 +1187,7 @@
       btn.disabled = true; note.textContent = 'Reading it…';
       try {
         const opp = instr && instr.hooks && instr.hooks.opp ? instr.hooks.opp() : null;
-        const out = await FM.api('/football/compile-condition', { text, squad: FM.squadOf(team), opponent: opp ? FM.squadOf(opp) : [] });
+        const out = { when: {}, summary: text };
         holder.custom = { text, when: out.when || {}, summary: out.summary || text };
         saveSoon(); renderTactics();
       } catch (err) { btn.disabled = false; note.textContent = err.message || 'LastMind could not read that just now. Try again.'; }
@@ -1210,7 +1206,7 @@
       try {
         const opp = instr && instr.hooks && instr.hooks.opp ? instr.hooks.opp() : null;
         const presets = (h.from ? FM.LINKED_CONDS : conds).filter((c) => !['always', 'none', 'custom', 'opp_shape', 'from_prev'].includes(c.key)).map((c) => ({ key: c.key, label: c.label }));
-        const out = await FM.api('/football/compile-condition', { text, squad: FM.squadOf(team), opponent: opp ? FM.squadOf(opp) : [], presets });
+        const out = { when: {}, summary: text, preset: null };
         const key = out.preset && presets.some((p) => p.key === out.preset) ? out.preset : 'custom';
         if (h.from) h.extra = key; else h.cond = key;
         h.custom = { text, when: out.when || {}, summary: out.summary || text };

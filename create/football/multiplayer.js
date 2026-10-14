@@ -84,7 +84,7 @@
     if (rec) {
       recordFrame(rec, match);
       const keep = { goal: 1, foul: 1, drama: 1, shot: 1, sub: 1 };
-      rec.events = match.events.filter((e) => keep[e.type] && (e.type !== 'foul' || e.card)).map((e) => ({ type: e.type, t: e.t, team: e.team, player: e.player, card: e.card || null, kind: e.kind || null, outcome: e.outcome || null, both: !!e.both }));
+      rec.events = match.events.filter((e) => keep[e.type] && (e.type !== 'foul' || e.card)).map((e) => ({ type: e.type, t: e.t, team: e.team, player: e.player, card: e.card || null, kind: e.kind || null, outcome: e.outcome || null, setPiece: e.setPiece || null, xg: e.xg == null ? null : e.xg, both: !!e.both }));
       rec.names = {};
       [match.home, match.away].forEach((t) => { rec.names[t.id] = {}; t.squad.forEach((p) => { rec.names[t.id][p.number] = p.name; }); });
     }
@@ -136,6 +136,7 @@
     const g = await call('state', { code: mp.code });
     if (!g || !g.state || g.preview) return { changed: false };
     mp.state = g.state; mp.polledAt = Date.now();
+    if (opts && opts.onState) opts.onState(g.state);
     league.humanIds = Object.keys(g.state.seats);
     ensureMatchFixture(league, g.state);
     let changed = false;
@@ -193,7 +194,7 @@
       <div class="mpr-score"><span>${esc(hn)}</span><b id="mprH">0</b><b>:</b><b id="mprA">0</b><span>${esc(an)}</span><em id="mprClock">0'</em></div>
       <canvas id="mprPitch" width="680" height="440"></canvas>
       <div class="mpr-feed" id="mprFeed"></div>
-      <div class="row"><button type="button" id="mprPause">Pause</button><button type="button" data-sp="30">30x</button><button type="button" data-sp="60" class="on">60x</button><button type="button" data-sp="120">120x</button><button type="button" data-sp="240">240x</button><button type="button" id="mprSkip" class="primary">Skip to the result</button></div>
+      <div class="row"><button type="button" id="mprPause">Pause</button><button type="button" data-sp="0.5">0.5x</button><button type="button" data-sp="1" class="on">1x</button><button type="button" data-sp="1.5">1.5x</button><button type="button" data-sp="3">3x</button><button type="button" id="mprHighlights" aria-pressed="false">Important highlights</button><button type="button" id="mprSkip" class="primary">Skip to the result</button></div>
       <p class="note">Everyone has locked in. This is the match as it was played: nothing can be changed now.</p></div>`;
     document.body.appendChild(wrap);
     const q = (s) => wrap.querySelector(s), cv = q('#mprPitch'), cx = cv.getContext('2d');
@@ -202,7 +203,10 @@
     const hk = kit(home), ak = kit(away);
     const fr = rep.frames, endT = fr.length ? fr[fr.length - 1].t : 0;
     const L = 105, W = 68, X = cv.width / L, Y = cv.height / W;
-    let t = 0, speed = 60, paused = false, shown = 0, last = performance.now(), raf = 0, finished = false;
+    const BASE_SPEED = 13.5;
+    let t = 0, speed = 1, paused = false, highlights = false, shown = 0, last = performance.now(), raf = 0, finished = false;
+    const important = (e) => e.type === 'goal' || (e.type === 'foul' && (e.card === 'red' || e.card === 'second yellow')) || (e.type === 'shot' && e.setPiece === 'penalty');
+    const windows = rep.events.filter(important).map((e) => ({ from: Math.max(0, e.t - 10), to: Math.min(endT, e.t + 4) }));
     const scoreAt = (tt) => { let h = 0, a = 0; rep.events.forEach((e) => { if (e.type === 'goal' && e.t <= tt) { if (e.team === rep.homeId) h++; else a++; } }); return [h, a]; };
     const line = (txt) => { const d = document.createElement('div'); d.innerHTML = txt; q('#mprFeed').prepend(d); };
     const nameOf = (id, n) => (rep.names[id] && rep.names[id][n]) || ('number ' + n);
@@ -232,8 +236,14 @@
     const finish = () => { if (finished) return; finished = true; cancelAnimationFrame(raf); wrap.remove(); rep.seen = true; if (done) done(); };
     const tick = (now) => {
       const dt = Math.min(0.2, (now - last) / 1000); last = now;
-      if (!paused) t = Math.min(endT, t + dt * speed);
-      for (; shown < rep.events.length && rep.events[shown].t <= t; shown++) { const s = text(rep.events[shown]); if (s) line(s); }
+      if (!paused) {
+        if (highlights) {
+          const here = windows.find((w) => t >= w.from && t < w.to - .001);
+          if (here) t = Math.min(here.to, t + dt * BASE_SPEED);
+          else { const next = windows.find((w) => w.from > t); t = next ? next.from : endT; }
+        } else t = Math.min(endT, t + dt * BASE_SPEED * speed);
+      }
+      for (; shown < rep.events.length && rep.events[shown].t <= t; shown++) { const e = rep.events[shown], s = (!highlights || important(e)) ? text(e) : null; if (s) line(s); }
       const sc = scoreAt(t); q('#mprH').textContent = sc[0]; q('#mprA').textContent = sc[1];
       q('#mprClock').textContent = Math.floor(t / 60) + "'";
       draw();
@@ -242,6 +252,7 @@
     };
     q('#mprPause').addEventListener('click', () => { paused = !paused; q('#mprPause').textContent = paused ? 'Play' : 'Pause'; });
     wrap.querySelectorAll('[data-sp]').forEach((b) => b.addEventListener('click', () => { speed = +b.dataset.sp; wrap.querySelectorAll('[data-sp]').forEach((x) => x.classList.toggle('on', x === b)); }));
+    q('#mprHighlights').addEventListener('click', () => { highlights = !highlights; q('#mprHighlights').classList.toggle('on', highlights); q('#mprHighlights').setAttribute('aria-pressed', String(highlights)); });
     q('#mprSkip').addEventListener('click', finish);
     raf = requestAnimationFrame(tick);
   }
@@ -262,7 +273,7 @@
     const seatRow = (t) => {
       const s = st.seats[t];
       const status = !s ? '<span class="mp-ai">Run by the computer</span>' : handed[t] ? '<span class="mp-in">Plan handed in</span>' : '<span class="mp-wait">Preparing</span>';
-      return `<tr class="${t === you ? 'me' : ''}"><td class="l">${esc(clubName(league, t))}</td><td class="l">${s ? esc(s.name) + (t === you ? ' (you)' : '') : '-'}</td><td class="l">${finished ? '' : status}</td></tr>`;
+      return `<tr data-mp-team="${esc(t)}" class="${t === you ? 'me' : ''}"><td class="l">${esc(clubName(league, t))}</td><td class="l">${s ? esc(s.name) + (t === you ? ' (you)' : '') : '-'}</td><td class="l mp-plan-status">${finished ? '' : status}</td></tr>`;
     };
     const last = (st.played || [])[st.played.length - 1];
     const due = st.roundAt ? Date.parse(st.roundAt) + (st.deadlineMs || 24 * 60 * 60 * 1000) : null;
@@ -304,7 +315,14 @@
     const q = (s) => host.querySelector(s);
     q('#mpCopy').addEventListener('click', () => { try { navigator.clipboard.writeText(mp.code); q('#mpCopy').textContent = 'Copied'; } catch (e) { q('#mpCopy').textContent = mp.code; } });
     const refresh = async (opts) => {
-      try { const r = await FM.mpSync(league, opts); if (hooks && hooks.afterSync) hooks.afterSync(r.changed); } catch (e) { err(e.message || 'Could not reach LastMind.'); }
+      const onState = (state) => {
+        const now = (state.plans && state.plans[String(state.round)]) || {};
+        Object.keys(state.seats || {}).forEach((id) => {
+          const cell = host.querySelector('[data-mp-team="' + id + '"] .mp-plan-status');
+          if (cell) cell.innerHTML = now[id] ? '<span class="mp-in">Plan handed in</span>' : '<span class="mp-wait">Preparing</span>';
+        });
+      };
+      try { const r = await FM.mpSync(league, Object.assign({}, opts || {}, { onState })); if (hooks && hooks.afterSync) hooks.afterSync(r.changed); } catch (e) { err(e.message || 'Could not reach LastMind.'); }
       if (host.isConnected) FM.renderMp(host, league, hooks);
     };
     q('#mpRefresh').addEventListener('click', () => refresh());
@@ -320,7 +338,7 @@
     const prep = q('#mpPrepare'); if (prep) prep.addEventListener('click', () => hooks && hooks.prepare && hooks.prepare());
     // look for news while this screen is open
     if (host._mpTimer) clearInterval(host._mpTimer);
-    if (!finished) host._mpTimer = setInterval(() => { if (!host.isConnected || host.hidden) { clearInterval(host._mpTimer); return; } refresh(); }, 6000);
+    if (!finished) host._mpTimer = setInterval(() => { if (!host.isConnected || host.hidden) { clearInterval(host._mpTimer); return; } refresh(); }, 3000);
   };
 
   // ---------- starting or joining a game, from the start screen ----------

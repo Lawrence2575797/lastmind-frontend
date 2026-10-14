@@ -10659,7 +10659,6 @@ SQIDAQAB
             key: 'law', title: 'Law', image: '/assets/create/law-courtroom.jpg', description: 'Simulate real legal scenarios',
             alt: 'An imagined courtroom with a judge\'s bench, witness stand and jury box',
             simulations: [
-                { key: 'criminal-trial', title: 'Criminal trial', image: '/assets/create/criminal-trial.jpg', description: 'Take a case from preparation through trial', alt: 'A person in handcuffs in the dock of an imagined courtroom' },
                 { key: 'criminal-lawyer-career', title: 'Criminal Lawyer Career', image: '/assets/create/criminal-lawyer-career.jpg', description: 'Build a career as a criminal lawyer, case by case', alt: 'A criminal barrister in a dark suit, seen from behind, walking down a wood-panelled courthouse corridor with a briefcase' },
             ],
         },
@@ -10693,6 +10692,7 @@ SQIDAQAB
             ],
         },
     ];
+    let lawDemoOpening = false;
     function renderCreatePage(view = 'projects') {
         if (view === true) view = 'gallery';
         if (view === false) view = 'projects';
@@ -10705,7 +10705,7 @@ SQIDAQAB
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
         if (view === 'projects') { renderSimulateHome(contentInner); return; }
-        if (view === 'criminal-trial') { renderCreateTrialBuilder(contentInner); return; }
+        if (view === 'criminal-trial') { if (lawDemoOpening) renderCreateTrialBuilder(contentInner); else renderCreatePage('law'); return; }
         if (view === 'chancellor') { renderChancellorBuilder(contentInner); return; }
         if (view === 'criminal-lawyer-career') { renderCareerHome(contentInner); return; }
         if (/^doctor-(gcse|alevel|psych)$/.test(view)) { renderDoctorCareer(contentInner, view.slice(7)); return; }
@@ -11731,10 +11731,12 @@ SQIDAQAB
             const { resp, body } = await createAuthedFetch('/create/projects');
             if (resp.ok && !body.unavailable) {
                 const local = createLocalProjects().map((p) => ({ id: p.id, title: p.title, kind: p.kind, href: p.data && p.data.href, meta: p.data && p.data.meta, isReference: false, updatedAt: p.updatedAt, role: p.data && p.data.trial && p.data.trial.role, minutes: p.data && p.data.trial && p.data.trial.minutes, local: true }));
-                return { projects: createWithFootball([...(body.projects || []), ...local]), references: body.references || [] };
+                const projects = [...(body.projects || []), ...local].filter((p) => p.kind !== 'criminal-trial');
+                const references = (body.references || []).filter((p) => /kasper\s+nowicki/i.test(String(p.title || '')));
+                return { projects: createWithFootball(projects), references };
             }
         } catch (err) { console.error('LastMind: could not load projects from the account.', err); }
-        return { projects: createWithFootball(createLocalProjects().map((p) => ({ id: p.id, title: p.title, kind: p.kind, href: p.data && p.data.href, meta: p.data && p.data.meta, isReference: false, updatedAt: p.updatedAt, role: p.data && p.data.trial && p.data.trial.role, minutes: p.data && p.data.trial && p.data.trial.minutes, local: true }))), references: [] };
+        return { projects: createWithFootball(createLocalProjects().filter((p) => p.kind !== 'criminal-trial').map((p) => ({ id: p.id, title: p.title, kind: p.kind, href: p.data && p.data.href, meta: p.data && p.data.meta, isReference: false, updatedAt: p.updatedAt, role: p.data && p.data.trial && p.data.trial.role, minutes: p.data && p.data.trial && p.data.trial.minutes, local: true }))), references: [] };
     }
     async function createOpenProject(id, { playtest, duel } = {}) {
         let data = null; let mine = true;
@@ -11751,6 +11753,7 @@ SQIDAQAB
         createGraphCache = data.graph ? { hash: data.graphHash || '', graph: data.graph } : null;
         if (createGraphCache) createStoreGraphCache();
         saveCreateTrial();
+        lawDemoOpening = true;
         renderCreatePage('criminal-trial');
         if (playtest) ptStart(createTrial);
         if (duel) createStartDuel(createTrial);
@@ -11802,9 +11805,9 @@ SQIDAQAB
         else if (p.kind === 'criminal-lawyer-career') { open = () => renderCreatePage('criminal-lawyer-career'); openLabel = 'Resume career'; }
         else if (p.kind === 'football-manager') { open = () => { window.location.href = p.href || '/create/football/'; }; openLabel = 'Resume'; }
         else if (p.kind === 'chancellor') { open = () => { window.location.href = p.href || '/chancellor/'; }; openLabel = 'Resume'; }
-        else { open = () => createOpenProject(p.id); openLabel = isRef ? 'Open a copy' : 'Open'; }
+        else { open = () => createOpenProject(p.id, isRef ? { playtest: true } : {}); openLabel = isRef ? 'Play free demo' : 'Open'; }
         const extras = [];
-        if (!['doctor-career', 'criminal-lawyer-career', 'football-manager', 'chancellor'].includes(p.kind)) extras.push({ label: 'Playtest', run: () => createOpenProject(p.id, { playtest: true }) });
+        if (!isRef && !['doctor-career', 'criminal-lawyer-career', 'football-manager', 'chancellor'].includes(p.kind)) extras.push({ label: 'Playtest', run: () => createOpenProject(p.id, { playtest: true }) });
         const deletable = !isRef && p.kind !== 'doctor-career' && p.kind !== 'criminal-lawyer-career';
         return { id: p.id, image, title, meta, open, openLabel, extras, deletable, isRef };
     }
@@ -11972,7 +11975,7 @@ SQIDAQAB
             ? `<article class="create-proj create-proj-with-image"><h3>${escapeHtml(p.title)}</h3>${projectImageHtml(p)}<div class="meta">Football manager${p.meta ? ' · ' + escapeHtml(p.meta) : ''} · saved in this browser</div><div class="row"><a class="create-cta" href="${escapeHtml(p.href || '/create/football/')}" style="padding:8px 18px;font-size:0.85rem;text-decoration:none;">Resume</a><button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button></div></article>`
             : p.kind === 'chancellor'
             ? `<article class="create-proj create-proj-with-image"><h3>${escapeHtml(p.title)}</h3>${projectImageHtml(p)}<div class="meta">Economics simulation${p.meta ? ' · ' + escapeHtml(p.meta) : ''} · saved in this browser</div><div class="row"><a class="create-cta" href="${escapeHtml(p.href || '/chancellor/')}" style="padding:8px 18px;font-size:0.85rem;text-decoration:none;">Resume</a><button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button></div></article>`
-            : `<article class="create-proj create-proj-with-image"><h3>${escapeHtml(p.title)}</h3>${projectImageHtml(p)}${p.isReference ? '<span class="badge">Reference example</span>' : ''}<div class="meta">Criminal trial${p.role ? ` · ${p.role === 'prosecution' ? 'Prosecution' : 'Defence'}` : ''}${p.minutes ? ` · ${p.minutes} min` : ''}${p.local ? ' · saved in this browser' : ''}</div><div class="row"><button type="button" class="create-secondary" data-open="${escapeHtml(p.id)}">${isRef ? 'Open a copy' : 'Open'}</button><button type="button" class="create-secondary" data-play="${escapeHtml(p.id)}">Playtest</button>${isRef ? '' : `<button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button>`}</div></article>`;
+            : `<article class="create-proj create-proj-with-image"><h3>${escapeHtml(p.title)}</h3>${projectImageHtml(p)}${p.isReference ? '<span class="badge">Free demo</span>' : ''}<div class="meta">Criminal trial${p.role ? ` · ${p.role === 'prosecution' ? 'Prosecution' : 'Defence'}` : ''}${p.minutes ? ` · ${p.minutes} min` : ''}${p.local ? ' · saved in this browser' : ''}</div><div class="row">${isRef ? `<button type="button" class="create-cta" data-play="${escapeHtml(p.id)}">Play free demo</button>` : `<button type="button" class="create-secondary" data-open="${escapeHtml(p.id)}">Open</button><button type="button" class="create-secondary" data-play="${escapeHtml(p.id)}">Playtest</button><button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button>`}</div></article>`;
         host.innerHTML = `
             ${createDuelBoxHtml()}
             <div class="create-projects-head"><span></span><button type="button" class="create-cta" id="createProjectBtn" style="padding:10px 22px;font-size:0.9rem;">+ Create project</button></div>

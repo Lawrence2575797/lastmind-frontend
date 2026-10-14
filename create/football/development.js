@@ -402,17 +402,6 @@
   };
 
   // ---------- the screen ----------
-  const EXPLAIN = {
-    how: ['How often: counts, percentages and the league average', 'A percentage on its own means little. "63 of 99 passes" tells you how many decisions it rests on, and the league average tells you what is normal. The more decisions there are, the more you can trust the percentage.'],
-    ci: ['What the "95% confidence" range means', 'A player\'s percentage from a few dozen decisions is only an estimate of how good he really is. The range says where his true figure plausibly lies. A narrow range means plenty of evidence; a wide one means you need more matches before drawing conclusions.'],
-    cond: ['Conditional probability: does the situation matter?', 'Splitting his decisions by situation (a marked receiver or a free one) gives the chance of success given that situation. If the two chances are far apart, the situation is doing the work and the fault may be the choice, not the player. The p-value tells you how likely a gap that big would be if the situation made no difference at all.'],
-    p: ['What a p-value is', 'Whenever the screen says "luck alone would give this about 1 time in 20", that is a p-value turned into words: the chance of seeing a difference at least this big if there were really no effect. Small means luck is an unlikely explanation. Large does not prove there is no effect: it can simply mean there is not enough evidence yet.'],
-    logit: ['Logistic regression: modelling a yes-or-no outcome', 'A pass either arrives or it does not. Logistic regression estimates the probability of that outcome from several factors at once (how long the pass is, how open the lane is, how much space the receiver has), while holding the others fixed. That matters because the factors overlap: long passes tend to go into crowded areas, so you need to separate what each one does by itself.'],
-    odds: ['Reading the table: odds ratios', 'The odds ratio is the number the odds of success are multiplied by for each extra unit of that factor. Above 1 means it helps; below 1 means it hurts; exactly 1 means no effect. 0.80 for "pass length" means every extra metre cuts the odds of the pass arriving by about a fifth, whatever the lane and space.'],
-    explore: ['Using the model: change the situation', 'The sliders put numbers into the fitted model and read off the probability. Move one factor at a time to see how much each is worth, then ask which of them a player can actually change by his decision.'],
-    expected: ['Decision or execution? Expected against actual', 'The model can say what a typical player would complete from the same situations. If he gets less than that, he is executing worse than others in those situations. If he gets about the same but the situations are poor, the fault is the choices he makes. They need different coaching.'],
-  };
-  const explain = (k) => `<details class="dv-explain"><summary>${esc(EXPLAIN[k][0])}</summary><p>${esc(EXPLAIN[k][1])}</p></details>`;
   const dv = { sel: null, sort: 'gap', lesson: {}, busy: false, last: {} };
   let hooks = {};
   FM.renderDevelop = function (host, league, h) {
@@ -463,35 +452,15 @@
         inv += `<div class="dv-layer"><h4>How often</h4>${src.season ? `<p class="note">From ${src.season} match${src.season === 1 ? '' : 'es'} played this season.</p>` : ''}`;
         if (!m.n) inv += '<p class="note">Nothing recorded for him yet in this season\'s matches.</p>';
         else {
-          inv += `<p><b>${m.k} of ${m.n}</b> ${esc(L.unit)} (<b>${pct(m.rate)}</b>${m.lo != null ? `, true figure plausibly between ${pct(m.lo)} and ${pct(m.hi)}` : ''}). The league as a whole: <b>${pct(m.base)}</b>.</p>`;
+          inv += `<p><b>${m.k} of ${m.n}</b> ${esc(L.unit)} (<b>${pct(m.rate)}</b>). The league as a whole: <b>${pct(m.base)}</b>.</p>`;
         }
-        inv += explain('how') + explain('ci') + '</div>';
+        inv += '</div>';
         if (m.split && m.split[0].n >= 1 && m.split[1].n >= 1) {
           inv += `<div class="dv-layer"><h4>Does the situation matter?</h4><table class="data dv-split"><thead><tr><th class="l">When</th><th>Decisions</th><th>Success</th></tr></thead><tbody>${m.split.map((s2, i) => `<tr><td class="l">${esc(m.labels[i])}</td><td>${s2.n}</td><td>${s2.n ? pct(s2.rate) : '–'}</td></tr>`).join('')}</tbody></table>`;
-          if (m.splitP != null && !isNaN(m.splitP)) inv += `<p>The gap between those two situations: ${esc(FM.plainChance(m.splitP))}.</p>`;
-          inv += explain('cond') + explain('p') + '</div>';
-        }
-        // the model
-        const M = FM.devModel(league, lessonId);
-        if (M) {
-          inv += '<div class="dv-layer"><h4>A model of what drives success</h4>';
-          if (!M.ok) inv += `<p class="note">${esc(M.reason)}</p>`;
-          else {
-            inv += `<p>Fitted on <b>${M.n}</b> ${esc(L.unit.split(' ')[0])} from every team in the league: the chance each one succeeds, given the situation.</p>
-              <table class="data dv-model"><thead><tr><th class="l">Factor</th><th>Odds ratio per metre</th><th>Could it be chance?</th><th class="l">Reading</th></tr></thead><tbody>${M.terms.map((t) => `<tr><td class="l">${esc(t.v.short || t.v.label)}</td><td><b>${t.or.toFixed(2)}</b></td><td>${esc(FM.plainChanceShort(t.p))}</td><td class="l">${t.p >= 0.1 ? 'No clear effect' : t.beta > 0 ? 'Helps success' + (t.p < 0.05 ? '' : ' (weak)') : 'Hurts success' + (t.p < 0.05 ? '' : ' (weak)')}</td></tr>`).join('')}</tbody></table>`;
-            // the explorer
-            const ex = FM.devExpected(league, sel, lessonId);
-            const start = M.vars.map((v, j) => (ex ? Math.min(v.max, Math.max(v.min, Math.round(ex.avg[j] * 2) / 2)) : Math.round((v.min + v.max) / 4)));
-            inv += `<div class="dv-explore" data-lesson="${lessonId}"><b>Try a situation</b>${M.vars.map((v, j) => `<label>${esc(v.short || v.label)}: <output>${start[j]}</output> ${v.unit}<input type="range" min="${v.min}" max="${v.max}" step="${v.step}" value="${start[j]}" data-j="${j}"></label>`).join('')}
-              <div class="dv-prob"><span class="dv-bar big"><i style="width:${Math.round(M.predict(start) * 100)}%"></i></span><b class="dv-probnum">${pct(M.predict(start))}</b> chance of success</div></div>`;
-            if (ex) inv += `<p>For the situations ${esc(last)} actually chose, the model expects <b>${pct(ex.expected)}</b>; he got <b>${pct(ex.actual)}</b> (${ex.n} decisions). ${ex.actual < ex.expected - 0.05 ? 'He is converting fewer than a typical player would from the same positions: the execution is the issue.' : ex.expected < M.predict(M.vars.map((v) => (v.min + v.max) / 2)) - 0.03 ? 'He is getting about what the model expects, so the choices of situation are what hold him back.' : 'He is getting about what the model expects for his situations.'}</p>`;
-            inv += explain('logit') + explain('odds') + explain('explore') + explain('expected');
-          }
           inv += '</div>';
         }
         if (m.post && m.pre && m.post.n && m.pre.n) {
-          const t = twoProp(m.pre, m.post);
-          inv += `<div class="dv-layer"><h4>Since the lesson began</h4><p><b>Before:</b> ${pct(m.pre.rate)} (${m.pre.k} of ${m.pre.n}). <b>Since:</b> ${pct(m.post.rate)} (${m.post.k} of ${m.post.n}).${t ? ' The change: ' + esc(FM.plainChance(t.p)) + '.' : ''}</p>${explain('p')}</div>`;
+          inv += `<div class="dv-layer"><h4>Since the lesson began</h4><p><b>Before:</b> ${pct(m.pre.rate)} (${m.pre.k} of ${m.pre.n}). <b>Since:</b> ${pct(m.post.rate)} (${m.post.k} of ${m.post.n}).</p></div>`;
         }
       }
       // 3. teach

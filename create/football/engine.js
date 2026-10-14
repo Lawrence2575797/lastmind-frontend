@@ -521,7 +521,7 @@
   FM.scenarioHolds = function (cond, info, page) {
     if (cond === 'always') return true;
     // a page that follows one of the stage before is used whenever that one was; the manager can add a condition of their own on top of it
-    // a condition the manager described in words was turned into a "when" once, when they saved it (see the backend's compile-condition)
+    // Legacy saves may still contain a stored custom condition.
     if (cond === 'custom') return !!(page && page.custom && page.custom.when && info.when && info.when(page.custom.when));
     if (cond === 'from_prev') return !!page && !!page.from && info.prevPage === (page.from === 'default' ? null : page.from) && (!page.extra || FM.scenarioHolds(page.extra, info, page));
     if (cond === 'fb_high') return !!info.fbHigh;
