@@ -207,6 +207,7 @@
   #playBtn.on { background: var(--gold, #f1c04f); color: #14181a; }
   .pitch-play { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 5; padding: 18px 34px; font-size: 1.35rem; font-weight: 800; border-radius: 999px; background: var(--gold, #f1c04f); color: #14181a; border: 3px solid rgba(255,255,255,.85); box-shadow: 0 10px 40px rgba(0,0,0,.55); cursor: pointer; }
   .pitch-play[hidden] { display: none; }
+  .pitch-pause { position: absolute; right: 18px; top: 18px; z-index: 5; padding: 10px 20px; font-size: 1rem; font-weight: 800; border-radius: 999px; background: var(--gold, #f1c04f); color: #14181a; border: 2px solid rgba(255,255,255,.85); box-shadow: 0 6px 24px rgba(0,0,0,.5); cursor: pointer; } .pitch-pause[hidden] { display: none; }
   .lab-how { border: 1px solid rgba(244,237,218,.16); border-radius: 12px; padding: 12px 14px; display: grid; gap: 4px; } .lab-how p { margin: 0; }
   .controls { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 6px 0; }
   .controls button { padding: 7px 12px; }
@@ -892,6 +893,7 @@
           <div class="pitch-wrap">
             <canvas id="pitch" aria-label="Football pitch seen from above with 22 numbered players"></canvas>
             <button id="pitchPlay" class="pitch-play" type="button" hidden>Play</button>
+            <button id="pitchPause" class="pitch-pause" type="button" hidden>Pause</button>
             <div class="match-commentary" id="matchCommentary" role="status" aria-live="polite">The teams are ready. The match is about to begin.</div>
             <div class="controls">
               <button id="playBtn" class="on">Pause</button>
@@ -964,6 +966,6 @@
 <script src="/create/football/cases.js?v=20261028a"></script>
 <script src="/create/football/scenario.js?v=20261105g"></script>
 <script src="/create/football/multiplayer.js?v=20261103c"></script>
-<script src="/create/football/main.js?v=20261105f"></script>
+<script src="/create/football/main.js?v=20261105h"></script>
 </body>
 </html>

@@ -381,6 +381,7 @@
     el('highlightBtn').setAttribute('aria-pressed', String(world.highlightsOnly));
     document.querySelectorAll('[data-speed]').forEach((x) => { x.disabled = world.highlightsOnly; });
     el('playBtn').classList.toggle('on', playing);
+    { const pz = el('pitchPause'); if (pz) { const running = (playing || !!world.skipTo || (world.highlightsOnly && world.running)) && m.phase !== 'fulltime' && m.phase !== 'halftime'; pz.hidden = !running; pz.textContent = world.skipTo ? 'Stop skipping' : 'Pause'; } }
     { const pp = el('pitchPlay'); if (pp) { pp.hidden = playing || m.phase === 'fulltime' || !!m.injuryPause || !!world.skipTo; pp.textContent = m.phase === 'halftime' ? 'Start second half' : (m.clock > 0 ? 'Play on' : 'Kick off'); } }
     const ip = m.injuryPause;
     el('injuryBox').hidden = !ip;
@@ -391,6 +392,7 @@
   }
 
   el('pitchPlay').addEventListener('click', () => el('playBtn').click());
+  el('pitchPause').addEventListener('click', () => el('playBtn').click());
   el('playBtn').addEventListener('click', () => {
     const m = world.match;
     if (world.skipTo) { world.skipTo = null; world.running = false; return; } // stop skipping
