@@ -178,7 +178,10 @@
     world.hlScanned = m.events.length; world.hlWait = null;
     if (frames.length < 4) { world.highlightUntil = world.vt + 4.5; return true; }   // nothing recorded: carry on live from here
     const saved = { players: m.home.players.concat(m.away.players).map((p) => ({ p, x: p.x, y: p.y })), ball: { p: m.ball, x: m.ball.x, y: m.ball.y } };
-    world.hl = { phase: 'replay', frames, start: performance.now(), dur: (frames[frames.length - 1].t - frames[0].t) * 1000, saved };
+    const span = frames[frames.length - 1].t - frames[0].t;
+    // A highlight is a replay of recorded positions, but it must keep the same
+    // viewing pace as the rest of the match instead of dropping into slow motion.
+    world.hl = { phase: 'replay', frames, start: performance.now(), span, dur: span * 1000 / (MATCH_SPEED * world.speed), saved };
     // the score and the goal's commentary wait for the ball to cross the line in the replay: until then the scoreboard shows what it showed before
     if (e.type === 'goal') world.hlHold = { index, goalT: e.t, home: m.score[m.home.id] - (e.team === m.home.id ? 1 : 0), away: m.score[m.away.id] - (e.team === m.away.id ? 1 : 0) };
     return true;
@@ -186,7 +189,7 @@
   function hlReplayStep(m, now, dt) {
     const h = world.hl, el = now - h.start, fr = h.frames;
     world.vt += dt;
-    const tt = fr[0].t + Math.min(el, h.dur) / 1000;
+    const tt = fr[0].t + h.span * Math.min(1, el / Math.max(1, h.dur));
     let k = 0; while (k < fr.length - 2 && fr[k + 1].t <= tt) k++;
     const a = fr[k], b = fr[Math.min(k + 1, fr.length - 1)], u = b.t > a.t ? Math.max(0, Math.min(1, (tt - a.t) / (b.t - a.t))) : 0;
     const put = (list, from, to) => list.forEach((p) => { const f = from.find((z) => z[0] === p.number), g = to.find((z) => z[0] === p.number); if (f) { p.x = f[1] + ((g ? g[1] : f[1]) - f[1]) * u; p.y = f[2] + ((g ? g[2] : f[2]) - f[2]) * u; } });
@@ -227,7 +230,7 @@
       if (world.skipTo) { skipSlice(m); if (!world.skipTo) world.trails = []; }
       else if (world.running && m.phase !== 'halftime' && m.phase !== 'fulltime') {
         if (world.highlightsOnly && !isImportantMoment(m)) seekHighlight(m);
-        else { advanceMatch(dt * MATCH_SPEED * (world.highlightsOnly ? 1 : world.speed)); world.highlightSearching = false; }
+        else { advanceMatch(dt * MATCH_SPEED * world.speed); world.highlightSearching = false; }
         world.vt += dt;
       }
       if (!world.highlightSearching) { draw(); updateHud(); } else if (!world.highlightsOnly) hlOverlay(false);
