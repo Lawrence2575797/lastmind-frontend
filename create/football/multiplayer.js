@@ -49,8 +49,8 @@
 
   // ---------- talking to the server ----------
   const call = (path, body) => FM.api('/football-mp/' + path, body);
-  FM.mpCreate = async function (kind, teamId, name) {
-    return call('create', { kind, seed: FM.WORLD_SEED, teams: teamIds(), teamId, name });
+  FM.mpCreate = async function (kind, teamId, name, deadlineMinutes) {
+    return call('create', { kind, seed: FM.WORLD_SEED, teams: teamIds(), teamId, name, deadlineMinutes: deadlineMinutes || 1440 });
   };
   FM.mpLookup = (code) => call('state', { code });
   FM.mpJoin = (code, teamId, name) => call('join', { code, teamId, name });
@@ -71,13 +71,22 @@
   // "the manager" (the computer's scouting reads that club's matches, and it must be the same club for everyone).
   // (played in small steps with a breath between them, so the page stays alive while a round of matches is worked out)
   const breathe = () => new Promise((r) => setTimeout(r, 0));
-  async function simulateFixtureAsync(league, fx) {
+  async function simulateFixtureAsync(league, fx, rec) {
     const match = FM.startFixture(league, fx);
     let guard = 0, n = 0;
+    if (rec) recordFrame(rec, match);
     while (match.phase !== 'fulltime' && guard++ < 200000) {
       if (match.phase === 'halftime') FM.startSecondHalf(match);
       FM.stepMatch(match, 0.1);
+      if (rec && n % 10 === 0) recordFrame(rec, match);
       if (++n % 300 === 0) await breathe();
+    }
+    if (rec) {
+      recordFrame(rec, match);
+      const keep = { goal: 1, foul: 1, drama: 1, shot: 1, sub: 1 };
+      rec.events = match.events.filter((e) => keep[e.type] && (e.type !== 'foul' || e.card)).map((e) => ({ type: e.type, t: e.t, team: e.team, player: e.player, card: e.card || null, kind: e.kind || null, outcome: e.outcome || null, both: !!e.both }));
+      rec.names = {};
+      [match.home, match.away].forEach((t) => { rec.names[t.id] = {}; t.squad.forEach((p) => { rec.names[t.id][p.number] = p.name; }); });
     }
     FM.finishFixture(league, fx, match);
   }
@@ -91,7 +100,12 @@
     try {
       if (mp.kind === 'league') advanceToRound(league, round);
       const todo = league.fixtures.filter((f) => f.round === round && !f.played);
-      for (const f of todo) { await simulateFixtureAsync(league, f); out.push({ id: f.homeId, hg: f.hg, ag: f.ag }); if (mp.onProgress) mp.onProgress(out.length, todo.length); }
+      for (const f of todo) {
+        const mine = mp.teamId && (f.homeId === mp.teamId || f.awayId === mp.teamId);
+        const rec = mine ? { round, homeId: f.homeId, awayId: f.awayId, frames: [], events: [], names: {}, seen: false } : null;
+        await simulateFixtureAsync(league, f, rec);
+        if (rec) FM.mpReplay = rec;
+        out.push({ id: f.homeId, hg: f.hg, ag: f.ag }); if (mp.onProgress) mp.onProgress(out.length, todo.length); }
       FM.aiAfterRound(league, round);
       if (FM.makeNews) { try { FM.makeNews(league, round); } catch (e) { /* the news is a nicety */ } }
       if (mp.kind === 'league') { league.day++; FM.recoverDay(league); }
@@ -133,7 +147,7 @@
     // the round being waited for: everybody seated has handed their plan in, or the host chooses to go on
     const key = String(g.state.round), handed = g.state.plans[key] || {}, seated = Object.keys(g.state.seats);
     const everyone = seated.length > 0 && seated.every((t) => handed[t]);
-    const idle = Date.now() - Date.parse(g.state.roundAt || 0) > 24 * 60 * 60 * 1000 && !!g.state.roundAt;
+    const idle = Date.now() - Date.parse(g.state.roundAt || 0) > (g.state.deadlineMs || 24 * 60 * 60 * 1000) && !!g.state.roundAt;
     const ready = (g.state.kind === 'match' ? seated.length === 2 : true) && (everyone || idle);
     if (!g.state.finished && ready && mp.localRound === g.state.round) {
       const scores = await FM.mpResolve(league, g.state.round, withLast(g.state, g.state.round), seated);
@@ -151,6 +165,86 @@
     FM.saveLeague(league);
     return g;
   };
+
+
+  // ---------- watching the match before the result ----------
+  // When a round is played, the match of the club you manage is recorded as it is simulated (where everyone was once a second, and what happened),
+  // and kept in memory. Once every plan is in, you can watch it back (you cannot change anything), and the score is only shown when it ends.
+  FM.mpReplay = null;
+  FM.mpWatch = (league, rep, done) => replayModal(league, rep, done);
+  const DEADLINES = [[30, '30 minutes'], [60, '1 hour'], [180, '3 hours'], [360, '6 hours'], [720, '12 hours'], [1440, '1 day'], [2880, '2 days'], [4320, '3 days'], [10080, '1 week']];
+  const fmtLeft = (ms) => {
+    if (ms <= 0) return 'now';
+    const m = Math.ceil(ms / 60000);
+    if (m < 90) return m + ' minute' + (m === 1 ? '' : 's');
+    const h = Math.round(m / 60);
+    return h < 48 ? h + ' hour' + (h === 1 ? '' : 's') : Math.round(h / 24) + ' days';
+  };
+  function recordFrame(rec, match) {
+    const r1 = (v) => Math.round(v * 10);
+    rec.frames.push({ t: Math.round(match.clock), b: [r1(match.ball.x), r1(match.ball.y)], h: match.home.players.map((p) => [p.number, r1(p.x), r1(p.y)]), a: match.away.players.map((p) => [p.number, r1(p.x), r1(p.y)]) });
+  }
+  function replayModal(league, rep, done) {
+    const old = document.getElementById('mpReplay'); if (old) old.remove();
+    const wrap = document.createElement('div');
+    wrap.id = 'mpReplay'; wrap.className = 'mp-modal';
+    const hn = clubName(league, rep.homeId), an = clubName(league, rep.awayId);
+    wrap.innerHTML = `<div class="mp-box mp-replay" role="dialog" aria-modal="true" aria-label="The match">
+      <div class="mpr-score"><span>${esc(hn)}</span><b id="mprH">0</b><b>:</b><b id="mprA">0</b><span>${esc(an)}</span><em id="mprClock">0'</em></div>
+      <canvas id="mprPitch" width="680" height="440"></canvas>
+      <div class="mpr-feed" id="mprFeed"></div>
+      <div class="row"><button type="button" id="mprPause">Pause</button><button type="button" data-sp="30">30x</button><button type="button" data-sp="60" class="on">60x</button><button type="button" data-sp="120">120x</button><button type="button" data-sp="240">240x</button><button type="button" id="mprSkip" class="primary">Skip to the result</button></div>
+      <p class="note">Everyone has locked in. This is the match as it was played: nothing can be changed now.</p></div>`;
+    document.body.appendChild(wrap);
+    const q = (s) => wrap.querySelector(s), cv = q('#mprPitch'), cx = cv.getContext('2d');
+    const home = FM.teamById(league, rep.homeId), away = FM.teamById(league, rep.awayId);
+    const kit = (t, other) => { const k = t && t.kit ? t.kit : {}; return { shirt: k.shirt || '#c0392b', number: k.number || '#fff' }; };
+    const hk = kit(home), ak = kit(away);
+    const fr = rep.frames, endT = fr.length ? fr[fr.length - 1].t : 0;
+    const L = 105, W = 68, X = cv.width / L, Y = cv.height / W;
+    let t = 0, speed = 60, paused = false, shown = 0, last = performance.now(), raf = 0, finished = false;
+    const scoreAt = (tt) => { let h = 0, a = 0; rep.events.forEach((e) => { if (e.type === 'goal' && e.t <= tt) { if (e.team === rep.homeId) h++; else a++; } }); return [h, a]; };
+    const line = (txt) => { const d = document.createElement('div'); d.innerHTML = txt; q('#mprFeed').prepend(d); };
+    const nameOf = (id, n) => (rep.names[id] && rep.names[id][n]) || ('number ' + n);
+    const text = (e) => {
+      const club = clubName(league, e.team), min = Math.floor(e.t / 60) + "'";
+      if (e.type === 'goal') return '<b>' + min + ' GOAL</b> ' + esc(nameOf(e.team, e.player)) + ' (' + esc(club) + ')';
+      if (e.type === 'foul' && (e.card === 'red' || e.card === 'second yellow')) return '<b>' + min + ' RED CARD</b> ' + esc(nameOf(e.team, e.player)) + ' (' + esc(club) + ')';
+      if (e.type === 'foul' && e.card === 'yellow') return min + ' Yellow card: ' + esc(nameOf(e.team, e.player)) + ' (' + esc(club) + ')';
+      if (e.type === 'drama') return '<b>' + min + ({ scuffle: ' FLASHPOINT', managers: ' TOUCHLINE ROW', penalty: ' CONTROVERSY', invader: ' PITCH INVADER' }[e.kind] || ' INCIDENT') + '</b> ' + ({ scuffle: 'Players square up', managers: e.both ? 'Both managers sent to the stands' : club + ' manager sent to the stands', penalty: 'A contentious penalty for ' + esc(club), invader: 'Play is held up' }[e.kind] || '');
+      if (e.type === 'shot' && e.outcome === 'saved') return min + ' Saved: ' + esc(nameOf(e.team, e.player)) + ' (' + esc(club) + ')';
+      if (e.type === 'sub') return min + ' Substitution, ' + esc(club);
+      return null;
+    };
+    const draw = () => {
+      cx.fillStyle = '#2d7a3c'; cx.fillRect(0, 0, cv.width, cv.height);
+      cx.strokeStyle = 'rgba(255,255,255,.85)'; cx.lineWidth = 2;
+      cx.strokeRect(1, 1, cv.width - 2, cv.height - 2);
+      cx.beginPath(); cx.moveTo(cv.width / 2, 0); cx.lineTo(cv.width / 2, cv.height); cx.stroke();
+      cx.beginPath(); cx.arc(cv.width / 2, cv.height / 2, 9.15 * X, 0, Math.PI * 2); cx.stroke();
+      [0, 1].forEach((side) => { const x0 = side ? cv.width - 16.5 * X : 0; cx.strokeRect(x0, cv.height / 2 - 20.16 * Y, 16.5 * X, 40.32 * Y); const g = side ? cv.width : -2 * X; cx.strokeRect(side ? cv.width : -2 * X, cv.height / 2 - 3.66 * Y, 2 * X, 7.32 * Y); void g; });
+      let k = 0; while (k < fr.length - 1 && fr[k + 1].t <= t) k++;
+      const f = fr[k]; if (!f) return;
+      const dot = (p, col) => { cx.beginPath(); cx.arc(p[1] / 10 * X, p[2] / 10 * Y, 7, 0, Math.PI * 2); cx.fillStyle = col.shirt; cx.fill(); cx.strokeStyle = '#fff'; cx.lineWidth = 1.5; cx.stroke(); cx.fillStyle = col.number; cx.font = '700 9px sans-serif'; cx.textAlign = 'center'; cx.fillText(String(p[0]), p[1] / 10 * X, p[2] / 10 * Y + 3); };
+      f.h.forEach((p) => dot(p, hk)); f.a.forEach((p) => dot(p, ak));
+      cx.beginPath(); cx.arc(f.b[0] / 10 * X, f.b[1] / 10 * Y, 4.5, 0, Math.PI * 2); cx.fillStyle = '#fff'; cx.fill(); cx.strokeStyle = '#000'; cx.stroke();
+    };
+    const finish = () => { if (finished) return; finished = true; cancelAnimationFrame(raf); wrap.remove(); rep.seen = true; if (done) done(); };
+    const tick = (now) => {
+      const dt = Math.min(0.2, (now - last) / 1000); last = now;
+      if (!paused) t = Math.min(endT, t + dt * speed);
+      for (; shown < rep.events.length && rep.events[shown].t <= t; shown++) { const s = text(rep.events[shown]); if (s) line(s); }
+      const sc = scoreAt(t); q('#mprH').textContent = sc[0]; q('#mprA').textContent = sc[1];
+      q('#mprClock').textContent = Math.floor(t / 60) + "'";
+      draw();
+      if (t >= endT) { setTimeout(finish, 1200); return; }
+      raf = requestAnimationFrame(tick);
+    };
+    q('#mprPause').addEventListener('click', () => { paused = !paused; q('#mprPause').textContent = paused ? 'Play' : 'Pause'; });
+    wrap.querySelectorAll('[data-sp]').forEach((b) => b.addEventListener('click', () => { speed = +b.dataset.sp; wrap.querySelectorAll('[data-sp]').forEach((x) => x.classList.toggle('on', x === b)); }));
+    q('#mprSkip').addEventListener('click', finish);
+    raf = requestAnimationFrame(tick);
+  }
 
   // ---------- the screen ----------
   const clubName = (league, id) => { const t = FM.teamById(league, id); return t ? t.name : id; };
@@ -171,7 +265,12 @@
       return `<tr class="${t === you ? 'me' : ''}"><td class="l">${esc(clubName(league, t))}</td><td class="l">${s ? esc(s.name) + (t === you ? ' (you)' : '') : '-'}</td><td class="l">${finished ? '' : status}</td></tr>`;
     };
     const last = (st.played || [])[st.played.length - 1];
-    const lastHtml = last && last.scores && last.scores.length
+    const due = st.roundAt ? Date.parse(st.roundAt) + (st.deadlineMs || 24 * 60 * 60 * 1000) : null;
+    const dueHtml = !finished && due ? `<p class="note mp-due">Plans are due ${due - Date.now() > 0 ? 'within <b>' + fmtLeft(due - Date.now()) + '</b>' : '<b>now</b>'}. A manager who has not locked in by then is left to play on with their last plan, and the round is played. Rounds are played every ${fmtLeft(st.deadlineMs || 24 * 60 * 60 * 1000)} at most.</p>` : '';
+    const rep = FM.mpReplay && !FM.mpReplay.seen && last && FM.mpReplay.round === last.round ? FM.mpReplay : null;
+    const lastHtml = rep
+      ? `<div class="card"><h2>${isMatch ? 'The match has been played' : 'Round ' + (last.round + 1) + ' has been played'}</h2><p class="desc">Everyone has locked in. Watch your match back before you see the score: nothing can be changed.</p><div class="row"><button class="primary" id="mpWatch">Watch the match</button><button id="mpSkipWatch">Show me the result</button></div></div>`
+      : last && last.scores && last.scores.length
       ? `<div class="card"><h2>${isMatch ? 'Result' : 'Round ' + (last.round + 1) + ' results'}</h2><div class="rounds">${last.scores.map((s) => {
         const fx = league.fixtures.find((f) => f.round === last.round && f.homeId === s.id);
         const away = fx ? fx.awayId : '';
@@ -190,7 +289,7 @@
         <p class="desc">${isMatch ? 'A one-off match between two managers.' : 'A league game: eight clubs, with the computer running any club without a manager.'} Share the code, and anyone signed in to LastMind can join from the start screen.</p></div>
       <div class="card"><h2>${isMatch ? 'The two managers' : 'The clubs'}</h2>
         <div class="tablewrap"><table class="data"><thead><tr><th class="l">Club</th><th class="l">Manager</th><th class="l">${finished ? '' : 'Round ' + (round + 1)}</th></tr></thead><tbody>${allClubs.map(seatRow).join('')}</tbody></table></div>
-        ${cta}
+        ${cta}${dueHtml}
         <div class="row">
           ${finished ? '' : `<button class="primary" id="mpSubmit">${yourIn ? 'Hand in my plan again' : 'Lock in my plan'}</button><button id="mpPrepare">Prepare my team</button>`}
           
@@ -216,6 +315,8 @@
       try { await FM.mpSubmit(league); await FM.mpSync(league); if (hooks && hooks.afterSync) hooks.afterSync(true); } catch (e) { err(e.message || 'Could not hand in your plan.'); }
       if (host.isConnected) FM.renderMp(host, league, hooks);
     });
+    const watch = q('#mpWatch'); if (watch) watch.addEventListener('click', () => { replayModal(league, FM.mpReplay, () => { if (host.isConnected) FM.renderMp(host, league, hooks); }); });
+    const skipW = q('#mpSkipWatch'); if (skipW) skipW.addEventListener('click', () => { FM.mpReplay.seen = true; FM.renderMp(host, league, hooks); });
     const prep = q('#mpPrepare'); if (prep) prep.addEventListener('click', () => hooks && hooks.prepare && hooks.prepare());
     // look for news while this screen is open
     if (host._mpTimer) clearInterval(host._mpTimer);
@@ -253,13 +354,15 @@
       box.innerHTML = `<h2>${kind === 'league' ? 'Start a league game' : 'Play a one-off match'}</h2>
         <label>Your name<input type="text" id="mpName" maxlength="24" value="${esc(saved)}" placeholder="What the other managers see"></label>
         <label>Your club<select id="mpClub">${clubOptions()}</select></label>
+        <label>${kind === 'league' ? 'A round is played at the latest every' : 'Both managers must lock in within'}<select id="mpDeadline">${DEADLINES.map(([m, l]) => `<option value="${m}"${m === 1440 ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+        <p class="note">Everyone must lock in a plan by then. A manager who has not is left to play on with their last plan, and the round is played.</p>
         <p class="err" id="mpMsg"></p>
         <div class="row"><button class="primary" type="button" id="mpGo">Create the game</button><button type="button" id="mpBack">Back</button></div>`;
       box.querySelector('#mpBack').addEventListener('click', home);
       box.querySelector('#mpGo').addEventListener('click', async () => {
         const btn = box.querySelector('#mpGo'), msg = box.querySelector('#mpMsg'), name = box.querySelector('#mpName').value.trim() || 'Manager';
         btn.disabled = true; msg.textContent = 'Setting the game up...'; rememberName(name);
-        try { const g = await FM.mpCreate(kind, box.querySelector('#mpClub').value, name); await finish(g, g.you); }
+        try { const g = await FM.mpCreate(kind, box.querySelector('#mpClub').value, name, +box.querySelector('#mpDeadline').value); await finish(g, g.you); }
         catch (e) { btn.disabled = false; msg.innerHTML = needSignIn(e); }
       });
     };
