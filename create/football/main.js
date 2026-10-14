@@ -177,6 +177,8 @@
     if (frames.length < 4) { world.highlightUntil = world.vt + 4.5; return true; }   // nothing recorded: carry on live from here
     const saved = { players: m.home.players.concat(m.away.players).map((p) => ({ p, x: p.x, y: p.y })), ball: { p: m.ball, x: m.ball.x, y: m.ball.y } };
     world.hl = { phase: 'replay', frames, start: performance.now(), dur: (frames[frames.length - 1].t - frames[0].t) * 1000, saved };
+    // the score and the goal's commentary wait for the ball to cross the line in the replay: until then the scoreboard shows what it showed before
+    if (e.type === 'goal') world.hlHold = { index, goalT: e.t, home: m.score[m.home.id] - (e.team === m.home.id ? 1 : 0), away: m.score[m.away.id] - (e.team === m.away.id ? 1 : 0) };
     return true;
   }
   function hlReplayStep(m, now, dt) {
@@ -189,7 +191,8 @@
     put(m.home.players, a.h, b.h); put(m.away.players, a.a, b.a);
     m.ball.x = a.b[0] + (b.b[0] - a.b[0]) * u; m.ball.y = a.b[1] + (b.b[1] - a.b[1]) * u;
     draw();
-    if (el >= h.dur) { hlRestore(); world.hl = null; world.highlightUntil = world.vt + 4.5; }
+    if (world.hlHold && tt >= world.hlHold.goalT) { world.hlHold = null; updateHud(); }   // the ball is in the net: now the score and the call
+    if (el >= h.dur) { hlRestore(); world.hl = null; world.hlHold = null; world.highlightUntil = world.vt + 4.5; }
   }
   function seekHighlight(m) {
     if (world.hlScanned == null) world.hlScanned = m.events.length;
@@ -301,7 +304,7 @@
   }
   function updateHud() {
     const m = world.match, home = m.home, away = m.away;
-    el('scHome').textContent = m.score[home.id]; el('scAway').textContent = m.score[away.id];
+    { const hold = world.hlHold; el('scHome').textContent = hold ? hold.home : m.score[home.id]; el('scAway').textContent = hold ? hold.away : m.score[away.id]; }
     el('clock').textContent = m.phase === 'halftime' ? 'Half time' : m.phase === 'fulltime' ? 'Full time' : FM.formatClock(m.clock) + (m.restart ? ' · ' + RESTART_NAMES[m.restart.kind] : '');
     renderIncidents(m);
     const h = m.stats[home.id], a = m.stats[away.id], tot = h.possession + a.possession;
@@ -317,7 +320,8 @@
     const html = rows.map((r) => '<tr><td>' + r[1] + '</td><td>' + r[0] + '</td><td>' + r[2] + '</td></tr>').join('');
     if (html !== world.lastStats) { el('stats').innerHTML = html; world.lastStats = html; }
     const feed = el('feed');
-    for (; world.shownEvents < m.events.length; world.shownEvents++) {
+    const evLimit = world.hlHold ? Math.min(world.hlHold.index, m.events.length) : m.events.length;
+    for (; world.shownEvents < evLimit; world.shownEvents++) {
       const e = m.events[world.shownEvents];
       const team = e.team === home.id ? home : e.team === away.id ? away : null;
       if (!team) continue;
@@ -328,7 +332,7 @@
       if (reveal && e.type === 'tackle' && e.x != null) world.impacts.push({ x: e.x, y: e.y, kind: 'tackle', born: world.vt });
       let text = null;
       if (e.type === 'goal') text = 'GOAL, ' + team.name + ': ' + who(e.player);
-      else if (e.type === 'shot') text = (e.setPiece ? ({ header: 'Header', freekick: 'Free kick', penalty: 'Penalty' }[e.setPiece]) : 'Shot') + ', ' + who(e.player) + ' (' + team.name + '): ' + e.outcome + ' (xG ' + e.xg.toFixed(2) + ')';
+      else if (e.type === 'shot') text = (e.setPiece ? ({ header: 'Header', freekick: 'Free kick', penalty: 'Penalty' }[e.setPiece]) : 'Shot') + ', ' + who(e.player) + ' (' + team.name + '): ' + (e.outcome === 'goal' ? 'on target' : e.outcome) + ' (xG ' + e.xg.toFixed(2) + ')';
       else if (e.type === 'foul') text = 'Foul by ' + who(e.player) + ' (' + team.name + ')' + (e.card ? ', ' + e.card.toUpperCase() : '');
       else if (e.type === 'offside') text = 'Offside, ' + who(e.player) + ' (' + team.name + ')';
       else if (e.type === 'drama') {
@@ -349,7 +353,7 @@
       } else if (reveal && e.type === 'shot') {
         world.highlightUntil = world.vt + 3;
         const shooter = who(e.player), big = (e.xg || 0) >= .28;
-        if (e.outcome === 'goal') say(call('shotGoal', ['It is in!', 'That finds the net!', 'A clinical finish!']), 'goal', 3.5);
+        if (e.outcome === 'goal') say(call('shotOn', [() => shooter + ' shoots!', () => 'A strike from ' + shooter + '!', 'He lets fly!']), 'hot', 2.4);
         else if (e.outcome === 'saved') say(call(big ? 'bigSave' : 'save', [() => (big ? 'What a save! ' : '') + 'The goalkeeper denies ' + shooter + '!', () => shooter + ' shoots — strong hands from the keeper!', () => 'Saved! ' + shooter + ' cannot find a way through.']), 'hot', 2.8);
         else if (e.outcome === 'blocked') say(call('block', [() => shooter + ' pulls the trigger — blocked!', 'A defender throws himself in the way!', 'The shot never gets through the crowd!']), 'hot', 2.6);
         else say(call(big ? 'bigMiss' : 'miss', [() => shooter + (big ? ' has to score — but puts it wide!' : ' shoots just wide!'), 'That flashes past the post!', () => shooter + ' cannot quite find the corner.']), 'hot', 2.7);
