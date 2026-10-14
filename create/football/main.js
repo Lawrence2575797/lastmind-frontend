@@ -500,7 +500,7 @@
     return { questions: [first, q2, third], answers: [a1, a2, a3] };
   }
 
-  // The ready-made answers belong to the question they answer: each question has its own five, and the ones after a match depend on the result.
+  // The ready-made answers belong to the question they answer, and the ones after a match depend on the result.
   function interviewAnswers(kind, fx, result) {
     { const dk = derbyInterview(kind, fx, result); if (dk) return dk.answers; }
     const lg = world.league, me = userTeam(), home = FM.teamById(lg, fx.homeId), away = FM.teamById(lg, fx.awayId), opp = home.id === me.id ? away : home;
@@ -557,7 +557,16 @@
     return [`${lead}, how do you assess the performance?`, 'Where was the match decided?', 'What do you want the players to take into the next game?'];
   }
   function runInterview(kind, fx, result, done) {
-    const room = el('interviewRoom'), body = el('pressRoomBody'), questions = interviewQuestions(kind, fx, result), answerSets = interviewAnswers(kind, fx, result);
+    const room = el('interviewRoom'), body = el('pressRoomBody'), questions = interviewQuestions(kind, fx, result);
+    // Press conferences are read at a glance: three distinct choices, each no
+    // longer than one short sentence, even for the bespoke derby interviews.
+    const concise = (answer) => {
+      const text = String(answer || '').trim(), sentence = (text.match(/^.*?[.!?](?:\s|$)/) || [text])[0].trim();
+      if (sentence.length <= 86) return sentence;
+      const cut = sentence.slice(0, 83).replace(/\s+\S*$/, '');
+      return (cut || sentence.slice(0, 83)).replace(/[,.!?;:]$/, '') + '…';
+    };
+    const answerSets = interviewAnswers(kind, fx, result).map((answers) => answers.slice(0, 3).map(concise));
     const lg = world.league, key = kind + ':' + fx.round;
     lg.interviews = lg.interviews || [];
     if (lg.interviews.some((x) => x.key === key)) { done(); return; }
