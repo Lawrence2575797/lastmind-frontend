@@ -128,19 +128,20 @@
 
   // ---------- the results page ----------
   // The tests in the defensive phases are the opposition attacking you: a test is a success for you when their attack is stopped before a shot.
-  const REV = { organised: true, transdef: true };
+  const REV = { organised: true, transdef: true, press: true };
   // How good a result has to be before we call it satisfactory.
-  const SAT = { build: 0.7, midfield: 0.65, final: 0.08, transatt: 0.06, organised: 0.92, transdef: 0.92 };
-  const PREP_TAB = { build: 'build', midfield: 'midfield', final: 'final', organised: 'organised', transdef: 'transdef', transatt: 'transatt' };
+  const SAT = { build: 0.7, midfield: 0.65, final: 0.08, transatt: 0.06, organised: 0.92, transdef: 0.92, press: 0.5 };
+  const PREP_TAB = { build: 'build', midfield: 'midfield', final: 'final', organised: 'organised', press: 'organised', transdef: 'transdef', transatt: 'transatt' };
   const DONE_TEXT = {
     build: (k, n) => k + ' of ' + n + ' goal kicks were played out and reached the halfway line with the ball',
     midfield: (k, n) => k + ' of ' + n + ' moves were played through midfield',
     final: (k, n) => k + ' of ' + n + ' attacks ended in a shot',
     transatt: (k, n) => k + ' of ' + n + ' ball wins turned into a shot',
     organised: (k, n) => k + ' of ' + n + ' attacks against you were stopped before they could shoot',
+    press: (k, n) => k + ' of ' + n + ' goal kicks were stopped before they got the ball out of their own half',
     transdef: (k, n) => k + ' of ' + n + ' counter-attacks were stopped after you lost the ball',
   };
-  const GOOD_TITLE = { build: 'What it looks like when it works', midfield: 'What it looks like when it works', final: 'What it looks like when it works', transatt: 'What it looks like when it works', organised: 'What it looks like when you stop them', transdef: 'What it looks like when you stop them' };
+  const GOOD_TITLE = { build: 'What it looks like when it works', midfield: 'What it looks like when it works', final: 'What it looks like when it works', transatt: 'What it looks like when it works', organised: 'What it looks like when you stop them', press: 'What it looks like when the press works', transdef: 'What it looks like when you stop them' };
   const mood = (rate, sat) => {
     const x = rate / sat;
     return x >= 1.2 ? 'That is seriously impressive, well done!'

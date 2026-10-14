@@ -954,7 +954,7 @@
     ['squad', '1. Squad and formation'], ['build', '2. Build-up'], ['midfield', '3. Play through midfield'], ['final', '4. Final third'],
     ['transdef', '5. Defensive transition'], ['organised', '6. Organised defending'], ['transatt', '7. Attacking transition'], ['setpieces', 'Set pieces'],
   ];
-  const TEST_TABS = [['build','Build-up'],['midfield','Midfield'],['final','Final third'],['organised','Organised defending'],['transdef','Defensive transition'],['transatt','Attacking transition']];
+  const TEST_TABS = [['build','Build-up'],['midfield','Midfield'],['final','Final third'],['press','Pressing their build-up'],['organised','Defending your third'],['transdef','Defensive transition'],['transatt','Attacking transition']];
   // Each tab with a board shows the team in that phase of play.
   const BOARD_KEY = { squad: 'shape', build: 'build', midfield: 'midfield', final: 'final', organised: 'without' };
   const PHASE_TEXT = {
@@ -1456,19 +1456,20 @@
     const n = testsDoneCount();
     return '<p class="note">' + (n === 0 ? 'Run at least one test before the match preview. The others are optional.' : 'You have completed ' + n + ' test' + (n === 1 ? '' : 's') + '. Run the others, or go to the match preview now.') + (n > 0 ? ' <button class="linkbtn" id="labToEvidence2">Go to the match preview</button>' : '') + '</p>';
   }
-  const SAT_TARGET = { build: 0.7, midfield: 0.65, final: 0.08, transatt: 0.06, organised: 0.92, transdef: 0.92 };
-  const SUCCESS_KEY = { build: 'beat', midfield: 'beat', final: 'shot', transatt: 'shot', organised: 'lost', transdef: 'lost' };
+  const SAT_TARGET = { build: 0.7, midfield: 0.65, final: 0.08, transatt: 0.06, organised: 0.92, transdef: 0.92, press: 0.5 };
+  const SUCCESS_KEY = { build: 'beat', midfield: 'beat', final: 'shot', transatt: 'shot', organised: 'lost', transdef: 'lost', press: 'lost' };
   function renderLab(team, host, phase) {
     phase = phase || 'build';
     const lg = world.league, opp = nextOpponent(); if (!lg || !opp) { host.innerHTML = ''; return; }
     lg.labRuns = lg.labRuns || []; lg.phaseLabRuns = lg.phaseLabRuns || {};
-    const reverse = phase === 'organised' || phase === 'transdef';
-    const title = { build: 'Test the build-up', midfield: 'Test playing through midfield', final: 'Test the final third', organised: 'Test organised defending', transdef: 'Test the defensive transition', transatt: 'Test the attacking transition' }[phase];
+    const reverse = phase === 'organised' || phase === 'transdef' || phase === 'press';
+    const title = { build: 'Test the build-up', midfield: 'Test playing through midfield', final: 'Test the final third', organised: 'Test defending your third', press: 'Test pressing their build-up', transdef: 'Test the defensive transition', transatt: 'Test the attacking transition' }[phase];
     const lede = {
       build: 'We will play the same goal kick against ' + opp.name + ' again and again, with your players where you put them, and count how often you get out.',
       midfield: 'We will play the move through midfield against ' + opp.name + ' again and again and count how often it works.',
       final: 'We will send the same attack at ' + opp.name + '\'s goal again and again and count how often it ends in a shot.',
-      organised: 'We will have ' + opp.name + ' attack you again and again and count how often your shape stops them.',
+      organised: 'We will have ' + opp.name + ' come at your third again and again and count how often your shape stops them.',
+      press: 'We will have ' + opp.name + ' build from their goalkeeper again and again, with your team pressing as you have set it, and count how often they are stopped before they get out.',
       transdef: 'We will have you lose the ball against ' + opp.name + ' again and again and count how often you stop the counter.',
       transatt: 'We will have you win the ball against ' + opp.name + ' again and again and count how often it becomes a shot.',
     }[phase];
@@ -1503,19 +1504,26 @@
       <h2>${title}</h2>
       <p class="lab-lede">${esc(lede)}</p>
       ${reco}
-      <div class="two"><label>Scenario<select id="labStart">${phase === 'final' || phase === 'transatt' ? '<option value="attack">An attack entering the final third</option>' : phase === 'organised' || phase === 'transdef' ? '<option value="defend">The opposition attack your goal</option>' : `<option value="goalkick">A goal kick, played short</option>`}</select></label>
+      <div class="two"><div class="lab-how"><span class="eyebrow">What the test is</span><p>${({
+        build: 'Every test starts with a goal kick, with your players where you put them. It counts as a success if the ball is played out and reaches the halfway line with one of your players.',
+        midfield: 'Every test starts with a midfielder on the ball on the edge of your own third, with your team in the shape you have for that moment. It counts as a success if the ball reaches the edge of the final third without being lost.',
+        final: 'Every test starts with an attack entering the final third with the ball. It counts as a success if it ends in a shot.',
+        press: 'Every test starts with their goalkeeper about to take a goal kick, with your team pressing as you have set it. It counts as a success if they are stopped before they get the ball out of their own half.',
+        organised: 'Every test starts with them in your third with the ball, against your team as you have set it. It counts as a success if they are stopped before they can shoot.',
+        transdef: 'Every test starts with your team losing the ball. It counts as a success if you stop the counter-attack before they can shoot.',
+        transatt: 'Every test starts with your team winning the ball. It counts as a success if the move ends in a shot.',
+      })[phase] || ''}</p></div>
         <label>Number of tests<select id="labN"${runs.length ? ' disabled title="The same number of tests as last time, so the two results can be compared fairly"' : ''}>${[100, 400, 1000].map((n) => `<option value="${n}"${st.n === n ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>
       <div class="row"><button class="primary" id="labRun"${st.busy ? ' disabled' : ''}>${busyText}</button>${skipHtml(phase, st)}</div>
       ${skipNote(phase)}
       <p class="err">${esc(st.err)}</p>
     </div>`;
     const q = (id) => host.querySelector(id);
-    q('#labStart').addEventListener('change', (e) => { st.start = e.target.value; });
     if (q('#labSkip')) q('#labSkip').addEventListener('click', () => { const i = TEST_TABS.findIndex(([k]) => k === phase); world.tab = TEST_TABS[Math.min(TEST_TABS.length - 1, i + 1)][0]; renderTactics(); });
     if (q('#labToEvidence')) q('#labToEvidence').addEventListener('click', goEvidence);
     if (q('#labToEvidence2')) q('#labToEvidence2').addEventListener('click', goEvidence);
     if (q('#labSeeLast')) q('#labSeeLast').addEventListener('click', () => { st.view = 'results'; renderLab(team, host, phase); });
-    if (q('#labToTactics')) q('#labToTactics').addEventListener('click', () => toTactics(phase === 'build' ? 'build' : phase));
+    if (q('#labToTactics')) q('#labToTactics').addEventListener('click', () => toTactics(phase === 'press' ? 'organised' : phase));
     q('#labN').addEventListener('change', (e) => { st.n = +e.target.value; renderLab(team, host, phase); });
     q('#labRun').addEventListener('click', async () => {
       if (st.busy) return;
@@ -1525,7 +1533,7 @@
       const snap = FM.lab.snapshot(team);
       try {
         const attackTest = ['final','transatt','organised','transdef'].includes(phase);
-        const result = await FM.lab.run(lg, { n: st.n, phase: attackTest ? 'final' : 'build', user: reverse ? opp : team, opp: reverse ? team : opp, start: st.start, record: true, oppRules: reverse ? (team.rules || []) : oppPlan.rules, oppNudge: reverse ? {} : oppPlan.tactics }, (d) => { st.prog = d; const b2 = host.querySelector('#labRun'); if (b2) b2.textContent = d + '/' + st.n + ' tests run'; });
+        const result = await FM.lab.run(lg, { n: st.n, phase: attackTest ? 'final' : (phase === 'midfield' ? 'midfield' : 'build'), user: reverse ? opp : team, opp: reverse ? team : opp, start: st.start, record: true, oppRules: reverse ? (team.rules || []) : oppPlan.rules, oppNudge: reverse ? {} : oppPlan.tactics }, (d) => { st.prog = d; const b2 = host.querySelector('#labRun'); if (b2) b2.textContent = d + '/' + st.n + ' tests run'; });
         runs.push({ id: phase[0] + 'r' + (runs.length + 1), phase, oppPlan: { source: oppPlan.source, rationale: oppPlan.rationale, scouted: oppPlan.scouted, note: oppPlan.note || '', rules: FM.scout.describe(oppPlan.rules, opp, team) }, n: st.n, start: st.start, opp: opp.name, pred: '', hyp: '', snap, changes: FM.lab.changes(last && last.snap, snap), result });
         runs.forEach((r, i) => { if (i < runs.length - 2 && r.result) delete r.result.clips; });
         st.a = Math.max(0, runs.length - 2); st.b = runs.length - 1; saveSoon();

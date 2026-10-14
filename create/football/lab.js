@@ -89,7 +89,8 @@
     const match = FM.createMatch(u, o, seed);
     match.userId = u.id;
     const finalThird = opts.phase === 'final';
-    if (finalThird) FM.startFinalThirdTrial(match, u); else FM.startBuildUpTrial(match, u, opts.start);
+    const midfield = opts.phase === 'midfield';
+    if (finalThird) FM.startFinalThirdTrial(match, u); else if (midfield) FM.startMidfieldTrial(match, u); else FM.startBuildUpTrial(match, u, opts.start);
     const dir = u.attackDir, rng = FM.mulberry32((seed * 7 + 11) >>> 0);
     const resp = LAB.responses(u, o, o.tactics);
     const state = resp.map((r) => ({ r, until: 0 }));
@@ -123,7 +124,7 @@
       const h = holder(match), t = match.clock;
       const d = FM.toTeamSpace(dir, match.ball.x, match.ball.y).d;
       if (lostAt == null) {
-        if (!finalThird && h === u && d >= 0.5) { result = { outcome: 'beat', time: t }; break; }
+        if (!finalThird && h === u && d >= (midfield ? 0.72 : 0.5)) { result = { outcome: 'beat', time: t }; break; }
         if (finalThird) {
           const shots = match.events.filter((e) => e.type === 'shot' && e.team === u.id);
           if (shots.length) { const shot = shots[shots.length - 1]; result = { outcome: 'beat', time: t, shot: true, goal: shot.outcome === 'goal', xg: shot.xg || 0, shotInfo: { grp: (u.players.find((q) => q.number === shot.player) || {}).group, d: Math.round(Math.min(shot.x, L - shot.x)), def: Math.round((shot.defDist == null ? 9 : shot.defDist) * 10) / 10, xg: shot.xg || 0, header: shot.setPiece === 'header' } }; break; }
@@ -398,7 +399,7 @@
   // only while the team is in that part of play, exactly as if it had been written under that board.
   LAB.BOARDS = {
     build: { keys: ['build', 'build'], stage: 'build', noPart: true }, midfield: { keys: ['buildEnd', 'midfield'], stage: 'midfield' }, final: { keys: ['midfield', 'final'], stage: 'final' },
-    transatt: { keys: ['transAtt', 'transAttEnd'], stage: 'transAtt' }, organised: { keys: ['without', 'withoutEnd'], stage: 'without' }, transdef: { keys: ['transDef', 'transDefEnd'], stage: 'transDef' },
+    transatt: { keys: ['transAtt', 'transAttEnd'], stage: 'transAtt' }, organised: { keys: ['without', 'withoutEnd'], stage: 'without' }, press: { keys: ['press'], stage: 'without' }, transdef: { keys: ['transDef', 'transDefEnd'], stage: 'transDef' },
   };
   LAB.implement = function (team, phase, id, result, opts) {
     let B = LAB.BOARDS[phase]; if (!B) return null;
@@ -440,7 +441,7 @@
     const support = (p, key) => { if (!p) return; const n = near(p, key); if (!n) return; const c = FM.phasePos(team, p, key); go(n.q, key, { d: clampv(c.d - 0.03, 0.05, 0.95), w: clampv(c.w + (c.w < 0.5 ? 0.09 : -0.09), 0.05, 0.95) }); };
     const att = phase === 'final' || phase === 'transatt';
     const holder = () => G('DM')[0] || G('CM')[0] || G('AM')[0];
-    if (phase === 'organised' || phase === 'transdef') {
+    if (phase === 'organised' || phase === 'transdef' || phase === 'press') {
       if (id === 'close') { G('DM', 'CM').forEach((p) => { go(p, E, { dd: -0.06 }); go(p, S, { dd: -0.03 }); }); rule(line('midfield'), [{ type: 'position', forward: -4, wide: 0, phase: 'without' }], 'end'); }
       else if (id === 'free') { rule(grp('CM'), [{ type: 'closeDown', delta: 0.6 }], 'end'); rule(grp('DM'), [{ type: 'closeDown', delta: 0.5 }], 'end'); }
       else if (id === 'far') { G('CB', 'FB').forEach((p) => { go(p, S, { dd: -0.04 }); go(p, E, { dd: -0.04 }); }); rule(line('defence'), [{ type: 'position', forward: -3, wide: 0, phase: 'without' }], 'end'); }
