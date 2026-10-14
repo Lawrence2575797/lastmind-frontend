@@ -470,7 +470,13 @@
     // "sit in a low block" -> "sits in a low block", for a sentence about one side
     const third = (l) => String(l || '').replace(/^(press|hold|sit)/, (w) => w + (w === 'press' ? 'es' : 's'));
     // what the phase is about, said for the side they are up against
+    // On the pressing page what matters is how THEY build: out from the back, or long
+    const bt = (opp && (opp.baseTactics || opp.tactics)) || {}, bd = bt.buildDirect == null ? 0.4 : bt.buildDirect;
+    const buildStyle = bd >= 0.6 ? { you: 'go long from goal kicks', one: 'goes long from goal kicks', how: 'Expect the goal kick to go long, so the press has to be ready for the second ball as well as the short pass.' }
+      : bd <= 0.3 ? { you: 'play out from the back, short and patient', one: 'plays out from the back, short and patient', how: 'Expect them to play it out short, so the press has to close the passing lanes and the man on the ball.' }
+      : { you: 'mix it, playing out when it is on and going long when it is not', one: 'mixes it, playing out when it is on and going long when it is not', how: 'They could do either, so the press has to be ready for the short pass and the long ball.' };
     const goalText = () => {
+      if (phase === 'press') return buildStyle.how + ' ' + ph.goal;
       if (phase === 'build') return press.value >= 0.6 ? 'Get the ball out of your half, past their press.' : press.value >= 0.4 ? 'Get the ball out of your half and past their mid block.' : 'Get the ball out of your half. They will not come to you, so the pass you make and the space you find is the whole problem.';
       return ph.goal;
     };
@@ -478,8 +484,8 @@
       if (!S) { S = fresh(team, opp, phase); store[phase] = S; }
       host.innerHTML = `<div class="scn2">
         <div class="scn2-head"><h2>${esc(ph.title)}</h2>
-          <p class="desc">Preparing for ${esc(opp.name)}, who usually <b>${esc(press.label)}</b>. ${esc(goalText())}</p>
-          ${info ? `<p class="note scn2-last">Last shown: ${info.passes} pass${info.passes === 1 ? '' : 'es'} (${info.completed} came off), ${info.dribbled} m dribbled, ${info.aerial}% in the air, against a side that ${esc(third(info.vs))}.${info.lost ? ' The ball was lost.' : ''}</p>` : ''}
+          <p class="desc">Preparing for ${esc(opp.name)}, who usually <b>${esc(phase === 'press' ? buildStyle.you : press.label)}</b>. ${esc(goalText())}</p>
+          ${info ? `<p class="note scn2-last">Last shown: ${info.passes} pass${info.passes === 1 ? '' : 'es'} (${info.completed} came off), ${info.dribbled} m dribbled, ${info.aerial}% in the air, against a side that ${esc(phase === 'press' ? buildStyle.one : third(info.vs))}.${info.lost ? ' The ball was lost.' : ''}</p>` : ''}
         </div>
         <div class="scn2-body">
           <div class="scn2-pitch"><svg id="scnSvg" viewBox="0 ${-GOAL * PS} ${W * PS} ${(L + 2 * GOAL) * PS}" role="img" aria-label="${esc(ph.title)}: drag the players and the ball, and draw passes"></svg></div>
