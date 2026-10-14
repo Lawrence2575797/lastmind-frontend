@@ -317,6 +317,20 @@
     void rng;
     return { ok: true, status, counter: deal.counter, ask, deal };
   };
+  // Turning down the club's counter-offer: the approach ends, and he stays on the shortlist.
+  FM.rejectCounter = function (league, pid) {
+    const t = FM.transfer(league), p = FM.findPlayer(league, pid), deal = t.deals[pid];
+    if (!deal || deal.stage !== 'counter' || !p) return { ok: false, text: 'There is no counter-offer to turn down.' };
+    const club = FM.clubOf(league, p);
+    deal.history.push({ who: 'you', text: 'You turned down ' + money(deal.counter) + '.' });
+    deal.stage = 'interest'; deal.counter = null; deal.fee = null;
+    return { ok: true, deal, text: 'You turned down ' + (club ? club.name + "'s" : 'their') + ' price. He stays on your shortlist.' };
+  };
+  // What the agent is asking for a contract of this length (the same adjustment the talks themselves use).
+  FM.agentAsk = function (deal, years) {
+    const adj = years >= 4 ? 0.97 : years <= 1 ? 1.05 : 1;
+    return r1((deal.wageCur != null ? deal.wageCur : deal.wageAsk) * adj);
+  };
   FM.acceptCounter = function (league, pid) {
     const t = FM.transfer(league), p = FM.findPlayer(league, pid), deal = t.deals[pid], me = FM.teamById(league, league.userId);
     if (!deal || deal.stage !== 'counter' || !p) return { ok: false, text: 'There is no counter-offer to accept.' };

@@ -1294,14 +1294,34 @@
     team.shape = JSON.parse(JSON.stringify(plan.shape || {})); team.phasePos = JSON.parse(JSON.stringify(plan.phasePos || {})); team.phaseBall = JSON.parse(JSON.stringify(plan.phaseBall || {})); team.pages = JSON.parse(JSON.stringify(plan.pages || {})); team.pageDefaults = JSON.parse(JSON.stringify(plan.pageDefaults || {})); team.scenarios = JSON.parse(JSON.stringify(plan.scenarios || [])); team.defScenarios = JSON.parse(JSON.stringify(plan.defScenarios || [])); FM.ensurePages(team); team.rules = JSON.parse(JSON.stringify(plan.rules || []));
     (plan.players || []).forEach((saved) => { const p = team.players.find((x) => x.id === saved.id); if (p) { if (saved.roleId && FM.ROLES[saved.roleId]) p.roleId = saved.roleId; p.options = JSON.parse(JSON.stringify(saved.options || {})); p.instr = JSON.parse(JSON.stringify(saved.instr || {})); } });
   }
+  // Saved match plans. Picking one applies it to the team straight away (it is what plays the next game), and "Save current plan" writes the
+  // team as it now stands back into the picked plan; "Save as new plan" keeps the picked one and makes another.
   function renderPlanBar(team) {
-    const host = el('planBar'), plans = world.league.tacticalPlans = world.league.tacticalPlans || [];
-    host.innerHTML = `<select id="planSelect" aria-label="Saved tactical plans"><option value="">Saved match plans</option>${plans.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select><button id="savePlan">Save current plan</button><button id="loadPlan" disabled>Restore</button><button id="deletePlan" disabled>Delete</button>`;
-    const select = host.querySelector('#planSelect'), sync = () => { const yes = !!select.value; host.querySelector('#loadPlan').disabled = !yes; host.querySelector('#deletePlan').disabled = !yes; };
-    select.addEventListener('change', sync);
-    host.querySelector('#savePlan').addEventListener('click', () => { const name = prompt('Name this tactical plan:', 'Plan ' + (plans.length + 1)); if (!name || !name.trim()) return; plans.push(capturePlan(team, name.trim())); saveSoon(); renderTactics(); });
-    host.querySelector('#loadPlan').addEventListener('click', () => { const plan = plans.find((p) => p.id === select.value); if (!plan) return; restorePlan(team, plan); world.selSlot = null; saveSoon(); renderTactics(); });
-    host.querySelector('#deletePlan').addEventListener('click', () => { const plan = plans.find((p) => p.id === select.value); if (!plan || !confirm('Delete the saved plan “' + plan.name + '”?')) return; world.league.tacticalPlans = plans.filter((p) => p.id !== plan.id); saveSoon(); renderTactics(); });
+    const host = el('planBar'), lg = world.league, plans = lg.tacticalPlans = lg.tacticalPlans || [];
+    const active = plans.find((p) => p.id === lg.activePlanId) || null;
+    if (!active) lg.activePlanId = null;
+    host.innerHTML = `<select id="planSelect" aria-label="Saved tactical plans"><option value="">Saved match plans</option>${plans.map((p) => `<option value="${p.id}"${active && active.id === p.id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select><button id="savePlan" class="primary" title="${active ? 'Write the team as it is now into this plan' : 'Save the team as it is now as a new plan'}">${active ? 'Save current plan' : 'Save current plan'}</button>${active ? '<button id="saveNewPlan">Save as new plan</button>' : ''}<button id="loadPlan"${active ? '' : ' disabled'} title="Discard changes since the plan was saved">Restore</button><button id="deletePlan"${active ? '' : ' disabled'}>Delete</button>${active ? `<span class="note plan-active">Playing the next game with “${esc(active.name)}”.</span>` : ''}`;
+    const select = host.querySelector('#planSelect');
+    select.addEventListener('change', () => {
+      const plan = plans.find((p) => p.id === select.value);
+      lg.activePlanId = plan ? plan.id : null;
+      if (plan) { restorePlan(team, plan); world.selSlot = null; }
+      saveSoon(); renderTactics();
+    });
+    const saveNew = () => {
+      const name = prompt('Name this tactical plan:', 'Plan ' + (plans.length + 1));
+      if (!name || !name.trim()) return;
+      const plan = capturePlan(team, name.trim());
+      plans.push(plan); lg.activePlanId = plan.id; saveSoon(); renderTactics();
+    };
+    host.querySelector('#savePlan').addEventListener('click', () => {
+      if (!active) { saveNew(); return; }
+      Object.assign(active, capturePlan(team, active.name), { id: active.id });
+      lg.activePlanId = active.id; saveSoon(); renderTactics();
+    });
+    const sn = host.querySelector('#saveNewPlan'); if (sn) sn.addEventListener('click', saveNew);
+    host.querySelector('#loadPlan').addEventListener('click', () => { if (!active) return; restorePlan(team, active); world.selSlot = null; saveSoon(); renderTactics(); });
+    host.querySelector('#deletePlan').addEventListener('click', () => { if (!active || !confirm('Delete the saved plan “' + active.name + '”?')) return; lg.tacticalPlans = plans.filter((p) => p.id !== active.id); lg.activePlanId = null; saveSoon(); renderTactics(); });
   }
 
   function renderTactics() {

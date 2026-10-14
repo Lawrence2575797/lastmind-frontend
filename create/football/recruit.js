@@ -95,8 +95,8 @@
       const offerHtml = openOffers.map((o) => {
         const p = FM.findPlayer(league, o.pid), buyer = FM.teamById(league, o.from);
         return `<div class="rc-offer"><div><b>${esc(buyer.name)}</b> offer <b>${FM.money(o.fee)}</b> for <b>${esc(p.name)}</b> <small>(${p.natural}, ${FM.ageOf(p)}, ability ${FM.abilityOf(p)}, potential ${FM.potentialOf(p)}; worth about ${FM.money(FM.valueOf(p))})</small>${o.status === 'countered' ? ' ' + chip('They raised their offer', 'st-counter') : ''}</div>
-          <div class="rc-offer-actions"><button type="button" class="primary" data-offer="accept" data-id="${o.id}">Accept</button><button type="button" data-offer="reject" data-id="${o.id}">Reject</button>
-          <label>Ask for £m<input type="number" step="0.1" min="0" value="${(o.fee * 1.2).toFixed(1)}" data-counter="${o.id}"></label><button type="button" data-offer="counter" data-id="${o.id}">Counter</button></div>
+          <div class="rc-offer-actions"><button type="button" class="primary" data-offer="accept" data-id="${o.id}">Accept ${FM.money(o.fee)}</button><button type="button" data-offer="reject" data-id="${o.id}">Reject</button>
+          <label>Ask for £m<input type="number" step="0.1" min="0" value="${(o.status === 'countered' ? o.fee : o.fee * 1.2).toFixed(1)}" data-counter="${o.id}"></label><button type="button" data-offer="counter" data-id="${o.id}">Counter</button></div>
           ${rs.msg['o' + o.id] ? `<p class="rc-msg">${esc(rs.msg['o' + o.id])}</p>` : ''}</div>`;
       }).join('');
       const active = Object.keys(t.deals).map((id) => t.deals[id]).filter((d) => ['counter', 'fee_agreed', 'wage_talks'].indexOf(d.stage) >= 0);
@@ -170,7 +170,7 @@
         action += `<div class="rc-form"><b>Approach ${esc(club.name)}</b><p class="note">They are asking ${FM.money(ask)}. Your budget is ${FM.money(t.budget[me.id] || 0)}.</p>
           <label>Offer (£m)<input id="rcBidFee" type="number" step="0.1" min="0" value="${r1(deal && deal.counter ? deal.counter : ask)}" data-lo="${lo}"></label><button type="button" id="rcBidGo" class="primary">Make the offer</button> <button type="button" id="rcBidCancel">Cancel</button></div>`;
       }
-      if (stage === 'counter') action += `<div class="rc-form"><b>${esc(club.name)} want ${FM.money(deal.counter)}</b><div><button type="button" id="rcAcceptCounter" class="primary">Accept ${FM.money(deal.counter)}</button> <button type="button" id="rcBidOther">Offer something else</button></div></div>`;
+      if (stage === 'counter') action += `<div class="rc-form"><b>${esc(club.name)} want ${FM.money(deal.counter)}</b><div><button type="button" id="rcAcceptCounter" class="primary">Accept ${FM.money(deal.counter)}</button> <button type="button" id="rcRejectCounter">Reject</button> <button type="button" id="rcBidOther">Offer something else</button></div></div>`;
       if (stage === 'fee_agreed') action += `<div class="rc-form"><div class="rc-scene" id="rcScene"></div><p><b>Fee agreed: ${FM.money(deal.fee)}.</b> ${esc(club.name)} have given you permission to speak to ${esc(p.name.split(' ')[0])}. Press Negotiate to talk wages.</p></div>`;
       if (stage === 'wage_talks') {
         const hist = (deal.history || []).filter((x) => x.who !== 'club').slice(-6).map((x) => `<div class="rc-bubble ${x.who}"><small>${x.who === 'you' ? 'You' : 'Agent'}</small>${esc(x.text)}</div>`).join('');
@@ -179,7 +179,7 @@
           <div class="rc-chat">${hist}</div>
           <label>Weekly wage (£k)<input id="rcWage" type="number" step="0.5" min="0" value="${r1(deal.wageCur)}"></label>
           <label>Contract<select id="rcYears">${[1, 2, 3, 4, 5].map((y) => `<option value="${y}"${y === (deal.years || 3) ? ' selected' : ''}>${y} year${y === 1 ? '' : 's'}</option>`).join('')}</select></label>
-          <div><button type="button" id="rcWageGo" class="primary">Make the offer</button> <button type="button" id="rcWalk">Walk away</button></div></div>`;
+          <div><button type="button" id="rcWageAccept" class="primary">Accept ${r1(deal.wageCur)}k a week</button> <button type="button" id="rcWageGo">Offer the figure above</button> <button type="button" id="rcWalk">Reject and walk away</button></div></div>`;
       }
       if (stage === 'collapsed') action += '<p class="note">That deal has fallen through. You can declare interest or approach again.</p>';
     }
@@ -218,11 +218,18 @@
       FM.picture(FM.playerPictureKey(p), FM.playerPictureRequest(p));
       say(!out.ok ? out.text : out.status === 'agreed' ? 'Fee agreed. You can now negotiate his wages.' : out.status === 'counter' ? club.name + ' want ' + FM.money(out.counter) + '.' : (out.text || club.name + ' rejected the offer.'));
     });
+    on('#rcRejectCounter', () => { const out = FM.rejectCounter(league, p.id); say(out.text); });
     on('#rcAcceptCounter', () => { const out = FM.acceptCounter(league, p.id); say(out.ok ? 'Fee agreed. You can now negotiate his wages.' : out.text); });
     on('#rcUnlist', () => { FM.removeFromShortlist(league, p.id); save(); draw(); });
     on('#rcNegotiate', () => { const out = FM.startWageTalks(league, p.id); say(out.ok ? 'The agent is ready to talk.' : out.text); });
     on('#rcWageGo', () => {
       const out = FM.offerWage(league, p.id, side.querySelector('#rcWage').value, side.querySelector('#rcYears').value);
+      if (out.status === 'signed') FM.picture(FM.scenePictureKey(p, FM.dealOf(league, p.id), 'unveil'), FM.scenePictureRequest(p, 'unveil'));
+      say(out.ok ? (out.status === 'signed' ? '' : out.text || '') : out.text);
+    });
+    on('#rcWageAccept', () => {
+      const years = side.querySelector('#rcYears').value, d0 = FM.dealOf(league, p.id);
+      const out = FM.offerWage(league, p.id, FM.agentAsk(d0, Number(years)), years);
       if (out.status === 'signed') FM.picture(FM.scenePictureKey(p, FM.dealOf(league, p.id), 'unveil'), FM.scenePictureRequest(p, 'unveil'));
       say(out.ok ? (out.status === 'signed' ? '' : out.text || '') : out.text);
     });
