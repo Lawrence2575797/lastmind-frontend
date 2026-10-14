@@ -2,7 +2,8 @@
 // the league table, saving, and the bookkeeping that follows a match (results, player statistics, lineups restored).
 (function () {
   const FM = (window.FM = window.FM || {});
-  const SAVE_KEY = 'lm_football_save_v1';
+  const DEMO_MODE = /(?:^|[?&])demo=1(?:&|$)/.test(location.search);
+  const SAVE_KEY = DEMO_MODE ? 'lm_football_demo_save_v1' : 'lm_football_save_v1';
 
   const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const MATCHDAY_WEEKDAY = 5; // Saturday
@@ -513,7 +514,7 @@
   };
   FM.saveLeague = function (league) {
     const done = FM.saveLeagueRaw(league);
-    if (done) FM.syncProject(league);
+    if (done && !DEMO_MODE) FM.syncProject(league);
     return done;
   };
   FM.saveLeagueRaw = function (league) {
@@ -559,7 +560,7 @@
     try {
       const t = localStorage.getItem(SAVE_KEY), lg = t ? FM.deserializeLeague(t) : null;
       if (lg) lg.teams.forEach((tm) => { tm.squad.forEach((p) => FM.backfillPhysique(p)); FM.migrateRoles(tm); }); // saves from before heights existed and before the positional roles went
-      FM.syncProject(lg); // lists the season as a project, or removes the entry if there is no save
+      if (!DEMO_MODE) FM.syncProject(lg); // the paid season appears in Your projects; the one-match demo stays separate
       return lg;
     } catch (e) { return null; }
   };

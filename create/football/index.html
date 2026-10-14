@@ -816,6 +816,17 @@
   .dv-step { padding: 10px 12px; border-radius: 8px; margin: 8px 0; background: rgba(255,255,255,.05); } .dv-step.done { border-left: 3px solid #50b46e; } .dv-step.now { border-left: 3px solid var(--gold, #E6D7B0); }
   .dv-opts { display: grid; gap: 6px; margin-top: 8px; } .dv-opt { text-align: left; padding: 9px 12px; border-radius: 8px; border: 1px solid rgba(230,215,176,.3); background: rgba(255,255,255,.04); cursor: pointer; color: inherit; font: inherit; } .dv-opt:hover { background: rgba(230,215,176,.14); }
   .dv-tools { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; margin: 8px 0; } .dv-tool { text-align: left; display: grid; gap: 3px; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(230,215,176,.3); background: rgba(255,255,255,.04); cursor: pointer; color: inherit; font: inherit; } .dv-tool small { opacity: .75; } .dv-tool.on { border-color: var(--gold, #E6D7B0); background: rgba(230,215,176,.12); } .dv-tool:hover { background: rgba(230,215,176,.14); }
+  .demo-complete { position:fixed; inset:0; z-index:10000; overflow:auto; display:grid; place-items:center; padding:28px 16px; background:rgba(3,12,10,.92); backdrop-filter:blur(8px); }
+  .demo-complete-inner { width:min(620px, 100%); display:grid; gap:14px; }
+  .demo-return { justify-self:start; color:var(--cream, #F1EAD6); text-decoration:none; font-weight:750; padding:9px 2px; }
+  .demo-return:hover { text-decoration:underline; }
+  .demo-football-card { overflow:hidden; border:1px solid rgba(230,215,176,.35); border-radius:22px; background:#111d1a; box-shadow:0 26px 70px rgba(0,0,0,.48); }
+  .demo-football-card img { width:100%; aspect-ratio:16/8.5; object-fit:cover; display:block; }
+  .demo-football-card > div { padding:24px 26px 27px; }
+  .demo-football-card h2 { margin:5px 0 9px; font-size:clamp(2rem, 7vw, 3.4rem); line-height:.98; color:var(--cream, #F1EAD6); }
+  .demo-football-card p { margin:0; color:rgba(241,234,214,.8); line-height:1.55; }
+  .demo-purchase { display:block; padding:17px 22px; border-radius:13px; background:var(--gold, #E6D7B0); color:#101b18; text-align:center; text-decoration:none; font-size:1.08rem; font-weight:850; box-shadow:0 12px 30px rgba(0,0,0,.3); }
+  .demo-purchase:hover { filter:brightness(1.06); transform:translateY(-1px); }
 </style>
 </head>
 <body>
@@ -942,7 +953,7 @@
 <script src="/create/football/instructions.js?v=20261010c"></script>
 <script src="/create/football/fitness.js?v=20261010c"></script>
 <script src="/create/football/match.js?v=20261105k"></script>
-<script src="/create/football/league.js?v=20261105f"></script>
+<script src="/create/football/league.js?v=20261014a"></script>
 <script src="/create/football/preseason.js?v=20261010n"></script>
 <script src="/create/football/stats_math.js?v=20261010c"></script>
 <script src="/create/football/stats.js?v=20261013a"></script>
@@ -967,6 +978,6 @@
 <script src="/create/football/cases.js?v=20261028a"></script>
 <script src="/create/football/scenario.js?v=20261105j"></script>
 <script src="/create/football/multiplayer.js?v=20261106b"></script>
-<script src="/create/football/main.js?v=20261107a"></script>
+<script src="/create/football/main.js?v=20261014a"></script>
 </body>
 </html>

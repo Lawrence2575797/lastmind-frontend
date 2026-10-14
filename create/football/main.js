@@ -1,6 +1,8 @@
 // The game page: a season of eight clubs, a day-by-day calendar, the league table and squad, the live match
 // and the tactics page. All the football itself is in engine.js, match.js and league.js.
 (function () {
+  const DEMO_MODE = /(?:^|[?&])demo=1(?:&|$)/.test(location.search);
+  const cleanUrl = () => location.pathname + (DEMO_MODE ? '?demo=1' : '');
   const { L, W } = FM.PITCH;
   const el = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -599,7 +601,8 @@
       world.match = null; world.fixture = null;
       FM.saveLeague(world.league);
       btn.disabled = false; btn.textContent = 'Finish and see the table';
-      runInterview('post', fx, result, () => setView('home'));
+      if (DEMO_MODE) showDemoComplete();
+      else runInterview('post', fx, result, () => setView('home'));
     }, 40);
   });
 
@@ -641,6 +644,25 @@
   const VIEWS = ['home', 'league', 'squad', 'recruit', 'develop', 'analysis', 'reports', 'news', 'preview', 'mp', 'match'];
   const NAV = [];
   const SCREEN_TITLES = { home: 'Club overview', league: 'League centre', squad: 'First-team squad', recruit: 'Recruitment', develop: 'Player development', reports: 'Opposition intelligence', news: 'Football world', analysis: 'Performance analysis', preview: 'Match preview', mp: 'Playing with other managers' };
+  function demoMatchPlayed() {
+    return !!(DEMO_MODE && world.league && world.league.fixtures.some((f) => f.played && (f.homeId === world.league.userId || f.awayId === world.league.userId)));
+  }
+  function showDemoComplete() {
+    if (!DEMO_MODE || document.getElementById('demoComplete')) return;
+    const modal = document.createElement('section');
+    modal.id = 'demoComplete'; modal.className = 'demo-complete';
+    modal.setAttribute('role', 'dialog'); modal.setAttribute('aria-modal', 'true'); modal.setAttribute('aria-labelledby', 'demoCompleteTitle');
+    modal.innerHTML = `<div class="demo-complete-inner">
+      <a class="demo-return" href="/learn/">← Return to LastMind</a>
+      <article class="demo-football-card">
+        <img src="/assets/create/football-manager.jpg" alt="A football manager on the touchline under stadium floodlights">
+        <div><span class="eyebrow">Your season starts here</span><h2 id="demoCompleteTitle">LastMind Football</h2><p>You have played the free match. Take Ashford Rovers through the full season, with every opponent, report and tactical test.</p></div>
+      </article>
+      <a class="demo-purchase" href="/learn/?needs=football">Purchase LastMind Football · £4.99/month</a>
+    </div>`;
+    document.body.appendChild(modal);
+    modal.querySelector('.demo-return').focus();
+  }
   // Lets another page (the Analysis Centre) open one of the tactics pages.
   // "Take me there" from another screen: a button stays on the tactics page that returns to the same place on the screen it came from.
   let backBtn = null;
@@ -1157,6 +1179,7 @@
     // The instruction box under one diagram. It is drawn again when a page is renamed, so its title follows the name as it is typed.
     const renderBox = (n) => {
       const f = all[n], at = host.querySelector('#dgInstr' + n);
+      if (DEMO_MODE) { if (at) at.remove(); return; }
       if (!instr || !f || !at) return;
       {
         // where the shirts are for this box's diagram: from its start to its end, which is what Haiku is given along with the wording
@@ -1277,6 +1300,7 @@
   // own page is in use.
   function renderPageInstructions(host, team, hooks, tab, stage) {
     if (!host) return;
+    if (DEMO_MODE) { host.innerHTML = ''; return; }
     FM.ensurePages(team);
     const pair = BOARD_PAIRS[tab], endKey = pair && pair[1].key;
     const dfl = (team.pageDefaults && team.pageDefaults[endKey]) || { label: 'Default page' };
@@ -1431,7 +1455,7 @@
   function renderScenarioTab(team, tab) {
     const host = el('tabBody');
     const defTab = tab === 'organised', sub = defTab ? (world.defSub || 'press') : tab;
-    host.innerHTML = (defTab ? '<div class="def-sub" role="tablist"><button data-sub="press" class="' + (sub === 'press' ? 'on' : '') + '">1. Pressing their build-up</button><button data-sub="organised" class="' + (sub === 'organised' ? 'on' : '') + '">2. Defending your third</button></div>' : '') + '<div id="scnHost"></div><div id="scnInstr"></div>';
+    host.innerHTML = (defTab ? '<div class="def-sub" role="tablist"><button data-sub="press" class="' + (sub === 'press' ? 'on' : '') + '">1. Pressing their build-up</button><button data-sub="organised" class="' + (sub === 'organised' ? 'on' : '') + '">2. Defending your third</button></div>' : '') + '<div id="scnHost"></div>' + (DEMO_MODE ? '' : '<div id="scnInstr"></div>');
     host.querySelectorAll('[data-sub]').forEach((b) => b.addEventListener('click', () => { world.defSub = b.dataset.sub; renderScenarioTab(team, tab); }));
     world.scn = world.scn || {};
     FM.renderScenario(host.querySelector('#scnHost'), team, nextOpponent(), sub, { store: world.scn, save: saveSoon, applied: (done) => {
@@ -1442,7 +1466,7 @@
       if (nb) nb.click();
     } });
     const ph = FM.SCENARIO_PHASES[sub];
-    FM.renderInstructions(host.querySelector('#scnInstr'), team, { save: saveSoon, opp: nextOpponent }, { stage: ph.stage, title: 'Anything else you want to tell them', applies: 'applies to this phase' });
+    if (!DEMO_MODE) FM.renderInstructions(host.querySelector('#scnInstr'), team, { save: saveSoon, opp: nextOpponent }, { stage: ph.stage, title: 'Anything else you want to tell them', applies: 'applies to this phase' });
   }
   function renderTransitionTab(team, tab) {
     const host = el('tabBody'), defensive = tab === 'transdef', key = defensive ? 'transDefChoices' : 'transAttChoices';
@@ -1458,11 +1482,11 @@
     team.tactics[key] = team.tactics[key] || {};
     host.innerHTML = `<div class="card transition-plan"><span class="eyebrow">${defensive ? 'Lost the ball in…' : 'Won the ball in…'}</span><h2>${defensive ? 'Defensive transition' : 'Attacking transition'}</h2><p class="desc">Choose what the team does first when it ${defensive ? 'loses' : 'wins'} the ball in each third of the pitch. The small pitches show how you have set the team up ${defensive ? 'for that part of the game' : 'to defend'}.</p>
       <div class="transition-zones">${zones.map(([z, n, k, cap]) => `<label><b>${n}</b><select data-zone="${z}">${options.map(([v, l]) => `<option value="${v}"${(team.tactics[key][z] || fallback) === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>`).join('')}</div>
-      <div id="transInstr"></div></div>`;
+      ${DEMO_MODE ? '' : '<div id="transInstr"></div>'}</div>`;
     host.querySelectorAll('[data-zone]').forEach((s) => s.addEventListener('change', () => { team.tactics[key][s.dataset.zone] = s.value; saveSoon(); }));
     world.redrawBoards = null;
     // one instruction box for the stage, as on the other pages
-    FM.renderInstructions(host.querySelector('#transInstr'), team, { save: saveSoon, opp: nextOpponent }, { stage: defensive ? 'transDef' : 'transAtt', title: 'Instructions: ' + (defensive ? 'after losing the ball' : 'after winning the ball'), applies: 'applies to this stage only' });
+    if (!DEMO_MODE) FM.renderInstructions(host.querySelector('#transInstr'), team, { save: saveSoon, opp: nextOpponent }, { stage: defensive ? 'transDef' : 'transAtt', title: 'Instructions: ' + (defensive ? 'after losing the ball' : 'after winning the ball'), applies: 'applies to this stage only' });
   }
 
   function renderTestPhase(team, phase) {
@@ -2089,8 +2113,16 @@
     VIEWS.forEach((k) => { el('view-' + k).hidden = true; });
     el('tactics').hidden = true; el('nav').hidden = true; el('prepFlow').hidden = true; el('newGame').hidden = false;
     el('topRight').innerHTML = ''; el('subtitle').textContent = 'Eight clubs, one season, and a lot of numbers.';
+    if (DEMO_MODE) {
+      const modes = el('newGame').querySelectorAll('.ng-mode');
+      modes.forEach((mode, i) => { mode.hidden = i !== 0; });
+      el('newGame').querySelector('h2').textContent = 'Play the free first match';
+      modes[0].querySelector('h3').textContent = 'Lastmind football demo';
+      modes[0].querySelector('.desc').textContent = 'Take charge of Ashford Rovers and play the opening match. No account or purchase is needed.';
+      el('ngStart').textContent = 'Start the demo';
+    }
   }
-  const openMp = (first) => FM.mpMenu({ start: (league) => { world.league = league; world.match = null; FM.saveLeague(league); if (FM.ensurePreseasonNews) FM.ensurePreseasonNews(league); try { history.replaceState(null, '', location.pathname); } catch (e) { /* fine */ } setView('mp'); } }, first);
+  const openMp = (first) => FM.mpMenu({ start: (league) => { world.league = league; world.match = null; FM.saveLeague(league); if (FM.ensurePreseasonNews) FM.ensurePreseasonNews(league); try { history.replaceState(null, '', cleanUrl()); } catch (e) { /* fine */ } setView('mp'); } }, first);
   el('ngLeague').addEventListener('click', () => openMp('league'));
   el('ngMatch').addEventListener('click', () => openMp('match'));
   el('ngJoin').addEventListener('click', () => openMp('join'));
@@ -2104,14 +2136,14 @@
     if (FM.transfer) FM.transfer(world.league);   // the opening offers are made now and saved with the game, not when a screen first asks
     await FM.playFriendlies(world.league, (i, n) => { btn.textContent = 'Playing pre-season friendlies (' + i + ' of ' + n + ')...'; });
     FM.saveLeague(world.league);
-    btn.disabled = false; btn.textContent = 'Start the season';
-    try { history.replaceState(null, '', location.pathname); } catch (e) { /* fine */ }
+    btn.disabled = false; btn.textContent = DEMO_MODE ? 'Start the demo' : 'Start the season';
+    try { history.replaceState(null, '', cleanUrl()); } catch (e) { /* fine */ }
     setView('squad');
   });
 
   // This is a paid project: an account without the subscription is sent to the checkout (and one that is not signed in is asked to sign in).
   // The AI features and the multiplayer are also refused by the server, whatever this page does.
-  if (FM.api) {
+  if (!DEMO_MODE && FM.api) {
     FM.api('/projects/access', { project: 'football' })
       .then((r) => { if (r && r.allowed === false) location.replace('/learn/?needs=football'); })
       .catch((e) => { if (e && (e.code === 'NO_SESSION' || e.code === '401' || e.code === '402' || e.code === 'PROJECT_SUBSCRIPTION_REQUIRED')) location.replace('/learn/?needs=football'); });
@@ -2127,6 +2159,7 @@
     if (FM.ensurePreseasonNews) { FM.ensurePreseasonNews(world.league); }
     FM.saveLeague(world.league);
     setView('home');
+    if (demoMatchPlayed()) { showDemoComplete(); requestAnimationFrame(frame); return; }
     // a game saved before friendlies existed: play them now so the reports have something to read
     if (FM.ensureFriendlies(world.league)) {
       const lg = world.league, redraw = () => { if (['reports', 'home', 'league'].indexOf(world.view) >= 0) setView(world.view); };
