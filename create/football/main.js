@@ -2086,6 +2086,13 @@
     setView('squad');
   });
 
+  // This is a paid project: an account without the subscription is sent to the checkout (and one that is not signed in is asked to sign in).
+  // The AI features and the multiplayer are also refused by the server, whatever this page does.
+  if (FM.api) {
+    FM.api('/projects/access', { project: 'football' })
+      .then((r) => { if (r && r.allowed === false) location.replace('/learn/?needs=football'); })
+      .catch((e) => { if (e && (e.code === 'NO_SESSION' || e.code === '401' || e.code === '402' || e.code === 'PROJECT_SUBSCRIPTION_REQUIRED')) location.replace('/learn/?needs=football'); });
+  }
   window.FM_WORLD = world; // debug handle for the console
   window.addEventListener('resize', resize);
   world.league = FM.loadLeague();

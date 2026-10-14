@@ -10726,7 +10726,7 @@ SQIDAQAB
             heading = 'Choose a project';
             backBtn = '<button type="button" class="create-back" id="createBackBtn" data-view="projects">← Your projects</button>';
             // every project on one page, with its price: no subject headings (the economics project is kept in the code but not offered)
-            const everySim = CREATE_TEMPLATES.reduce((all, t) => all.concat(t.simulations || []), []).filter((t) => t.key !== 'chancellor');
+            const everySim = CREATE_TEMPLATES.reduce((all, t) => all.concat(t.simulations || []), []).filter((t) => t.key !== 'chancellor' && t.key !== 'criminal-lawyer-career');
             body = `<div class="create-gallery">${everySim.map((t) => card(t, `role="button" tabindex="0" data-simulation="${t.key}"${t.href ? ` data-href="${t.href}"` : ''}`)).join('')}</div>`;
         } else if (subject) {
             heading = subject.title;
@@ -10753,11 +10753,52 @@ SQIDAQAB
         const back = document.getElementById('createBackBtn');
         if (back) back.addEventListener('click', () => renderCreatePage(back.dataset.view));
         contentInner.querySelectorAll('[data-template], [data-simulation]').forEach((el) => {
-            const open = () => { if (el.dataset.href) { window.location.href = el.dataset.href; return; } if (el.dataset.simulation === 'criminal-trial') createStartNewTrial(); renderCreatePage(el.dataset.template || el.dataset.simulation); };
+            const go = () => { if (el.dataset.href) { window.location.href = el.dataset.href; return; } if (el.dataset.simulation === 'criminal-trial') createStartNewTrial(); renderCreatePage(el.dataset.template || el.dataset.simulation); };
+            // a paid project: clicking its card checks the subscription, and shows the checkout if there is none
+            const paid = { 'football-manager': 'football', 'criminal-trial': 'law' }[el.dataset.simulation];
+            const open = () => { if (!paid) { go(); return; } lmEnsureProject(paid).then((ok) => { if (ok) go(); }); };
             el.addEventListener('click', open);
             el.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
         });
     }
+
+    // ─── Paid projects ───
+    // Asks the server whether this account has the project (the answer is never taken from the browser). If not, opens the Stripe checkout for it.
+    async function lmEnsureProject(project) {
+        try {
+            const client = window.supabaseClient;
+            const { data } = client ? await client.auth.getSession() : { data: null };
+            const token = data && data.session ? data.session.access_token : null;
+            if (!token) { alert('Sign in to LastMind to open this project.'); window.location.href = '/'; return false; }
+            const head = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token };
+            const a = await fetch(COMPILE_BACKEND_URL + '/projects/access', { method: 'POST', headers: head, body: JSON.stringify({ project }) });
+            const aj = await a.json().catch(() => ({}));
+            if (a.ok && aj.allowed) return true;
+            if (!a.ok && a.status !== 402) { alert(aj.error || 'Could not check your subscription just now. Try again in a moment.'); return false; }
+            const c = await fetch(BACKEND_URL + '/checkout/project', { method: 'POST', headers: head, body: JSON.stringify({ project }) });
+            const cj = await c.json().catch(() => ({}));
+            if (c.ok && cj.alreadySubscribed) return true;
+            if (c.ok && cj.url) { window.location.href = cj.url; return false; }
+            alert(cj.error || 'Could not open the checkout just now. Try again in a moment.');
+            return false;
+        } catch (err) {
+            alert('Could not reach LastMind just now. Check your connection and try again.');
+            return false;
+        }
+    }
+    window.lmEnsureProject = lmEnsureProject;
+    // coming here from a project page that needs a subscription (/learn/?needs=football)
+    (function () {
+        const need = new URLSearchParams(location.search).get('needs');
+        if (!need || ['football', 'law'].indexOf(need) < 0) return;
+        let tries = 0;
+        const t = setInterval(() => {
+            if (window.supabaseClient || ++tries > 40) {
+                clearInterval(t);
+                lmEnsureProject(need).then((ok) => { if (ok) window.location.href = need === 'football' ? '/create/football/?new=1' : '/learn/'; });
+            }
+        }, 250);
+    })();
 
     // ─── Text screening (mirrors the server: services/contentFilter.ts) ───
     // Vulgar language is refused and personal information is masked before anything a student types can reach the AI.
