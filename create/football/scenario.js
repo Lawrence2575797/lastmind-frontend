@@ -442,10 +442,10 @@
     });
     S.own.forEach((o, i) => {
       const hold = i === S.holder;
-      s += `<g data-own="${i}" style="cursor:grab"><circle cx="${X(o.x)}" cy="${Y(o.y)}" r="${1.75 * PS}" fill="${ok.shirt}" stroke="${hold ? '#FFE27A' : ok.number}" stroke-width="${hold ? 3.5 : 2}"/><text x="${X(o.x)}" y="${(+Y(o.y) + 4).toFixed(1)}" text-anchor="middle" font-size="12" font-weight="700" fill="${ok.number}" font-family="sans-serif" pointer-events="none">${o.p.number}</text><text x="${X(o.x)}" y="${(+Y(o.y) + 1.75 * PS + 12).toFixed(1)}" text-anchor="middle" font-size="10" fill="#fff" stroke="#000" stroke-width="2.5" style="paint-order:stroke" font-family="sans-serif" pointer-events="none">${esc(o.p.name.split(' ').slice(-1)[0])}</text></g>`;
+      s += `<g data-own="${i}" style="cursor:grab"><circle cx="${X(o.x)}" cy="${Y(o.y)}" r="${3.25 * PS}" fill="transparent"/><circle cx="${X(o.x)}" cy="${Y(o.y)}" r="${1.75 * PS}" fill="${ok.shirt}" stroke="${hold ? '#FFE27A' : ok.number}" stroke-width="${hold ? 3.5 : 2}"/><text x="${X(o.x)}" y="${(+Y(o.y) + 4).toFixed(1)}" text-anchor="middle" font-size="12" font-weight="700" fill="${ok.number}" font-family="sans-serif" pointer-events="none">${o.p.number}</text><text x="${X(o.x)}" y="${(+Y(o.y) + 1.75 * PS + 12).toFixed(1)}" text-anchor="middle" font-size="10" fill="#fff" stroke="#000" stroke-width="2.5" style="paint-order:stroke" font-family="sans-serif" pointer-events="none">${esc(o.p.name.split(' ').slice(-1)[0])}</text></g>`;
     });
     const b = S.ball;
-    s += `<g data-ball="1" style="cursor:grab"><circle cx="${X(b.x)}" cy="${Y(b.y)}" r="${1.25 * PS}" fill="transparent"/><circle cx="${X(b.x)}" cy="${Y(b.y)}" r="${0.95 * PS}" fill="#fff" stroke="#000" stroke-width="2"/></g>`;
+    s += `<g data-ball="1" style="cursor:grab"><circle cx="${X(b.x)}" cy="${Y(b.y)}" r="${2.2 * PS}" fill="transparent"/><circle cx="${X(b.x)}" cy="${Y(b.y)}" r="${0.95 * PS}" fill="#fff" stroke="#000" stroke-width="2" pointer-events="none"/></g>`;
     return s;
   }
 
@@ -547,7 +547,7 @@
       };
       step();
     });
-    const toBoard = (svg, ev) => { const r = svg.getBoundingClientRect(); return { x: clamp((ev.clientX - r.left) / r.width * W, 0, W), y: clamp((L + GOAL) - (ev.clientY - r.top) / r.height * (L + 2 * GOAL), 0, L) }; };
+    const toBoard = (svg, ev) => { const r = svg.getBoundingClientRect(), fingerLift = ev.pointerType === 'touch' ? 28 : 0; return { x: clamp((ev.clientX - r.left) / r.width * W, 0, W), y: clamp((L + GOAL) - (ev.clientY - fingerLift - r.top) / r.height * (L + 2 * GOAL), 0, L) }; };
     function wireDefend() {
       const q = (s2) => host.querySelector(s2), svg = q('#scnSvg');
       let drag = null;

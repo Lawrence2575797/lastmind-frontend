@@ -22075,6 +22075,21 @@ SQIDAQAB
     // the text of a question as a text box holds it: the maths shorthand (^(...), _(...), √) drawn as real superscripts and subscripts
     // the same drawing the rest of Notes uses: fractions, powers, subscripts, roots, and LaTeX between $ signs
     const psMath = (line) => (typeof nbMathInline === 'function' ? nbMathInline(String(line == null ? '' : line), { markdown: false }) : renderMathShorthand(line));
+    // Clipboard HTML often keeps superscripts and subscripts which a PDF viewer loses
+    // from its plain-text clipboard value. Convert them to Notes maths shorthand.
+    function psClipboardText(cd) {
+        const plain = String((cd && cd.getData('text/plain')) || '');
+        const html = String((cd && cd.getData('text/html')) || '');
+        if (!html) return plain;
+        const box = document.createElement('div'); box.innerHTML = html;
+        box.querySelectorAll('sub').forEach((n) => n.replaceWith(document.createTextNode('_(' + n.textContent + ')')));
+        box.querySelectorAll('sup').forEach((n) => n.replaceWith(document.createTextNode('^(' + n.textContent + ')')));
+        box.querySelectorAll('br').forEach((n) => n.replaceWith(document.createTextNode('\n')));
+        box.querySelectorAll('p,div,li,tr').forEach((n) => n.appendChild(document.createTextNode('\n')));
+        const rich = (box.innerText || box.textContent || '').replace(/\n{3,}/g, '\n\n').trim();
+        const bad = (s) => (s.match(/\uFFFD/g) || []).length;
+        return rich && bad(rich) <= bad(plain) && rich.length >= plain.trim().length * 0.7 ? rich : plain;
+    }
     function psTextHtml(t) {
         return String(t == null ? '' : t).split(/\n+/).map((line) => `<div>${psMath(line) || '<br>'}</div>`).join('');
     }
@@ -22344,7 +22359,12 @@ SQIDAQAB
         const opt = /^\s*\(?([a-hA-H])[.)]\s+(\S.*)$/;
         const head = [], qs = [];
         let cur = null, expected = 1;
-        String(raw || '').replace(/\r/g, '').split('\n').forEach((line) => {
+        // PDF copy often flattens a page into one paragraph. Restore only unmistakable
+        // question and lettered-part boundaries before splitting it.
+        const prepared = String(raw || '').replace(/\r/g, '')
+            .replace(/[\t ]+(?=(?:Q(?:uestion)?\.?\s*)?\d{1,2}\s*[.):]\s+)/gi, '\n')
+            .replace(/[\t ]+(?=\([a-hA-H]\)\s+)/g, '\n');
+        prepared.split('\n').forEach((line) => {
             const t = line.trim();
             if (!t) return;
             const m = qStart.exec(t);
@@ -22452,7 +22472,7 @@ SQIDAQAB
             const cd = e.clipboardData; if (!cd) return;
             const imgs = Array.from(cd.items || []).filter((x) => x.kind === 'file' && /^image\//.test(x.type)).map((x) => x.getAsFile()).filter(Boolean);
             if (imgs.length) { e.preventDefault(); addFiles(imgs.map((f, i) => (f.name && f.name !== 'image.png' ? f : new File([f], 'Screenshot ' + (items.length + i + 1) + '.png', { type: f.type })))); return; }
-            const text = cd.getData('text/plain');
+            const text = psClipboardText(cd);
             if (text && text.trim() && !(t && t.id === 'psText')) {
                 e.preventDefault();
                 items.push({ id: notesNewId(), kind: 'text', name: 'Pasted text: ' + text.trim().slice(0, 28).replace(/\s+/g, ' ') + (text.trim().length > 28 ? '…' : ''), text: text.slice(0, 40000) });
