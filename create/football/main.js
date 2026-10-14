@@ -762,11 +762,17 @@
     const result = last && last.result, rate = result && result.beat ? Math.round(result.beat.p * 100) : null;
     const problems = FM.teamProblems(me, opp, (ph) => oppLine(ph));
     const today = FM.userFixtureToday(lg), canPlay = !FM.seasonOver(lg);
+    const mpState = lg.mp && lg.mp.state;
+    const mpRoundPlans = mpState && mpState.plans ? (mpState.plans[String(mpState.round)] || {}) : {};
+    const mpSeats = mpState ? Object.keys(mpState.seats || {}) : [];
+    const mpYourPlan = !!(lg.mp && mpRoundPlans[lg.mp.teamId]);
+    const mpEveryoneReady = !!(lg.mp && mpSeats.length > 0 && (!lg.mp.kind || lg.mp.kind !== 'match' || mpSeats.length === 2) && mpSeats.every((id) => mpRoundPlans[id]));
+    const mpButtonLabel = mpYourPlan ? (mpEveryoneReady ? 'Start match' : 'Waiting for other players') : 'Lock in my plan';
     const findings = result ? `${last.n} build-up tests gave a ${rate}% press-beating rate${result.beat.lo != null ? `, with a ${Math.round(result.beat.lo * 100)}–${Math.round(result.beat.hi * 100)}% interval` : ''}.` : 'No phase experiment has been run for this opponent. That is optional—you can still use the current plan.';
     host.innerHTML = `<div class="match-preview">
       <div class="preview-hero"><div class="eyebrow">Round ${fx.round + 1} · ${home.id === me.id ? 'Home' : 'Away'}</div>
         <div class="preview-clubs"><div class="preview-club"><strong>${esc(home.name)}</strong><span>${esc(FM.formationName ? FM.formationName(home) : home.formationKey)}</span></div><div class="preview-v">VS</div><div class="preview-club"><strong>${esc(away.name)}</strong><span>${esc(FM.formationName ? FM.formationName(away) : away.formationKey)}</span></div></div>
-        <div class="preview-actions"><button id="previewTactics">Review tactics</button>${lg.mp && lg.mp.kind === 'match' ? '' : '<button id="previewTest">Run an experiment</button>'}<button class="primary" id="enterMatch"${canPlay ? '' : ' disabled'}>${canPlay ? (lg.mp ? 'Lock in my plan' : 'Play match') : 'Season complete'}</button></div></div>
+        <div class="preview-actions"><button id="previewTactics">Review tactics</button>${lg.mp && lg.mp.kind === 'match' ? '' : '<button id="previewTest">Run an experiment</button>'}<button class="primary" id="enterMatch"${canPlay && (!lg.mp || !mpYourPlan || mpEveryoneReady) ? '' : ' disabled'}>${canPlay ? (lg.mp ? mpButtonLabel : 'Play match') : 'Season complete'}</button></div></div>
       <div class="preview-grid">
         <div class="card"><h2>Your match plan</h2><p class="fixture-big">${esc(FM.formationName ? FM.formationName(me) : me.formationKey)}</p><p class="desc">${(me.rules || []).filter((r) => !r.off).length} active player or team instruction${(me.rules || []).filter((r) => !r.off).length === 1 ? '' : 's'}.</p><p class="note">${problems.length ? problems.length + ' positional issue' + (problems.length === 1 ? '' : 's') + ' still need attention.' : 'Every phase currently fits together.'}</p></div>
         <div class="card"><h2>Opponent</h2><p class="fixture-big">${esc(opp.name)}</p><p class="desc">${FM.derbyBetween && FM.derbyBetween(me.name, opp.name) ? '<b>' + esc(FM.derbyBetween(me.name, opp.name).name) + '</b> · ' : ''}${esc(profile.tag || 'Opponent')} · likely ${esc(opp.formationKey)} · ${esc({ balanced:'balanced',possession:'patient in possession',counter:'dangerous in transition',press:'aggressive without the ball',direct:'direct with the ball' }[opp.style] || opp.style)}.</p></div>
@@ -778,12 +784,28 @@
     host.querySelector('#enterMatch').addEventListener('click', async () => {
       if (!canPlay) return;
       // With other managers the round is not played from here: the plan is handed in, and the round is played once everybody has
-      if (lg.mp) { const b = host.querySelector('#enterMatch'); b.disabled = true; b.textContent = 'Handing in...'; try { await FM.mpSubmit(lg); await FM.mpSync(lg); } catch (e) { /* the game screen shows what went wrong */ } setView('mp'); return; }
+      if (lg.mp) {
+        const b = host.querySelector('#enterMatch');
+        b.disabled = true;
+        if (mpYourPlan && mpEveryoneReady) {
+          b.textContent = 'Starting match...';
+          try { await FM.mpSync(lg, { playReady: true }); FM.saveLeague(lg); setView('mp'); } catch (e) { b.disabled = false; b.textContent = 'Start match'; }
+        } else {
+          b.textContent = 'Handing in...';
+          try { await FM.mpSubmit(lg); FM.saveLeague(lg); renderPreview(); } catch (e) { b.disabled = false; b.textContent = 'Lock in my plan'; }
+        }
+        return;
+      }
       // Move on to the next matchday. The day is still the one the last match was played on, so "a fixture today" is not enough: it has to be one
       // that has not been played yet.
       for (let guard = 0; guard < 30 && !FM.seasonOver(lg); guard++) { const today = FM.userFixtureToday(lg); if (today && !today.played) break; if (FM.advanceDay(lg)) break; }
       FM.saveLeague(lg); beginPreMatchInterview();
     });
+    if (host._mpPreviewTimer) clearInterval(host._mpPreviewTimer);
+    if (lg.mp && !mpState?.finished) host._mpPreviewTimer = setInterval(async () => {
+      if (!host.isConnected || world.view !== 'preview') { clearInterval(host._mpPreviewTimer); host._mpPreviewTimer = null; return; }
+      try { await FM.mpSync(lg); renderPreview(); } catch (e) { /* keep the current readiness state and try again */ }
+    }, 3000);
   }
 
   // ---------- home ----------

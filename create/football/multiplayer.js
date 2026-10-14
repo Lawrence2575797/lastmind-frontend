@@ -149,7 +149,10 @@
     const key = String(g.state.round), handed = g.state.plans[key] || {}, seated = Object.keys(g.state.seats);
     const everyone = seated.length > 0 && seated.every((t) => handed[t]);
     const idle = Date.now() - Date.parse(g.state.roundAt || 0) > (g.state.deadlineMs || 24 * 60 * 60 * 1000) && !!g.state.roundAt;
-    const ready = (g.state.kind === 'match' ? seated.length === 2 : true) && (everyone || idle);
+    // Handing in a plan and starting the match are separate actions. A
+    // completed set of plans waits for a manager to press Start match;
+    // an expired deadline can still advance automatically as before.
+    const ready = (g.state.kind === 'match' ? seated.length === 2 : true) && (idle || (everyone && opts && opts.playReady));
     if (!g.state.finished && ready && mp.localRound === g.state.round) {
       const scores = await FM.mpResolve(league, g.state.round, withLast(g.state, g.state.round), seated);
       mp.localRound++; changed = true;
@@ -265,9 +268,10 @@
     if (!mp) { host.innerHTML = '<div class="card"><p class="desc">This is not a game with other managers.</p></div>'; return; }
     const st = mp.state || { seats: {}, plans: {}, round: 0, played: [], teams: [] }, you = mp.teamId;
     const round = st.round, handed = (st.plans && st.plans[String(round)]) || {}, seated = Object.keys(st.seats || {});
-    const waiting = seated.filter((t) => !handed[t]);
-    const finished = !!st.finished;
     const isMatch = mp.kind === 'match';
+    const waiting = seated.filter((t) => !handed[t]);
+    const everyoneReady = seated.length > 0 && waiting.length === 0 && (!isMatch || seated.length === 2);
+    const finished = !!st.finished;
     const yourIn = !!handed[you];
     const allClubs = isMatch ? seated : (st.teams || []);
     const seatRow = (t) => {
@@ -293,7 +297,7 @@
       : isMatch && seated.length < 2
         ? '<p class="desc">Waiting for the other manager to join with this code. You can prepare in the meantime: set up your team, then lock in your plan.</p>'
         : yourIn
-          ? `<p class="desc">Your plan is in${waiting.length ? ', waiting for ' + waiting.map((t) => esc(st.seats[t].name)).join(' and ') : ': playing the round now'}. You can change it and hand it in again until the round is played.</p>`
+          ? `<p class="desc">Your plan is in${waiting.length ? ', waiting for ' + waiting.map((t) => esc(st.seats[t].name)).join(' and ') : ': the match is ready to start'}. You can change it and hand it in again until the round is played.</p>`
           : `<p class="desc">Prepare your team, then lock in your plan for ${isMatch ? 'the match' : 'round ' + (round + 1)}. Nothing happens until you do.</p>`;
     host.innerHTML = `<div class="mp-view">
       <div class="card"><div class="mp-code"><span>Game code</span><b id="mpCode">${esc(mp.code)}</b><button type="button" id="mpCopy">Copy</button></div>
@@ -302,7 +306,11 @@
         <div class="tablewrap"><table class="data"><thead><tr><th class="l">Club</th><th class="l">Manager</th><th class="l">${finished ? '' : 'Round ' + (round + 1)}</th></tr></thead><tbody>${allClubs.map(seatRow).join('')}</tbody></table></div>
         ${cta}${dueHtml}
         <div class="row">
-          ${finished ? '' : `<button class="primary" id="mpSubmit">${yourIn ? 'Hand in my plan again' : 'Lock in my plan'}</button><button id="mpPrepare">Prepare my team</button>`}
+          ${finished ? '' : yourIn && everyoneReady
+            ? '<button class="primary" id="mpStart">Start match</button><button id="mpPrepare">Update my plan</button>'
+            : yourIn
+              ? '<button class="primary" type="button" disabled>Waiting for other players</button><button id="mpPrepare">Update my plan</button>'
+              : '<button class="primary" id="mpSubmit">Lock in my plan</button><button id="mpPrepare">Prepare my team</button>'}
           
           <button id="mpRefresh">Check for news</button>
         </div>
@@ -332,6 +340,12 @@
       mp.onProgress = (i, n) => { sub.textContent = 'Playing the round (' + i + ' of ' + n + ' matches)...'; };
       try { await FM.mpSubmit(league); await FM.mpSync(league); if (hooks && hooks.afterSync) hooks.afterSync(true); } catch (e) { err(e.message || 'Could not hand in your plan.'); }
       if (host.isConnected) FM.renderMp(host, league, hooks);
+    });
+    const start = q('#mpStart');
+    if (start) start.addEventListener('click', async () => {
+      start.disabled = true; err(''); start.textContent = 'Starting match...';
+      mp.onProgress = (i, n) => { start.textContent = 'Playing the round (' + i + ' of ' + n + ' matches)...'; };
+      await refresh({ playReady: true });
     });
     const watch = q('#mpWatch'); if (watch) watch.addEventListener('click', () => { replayModal(league, FM.mpReplay, () => { if (host.isConnected) FM.renderMp(host, league, hooks); }); });
     const skipW = q('#mpSkipWatch'); if (skipW) skipW.addEventListener('click', () => { FM.mpReplay.seen = true; FM.renderMp(host, league, hooks); });
