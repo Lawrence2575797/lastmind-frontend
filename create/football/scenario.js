@@ -613,7 +613,8 @@
         // pressing a build-up is over once they are through it: the ball carried or played beyond their half
         if (ph.endAtHalf && !S.ended && m.ball.x < L / 2) { text += ' They are through the press: the pressing is done.'; S.ended = true; }
         S.say = missText + text;
-        const t0 = Date.now(), dur = 650;
+        // everyone moves together, over a little under the time the engine ran for
+        const t0 = Date.now(), dur = clamp((m.clock - S.t0) * 600, 700, 5000);
         await new Promise((resolve) => {
           const step = () => {
             const k = clamp((Date.now() - t0) / dur, 0, 1), e = k * (2 - k);
@@ -663,7 +664,7 @@
           later.forEach((k) => { u0.phasePos[k] = Object.assign({}, ahead[k]); u0.scenarioEnd[k] = Object.assign({}, ahead[k]); });
           if (hooks && hooks.save) hooks.save();
           armEngine(S);
-        }
+        } else S.own.forEach((o, i) => { const p = S.eng.u.players[i]; if (p) { p.x = o.y; p.y = o.x; p.vx = 0; p.vy = 0; } });   // the team defends from where it was placed
         S.say = S.defending ? 'They have the ball. Set your team.' : 'You have the ball. Your move.';
         draw();
       });
