@@ -188,14 +188,15 @@
     match.phase = 'play'; match.kickoffTimer = 0; match.clock = 0; match.restart = null; match.flight = null; match.carry = null; match.events = [];
     match.teams.forEach((t) => { t.phaseCtx = {}; t.offsideLine = null; });
     const gk = team.players.find((p) => p.group === 'GK') || team.players[0];
-    const spot = FM.toMetres(dir, kind === 'goalkick' ? 0.05 : 0.07, 0.6);
+    const goalKick = kind === 'goalkick' || kind === 'keeper';   // a goal kick has to be passed: the keeper cannot run with it
+    const spot = FM.toMetres(dir, goalKick ? 0.05 : 0.07, 0.6);
     match.ball.x = spot.x; match.ball.y = spot.y; match.ball.state = 'carried';
     [team, opp].forEach((t) => t.players.forEach((p) => { const q = FM.targetFor(t, p, match.ball, t === team); p.x = q.x; p.y = q.y; p.vx = 0; p.vy = 0; }));
     gk.x = spot.x - dir * 0.7; gk.y = spot.y;
     match.lastTeam = team; match.lastChange = null;
     giveBall(match, team, gk, 1.2);
     match.lastChange = null;   // the keeper has the ball in open play or from a goal kick: nobody has just lost it, so there is no counter-press to begin with
-    if (kind === 'goalkick') { match.forcePass = true; match.noOffside = true; }
+    if (goalKick) { match.forcePass = true; match.noOffside = true; }
   };
   // A move through midfield: the ball with a midfielder on the edge of his own third, the team in the shape it has for that moment, the
   // opposition set up for it. Used by the midfield test.

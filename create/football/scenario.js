@@ -791,6 +791,11 @@
         const own = ev.target.closest && ev.target.closest('[data-own]'), ball = ev.target.closest && ev.target.closest('[data-ball]');
         svg.setPointerCapture(ev.pointerId);
         const p = toBoard(svg, ev);
+        // from a goal kick the keeper has to pass it: he cannot dribble out with it
+        if (own && phase === 'build' && +own.dataset.own === S.holder && S.own[S.holder].p.group === 'GK' && !S.beats.some((b) => b.type === 'pass')) {
+          say('A goal kick has to be passed: the goalkeeper cannot run with it. Drag the ball to where you want it to go.');
+          ev.preventDefault(); return;
+        }
         if (own) { drag = { kind: 'move', timer: null, target: null, released: false, i: +own.dataset.own, from: { x: S.own[+own.dataset.own].x, y: S.own[+own.dataset.own].y }, ballFrom: { x: S.ball.x, y: S.ball.y } }; }
         else if (ball) drag = { kind: 'ball' };
         ev.preventDefault();
