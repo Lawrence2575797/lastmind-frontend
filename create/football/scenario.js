@@ -64,7 +64,9 @@
   // our players, where the scenario has them (and, when we have the ball, the ball with the man who has it)
   // The man with the ball and any man the manager has placed himself stay where the board has them; every other player of ours moves as the
   // team would, by its instructions or else the formation's own positions, so the shape follows the ball while someone dribbles or passes.
-  const held = (S, i) => !S.attack || i === S.holder || !!(S.pins && S.pins[i]);
+  // When defending nobody is the man on the ball: only the ones the manager has put somewhere himself stay put, and the rest of the team
+  // defends as it would, moving as the other side move the ball.
+  const held = (S, i) => (S.attack ? i === S.holder : false) || !!(S.pins && S.pins[i]);
   function syncOwn(S) {
     const { m, u } = S.eng;
     S.own.forEach((o, i) => { const p = u.players[i]; if (!p || !held(S, i)) return; p.x = o.y; p.y = o.x; p.vx = 0; p.vy = 0; });
@@ -125,7 +127,7 @@
       if (!S.attack && S.stopOn && S.stopOn(m)) break;
     }
     S.own.forEach((q, i) => { const p = u.players[i]; if (!p) return; if (held(S, i)) { p.x = q.y; p.y = q.x; } else { q.x = p.y; q.y = p.x; } });
-    if (S.attack) keepApart(S);
+    keepApart(S);
     for (let e = from; e < m.events.length; e++) out.push(m.events[e]);
     readOpp(S);
     return out;
@@ -551,7 +553,7 @@
         drag = { i: +own.dataset.own };
         ev.preventDefault();
       });
-      svg.addEventListener('pointermove', (ev) => { if (!drag) return; const p = toBoard(svg, ev), o = S.own[drag.i]; o.x = p.x; o.y = p.y; redraw(); });
+      svg.addEventListener('pointermove', (ev) => { if (!drag) return; const p = toBoard(svg, ev), o = S.own[drag.i]; o.x = p.x; o.y = p.y; S.pins = S.pins || {}; S.pins[drag.i] = true; redraw(); });
       // The man they have the ball with, and whether one of ours is near enough to go for it. Close him down and he can be tackled: his tackling
       // against the carrier's dribbling, a little better the closer he gets. A miss lets the carrier get past him, and play goes on.
       const carrierNow = () => { const c = S.eng.m.carrier; return c && c.team === S.eng.o ? { p: c.player, x: c.player.y, y: c.player.x } : null; };
@@ -590,10 +592,11 @@
         S.snaps.push({ ballX: m.ball.x, own: S.own.map((o) => ({ x: o.x, y: o.y })) });
         S.evFrom = m.events.length; S.t0 = m.clock;
         S.stopOn = (mm) => { const last = mm.events[mm.events.length - 1]; return mm.events.length > S.evFrom && last && ['pass', 'shot', 'dribble', 'tackle', 'goal'].indexOf(last.type) >= 0 && mm.clock - S.t0 > 0.8; };
-        const starts = S.opp.map((o) => ({ x: o.x, y: o.y })), b0 = { x: S.ball.x, y: S.ball.y };
+        const starts = S.opp.map((o) => ({ x: o.x, y: o.y })), b0 = { x: S.ball.x, y: S.ball.y }, ownStarts = S.own.map((o) => ({ x: o.x, y: o.y }));
         const evs = runEngine(S, 9);
-        const ends = S.opp.map((o) => ({ x: o.x, y: o.y })), b1 = { x: m.ball.y, y: m.ball.x };
+        const ends = S.opp.map((o) => ({ x: o.x, y: o.y })), b1 = { x: m.ball.y, y: m.ball.x }, ownEnds = S.own.map((o) => ({ x: o.x, y: o.y }));
         S.opp.forEach((o, i) => { o.x = starts[i].x; o.y = starts[i].y; });
+        S.own.forEach((o, i) => { o.x = ownStarts[i].x; o.y = ownStarts[i].y; });
         const name = (n) => { const p = S.eng.o.players.find((q2) => q2.number === n); return p ? nm(p) : '#' + n; };
         const last = evs.filter((e) => ['pass', 'shot', 'dribble', 'tackle', 'goal'].indexOf(e.type) >= 0).pop();
         let text = 'They keep the ball.';
@@ -615,6 +618,7 @@
           const step = () => {
             const k = clamp((Date.now() - t0) / dur, 0, 1), e = k * (2 - k);
             S.opp.forEach((o, i) => { o.x = starts[i].x + (ends[i].x - starts[i].x) * e; o.y = starts[i].y + (ends[i].y - starts[i].y) * e; });
+            S.own.forEach((o, i) => { o.x = ownStarts[i].x + (ownEnds[i].x - ownStarts[i].x) * e; o.y = ownStarts[i].y + (ownEnds[i].y - ownStarts[i].y) * e; });
             S.ball = { x: b0.x + (b1.x - b0.x) * e, y: b0.y + (b1.y - b0.y) * e };
             redraw();
             if (k < 1) setTimeout(step, 16); else resolve();
