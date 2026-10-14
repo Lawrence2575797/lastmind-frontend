@@ -10707,7 +10707,14 @@ SQIDAQAB
         if (view === 'projects') { renderSimulateHome(contentInner); return; }
         if (view === 'criminal-trial') { if (lawDemoOpening) renderCreateTrialBuilder(contentInner); else renderCreatePage('law'); return; }
         if (view === 'chancellor') { renderChancellorBuilder(contentInner); return; }
-        if (view === 'criminal-lawyer-career') { renderCareerHome(contentInner); return; }
+        if (view === 'criminal-lawyer-career') {
+            // however this is reached, the account's law subscription is checked with the server first (once per visit to the page)
+            if (!window.__lmLawOk) {
+                lmEnsureProject('law').then((ok) => { if (ok) { window.__lmLawOk = true; renderCreatePage('criminal-lawyer-career'); } else renderCreatePage('gallery'); });
+                return;
+            }
+            renderCareerHome(contentInner); return;
+        }
         if (/^doctor-(gcse|alevel|psych)$/.test(view)) { renderDoctorCareer(contentInner, view.slice(7)); return; }
         // what each project costs: the law and football projects are £4.99 a month; the biology and psychology ones are free
         const CREATE_PRICES = { 'criminal-trial': '£4.99 / month', 'criminal-lawyer-career': '£4.99 / month', 'football-manager': '£4.99 / month', 'doctor-gcse': 'Free', 'doctor-alevel': 'Free', 'doctor-psych': 'Free' };
@@ -11776,7 +11783,8 @@ SQIDAQAB
         const had = list.some((p) => p.kind === 'criminal-lawyer-career');
         const rest = list.filter((p) => p.kind !== 'criminal-lawyer-career');
         const meta = careerLocalSummary();
-        return had || meta ? [{ id: 'local-law-career', title: 'Criminal Lawyer Career', kind: 'criminal-lawyer-career', meta: meta || '', isReference: false, updatedAt: new Date().toISOString() }, ...rest] : rest;
+        void had; void meta;
+        return rest;   // the career is entered from its card on the projects page and nowhere else: no entry in Your projects
     }
     const createWithFootball = (list0) => { let list = list0; try { list = createWithCareer(list0); } catch (err) { console.error('LastMind: career entry failed.', err); } try { const local = doctorProjects(), have = new Set(local.map((p) => p.track)), isDoc = (p) => String(p.kind || '').startsWith('doctor-career'); const remote = list.filter((p) => isDoc(p) && p.kind !== 'doctor-career').map((p) => ({ id: p.id, title: p.title, kind: 'doctor-career', track: String(p.kind).replace('doctor-career-', ''), meta: 'Saved to your account', isReference: false, updatedAt: p.updatedAt })).filter((p) => !have.has(p.track)); list = [...local, ...remote, ...list.filter((p) => !isDoc(p))]; } catch (err) { console.error('LastMind: doctor entry failed.', err); } const fp = createFootballProject(), cp = createChancellorProject(); list = list.filter((p) => p.id !== 'local-football-manager' && p.id !== 'local-chancellor'); if (cp) list.unshift(cp); if (fp) list.unshift(fp); return list; };
     async function createLoadProjects() {
