@@ -496,7 +496,7 @@
     return league;
   };
   // The Create page's "Your projects" list reads this entry (same browser storage), so the season shows up there with a Resume button.
-  const PROJECTS_KEY = 'lastmind-create-projects', PROJECT_ID = 'local-football-manager';
+  const PROJECTS_KEY = 'lastmind-create-projects', PROJECT_ID = DEMO_MODE ? 'local-football-demo' : 'local-football-manager';
   FM.syncProject = function (league) {
     try {
       let list = JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]');
@@ -506,15 +506,15 @@
         const pos = FM.tableRows(league).findIndex((r) => r.id === league.userId) + 1;
         const ord = (n) => n + (['th', 'st', 'nd', 'rd'][(n % 100 > 10 && n % 100 < 14) || n % 10 > 3 ? 0 : n % 10]);
         const tier = { gcse: 'GCSE', alevel: 'A-level', above: 'Beyond A-level' }[league.tier] || league.tier;
-        list.unshift({ id: PROJECT_ID, title: 'Be the manager: ' + user.name, kind: 'football-manager', updatedAt: new Date().toISOString(), isReference: false,
-          data: { href: '/create/football/', meta: 'Season ' + league.season + ' · ' + (played >= 14 ? 'season complete' : played + ' of 14 played') + (played ? ' · ' + ord(pos) + ' in the table' : '') + ' · ' + tier + ' statistics' } });
+        list.unshift({ id: PROJECT_ID, title: DEMO_MODE ? 'Lastmind football demo' : 'Be the manager: ' + user.name, kind: DEMO_MODE ? 'football-demo' : 'football-manager', updatedAt: new Date().toISOString(), isReference: false,
+          data: { href: DEMO_MODE ? '/create/football/?demo=1' : '/create/football/', meta: DEMO_MODE ? 'Opening match · ' + tier + ' statistics' : 'Season ' + league.season + ' · ' + (played >= 14 ? 'season complete' : played + ' of 14 played') + (played ? ' · ' + ord(pos) + ' in the table' : '') + ' · ' + tier + ' statistics' } });
       }
       localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
     } catch (e) { /* the projects list is a convenience */ }
   };
   FM.saveLeague = function (league) {
     const done = FM.saveLeagueRaw(league);
-    if (done && !DEMO_MODE) FM.syncProject(league);
+    if (done) FM.syncProject(league);
     return done;
   };
   FM.saveLeagueRaw = function (league) {
@@ -560,7 +560,7 @@
     try {
       const t = localStorage.getItem(SAVE_KEY), lg = t ? FM.deserializeLeague(t) : null;
       if (lg) lg.teams.forEach((tm) => { tm.squad.forEach((p) => FM.backfillPhysique(p)); FM.migrateRoles(tm); }); // saves from before heights existed and before the positional roles went
-      if (!DEMO_MODE) FM.syncProject(lg); // the paid season appears in Your projects; the one-match demo stays separate
+      FM.syncProject(lg);
       return lg;
     } catch (e) { return null; }
   };

@@ -3,6 +3,7 @@
 (function () {
   const FM = (window.FM = window.FM || {});
   const BACKEND = 'https://lastmind-compile-backend.onrender.com';
+  const BILLING_BACKEND = 'https://lastmind-stripe-backend.onrender.com';
   const SUPABASE_URL = 'https://evgdecewwmkupiadgfop.supabase.co';
   const SUPABASE_ANON_KEY = 'sb_publishable_Bb-f61P1zqy_xW63D26nUw_VTOVXaub';   // the public (publishable) key, the same one every LastMind page carries
   let client = null;
@@ -17,5 +18,16 @@
     const json = await resp.json().catch(() => ({}));
     if (!resp.ok) { const e = new Error(json.detail || json.error || 'LastMind could not read that just now. Try again, or build it with the options.'); e.code = json.code || String(resp.status); throw e; }
     return json;
+  };
+  FM.purchaseFootball = async function () {
+    if (!window.supabase || !window.supabase.createClient) throw new Error('The sign-in could not load. Check your connection and try again.');
+    if (!client) client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { data } = await client.auth.getSession();
+    if (!data || !data.session) { location.href = '/?returnTo=' + encodeURIComponent('/create/football/?demo=1'); return; }
+    const resp = await fetch(BILLING_BACKEND + '/checkout/project', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + data.session.access_token }, body: JSON.stringify({ project: 'football' }) });
+    const json = await resp.json().catch(() => ({}));
+    if (resp.ok && json.url) { location.href = json.url; return; }
+    if (resp.ok && json.alreadySubscribed) { location.href = '/create/football/?new=1'; return; }
+    throw new Error(json.error || 'Could not open the secure checkout. Try again in a moment.');
   };
 })();

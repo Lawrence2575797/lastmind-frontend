@@ -10850,7 +10850,11 @@ SQIDAQAB
                 if (!token) return;
                 const r = await fetch(COMPILE_BACKEND_URL + '/projects/access', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ project }) });
                 const j = await r.json().catch(() => ({}));
-                if (r.ok && j.allowed) { clearInterval(t); banner(name + ' is unlocked.'); if (typeof renderCreatePage === 'function') renderCreatePage('gallery'); }
+                if (r.ok && j.allowed) {
+                    clearInterval(t); banner(name + ' is unlocked.');
+                    if (project === 'football') { window.location.replace('/create/football/?new=1'); return; }
+                    if (typeof renderCreatePage === 'function') renderCreatePage('gallery');
+                }
             } catch (err) { /* try again */ }
             if (tries > 40) clearInterval(t);
         }, 1500);
@@ -11750,14 +11754,15 @@ SQIDAQAB
     }
     // The football manager season is saved by its own page. Read that save directly, so it is listed as a project even if the game page
     // has not been opened since this list was added.
-    function createFootballProject() {
+    function createFootballProject(demo = false) {
         try {
-            const raw = localStorage.getItem('lm_football_save_v1');
+            const raw = localStorage.getItem(demo ? 'lm_football_demo_save_v1' : 'lm_football_save_v1');
             if (!raw) return null;
             const d = JSON.parse(raw);
             const team = (d.teams || []).find((t) => t.id === d.userId);
             if (!team) return null;
             const mine = (d.fixtures || []).filter((f) => f.played && (f.homeId === d.userId || f.awayId === d.userId)).length;
+            if (demo && mine > 0) return null;
             const rows = {};
             (d.teams || []).forEach((t) => { rows[t.id] = { id: t.id, pts: 0, gf: 0, ga: 0 }; });
             (d.fixtures || []).filter((f) => f.played).forEach((f) => {
@@ -11769,9 +11774,9 @@ SQIDAQAB
             const pos = order.findIndex((r) => r.id === d.userId) + 1;
             const ord = (n) => n + (['th', 'st', 'nd', 'rd'][(n % 100 > 10 && n % 100 < 14) || n % 10 > 3 ? 0 : n % 10]);
             const tier = { gcse: 'GCSE', alevel: 'A-level', above: 'Beyond A-level' }[d.tier] || d.tier;
-            return { id: 'local-football-manager', title: 'Be the manager: ' + team.name, kind: 'football-manager', href: '/create/football/', isReference: false, local: true,
+            return { id: demo ? 'local-football-demo' : 'local-football-manager', title: demo ? 'Lastmind football demo' : 'Be the manager: ' + team.name, kind: demo ? 'football-demo' : 'football-manager', href: demo ? '/create/football/?demo=1' : '/create/football/', isReference: false, local: true,
                 updatedAt: new Date().toISOString(),
-                meta: 'Season ' + d.season + ' · ' + (mine >= 14 ? 'season complete' : mine + ' of 14 played') + (mine ? ' · ' + ord(pos) + ' in the table' : '') + ' · ' + tier + ' statistics' };
+                meta: demo ? 'Opening match · ' + tier + ' statistics' : 'Season ' + d.season + ' · ' + (mine >= 14 ? 'season complete' : mine + ' of 14 played') + (mine ? ' · ' + ord(pos) + ' in the table' : '') + ' · ' + tier + ' statistics' };
         } catch (err) { return null; }
     }
     // Be the Chancellor also runs on its own full-window page. Its real
@@ -11832,7 +11837,7 @@ SQIDAQAB
         void had; void meta;
         return rest;   // the career is entered from its card on the projects page and nowhere else: no entry in Your projects
     }
-    const createWithFootball = (list0) => { let list = list0; try { list = createWithCareer(list0); } catch (err) { console.error('LastMind: career entry failed.', err); } try { const local = doctorProjects(), have = new Set(local.map((p) => p.track)), isDoc = (p) => String(p.kind || '').startsWith('doctor-career'); const remote = list.filter((p) => isDoc(p) && p.kind !== 'doctor-career').map((p) => ({ id: p.id, title: p.title, kind: 'doctor-career', track: String(p.kind).replace('doctor-career-', ''), meta: 'Saved to your account', isReference: false, updatedAt: p.updatedAt })).filter((p) => !have.has(p.track)); list = [...local, ...remote, ...list.filter((p) => !isDoc(p))]; } catch (err) { console.error('LastMind: doctor entry failed.', err); } const fp = createFootballProject(), cp = createChancellorProject(); list = list.filter((p) => p.id !== 'local-football-manager' && p.id !== 'local-chancellor'); if (cp) list.unshift(cp); if (fp) list.unshift(fp); return list; };
+    const createWithFootball = (list0) => { let list = list0; try { list = createWithCareer(list0); } catch (err) { console.error('LastMind: career entry failed.', err); } try { const local = doctorProjects(), have = new Set(local.map((p) => p.track)), isDoc = (p) => String(p.kind || '').startsWith('doctor-career'); const remote = list.filter((p) => isDoc(p) && p.kind !== 'doctor-career').map((p) => ({ id: p.id, title: p.title, kind: 'doctor-career', track: String(p.kind).replace('doctor-career-', ''), meta: 'Saved to your account', isReference: false, updatedAt: p.updatedAt })).filter((p) => !have.has(p.track)); list = [...local, ...remote, ...list.filter((p) => !isDoc(p))]; } catch (err) { console.error('LastMind: doctor entry failed.', err); } const fp = createFootballProject(), dp = createFootballProject(true), cp = createChancellorProject(); list = list.filter((p) => !['local-football-manager', 'local-football-demo', 'local-chancellor'].includes(p.id)); if (cp) list.unshift(cp); if (fp) list.unshift(fp); if (dp) list.unshift(dp); return list; };
     async function createLoadProjects() {
         // The career is saved under a per-account key that is only worked out once the career is opened, so settle it here first or a
         // fresh visit to the list reads the wrong key and the career never shows.
@@ -11886,6 +11891,7 @@ SQIDAQAB
     }
     async function createDeleteProject(id) {
         if (id === 'local-football-manager') { try { localStorage.removeItem('lm_football_save_v1'); } catch (err) { /* nothing to remove */ } }
+        if (id === 'local-football-demo') { try { localStorage.removeItem('lm_football_demo_save_v1'); } catch (err) { /* nothing to remove */ } }
         if (id === 'local-chancellor') { try { localStorage.removeItem(CHN_GAME_KEY); } catch (err) { /* nothing to remove */ } }
         if (String(id).startsWith('local-')) { createSetLocalProjects(createLocalProjects().filter((p) => p.id !== id)); return; }
         await createAuthedFetch(`/create/projects/${encodeURIComponent(id)}`, { method: 'DELETE' });
@@ -11897,7 +11903,7 @@ SQIDAQAB
     function simProjectInfo(p, isRef) {
         const image = (() => {
             if (p.kind === 'chancellor') return '/assets/create/chancellor.jpg';
-            if (p.kind === 'football-manager') return '/assets/create/football-manager.svg';
+            if (p.kind === 'football-manager' || p.kind === 'football-demo') return '/assets/create/football-manager.jpg';
             if (p.kind === 'criminal-lawyer-career') return '/assets/create/criminal-lawyer-career.jpg';
             if (p.kind === 'doctor-career' && p.track === 'psych') return '/assets/create/psychology-career.jpg';
             if (p.kind === 'doctor-career' && p.track === 'alevel') return '/assets/create/doctor-career-alevel.jpg';
@@ -11906,18 +11912,18 @@ SQIDAQAB
         })();
         const meta = p.kind === 'doctor-career' ? 'Career' + (p.meta ? ' · ' + p.meta : '')
             : p.kind === 'criminal-lawyer-career' ? 'Career' + (p.meta ? ' · ' + p.meta : '')
-            : p.kind === 'football-manager' ? 'Football manager' + (p.meta ? ' · ' + p.meta : '')
+            : (p.kind === 'football-manager' || p.kind === 'football-demo') ? (p.kind === 'football-demo' ? 'Football demo' : 'Football manager') + (p.meta ? ' · ' + p.meta : '')
             : p.kind === 'chancellor' ? 'Economics simulation' + (p.meta ? ' · ' + p.meta : '')
             : 'Criminal trial' + (p.role ? ' · ' + (p.role === 'prosecution' ? 'Prosecution' : 'Defence') : '') + (p.minutes ? ' · ' + p.minutes + ' min' : '');
         const title = p.kind === 'criminal-lawyer-career' ? 'Criminal Lawyer Career' : p.title;
         let open, openLabel = 'Open';
         if (p.kind === 'doctor-career') { open = () => renderCreatePage('doctor-' + p.track); openLabel = 'Resume career'; }
         else if (p.kind === 'criminal-lawyer-career') { open = () => renderCreatePage('criminal-lawyer-career'); openLabel = 'Resume career'; }
-        else if (p.kind === 'football-manager') { open = () => { window.location.href = p.href || '/create/football/'; }; openLabel = 'Resume'; }
+        else if (p.kind === 'football-manager' || p.kind === 'football-demo') { open = () => { window.location.href = p.href || (p.kind === 'football-demo' ? '/create/football/?demo=1' : '/create/football/'); }; openLabel = 'Resume'; }
         else if (p.kind === 'chancellor') { open = () => { window.location.href = p.href || '/chancellor/'; }; openLabel = 'Resume'; }
         else { open = () => createOpenProject(p.id, isRef ? { playtest: true } : {}); openLabel = isRef ? 'Play free demo' : 'Open'; }
         const extras = [];
-        if (!isRef && !['doctor-career', 'criminal-lawyer-career', 'football-manager', 'chancellor'].includes(p.kind)) extras.push({ label: 'Playtest', run: () => createOpenProject(p.id, { playtest: true }) });
+        if (!isRef && !['doctor-career', 'criminal-lawyer-career', 'football-manager', 'football-demo', 'chancellor'].includes(p.kind)) extras.push({ label: 'Playtest', run: () => createOpenProject(p.id, { playtest: true }) });
         const deletable = !isRef && p.kind !== 'doctor-career' && p.kind !== 'criminal-lawyer-career';
         return { id: p.id, image, title, meta, open, openLabel, extras, deletable, isRef };
     }
@@ -12069,7 +12075,7 @@ SQIDAQAB
         }
         const projectImage = (p) => {
             if (p.kind === 'chancellor') return { src: '/assets/create/chancellor.jpg', alt: 'A finance minister at a desk overlooking a city skyline at dusk' };
-            if (p.kind === 'football-manager') return { src: '/assets/create/football-manager.svg', alt: 'A football pitch seen from above with two teams in formation' };
+            if (p.kind === 'football-manager' || p.kind === 'football-demo') return { src: '/assets/create/football-manager.jpg', alt: 'A football manager on the touchline under stadium floodlights' };
             if (p.kind === 'criminal-lawyer-career') return { src: '/assets/create/criminal-lawyer-career.jpg', alt: 'A criminal barrister walking through a wood-panelled courthouse corridor' };
             if (p.kind === 'doctor-career' && p.track === 'psych') return { src: '/assets/create/psychology-career.jpg', alt: 'A clinical psychologist writing beside patient files' };
             if (p.kind === 'doctor-career' && p.track === 'alevel') return { src: '/assets/create/doctor-career-alevel.jpg', alt: 'A doctor reviewing a patient file at a hospital nurses station' };
@@ -12081,8 +12087,8 @@ SQIDAQAB
             ? `<article class="create-proj create-proj-with-image"><h3>${escapeHtml(p.title)}</h3>${projectImageHtml(p)}<div class="meta">Career${p.meta ? ' · ' + escapeHtml(p.meta) : ''}</div><div class="row"><button type="button" class="create-cta" data-doctor="${p.track}" style="padding:8px 18px;font-size:0.85rem;">Resume career</button></div></article>`
             : p.kind === 'criminal-lawyer-career'
             ? `<article class="create-proj create-proj-with-image"><h3>Criminal Lawyer Career</h3>${projectImageHtml(p)}<div class="meta">Career${p.meta ? ' · ' + escapeHtml(p.meta) : ''}</div><div class="row"><button type="button" class="create-cta" data-career style="padding:8px 18px;font-size:0.85rem;">Resume career</button></div></article>`
-            : p.kind === 'football-manager'
-            ? `<article class="create-proj create-proj-with-image"><h3>${escapeHtml(p.title)}</h3>${projectImageHtml(p)}<div class="meta">Football manager${p.meta ? ' · ' + escapeHtml(p.meta) : ''} · saved in this browser</div><div class="row"><a class="create-cta" href="${escapeHtml(p.href || '/create/football/')}" style="padding:8px 18px;font-size:0.85rem;text-decoration:none;">Resume</a><button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button></div></article>`
+            : (p.kind === 'football-manager' || p.kind === 'football-demo')
+            ? `<article class="create-proj create-proj-with-image"><h3>${escapeHtml(p.title)}</h3>${projectImageHtml(p)}<div class="meta">${p.kind === 'football-demo' ? 'Football demo' : 'Football manager'}${p.meta ? ' · ' + escapeHtml(p.meta) : ''} · saved in this browser</div><div class="row"><a class="create-cta" href="${escapeHtml(p.href || (p.kind === 'football-demo' ? '/create/football/?demo=1' : '/create/football/'))}" style="padding:8px 18px;font-size:0.85rem;text-decoration:none;">Resume</a><button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button></div></article>`
             : p.kind === 'chancellor'
             ? `<article class="create-proj create-proj-with-image"><h3>${escapeHtml(p.title)}</h3>${projectImageHtml(p)}<div class="meta">Economics simulation${p.meta ? ' · ' + escapeHtml(p.meta) : ''} · saved in this browser</div><div class="row"><a class="create-cta" href="${escapeHtml(p.href || '/chancellor/')}" style="padding:8px 18px;font-size:0.85rem;text-decoration:none;">Resume</a><button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button></div></article>`
             : `<article class="create-proj create-proj-with-image"><h3>${escapeHtml(p.title)}</h3>${projectImageHtml(p)}${p.isReference ? '<span class="badge">Free demo</span>' : ''}<div class="meta">Criminal trial${p.role ? ` · ${p.role === 'prosecution' ? 'Prosecution' : 'Defence'}` : ''}${p.minutes ? ` · ${p.minutes} min` : ''}${p.local ? ' · saved in this browser' : ''}</div><div class="row">${isRef ? `<button type="button" class="create-cta" data-play="${escapeHtml(p.id)}">Play free demo</button>` : `<button type="button" class="create-secondary" data-open="${escapeHtml(p.id)}">Open</button><button type="button" class="create-secondary" data-play="${escapeHtml(p.id)}">Playtest</button><button type="button" class="create-secondary" data-del="${escapeHtml(p.id)}">Delete</button>`}</div></article>`;
