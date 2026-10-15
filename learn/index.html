@@ -8114,7 +8114,39 @@ SQIDAQAB
     // fire-and-forget, and any failure just means this folder gets re-sent
     // on the next reconcile (its updatedAt will still be newer than
     // whatever's on the server, or the server may have nothing for it yet).
+    // A page or editor holds the folder object it was opened with. If the folder has been saved since (a page created, a sync pulled in),
+    // that object is out of date, and writing it back whole would silently remove whatever was added in between. So when the stored copy is
+    // newer than the object being saved, anything it has that this one lacks (pages, subfolders) is put back first. Pages deliberately
+    // deleted are in the folder's trash, and are not put back.
+    async function getStoredFolder(id) {
+        if (id === undefined) return null;
+        const db = await openDB();
+        return new Promise((resolve) => {
+            try { const r = db.transaction(FOLDER_STORE, 'readonly').objectStore(FOLDER_STORE).get(id); r.onsuccess = () => resolve(r.result || null); r.onerror = () => resolve(null); } catch (e) { resolve(null); }
+        });
+    }
+    function mergeStaleFolder(folder, cur) {
+        const known = new Set();
+        const note = (arr) => (arr || []).forEach((p) => known.add(p.id));
+        note(folder.pages); (folder.subfolders || []).forEach((sf) => note(sf.pages));
+        (folder.trash || []).forEach((t) => t.page && known.add(t.page.id));
+        folder.pages = folder.pages || [];
+        (cur.pages || []).forEach((p) => { if (!known.has(p.id)) { folder.pages.push(p); known.add(p.id); } });
+        folder.subfolders = folder.subfolders || [];
+        (cur.subfolders || []).forEach((csf) => {
+            const mine = folder.subfolders.find((sf) => sf.id === csf.id);
+            if (!mine) { (csf.pages || []).forEach((p) => known.add(p.id)); folder.subfolders.push(csf); return; }
+            mine.pages = mine.pages || [];
+            (csf.pages || []).forEach((p) => { if (!known.has(p.id)) { mine.pages.push(p); known.add(p.id); } });
+        });
+        const haveT = new Set((folder.trash || []).map((t) => t.page && t.page.id + ':' + t.deletedAt));
+        (cur.trash || []).forEach((t) => { if (t.page && !haveT.has(t.page.id + ':' + t.deletedAt)) (folder.trash = folder.trash || []).push(t); });
+    }
     async function putFolder(folder) {
+        try {
+            const cur = await getStoredFolder(folder.id);
+            if (cur && (cur.updatedAt || 0) > (folder.updatedAt || 0)) mergeStaleFolder(folder, cur);
+        } catch (err) { console.error('LastMind: stale-folder check failed', err); }
         folder.updatedAt = Date.now();
         const id = await putFolderLocalOnly(folder);
         if (folder.id === undefined) folder.id = id;
