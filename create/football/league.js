@@ -23,6 +23,16 @@
     { tag: 'The ambitious newcomers', story: "Two village clubs merged in the Depression. Owner Eleanor Price built them on analytics and coaching, and they finished third in 2025.", name: 'Westmoor Albion', style: 'balanced', formation: '4-3-3', strength: 0, home: ['#E3A008', '#14233F'], away: ['#14233F', '#E3A008'] },
     { tag: 'The club that always finishes second', story: "Runners-up seven times, and the side that threw away a 2-0 lead on the last day of 2019. The supporters believe the club is cursed.", name: 'Eastgate Rangers', style: 'counter', formation: '4-2-2-2', strength: -1, home: ['#C0262F', '#111111'], away: ['#E9E9E9', '#C0262F'] },
   ];
+  FM.LOWER_TEAM_DEFS = [
+    { tag: 'The old railway club', story: 'Founded by depot workers in 1908. Two generations still remember their single top-flight season in 1986, and the club has spent four decades trying to return.', name: 'Bramley Junction', style: 'direct', formation: '4-4-2', strength: -1.3, home: ['#7A263A', '#F4E7C8'], away: ['#F4E7C8', '#7A263A'] },
+    { tag: 'The academy club', story: 'A small coastal club whose academy has produced internationals but whose best players rarely stay beyond their twenty-first birthday.', name: 'Seabourne Athletic', style: 'possession', formation: '4-3-3', strength: -0.7, home: ['#26A6A1', '#FFFFFF'], away: ['#FFFFFF', '#155E75'] },
+    { tag: 'The former cup winners', story: 'Cup winners in 1974 and a top-flight fixture until financial collapse in the 1990s. Their rebuilt ground still carries photographs of better days.', name: 'Calder Vale', style: 'balanced', formation: '4-2-3-1', strength: -0.9, home: ['#6D28D9', '#FFFFFF'], away: ['#FFFFFF', '#6D28D9'] },
+    { tag: 'The community-owned club', story: 'Saved by a supporters trust after their owner disappeared in 2012. Every major decision is debated in the social club beneath the main stand.', name: 'Mereford Town', style: 'press', formation: '4-3-3', strength: -1.1, home: ['#D97706', '#111827'], away: ['#111827', '#D97706'] },
+    { tag: 'The sleeping city club', story: 'A large-city club with a famous ground and crowds bigger than several teams above them. Poor recruitment has kept them down for nine seasons.', name: 'Wexley City', style: 'possession', formation: '4-2-3-1', strength: -0.3, home: ['#7C3AED', '#FDE68A'], away: ['#FDE68A', '#7C3AED'] },
+    { tag: 'The hard-running miners', story: 'Built around the former coalfield, they reached the top division twice through relentless pressing and were relegated both times on the final day.', name: 'Coalbrook United', style: 'press', formation: '4-4-2', strength: -0.5, home: ['#111827', '#F59E0B'], away: ['#F59E0B', '#111827'] },
+    { tag: 'The cup specialists', story: 'Never promoted to the top division, but famous for three improbable cup runs and a ground where visiting favourites regularly struggle.', name: 'Alderwich', style: 'counter', formation: '5-3-2', strength: -1.5, home: ['#166534', '#FFFFFF'], away: ['#FFFFFF', '#166534'] },
+    { tag: 'The ambitious county side', story: 'A young club financed by local technology firms. Their new training ground has made promotion feel inevitable, which has only increased the pressure.', name: 'Linton County', style: 'balanced', formation: '4-3-3', strength: -0.1, home: ['#DC2626', '#FFFFFF'], away: ['#FFFFFF', '#1E3A8A'] },
+  ];
 
   const STYLES = {
     balanced: {},
@@ -63,7 +73,7 @@
     return colourDistance(home.shirt, mine.shirt) < 110 ? away : home;
   };
   // What a club is known for: where it is expected to finish and the story behind it.
-  FM.clubProfile = (team) => FM.TEAM_DEFS.find((d) => d.name === team.name) || { tag: '', story: '' };
+  FM.clubProfile = (team) => FM.TEAM_DEFS.concat(FM.LOWER_TEAM_DEFS || []).find((d) => d.name === team.name) || { tag: '', story: '' };
 
   // ---------- creating a season ----------
   FM.WORLD_SEED = 20261004;
@@ -98,7 +108,7 @@
       });
       return team;
     });
-    const league = { seed, tier: opts.tier || 'gcse', userId: teams[opts.userIndex || 0].id, season: 1, day: 0, teams, fixtures: [], testLog: [], hypotheses: [], news: [], tacticalPlans: [], publicOpinion: 50 };
+    const league = { seed, tier: opts.tier || 'gcse', userId: teams[opts.userIndex || 0].id, season: 1, day: 0, teams, fixtures: [], testLog: [], hypotheses: [], news: [], tacticalPlans: [], publicOpinion: 50, boardApproval: 50, divisionLevel: 1, divisionName: 'Premier Division', seasonHistory: [] };
     league.fixtures = makeFixtures(teams.map((t) => t.id), rng, seed + runSeed);
     // The first game of every season is the Iron Derby: Ashford Rovers at home to Northfield United. The rounds are re-ordered so the pairing falls
     // in round one, and the return game is the mirror of it.
@@ -124,6 +134,8 @@
     // The friendlies for the shared league are played in advance (see tools/gen_preseason.js) and simply loaded here.
     if (seed === FM.WORLD_SEED && FM.PRESEASON) league.friendlies = JSON.parse(JSON.stringify(FM.PRESEASON));
     league.runSeed = runSeed;
+    FM.ensureTwoDivisions(league);
+    FM.setBoardExpectation(league);
     return league;
   };
 
@@ -149,6 +161,51 @@
     rounds.forEach((pairs, r) => pairs.forEach(([h, a]) => add(r + n - 1, a, h)));
     return fixtures;
   }
+
+  function makeLowerTeams(league) {
+    const seed = league.seed + 88001, rng = FM.mulberry32(seed), used = new Set();
+    return FM.LOWER_TEAM_DEFS.map((def, i) => {
+      const team = FM.createTeam({ id: 'l' + (i + 1), name: def.name, kit: { shirt: def.home[0], number: def.home[1] }, attackDir: 1, formation: def.formation, strength: def.strength, seed: seed + i * 7919 });
+      team.kits = { home: def.home, away: def.away }; team.style = def.style;
+      team.tactics = styleTactics(def.style, rng); team.baseTactics = Object.assign({}, team.tactics); team.drift = {};
+      team.squad.forEach((p) => { const id = FM.generateIdentity(rng, used); p.name = id.name; p.nation = id.nation; p.stats = { apps: 0, goals: 0, shots: 0, yellows: 0, reds: 0 }; });
+      const keys = ['pace', 'dribbling', 'passing', 'finishing', 'tackling', 'heading', 'composure', 'stamina'];
+      const xiMean = team.players.reduce((a, p) => a + keys.reduce((m, k) => m + p.ratings[k], 0) / keys.length, 0) / team.players.length;
+      const shift = Math.round((FM.RATING_BASE - 5) + FM.STRENGTH_SCALE * def.strength - xiMean);
+      team.squad.forEach((p) => { keys.forEach((k) => { p.ratings[k] = Math.max(25, Math.min(92, p.ratings[k] + shift)); }); if (p.natural === 'GK') p.ratings.gk = Math.max(40, Math.min(90, p.ratings.gk + shift)); p.maxSpeed = FM.speedFromPace(p.ratings.pace); });
+      return team;
+    });
+  }
+
+  FM.ensureTwoDivisions = function (league) {
+    if (!league.divisionLevel) league.divisionLevel = 1;
+    if (!league.divisionName) league.divisionName = league.divisionLevel === 1 ? 'Premier Division' : 'Championship';
+    if (!Number.isFinite(league.boardApproval)) league.boardApproval = 50;
+    league.seasonHistory = league.seasonHistory || [];
+    if (!league.otherLeague || !league.otherLeague.teams || league.otherLeague.teams.length !== 8) {
+      const teams = makeLowerTeams(league);
+      league.otherLeague = { level: 2, name: 'Championship', teams, fixtures: makeFixtures(teams.map((t) => t.id), FM.mulberry32(league.seed + 88111), league.seed + 88201) };
+    }
+    return league.otherLeague;
+  };
+
+  FM.divisionTableRows = function (division) {
+    return FM.tableRows({ teams: division.teams, fixtures: division.fixtures });
+  };
+
+  FM.setBoardExpectation = function (league) {
+    const sorted = league.teams.slice().sort((a, b) => (b.strength || 0) - (a.strength || 0));
+    const expected = Math.max(1, sorted.findIndex((t) => t.id === league.userId) + 1);
+    league.board = league.board || {};
+    league.board.expectedPosition = expected;
+    league.board.expectation = expected <= 2 ? 'Challenge for the title' : expected <= 4 ? 'Finish in the top half' : expected <= 6 ? 'Stay clear of relegation' : 'Fight to stay up';
+    league.board.division = league.divisionName;
+  };
+
+  FM.approvalBand = function (n) {
+    n = Math.round(Number.isFinite(n) ? n : 50);
+    return n >= 85 ? 'Outstanding' : n >= 70 ? 'Very good' : n >= 58 ? 'Good' : n >= 45 ? 'Stable' : n >= 32 ? 'Under pressure' : n >= 18 ? 'On the brink' : 'Critical';
+  };
 
   // ---------- calendar ----------
   FM.userFixtureToday = function (league) {
@@ -448,7 +505,13 @@
   FM.completeRound = async function (league, userFx, userMatch) {
     FM.finishFixture(league, userFx, userMatch);
     for (const fixture of league.fixtures.filter((f) => f.round === userFx.round && !f.played)) await FM.simulateFixtureAsync(league, fixture);
+    // The parallel division plays on the same matchday. It is simulated with
+    // the same engine, but without a human-controlled club or match logs.
+    const other = FM.ensureTwoDivisions(league);
+    const shadow = { seed: league.seed + 44000, runSeed: league.runSeed || 0, day: league.day, userId: '__none__', teams: other.teams, fixtures: other.fixtures, news: [], friendlies: [], captains: {} };
+    for (const fixture of other.fixtures.filter((f) => f.round === userFx.round && !f.played)) await FM.simulateFixtureAsync(shadow, fixture);
     FM.aiAfterRound(league, userFx.round);
+    FM.updateBoardApproval(league);
     if (FM.testPendingHypotheses) FM.testPendingHypotheses(league, userFx);
     if (FM.makeNews) FM.makeNews(league, userFx.round);
     if (FM.transfersAfterRound) FM.transfersAfterRound(league, userFx.round);
@@ -469,8 +532,93 @@
     return Object.values(rows).sort((x, y) => (y.pts - x.pts) || ((y.gf - y.ga) - (x.gf - x.ga)) || (y.gf - x.gf) || x.name.localeCompare(y.name));
   };
 
+  FM.updateBoardApproval = function (league) {
+    FM.setBoardExpectation(league);
+    const rows = FM.tableRows(league), pos = rows.findIndex((r) => r.id === league.userId) + 1;
+    const mine = rows[pos - 1], expected = league.board.expectedPosition || 4;
+    const played = mine ? mine.p : 0;
+    const positionScore = (expected - pos) * 1.15;
+    const pointsRate = played ? mine.pts / played : 1.35;
+    const resultScore = (pointsRate - 1.35) * 1.5;
+    const target = Math.max(8, Math.min(92, 52 + (expected - pos) * 7 + (pointsRate - 1.35) * 12));
+    const before = Number.isFinite(league.boardApproval) ? league.boardApproval : 50;
+    league.boardApproval = Math.max(0, Math.min(100, Math.round((before + Math.max(-4, Math.min(4, positionScore + resultScore)) + (target - before) * 0.08) * 10) / 10));
+    league.board.currentPosition = pos; league.board.points = mine ? mine.pts : 0; league.board.played = played;
+  };
+
+  function resetClubForSeason(team) {
+    team.squad.forEach((p) => {
+      p.stats = { apps: 0, goals: 0, shots: 0, yellows: 0, reds: 0 };
+      p.condition = 1; delete p.injury; p.age = FM.ageOf ? FM.ageOf(p) + 1 : (p.age || 24) + 1;
+      if (p.contract != null) p.contract = Math.max(1, p.contract - 1);
+    });
+    team.drift = {}; team.rules = []; team.scenarios = []; team.defScenarios = []; team.scenarioEvidence = {}; team.scenarioDefEvidence = {};
+    FM.resetToKickoff(team);
+  }
+
+  FM.startNextSeason = function (league) {
+    if (!FM.seasonOver(league)) return false;
+    const other = FM.ensureTwoDivisions(league);
+    const currentRows = FM.tableRows(league), otherRows = FM.divisionTableRows(other);
+    const current = { level: league.divisionLevel, name: league.divisionName, teams: league.teams, fixtures: league.fixtures, rows: currentRows };
+    const second = { level: other.level, name: other.name, teams: other.teams, fixtures: other.fixtures, rows: otherRows };
+    const upper = current.level === 1 ? current : second, lower = current.level === 2 ? current : second;
+    const relegated = upper.rows.slice(-2).map((r) => r.id), promoted = lower.rows.slice(0, 2).map((r) => r.id);
+    league.seasonHistory = league.seasonHistory || [];
+    league.seasonHistory.push({ season: league.season, champion: upper.rows[0].name, promoted: lower.rows.slice(0, 2).map((r) => r.name), relegated: upper.rows.slice(-2).map((r) => r.name), divisions: [{ level: 1, name: upper.name, rows: upper.rows }, { level: 2, name: lower.name, rows: lower.rows }] });
+    const upperTeams = upper.teams.filter((t) => relegated.indexOf(t.id) < 0).concat(lower.teams.filter((t) => promoted.indexOf(t.id) >= 0));
+    const lowerTeams = lower.teams.filter((t) => promoted.indexOf(t.id) < 0).concat(upper.teams.filter((t) => relegated.indexOf(t.id) >= 0));
+    const userLevel = upperTeams.some((t) => t.id === league.userId) ? 1 : 2;
+    const activeTeams = userLevel === 1 ? upperTeams : lowerTeams, otherTeams = userLevel === 1 ? lowerTeams : upperTeams;
+    const oldPos = currentRows.findIndex((r) => r.id === league.userId) + 1;
+    league.season += 1; league.day = 0; FM.today = 0; league.divisionLevel = userLevel; league.divisionName = userLevel === 1 ? 'Premier Division' : 'Championship';
+    league.teams = activeTeams; league.fixtures = makeFixtures(activeTeams.map((t) => t.id), FM.mulberry32(league.seed + league.season * 1709 + userLevel), league.seed + league.season * 97003 + userLevel);
+    league.otherLeague = { level: userLevel === 1 ? 2 : 1, name: userLevel === 1 ? 'Championship' : 'Premier Division', teams: otherTeams, fixtures: makeFixtures(otherTeams.map((t) => t.id), FM.mulberry32(league.seed + league.season * 1877 + 9), league.seed + league.season * 99007 + 9) };
+    activeTeams.concat(otherTeams).forEach(resetClubForSeason);
+    league.friendlies = []; league.prepStep = 0; league.prepPhaseMax = 0; league.testPhaseMax = 0; league.labRuns = []; league.phaseLabRuns = {}; league.testLog = []; league.hypotheses = [];
+    FM.setBoardExpectation(league);
+    league.board.currentPosition = null; league.board.points = 0; league.board.played = 0;
+    league.boardApproval = Math.max(0, Math.min(100, (Number.isFinite(league.boardApproval) ? league.boardApproval : 50) + (promoted.indexOf(league.userId) >= 0 ? 6 : relegated.indexOf(league.userId) >= 0 ? -8 : 0)));
+    const tr = FM.transfer ? FM.transfer(league) : league.transfer;
+    if (tr) {
+      tr.deals = {}; tr.offers = []; tr.shortlist = []; tr.opening = false;
+      const me = FM.teamById(league, league.userId), bill = me.squad.reduce((a, p) => a + (FM.wageOf ? FM.wageOf(p) : 0), 0);
+      activeTeams.forEach((t) => {
+        const wages = t.squad.reduce((a, p) => a + (FM.wageOf ? FM.wageOf(p) : 0), 0);
+        if (!Number.isFinite(tr.budget[t.id])) tr.budget[t.id] = Math.round((league.divisionLevel === 1 ? 12 : 5) * 10) / 10;
+        if (!Number.isFinite(tr.wageBudget[t.id])) tr.wageBudget[t.id] = Math.round((wages + (league.divisionLevel === 1 ? 25 : 12)) * 10) / 10;
+      });
+      const performance = league.divisionLevel === 1 ? Math.max(0, 9 - oldPos) * 1.4 : Math.max(0, 9 - oldPos) * 0.75;
+      const status = league.divisionLevel === 1 ? (promoted.indexOf(me.id) >= 0 ? 9 : 12) : 5;
+      tr.budget[me.id] = Math.round((status + performance + Math.max(0, (tr.budget[me.id] || 0) * 0.2)) * 10) / 10;
+      tr.wageBudget[me.id] = Math.round((bill + (league.divisionLevel === 1 ? 30 : 14) + performance * 1.5) * 10) / 10;
+    }
+    league.news = league.news || [];
+    league.news.push({ round: -1, day: 0, kind: 'League', headline: 'Season ' + league.season + ' begins in the ' + league.divisionName, body: promoted.indexOf(league.userId) >= 0 ? 'Promotion brings a new division, a larger budget and a tougher board target.' : relegated.indexOf(league.userId) >= 0 ? 'The club begins the work of returning after relegation. The budget has been reset for the Championship.' : 'The board has set its target and confirmed the new season budgets.', club: league.userId, mine: true });
+    return true;
+  };
+
   // ---------- saving ----------
   const PLAYER_KEYS = ['id', 'number', 'natural', 'name', 'nation', 'ratings', 'height', 'foot', 'maxSpeed', 'roleId', 'options', 'index', 'slotKey', 'group', 'stats', 'origGk', 'emergencyKeeper', 'instr', 'note', 'condition', 'injury', 'wage', 'contract', 'joined', 'age', 'pot'];
+  function packTeam(t) {
+    return {
+      id: t.id, name: t.name, kit: t.kit, kits: t.kits, style: t.style, strength: t.strength, seed: t.seed, formationKey: t.formationKey, formationLabel: t.formationLabel || null, tactics: t.tactics,
+      subsUsed: t.subsUsed, maxSubs: t.maxSubs, snap: t.snap || null, baseTactics: t.baseTactics, drift: t.drift, shape: t.shape, phasePos: t.phasePos, phaseBall: t.phaseBall || {}, pages: t.pages || {}, pageDefaults: t.pageDefaults || {}, scenarios: t.scenarios || [], defScenarios: t.defScenarios || [], rules: t.rules || [],
+      scenarioEnd: t.scenarioEnd || {}, scenarioInfo: t.scenarioInfo || {}, scenarioBall: t.scenarioBall || {}, scenarioEvidence: t.scenarioEvidence || {}, scenarioDefEvidence: t.scenarioDefEvidence || {},
+      squad: t.squad.map((p) => { const o = {}; PLAYER_KEYS.forEach((k) => { if (p[k] !== undefined) o[k] = p[k]; }); if (p.baseRatings) o.ratings = p.baseRatings; return o; }),
+      players: t.players.map((p) => p.id), bench: t.bench.map((p) => p.id),
+    };
+  }
+  function unpackTeam(t) {
+    const squad = t.squad.map((p) => Object.assign({ x: 0, y: 0, vx: 0, vy: 0, yellows: 0 }, p));
+    const byId = (id) => squad.find((p) => p.id === id);
+    return {
+      id: t.id, name: t.name, kit: t.kit, kits: t.kits, style: t.style, strength: t.strength, seed: t.seed, attackDir: 1, formationKey: t.formationKey, formationLabel: t.formationLabel || null,
+      tactics: Object.assign(FM.defaultTactics(), t.tactics), subsUsed: t.subsUsed || 0, maxSubs: t.maxSubs || 5, snap: t.snap || null, baseTactics: Object.assign(FM.defaultTactics(), t.baseTactics || t.tactics), drift: t.drift || {}, shape: t.shape || {}, phasePos: t.phasePos || {}, phaseBall: t.phaseBall || {}, pages: t.pages || {}, pageDefaults: t.pageDefaults || {}, scenarios: t.scenarios || [], defScenarios: t.defScenarios || [], rules: t.rules || [],
+      scenarioEnd: t.scenarioEnd || {}, scenarioInfo: t.scenarioInfo || {}, scenarioBall: t.scenarioBall || {}, scenarioEvidence: t.scenarioEvidence || {}, scenarioDefEvidence: t.scenarioDefEvidence || {},
+      squad, players: t.players.map(byId), bench: t.bench.map(byId), sentOff: [],
+    };
+  }
   // Each club has a captain. Until the manager names one, it is the most senior, composed player in the squad (an outfield player when there is one).
   FM.captainOf = function (league, team) {
     if (!team) return null;
@@ -484,32 +632,18 @@
     return best;
   };
   FM.serializeLeague = function (league) {
-    const teams = league.teams.map((t) => ({
-      id: t.id, name: t.name, kit: t.kit, kits: t.kits, style: t.style, strength: t.strength, seed: t.seed, formationKey: t.formationKey, formationLabel: t.formationLabel || null, tactics: t.tactics,
-      subsUsed: t.subsUsed, maxSubs: t.maxSubs, snap: t.snap || null, baseTactics: t.baseTactics, drift: t.drift, shape: t.shape, phasePos: t.phasePos, phaseBall: t.phaseBall || {}, pages: t.pages || {}, pageDefaults: t.pageDefaults || {}, scenarios: t.scenarios || [], defScenarios: t.defScenarios || [], rules: t.rules || [],
-      scenarioEnd: t.scenarioEnd || {}, scenarioInfo: t.scenarioInfo || {}, scenarioBall: t.scenarioBall || {}, scenarioEvidence: t.scenarioEvidence || {}, scenarioDefEvidence: t.scenarioDefEvidence || {},
-      squad: t.squad.map((p) => { const o = {}; PLAYER_KEYS.forEach((k) => { if (p[k] !== undefined) o[k] = p[k]; }); if (p.baseRatings) o.ratings = p.baseRatings; return o; }),
-      players: t.players.map((p) => p.id), bench: t.bench.map((p) => p.id),
-    }));
-    return JSON.stringify({ v: 1, seed: league.seed, runSeed: league.runSeed || 0, tier: league.tier, userId: league.userId, season: league.season, day: league.day, fixtures: league.fixtures, teams, prepStep: league.prepStep || 0, prepPhaseMax: league.prepPhaseMax || 0, testPhaseMax: league.testPhaseMax || 0, testLog: league.testLog || [], hypotheses: league.hypotheses || [], news: league.news || [], friendlies: league.friendlies || [], labRuns: league.labRuns || [], labCtx: league.labCtx || null, labArchive: league.labArchive || [], phaseLabRuns: league.phaseLabRuns || {}, interviews: league.interviews || [], publicOpinion: Number.isFinite(league.publicOpinion) ? league.publicOpinion : 50, tacticalPlans: league.tacticalPlans || [], activePlanId: league.activePlanId || null, transfer: league.transfer || null, develop: league.develop || null, captains: league.captains || {}, captainIntroSeen: !!league.captainIntroSeen, mp: league.mp || null });
+    const teams = league.teams.map(packTeam), other = FM.ensureTwoDivisions(league);
+    return JSON.stringify({ v: 2, seed: league.seed, runSeed: league.runSeed || 0, tier: league.tier, userId: league.userId, season: league.season, day: league.day, divisionLevel: league.divisionLevel || 1, divisionName: league.divisionName || 'Premier Division', fixtures: league.fixtures, teams, otherLeague: { level: other.level, name: other.name, fixtures: other.fixtures, teams: other.teams.map(packTeam) }, seasonHistory: league.seasonHistory || [], board: league.board || null, boardApproval: Number.isFinite(league.boardApproval) ? league.boardApproval : 50, prepStep: league.prepStep || 0, prepPhaseMax: league.prepPhaseMax || 0, testPhaseMax: league.testPhaseMax || 0, testLog: league.testLog || [], hypotheses: league.hypotheses || [], news: league.news || [], friendlies: league.friendlies || [], labRuns: league.labRuns || [], labCtx: league.labCtx || null, labArchive: league.labArchive || [], phaseLabRuns: league.phaseLabRuns || {}, interviews: league.interviews || [], publicOpinion: Number.isFinite(league.publicOpinion) ? league.publicOpinion : 50, tacticalPlans: league.tacticalPlans || [], activePlanId: league.activePlanId || null, transfer: league.transfer || null, develop: league.develop || null, captains: league.captains || {}, captainIntroSeen: !!league.captainIntroSeen, mp: league.mp || null });
   };
   FM.deserializeLeague = function (text) {
     const d = JSON.parse(text);
-    const teams = d.teams.map((t) => {
-      const squad = t.squad.map((p) => Object.assign({ x: 0, y: 0, vx: 0, vy: 0, yellows: 0 }, p));
-      const byId = (id) => squad.find((p) => p.id === id);
-      const team = {
-        id: t.id, name: t.name, kit: t.kit, kits: t.kits, style: t.style, strength: t.strength, seed: t.seed, attackDir: 1, formationKey: t.formationKey, formationLabel: t.formationLabel || null,
-        tactics: Object.assign(FM.defaultTactics(), t.tactics), subsUsed: t.subsUsed || 0, maxSubs: t.maxSubs || 5, snap: t.snap || null, baseTactics: Object.assign(FM.defaultTactics(), t.baseTactics || t.tactics), drift: t.drift || {}, shape: t.shape || {}, phasePos: t.phasePos || {}, phaseBall: t.phaseBall || {}, pages: t.pages || {}, pageDefaults: t.pageDefaults || {}, scenarios: t.scenarios || [], defScenarios: t.defScenarios || [], rules: t.rules || [],
-        scenarioEnd: t.scenarioEnd || {}, scenarioInfo: t.scenarioInfo || {}, scenarioBall: t.scenarioBall || {}, scenarioEvidence: t.scenarioEvidence || {}, scenarioDefEvidence: t.scenarioDefEvidence || {},
-        squad, players: t.players.map(byId), bench: t.bench.map(byId), sentOff: [],
-      };
-      return team;
-    });
-    const league = { seed: d.seed, runSeed: d.runSeed || 0, tier: d.tier, userId: d.userId, season: d.season, day: d.day, fixtures: d.fixtures, teams, prepStep: d.prepStep || 0, prepPhaseMax: d.prepPhaseMax || 0, testPhaseMax: d.testPhaseMax || 0, testLog: d.testLog || [], hypotheses: d.hypotheses || [], news: d.news || [], friendlies: d.friendlies || [], labRuns: d.labRuns || [], labCtx: d.labCtx || null, labArchive: d.labArchive || [], phaseLabRuns: d.phaseLabRuns || {}, interviews: d.interviews || [], publicOpinion: Number.isFinite(d.publicOpinion) ? d.publicOpinion : 50, tacticalPlans: d.tacticalPlans || [], activePlanId: d.activePlanId || null, transfer: d.transfer || null, develop: d.develop || null, captains: d.captains || {}, captainIntroSeen: !!d.captainIntroSeen, mp: d.mp || null };
+    const teams = d.teams.map(unpackTeam);
+    const league = { seed: d.seed, runSeed: d.runSeed || 0, tier: d.tier, userId: d.userId, season: d.season, day: d.day, divisionLevel: d.divisionLevel || 1, divisionName: d.divisionName || 'Premier Division', fixtures: d.fixtures, teams, seasonHistory: d.seasonHistory || [], board: d.board || null, boardApproval: Number.isFinite(d.boardApproval) ? d.boardApproval : 50, prepStep: d.prepStep || 0, prepPhaseMax: d.prepPhaseMax || 0, testPhaseMax: d.testPhaseMax || 0, testLog: d.testLog || [], hypotheses: d.hypotheses || [], news: d.news || [], friendlies: d.friendlies || [], labRuns: d.labRuns || [], labCtx: d.labCtx || null, labArchive: d.labArchive || [], phaseLabRuns: d.phaseLabRuns || {}, interviews: d.interviews || [], publicOpinion: Number.isFinite(d.publicOpinion) ? d.publicOpinion : 50, tacticalPlans: d.tacticalPlans || [], activePlanId: d.activePlanId || null, transfer: d.transfer || null, develop: d.develop || null, captains: d.captains || {}, captainIntroSeen: !!d.captainIntroSeen, mp: d.mp || null };
+    if (d.otherLeague && d.otherLeague.teams) league.otherLeague = { level: d.otherLeague.level, name: d.otherLeague.name, fixtures: d.otherLeague.fixtures || [], teams: d.otherLeague.teams.map(unpackTeam) };
+    FM.ensureTwoDivisions(league); FM.setBoardExpectation(league);
     FM.today = d.day;
     // A match that was abandoned part way: put the lineups back as they were before kick-off.
-    league.teams.forEach((t) => { if (t.snap) { FM.restoreLineup(t, t.snap); t.snap = null; } else FM.resetToKickoff(t); });
+    league.teams.concat(league.otherLeague.teams).forEach((t) => { if (t.snap) { FM.restoreLineup(t, t.snap); t.snap = null; } else FM.resetToKickoff(t); });
     return league;
   };
   // The Create page's "Your projects" list reads this entry (same browser storage), so the season shows up there with a Resume button.

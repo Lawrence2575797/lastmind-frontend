@@ -826,8 +826,7 @@
       ${lg.mp ? '' : `<button data-top="recruit" class="${world.view === 'recruit' ? 'on' : ''}">Recruitment</button>
       <button data-top="develop" class="${world.view === 'develop' ? 'on' : ''}">Development</button>`}
       ${lg.mp && lg.mp.kind === 'match' ? '' : `<button data-top="news" class="${world.view === 'news' ? 'on' : ''}">News</button>`}
-      ${lg.mp ? `<button data-top="mp" class="${world.view === 'mp' ? 'on' : ''}">Online</button>` : ''}
-      <span class="public-opinion" title="Supporters' view of your management">Public opinion <b>${Math.round(Number.isFinite(lg.publicOpinion) ? lg.publicOpinion : 50)}%</b></span>`;
+      ${lg.mp ? `<button data-top="mp" class="${world.view === 'mp' ? 'on' : ''}">Online</button>` : ''}`;
     host.querySelectorAll('[data-top]').forEach((b) => b.addEventListener('click', () => setView(b.dataset.top)));
   }
 
@@ -891,11 +890,11 @@
   }
 
   // ---------- home ----------
-  function tableHtml(rows, compact) {
+  function tableHtml(rows, compact, level) {
     const me = world.league.userId;
     const head = compact ? '' : '<th>GF</th><th>GA</th>';
     const n = rows.length;
-    const cls = (r, i) => [r.id === me ? 'me' : '', i >= n - 2 ? 'rel' : '', i === n - 2 ? 'rel-first' : '', i === 0 ? 'champ' : ''].filter(Boolean).join(' ');
+    const cls = (r, i) => [r.id === me ? 'me' : '', level === 1 && i >= n - 2 ? 'rel' : '', level === 1 && i === n - 2 ? 'rel-first' : '', i < (level === 2 ? 2 : 1) ? 'champ' : ''].filter(Boolean).join(' ');
     return `<div class="tablewrap"><table class="data"><thead><tr><th class="l">#</th><th class="l">Club</th><th>P</th><th>W</th><th>D</th><th>L</th>${head}<th>GD</th><th>Pts</th>${compact ? '' : '<th class="l">Form</th>'}</tr></thead><tbody>` +
       rows.map((r, i) => `<tr class="${cls(r, i)}"><td class="l">${i + 1}</td><td class="l">${esc(r.name)}${compact ? '' : ` <span class="pm">${esc(FM.clubProfile(r).tag)}</span>`}</td><td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td>${compact ? '' : `<td>${r.gf}</td><td>${r.ga}</td>`}<td>${r.gf - r.ga > 0 ? '+' : ''}${r.gf - r.ga}</td><td><b>${r.pts}</b></td>${compact ? '' : `<td class="l">${r.form.slice(-5).map((f) => `<span class="pill ${f}">${f}</span>`).join('')}</td>`}</tr>`).join('') +
       '</tbody></table></div>';
@@ -903,14 +902,16 @@
   function renderHome() {
     const lg = world.league, host = el('view-home'), me = lg.userId;
     const rows = FM.tableRows(lg);
+    const other = FM.ensureTwoDivisions(lg), otherRows = FM.divisionTableRows(other);
     const over = FM.seasonOver(lg);
     const nextFx = FM.nextUserFixture(lg);
     const today = FM.userFixtureToday(lg);
     let next = '';
     if (over) {
       const pos = rows.findIndex((r) => r.id === me) + 1;
-      const down = rows.slice(-2), mine = pos === 1 ? 'You won the league.' : pos >= 7 ? `You finished ${pos}${pos === 7 ? 'th' : 'th'} of 8 with ${rows[pos - 1].pts} points, in the relegation zone: your club goes down.` : `You finished ${pos}${['st', 'nd', 'rd'][pos - 1] || 'th'} of 8 with ${rows[pos - 1].pts} points, safe from relegation.`;
-      next = `<h2>Season complete</h2><div class="fixture-big">${esc(rows[0].name)} are champions.</div><p class="desc">${esc(down[0].name)} and ${esc(down[1].name)} are relegated.</p><p class="desc">${mine}</p><div class="row"><button class="primary" id="newSeasonBtn" style="flex:0 0 auto">Start a new season</button></div>`;
+      const mine = lg.divisionLevel === 1 ? (pos === 1 ? 'You won the league.' : pos >= 7 ? `You finished ${pos}th of 8 with ${rows[pos - 1].pts} points and are relegated.` : `You finished ${pos}${['st', 'nd', 'rd'][pos - 1] || 'th'} of 8 with ${rows[pos - 1].pts} points, safe from relegation.`) : (pos <= 2 ? `You finished ${pos}${pos === 1 ? 'st' : 'nd'} with ${rows[pos - 1].pts} points and are promoted.` : `You finished ${pos}${['st', 'nd', 'rd'][pos - 1] || 'th'} of 8 with ${rows[pos - 1].pts} points and remain in the Championship.`);
+      const upperRows = lg.divisionLevel === 1 ? rows : otherRows, lowerRows = lg.divisionLevel === 2 ? rows : otherRows;
+      next = `<h2>Season complete</h2><div class="fixture-big">${esc(upperRows[0].name)} are champions.</div><p class="desc">${esc(upperRows[6].name)} and ${esc(upperRows[7].name)} are relegated. ${esc(lowerRows[0].name)} and ${esc(lowerRows[1].name)} are promoted.</p><p class="desc">${mine}</p><div class="row"><button class="primary" id="newSeasonBtn" style="flex:0 0 auto">Continue to season ${lg.season + 1}</button></div>`;
     } else if (nextFx) {
       const home = FM.teamById(lg, nextFx.homeId), away = FM.teamById(lg, nextFx.awayId);
       const opp = home.id === me ? away : home;
@@ -938,11 +939,21 @@
       (tired.length ? `<p class="desc">Tired starters: ${tired.map((p) => esc(shortName(p)) + ' ' + Math.round(100 * FM.conditionOf(p)) + '%').join(', ')}.</p><p class="note">Tired players slow down, make more mistakes and risk injury. Rest helps.</p>` : '<p class="note">The starting eleven is fresh.</p>');
     const latest = (world.league.news || []).slice(-3).reverse();
     const newsCard = '<h2>Latest news</h2>' + (latest.length ? latest.map((n) => `<div class="hyp"><div class="hyp-head"><span class="lvl ${n.mine ? 'alevel' : 'gcse'}">${esc(n.kind)}</span> <b>${esc(n.headline)}</b></div></div>`).join('') + '<div class="row"><button data-nav-news>All the news</button></div>' : '<p class="note">News appears after the first round of matches.</p>');
+    const selectedLevel = world.homeTableLevel || lg.divisionLevel;
+    const shownCurrent = selectedLevel === lg.divisionLevel, shownRows = shownCurrent ? rows : otherRows, shownName = shownCurrent ? lg.divisionName : other.name;
+    const transfer = FM.transfer ? FM.transfer(lg) : lg.transfer, transferBudget = transfer && transfer.budget ? transfer.budget[me] || 0 : 0;
+    const wageRoom = FM.wageRoom ? FM.wageRoom(lg, me) : 0;
+    const board = lg.board || {}, currentPos = rows.findIndex((r) => r.id === me) + 1, leaguePlayed = rows.find((r) => r.id === me).p;
+    const performance = !leaguePlayed ? 'The season has not started' : currentPos < (board.expectedPosition || currentPos) ? 'Ahead of expectations' : currentPos > (board.expectedPosition || currentPos) ? 'Below expectations' : 'Meeting expectations';
+    const approval = (kind, value) => `<div class="approval-line"><span><b>${kind}</b><small>${esc(FM.approvalBand(value))}</small></span><div class="approval-track"><i style="width:${Math.max(0, Math.min(100, value))}%"></i></div><strong>${Math.round(value)}%</strong></div>`;
+    const tableCard = `<div class="card home-league"><div class="card-title-row"><h2>League table</h2><select id="homeLeagueSelect" aria-label="Choose division"><option value="${lg.divisionLevel}">${esc(lg.divisionName)}</option><option value="${other.level}"${selectedLevel === other.level ? ' selected' : ''}>${esc(other.name)}</option></select></div>${tableHtml(shownRows, true, selectedLevel)}<div class="home-approvals">${approval('Public approval', Number.isFinite(lg.publicOpinion) ? lg.publicOpinion : 50)}${approval('Board approval', Number.isFinite(lg.boardApproval) ? lg.boardApproval : 50)}</div></div>`;
+    const boardCard = `<div class="card board-card"><div class="eyebrow">The board</div><h2>${esc(board.expectation || 'Establish the club')}</h2><p class="desc">Expected finish: <b>${board.expectedPosition || '—'}${board.expectedPosition === 1 ? 'st' : board.expectedPosition === 2 ? 'nd' : board.expectedPosition === 3 ? 'rd' : 'th'}</b> in the ${esc(lg.divisionName)}. ${leaguePlayed ? `You are currently <b>${currentPos}${currentPos === 1 ? 'st' : currentPos === 2 ? 'nd' : currentPos === 3 ? 'rd' : 'th'}</b> — ${esc(performance.toLowerCase())}.` : esc(performance) + '.'}</p><div class="board-money"><span>Transfer budget<b>${FM.money ? FM.money(transferBudget) : transferBudget}</b></span><span>Wage room<b>${wageRoom}k/week</b></span></div></div>`;
     host.innerHTML = `<div class="two">
       <div style="display:grid;gap:16px"><div class="card">${next}</div><div class="card">${lastCard}</div><div class="card">${fitCard}</div><div class="card">${newsCard}</div></div>
-      <div class="card"><h2>League table</h2>${tableHtml(rows, true)}</div></div>`;
+      <div style="display:grid;gap:16px">${tableCard}${boardCard}</div></div>`;
+    const leagueSelect = host.querySelector('#homeLeagueSelect'); if (leagueSelect) leagueSelect.addEventListener('change', () => { world.homeTableLevel = +leagueSelect.value; renderHome(); });
     const nb = host.querySelector('[data-nav-news]'); if (nb) nb.addEventListener('click', () => setView('news'));
-    const ns = host.querySelector('#newSeasonBtn'); if (ns) ns.addEventListener('click', () => { FM.clearSave(); world.league = null; world.match = null; showNewGame(); });
+    const ns = host.querySelector('#newSeasonBtn'); if (ns) ns.addEventListener('click', () => { ns.disabled = true; ns.textContent = 'Preparing the new season...'; if (FM.startNextSeason(lg)) { world.homeTableLevel = lg.divisionLevel; FM.saveLeague(lg); renderTop(); renderHome(); } });
   }
 
   // How many matches an injured player will still miss, counting from the next Saturday.
@@ -969,7 +980,7 @@
     }).join('') + '</div>').join('');
     const fr = (lg.friendlies || []).filter((f) => f.played);
     const friendlyCard = fr.length ? `<div class="card"><h2>Pre-season friendlies</h2><p class="note">These did not count toward the table.</p><div class="rounds">${fr.map((f) => `<div class="res ${f.homeId === me || f.awayId === me ? 'me' : ''}"><span>${esc(FM.teamById(lg, f.homeId).name)}</span><b>${f.hg} - ${f.ag}</b><span>${esc(FM.teamById(lg, f.awayId).name)}</span></div>`).join('')}</div></div>` : '';
-    host.innerHTML = `<div class="two"><div class="card"><h2>League table</h2>${tableHtml(rows, false)}</div><div style="display:grid;gap:16px"><div class="card"><h2>Results and fixtures</h2><div class="rounds">${roundHtml}</div></div>${friendlyCard}</div></div>`;
+    host.innerHTML = `<div class="two"><div class="card"><h2>League table</h2>${tableHtml(rows, false, lg.divisionLevel)}</div><div style="display:grid;gap:16px"><div class="card"><h2>Results and fixtures</h2><div class="rounds">${roundHtml}</div></div>${friendlyCard}</div></div>`;
   }
   // The ratings that matter for each kind of player, and how each of them compares with the whole league's players in that position.
   const SQ_STATS = { GK: ['gk'], CB: ['pace', 'tackling', 'heading', 'composure'], FB: ['pace', 'tackling', 'passing', 'stamina', 'dribbling'], DM: ['tackling', 'passing', 'stamina', 'composure'], CM: ['passing', 'dribbling', 'stamina', 'tackling'], AM: ['passing', 'dribbling', 'finishing', 'composure'], WF: ['pace', 'dribbling', 'finishing', 'passing'], ST: ['finishing', 'pace', 'heading', 'composure'] };

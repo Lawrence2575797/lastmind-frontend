@@ -9,13 +9,16 @@ const sandbox = {
   window: {},
   document: { addEventListener() {}, querySelector() { return null; }, getElementById() { return null; } },
   localStorage: { getItem() { return null; }, setItem() {}, removeItem() {} },
+  location: { search: '' },
   setTimeout, clearTimeout,
 };
 sandbox.window.window = sandbox.window;
 sandbox.window.document = sandbox.document;
 sandbox.window.localStorage = sandbox.localStorage;
+sandbox.window.location = sandbox.location;
+sandbox.window.addEventListener = function () {};
 vm.createContext(sandbox);
-['formations.js', 'roles.js', 'ratings.js', 'names.js', 'engine.js', 'rules.js', 'instructions.js', 'fitness.js', 'match.js', 'league.js']
+['formations.js', 'roles.js', 'ratings.js', 'names.js', 'engine.js', 'rules.js', 'instructions.js', 'fitness.js', 'match.js', 'league.js', 'news.js', 'transfers.js']
   .forEach((file) => vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), sandbox, { filename: file }));
 
 const FM = sandbox.window.FM;
@@ -32,6 +35,18 @@ const plansOk = restored.tacticalPlans.length === 1 && restored.tacticalPlans[0]
 const phasesOk = restored.phaseLabRuns.final.length === 1 && restored.phaseLabRuns.press.length === 1 && restored.phaseLabRuns.without.length === 1;
 const interviewsOk = restored.interviews.length === 1 && restored.interviews[0].key === 'pre:0';
 const formationOk = !!customFormation && FM.formationName(restored.teams[0]) === customFormation;
-const ok = plansOk && phasesOk && interviewsOk && formationOk;
-console.log(JSON.stringify({ tacticalPlanRoundTrip: plansOk, phaseTestsRoundTrip: phasesOk, interviewsRoundTrip: interviewsOk, customFormationRoundTrip: formationOk, customFormation, existingTeams: restored.teams.length, existingFixtures: restored.fixtures.length }, null, 2));
+const pyramidOk = restored.otherLeague && restored.otherLeague.teams.length === 8 && restored.otherLeague.fixtures.length === 56 && restored.divisionLevel === 1;
+const approvalOk = restored.board && restored.board.expectation && restored.boardApproval === 50;
+restored.fixtures.forEach((f) => { f.played = true; f.hg = f.homeId === restored.userId ? 0 : f.awayId === restored.userId ? 2 : 1; f.ag = f.awayId === restored.userId ? 0 : f.homeId === restored.userId ? 2 : 0; });
+restored.otherLeague.fixtures.forEach((f) => { f.played = true; f.hg = 1; f.ag = 0; });
+const nextSeason = FM.startNextSeason(restored);
+const relegationOk = nextSeason && restored.season === 2 && restored.divisionLevel === 2 && restored.teams.some((t) => t.id === restored.userId) && restored.otherLeague.level === 1 && restored.fixtures.length === 56 && restored.fixtures.every((f) => !f.played);
+const relegatedBudget = restored.transfer.budget[restored.userId];
+const historyOk = restored.seasonHistory.length === 1 && restored.seasonHistory[0].relegated.indexOf('Ashford Rovers') >= 0;
+restored.fixtures.forEach((f) => { f.played = true; f.hg = f.homeId === restored.userId ? 3 : f.awayId === restored.userId ? 0 : 1; f.ag = f.awayId === restored.userId ? 3 : f.homeId === restored.userId ? 0 : 0; });
+restored.otherLeague.fixtures.forEach((f) => { f.played = true; f.hg = 1; f.ag = 0; });
+const promotionOk = FM.startNextSeason(restored) && restored.season === 3 && restored.divisionLevel === 1 && restored.teams.some((t) => t.id === restored.userId) && restored.otherLeague.level === 2;
+const promotedBudget = restored.transfer.budget[restored.userId], budgetOk = promotedBudget > relegatedBudget;
+const ok = plansOk && phasesOk && interviewsOk && formationOk && pyramidOk && approvalOk && relegationOk && historyOk && promotionOk && budgetOk;
+console.log(JSON.stringify({ tacticalPlanRoundTrip: plansOk, phaseTestsRoundTrip: phasesOk, interviewsRoundTrip: interviewsOk, customFormationRoundTrip: formationOk, pyramidRoundTrip: pyramidOk, boardRoundTrip: approvalOk, relegationCareer: relegationOk, promotionCareer: promotionOk, performanceBudgets: budgetOk, relegatedBudget, promotedBudget, seasonHistory: historyOk, customFormation, existingTeams: restored.teams.length, existingFixtures: restored.fixtures.length, otherTeams: restored.otherLeague.teams.length }, null, 2));
 if (!ok) process.exitCode = 1;
