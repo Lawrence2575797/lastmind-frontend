@@ -85,7 +85,7 @@
     return s + pitchScale();
   }
   const toSvg = (d, w) => ({ x: d * PW, y: w * PH });
-  FM.ANALYSIS_DRAW = { pitchLines, PW, PH, PS };
+  FM.ANALYSIS_DRAW = { pitchLines, PW, PH, PS, toSvg };
 
   function heatSvg(cells, color) {
     const GX = FM.HEAT.GX, GY = FM.HEAT.GY;
@@ -98,6 +98,8 @@
     });
     return s;
   }
+
+  FM.ANALYSIS_DRAW.heatSvg = heatSvg;
 
   function playersOf(league, fx, teamId) {
     const team = FM.teamById(league, teamId);
@@ -228,6 +230,7 @@
 
     host.innerHTML = `
       <div style="display:grid;gap:16px">
+        <div id="anData"></div>
         <div class="card">
           <h2>Analysis Centre</h2>
           <label>Match
@@ -250,6 +253,7 @@
         <div class="card" id="anClips"></div>
       </div>`;
     const askBtn = host.querySelector('#anAskAgent'); if (askBtn) askBtn.addEventListener('click', () => { if (FM.agentOpen) FM.agentOpen('Take me through my latest match.'); });
+    if (FM.renderDatasetTop) FM.renderDatasetTop(host.querySelector('#anData'), league);
     host.querySelector('#anMatch').addEventListener('change', (e) => { state.fxId = e.target.value; FM.renderAnalysis(host, league); });
     host.querySelector('#anTeam').addEventListener('change', (e) => { state.teamSel = e.target.value; state.playerSel = 'all'; FM.renderAnalysis(host, league); });
     host.querySelector('#anKind').addEventListener('change', (e) => { state.mapKind = e.target.value; FM.renderAnalysis(host, league); });

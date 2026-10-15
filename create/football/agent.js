@@ -33,7 +33,8 @@
       const rows = FM.tableRows(league), pos = rows.findIndex((r) => r.id === league.userId) + 1;
       if (pos) out.push('League position: ' + pos + ' of ' + rows.length + '.');
     } catch (e) { /* fine */ }
-    return out.join('\n').slice(0, 3400);
+    try { if (FM.datasetDigest) out.push('', 'Recorded match data (use the id when asking for a picture of one match):', FM.datasetDigest(league)); } catch (e) { /* fine */ }
+    return out.join('\n').slice(0, 7000);
   };
 
   function draw() {
@@ -41,7 +42,7 @@
     if (!root) return;
     root.classList.toggle('open', state.open);
     const log = root.querySelector('.ag-log');
-    log.innerHTML = state.messages.map((m) => `<div class="ag-msg ${m.role}">${esc(m.text)}</div>`).join('') + (state.busy ? '<div class="ag-msg agent ag-think">Thinking…</div>' : '');
+    log.innerHTML = state.messages.map((m) => `<div class="ag-msg ${m.role}">${esc(m.text)}${m.html ? '<div class="ag-vis">' + m.html + '</div>' : ''}</div>`).join('') + (state.busy ? '<div class="ag-msg agent ag-think">Thinking…</div>' : '');
     log.scrollTop = log.scrollHeight;
     root.querySelector('.ag-send').disabled = state.busy;
   }
@@ -52,8 +53,10 @@
     state.messages.push({ role: 'manager', text });
     state.busy = true; draw();
     try {
-      const out = await FM.api('/football/agent', { messages: state.messages.slice(-10), context: state.ctx() });
-      state.messages.push({ role: 'agent', text: out.reply || 'Tell me what you notice first.' });
+      const out = await FM.api('/football/agent', { messages: state.messages.slice(-10).map((m) => ({ role: m.role, text: m.text })), context: state.ctx() });
+      let html = '';
+      (Array.isArray(out.show) ? out.show : []).slice(0, 3).forEach((spec) => { try { html += FM.dataVisual ? FM.dataVisual(window.FM_WORLD && window.FM_WORLD.league, spec) : ''; } catch (e) { /* skip a picture that cannot be drawn */ } });
+      state.messages.push({ role: 'agent', text: out.reply || 'Tell me what you notice first.', html });
     } catch (e) {
       const msg = e && e.code === 'NO_SESSION' ? 'Sign in to LastMind and I can guide you through your matches.' : e && (e.code === 'LOCK_LIMIT_REACHED' || e.code === '402') ? 'You are out of Locks for now, so I cannot answer just yet.' : 'I could not be reached just now. Try again in a moment.';
       state.messages.push({ role: 'agent', text: msg });
@@ -63,7 +66,7 @@
 
   FM.agentOpen = function (starter) {
     state.open = true;
-    if (!state.messages.length) state.messages.push({ role: 'agent', text: 'I am here to take you through your matches. Pick a match on this page, or just say "start", and I will ask you what you see in the numbers.' });
+    if (!state.messages.length) state.messages.push({ role: 'agent', text: 'Hello, I am the LastMind AI Agent. Ask me anything: what a term means, how to read a heat map, or ask me to show you your build-up play, a pass network or how your shots have changed over the season. I can also take you through your matches step by step.' });
     draw();
     if (starter) send(starter);
   };
