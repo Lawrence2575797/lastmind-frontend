@@ -126,6 +126,7 @@
     if (match.clock < h.next) return;
     h.next = match.clock + 2;
     sampleScout(match);
+    xrSample(match);
     h.ball[match.swapped ? heatCell(1 - match.ball.x / L, 1 - match.ball.y / W) : heatCell(match.ball.x / L, match.ball.y / W)]++;   // kept as if the home side attacked one way all match
     const size = FM.HEAT.GX * FM.HEAT.GY;
     match.teams.forEach((team) => {
@@ -148,7 +149,75 @@
     ev.t = match.clock;
     match.events.push(ev);
     if (match.events.length > 8000) match.events.shift();
+    const cur = match.xr && match.xr.cur;
+    if (cur && ev.team === cur.team) {
+      if (ev.type === 'pass') cur.passes++;
+      else if (ev.type === 'shot') cur.shot = true;
+      else if (ev.type === 'goal') cur.goal = true;
+    }
   }
+
+  // ---------- extra things kept about each match, for the analysis ----------
+  // Possessions (where each began and ended, how the ball was won, how many passes, whether it ended in a shot), the ball won back
+  // (where, and how soon after it was lost), the team's shape every half minute (how high the line stood, how wide, how compact) and how far
+  // each player ran. Everything here only reads the match: it never changes how it is played.
+  const xrOf = (match) => match.xr || (match.xr = { cur: null, seq: [], recov: [], shape: [], load: {}, last: {}, lostAt: {}, n: 0 });
+  const r2 = (v) => Math.round(v * 100) / 100;
+  function xrPossession(match, team, player) {
+    const x = xrOf(match);
+    if (x.cur && x.cur.team === team.id) return;
+    const bd = FM.toTeamSpace(team.attackDir, match.ball.x, match.ball.y);
+    if (x.cur) {
+      const c = x.cur, tm = match.teams.find((t) => t.id === c.team), end = tm ? FM.toTeamSpace(tm.attackDir, match.ball.x, match.ball.y) : { d: 0, w: 0.5 };
+      x.seq.push([c.team === match.home.id ? 0 : 1, Math.round(c.t), r2(c.d0), c.how, c.passes, r2(Math.max(c.maxD, end.d)), c.goal ? 2 : c.shot ? 1 : 0, Math.round(match.clock - c.t), r2(end.d), r2(end.w)]);
+      x.lostAt[c.team] = match.clock;
+    }
+    const last = match.events.length ? match.events[match.events.length - 1] : null;
+    let how = 0;   // 0 loose ball or other, 1 tackle, 2 interception, 3 saved or caught by the keeper, 4 restart
+    if (match.restart) how = 4;
+    else if (last && match.clock - last.t < 1.5) {
+      if (last.type === 'tackle' && last.ok && last.team === team.id) how = 1;
+      else if (last.type === 'pass' && last.outcome === 'intercepted') how = 2;
+      else if (last.type === 'shot') how = 3;
+    }
+    const lost = x.lostAt[team.id];
+    if (x.cur) x.recov.push([team === match.home ? 0 : 1, Math.round(match.clock), r2(bd.d), r2(bd.w), lost == null ? -1 : r2(Math.min(60, match.clock - lost)), how]);
+    x.cur = { team: team.id, t: match.clock, d0: bd.d, maxD: bd.d, how, passes: 0, shot: false, goal: false };
+  }
+  function xrSample(match) {
+    const x = xrOf(match);
+    x.n++;
+    if (x.cur) { const tm = match.teams.find((t) => t.id === x.cur.team); if (tm) x.cur.maxD = Math.max(x.cur.maxD, FM.toTeamSpace(tm.attackDir, match.ball.x, match.ball.y).d); }
+    match.teams.forEach((team) => team.players.forEach((p) => {
+      const l = x.last[p.id];
+      if (l) {
+        const ds = Math.hypot(p.x - l[0], p.y - l[1]);
+        if (ds < 40) { const e = x.load[p.id] || (x.load[p.id] = [0, 0]); e[0] += ds; if (ds / 2 > 6.5) e[1]++; }
+      }
+      x.last[p.id] = [p.x, p.y];
+    }));
+    if (x.n % 30 === 0) {
+      const poss = match.carrier ? match.carrier.team : null;
+      match.teams.forEach((team) => {
+        const out = team.players.filter((p) => p.group !== 'GK').map((p) => FM.toTeamSpace(team.attackDir, p.x, p.y));
+        if (out.length < 6) return;
+        const ds = out.map((q) => q.d).sort((a, b) => a - b), ws = out.map((q) => q.w * W);
+        const line = ds.slice(0, 4).reduce((a, b) => a + b, 0) / 4, front = ds.slice(-3).reduce((a, b) => a + b, 0) / 3;
+        const mw = ws.reduce((a, b) => a + b, 0) / ws.length, width = Math.sqrt(ws.reduce((a, b) => a + (b - mw) * (b - mw), 0) / ws.length);
+        const md = ds.reduce((a, b) => a + b, 0) / ds.length * L;
+        const comp = Math.sqrt(out.reduce((a, q, i) => a + ((q.d * L - md) ** 2) + ((ws[i] - mw) ** 2), 0) / out.length);
+        x.shape.push([Math.round(match.clock), team === match.home ? 0 : 1, r2(line), r2(front), Math.round(width * 10) / 10, Math.round(comp * 10) / 10, r2(FM.toTeamSpace(team.attackDir, match.ball.x, match.ball.y).d), poss === team ? 1 : 0]);
+      });
+    }
+  }
+  FM.xrSummary = function (match) {
+    const x = match.xr;
+    if (!x) return null;
+    const seq = x.seq.slice();
+    if (x.cur) { const c = x.cur; seq.push([c.team === match.home.id ? 0 : 1, Math.round(c.t), r2(c.d0), c.how, c.passes, r2(c.maxD), c.goal ? 2 : c.shot ? 1 : 0, Math.round(match.clock - c.t), -1, -1]); }
+    const load = {}; Object.keys(x.load).forEach((id) => { load[id] = [Math.round(x.load[id][0]), x.load[id][1]]; });
+    return { seq, recov: x.recov, shape: x.shape, load };
+  };
 
   FM.beginKickoff = function (match, team) {
     match.teams.forEach((t) => FM.resetToKickoff(t));
@@ -167,6 +236,7 @@
   };
 
   function giveBall(match, team, player, delay) {
+    xrPossession(match, team, player);
     if (match.rec) chainOnBall(match, team, player, match.lastTeam !== team);
     if (match.lastTeam !== team || !match.lastChange) match.lastChange = { team, t: match.clock };
     match.carrier = { team, player };

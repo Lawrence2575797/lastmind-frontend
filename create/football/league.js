@@ -480,7 +480,7 @@
   FM.compactLog = function (match) {
     const r1 = (v) => Math.round(v * 10) / 10, r3 = (v) => Math.round(v * 1000) / 1000;
     const idx = (id) => (id === match.home.id ? 0 : 1);
-    const log = { teams: [match.home.id, match.away.id], passes: [], tackles: [], dribbles: [], other: [], heat: match.heat, duration: Math.round(match.clock) };
+    const log = { teams: [match.home.id, match.away.id], passes: [], tackles: [], dribbles: [], other: [], heat: match.heat, duration: Math.round(match.clock), xr: FM.xrSummary ? FM.xrSummary(match) : null };
     // The sides change ends at half time. The log is kept as if the home side attacked the same way all match (the way the analysis pages
     // read it), so positions from the second half are turned round.
     const PL = FM.PITCH.L, PW = FM.PITCH.W, swapAt = match.swapAt == null ? Infinity : match.swapAt;

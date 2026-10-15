@@ -52,7 +52,26 @@
         len += p[7]; lenN++; if (p[7] > 30) long++; press += p[9];
       });
       const bu = buildUps(fx, league);
+      // from the extra things recorded in the match: possessions, balls won back, the team's shape, how far they ran
+      const xr = fx.log.xr, ex = { seqs: 0, seqPasses: 0, seqFinal: 0, lostOwn: 0, lostMid: 0, lostFinal: 0, rec: 0, recHigh: 0, regain: 0, regainN: 0, quick: 0, line: 0, width: 0, comp: 0, shapeN: 0, lineIn: 0, lineOut: 0, nIn: 0, nOut: 0, km: 0, sprints: 0 };
+      if (xr) {
+        xr.seq.filter((q) => q[0] === side).forEach((q) => {
+          ex.seqs++; ex.seqPasses += q[4]; if (q[5] > 0.66) ex.seqFinal++;
+          if (q[6] === 0 && q[8] >= 0) { if (q[8] < 1 / 3) ex.lostOwn++; else if (q[8] < 2 / 3) ex.lostMid++; else ex.lostFinal++; }
+        });
+        xr.recov.filter((q) => q[0] === side).forEach((q) => { ex.rec++; if (q[2] > 0.6) ex.recHigh++; if (q[4] >= 0) { ex.regain += q[4]; ex.regainN++; if (q[4] <= 6) ex.quick++; } });
+        xr.shape.filter((q) => q[1] === side).forEach((q) => {
+          ex.shapeN++; ex.line += q[2]; ex.width += q[4]; ex.comp += q[5];
+          if (q[7]) { ex.lineIn += q[2]; ex.nIn++; } else { ex.lineOut += q[2]; ex.nOut++; }
+        });
+        const mine = new Set((FM.teamById(league, league.userId).squad || []).map((p) => String(p.id)));
+        Object.keys(xr.load).forEach((id) => { if (mine.has(String(id))) { ex.km += xr.load[id][0] / 1000; ex.sprints += xr.load[id][1]; } });
+      }
       return {
+        seqs: ex.seqs, seqAvgPasses: ex.seqs ? r1(ex.seqPasses / ex.seqs) : 0, seqFinalPct: pc(ex.seqFinal, ex.seqs), lostOwn: ex.lostOwn, lostMid: ex.lostMid, lostFinal: ex.lostFinal,
+        recoveries: ex.rec, highRecoveries: ex.recHigh, regainSeconds: ex.regainN ? r1(ex.regain / ex.regainN) : -1, quickRegains: ex.quick,
+        lineHeight: ex.shapeN ? r1(100 * ex.line / ex.shapeN) : -1, lineInPoss: ex.nIn ? r1(100 * ex.lineIn / ex.nIn) : -1, lineOutPoss: ex.nOut ? r1(100 * ex.lineOut / ex.nOut) : -1,
+        width: ex.shapeN ? r1(ex.width / ex.shapeN) : -1, compactness: ex.shapeN ? r1(ex.comp / ex.shapeN) : -1, distanceKm: r1(ex.km), sprints: ex.sprints, hasXr: !!xr,
         id: fx.id, round: fx.round + 1, opp: opp.name, oppId: opp.id, home: mine, gf: mine ? fx.hg : fx.ag, ga: mine ? fx.ag : fx.hg,
         shots: s.shots, shotsA: o.shots, onTarget: s.onTarget, xg: s.xg, xgA: o.xg, poss: pc(s.possession, tot),
         passes: s.passes, passPct: pc(s.passesOk, s.passes), passPctOwn: pc(thirdOk[0], third[0]), passPctMid: pc(thirdOk[1], third[1]), passPctFinal: pc(thirdOk[2], third[2]),
@@ -70,8 +89,13 @@
     if (!d.count) return 'No league match has been recorded yet.';
     const sum = (k) => d.matches.reduce((a, m) => a + (m[k] || 0), 0), avg = (k) => r1(sum(k) / d.count);
     const lines = [`Season so far (${d.count} match${d.count === 1 ? '' : 'es'}): goals for ${sum('gf')}, against ${sum('ga')}. Average per match: shots ${avg('shots')} (against ${avg('shotsA')}), expected goals ${r1(sum('xg') / d.count)} (against ${r1(sum('xgA') / d.count)}), possession ${Math.round(sum('poss') / d.count)}%, pass completion ${Math.round(sum('passPct') / d.count)}%, average pass length ${avg('avgPass')} m, long passes ${Math.round(sum('longPct') / d.count)}%, build-up moves ${avg('buildUps')} (reaching the final third ${avg('buildUpsToFinal')}).`];
+    const withX = d.matches.filter((m) => m.hasXr);
+    if (withX.length) {
+      const av = (k) => { const v = withX.map((m) => m[k]).filter((x) => x >= 0); return v.length ? r1(v.reduce((a, b) => a + b, 0) / v.length) : 'n/a'; };
+      lines.push(`Possession and shape (${withX.length} matches): possessions per match ${av('seqs')}, average passes per possession ${av('seqAvgPasses')}, share of possessions reaching the final third ${av('seqFinalPct')}%; ball lost in own third ${av('lostOwn')}, middle ${av('lostMid')}, final third ${av('lostFinal')} per match; balls won back ${av('recoveries')} per match, ${av('highRecoveries')} in the opposition half, taking on average ${av('regainSeconds')} seconds after losing it; back line height ${av('lineHeight')}% of the pitch (with the ball ${av('lineInPoss')}%, without it ${av('lineOutPoss')}%), team width ${av('width')} m, compactness ${av('compactness')} m; distance covered ${av('distanceKm')} km, sprints ${av('sprints')}.`);
+    }
     d.matches.slice(-12).forEach((m) => {
-      lines.push(`id ${m.id}: round ${m.round} ${m.home ? 'home' : 'away'} v ${m.opp} ${m.gf}-${m.ga}; shots ${m.shots}-${m.shotsA}; xG ${m.xg.toFixed(2)}-${m.xgA.toFixed(2)}; possession ${m.poss}%; passes ${m.passes} (${m.passPct}%: own third ${m.passPctOwn}%, middle ${m.passPctMid}%, final third ${m.passPctFinal}%); long ${m.longPct}%; build-up moves ${m.buildUps} (${m.buildUpsToFinal} to final third); tackles won ${m.tacklesWon}/${m.tackles}; dribbles won ${m.dribblesWon}/${m.dribbles}.`);
+      lines.push(`id ${m.id}: round ${m.round} ${m.home ? 'home' : 'away'} v ${m.opp} ${m.gf}-${m.ga}; shots ${m.shots}-${m.shotsA}; xG ${m.xg.toFixed(2)}-${m.xgA.toFixed(2)}; possession ${m.poss}%; passes ${m.passes} (${m.passPct}%: own third ${m.passPctOwn}%, middle ${m.passPctMid}%, final third ${m.passPctFinal}%); long ${m.longPct}%; build-up moves ${m.buildUps} (${m.buildUpsToFinal} to final third)${m.hasXr ? `; possessions ${m.seqs}, ${m.seqFinalPct}% reached the final third; lost in own third ${m.lostOwn}; won back ${m.recoveries} (${m.highRecoveries} high, ${m.regainSeconds >= 0 ? m.regainSeconds + ' s to regain' : 'n/a'}); back line ${m.lineHeight}%, width ${m.width} m, compactness ${m.compactness} m; ${m.distanceKm} km, ${m.sprints} sprints` : ''}; tackles won ${m.tacklesWon}/${m.tackles}; dribbles won ${m.dribblesWon}/${m.dribbles}.`);
     });
     return lines.join('\n');
   };
@@ -139,6 +163,10 @@
     xg: ['Expected goals', (m) => m.xg], xgAgainst: ['Expected goals against', (m) => m.xgA], possession: ['Possession %', (m) => m.poss], passPct: ['Pass completion %', (m) => m.passPct],
     longPct: ['Long passes %', (m) => m.longPct], buildUps: ['Build-up moves', (m) => m.buildUps], buildUpsToFinal: ['Build-ups reaching the final third', (m) => m.buildUpsToFinal],
     tacklesWon: ['Challenges won', (m) => m.tacklesWon], avgPass: ['Average pass length (m)', (m) => m.avgPass],
+    lineHeight: ['Back line height (% of pitch)', (m) => Math.max(0, m.lineHeight)], width: ['Team width (m)', (m) => Math.max(0, m.width)], compactness: ['Team compactness (m, lower is tighter)', (m) => Math.max(0, m.compactness)],
+    regainSeconds: ['Seconds to win the ball back', (m) => Math.max(0, m.regainSeconds)], recoveries: ['Balls won back', (m) => m.recoveries], highRecoveries: ['Balls won back high up', (m) => m.highRecoveries],
+    possessions: ['Possessions', (m) => m.seqs], possessionPasses: ['Passes per possession', (m) => m.seqAvgPasses], lostOwnThird: ['Balls lost in own third', (m) => m.lostOwn],
+    distanceKm: ['Distance covered (km)', (m) => m.distanceKm], sprints: ['Sprints', (m) => m.sprints],
   };
   FM.DATA_STATS = Object.keys(STATS);
   function trend(league, d, spec) {
@@ -148,6 +176,22 @@
     const bars = vals.map((v, i) => { const x = pad + i * ((w - pad * 2) / vals.length) + 3, bh = (h - 56) * v / max, m = d.matches[i];
       return `<rect x="${x.toFixed(1)}" y="${(h - 30 - bh).toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="3" fill="${m.gf > m.ga ? '#1F8A4C' : m.gf < m.ga ? '#B8402E' : '#8A8F94'}"/><text x="${(x + bw / 2).toFixed(1)}" y="${(h - 33 - bh).toFixed(1)}" text-anchor="middle" font-size="11" fill="currentColor">${Number.isInteger(v) ? v : v.toFixed(1)}</text><text x="${(x + bw / 2).toFixed(1)}" y="${h - 14}" text-anchor="middle" font-size="10" fill="currentColor" opacity=".75">R${m.round}</text>`; }).join('');
     return `<figure class="ds-fig"><svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(label)} by match" style="width:100%;height:auto"><text x="${pad}" y="16" font-size="12" font-weight="700" fill="currentColor">${esc(label)} by match</text>${bars}</svg><figcaption>Green is a win, red a defeat, grey a draw.</figcaption></figure>`;
+  }
+
+  // Where the ball was won back (or lost), in the manager's team's own view of the pitch, attacking to the right.
+  function spots(league, d, spec, kind) {
+    const fxs = pick(d, spec), pts = [];
+    fxs.forEach((fx) => {
+      const xr = fx.log.xr; if (!xr) return;
+      const side = fx.homeId === league.userId ? 0 : 1;
+      if (kind === 'recoveries') xr.recov.filter((q) => q[0] === side).forEach((q) => pts.push({ d: q[2], w: q[3], quick: q[4] >= 0 && q[4] <= 6 }));
+      else xr.seq.filter((q) => q[0] === side && q[6] === 0 && q[8] >= 0).forEach((q) => pts.push({ d: q[8], w: q[9], quick: false }));
+    });
+    if (!pts.length) return '<p class="note">That has not been recorded yet. It fills in from your next match.</p>';
+    const col = kind === 'recoveries' ? '#7FD49A' : '#FF5A36';
+    const dots = pts.map((p) => `<circle cx="${(p.d * A().PW).toFixed(1)}" cy="${(p.w * A().PH).toFixed(1)}" r="${p.quick ? 8 : 6}" fill="${col}" fill-opacity=".7" stroke="${p.quick ? '#fff' : 'none'}" stroke-width="2"/>`).join('');
+    const what = kind === 'recoveries' ? 'Where you won the ball back' : 'Where you lost the ball';
+    return `<figure class="ds-fig">${svgWrap(dots, what)}<figcaption>${esc(what)}, ${pts.length} times, attacking to the right.${kind === 'recoveries' ? ' A white ring is a ball won back within six seconds of losing it.' : ''} ${esc(caption(fxs, d, 'Over'))}</figcaption></figure>`;
   }
 
   function table(league, d) {
@@ -164,6 +208,8 @@
       case 'passnetwork': return passnetwork(league, d, spec);
       case 'buildup': return buildup(league, d, spec);
       case 'trend': return trend(league, d, spec);
+      case 'recoveries': return spots(league, d, spec, 'recoveries');
+      case 'turnovers': return spots(league, d, spec, 'turnovers');
       case 'table': return table(league, d, spec);
       default: return '';
     }
