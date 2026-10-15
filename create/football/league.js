@@ -342,6 +342,51 @@
     });
   };
 
+  // Assessed once at kick-off against the previous competitive match. Editing
+  // during preparation is free; repeatedly taking a new structure into games is not.
+  const FAMILIARITY_KEYS = ['buildDirect', 'directness', 'tempo', 'risk', 'finalRisk', 'shootFreedom', 'dribbleFreedom', 'counterAttack', 'counterPress', 'pressing', 'pressBuildUp', 'lineHeight', 'tackleAggression', 'offsideTrap', 'attackWidth', 'defWidth'];
+  function planPoints(value, path, out) {
+    if (!value || typeof value !== 'object') return;
+    if (Number.isFinite(value.x) && Number.isFinite(value.y)) { out[path] = [value.x / 105, value.y / 68]; return; }
+    Object.keys(value).sort().forEach((k) => planPoints(value[k], path + '/' + k, out));
+  }
+  FM.tacticalPlanSnapshot = function (team) {
+    const points = {};
+    planPoints(team.phasePos || {}, 'phase', points); planPoints(team.shape || {}, 'shape', points);
+    const tactics = {};
+    FAMILIARITY_KEYS.forEach((k) => { tactics[k] = Number.isFinite(team.tactics[k]) ? Math.round(team.tactics[k] * 1000) / 1000 : 0; });
+    const rules = (team.rules || []).filter((r) => !r.off).map((r) => JSON.stringify(r)).sort();
+    return { formation: FM.formationName ? FM.formationName(team) : team.formationKey, tactics, points, rules };
+  };
+  FM.tacticalPlanChange = function (before, after) {
+    if (!before || !after) return 0;
+    let change = before.formation === after.formation ? 0 : 0.3;
+    const tk = FAMILIARITY_KEYS.filter((k) => Number.isFinite(before.tactics[k]) && Number.isFinite(after.tactics[k]));
+    const tacticMean = tk.length ? tk.reduce((sum, k) => sum + Math.abs(before.tactics[k] - after.tactics[k]), 0) / tk.length : 0;
+    change += Math.min(0.35, tacticMean * 0.9);
+    const pk = Object.keys(before.points || {}).filter((k) => after.points && after.points[k]);
+    const pointMean = pk.length ? pk.reduce((sum, k) => sum + Math.hypot(before.points[k][0] - after.points[k][0], before.points[k][1] - after.points[k][1]), 0) / pk.length : 0;
+    change += Math.min(0.3, pointMean * 0.65);
+    if (JSON.stringify(before.rules || []) !== JSON.stringify(after.rules || [])) change += 0.08;
+    return Math.min(1, change);
+  };
+  FM.familiarityLabel = (score) => score >= 90 ? 'Settled' : score >= 75 ? 'Familiar' : score >= 60 ? 'Adjusting' : 'Disjointed';
+  FM.previewTacticalFamiliarity = function (team) {
+    const state = team.tacticalFamiliarity || { score: 100, baseline: null };
+    const previous = Number.isFinite(state.score) ? state.score : 100;
+    const change = FM.tacticalPlanChange(state.baseline, FM.tacticalPlanSnapshot(team));
+    const score = !state.baseline ? previous : change <= 0.035 ? Math.min(100, previous + 7) : Math.max(45, previous - Math.max(2, Math.ceil((change - 0.035) * 45)));
+    return { score, change, delta: score - previous, label: FM.familiarityLabel(score), firstMatch: !state.baseline };
+  };
+  FM.updateTacticalFamiliarity = function (team) {
+    const current = FM.tacticalPlanSnapshot(team), state = team.tacticalFamiliarity || { score: 100, baseline: null, change: 0, delta: 0 };
+    const change = FM.tacticalPlanChange(state.baseline, current), previous = Number.isFinite(state.score) ? state.score : 100;
+    const score = !state.baseline ? previous : change <= 0.035 ? Math.min(100, previous + 7) : Math.max(45, previous - Math.max(2, Math.ceil((change - 0.035) * 45)));
+    team.tacticalFamiliarity = { score, baseline: current, change, delta: score - previous };
+    team.tacticalFactor = 0.88 + 0.12 * score / 100;
+    return team.tacticalFamiliarity;
+  };
+
   // ---------- playing a fixture ----------
   FM.startFixture = function (league, fx, opts) {
     const home = FM.teamById(league, fx.homeId), away = FM.teamById(league, fx.awayId);
@@ -356,6 +401,10 @@
     [home, away].forEach((t) => {
       const changes = FM.autoLineup(t, { rotate: !FM.isHuman(league, t.id) });
       if (t.id === league.userId && !friendly && FM.pushNews) changes.filter((c) => c.injured).forEach((c) => FM.pushNews(league, { round: fx.round, day: league.day, kind: 'Injury', headline: c.off.name + ' is injured, ' + c.on.name + ' starts', body: c.off.name + ' (' + c.off.natural + ') is unavailable' + (c.off.injury ? ' with ' + c.off.injury.name : '') + ', so ' + c.on.name + ' takes his place in your starting line-up.', club: t.id, mine: true }));
+    });
+    [home, away].forEach((t) => {
+      if (!friendly) FM.updateTacticalFamiliarity(t);
+      else t.tacticalFactor = 0.88 + 0.12 * ((t.tacticalFamiliarity && t.tacticalFamiliarity.score) || 100) / 100;
     });
     [home, away].forEach((t) => { t.snap = FM.snapshotLineup(t); t.subsUsed = 0; t.sentOff = []; t.retired = []; delete t.liveBase; delete t.liveLean; FM.fitnessBegin(t); });
     const match = FM.createMatch(home, away, fx.seed);
@@ -553,6 +602,8 @@
       if (p.contract != null) p.contract = Math.max(1, p.contract - 1);
     });
     team.drift = {}; team.rules = []; team.scenarios = []; team.defScenarios = []; team.scenarioEvidence = {}; team.scenarioDefEvidence = {};
+    // Summer interrupts the rhythm, but a club does not forget its entire base.
+    if (team.tacticalFamiliarity) { team.tacticalFamiliarity.score = Math.max(75, Math.round(team.tacticalFamiliarity.score * 0.9)); team.tacticalFamiliarity.delta = 0; }
     FM.resetToKickoff(team);
   }
 
@@ -605,6 +656,7 @@
       id: t.id, name: t.name, kit: t.kit, kits: t.kits, style: t.style, strength: t.strength, seed: t.seed, formationKey: t.formationKey, formationLabel: t.formationLabel || null, tactics: t.tactics,
       subsUsed: t.subsUsed, maxSubs: t.maxSubs, snap: t.snap || null, baseTactics: t.baseTactics, drift: t.drift, shape: t.shape, phasePos: t.phasePos, phaseBall: t.phaseBall || {}, pages: t.pages || {}, pageDefaults: t.pageDefaults || {}, scenarios: t.scenarios || [], defScenarios: t.defScenarios || [], rules: t.rules || [],
       scenarioEnd: t.scenarioEnd || {}, scenarioInfo: t.scenarioInfo || {}, scenarioBall: t.scenarioBall || {}, scenarioEvidence: t.scenarioEvidence || {}, scenarioDefEvidence: t.scenarioDefEvidence || {},
+      tacticalFamiliarity: t.tacticalFamiliarity || null,
       squad: t.squad.map((p) => { const o = {}; PLAYER_KEYS.forEach((k) => { if (p[k] !== undefined) o[k] = p[k]; }); if (p.baseRatings) o.ratings = p.baseRatings; return o; }),
       players: t.players.map((p) => p.id), bench: t.bench.map((p) => p.id),
     };
@@ -616,6 +668,7 @@
       id: t.id, name: t.name, kit: t.kit, kits: t.kits, style: t.style, strength: t.strength, seed: t.seed, attackDir: 1, formationKey: t.formationKey, formationLabel: t.formationLabel || null,
       tactics: Object.assign(FM.defaultTactics(), t.tactics), subsUsed: t.subsUsed || 0, maxSubs: t.maxSubs || 5, snap: t.snap || null, baseTactics: Object.assign(FM.defaultTactics(), t.baseTactics || t.tactics), drift: t.drift || {}, shape: t.shape || {}, phasePos: t.phasePos || {}, phaseBall: t.phaseBall || {}, pages: t.pages || {}, pageDefaults: t.pageDefaults || {}, scenarios: t.scenarios || [], defScenarios: t.defScenarios || [], rules: t.rules || [],
       scenarioEnd: t.scenarioEnd || {}, scenarioInfo: t.scenarioInfo || {}, scenarioBall: t.scenarioBall || {}, scenarioEvidence: t.scenarioEvidence || {}, scenarioDefEvidence: t.scenarioDefEvidence || {},
+      tacticalFamiliarity: t.tacticalFamiliarity || null, tacticalFactor: 1,
       squad, players: t.players.map(byId), bench: t.bench.map(byId), sentOff: [],
     };
   }

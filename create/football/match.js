@@ -624,7 +624,7 @@
       // a step beyond it, not several metres behind a defence that is still goal-side.
       if (forward) { const lastX = lastDefenderX; if (lastX != null && (tx - lastX) * team.attackDir > (FM.BEHIND_LINE == null ? 1.5 : FM.BEHIND_LINE)) tx = lastX + team.attackDir * (FM.BEHIND_LINE == null ? 1.5 : FM.BEHIND_LINE); }
       const { lane, press } = laneInfo(match, team, carrier, tx, ty);
-      let p = FM.passProb(carrier, d, lane, press);
+      let p = FM.passProb(carrier, d, lane, press) * (team.tacticalFactor || 1);
       // Played in behind the last defender: the ball has to be weighted and the runner has to time it, so these are hard passes to complete.
       if ((tx - carrier.x) * team.attackDir > 6 && !other(match, team).players.some((o) => o.group !== 'GK' && (o.x - tx) * team.attackDir > 0)) p *= (FM.OVER_TOP == null ? .7 : FM.OVER_TOP);
       const prog = clamp((dGoal - Math.hypot(tx - goal.x, ty - goal.y)) / 25, -0.6, 1.2);
@@ -702,7 +702,7 @@
     // A defender who is behind the ball-carrier has been beaten: he is chasing, he is not in the way.
     const nearBehind = !!nearOpp && (nearOpp.x - carrier.x) * team.attackDir < -0.5;
     // Beating a man in the final third is harder than in midfield: the cover is close, and one beaten man is not the whole defence.
-    const dp = FM.dribbleProb(carrier, nearBehind ? nearD * 2.4 : nearD, nearOpp) * (ownDepth0 > 0.66 ? (FM.DRIB_FINAL == null ? 1 : FM.DRIB_FINAL) : 1);
+    const dp = FM.dribbleProb(carrier, nearBehind ? nearD * 2.4 : nearD, nearOpp) * (team.tacticalFactor || 1) * (ownDepth0 > 0.66 ? (FM.DRIB_FINAL == null ? 1 : FM.DRIB_FINAL) : 1);
     const dribbleBias = (GROUP_DRIBBLE[carrier.group] || 0) + (ROLE_DRIBBLE[role] || 0);
     // A carry into empty grass is not a take-on. Previously both used the
     // dribble duel, producing hundreds of apparent one-v-ones per match.
@@ -1727,10 +1727,10 @@
         if (d.group === 'GK') continue;
         if (dist(d, c.player) > 1.8) continue;
         if (!FM.TACKLE_ANY && (d.x - c.player.x) * team.attackDir < -0.6 && c.player.vx * team.attackDir > 1.5) continue;   // beaten: a defender chasing a man who is running on cannot tackle him from behind
-        const rate = .65 * (0.05 + 0.08 * opp.tactics.pressing + (d.roleId === 'ball_winning_midfielder' ? 0.06 : 0)) * (0.6 + 0.8 * opp.tactics.tackleAggression) * ((FM.CLOSE_TACKLE == null ? 1 : FM.CLOSE_TACKLE) > 1 && dist(c.player, { x: opp.attackDir === 1 ? 0 : L, y: W / 2 }) < 24 ? (FM.CLOSE_TACKLE == null ? 1 : FM.CLOSE_TACKLE) : 1) * (1 + 0.35 * (FM.instrMods(d).tackle + FM.rulesDelta(opp, d, 'tackle', match.ball, false)));
+        const rate = .65 * (opp.tacticalFactor || 1) * (0.05 + 0.08 * opp.tactics.pressing + (d.roleId === 'ball_winning_midfielder' ? 0.06 : 0)) * (0.6 + 0.8 * opp.tactics.tackleAggression) * ((FM.CLOSE_TACKLE == null ? 1 : FM.CLOSE_TACKLE) > 1 && dist(c.player, { x: opp.attackDir === 1 ? 0 : L, y: W / 2 }) < 24 ? (FM.CLOSE_TACKLE == null ? 1 : FM.CLOSE_TACKLE) : 1) * (1 + 0.35 * (FM.instrMods(d).tackle + FM.rulesDelta(opp, d, 'tackle', match.ball, false)));
         if (match.clock >= (match.tackleLock || 0) && match.rng() < rate * dt) {
           match.tackleLock = match.clock + 1.2;
-          const p = FM.tackleProb(d, c.player);
+          const p = FM.tackleProb(d, c.player) * (opp.tacticalFactor || 1);
           const ok = match.rng() < p;
           const st = statsOf(match, opp);
           st.tackles++;
