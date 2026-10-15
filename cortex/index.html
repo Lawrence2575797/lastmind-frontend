@@ -3093,7 +3093,7 @@ SQIDAQAB
         // token on the same device).
         let supabaseSession = null;
         try {
-            const { data } = await supabaseClient.auth.getSession();
+            const { data } = await Promise.race([supabaseClient.auth.getSession(), new Promise((_, rej) => setTimeout(() => rej(new Error('session read timed out')), 8000))]);
             supabaseSession = data.session;
         } catch (err) {
             console.error('LastMind Cortex: could not read the current session.', err);
@@ -3104,37 +3104,36 @@ SQIDAQAB
             return;
         }
 
+        // Everyone signed in is let straight in: Cortex has no paid-only mode, so waiting on the subscription check (two calls to a
+        // separate backend that can be cold for a minute or more) only left the page on "Checking your subscription" for nothing.
+        // The check still runs afterwards, just to refresh this device's saved token for the other pages.
         const userId = supabaseSession.user.id;
-        let token = await getStoredToken(userId).catch(() => null);
-        let payload = token ? await verifyJWT(token, publicKey) : null;
-
-        if (!payload) {
-            token = await refreshTokenFromBackend(userId);
-            payload = token ? await verifyJWT(token, publicKey) : null;
-        }
-
-        if (payload) { await enterApp(); return; }
-
+        const entered = enterApp();
         try {
-            const resp = await fetch(`${BACKEND_URL}/api/token-for-user`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${supabaseSession.access_token}` }
-            });
-            if (resp.ok) {
-                const { token: linkedToken, subscriptionId: linkedSubId } = await resp.json();
-                payload = await verifyJWT(linkedToken, publicKey);
-                if (payload) {
-                    await saveToken(userId, linkedToken);
-                    if (linkedSubId) await putAuthRecord(scopedAuthKey('subscriptionId', userId), linkedSubId);
+            let token = await getStoredToken(userId).catch(() => null);
+            let payload = token ? await verifyJWT(token, publicKey) : null;
+            if (!payload) {
+                token = await refreshTokenFromBackend(userId);
+                payload = token ? await verifyJWT(token, publicKey) : null;
+            }
+            if (!payload) {
+                const resp = await fetch(`${BACKEND_URL}/api/token-for-user`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${supabaseSession.access_token}` }
+                });
+                if (resp.ok) {
+                    const { token: linkedToken, subscriptionId: linkedSubId } = await resp.json();
+                    payload = await verifyJWT(linkedToken, publicKey);
+                    if (payload) {
+                        await saveToken(userId, linkedToken);
+                        if (linkedSubId) await putAuthRecord(scopedAuthKey('subscriptionId', userId), linkedSubId);
+                    }
                 }
             }
         } catch (err) {
-            console.error('LastMind Cortex: login-anywhere check failed.', err);
+            console.error('LastMind Cortex: subscription refresh failed.', err);
         }
-
-        if (payload) { await enterApp(); return; }
-
-        await enterApp();
+        await entered;
     })();
 </script>
 </body>
