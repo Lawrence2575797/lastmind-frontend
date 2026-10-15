@@ -1737,7 +1737,9 @@
           if (ok) st.tacklesWon++;
           let coverD = 40; opp.players.forEach((q) => { if (q !== d) coverD = Math.min(coverD, Math.hypot(q.x - d.x, q.y - d.y)); });
           record(match, { type: 'tackle', team: opp.id, player: d.number, vs: c.player.number, p, ok, x: c.player.x, y: c.player.y, depth: FM.toTeamSpace(opp.attackDir, c.player.x, c.player.y).d, cover: coverD });
-          if (ok && (c.player.y < 5 || c.player.y > W - 5) && match.rng() < 0.2) { startRestart(match, 'throw', team, clamp(c.player.x, 1, L - 1), c.player.y < W / 2 ? 0.5 : W - 0.5); break; }
+          // A tackle can only force a throw when it happens right beside a
+          // touchline. Central challenges must leave the ball in play.
+          if (ok && (c.player.y < 2.5 || c.player.y > W - 2.5) && match.rng() < 0.2) { startRestart(match, 'throw', team, clamp(c.player.x, 1, L - 1), c.player.y < W / 2 ? 0.5 : W - 0.5); break; }
           if (ok) { giveBall(match, opp, d, 0.9 + delayBeforeNextDecision(match, opp, d) * 0.4); break; }
           if (match.rng() < (0.06 + 0.1 * opp.tactics.tackleAggression + 0.002 * (60 - d.ratings.tackling) + 0.04 * FM.instrMods(d).tackle) * (inBox(team.attackDir, c.player.x, c.player.y) ? (FM.BOX_FOUL == null ? 0.35 : FM.BOX_FOUL) : 1)) { commitFoul(match, d, c.player, opp, team); break; }
         }
@@ -1825,7 +1827,10 @@
         return;
       }
       if (f.outcome === 'complete') giveBall(match, f.team, f.target, 0.12 + delayBeforeNextDecision(match, f.team, f.target));
-      else if (f.outcome === 'intercepted' && match.rng() < 0.15) startRestart(match, 'throw', f.team, clamp(match.ball.x, 1, L - 1), match.ball.y < W / 2 ? 0.5 : W - 0.5);
+      // Deflections only become throw-ins when the pass has physically
+      // reached the touchline. Previously any interception, including one in
+      // central midfield, could randomly jump straight to a throw-in.
+      else if (f.outcome === 'intercepted' && (match.ball.y < 1 || match.ball.y > W - 1) && match.rng() < 0.15) startRestart(match, 'throw', f.team, clamp(match.ball.x, 1, L - 1), match.ball.y < W / 2 ? 0.5 : W - 0.5);
       else if (f.outcome === 'intercepted') giveBall(match, other(match, f.team), f.interceptor, 0.4 + delayBeforeNextDecision(match, other(match, f.team), f.interceptor) * 0.5);
       else if (match.ball.x < 1 || match.ball.x > L - 1 || match.ball.y < 1 || match.ball.y > W - 1) handleOut(match, f.team, match.ball.x < 1 ? Math.min(match.ball.x, -0.1) : match.ball.x > L - 1 ? Math.max(match.ball.x, L + 0.1) : match.ball.x, match.ball.y < 1 ? Math.min(match.ball.y, -0.1) : match.ball.y > W - 1 ? Math.max(match.ball.y, W + 0.1) : match.ball.y);
       else { match.ball.state = 'loose'; match.lastTeam = f.team; }
