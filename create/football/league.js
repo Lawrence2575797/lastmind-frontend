@@ -757,12 +757,10 @@
   FM.pullCloud = async function () {
     if (DEMO_MODE) return false;
     try {
-      // A sleeping Render service may need well over six seconds to wake,
-      // authenticate and read the account. Keep the local save as a fallback,
-      // but do not abandon a healthy cloud load during a normal cold start.
-      let loadTimer = 0;
-      const list = await Promise.race([FM.apiCall('GET', '/create/projects'), new Promise((r) => { loadTimer = setTimeout(() => r(null), 45000); })]);
-      clearTimeout(loadTimer);
+      // Wait for the signed-in account's cloud save. Render can take a while
+      // to wake, and an arbitrary browser-side cutoff can open the wrong local
+      // state before the account response arrives.
+      const list = await FM.apiCall('GET', '/create/projects');
       if (!list || !list.ok || !list.json || list.json.unavailable || !list.uid) return false;
       const uid = list.uid;
       accountUid = uid;
