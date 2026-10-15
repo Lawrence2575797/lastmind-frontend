@@ -38,6 +38,25 @@
     };
   };
 
+  // The manager's overall approach for a match, changed from the match screen. It shifts the settings the engine reads (line height,
+  // pressing, tempo, risk, how freely they shoot and dribble), so a cautious side really does sit deeper, take fewer risks and shoot less.
+  // The settings set in the tactics pages are kept aside and put back when the match ends or the approach goes back to balanced.
+  FM.MENTALITIES = {
+    attacking: { lineHeight: 0.18, pressing: 0.12, tempo: 0.12, risk: 0.16, finalRisk: 0.12, shootFreedom: 0.1, dribbleFreedom: 0.08, counterAttack: 0.05, pressBuildUp: 0.1, directness: 0.05 },
+    balanced: {},
+    cautious: { lineHeight: -0.12, pressing: -0.06, tempo: -0.08, risk: -0.15, finalRisk: -0.1, shootFreedom: -0.05, dribbleFreedom: -0.05, counterAttack: 0.05, pressBuildUp: -0.1 },
+    defensive: { lineHeight: -0.25, pressing: -0.15, tempo: -0.12, risk: -0.25, finalRisk: -0.2, shootFreedom: -0.1, dribbleFreedom: -0.1, counterAttack: 0.1, pressBuildUp: -0.2, directness: 0.08 },
+  };
+  FM.setMentality = function (team, key) {
+    if (!FM.MENTALITIES[key]) key = 'balanced';
+    if (team.mentBase) team.tactics = Object.assign(team.tactics, team.mentBase);   // back to the settings from the tactics pages
+    if (key === 'balanced') { team.mentBase = null; team.mentality = 'balanced'; return; }
+    const base = {}, delta = FM.MENTALITIES[key];
+    Object.keys(delta).forEach((k) => { base[k] = team.tactics[k]; });
+    team.mentBase = base; team.mentality = key;
+    Object.keys(delta).forEach((k) => { team.tactics[k] = Math.max(0, Math.min(1, base[k] + delta[k])); });
+  };
+
   function freshOptions(roleId) {
     const role = FM.ROLES[roleId];
     const options = {};

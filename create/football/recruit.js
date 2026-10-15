@@ -13,18 +13,9 @@
   const chip = (text, cls) => `<span class="rc-chip ${cls || ''}">${esc(text)}</span>`;
 
   // A picture slot: shows the kept picture straight away, or fills in when it has been made. `ask` false means "only show it if it exists".
+  // Recruitment shows no pictures any more: just the player's initials where a portrait slot is.
   function pictureInto(host, key, request, ask, fallbackHtml) {
-    FM.cachedPicture(key).then((have) => {
-      if (have) { if (host.isConnected) host.innerHTML = `<img src="${have}" alt="">`; return; }
-      host.innerHTML = fallbackHtml || '';
-      if (!ask) return;
-      host.classList.add('loading');
-      FM.picture(key, request).then((img) => {
-        if (!host.isConnected) return;
-        host.classList.remove('loading');
-        if (img) host.innerHTML = `<img src="${img}" alt="">`;
-      });
-    });
+    host.innerHTML = fallbackHtml || '';
   }
 
   FM.renderRecruit = function (host, league, h) {

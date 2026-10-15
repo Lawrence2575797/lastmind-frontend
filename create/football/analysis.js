@@ -234,9 +234,7 @@
             <select id="anMatch">${fxs.map((f) => { const fh = FM.teamById(league, f.homeId), fa = FM.teamById(league, f.awayId); return `<option value="${f.id}"${f.id === fx.id ? ' selected' : ''}>Round ${f.round + 1}: ${esc(fh.name)} ${f.hg}-${f.ag} ${esc(fa.name)}</option>`; }).join('')}</select>
           </label>
         </div>
-        ${insightsHtml(league, fx)}
-        ${pagesHtml(league, fx)}
-        ${adviceHtml(league, fx)}
+        <div class="card ag-intro"><h2>Work through it with the LastMind AI Agent</h2><p class="desc">Choose a match above, look at the facts and the maps below, then open the agent on the right. It will ask you what you see and take you through the analysis step by step.</p><button type="button" class="primary" id="anAskAgent">Open the LastMind AI Agent</button></div>
         <div class="two">
           <div class="card"><h2>Key facts</h2>${keyFactsHtml(league, fx)}</div>
           <div class="card">
@@ -250,8 +248,8 @@
           </div>
         </div>
         <div class="card" id="anClips"></div>
-        <div id="anStats"></div>
       </div>`;
+    const askBtn = host.querySelector('#anAskAgent'); if (askBtn) askBtn.addEventListener('click', () => { if (FM.agentOpen) FM.agentOpen('Take me through my latest match.'); });
     host.querySelector('#anMatch').addEventListener('change', (e) => { state.fxId = e.target.value; FM.renderAnalysis(host, league); });
     host.querySelector('#anTeam').addEventListener('change', (e) => { state.teamSel = e.target.value; state.playerSel = 'all'; FM.renderAnalysis(host, league); });
     host.querySelector('#anKind').addEventListener('change', (e) => { state.mapKind = e.target.value; FM.renderAnalysis(host, league); });
@@ -264,6 +262,5 @@
     }));
     if (FM.stopClips) FM.stopClips();
     if (FM.renderClips) FM.renderClips(host.querySelector('#anClips'), league, fx);
-    if (FM.renderStatsTiers) FM.renderStatsTiers(host.querySelector('#anStats'), league, fxs, state);
   };
 })();

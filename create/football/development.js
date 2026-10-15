@@ -426,83 +426,21 @@
     let detail = '<div class="card"><p class="note">Pick a player from the list.</p></div>';
     let wire = null;
     if (sel) {
-      const plan = d.plans[sel.id], a = FM.abilityOf(sel), pot = FM.potentialOf(sel), age = FM.ageOf(sel);
-      const diag = FM.devDiagnose(league, sel);
-      // The problem the assistant has named is the one to investigate: there is nothing else to open (a passing problem is about passing).
-      const lessonId = plan && plan.active ? plan.lesson : (diag.lesson || lessonsFor(sel)[0]), lessons = [lessonId];
-      const L = FM.LESSONS[lessonId], last = sel.name.split(' ').slice(-1)[0];
-      const hist = d.hist[sel.id] || [];
-      // 1. the problem
-      let view = '';
-      if (diag.kind === 'evidence') {
-        const m = diag.m, dl = FM.LESSONS[diag.lesson], sp = m.split, what = dl.unit.split(' ')[0];
-        const hard = sp && sp[0].n >= 3 && sp[1].n >= 3 && sp[1].rate - sp[0].rate >= 0.15;
-        if (m.rate >= m.base && hard) view = `“${esc(last)}'s ${esc(what)} look fine overall (${pct(m.rate)}, against ${pct(m.base)} for the league), but when the situation is tight (${esc(m.labels[0])}) he gets only ${pct(sp[0].rate)} of them right, against ${pct(sp[1].rate)} otherwise. That is where we lose the ball.”`;
-        else if (m.rate < m.base) view = `“${esc(last)}'s ${esc(dl.area.toLowerCase())} are costing us. He gets ${pct(m.rate)} of his ${esc(what)} right (${m.k} of ${m.n}), where the league as a whole manages ${pct(m.base)}.”${hard ? ` It is much worse when ${esc(m.labels[0])}: ${pct(sp[0].rate)} against ${pct(sp[1].rate)}.` : ''}`;
-        else view = `“${esc(last)} is doing fine on his ${esc(dl.area.toLowerCase())}: ${pct(m.rate)} (${m.k} of ${m.n}) against ${pct(m.base)} for the league. I would look at something else, or keep building on this.”`;
-      } else if (diag.kind === 'attribute') view = `“I have no recorded decisions for him yet, but his ${esc(diag.attr === 'gk' ? 'goalkeeping' : diag.attr)} is below most players in his position. I would start there.”`;
-      else view = '“Once he has played, I will have something to tell you.”';
-      // 2. investigate: tabs for the lesson, then three layers of evidence
-      const tabs = `<p class="dv-area"><b>${esc(FM.LESSONS[lessonId].area)}</b></p>`;
-      const m = FM.devMeasure(league, sel, lessonId, plan && plan.active && plan.lesson === lessonId ? plan.startRound : null);
-      let inv = '';
-      if (!m) inv = '<p class="note">This lesson is about effort and match feel rather than one recorded decision, so there is no statistic to model. You can still teach it below.</p>';
-      else {
-        const src = FM.devSources(league);
-        inv += `<div class="dv-layer"><h4>How often</h4>${src.season ? `<p class="note">From ${src.season} match${src.season === 1 ? '' : 'es'} played this season.</p>` : ''}`;
-        if (!m.n) inv += '<p class="note">Nothing recorded for him yet in this season\'s matches.</p>';
-        else {
-          inv += `<p><b>${m.k} of ${m.n}</b> ${esc(L.unit)} (<b>${pct(m.rate)}</b>). The league as a whole: <b>${pct(m.base)}</b>.</p>`;
-        }
-        inv += '</div>';
-        if (m.split && m.split[0].n >= 1 && m.split[1].n >= 1) {
-          inv += `<div class="dv-layer"><h4>Does the situation matter?</h4><table class="data dv-split"><thead><tr><th class="l">When</th><th>Decisions</th><th>Success</th></tr></thead><tbody>${m.split.map((s2, i) => `<tr><td class="l">${esc(m.labels[i])}</td><td>${s2.n}</td><td>${s2.n ? pct(s2.rate) : '–'}</td></tr>`).join('')}</tbody></table>`;
-          inv += '</div>';
-        }
-        if (m.post && m.pre && m.post.n && m.pre.n) {
-          inv += `<div class="dv-layer"><h4>Since the lesson began</h4><p><b>Before:</b> ${pct(m.pre.rate)} (${m.pre.k} of ${m.pre.n}). <b>Since:</b> ${pct(m.post.rate)} (${m.post.k} of ${m.post.n}).</p></div>`;
-        }
-      }
-      // 3. teach
-      const kps = FM.devKeyPoints(league, sel, lessonId);
-      const lastRes = dv.last[sel.id] && dv.last[sel.id].lesson === lessonId ? dv.last[sel.id] : null;
-      const teachPlan = plan && plan.active && plan.lesson === lessonId ? plan : null;
-      let result = '';
-      if (lastRes) {
-        const r = lastRes.res;
-        result = `<div class="dv-result"><div class="dv-meter"><span>${esc(last)} understood</span><span class="dv-bar big"><i style="width:${r.understanding}%"></i></span><b>${r.understanding}%</b></div>
-          <blockquote>“${esc(r.reply)}”</blockquote>
-          <ul class="dv-points">${r.keyPoints.map((k, i) => `<li class="${r.covered.indexOf(i) >= 0 ? 'got' : 'miss'}">${r.covered.indexOf(i) >= 0 ? '✓' : '○'} ${esc(k.text)}</li>`).join('')}</ul>
-          ${r.wrong && r.wrong.length ? `<p class="dv-wrong"><b>Not quite right:</b> ${esc(r.wrong.join(' '))}</p>` : ''}
-          ${r.tip ? `<p class="dv-advice"><b>For next time:</b> ${esc(r.tip)}</p>` : ''}
-          <p class="note">${lastRes.after > lastRes.before ? `He is already a little sharper: ability ${lastRes.before} to ${lastRes.after}. ` : ''}What he took in is what he carries into the next match, and the Feedback below reports how his decisions changed.</p></div>`;
-      }
-      const teach = `<div class="dv-teach">
-          <p>${esc(L.teach)} Look at the evidence above, then explain it to ${esc(last)} in your own words: <b>what drives success, how much, and what he should do differently</b>.</p>
-          <textarea id="dvExplain" rows="5" placeholder="e.g. When the receiver has little space around him the pass is much less likely to arrive. Each extra metre of space makes it about 1.2 times more likely, so before you play it, check…">${esc(dv.draft && dv.draft[sel.id] || (teachPlan && teachPlan.last ? teachPlan.last.text : ''))}</textarea>
-          <div class="row"><button type="button" id="dvTeach" class="primary"${dv.busy ? ' disabled' : ''}>${dv.busy ? 'He is thinking…' : teachPlan && teachPlan.attempts ? 'Explain it again' : 'Explain it to him'}</button>
-${plan && plan.active ? '<button type="button" id="dvStop">Stop this training</button>' : ''}</div>
-          <p class="note">${teachPlan ? `In training for ${teachPlan.rounds || 0} week${teachPlan.rounds === 1 ? '' : 's'}; he has taken in <b>${teachPlan.understanding || 0}%</b> so far (${teachPlan.attempts || 0} explanation${teachPlan.attempts === 1 ? '' : 's'}). A clearer explanation raises it and he sharpens straight away.` : 'Training begins when you have explained it. The clearer and more accurate your explanation, the more he takes in.'}</p>
-          ${result}</div>`;
+      const a = FM.abilityOf(sel), pot = FM.potentialOf(sel), age = FM.ageOf(sel), hist = d.hist[sel.id] || [];
       let spark = '';
       if (hist.length >= 2) {
         const vals = hist.map((x) => x[1]), lo = Math.min.apply(null, vals) - 1, hi = Math.max(Math.max.apply(null, vals), pot) + 1, w = 280, hgt = 70;
         const pts = vals.map((v, i) => [Math.round(10 + (w - 20) * i / (vals.length - 1)), Math.round(hgt - 8 - (hgt - 16) * (v - lo) / Math.max(1, hi - lo))]);
         const py = Math.round(hgt - 8 - (hgt - 16) * (pot - lo) / Math.max(1, hi - lo));
-        spark = `<svg viewBox="0 0 ${w} ${hgt}" class="dv-spark" role="img" aria-label="Ability over the season"><line x1="10" x2="${w - 10}" y1="${py}" y2="${py}" stroke="currentColor" stroke-dasharray="4 4" opacity=".5"/><text x="${w - 10}" y="${py - 3}" text-anchor="end" font-size="9" fill="currentColor" opacity=".8">potential ${pot}</text><polyline fill="none" stroke="currentColor" stroke-width="2.5" points="${pts.map((q) => q.join(',')).join(' ')}"/>${pts.map((q) => `<circle cx="${q[0]}" cy="${q[1]}" r="3" fill="currentColor"/>`).join('')}</svg>`;
+        spark = `<svg viewBox="0 0 ${w} ${hgt}" class="dv-spark" role="img" aria-label="Ability over the season"><line x1="10" x2="${w - 10}" y1="${py}" y2="${py}" stroke="currentColor" stroke-dasharray="3 4" opacity=".4"/><polyline fill="none" stroke="currentColor" stroke-width="2" points="${pts.map((q) => q.join(',')).join(' ')}"/></svg>`;
       }
       detail = `<div class="card dv-player"><span class="eyebrow">${FM.POS_NAME ? FM.POS_NAME[sel.natural] : sel.natural} · age ${age}</span><h3>${esc(sel.name)}</h3>
           <div class="dv-nums"><span>Ability <b>${a}</b></span><span>Potential <b>${pot}</b></span><span>${esc(FM.potentialWord(sel))}</span><span>${esc(FM.learningWord(sel))}</span></div>
           <span class="dv-bar big"><i style="width:${Math.min(100, Math.round(100 * a / Math.max(1, pot)))}%"></i></span>${spark}
           ${pot - a <= 0 ? '<p class="note">He has reached his potential, so more training will not raise his ratings. Younger players have room to grow.</p>' : ''}
-          <h4>1. The problem</h4><p><b>Assistant manager:</b> ${view}</p>
-          <h4>2. Investigate the evidence</h4>${tabs}${inv}
-          <h4>3. Teach him</h4>${teach}</div>`;
-      wire = { sel, lessonId, plan, kps };
+          <p class="desc">To work out what holds ${esc(sel.name.split(' ').slice(-1)[0])} back, open the LastMind AI Agent on the right and ask it to take you through his matches.</p></div>`;
     }
-    // ----- feedback
-    const items = d.feed.slice().reverse().slice(0, 30);
-    const feedback = `<div class="card dv-feed"><h3>Feedback</h3>${items.length ? items.map((f) => `<article class="dv-fb ${f.kind}"><div class="dv-fb-head"><b>${esc(f.title)}</b><small>${f.round >= 0 ? 'After round ' + (f.round + 1) : 'Pre-season'}</small></div><p>${esc(f.text)}</p>${f.advice ? `<p class="dv-advice"><b>What next:</b> ${esc(f.advice)}</p>` : ''}</article>`).join('') : '<p class="note">After each round you play, this is where you find out whether the work is paying off, and what to do about it.</p>'}</div>`;
+    const feedback = '';
     host.innerHTML = `<div class="dv-wrap"><div class="card dv-list"><div class="row" style="justify-content:space-between"><h2>Development</h2>
         <label>Sort by <select id="dvSort">${[['gap', 'Room to grow'], ['ability', 'Ability'], ['age', 'Youngest'], ['name', 'Name']].map(([k, n]) => `<option value="${k}"${dv.sort === k ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>
         <p class="note">Ability and potential are out of 100. Develop a player by studying what his recorded decisions show, explaining it to him clearly, and checking in later matches that it worked.</p>
@@ -510,37 +448,6 @@ ${plan && plan.active ? '<button type="button" id="dvStop">Stop this training</b
         <div class="dv-side">${detail}</div></div>${feedback}`;
     const srt = host.querySelector('#dvSort'); if (srt) srt.addEventListener('change', () => { dv.sort = srt.value; draw(); });
     host.querySelectorAll('[data-dev]').forEach((r) => r.addEventListener('click', () => { dv.sel = r.dataset.dev; draw(); }));
-    if (!wire) return;
-    const { sel: pl, lessonId: lid, plan: pln } = wire;
-    host.querySelectorAll('[data-dvl]').forEach((b) => b.addEventListener('click', () => { const ta = host.querySelector('#dvExplain'); dv.draft = dv.draft || {}; if (ta) dv.draft[pl.id] = ta.value; dv.lesson[pl.id] = b.dataset.dvl; draw(); }));
-    // the "try a situation" sliders
-    const box = host.querySelector('.dv-explore');
-    if (box) {
-      const M = FM.devModel(league, lid);
-      const upd = () => {
-        const vals = Array.from(box.querySelectorAll('input[type=range]')).map((i) => +i.value);
-        box.querySelectorAll('output').forEach((o, j) => { o.textContent = vals[j]; });
-        const pr = M.predict(vals);
-        box.querySelector('.dv-prob i').style.width = Math.round(pr * 100) + '%'; box.querySelector('.dv-probnum').textContent = pct(pr);
-      };
-      box.querySelectorAll('input[type=range]').forEach((i) => i.addEventListener('input', upd));
-    }
-    const ta = host.querySelector('#dvExplain');
-    if (ta) ta.addEventListener('input', () => { dv.draft = dv.draft || {}; dv.draft[pl.id] = ta.value; });
-    const go = host.querySelector('#dvTeach');
-    if (go) go.addEventListener('click', async () => {
-      const text = (ta.value || '').trim();
-      if (text.length < 8) { ta.focus(); ta.placeholder = 'Write a sentence or two first: what drives success, and what he should do.'; return; }
-      dv.busy = true; draw();
-      const res = await FM.devAssess(league, pl, lid, text);
-      dv.busy = false;
-      const before = FM.abilityOf(pl);
-      const out = FM.devTeach(league, pl, lid, res, text);
-      dv.last[pl.id] = { lesson: lid, res, before, after: out.after };
-      dv.draft = dv.draft || {}; dv.draft[pl.id] = text;
-      save(); draw();
-    });
-    const stop = host.querySelector('#dvStop');
-    if (stop) stop.addEventListener('click', () => { if (d.plans[pl.id]) d.plans[pl.id].active = false; void pln; save(); draw(); });
+    void save;
   };
 })();

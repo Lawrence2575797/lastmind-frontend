@@ -769,6 +769,20 @@
   .rc-head { display: flex; gap: 12px; align-items: flex-start; } .rc-head h3 { margin: 2px 0; }
   .rc-portrait { flex: none; width: 92px; height: 116px; border-radius: 10px; overflow: hidden; background: rgba(255,255,255,.08); display: grid; place-items: center; }
   .rc-portrait img, .rc-scene img { width: 100%; height: 100%; object-fit: cover; display: block; } .rc-portrait .fallback { font-size: 1.6rem; font-weight: 800; opacity: .7; }
+  .rc-scene, .nw-photo { display: none !important; }
+  #lmAgent[hidden] { display: none; }
+  #lmAgent { position: fixed; right: 0; top: 0; bottom: 0; z-index: 60; pointer-events: none; }
+  #lmAgent .ag-tab { pointer-events: auto; position: absolute; right: 0; top: 38%; transform-origin: right top; writing-mode: vertical-rl; padding: 14px 9px; border-radius: 10px 0 0 10px; background: var(--gold, #d7b86b); color: #14181a; font-weight: 800; letter-spacing: .04em; border: 0; cursor: pointer; box-shadow: -4px 6px 18px rgba(0,0,0,.35); }
+  #lmAgent .ag-panel { pointer-events: auto; position: absolute; right: 0; top: 0; bottom: 0; width: min(380px, 92vw); display: none; flex-direction: column; background: #101a16; border-left: 1px solid rgba(244,237,218,.18); box-shadow: -10px 0 30px rgba(0,0,0,.4); }
+  #lmAgent.open .ag-panel { display: flex; } #lmAgent.open .ag-tab { right: min(380px, 92vw); }
+  #lmAgent .ag-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid rgba(244,237,218,.14); }
+  #lmAgent .ag-close { background: none; border: 0; color: inherit; font-size: 1.5rem; cursor: pointer; }
+  #lmAgent .ag-log { flex: 1; overflow: auto; padding: 14px 16px; display: grid; align-content: start; gap: 10px; }
+  #lmAgent .ag-msg { padding: 10px 12px; border-radius: 12px; line-height: 1.5; font-size: .93rem; max-width: 92%; white-space: pre-wrap; }
+  #lmAgent .ag-msg.agent { background: rgba(255,255,255,.07); justify-self: start; } #lmAgent .ag-msg.manager { background: rgba(215,184,107,.2); justify-self: end; }
+  #lmAgent .ag-think { opacity: .6; font-style: italic; }
+  #lmAgent .ag-form { display: grid; gap: 8px; padding: 12px 16px 16px; border-top: 1px solid rgba(244,237,218,.14); } #lmAgent .ag-form textarea { width: 100%; resize: none; }
+  @media (max-width: 700px) { #lmAgent .ag-tab { top: auto; bottom: 16px; padding: 10px 7px; } }
   .rc-scene { border-radius: 10px; overflow: hidden; min-height: 0; background: rgba(255,255,255,.05); } .rc-scene.loading { min-height: 120px; animation: rcPulse 1.2s ease-in-out infinite; }
   @keyframes rcPulse { 50% { opacity: .55; } } @media (prefers-reduced-motion: reduce) { .rc-scene.loading { animation: none; } }
   .rc-price { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .88rem; } .rc-reasons { margin: 0; padding-left: 18px; font-size: .85rem; opacity: .9; }
@@ -934,10 +948,13 @@
             <div class="controls">
               <button id="playBtn" class="on">Pause</button>
               <button data-speed="0.5">0.5x</button><button data-speed="1" class="on">1x</button><button data-speed="1.5">1.5x</button><button data-speed="3">3x</button><button data-speed="24">24x</button>
-              <button id="stepBtn" title="While paused, move the match on one second at a time">Step 1 s</button>
               <button id="highlightBtn" aria-pressed="false" title="Fast-forward quiet passages and watch dangerous attacks at normal speed">Important highlights</button>
               <button id="skipBtn">Skip to next break</button>
               <button id="simEndBtn" title="Play the rest of the match instantly (stops if a player is injured)">Sim to end</button>
+            </div>
+            <div class="controls mentality" id="mentality" role="group" aria-label="Approach">
+              <span class="note">Approach:</span>
+              <button data-ment="attacking" title="Push the line up, press more, take risks and shoot more freely">Attacking</button><button data-ment="balanced" class="on">Balanced</button><button data-ment="cautious" title="Sit a little deeper and keep the ball safer">Cautious</button><button data-ment="defensive" title="Drop deep, press less and take very few risks">Defensive</button>
             </div>
             <div class="legend" id="legend"></div>
           </div>
@@ -972,12 +989,12 @@
 <script src="/create/football/roles.js?v=20261010c"></script>
 <script src="/create/football/ratings.js?v=20261105z"></script>
 <script src="/create/football/names.js?v=20261010c"></script>
-<script src="/create/football/engine.js?v=20261104i"></script>
+<script src="/create/football/engine.js?v=20261106d"></script>
 <script src="/create/football/rules.js?v=20261106a"></script>
 <script src="/create/football/instructions.js?v=20261010c"></script>
 <script src="/create/football/fitness.js?v=20261010c"></script>
-<script src="/create/football/match.js?v=20261015b"></script>
-<script src="/create/football/league.js?v=20261015d"></script>
+<script src="/create/football/match.js?v=20261106d"></script>
+<script src="/create/football/league.js?v=20261106d"></script>
 <script src="/create/football/preseason.js?v=20261010n"></script>
 <script src="/create/football/stats_math.js?v=20261010c"></script>
 <script src="/create/football/stats.js?v=20261013a"></script>
@@ -985,10 +1002,10 @@
 <script src="/create/football/history.js?v=20261104a"></script>
 <script src="/create/football/news.js?v=20261015a"></script>
 <script src="/create/football/insights.js?v=20261010c"></script>
-<script src="/create/football/analysis.js?v=20261017b"></script>
-<script src="/create/football/clips.js?v=20261010c"></script>
+<script src="/create/football/analysis.js?v=20261106b"></script>
+<script src="/create/football/clips.js?v=20261106d"></script>
 <script src="/create/football/reports.js?v=20261104a"></script>
-<script src="/create/football/lab.js?v=20261105f"></script>
+<script src="/create/football/lab.js?v=20261106d"></script>
 <script src="/assets/vendor/supabase-js-2.118.0.js"></script><script>if (!window.supabase) { document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>'); }</script>
 <script src="/create/football/api.js?v=20261105y"></script>
 <script src="/create/football/scout.js?v=20261010c"></script>
@@ -996,12 +1013,13 @@
 <script src="/create/football/lab_replay.js?v=20261105y"></script>
 <script src="/create/football/lab_results.js?v=20261105y"></script>
 <script src="/create/football/transfers.js?v=20261105z"></script>
-<script src="/create/football/recruit.js?v=20261105a"></script>
-<script src="/create/football/development.js?v=20261106a"></script>
+<script src="/create/football/recruit.js?v=20261106d"></script>
+<script src="/create/football/development.js?v=20261106b"></script>
+<script src="/create/football/agent.js?v=20261106a"></script>
 <script src="/create/football/form.js?v=20261029a"></script>
 <script src="/create/football/cases.js?v=20261028a"></script>
 <script src="/create/football/scenario.js?v=20261105z"></script>
 <script src="/create/football/multiplayer.js?v=20261106d"></script>
-<script src="/create/football/main.js?v=20261015d"></script>
+<script src="/create/football/main.js?v=20261106d"></script>
 </body>
 </html>

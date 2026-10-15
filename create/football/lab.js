@@ -83,7 +83,9 @@
   LAB.trial = function (league, userTeam, oppTeam, oppTactics, seed, opts) {
     const u = clone(userTeam), o = clone(oppTeam);
     o.rules = (opts.oppRules || []).map((r) => JSON.parse(JSON.stringify(r)));   // their manager's plan for this run
-    o.phasePos = null;   // the test is always against the opposition as they normally set up, wherever their shirts were dragged on the board
+    // the test is always against the opposition as they normally set up, wherever their shirts were dragged on the board; but when the side
+    // defending is the manager's own (the pressing and defending tests), it stands where the manager put it
+    if (!(league && oppTeam.id === league.userId)) o.phasePos = null;
     if (oppTactics) o.tactics = Object.assign({}, o.tactics, oppTactics);
     Object.keys(opts.oppNudge || {}).forEach((k) => { if (o.tactics[k] != null) o.tactics[k] = clamp(o.tactics[k] + opts.oppNudge[k], 0, 1); });   // their manager's plan for the run (how hard they press)
     const match = FM.createMatch(u, o, seed);

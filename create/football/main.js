@@ -398,6 +398,15 @@
     if (done) el('finishText').textContent = 'Full time: ' + home.name + ' ' + m.score[home.id] + '-' + m.score[away.id] + ' ' + away.name + '.';
   }
 
+  // the approach for the match: attacking, balanced, cautious or defensive. It changes the settings the engine plays by, from now on.
+  document.querySelectorAll('[data-ment]').forEach((b) => b.addEventListener('click', () => {
+    const m = world.match; if (!m || !world.league) return;
+    const team = m.teams.find((t) => t.id === world.league.userId); if (!team) return;
+    FM.setMentality(team, b.dataset.ment);
+    document.querySelectorAll('[data-ment]').forEach((x) => x.classList.toggle('on', x === b));
+    const word = { attacking: 'attacking', balanced: 'balanced', cautious: 'cautious', defensive: 'defensive' }[b.dataset.ment];
+    say('You tell the team to play ' + word + '.', '', 2.5);
+  }));
   el('pitchPlay').addEventListener('click', () => el('playBtn').click());
   el('pitchPause').addEventListener('click', () => el('playBtn').click());
   el('playBtn').addEventListener('click', () => {
@@ -420,12 +429,6 @@
     world.highlightUntil = world.vt; world.highlightSearching = false; world.highlightRevealFrom = m.events.length;
     world.running = true;
     say(world.highlightsOnly ? 'Highlights on: goals and missed penalties only.' : 'Full match view restored.', '', 2.2);
-  });
-  el('stepBtn').addEventListener('click', () => {
-    const m = world.match;
-    if (!m || world.running || world.skipTo || m.injuryPause || m.phase === 'halftime' || m.phase === 'fulltime') return;
-    advanceMatch(1);
-    world.vt += 0.4;
   });
   el('skipBtn').addEventListener('click', () => {
     const m = world.match;
@@ -502,7 +505,37 @@
   }
 
   // The ready-made answers belong to the question they answer, and the ones after a match depend on the result.
+  // The ready-made answers change from game to game: the ones that fit this game's own situation (the favourites or the underdogs, a heavy win
+  // or a narrow defeat, a clean sheet) come first, and the rest are taken in a different order each round, so the same few lines do not
+  // come up every week.
   function interviewAnswers(kind, fx, result) {
+    const sets = interviewAnswersBase(kind, fx, result).map((a) => a.slice());
+    const lg = world.league, me = userTeam(), home = FM.teamById(lg, fx.homeId), away = FM.teamById(lg, fx.awayId), opp = home.id === me.id ? away : home;
+    const round = (fx.round || 0) + 3;
+    const extra = [[], [], []];
+    if (kind === 'pre') {
+      const gap = (me.strength || 0) - (opp.strength || 0), atHome = home.id === me.id;
+      if (gap <= -0.3) { extra[0].push(`We are the underdogs and I am fine with that. ${opp.name} have more to lose than we do.`); extra[1].push('Staying in the game and being ruthless with the few chances we get.'); extra[2].push('Nobody expects anything from us. Go and enjoy proving them wrong.'); }
+      else if (gap >= 0.3) { extra[0].push(`We are expected to win, and that is a different kind of pressure. ${opp.name} will sit and hope.`); extra[1].push('Being patient against a team that will defend deep, and not forcing it.'); extra[2].push('Do not wait for it to happen. Set the pace and make the quality count.'); }
+      else { extra[0].push(`There is very little between us and ${opp.name}. The details will decide it.`); }
+      if (!atHome) extra[2].push('Silence their crowd early: a good start away from home changes the whole afternoon.'); else extra[2].push('Our supporters will lift us, so give them something to shout about from the first minute.');
+    } else {
+      const gf = fx.played ? (me.id === fx.homeId ? fx.hg : fx.ag) : (world.match ? world.match.score[me.id] : 0), ga = fx.played ? (me.id === fx.homeId ? fx.ag : fx.hg) : (world.match ? world.match.score[opp.id] : 0);
+      if (result === 'W' && gf - ga >= 3) { extra[0].push(`That was as good as we have played. ${gf - ga} goals clear is a statement.`); extra[1].push('We were ahead early enough that they had to come at us, and we punished it.'); }
+      if (result === 'W' && ga === 0) extra[1].push('At the back: we gave them nothing, and that is where it started.');
+      if (result === 'W' && gf - ga === 1) extra[0].push('It was close and it could have gone either way, so I am pleased we held on.');
+      if (result === 'L' && ga - gf >= 3) { extra[0].push('Nothing to say that makes it better. That was well below the standard I ask for.'); extra[2].push('Honesty. We look at it properly and we do not hide from it.'); }
+      if (result === 'L' && ga - gf === 1) extra[1].push('One goal. A single moment, and we will look at exactly what it was.');
+      if (result === 'D' && gf === 0) extra[0].push('We kept them out, but we did not threaten enough. That is the part we have to put right.');
+      if (result === 'D' && gf > 0) extra[1].push('We scored, they scored, and we both had moments to take it. Neither side was brave enough at the end.');
+    }
+    return sets.map((arr, i) => {
+      const rest = arr.slice(), k = rest.length ? (round + i * 2) % rest.length : 0;
+      const rotated = rest.slice(k).concat(rest.slice(0, k));
+      return extra[i].concat(rotated);
+    });
+  }
+  function interviewAnswersBase(kind, fx, result) {
     { const dk = derbyInterview(kind, fx, result); if (dk) return dk.answers; }
     const lg = world.league, me = userTeam(), home = FM.teamById(lg, fx.homeId), away = FM.teamById(lg, fx.awayId), opp = home.id === me.id ? away : home;
     if (kind === 'pre') return [
@@ -653,6 +686,8 @@
       const mine = m.score[me], theirs = m.score[m.home.id === me ? m.away.id : m.home.id], result = mine > theirs ? 'W' : mine < theirs ? 'L' : 'D';
       await FM.completeRound(world.league, world.fixture, world.match);
       world.league.prepStep = 0; world.league.prepPhaseMax = 0; world.league.testPhaseMax = 0;
+      // The plan picked for this game is already in place when preparing the next one: the pages, positions and settings start from it
+      { const lg = world.league, plan = (lg.tacticalPlans || []).find((p) => p.id === lg.activePlanId), tm = FM.teamById(lg, lg.userId); if (plan && tm) restorePlan(tm, plan); world.scn = {}; }
       // The instructions stay for the next game, to be changed in the same preparation as everything else. One that was written for a single game
       // is kept too, as an ordinary instruction that now applies whoever the opposition are.
       { const mine = FM.teamById(world.league, world.league.userId); if (mine && mine.rules) mine.rules.forEach((r) => { delete r.game; }); }
@@ -674,6 +709,7 @@
     world.hl = null; world.hlScanned = null; world.hlWait = null; world.running = true; world.speed = 1; world.highlightsOnly = false; world.highlightUntil = 0; world.highlightSearching = false; world.highlightRevealFrom = 0; world.shownEvents = 0; world.lastStats = ''; world.trails = []; world.impacts = []; world.vt = 0; world.commentaryUntil = 0; world.commentaryTurns = {};
     say('The teams are ready. The match is about to begin.', '', 2.5);
     world.selSlot = null; world.selBench = null; world.tab = 'squad';
+    document.querySelectorAll('[data-ment]').forEach((x) => x.classList.toggle('on', x.dataset.ment === 'balanced'));
     document.querySelectorAll('[data-speed]').forEach((x) => x.classList.toggle('on', x.dataset.speed === '1'));
     const m = world.match;
     el('feed').innerHTML = '';
@@ -750,6 +786,7 @@
   function setView(v) {
     if (v !== 'tactics' && backBtn) dropBackBtn();
     world.view = v;
+    if (FM.agentHide) FM.agentHide(v === 'match');
     document.body.dataset.view = v;
     VIEWS.forEach((k) => { el('view-' + k).hidden = k !== v; });
     el('newGame').hidden = true;
@@ -1433,12 +1470,12 @@
     const host = el('planBar'), lg = world.league, plans = lg.tacticalPlans = lg.tacticalPlans || [];
     const active = plans.find((p) => p.id === lg.activePlanId) || null;
     if (!active) lg.activePlanId = null;
-    host.innerHTML = `<select id="planSelect" aria-label="Saved tactical plans"><option value="">Saved match plans</option>${plans.map((p) => `<option value="${p.id}"${active && active.id === p.id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select><button id="savePlan" class="primary" title="${active ? 'Write the team as it is now into this plan' : 'Save the team as it is now as a new plan'}">${active ? 'Save current plan' : 'Save current plan'}</button>${active ? '<button id="saveNewPlan">Save as new plan</button>' : ''}<button id="loadPlan"${active ? '' : ' disabled'} title="Discard changes since the plan was saved">Restore</button><button id="deletePlan"${active ? '' : ' disabled'}>Delete</button>${active ? `<span class="note plan-active">Playing the next game with “${esc(active.name)}”.</span>` : ''}`;
+    host.innerHTML = `<select id="planSelect" aria-label="Saved tactical plans"><option value="">Saved match plans</option>${plans.map((p) => `<option value="${p.id}"${active && active.id === p.id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select><button id="savePlan" class="primary" title="${active ? 'Write the team as it is now into this plan' : 'Save the team as it is now as a new plan'}">${active ? 'Update plan' : 'Save as new plan'}</button>${active ? '<button id="saveNewPlan">Save as new plan</button>' : ''}<button id="loadPlan"${active ? '' : ' disabled'} title="Discard changes since the plan was saved">Restore</button><button id="deletePlan"${active ? '' : ' disabled'}>Delete</button>${active ? `<span class="note plan-active">Playing the next game with “${esc(active.name)}”.</span>` : ''}`;
     const select = host.querySelector('#planSelect');
     select.addEventListener('change', () => {
       const plan = plans.find((p) => p.id === select.value);
       lg.activePlanId = plan ? plan.id : null;
-      if (plan) { restorePlan(team, plan); world.selSlot = null; }
+      if (plan) { restorePlan(team, plan); world.selSlot = null; world.scn = {}; }   // the drawing pages start again from the plan's positions
       saveSoon(); renderTactics();
     });
     const saveNew = () => {
@@ -1454,7 +1491,7 @@
       lg.activePlanId = active.id; saveSoon(); renderTactics();
     });
     const sn = host.querySelector('#saveNewPlan'); if (sn) sn.addEventListener('click', saveNew);
-    host.querySelector('#loadPlan').addEventListener('click', () => { if (!active) return; restorePlan(team, active); world.selSlot = null; saveSoon(); renderTactics(); });
+    host.querySelector('#loadPlan').addEventListener('click', () => { if (!active) return; restorePlan(team, active); world.selSlot = null; world.scn = {}; saveSoon(); renderTactics(); });
     host.querySelector('#deletePlan').addEventListener('click', () => { if (!active || !confirm('Delete the saved plan “' + active.name + '”?')) return; lg.tacticalPlans = plans.filter((p) => p.id !== active.id); lg.activePlanId = null; saveSoon(); renderTactics(); });
   }
 
@@ -2224,6 +2261,7 @@
       .catch((e) => { if (e && (e.code === 'NO_SESSION' || e.code === '401' || e.code === '402' || e.code === 'PROJECT_SUBSCRIPTION_REQUIRED')) location.replace('/learn/?needs=football'); });
   }
   window.FM_WORLD = world; // debug handle for the console
+  if (FM.mountAgent) { FM.mountAgent(() => FM.agentContext(world.league, world.view === 'tactics' ? 'tactics: ' + (world.tab || '') : world.view)); FM.agentHide(true); }
   window.addEventListener('resize', resize);
   if (FM.pullCloud) await FM.pullCloud();   // the account's saved game, when it is newer than this browser's
   world.league = FM.loadLeague();

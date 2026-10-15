@@ -126,7 +126,7 @@
     if (match.clock < h.next) return;
     h.next = match.clock + 2;
     sampleScout(match);
-    h.ball[heatCell(match.ball.x / L, match.ball.y / W)]++;
+    h.ball[match.swapped ? heatCell(1 - match.ball.x / L, 1 - match.ball.y / W) : heatCell(match.ball.x / L, match.ball.y / W)]++;   // kept as if the home side attacked one way all match
     const size = FM.HEAT.GX * FM.HEAT.GY;
     match.teams.forEach((team) => {
       const arr = h.teams[team.id] || (h.teams[team.id] = new Array(size).fill(0));
@@ -1406,6 +1406,7 @@
       at: Math.round(((spec.event != null ? spec.event : t0) - t0) * 10) / 10, dt: Math.round(CLIP_DT * 1000) / 1000, roster, f, ev,
       kits: [{ shirt: match.home.kit.shirt, number: match.home.kit.number }, { shirt: match.away.kit.shirt, number: match.away.kit.number }],
       score: [match.score[match.home.id], match.score[match.away.id]],
+      hd: match.home.attackDir,   // which way the home side was attacking (the sides change ends at half time)
     });
   }
   function clipGoal(match, team, shooter) {
@@ -1785,6 +1786,9 @@
   FM.startSecondHalf = function (match) {
     if (match.phase !== 'halftime') return;
     match.teams.forEach((t) => t.players.forEach((p) => { p.energy = Math.min(1, (p.energy == null ? 1 : p.energy) + 0.08); FM.applyFatigue(p); }));
+    // as in real football the sides change ends: each attacks the goal the other attacked in the first half
+    match.teams.forEach((t) => { t.attackDir = -t.attackDir; });
+    match.swapped = true; match.swapAt = match.clock;
     FM.beginKickoff(match, match.away);
   };
 

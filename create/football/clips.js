@@ -99,7 +99,8 @@
     const c = clips.find((x) => x.id === state.clipId);
     const homeIsUser = fx.homeId === league.userId;
     // draw so the user's team always attacks to the right; in the clip, side 0 is the home team
-    const mirror = !homeIsUser;
+    const userDir = c.hd != null ? (homeIsUser ? c.hd : -c.hd) : (homeIsUser ? 1 : -1);
+    const mirror = userDir === -1;
     const userSide = homeIsUser ? 0 : 1;
     const sideNames = [FM.teamById(league, fx.homeId).name, FM.teamById(league, fx.awayId).name];
     const teams = [FM.teamById(league, fx.homeId), FM.teamById(league, fx.awayId)];
