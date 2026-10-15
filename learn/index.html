@@ -9587,12 +9587,47 @@ SQIDAQAB
         await refreshFolderList();
     }
 
+    // Bring back a page deleted from this subject in the last 60 days (put back in the subfolder it came from, or the subject itself).
+    function openRestoreDeletedPages(folderId) {
+        const f = folders.find((x) => x.id === folderId);
+        if (!f) return;
+        const items = (f.trash || []).slice().reverse();
+        const ov = document.createElement('div');
+        ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px';
+        const box = document.createElement('div');
+        box.style.cssText = 'background:#1b2622;color:#f2f5f3;border-radius:14px;max-width:520px;width:100%;max-height:80vh;overflow:auto;padding:20px;font:15px Arial,sans-serif';
+        const h = document.createElement('h3'); h.textContent = 'Recently deleted pages'; h.style.margin = '0 0 12px'; box.appendChild(h);
+        if (!items.length) { const n = document.createElement('p'); n.textContent = 'Nothing has been deleted from this subject in the last 60 days.'; box.appendChild(n); }
+        items.forEach((t) => {
+            const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px solid rgba(255,255,255,.12)';
+            const label = document.createElement('span'); label.style.flex = '1'; label.textContent = (t.page.title || 'Untitled page') + ' · deleted ' + new Date(t.deletedAt).toLocaleString();
+            const b = document.createElement('button'); b.textContent = 'Restore'; b.type = 'button';
+            b.addEventListener('click', async () => {
+                const sf = t.subfolderId ? (f.subfolders || []).find((x) => x.id === t.subfolderId) : null;
+                const arr = sf ? (sf.pages = sf.pages || []) : (f.pages = f.pages || []);
+                if (!arr.some((p) => p.id === t.page.id)) arr.push(t.page);
+                f.trash = (f.trash || []).filter((x) => x !== t && !(x.page && x.page.id === t.page.id && x.deletedAt === t.deletedAt));
+                await putFolder(f);
+                ov.remove();
+                await refreshFolderList();
+            });
+            row.appendChild(label); row.appendChild(b); box.appendChild(row);
+        });
+        const close = document.createElement('button'); close.textContent = 'Close'; close.type = 'button'; close.style.marginTop = '14px';
+        close.addEventListener('click', () => ov.remove());
+        box.appendChild(close); ov.appendChild(box); document.body.appendChild(ov);
+    }
+    window.openRestoreDeletedPages = openRestoreDeletedPages;
+
     async function deletePageById(pageId) {
-        if (!confirm('Delete this page? This cannot be undone.')) return;
+        if (!confirm('Delete this page? It stays in "Restore deleted pages" for 60 days.')) return;
         const loc = findPageLocation(pageId);
         if (!loc) return;
         const page = loc.pagesArray[loc.pageIndex];
         const conceptKeys = conceptKeyCandidatesForPage(loc.folder.subject || '', (loc.subfolder && loc.subfolder.name) || '', page);
+        // A deleted page is kept in the subject's "recently deleted" list (and so syncs with it) for 60 days, so it can be restored.
+        loc.folder.trash = (loc.folder.trash || []).filter((t) => Date.now() - (t.deletedAt || 0) < 60 * 86400000);
+        loc.folder.trash.push({ page: JSON.parse(JSON.stringify(page)), subfolderId: loc.subfolder ? loc.subfolder.id : null, deletedAt: Date.now() });
         loc.pagesArray.splice(loc.pageIndex, 1);
         await putFolder(loc.folder);
         await resetProgressForConcepts(conceptKeys);
@@ -9895,6 +9930,7 @@ SQIDAQAB
 
         const menuWrap = buildItemMenu([
             { label: 'Rename Subject', onClick: () => openRenameFolderModal(f.id) },
+            { label: 'Restore deleted pages', onClick: () => openRestoreDeletedPages(f.id) },
             { label: 'Delete Subject', danger: true, onClick: () => deleteFolder(f.id) }
         ]);
 
