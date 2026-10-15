@@ -1,6 +1,6 @@
 // The game page: a season of eight clubs, a day-by-day calendar, the league table and squad, the live match
 // and the tactics page. All the football itself is in engine.js, match.js and league.js.
-(function () {
+(async function () {
   const DEMO_MODE = /(?:^|[?&])demo=1(?:&|$)/.test(location.search);
   const cleanUrl = () => location.pathname + (DEMO_MODE ? '?demo=1' : '');
   const { L, W } = FM.PITCH;
@@ -2167,6 +2167,7 @@
   }
   window.FM_WORLD = world; // debug handle for the console
   window.addEventListener('resize', resize);
+  if (FM.pullCloud) await FM.pullCloud();   // the account's saved game, when it is newer than this browser's
   world.league = FM.loadLeague();
   // "New project" comes here with ?new=1: the set-up choices, even when a game is saved (resuming is what Your projects is for)
   const wantsNew = /[?&]new=1/.test(location.search);

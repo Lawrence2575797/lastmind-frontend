@@ -19,6 +19,18 @@
     if (!resp.ok) { const e = new Error(json.detail || json.error || 'LastMind could not read that just now. Try again, or build it with the options.'); e.code = json.code || String(resp.status); throw e; }
     return json;
   };
+  // Any method, for saving the game to the account: resolves { ok, status, json, uid }, or null when nobody is signed in or the server is unreachable.
+  FM.apiCall = async function (method, path, body) {
+    try {
+      if (!window.supabase || !window.supabase.createClient) return null;
+      if (!client) client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const { data } = await client.auth.getSession();
+      if (!data || !data.session) return null;
+      const resp = await fetch(BACKEND + path, { method, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + data.session.access_token }, body: body ? JSON.stringify(body) : undefined });
+      const json = await resp.json().catch(() => ({}));
+      return { ok: resp.ok, status: resp.status, json, uid: data.session.user && data.session.user.id };
+    } catch (e) { return null; }
+  };
   FM.purchaseFootball = async function () {
     if (!window.supabase || !window.supabase.createClient) throw new Error('The sign-in could not load. Check your connection and try again.');
     if (!client) client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);

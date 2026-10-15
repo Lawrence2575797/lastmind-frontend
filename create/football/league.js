@@ -529,9 +529,65 @@
       localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
     } catch (e) { /* the projects list is a convenience */ }
   };
+  // ---- the season is kept on the account as well as in this browser, so it follows the manager to any device ----
+  // One saved game per account (the same single slot as the browser copy). The write goes out a moment after each local save, so every change
+  // is on the account almost at once; the page also writes straight away when it is closed.
+  const OWNER_KEY = SAVE_KEY + '_owner', AT_KEY = SAVE_KEY + '_at', CLOUD_ID_KEY = SAVE_KEY + '_cloud_id';
+  const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const lsSet = (k, v) => { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { /* fine */ } };
+  let cloudTimer = 0, cloudBusy = false, cloudAgain = false, cloudLeague = null;
+  async function cloudWrite() {
+    const league = cloudLeague; if (!league || DEMO_MODE) return;
+    if (cloudBusy) { cloudAgain = true; return; }
+    cloudBusy = true;
+    try {
+      let text = FM.serializeLeague(league);
+      if (text.length > 4400000) {   // too big for the account copy: the match clips (replays) are dropped from it, nothing else
+        const kept = league.fixtures.map((f) => f.clips);
+        league.fixtures.forEach((f) => { if (f.clips && f.clips.length) f.clips = []; });
+        try { text = FM.serializeLeague(league); } finally { league.fixtures.forEach((f, i) => { f.clips = kept[i]; }); }
+      }
+      const user = FM.teamById(league, league.userId);
+      const body = { id: lsGet(CLOUD_ID_KEY) || undefined, title: 'Be the manager: ' + (user ? user.name : 'My club'), kind: 'football-manager', data: { href: '/create/football/', meta: 'Season ' + league.season, football: { save: text, savedAt: new Date().toISOString() } } };
+      const r = await FM.apiCall('POST', '/create/projects', body);
+      if (r && r.ok && r.json && r.json.id) { lsSet(CLOUD_ID_KEY, r.json.id); lsSet(OWNER_KEY, r.uid); lsSet(AT_KEY, new Date().toISOString()); }
+    } catch (e) { /* the browser copy is still saved; the next change tries again */ }
+    cloudBusy = false;
+    if (cloudAgain) { cloudAgain = false; cloudTimer = setTimeout(cloudWrite, 800); }
+  }
+  FM.cloudSaveSoon = function (league) {
+    if (DEMO_MODE) return;
+    cloudLeague = league; clearTimeout(cloudTimer); cloudTimer = setTimeout(cloudWrite, 1200);
+  };
+  window.addEventListener('pagehide', () => { if (cloudLeague && cloudTimer) { clearTimeout(cloudTimer); cloudWrite(); } });
+  // Called once as the page opens: when the account holds a newer game than this browser (or this browser's game belongs to a different
+  // account), the account's game is loaded here. Resolves quickly if nobody is signed in.
+  FM.pullCloud = async function () {
+    if (DEMO_MODE) return false;
+    try {
+      const list = await Promise.race([FM.apiCall('GET', '/create/projects'), new Promise((r) => setTimeout(() => r(null), 6000))]);
+      if (!list || !list.ok || !list.json || list.json.unavailable) return false;
+      const uid = list.uid, owner = lsGet(OWNER_KEY), localText = lsGet(SAVE_KEY);
+      const row = (list.json.projects || []).filter((p) => p.kind === 'football-manager').sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))[0];
+      if (!row) {
+        // nothing on the account: a game kept in this browser from another account is not this account's
+        if (localText && owner && owner !== uid) { lsSet(SAVE_KEY, null); lsSet(OWNER_KEY, null); lsSet(AT_KEY, null); return true; }
+        return false;
+      }
+      const at = lsGet(AT_KEY);
+      const cloudNewer = !localText || (owner && owner !== uid) || !at || String(row.updatedAt) > at;
+      if (!cloudNewer) { lsSet(CLOUD_ID_KEY, row.id); return false; }
+      const got = await FM.apiCall('GET', '/create/projects/' + encodeURIComponent(row.id));
+      const text = got && got.ok && got.json && got.json.data && got.json.data.football && got.json.data.football.save;
+      if (!text) return false;
+      try { FM.deserializeLeague(text); } catch (e) { return false; }
+      lsSet(SAVE_KEY, text); lsSet(OWNER_KEY, uid); lsSet(AT_KEY, String(row.updatedAt)); lsSet(CLOUD_ID_KEY, row.id);
+      return true;
+    } catch (e) { return false; }
+  };
   FM.saveLeague = function (league) {
     const done = FM.saveLeagueRaw(league);
-    if (done) FM.syncProject(league);
+    if (done) { FM.syncProject(league); FM.cloudSaveSoon(league); }
     return done;
   };
   FM.saveLeagueRaw = function (league) {
@@ -581,5 +637,10 @@
       return lg;
     } catch (e) { return null; }
   };
-  FM.clearSave = function () { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } };
+  FM.clearSave = function () {
+    try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
+    clearTimeout(cloudTimer); cloudLeague = null;
+    const id = lsGet(CLOUD_ID_KEY);
+    if (id && !DEMO_MODE) { FM.apiCall('DELETE', '/create/projects/' + encodeURIComponent(id)); lsSet(CLOUD_ID_KEY, null); lsSet(AT_KEY, null); }
+  };
 })();
