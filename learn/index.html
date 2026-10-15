@@ -22738,6 +22738,12 @@ SQIDAQAB
         });
         editable.addEventListener('keydown', (e) => {
             const mod = e.ctrlKey || e.metaKey;
+            // Shift+Arrow leaves the text caret at the end of the drawn chain.
+            // Backspace therefore walks that chain backwards before touching text.
+            if (e.key === 'Backspace' && !e.shiftKey && !mod && !e.altKey && ctx && nbBackspaceArrow(ctx.page, ctx.canvas, editable)) {
+                e.preventDefault();
+                return;
+            }
             // In writing mode, a pair of ordinary hyphens becomes a single,
             // wider em dash without affecting minus signs on the maths keyboard.
             if (e.key === '-' && notesWriting && !mod && !e.altKey) {
@@ -23238,6 +23244,26 @@ SQIDAQAB
         notesScheduleSave();
         return true;
     }
+    function nbBackspaceArrow(page, canvas, editable) {
+        const chain = canvas && canvas._arrowChain;
+        const sel = window.getSelection();
+        if (!chain || chain.page !== page || !sel || !sel.rangeCount || !sel.isCollapsed) return false;
+        const caret = sel.getRangeAt(0);
+        if (chain.node !== caret.startContainer || chain.off !== caret.startOffset) return false;
+        const last = page.doc.blocks.find((b) => b.type === 'arrow' && b.id === chain.id);
+        if (!last) { canvas._arrowChain = null; return false; }
+        const previous = last.prev && page.doc.blocks.find((b) => b.type === 'arrow' && b.id === last.prev);
+        page.doc.blocks = page.doc.blocks.filter((b) => b.id !== last.id);
+        const arrowEl = canvas.querySelector('.nb-arrow[data-id="' + last.id + '"]');
+        if (arrowEl) arrowEl.remove();
+        if (previous) {
+            previous.head = true;
+            canvas._arrowChain = { page, id: previous.id, node: caret.startContainer, off: caret.startOffset };
+        } else canvas._arrowChain = null;
+        nbRenderArrows(canvas, page);
+        notesScheduleSave();
+        return true;
+    }
 
     // ----- pictures on a Notes page
     // A picture is kept in this browser's own database (IndexedDB), not inside the page's saved text, so a page with several screenshots stays
@@ -23455,7 +23481,7 @@ SQIDAQAB
             [K('Ctrl') + ' + ' + K('Alt') + ' + ' + K('1') + ' / ' + K('2') + ' / ' + K('0'), 'Turns the line into a title, a heading, or normal text.'],
             [K('Shift') + ' + ' + K('H'), 'On an empty line, turns it into a heading. Press it again to go back to normal text with a capital H typed. Anywhere else it is just a capital H.'],
             [K('Alt') + ' + ' + K('Shift') + ' + ' + K('H'), 'Turns the line the cursor is on into a heading, and back again.'],
-            [K('Shift') + ' + ' + K('→') + ' ' + K('←') + ' ' + K('↑') + ' ' + K('↓'), 'Draws a small arrow from the cursor in that direction. Press another one straight after to continue it around a corner. Double-click an arrow to remove it.'],
+            [K('Shift') + ' + ' + K('→') + ' ' + K('←') + ' ' + K('↑') + ' ' + K('↓'), 'Draws a small arrow from the cursor in that direction. Press another one straight after to continue it around a corner. Press Backspace to remove its segments one by one, or double-click it to remove the whole arrow.'],
             [K('Backspace') + ' next to a bullet', 'With the cursor directly to the right of a bullet, takes the bullet away and keeps the text.'],
             [K('-') + ' then ' + K('Space'), 'At the start of a line, turns it into a bullet point.'],
             [K('.') + K('.'), 'At the start of a line, also turns it into a bullet point.'],
