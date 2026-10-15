@@ -1,11 +1,12 @@
 // Replays of build-up tests, drawn with the arrows that explain them: the passes (yellow if they came off, red dashed if they did not), who the
 // opposition had gone to (orange dashed lines), and which of your players had nobody on him (green rings). Each replay is one of the tests in a run,
-// kept as it happened. The picture is the first 66 m of the pitch, your goal on the left.
+// kept as it happened. The picture is the 66 m of the pitch the move happened in, your goal on the left.
 (function () {
   const FM = (window.FM = window.FM || {});
   const L = 105, W = 68, PS = 6, VW = 66 * PS, VH = W * PS;
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const lerp = (a, b, k) => a + (b - a) * k;
+  let X0 = 0;   // the left edge of the part of the pitch shown, in metres
   const S = { raf: 0, playing: false, t: 0, speed: 1, clip: null, host: null, ctx: null, last: 0 };
 
   // The clip as plain numbers in metres, with your team attacking to the right.
@@ -23,13 +24,13 @@
     const bi = Math.min(d.ball.length - 1, Math.floor(t / d.dtb)), bk = Math.min(1, (t - bi * d.dtb) / d.dtb), b0 = d.ball[bi], b1 = d.ball[Math.min(bi + 1, d.ball.length - 1)];
     return { pl, ball: [lerp(b0[0], b1[0], bk), lerp(b0[1], b1[1], bk)] };
   }
-  const X = (x) => (x * PS).toFixed(1), Y = (y) => (y * PS).toFixed(1);
+  const X = (x) => ((x - X0) * PS).toFixed(1), Y = (y) => (y * PS).toFixed(1);
 
   function frame(d, c, t, kits) {
     const { pl, ball } = posAt(d, t), plan = planAt(d, t), pairs = plan ? plan.pairs : [];
     const U = (n) => pl.find((p) => p.side === 'u' && p.n === n), O = (n) => pl.find((p) => p.side === 'o' && p.n === n);
     let s = '<defs><marker id="elArrOk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#FFE27A"/></marker><marker id="elArrNo" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#FF5A36"/></marker></defs>';
-    s += FM.ANALYSIS_DRAW.pitchLines();
+    s += '<g transform="translate(' + (-X0 * PS) + ' 0)">' + FM.ANALYSIS_DRAW.pitchLines() + '</g>';
     // the player with the ball, and who is free
     const holder = pl.filter((p) => p.side === 'u').sort((a, b) => Math.hypot(a.x - ball[0], a.y - ball[1]) - Math.hypot(b.x - ball[0], b.y - ball[1]))[0];
     if (plan) pl.filter((p) => p.side === 'u' && p !== holder && !pairs.some((pr) => pr[1] === p.n) && Math.hypot(p.x - ball[0], p.y - ball[1]) < 40).forEach((p) => { s += '<circle cx="' + X(p.x) + '" cy="' + Y(p.y) + '" r="19" fill="rgba(127,212,154,.18)" stroke="#7fd49a" stroke-width="2.5" stroke-dasharray="4 3"/>'; });
@@ -53,7 +54,7 @@
   }
 
   // What is happening, in words, up to this moment.
-  function narrate(d, c, t, nm) {
+  function narrate(d, c, t, nm, phase) {
     const lines = [];
     const jobAt = (te) => { const p = planAt(d, te); return p ? p.pairs : []; };
     d.ev.forEach((e) => {
@@ -71,7 +72,7 @@
       } else if (e.type === 'dribble') lines.push('<b>' + clk + '</b> ' + esc(nm('u', e.player)) + ' ' + (e.ok ? 'beats his man.' : 'tries to take the defender on and <b>loses the ball</b>.'));
       else if (e.type === 'tackle' && e.ok) lines.push('<b>' + clk + '</b> ' + esc(nm('o', e.player)) + ' <b>tackles ' + esc(nm('u', e.vs)) + ' and wins the ball.</b>');
     });
-    if (c.outcome === 'beat' && t >= c.end - 0.01) lines.push('<b>The ball reaches the halfway line with your team still holding it.</b>');
+    if (c.outcome === 'beat' && t >= c.end - 0.01) lines.push(({ midfield: '<b>The ball reaches the edge of the final third with your team still holding it.</b>', final: '<b>The move ends in a shot.</b>', transatt: '<b>The move ends in a shot.</b>' })[phase] || '<b>The ball reaches the halfway line with your team still holding it.</b>');
     return lines.slice(-3);
   }
 
@@ -90,8 +91,10 @@
       '<div class="rp-bar"><button type="button" class="el-go primary rp-play">Play</button><input type="range" class="rp-seek" min="0" max="' + Math.round(clip.end * 100) + '" value="0" aria-label="Position in the replay"><select class="rp-speed" aria-label="Speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></div>' +
       '<div class="rp-key"><span><i class="rp-k ok"></i> pass that came off</span><span><i class="rp-k no"></i> pass lost</span><span><i class="rp-k job"></i> their job: goes to this player</span><span><i class="rp-k free"></i> your player with nobody on him</span></div>' +
       '';
+    // show the part of the pitch the move happened in (from your own box to the final third), not always the first 66 m
+    { const xs = d.ball.map((b) => b[0]).concat(d.ev.filter((e) => e.type === 'pass').reduce((a, e) => a.concat([e.x, e.tx]), [])); const lo = Math.min.apply(null, xs), hi = Math.max.apply(null, xs); I.x0 = Math.max(0, Math.min(L - 66, (lo + hi) / 2 - 33)); }
     const svg = host.querySelector('.rp-pitch'), seek = host.querySelector('.rp-seek'), btn = host.querySelector('.rp-play');
-    const draw = () => { svg.innerHTML = frame(d, clip, I.t, kitMap); seek.value = String(Math.round(I.t * 100)); };
+    const draw = () => { X0 = I.x0; svg.innerHTML = frame(d, clip, I.t, kitMap); seek.value = String(Math.round(I.t * 100)); };
     const tick = (ts) => { if (!I.playing) return; if (!I.last) I.last = ts; I.t = Math.min(clip.end, I.t + (ts - I.last) / 1000 * I.speed); I.last = ts; draw(); if (I.t >= clip.end) { halt(); btn.textContent = 'Replay'; return; } I.raf = requestAnimationFrame(tick); };
     me.btn = btn;
     btn.addEventListener('click', () => { if (I.playing) { halt(); btn.textContent = 'Play'; return; } REG.forEach((r) => { if (r !== me) { r.halt(); if (r.btn && r.btn.isConnected) r.btn.textContent = 'Play'; } }); if (I.t >= clip.end) I.t = 0; I.playing = true; I.last = 0; btn.textContent = 'Pause'; I.raf = requestAnimationFrame(tick); });

@@ -346,7 +346,7 @@
       const r = c.runs[c.runs.length - 1].result;
       if (FM.labReplay && r.clips) {
         const g = host.querySelector('#loGood'), bd = host.querySelector('#loBad'), picked = pickClips(r, c.phase);
-        const ctx = REV[c.phase] ? { team: c.opp, opp: c.team, attackLabel: c.opp.name + ' attack' } : { team: c.team, opp: c.opp };
+        const ctx = REV[c.phase] ? { team: c.opp, opp: c.team, attackLabel: c.opp.name + ' attack', phase: c.phase } : { team: c.team, opp: c.opp, phase: c.phase };
         if (g && picked.win) FM.labReplay.mount(g, picked.win.clip, ctx);
         if (bd && picked.loss) FM.labReplay.mount(bd, picked.loss.clip, ctx);
       }
