@@ -87,12 +87,54 @@
     return '';
   }
 
+  // A single clip, played on its own in any container (the agent uses it to replay a moment on request).
+  FM.mountClipPlayer = function (host, league, fx, c) {
+    const homeIsUser = fx.homeId === league.userId;
+    const userDir = c.hd != null ? (homeIsUser ? c.hd : -c.hd) : (homeIsUser ? 1 : -1);
+    const data = unpack(c, userDir === -1);
+    const teams = [FM.teamById(league, fx.homeId), FM.teamById(league, fx.awayId)];
+    const nameOf = (side, num) => { const p = teams[side].squad ? teams[side].squad.find((q) => q.number === num) : null; return p ? p.name : '#' + num; };
+    void nameOf;
+    const dur = (c.f.length - 1) * c.dt;
+    host.innerHTML = '<svg class="amap" viewBox="0 0 ' + PW + ' ' + PH + '" role="img" aria-label="' + esc(c.label || 'Replay') + '"></svg>' +
+      '<div class="clip-bar"><button type="button" class="primary clip-play">Play</button><input type="range" class="clip-seek" min="0" max="' + Math.round(dur * 100) + '" value="0" aria-label="Position in the replay"><span class="note">' + esc(c.label || '') + ' · ' + (c.minute || '') + "'</span></div>";
+    const svg = host.querySelector('svg'), btn = host.querySelector('.clip-play'), seek = host.querySelector('.clip-seek');
+    const I = { t: 0, playing: false, raf: 0, last: 0 };
+    const paint = () => { draw(svg, c, data, I.t, nameOf, c.kits); seek.value = String(Math.round(I.t * 100)); };
+    const tick = (ts) => {
+      if (!I.playing) return;
+      if (!I.last) I.last = ts;
+      I.t = Math.min(dur, I.t + (ts - I.last) / 1000 * 0.8); I.last = ts; paint();
+      if (I.t >= dur) { I.playing = false; btn.textContent = 'Replay'; return; }
+      I.raf = requestAnimationFrame(tick);
+    };
+    btn.addEventListener('click', () => {
+      if (I.playing) { I.playing = false; cancelAnimationFrame(I.raf); btn.textContent = 'Play'; return; }
+      if (I.t >= dur) I.t = 0;
+      I.playing = true; I.last = 0; btn.textContent = 'Pause'; I.raf = requestAnimationFrame(tick);
+    });
+    seek.addEventListener('input', () => { I.t = +seek.value / 100; paint(); });
+    paint();
+    // plays once straight away the first time it is shown; when the page redraws it waits to be played again
+    FM._seenClips = FM._seenClips || {};
+    const key = fx.id + ':' + c.id;
+    if (!FM._seenClips[key]) { FM._seenClips[key] = true; I.playing = true; btn.textContent = 'Pause'; I.raf = requestAnimationFrame(tick); }
+  };
+  // Players inside any element that holds clip placeholders (data-clip-fx / data-clip-id).
+  FM.mountClips = function (root, league) {
+    root.querySelectorAll('[data-clip-fx]:not([data-mounted])').forEach((h) => {
+      h.dataset.mounted = '1';
+      const fx = league.fixtures.find((f) => String(f.id) === h.dataset.clipFx), c = fx && (fx.clips || []).find((x) => x.id === h.dataset.clipId);
+      if (c) FM.mountClipPlayer(h, league, fx, c);
+    });
+  };
+
   FM.renderClips = function (host, league, fx) {
     stop();
     const clips = fx.clips || [];
     const user = FM.teamById(league, league.userId);
     if (!clips.length) {
-      host.innerHTML = `<h2>Clips</h2><p class="note">${fx.clipsExpired ? 'Clips are only kept for your most recent match, so the clips from this match were cleared when you played the next one.' : fx.clipsDropped ? 'The clips from this match were removed to make room in your browser storage.' : 'No clips were recorded for this match. Clips are cut from the matches you play yourself, from round to round, so a match simulated before this feature existed has none.'}</p>`;
+      host.innerHTML = `<h2>Clips</h2><p class="note">${fx.clipsExpired ? 'The clips from this match were cleared.' : fx.clipsDropped ? 'The clips from this match were removed to make room in your browser storage.' : 'No clips were recorded for this match. Clips are cut from the matches you play yourself, from round to round, so a match simulated before this feature existed has none.'}</p>`;
       return;
     }
     if (!clips.find((c) => c.id === state.clipId)) state.clipId = clips[0].id;

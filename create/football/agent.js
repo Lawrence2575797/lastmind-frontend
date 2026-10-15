@@ -43,6 +43,7 @@
     root.classList.toggle('open', state.open);
     const log = root.querySelector('.ag-log');
     log.innerHTML = state.messages.map((m) => `<div class="ag-msg ${m.role}">${esc(m.text)}${m.html ? '<div class="ag-vis">' + m.html + '</div>' : ''}</div>`).join('') + (state.busy ? '<div class="ag-msg agent ag-think">Thinking…</div>' : '');
+    if (FM.mountClips && window.FM_WORLD && window.FM_WORLD.league) FM.mountClips(log, window.FM_WORLD.league);
     log.scrollTop = log.scrollHeight;
     root.querySelector('.ag-send').disabled = state.busy;
   }

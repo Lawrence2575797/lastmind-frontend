@@ -1010,7 +1010,16 @@
     if (outcome === 'saved') { ex = goalX + (team.attackDir === 1 ? -0.5 : 0.5); ey = gk.y; }
     if (match.rec) noteShotForClips(match, team, carrier, shotXg);
     if (match.rec && outcome !== 'goal' && shotXg >= 0.1) clipChance(match, team, carrier, shotXg);
-    record(match, { type: 'shot', team: team.id, player: carrier.number, xg: shotXg, outcome, defDist: nearD, x: carrier.x, y: carrier.y, setPiece: opt.header ? 'header' : undefined });
+    // what led to it, for the analysis: the pass he received it from, how long the move had gone on, how crowded he was and where the keeper stood
+    let lead = null;
+    for (let i = match.events.length - 1; i >= 0 && match.clock - match.events[i].t < 6; i--) {
+      const q = match.events[i];
+      if (q.type === 'pass' && q.team === team.id && q.ok && q.to === carrier.number) { lead = q; break; }
+    }
+    const cur = match.xr && match.xr.cur;
+    record(match, { type: 'shot', team: team.id, player: carrier.number, xg: shotXg, outcome, defDist: nearD, x: carrier.x, y: carrier.y, setPiece: opt.header ? 'header' : undefined,
+      from: lead ? lead.from : 0, leadDist: lead ? lead.dist : 0, leadAir: lead && lead.aerial ? 1 : 0, movePasses: cur && cur.team === team.id ? cur.passes : 0, moveSecs: cur && cur.team === team.id ? match.clock - cur.t : 0,
+      gkDist: gk ? Math.hypot(gk.x - carrier.x, gk.y - carrier.y) : 0, crowd: crowd(match, team, carrier) });
     match.carrier = null; match.carry = null;
     match.flight = { kind: 'shot', team, shooter: carrier, speed: 28, target: null, ex, ey: clamp(ey, 0.5, W - 0.5), outcome, gk, blocker };
     match.ball.state = 'flight';

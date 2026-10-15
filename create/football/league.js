@@ -460,8 +460,7 @@
     [home, away].forEach((t) => t.squad.forEach((p) => { if (played.has(p.id)) p.stats.apps++; }));
     // For the user's own matches, keep a compact log for the Analysis Centre.
     if (FM.isWatched(league, fx.homeId) || FM.isWatched(league, fx.awayId)) { fx.log = FM.compactLog(match); fx.clips = FM.finaliseClips(match);
-      // Only the previous game's clips are kept: playing the next one clears the older ones (the stats and reports stay).
-      league.fixtures.forEach((o) => { if (o !== fx && o.clips && o.clips.length) { o.clips = []; o.clipsExpired = true; } });
+      // Every match's clips are kept so they can be played again on request; if the saved game gets too large the oldest are dropped first.
     }
     if (FM.summariseMatch) fx.summary = FM.summariseMatch(league, fx, match);
     // a player sent off misses the next match (two after a violent act)
@@ -742,10 +741,12 @@
     cloudBusy = true;
     try {
       let text = FM.serializeLeague(league);
-      if (text.length > 4400000) {   // too big for the account copy: the match clips (replays) are dropped from it, nothing else
+      if (text.length > 4400000) {   // too big for the account copy: the oldest match clips (replays) are left out of it, nothing else
         const kept = league.fixtures.map((f) => f.clips);
-        league.fixtures.forEach((f) => { if (f.clips && f.clips.length) f.clips = []; });
-        try { text = FM.serializeLeague(league); } finally { league.fixtures.forEach((f, i) => { f.clips = kept[i]; }); }
+        const order = league.fixtures.map((f, i) => i).filter((i) => kept[i] && kept[i].length).sort((a, b) => league.fixtures[a].round - league.fixtures[b].round);
+        try {
+          for (const i of order) { league.fixtures[i].clips = []; text = FM.serializeLeague(league); if (text.length <= 4400000) break; }
+        } finally { league.fixtures.forEach((f, i) => { f.clips = kept[i]; }); }
       }
       const user = FM.teamById(league, league.userId);
       const body = { id: lsGet(currentCloudIdKey()) || undefined, title: 'Be the manager: ' + (user ? user.name : 'My club'), kind: 'football-manager', data: { href: '/create/football/', meta: 'Season ' + league.season, football: { save: text, savedAt: new Date().toISOString() } } };
