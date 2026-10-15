@@ -333,6 +333,9 @@
     const recoveryStatus = document.getElementById('recoveryStatus');
 
     let mode = 'login'; // 'login' | 'signup' | 'forgot'
+    const requestedReturn = new URLSearchParams(window.location.search).get('returnTo') || '';
+    // Only a same-site absolute path may be used after authentication.
+    const afterAuth = requestedReturn.startsWith('/') && !requestedReturn.startsWith('//') ? requestedReturn : '/learn/';
 
     function showView(view) {
         [authView, sessionView, recoveryView].forEach((v) => v.classList.remove('active'));
@@ -437,7 +440,7 @@
                 if (data.session || data.user) {
                     // Email confirmation is off in your Supabase project settings —
                     // the user is already signed in.
-                    window.location.replace('/learn/');   // straight back into the app, not a second screen
+                    window.location.replace(afterAuth);
                 } else {
                     setStatus(authStatus, 'Check your email to confirm your account before logging in.');
                 }
@@ -447,7 +450,7 @@
                     setStatus(authStatus, error.message, true);
                     return;
                 }
-                window.location.replace('/learn/');   // signed in: straight back into the app
+                window.location.replace(afterAuth);
             }
         } catch (err) {
             setStatus(authStatus, 'Something went wrong. Please try again.', true);
@@ -524,7 +527,8 @@
         const requestedMode = new URLSearchParams(window.location.search).get('mode');
         if (requestedMode === 'signup' || requestedMode === 'login') setMode(requestedMode);
         if (data.session && !data.session.user?.is_anonymous) {
-            renderSession(data.session);
+            if (requestedReturn) window.location.replace(afterAuth);
+            else renderSession(data.session);
         } else {
             showView(authView);
         }

@@ -10855,7 +10855,14 @@ SQIDAQAB
                 const art = document.createElement('article');
                 art.className = 'create-card create-card-link'; art.setAttribute('role', 'button'); art.tabIndex = 0; art.dataset.demo = '1';
                 art.innerHTML = `<h3>${escapeHtml(demo.title || 'Kasper Nowicki')}</h3><span class="create-price free">Free</span><img class="create-card-image" src="/assets/create/criminal-trial.jpg" alt="A person in handcuffs in the dock of an imagined courtroom" loading="lazy"><p>A finished criminal case to play straight away: the evidence, the witnesses and the trial.</p>`;
-                const go = () => createOpenProject(demo.id);
+                const go = async () => {
+                    const { data } = window.supabaseClient ? await window.supabaseClient.auth.getSession() : { data: null };
+                    if (!data || !data.session || data.session.user?.is_anonymous) {
+                        window.location.href = '/account/?mode=signup&returnTo=' + encodeURIComponent('/learn/');
+                        return;
+                    }
+                    createOpenProject(demo.id);
+                };
                 art.addEventListener('click', go);
                 art.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); go(); } });
                 galleryEl.insertBefore(art, Array.from(galleryEl.children).find((c) => !c.dataset.unlocked) || null);   // after any project that is unlocked
@@ -10867,7 +10874,20 @@ SQIDAQAB
             const go = () => { if (el.dataset.href) { window.location.href = el.dataset.href; return; } if (el.dataset.simulation === 'criminal-trial') createStartNewTrial(); renderCreatePage(el.dataset.template || el.dataset.simulation); };
             // a paid project: clicking its card checks the subscription, and shows the checkout if there is none
             const paid = { 'football-manager': 'football', 'criminal-trial': 'law', 'criminal-lawyer-career': 'law' }[el.dataset.simulation];
-            const open = () => { if (!paid) { go(); return; } lmEnsureProject(paid).then((ok) => { if (ok) go(); }); };
+            const open = async () => {
+                // The football demo is the sole guest project. Everything
+                // else belongs to an account before any paid checkout starts.
+                if (el.dataset.simulation !== 'football-demo') {
+                    const { data } = window.supabaseClient ? await window.supabaseClient.auth.getSession() : { data: null };
+                    if (!data || !data.session || data.session.user?.is_anonymous) {
+                        const back = paid ? `/learn/?needs=${encodeURIComponent(paid)}` : '/learn/';
+                        window.location.href = '/account/?mode=signup&returnTo=' + encodeURIComponent(back);
+                        return;
+                    }
+                }
+                if (!paid) { go(); return; }
+                lmEnsureProject(paid).then((ok) => { if (ok) go(); });
+            };
             el.addEventListener('click', open);
             el.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
         });
@@ -10880,7 +10900,10 @@ SQIDAQAB
             const client = window.supabaseClient;
             const { data } = client ? await client.auth.getSession() : { data: null };
             const token = data && data.session ? data.session.access_token : null;
-            if (!token) { alert('Sign in to LastMind to open this project.'); window.location.href = '/'; return false; }
+            if (!token || data.session.user?.is_anonymous) {
+                window.location.href = '/account/?mode=signup&returnTo=' + encodeURIComponent(`/learn/?needs=${project}`);
+                return false;
+            }
             const head = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token };
             const a = await fetch(COMPILE_BACKEND_URL + '/projects/access', { method: 'POST', headers: head, body: JSON.stringify({ project }) });
             const aj = await a.json().catch(() => ({}));
@@ -11839,9 +11862,10 @@ SQIDAQAB
     }
     // The football manager season is saved by its own page. Read that save directly, so it is listed as a project even if the game page
     // has not been opened since this list was added.
+    let createFootballUid = 'guest';
     function createFootballProject(demo = false) {
         try {
-            const raw = localStorage.getItem(demo ? 'lm_football_demo_save_v1' : 'lm_football_save_v1');
+            const raw = localStorage.getItem(demo ? 'lm_football_demo_save_v1' : `lm_football_save_v1:${createFootballUid}`);
             if (!raw) return null;
             const d = JSON.parse(raw);
             const team = (d.teams || []).find((t) => t.id === d.userId);
@@ -11926,7 +11950,7 @@ SQIDAQAB
     async function createLoadProjects() {
         // The career is saved under a per-account key that is only worked out once the career is opened, so settle it here first or a
         // fresh visit to the list reads the wrong key and the career never shows.
-        try { const { data: { session } } = await supabaseClient.auth.getSession(); careerLocalKey = session && session.user ? `${CAREER_LOCAL_KEY}:${session.user.id}` : CAREER_LOCAL_KEY; doctorUid = session && session.user ? session.user.id : 'guest'; } catch (_) { /* signed out: the plain key */ }
+        try { const { data: { session } } = await supabaseClient.auth.getSession(); careerLocalKey = session && session.user ? `${CAREER_LOCAL_KEY}:${session.user.id}` : CAREER_LOCAL_KEY; doctorUid = session && session.user ? session.user.id : 'guest'; createFootballUid = session && session.user ? session.user.id : 'guest'; } catch (_) { createFootballUid = 'guest'; }
         try {
             const { resp, body } = await createAuthedFetch('/create/projects');
             if (resp.ok && !body.unavailable) {

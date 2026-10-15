@@ -11,7 +11,7 @@
     if (!window.supabase || !window.supabase.createClient) throw new Error('The sign-in could not load. Check your connection and try again.');
     if (!client) client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const { data } = await client.auth.getSession();
-    if (!data || !data.session) { const e = new Error('Sign in to LastMind to write instructions in your own words. You can still build one with the options.'); e.code = 'NO_SESSION'; throw e; }
+    if (!data || !data.session || data.session.user && data.session.user.is_anonymous) { const e = new Error('Sign in to LastMind to write instructions in your own words. You can still build one with the options.'); e.code = 'NO_SESSION'; throw e; }
     let resp;
     try { resp = await fetch(BACKEND + path, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + data.session.access_token }, body: JSON.stringify(body) }); }
     catch (err) { throw new Error('LastMind could not be reached. Check your connection, or build the instruction with the options.'); }
@@ -25,7 +25,7 @@
       if (!window.supabase || !window.supabase.createClient) return null;
       if (!client) client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       const { data } = await client.auth.getSession();
-      if (!data || !data.session) return null;
+      if (!data || !data.session || data.session.user && data.session.user.is_anonymous) return null;
       const resp = await fetch(BACKEND + path, { method, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + data.session.access_token }, body: body ? JSON.stringify(body) : undefined });
       const json = await resp.json().catch(() => ({}));
       return { ok: resp.ok, status: resp.status, json, uid: data.session.user && data.session.user.id };
@@ -35,7 +35,7 @@
     if (!window.supabase || !window.supabase.createClient) throw new Error('The sign-in could not load. Check your connection and try again.');
     if (!client) client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const { data } = await client.auth.getSession();
-    if (!data || !data.session) { location.href = '/?returnTo=' + encodeURIComponent('/create/football/?demo=1'); return; }
+    if (!data || !data.session || data.session.user && data.session.user.is_anonymous) { location.href = '/account/?mode=signup&returnTo=' + encodeURIComponent('/learn/?needs=football'); return; }
     const resp = await fetch(BILLING_BACKEND + '/checkout/project', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + data.session.access_token }, body: JSON.stringify({ project: 'football' }) });
     const json = await resp.json().catch(() => ({}));
     if (resp.ok && json.url) { location.href = json.url; return; }
