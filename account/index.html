@@ -245,7 +245,7 @@
 </div>
 
 <!-- Supabase JS client, loaded from Supabase's own CDN — no custom backend involved. -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/assets/vendor/supabase-js-2.118.0.js"></script><script>if (!window.supabase) { document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>'); }</script>
 <script>
     // ── Supabase project config ──
     // Note: the client wants the bare project URL, not the /rest/v1/ path —
