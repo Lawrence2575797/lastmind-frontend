@@ -6858,6 +6858,23 @@
 <body>
 
 <div id="gate-message" style="background:#D9C398; color:#1A1A1C;">Checking your subscription…</div>
+<script>
+    // Independent boot watchdog. This runs before the large application
+    // script below, so an unrelated startup exception cannot leave the
+    // entire product frozen behind the subscription message forever.
+    window.__lmGateWatchdog = setTimeout(async () => {
+        const gate = document.getElementById('gate-message');
+        if (!gate || gate.style.display === 'none') return;
+        try {
+            if (typeof enterApp === 'function') await enterApp(false);
+        } catch (err) {
+            console.error('LastMind: emergency free-plan entry failed.', err);
+        }
+        if (gate.style.display !== 'none') {
+            gate.innerHTML = 'LastMind could not finish loading. <button type="button" style="margin-left:10px;padding:7px 15px;cursor:pointer" onclick="location.reload()">Try again</button>';
+        }
+    }, 6500);
+</script>
 
 <div id="app">
     <div class="layout">
