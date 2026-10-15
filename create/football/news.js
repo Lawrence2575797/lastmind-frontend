@@ -119,8 +119,21 @@
   FM.publishInterview = function (league, record, fx) {
     if (!record.answers.length) return;
     const team = FM.teamById(league, league.userId), opp = FM.teamById(league, fx.homeId === team.id ? fx.awayId : fx.homeId);
-    const pre = record.kind === 'pre', quote = record.answers[0].answer;
-    FM.pushNews(league, { round: record.round, day: record.day, kind: 'Interview', headline: pre ? `${team.name} manager sets the tone before ${opp.name}` : `${team.name} manager reflects after ${opp.name}`, body: `“${quote}” The manager also faced questions about ${pre ? 'the match plan and the message given to the squad' : 'where the match was decided and what comes next'}.`, club: team.id, mine: true, reporter: 'Sofia Bennett' });
+    const pre = record.kind === 'pre';
+    const mood = record.answers.some((a) => a.mood === 'provocative') ? 'provocative' : record.answers.some((a) => a.mood === 'confident') ? 'confident' : 'measured';
+    const lead = record.answers.find((a) => a.mood === mood) || record.answers[0];
+    const follow = record.answers.find((a) => a !== lead && a.answer);
+    const before = Number.isFinite(Number(record.opinionBefore)) ? Number(record.opinionBefore) : 50;
+    const after = Number.isFinite(Number(record.opinionAfter)) ? Number(record.opinionAfter) : 50;
+    const delta = after - before;
+    const reaction = delta >= 3 ? 'The comments landed well with supporters.' : delta > 0 ? 'Supporters broadly welcomed the tone.' : delta <= -3 ? 'The remarks drew a sharp response from supporters.' : delta < 0 ? 'The comments divided opinion among supporters.' : 'The reaction from supporters was mixed.';
+    const headline = mood === 'provocative'
+      ? (pre ? `${team.name} manager fires warning at ${opp.name}` : `${team.name} manager sparks reaction after ${opp.name}`)
+      : mood === 'confident'
+        ? (pre ? `${team.name} manager backs his side to beat ${opp.name}` : `${team.name} manager strikes defiant note after ${opp.name}`)
+        : (pre ? `${team.name} manager keeps calm before ${opp.name}` : `${team.name} manager gives measured verdict after ${opp.name}`);
+    const secondQuote = follow ? ` The manager later added: “${follow.answer}”` : '';
+    FM.pushNews(league, { round: record.round, day: record.day, kind: 'Interview', headline, body: `“${lead.answer}”${secondQuote} ${reaction} Public opinion now stands at ${Math.round(after)}%.`, club: team.id, mine: true, reporter: 'Sofia Bennett', interviewMood: mood });
   };
 
   const tableBefore = (league, round) => {

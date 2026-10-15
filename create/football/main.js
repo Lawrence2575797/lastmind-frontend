@@ -557,6 +557,47 @@
     const lead = result === 'W' ? 'After that win' : result === 'L' ? 'After that defeat' : 'After that draw';
     return [`${lead}, how do you assess the performance?`, 'Where was the match decided?', 'What do you want the players to take into the next game?'];
   }
+  function interviewMoodChoices(kind, fx, result, questionIndex, standard) {
+    const lg = world.league, me = userTeam(), home = FM.teamById(lg, fx.homeId), away = FM.teamById(lg, fx.awayId), opp = home.id === me.id ? away : home;
+    let confident, provocative;
+    if (kind === 'pre') {
+      const confidentSet = [
+        `We respect ${opp.name}, but if we play our game, we win.`,
+        'We will take control early and make them react to us.',
+        'Be brave, impose yourselves and give them a match they will remember.'
+      ];
+      const provocativeSet = [
+        `I do not see one ${opp.name} player who gets into my team.`,
+        'Their plan is predictable. We know exactly where they are vulnerable.',
+        'Go after them from the first whistle. They will not enjoy it.'
+      ];
+      confident = confidentSet[questionIndex]; provocative = provocativeSet[questionIndex];
+    } else {
+      const R = result === 'W' ? 'W' : result === 'L' ? 'L' : 'D';
+      const confidentSet = {
+        W: ['We were the better side and earned every bit of that win.', 'Our quality decided it when the pressure was highest.', 'This is the standard now. We expect to keep winning.'],
+        L: ['The result hurts, but this side is much better than it showed.', 'Small margins decided it; the plan itself was right.', 'We will respond. I have complete faith in this group.'],
+        D: ['We were closer to winning it and should take confidence from that.', 'We controlled the important parts but lacked the final touch.', 'Keep playing like that and the wins will come.']
+      }[R];
+      const provocativeSet = {
+        W: [`The score flattered ${opp.name}; they could not live with us.`, 'They spent the match chasing us and hoping for mistakes.', 'Anyone doubting this team should start paying attention.'],
+        L: [`${opp.name} can celebrate, but they were not the better team.`, 'The officials got the biggest decision wrong. Everyone saw it.', 'Some players should be worried about keeping their shirts.'],
+        D: [`${opp.name} came for a draw and played like it.`, 'Their time-wasting killed the match, and the referee allowed it.', 'A few players were too comfortable today. That changes now.']
+      }[R];
+      confident = confidentSet[questionIndex]; provocative = provocativeSet[questionIndex];
+    }
+    const reaction = (mood) => {
+      if (mood === 'measured') return 1;
+      if (kind === 'pre') return mood === 'confident' ? 1 : -2;
+      if (mood === 'confident') return result === 'W' ? 2 : result === 'D' ? 0 : -2;
+      return result === 'W' ? 3 : result === 'D' ? -2 : -4;
+    };
+    return [
+      { text: standard, mood: 'measured', reaction: reaction('measured') },
+      { text: confident, mood: 'confident', reaction: reaction('confident') },
+      { text: provocative, mood: 'provocative', reaction: reaction('provocative') }
+    ];
+  }
   function runInterview(kind, fx, result, done) {
     const room = el('interviewRoom'), body = el('pressRoomBody'), questions = interviewQuestions(kind, fx, result);
     // Press conferences are read at a glance: three distinct choices, each no
@@ -567,24 +608,31 @@
       const cut = sentence.slice(0, 83).replace(/\s+\S*$/, '');
       return (cut || sentence.slice(0, 83)).replace(/[,.!?;:]$/, '') + '…';
     };
-    const answerSets = interviewAnswers(kind, fx, result).map((answers) => answers.slice(0, 3).map(concise));
+    const answerSets = interviewAnswers(kind, fx, result).map((answers, i) => interviewMoodChoices(kind, fx, result, i, concise(answers[0])));
     const lg = world.league, key = kind + ':' + fx.round;
     lg.interviews = lg.interviews || [];
     if (lg.interviews.some((x) => x.key === key)) { done(); return; }
-    const record = { key, kind, round: fx.round, day: lg.day, answers: [] };
+    const record = { key, kind, round: fx.round, day: lg.day, result: result || null, answers: [] };
     let index = 0;
     const close = (publish) => {
       room.hidden = true;
-      if (publish) { lg.interviews.push(record); if (FM.publishInterview) FM.publishInterview(lg, record, fx); FM.saveLeague(lg); }
+      if (publish) {
+        record.opinionBefore = Number.isFinite(lg.publicOpinion) ? lg.publicOpinion : 50;
+        const shift = record.answers.reduce((sum, answer) => sum + (Number(answer.reaction) || 0), 0);
+        lg.publicOpinion = Math.max(0, Math.min(100, record.opinionBefore + shift));
+        record.opinionAfter = lg.publicOpinion;
+        lg.interviews.push(record); if (FM.publishInterview) FM.publishInterview(lg, record, fx); FM.saveLeague(lg);
+      }
       done();
     };
     const draw = () => {
       el('pressRoomKicker').textContent = kind === 'pre' ? 'Before the match' : 'After the match';
       el('pressRoomTitle').textContent = kind === 'pre' ? 'Pre-match press conference' : 'Post-match press conference';
       const answers = answerSets[index] || [];
-      body.innerHTML = `<div class="press-progress">${questions.map((_, i) => `<i class="${i <= index ? 'on' : ''}"></i>`).join('')}</div><p class="press-question">${esc(questions[index])}</p><div class="press-answers">${answers.map((a, i) => `<button class="press-answer" data-answer="${i}">${esc(a)}</button>`).join('')}</div><button id="skipInterview">Skip interview</button>`;
+      body.innerHTML = `<div class="press-progress">${questions.map((_, i) => `<i class="${i <= index ? 'on' : ''}"></i>`).join('')}</div><p class="press-question">${esc(questions[index])}</p><div class="press-answers">${answers.map((a, i) => `<button class="press-answer" data-answer="${i}">${esc(a.text)}</button>`).join('')}</div><button id="skipInterview">Skip interview</button>`;
       body.querySelectorAll('[data-answer]').forEach((b) => b.addEventListener('click', () => {
-        record.answers.push({ question: questions[index], answer: answers[+b.dataset.answer] });
+        const picked = answers[+b.dataset.answer];
+        record.answers.push({ question: questions[index], answer: picked.text, mood: picked.mood, reaction: picked.reaction });
         index++;
         if (index >= questions.length) close(true); else draw();
       }));
@@ -779,12 +827,8 @@
       <button data-top="develop" class="${world.view === 'develop' ? 'on' : ''}">Development</button>`}
       ${lg.mp && lg.mp.kind === 'match' ? '' : `<button data-top="news" class="${world.view === 'news' ? 'on' : ''}">News</button>`}
       ${lg.mp ? `<button data-top="mp" class="${world.view === 'mp' ? 'on' : ''}">Online</button>` : ''}
-      <button id="newBtn" title="Abandon this season and start again">New game</button>`;
+      <span class="public-opinion" title="Supporters' view of your management">Public opinion <b>${Math.round(Number.isFinite(lg.publicOpinion) ? lg.publicOpinion : 50)}%</b></span>`;
     host.querySelectorAll('[data-top]').forEach((b) => b.addEventListener('click', () => setView(b.dataset.top)));
-    el('newBtn').addEventListener('click', () => {
-      if (!confirm('Abandon this season and start a new game?')) return;
-      FM.clearSave(); world.league = null; world.match = null; showNewGame();
-    });
   }
 
   function renderPreview() {
