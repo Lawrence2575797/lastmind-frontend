@@ -542,22 +542,9 @@
     if (v) mem.set(key, v);
     return v;
   };
-  // The picture for this key: the kept one if there is one, otherwise one is asked for, kept, and returned. Returns null if it cannot be made.
-  FM.picture = async function (key, request) {
-    const have = await FM.cachedPicture(key);
-    if (have) return have;
-    if (inflight.has(key)) return inflight.get(key);
-    const job = (async () => {
-      try {
-        const r = await FM.api('/football/picture', request);
-        if (!r || !r.image) return null;
-        mem.set(key, r.image);
-        const d = await db(); if (d) await idbPut(d, key, r.image);
-        return r.image;
-      } catch (e) { return null; } finally { inflight.delete(key); }
-    })();
-    inflight.set(key, job);
-    return job;
+  // Pictures are no longer made for recruitment: this only returns one that was kept earlier (no request is ever sent).
+  FM.picture = async function (key) {
+    return FM.cachedPicture(key);
   };
   FM.playerPictureKey = (p) => 'p:' + p.id;
   FM.playerPictureRequest = (p) => ({ kind: 'player', look: FM.lookOf(p), age: FM.ageOf(p), position: p.natural });

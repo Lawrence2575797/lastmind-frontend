@@ -47,6 +47,18 @@
   // would in a game: their pressing, their line, who marks whom, how they shift toward the ball. Our own players stand where the manager has put
   // them. When the manager moves something, the engine is run on for a moment and the opposition's new positions are read back.
   const TRANSIENT = { oppRef: 1, ruleCtx: 1, phaseCtx: 1, extraOv: 1 };
+  // a copy of the engine's whole state (references between its objects kept), to take a defending scenario back one move
+  function cloneGraph(v, seen) {
+    if (typeof v !== 'object' || v === null) return v;
+    seen = seen || new Map();
+    if (seen.has(v)) return seen.get(v);
+    if (v instanceof Map) { const m2 = new Map(); seen.set(v, m2); v.forEach((x, k) => m2.set(cloneGraph(k, seen), cloneGraph(x, seen))); return m2; }
+    if (v instanceof Set) { const s2 = new Set(); seen.set(v, s2); v.forEach((x) => s2.add(cloneGraph(x, seen))); return s2; }
+    const out = Array.isArray(v) ? [] : {};
+    seen.set(v, out);
+    Object.keys(v).forEach((k) => { out[k] = cloneGraph(v[k], seen); });
+    return out;
+  }
   const cloneTeam = (t) => JSON.parse(JSON.stringify(t, (k, v) => (TRANSIENT[k] ? undefined : v)));
   function makeEngine(team, opp, phase, seed) {
     const u = cloneTeam(team), o = cloneTeam(opp);
@@ -516,7 +528,7 @@
       return `<div class="scn2-finish" role="status"><span>${esc(outcomeTitle())}</span><p>${esc((S.finished ? S.learned : S.say) || 'The scenario is complete.')}</p>
         ${S.finished
           ? `<button class="scn2-applied" type="button" disabled>✓ Applied</button><button id="scnAnother" type="button">Start another scenario</button>${ph.nextKey ? `<button class="primary" id="scnNext" type="button">Move on to ${esc(ph.next.toLowerCase())}</button>` : ''}`
-          : `<button class="primary" id="scnFinish" type="button">Use this</button><button id="scnReset" type="button">Restart simulation</button>`}
+          : `<button class="primary" id="scnFinish" type="button">Use this</button><button id="scnUndo" type="button"${(S.defending ? S.defHist && S.defHist.length : S.history && S.history.length) ? '' : ' disabled'}>Undo</button><button id="scnReset" type="button">Restart simulation</button>`}
       </div>`;
     };
     const draw = () => {
@@ -535,14 +547,14 @@
               <li>Then press <b>Play on</b> and watch what they do with the ball.</li></ul>
               <div class="scn2-stats">${S.snaps.length} set-up${S.snaps.length === 1 ? '' : 's'} shown · ${S.events.length} move${S.events.length === 1 ? '' : 's'} by them</div>
               <p class="scn2-say" id="scnSay">${esc(S.say || 'They have the ball. Set your team.')}</p>
-              <div class="row"><button class="primary" id="scnPlay"${S.ended ? ' disabled' : ''}>Play on</button>${terminal() ? '' : '<button id="scnReset">Restart simulation</button>'}</div></div>`
+              <div class="row"><button class="primary" id="scnPlay"${S.ended ? ' disabled' : ''}>Play on</button><button id="scnUndo"${S.defHist && S.defHist.length && !S.finished ? '' : ' disabled'}>Undo</button>${terminal() ? '' : '<button id="scnReset">Restart simulation</button>'}</div></div>`
             : S && S.started ? `<div class="scn2-card"><h3>How to play it</h3><ul class="scn2-help">
               <li><b>Drag a player</b> to move him. With the ball, that is a dribble.</li>
               <li><b>Drag the ball</b> to where you want to play it, and let go. Onto a teammate, or into space. A line follows the ball.</li>
               <li>Drag it over an opponent in the way and it is a ball in the air.</li></ul>
               <div class="scn2-stats">${S.beats.filter((b) => b.type === 'pass').length} passes · ${Math.round(S.beats.filter((b) => b.type === 'dribble').reduce((a, b) => a + b.d, 0))} m dribbled</div>
               <p class="scn2-say" id="scnSay">${esc(S.say || 'Your move.')}</p>
-              <div class="row"><button id="scnUndo"${S.beats.length && !terminal() ? '' : ' disabled'}>Undo</button>${terminal() ? '' : '<button id="scnReset">Restart simulation</button>'}</div></div>`
+              <div class="row"><button id="scnUndo"${S.history && S.history.length && !S.finished ? '' : ' disabled'}>Undo</button>${terminal() ? '' : '<button id="scnReset">Restart simulation</button>'}</div></div>`
             : `<div class="scn2-card"><h3>${ph.defend ? 'Show the team how to defend' : 'Show the team how to play it'}</h3><p class="desc">${ph.defend ? `${phase === 'press' ? esc(opp.name) + ' start with the ball at their goalkeeper and build up against you. You set the press: where your players stand, and who goes to the ball.' : esc(opp.name) + ' come at you with the ball at the edge of your third. You set where the team sits and who closes down.'} They play as they play in a match, and from what you show LastMind works out how the team defends. Go for the man on the ball and you can win it.` : `You will take the ball from the ${phase === 'build' ? 'goalkeeper' : 'man on it'} and play the phase out against ${esc(opp.name)}. They react to every move the way they play. From what you show, LastMind works out how the team plays this phase.`}</p>
               ${S && S.carried ? `<p class="desc">This starts where the last phase ended: ${esc(S.own[S.holder].p.name.split(' ').slice(-1)[0])} has the ball and your players stand where they finished.</p>` : ''}<p class="desc"><b>Drag your players into position first.</b> ${esc(opp.name)} hold their shape until you start${phase === 'build' ? ', and cannot come into the box before the ball is played' : ''}.</p><div class="row"><button class="primary" id="scnStart">Start scenario</button><button id="scnHow">How this works</button></div></div>`}
             ${S && S.finished ? `<div class="scn2-card"><h3>What it learned</h3><p class="desc">${esc(S.learned || '')}</p></div>` : ''}
@@ -593,6 +605,7 @@
         const own = ev.target.closest && ev.target.closest('[data-own]');
         if (!own) return;
         try { svg.setPointerCapture(ev.pointerId); } catch (e) { /* fine */ }
+        pushDef();
         drag = { i: +own.dataset.own };
         ev.preventDefault();
       });
@@ -615,9 +628,16 @@
         S.busy = false; draw();
       };
       let afterMiss = '';
+      // the state just before each move of theirs, so the last one can be taken back
+      const pushDef = () => {
+        S.defHist = S.defHist || [];
+        S.defHist.push({ eng: cloneGraph(S.eng), rng: S.eng.m.rng.getState && S.eng.m.rng.getState(), own: S.own.map((o) => ({ x: o.x, y: o.y })), opp: S.opp.map((o) => ({ x: o.x, y: o.y })), ball: { x: S.ball.x, y: S.ball.y }, pins: Object.assign({}, S.pins || {}), snaps: S.snaps.length, events: S.events.length, say: S.say });
+        if (S.defHist.length > 30) S.defHist.shift();
+      };
       svg.addEventListener('pointerup', async () => {
         const d = drag; drag = null;
         if (!d || S.busy || S.ended) return;
+        S.dragPending = true;
         const t = tackleRoll([d.i], 1);
         if (!t) return;
         if (t.won) { endWon(t); return; }
@@ -627,6 +647,8 @@
       q('#scnPlay').addEventListener('click', async () => {
         if (S.busy || S.ended) return;
         S.busy = true;
+        if (!afterMiss && !S.dragPending) pushDef();
+        S.dragPending = false;
         { const t = afterMiss ? null : tackleRoll(S.own.map((_, k) => k), 2);   // somebody already stood on him gets his go first
           if (t && t.won) { endWon(t); return; }
           if (t) afterMiss = `${nm(S.own[t.i].p)} goes in and misses: ${nm(t.carrier)} gets past him. `; }
@@ -649,6 +671,7 @@
           else if (last.type === 'dribble') text = last.ok ? `${name(last.player)} takes his man on.` : `${name(last.player)} loses it in a dribble.`;
           else if (last.type === 'tackle') text = last.team === S.eng.u.id ? (last.ok ? 'You win the ball back.' : 'Your tackle misses.') : (last.ok ? 'They win it back.' : 'He rides the tackle.');
           if (last.type === 'tackle' && last.team === S.eng.u.id && last.ok) S.won = true;
+          else if ((last.type === 'pass' || last.type === 'dribble') && !last.ok && last.team !== S.eng.u.id) { text += ' The ball is yours: the defending is done.'; S.ended = true; S.won = true; }
           else if (last.type === 'shot') { text = `${name(last.player)} shoots${last.outcome === 'goal' ? ' and scores' : last.outcome === 'saved' ? ': saved' : last.outcome === 'blocked' ? ': blocked' : ': wide'}.`; S.ended = true; }
         }
         const lost = m.carrier && m.carrier.team === S.eng.u;
@@ -670,6 +693,20 @@
           step();
         });
         S.busy = false;
+        draw();
+      });
+      const undoDef = q('#scnUndo');
+      if (undoDef) undoDef.addEventListener('click', () => {
+        if (S.busy || !S.defHist || !S.defHist.length) return;
+        const sn = S.defHist.pop();
+        S.eng = sn.eng;
+        if (sn.rng != null && S.eng.m.rng.setState) S.eng.m.rng.setState(sn.rng);
+        sn.own.forEach((o, i) => { S.own[i].x = o.x; S.own[i].y = o.y; });
+        sn.opp.forEach((o, i) => { S.opp[i].x = o.x; S.opp[i].y = o.y; });
+        S.ball = sn.ball; S.pins = sn.pins;
+        S.snaps.length = sn.snaps; S.events.length = sn.events;
+        S.ended = false; S.won = false; S.dragPending = false;
+        S.say = 'Taken back. ' + (sn.say || '');
         draw();
       });
       const finish = q('#scnFinish');
@@ -742,7 +779,7 @@
       if (reset) reset.addEventListener('click', () => { store[phase] = null; S = null; draw(); });
       if (S.defending) { wireDefend(); return; }
       const undo = q('#scnUndo');
-      if (undo) undo.addEventListener('click', () => { if (!S.history || !S.history.length) return; const snap = S.history.pop(); S.own = snap.own.map((o, i) => Object.assign({}, S.own[i], { x: o.x, y: o.y })); S.opp.forEach((o, i) => { o.x = snap.opp[i].x; o.y = snap.opp[i].y; }); S.ball = snap.ball; S.holder = snap.holder; S.beats = snap.beats; S.pins = Object.assign({}, snap.pins || {}); S.lost = false; S.done = false; S.shotTaken = false; say('Taken back.'); draw(); });
+      if (undo) undo.addEventListener('click', () => { if (!S.history || !S.history.length) return; const snap = S.history.pop(); S.own = snap.own.map((o, i) => Object.assign({}, S.own[i], { x: o.x, y: o.y })); S.opp.forEach((o, i) => { o.x = snap.opp[i].x; o.y = snap.opp[i].y; }); S.ball = snap.ball; S.holder = snap.holder; S.beats = snap.beats; S.pins = Object.assign({}, snap.pins || {}); S.lost = false; S.done = false; S.ended = false; S.won = false; S.shotTaken = false; say('Taken back.'); draw(); });
       const finish = q('#scnFinish');
       if (finish) finish.addEventListener('click', () => {
         const ex = FM.scenarioApply(S);
