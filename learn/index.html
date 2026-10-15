@@ -23128,11 +23128,10 @@ SQIDAQAB
     }
 
     // ----- arrows drawn from the cursor
-    // Shift + an arrow key draws a line from the cursor in that direction. It runs until it meets another box, so arrows coming from different
-    // places arrive at the same box neatly, each one the length it needs to be. Press another Shift + arrow straight after, without moving the
-    // cursor, and the next line carries on from the end of the last one, with the head moved to the new end. An arrow is anchored to the box it
-    // came from and ends at the edge of the box it points at, so both move with their boxes.
+    // Shift + an arrow key draws one compact segment from the cursor. Press another direction straight afterwards to continue it.
+    // Kept to roughly half a line-height so these are annotations within notes, not large diagrams that dominate the page.
     const NB_DIRS = { ArrowRight: [1, 0], ArrowLeft: [-1, 0], ArrowDown: [0, 1], ArrowUp: [0, -1] };
+    const NB_ARROW_SEGMENT_LENGTH = 12;
     function nbArrowEnds(canvas, page, b, memo) {
         memo = memo || {};
         if (memo[b.id]) return memo[b.id];
@@ -23142,15 +23141,8 @@ SQIDAQAB
         if (prev) { const pe = nbArrowEnds(canvas, page, prev, memo); sx = pe.ex; sy = pe.ey; }
         else { const se = el(b.sid); if (!se) return null; sx = se.offsetLeft + b.dx; sy = se.offsetTop + b.dy; }
         const [ux, uy] = NB_DIRS[b.dir] || [1, 0];
-        let ex = sx + ux * b.len, ey = sy + uy * b.len;
-        const te = el(b.tid);
-        if (te) {
-            if (ux > 0) ex = te.offsetLeft - 3; else if (ux < 0) ex = te.offsetLeft + te.offsetWidth + 3;
-            if (uy > 0) ey = te.offsetTop - 3; else if (uy < 0) ey = te.offsetTop + te.offsetHeight + 3;
-            // never turn round: a box that moved behind the start leaves a short stub
-            if ((ux > 0 && ex < sx + 8) || (ux < 0 && ex > sx - 8)) ex = sx + ux * 8;
-            if ((uy > 0 && ey < sy + 8) || (uy < 0 && ey > sy - 8)) ey = sy + uy * 8;
-        }
+        const len = NB_ARROW_SEGMENT_LENGTH;
+        const ex = sx + ux * len, ey = sy + uy * len;
         return (memo[b.id] = { sx, sy, ex, ey, ux, uy });
     }
     function nbRenderArrows(canvas, page) {
@@ -23164,7 +23156,7 @@ SQIDAQAB
             el.style.display = '';
             const pad = 10, x0 = Math.min(g.sx, g.ex) - pad, y0 = Math.min(g.sy, g.ey) - pad, w = Math.abs(g.ex - g.sx) + 2 * pad, h = Math.abs(g.ey - g.sy) + 2 * pad;
             el.style.left = x0 + 'px'; el.style.top = y0 + 'px'; el.style.width = w + 'px'; el.style.height = h + 'px';
-            const X1 = g.sx - x0, Y1 = g.sy - y0, X2 = g.ex - x0, Y2 = g.ey - y0, hs = 7;
+            const X1 = g.sx - x0, Y1 = g.sy - y0, X2 = g.ex - x0, Y2 = g.ey - y0, hs = 4;
             const head = b.head ? `<polygon points="${X2},${Y2} ${X2 - g.ux * hs - g.uy * hs * 0.6},${Y2 - g.uy * hs - g.ux * hs * 0.6} ${X2 - g.ux * hs + g.uy * hs * 0.6},${Y2 - g.uy * hs + g.ux * hs * 0.6}" fill="currentColor"/>` : '';
             el.innerHTML = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><line x1="${X1}" y1="${Y1}" x2="${X2}" y2="${Y2}" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>${head}<line class="nb-arrow-hit" x1="${X1}" y1="${Y1}" x2="${X2}" y2="${Y2}" stroke="transparent" stroke-width="14"><title>Double-click to remove this arrow</title></line></svg>`;
         });
@@ -23235,55 +23227,7 @@ SQIDAQAB
             const pt = nbArrowStart(editable, dir); if (!pt) return false;
             sx = pt.x - cr.left; sy = pt.y - cr.top;
         }
-        const [ux, uy] = NB_DIRS[dir];
-        // the first box in the way: its edge is where the arrow ends
-        let tid = null, best = Infinity;
-        // a turn leaves the line the arrow came from: boxes level with the box it started in (its own column or row) are not its destination
-        const turning = !!prev && (NB_DIRS[prev.dir][0] !== 0) !== (ux !== 0);
-        const sL = blockEl.offsetLeft, sT = blockEl.offsetTop, sR = sL + blockEl.offsetWidth, sB = sT + blockEl.offsetHeight;
-        const sameLane = (l, t, r, b) => (uy !== 0 ? l < sR && r > sL : t < sB && b > sT);
-        canvas.querySelectorAll('.nb-block').forEach((e) => {
-            if (e === blockEl || e.classList.contains('nb-arrow') || e.dataset.id === block.id) return;
-            const l = e.offsetLeft, t = e.offsetTop, r = l + e.offsetWidth, b = t + e.offsetHeight;
-            if (turning && sameLane(l, t, r, b)) return;
-            let d = null;
-            if (ux > 0 && l > sx + 4 && t - 6 <= sy && sy <= b + 6) d = l - sx;
-            else if (ux < 0 && r < sx - 4 && t - 6 <= sy && sy <= b + 6) d = sx - r;
-            else if (uy > 0 && t > sy + 4 && l - 6 <= sx && sx <= r + 6) d = t - sy;
-            else if (uy < 0 && b < sy - 4 && l - 6 <= sx && sx <= r + 6) d = sy - b;
-            if (d != null && d < best) { best = d; tid = e.dataset.id; }
-        });
-        let len = tid ? Math.max(12, best - 3) : 72;
-        if (!tid && prev) {
-          const pd = NB_DIRS[prev.dir];
-          if (turning) {
-            // a turn: find the nearest box ahead in the new direction, wherever it is sideways, and bring the last arrow to line up with it
-            let cand = null, cd = Infinity;
-            canvas.querySelectorAll('.nb-block').forEach((e) => {
-              if (e === blockEl || e.classList.contains('nb-arrow')) return;
-              const l = e.offsetLeft, t = e.offsetTop, r = l + e.offsetWidth, b = t + e.offsetHeight;
-              if (sameLane(l, t, r, b)) return;
-              const ahead = uy > 0 ? t - sy : uy < 0 ? sy - b : ux > 0 ? l - sx : sx - r;
-              if (ahead > 4 && ahead < cd) { cd = ahead; cand = e; }
-            });
-            if (cand) {
-              const lane = page.doc.blocks.filter((b) => b.type === 'arrow' && b.tid === cand.dataset.id && b.dir === dir).length;
-              const off = (lane % 2 ? 1 : -1) * Math.ceil(lane / 2) * 16;
-              const g0 = nbArrowEnds(canvas, page, prev);
-              const vertical = uy !== 0;
-              const target = vertical ? cand.offsetLeft + cand.offsetWidth / 2 + off : cand.offsetTop + cand.offsetHeight / 2 + off;
-              const origin = vertical ? g0.sx : g0.sy, sign = vertical ? pd[0] : pd[1];
-              const need = (target - origin) * sign;
-              if (need >= 12) {
-                prev.len = Math.round(need); prev.tid = null;
-                if (vertical) sx = target; else sy = target;
-                tid = cand.dataset.id;
-                const edge = uy > 0 ? cand.offsetTop : uy < 0 ? cand.offsetTop + cand.offsetHeight : ux > 0 ? cand.offsetLeft : cand.offsetLeft + cand.offsetWidth;
-                len = Math.max(12, Math.abs(edge - (vertical ? sy : sx)) - 3);
-              }
-            }
-          }
-        }
+        const tid = null, len = NB_ARROW_SEGMENT_LENGTH;
         if (prev) prev.head = false;
         const seg = { id: notesNewId(), type: 'arrow', sid: prev ? prev.sid : block.id, dx: 0, dy: 0, dir, len, tid, head: true, prev: prev ? prev.id : null };
         if (!prev) { seg.dx = Math.round(sx - blockEl.offsetLeft); seg.dy = Math.round(sy - blockEl.offsetTop); }
@@ -23511,7 +23455,7 @@ SQIDAQAB
             [K('Ctrl') + ' + ' + K('Alt') + ' + ' + K('1') + ' / ' + K('2') + ' / ' + K('0'), 'Turns the line into a title, a heading, or normal text.'],
             [K('Shift') + ' + ' + K('H'), 'On an empty line, turns it into a heading. Press it again to go back to normal text with a capital H typed. Anywhere else it is just a capital H.'],
             [K('Alt') + ' + ' + K('Shift') + ' + ' + K('H'), 'Turns the line the cursor is on into a heading, and back again.'],
-            [K('Shift') + ' + ' + K('→') + ' ' + K('←') + ' ' + K('↑') + ' ' + K('↓'), 'Draws an arrow from the cursor in that direction. It runs until it meets another box and stops at its edge, so arrows from different places arrive neatly. Press another one straight after and the line carries on from the end of the last, with the head moving to the new end. Double-click an arrow to remove it.'],
+            [K('Shift') + ' + ' + K('→') + ' ' + K('←') + ' ' + K('↑') + ' ' + K('↓'), 'Draws a small arrow from the cursor in that direction. Press another one straight after to continue it around a corner. Double-click an arrow to remove it.'],
             [K('Backspace') + ' next to a bullet', 'With the cursor directly to the right of a bullet, takes the bullet away and keeps the text.'],
             [K('-') + ' then ' + K('Space'), 'At the start of a line, turns it into a bullet point.'],
             [K('.') + K('.'), 'At the start of a line, also turns it into a bullet point.'],
