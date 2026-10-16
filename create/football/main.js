@@ -1470,7 +1470,8 @@
     const host = el('planBar'), lg = world.league, plans = lg.tacticalPlans = lg.tacticalPlans || [];
     const active = plans.find((p) => p.id === lg.activePlanId) || null;
     if (!active) lg.activePlanId = null;
-    host.innerHTML = `<select id="planSelect" aria-label="Saved tactical plans"><option value="">Saved match plans</option>${plans.map((p) => `<option value="${p.id}"${active && active.id === p.id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select><button id="savePlan" class="primary" title="${active ? 'Write the team as it is now into this plan' : 'Save the team as it is now as a new plan'}">${active ? 'Update plan' : 'Save as new plan'}</button>${active ? '<button id="saveNewPlan">Save as new plan</button>' : ''}<button id="loadPlan"${active ? '' : ' disabled'} title="Discard changes since the plan was saved">Restore</button><button id="deletePlan"${active ? '' : ' disabled'}>Delete</button>${active ? `<span class="note plan-active">Playing the next game with “${esc(active.name)}”.</span>` : ''}`;
+    host.innerHTML = `<select id="planSelect" aria-label="Saved tactical plans"><option value="">Saved match plans</option>${plans.map((p) => `<option value="${p.id}"${active && active.id === p.id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select><button id="savePlan" class="primary" title="${active ? 'Write the team as it is now into this plan' : 'Save the team as it is now as a new plan'}">${active ? 'Update plan' : 'Save as new plan'}</button>${active ? '<button id="saveNewPlan">Save as new plan</button>' : ''}<button id="loadPlan"${active ? '' : ' disabled'} title="Discard changes since the plan was saved">Restore</button><button id="deletePlan"${active ? '' : ' disabled'}>Delete</button>${world.planNote ? `<span class="note plan-active" role="status">${esc(world.planNote)}</span>` : ''}${active ? `<span class="note plan-active">Playing the next game with “${esc(active.name)}”.</span>` : ''}`;
+    world.planNote = '';
     const select = host.querySelector('#planSelect');
     select.addEventListener('change', () => {
       const plan = plans.find((p) => p.id === select.value);
@@ -1487,8 +1488,12 @@
     };
     host.querySelector('#savePlan').addEventListener('click', () => {
       if (!active) { saveNew(); return; }
-      Object.assign(active, capturePlan(team, active.name), { id: active.id });
-      lg.activePlanId = active.id; saveSoon(); renderTactics();
+      // updating asks for the plan's name (the current one is offered, e.g. "Plan 1") and then says it has been updated
+      const name = prompt('Enter plan name (for example Plan 1):', active.name);
+      if (name == null) return;
+      const clean = name.trim() || active.name;
+      Object.assign(active, capturePlan(team, clean), { id: active.id });
+      lg.activePlanId = active.id; world.planNote = '“' + clean + '” updated.'; saveSoon(); renderTactics();
     });
     const sn = host.querySelector('#saveNewPlan'); if (sn) sn.addEventListener('click', saveNew);
     host.querySelector('#loadPlan').addEventListener('click', () => { if (!active) return; restorePlan(team, active); world.selSlot = null; world.scn = {}; saveSoon(); renderTactics(); });

@@ -1,9 +1,9 @@
 // Replays of build-up tests, drawn with the arrows that explain them: the passes (yellow if they came off, red dashed if they did not), who the
 // opposition had gone to (orange dashed lines), and which of your players had nobody on him (green rings). Each replay is one of the tests in a run,
-// kept as it happened. The picture is the 66 m of the pitch the move happened in, your goal on the left.
+// kept as it happened. The picture is the whole pitch, your goal on the left.
 (function () {
   const FM = (window.FM = window.FM || {});
-  const L = 105, W = 68, PS = 6, VW = 66 * PS, VH = W * PS;
+  const L = 105, W = 68, PS = 6, VW = L * PS, VH = W * PS;   // the camera shows the whole pitch
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const lerp = (a, b, k) => a + (b - a) * k;
   let X0 = 0;   // the left edge of the part of the pitch shown, in metres
@@ -91,8 +91,7 @@
       '<div class="rp-bar"><button type="button" class="el-go primary rp-play">Play</button><input type="range" class="rp-seek" min="0" max="' + Math.round(clip.end * 100) + '" value="0" aria-label="Position in the replay"><select class="rp-speed" aria-label="Speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></div>' +
       '<div class="rp-key"><span><i class="rp-k ok"></i> pass that came off</span><span><i class="rp-k no"></i> pass lost</span><span><i class="rp-k job"></i> their job: goes to this player</span><span><i class="rp-k free"></i> your player with nobody on him</span></div>' +
       '';
-    // show the part of the pitch the move happened in (from your own box to the final third), not always the first 66 m
-    { const xs = d.ball.map((b) => b[0]).concat(d.ev.filter((e) => e.type === 'pass').reduce((a, e) => a.concat([e.x, e.tx]), [])); const lo = Math.min.apply(null, xs), hi = Math.max.apply(null, xs); I.x0 = Math.max(0, Math.min(L - 66, (lo + hi) / 2 - 33)); }
+    I.x0 = 0;   // the whole pitch is always in view
     const svg = host.querySelector('.rp-pitch'), seek = host.querySelector('.rp-seek'), btn = host.querySelector('.rp-play');
     const draw = () => { X0 = I.x0; svg.innerHTML = frame(d, clip, I.t, kitMap); seek.value = String(Math.round(I.t * 100)); };
     const tick = (ts) => { if (!I.playing) return; if (!I.last) I.last = ts; I.t = Math.min(clip.end, I.t + (ts - I.last) / 1000 * I.speed); I.last = ts; draw(); if (I.t >= clip.end) { halt(); btn.textContent = 'Replay'; return; } I.raf = requestAnimationFrame(tick); };
