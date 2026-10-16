@@ -398,15 +398,6 @@
     if (done) el('finishText').textContent = 'Full time: ' + home.name + ' ' + m.score[home.id] + '-' + m.score[away.id] + ' ' + away.name + '.';
   }
 
-  // the approach for the match: attacking, balanced, cautious or defensive. It changes the settings the engine plays by, from now on.
-  document.querySelectorAll('[data-ment]').forEach((b) => b.addEventListener('click', () => {
-    const m = world.match; if (!m || !world.league) return;
-    const team = m.teams.find((t) => t.id === world.league.userId); if (!team) return;
-    FM.setMentality(team, b.dataset.ment);
-    document.querySelectorAll('[data-ment]').forEach((x) => x.classList.toggle('on', x === b));
-    const word = { attacking: 'attacking', balanced: 'balanced', cautious: 'cautious', defensive: 'defensive' }[b.dataset.ment];
-    say('You tell the team to play ' + word + '.', '', 2.5);
-  }));
   el('pitchPlay').addEventListener('click', () => el('playBtn').click());
   el('pitchPause').addEventListener('click', () => el('playBtn').click());
   el('playBtn').addEventListener('click', () => {
@@ -709,7 +700,6 @@
     world.hl = null; world.hlScanned = null; world.hlWait = null; world.running = true; world.speed = 1; world.highlightsOnly = false; world.highlightUntil = 0; world.highlightSearching = false; world.highlightRevealFrom = 0; world.shownEvents = 0; world.lastStats = ''; world.trails = []; world.impacts = []; world.vt = 0; world.commentaryUntil = 0; world.commentaryTurns = {};
     say('The teams are ready. The match is about to begin.', '', 2.5);
     world.selSlot = null; world.selBench = null; world.tab = 'squad';
-    document.querySelectorAll('[data-ment]').forEach((x) => x.classList.toggle('on', x.dataset.ment === 'balanced'));
     document.querySelectorAll('[data-speed]').forEach((x) => x.classList.toggle('on', x.dataset.speed === '1'));
     const m = world.match;
     el('feed').innerHTML = '';
@@ -1122,6 +1112,8 @@
     ['squad', '1. Squad and formation'], ['build', '2. Build-up'], ['midfield', '3. Play through midfield'], ['final', '4. Final third'],
     ['transdef', '5. Defensive transition'], ['organised', '6. Organised defending'], ['transatt', '7. Attacking transition'], ['setpieces', 'Set pieces'],
   ];
+  // In a match: the squad, then the shape in each phase of play.
+  const MATCH_TABS = [['squad', 'Squad and substitutes'], ['build', 'Build-up'], ['midfield', 'Through midfield'], ['final', 'Final third'], ['organised', 'Defending']];
   const TEST_TABS = [['build','Build-up'],['midfield','Midfield'],['final','Final third'],['press','Pressing their build-up'],['organised','Defending your third'],['transdef','Defensive transition'],['transatt','Attacking transition']];
   // Each tab with a board shows the team in that phase of play.
   const BOARD_KEY = { squad: 'shape', build: 'build', midfield: 'midfield', final: 'final', organised: 'without' };
@@ -1528,10 +1520,12 @@
     const team = userTeam();
     if (FM.inferShapeTactics) FM.inferShapeTactics(team);
     // During a match the board under the pitch is the squad and formation page, with the substitutes on the side: no tabs, no tests, no plans.
+    // In a match the pages are the squad and the substitutes, and where the team stands in each phase of play as it is playing now: drag a
+    // shirt to change it and the team plays from there. (No ball, no opposition, no tests: those are for the preparation.)
     const inMatch = world.view === 'match';
-    if (inMatch) { world.testing = false; world.tab = 'squad'; }
-    el('tabs').hidden = inMatch; el('planBar').hidden = inMatch;
-    const head = document.querySelector('#tactics .tac-head h2'); if (head) head.textContent = inMatch ? 'Squad and substitutes' : 'Tactics';
+    if (inMatch) { world.testing = false; if (MATCH_TABS.every(([k]) => k !== world.tab)) world.tab = 'squad'; }
+    el('tabs').hidden = false; el('planBar').hidden = inMatch;
+    const head = document.querySelector('#tactics .tac-head h2'); if (head) head.textContent = inMatch ? (world.tab === 'squad' ? 'Squad and substitutes' : 'Positions in play') : 'Tactics';
     renderPlanBar(team);
     el('subInfo').textContent = '';
     el('subInfo').hidden = true;
@@ -1543,24 +1537,28 @@
     }
     // arriving at the tests afresh shows the controls (and what we recommend), not the last reading
     if (world.testing && world._tacTesting !== true) Object.keys(world.phaseLabs || {}).forEach((k) => { const lg0 = world.league, rr = k === 'build' ? (lg0.labRuns || []) : ((lg0.phaseLabRuns || {})[k] || []); if (!world.phaseLabs[k].busy) world.phaseLabs[k].view = rr.length ? 'results' : 'setup'; });
-    const tabs = world.testing ? TEST_TABS : PREP_TABS;
+    const tabs = inMatch ? MATCH_TABS : world.testing ? TEST_TABS : PREP_TABS;
     const progressKey = world.testing ? 'testPhaseMax' : 'prepPhaseMax', maxPhase = world.league[progressKey] || 0;
     // A step you have visited and moved on from turns green.
     // In the testing phase every test is open at once (they are largely the same statistical work, so only one has to be done), and a test you have
     // run turns green.
     const testRuns = (k) => (k === 'build' ? (world.league.labRuns || []) : ((world.league.phaseLabRuns || {})[k] || [])).length > 0;
-    el('tabs').innerHTML = tabs.map(([k, label], i) => world.testing
+    el('tabs').innerHTML = tabs.map(([k, label], i) => inMatch
+      ? `<button data-tab="${k}" data-phase-index="${i}" class="${world.tab === k ? 'on' : ''}">${label}</button>`
+      : world.testing
       ? `<button data-tab="${k}" data-phase-index="${i}" class="${world.tab === k ? 'on' : (testRuns(k) ? 'done' : '')}">${label}</button>`
       : `<button data-tab="${k}" data-phase-index="${i}" class="${world.tab === k ? 'on' : (i < maxPhase ? 'done' : '')}">${label}</button>`).join('');
     el('tabs').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
       const i = +b.dataset.phaseIndex; world.tab = b.dataset.tab;
+      if (inMatch) { world.selSlot = null; renderTactics(); return; }
       if (!world.testing) {
         world.league[progressKey] = Math.max(world.league[progressKey] || 0, i + 1);
         if (i >= 6) world.league.prepStep = Math.max(world.league.prepStep || 0, 2);
       }
       saveSoon(); renderTactics(); renderPrepFlow();
     }));
-    if (world.testing) renderTestPhase(team, world.tab);
+    if (inMatch) renderBoardTab(team, world.tab);
+    else if (world.testing) renderTestPhase(team, world.tab);
     else if (world.tab === 'setpieces') renderSetPieces(team);
     else if (world.tab === 'transdef' || world.tab === 'transatt') renderTransitionTab(team, world.tab);
     else if (['build', 'midfield', 'final', 'organised'].indexOf(world.tab) >= 0 && FM.renderScenario && nextOpponent()) renderScenarioTab(team, world.tab);

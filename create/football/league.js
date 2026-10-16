@@ -423,7 +423,6 @@
 
   FM.finishFixture = function (league, fx, match) {
     const home = match.home, away = match.away;
-    [home, away].forEach((t) => { if (FM.setMentality && t.mentBase) FM.setMentality(t, 'balanced'); });   // the match approach does not outlast the match
     fx.played = true;
     fx.hg = match.score[home.id]; fx.ag = match.score[away.id];
     fx.stats = {};
